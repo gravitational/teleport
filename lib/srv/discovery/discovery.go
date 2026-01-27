@@ -413,7 +413,8 @@ type Server struct {
 
 	// dynamicMatcherWatcher is an initialized Watcher for DiscoveryConfig resources.
 	// Each new event must update the existing resources.
-	dynamicMatcherWatcher types.Watcher
+	dynamicMatcherWatcher   types.Watcher
+	dynamicMatcherWatcherMu sync.Mutex
 
 	// dynamicDatabaseFetchers holds the current Database Fetchers for the Dynamic Matchers (those coming from DiscoveryConfig resource).
 	// The key is the DiscoveryConfig name.
@@ -523,20 +524,12 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.startDynamicMatchersWatcher(s.ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	s.startDynamicMatchersWatcher(s.ctx)
 
 	return s, nil
 }
 
-// startDynamicMatchersWatcher starts a watcher for DiscoveryConfig events.
-// After initialization, it starts a goroutine that receives and handles events.
-func (s *Server) startDynamicMatchersWatcher(ctx context.Context) error {
-	if s.DiscoveryGroup == "" {
-		return nil
-	}
-
+func (s *Server) runDynamicMatchersWatcher(ctx context.Context) error {
 	watcher, err := s.AccessPoint.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{{
 			Kind: types.KindDiscoveryConfig,
@@ -556,14 +549,46 @@ func (s *Server) startDynamicMatchersWatcher(ctx context.Context) error {
 		return trace.Wrap(watcher.Error())
 	}
 
+	s.dynamicMatcherWatcherMu.Lock()
 	s.dynamicMatcherWatcher = watcher
+	s.dynamicMatcherWatcherMu.Unlock()
 
 	if err := s.loadExistingDynamicDiscoveryConfigs(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	go s.startDynamicWatcherUpdater()
+	s.startDynamicWatcherUpdater()
 	return nil
+}
+
+// startDynamicMatchersWatcher starts a watcher for DiscoveryConfig events.
+// Does not block and runs until the provided context is done.
+// Restarts on watcher errors, with a 1 minute delay between retries.
+func (s *Server) startDynamicMatchersWatcher(ctx context.Context) {
+	if s.DiscoveryGroup == "" {
+		return
+	}
+
+	s.Log.DebugContext(ctx, "Starting DiscoveryConfig watcher")
+	go func() {
+		for {
+			if err := s.runDynamicMatchersWatcher(ctx); err != nil {
+				s.Log.ErrorContext(ctx, "DiscoveryConfig watcher failed", "error", err)
+			}
+
+			select {
+			case <-s.ctx.Done():
+				// Break the loop if server's context is done.
+				s.Log.DebugContext(ctx, "Shutting down DiscoveryConfig watcher", "error", s.ctx.Err())
+				return
+
+			case <-s.clock.After(1 * time.Minute):
+				// runDynamicMatchersWatcher might fail due to a transient error in the watcher.
+				// Wait 1 minute before retrying.
+				s.Log.InfoContext(ctx, "Restarting DiscoveryConfig watcher", "error", s.ctx.Err())
+			}
+		}
+	}()
 }
 
 // publicProxyAddress returns the public proxy address to use for installation scripts.
@@ -1783,6 +1808,8 @@ func (s *Server) Start() error {
 // loadExistingDynamicDiscoveryConfigs loads all the dynamic discovery configs for the current discovery group
 // and setups their matchers.
 func (s *Server) loadExistingDynamicDiscoveryConfigs() error {
+	hasDynamicMatchers := false
+	discoveryConfigsMap := make(map[string]*discoveryconfig.DiscoveryConfig)
 	// Add all existing DiscoveryConfigs as matchers.
 	nextKey := ""
 	for {
@@ -1800,13 +1827,23 @@ func (s *Server) loadExistingDynamicDiscoveryConfigs() error {
 				s.Log.WarnContext(s.ctx, "Failed to update dynamic matchers for discovery config", "discovery_config", dc.GetName(), "error", err)
 				continue
 			}
-			s.dynamicDiscoveryConfig[dc.GetName()] = dc
+			discoveryConfigsMap[dc.GetName()] = dc
+			hasDynamicMatchers = true
 		}
 		if respNextKey == "" {
 			break
 		}
 		nextKey = respNextKey
 	}
+
+	s.dynamicDiscoveryConfigMu.Lock()
+	s.dynamicDiscoveryConfig = discoveryConfigsMap
+	s.dynamicDiscoveryConfigMu.Unlock()
+
+	if hasDynamicMatchers {
+		s.notifyDiscoveryConfigChanged()
+	}
+
 	return nil
 }
 
@@ -2050,11 +2087,15 @@ func (s *Server) Stop() {
 	if s.gcpWatcher != nil {
 		s.gcpWatcher.Stop()
 	}
+
+	s.dynamicMatcherWatcherMu.Lock()
 	if s.dynamicMatcherWatcher != nil {
 		if err := s.dynamicMatcherWatcher.Close(); err != nil {
 			s.Log.WarnContext(s.ctx, "Dynamic matcher watcher closing error", "error", err)
 		}
 	}
+	s.dynamicMatcherWatcherMu.Unlock()
+
 	if s.gcpClients != nil {
 		_ = s.gcpClients.Close()
 	}
