@@ -56,6 +56,7 @@ export function DetailsView({
   changeManagingCluster,
   updateEvent,
   platform,
+  currentVersion,
   onCheckForUpdates,
   onDownload,
   onCancelDownload,
@@ -63,6 +64,7 @@ export function DetailsView({
 }: {
   updateEvent: AppUpdateEvent;
   platform: Platform;
+  currentVersion: string;
   onCheckForUpdates(): void;
   onInstall(): void;
   onDownload(): void;
@@ -82,6 +84,7 @@ export function DetailsView({
       <UpdaterState
         event={updateEvent}
         platform={platform}
+        currentVersion={currentVersion}
         onCheckForAppUpdates={onCheckForUpdates}
         onDownload={onDownload}
         onCancelDownload={onCancelDownload}
@@ -95,6 +98,7 @@ export function DetailsView({
 function UpdaterState({
   event,
   platform,
+  currentVersion,
   onCheckForAppUpdates,
   onDownload,
   onCancelDownload,
@@ -102,6 +106,7 @@ function UpdaterState({
 }: {
   event: AppUpdateEvent;
   platform: Platform;
+  currentVersion: string;
   onCheckForAppUpdates(): void;
   onDownload(): void;
   onCancelDownload(): void;
@@ -146,9 +151,14 @@ function UpdaterState({
       return (
         <Stack gap={3} width="100%">
           {event.autoUpdatesStatus.enabled && (
-            <Flex gap={1}>
+            <Flex gap={3}>
               <Checks color="success.main" size="medium" />
-              <P2>Teleport Connect is up to date.</P2>
+              <Stack gap={0}>
+                <P2>No updates available.</P2>
+                <P3 m={0} color="text.slightlyMuted">
+                  Teleport Connect {currentVersion}
+                </P3>
+              </Stack>
             </Flex>
           )}
           <ButtonSecondary

@@ -80,6 +80,7 @@ export function makeProps(
     shouldSkipVersionCheck: false,
     disableVersionCheck: () => {},
     platform: 'darwin',
+    currentVersion: '14.7.2',
     changeAppUpdatesManagingCluster: async () => {},
     checkForAppUpdates: async () => {},
     downloadAppUpdate: async () => {},

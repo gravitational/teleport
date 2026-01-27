@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { AuthProvider } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 import {
@@ -185,7 +185,10 @@ export function useClusterLogin(props: Props) {
     configService.set('skipVersionCheck', true);
     setShouldSkipVersionCheck(true);
   }
-  const { platform } = mainProcessClient.getRuntimeSettings();
+  const { platform, appVersion } = useMemo(
+    () => mainProcessClient.getRuntimeSettings(),
+    [mainProcessClient]
+  );
 
   return {
     ssoPrompt,
@@ -204,6 +207,7 @@ export function useClusterLogin(props: Props) {
     shouldSkipVersionCheck,
     disableVersionCheck,
     platform,
+    currentVersion: appVersion,
     appUpdateEvent: appUpdaterContext.updateEvent,
     downloadAppUpdate: mainProcessClient.downloadAppUpdate,
     cancelAppUpdateDownload: mainProcessClient.cancelAppUpdateDownload,
