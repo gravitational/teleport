@@ -68,6 +68,7 @@ export default function makeApp(json: any): App {
     subKind,
     samlAppLaunchUrls,
     mcp,
+    supportedFeatureIds,
   } = json;
 
   const launchUrl = getLaunchUrl({
@@ -157,5 +158,6 @@ export default function makeApp(json: any): App {
     samlAppLaunchUrls,
     mcp,
     cloudInstance,
+    supportedFeatureIds,
   };
 }
