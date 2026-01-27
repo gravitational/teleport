@@ -44,6 +44,7 @@ func newAuthorizer(client *resty.Client, clientID string, clientSecret string, l
 		client:       client,
 		clientID:     clientID,
 		clientSecret: clientSecret,
+		log:          log,
 	}
 }
 
