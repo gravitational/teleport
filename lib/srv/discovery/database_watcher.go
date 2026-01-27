@@ -38,7 +38,7 @@ import (
 const databaseEventPrefix = "db/"
 
 func (s *Server) startDatabaseWatchers() error {
-	if len(s.databaseFetchers) == 0 && s.dynamicMatcherWatcher == nil {
+	if len(s.databaseFetchers) == 0 && s.DiscoveryGroup == "" {
 		return nil
 	}
 
