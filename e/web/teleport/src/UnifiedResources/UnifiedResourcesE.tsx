@@ -22,8 +22,10 @@ import { SamlAppEditAndDelete } from 'e-teleport/Discover/SamlApplication/EditAn
 import { SamlAppActionProvider } from 'e-teleport/SamlApplication/hooks/useSamlAppActionsE';
 import useTeleportE from 'e-teleport/useTeleportE';
 import {
+  AppAWSRoleMenu,
   AppRequestButton,
   RequestButton,
+  resourceIsAWSConsoleAndSupportsConstraints,
 } from 'e-teleport/Workflow/NewRequest/RequestButton';
 import {
   addOrRemoveIdentityCenterAssignments,
@@ -51,6 +53,8 @@ export function UnifiedResourcesE() {
   const {
     addOrRemoveResources,
     addedResources,
+    addedResourceConstraints,
+    setResourceConstraints,
     clearAddedResources,
     setAddedResources,
     updateNamespacesForKubeCluster,
@@ -65,6 +69,8 @@ export function UnifiedResourcesE() {
     ctx,
     isResourceRequest: true,
     addedResources,
+    addedResourceConstraints,
+    setResourceConstraints,
     reset: clearAddedResources,
   });
 
@@ -86,6 +92,19 @@ export function UnifiedResourcesE() {
       showCheckout ||
       includedResourceMode === 'requestable';
     const requestStarted = numAddedResources > 0;
+
+    if (resourceIsAWSConsoleAndSupportsConstraints(resource)) {
+      return (
+        <AppAWSRoleMenu
+          agent={resource}
+          addOrRemoveResources={addOrRemoveResources}
+          addedResources={addedResources}
+          addedResourceConstraints={addedResourceConstraints}
+          setResourceConstraints={setResourceConstraints}
+          requestStarted={requestStarted}
+        />
+      );
+    }
 
     if (showRequestButton && resource.kind === 'app') {
       return (
@@ -228,6 +247,8 @@ export function UnifiedResourcesE() {
                 addOrRemoveResources(requestItems(kind, id, name))
               }
               toggleResources={addOrRemoveResources}
+              addedResourceConstraints={addedResourceConstraints}
+              setResourceConstraints={setResourceConstraints}
               reset={cancelCheckout}
               onClose={clearAttempt}
               isResourceRequest={true} // only resource requests happen from this page

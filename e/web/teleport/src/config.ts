@@ -1,9 +1,10 @@
 import { generatePath } from 'react-router';
 
 import { SortType } from 'design/DataTable/types';
+import { ResourceId } from 'shared/services/accessRequests';
 
 import { AccessMonitoringRuleFilter } from 'e-teleport/services/accessmonitoringrule/types';
-import { AccessRequestFilter, ResourceId } from 'e-teleport/services/workflow';
+import { AccessRequestFilter } from 'e-teleport/services/workflow';
 import ossCfg, { UrlResourcesParams } from 'teleport/config';
 import generateResourcePath from 'teleport/generateResourcePath';
 import type { PluginKind } from 'teleport/services/integrations/types';

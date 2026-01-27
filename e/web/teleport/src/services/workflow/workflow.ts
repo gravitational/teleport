@@ -1,4 +1,4 @@
-import { makeAccessRequest } from 'shared/services/accessRequests';
+import { makeAccessRequest, ResourceId } from 'shared/services/accessRequests';
 
 import cfg from 'e-teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
@@ -10,7 +10,6 @@ import {
   AccessRequestFilter,
   CreateAccessRequest,
   PromoteAccessRequest,
-  ResourceId,
   UpdateAccessRequest,
 } from './types';
 

@@ -1,6 +1,7 @@
 import {
   RequestKind,
   RequestState,
+  ResourceAccessId,
   ResourceId,
 } from 'shared/services/accessRequests';
 
@@ -10,6 +11,7 @@ export interface CreateAccessRequest {
   reason?: string;
   roles?: string[];
   resourceIds?: ResourceId[];
+  resourceAccessIds?: ResourceAccessId[];
   suggestedReviewers?: string[];
   maxDuration?: Date;
   requestTTL?: Date;

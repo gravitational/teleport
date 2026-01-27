@@ -52,7 +52,12 @@ import { CtaEvent } from 'teleport/services/userEvent';
 import { StatusInfo } from 'teleport/UnifiedResources/StatusInfo';
 import { useUser } from 'teleport/User/UserContext';
 
-import { AppRequestButton, RequestButton } from './RequestButton';
+import {
+  AppAWSRoleMenu,
+  AppRequestButton,
+  RequestButton,
+  resourceIsAWSConsoleAndSupportsConstraints,
+} from './RequestButton';
 import { RequestCheckout } from './RequestCheckout';
 import { Roles } from './Roles';
 import {
@@ -114,6 +119,8 @@ function NewRequest(props: State) {
     accessRequestKinds,
     selectedAccessRequestKind,
     addedResources,
+    addedResourceConstraints,
+    setResourceConstraints,
     appsGrantedByUserGroup,
     userGroupFetchAttempt,
     addOrRemoveResources,
@@ -292,7 +299,19 @@ function NewRequest(props: State) {
               resource,
               ui: {
                 ActionButton:
-                  resource.kind === 'app' ? (
+                  addedResourceConstraints &&
+                  setResourceConstraints &&
+                  resourceIsAWSConsoleAndSupportsConstraints(resource) &&
+                  resource.awsRoles?.length ? (
+                    <AppAWSRoleMenu
+                      agent={resource}
+                      addedResources={addedResources}
+                      addOrRemoveResources={addOrRemoveResources}
+                      addedResourceConstraints={addedResourceConstraints}
+                      setResourceConstraints={setResourceConstraints}
+                      isNewRequestFlow={true}
+                    />
+                  ) : resource.kind === 'app' ? (
                     <AppRequestButton
                       agent={resource}
                       addedResources={addedResources}
@@ -371,6 +390,7 @@ function NewRequest(props: State) {
             ref={transitionRef}
             appsGrantedByUserGroup={appsGrantedByUserGroup}
             addedResources={addedResources}
+            addedResourceConstraints={addedResourceConstraints}
             userGroupFetchAttempt={userGroupFetchAttempt}
             onClose={() => {
               setShowCheckout(false);
@@ -384,6 +404,7 @@ function NewRequest(props: State) {
             reset={clearAddedResources}
             isResourceRequest={isResourceRequest}
             updateNamespacesForKubeCluster={updateNamespacesForKubeCluster}
+            setResourceConstraints={setResourceConstraints}
           />
         )}
       </Transition>

@@ -26,17 +26,27 @@ export const RequestCheckout = forwardRef<
     | 'reset'
     | 'isResourceRequest'
     | 'updateNamespacesForKubeCluster'
+    | 'addedResourceConstraints'
+    | 'setResourceConstraints'
   > & {
     addedResources: ResourceMap;
     transitionState: TransitionStatus;
   }
 >((props, ref) => {
-  const { isResourceRequest, addedResources, reset } = props;
+  const {
+    isResourceRequest,
+    addedResources,
+    reset,
+    addedResourceConstraints,
+    setResourceConstraints,
+  } = props;
   const ctx = useTeleportE();
   const state = useRequestCheckout({
     ctx,
     isResourceRequest,
     addedResources,
+    addedResourceConstraints,
+    setResourceConstraints,
     reset,
   });
 

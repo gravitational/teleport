@@ -9,11 +9,16 @@ import { RequestableResourceKind } from 'shared/components/AccessRequests/NewReq
 import { useSpecifiableFields } from 'shared/components/AccessRequests/NewRequest/useSpecifiableFields';
 import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import {
+  getResourceIDString,
+  RequestKind,
+  ResourceAccessId,
+  ResourceId,
+} from 'shared/services/accessRequests';
 
 import {
   AccessRequest,
   CreateAccessRequest,
-  ResourceId,
 } from 'e-teleport/services/workflow';
 import Ctx from 'e-teleport/teleportContextE';
 import KubeService from 'teleport/services/kube';
@@ -28,6 +33,8 @@ export function useRequestCheckout({
   ctx,
   isResourceRequest,
   addedResources,
+  addedResourceConstraints,
+  setResourceConstraints,
   reset: clearAddedResources,
 }: Props) {
   const { clusterId } = useStickyClusterId();
@@ -82,6 +89,7 @@ export function useRequestCheckout({
         name: resourceName,
         id: resourceId,
         subResourceName,
+        clusterName: clusterId,
       });
     });
   });
@@ -104,6 +112,16 @@ export function useRequestCheckout({
       }
     }
   }, [addedResources, numAddedResources]);
+
+  // If adding constraints, switch to a short-term request.
+  useEffect(() => {
+    if (
+      requestKind === RequestKind.LongTerm &&
+      Object.keys(addedResourceConstraints)?.length
+    ) {
+      setRequestKind(RequestKind.ShortTerm);
+    }
+  }, [addedResourceConstraints]);
 
   // Do a "dry run" of an empty access request to get time
   // options and calculate suggested reviewers.
@@ -158,7 +176,7 @@ export function useRequestCheckout({
       controller.abort();
       clearTimeout(timer);
     };
-  }, [addedResources, requestKind]);
+  }, [addedResources, addedResourceConstraints, requestKind]);
 
   async function createAccessRequest(
     req: CreateRequest,
@@ -167,17 +185,22 @@ export function useRequestCheckout({
     // field 'roles' is expected as just a list of strings
     // in the back.
     let roles: string[];
-    let resourceIds: ResourceId[];
+    let resourceAccessIds: ResourceAccessId[];
+
     if (!isResourceRequest) {
       roles = pendingAccessRequests.map(item => item.name);
     } else {
-      resourceIds = getResourceIdsForRequests();
+      resourceAccessIds = getResourceIDsForRequest({
+        resources: pendingAccessRequestsWithoutParentResource,
+        resourceConstraints: addedResourceConstraints,
+        cluster: clusterId,
+      });
       roles = selectedResourceRequestRoles;
     }
 
     const params: CreateAccessRequest = {
       reason: req.reason,
-      resourceIds,
+      resourceAccessIds,
       suggestedReviewers: req.suggestedReviewers || [],
       dryRun: req.dryRun,
       requestKind: req.requestKind,
@@ -208,9 +231,14 @@ export function useRequestCheckout({
   }
 
   // Fetches the necessary roles for a resource request
+  // TODO(kiosion): update to handle ResourceAccessId.
   function fetchResourceRequestRoles() {
     fetchResourceRequestRolesAttempt.setAttempt({ status: 'processing' });
-    const resourceIdRequest: ResourceId[] = getResourceIdsForRequests();
+    const resourceIdRequest: ResourceId[] = getResourceIDsForRequest({
+      resources: pendingAccessRequestsWithoutParentResource,
+      resourceConstraints: addedResourceConstraints,
+      cluster: clusterId,
+    }).map(r => r.id);
 
     ctx.workflowService
       .fetchResourceRequestRoles(resourceIdRequest)
@@ -229,15 +257,6 @@ export function useRequestCheckout({
 
   function clearAttempt() {
     createAttempt.setAttempt({ status: '' });
-  }
-
-  function getResourceIdsForRequests() {
-    return pendingAccessRequestsWithoutParentResource.map(resource => ({
-      name: resource.id,
-      kind: resource.kind,
-      clusterName: clusterId,
-      subResourceName: resource.subResourceName,
-    }));
   }
 
   async function fetchKubeNamespaces(
@@ -260,6 +279,20 @@ export function useRequestCheckout({
     resetSpecifiableFields();
     clearAttempt();
   }
+
+  // If setting request kind to longTerm, and Constraints are present,
+  // they should be cleared.
+  const setRequestKindWrapper = (newKind: RequestKind) => {
+    const addedConstraintsKeys = Object.keys(
+      addedResourceConstraints
+    ) as (keyof typeof addedResourceConstraints)[];
+    if (newKind === RequestKind.LongTerm && addedConstraintsKeys.length) {
+      for (const k of addedConstraintsKeys) {
+        setResourceConstraints(k, undefined);
+      }
+    }
+    setRequestKind(newKind);
+  };
 
   return {
     createAttempt: createAttempt.attempt,
@@ -291,13 +324,54 @@ export function useRequestCheckout({
     onStartTimeChange,
     cancelCheckout,
     requestKind,
-    setRequestKind,
+    setRequestKind: setRequestKindWrapper,
   };
 }
+
+const getResourceIDsForRequest = ({
+  resources,
+  resourceConstraints,
+  cluster,
+}: {
+  resources: PendingListItem[];
+  resourceConstraints: NewRequestState['addedResourceConstraints'];
+  cluster: string;
+}): ResourceAccessId[] =>
+  resources.map(r => ({
+    id: {
+      name: r.id,
+      kind: r.kind,
+      clusterName: cluster,
+      subResourceName: r.subResourceName,
+    },
+    constraints: getConstraintsForResource({
+      resource: r,
+      resourceConstraints,
+      cluster,
+    }),
+  }));
+
+const getConstraintsForResource = ({
+  resource,
+  resourceConstraints,
+  cluster,
+}: {
+  resource: PendingListItem;
+  resourceConstraints: NewRequestState['addedResourceConstraints'];
+  cluster: string;
+}) =>
+  // Only AWS Console apps support constraints for now.
+  resource.kind === 'app'
+    ? resourceConstraints[
+        getResourceIDString({ cluster, kind: resource.kind, name: resource.id })
+      ]
+    : undefined;
 
 type Props = {
   ctx: Ctx;
   isResourceRequest: boolean;
   addedResources: NewRequestState['addedResources'];
+  addedResourceConstraints: NewRequestState['addedResourceConstraints'];
+  setResourceConstraints: NewRequestState['setResourceConstraints'];
   reset: NewRequestState['clearAddedResources'];
 };

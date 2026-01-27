@@ -13,6 +13,12 @@ import { SharedUnifiedResource } from 'shared/components/UnifiedResources/types'
 import { useAsync } from 'shared/hooks/useAsync';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { AppSubKind } from 'shared/services';
+import {
+  getResourceIDString,
+  ResourceConstraints,
+  ResourceConstraintsMap,
+  ResourceIDString,
+} from 'shared/services/accessRequests';
 import { isAbortError } from 'shared/utils/abortError';
 
 import Ctx from 'e-teleport/teleportContextE';
@@ -120,6 +126,37 @@ export function useNewRequest(ctx: Ctx) {
   const [addedResources, setAddedResources] = useState<ResourceMap>(
     getEmptyResourceState()
   );
+  const [addedResourceConstraints, setAddedResourceConstraints] =
+    useState<ResourceConstraintsMap>({});
+
+  const setResourceConstraints = (
+    key: ResourceIDString,
+    rc?: ResourceConstraints
+  ) =>
+    setAddedResourceConstraints(prev => {
+      if (!rc) {
+        //eslint-disable-next-line unused-imports/no-unused-vars
+        const { [key]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [key]: rc };
+    });
+
+  const unsetConstraintsForItem = (i: RequestItem) => {
+    const key = getResourceIDString({
+      cluster: clusterId,
+      kind: i.kind,
+      name: i.resourceId,
+    });
+    setAddedResourceConstraints(prev => {
+      if (!(key in prev)) {
+        return prev;
+      }
+      // eslint-disable-next-line unused-imports/no-unused-vars
+      const { [key]: _, ...rest } = prev;
+      return rest;
+    });
+  };
 
   const [fetchUsageAttempt, fetchUsage] = useAsync(
     useCallback(async () => {
@@ -234,6 +271,7 @@ export function useNewRequest(ctx: Ctx) {
 
   function clearAddedResources() {
     setAddedResources(getEmptyResourceState());
+    setAddedResourceConstraints({});
   }
 
   const updateAccessRequestKind = useCallback(
@@ -275,6 +313,7 @@ export function useNewRequest(ctx: Ctx) {
           break;
         case 'remove':
           delete newResources[item.kind][id];
+          unsetConstraintsForItem(item);
           break;
         default:
           if (newResources[item.kind][id]) {
@@ -289,6 +328,7 @@ export function useNewRequest(ctx: Ctx) {
                 }
               });
             }
+            unsetConstraintsForItem(item);
           } else {
             newResources[item.kind][id] = val;
           }
@@ -415,6 +455,8 @@ export function useNewRequest(ctx: Ctx) {
     fetchUsageAttempt,
     ctx,
     updateNamespacesForKubeCluster,
+    addedResourceConstraints,
+    setResourceConstraints,
   };
 }
 

@@ -229,7 +229,7 @@ test('select all nodes hostnames in checkout', async () => {
   const proceedToRequest = screen.getByText('Proceed to Request');
   await userEvent.click(proceedToRequest);
 
-  expect(screen.getByText('2 Resources Selected')).toBeInTheDocument();
+  expect(screen.getByText('3 Resources Selected')).toBeInTheDocument();
   hostnames = screen.getAllByText('hostname-node1');
 
   // one in list and one in the checkout
@@ -249,7 +249,7 @@ test('adding resources with bulk action properly adds/removes nodes', async () =
   const proceedToRequest = screen.getByText('Proceed to Request');
   await userEvent.click(proceedToRequest);
 
-  expect(screen.getByText('2 Resources Selected')).toBeInTheDocument();
+  expect(screen.getByText('3 Resources Selected')).toBeInTheDocument();
   hostnames = screen.getAllByText('hostname-node1');
 
   await userEvent.click(await screen.findByTestId('close-checkout'));
@@ -269,11 +269,11 @@ test('select all buttons work properly', async () => {
 
   const addToResource = screen.getByTestId('add_to_resource');
   await userEvent.click(addToResource);
-  expect(screen.getByText('Resources Added (2)')).toBeInTheDocument();
+  expect(screen.getByText('Resources Added (3)')).toBeInTheDocument();
 
   const proceedToRequest = screen.getByText('Proceed to Request');
   await userEvent.click(proceedToRequest);
-  expect(screen.getByText('2 Resources Selected')).toBeInTheDocument();
+  expect(screen.getByText('3 Resources Selected')).toBeInTheDocument();
 });
 
 test('legacy renders no usage info', async () => {
@@ -373,6 +373,75 @@ test('limited: displays upsell link and button when access request limit is reac
   }
 });
 
+test('adding constrained resources to requests', async () => {
+  ecfg.oss.entitlements.AccessRequests = { enabled: true, limit: 0 };
+  render(Component);
+
+  const awsTileTitle = await screen.findByTitle(
+    'https://aws-console.localhost'
+  );
+  expect(awsTileTitle).toBeInTheDocument();
+  // eslint-disable-next-line testing-library/no-node-access
+  const awsTile = awsTileTitle.parentElement?.parentElement;
+  expect(awsTile).toBeInTheDocument();
+  const addButton = await within(awsTile).findByText(/add to request/i);
+  expect(addButton).toBeInTheDocument();
+  await userEvent.click(addButton);
+
+  const devOpsArnOption = await screen.findByText('123456789012: DevOps');
+  expect(devOpsArnOption).toBeInTheDocument();
+  await userEvent.click(devOpsArnOption);
+
+  const proceedToRequest = screen.getByText('Proceed to Request');
+  expect(proceedToRequest).toBeEnabled();
+  await userEvent.click(proceedToRequest);
+  expect(screen.getByText('1 Resource Selected')).toBeInTheDocument();
+  await screen.findAllByText('aws-console');
+  await screen.findAllByText(/123456789012: devops/i);
+
+  const textbox = screen.getByPlaceholderText(/describe your request/i);
+  await userEvent.type(textbox, 'some reason');
+  await waitFor(() => {
+    expect(textbox).toHaveValue('some reason');
+  });
+
+  await userEvent.click(
+    screen.getByRole('button', { name: /submit request/i })
+  );
+
+  expect(ctx.workflowService.createAccessRequest).toHaveBeenCalledWith(
+    {
+      assumeStartTime: null,
+      dryRun: undefined,
+      maxDuration: new Date('2024-02-17T02:51:00.000Z'),
+      reason: 'some reason',
+      requestTTL: new Date('2024-02-17T02:51:00.000Z'),
+      requestKind: 1,
+      resourceAccessIds: [
+        {
+          id: {
+            clusterName: 'localhost',
+            kind: 'app',
+            name: 'aws-console',
+            subResourceName: '',
+          },
+          constraints: {
+            aws_console: {
+              role_arns: ['arn:aws:iam::123456789012:role/DevOps'],
+            },
+          },
+        },
+      ],
+      roles: ['access', 'editor', 'auditor'],
+      suggestedReviewers: ['bob', 'cat', 'george washington'],
+    },
+    undefined
+  );
+
+  const successMsg = await screen.findByText(/make another request/i);
+  expect(successMsg).toBeInTheDocument();
+});
+
 test('created requests specifiable fields are respected on checkout (not overwritten)', async () => {
   ecfg.oss.entitlements.AccessRequests = { enabled: true, limit: 0 };
   render(Component);
@@ -429,12 +498,15 @@ test('created requests specifiable fields are respected on checkout (not overwri
       reason: 'some reason',
       requestTTL: new Date('2024-02-17T02:51:00.000Z'),
       requestKind: 1,
-      resourceIds: [
+      resourceAccessIds: [
         {
-          clusterName: 'localhost',
-          kind: 'node',
-          name: '1',
-          subResourceName: '',
+          id: {
+            clusterName: 'localhost',
+            kind: 'node',
+            name: '1',
+            subResourceName: '',
+          },
+          constraints: undefined,
         },
       ],
       roles: ['access'],
@@ -479,12 +551,15 @@ test('created requests specifiable fields are respected on checkout (not overwri
       reason: '',
       requestKind: 1,
       requestTTL: new Date('2024-02-17T02:51:00.000Z'),
-      resourceIds: [
+      resourceAccessIds: [
         {
-          clusterName: 'localhost',
-          kind: 'node',
-          name: '1',
-          subResourceName: '',
+          id: {
+            clusterName: 'localhost',
+            kind: 'node',
+            name: '1',
+            subResourceName: '',
+          },
+          constraints: undefined,
         },
       ],
       // These fields gotten reset after the first create.
@@ -613,6 +688,41 @@ const nodesResponse = [
         value: 'node2',
       },
     ],
+  },
+  {
+    kind: 'app',
+    name: 'aws-console',
+    description: '',
+    id: 'aws-console',
+    uri: 'https://console.aws.amazon.com/ec2/v2/home',
+    publicAddr: 'aws-console.localhost',
+    fqdn: 'aws-console.localhost',
+    clusterId: 'localhost',
+    labels: [{ name: 'type', value: 'aws-console' }],
+    awsConsole: true,
+    awsRoles: [
+      {
+        name: 'ReadOnlyAccess',
+        display: 'ReadOnlyAccess',
+        accountId: '123456789012',
+        arn: 'arn:aws:iam::123456789012:role/ReadOnlyAccess',
+        requiresRequest: false,
+      },
+      {
+        name: 'DevOps',
+        display: 'DevOps',
+        accountId: '123456789012',
+        arn: 'arn:aws:iam::123456789012:role/DevOps',
+        requiresRequest: true,
+      },
+      {
+        name: 'Administrator',
+        display: 'Administrator',
+        arn: 'arn:aws:iam::123456789012:role/Administrator',
+        requiresRequest: true,
+      },
+    ],
+    supportedFeatureIds: [1],
   },
 ];
 
