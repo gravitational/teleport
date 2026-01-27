@@ -175,10 +175,10 @@ These sections would be nested under a top-level "Install Teleport" section.
          3. (Other operational sections as appropriate, e.g., High Availability, Backups, Troubleshooting, etc.)
       2. etc.
 2. Installing Teleport Agents to Connect Resources
-   1. Database Access
-      1. Amazon EC2
-         1. Installation
-         2. Upgrading
+    1. Amazon EC2
+       1. Installation
+       2. Configuring services
+       3. Upgrading        
    2. etc.
 3. Installing Teleport Clients for Human Access
    1. Desktop Application (Teleport Connect)
