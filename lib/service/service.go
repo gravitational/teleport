@@ -4073,10 +4073,11 @@ func (process *TeleportProcess) initDiagnosticService() error {
 		// support legacy metrics collection in the diagnostic service.
 		// metrics will otherwise be served by the metrics service if it's enabled
 		// in the config.
-		enableMetrics:    !process.Config.Metrics.Enabled,
-		enableProfiling:  process.Config.Debug,
-		enableHealth:     true,
-		enableLogLeveler: false,
+		enableMetrics:     !process.Config.Metrics.Enabled,
+		enableProfiling:   process.Config.Debug,
+		enableHealth:      true,
+		enableLogLeveler:  false,
+		enableProcessInfo: false,
 	}
 	mux, err := process.newDiagnosticHandler(config, logger)
 	if err != nil {
@@ -4167,10 +4168,11 @@ func (process *TeleportProcess) initDebugService(exposeDebugRoutes bool) error {
 	// Users can disable the debug service for compliance reasons but not the health
 	// routes because the updater relies on them.
 	config := diagnosticHandlerConfig{
-		enableMetrics:    exposeDebugRoutes,
-		enableProfiling:  exposeDebugRoutes,
-		enableHealth:     true,
-		enableLogLeveler: exposeDebugRoutes,
+		enableMetrics:     exposeDebugRoutes,
+		enableProfiling:   exposeDebugRoutes,
+		enableHealth:      true,
+		enableLogLeveler:  exposeDebugRoutes,
+		enableProcessInfo: exposeDebugRoutes,
 	}
 	mux, err := process.newDiagnosticHandler(config, logger)
 	if err != nil {

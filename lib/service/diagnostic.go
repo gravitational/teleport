@@ -28,10 +28,11 @@ import (
 )
 
 type diagnosticHandlerConfig struct {
-	enableMetrics    bool
-	enableProfiling  bool
-	enableHealth     bool
-	enableLogLeveler bool
+	enableMetrics     bool
+	enableProfiling   bool
+	enableHealth      bool
+	enableLogLeveler  bool
+	enableProcessInfo bool
 }
 
 func (process *TeleportProcess) newDiagnosticHandler(config diagnosticHandlerConfig, logger *slog.Logger) (http.Handler, error) {
@@ -50,6 +51,10 @@ func (process *TeleportProcess) newDiagnosticHandler(config diagnosticHandlerCon
 			roundtrip.ReplyJSON(w, http.StatusOK, map[string]any{"status": "ok"})
 		})
 		mux.HandleFunc("/readyz", process.HandleReadiness)
+	}
+
+	if config.enableProcessInfo {
+		mux.HandleFunc("/process", process.HandleProcessInfo)
 	}
 
 	if config.enableLogLeveler {

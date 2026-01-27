@@ -28,11 +28,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/client/debug"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -110,6 +112,9 @@ type Supervisor interface {
 
 	// HandleReadiness is the HTTP handler for "/readyz".
 	HandleReadiness(http.ResponseWriter, *http.Request)
+
+	// HandleProcessInfo is the HTTP handler for "/process".
+	HandleProcessInfo(http.ResponseWriter, *http.Request)
 }
 
 // EventMapping maps a sequence of incoming
@@ -430,6 +435,12 @@ func (s *LocalSupervisor) GracefulExitContext() context.Context {
 // HandleReadiness implements [Supervisor].
 func (s *LocalSupervisor) HandleReadiness(w http.ResponseWriter, r *http.Request) {
 	s.processState.handleReadiness(w, r)
+}
+
+// HandleProcessInfo implements [Supervisor]
+func (s *LocalSupervisor) HandleProcessInfo(w http.ResponseWriter, r *http.Request) {
+	info := debug.ProcessInfo{}
+	roundtrip.ReplyJSON(w, http.StatusOK, info)
 }
 
 // BroadcastEvent generates event and broadcasts it to all
