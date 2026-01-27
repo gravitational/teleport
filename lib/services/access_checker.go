@@ -63,6 +63,10 @@ type AccessChecker interface {
 	// CheckAccess checks access to the specified resource.
 	CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error
 
+	// CheckDeviceAccess verifies if the current device state satisfies the
+	// device trust requirements of the user's RoleSet.
+	CheckDeviceAccess(state AccessState) error
+
 	// CheckAccessToRemoteCluster checks access to remote cluster
 	CheckAccessToRemoteCluster(cluster types.RemoteCluster) error
 
