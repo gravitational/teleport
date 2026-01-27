@@ -221,12 +221,86 @@ chart.
    teleport-cluster-proxy-0000000000-00000   1/1     Running   0          114s
    ```
 
+<Checkpoint
+  title="Verify Teleport pods are running"
+  description="Confirm that the Auth Service and Proxy Service pods are both running in your Kubernetes cluster."
+>
+Here are some troubleshooting tips:
+
+- If pods are in pending state, check for persistent volume issues: 
+  
+  ```code
+  $ kubectl describe pod <pod-name>
+  ```
+
+- Confirm PVCs are bound: 
+  
+  ```code
+  $ kubectl get pvc -n teleport-cluster
+  ```
+
+- If pods are in `CrashLoopBackOff`, check logs: 
+  
+  ```code
+  $ kubectl logs deployment/teleport-cluster-auth
+  ```
+
+- Verify the namespace exists: 
+  
+  ```code
+  $ kubectl get namespace teleport-cluster
+  ```
+
+- Check events for errors: 
+  
+  ```code
+  $ kubectl get events --sort-by='.metadata.creationTimestamp'
+  ```
+
+- Ensure your cluster has a default StorageClass: 
+
+  ```code
+  $ kubectl get storageclasses
+  ```
+
+</Checkpoint>
+
 ### Set up DNS records
 
 In this section, you will enable users and services to connect to your cluster
 by creating DNS records that point to the address of your Proxy Service.
 
 (!docs/pages/includes/self-hosted-helm-dns.mdx!)
+
+<Checkpoint
+  title="Verify DNS and TLS are configured"
+  description="Confirm that DNS records point to your Teleport Proxy Service and TLS certificates are provisioned."
+>
+  Here are some troubleshooting tips:
+  - Verify DNS resolution. This should resolve to your load balancer IP.
+  
+    ```code 
+    $ nslookup teleport.example.com # using your cluster name
+    ```
+
+  - Get the load balancer address: 
+  
+    ```code 
+    $ kubectl get svc teleport-cluster-proxy -o jsonpath='{.status.loadBalancer.ingress[0]}'
+    ```
+
+  - Check that Let's Encrypt has issued certificates by visiting your cluster URL in a browser (e.g., `https://teleport.example.com`).
+  
+  - If TLS fails, check Proxy Service logs: 
+  
+    ```code 
+    $ kubectl logs deployment/teleport-cluster-proxy
+    ```
+
+  - DNS propagation can take time. Wait a few minutes and try again.
+
+  - Verify ACME is enabled in your values file with `acme: true`.
+</Checkpoint>
 
 ## Step 2/2. Create a local user
 
@@ -288,12 +362,39 @@ wrong, you can easily revert to your original kubeconfig:
 
    ```code
    $ KUBECONFIG=$HOME/teleport-kubeconfig.yaml tsh kube login <Var name="clusterName" />
-   
+
    $ KUBECONFIG=$HOME/teleport-kubeconfig.yaml kubectl get -n teleport-cluster pods
    NAME                                      READY   STATUS    RESTARTS   AGE
    teleport-cluster-auth-000000000-00000     1/1     Running   0          26m
    teleport-cluster-proxy-0000000000-00000   1/1     Running   0          26m
    ```
+
+<Checkpoint
+  title="Verify Kubernetes access via Teleport"
+  description="Confirm that you can log in to Teleport and access your Kubernetes cluster."
+>
+  Here are some troubleshooting tips:
+  - If `tsh login` fails, verify DNS is resolving correctly and TLS certificates are valid.
+
+  - If `tsh kube ls` shows no clusters, ensure the `member` role was created successfully.
+
+  - If kubectl commands fail after `tsh kube login`, check that KUBECONFIG is set correctly.
+
+  - Verify your user has the correct roles: 
+  
+    ```code 
+    $ tctl get users/<username>
+    ```
+
+  - Check Auth Service logs for authentication errors: 
+  
+    ```code 
+    $ kubectl logs deployment/teleport-cluster-auth
+    ```
+
+  - Ensure the invite link hasn't expired (valid for 1 hour).
+  
+</Checkpoint>
 
 ## Troubleshooting
 
