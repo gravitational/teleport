@@ -336,11 +336,42 @@ All members of `west-users` and `west-admins` would become nested members of the
 Nested list memberships effectively form a graph where nodes are access lists
 and edges are access list memberships.
 
+### Owner grants
+
+Access lists can grant privileges not only to members but also to owners of the
+list under the `owner_grants` field, this will also support scoped role grants.
+
+```yaml
+kind: access_list
+metadata:
+  name: owner-grants-example
+spec:
+  title: "owner grants"
+  owner_grants:
+    scoped_roles:
+      - role: ops-admin
+        scope: /ops/west
+      - role: ops-access
+        scope: /ops
+  owners:
+    - name: alice@example.com
+      membership_kind: MEMBERSHIP_KIND_USER
+    - name: admins
+      membership_kind: MEMBERSHIP_KIND_LIST
+version: v1
+```
+
+Access list owners are listed directly in the access list spec, they can either
+be direct user owners or other lists can be named as owners.
+When an access list `a` is named as an owner of access list `b`, all _members_
+of `a` become owners of `b` and receive the grants.
+Owners of `a` do not become owners of `b`.
+
 ### Materialization of scoped role assignments
 
 The term "materialization" is used here to mean the computation and storage of
 concrete scoped role assignments from their source of truth, which is the
-current set of access lists and their members.
+current set of access lists and access list members.
 Rather than referencing access lists (and memberships) and traversing the graph
 during scoped login events, the set of materialized scoped role assignments
 will be computed ahead of time and stored in the scoped role assignment cache.
@@ -350,18 +381,24 @@ relogin.
 Being able to efficiently discover scopes at which a user has privileges
 without requiring reauthentication is critical for a good user experience.
 
-Every (user, list) pair, where user is a nested member of list and list grants
-scoped roles, will result in 1 materialized scoped role assignment.
+Every (user, list) pair, where user is a nested member or owner of list and
+list grants scoped roles, will result in 1 materialized scoped role assignment.
 Each materialized assignment for (user, list) will grant exactly the scoped
-roles defined in the spec of that list.
+roles defined in the spec of that list (for members, owners, or both depending
+on the user's relationship with the list).
+
 The scope of the materialized assignment will be the same as the scope of the
-access list defining the assignment (since access list are currently unscoped
-this will always be the root scope `/`).
+access list defining the assignment.
+Since access lists are currently unscoped this will always be the root scope `/`.
 
 For example, if alice is a direct member of listA, and listA is a direct member
 of listB, then alice is a nested member of both listA and listB.
 2 scoped role assignments will be materialized, one for (alice, listA) and
 another for (alice, listB).
+
+If listB is an owner of listC, then alice's membership in listB makes her an
+owner of listC, and a scoped role assignment will be materialized for (alice,
+listC).
 
 The materialized assignments will be initialized along with the scoped access
 cache and kept up to date via a backend watcher on access lists, access list
