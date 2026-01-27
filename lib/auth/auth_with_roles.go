@@ -5321,7 +5321,7 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 		return trace.Wrap(err)
 	}
 
-	if err := dtconfig.ValidateConfigAgainstModules(newAuthPref.GetDeviceTrust()); err != nil {
+	if err := dtconfig.ValidateConfigAgainstModules(newAuthPref.GetDeviceTrust(), modules.GetModules()); err != nil {
 		return trace.Wrap(err)
 	}
 
