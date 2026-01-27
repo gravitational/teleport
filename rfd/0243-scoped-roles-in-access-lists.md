@@ -525,6 +525,9 @@ the assignment materializer and the invalid list or membership will be logged).
 These are not being written to the backend and thus cannot use AtomicWrite.
 These invariants will be enforced when the scoped access cache is initialized,
 and when access lists and their members are created/updated/deleted.
+To avoid non-deterministic behavior while scoped role assignments are initially
+being materialized, process readiness will be gated on the scoped access cache
+being ready.
 
 ### Privacy
 
