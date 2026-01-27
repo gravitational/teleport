@@ -1665,6 +1665,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 			AppClusterName:        clusterName,
 			RequiresRequest:       false,
 			AllowedAWSRolesLookup: map[string][]string{"my-aws-app": {"arn:aws:iam::999999999999:role/ProdInstance"}},
+			GrantedAWSRolesLookup: map[string][]string{"my-aws-app": {"arn:aws:iam::999999999999:role/ProdInstance"}},
 		}
 
 		expectedApps := []webui.App{

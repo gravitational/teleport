@@ -318,7 +318,7 @@ func (c *AccessRequestCommand) Create(ctx context.Context, client *authclient.Cl
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	req, err := services.NewAccessRequestWithResources(c.user, c.splitRoles(), requestedResourceIDs)
+	req, err := services.NewAccessRequestWithResources(c.user, c.splitRoles(), types.ResourceIDsToResourceAccessIDs(requestedResourceIDs))
 	if err != nil {
 		return trace.Wrap(err)
 	}
