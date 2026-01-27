@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -317,7 +318,11 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	accessLists, err := local.NewAccessListService(srv.Backend, cfg.Clock, local.WithRunWhileLockedRetryInterval(cfg.RunWhileLockedRetryInterval))
+	accessLists, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: srv.Backend,
+		// TODO(tross): replace with cfg.Modules
+		Modules: modules.GetModules(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

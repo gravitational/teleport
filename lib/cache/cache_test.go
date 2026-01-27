@@ -430,7 +430,10 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.secReports = secReportsSvc
 
-	accessListsSvc, err := local.NewAccessListService(p.backend, p.backend.Clock())
+	accessListsSvc, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: p.backend,
+		Modules: modulestest.EnterpriseModules(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

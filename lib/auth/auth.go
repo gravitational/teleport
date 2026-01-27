@@ -404,7 +404,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 	if cfg.AccessLists == nil {
-		cfg.AccessLists, err = local.NewAccessListService(cfg.Backend, cfg.Clock)
+		cfg.AccessLists, err = local.NewAccessListServiceV2(local.AccessListServiceConfig{
+			Backend: cfg.Backend,
+			// TODO(tross): replace modules.GetModules with cfg.Modules
+			Modules:                     modules.GetModules(),
+			RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

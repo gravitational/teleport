@@ -66,7 +66,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -4644,14 +4643,7 @@ func TestCleanupNotifications(t *testing.T) {
 func TestCreateAccessListReminderNotifications(t *testing.T) {
 	ctx := context.Background()
 
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-	})
+	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 
 	// Setup test auth server
 	testServer := newTestTLSServer(t)
@@ -4804,14 +4796,7 @@ func createAccessList(t *testing.T, authServer *auth.Server, name string, opts .
 func TestCreateAccessListReminderNotifications_LargeOverdueSet(t *testing.T) {
 	ctx := t.Context()
 
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-	})
+	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 
 	// Setup test auth server
 	testServer := newTestTLSServer(t)
