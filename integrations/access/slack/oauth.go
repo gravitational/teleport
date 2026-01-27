@@ -20,6 +20,7 @@ package slack
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -35,9 +36,10 @@ type Authorizer struct {
 
 	clientID     string
 	clientSecret string
+	log          *slog.Logger
 }
 
-func newAuthorizer(client *resty.Client, clientID string, clientSecret string) *Authorizer {
+func newAuthorizer(client *resty.Client, clientID string, clientSecret string, log *slog.Logger) *Authorizer {
 	return &Authorizer{
 		client:       client,
 		clientID:     clientID,
@@ -49,16 +51,20 @@ func newAuthorizer(client *resty.Client, clientID string, clientSecret string) *
 //
 // clientID is the Client ID for this Slack app as specified by OAuth2.
 // clientSecret is the Client Secret for this Slack app as specified by OAuth2.
-func NewAuthorizer(clientID string, clientSecret string) *Authorizer {
+func NewAuthorizer(clientID string, clientSecret string, log *slog.Logger) *Authorizer {
 	client := makeSlackClient(slackAPIURL)
-	return newAuthorizer(client, clientID, clientSecret)
+	return newAuthorizer(client, clientID, clientSecret, log.With("authorizer", "slack"))
 }
 
 // Exchange implements oauth.Exchanger
 func (a *Authorizer) Exchange(ctx context.Context, authorizationCode string, redirectURI string) (*storage.Credentials, error) {
 	var result AccessResponse
 
-	_, err := a.client.R().
+	a.log.DebugContext(ctx, "Exchanging access token",
+		"auth_code", authorizationCode,
+		"redirect_uri", redirectURI,
+		"client_id", a.clientID)
+	resp, err := a.client.R().
 		SetQueryParam("client_id", a.clientID).
 		SetQueryParam("client_secret", a.clientSecret).
 		SetQueryParam("code", authorizationCode).
@@ -67,12 +73,17 @@ func (a *Authorizer) Exchange(ctx context.Context, authorizationCode string, red
 		Post("oauth.v2.access")
 
 	if err != nil {
+		a.log.WarnContext(ctx, "Failed to exchange access token.", "error", err)
 		return nil, trace.Wrap(err)
 	}
+
+	a.log.DebugContext(ctx, "Slack responded to exchange request", "status", resp.StatusCode(), "body", string(resp.Body()))
 
 	if !result.Ok {
 		return nil, trace.Errorf("%s", result.Error)
 	}
+
+	a.log.DebugContext(ctx, "Successfully exchanged access token")
 
 	return &storage.Credentials{
 		AccessToken:  result.AccessToken,
@@ -84,7 +95,11 @@ func (a *Authorizer) Exchange(ctx context.Context, authorizationCode string, red
 // Refresh implements oauth.Refresher
 func (a *Authorizer) Refresh(ctx context.Context, refreshToken string) (*storage.Credentials, error) {
 	var result AccessResponse
-	_, err := a.client.R().
+
+	a.log.DebugContext(ctx, "Refreshing access token",
+		"refresh_token", refreshToken,
+		"client_id", a.clientID)
+	resp, err := a.client.R().
 		SetQueryParam("client_id", a.clientID).
 		SetQueryParam("client_secret", a.clientSecret).
 		SetQueryParam("grant_type", "refresh_token").
@@ -93,13 +108,17 @@ func (a *Authorizer) Refresh(ctx context.Context, refreshToken string) (*storage
 		Post("oauth.v2.access")
 
 	if err != nil {
+		a.log.WarnContext(ctx, "Failed to refresh access token.", "error", err)
 		return nil, trace.Wrap(err)
 	}
+
+	a.log.DebugContext(ctx, "Slack responded to refresh request", "status", resp.StatusCode(), "body", string(resp.Body()))
 
 	if !result.Ok {
 		return nil, trace.Errorf("%s", result.Error)
 	}
 
+	a.log.DebugContext(ctx, "Successfully refreshed access token")
 	return &storage.Credentials{
 		AccessToken:  result.AccessToken,
 		RefreshToken: result.RefreshToken,

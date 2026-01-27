@@ -161,7 +161,18 @@ func (r *RotatedAccessTokenProvider) RefreshLoop(ctx context.Context) {
 			r.log.InfoContext(ctx, "Shutting down")
 			return
 		case <-timer.Chan():
-			creds, _ := r.store.GetCredentials(ctx)
+			r.log.DebugContext(ctx, "Entering token refresh loop")
+			creds, err := r.store.GetCredentials(ctx)
+			if err != nil {
+				r.log.WarnContext(ctx, "Error getting credentials", "error", err)
+				// TODO: we should really check the error and stop here if it's nil
+			} else {
+				r.log.DebugContext(ctx, "Existing creds",
+					"creds_expires", r.creds.ExpiresAt,
+					"creds_access_token", creds.AccessToken,
+					"creds_refresh_token", creds.RefreshToken,
+				)
+			}
 
 			// Skip if the credentials are sufficiently fresh
 			// (in an HA setup another instance might have refreshed the credentials).
@@ -175,10 +186,11 @@ func (r *RotatedAccessTokenProvider) RefreshLoop(ctx context.Context) {
 				interval := r.getRefreshInterval(creds)
 				timer.Reset(interval)
 				r.log.InfoContext(ctx, "Refreshed token", "next_refresh", interval)
+				r.log.DebugContext(ctx, "Existing credentials don't need to be refreshed", "next_refresh", interval)
 				continue
 			}
 
-			creds, err := r.refresh(ctx)
+			creds, err = r.refresh(ctx)
 			if err != nil {
 				r.log.ErrorContext(ctx, "Error while refreshing token",
 					"error", err,
@@ -186,6 +198,11 @@ func (r *RotatedAccessTokenProvider) RefreshLoop(ctx context.Context) {
 				)
 				timer.Reset(r.retryInterval)
 			} else {
+				r.log.DebugContext(ctx, "Refreshed token",
+					"creds_expires", r.creds.ExpiresAt,
+					"creds_access_token", creds.AccessToken,
+					"creds_refresh_token", creds.RefreshToken,
+				)
 				err := r.store.PutCredentials(ctx, creds)
 				if err != nil {
 					r.log.ErrorContext(ctx, "Error while storing the refreshed credentials", "error", err)
