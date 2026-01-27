@@ -241,6 +241,18 @@ func TestWriteAWSConfig(t *testing.T) {
 
 	apps := []types.Application{app1, app2}
 
+	// Pre-write some non-Teleport managed content.
+	nonTeleportContent := `[default]
+region = us-west-2
+output = json
+
+[profile external]
+role_arn = arn:aws:iam::123456789012:role/external-role
+source_profile = default
+`
+	err = os.WriteFile(configPath, []byte(nonTeleportContent), 0600)
+	require.NoError(t, err)
+
 	written, err := writeAWSConfig(configPath, "us-east-1", apps)
 	require.NoError(t, err)
 	require.Len(t, written, 3)
@@ -264,6 +276,10 @@ func TestWriteAWSConfig(t *testing.T) {
 	// Verify file content
 	content, err := os.ReadFile(configPath)
 	require.NoError(t, err)
+
+	// Verify that non-Teleport content is preserved.
+	require.Contains(t, string(content), "[default]")
+	require.Contains(t, string(content), "[profile external]")
 
 	if golden.ShouldSet() {
 		golden.Set(t, content)
