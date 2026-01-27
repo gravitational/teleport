@@ -716,9 +716,17 @@ func (m *accessListMaterializer) rematerialize(ctx context.Context, state state)
 		list, err := m.upstream.GetAccessList(ctx, listName)
 		if err != nil {
 			if trace.IsNotFound(err) {
-				return trace.Errorf("invariant violated, list %s not found", listName)
+				// Presumable the list has been deleted while we are still
+				// processing a prior event. Delete all materialized
+				// assignments for this list.
+				continue
 			}
 			return trace.Wrap(err)
+		}
+		if len(list.Spec.Grants.ScopedRoles)+len(list.Spec.OwnerGrants.ScopedRoles) == 0 {
+			// no assignments b/c no scoped grants. existing assignments will
+			// remain in unseenAssignments and be deleted.
+			continue
 		}
 		userSet := make(map[string]struct{})
 		for user := range m.nestedUserMembers[listName] {
@@ -741,10 +749,20 @@ func (m *accessListMaterializer) rematerialize(ctx context.Context, state state)
 			assignmentID, alreadyMaterialized := m.materializedAssignments[key]
 			if !alreadyMaterialized {
 				assignmentID = uuid.NewString()
+			}
+			assignment := materializeScopedRoleAssignment(user, list, assignmentID, isMember, isOwner)
+			if assignment == nil {
+				if alreadyMaterialized {
+					state.assignments.Delete(assignmentID)
+					delete(m.materializedAssignments, key)
+					delete(unseenAssignments, key)
+				}
+				continue
+			}
+			if !alreadyMaterialized {
 				m.materializedAssignments[key] = assignmentID
 			}
 			materializedCount++
-			assignment := materializeScopedRoleAssignment(user, list, assignmentID, isMember, isOwner)
 			if err := state.assignments.Put(assignment); err != nil {
 				return trace.Wrap(err, "putting materialized assignment for user %q in list %q into the cache", user, listName)
 			}
@@ -1016,6 +1034,9 @@ func materializeScopedRoleAssignment(user string, list *accesslist.AccessList, u
 	if isOwner {
 		roleGrants = append(roleGrants, list.Spec.OwnerGrants.ScopedRoles...)
 	}
+	if len(roleGrants) == 0 {
+		return nil
+	}
 	assignment := &scopedaccessv1.ScopedRoleAssignment{
 		Kind:    scopedaccess.KindScopedRoleAssignment,
 		Version: types.V1,
@@ -1150,9 +1171,18 @@ func (m *accessListMaterializer) rematerializeList(ctx context.Context, state st
 		assignmentID, alreadyMaterialized := m.materializedAssignments[key]
 		if !alreadyMaterialized {
 			assignmentID = uuid.NewString()
-			m.materializedAssignments[key] = assignmentID
 		}
 		assignment := materializeScopedRoleAssignment(user, list, assignmentID, isMember, isOwner)
+		if assignment == nil {
+			if alreadyMaterialized {
+				state.assignments.Delete(assignmentID)
+				delete(m.materializedAssignments, key)
+			}
+			continue
+		}
+		if !alreadyMaterialized {
+			m.materializedAssignments[key] = assignmentID
+		}
 		if err := state.assignments.Put(assignment); err != nil {
 			return trace.Wrap(err, "putting updated materialized assignment for user %q in list %q into assignment cache", user, listName)
 		}
