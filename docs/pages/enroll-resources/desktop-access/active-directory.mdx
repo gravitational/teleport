@@ -147,6 +147,26 @@ To create the service account:
    You'll use this value for the `sid` field when you configure the `ldap` settings
    in a later step.
 
+<Checkpoint
+  title="Verify the service account is created"
+  description="Confirm that the Teleport service account exists in Active Directory and has the correct permissions."
+>
+  Here are some troubleshooting tips:
+
+  - Open **Active Directory Users and Computers** and verify the `svc-teleport` account exists.
+
+  - In PowerShell, confirm the account is enabled:
+
+    ```code
+    $ Get-ADUser -Identity svc-teleport
+    ```
+  
+  - If the `dsacls` commands fail, ensure you're running PowerShell as a Domain Administrator.
+
+  - Verify the LDAP containers were created by checking `CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration` in AD.
+
+</Checkpoint>
+
 ### Step 2/7. Prevent the service account from performing interactive logins
 
 The next steps modify group policy objects (GPOs). Changes to group policies
@@ -199,6 +219,26 @@ logins.
   For added security, you can disable username and password authentication completely.
   If you disable username and password authentication, only the Teleport virtual smart
   card can be used to access Windows computers in the domain.
+
+<Checkpoint
+  title="Verify the GPO blocks interactive login"
+  description="Confirm that the Group Policy Object is configured to prevent the service account from logging in interactively."
+>
+  Here are some troubleshooting tips:
+
+  - Open **Group Policy Management** and verify the `Block teleport-svc Interactive Login` GPO is linked to your domain.
+
+  - Apply the policy immediately by running:
+
+    ```code
+    $ gpupdate.exe /force
+    ```
+
+  - Verify the policy is applied by running `gpresult /r` and checking that the GPO appears in the applied list.
+
+  - Test by attempting to log in as `svc-teleport` on a domain computer. It should be denied.
+
+</Checkpoint>
 
 ### Step 3/7. Configure a GPO to allow Teleport connections
 
@@ -441,6 +481,33 @@ the performance of remote desktop connections.
    gpupdate.exe /force
    ```
 
+<Checkpoint
+  title="Verify the Teleport Access Policy GPO"
+  description="Confirm that the Teleport Access Policy GPO is correctly configured with the certificate, smart card service, firewall rules, and RemoteFX settings."
+>
+  Here are some troubleshooting tips:
+  - On a target Windows host, confirm the GPO is being applied by running:
+
+    ```code
+    $ gpresult /r
+    ```
+
+  - Verify the Teleport CA is in the NTAuth store: 
+
+    ```code
+    $ certutil -viewstore -enterprise NTAuth
+    ```
+
+  - Verify the Teleport CA is in the Root store: 
+  
+    ```code
+    $ certutil -viewstore -enterprise Root
+    ```
+
+  - In **Group Policy Management**, confirm the `Teleport Access Policy` GPO is linked to your domain and the Teleport CA appears under **Trusted Root Certification Authorities**.
+
+</Checkpoint>
+
 ### Step 4/7. Configure a certificate for RDP connections
 
 The Teleport RDP client requires secure cryptographic algorithms to make
@@ -654,6 +721,37 @@ To configure Teleport to protect access to Windows desktops:
 
 1. (!docs/pages/includes/start-teleport.mdx service="the Teleport Desktop Service"!)
 
+<Checkpoint
+  title="Verify the Windows Desktop Service is running"
+  description="Confirm that the Teleport Windows Desktop Service has started and connected to your cluster."
+>
+  Here are some troubleshooting tips:
+  - Check the service status on the Linux server: 
+  
+    ```code
+    $ systemctl status teleport
+    ```
+
+  - Review logs for connection errors: 
+  
+    ```code
+    $ sudo journalctl -u teleport
+    ```
+
+  - Verify the token hasn't expired (tokens are valid for 30 minutes by default).
+
+  - Ensure the Linux server can reach the Teleport Proxy and the LDAP server on port 636.
+
+  - Test LDAP connectivity: 
+  
+    ```code
+    $ nc -vz $LDAP_SERVER 636
+    ```
+
+  - Verify the `ldap_ca_cert` value contains a valid PEM-formatted certificate.
+
+</Checkpoint>
+
 ### Step 7/7. Log in using Teleport
 
 Teleport users must have appropriate permissions to access remote Windows desktops.
@@ -710,6 +808,24 @@ To connect to a Windows desktop:
    ![Disconnect from a Windows desktop ](../../../img/desktop-access/desktop-disconnect.png)
 
    To view the recording, select **Audit** in the Teleport Web UI, then click **Session Recordings** in the menu.
+
+<Checkpoint
+  title="Verify Windows desktop access"
+  description="Confirm that you can connect to a Windows desktop."
+>
+  Here are some troubleshooting tips:
+
+  - Check that the desktop appears in the Teleport Web UI under **Resources > Desktops**.
+
+  - Ensure your Teleport user is assigned the `windows-desktop-admins` role or a role with the same permissions.
+
+  - Review the Windows Desktop Service logs: 
+  
+    ```code
+    $ sudo journalctl -u teleport
+    ```
+
+</Checkpoint>
 
 ## LDAP Discovery
 
