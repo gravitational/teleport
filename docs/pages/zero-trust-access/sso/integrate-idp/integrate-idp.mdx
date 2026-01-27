@@ -4,6 +4,17 @@ sidebar_label: Integrate your Provider
 description: Provides step-by-step guides for allowing users to authenticate to Teleport using your IdP.
 ---
 
+import Resources from "@site/src/components/Pages/Homepage/Resources";
+import githubSvg from "@site/src/components/Icon/svg/github.svg";
+import oktaSvg from "@site/src/components/Icon/teleport-svg/okta.svg";
+import entraIdSvg from "@site/src/components/Icon/svg/ms-entra-id.svg";
+import gSuiteSvg from "@site/src/components/Icon/svg/g-suite.svg";
+import oauth2OidcSvg from "@site/src/components/Icon/svg/oauth2-oidc.svg";
+import gitlabSvg from "@site/src/components/Icon/svg/gitlab.svg";
+import keycloakSvg from "@site/src/components/Icon/teleport-svg/windows-desktops.svg";
+import oneLoginSvg from "@site/src/components/Icon/svg/one-login.svg";
+import adfsSvg from "@site/src/components/Icon/svg/active-directory.svg";
+
 You can configure Teleport so that users authenticate with an external identity
 provider such as Okta or GitHub. To do so, you can create a Teleport resource
 called an **authentication connector** that contains information about your IdP
@@ -13,15 +24,6 @@ The guides in this section show you how to integrate your IdP with Teleport.
 
 For an overview of how Teleport integrates with single sign-on providers, see
 [Single Sign-On](../sso.mdx).
-
-<Admonition type="warning">
-
-Teleport Community Edition only supports GitHub as an identity provider. In
-Teleport Enterprise, you can integrate SAML and OIDC solutions as well. All
-editions support [local
-users](../../../zero-trust-access/rbac-get-started/users.mdx).
-
-</Admonition>
 
 ## Integrating your provider
 
@@ -41,9 +43,88 @@ Integrating a provider with Teleport includes the following steps:
    resource selects an SSO provider as the default authentication method for
    Teleport users.
 
-Teleport supports the following identity providers:
+<br />
+<br />
 
-<DocCardList kind="labelOnly" />
+<EnterpriseFeatureCallout title="Enable Enterprise SSO for your team.">
+  Use GitHub SSO in Community Edition, or connect Okta, Google Workspace, and more with an Enterprise trial.
+</EnterpriseFeatureCallout>
+
+<Resources
+  title=""
+  variant="doc"
+  desktopColumnsCount={3}
+  resources={[
+    {
+      title: "GitHub",
+      iconComponent: githubSvg,
+      href: "./github-sso/",
+      editionTag: "Community",
+    },
+    {
+      title: "Okta",
+      iconComponent: oktaSvg,
+      href: "./okta/"
+    },
+    {
+      title: "Microsoft Entra ID (SAML)",
+      iconComponent: entraIdSvg,
+      href: "./entra-id/"
+    },
+    {
+      title: "Microsoft Entra ID (OIDC)",
+      iconComponent: entraIdSvg,
+      href: "./entra-id-oidc/"
+    },
+    {
+      title: "Google Workspace (G Suite)",
+      iconComponent: gSuiteSvg,
+      href: "./google-workspace/"
+    },
+    {
+      title: "OAuth2 and OIDC",
+      iconComponent: oauth2OidcSvg,
+      href: "./oidc/"
+    },
+    {
+      title: "GitLab",
+      iconComponent: gitlabSvg,
+      href: "./gitlab/"
+    },
+    {
+      title: "Keycloak",
+      iconComponent: keycloakSvg,
+      href: "./keycloak/"
+    },
+    {
+      title: "OneLogin",
+      iconComponent: oneLoginSvg,
+      href: "./one-login/"
+    },
+    {
+      title: "Active Directory Federation Services",
+      iconComponent: adfsSvg,
+      href: "./adfs/"
+    },
+  ]}
+    additionalLinks={{
+      links: [
+        {
+          title: "Multiple Identity Providers",
+          href: "../multiple-providers/"
+        },
+        {
+          title: "Login Rules",
+          href: "../login-rules/"
+        },
+        {
+          title: "SSO for MFA Checks",
+          href: "../sso-for-mfa/"
+        }
+     ]
+  }}
+/>
+
 
 ## Provider-specific workarounds
 
@@ -75,4 +156,3 @@ of SSO buttons in the Teleport Web UI.
 | Google | `display: Google` | ![google](../../../../img/teleport-sso/google@2x.png) |
 | BitBucket | `display: Bitbucket` | ![bitbucket](../../../../img/teleport-sso/bitbucket@2x.png) |
 | OpenID | `display: Okta` | ![Okta](../../../../img/teleport-sso/openId@2x.png) |
-
