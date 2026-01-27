@@ -191,7 +191,7 @@ export const HelperTextLine = ({
   );
 };
 
-const HelperTextContainer = styled.div<{
+export const HelperTextContainer = styled.div<{
   expanded?: boolean;
 }>`
   // Constrain the height to be able to animate it.
@@ -205,7 +205,7 @@ const HelperTextContainer = styled.div<{
     opacity 200ms ease-in;
 `;
 
-const HelperText = styled(Text)`
+export const HelperText = styled(Text)`
   white-space: nowrap;
 `;
 
