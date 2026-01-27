@@ -49,6 +49,7 @@ type DebugClient interface {
 	GetReadiness(context.Context) (debugclient.Readiness, error)
 	// GetRawMetrics fetches the unprocessed Prometheus metrics.
 	GetRawMetrics(context.Context) (io.ReadCloser, error)
+	// GetProcessInfo fetches the teleport process info.
 	GetProcessInfo(context.Context) (debugclient.ProcessInfo, error)
 	SocketPath() string
 }
@@ -232,12 +233,13 @@ func onProcessInfo(ctx context.Context, configPath string) error {
 		return convertToReadableErr(err, dataDir, clt.SocketPath())
 	}
 
+	// TODO: support text, json, binary, tar, etc. formats
 	printProcessInfo(info)
 	return nil
 }
 
 func printProcessInfo(info debugclient.ProcessInfo) {
-
+	fmt.Printf("PID: %d\n", info.PID)
 }
 
 // newDebugClient initializes the debug client based on the Teleport

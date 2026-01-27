@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"slices"
 	"sync"
 	"time"
@@ -439,7 +440,9 @@ func (s *LocalSupervisor) HandleReadiness(w http.ResponseWriter, r *http.Request
 
 // HandleProcessInfo implements [Supervisor]
 func (s *LocalSupervisor) HandleProcessInfo(w http.ResponseWriter, r *http.Request) {
-	info := debug.ProcessInfo{}
+	info := debug.ProcessInfo{
+		PID: os.Getpid(),
+	}
 	roundtrip.ReplyJSON(w, http.StatusOK, info)
 }
 

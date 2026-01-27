@@ -119,6 +119,37 @@ func TestGetReadiness(t *testing.T) {
 	})
 }
 
+func TestGetProcessInfo(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Success", func(t *testing.T) {
+		socketPath, _ := newSocketMockService(t, http.StatusOK, []byte(`{"pid": 4242}`))
+		clt := NewClient(socketPath)
+
+		out, err := clt.GetProcessInfo(ctx)
+		require.NoError(t, err)
+		require.Equal(t, 4242, out.PID)
+	})
+
+	t.Run("Not found", func(t *testing.T) {
+		socketPath, _ := newSocketMockService(t, http.StatusNotFound, []byte(`404`))
+		clt := NewClient(socketPath)
+
+		out, err := clt.GetProcessInfo(ctx)
+		require.True(t, trace.IsNotFound(err))
+		require.Equal(t, 0, out.PID)
+	})
+
+	t.Run("Failure", func(t *testing.T) {
+		socketPath, _ := newSocketMockService(t, http.StatusBadRequest, []byte(`boom`))
+		clt := NewClient(socketPath)
+
+		out, err := clt.GetProcessInfo(ctx)
+		require.True(t, trace.IsBadParameter(err))
+		require.Equal(t, 0, out.PID)
+	})
+}
+
 func TestCollectProfile(t *testing.T) {
 	ctx := context.Background()
 
