@@ -58,7 +58,7 @@ Linting rules will be updated to keep the dependency tree of the helper binary s
 
 ### Preliminary performance results
 
-A [proof-of-concept implementation](https://github.com/gravitational/teleport/pull/63208) showed significant improvements in both memory usage and latency when opening sessions: the following comparison is between like-for-like builds of Teleport v18.6.4 and v18.6.4 with the PoC for the in-memory helper.
+A [proof-of-concept implementation](https://github.com/gravitational/teleport/pull/63208) showed significant improvements in both memory usage and latency when opening sessions: the following comparison is between like-for-like builds of Teleport v18.6.4 and v18.6.4 with the PoC for the in-memory helper, ran on an EC2 `m7a.xlarge` instance.
 
 Running the Teleport SSH agent with PAM and Enhanced Session Recording disabled in a standard Teleport systemd setup results in the whole process tree being contained in the `/system.slice/teleport.service` cgroup, which lets us measure the total memory used by Teleport to operate (as well as the memory of the programs launched, but the test consisted of opening a standard login shell and closing it at a later time without interacting with it or running the `true` binary, so the impact of those is negligible). To try to minimize the impact of disk cache in the memory accounting for the tests, the Teleport service was stopped, the VM cache was cleared by writing "3" to `/proc/sys/vm/drop_caches` and running `sync`, then the `teleport` binary was loaded into the cgroup for the user session running the tests by running `cat /usr/local/bin/teleport > /dev/null` a few times; the caching was then checked with [`cgtouch`](https://github.com/brk0v/cgtouch).
 
