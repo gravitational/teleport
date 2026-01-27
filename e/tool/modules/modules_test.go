@@ -278,6 +278,18 @@ func TestGetLicenseFeatures_LegacyIdentityFeatures(t *testing.T) {
 }
 
 func TestGetLicenseFeatures_Entitlements(t *testing.T) {
+	expectedEntitlements := make(map[entitlements.EntitlementKind]modules.EntitlementInfo, len(entitlements.AllEntitlements))
+	// specify all entitlements
+	for _, e := range entitlements.AllEntitlements {
+		expectedEntitlements[e] = modules.EntitlementInfo{
+			Enabled: true,
+			Limit:   222,
+		}
+	}
+	// disable AccessGraphDemo and App
+	expectedEntitlements[entitlements.AccessGraphDemoMode] = modules.EntitlementInfo{}
+	expectedEntitlements[entitlements.App] = modules.EntitlementInfo{}
+
 	expected := modules.Features{
 		AccessControls:          true,
 		AccessGraph:             false,
@@ -292,36 +304,20 @@ func TestGetLicenseFeatures_Entitlements(t *testing.T) {
 		Questionnaire:           false,
 		RecoveryCodes:           false,
 		SupportType:             2,
-		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-			entitlements.AccessGraphDemoMode:        {Enabled: false},
-			entitlements.AccessLists:                {Enabled: true, Limit: 222},
-			entitlements.AccessMonitoring:           {Enabled: true, Limit: 222},
-			entitlements.AccessRequests:             {Enabled: true, Limit: 222},
-			entitlements.App:                        {Enabled: false, Limit: 0},
-			entitlements.CloudAuditLogRetention:     {Enabled: true, Limit: 222},
-			entitlements.DB:                         {Enabled: true, Limit: 222},
-			entitlements.Desktop:                    {Enabled: true, Limit: 222},
-			entitlements.DeviceTrust:                {Enabled: true, Limit: 222},
-			entitlements.ExternalAuditStorage:       {Enabled: true, Limit: 222},
-			entitlements.FeatureHiding:              {Enabled: true, Limit: 222},
-			entitlements.HSM:                        {Enabled: true, Limit: 222},
-			entitlements.Identity:                   {Enabled: true, Limit: 222},
-			entitlements.JoinActiveSessions:         {Enabled: true, Limit: 222},
-			entitlements.K8s:                        {Enabled: true, Limit: 222},
-			entitlements.MobileDeviceManagement:     {Enabled: true, Limit: 222},
-			entitlements.OIDC:                       {Enabled: true, Limit: 222},
-			entitlements.OktaSCIM:                   {Enabled: true, Limit: 222},
-			entitlements.OktaUserSync:               {Enabled: true, Limit: 222},
-			entitlements.Policy:                     {Enabled: true, Limit: 222},
-			entitlements.SAML:                       {Enabled: true, Limit: 222},
-			entitlements.SessionLocks:               {Enabled: true, Limit: 222},
-			entitlements.UpsellAlert:                {Enabled: true, Limit: 222},
-			entitlements.UsageReporting:             {Enabled: true, Limit: 222},
-			entitlements.LicenseAutoUpdate:          {Enabled: true, Limit: 222},
-			entitlements.UnrestrictedManagedUpdates: {Enabled: true, Limit: 222},
-			entitlements.ClientIPRestrictions:       {Enabled: true, Limit: 222},
-		},
+		Entitlements:            expectedEntitlements,
 	}
+
+	newEntitlements := make(map[string]types.EntitlementInfo, len(entitlements.AllEntitlements))
+	// specify all entitlements
+	for _, e := range entitlements.AllEntitlements {
+		newEntitlements[string(e)] = types.EntitlementInfo{
+			Enabled: true,
+			Limit:   222,
+		}
+	}
+	// exclude AccessGraphDemo and App
+	delete(newEntitlements, string(entitlements.AccessGraphDemoMode))
+	delete(newEntitlements, string(entitlements.App))
 
 	license, err := types.NewLicense("license", types.LicenseSpecV3{
 		AccountID:                          "",
@@ -345,33 +341,7 @@ func TestGetLicenseFeatures_Entitlements(t *testing.T) {
 		UsageBasedBilling:                  false,
 		AnonymizationKey:                   "",
 		SupportsPolicy:                     false,
-		Entitlements: map[string]types.EntitlementInfo{
-			"AccessLists":                {Enabled: true, Limit: 222},
-			"AccessMonitoring":           {Enabled: true, Limit: 222},
-			"AccessRequests":             {Enabled: true, Limit: 222},
-			"CloudAuditLogRetention":     {Enabled: true, Limit: 222},
-			"DB":                         {Enabled: true, Limit: 222},
-			"Desktop":                    {Enabled: true, Limit: 222},
-			"DeviceTrust":                {Enabled: true, Limit: 222},
-			"ExternalAuditStorage":       {Enabled: true, Limit: 222},
-			"FeatureHiding":              {Enabled: true, Limit: 222},
-			"HSM":                        {Enabled: true, Limit: 222},
-			"Identity":                   {Enabled: true, Limit: 222},
-			"JoinActiveSessions":         {Enabled: true, Limit: 222},
-			"K8s":                        {Enabled: true, Limit: 222},
-			"MobileDeviceManagement":     {Enabled: true, Limit: 222},
-			"OIDC":                       {Enabled: true, Limit: 222},
-			"OktaSCIM":                   {Enabled: true, Limit: 222},
-			"OktaUserSync":               {Enabled: true, Limit: 222},
-			"Policy":                     {Enabled: true, Limit: 222},
-			"SAML":                       {Enabled: true, Limit: 222},
-			"SessionLocks":               {Enabled: true, Limit: 222},
-			"UpsellAlert":                {Enabled: true, Limit: 222},
-			"UsageReporting":             {Enabled: true, Limit: 222},
-			"LicenseAutoUpdate":          {Enabled: true, Limit: 222},
-			"UnrestrictedManagedUpdates": {Enabled: true, Limit: 222},
-			"ClientIPRestrictions":       {Enabled: true, Limit: 222},
-		},
+		Entitlements:                       newEntitlements,
 	})
 	require.NoError(t, err)
 

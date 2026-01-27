@@ -12,35 +12,11 @@ import (
 )
 
 func TestGetCloudEntitlements(t *testing.T) {
-	expected := map[entitlements.EntitlementKind]modules.EntitlementInfo{
-		entitlements.AccessGraphDemoMode:        {Enabled: false},
-		entitlements.AccessLists:                {Enabled: true},
-		entitlements.AccessMonitoring:           {Enabled: true, Limit: 1},
-		entitlements.AccessRequests:             {Enabled: false},
-		entitlements.App:                        {Enabled: false},
-		entitlements.CloudAuditLogRetention:     {Enabled: false},
-		entitlements.DB:                         {Enabled: false},
-		entitlements.Desktop:                    {Enabled: false},
-		entitlements.DeviceTrust:                {Enabled: true, Limit: 3},
-		entitlements.ExternalAuditStorage:       {Enabled: false},
-		entitlements.FeatureHiding:              {Enabled: false},
-		entitlements.HSM:                        {Enabled: false},
-		entitlements.Identity:                   {Enabled: false},
-		entitlements.JoinActiveSessions:         {Enabled: false},
-		entitlements.K8s:                        {Enabled: false},
-		entitlements.MobileDeviceManagement:     {Enabled: false},
-		entitlements.OIDC:                       {Enabled: false},
-		entitlements.OktaSCIM:                   {Enabled: false},
-		entitlements.OktaUserSync:               {Enabled: false},
-		entitlements.Policy:                     {Enabled: false},
-		entitlements.SAML:                       {Enabled: false},
-		entitlements.SessionLocks:               {Enabled: false},
-		entitlements.UpsellAlert:                {Enabled: false},
-		entitlements.UsageReporting:             {Enabled: false},
-		entitlements.LicenseAutoUpdate:          {Enabled: false},
-		entitlements.UnrestrictedManagedUpdates: {Enabled: false},
-		entitlements.ClientIPRestrictions:       {Enabled: false},
-	}
+	expected := getPopulatedEntitlements(map[entitlements.EntitlementKind]modules.EntitlementInfo{
+		entitlements.AccessLists:      {Enabled: true},
+		entitlements.AccessMonitoring: {Enabled: true, Limit: 1},
+		entitlements.DeviceTrust:      {Enabled: true, Limit: 3},
+	})
 
 	e := map[string]*cloudapi.EntitlementInfo{
 		string(entitlements.AccessLists):      {Enabled: true},
@@ -54,35 +30,11 @@ func TestGetCloudEntitlements(t *testing.T) {
 }
 
 func TestGetLicenseEntitlements(t *testing.T) {
-	expected := map[entitlements.EntitlementKind]modules.EntitlementInfo{
-		entitlements.AccessGraphDemoMode:        {Enabled: false},
-		entitlements.AccessLists:                {Enabled: true},
-		entitlements.AccessMonitoring:           {Enabled: true, Limit: 11},
-		entitlements.AccessRequests:             {Enabled: false},
-		entitlements.App:                        {Enabled: false},
-		entitlements.CloudAuditLogRetention:     {Enabled: false},
-		entitlements.DB:                         {Enabled: false},
-		entitlements.Desktop:                    {Enabled: false},
-		entitlements.DeviceTrust:                {Enabled: true, Limit: 33},
-		entitlements.ExternalAuditStorage:       {Enabled: false},
-		entitlements.FeatureHiding:              {Enabled: false},
-		entitlements.HSM:                        {Enabled: false},
-		entitlements.Identity:                   {Enabled: false},
-		entitlements.JoinActiveSessions:         {Enabled: false},
-		entitlements.K8s:                        {Enabled: false},
-		entitlements.MobileDeviceManagement:     {Enabled: false},
-		entitlements.OIDC:                       {Enabled: false},
-		entitlements.OktaSCIM:                   {Enabled: false},
-		entitlements.OktaUserSync:               {Enabled: false},
-		entitlements.Policy:                     {Enabled: false},
-		entitlements.SAML:                       {Enabled: false},
-		entitlements.SessionLocks:               {Enabled: false},
-		entitlements.UpsellAlert:                {Enabled: false},
-		entitlements.UsageReporting:             {Enabled: false},
-		entitlements.LicenseAutoUpdate:          {Enabled: false},
-		entitlements.UnrestrictedManagedUpdates: {Enabled: false},
-		entitlements.ClientIPRestrictions:       {Enabled: false},
-	}
+	expected := getPopulatedEntitlements(map[entitlements.EntitlementKind]modules.EntitlementInfo{
+		entitlements.AccessLists:      {Enabled: true},
+		entitlements.AccessMonitoring: {Enabled: true, Limit: 11},
+		entitlements.DeviceTrust:      {Enabled: true, Limit: 33},
+	})
 
 	e := map[string]types.EntitlementInfo{
 		string(entitlements.AccessLists):      {Enabled: true},
@@ -93,4 +45,24 @@ func TestGetLicenseEntitlements(t *testing.T) {
 
 	actual := GetLicenseEntitlements(e)
 	require.Equal(t, expected, actual)
+}
+
+// getPopulatedEntitlements returns a map with all [entitlements.EntitlementKind]s specified
+//
+// Configured entitlements may be provided, otherwise a zero value is used. Typically used for tests.
+func getPopulatedEntitlements(configured map[entitlements.EntitlementKind]modules.EntitlementInfo) map[entitlements.EntitlementKind]modules.EntitlementInfo {
+	populated := make(map[entitlements.EntitlementKind]modules.EntitlementInfo, len(entitlements.AllEntitlements))
+
+	for _, e := range entitlements.AllEntitlements {
+		c, ok := configured[e]
+		if !ok {
+			populated[e] = modules.EntitlementInfo{}
+
+			continue
+		}
+
+		populated[e] = c
+	}
+
+	return populated
 }
