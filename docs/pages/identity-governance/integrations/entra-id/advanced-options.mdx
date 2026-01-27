@@ -99,7 +99,8 @@ The following options are supported:
 1. Source `plugin`: Use default owners configured in the plugin sync settings.
    This is the default option.
 2. Source `entraid`: Use Microsoft Entra ID group owners as Access List owners. 
-  Only the group owner of user type is supported. Teleport may fallback to using 
+  Only the group owner of user type is supported. Service principals as group owners
+  is not supported and will be filtered. Teleport may fallback to using 
   `plugin` source on the following conditions:
    - Microsoft Entra ID group has zero configured owners.
    - Microsoft Entra ID group owner is not supported, resulting in a zero supported 
@@ -125,7 +126,7 @@ $ tctl plugins install entraid \
 - `--access-list-owners-source` flag configures source for the Access List owners. 
   Value can be `plugin`, `entraid`, or `plugin-and-entraid`.
 
-### Updating Access List owners source.
+### Updating Access List owners source
 Access List owners source can be updated using `access_list_owners_source` field, which is available in 
 the `sync_settings` of the Teleport Entra ID plugin resource spec. 
 
