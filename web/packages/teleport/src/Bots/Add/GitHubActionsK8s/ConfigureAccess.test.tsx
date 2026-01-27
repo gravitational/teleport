@@ -297,5 +297,14 @@ function makeWrapper(opts?: {
 function withListUnifiedResourcesSuccess(opts?: {
   response?: ResourcesResponse<UnifiedResource>;
 }) {
-  server.use(fetchUnifiedResourcesSuccess(opts));
+  server.use(
+    fetchUnifiedResourcesSuccess({
+      response: opts?.response
+        ? {
+            ...opts.response,
+            items: opts.response.agents,
+          }
+        : undefined,
+    })
+  );
 }
