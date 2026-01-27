@@ -20,6 +20,7 @@ package authz_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -275,6 +276,148 @@ func runVerifyUserTest(t *testing.T, method string, verify func(dt *types.Device
 			}
 
 			test.assertErr(t, verify(test.dt, test.ext, botName))
+		})
+	}
+}
+
+func TestVerifyTrustedDeviceMode(t *testing.T) {
+	t.Parallel()
+
+	type testCase struct {
+		name    string
+		mode    constants.DeviceTrustMode
+		params  authz.VerifyTrustedDeviceModeParams
+		wantErr bool
+	}
+
+	var tests []testCase
+
+	// Mode "off"/"optional" matrix. Always passes.
+	for _, mode := range []constants.DeviceTrustMode{
+		constants.DeviceTrustModeOff,
+		constants.DeviceTrustModeOptional,
+	} {
+		for _, trusted := range []bool{false, true} {
+			for _, bot := range []bool{false, true} {
+				tests = append(tests, testCase{
+					name: fmt.Sprintf("%s: trusted=%v bot=%v", mode, trusted, bot),
+					mode: mode,
+					params: authz.VerifyTrustedDeviceModeParams{
+						IsTrustedDevice: trusted,
+						IsBot:           bot,
+					},
+					wantErr: false, // Allowed.
+				})
+			}
+		}
+	}
+
+	// Mode "required" matrix.
+	tests = append(tests,
+		testCase{
+			name:    "required: untrusted human",
+			mode:    constants.DeviceTrustModeRequired,
+			wantErr: true,
+		},
+		testCase{
+			name: "required: untrusted bot",
+			mode: constants.DeviceTrustModeRequired,
+			params: authz.VerifyTrustedDeviceModeParams{
+				IsBot: true,
+			},
+			wantErr: true,
+		},
+		testCase{
+			name: "required: trusted human",
+			mode: constants.DeviceTrustModeRequired,
+			params: authz.VerifyTrustedDeviceModeParams{
+				IsTrustedDevice: true,
+			},
+		},
+		testCase{
+			name: "required: trusted bot",
+			mode: constants.DeviceTrustModeRequired,
+			params: authz.VerifyTrustedDeviceModeParams{
+				IsTrustedDevice: true,
+				IsBot:           true,
+			},
+		},
+	)
+
+	// Mode "required-for-humans" matrix.
+	tests = append(tests,
+		testCase{
+			name:    "required-for-humans: untrusted human",
+			mode:    constants.DeviceTrustModeRequiredForHumans,
+			wantErr: true,
+		},
+		testCase{
+			name: "required-for-humans: untrusted bot",
+			mode: constants.DeviceTrustModeRequiredForHumans,
+			params: authz.VerifyTrustedDeviceModeParams{
+				IsBot: true,
+			},
+			wantErr: false, // Allowed because bot.
+		},
+		testCase{
+			name: "required-for-humans: trusted human",
+			mode: constants.DeviceTrustModeRequiredForHumans,
+			params: authz.VerifyTrustedDeviceModeParams{
+				IsTrustedDevice: true,
+			},
+		},
+		testCase{
+			name: "required-for-humans: trusted bot",
+			mode: constants.DeviceTrustModeRequiredForHumans,
+			params: authz.VerifyTrustedDeviceModeParams{
+				IsTrustedDevice: true,
+				IsBot:           true,
+			},
+		},
+	)
+
+	// mode="".
+	tests = append(tests,
+		testCase{
+			name:    "empty mode: AllowEmptyMode=false",
+			wantErr: true, // Unknown mode always errors.
+		},
+		testCase{
+			name: "empty mode: AllowEmptyMode=true",
+			params: authz.VerifyTrustedDeviceModeParams{
+				AllowEmptyMode: true,
+			},
+			wantErr: false, // Treated as mode="off".
+		},
+	)
+
+	// Unknown modes.
+	tests = append(tests,
+		testCase{
+			name:    "unknown mode: untrusted human",
+			mode:    "llama",
+			wantErr: true, // Unknown mode always errors.
+		},
+		testCase{
+			name: "unknown mode: trusted human",
+			mode: "llama",
+			params: authz.VerifyTrustedDeviceModeParams{
+				IsTrustedDevice: true,
+			},
+			wantErr: true, // Unknown mode always errors.
+		},
+	)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := authz.VerifyTrustedDeviceMode(test.mode, test.params)
+			if test.wantErr {
+				assert.ErrorIs(t, got, authz.ErrTrustedDeviceRequired)
+				return
+			}
+			assert.NoError(t, got)
 		})
 	}
 }
