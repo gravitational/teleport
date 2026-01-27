@@ -18,7 +18,6 @@ package oraclejoin
 
 import (
 	"strings"
-	"sync"
 
 	"github.com/gravitational/trace"
 
@@ -36,13 +35,11 @@ func ParseRegion(rawRegion string) (region, realm string) {
 	return string(canonicalRegion), realm
 }
 
-var ociRealms = sync.OnceValue(func() map[string]struct{} {
-	return map[string]struct{}{
-		"oc1": {}, "oc2": {}, "oc3": {}, "oc4": {}, "oc8": {}, "oc9": {},
-		"oc10": {}, "oc14": {}, "oc15": {}, "oc19": {}, "oc20": {}, "oc21": {},
-		"oc23": {}, "oc24": {}, "oc26": {}, "oc29": {}, "oc35": {},
-	}
-})
+var ociRealms = map[string]struct{}{
+	"oc1": {}, "oc2": {}, "oc3": {}, "oc4": {}, "oc8": {}, "oc9": {},
+	"oc10": {}, "oc14": {}, "oc15": {}, "oc19": {}, "oc20": {}, "oc21": {},
+	"oc23": {}, "oc24": {}, "oc26": {}, "oc29": {}, "oc35": {},
+}
 
 // ParseRegionFromOCID parses an Oracle OCID and returns the embedded region.
 // It returns an error if the input is not a valid OCID.
@@ -60,7 +57,7 @@ func ParseRegionFromOCID(ocid string) (string, error) {
 		return "", trace.BadParameter("invalid ocid version: %v", ocidParts[0])
 	}
 	// Check realm.
-	if _, ok := ociRealms()[ocidParts[2]]; !ok {
+	if _, ok := ociRealms[ocidParts[2]]; !ok {
 		return "", trace.BadParameter("invalid realm: %v", ocidParts[2])
 	}
 	resourceType := ocidParts[1]
