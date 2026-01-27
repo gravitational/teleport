@@ -31,20 +31,11 @@ type Preconditions struct {
 	preconditions []*decisionpb.Precondition
 }
 
-// NewPreconditions creates a new Preconditions set from the given preconditions.
-func NewPreconditions(preconditions ...*decisionpb.Precondition) *Preconditions {
-	// Clone the slice to avoid modifying the caller's slice.
-	p := &Preconditions{
-		preconditions: slices.Clone(preconditions),
+// NewPreconditions creates a new Preconditions set.
+func NewPreconditions() *Preconditions {
+	return &Preconditions{
+		preconditions: make([]*decisionpb.Precondition, 0),
 	}
-
-	// Sort preconditions to ensure consistent order.
-	slices.SortFunc(p.preconditions, comparePreconditions)
-
-	// Remove duplicates.
-	p.preconditions = slices.CompactFunc(p.preconditions, equalPreconditions)
-
-	return p
 }
 
 // Add adds a precondition to the set if the kind is not already present.
@@ -81,8 +72,4 @@ func (p *Preconditions) Len() int {
 
 func comparePreconditions(a, b *decisionpb.Precondition) int {
 	return cmp.Compare(a.Kind, b.Kind)
-}
-
-func equalPreconditions(a, b *decisionpb.Precondition) bool {
-	return comparePreconditions(a, b) == 0
 }

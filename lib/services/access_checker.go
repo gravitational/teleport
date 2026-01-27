@@ -66,8 +66,8 @@ type AccessChecker interface {
 	CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error
 
 	// CheckConditionalAccess checks conditional access to the specified resource. If access is granted, it returns a
-	// set of preconditions that must be satisfied. If access is denied, it returns an error. An empty set of
-	// preconditions and a nil error indicates that no additional preconditions are required for access.
+	// preconditions that must be satisfied. If access is denied, it returns an error. An empty set of preconditions and
+	// a nil error indicates that no additional preconditions are required for access.
 	CheckConditionalAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) (*Preconditions, error)
 
 	// CheckDeviceAccess verifies if the current device state satisfies the

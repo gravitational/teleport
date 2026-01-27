@@ -2620,7 +2620,7 @@ func resourceRequiresLabelMatching(r AccessCheckable) bool {
 	return true
 }
 
-// checkConditionalAccess evaluates access based on the provided resource, traits, states, and matchers. If
+// checkConditionalAccess evaluates access based on the provided resource, traits, states, and matchers.
 func (set RoleSet) checkConditionalAccess(
 	r AccessCheckable,
 	traits wrappers.Traits,
@@ -3696,7 +3696,7 @@ type AccessState struct {
 	// IsBot determines whether the user certificate belongs to a bot. It's used
 	// when deciding whether to enforce device verification.
 	IsBot bool
-	// ReturnPreconditions, when set to true, causes access checks to return a list of preconditions (such as MFA or
+	// ReturnPreconditions, when set to true, causes access checks to return a set of preconditions (such as MFA or
 	// device verification requirements) instead of immediately returning an access error. This allows callers to
 	// programmatically determine what additional steps are required for access, rather than failing outright.
 	ReturnPreconditions bool

@@ -1103,11 +1103,11 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 				(os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") != "yes" && state.MFAVerified))
 
 	// Collect preconditions that must be met before the session can start.
-	var precondsSet *services.Preconditions
+	var preconds *services.Preconditions
 
 	// Perform the primary node access check unless bypass is allowed.
 	if !bypassAccessCheck {
-		if precondsSet, err = accessChecker.CheckConditionalAccess(
+		if preconds, err = accessChecker.CheckConditionalAccess(
 			target,
 			state,
 			services.NewLoginMatcher(osUser),
@@ -1180,9 +1180,9 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 			HostSudoers:           hostSudoers,
 			BpfEvents:             bpfEvents,
 			HostUsersInfo:         hostUsersInfo,
-			Preconditions:         slices.Collect(precondsSet.All()),
+			Preconditions:         slices.Collect(preconds.All()),
 		},
-		precondsSet,
+		preconds,
 		nil
 }
 

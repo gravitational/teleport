@@ -20,9 +20,9 @@ import (
 	"slices"
 	"testing"
 
-	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
-
 	"github.com/stretchr/testify/require"
+
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 )
 
 func TestPreconditions_Add(t *testing.T) {
@@ -80,14 +80,14 @@ func TestPreconditions_Add(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p := NewPreconditions(tc.initial...)
+			preconds := newPreconditions(tc.initial)
 
 			for _, precondition := range tc.toAdd {
-				p.Add(precondition)
+				preconds.Add(precondition)
 			}
 
 			var got []decisionpb.PreconditionKind
-			for precondition := range p.All() {
+			for precondition := range preconds.All() {
 				got = append(got, precondition.Kind)
 			}
 
@@ -107,24 +107,24 @@ func TestPreconditions_All(t *testing.T) {
 	}{
 		{
 			name:     "empty",
-			input:    NewPreconditions(),
+			input:    newPreconditions(nil),
 			expected: []decisionpb.PreconditionKind{},
 		},
 		{
 			name: "single element",
-			input: NewPreconditions(
-				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
-			),
+			input: newPreconditions([]*decisionpb.Precondition{
+				{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+			}),
 			expected: []decisionpb.PreconditionKind{
 				decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
 			},
 		},
 		{
 			name: "multiple elements unordered",
-			input: NewPreconditions(
-				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
-				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
-			),
+			input: newPreconditions([]*decisionpb.Precondition{
+				{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+				{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
+			}),
 			expected: []decisionpb.PreconditionKind{
 				decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED,
 				decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
@@ -132,22 +132,10 @@ func TestPreconditions_All(t *testing.T) {
 		},
 		{
 			name: "already sorted",
-			input: NewPreconditions(
-				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
-				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
-			),
-			expected: []decisionpb.PreconditionKind{
-				decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED,
-				decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
-			},
-		},
-		{
-			name: "duplicates removed",
-			input: NewPreconditions(
-				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
-				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
-				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
-			),
+			input: newPreconditions([]*decisionpb.Precondition{
+				{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
+				{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+			}),
 			expected: []decisionpb.PreconditionKind{
 				decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED,
 				decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
@@ -178,28 +166,28 @@ func TestPreconditions_Contains(t *testing.T) {
 	}{
 		{
 			name: "contains existing element",
-			input: NewPreconditions(
-				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
-				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
-			),
+			input: newPreconditions([]*decisionpb.Precondition{
+				{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+				{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
+			}),
 			kind:     decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
 			expected: true,
 		},
 		{
 			name: "contains another existing element",
-			input: NewPreconditions(
-				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
-				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
-			),
+			input: newPreconditions([]*decisionpb.Precondition{
+				{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+				{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
+			}),
 			kind:     decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED,
 			expected: true,
 		},
 		{
 			name: "does not contain non-existing element",
-			input: NewPreconditions(
-				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
-				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
-			),
+			input: newPreconditions([]*decisionpb.Precondition{
+				{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+				{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
+			}),
 			kind:     decisionpb.PreconditionKind(999),
 			expected: false,
 		},
@@ -222,30 +210,30 @@ func TestPreconditions_Len(t *testing.T) {
 	}{
 		{
 			name:     "empty set",
-			input:    NewPreconditions(),
+			input:    newPreconditions(nil),
 			expected: 0,
 		},
 		{
 			name: "single element",
-			input: NewPreconditions(
-				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
-			),
+			input: newPreconditions([]*decisionpb.Precondition{
+				{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+			}),
 			expected: 1,
 		},
 		{
 			name: "multiple elements",
-			input: NewPreconditions(
-				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
-				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
-			),
+			input: newPreconditions([]*decisionpb.Precondition{
+				{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+				{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
+			}),
 			expected: 2,
 		},
 		{
 			name: "duplicates counted once",
-			input: NewPreconditions(
-				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
-				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
-			),
+			input: newPreconditions([]*decisionpb.Precondition{
+				{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+				{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+			}),
 			expected: 1,
 		},
 	} {
@@ -254,4 +242,14 @@ func TestPreconditions_Len(t *testing.T) {
 			require.Equal(t, tc.expected, got, "Len() = %v, want %v", got, tc.expected)
 		})
 	}
+}
+
+func newPreconditions(preconds []*decisionpb.Precondition) *Preconditions {
+	p := NewPreconditions()
+
+	for _, precond := range preconds {
+		p.Add(precond)
+	}
+
+	return p
 }
