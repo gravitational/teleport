@@ -83,23 +83,17 @@ export function getReadableStateReason(reason: string): string {
   return reasonMap[reason] || reason;
 }
 
+export function isModeEnabled(mode?: string): boolean {
+  const normalized = mode?.toLowerCase();
+  return !!normalized && normalized !== 'disabled' && normalized !== '';
+}
+
 /**
  * checkIsConfigured returns true if managed updates are configured.
  */
 export function checkIsConfigured(data: ManagedUpdatesDetails): boolean {
   if (!data) return false;
-
-  const rolloutMode = data.rollout?.mode?.toLowerCase();
-  if (rolloutMode && rolloutMode !== 'disabled' && rolloutMode !== '') {
-    return true;
-  }
-
-  const toolsMode = data.tools?.mode?.toLowerCase();
-  if (toolsMode && toolsMode !== 'disabled' && toolsMode !== '') {
-    return true;
-  }
-
-  return false;
+  return isModeEnabled(data.rollout?.mode) || isModeEnabled(data.tools?.mode);
 }
 
 /**

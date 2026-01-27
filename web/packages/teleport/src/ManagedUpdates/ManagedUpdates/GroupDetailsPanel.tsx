@@ -21,13 +21,12 @@ import Table, { Cell } from 'design/DataTable';
 import { ArrowSquareOut } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 
-import { RolloutGroupInfo, RolloutInfo } from 'teleport/services/managedUpdates';
-
 import {
-  InfoItem,
-  StatusBadge,
-  VersionTableContainer,
-} from './shared';
+  RolloutGroupInfo,
+  RolloutInfo,
+} from 'teleport/services/managedUpdates';
+
+import { InfoItem, StatusBadge, VersionTableContainer } from '../shared';
 import {
   getInstanceInventoryUrlFilteredByGroup,
   getOrphanedCount,

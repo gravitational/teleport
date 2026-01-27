@@ -98,7 +98,9 @@ describe('ManagedUpdates', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/every group immediately updates to the target version/i)
+        screen.getByText(
+          /every group immediately updates to the target version/i
+        )
       ).toBeInTheDocument();
     });
 

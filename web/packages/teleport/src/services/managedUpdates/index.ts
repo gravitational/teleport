@@ -16,6 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/**
+ * GroupState represents the current state of a rollout group.
+ * - `unstarted`: Group hasn't started updating yet.
+ * - `canary`: Canary agents are being updated first to make sure the rollout is safe to proceed with.
+ * - `active`: Group is currently updating its agents.
+ * - `done`: All agents in the group have been updated.
+ * - `rolledback`: Group was rolled back to the previous version.
+ */
 export type GroupState =
   | 'unstarted'
   | 'canary'
