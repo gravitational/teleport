@@ -643,7 +643,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		DatabaseObjects:                 cfg.DatabaseObjects,
 		SecReports:                      cfg.SecReports,
 		UserLoginStates:                 cfg.UserLoginState,
-		StatusInternal:                  cfg.Status,
+		Status:                          cfg.Status,
 		UsageReporter:                   cfg.UsageReporter,
 		UserPreferences:                 cfg.UserPreferences,
 		PluginData:                      cfg.PluginData,
@@ -900,7 +900,7 @@ type Services struct {
 	services.UserGroups
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
-	services.StatusInternal
+	services.Status
 	services.Integrations
 	services.IntegrationsTokenGenerator
 	services.UserTasks
