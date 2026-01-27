@@ -19,6 +19,7 @@ package vnet
 import (
 	"context"
 	"errors"
+	"os"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -73,12 +74,13 @@ func RunLinuxAdminProcess(ctx context.Context, config LinuxAdminProcessConfig) e
 		return trace.Wrap(err, "reporting network stack info to client application")
 	}
 
-	osConfigProvider, err := newRemoteOSConfigProvider(
-		clt,
-		tunName,
-		networkStackConfig.ipv6Prefix.String(),
-		networkStackConfig.dnsIPv6.String(),
-	)
+	osConfigProvider, err := newOSConfigProvider(osConfigProviderConfig{
+		clt:           clt,
+		tunName:       tunName,
+		ipv6Prefix:    networkStackConfig.ipv6Prefix.String(),
+		dnsIPv6:       networkStackConfig.dnsIPv6.String(),
+		addDNSAddress: networkStack.addDNSAddress,
+	})
 	if err != nil {
 		return trace.Wrap(err, "creating OS config provider")
 	}
@@ -86,18 +88,21 @@ func RunLinuxAdminProcess(ctx context.Context, config LinuxAdminProcessConfig) e
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
+		defer log.InfoContext(ctx, "Network stack terminated.")
 		if err := networkStack.run(ctx); err != nil {
 			return trace.Wrap(err, "running network stack")
 		}
 		return errors.New("network stack terminated")
 	})
 	g.Go(func() error {
+		defer log.InfoContext(ctx, "OS configuration loop exited.")
 		if err := osConfigurator.runOSConfigurationLoop(ctx); err != nil {
 			return trace.Wrap(err, "running OS configuration loop")
 		}
 		return errors.New("OS configuration loop terminated")
 	})
 	g.Go(func() error {
+		defer log.InfoContext(ctx, "Ping loop exited.")
 		tick := time.Tick(time.Second)
 		for {
 			select {
@@ -110,18 +115,25 @@ func RunLinuxAdminProcess(ctx context.Context, config LinuxAdminProcessConfig) e
 			}
 		}
 	})
-	return trace.Wrap(g.Wait(), "running VNet admin process")
-}
 
-func createTUNDevice(ctx context.Context) (tun.Device, string, error) {
-	log.DebugContext(ctx, "Creating TUN device.")
-	dev, err := tun.CreateTUN("utun", mtu)
-	if err != nil {
-		return nil, "", trace.Wrap(err, "creating TUN device")
+	done := make(chan error)
+	go func() {
+		done <- g.Wait()
+	}()
+
+	select {
+	case err := <-done:
+		return trace.Wrap(err, "running VNet admin process")
+	case <-ctx.Done():
 	}
-	name, err := dev.Name()
-	if err != nil {
-		return nil, "", trace.Wrap(err, "getting TUN device name")
+
+	select {
+	case err := <-done:
+		// network stack exited cleanly within timeout
+		return trace.Wrap(err, "running VNet admin process")
+	case <-time.After(10 * time.Second):
+		log.ErrorContext(ctx, "VNet admin process did not exit within 10 seconds, forcing shutdown.")
+		os.Exit(1)
+		return nil
 	}
-	return dev, name, nil
 }
