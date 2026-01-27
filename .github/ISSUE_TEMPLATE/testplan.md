@@ -2096,6 +2096,54 @@ Verify that SSH works, and that resumable SSH is not interrupted across a contro
 | OpenSSH (without `ProxyCommand`) | n/a | <ul><li> [ ] </ul></li> |
 | OpenSSH's `ssh-keyscan` | n/a | <ul><li> [ ] </ul></li> |
 
+## Discovery – AWS IaC Integration
+
+### 1. Enroll New Integration
+- [ ] Select **Amazon Web Services (AWS)**
+
+#### Configuration
+- [ ] Resource Types
+  - [ ] EC2 Instances
+    - [ ] Tag Filters (test independently)
+      - [ ] No tags (blank)
+      - [ ] Specific tag(s)
+      - [ ] Tag(s) with wildcard
+- [ ] Regions (test independently)
+  - [ ] All regions
+  - [ ] Single region
+  - [ ] Multiple regions
+
+- [ ] Copy generated Terraform module
+
+### 2. Provisioning
+- [ ] `terraform init` completes successfully
+- [ ] `terraform apply` completes successfully
+
+### 3. Integration Validation
+- [ ] Integration appears in integrations list
+- [ ] Integration details load correctly
+  - [ ] Overview
+  - [ ] Activity
+  - [ ] Settings
+- [ ] Discovered resource counts match expectations
+
+### 4. Issues Handling
+- [ ] Issues are visible
+  - [ ] View issue details
+  - [ ] Mark issue as resolved
+  - [ ] Verify issue is re-created on next discovery scan (if condition persists)
+
+### 5. Configuration Updates
+- [ ] Update integration settings
+- [ ] Re-run `terraform apply`
+- [ ] Verify updated settings are reflected in integration details
+- [ ] Verify resource counts and issues update as expected
+
+### 6. Deprovisioning
+- [ ] `terraform destroy` completes successfully
+- [ ] Integration is removed from integrations list
+- [ ] Previously discovered resources remain present in inventory (no deletion)
+
 ## EC2 Discovery
 
 [EC2 Discovery docs](https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/)
