@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/appauthconfig/appauthconfigv1"
+	"github.com/gravitational/teleport/lib/auth/internal"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
@@ -51,79 +52,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
-// NewWebSessionRequest defines a request to create a new user
-// web session
-type NewWebSessionRequest struct {
-	// User specifies the user this session is bound to
-	User string
-	// LoginIP is an observed IP of the client, it will be embedded into certificates.
-	LoginIP string
-	// LoginUserAgent is the user agent of the client's browser, as captured by
-	// the Proxy.
-	LoginUserAgent string
-	// LoginMaxTouchPoints indicates whether the client device supports touch controls. It is sent by
-	// the frontend app to the proxy service and then forwarded to the auth service. It differentiates
-	// iPadOS from macOS since they both use the same user agent otherwise. This information is needed
-	// to decide whether to show the Device Trust prompt in the Web UI after a successful login.
-	LoginMaxTouchPoints int
-	// ProxyGroupID is the proxy group id where request is generated.
-	ProxyGroupID string
-	// Roles optionally lists additional user roles
-	Roles []string
-	// Traits optionally lists role traits
-	Traits map[string][]string
-	// SessionTTL optionally specifies the session time-to-live.
-	// If left unspecified, the default certificate duration is used.
-	SessionTTL time.Duration
-	// LoginTime is the time that this user recently logged in.
-	LoginTime time.Time
-	// AccessRequests contains the UUIDs of the access requests currently in use.
-	AccessRequests []string
-	// RequestedResourceIDs optionally lists requested resources
-	RequestedResourceIDs []types.ResourceID
-	// AttestWebSession optionally attests the web session to meet private key policy requirements.
-	// This should only be set to true for web sessions that are purely in the purview of the Proxy
-	// and Auth services. Users should never have direct access to attested web sessions.
-	AttestWebSession bool
-	// SSHPrivateKey is a specific private key to use when generating the web
-	// sessions' SSH certificates.
-	// This should be provided when extending an attested web session in order
-	// to maintain the session attested status.
-	SSHPrivateKey *keys.PrivateKey
-	// TLSPrivateKey is a specific private key to use when generating the web
-	// sessions' SSH certificates.
-	// This should be provided when extending an attested web session in order
-	// to maintain the session attested status.
-	TLSPrivateKey *keys.PrivateKey
-	// CreateDeviceWebToken informs Auth to issue a DeviceWebToken when creating
-	// this session.
-	// A DeviceWebToken must only be issued for users that have been authenticated
-	// in the same RPC.
-	// May only be set internally by Auth (and Auth-related logic), not allowed
-	// for external requests.
-	CreateDeviceWebToken bool
-	// Scope, if non-empty, makes the authentication scoped. Scoping does not change core authentication
-	// behavior, but results in a more limited (scoped) set of credentials being issued upon successful
-	// authentication and some differences in locking behavior.
-	Scope string
-}
-
-// CheckAndSetDefaults validates the request and sets defaults.
-func (r *NewWebSessionRequest) CheckAndSetDefaults() error {
-	if r.User == "" {
-		return trace.BadParameter("user name required")
-	}
-	if len(r.Roles) == 0 {
-		return trace.BadParameter("roles required")
-	}
-	if len(r.Traits) == 0 {
-		return trace.BadParameter("traits required")
-	}
-	if r.SessionTTL == 0 {
-		r.SessionTTL = apidefaults.CertDuration
-	}
-	return nil
-}
+// NewWebSessionRequest defines a request to create a new user web session.
+type NewWebSessionRequest = internal.NewWebSessionRequest
 
 func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionRequest) (types.WebSession, error) {
 	if req.Scope != "" {
@@ -304,20 +234,20 @@ func (a *Server) newWebSession(
 		return nil, nil, trace.Wrap(err)
 	}
 
-	certReq := certRequest{
-		user:           userState,
-		loginIP:        req.LoginIP,
-		ttl:            sessionTTL,
-		sshPublicKey:   sshAuthorizedKey,
-		tlsPublicKey:   tlsPublicKeyPEM,
-		checker:        services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to newWebSession.
-		traits:         req.Traits,
-		activeRequests: req.AccessRequests,
+	certReq := internal.CertRequest{
+		User:           userState,
+		LoginIP:        req.LoginIP,
+		TTL:            sessionTTL,
+		SSHPublicKey:   sshAuthorizedKey,
+		TLSPublicKey:   tlsPublicKeyPEM,
+		Checker:        services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to newWebSession.
+		Traits:         req.Traits,
+		ActiveRequests: req.AccessRequests,
 	}
 	var hasDeviceExtensions bool
 	if opts != nil && opts.deviceExtensions != nil {
 		// Apply extensions to request.
-		certReq.deviceExtensions = DeviceExtensions(*opts.deviceExtensions)
+		certReq.DeviceExtensions = *opts.deviceExtensions
 		hasDeviceExtensions = true
 	}
 
@@ -422,41 +352,7 @@ func (a *Server) upsertWebSession(ctx context.Context, session types.WebSession)
 }
 
 // NewAppSessionRequest defines a request to create a new user app session.
-type NewAppSessionRequest struct {
-	NewWebSessionRequest
-
-	// PublicAddr is the public address the application.
-	PublicAddr string
-	// ClusterName is cluster within which the application is running.
-	ClusterName string
-	// AWSRoleARN is AWS role the user wants to assume.
-	AWSRoleARN string
-	// AzureIdentity is Azure identity the user wants to assume.
-	AzureIdentity string
-	// GCPServiceAccount is the GCP service account the user wants to assume.
-	GCPServiceAccount string
-	// MFAVerified is the UUID of an MFA device used to verify this request.
-	MFAVerified string
-	// DeviceExtensions holds device-aware user certificate extensions.
-	DeviceExtensions DeviceExtensions
-	// AppName is the name of the app.
-	AppName string
-	// AppURI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
-	AppURI string
-	// AppTargetPort signifies that the session is made to a specific port of a multi-port TCP app.
-	AppTargetPort int
-	// ClientAddr is a client (user's) address.
-	ClientAddr string
-	// SuggestedSessionID is a session ID suggested by the requester.
-	SuggestedSessionID string
-
-	// BotName is the name of the bot that is creating this session.
-	// Empty if not a bot.
-	BotName string
-	// BotInstanceID is the ID of the bot instance that is creating this session.
-	// Empty if not a bot.
-	BotInstanceID string
-}
+type NewAppSessionRequest = internal.NewAppSessionRequest
 
 // CreateAppSession creates and inserts a services.WebSession into the
 // backend with the identity of the caller used to generate the certificate.
@@ -518,7 +414,7 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 		AppURI:            req.URI,
 		BotName:           identity.BotName,
 		BotInstanceID:     identity.BotInstanceID,
-		DeviceExtensions:  DeviceExtensions(identity.DeviceExtensions),
+		DeviceExtensions:  tlsca.DeviceExtensions(identity.DeviceExtensions),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -659,30 +555,30 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateUserCert(ctx, certRequest{
-		user:           user,
-		loginIP:        req.LoginIP,
-		tlsPublicKey:   tlsPublicKey,
-		checker:        services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to newAppSession.
-		ttl:            req.SessionTTL,
-		traits:         req.Traits,
-		activeRequests: req.AccessRequests,
+	certs, err := a.generateUserCert(ctx, internal.CertRequest{
+		User:           user,
+		LoginIP:        req.LoginIP,
+		TLSPublicKey:   tlsPublicKey,
+		Checker:        services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to newAppSession.
+		TTL:            req.SessionTTL,
+		Traits:         req.Traits,
+		ActiveRequests: req.AccessRequests,
 		// Set the app session ID in the certificate - used in auditing from the App Service.
-		appSessionID: sessionID,
+		AppSessionID: sessionID,
 		// Only allow this certificate to be used for applications.
-		usage:             []string{teleport.UsageAppsOnly},
-		appPublicAddr:     req.PublicAddr,
-		appClusterName:    req.ClusterName,
-		appTargetPort:     req.AppTargetPort,
-		awsRoleARN:        req.AWSRoleARN,
-		azureIdentity:     req.AzureIdentity,
-		gcpServiceAccount: req.GCPServiceAccount,
+		Usage:             []string{teleport.UsageAppsOnly},
+		AppPublicAddr:     req.PublicAddr,
+		AppClusterName:    req.ClusterName,
+		AppTargetPort:     req.AppTargetPort,
+		AWSRoleARN:        req.AWSRoleARN,
+		AzureIdentity:     req.AzureIdentity,
+		GCPServiceAccount: req.GCPServiceAccount,
 		// Pass along device extensions from the user.
-		deviceExtensions: req.DeviceExtensions,
-		mfaVerified:      req.MFAVerified,
+		DeviceExtensions: tlsca.DeviceExtensions(req.DeviceExtensions),
+		MFAVerified:      req.MFAVerified,
 		// Pass along bot details to ensure audit logs are correct.
-		botName:       req.BotName,
-		botInstanceID: req.BotInstanceID,
+		BotName:       req.BotName,
+		BotInstanceID: req.BotInstanceID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -842,19 +738,19 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 		return nil, nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateUserCert(ctx, certRequest{
-		user:                             req.UserState,
-		ttl:                              req.SessionTTL,
-		sshPublicKey:                     req.SSHPubKey,
-		tlsPublicKey:                     req.TLSPubKey,
-		sshPublicKeyAttestationStatement: req.SSHAttestationStatement,
-		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
-		compatibility:                    req.Compatibility,
-		checker:                          checker,
-		traits:                           req.UserState.GetTraits(),
-		routeToCluster:                   req.RouteToCluster,
-		kubernetesCluster:                req.KubernetesCluster,
-		loginIP:                          req.LoginIP,
+	certs, err := a.generateUserCert(ctx, internal.CertRequest{
+		User:                             req.UserState,
+		TTL:                              req.SessionTTL,
+		SSHPublicKey:                     req.SSHPubKey,
+		TLSPublicKey:                     req.TLSPubKey,
+		SSHPublicKeyAttestationStatement: req.SSHAttestationStatement,
+		TLSPublicKeyAttestationStatement: req.TLSAttestationStatement,
+		Compatibility:                    req.Compatibility,
+		Checker:                          checker, // TODO(fspmarshall/scopes): add scoping support to CreateSessionCerts.
+		Traits:                           req.UserState.GetTraits(),
+		RouteToCluster:                   req.RouteToCluster,
+		KubernetesCluster:                req.KubernetesCluster,
+		LoginIP:                          req.LoginIP,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

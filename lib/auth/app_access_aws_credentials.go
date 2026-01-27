@@ -27,6 +27,7 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/internal"
 	"github.com/gravitational/teleport/lib/integrations/awsra"
 )
 
@@ -41,14 +42,14 @@ var errAppWithoutAWSClientSideCredentials = errors.New("target resource is not a
 func generateAWSClientSideCredentials(
 	ctx context.Context,
 	a *Server,
-	req certRequest,
+	req internal.CertRequest,
 	notAfter time.Time,
 ) (string, error) {
-	if req.appName == "" || req.awsRoleARN == "" {
+	if req.AppName == "" || req.AWSRoleARN == "" {
 		return "", errAppWithoutAWSClientSideCredentials
 	}
 
-	appInfo, err := getAppServerByName(ctx, a, req.appName)
+	appInfo, err := getAppServerByName(ctx, a, req.AppName)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -74,7 +75,7 @@ func generateAWSClientSideCredentials(
 		return "", errAppWithoutAWSClientSideCredentials
 
 	default:
-		return "", trace.BadParameter("application %q is using integration %q for access, which does not support AWS credential generation", req.appName, integrationName)
+		return "", trace.BadParameter("application %q is using integration %q for access, which does not support AWS credential generation", req.AppName, integrationName)
 	}
 }
 
@@ -95,7 +96,7 @@ func getAppServerByName(ctx context.Context, a *Server, appServerName string) (t
 func generateAWSRolesAnywhereCredentials(
 	ctx context.Context,
 	a *Server,
-	req certRequest,
+	req internal.CertRequest,
 	appInfo types.Application,
 	integration types.Integration,
 	notAfter time.Time,
@@ -108,7 +109,7 @@ func generateAWSRolesAnywhereCredentials(
 	awsProfileARN := appInfo.GetAWSRolesAnywhereProfileARN()
 	acceptRoleSessionName := appInfo.GetAWSRolesAnywhereAcceptRoleSessionName()
 	if awsProfileARN == "" {
-		return "", trace.BadParameter("application %q does not have a valid AWS Roles Anywhere Profile ARN", req.appName)
+		return "", trace.BadParameter("application %q does not have a valid AWS Roles Anywhere Profile ARN", req.AppName)
 	}
 
 	durationSeconds := int(notAfter.Sub(a.clock.Now()).Seconds())
@@ -117,8 +118,8 @@ func generateAWSRolesAnywhereCredentials(
 		Clock:                 a.clock,
 		TrustAnchorARN:        integrationSpec.TrustAnchorARN,
 		ProfileARN:            awsProfileARN,
-		RoleARN:               req.awsRoleARN,
-		SubjectCommonName:     req.user.GetName(),
+		RoleARN:               req.AWSRoleARN,
+		SubjectCommonName:     req.User.GetName(),
 		KeyStoreManager:       a.keyStore,
 		AcceptRoleSessionName: acceptRoleSessionName,
 		DurationSeconds:       &durationSeconds,
