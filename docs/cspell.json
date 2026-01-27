@@ -527,6 +527,7 @@
     "envfile",
     "enzos",
     "errcode",
+    "errgroup",
     "etcdctl",
     "evtx",
     "exadata",
