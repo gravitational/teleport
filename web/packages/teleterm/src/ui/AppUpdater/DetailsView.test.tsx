@@ -49,6 +49,7 @@ test('download button is available when autoDownload is false', async () => {
           ],
         },
       })}
+      currentVersion="14.7.2"
       platform="darwin"
       onCheckForUpdates={() => {}}
       onDownload={() => {}}
@@ -94,6 +95,7 @@ test('when there are multiple clusters available, managing cluster can be select
         },
       })}
       platform="darwin"
+      currentVersion="14.7.2"
       onCheckForUpdates={() => {}}
       onDownload={() => {}}
       onCancelDownload={() => {}}

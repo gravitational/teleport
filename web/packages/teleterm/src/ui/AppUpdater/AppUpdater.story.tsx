@@ -318,6 +318,7 @@ function WidgetAndDetails(storyProps: StoryProps) {
           </P2>
         </Stack>
         <DetailsView
+          currentVersion="14.7.3"
           platform={storyProps.platform}
           updateEvent={state}
           changeManagingCluster={() => {}}
