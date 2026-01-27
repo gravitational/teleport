@@ -81,7 +81,8 @@ type UnifiedResourcesResponse struct {
 
 // listUnifedResourceOptions holds options for listing unified resources.
 type listUnifedResourceOptions struct {
-	searchAsRoles bool
+	searchAsRoles      bool
+	includeRequestable bool
 }
 
 // ListUnifedResourcesOption is a functional option for configuring unified resource listing.
@@ -92,6 +93,14 @@ type ListUnifedResourcesOption func(*listUnifedResourceOptions)
 func WithSearchAsRole() ListUnifedResourcesOption {
 	return func(o *listUnifedResourceOptions) {
 		o.searchAsRoles = true
+	}
+}
+
+// WithIncludeRequestable sets the included resource mode to 'all'.
+// This includes requestable as well as granted resources in the response.
+func WithIncludeRequestable() ListUnifedResourcesOption {
+	return func(o *listUnifedResourceOptions) {
+		o.includeRequestable = true
 	}
 }
 
@@ -110,6 +119,9 @@ func MustListUnifedResources(t *testing.T, client *helpers.WebClientPack, opts .
 	q := u.Query()
 	if op.searchAsRoles {
 		q.Add("searchAsRoles", "yes")
+	}
+	if op.includeRequestable {
+		q.Add("includedResourceMode", web.IncludedResourceModeAll)
 	}
 	u.RawQuery = q.Encode()
 

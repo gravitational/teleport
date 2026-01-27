@@ -189,7 +189,7 @@ func (calc *AssignmentCalculator) calcUserAssignments(ctx context.Context, user 
 		return nil, trace.Wrap(err, "Fetching active access requests for user")
 	}
 	for _, req := range accessRequests {
-		resources := req.GetRequestedResourceIDs()
+		resources := req.GetAllRequestedResourceIDs()
 
 		// Only add the assignments from roles if `req` is not a Resource Access
 		// Request, otherwise the user will end up being given all requestable
@@ -198,7 +198,7 @@ func (calc *AssignmentCalculator) calcUserAssignments(ctx context.Context, user 
 			allRoles.Add(req.GetRoles()...)
 		}
 
-		assignments, err := accountAssignmentResources(ctx, req.GetRequestedResourceIDs(), calc.AccountAssignmentCache)
+		assignments, err := accountAssignmentResources(ctx, req.GetAllRequestedResourceIDs(), calc.AccountAssignmentCache)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -235,16 +235,17 @@ func (calc *AssignmentCalculator) calcUserAssignments(ctx context.Context, user 
 
 func accountAssignmentResources(
 	ctx context.Context,
-	resources []types.ResourceID,
+	resources []types.ResourceAccessID,
 	assignmentSvc AccountAssignmentGetter,
 ) ([]assignment, error) {
 	var result []assignment
 	for _, id := range resources {
-		if id.Kind != types.KindIdentityCenterAccountAssignment {
+		rid := id.GetResourceID()
+		if rid.Kind != types.KindIdentityCenterAccountAssignment {
 			continue
 		}
 
-		asmt, err := assignmentSvc.GetIdentityCenterAccountAssignment(ctx, id.Name)
+		asmt, err := assignmentSvc.GetIdentityCenterAccountAssignment(ctx, rid.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

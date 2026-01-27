@@ -36,7 +36,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 
 	// This access request should be ignored.
 	accessRequest, err := types.NewAccessRequestWithResources(uuid.NewString(), string(user), roles,
-		[]types.ResourceID{{ClusterName: testClusterName, Kind: types.KindRole, Name: "role-request"}})
+		[]types.ResourceAccessID{{Id: types.ResourceID{ClusterName: testClusterName, Kind: types.KindRole, Name: "role-request"}}})
 	require.NoError(t, err)
 
 	accessRequest, err = ap.CreateAccessRequestV2(ctx, accessRequest)
@@ -58,7 +58,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 
 	// This access request should not be registered by the reconciler
 	accessRequest, err = types.NewAccessRequestWithResources(uuid.NewString(), string(user), roles,
-		[]types.ResourceID{{ClusterName: testClusterName, Kind: types.KindApp, Name: appServer.GetApp().GetName()}})
+		[]types.ResourceAccessID{{Id: types.ResourceID{ClusterName: testClusterName, Kind: types.KindApp, Name: appServer.GetApp().GetName()}}})
 	require.NoError(t, err)
 	accessRequest.SetState(types.RequestState_DENIED)
 
@@ -68,14 +68,14 @@ func TestAccessRequestReconciler(t *testing.T) {
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	require.Empty(t, reconciler.accessRequests.CopyAsMap())
-	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.newAccessRequests.CopyAsMap(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.newAccessRequests.CopyAsMap(), cmpopts.IgnoreFields(types.Metadata{}, "Revision"), cmpopts.EquateEmpty()))
 
 	require.NoError(t, ap.DeleteAccessRequest(ctx, accessRequest.GetName()))
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	// This access request should also not be registered by the reconciler
 	accessRequest, err = types.NewAccessRequestWithResources(uuid.NewString(), string(user), roles,
-		[]types.ResourceID{{ClusterName: "other-cluster-name", Kind: types.KindApp, Name: appServer.GetApp().GetName()}})
+		[]types.ResourceAccessID{{Id: types.ResourceID{ClusterName: "other-cluster-name", Kind: types.KindApp, Name: appServer.GetApp().GetName()}}})
 	require.NoError(t, err)
 	accessRequest.SetState(types.RequestState_APPROVED)
 
@@ -85,7 +85,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	require.Empty(t, reconciler.accessRequests.CopyAsMap())
-	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.newAccessRequests.CopyAsMap(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.newAccessRequests.CopyAsMap(), cmpopts.IgnoreFields(types.Metadata{}, "Revision"), cmpopts.EquateEmpty()))
 
 	require.NoError(t, ap.DeleteAccessRequest(ctx, accessRequest.GetName()))
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
@@ -100,7 +100,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	}
 
 	accessRequest, err = types.NewAccessRequestWithResources(uuid.NewString(), string(user), roles,
-		[]types.ResourceID{{ClusterName: testClusterName, Kind: types.KindApp, Name: appServer.GetApp().GetName()}})
+		[]types.ResourceAccessID{{Id: types.ResourceID{ClusterName: testClusterName, Kind: types.KindApp, Name: appServer.GetApp().GetName()}}})
 	require.NoError(t, err)
 	accessRequest.SetState(types.RequestState_APPROVED)
 
@@ -115,8 +115,8 @@ func TestAccessRequestReconciler(t *testing.T) {
 	ap.setServiceCounts(map[types.SystemRole]uint64{types.RoleOkta: 1})
 	clock.Advance(10 * time.Minute) // This will restart the reconciler.
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
-	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.accessRequests.CopyAsMap(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.newAccessRequests.CopyAsMap(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.accessRequests.CopyAsMap(), cmpopts.IgnoreFields(types.Metadata{}, "Revision"), cmpopts.EquateEmpty()))
+	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.newAccessRequests.CopyAsMap(), cmpopts.IgnoreFields(types.Metadata{}, "Revision"), cmpopts.EquateEmpty()))
 
 	foundAssignment := getOktaAssignment(t, ap, accessRequest.GetName())
 	expires := accessRequest.GetAccessExpiry()
@@ -138,6 +138,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, cleanupTimeNow, constants.OktaAssignmentStatusPending, clock.Now(), false,
 		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, "app1", "link1"))),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.EquateEmpty(),
 	))
 
 	// This delete shouldn't do anything to the assignment.
@@ -148,6 +149,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, cleanupTimeNow, constants.OktaAssignmentStatusPending, clock.Now(), false,
 		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, "app1", "link1"))),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.EquateEmpty(),
 	))
 
 	// This access request should create an Okta assignment
@@ -155,7 +157,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	require.NoError(t, ap.CreateUserGroup(ctx, userGroup))
 
 	accessRequest, err = types.NewAccessRequestWithResources(uuid.NewString(), string(user), roles,
-		[]types.ResourceID{{ClusterName: testClusterName, Kind: types.KindUserGroup, Name: userGroup.GetName()}})
+		[]types.ResourceAccessID{{Id: types.ResourceID{ClusterName: testClusterName, Kind: types.KindUserGroup, Name: userGroup.GetName()}}})
 	accessRequest.SetState(types.RequestState_APPROVED)
 	require.NoError(t, err)
 
@@ -169,6 +171,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, expires, constants.OktaAssignmentStatusPending, clock.Now(), false,
 		target(types.OktaAssignmentTargetV1_GROUP, userGroup.GetName())),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.EquateEmpty(),
 	))
 
 	require.NoError(t, ap.DeleteAccessRequest(ctx, accessRequest.GetName()))
@@ -178,6 +181,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, cleanupTimeNow, constants.OktaAssignmentStatusPending, clock.Now(), false,
 		target(types.OktaAssignmentTargetV1_GROUP, userGroup.GetName())),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.EquateEmpty(),
 	))
 }
 
@@ -203,7 +207,7 @@ func TestAccessRequestReconciler_idempotency(t *testing.T) {
 
 	// Create approved access request to Okta app
 	accessRequest, err := types.NewAccessRequestWithResources(uuid.NewString(), string(user), roles,
-		[]types.ResourceID{{ClusterName: testClusterName, Kind: types.KindApp, Name: appServer.GetApp().GetName()}})
+		[]types.ResourceAccessID{{Id: types.ResourceID{ClusterName: testClusterName, Kind: types.KindApp, Name: appServer.GetApp().GetName()}}})
 	require.NoError(t, err)
 	accessRequest.SetState(types.RequestState_APPROVED)
 
@@ -704,7 +708,7 @@ func getOktaAssignment(t *testing.T, ap *testAccessPoint, name string) types.Okt
 	return accessRequest
 }
 
-func accessRequest(t *testing.T, name, user string, roles []string, expiry time.Time, resourceIDs ...types.ResourceID) types.AccessRequest {
+func accessRequest(t *testing.T, name, user string, roles []string, expiry time.Time, resourceIDs ...types.ResourceAccessID) types.AccessRequest {
 	t.Helper()
 
 	accessRequest, err := types.NewAccessRequestWithResources(name, user, roles, resourceIDs)
@@ -714,11 +718,13 @@ func accessRequest(t *testing.T, name, user string, roles []string, expiry time.
 	return accessRequest
 }
 
-func resourceID(kind, name string) types.ResourceID {
-	return types.ResourceID{
-		ClusterName: testClusterName,
-		Kind:        kind,
-		Name:        name,
+func resourceID(kind, name string) types.ResourceAccessID {
+	return types.ResourceAccessID{
+		Id: types.ResourceID{
+			ClusterName: testClusterName,
+			Kind:        kind,
+			Name:        name,
+		},
 	}
 }
 

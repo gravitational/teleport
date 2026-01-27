@@ -484,7 +484,7 @@ func testNewAccessRequest(t *testing.T, desc testAccessRequestDesc) types.Access
 		}
 		resourcesIDs = append(resourcesIDs, id)
 	}
-	ar, err := types.NewAccessRequestWithResources(desc.name, desc.user, []string{}, resourcesIDs)
+	ar, err := types.NewAccessRequestWithResources(desc.name, desc.user, []string{}, types.ResourceIDsToResourceAccessIDs(resourcesIDs))
 	require.NoError(t, err, "types.NewAccessRequest")
 
 	return ar

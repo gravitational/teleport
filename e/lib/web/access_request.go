@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
@@ -55,6 +56,11 @@ func (p *Plugin) createAccessRequestHandle(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
+	clusterAuthProxyServerFeatures := componentfeatures.GetClusterAuthProxyServerFeatures(r.Context(), clt, p.Logger)
+	if len(req.ResourceAccessIDs) > 0 && !componentfeatures.InAllSets(componentfeatures.FeatureResourceConstraintsV1, clusterAuthProxyServerFeatures) {
+		return nil, trace.BadParameter("constrained resources were specified in Access Request, but the cluster does not support Resource Constraints")
+	}
+
 	return createAccessRequest(r.Context(), clt, *req, ctx.GetUser(), withClusterClientProvider(clusterClientProvider))
 }
 
@@ -72,18 +78,31 @@ func createAccessRequest(ctx context.Context, clt accessRequestGetCreator, reque
 	var err error
 	var req types.AccessRequest
 
-	resourceIDs := make([]types.ResourceID, 0, len(request.ResourceIDs))
-	for _, resource := range request.ResourceIDs {
-		resourceIDs = append(resourceIDs, types.ResourceID{
-			ClusterName:     resource.ClusterName,
-			Name:            resource.Name,
-			Kind:            resource.Kind,
-			SubResourceName: resource.SubResourceName,
+	resourceAccessIDs := make([]types.ResourceAccessID, 0, len(request.ResourceIDs)+len(request.ResourceAccessIDs))
+	for _, rid := range request.ResourceIDs {
+		resourceAccessIDs = append(resourceAccessIDs, types.ResourceAccessID{
+			Id: types.ResourceID{
+				ClusterName:     rid.ClusterName,
+				Name:            rid.Name,
+				Kind:            rid.Kind,
+				SubResourceName: rid.SubResourceName,
+			},
+		})
+	}
+	for _, raid := range request.ResourceAccessIDs {
+		rid, constraints := raid.ID, raid.Constraints
+		resourceAccessIDs = append(resourceAccessIDs, types.ResourceAccessID{
+			Id: types.ResourceID{
+				ClusterName: rid.ClusterName,
+				Name:        rid.Name,
+				Kind:        rid.Kind,
+			},
+			Constraints: constraints,
 		})
 	}
 
-	if len(resourceIDs) != 0 { // search based request
-		req, err = services.NewAccessRequestWithResources(user, request.Roles, resourceIDs)
+	if len(resourceAccessIDs) != 0 { // search based request
+		req, err = services.NewAccessRequestWithResources(user, request.Roles, resourceAccessIDs)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -327,8 +346,10 @@ func getBulkResourceDetails(ctx context.Context, reqs []*types.AccessRequestV3, 
 	// allIDs aggregates all resource IDs (this step is mostly only useful for deduplication).
 	allIDs := make(map[string]types.ResourceID)
 	for _, req := range reqs {
-		for _, id := range req.GetRequestedResourceIDs() {
-			allIDs[types.ResourceIDToString(id)] = id
+		for _, w := range req.GetAllRequestedResourceIDs() {
+			rid := w.GetResourceID()
+			str := types.ResourceIDToString(rid)
+			allIDs[str] = rid
 		}
 	}
 

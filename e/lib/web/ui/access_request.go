@@ -82,9 +82,12 @@ type AccessRequestReview struct {
 	AssumeStartTime *time.Time `json:"assumeStartTime"`
 }
 
+// Resource represents a ResourceID along with additional details
+// for UI display.
 type Resource struct {
-	ID      ResourceID      `json:"id"`
-	Details ResourceDetails `json:"details"`
+	ID          ResourceID                 `json:"id"`
+	Details     ResourceDetails            `json:"details"`
+	Constraints *types.ResourceConstraints `json:"constraints,omitempty"`
 }
 
 type ResourceID struct {
@@ -92,6 +95,12 @@ type ResourceID struct {
 	Name            string `json:"name"`
 	ClusterName     string `json:"clusterName"`
 	SubResourceName string `json:"subResourceName,omitempty"`
+}
+
+// ResourceAccessID wraps a ResourceID with additional information, such as ResourceConstraints.
+type ResourceAccessID struct {
+	ID          ResourceID                 `json:"id"`
+	Constraints *types.ResourceConstraints `json:"constraints"`
 }
 
 type ResourceDetails struct {
@@ -143,23 +152,26 @@ func NewAccessRequest(request types.AccessRequest, opts ...NewAccessRequestOptio
 		}
 	}
 
-	requestedResourceIDs := request.GetRequestedResourceIDs()
-	resources := make([]Resource, len(requestedResourceIDs))
-	for i, r := range requestedResourceIDs {
-		resources[i] = Resource{
+	requestedResourceIDs := request.GetAllRequestedResourceIDs()
+	resources := make([]Resource, 0)
+
+	for _, r := range requestedResourceIDs {
+		rid := r.GetResourceID()
+		resources = append(resources, Resource{
 			ID: ResourceID{
-				ClusterName:     r.ClusterName,
-				Kind:            r.Kind,
-				Name:            r.Name,
-				SubResourceName: r.SubResourceName,
+				ClusterName:     rid.ClusterName,
+				Kind:            rid.Kind,
+				Name:            rid.Name,
+				SubResourceName: rid.SubResourceName,
 			},
 			// If there are no details for this resource, the map lookup returns
 			// the default value which is empty details. Logic in lib/web relies
 			// on the fact that unrelated resource IDs are ignored and may pass
 			// in resource detail mappings that contain large numbers of unrealted
 			// entries.
-			Details: cfg.resourceDetails[types.ResourceIDToString(r)],
-		}
+			Details:     cfg.resourceDetails[types.ResourceIDToString(rid)],
+			Constraints: r.GetConstraints(),
+		})
 	}
 
 	var maxDuration *time.Time
@@ -286,6 +298,8 @@ type AccessRequestParameters struct {
 	SuggestedReviewers []string `json:"suggestedReviewers"`
 	// ResourceID is a unique identifier for a teleport resource.
 	ResourceIDs []ResourceID `json:"resourceIds"`
+	// ResourceAccessIDs is a list of requested resources, paired with associated Constraints.
+	ResourceAccessIDs []ResourceAccessID `json:"resourceAccessIds"`
 	// MaxDuration is the maximum duration for which the request is valid.
 	MaxDuration time.Time `json:"maxDuration"`
 	// RequestTTL is the expiration time of the request (how long it will await

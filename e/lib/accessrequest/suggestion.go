@@ -158,9 +158,11 @@ func findConflictingResources(request types.AccessRequest, accessListToResources
 		return conflicting
 	}
 	optimalSet := buildResourceIDSet(accessListToResources[recommendedList].ResourceIds)
-	for _, r := range request.GetRequestedResourceIDs() {
-		if _, ok := optimalSet[types.ResourceIDToString(r)]; !ok {
-			conflicting = append(conflicting, r)
+	for _, r := range request.GetAllRequestedResourceIDs() {
+		rid := r.GetResourceID()
+		k := types.ResourceIDToString(rid)
+		if _, ok := optimalSet[k]; !ok {
+			conflicting = append(conflicting, rid)
 		}
 	}
 	return conflicting
@@ -182,16 +184,17 @@ func findUncoveredResources(
 		}
 	}
 
-	req := request.GetRequestedResourceIDs()
+	req := request.GetAllRequestedResourceIDs()
 	seen := make(map[string]struct{}, len(req))
 	for _, r := range req {
-		k := types.ResourceIDToString(r)
+		rid := r.GetResourceID()
+		k := types.ResourceIDToString(rid)
 		if _, dup := seen[k]; dup {
 			continue
 		}
 		seen[k] = struct{}{}
 		if _, ok := covered[k]; !ok {
-			uncovered = append(uncovered, r)
+			uncovered = append(uncovered, rid)
 		}
 	}
 	return uncovered
@@ -542,7 +545,7 @@ func computeAccessListRelevancy(requestRoles []string, list *accesslist.AccessLi
 // the returned list if it allows all requested resources and the user is not a member of the
 // Access List.
 func GenerateAccessRequestPromotions(ctx context.Context, resourceGetter modules.AccessResourcesGetter, accessRequest types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
-	if len(accessRequest.GetRequestedResourceIDs()) == 0 {
+	if len(accessRequest.GetAllRequestedResourceIDs()) == 0 {
 		// Suggestions are only available for resource-based access requests.
 		return types.NewAccessRequestAllowedPromotions(nil), nil
 	}
@@ -552,7 +555,11 @@ func GenerateAccessRequestPromotions(ctx context.Context, resourceGetter modules
 		return nil, trace.Wrap(err)
 	}
 
-	resources, err := accessrequest.GetResourcesByResourceIDs(ctx, resourceGetter, accessRequest.GetRequestedResourceIDs())
+	// We can reduce ResourceAccessIDs here to just ResourceIDs as Constraints are not
+	// applicable for constraining membership in an Access List.
+	allResourceIDs := types.RiskyExtractResourceIDs(accessRequest.GetAllRequestedResourceIDs())
+
+	resources, err := accessrequest.GetResourcesByResourceIDs(ctx, resourceGetter, allResourceIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -459,9 +459,11 @@ func (a *AccessRequestReconciler) matcher(ctx context.Context, accessRequest typ
 	// origin label of types.OriginOkta
 	matches := false
 
-	for _, resourceID := range accessRequest.GetRequestedResourceIDs() {
+	for _, w := range accessRequest.GetAllRequestedResourceIDs() {
 		var resource types.ResourceWithLabels
 		var err error
+
+		resourceID := w.GetResourceID()
 
 		// Skip resources that don't belong to this cluster.
 		if resourceID.ClusterName != a.clusterName {
@@ -496,9 +498,11 @@ func (a *AccessRequestReconciler) accessRequestToOktaAssignment(ctx context.Cont
 	targets := []*types.OktaAssignmentTargetV1{}
 
 	// Look for the requested targets in the access request.
-	for _, resourceID := range accessRequest.GetRequestedResourceIDs() {
+	for _, w := range accessRequest.GetAllRequestedResourceIDs() {
 		var targetType types.OktaAssignmentTargetV1_OktaAssignmentTargetType
 		var id string
+
+		resourceID := w.GetResourceID()
 
 		// Skip resources that don't belong to this cluster.
 		if resourceID.ClusterName != a.clusterName {

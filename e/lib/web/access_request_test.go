@@ -93,6 +93,65 @@ func TestCreateAccessRequest_SearchBased(t *testing.T) {
 	require.Equal(t, types.RequestState_PENDING.String(), req.State)
 }
 
+func TestCreateAccessRequest_ConstrainedResource(t *testing.T) {
+	m := &mockedAccessRequestAPIGetter{}
+	var createdReq types.AccessRequest
+	m.mockGetAccessRequests = func(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
+		return []types.AccessRequest{createdReq}, nil
+	}
+
+	m.mockCreateAccessRequest = func(ctx context.Context, req types.AccessRequest) error {
+		createdReq = req
+		require.Equal(t, "userFoo", req.GetUser())
+		require.Empty(t, req.GetRoles())
+		require.Equal(t, "some reason", req.GetRequestReason())
+		require.Equal(t, []types.ResourceAccessID{
+			{
+				Id: types.ResourceID{
+					ClusterName: "test-cluster",
+					Name:        "test-name",
+					Kind:        "app",
+				},
+				Constraints: &types.ResourceConstraints{
+					Version: types.V1,
+					Details: &types.ResourceConstraints_AwsConsole{
+						AwsConsole: &types.AWSConsoleResourceConstraints{
+							RoleArns: []string{"test-role"},
+						},
+					},
+				},
+			},
+		}, req.GetAllRequestedResourceIDs())
+		return nil
+	}
+
+	request := ui.AccessRequestParameters{
+		Reason: "some reason",
+		ResourceAccessIDs: []ui.ResourceAccessID{
+			{
+				ID: ui.ResourceID{
+					ClusterName: "test-cluster",
+					Name:        "test-name",
+					Kind:        "app",
+				},
+				Constraints: &types.ResourceConstraints{
+					Version: types.V1,
+					Details: &types.ResourceConstraints_AwsConsole{
+						AwsConsole: &types.AWSConsoleResourceConstraints{
+							RoleArns: []string{"test-role"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	req, err := createAccessRequest(context.Background(), m, request, "userFoo")
+	require.NoError(t, err)
+	require.NotEmpty(t, req.ID)
+	require.Equal(t, types.RequestState_PENDING.String(), req.State)
+}
+
 func TestCreateAccessRequest_LongTerm(t *testing.T) {
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
@@ -1133,7 +1192,7 @@ func TestGetAccessRequest(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			req, err := services.NewAccessRequestWithResources("alice", tc.requestedRoles, tc.requestedResources)
+			req, err := services.NewAccessRequestWithResources("alice", tc.requestedRoles, types.ResourceIDsToResourceAccessIDs(tc.requestedResources))
 			require.NoError(t, err)
 
 			m.mockGetAccessRequests = func(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
@@ -1193,7 +1252,7 @@ func TestGetAccessRequests(t *testing.T) {
 		rb2, ok := roleBasedReq2.(*types.AccessRequestV3)
 		require.True(t, ok)
 
-		searchBasedReq, err := services.NewAccessRequestWithResources("bar", nil, []types.ResourceID{{ClusterName: "test-cluster", Name: "test-name", Kind: "test-kind"}})
+		searchBasedReq, err := services.NewAccessRequestWithResources("bar", nil, []types.ResourceAccessID{{Id: types.ResourceID{ClusterName: "test-cluster", Name: "test-name", Kind: "test-kind"}}})
 		require.NoError(t, err)
 		sb, ok := searchBasedReq.(*types.AccessRequestV3)
 		require.True(t, ok)
@@ -1498,11 +1557,8 @@ func TestSuggestAccessLists(t *testing.T) {
 
 	// create an access request for reviewer to request access to the "access" role
 	accessRequest, err := services.NewAccessRequestWithResources("reviewer", []string{"access"},
-		[]types.ResourceID{
-			{
-				Name: nodeName,
-				Kind: types.KindNode,
-			},
+		[]types.ResourceAccessID{
+			{Id: types.ResourceID{Name: nodeName, Kind: types.KindNode}},
 		})
 	require.NoError(t, err)
 
@@ -1573,11 +1629,8 @@ func TestPromoteAccessRequest(t *testing.T) {
 
 	createAccessRequest := func() types.AccessRequest {
 		// create an access request for reviewer to request access to the "access" role
-		accessRequest, err := services.NewAccessRequestWithResources("requester", []string{"access"}, []types.ResourceID{
-			{
-				Name: node.GetName(),
-				Kind: types.KindNode,
-			},
+		accessRequest, err := services.NewAccessRequestWithResources("requester", []string{"access"}, []types.ResourceAccessID{
+			{Id: types.ResourceID{Name: node.GetName(), Kind: types.KindNode}},
 		})
 		require.NoError(t, err)
 		accessRequest, err = authClient.CreateAccessRequestV2(ctx, accessRequest)

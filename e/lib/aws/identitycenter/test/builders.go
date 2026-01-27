@@ -289,7 +289,7 @@ func (a AccessRequest) Build(t *testing.T) types.AccessRequest {
 		a.Name,
 		a.User.GetName(),
 		roleNames,
-		a.ResourceIDs)
+		types.ResourceIDsToResourceAccessIDs(a.ResourceIDs))
 	require.NoError(t, err, "invalid access request")
 
 	if !a.AssumeStartTime.IsZero() {
