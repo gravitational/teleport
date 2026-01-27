@@ -103,6 +103,13 @@ const cfg = {
 
   baseUrl: window.location.origin,
 
+  // terraform contains terraform related configuration
+  terraform: {
+    // discoveryAwsModuleRegistry contains the registry for the AWS discovery terraform module
+    discoveryAwsModuleRegistry:
+      'terraform.releases.teleport.dev/teleport/discovery/aws',
+  },
+
   // enterprise non-exact routes will be merged into this
   // see `getNonExactRoutes` for details about non-exact routes
   nonExactRoutes: [],

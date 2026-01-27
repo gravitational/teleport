@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
+	"github.com/gravitational/teleport/lib/join/oraclejoin/oraclejoincommon"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -105,7 +106,7 @@ func makeSignedRootCAReq(client utils.HTTPDoClient) ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "finding local OCI region")
 	}
-	regionalAuthEndpoint := common.StringToRegion(localRegion).Endpoint("auth")
+	regionalAuthEndpoint := oraclejoincommon.StringToRegion(localRegion).Endpoint("auth")
 	req := &http.Request{
 		Method: http.MethodGet,
 		URL: &url.URL{

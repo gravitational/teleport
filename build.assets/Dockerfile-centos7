@@ -57,11 +57,13 @@ RUN yum groupinstall -y 'Development Tools' && \
       expat-devel  \
       gettext-devel \
       openssl-devel \
-      zlib-devel \
       perl-CPAN \
+      perl-Time-Piece \
       perl-devel \
       scl-utils \
-      wget && \
+      wget \
+      zlib-devel \
+      && \
     yum clean all && \
     /tmp/fix-yum-repo-list.sh
 
@@ -126,9 +128,9 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.11.0 && \
 # Specific install arguments used to skip docs.
 # Note that FIPS is enabled as part of this build, but it is unused without the
 # necessary configuration (which is included as part of the separate FIPS buildbox).
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.16 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.19 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = 'fa1e5dfb142bb1c26c3c38a10aafa7a095df52e5' ] && \
+    [ "$(git rev-parse HEAD)" = 'a22063cd69a077cc68bb4c10e9f351f75899b194' ] && \
     ./config enable-fips --release -fPIC --libdir=/usr/local/lib64 && \
     make -j"$(nproc)" && \
     make install_sw install_ssldirs install_fips

@@ -404,7 +404,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 	if cfg.AccessLists == nil {
-		cfg.AccessLists, err = local.NewAccessListService(cfg.Backend, cfg.Clock)
+		cfg.AccessLists, err = local.NewAccessListServiceV2(local.AccessListServiceConfig{
+			Backend: cfg.Backend,
+			// TODO(tross): replace modules.GetModules with cfg.Modules
+			Modules:                     modules.GetModules(),
+			RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4249,7 +4254,7 @@ func (a *Server) CreateAuthPreference(ctx context.Context, p types.AuthPreferenc
 		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 	}
 
-	if err := dtconfig.ValidateConfigAgainstModules(p.GetDeviceTrust()); err != nil {
+	if err := dtconfig.ValidateConfigAgainstModules(p.GetDeviceTrust(), modules.GetModules()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

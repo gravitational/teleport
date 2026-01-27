@@ -10486,7 +10486,7 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 
 			// the test server doesn't create the preset users, so we call createPresetUsers manually
 			if tc.withPresetUsers {
-				auth.CreatePresetUsers(ctx, srv.Auth())
+				auth.CreatePresetUsers(ctx, modules.BuildEnterprise, srv.Auth())
 			}
 
 			// create preexisting users

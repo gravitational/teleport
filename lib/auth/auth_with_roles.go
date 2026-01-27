@@ -4046,7 +4046,7 @@ func (a *ServerWithRoles) trySettingConnectorNameToPasswordless(ctx context.Cont
 // This method always compare with the original preset users, and take into account that some preset users may
 // have been removed.
 func hasOneNonPresetUser(users []types.User) bool {
-	presets := getPresetUsers()
+	presets := getPresetUsers(modules.GetModules().BuildType())
 
 	// Exit early if the number of users is greater than the number of presets + 1.
 	if len(users) > len(presets)+1 {
@@ -5321,7 +5321,7 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 		return trace.Wrap(err)
 	}
 
-	if err := dtconfig.ValidateConfigAgainstModules(newAuthPref.GetDeviceTrust()); err != nil {
+	if err := dtconfig.ValidateConfigAgainstModules(newAuthPref.GetDeviceTrust(), modules.GetModules()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6267,11 +6267,11 @@ func (a *ServerWithRoles) GenerateAppToken(ctx context.Context, req types.Genera
 		return "", trace.Wrap(err)
 	}
 
-	session, err := a.authServer.generateAppToken(ctx, req.Username, req.Roles, req.Traits, req.URI, req.Expires)
+	token, err := a.authServer.generateAppToken(ctx, req)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return session, nil
+	return token, nil
 }
 
 func (a *ServerWithRoles) Close() error {

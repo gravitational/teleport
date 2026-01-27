@@ -205,7 +205,7 @@ func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb
 		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 	}
 
-	if err := dtconfig.ValidateConfigAgainstModules(req.AuthPreference.GetDeviceTrust()); err != nil {
+	if err := dtconfig.ValidateConfigAgainstModules(req.AuthPreference.GetDeviceTrust(), modules.GetModules()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -273,7 +273,7 @@ func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb
 		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 	}
 
-	if err := dtconfig.ValidateConfigAgainstModules(req.AuthPreference.GetDeviceTrust()); err != nil {
+	if err := dtconfig.ValidateConfigAgainstModules(req.AuthPreference.GetDeviceTrust(), modules.GetModules()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
