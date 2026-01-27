@@ -114,6 +114,19 @@ an administrative Command Prompt or PowerShell console with the following comman
 $ teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe install --cert=teleport.cer -r
 ```
 
+<Checkpoint
+  title="Verify Windows is prepared"
+  description="Confirm that the Windows computer has restarted and the Teleport certificate authority is installed."
+>
+  Here are some troubleshooting tips:
+
+  - Verify the certificate was imported by opening `certlm.msc` and checking that the Teleport CA appears under **Trusted Root Certification Authorities > Certificates**.
+  - Ensure the Teleport DLL is installed by checking that `teleport.dll` exists in `C:\Windows\System32\`.
+  - Confirm NLA is disabled: open **System Properties > Remote**, and verify "Allow connections only from computers running Remote Desktop with Network Level Authentication" is unchecked.
+  - Check that LSA protection is disabled if the DLL fails to load.
+
+</Checkpoint>
+
 ## Step 2/4. Configure the Windows Desktop Service
 
 Now that you have prepared the Windows computer to enroll in the cluster, the next steps
@@ -241,6 +254,31 @@ following for the Windows Desktop Service:
 
 1. (!docs/pages/includes/start-teleport.mdx service="the Teleport Windows Desktop Service"!)
 
+<Checkpoint
+  title="Verify the Windows Desktop Service is running"
+  description="Confirm that the Teleport Windows Desktop Service has started and connected to your cluster."
+>
+  Here are some troubleshooting tips:
+  - Check the service status on the Linux server: 
+  
+    ```code
+    $ systemctl status teleport
+    ```
+
+  - Review logs for connection errors: 
+  
+    ```code
+    $ sudo journalctl -u teleport
+    ```
+
+  - Verify the token hasn't expired (tokens are valid for 60 minutes by default).
+
+  - Ensure the Linux server can reach the Teleport Proxy Service.
+
+  - Ensure the Linux server can reach the Windows desktop on port 3389.
+
+</Checkpoint>
+
 ## Step 3/4. Configure remote Windows desktop access
 
 To access a remote desktop, a Teleport user must have a role with the
@@ -312,6 +350,26 @@ Windows login to use for the connection.
    ![Disconnect from a Windows desktop ](../../../img/desktop-access/desktop-disconnect.png)
 
    To view the recording, select **Audit** in the Teleport Web UI, then click **Session Recordings** in the menu.
+
+<Checkpoint
+  title="Verify Windows desktop access"
+  description="Confirm that you can connect to the Windows desktop and see the Windows login screen or desktop."
+>
+  Here are some troubleshooting tips:
+  
+  - Ensure your Teleport user is assigned the `windows-desktop-admins` role (or equivalent role with desktop permissions).
+
+  - Verify the Windows login you selected exists on the Windows computer.
+
+  - Check that RDP port 3389 is open between the Linux server running the Desktop Service and the Windows host.
+
+  - If the connection fails, review the Windows Desktop Service logs on the Linux server: 
+  
+    ```code
+    $ sudo journalctl -u teleport
+    ```
+
+</Checkpoint>
 
 ## Uninstall
 
