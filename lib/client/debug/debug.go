@@ -211,6 +211,38 @@ func (c *Client) GetRawMetrics(ctx context.Context) (io.ReadCloser, error) {
 	return resp.Body, nil
 }
 
+// ProcessInfo provides internal process info from the /process endpoint.
+type ProcessInfo struct {
+}
+
+// GetProcessInfo returns internal process info for debugging.
+func (c *Client) GetProcessInfo(ctx context.Context) (ProcessInfo, error) {
+	var info ProcessInfo
+	resp, err := c.do(ctx, http.MethodGet, url.URL{Path: "/process"}, nil)
+	if err != nil {
+		return info, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return info, trace.NotFound("process endpoint not found")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		if err != nil {
+			return info, trace.Wrap(err)
+		}
+		return info, trace.BadParameter("unable to fetch process info: %s", respBody)
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		return info, trace.Wrap(err)
+	}
+
+	return info, nil
+}
+
 func (c *Client) do(ctx context.Context, method string, u url.URL, body []byte) (*http.Response, error) {
 	u.Scheme = "http"
 	u.Host = "debug"

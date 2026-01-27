@@ -630,6 +630,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	collectProfilesCmd.Flag("seconds", "For CPU and trace profiles, profile for the given duration (if set to 0, it returns a profile snapshot). For other profiles, return a delta profile. Default: 0").Short('s').Default("0").IntVar(&ccf.ProfileSeconds)
 	readyzCmd := debugCmd.Command("readyz", "Checks if the instance is ready to serve requests.")
 	metricsCmd := debugCmd.Command("metrics", "Fetches the cluster's Prometheus metrics.")
+	processInfoCmd := debugCmd.Command("process", "Shows local process info for debugging")
 
 	selinuxCmd := app.Command("selinux-ssh", "Commands related to SSH SELinux module.").Hidden()
 	selinuxCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
@@ -829,6 +830,8 @@ Examples:
 		err = onReadyz(ctx, ccf.ConfigFile)
 	case metricsCmd.FullCommand():
 		err = onMetrics(ctx, ccf.ConfigFile)
+	case processInfoCmd.FullCommand():
+		err = onProcessInfo(ctx, ccf.ConfigFile)
 	case moduleSourceCmd.FullCommand():
 		if runtime.GOOS != "linux" {
 			break
