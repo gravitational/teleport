@@ -437,6 +437,9 @@ func (s *ServerV2) GetAllLabels() map[string]string {
 
 // CombineLabels combines the passed in static and dynamic labels.
 func CombineLabels(immutable, static map[string]string, dynamic map[string]CommandLabelV2) map[string]string {
+	if len(dynamic) == 0 && len(immutable) == 0 {
+		return static
+	}
 	lmap := make(map[string]string, len(static)+len(dynamic)+len(immutable))
 	for key, value := range static {
 		lmap[key] = value
