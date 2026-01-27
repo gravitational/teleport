@@ -71,6 +71,7 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.SFTP_DISALLOWED]: Icons.FolderPlus,
   [eventCodes.APP_SESSION_CHUNK]: Icons.Info,
   [eventCodes.APP_SESSION_START]: Icons.Info,
+  [eventCodes.APP_SESSION_START_FAILURE]: Icons.Warning,
   [eventCodes.APP_SESSION_END]: Icons.Info,
   [eventCodes.APP_SESSION_DYNAMODB_REQUEST]: Icons.Database,
   [eventCodes.APP_CREATED]: Icons.Code,
