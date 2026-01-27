@@ -137,7 +137,7 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 		return trace.Wrap(err)
 	}
 
-	// Client defaults to TDPB
+	// Client always speaks TDPB.
 	clientConn := tdp.NewConn(downstreamRW, tdp.DecoderAdapter(tdpb.DecodePermissive))
 	// Receive, enrich, and forward the ClientHello message
 	msg, err := clientConn.ReadMessage()
@@ -153,9 +153,12 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 	// Enrich with username
 	hello.Username = s.login
 
-	protocol := conn.ConnectionState().NegotiatedProtocol
+	// Whether we forward the ClientHello as-is, or send a triple
+	// (Username, ClientScreenSpec, ClientKeyboardLayout) depends on
+	// the server's serverProtocol selection.
+	serverProtocol := conn.ConnectionState().NegotiatedProtocol
 	var tdpServerConn *tdp.Conn
-	if protocol == "teleport-tdpb-1.0" {
+	if serverProtocol == "teleport-tdpb-1.0" {
 		// Use TDPB decoder
 		tdpServerConn = tdp.NewConn(conn, tdp.DecoderAdapter(tdpb.DecodePermissive))
 		// Send the client hello
@@ -168,7 +171,7 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 		defer tdpServerConn.Close()
 
 		// Now that we have a connection to the desktop service, we can
-		// send the username, client screenspec, and keyboard layout
+		// send the username, clientScreenSpec, and clientKeyboardlayout.
 		for _, msg := range []tdp.Message{
 			legacy.ClientUsername{Username: s.login},
 			legacy.ClientScreenSpec{Width: hello.ScreenSpec.Width, Height: hello.ScreenSpec.Height},
@@ -179,7 +182,6 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 				return trace.Wrap(err, "error sending %T message", msg)
 			}
 		}
-
 	}
 
 	fsHandle := fsRequestHandler{
@@ -205,7 +207,7 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 		return nil, nil
 	}, nil)
 
-	if protocol != "teleport-tdpb-1.0" {
+	if serverProtocol != "teleport-tdpb-1.0" {
 		// Wrap this in another interceptor to handle TDP translation
 		serverConn = tdp.NewReadWriteInterceptor(serverConn, tdpb.TranslateToModern, tdpb.TranslateToLegacy)
 	}
