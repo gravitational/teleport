@@ -34,6 +34,8 @@ import (
 const defaultRefreshRetryInterval = 5 * time.Minute
 const defaultTokenBufferInterval = 11 * time.Hour
 
+// const defaultTokenBufferInterval = 12*time.Hour - 10*time.Minute
+
 // AccessTokenProvider provides a method to get the bearer token
 // for use when authorizing to a 3rd-party provider API.
 type AccessTokenProvider interface {
