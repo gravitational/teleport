@@ -46,6 +46,10 @@ type ProxyServiceConfig struct {
 	// last and the frequency at which they'll be renewed. For the application
 	// proxy, this is primarily an internal detail.
 	CredentialLifetime bot.CredentialLifetime `yaml:"credential_lifetime,omitempty"`
+	// DelegationTicket optionally identifies the delegation session the
+	// generated credentials will be associated with, enabling the bot to act
+	// on a (human) user's behalf.
+	DelegationTicket string `yaml:"delegation_ticket,omitempty"`
 	// Listener overrides "listen" and directly provides an opened listener to
 	// use. Primarily used for testing.
 	Listener net.Listener `yaml:"-"`

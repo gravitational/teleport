@@ -32,8 +32,9 @@ func TestProxyServiceConfig_YAML(t *testing.T) {
 		{
 			name: "full",
 			in: ProxyServiceConfig{
-				Name:   "foo",
-				Listen: "tcp://0.0.0.0:3621",
+				Name:             "foo",
+				Listen:           "tcp://0.0.0.0:3621",
+				DelegationTicket: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
 				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,

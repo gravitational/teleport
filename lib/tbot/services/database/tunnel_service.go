@@ -254,11 +254,16 @@ func (s *TunnelService) getRouteToDatabaseWithImpersonation(ctx context.Context)
 	defer span.End()
 
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
-	impersonatedIdentity, err := s.identityGenerator.GenerateFacade(ctx,
-		identity.WithRoles(s.cfg.Roles),
+	identityOpts := []identity.GenerateOption{
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
-	)
+	}
+	if s.cfg.DelegationTicket == "" {
+		identityOpts = append(identityOpts, identity.WithRoles(s.cfg.Roles))
+	} else {
+		identityOpts = append(identityOpts, identity.WithDelegation(s.cfg.DelegationTicket))
+	}
+	impersonatedIdentity, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
 	if err != nil {
 		return proto.RouteToDatabase{}, trace.Wrap(err)
 	}
@@ -285,12 +290,17 @@ func (s *TunnelService) issueCert(
 
 	s.log.DebugContext(ctx, "Requesting issuance of certificate for tunnel proxy.")
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
-	ident, err := s.identityGenerator.Generate(ctx,
-		identity.WithRoles(s.cfg.Roles),
+	identityOpts := []identity.GenerateOption{
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
 		identity.WithRouteToDatabase(route),
-	)
+	}
+	if s.cfg.DelegationTicket == "" {
+		identityOpts = append(identityOpts, identity.WithRoles(s.cfg.Roles))
+	} else {
+		identityOpts = append(identityOpts, identity.WithDelegation(s.cfg.DelegationTicket))
+	}
+	ident, err := s.identityGenerator.Generate(ctx, identityOpts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

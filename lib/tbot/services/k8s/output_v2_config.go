@@ -72,6 +72,11 @@ type OutputV2Config struct {
 	// RelayAddress specifies the address of a relay transport server to use in
 	// the generated Kubernetes config file.
 	RelayAddress string `yaml:"relay_server,omitempty"`
+
+	// DelegationTicket optionally identifies the delegation session the
+	// generated credentials will be associated with, enabling the bot to act
+	// on a (human) user's behalf.
+	DelegationTicket string `yaml:"delegation_ticket,omitempty"`
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.

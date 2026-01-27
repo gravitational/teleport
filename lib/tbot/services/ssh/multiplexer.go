@@ -395,10 +395,14 @@ func (s *MultiplexerService) setup(ctx context.Context) (
 // the destination.
 func (s *MultiplexerService) generateIdentity(ctx context.Context) (*identity.Facade, error) {
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
-	facade, err := s.identityGenerator.GenerateFacade(ctx,
+	identityOpts := []identity.GenerateOption{
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
-	)
+	}
+	if s.cfg.DelegationTicket != "" {
+		identityOpts = append(identityOpts, identity.WithDelegation(s.cfg.DelegationTicket))
+	}
+	facade, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
 	if err != nil {
 		return nil, trace.Wrap(err, "generating identity")
 	}

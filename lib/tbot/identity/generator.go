@@ -27,9 +27,11 @@ import (
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -99,6 +101,7 @@ type Generator struct {
 }
 
 type generateOpts struct {
+	delegationTicket     string
 	roles                []string
 	ttl, renewalInterval time.Duration
 	currentIdentity      *Identity
@@ -108,6 +111,16 @@ type generateOpts struct {
 
 // GenerateOption allows you to customize aspects of the generated identity.
 type GenerateOption func(*generateOpts)
+
+// WithDelegation uses the given delegation ticket to generate certificates
+// associated with a *human* user and delegation session.
+//
+// Note: this option is mutually-exclusive with WithRoles.
+func WithDelegation(ticket string) GenerateOption {
+	return func(opts *generateOpts) {
+		opts.delegationTicket = ticket
+	}
+}
 
 // WithRoles sets the roles the generated identity should include.
 //
@@ -289,11 +302,63 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 		return nil, trace.Wrap(err)
 	}
 
-	// First, ask the auth server to generate a new set of certs with a new
-	// expiration date.
-	certs, err := g.client.GenerateUserCerts(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var certs *proto.Certs
+	if o.delegationTicket == "" {
+		// Traditional bot certificates.
+		certs, err = g.client.GenerateUserCerts(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		// Delegation certificates, tied to a human user identity.
+		certReq := &delegationv1.GenerateCertsRequest{
+			DelegationSessionId: o.delegationTicket, // TODO(boxofrad): rename this field "ticket".
+			SshPublicKey:        req.SSHPublicKey,
+			TlsPublicKey:        req.TLSPublicKey,
+			Expires:             timestamppb.New(req.Expires),
+		}
+		switch {
+		case req.RouteToApp.Name != "":
+			route := req.GetRouteToApp()
+			certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToApp{
+				RouteToApp: &delegationv1.RouteToApp{
+					Name:              route.GetName(),
+					PublicAddr:        route.GetPublicAddr(),
+					ClusterName:       route.GetClusterName(),
+					Uri:               route.GetURI(),
+					TargetPort:        route.GetTargetPort(),
+					AwsRoleArn:        route.GetAWSRoleARN(),
+					AzureIdentity:     route.GetAzureIdentity(),
+					GcpServiceAccount: route.GetGCPServiceAccount(),
+				},
+			}
+		case req.RouteToDatabase.ServiceName != "":
+			route := req.GetRouteToDatabase()
+			certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToDatabase{
+				RouteToDatabase: &delegationv1.RouteToDatabase{
+					ServiceName: route.GetServiceName(),
+					Protocol:    route.GetProtocol(),
+					Username:    route.GetUsername(),
+					Database:    route.GetDatabase(),
+					Roles:       route.GetRoles(),
+				},
+			}
+		case req.KubernetesCluster != "":
+			certReq.Routing = &delegationv1.GenerateCertsRequest_KubernetesCluster{
+				KubernetesCluster: req.KubernetesCluster,
+			}
+		}
+		certsRsp, err := g.client.DelegationSessionServiceClient().
+			GenerateCerts(ctx, certReq)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		certs = &proto.Certs{
+			SSH:        certsRsp.GetSsh(),
+			TLS:        certsRsp.GetTls(),
+			SSHCACerts: certsRsp.GetSshCas(),
+			TLSCACerts: certsRsp.GetTlsCas(),
+		}
 	}
 
 	// The root CA included with the returned user certs will only contain the

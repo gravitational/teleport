@@ -10,3 +10,4 @@ selectors:
 credential_ttl: 1m0s
 renewal_interval: 30s
 context_name_template: '{{.KubeName}}'
+delegation_ticket: 8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee

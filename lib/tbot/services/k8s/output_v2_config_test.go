@@ -34,6 +34,7 @@ func TestKubernetesV2Output_YAML(t *testing.T) {
 			in: OutputV2Config{
 				Destination:       dest,
 				DisableExecPlugin: true,
+				DelegationTicket:  "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
 				Selectors: []*KubernetesSelector{
 					{
 						Name: "foo",

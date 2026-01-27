@@ -57,6 +57,11 @@ type MultiplexerConfig struct {
 	// all the SSH connections going through this mux.
 	RelayAddress string `yaml:"relay_server,omitempty"`
 
+	// DelegationTicket optionally identifies the delegation session the
+	// generated credentials will be associated with, enabling the bot to act
+	// on a (human) user's behalf.
+	DelegationTicket string `yaml:"delegation_ticket,omitempty"`
+
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
 	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`

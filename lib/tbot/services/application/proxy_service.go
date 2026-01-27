@@ -227,6 +227,9 @@ func (s *ProxyService) issueCert(
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
 	}
+	if s.cfg.DelegationTicket != "" {
+		identityOpts = append(identityOpts, identity.WithDelegation(s.cfg.DelegationTicket))
+	}
 	impersonatedIdentity, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

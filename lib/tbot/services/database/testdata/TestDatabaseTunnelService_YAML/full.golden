@@ -6,5 +6,6 @@ roles:
 service: service
 database: database
 username: username
+delegation_ticket: 8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee
 credential_ttl: 1m0s
 renewal_interval: 30s

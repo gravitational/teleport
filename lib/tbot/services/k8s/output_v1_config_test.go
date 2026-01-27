@@ -35,6 +35,7 @@ func TestKubernetesOutput_YAML(t *testing.T) {
 				Destination:       dest,
 				Roles:             []string{"access"},
 				KubernetesCluster: "k8s.example.com",
+				DelegationTicket:  "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
 				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,

@@ -153,10 +153,16 @@ func (s *OutputV2Service) generate(ctx context.Context) error {
 	}
 
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
-	id, err := s.identityGenerator.GenerateFacade(ctx,
+	opts := []identity.GenerateOption{
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
-	)
+	}
+
+	if s.cfg.DelegationTicket != "" {
+		opts = append(opts, identity.WithDelegation(s.cfg.DelegationTicket))
+	}
+
+	id, err := s.identityGenerator.GenerateFacade(ctx, opts...)
 	if err != nil {
 		return trace.Wrap(err, "generating identity")
 	}
