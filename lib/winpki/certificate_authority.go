@@ -84,18 +84,28 @@ func (c *CertificateStoreClient) Update(ctx context.Context, tc *tls.Config) err
 		return trace.Wrap(err)
 	}
 	for _, ca := range certAuthorities {
-		for _, keyPair := range ca.GetActiveKeys().TLS {
-			if len(keyPair.CRL) == 0 {
-				continue
-			}
-			hasCRL = true
-			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
-			if err != nil {
-				return trace.Wrap(err)
-			}
+		for _, keySet := range [][]*types.TLSKeyPair{
+			ca.GetActiveKeys().TLS,
+			ca.GetAdditionalTrustedKeys().TLS,
+		} {
+			for _, keyPair := range keySet {
+				if len(keyPair.CRL) == 0 {
+					continue
+				}
+				hasCRL = true
 
-			if err := c.updateCRL(ctx, c.cfg.ClusterName, cert.SubjectKeyId, keyPair.CRL, caType, tc); err != nil {
-				return trace.Wrap(err)
+				cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				c.cfg.Logger.DebugContext(ctx, "Processing CA key pair",
+					"issuer", cert.Issuer,
+					"subject", cert.Subject,
+				)
+
+				if err := c.updateCRL(ctx, c.cfg.ClusterName, cert.SubjectKeyId, keyPair.CRL, caType, tc); err != nil {
+					return trace.Wrap(err)
+				}
 			}
 		}
 	}
