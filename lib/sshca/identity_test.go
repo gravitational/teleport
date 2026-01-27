@@ -78,11 +78,21 @@ func TestIdentityConversion(t *testing.T) {
 		BotName:       "bot",
 		BotInstanceID: "instance",
 		JoinToken:     "join-token",
-		AllowedResourceIDs: []types.ResourceID{{
-			ClusterName:     "cluster",
-			Kind:            "kube:ns:pods", // must use a kube resource kind with ns for parsing of sub-resource to work correctly.
-			Name:            "name",
-			SubResourceName: "sub/sub",
+		AllowedResourceAccessIDs: []types.ResourceAccessID{{
+			Id: types.ResourceID{
+				ClusterName:     "cluster",
+				Kind:            types.KindKubePod, // this is not valid in practice; Constraints and KindKube cannot be mixed
+				Name:            "name",
+				SubResourceName: "sub/sub",
+			},
+			Constraints: &types.ResourceConstraints{
+				Version: types.V1,
+				Details: &types.ResourceConstraints_AwsConsole{
+					AwsConsole: &types.AWSConsoleResourceConstraints{
+						RoleArns: []string{"arn:aws:iam::123456789012:role/TestRole"},
+					},
+				},
+			},
 		}},
 		ConnectionDiagnosticID: "diag",
 		PrivateKeyPolicy:       keys.PrivateKeyPolicy("policy"),
@@ -125,6 +135,16 @@ func TestIdentityConversion(t *testing.T) {
 		"RoleNode.XXX_unrecognized",
 		"RoleNode.XXX_sizecache",
 		"RoleNode.Children", // has to be empty in leaf nodes because of how trees work
+		"ResourceAccessID.XXX_NoUnkeyedLiteral",
+		"ResourceAccessID.XXX_unrecognized",
+		"ResourceAccessID.XXX_sizecache",
+		"ResourceConstraints.XXX_NoUnkeyedLiteral",
+		"ResourceConstraints.XXX_unrecognized",
+		"ResourceConstraints.XXX_sizecache",
+		"AWSConsoleResourceConstraints.XXX_NoUnkeyedLiteral",
+		"AWSConsoleResourceConstraints.XXX_unrecognized",
+		"AWSConsoleResourceConstraints.XXX_sizecache",
+		"Identity.AllowedResourceIDs", // at decode, allowedResourceIDs are converted to ResourceAccessIDs and stored in Identity.AllowedResourceAccessIDs
 	}
 
 	require.True(t, testutils.ExhaustiveNonEmpty(ident, ignores...), "empty=%+v", testutils.FindAllEmpty(ident, ignores...))

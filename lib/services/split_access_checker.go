@@ -373,7 +373,7 @@ type UnscopedCertificateParameters interface {
 	CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]string, error)
 	CheckAzureIdentities(ttl time.Duration, overrideTTL bool) ([]string, error)
 	CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) ([]string, error)
-	GetAllowedResourceIDs() []types.ResourceID
+	GetAllowedResourceAccessIDs() []types.ResourceAccessID
 	CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 }
 
