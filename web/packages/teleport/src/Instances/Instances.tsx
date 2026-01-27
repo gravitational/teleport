@@ -96,7 +96,7 @@ export function Instances() {
 
   const upgradersParam = queryParams.get('upgraders');
   const selectedUpgraders = (
-    upgradersParam ? upgradersParam.split(',') : []
+    upgradersParam !== null ? upgradersParam.split(',') : []
   ) as UpgraderType[];
 
   const versionFilter = queryParams.get('version_filter') || '';
