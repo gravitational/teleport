@@ -22,31 +22,34 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/vnet"
 )
 
-func newPlatformVnetAdminSetupCommand(app *kingpin.Application) vnetCommandNotSupported {
-	return vnetCommandNotSupported{}
-}
-
-// vnetServiceCommand runs the VNet service.
-type vnetServiceCommand struct {
+// vnetAdminSetupCommand is the fallback command ran as root when there is no
+// available vnet daemon on system.
+type vnetAdminSetupCommand struct {
 	*kingpin.CmdClause
 	cfg vnet.LinuxAdminProcessConfig
 }
 
-func (c *vnetServiceCommand) run(clf *CLIConf) error {
+func (c *vnetAdminSetupCommand) run(clf *CLIConf) error {
 	return trace.Wrap(vnet.RunLinuxAdminProcess(clf.Context, c.cfg))
 }
 
-func newPlatformVnetServiceCommand(app *kingpin.Application) *vnetServiceCommand {
-	cmd := &vnetServiceCommand{
-		CmdClause: app.Command("vnet-service", "Start the VNet admin subprocess.").Hidden(),
+func newPlatformVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
+	cmd := &vnetAdminSetupCommand{
+		CmdClause: app.Command(teleport.VnetAdminSetupSubCommand, "Start the VNet admin subprocess.").Hidden(),
 	}
-	cmd.Flag("addr", "client application service address").Required().StringVar(&cmd.cfg.ClientApplicationServiceAddr)
-	cmd.Flag("cred-path", "path to TLS credentials for connecting to client application").Required().StringVar(&cmd.cfg.ServiceCredentialPath)
+	cmd.Flag("addr", "Client application service address.").Required().StringVar(&cmd.cfg.ClientApplicationServiceAddr)
+	cmd.Flag("cred-path", "Path to TLS credentials for connecting to client application.").Required().StringVar(&cmd.cfg.ServiceCredentialPath)
 	return cmd
+}
+
+// The vnet-service command is only supported on windows.
+func newPlatformVnetServiceCommand(app *kingpin.Application) vnetCommandNotSupported {
+	return vnetCommandNotSupported{}
 }
 
 // The vnet-install-service command is only supported on windows.

@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2024 Gravitational, Inc.
+// Copyright (C) 2026 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -14,15 +14,15 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build (!vnetdaemon || !darwin) && !linux
+package vnet
 
-package common
-
-import (
-	"github.com/alecthomas/kingpin/v2"
+const (
+	vnetDBusServiceName = "org.teleport.vnet1"
+	vnetDBusObjectPath  = "/org/teleport/vnet1"
+	vnetDBusInterface   = "org.teleport.vnet1.Daemon"
+	vnetDBusStartMethod = vnetDBusInterface + ".Start"
+	vnetDBusStopMethod  = vnetDBusInterface + ".Stop"
+	// vnetPolkitAction must match the action ID defined in the polkit policy file.
+	vnetPolkitAction    = "org.teleport.vnet1.manage-daemon"
+	vnetSystemdUnitName = "teleport-vnet.service"
 )
-
-// The vnet-daemon command is only supported with the vnetdaemon tag on darwin.
-func newPlatformVnetDaemonCommand(app *kingpin.Application) vnetCommandNotSupported {
-	return vnetCommandNotSupported{}
-}
