@@ -167,6 +167,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindDatabaseService},
 		{Kind: types.KindDatabase},
+		{Kind: types.KindDelegationProfile},
 		{Kind: types.KindNetworkRestrictions},
 		{Kind: types.KindLock},
 		{Kind: types.KindWindowsDesktopService},
@@ -791,6 +792,8 @@ type Config struct {
 	Plugin services.Plugins
 	// AppAuthConfig is a app auth config service.
 	AppAuthConfig services.AppAuthConfigReader
+	// DelegationProfiles is the upstream delegation profiles service.
+	DelegationProfiles services.DelegationProfiles
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
