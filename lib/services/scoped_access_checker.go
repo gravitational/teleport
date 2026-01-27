@@ -173,7 +173,7 @@ func (b *scopedAccessCheckerBuilder) Check() error {
 		return trace.BadParameter("cannot create scoped access checkers for unscoped identity")
 	}
 
-	if len(b.info.AllowedResourceIDs) != 0 {
+	if len(b.info.AllowedResourceAccessIDs) != 0 {
 		return trace.BadParameter("cannot create scoped access checkers for identity with active resource IDs")
 	}
 

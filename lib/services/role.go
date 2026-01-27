@@ -2275,6 +2275,14 @@ func (m RoleMatchers) MatchAny(role types.Role, condition types.RoleConditionTyp
 	return false, nil, nil
 }
 
+// AnyOf returns a RoleMatcher that succeeds if ANY of the underlying matchers match.
+func (m RoleMatchers) AnyOf() RoleMatcher {
+	return RoleMatcherFunc(func(r types.Role, cond types.RoleConditionType) (bool, error) {
+		ok, _, err := m.MatchAny(r, cond)
+		return ok, err
+	})
+}
+
 // databaseUserMatcher matches a role against database account name.
 type databaseUserMatcher struct {
 	// user is the name of the database user.

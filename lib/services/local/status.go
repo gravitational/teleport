@@ -148,6 +148,10 @@ func (s *StatusService) UpsertClusterAlert(ctx context.Context, alert types.Clus
 }
 
 func (s *StatusService) DeleteClusterAlert(ctx context.Context, alertID string) error {
+	if alertID == "" {
+		return trace.BadParameter("missing alert id for deletion")
+	}
+
 	// Key construction relies on [backend.KeyFromString] for the alert name, because there are existing
 	// alerts that include a / in their name. Without reconstructing the key it would be impossible
 	// for the sanitization layer to analyze the individual components separately.

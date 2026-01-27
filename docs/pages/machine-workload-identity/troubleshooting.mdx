@@ -358,3 +358,63 @@ To fix this, set a variable of `TBOT_USE_PROXY_ADDR=yes` in the environment of t
 `tbot` process. This configures `tbot` to prefer using the address that you have
 explicitly provided. This only functions correctly in cases where TLS
 routing/multiplexing is enabled for the Teleport cluster.
+
+## Using `tbot` in an environment without an accessible Teleport Proxy Service
+
+By default, when using the `identity` output service, the `tbot` client queries
+the Proxy Service to fetch information about available Teleport clusters,
+including any available [leaf clusters](../core-concepts.mdx#trusted-clusters),
+which is required to generate a usable `ssh_config`.
+
+If running in an environment where `tbot` is configured to communicate directly
+with the Teleport Auth Service via the `auth_server` configuration option, but
+cannot communicate with the Teleport Proxy Service, the identity output service
+will fail to generate an `ssh_config` with an error like the following:
+
+```
+2026-01-21T18:11:16.320-07:00 ERRO [TBOT:PROX] Failed to ping proxy error:[
+ERROR REPORT:
+Original Error: *url.Error Get &#34;https://teleport.example.com:443/webapi/find&#34;: dial tcp 1.2.3.4:443: connect: connection refused
+Stack Trace:
+	github.com/gravitational/teleport/api@v0.0.0/client/webclient/webclient.go:167 github.com/gravitational/teleport/api/client/webclient.doWithFallback
+	github.com/gravitational/teleport/api@v0.0.0/client/webclient/webclient.go:218 github.com/gravitational/teleport/api/client/webclient.findWithClient
+	github.com/gravitational/teleport/api@v0.0.0/client/webclient/webclient.go:192 github.com/gravitational/teleport/api/client/webclient.Find
+	github.com/gravitational/teleport/lib/tbot/internal/caching_proxy_pinger.go:104 github.com/gravitational/teleport/lib/tbot/internal.(*CachingProxyPinger).Ping
+	github.com/gravitational/teleport/lib/tbot/services/identity/output.go:198 github.com/gravitational/teleport/lib/tbot/services/identity.(*OutputService).generate
+	github.com/gravitational/teleport/lib/tbot/internal/loop.go:161 github.com/gravitational/teleport/lib/tbot/internal.RunOnInterval
+	github.com/gravitational/teleport/lib/tbot/services/identity/output.go:113 github.com/gravitational/teleport/lib/tbot/services/identity.(*OutputService).Run
+	github.com/gravitational/teleport/lib/tbot/bot/bot.go:103 github.com/gravitational/teleport/lib/tbot/bot.(*Bot).Run.func2
+	golang.org/x/sync@v0.19.0/errgroup/errgroup.go:93 golang.org/x/sync/errgroup.(*Group).Go.func1
+	runtime/asm_amd64.s:1693 runtime.goexit
+User Message: Get &#34;https://teleport.example.com:443/webapi/find&#34;: dial tcp 1.2.3.4:443: connect: connection refused] internal/caching_proxy_pinger.go:110
+```
+
+As in many cases the `ssh_config` is required for downstream applications to
+function, this is expected behavior. However, if you do not require the
+`ssh_config`, you can disable it by setting `ssh_config: "off"` in the settings
+for your identity output service:
+
+```yaml
+version: v2
+auth_server: teleport.example.com:3025
+onboarding:
+  token: '...snip...'
+  join_method: token
+storage:
+  type: directory
+  path: ./storage
+services:
+  - type: identity
+    destination:
+      type: directory
+      path: ./destination
+    ssh_config: "off"
+```
+
+If desired, you can [read more about the identity output service config
+options](../reference/machine-workload-identity/configuration.mdx#identity).
+
+Note that other `tbot` services may also attempt to connect to the Proxy
+Service, and may fail similarly if blocked. For best compatibility, the `tbot`
+client should generally be given network access to the Proxy Service, even if
+configured to connect to the Auth Service directly.

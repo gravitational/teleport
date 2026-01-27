@@ -18,6 +18,14 @@
 
 import { useState } from 'react';
 
+import { ButtonSecondary } from 'design/Button';
+import Dialog, {
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from 'design/Dialog';
+import Text from 'design/Text';
 import { Tabs } from 'shared/components/Editor/Tabs';
 import TextEditor from 'shared/components/TextEditor/TextEditor';
 
@@ -29,9 +37,13 @@ import {
 import { useTracking } from '../Shared/useTracking';
 import { useGitHubK8sFlow } from './useGitHubK8sFlow';
 
-export function CodePanel(props: { trackingStep: IntegrationEnrollStep }) {
-  const { trackingStep } = props;
+export function CodePanel(props: {
+  trackingStep: IntegrationEnrollStep;
+  inProgress?: boolean;
+}) {
+  const { trackingStep, inProgress = false } = props;
   const [activeCodeTab, setActiveCodeTab] = useState(0);
+  const [showCopyDialog, setShowCopyDialog] = useState(false);
 
   const { template } = useGitHubK8sFlow();
 
@@ -58,16 +70,42 @@ export function CodePanel(props: { trackingStep: IntegrationEnrollStep }) {
         ]}
         activeIndex={activeCodeTab}
         readOnly={true}
-        copyButton={true}
-        downloadButton={true}
+        copyButton={!inProgress}
+        downloadButton={!inProgress}
         downloadFileName={files[activeCodeTab]}
         onCopy={() => {
           tracking.codeCopy(trackingStep, trackingTypes[activeCodeTab]);
+          if (inProgress) {
+            setShowCopyDialog(true);
+          }
         }}
         onDownload={() => {
           tracking.codeCopy(trackingStep, trackingTypes[activeCodeTab]);
         }}
       />
+      <Dialog
+        open={showCopyDialog}
+        onClose={() => setShowCopyDialog(false)}
+        dialogCss={() => ({
+          maxWidth: '480px',
+          width: '100%',
+        })}
+      >
+        <DialogHeader mb={4}>
+          <DialogTitle>Incomplete templates</DialogTitle>
+        </DialogHeader>
+        <DialogContent mb={4}>
+          <Text>
+            The code templates may not be complete yet. Continue to the end of
+            the guide to ensure you&apos;ve added all the required details.
+          </Text>
+        </DialogContent>
+        <DialogFooter>
+          <ButtonSecondary onClick={() => setShowCopyDialog(false)}>
+            Ok
+          </ButtonSecondary>
+        </DialogFooter>
+      </Dialog>
     </>
   );
 }

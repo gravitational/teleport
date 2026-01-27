@@ -129,18 +129,28 @@ func TestMachineIDWizard(t *testing.T) {
 			// Cut the provider configuration out of the golden file, as this
 			// contains values that will change between test runs (e.g. major
 			// version number and proxy address).
-			providerConfigIdx := strings.Index(body.Terraform, "terraform {")
-			beforeProviderConfig := body.Terraform[:providerConfigIdx]
-			providerConfig := body.Terraform[providerConfigIdx:]
+			const providerConfigStartLine = 17
+			const providerConfigEndLine = 29
+			terraformLines := strings.Split(body.Terraform, "\n")
+
+			providerConfig := strings.Join(
+				terraformLines[providerConfigStartLine-1:providerConfigEndLine],
+				"\n",
+			)
+			remainingLines := append(
+				terraformLines[:providerConfigStartLine-1],
+				terraformLines[providerConfigEndLine:]...,
+			)
+			remainingConfig := strings.Join(remainingLines, "\n")
 
 			if golden.ShouldSet() {
-				golden.Set(t, []byte(beforeProviderConfig))
+				golden.Set(t, []byte(remainingConfig))
 			}
 
 			require.Empty(t,
 				cmp.Diff(
 					string(golden.Get(t)),
-					beforeProviderConfig,
+					remainingConfig,
 				),
 			)
 
