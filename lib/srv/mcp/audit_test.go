@@ -23,8 +23,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
 func Test_headersForAudit(t *testing.T) {
@@ -73,52 +71,50 @@ func Test_headersForAudit(t *testing.T) {
 
 func Test_guessEgressAuthType(t *testing.T) {
 	tests := []struct {
-		name         string
-		inputHeader  http.Header
-		inputRewrite *types.Rewrite
-		expect       string
+		name                string
+		inputHeader         http.Header
+		inputRewriteDetails rewriteAuthDetails
+		expect              string
 	}{
 		{
 			name:   "no header or rewrite",
-			expect: "unknown",
+			expect: egressAuthTypeUnknown,
 		},
 		{
 			name: "user defined",
 			inputHeader: http.Header{
 				"Authorization": []string{"Bearer secret"},
 			},
-			inputRewrite: &types.Rewrite{
-				Headers: []*types.Header{{
-					Name:  "Some-Other-Header",
-					Value: "some-other-value",
-				}},
-			},
-			expect: "user-defined",
+			inputRewriteDetails: rewriteAuthDetails{},
+			expect:              egressAuthTypeUserDefined,
 		},
 		{
 			name: "app defined",
-			inputRewrite: &types.Rewrite{
-				Headers: []*types.Header{{
-					Name:  "Authorization",
-					Value: "Bearer abcdef",
-				}},
+			inputRewriteDetails: rewriteAuthDetails{
+				rewriteAuthHeader: true,
 			},
-			expect: "app-defined",
+			expect: egressAuthTypeAppDefined,
 		},
 		{
 			name: "app defined with Teleport JWT",
-			inputRewrite: &types.Rewrite{
-				Headers: []*types.Header{{
-					Name:  "Authorization",
-					Value: "Bearer {{internal.jwt}}",
-				}},
+			inputRewriteDetails: rewriteAuthDetails{
+				hasJWTTrait: true,
 			},
-			expect: "app-jwt",
+			expect: egressAuthTypeAppJWT,
+		},
+		{
+			name: "app defined with Teleport OIDC token",
+			inputRewriteDetails: rewriteAuthDetails{
+				rewriteAuthHeader: true,
+				hasJWTTrait:       true,
+				hasIDTokenTrait:   true,
+			},
+			expect: egressAuthTypeAppIDToken,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.expect, guessEgressAuthType(tt.inputHeader, tt.inputRewrite))
+			require.Equal(t, tt.expect, guessEgressAuthType(tt.inputHeader, tt.inputRewriteDetails))
 		})
 	}
 }

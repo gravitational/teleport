@@ -1700,11 +1700,12 @@ func (c *Client) GenerateAppToken(ctx context.Context, req types.GenerateAppToke
 		}
 	}
 	resp, err := c.grpc.GenerateAppToken(ctx, &proto.GenerateAppTokenRequest{
-		Username: req.Username,
-		Roles:    req.Roles,
-		Traits:   traits,
-		URI:      req.URI,
-		Expires:  req.Expires,
+		Username:      req.Username,
+		Roles:         req.Roles,
+		Traits:        traits,
+		URI:           req.URI,
+		Expires:       req.Expires,
+		AuthorityType: string(req.AuthorityType),
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
