@@ -4051,6 +4051,18 @@ message RoleConditions {
   // LinuxDesktopLabelsExpression is a predicate expression used to allow/deny
   // access to Linux desktops.
   string LinuxDesktopLabelsExpression = 49 [(gogoproto.jsontag) = "linux_desktop_labels_expression,omitempty"];
+
+  // DelegationProfileLabels controls whether or not specific DelegationProfile
+  // resources can be used. The ability to use a profile does *not* implicitly
+  // grant access to the resources detailed by the profile.
+  wrappers.LabelValues DelegationProfileLabels = 50 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "delegation_profile_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+  // DelegationProfileLabelsExpression is a predicate expression used to
+  // allow/deny access to using a DelegationProfile.
+  string DelegationProfileLabelsExpression = 51 [(gogoproto.jsontag) = "delegation_profile_labels_expression,omitempty"];
 }
 
 // IdentityCenterAccountAssignment captures an AWS Identity Center account

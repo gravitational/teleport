@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
- package delegationv1
+package delegationv1
 
 import (
 	"context"
@@ -28,6 +28,7 @@ import (
 	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // ProfileServiceConfig contains the configuration of the ProfileService.
@@ -119,14 +120,46 @@ func (s *ProfileService) GetDelegationProfile(ctx context.Context, req *delegati
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToKind(types.KindDelegationProfile, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
+
+	adminAccessErr := authCtx.CheckAccessToKind(
+		types.KindDelegationProfile,
+		types.VerbRead,
+	)
+
 	prof, err := s.reader.GetDelegationProfile(ctx, req.GetName())
-	if err != nil {
+	switch {
+	case trace.IsNotFound(err):
+		// Only return NotFound if the user is allowed to access all profiles
+		// to avoid leaking information.
+		if adminAccessErr != nil {
+			return nil, trace.Wrap(adminAccessErr)
+		}
+		return nil, trace.Wrap(err)
+	case err != nil:
 		return nil, trace.Wrap(err)
 	}
-	return prof, nil
+
+	// Allow the user to read the profile if they have access to all profiles
+	// via a resource rule (e.g. for administration).
+	//
+	// 	rules:
+	// 	  - resources: [delegation_profile]
+	//	    verbs: [read]
+	//
+	// Or if they have a label matcher allowing them to use the profile:
+	//
+	// 	allow:
+	// 	  delegation_profile_labels:
+	// 	    foo: bar
+	labelAccessErr := authCtx.Checker.CheckAccess(
+		types.Resource153ToResourceWithLabels(prof),
+		services.AccessState{MFAVerified: true},
+	)
+	if adminAccessErr == nil || labelAccessErr == nil {
+		return prof, nil
+	}
+
+	return nil, trace.NewAggregate(adminAccessErr, labelAccessErr)
 }
 
 // UpdateDelegationProfile updates an existing delegation profile. It will
