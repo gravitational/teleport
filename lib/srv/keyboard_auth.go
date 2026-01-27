@@ -37,11 +37,11 @@ import (
 // authentication process.
 func (h *AuthHandlers) KeyboardInteractiveAuth(
 	ctx context.Context,
-	preconds services.Preconditions,
+	preconds *services.Preconditions,
 	id *sshca.Identity,
 	perms *ssh.Permissions,
 ) (*ssh.Permissions, error) {
-	if len(preconds) == 0 {
+	if preconds.Len() == 0 {
 		return perms, nil
 	}
 
@@ -79,8 +79,8 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 		var verifiers []srvssh.PromptVerifier
 
 		// Range over preconditions in a sorted order to ensure deterministic behavior and consistent error messages.
-		for _, kind := range preconds.Sorted() {
-			switch kind {
+		for p := range preconds.All() {
+			switch p.GetKind() {
 			case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
 				// TODO(cthach): Use the source cluster name that the client will do the MFA ceremony with.
 				verifier, err := srvssh.NewMFAPromptVerifier(h.c.ValidatedMFAChallengeVerifier, id.ClusterName, id.Username, metadata.SessionID())
@@ -114,15 +114,14 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 	}
 }
 
-func ensureSupportedPreconditions(preconds services.Preconditions) error {
-	// Range over preconditions in a sorted order to ensure deterministic behavior and consistent error messages.
-	for _, kind := range preconds.Sorted() {
-		switch kind {
+func ensureSupportedPreconditions(preconds *services.Preconditions) error {
+	for p := range preconds.All() {
+		switch p.GetKind() {
 		case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
 			// OK
 
 		default:
-			return trace.BadParameter("unexpected precondition type %q found (this is a bug)", kind)
+			return trace.BadParameter("unexpected precondition type %q found (this is a bug)", p.GetKind())
 		}
 	}
 
@@ -130,11 +129,11 @@ func ensureSupportedPreconditions(preconds services.Preconditions) error {
 }
 
 func denyRegularSSHCertsIfMFARequired(
-	preconds services.Preconditions,
+	preconds *services.Preconditions,
 	id *sshca.Identity,
 ) error {
 	// Determine if MFA is required based on the provided preconditions.
-	_, mfaRequired := preconds[decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA]
+	mfaRequired := preconds.Contains(decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA)
 
 	// A regular SSH certificate is one that does not have per-session MFA verification.
 	isRegularSSHCert := id.MFAVerified == "" && !id.PrivateKeyPolicy.MFAVerified()

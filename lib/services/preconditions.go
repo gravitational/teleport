@@ -17,25 +17,72 @@
 package services
 
 import (
+	"cmp"
+	"iter"
 	"slices"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 )
 
-// Preconditions is a set of decisionpb.PreconditionKind. Enforcement of preconditions should be done in the order
-// returned by the Sorted method for consistency. If multiple preconditions are not satisfied, a combined error that
-// lists all unsatisfied preconditions should be returned along with any relevant details.
-type Preconditions map[decisionpb.PreconditionKind]struct{}
+// Preconditions is a set of decisionpb.Precondition. Enforcement of preconditions should be done in the order returned
+// by the All method for consistency. If multiple preconditions are not satisfied, a combined error that lists all
+// unsatisfied preconditions should be returned along with any relevant details.
+type Preconditions struct {
+	preconditions []*decisionpb.Precondition
+}
 
-// Sorted returns the kinds in sorted order.
-func (p Preconditions) Sorted() []decisionpb.PreconditionKind {
-	kinds := make([]decisionpb.PreconditionKind, 0, len(p))
-
-	for kind := range p {
-		kinds = append(kinds, kind)
+// NewPreconditions creates a new Preconditions set from the given preconditions.
+func NewPreconditions(preconditions ...*decisionpb.Precondition) *Preconditions {
+	// Clone the slice to avoid modifying the caller's slice.
+	p := &Preconditions{
+		preconditions: slices.Clone(preconditions),
 	}
 
-	slices.Sort(kinds)
+	// Sort preconditions to ensure consistent order.
+	slices.SortFunc(p.preconditions, comparePreconditions)
 
-	return kinds
+	// Remove duplicates.
+	p.preconditions = slices.CompactFunc(p.preconditions, equalPreconditions)
+
+	return p
+}
+
+// Add adds a precondition to the set if the kind is not already present.
+func (p *Preconditions) Add(precondition *decisionpb.Precondition) {
+	// Find insertion point using binary search.
+	index, found := slices.BinarySearchFunc(p.preconditions, precondition, comparePreconditions)
+	if !found {
+		// Insert at the correct position to maintain sorted order.
+		p.preconditions = slices.Insert(p.preconditions, index, precondition)
+	}
+}
+
+// All returns an iterator over the preconditions in sorted kind order.
+func (p *Preconditions) All() iter.Seq[*decisionpb.Precondition] {
+	return func(yield func(*decisionpb.Precondition) bool) {
+		for _, precondition := range p.preconditions {
+			if !yield(precondition) {
+				return
+			}
+		}
+	}
+}
+
+// Contains returns true if a precondition with the given kind is in the set.
+func (p *Preconditions) Contains(kind decisionpb.PreconditionKind) bool {
+	_, found := slices.BinarySearchFunc(p.preconditions, &decisionpb.Precondition{Kind: kind}, comparePreconditions)
+	return found
+}
+
+// Len returns the number of preconditions.
+func (p *Preconditions) Len() int {
+	return len(p.preconditions)
+}
+
+func comparePreconditions(a, b *decisionpb.Precondition) int {
+	return cmp.Compare(a.Kind, b.Kind)
+}
+
+func equalPreconditions(a, b *decisionpb.Precondition) bool {
+	return comparePreconditions(a, b) == 0
 }

@@ -103,7 +103,7 @@ type mockLoginChecker struct {
 	rbacChecked bool
 }
 
-func (m *mockLoginChecker) evaluateSSHAccess(_ *sshca.Identity, _ types.CertAuthority, _ string, _ types.Server, _ string) (*decisionpb.SSHAccessPermit, services.Preconditions, error) {
+func (m *mockLoginChecker) evaluateSSHAccess(_ *sshca.Identity, _ types.CertAuthority, _ string, _ types.Server, _ string) (*decisionpb.SSHAccessPermit, *services.Preconditions, error) {
 	m.rbacChecked = true
 	return nil, nil, nil
 }

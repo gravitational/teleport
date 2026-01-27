@@ -21,35 +21,34 @@ import (
 	"testing"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+
+	"github.com/stretchr/testify/require"
 )
 
-func TestPreconditions_Sorted(t *testing.T) {
+func TestPreconditions_Add(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
 		name     string
-		input    Preconditions
+		initial  []*decisionpb.Precondition
+		toAdd    []*decisionpb.Precondition
 		expected []decisionpb.PreconditionKind
 	}{
 		{
-			name:     "empty",
-			input:    Preconditions{},
-			expected: []decisionpb.PreconditionKind{},
+			name:    "add to empty",
+			initial: nil,
+			toAdd: []*decisionpb.Precondition{
+				{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+			},
+			expected: []decisionpb.PreconditionKind{decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
 		},
 		{
-			name: "single element",
-			input: Preconditions{
-				decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA: {},
+			name: "add multiple maintains sorted order",
+			initial: []*decisionpb.Precondition{
+				{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
 			},
-			expected: []decisionpb.PreconditionKind{
-				decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
-			},
-		},
-		{
-			name: "multiple elements unordered",
-			input: Preconditions{
-				decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA: {},
-				decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED: {},
+			toAdd: []*decisionpb.Precondition{
+				{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
 			},
 			expected: []decisionpb.PreconditionKind{
 				decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED,
@@ -57,10 +56,22 @@ func TestPreconditions_Sorted(t *testing.T) {
 			},
 		},
 		{
-			name: "already sorted",
-			input: Preconditions{
-				decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED: {},
-				decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA: {},
+			name: "add duplicate does not increase length",
+			initial: []*decisionpb.Precondition{
+				{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+			},
+			toAdd: []*decisionpb.Precondition{
+				{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+			},
+			expected: []decisionpb.PreconditionKind{decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+		},
+		{
+			name: "add to middle maintains order",
+			initial: []*decisionpb.Precondition{
+				{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
+			},
+			toAdd: []*decisionpb.Precondition{
+				{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
 			},
 			expected: []decisionpb.PreconditionKind{
 				decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED,
@@ -69,10 +80,178 @@ func TestPreconditions_Sorted(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got := tc.input.Sorted()
-			if !slices.Equal(got, tc.expected) {
-				t.Errorf("Sorted() = %v, want %v", got, tc.expected)
+			p := NewPreconditions(tc.initial...)
+
+			for _, precondition := range tc.toAdd {
+				p.Add(precondition)
 			}
+
+			var got []decisionpb.PreconditionKind
+			for precondition := range p.All() {
+				got = append(got, precondition.Kind)
+			}
+
+			require.True(t, slices.Equal(got, tc.expected), "After Add(), All() = %v, want %v", got, tc.expected)
+		})
+
+	}
+}
+
+func TestPreconditions_All(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		input    *Preconditions
+		expected []decisionpb.PreconditionKind
+	}{
+		{
+			name:     "empty",
+			input:    NewPreconditions(),
+			expected: []decisionpb.PreconditionKind{},
+		},
+		{
+			name: "single element",
+			input: NewPreconditions(
+				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+			),
+			expected: []decisionpb.PreconditionKind{
+				decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
+			},
+		},
+		{
+			name: "multiple elements unordered",
+			input: NewPreconditions(
+				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
+			),
+			expected: []decisionpb.PreconditionKind{
+				decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED,
+				decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
+			},
+		},
+		{
+			name: "already sorted",
+			input: NewPreconditions(
+				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
+				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+			),
+			expected: []decisionpb.PreconditionKind{
+				decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED,
+				decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
+			},
+		},
+		{
+			name: "duplicates removed",
+			input: NewPreconditions(
+				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
+			),
+			expected: []decisionpb.PreconditionKind{
+				decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED,
+				decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var got []decisionpb.PreconditionKind
+
+			for precondition := range tc.input.All() {
+				got = append(got, precondition.Kind)
+			}
+
+			require.True(t, slices.Equal(got, tc.expected), "All() = %v, want %v", got, tc.expected)
+		})
+
+	}
+}
+
+func TestPreconditions_Contains(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		input    *Preconditions
+		kind     decisionpb.PreconditionKind
+		expected bool
+	}{
+		{
+			name: "contains existing element",
+			input: NewPreconditions(
+				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
+			),
+			kind:     decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
+			expected: true,
+		},
+		{
+			name: "contains another existing element",
+			input: NewPreconditions(
+				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
+			),
+			kind:     decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED,
+			expected: true,
+		},
+		{
+			name: "does not contain non-existing element",
+			input: NewPreconditions(
+				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
+			),
+			kind:     decisionpb.PreconditionKind(999),
+			expected: false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.input.Contains(tc.kind)
+			require.Equal(t, tc.expected, got, "Contains(%v) = %v, want %v", tc.kind, got, tc.expected)
+		})
+
+	}
+}
+
+func TestPreconditions_Len(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		input    *Preconditions
+		expected int
+	}{
+		{
+			name:     "empty set",
+			input:    NewPreconditions(),
+			expected: 0,
+		},
+		{
+			name: "single element",
+			input: NewPreconditions(
+				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+			),
+			expected: 1,
+		},
+		{
+			name: "multiple elements",
+			input: NewPreconditions(
+				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
+			),
+			expected: 2,
+		},
+		{
+			name: "duplicates counted once",
+			input: NewPreconditions(
+				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+				&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+			),
+			expected: 1,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.input.Len()
+			require.Equal(t, tc.expected, got, "Len() = %v, want %v", got, tc.expected)
 		})
 	}
 }

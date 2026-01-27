@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -597,7 +598,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 
 	var (
 		accessPermit        *decisionpb.SSHAccessPermit
-		preconds            services.Preconditions
+		preconds            *services.Preconditions
 		gitForwardingPermit *GitForwardingPermit
 		proxyPermit         *proxyingPermit
 		diagnosticTracing   bool
@@ -803,7 +804,7 @@ type loginChecker interface {
 	// evaluateSSHAccess checks the given certificate (supplied by a connected
 	// client) to see if this certificate can be allowed to login as user:login
 	// pair to requested server and if RBAC rules allow login.
-	evaluateSSHAccess(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) (*decisionpb.SSHAccessPermit, services.Preconditions, error)
+	evaluateSSHAccess(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) (*decisionpb.SSHAccessPermit, *services.Preconditions, error)
 }
 
 type scopedLoginChecker interface {
@@ -1064,7 +1065,7 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 // evaluateSSHAccess checks the given certificate (supplied by a connected
 // client) to see if this certificate can be allowed to login as user:login
 // pair to requested server and if RBAC rules allow login.
-func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) (*decisionpb.SSHAccessPermit, services.Preconditions, error) {
+func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) (*decisionpb.SSHAccessPermit, *services.Preconditions, error) {
 	// Use the server's shutdown context.
 	ctx := a.c.Server.Context()
 
@@ -1102,7 +1103,7 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 				(os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") != "yes" && state.MFAVerified))
 
 	// Collect preconditions that must be met before the session can start.
-	var precondsSet services.Preconditions
+	var precondsSet *services.Preconditions
 
 	// Perform the primary node access check unless bypass is allowed.
 	if !bypassAccessCheck {
@@ -1162,11 +1163,6 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		hostUsersInfo = nil
 	}
 
-	var precondsList []*decisionpb.Precondition
-	for kind := range precondsSet {
-		precondsList = append(precondsList, &decisionpb.Precondition{Kind: kind})
-	}
-
 	return &decisionpb.SSHAccessPermit{
 			ForwardAgent:          accessChecker.CheckAgentForward(osUser) == nil,
 			X11Forwarding:         accessChecker.PermitX11Forwarding(),
@@ -1184,7 +1180,7 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 			HostSudoers:           hostSudoers,
 			BpfEvents:             bpfEvents,
 			HostUsersInfo:         hostUsersInfo,
-			Preconditions:         precondsList,
+			Preconditions:         slices.Collect(precondsSet.All()),
 		},
 		precondsSet,
 		nil
