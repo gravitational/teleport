@@ -83,7 +83,10 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 	defer backend.Close()
 
 	service := local.NewScopedAccessService(backend)
-	accessListService, err := local.NewAccessListService(backend, backend.Clock())
+	accessListService, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: backend,
+		Modules: modules.GetModules(),
+	})
 	require.NoError(t, err)
 
 	events := local.NewEventsService(backend)
@@ -322,7 +325,10 @@ func TestScopedAccessCacheFallback(t *testing.T) {
 	defer backend.Close()
 
 	service := local.NewScopedAccessService(backend)
-	accessListService, err := local.NewAccessListService(backend, backend.Clock())
+	accessListService, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: backend,
+		Modules: modules.GetModules(),
+	})
 	require.NoError(t, err)
 
 	events := &neverEvents{} // use a fake events service that never initializes watchers
@@ -473,7 +479,10 @@ func TestAccessListMaterialization(t *testing.T) {
 	defer backend.Close()
 
 	service := local.NewScopedAccessService(backend)
-	accessListService, err := local.NewAccessListService(backend, backend.Clock())
+	accessListService, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: backend,
+		Modules: modules.GetModules(),
+	})
 	require.NoError(t, err)
 
 	events := local.NewEventsService(backend)
@@ -886,7 +895,10 @@ func TestAccessListMaterializationDeepForest(t *testing.T) {
 	defer backend.Close()
 
 	service := local.NewScopedAccessService(backend)
-	accessListService, err := local.NewAccessListService(backend, backend.Clock())
+	accessListService, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: backend,
+		Modules: modules.GetModules(),
+	})
 	require.NoError(t, err)
 
 	events := local.NewEventsService(backend)
@@ -1052,7 +1064,10 @@ func TestAccessListMaterializationOwnerGrants(t *testing.T) {
 	defer backend.Close()
 
 	service := local.NewScopedAccessService(backend)
-	accessListService, err := local.NewAccessListService(backend, backend.Clock())
+	accessListService, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: backend,
+		Modules: modules.GetModules(),
+	})
 	require.NoError(t, err)
 
 	events := local.NewEventsService(backend)
@@ -1307,7 +1322,10 @@ func BenchmarkAccessListMaterialization(b *testing.B) {
 			require.NoError(b, err)
 			b.Cleanup(func() { require.NoError(b, backend.Close()) })
 
-			accessListService, err := local.NewAccessListService(backend, backend.Clock())
+			accessListService, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+				Backend: backend,
+				Modules: modules.GetModules(),
+			})
 			require.NoError(b, err)
 
 			seedAccessListMaterializationData(b, accessListService, materializationBenchConfig{
@@ -1351,7 +1369,10 @@ func BenchmarkAccessListMaterialization(b *testing.B) {
 			require.NoError(b, err)
 			b.Cleanup(func() { require.NoError(b, backend.Close()) })
 
-			accessListService, err := local.NewAccessListService(backend, backend.Clock())
+			accessListService, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+				Backend: backend,
+				Modules: modules.GetModules(),
+			})
 			require.NoError(b, err)
 
 			seedAccessListMaterializationData(b, accessListService, materializationBenchConfig{
