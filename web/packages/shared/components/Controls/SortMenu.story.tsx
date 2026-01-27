@@ -22,10 +22,10 @@ import { useArgs } from 'storybook/preview-api';
 
 import Flex from 'design/Flex/Flex';
 
-import { SortMenu, SortOrder } from './SortMenuV2';
+import { SortMenu, SortOrder } from './SortMenu';
 
 export default {
-  title: 'Shared/Controls/SortMenuV2',
+  title: 'Shared/Controls/SortMenu',
   component: SortMenu,
   argTypes: {},
   args: {
@@ -86,4 +86,4 @@ export default {
 
 const Default: StoryObj<typeof SortMenu> = { args: {} };
 
-export { Default as SortMenuV2 };
+export { Default as SortMenu };
