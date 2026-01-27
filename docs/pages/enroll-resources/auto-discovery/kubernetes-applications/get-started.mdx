@@ -68,7 +68,7 @@ join token you created earlier:
 
 ```code
 $ helm install teleport-agent teleport/teleport-kube-agent \
-  --set roles=kube\,app\,discovery \
+  --set roles="kube\,app\,discovery" \
   --set kubeClusterName=main-cluster \
   --set proxyAddr=<Var name="proxy-address" /> \
   --set authToken=<Var name="token" /> \
