@@ -16,13 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Package tdp implements the Teleport desktop protocol (TDP)
-// encoder/decoder.
+// Package legacy implements the original Teleport desktop protocol (TDP)
+// encoder/decoder. It exists for backwards compatibility.
+// Newer versions of Teleport use TDPB instead.
 // See https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md
-package tdp
-
-// TODO(zmb3): complete the implementation of all messages, even if we don't
-// use them yet.
+package legacy
 
 import (
 	"bytes"
@@ -40,6 +38,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/web/mfajson"
 )
 
@@ -86,27 +85,50 @@ const (
 	TypeLatencyStats                    = MessageType(35)
 	TypePing                            = MessageType(36)
 	TypeClientKeyboardLayout            = MessageType(37)
+	TypeUpgrade                         = MessageType(38)
 )
 
-// Message is a Go representation of a desktop protocol message.
-type Message interface {
-	Encode() ([]byte, error)
+// IsNonFatalErr returns whether or not an error arising from
+// the tdp package should be interpreted as fatal or non-fatal
+// for an ongoing TDP connection.
+func IsNonFatalErr(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return errors.Is(err, clipDataMaxLenErr) ||
+		errors.Is(err, stringMaxLenErr) ||
+		errors.Is(err, fileReadWriteMaxLenErr) ||
+		errors.Is(err, mfaDataMaxLenErr)
 }
 
-// Decode decodes the wire representation of a message.
-func Decode(buf []byte) (Message, error) {
+// IsFatalErr returns the inverse of IsNonFatalErr
+// (except for if err == nil, for which both functions return false)
+func IsFatalErr(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return !IsNonFatalErr(err)
+}
+
+// These correspond to TdpErrCode enum in the rust RDP client.
+const (
+	ErrCodeNil           uint32 = 0
+	ErrCodeFailed        uint32 = 1
+	ErrCodeDoesNotExist  uint32 = 2
+	ErrCodeAlreadyExists uint32 = 3
+)
+
+// decode decodes the wire representation of a message.
+func decode(buf []byte) (tdp.Message, error) {
 	if len(buf) == 0 {
 		return nil, trace.BadParameter("input desktop protocol message is empty")
 	}
-	return decode(bytes.NewReader(buf))
+	return Decode(bytes.NewReader(buf))
 }
 
-type byteReader interface {
-	io.Reader
-	io.ByteReader
-}
-
-func decode(in byteReader) (Message, error) {
+func Decode(in tdp.ByteReader) (tdp.Message, error) {
 	// Peek at the first byte to figure out message type.
 	t, err := in.ReadByte()
 	if err != nil {
@@ -116,7 +138,7 @@ func decode(in byteReader) (Message, error) {
 	return decodeMessage(t, in)
 }
 
-func decodeMessage(firstByte byte, in byteReader) (Message, error) {
+func decodeMessage(firstByte byte, in tdp.ByteReader) (tdp.Message, error) {
 	switch mt := MessageType(firstByte); mt {
 	case TypeClientScreenSpec:
 		return decodeClientScreenSpec(in)
@@ -192,6 +214,9 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodePing(in)
 	case TypeClientKeyboardLayout:
 		return decodeClientKeyboardLayout(in)
+	case TypeUpgrade:
+		// Upgrade should only be sent to web clients
+		fallthrough
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", firstByte)
 	}
@@ -223,7 +248,7 @@ func (f PNGFrame) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodePNGFrame(in byteReader) (PNGFrame, error) {
+func decodePNGFrame(in tdp.ByteReader) (PNGFrame, error) {
 	var header struct {
 		Left, Top     uint32
 		Right, Bottom uint32
@@ -252,7 +277,7 @@ func decodePNGFrame(in byteReader) (PNGFrame, error) {
 // | message type (27) | png_length uint32 | left uint32 | top uint32 | right uint32 | bottom uint32 | data []byte |
 type PNG2Frame []byte
 
-func decodePNG2Frame(in byteReader) (PNG2Frame, error) {
+func decodePNG2Frame(in tdp.ByteReader) (PNG2Frame, error) {
 	// Read PNG length so we can allocate buffer that will fit PNG2Frame message
 	var pngLength uint32
 	if err := binary.Read(in, binary.BigEndian, &pngLength); err != nil {
@@ -313,7 +338,7 @@ func (f PNG2Frame) Data() []byte   { return f[21:] }
 // | message type (29) | data_length uint32 | parts.
 type RDPFastPathPDU []byte
 
-func decodeRDPFastPathPDU(in byteReader) (RDPFastPathPDU, error) {
+func decodeRDPFastPathPDU(in tdp.ByteReader) (RDPFastPathPDU, error) {
 	// Read data length so we can allocate buffer that will fit RDPFastPathPDU message
 	var dataLength uint32
 	if err := binary.Read(in, binary.BigEndian, &dataLength); err != nil {
@@ -354,7 +379,7 @@ func (f RDPFastPathPDU) Encode() ([]byte, error) {
 // | message type (30) | data_length uint32 | parts.
 type RDPResponsePDU []byte
 
-func decodeRDPResponsePDU(in byteReader) (RDPResponsePDU, error) {
+func decodeRDPResponsePDU(in tdp.ByteReader) (RDPResponsePDU, error) {
 	var resFrameLength uint32
 	if err := binary.Read(in, binary.BigEndian, &resFrameLength); err != nil {
 		return RDPResponsePDU{}, trace.Wrap(err)
@@ -403,7 +428,7 @@ func (c ConnectionActivated) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeConnectionActivated(in byteReader) (ConnectionActivated, error) {
+func decodeConnectionActivated(in tdp.ByteReader) (ConnectionActivated, error) {
 	var ids ConnectionActivated
 	err := binary.Read(in, binary.BigEndian, &ids)
 	return ids, trace.Wrap(err)
@@ -427,7 +452,7 @@ func (k SyncKeys) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeSyncKeys(in byteReader) (SyncKeys, error) {
+func decodeSyncKeys(in tdp.ByteReader) (SyncKeys, error) {
 	var k SyncKeys
 	err := binary.Read(in, binary.BigEndian, &k)
 	return k, trace.Wrap(err)
@@ -447,7 +472,7 @@ func (m MouseMove) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeMouseMove(in byteReader) (MouseMove, error) {
+func decodeMouseMove(in tdp.ByteReader) (MouseMove, error) {
 	var m MouseMove
 	err := binary.Read(in, binary.BigEndian, &m)
 	return m, trace.Wrap(err)
@@ -481,7 +506,7 @@ func (m MouseButton) Encode() ([]byte, error) {
 	return []byte{byte(TypeMouseButton), byte(m.Button), byte(m.State)}, nil
 }
 
-func decodeMouseButton(in byteReader) (MouseButton, error) {
+func decodeMouseButton(in tdp.ByteReader) (MouseButton, error) {
 	var m MouseButton
 	err := binary.Read(in, binary.BigEndian, &m)
 	return m, trace.Wrap(err)
@@ -502,7 +527,7 @@ func (k KeyboardButton) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeKeyboardButton(in byteReader) (KeyboardButton, error) {
+func decodeKeyboardButton(in tdp.ByteReader) (KeyboardButton, error) {
 	var k KeyboardButton
 	err := binary.Read(in, binary.BigEndian, &k)
 	return k, trace.Wrap(err)
@@ -616,7 +641,7 @@ func (m Alert) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeAlert(in byteReader) (Alert, error) {
+func decodeAlert(in tdp.ByteReader) (Alert, error) {
 	message, err := decodeString(in, tdpMaxAlertMessageLength)
 	if err != nil {
 		return Alert{}, trace.Wrap(err)
@@ -740,7 +765,7 @@ func (m MFA) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func DecodeMFA(in byteReader) (*MFA, error) {
+func DecodeMFA(in tdp.ByteReader) (*MFA, error) {
 	mt, err := in.ReadByte()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -783,7 +808,7 @@ func DecodeMFA(in byteReader) (*MFA, error) {
 
 // DecodeMFAChallenge is a helper function used in test purpose to decode MFA challenge payload because in
 // real flow this logic is invoked by a fronted client.
-func DecodeMFAChallenge(in byteReader) (*MFA, error) {
+func DecodeMFAChallenge(in tdp.ByteReader) (*MFA, error) {
 	mt, err := in.ReadByte()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -950,7 +975,7 @@ func (s SharedDirectoryInfoResponse) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeSharedDirectoryInfoResponse(in byteReader) (SharedDirectoryInfoResponse, error) {
+func decodeSharedDirectoryInfoResponse(in tdp.ByteReader) (SharedDirectoryInfoResponse, error) {
 	var completionID, errCode uint32
 	err := binary.Read(in, binary.BigEndian, &completionID)
 	if err != nil {
@@ -994,7 +1019,7 @@ func (f FileSystemObject) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeFileSystemObject(in byteReader) (FileSystemObject, error) {
+func decodeFileSystemObject(in tdp.ByteReader) (FileSystemObject, error) {
 	var lastModified, size uint64
 	var fileType uint32
 	var isEmpty uint8
@@ -1099,7 +1124,7 @@ func (s SharedDirectoryCreateResponse) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeSharedDirectoryCreateResponse(in byteReader) (SharedDirectoryCreateResponse, error) {
+func decodeSharedDirectoryCreateResponse(in tdp.ByteReader) (SharedDirectoryCreateResponse, error) {
 	var completionID, errCode uint32
 	err := binary.Read(in, binary.BigEndian, &completionID)
 	if err != nil {
@@ -1252,7 +1277,7 @@ func (s SharedDirectoryListResponse) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeSharedDirectoryListResponse(in byteReader) (SharedDirectoryListResponse, error) {
+func decodeSharedDirectoryListResponse(in tdp.ByteReader) (SharedDirectoryListResponse, error) {
 	var completionID, errCode, fsoListLength uint32
 	err := binary.Read(in, binary.BigEndian, &completionID)
 	if err != nil {
@@ -1428,7 +1453,7 @@ func (s SharedDirectoryWriteRequest) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeSharedDirectoryWriteRequest(in byteReader, maxLen uint32) (SharedDirectoryWriteRequest, error) {
+func decodeSharedDirectoryWriteRequest(in tdp.ByteReader, maxLen uint32) (SharedDirectoryWriteRequest, error) {
 	var completionID, directoryID, writeDataLength uint32
 	var offset uint64
 
@@ -1721,6 +1746,16 @@ func decodeClientKeyboardLayout(in io.Reader) (ClientKeyboardLayout, error) {
 	return c, trace.Wrap(err)
 }
 
+// TDPUpgrade directs the client to switch protocols to TDPB.
+// | messsage type (38) | empty |
+type TDPUpgrade struct{}
+
+func (t TDPUpgrade) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeUpgrade))
+	return buf.Bytes(), nil
+}
+
 // encodeString encodes strings for TDP. Strings are encoded as UTF-8 with
 // a 32-bit length prefix (in bytes):
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#field-types
@@ -1794,14 +1829,6 @@ const (
 
 // maxPNGFrameDataLength is maximum data length for PNG2Frame
 const maxPNGFrameDataLength = 10 * 1024 * 1024 // 10MB
-
-// These correspond to TdpErrCode enum in the rust RDP client.
-const (
-	ErrCodeNil           uint32 = 0
-	ErrCodeFailed        uint32 = 1
-	ErrCodeDoesNotExist  uint32 = 2
-	ErrCodeAlreadyExists uint32 = 3
-)
 
 var (
 	clipDataMaxLenErr      = trace.LimitExceeded("clipboard sync failed: clipboard data exceeded maximum length")

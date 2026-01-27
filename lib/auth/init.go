@@ -1340,18 +1340,7 @@ type PresetRoleManager interface {
 
 // GetPresetRoles returns a list of all preset roles expected to be available on
 // this cluster.
-func GetPresetRoles(buildTypes ...string) []types.Role {
-	// TODO(tross): make this take a single buildType after all uses are updated.
-	var buildType string
-	switch len(buildTypes) {
-	case 0:
-		buildType = modules.GetModules().BuildType()
-	case 1:
-		buildType = buildTypes[0]
-	default:
-		return nil
-	}
-
+func GetPresetRoles(buildType string) []types.Role {
 	presets := []types.Role{
 		services.NewPresetGroupAccessRole(buildType),
 		services.NewPresetEditorRole(),

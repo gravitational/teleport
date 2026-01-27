@@ -103,6 +103,13 @@ const cfg = {
 
   baseUrl: window.location.origin,
 
+  // terraform contains terraform related configuration
+  terraform: {
+    // discoveryAwsModuleRegistry contains the registry for the AWS discovery terraform module
+    discoveryAwsModuleRegistry:
+      'terraform.releases.teleport.dev/teleport/discovery/aws',
+  },
+
   // enterprise non-exact routes will be merged into this
   // see `getNonExactRoutes` for details about non-exact routes
   nonExactRoutes: [],
@@ -301,7 +308,7 @@ const cfg = {
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
     desktopWsAddr:
-      'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect/ws?username=:username',
+      'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect/ws?username=:username&tdpb=:version',
     desktopPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid/ws',
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',

@@ -65,6 +65,9 @@ message UserTaskSpec {
   // DiscoverRDS contains the AWS RDS databases that failed to auto enroll into the cluster.
   // Present when TaskType is discover-rds.
   DiscoverRDS discover_rds = 7;
+  // DiscoverAzureVM contains the Azure VMs that failed to auto enroll into the cluster.
+  // Present when TaskType is discover-azure-vm.
+  DiscoverAzureVM discover_azure_vm = 8;
 }
 
 // UserTaskStatus contains the current status for the UserTask.
@@ -159,6 +162,34 @@ message DiscoverRDSDatabase {
   // Eg, aurora-postgresql, postgresql
   string engine = 3;
   // DiscoveryConfig is the discovery config name that originated this database enrollment.
+  string discovery_config = 4;
+  // DiscoveryGroup is the DiscoveryGroup name that originated this task.
+  string discovery_group = 5;
+  // SyncTime is the timestamp when the error was produced.
+  google.protobuf.Timestamp sync_time = 6;
+}
+
+// DiscoverAzureVM contains the VMs that failed to auto-enroll into the cluster.
+message DiscoverAzureVM {
+  // Instances maps a VM ID to the result of enrolling that VM into teleport.
+  map<string, DiscoverAzureVMInstance> instances = 1;
+  // SubscriptionID is the Azure Subscription ID for the VMs.
+  string subscription_id = 2;
+  // ResourceGroup is the Azure Resource Group where VMs are located.
+  string resource_group = 3;
+  // Region is the Azure Region where Teleport failed to enroll VMs.
+  string region = 4;
+}
+
+// DiscoverAzureVMInstance contains the result of enrolling an Azure VM.
+message DiscoverAzureVMInstance {
+  // VM ID is the Azure VM ID that uniquely identifies the virtual machine.
+  string vm_id = 1;
+  // Resource ID allows locating the VM in resource hierarchy.
+  string resource_id = 2;
+  // Name is the VM name.
+  string name = 3;
+  // DiscoveryConfig is the discovery config name that originated this VM enrollment.
   string discovery_config = 4;
   // DiscoveryGroup is the DiscoveryGroup name that originated this task.
   string discovery_group = 5;

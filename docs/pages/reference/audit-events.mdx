@@ -671,6 +671,10 @@ Example:
 
 ## app.session.start
 
+There are multiple events with the `app.session.start` type.
+
+### T2007I
+
 App Session Started
 
 Example:
@@ -689,6 +693,21 @@ Example:
   "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
   "user": "kimlisa",
   "app_name": "test"
+}
+```
+
+### T2007E
+
+App Session Start Failed
+
+Example:
+
+```json
+{
+  "code": "T2007E",
+  "event": "app.session.start",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
 }
 ```
 

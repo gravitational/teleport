@@ -64,6 +64,8 @@ func Handlers() map[string]Handler {
 		types.KindInferenceModel:                     inferenceModelHandler(),
 		types.KindInferenceSecret:                    inferenceSecretHandler(),
 		types.KindInstaller:                          installerHandler(),
+		types.KindKubeServer:                         kubeServerHandler(),
+		types.KindKubernetesCluster:                  kubeClusterHandler(),
 		types.KindLock:                               lockHandler(),
 		types.KindNode:                               serverHandler(),
 		types.KindOIDCConnector:                      oidcConnectorHandler(),
