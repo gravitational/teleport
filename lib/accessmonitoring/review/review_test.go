@@ -431,12 +431,14 @@ func TestResourceRequest(t *testing.T) {
 				testReqID,
 				requesterUserName,
 				[]string{"role"},
-				[]types.ResourceID{
+				[]types.ResourceAccessID{
 					{
-						ClusterName:     "test-cluster",
-						Kind:            types.KindNode,
-						Name:            "test-node",
-						SubResourceName: types.SubKindTeleportNode,
+						Id: types.ResourceID{
+							ClusterName:     "test-cluster",
+							Kind:            types.KindNode,
+							Name:            "test-node",
+							SubResourceName: types.SubKindTeleportNode,
+						},
 					},
 				},
 			)

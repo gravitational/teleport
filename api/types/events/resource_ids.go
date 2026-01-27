@@ -39,6 +39,9 @@ func ResourceIDs(resourceIDs []types.ResourceID) []ResourceID {
 
 // ToEventResourceAccessIDs converts []types.ResourceAccessID to []ResourceAccessID for events.
 func ToEventResourceAccessIDs(in []types.ResourceAccessID) []ResourceAccessID {
+	if in == nil {
+		return nil
+	}
 	out := make([]ResourceAccessID, 0, len(in))
 	for _, r := range in {
 		out = append(out, ToEventResourceAccessID(r))
