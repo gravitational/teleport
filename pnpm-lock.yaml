@@ -5204,8 +5204,8 @@ packages:
   lodash.merge@4.6.2:
     resolution: {integrity: sha512-0KpjqXRVvrYyCsX1swR/XTK0va6VQkQM6MNo7PqW77ByjAhoARA8EfrP1N4+KlKj8YS0ZUCtRT/YUuhyYDujIQ==}
 
-  lodash@4.17.21:
-    resolution: {integrity: sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==}
+  lodash@4.17.23:
+    resolution: {integrity: sha512-LgVTMpQtIopCi79SJeDiP0TfWi5CNEc/L/aRdTh3yIvmZXTnheWpKjSZhnvMl8iXbC1tFg9gdHHDMLoV7CnG+w==}
 
   log-symbols@4.1.0:
     resolution: {integrity: sha512-8XPvpAA8uyhfteu8pIvQxpJZ7SYYdpUivZpGy6sFsBuKRY/7rQGavedeB8aK+Zkyq6upMFVL/9AW6vOYzfRyLg==}
@@ -8703,7 +8703,7 @@ snapshots:
     dependencies:
       debug: 4.4.3
       fs-extra: 9.1.0
-      lodash: 4.17.21
+      lodash: 4.17.23
       tmp-promise: 3.0.3
     transitivePeerDependencies:
       - supports-color
@@ -8729,7 +8729,7 @@ snapshots:
       '@nivo/colors': 0.87.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@nivo/core': 0.87.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@react-spring/web': 9.7.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      lodash: 4.17.21
+      lodash: 4.17.23
       react: 18.3.1
     transitivePeerDependencies:
       - react-dom
@@ -8761,7 +8761,7 @@ snapshots:
       '@types/d3-shape': 3.1.6
       d3-scale: 4.0.2
       d3-shape: 3.2.0
-      lodash: 4.17.21
+      lodash: 4.17.23
       react: 18.3.1
     transitivePeerDependencies:
       - react-dom
@@ -8776,7 +8776,7 @@ snapshots:
       d3-color: 3.1.0
       d3-scale: 4.0.2
       d3-scale-chromatic: 3.1.0
-      lodash: 4.17.21
+      lodash: 4.17.23
       prop-types: 15.8.1
       react: 18.3.1
     transitivePeerDependencies:
@@ -8794,7 +8794,7 @@ snapshots:
       d3-scale-chromatic: 3.1.0
       d3-shape: 3.2.0
       d3-time-format: 3.0.0
-      lodash: 4.17.21
+      lodash: 4.17.23
       prop-types: 15.8.1
       react: 18.3.1
     transitivePeerDependencies:
@@ -8818,7 +8818,7 @@ snapshots:
       d3-scale: 4.0.2
       d3-time: 1.1.0
       d3-time-format: 3.0.0
-      lodash: 4.17.21
+      lodash: 4.17.23
 
   '@nivo/tooltip@0.87.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
@@ -10225,7 +10225,7 @@ snapshots:
       '@babel/helper-annotate-as-pure': 7.24.7
       '@babel/helper-module-imports': 7.25.9
       '@babel/plugin-syntax-jsx': 7.24.7(@babel/core@7.26.10)
-      lodash: 4.17.21
+      lodash: 4.17.23
       picomatch: 2.3.1
       styled-components: 6.1.13(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     transitivePeerDependencies:
@@ -12579,7 +12579,7 @@ snapshots:
 
   lodash.merge@4.6.2: {}
 
-  lodash@4.17.21: {}
+  lodash@4.17.23: {}
 
   log-symbols@4.1.0:
     dependencies:
