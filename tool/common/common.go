@@ -279,3 +279,32 @@ func PrintYAML(w io.Writer, v any) error {
 	_, err = fmt.Fprintln(w, string(out))
 	return trace.Wrap(err)
 }
+
+// MakePredicateConjunction combines two predicate expressions into one
+// expression as a conjunction (logical AND) of the expressions.
+func MakePredicateConjunction(a, b string) string {
+	return combinePredicateExpressions(a, b, "&&")
+}
+
+// MakePredicateDisjunction combines two predicate expressions into one
+// expression as a disjunction (logical OR) of the expressions.
+func MakePredicateDisjunction(a, b string) string {
+	return combinePredicateExpressions(a, b, "||")
+}
+
+// combinePredicateExpressions combines two predicate expressions into one
+// expression with the given operator.
+func combinePredicateExpressions(a, b, op string) string {
+	a = strings.TrimSpace(a)
+	b = strings.TrimSpace(b)
+	switch {
+	case a == "":
+		return b
+	case b == "":
+		return a
+	case a == b:
+		return a
+	default:
+		return fmt.Sprintf("(%v) %v (%v)", a, op, b)
+	}
+}
