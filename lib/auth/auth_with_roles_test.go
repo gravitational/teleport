@@ -9871,7 +9871,7 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 						Name:        id,
 					})
 				}
-				req, err = types.NewAccessRequestWithResources(uuid.NewString(), user.GetName(), tc.requestedRoles, resourceIds)
+				req, err = types.NewAccessRequestWithResources(uuid.NewString(), user.GetName(), tc.requestedRoles, types.ResourceIDsToResourceAccessIDs(resourceIds))
 			}
 			require.NoError(t, err)
 
@@ -9891,7 +9891,7 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 func mustAccessRequest(t *testing.T, user string, state types.RequestState, created, expires time.Time, roles []string, resourceIDs []types.ResourceID) types.AccessRequest {
 	t.Helper()
 
-	accessRequest, err := types.NewAccessRequestWithResources(uuid.NewString(), user, roles, resourceIDs)
+	accessRequest, err := types.NewAccessRequestWithResources(uuid.NewString(), user, roles, types.ResourceIDsToResourceAccessIDs(resourceIDs))
 	require.NoError(t, err)
 
 	accessRequest.SetState(state)

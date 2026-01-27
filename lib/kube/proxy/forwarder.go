@@ -1168,7 +1168,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		// the kubeResource.
 		// This is required because CheckAccess does not validate the subresource type.
 		if !actx.metaResource.isList {
-			if rbacResource := actx.metaResource.rbacResource(); rbacResource != nil && len(actx.Checker.GetAllowedResourceIDs()) > 0 {
+			if rbacResource := actx.metaResource.rbacResource(); rbacResource != nil && len(actx.Checker.GetAllowedResourceAccessIDs()) > 0 {
 				// GetKubeResources returns the allowed and denied Kubernetes resources
 				// for the user. Since we have active access requests, the allowed
 				// resources will be the list of pods that the user requested access to if he
