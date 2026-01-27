@@ -103,14 +103,6 @@ type stubTunnel struct {
 	cluster reversetunnelclient.Cluster
 }
 
-// TODO(tross): Delete once the reversetunnelclient.Tunnel interface is updated
-func (*stubTunnel) GetSites() ([]reversetunnelclient.Cluster, error) { return nil, nil }
-
-// TODO(tross): Delete once the reversetunnelclient.Tunnel interface is updated
-func (s *stubTunnel) GetSite(n string) (reversetunnelclient.Cluster, error) {
-	return s.cluster, nil
-}
-
 func (s *stubTunnel) Clusters(context.Context) ([]reversetunnelclient.Cluster, error) {
 	return []reversetunnelclient.Cluster{s.cluster}, nil
 }
