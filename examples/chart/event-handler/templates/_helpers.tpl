@@ -158,3 +158,18 @@ Create the name for the Fluentd client TLS certificate secret.
 {{- define "event-handler.certManager.clientCertSecretName" -}}
 {{ include "event-handler.fullname" . }}-client-tls
 {{- end -}}
+
+{{/*
+Create the issuer for the cert-manager.
+*/}}
+{{- define "event-handler.certManager.issuer" -}}
+{{- if .Values.certManager.issuer.create -}}
+name: {{ include "event-handler.fullname" . }}-ca-issuer
+kind: Issuer
+group: cert-manager.io
+{{- else -}}
+name: {{ required "certManager.issuer.name is required in chart values" .Values.certManager.issuer.name }}
+kind: {{ required "certManager.issuer.kind is required in chart values" .Values.certManager.issuer.kind }}
+group: {{ required "certManager.issuer.group is required in chart values" .Values.certManager.issuer.group }}
+{{- end -}}
+{{- end -}}

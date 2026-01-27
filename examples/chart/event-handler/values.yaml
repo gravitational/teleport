@@ -227,6 +227,7 @@ crd:
 # Kubernetes secrets in the plugin's release namespace:
 # the Fluentd server credentials (CA cert, server cert, server key)
 # and the plugin client credentials (CA cert, client cert, client key).
+# The TLS certificates use PKCS#8 encoding and ECDSA encryption.
 #
 # <Admonition type="note" title="Installing cert manager">
 # You must install and configure `cert-manager` in your Kubernetes cluster yourself.
@@ -235,23 +236,35 @@ crd:
 # for more information.
 # </Admonition>
 certManager:
-  # certManager.enabled(bool) -- controls if cert-manager should be used to provision TLS certificates for the plugin.
+  # certManager.enabled(bool) -- controls if `cert-manager` should be used to provision TLS certificates for the plugin.
   enabled: false
-  # certManager.issuerName(string) -- is the name of the `Issuer` or `ClusterIssuer` to use for issuing Fluentd server and client certificates.
-  # If using `Issuer`, it should be in the same namespace as the plugin's release namespace.
-  #
-  # <Admonition type="note" title="Configuring an Issuer">
-  # You must install and configure an appropriate `Issuer` or `ClusterIssuer` yourself.
-  #
-  # See the [cert-manager Issuers documentation](https://cert-manager.io/docs/configuration/issuers/) for more information.
-  # </Admonition>
-  issuerName: ""
-  # certManager.issuerKind(string) -- is the `Kind` of the `Issuer` to be used when issuing certificates with `cert-manager`.
-  # Defaults to 'Issuer' to keep permissions scoped to the plugin's release namespace.
-  issuerKind: Issuer
-  # certManager.issuerGroup(string) -- is the `Group` of the `Issuer` to be used when issuing certificates with `cert-manager`.
-  # Defaults to 'cert-manager.io' to use built-in issuers.
-  issuerGroup: cert-manager.io
+  # certManager.issuer -- is the `cert-manager` `Issuer` or `ClusterIssuer` that will issue
+  # the Fluentd server and client certificates.
+  issuer:
+    # certManager.issuer.create(bool) -- controls if the chart should create
+    # a private CA issuer to issue the certificates.
+    # This is a CA issuer using a root certificate issued from a `SelfSigned` issuer.
+    #
+    # See the [cert-manager `SelfSigned` Issuer documentation
+    # ](https://cert-manager.io/docs/configuration/selfsigned/#bootstrapping-ca-issuers) for more information.
+    #
+    # <Admonition type="note" title="Configuring your own Issuer">
+    # If `certManager.issuer.create` is false, you must install and
+    # configure an appropriate issuer yourself.
+    # If using your own issuer, it should be in the same namespace as the plugin's release namespace.
+    #
+    # See the [cert-manager Issuers documentation
+    # ](https://cert-manager.io/docs/configuration/issuers/) for more information.
+    # </Admonition>
+    create: true
+    # certManager.issuer.name(string) -- is the `Name` of the issuer. Unused if `certManager.issuer.create` is true.
+    name: ""
+    # certManager.issuer.kind(string) -- is the `Kind` of the issuer. Unused if `certManager.issuer.create` is true.
+    # Defaults to 'Issuer' to keep permissions scoped to the plugin's release namespace.
+    kind: Issuer
+    # certManager.issuer.group(string) -- is the `Group` of the issuer. Unused if `certManager.issuer.create` is true.
+    # Defaults to 'cert-manager.io' to use built-in issuers.
+    group: cert-manager.io
   # certManager.dnsNames(list) -- is the DNS names for the Fluentd forwarder, populating the SANs extension of the server certificate.
   dnsNames: []
   # certManager.ipAddresses(list) -- is the IP addresses for the Fluentd forwarder, populating the SANs extension of the server certificate.
@@ -263,8 +276,6 @@ certManager:
   # certificate's time-to-live duration. For example, if a certificate is valid for 60 minutes,
   # `cert-manager` will renew the certificate 20 minutes before expiration.
   renewBefore: ""
-  # certManager.length(int) -- is the RSA key length. Defaults to 4096.
-  length: 4096
 
 persistentVolumeClaim:
   enabled: false

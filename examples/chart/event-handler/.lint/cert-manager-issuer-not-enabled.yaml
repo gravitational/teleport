@@ -2,3 +2,8 @@ certManager:
   enabled: true
   namespace: test-namespace
   dnsNames: ["test.example.com", "test2.example.com"]
+  issuer:
+    create: false
+    name: test-issuer
+    kind: Issuer
+    group: cert-manager.io

@@ -1,4 +1,4 @@
-suite: Test certificate
+suite: Test cert-manager certificate
 templates:
   - certificate.yaml
 tests:
@@ -8,12 +8,14 @@ tests:
     asserts:
       - hasDocuments:
           count: 2
-      - documentIndex: 0
-        isKind:
-          of: Certificate
-      - documentIndex: 1
-        isKind:
-          of: Certificate
+      - containsDocument:
+          kind: Certificate
+          apiVersion: cert-manager.io/v1
+          name: RELEASE-NAME-teleport-plugin-event-handler-server
+      - containsDocument:
+          kind: Certificate
+          apiVersion: cert-manager.io/v1
+          name: RELEASE-NAME-teleport-plugin-event-handler-client
       - matchSnapshot: {}
   - it: should not request certificates when certManager not enabled
     set:
@@ -58,18 +60,18 @@ tests:
     set:
       certManager:
         enabled: true
-        issuerName: test-issuer
-        issuerGroup: test.cert-manager.io
-        issuerKind: TestClusterIssuer
         namespace: test-namespace
     asserts:
       - failedTemplate:
           errorMessage: "certManager.dnsNames and certManager.ipAddresses cannot both be empty in chart values"
-  - it: should fail if any of certManager.issuerName, certManager.issuerKind, certManager.issuerGroup are not set
+  - it: should fail if certManager.issuer.create is false and 
+        any of certManager.issuer.name, certManager.issuer.kind, certManager.issuer.group are not set
+    values:
+      - ../.lint/cert-manager-enabled.yaml
     set:
       certManager:
-        enabled: true
-        dnsNames: ["test.example.com"]
+        issuer:
+          create: false
     asserts:
       - failedTemplate:
-          errorMessage: "certManager.issuerName is required in chart values"
+          errorMessage: "certManager.issuer.name is required in chart values"
