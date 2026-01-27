@@ -122,7 +122,7 @@ function UpdaterState({
             <P2>Checking for updates…</P2>
           </Flex>
           <ButtonPrimary block disabled onClick={() => onCheckForAppUpdates()}>
-            Check For Updates
+            Check for Updates
           </ButtonPrimary>
         </Stack>
       );
@@ -168,7 +168,7 @@ function UpdaterState({
               onCheckForAppUpdates();
             }}
           >
-            Check For Updates
+            Check for Updates
           </ButtonSecondary>
         </Stack>
       );
