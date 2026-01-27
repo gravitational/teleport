@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -71,9 +72,14 @@ func (h *Handler) putHeadlessState(_ http.ResponseWriter, r *http.Request, param
 		}
 	}
 
-	mfaResp, err := req.MFAResponse.GetOptionalMFAResponseProtoReq()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// MFAResponse is required only when accepting a request.
+	var mfaResp *proto.MFAAuthenticateResponse
+	if req.MFAResponse != nil {
+		var err error
+		mfaResp, err = req.MFAResponse.GetOptionalMFAResponseProtoReq()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	var action types.HeadlessAuthenticationState
