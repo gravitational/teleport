@@ -243,7 +243,6 @@ export function ActivityTab({
             />
           </Box>
         </Flex>
-
         <Flex mb={3} alignItems="center" gap={2} flexWrap="wrap">
           <MenuButton buttonText={`Event Type: ${eventTypeFilter}`}>
             {(
@@ -271,7 +270,6 @@ export function ActivityTab({
             </MenuItem>
           </MenuButton>
         </Flex>
-
         {bulkError && (
           <Box mb={3}>
             <Danger dismissible onDismiss={() => setBulkError('')}>
@@ -279,7 +277,6 @@ export function ActivityTab({
             </Danger>
           </Box>
         )}
-
         <Flex alignItems="center" gap={2} mb={2}>
           <Box>
             <CheckboxInput
@@ -322,12 +319,12 @@ export function ActivityTab({
             </Text>
           )}
         </Flex>
-
         <Table<UserTask>
           className={filteredTasks.length === 0 ? 'activity-empty' : undefined}
+          hideEmptyIcon
           data={filteredTasks}
           emptyText=" "
-          emptyHint="No activity found"
+          emptyHint="No issues found"
           row={{
             onClick: row => setDrawerTaskName(row.name),
             getStyle: row => {
