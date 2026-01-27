@@ -6,8 +6,8 @@ state: draft
 # RFD 223 - Installation and Upgrade Documentation Organization
 
 # Required Approvers
-* Engineering: @klizhentas || @r0mant
-* Product / Design: @roraback && @ptgott
+* R&D Owner: @roraback
+* Docs: @ptgott
 
 ## What
 
