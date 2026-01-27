@@ -118,6 +118,21 @@ func (s store) CreateAccessToken(ctx context.Context, request op.TokenRequest) (
 	return tokenID, time, err
 }
 
+// SetUserinfoFromRequest is used to override id_token claims.
+func (s store) SetUserinfoFromRequest(ctx context.Context, userinfo *oidc.UserInfo, token op.IDTokenRequest, scopes []string) error {
+	if err := s.Storage.SetUserinfoFromRequest(ctx, userinfo, token, scopes); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Special case for testing id_token with claims.
+	if userinfo.Subject == "user-with-custom-claim" ||
+		userinfo.Subject == "user-with-empty-group-claim" {
+		return s.setClaims(userinfo)
+	}
+
+	return nil
+}
+
 func (s store) SetUserinfoFromToken(ctx context.Context, userinfo *oidc.UserInfo, tokenID, subject, origin string) error {
 	if err := s.Storage.SetUserinfoFromToken(ctx, userinfo, tokenID, subject, origin); err != nil {
 		return trace.Wrap(err)
@@ -133,7 +148,15 @@ func (s store) SetUserinfoFromToken(ctx context.Context, userinfo *oidc.UserInfo
 
 	// Inject any custom claims that may have
 	// been specified for the user.
-	u, ok := s.userStore.users[subject]
+	return s.setClaims(userinfo)
+}
+
+// setClaims configured in user storage.
+func (s store) setClaims(userinfo *oidc.UserInfo) error {
+	if userinfo.Claims == nil {
+		userinfo.Claims = make(map[string]any)
+	}
+	u, ok := s.userStore.users[userinfo.Subject]
 	if !ok || len(u.Claims) == 0 {
 		return nil
 	}
@@ -409,6 +432,36 @@ func newOIDCSuite(t *testing.T, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
 			},
 			Claims: map[string]any{
 				"animal": []string{"llama"},
+			},
+		},
+		{
+			User: &storage.User{
+				ID:            "user-with-custom-claim",
+				Username:      "user-with-custom-claim",
+				Password:      "verysecure",
+				FirstName:     "Test group",
+				LastName:      "User",
+				Email:         "user-with-custom-claim@example.com",
+				EmailVerified: true,
+				IsAdmin:       true,
+			},
+			Claims: map[string]any{
+				"groups": []string{"access"},
+			},
+		},
+		{
+			User: &storage.User{
+				ID:            "user-with-empty-group-claim",
+				Username:      "user-with-empty-group-claim",
+				Password:      "verysecure",
+				FirstName:     "Test empty",
+				LastName:      "User",
+				Email:         "user-with-empty-group-claim@example.com",
+				EmailVerified: true,
+				IsAdmin:       true,
+			},
+			Claims: map[string]any{
+				"groups": []string{},
 			},
 		},
 	}
@@ -979,6 +1032,127 @@ func TestUserInfoBadStatus(t *testing.T) {
 				CheckUser:   true,
 			})
 			test.assertion(t, err)
+		})
+	}
+}
+
+func TestMergeUserInfoClaims(t *testing.T) {
+	t.Parallel()
+
+	type userInfo struct {
+		status int
+		resp   *oidc.UserInfo
+	}
+
+	tests := []struct {
+		name             string
+		userInfo         userInfo
+		expectedGroups   []string
+		errAssertionFunc require.ErrorAssertionFunc
+	}{
+		{
+			name: "userinfo overrides groups claim",
+			userInfo: userInfo{
+				status: http.StatusOK,
+				resp: &oidc.UserInfo{
+					Subject: "id1", // this user wont get "groups" claim in id_token.
+					UserInfoProfile: oidc.UserInfoProfile{
+						Name: "test-user",
+					},
+					UserInfoEmail: oidc.UserInfoEmail{
+						Email:         "test-user@example.com",
+						EmailVerified: true,
+					},
+					Address: &oidc.UserInfoAddress{},
+					Claims: map[string]any{
+						"groups": []string{"access", "custom-group"},
+					},
+				},
+			},
+			// final groups claim should match values returned from userinfo.
+			expectedGroups:   []string{"access", "custom-group"},
+			errAssertionFunc: require.NoError,
+		},
+
+		{
+			name: "userinfo does not override if claim key exists",
+			userInfo: userInfo{
+				status: http.StatusOK,
+				resp: &oidc.UserInfo{
+					Subject: "user-with-custom-claim", // this user gets "groups" claim in id_token.
+					UserInfoProfile: oidc.UserInfoProfile{
+						Name: "user-with-custom-claim",
+					},
+					UserInfoEmail: oidc.UserInfoEmail{
+						Email:         "user-with-custom-claim@example.com",
+						EmailVerified: true,
+					},
+					Address: &oidc.UserInfoAddress{},
+					Claims: map[string]any{
+						"groups": []string{"no-access", "custom-group"},
+					},
+				},
+			},
+			// final groups claim should match values initially returned in id_token.
+			expectedGroups:   []string{"access"},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			name: "userinfo does not override if claim key exists",
+			userInfo: userInfo{
+				status: http.StatusOK,
+				resp: &oidc.UserInfo{
+					Subject: "user-with-empty-group-claim", // this user gets "groups" claim with empty value in id_token
+					UserInfoProfile: oidc.UserInfoProfile{
+						Name: "user-with-empty-group-claim",
+					},
+					UserInfoEmail: oidc.UserInfoEmail{
+						Email:         "user-with-empty-group-claim@example.com",
+						EmailVerified: true,
+					},
+					Address: &oidc.UserInfoAddress{},
+					Claims: map[string]any{
+						"groups": []string{"access"},
+					},
+				},
+			},
+			// since this user had zero groups, it should result in error, despite having values
+			// returned from the userinfo endpoint.
+			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "No roles mapped from claims")
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			uinfoHandler := proxyOP(func(h http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if strings.Contains(r.URL.Path, "userinfo") {
+						w.WriteHeader(test.userInfo.status)
+						w.Header().Set("Content-Type", "application/json")
+						if err := json.NewEncoder(w).Encode(test.userInfo.resp); err != nil {
+							http.Error(w, err.Error(), http.StatusInternalServerError)
+						}
+						return
+					}
+					h.ServeHTTP(w, r)
+				})
+			})
+			suite := newOIDCSuite(t, uinfoHandler)
+
+			_, _, err := suite.authenticateUser(t.Context(), test.userInfo.resp.Subject, types.OIDCAuthRequest{
+				ConnectorID: suite.connector.GetName(),
+				CheckUser:   true,
+			})
+			test.errAssertionFunc(t, err)
+
+			// Only expected if suite.authenticateUser passes.
+			if len(test.expectedGroups) > 0 {
+				user, err := suite.authServer.Identity.GetUser(t.Context(), test.userInfo.resp.Email, false)
+				require.NoError(t, err)
+				require.ElementsMatch(t, user.GetTraits()["groups"], test.expectedGroups)
+			}
 		})
 	}
 }

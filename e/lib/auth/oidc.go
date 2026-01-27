@@ -1005,7 +1005,34 @@ func (oas *OIDCAuthService) retrieveIDTokenClaims(ctx context.Context, connector
 		return nil, trace.BadParameter("OIDC claim subjects in UserInfo does not match")
 	}
 
-	idToken.IDTokenClaims.SetUserInfo(userInfo)
+	// Merge userInfo claims into IDToken claims.
+	mergeIDTokenAndUserInfo := func(i *oidc.IDTokenClaims, u *oidc.UserInfo) {
+		// Implement subset of (*oidc.IDTokenClaims).SetUserInfo(i *UserInfo)
+		// to override claims known to zitadel/oidc.
+		i.Subject = u.Subject
+		i.UserInfoProfile = u.UserInfoProfile
+		i.UserInfoEmail = u.UserInfoEmail
+		i.UserInfoPhone = u.UserInfoPhone
+		i.Address = u.Address
+		if i.Claims == nil {
+			i.Claims = make(map[string]any, len(i.Claims))
+		}
+
+		// Overriding claim only if the key does not exist is the
+		// legacy behavior (Teleport v17 and below) and needs to be
+		// preserved because for the IdP like Azure OIDC IdP (issuer=sts.windows.net),
+		// the groups claim value received from the userinfo endpoint
+		// is not supported by claims to role mapper and will result
+		// in an authentication failure due to zero claims mapped for
+		// the user.
+		for k, v := range u.Claims {
+			_, ok := i.Claims[k]
+			if !ok {
+				i.Claims[k] = v
+			}
+		}
+	}
+	mergeIDTokenAndUserInfo(idToken.IDTokenClaims, userInfo)
 
 	switch {
 	case isGoogleWorkspaceConnector(connector):
