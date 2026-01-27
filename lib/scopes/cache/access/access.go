@@ -404,7 +404,7 @@ func processEvent(ctx context.Context, state state, accessListMaterializer *acce
 				return trace.Errorf("failed to put scoped role assignment %q: %w", item.UnwrapT().GetMetadata().GetName(), err)
 			}
 		case *accesslist.AccessList:
-			if err := accessListMaterializer.handleAccessListPut(state, item); err != nil {
+			if err := accessListMaterializer.handleAccessListPut(ctx, state, item); err != nil {
 				return trace.Wrap(err)
 			}
 		case *accesslist.AccessListMember:
@@ -421,7 +421,7 @@ func processEvent(ctx context.Context, state state, accessListMaterializer *acce
 		case scopedaccess.KindScopedRoleAssignment:
 			state.assignments.Delete(event.Resource.GetName())
 		case types.KindAccessList:
-			if err := accessListMaterializer.handleAccessListDelete(event.Resource.GetName()); err != nil {
+			if err := accessListMaterializer.handleAccessListDelete(ctx, state, event.Resource.GetName()); err != nil {
 				return trace.Wrap(err)
 			}
 		case types.KindAccessListMember:
@@ -529,6 +529,7 @@ func newAccessListMaterializer(upstream AccessListReader) *accessListMaterialize
 		directOwnerUsers:        make(map[string]set.Set[string]),
 		directOwnerLists:        make(map[string]set.Set[string]),
 		ownerParentLists:        make(map[string]set.Set[string]),
+		deletedLists:            set.New[string](),
 		materializedAssignments: make(map[materializedAssignmentKey]string),
 	}
 }
@@ -548,6 +549,8 @@ type accessListMaterializer struct {
 	directOwnerLists map[string]set.Set[string]
 	// owner list -> lists that this list owns
 	ownerParentLists map[string]set.Set[string]
+	// deleted list names to ignore late member events
+	deletedLists set.Set[string]
 	// list -> all nested member lists of that list
 	nestedListMembers map[string]set.Set[string]
 	// list -> (user -> count of how many times user is a member of (list and nestedListMembers[list]))
@@ -561,6 +564,105 @@ type accessListMaterializer struct {
 type materializedAssignmentKey struct {
 	list string
 	user string
+}
+
+func (m *accessListMaterializer) isListDeleted(listName string) bool {
+	return m.deletedLists.Contains(listName)
+}
+
+func (m *accessListMaterializer) markListDeleted(state state, listName string) bool {
+	if m.deletedLists.Contains(listName) {
+		return false
+	}
+	m.deletedLists.Add(listName)
+
+	for key, assignmentID := range m.materializedAssignments {
+		if key.list != listName {
+			continue
+		}
+		state.assignments.Delete(assignmentID)
+		delete(m.materializedAssignments, key)
+	}
+
+	m.allLists.Remove(listName)
+	delete(m.directUserMembers, listName)
+	delete(m.directListMembers, listName)
+	delete(m.directOwnerUsers, listName)
+	delete(m.directOwnerLists, listName)
+	delete(m.nestedUserMembers, listName)
+	delete(m.nestedListMembers, listName)
+	delete(m.nestedOwnerUsers, listName)
+
+	for _, members := range m.directListMembers {
+		members.Remove(listName)
+	}
+	for _, owners := range m.directOwnerLists {
+		owners.Remove(listName)
+	}
+	for ownerList, parents := range m.ownerParentLists {
+		if ownerList == listName {
+			delete(m.ownerParentLists, ownerList)
+			continue
+		}
+		parents.Remove(listName)
+		if parents.Len() == 0 {
+			delete(m.ownerParentLists, ownerList)
+		}
+	}
+
+	return true
+}
+
+func (m *accessListMaterializer) reconcileAfterListDeletion(ctx context.Context, state state) error {
+	m.reinitNestedListMembers()
+	m.reinitNestedUserMembers()
+	m.reinitNestedOwnerUsers()
+	return trace.Wrap(m.rematerialize(ctx, state))
+}
+
+func (m *accessListMaterializer) refreshListMembers(ctx context.Context, listName string) error {
+	m.directUserMembers[listName] = set.New[string]()
+	m.directListMembers[listName] = set.New[string]()
+	pageToken := ""
+	for {
+		members, nextToken, err := m.upstream.ListAccessListMembers(ctx, listName, 0, pageToken)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return nil
+			}
+			return trace.Wrap(err)
+		}
+		for _, member := range members {
+			if member.IsUser() {
+				m.directUserMembers[listName].Add(member.Spec.Name)
+				continue
+			}
+			m.directListMembers[listName].Add(member.Spec.Name)
+		}
+		if nextToken == "" {
+			return nil
+		}
+		pageToken = nextToken
+	}
+}
+
+func (m *accessListMaterializer) ensureListPresent(ctx context.Context, state state, listName string) error {
+	if m.allLists.Contains(listName) {
+		m.ensureListEntries(listName)
+		return nil
+	}
+	if m.isListDeleted(listName) {
+		return nil
+	}
+	list, err := m.upstream.GetAccessList(ctx, listName)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			m.markListDeleted(state, listName)
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(m.handleAccessListPut(ctx, state, list))
 }
 
 func (m *accessListMaterializer) init(ctx context.Context, state state) error {
@@ -709,145 +811,123 @@ func (m *accessListMaterializer) reinitNestedOwnerUsersForList(list string) {
 }
 
 func (m *accessListMaterializer) rematerialize(ctx context.Context, state state) error {
-	slog.DebugContext(ctx, "rematerialize")
-	unseenAssignments := maps.Clone(m.materializedAssignments)
-	materializedCount := 0
-	for listName := range m.allLists {
-		list, err := m.upstream.GetAccessList(ctx, listName)
-		if err != nil {
-			if trace.IsNotFound(err) {
-				// Presumable the list has been deleted while we are still
-				// processing a prior event. Delete all materialized
-				// assignments for this list.
+	for {
+		slog.DebugContext(ctx, "rematerialize")
+		unseenAssignments := maps.Clone(m.materializedAssignments)
+		materializedCount := 0
+		listDeleted := false
+		for listName := range m.allLists {
+			list, err := m.upstream.GetAccessList(ctx, listName)
+			if err != nil {
+				if trace.IsNotFound(err) {
+					if m.markListDeleted(state, listName) {
+						listDeleted = true
+					}
+					continue
+				}
+				return trace.Wrap(err)
+			}
+			if len(list.Spec.Grants.ScopedRoles)+len(list.Spec.OwnerGrants.ScopedRoles) == 0 {
+				// no assignments b/c no scoped grants. existing assignments will
+				// remain in unseenAssignments and be deleted.
 				continue
 			}
-			return trace.Wrap(err)
+			userSet := make(map[string]struct{})
+			for user := range m.nestedUserMembers[listName] {
+				userSet[user] = struct{}{}
+			}
+			for user := range m.nestedOwnerUsers[listName] {
+				userSet[user] = struct{}{}
+			}
+			for user := range userSet {
+				isMember := m.nestedUserMembers[listName][user] > 0
+				isOwner := m.nestedOwnerUsers[listName][user] > 0
+				if !isMember && !isOwner {
+					continue
+				}
+				key := materializedAssignmentKey{
+					list: listName,
+					user: user,
+				}
+				delete(unseenAssignments, key)
+				assignmentID, alreadyMaterialized := m.materializedAssignments[key]
+				if !alreadyMaterialized {
+					assignmentID = uuid.NewString()
+				}
+				assignment := materializeScopedRoleAssignment(user, list, assignmentID, isMember, isOwner)
+				if assignment == nil {
+					if alreadyMaterialized {
+						state.assignments.Delete(assignmentID)
+						delete(m.materializedAssignments, key)
+						delete(unseenAssignments, key)
+					}
+					continue
+				}
+				if !alreadyMaterialized {
+					m.materializedAssignments[key] = assignmentID
+				}
+				materializedCount++
+				if err := state.assignments.Put(assignment); err != nil {
+					return trace.Wrap(err, "putting materialized assignment for user %q in list %q into the cache", user, listName)
+				}
+			}
 		}
-		if len(list.Spec.Grants.ScopedRoles)+len(list.Spec.OwnerGrants.ScopedRoles) == 0 {
-			// no assignments b/c no scoped grants. existing assignments will
-			// remain in unseenAssignments and be deleted.
+		if listDeleted {
+			m.reinitNestedListMembers()
+			m.reinitNestedUserMembers()
+			m.reinitNestedOwnerUsers()
 			continue
 		}
-		userSet := make(map[string]struct{})
-		for user := range m.nestedUserMembers[listName] {
-			userSet[user] = struct{}{}
+		slog.DebugContext(ctx, "Materialized new scoped role assignments", "assignment_count", materializedCount)
+		for assignmentKey, assignmentID := range unseenAssignments {
+			state.assignments.Delete(assignmentID)
+			delete(m.materializedAssignments, assignmentKey)
 		}
-		for user := range m.nestedOwnerUsers[listName] {
-			userSet[user] = struct{}{}
+		if len(unseenAssignments) > 0 {
+			slog.DebugContext(ctx, "Deleted stale scoped role assignments", "assignment_count", len(unseenAssignments))
 		}
-		for user := range userSet {
-			isMember := m.nestedUserMembers[listName][user] > 0
-			isOwner := m.nestedOwnerUsers[listName][user] > 0
-			if !isMember && !isOwner {
-				continue
-			}
-			key := materializedAssignmentKey{
-				list: listName,
-				user: user,
-			}
-			delete(unseenAssignments, key)
-			assignmentID, alreadyMaterialized := m.materializedAssignments[key]
-			if !alreadyMaterialized {
-				assignmentID = uuid.NewString()
-			}
-			assignment := materializeScopedRoleAssignment(user, list, assignmentID, isMember, isOwner)
-			if assignment == nil {
-				if alreadyMaterialized {
-					state.assignments.Delete(assignmentID)
-					delete(m.materializedAssignments, key)
-					delete(unseenAssignments, key)
-				}
-				continue
-			}
-			if !alreadyMaterialized {
-				m.materializedAssignments[key] = assignmentID
-			}
-			materializedCount++
-			if err := state.assignments.Put(assignment); err != nil {
-				return trace.Wrap(err, "putting materialized assignment for user %q in list %q into the cache", user, listName)
-			}
-		}
+		return nil
 	}
-	slog.DebugContext(ctx, "Materialized new scoped role assignments", "assignment_count", materializedCount)
-	for assignmentKey, assignmentID := range unseenAssignments {
-		state.assignments.Delete(assignmentID)
-		delete(m.materializedAssignments, assignmentKey)
-	}
-	if len(unseenAssignments) > 0 {
-		slog.DebugContext(ctx, "Deleted stale scoped role assignments", "assignment_count", len(unseenAssignments))
-	}
-	return nil
 }
 
-func (m *accessListMaterializer) handleAccessListPut(state state, list *accesslist.AccessList) error {
+func (m *accessListMaterializer) handleAccessListPut(ctx context.Context, state state, list *accesslist.AccessList) error {
 	listName := list.GetName()
+	wasDeleted := m.deletedLists.Contains(listName)
+	if wasDeleted {
+		m.deletedLists.Remove(listName)
+	}
 	m.allLists.Add(listName)
 	m.ensureListEntries(listName)
 	m.updateOwnersForList(list)
-	return trace.Wrap(m.rematerializeList(context.Background(), state, listName))
+	if wasDeleted {
+		if err := m.refreshListMembers(ctx, listName); err != nil {
+			return trace.Wrap(err)
+		}
+		m.reinitNestedListMembers()
+		m.reinitNestedUserMembers()
+		m.reinitNestedOwnerUsers()
+		return trace.Wrap(m.rematerialize(ctx, state))
+	}
+	return trace.Wrap(m.rematerializeList(ctx, state, listName))
 }
 
-func (m *accessListMaterializer) handleAccessListDelete(listName string) error {
-	if directUserMembers, ok := m.directUserMembers[listName]; ok {
-		if directUserMembers.Len() > 0 {
-			return trace.Errorf("invariant violated, access list %q still has direct user members while being deleted", listName)
-		}
-		delete(m.directUserMembers, listName)
+func (m *accessListMaterializer) handleAccessListDelete(ctx context.Context, state state, listName string) error {
+	if m.markListDeleted(state, listName) {
+		return m.reconcileAfterListDeletion(ctx, state)
 	}
-	if directListMembers, ok := m.directListMembers[listName]; ok {
-		if directListMembers.Len() > 0 {
-			return trace.Errorf("invariant violated, access list %q still has direct list members while being deleted", listName)
-		}
-		delete(m.directListMembers, listName)
-	}
-	if nestedUserMembers, ok := m.nestedUserMembers[listName]; ok {
-		if len(nestedUserMembers) > 0 {
-			return trace.Errorf("invariant violated, access list %q still has nested user members while being deleted", listName)
-		}
-		delete(m.nestedUserMembers, listName)
-	}
-	if nestedListMembers, ok := m.nestedListMembers[listName]; ok {
-		if nestedListMembers.Len() > 0 {
-			return trace.Errorf("invariant violated, access list %q still has nested list members while being deleted", listName)
-		}
-		delete(m.nestedListMembers, listName)
-	}
-	if directOwnerUsers, ok := m.directOwnerUsers[listName]; ok {
-		if directOwnerUsers.Len() > 0 {
-			return trace.Errorf("invariant violated, access list %q still has direct owners while being deleted", listName)
-		}
-		delete(m.directOwnerUsers, listName)
-	}
-	if directOwnerLists, ok := m.directOwnerLists[listName]; ok {
-		for ownerList := range directOwnerLists {
-			if parents, ok := m.ownerParentLists[ownerList]; ok {
-				parents.Remove(listName)
-				if parents.Len() == 0 {
-					delete(m.ownerParentLists, ownerList)
-				}
-			}
-		}
-		delete(m.directOwnerLists, listName)
-	}
-	if nestedOwnerUsers, ok := m.nestedOwnerUsers[listName]; ok {
-		if len(nestedOwnerUsers) > 0 {
-			return trace.Errorf("invariant violated, access list %q still has nested owner members while being deleted", listName)
-		}
-		delete(m.nestedOwnerUsers, listName)
-	}
-	if parentLists, ok := m.ownerParentLists[listName]; ok && parentLists.Len() > 0 {
-		return trace.Errorf("invariant violated, access list %q still owns parent lists while being deleted", listName)
-	}
-	for key := range m.materializedAssignments {
-		if key.list == listName {
-			return trace.Errorf("invariant violated, access list %q still has materialized scoped role assignment while being deleted", listName)
-		}
-	}
-	m.allLists.Remove(listName)
 	return nil
 }
 
 func (m *accessListMaterializer) handleAccessListMemberPut(ctx context.Context, state state, member *accesslist.AccessListMember) error {
+	if m.isListDeleted(member.Spec.AccessList) {
+		return nil
+	}
+	if err := m.ensureListPresent(ctx, state, member.Spec.AccessList); err != nil {
+		return trace.Wrap(err)
+	}
+	if m.isListDeleted(member.Spec.AccessList) {
+		return nil
+	}
 	if member.IsUser() {
 		return m.handleAccessListUserMemberPut(ctx, state, member)
 	}
@@ -855,6 +935,15 @@ func (m *accessListMaterializer) handleAccessListMemberPut(ctx context.Context, 
 }
 
 func (m *accessListMaterializer) handleAccessListMemberDelete(ctx context.Context, state state, listName, memberName string) error {
+	if m.isListDeleted(listName) {
+		return nil
+	}
+	if err := m.ensureListPresent(ctx, state, listName); err != nil {
+		return trace.Wrap(err)
+	}
+	if m.isListDeleted(listName) {
+		return nil
+	}
 	maybeUser := m.directUserMembers[listName].Contains(memberName)
 	maybeList := m.directListMembers[listName].Contains(memberName)
 	switch {
@@ -1140,7 +1229,10 @@ func (m *accessListMaterializer) rematerializeList(ctx context.Context, state st
 	list, err := m.upstream.GetAccessList(ctx, listName)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return trace.Errorf("invariant violated, list %s not found", listName)
+			if m.markListDeleted(state, listName) {
+				return m.reconcileAfterListDeletion(ctx, state)
+			}
+			return nil
 		}
 		return trace.Wrap(err)
 	}

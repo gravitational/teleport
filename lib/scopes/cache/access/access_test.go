@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -1047,6 +1048,258 @@ func TestAccessListMaterializationDeepForest(t *testing.T) {
 	})
 }
 
+func TestAccessListMaterializationListDeleteLateMemberDelete(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.AccessLists: {Enabled: true, Limit: 100},
+			},
+		},
+	})
+
+	// Build a small access list tree where list-b is nested under list-a and
+	// list-b has a direct user member. This gives us a realistic delete flow.
+	backend, err := memory.New(memory.Config{
+		Context: t.Context(),
+	})
+	require.NoError(t, err)
+	defer backend.Close()
+
+	accessListService, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: backend,
+		Modules: modules.GetModules(),
+	})
+	require.NoError(t, err)
+
+	events := local.NewEventsService(backend)
+	accessListCache, err := cachepkg.New(cachepkg.Config{
+		Context: t.Context(),
+		Events:  events,
+		Watches: []types.WatchKind{
+			{Kind: types.KindAccessList},
+			{Kind: types.KindAccessListMember},
+		},
+		AccessLists: accessListService,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, accessListCache.Close()) })
+
+	// Seed lists and membership before cache/materializer init so we can
+	// simulate late-arriving delete events in isolation.
+	listA := newAccessList(t, "list-a")
+	listA.Spec.Grants = accesslist.Grants{ScopedRoles: []accesslist.ScopedRoleGrant{{Role: "role-a", Scope: "/a"}}}
+	_, err = accessListService.UpsertAccessList(t.Context(), listA)
+	require.NoError(t, err)
+
+	listB := newAccessList(t, "list-b")
+	listB.Spec.Grants = accesslist.Grants{ScopedRoles: []accesslist.ScopedRoleGrant{{Role: "role-b", Scope: "/b"}}}
+	_, err = accessListService.UpsertAccessList(t.Context(), listB)
+	require.NoError(t, err)
+
+	listC := newAccessList(t, "list-c")
+	listC.Spec.Grants = accesslist.Grants{ScopedRoles: []accesslist.ScopedRoleGrant{{Role: "role-c", Scope: "/c"}}}
+	_, err = accessListService.UpsertAccessList(t.Context(), listC)
+	require.NoError(t, err)
+
+	// Build a mix of direct members and nested lists.
+	_, err = accessListService.UpsertAccessListMember(t.Context(), newAccessListMember(t, "list-a", "list-b", accesslist.MembershipKindList))
+	require.NoError(t, err)
+	_, err = accessListService.UpsertAccessListMember(t.Context(), newAccessListMember(t, "list-a", "user-a", accesslist.MembershipKindUser))
+	require.NoError(t, err)
+	_, err = accessListService.UpsertAccessListMember(t.Context(), newAccessListMember(t, "list-b", "list-c", accesslist.MembershipKindList))
+	require.NoError(t, err)
+	_, err = accessListService.UpsertAccessListMember(t.Context(), newAccessListMember(t, "list-b", "user-b", accesslist.MembershipKindUser))
+	require.NoError(t, err)
+	_, err = accessListService.UpsertAccessListMember(t.Context(), newAccessListMember(t, "list-b", "user-b2", accesslist.MembershipKindUser))
+	require.NoError(t, err)
+	_, err = accessListService.UpsertAccessListMember(t.Context(), newAccessListMember(t, "list-c", "user-c", accesslist.MembershipKindUser))
+	require.NoError(t, err)
+
+	waitForAccessListPresence(t, accessListCache, "list-a", true)
+	waitForAccessListPresence(t, accessListCache, "list-b", true)
+	waitForAccessListPresence(t, accessListCache, "list-c", true)
+	waitForAccessListMemberPresence(t, accessListCache, "list-a", "user-a", true)
+	waitForAccessListMemberPresence(t, accessListCache, "list-b", "user-b", true)
+	waitForAccessListMemberPresence(t, accessListCache, "list-b", "user-b2", true)
+	waitForAccessListMemberPresence(t, accessListCache, "list-b", "list-c", true)
+	waitForAccessListMemberPresence(t, accessListCache, "list-c", "user-c", true)
+
+	// Initialize the materializer from the access list cache.
+	state := state{
+		roles:       roles.NewRoleCache(),
+		assignments: assignments.NewAssignmentCache(),
+	}
+	materializer := newAccessListMaterializer(accessListCache)
+	require.NoError(t, materializer.init(t.Context(), state))
+
+	// Baseline: list-b grants should reach direct members and nested list members.
+	assignments := collectRoleAssignments(t, state.assignments)
+	require.True(t, hasRoleAssignment(assignments, roleAssignment{
+		user:  "user-a",
+		scope: "/",
+		grants: []grant{{
+			role:  "role-a",
+			scope: "/a",
+		}},
+	}))
+	require.True(t, hasRoleAssignment(assignments, roleAssignment{
+		user:  "user-b",
+		scope: "/",
+		grants: []grant{{
+			role:  "role-b",
+			scope: "/b",
+		}},
+	}))
+	require.True(t, hasRoleAssignment(assignments, roleAssignment{
+		user:  "user-b2",
+		scope: "/",
+		grants: []grant{{
+			role:  "role-b",
+			scope: "/b",
+		}},
+	}))
+	require.True(t, hasRoleAssignment(assignments, roleAssignment{
+		user:  "user-c",
+		scope: "/",
+		grants: []grant{{
+			role:  "role-b",
+			scope: "/b",
+		}},
+	}))
+	require.True(t, hasRoleAssignment(assignments, roleAssignment{
+		user:  "user-c",
+		scope: "/",
+		grants: []grant{{
+			role:  "role-c",
+			scope: "/c",
+		}},
+	}))
+
+	// Remove list-b from list-a to allow DeleteAccessList, then delete list-b.
+	// DeleteAccessList removes list-b's members before deleting the list.
+	require.NoError(t, accessListService.DeleteAccessListMember(t.Context(), "list-a", "list-b"))
+	require.NoError(t, accessListService.DeleteAccessList(t.Context(), "list-b"))
+	waitForAccessListPresence(t, accessListCache, "list-b", false)
+	waitForAccessListPresence(t, accessListCache, "list-c", true)
+
+	// Simulate event ordering where the list delete is processed first and the
+	// member delete arrives after the list is already missing from the cache.
+	// This is the flake we want to protect against.
+	require.NoError(t, materializer.handleAccessListDelete(t.Context(), state, "list-b"))
+	require.NoError(t, materializer.handleAccessListMemberDelete(t.Context(), state, "list-b", "user-b"))
+	require.NoError(t, materializer.handleAccessListMemberDelete(t.Context(), state, "list-b", "user-b2"))
+	require.NoError(t, materializer.handleAccessListMemberDelete(t.Context(), state, "list-b", "list-c"))
+
+	// The materializer should drop list-b grants but preserve list-c grants.
+	assignments = collectRoleAssignments(t, state.assignments)
+	require.True(t, hasRoleAssignment(assignments, roleAssignment{
+		user:  "user-a",
+		scope: "/",
+		grants: []grant{{
+			role:  "role-a",
+			scope: "/a",
+		}},
+	}))
+	require.False(t, hasRoleAssignment(assignments, roleAssignment{
+		user:  "user-b",
+		scope: "/",
+		grants: []grant{{
+			role:  "role-b",
+			scope: "/b",
+		}},
+	}))
+	require.False(t, hasRoleAssignment(assignments, roleAssignment{
+		user:  "user-b2",
+		scope: "/",
+		grants: []grant{{
+			role:  "role-b",
+			scope: "/b",
+		}},
+	}))
+	require.False(t, hasRoleAssignment(assignments, roleAssignment{
+		user:  "user-c",
+		scope: "/",
+		grants: []grant{{
+			role:  "role-b",
+			scope: "/b",
+		}},
+	}))
+	require.True(t, hasRoleAssignment(assignments, roleAssignment{
+		user:  "user-c",
+		scope: "/",
+		grants: []grant{{
+			role:  "role-c",
+			scope: "/c",
+		}},
+	}))
+	require.False(t, materializer.allLists.Contains("list-b"))
+	require.True(t, materializer.isListDeleted("list-b"))
+
+	// Recreate list-b with the same name and members; the tombstone should clear
+	// and assignments should be rebuilt from the cache state.
+	listB = newAccessList(t, "list-b")
+	listB.Spec.Grants = accesslist.Grants{ScopedRoles: []accesslist.ScopedRoleGrant{{Role: "role-b", Scope: "/b"}}}
+	_, err = accessListService.UpsertAccessList(t.Context(), listB)
+	require.NoError(t, err)
+	_, err = accessListService.UpsertAccessListMember(t.Context(), newAccessListMember(t, "list-b", "user-b", accesslist.MembershipKindUser))
+	require.NoError(t, err)
+	_, err = accessListService.UpsertAccessListMember(t.Context(), newAccessListMember(t, "list-b", "user-b2", accesslist.MembershipKindUser))
+	require.NoError(t, err)
+	_, err = accessListService.UpsertAccessListMember(t.Context(), newAccessListMember(t, "list-b", "list-c", accesslist.MembershipKindList))
+	require.NoError(t, err)
+
+	waitForAccessListPresence(t, accessListCache, "list-b", true)
+	waitForAccessListMemberPresence(t, accessListCache, "list-b", "user-b", true)
+	waitForAccessListMemberPresence(t, accessListCache, "list-b", "user-b2", true)
+	waitForAccessListMemberPresence(t, accessListCache, "list-b", "list-c", true)
+
+	require.NoError(t, materializer.handleAccessListPut(t.Context(), state, listB))
+	require.False(t, materializer.isListDeleted("list-b"))
+
+	assignments = collectRoleAssignments(t, state.assignments)
+	require.True(t, hasRoleAssignment(assignments, roleAssignment{
+		user:  "user-a",
+		scope: "/",
+		grants: []grant{{
+			role:  "role-a",
+			scope: "/a",
+		}},
+	}))
+	require.True(t, hasRoleAssignment(assignments, roleAssignment{
+		user:  "user-b",
+		scope: "/",
+		grants: []grant{{
+			role:  "role-b",
+			scope: "/b",
+		}},
+	}))
+	require.True(t, hasRoleAssignment(assignments, roleAssignment{
+		user:  "user-b2",
+		scope: "/",
+		grants: []grant{{
+			role:  "role-b",
+			scope: "/b",
+		}},
+	}))
+	require.True(t, hasRoleAssignment(assignments, roleAssignment{
+		user:  "user-c",
+		scope: "/",
+		grants: []grant{{
+			role:  "role-b",
+			scope: "/b",
+		}},
+	}))
+	require.True(t, hasRoleAssignment(assignments, roleAssignment{
+		user:  "user-c",
+		scope: "/",
+		grants: []grant{{
+			role:  "role-c",
+			scope: "/c",
+		}},
+	}))
+}
+
 func TestAccessListMaterializationOwnerGrants(t *testing.T) {
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
@@ -1735,6 +1988,61 @@ func waitForAssignmentCondition(t *testing.T, reader services.ScopedRoleAssignme
 			require.FailNow(t, "timeout waiting for assignment condition")
 		}
 	}
+}
+
+func waitForAccessListPresence(t *testing.T, reader AccessListReader, listName string, present bool) {
+	t.Helper()
+	timeout := time.After(5 * time.Second)
+	for {
+		_, err := reader.GetAccessList(t.Context(), listName)
+		found := err == nil
+		if found == present {
+			return
+		}
+		if err != nil && !trace.IsNotFound(err) {
+			require.NoError(t, err)
+		}
+		select {
+		case <-time.After(120 * time.Millisecond):
+		case <-timeout:
+			require.FailNow(t, "timeout waiting for access list presence", listName)
+		}
+	}
+}
+
+func waitForAccessListMemberPresence(t *testing.T, reader AccessListReader, listName, memberName string, present bool) {
+	t.Helper()
+	timeout := time.After(5 * time.Second)
+	for {
+		_, err := reader.GetAccessListMember(t.Context(), listName, memberName)
+		found := err == nil
+		if found == present {
+			return
+		}
+		if err != nil && !trace.IsNotFound(err) {
+			require.NoError(t, err)
+		}
+		select {
+		case <-time.After(120 * time.Millisecond):
+		case <-timeout:
+			require.FailNow(t, "timeout waiting for access list member presence", listName+"/"+memberName)
+		}
+	}
+}
+
+func hasRoleAssignment(assignments []roleAssignment, want roleAssignment) bool {
+	assignments = normalizeRoleAssignments(append([]roleAssignment(nil), assignments...))
+	if len(assignments) == 0 {
+		return false
+	}
+	want = normalizeRoleAssignments([]roleAssignment{want})[0]
+	wantKey := assignmentKey(want)
+	for _, assignment := range assignments {
+		if assignmentKey(assignment) == wantKey {
+			return true
+		}
+	}
+	return false
 }
 
 // neverEvents is a fake event service whose watchers never initialize.
