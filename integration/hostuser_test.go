@@ -641,7 +641,7 @@ func (u *hostUsersBackendWithExp) CreateUser(name string, groups []string, opts 
 func TestRootLoginAsHostUser(t *testing.T) {
 	testutils.RequireRoot(t)
 	// Create test instance.
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	privateKey, publicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	instance := helpers.NewInstance(t, helpers.InstanceConfig{
@@ -679,8 +679,6 @@ func TestRootLoginAsHostUser(t *testing.T) {
 	t.Cleanup(func() {
 		require.NoError(t, instance.StopAll())
 	})
-
-	instance.WaitForNodeCount(context.Background(), helpers.Site, 1)
 
 	tests := []struct {
 		name      string
@@ -741,7 +739,7 @@ func TestRootLoginAsHostUser(t *testing.T) {
 func TestRootStaticHostUsers(t *testing.T) {
 	testutils.RequireRoot(t)
 	// Create test instance.
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	privateKey, publicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	instance := helpers.NewInstance(t, helpers.InstanceConfig{
@@ -759,6 +757,7 @@ func TestRootStaticHostUsers(t *testing.T) {
 		require.NoError(t, instance.StopAll())
 	})
 	nodeCfg := servicecfg.MakeDefaultConfig()
+	nodeCfg.SSH.DisableCreateHostUser = false
 	nodeCfg.SSH.Labels = map[string]string{
 		"foo": "bar",
 	}

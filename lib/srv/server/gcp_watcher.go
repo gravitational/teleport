@@ -22,10 +22,8 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -66,29 +64,9 @@ func (instances *GCPInstances) MakeEvents() map[string]*usageeventsv1.ResourceCr
 	return events
 }
 
-// NewGCPWatcher creates a new GCP watcher.
-func NewGCPWatcher(ctx context.Context, fetchersFn func() []Fetcher, opts ...Option) (*Watcher, error) {
-	cancelCtx, cancelFn := context.WithCancel(ctx)
-	watcher := Watcher{
-		fetchersFn:    fetchersFn,
-		ctx:           cancelCtx,
-		cancel:        cancelFn,
-		clock:         clockwork.NewRealClock(),
-		pollInterval:  time.Minute,
-		triggerFetchC: make(<-chan struct{}),
-		InstancesC:    make(chan Instances),
-	}
-
-	for _, opt := range opts {
-		opt(&watcher)
-	}
-
-	return &watcher, nil
-}
-
 // MatchersToGCPInstanceFetchers converts a list of GCP GCE Matchers into a list of GCP GCE Fetchers.
-func MatchersToGCPInstanceFetchers(matchers []types.GCPMatcher, gcpClient gcp.InstancesClient, projectsClient gcp.ProjectsClient, discoveryConfigName string) []Fetcher {
-	fetchers := make([]Fetcher, 0, len(matchers))
+func MatchersToGCPInstanceFetchers(matchers []types.GCPMatcher, gcpClient gcp.InstancesClient, projectsClient gcp.ProjectsClient, discoveryConfigName string) []Fetcher[*GCPInstances] {
+	fetchers := make([]Fetcher[*GCPInstances], 0, len(matchers))
 
 	for _, matcher := range matchers {
 		fetchers = append(fetchers, newGCPInstanceFetcher(gcpFetcherConfig{
@@ -137,7 +115,7 @@ func newGCPInstanceFetcher(cfg gcpFetcherConfig) *gcpInstanceFetcher {
 	}
 }
 
-func (*gcpInstanceFetcher) GetMatchingInstances(_ context.Context, _ []types.Server, _ bool) ([]Instances, error) {
+func (*gcpInstanceFetcher) GetMatchingInstances(_ context.Context, _ []types.Server, _ bool) ([]*GCPInstances, error) {
 	return nil, trace.NotImplemented("not implemented for gcp fetchers")
 }
 
@@ -152,7 +130,7 @@ func (f *gcpInstanceFetcher) IntegrationName() string {
 }
 
 // GetInstances fetches all GCP virtual machines matching configured filters.
-func (f *gcpInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Instances, error) {
+func (f *gcpInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*GCPInstances, error) {
 	// Key by project ID, then by zone.
 	instanceMap := make(map[string]map[string][]*gcpimds.Instance)
 	projectIDs, err := f.getProjectIDs(ctx)
@@ -181,16 +159,16 @@ func (f *gcpInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Instan
 		}
 	}
 
-	var instances []Instances
+	var instances []*GCPInstances
 	for projectID, vmsByZone := range instanceMap {
 		for zone, vms := range vmsByZone {
 			if len(vms) > 0 {
-				instances = append(instances, Instances{GCP: &GCPInstances{
+				instances = append(instances, &GCPInstances{
 					InstallerParams: f.InstallerParams,
 					ProjectID:       projectID,
 					Zone:            zone,
 					Instances:       vms,
-				}})
+				})
 			}
 		}
 	}

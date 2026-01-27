@@ -38,6 +38,7 @@ spec:
   {{- toYaml .Values.extraLabels.pod | nindent 8 }}
 {{- end }}
     spec:
+      automountServiceAccountToken: true
       {{- if .Values.dnsConfig }}
       dnsConfig: {{- toYaml .Values.dnsConfig | nindent 8 }}
       {{- end }}
@@ -158,6 +159,11 @@ spec:
         imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
         {{- end }}
         env:
+        {{- $gomemlimit := include "teleport-kube-agent.gomemlimit" . }}
+        {{- if $gomemlimit }}
+          - name: GOMEMLIMIT
+            value: {{ $gomemlimit | quote }}
+        {{- end }}
           # This variable is set for telemetry purposes.
           # Telemetry is opt-in and controlled at the auth level.
           - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
@@ -184,7 +190,7 @@ spec:
           {{- end }}
           {{- if .Values.tls.existingCASecretName }}
           - name: SSL_CERT_FILE
-            value: /etc/teleport-tls-ca/ca.pem
+            value: "/etc/teleport-tls-ca/{{ required "tls.existingCASecretKeyName must be set if tls.existingCASecretName is set in chart values" .Values.tls.existingCASecretKeyName }}" 
           {{- end }}
           {{- if .Values.extraEnv }}
             {{- toYaml .Values.extraEnv | nindent 10 }}
@@ -192,6 +198,10 @@ spec:
           {{- if .Values.teleportClusterName }}
           - name: KUBERNETES_TOKEN_PATH
             value: /var/run/secrets/tokens/join-sa-token
+          {{- end }}
+          {{- if .Values.updater.enabled }}
+          - name: "TELEPORT_UPDATE_CONFIG_FILE"
+            value: "/etc/updater-config/update.yaml"
           {{- end }}
         args:
         - "--diag-addr=0.0.0.0:3000"
@@ -257,6 +267,11 @@ spec:
           name: "jamf-api-credentials"
           readOnly: true
 {{- end }}
+{{- if .Values.updater.enabled }}
+        - mountPath: /etc/updater-config
+          name: "updater-config"
+          readOnly: true
+{{- end }}
 {{- if .Values.extraVolumeMounts }}
   {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
 {{- end }}
@@ -296,6 +311,11 @@ spec:
       - name: "jamf-api-credentials"
         secret:
           secretName: {{ .Values.jamfCredentialsSecret.name }}
+{{- end }}
+{{- if .Values.updater.enabled }}
+      - name: "updater-config"
+        configMap:
+          name: {{ .Release.Name }}-updater
 {{- end }}
 {{- if .Values.extraVolumes }}
   {{- toYaml .Values.extraVolumes | nindent 6 }}

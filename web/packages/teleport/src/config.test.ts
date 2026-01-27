@@ -79,3 +79,28 @@ test('getIntegrationsEnroll appends tags', () => {
 test('getIntegrationsEnroll without extra params', () => {
   expect(cfg.getIntegrationsEnrollRoute()).toEqual('/web/integrations/new');
 });
+
+test('getSsoUrl', () => {
+  const providerUrl =
+    '/v1/webapi/oidc/login/web?connector_id=:providerName&login_hint=:loginHint?&redirect_url=:redirect';
+  expect(
+    cfg.getSsoUrl(providerUrl, 'keycloak', 'example.com', undefined)
+  ).toEqual(
+    'http://localhost/v1/webapi/oidc/login/web?connector_id=keycloak&redirect_url=example.com'
+  );
+  expect(
+    cfg.getSsoUrl(providerUrl, 'keycloak', 'example.com', 'user@example.com')
+  ).toEqual(
+    'http://localhost/v1/webapi/oidc/login/web?connector_id=keycloak&login_hint=user@example.com&redirect_url=example.com'
+  );
+  expect(
+    cfg.getSsoUrl(
+      providerUrl,
+      'keycloak',
+      'example.com?a=b&c=d',
+      'user@example.com'
+    )
+  ).toEqual(
+    'http://localhost/v1/webapi/oidc/login/web?connector_id=keycloak&login_hint=user@example.com&redirect_url=example.com%3Fa=b&c=d'
+  );
+});

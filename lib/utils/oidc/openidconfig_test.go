@@ -32,7 +32,7 @@ func TestOpenIDConfigurationForIssuer(t *testing.T) {
 		IdTokenSigningAlgValuesSupported: []string{"RS256"},
 		ResponseTypesSupported:           []string{"id_token"},
 		ScopesSupported:                  []string{"openid"},
-		SubjectTypesSupported:            []string{"public", "pair-wise"},
+		SubjectTypesSupported:            []string{"public"},
 	}
 
 	got := OpenIDConfigurationForIssuer("https://localhost:8080", "https://localhost:8080/.well-known/jwks")

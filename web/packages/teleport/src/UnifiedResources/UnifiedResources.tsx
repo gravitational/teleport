@@ -83,7 +83,7 @@ export function UnifiedResources() {
   );
 }
 
-const ResizingResourceWrapper = styled(Box)`
+export const ResizingResourceWrapper = styled(Box)`
   width: 100%;
   padding-right: ${props => props.theme.space[3]}px;
 `;
@@ -345,9 +345,7 @@ export function ClusterResources({
 }
 
 export const emptyStateInfo: EmptyStateInfo = {
-  title: 'Add your first resource to Teleport',
-  byline:
-    'Connect SSH servers, Kubernetes clusters, Windows Desktops, Databases, Web apps and more from our integrations catalog.',
+  title: 'Add Your First Resource',
   readOnly: {
     title: 'No Resources Found',
     resource: 'resources',

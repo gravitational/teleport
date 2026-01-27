@@ -33,6 +33,7 @@ import {
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { NullKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation/KeyboardArrowsNavigation';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import { TshHomeMigrationBanner } from 'teleterm/ui/TopBar/Identity';
 import { ClusterList } from 'teleterm/ui/TopBar/Identity/IdentityList/IdentityList';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
@@ -77,6 +78,14 @@ export function ClusterConnectPanel() {
               <P2 color="text.slightlyMuted" mb={2}>
                 Log in to a cluster to use Teleport Connect.
               </P2>
+              {/* Apply the same styling as used for the cluster items below. */}
+              <TshHomeMigrationBanner
+                css={`
+                  margin-bottom: ${p => p.theme.space[1]}px;
+                  border-radius: ${p => p.theme.radii[2]}px;
+                  padding: ${p => p.theme.space[2]}px;
+                `}
+              />
               {/*Disable arrows navigation, it doesn't work well here,*/}
               {/*since it requires the container to be focused.*/}
               {/*The user can navigate with Tab.*/}

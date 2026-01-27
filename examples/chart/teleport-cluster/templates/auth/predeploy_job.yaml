@@ -39,9 +39,9 @@ spec:
       - name: "teleport-config-check"
         image: '{{ if $auth.enterprise }}{{ $auth.enterpriseImage }}{{ else }}{{ $auth.image }}{{ end }}:{{ include "teleport-cluster.version" . }}'
         imagePullPolicy: {{ $auth.imagePullPolicy }}
-{{- if $auth.resources }}
+{{- if $auth.jobResources }}
         resources:
-  {{- toYaml $auth.resources | nindent 10 }}
+  {{- toYaml $auth.jobResources | nindent 10 }}
 {{- end }}
 {{- if or $auth.extraEnv $auth.tls.existingCASecretName }}
         env:
@@ -50,7 +50,7 @@ spec:
   {{- end }}
   {{- if $auth.tls.existingCASecretName }}
         - name: SSL_CERT_FILE
-          value: /etc/teleport-tls-ca/ca.pem
+          value: "/etc/teleport-tls-ca/{{ required "tls.existingCASecretKeyName must be set if tls.existingCASecretName is set in chart values" .Values.tls.existingCASecretKeyName }}" 
   {{- end }}
 {{- end }}
         command:

@@ -16,11 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta, StoryObj } from '@storybook/react-vite';
+import { Meta } from '@storybook/react-vite';
 import { MemoryRouter } from 'react-router';
 import styled from 'styled-components';
 
 import { ButtonBorder } from 'design';
+import { Plus } from 'design/Icon';
+import { LabelKind } from 'design/Label';
 import { gap, GapProps } from 'design/system';
 
 // eslint-disable-next-line no-restricted-imports -- FIXME
@@ -87,10 +89,58 @@ const additionalResources = [
   }),
 ];
 
-const meta: Meta<typeof ResourceCard> = {
-  component: ResourceCard,
-  title: 'Shared/UnifiedResources/Items',
+type StoryProps = {
+  withCheckbox: boolean;
+  withPin: boolean;
+  withCopy: boolean;
+  withHoverState: boolean;
+  withLabelIcon: boolean;
+  showResourceSelectedIcon: boolean;
+  labelIconPlacement: 'left' | 'right';
+  labelKind: LabelKind;
 };
+
+const meta: Meta<StoryProps> = {
+  title: 'Shared/UnifiedResources/Items',
+  argTypes: {
+    withCheckbox: {
+      control: { type: 'boolean' },
+    },
+    withPin: {
+      control: { type: 'boolean' },
+    },
+    withCopy: {
+      control: { type: 'boolean' },
+    },
+    withHoverState: {
+      control: { type: 'boolean' },
+    },
+    withLabelIcon: {
+      control: { type: 'boolean' },
+    },
+    showResourceSelectedIcon: {
+      control: { type: 'boolean' },
+    },
+    labelIconPlacement: {
+      control: { type: 'select' },
+      options: ['left', 'right'],
+    },
+    labelKind: {
+      control: { type: 'select' },
+      options: ['secondary', 'outline-primary', 'outline-warning', ''],
+    },
+  },
+  // default
+  args: {
+    withCheckbox: true,
+    withPin: true,
+    withLabelIcon: false,
+    withCopy: true,
+    withHoverState: true,
+    showResourceSelectedIcon: false,
+  },
+};
+export default meta;
 
 const Grid = styled.div<GapProps>`
   display: grid;
@@ -98,58 +148,74 @@ const Grid = styled.div<GapProps>`
   ${gap}
 `;
 
-export default meta;
-type Story = StoryObj<typeof ResourceCard>;
-
 const ActionButton = <ButtonBorder size="small">Action</ButtonBorder>;
 
-export const Cards: Story = {
-  render() {
-    return (
-      <MemoryRouter>
-        <SamlAppActionProvider>
-          <Grid gap={2}>
-            {[
-              ...apps.map(resource =>
-                makeUnifiedResourceViewItemApp(resource, {
-                  ActionButton: <ResourceActionButton resource={resource} />,
-                })
-              ),
-              ...databases.map(resource =>
-                makeUnifiedResourceViewItemDatabase(resource, {
-                  ActionButton,
-                })
-              ),
-              ...kubes.map(resource =>
-                makeUnifiedResourceViewItemKube(resource, { ActionButton })
-              ),
-              ...nodes.map(resource =>
-                makeUnifiedResourceViewItemNode(resource, {
-                  ActionButton,
-                })
-              ),
-              ...additionalResources.map(resource =>
-                makeUnifiedResourceViewItemApp(resource, { ActionButton })
-              ),
-              ...desktops.map(resource =>
-                makeUnifiedResourceViewItemDesktop(resource, { ActionButton })
-              ),
-            ].map((res, i) => (
-              <ResourceCard
-                key={i}
-                pinned={false}
-                pinResource={() => {}}
-                selectResource={() => {}}
-                selected={false}
-                pinningSupport={PinningSupport.Supported}
-                onShowStatusInfo={() => null}
-                showingStatusInfo={false}
-                viewItem={res}
-              />
-            ))}
-          </Grid>
-        </SamlAppActionProvider>
-      </MemoryRouter>
-    );
-  },
-};
+export function Cards(props: StoryProps) {
+  return (
+    <MemoryRouter>
+      <SamlAppActionProvider>
+        <Grid gap={2}>
+          {[
+            ...apps.map(resource =>
+              makeUnifiedResourceViewItemApp(resource, {
+                ActionButton: <ResourceActionButton resource={resource} />,
+              })
+            ),
+            ...databases.map(resource =>
+              makeUnifiedResourceViewItemDatabase(resource, {
+                ActionButton,
+              })
+            ),
+            ...kubes.map(resource =>
+              makeUnifiedResourceViewItemKube(resource, { ActionButton })
+            ),
+            ...nodes.map(resource =>
+              makeUnifiedResourceViewItemNode(resource, {
+                ActionButton,
+              })
+            ),
+            ...additionalResources.map(resource =>
+              makeUnifiedResourceViewItemApp(resource, { ActionButton })
+            ),
+            ...desktops.map(resource =>
+              makeUnifiedResourceViewItemDesktop(resource, { ActionButton })
+            ),
+          ].map((res, i) => (
+            <ResourceCard
+              key={i}
+              pinned={false}
+              pinResource={() => {}}
+              selectResource={() => {}}
+              selected={false}
+              pinningSupport={PinningSupport.Supported}
+              onShowStatusInfo={() => null}
+              showingStatusInfo={false}
+              viewItem={res}
+              showResourceSelectedIcon={props.showResourceSelectedIcon}
+              visibleInputFields={{
+                checkbox: props.withCheckbox,
+                pin: props.withPin,
+                copy: props.withCopy,
+                hoverState: props.withHoverState,
+              }}
+              {...((props.withLabelIcon || props.labelKind) && {
+                resourceLabelConfig: {
+                  IconLeft:
+                    props.labelIconPlacement === 'left' && props.withLabelIcon
+                      ? Plus
+                      : undefined,
+                  IconRight:
+                    props.labelIconPlacement === 'right' && props.withLabelIcon
+                      ? Plus
+                      : undefined,
+                  kind: props.labelKind,
+                  withHoverState: props.withLabelIcon,
+                },
+              })}
+            />
+          ))}
+        </Grid>
+      </SamlAppActionProvider>
+    </MemoryRouter>
+  );
+}

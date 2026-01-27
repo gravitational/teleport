@@ -3037,7 +3037,7 @@ func TestGenerateHostCerts(t *testing.T) {
 	clt, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
-	priv, pub, err := testauthority.New().GenerateKeyPair()
+	priv, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	pubTLS, err := authtest.PrivateKeyToPublicKeyTLS(priv)
@@ -3099,7 +3099,7 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	require.NoError(t, err)
 	defer clt.Close()
 
-	priv, pub, err := testauthority.New().GenerateKeyPair()
+	priv, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	pubTLS, err := authtest.PrivateKeyToPublicKeyTLS(priv)
@@ -3388,11 +3388,11 @@ func TestNodesCRUD(t *testing.T) {
 		// Make sure can't delete with empty namespace or name.
 		err = clt.DeleteNode(ctx, apidefaults.Namespace, "")
 		require.Error(t, err)
-		require.IsType(t, trace.BadParameter(""), err)
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 		err = clt.DeleteNode(ctx, "", node1.GetName())
 		require.Error(t, err)
-		require.IsType(t, trace.BadParameter(""), err)
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 		// Delete node.
 		err = clt.DeleteNode(ctx, apidefaults.Namespace, node1.GetName())
@@ -3400,14 +3400,14 @@ func TestNodesCRUD(t *testing.T) {
 
 		// Expect node not found
 		_, err := clt.GetNode(ctx, apidefaults.Namespace, "node1")
-		require.IsType(t, trace.NotFound(""), err)
+		require.ErrorAs(t, err, new(*trace.NotFoundError))
 	})
 
 	t.Run("DeleteAllNodes", func(t *testing.T) {
 		// Make sure can't delete with empty namespace.
 		err = clt.DeleteAllNodes(ctx, "")
 		require.Error(t, err)
-		require.IsType(t, trace.BadParameter(""), err)
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 		// Delete nodes
 		err = clt.DeleteAllNodes(ctx, apidefaults.Namespace)
@@ -3800,11 +3800,11 @@ func TestAppsCRUD(t *testing.T) {
 
 	// Try to fetch an app that doesn't exist.
 	_, err = clt.GetApp(ctx, "doesnotexist")
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Try to create the same app.
 	err = clt.CreateApp(ctx, app1)
-	require.IsType(t, trace.AlreadyExists(""), err)
+	require.ErrorAs(t, err, new(*trace.AlreadyExistsError))
 
 	// Update an app.
 	app1.Metadata.Description = "description"
@@ -3843,7 +3843,7 @@ func TestAppsCRUD(t *testing.T) {
 
 	// Try to delete an app that doesn't exist.
 	err = clt.DeleteApp(ctx, "doesnotexist")
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Delete all apps.
 	err = clt.DeleteAllApps(ctx)
@@ -4097,11 +4097,11 @@ func TestDatabasesCRUD(t *testing.T) {
 
 	// Try to fetch a database that doesn't exist.
 	_, err = clt.GetDatabase(ctx, "doesnotexist")
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Try to create the same database.
 	err = clt.CreateDatabase(ctx, db1)
-	require.IsType(t, trace.AlreadyExists(""), err)
+	require.ErrorAs(t, err, new(*trace.AlreadyExistsError))
 
 	// Update a database.
 	db1.Metadata.Description = "description"
@@ -4130,7 +4130,7 @@ func TestDatabasesCRUD(t *testing.T) {
 
 	// Try to delete a database that doesn't exist.
 	err = clt.DeleteDatabase(ctx, "doesnotexist")
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Delete all databases.
 	err = clt.DeleteAllDatabases(ctx)
@@ -4254,7 +4254,7 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 
 	// Try to delete a DatabaseService that doesn't exist.
 	err = clt.DeleteDatabaseService(ctx, "doesnotexist")
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Delete all DatabaseServices.
 	err = clt.DeleteAllDatabaseServices(ctx)
@@ -4971,6 +4971,7 @@ func TestExport(t *testing.T) {
 				TraceClient: &tt.mockTraceClient,
 			})
 			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, as.Close()) })
 
 			srv, err := as.NewTestTLSServer()
 			require.NoError(t, err)

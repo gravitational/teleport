@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/services"
@@ -39,8 +40,8 @@ type RelayAccessPoint interface {
 
 type NodeWatcher = *services.GenericWatcher[types.Server, readonly.Server]
 
-func getServerForRelay(ctx context.Context, host, port string, accessPoint RelayAccessPoint, nodeWatcher NodeWatcher) (types.Server, error) {
-	return getServer(ctx, host, port, &relayCluster{
+func getServerForRelay(ctx context.Context, scopePin *scopesv1.Pin, host, port string, accessPoint RelayAccessPoint, nodeWatcher NodeWatcher) (types.Server, error) {
+	return getServer(ctx, scopePin, host, port, &relayCluster{
 		accessPoint: accessPoint,
 		nodeWatcher: nodeWatcher,
 	})
@@ -142,7 +143,7 @@ type relayRouter struct {
 var _ transportv1.Dialer = (*relayRouter)(nil)
 
 // DialHost implements [transportv1.Dialer].
-func (r *relayRouter) DialHost(ctx context.Context, clientSrcAddr net.Addr, clientDstAddr net.Addr, host string, port string, cluster string, _ func(types.RemoteCluster) error, _ sshagent.ClientGetter, _ agentless.SignerCreator) (net.Conn, error) {
+func (r *relayRouter) DialHost(ctx context.Context, scopePin *scopesv1.Pin, clientSrcAddr net.Addr, clientDstAddr net.Addr, host string, port string, cluster string, _ func(types.RemoteCluster) error, _ sshagent.ClientGetter, _ agentless.SignerCreator) (net.Conn, error) {
 	if cluster != r.clusterName {
 		return nil, trace.NotImplemented("dialing nodes for a different cluster through the Relay service is not supported")
 	}
@@ -157,7 +158,7 @@ func (r *relayRouter) DialHost(ctx context.Context, clientSrcAddr net.Addr, clie
 		return nil, trace.NotImplemented("connectivity to SSH servers through the Relay service is not supported in Proxy recording mode")
 	}
 
-	server, err := getServerForRelay(ctx, host, port, r.accessPoint, r.nodeWatcher)
+	server, err := getServerForRelay(ctx, scopePin, host, port, r.accessPoint, r.nodeWatcher)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

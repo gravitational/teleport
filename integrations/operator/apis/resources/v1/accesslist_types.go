@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	accesslist "github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
-	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/teleportcr"
 )
 
 func init() {
@@ -38,7 +38,7 @@ type TeleportAccessList struct {
 	metav1.ObjectMeta `json:"metadata"`
 
 	Spec   TeleportAccessListSpec `json:"spec"`
-	Status resources.Status       `json:"status"`
+	Status teleportcr.Status      `json:"status"`
 }
 
 // TeleportAccessListSpec defines the desired state of TeleportProvisionToken
@@ -64,7 +64,7 @@ func (l TeleportAccessList) ToTeleport() *accesslist.AccessList {
 			Version: types.V1,
 			Metadata: header.Metadata{
 				Name:        l.Name,
-				Description: l.Annotations[resources.DescriptionKey],
+				Description: l.Annotations[teleportcr.DescriptionKey],
 				Labels:      l.Labels,
 			},
 		},

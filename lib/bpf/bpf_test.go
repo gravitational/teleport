@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 const (
@@ -173,10 +174,10 @@ func TestRootWatch(t *testing.T) {
 		User:           "foo@example.com",
 		PID:            cmd.Process.Pid,
 		Emitter:        emitter,
-		Events: map[string]bool{
-			constants.EnhancedRecordingCommand: true,
-			constants.EnhancedRecordingDisk:    true,
-			constants.EnhancedRecordingNetwork: true,
+		Events: map[string]struct{}{
+			constants.EnhancedRecordingCommand: {},
+			constants.EnhancedRecordingDisk:    {},
+			constants.EnhancedRecordingNetwork: {},
 		},
 	})
 	require.NoError(t, err)
@@ -276,8 +277,8 @@ func TestRootScripts(t *testing.T) {
 				User:           "foo@example.com",
 				PID:            os.Getpid(),
 				Emitter:        emitter,
-				Events: map[string]bool{
-					constants.EnhancedRecordingCommand: true,
+				Events: map[string]struct{}{
+					constants.EnhancedRecordingCommand: {},
 				},
 			}
 			_, err := service.OpenSession(scx)
@@ -428,6 +429,10 @@ func TestRootPrograms(t *testing.T) {
 
 // TestRootLargeCommands given commands with higher amount of characters
 // (length), ensure the command events are generated correctly.
+//
+// Overlaps with coverage from integration tests in lib/srv/bpf_test.go
+// because integration tests cannot exercise a long arg as argv[0]
+// (the program).
 func TestRootLargeCommands(t *testing.T) {
 	// This test must be run as root and the host has to be capable of running
 	// BPF programs.
@@ -642,16 +647,8 @@ func executeHTTP(t *testing.T, endpoint string, ipv6 bool, traceCgroup cgroupReg
 func checkBPF(t *testing.T) {
 	t.Helper()
 
-	if !bpfTestEnabled() {
+	if os.Getenv("TELEPORT_BPF_TEST") == "" {
 		t.Skip("BPF testing is disabled. Set TELEPORT_BPF_TEST environment variable to enable.")
 	}
-	if os.Geteuid() != 0 {
-		t.Skip("Tests for package bpf can only be run as root.")
-	}
-}
-
-// bpfTestEnabled returns true if BPF tests should run. Tests can be enabled by
-// setting TELEPORT_BPF_TEST environment variable to any value.
-func bpfTestEnabled() bool {
-	return os.Getenv("TELEPORT_BPF_TEST") != ""
+	testutils.RequireRoot(t)
 }

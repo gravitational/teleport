@@ -115,6 +115,10 @@ message SSHAccessPermit {
   // HostUserInfo encodes relevant information for host user creation. Omitted if
   // host user creation  is not permitted.
   HostUsersInfo host_users_info = 24;
+
+  // Preconditions is a list of conditions that must be satisfied before access is granted.
+  // If any precondition is not satisfied, access must be denied.
+  repeated Precondition preconditions = 26;
 }
 
 // SSHAccessDenial describes an SSH access denial.
@@ -201,4 +205,20 @@ message HostUsersInfo {
 
   // Shell is the default login shell for a host user
   string shell = 5;
+}
+
+// Precondition represents a condition that must be satisfied before access is granted.
+message Precondition {
+  // Kind specifies the type of precondition.
+  PreconditionKind kind = 1;
+}
+
+// PreconditionKind defines the types of preconditions that can be specified.
+enum PreconditionKind {
+  // PreconditionKindUnspecified indicates that no precondition is specified and represents an uninitialized or invalid
+  // state. If a permit holds this value, access should be denied. This value should be treated as an error in any
+  // context where a specific precondition is required.
+  PRECONDITION_KIND_UNSPECIFIED = 0;
+  // PreconditionKindInBandMFA requires in-band MFA to be completed.
+  PRECONDITION_KIND_IN_BAND_MFA = 1;
 }

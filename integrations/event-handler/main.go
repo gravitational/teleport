@@ -36,7 +36,7 @@ var cli CLI
 
 const (
 	// pluginName is the plugin name
-	pluginName = "Teleport event handler"
+	pluginName = "teleport-event-handler"
 
 	// pluginDescription is the plugin description
 	pluginDescription = "Forwards Teleport AuditLog to external sources"

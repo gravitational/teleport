@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Menu, nativeImage, NativeImage, Tray } from 'electron';
+import { app, Menu, nativeImage, NativeImage, Tray } from 'electron';
 
 import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
@@ -41,13 +41,14 @@ export function setTray(
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: 'Open Teleport Connect',
+      label: `Open ${app.name}`,
       click: () => window.show(),
     },
     { type: 'separator' },
     { label: 'Quit', role: 'quit' },
   ]);
   tray.setContextMenu(contextMenu);
+  tray.setToolTip(app.name);
 }
 
 function getIcon(runtimeSettings: RuntimeSettings): string | NativeImage {

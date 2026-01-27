@@ -19,6 +19,9 @@
 package mcp
 
 import (
+	"context"
+	"slices"
+	"sync"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -29,6 +32,24 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
 )
+
+type captureMessageWriter struct {
+	mu   sync.Mutex
+	msgs []mcp.JSONRPCMessage
+}
+
+func (c *captureMessageWriter) WriteMessage(_ context.Context, msg mcp.JSONRPCMessage) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.msgs = append(c.msgs, msg)
+	return nil
+}
+
+func (c *captureMessageWriter) messages() []mcp.JSONRPCMessage {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return slices.Clone(c.msgs)
+}
 
 func Test_sessionHandler(t *testing.T) {
 	tests := []struct {
@@ -75,6 +96,7 @@ func Test_sessionHandler(t *testing.T) {
 
 			handler, err := newSessionHandler(sessionHandlerConfig{
 				SessionCtx:     testCtx.SessionCtx,
+				sessionAuth:    &sessionAuth{},
 				sessionAuditor: auditor,
 				accessPoint:    fakeAccessPoint{},
 				parentCtx:      ctx,
@@ -82,50 +104,62 @@ func Test_sessionHandler(t *testing.T) {
 			require.NoError(t, err)
 
 			t.Run("notification", func(t *testing.T) {
-				handler.processClientNotification(ctx, &mcputils.JSONRPCNotification{
+				msg := &mcputils.JSONRPCNotification{
 					JSONRPC: mcp.JSONRPC_VERSION,
 					Method:  "notifications/initialized",
-				})
+				}
+				capture := &captureMessageWriter{}
+				require.NoError(t, handler.onClientNotification(capture)(ctx, msg))
 				event := mockEmitter.LastEvent()
 				require.NotNil(t, event)
 				requestEvent, ok := event.(*apievents.MCPSessionNotification)
 				require.True(t, ok)
 				require.Equal(t, "notifications/initialized", requestEvent.Message.Method)
+				require.Equal(t, []mcp.JSONRPCMessage{msg}, capture.messages())
 			})
 
 			for _, allowedTool := range tt.allowedTools {
 				t.Run("allow tools call "+allowedTool, func(t *testing.T) {
 					clientReq := requestBuilder.makeToolsCallRequest(allowedTool)
-					msg, dir := handler.processClientRequest(ctx, clientReq)
-					require.Equal(t, replyToServer, dir)
-					require.Equal(t, clientReq, msg)
+					clientCapture := &captureMessageWriter{}
+					serverCapture := &captureMessageWriter{}
+					require.NoError(t, handler.onClientRequest(clientCapture, serverCapture)(ctx, clientReq))
 
 					event := mockEmitter.LastEvent()
 					require.NotNil(t, event)
 					requestEvent, ok := event.(*apievents.MCPSessionRequest)
 					require.True(t, ok)
 					require.True(t, requestEvent.Success)
-					require.Equal(t, string(mcp.MethodToolsCall), requestEvent.Message.Method)
+					require.Equal(t, mcputils.MethodToolsCall, requestEvent.Message.Method)
 					checkParamsHaveNameField(t, requestEvent.Message.Params, allowedTool)
+
+					// Server receives the client's request.
+					require.Equal(t, []mcp.JSONRPCMessage{clientReq}, serverCapture.messages())
+					require.Empty(t, clientCapture.messages())
 				})
 			}
 
 			for _, deniedTool := range tt.deniedTools {
 				t.Run("deny tools call "+deniedTool, func(t *testing.T) {
 					clientReq := requestBuilder.makeToolsCallRequest(deniedTool)
-					msg, dir := handler.processClientRequest(ctx, clientReq)
-					require.Equal(t, replyToClient, dir)
-					errMsg, ok := msg.(mcp.JSONRPCError)
-					require.True(t, ok)
-					require.Equal(t, clientReq.ID, errMsg.ID)
+					clientCapture := &captureMessageWriter{}
+					serverCapture := &captureMessageWriter{}
+					require.NoError(t, handler.onClientRequest(clientCapture, serverCapture)(ctx, clientReq))
 
 					event := mockEmitter.LastEvent()
 					require.NotNil(t, event)
 					requestEvent, ok := event.(*apievents.MCPSessionRequest)
 					require.True(t, ok)
 					require.False(t, requestEvent.Success)
-					require.Equal(t, string(mcp.MethodToolsCall), requestEvent.Message.Method)
+					require.Equal(t, mcputils.MethodToolsCall, requestEvent.Message.Method)
 					checkParamsHaveNameField(t, requestEvent.Message.Params, deniedTool)
+
+					// Server does not receive the client's request. An error is
+					// sent to client.
+					require.Empty(t, serverCapture.messages())
+					clientMessages := clientCapture.messages()
+					require.Len(t, clientMessages, 1)
+					require.IsType(t, mcp.JSONRPCError{}, clientMessages[0])
 				})
 			}
 
@@ -134,8 +168,8 @@ func Test_sessionHandler(t *testing.T) {
 
 				// First make a request so the handler can track the method by ID.
 				clientReq := requestBuilder.makeToolsListRequest()
-				_, dir := handler.processClientRequest(ctx, clientReq)
-				require.Equal(t, replyToServer, dir)
+				_, authErr := handler.processClientRequest(ctx, clientReq)
+				require.NoError(t, authErr)
 
 				// tools/list does not trigger audit event.
 				require.Nil(t, mockEmitter.LastEvent())
@@ -145,8 +179,11 @@ func Test_sessionHandler(t *testing.T) {
 				// filtering.
 				allTools := append(tt.allowedTools, tt.deniedTools...)
 				serverResponse := makeToolsCallResponse(t, clientReq.ID, allTools...)
-				processedResponse := handler.processServerResponse(ctx, serverResponse)
-				checkToolsListResponse(t, processedResponse, clientReq.ID, tt.allowedTools)
+				capture := &captureMessageWriter{}
+				require.NoError(t, handler.onServerResponse(capture)(ctx, serverResponse))
+				clientMessages := capture.messages()
+				require.Len(t, clientMessages, 1)
+				checkToolsListResponse(t, clientMessages[0], clientReq.ID, tt.allowedTools)
 			})
 		})
 	}

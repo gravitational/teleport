@@ -84,7 +84,7 @@ func TestArgoCDOutput_EndToEnd(t *testing.T) {
 		kubeCluster, err := types.NewKubernetesClusterV3(
 			types.Metadata{
 				Name:   name,
-				Labels: map[string]string{"department": "engineering"},
+				Labels: map[string]string{"department": "engineering", "url": "https://fake.org"},
 			},
 			types.KubernetesClusterSpecV3{},
 		)
@@ -120,10 +120,14 @@ func TestArgoCDOutput_EndToEnd(t *testing.T) {
 			SecretNamePrefix: "my-cluster",
 			SecretNamespace:  "argocd",
 			SecretLabels: map[string]string{
-				"team": "billing",
+				"team":               "billing",
+				"cluster-department": `{{ index .Labels "department" }}`,
+				"non-existent":       `{{ index .Labels "non-existent" }}`,
 			},
 			SecretAnnotations: map[string]string{
-				"managed-by": "ninjas",
+				"managed-by":   "ninjas",
+				"cluster-url":  `{{ index .Labels "url" }}`,
+				"non-existent": `{{ index .Labels "non-existent" }}`,
 			},
 			Selectors: []*KubernetesSelector{
 				{Labels: map[string]string{"department": "engineering"}},
@@ -174,6 +178,7 @@ func TestArgoCDOutput_EndToEnd(t *testing.T) {
 		map[string]string{
 			"argocd.argoproj.io/secret-type": "cluster",
 			"team":                           "billing",
+			"cluster-department":             "engineering",
 		},
 		secret.Labels,
 	)
@@ -219,6 +224,7 @@ func TestArgoCDOutput_EndToEnd(t *testing.T) {
 		"teleport.dev/tbot-version":            teleport.Version,
 		"teleport.dev/teleport-cluster-name":   "root",
 		"managed-by":                           "ninjas",
+		"cluster-url":                          "https://fake.org",
 	}
 	for k, v := range expectedAnnotations {
 		require.Equal(t, v, secret.Annotations[k])

@@ -81,15 +81,6 @@ func GetApp(ctx context.Context, authClient authclient.ClientI, appName string) 
 
 // ReissueAppCert issue new certificates for the app and saves them to disk.
 func (c *Cluster) ReissueAppCert(ctx context.Context, clusterClient *client.ClusterClient, routeToApp proto.RouteToApp) (tls.Certificate, error) {
-	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
-	err := clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
-		RouteToCluster: c.clusterClient.SiteName,
-		AccessRequests: c.status.ActiveRequests,
-	})
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
 	result, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
 		RouteToApp:     routeToApp,

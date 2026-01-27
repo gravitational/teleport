@@ -1,6 +1,6 @@
 ---
 title: Deploying tbot on GitHub Actions
-description: How to install and configure Machine ID on GitHub Actions
+description: How to install and configure the Machine & Workload Identity agent, `tbot`, on GitHub Actions
 sidebar_label: GitHub Actions
 tags:
  - ci-cd
@@ -12,11 +12,24 @@ tags:
 {/* lint disable page-structure remark-lint */}
 
 GitHub Actions is a popular CI/CD platform that works as a part of the larger
-GitHub ecosystem. Teleport Machine ID allows GitHub Actions to securely interact
-with Teleport protected resources without the need for long-lived credentials.
+GitHub ecosystem. Teleport Machine & Workload Identity allows GitHub Actions to
+securely interact with Teleport protected resources without the need for
+long-lived credentials.
 
 Teleport supports secure joining on both GitHub-hosted and self-hosted GitHub
 Actions runners as well as GitHub Enterprise Server.
+
+<Admonition type="info" title="Guided integration available">
+    Get up and running quickly using one of the guided integrations available
+    via the Teleport Web UI.
+
+    The guides walk you through connecting your GitHub Actions
+    workflow to Teleport and granting the permissions needed to access your
+    enrolled resources.
+
+    Find the guides in the Web UI;<br />
+    **Add New** > **Integration** > Search "**GitHub Actions**"
+</Admonition>
 
 ## Prerequisites
 
@@ -148,6 +161,18 @@ can be used for SSH and for administrative actions against a Teleport cluster.
 Environment variables are configured by this action and these automatically
 configure `tsh` and `tctl` to use this identity.
 
+<Admonition type="info" title="Guided integration available">
+    You can use the GitHub Action + SSH integration guide via the
+    Teleport Web UI?
+    
+    The guide walks you through connecting your GitHub Actions
+    workflow to Teleport and giving it the permissions it needs to access your
+    enrolled SSH nodes.
+
+    Find the guide in the Web UI:<br />
+    **Add New** > **Integration** > **MWI: GitHub Actions + SSH**
+</Admonition>
+
 This example shows using the credentials to:
 
 - List the SSH nodes available using `tsh`
@@ -186,8 +211,8 @@ on:
 jobs:
   demo:
     permissions:
-      # The "id-token: write" permission is required or Machine ID will not be
-      # able to authenticate with the cluster.
+      # The "id-token: write" permission is required or tbot will not be able to
+      # authenticate with the cluster.
       id-token: write
       contents: read
     # The name of the workflow, and the Linux distro to be used to perform the
@@ -203,7 +228,7 @@ jobs:
         version: auto
         # Replace with the address of your Teleport Proxy Service.
         proxy: example.teleport.sh:443
-    - name: Fetch credentials using Machine ID
+    - name: Fetch credentials using Machine & Workload Identity
       id: auth
       uses: teleport-actions/auth@v2
       with:
@@ -254,7 +279,7 @@ to complete, and will resemble the following once successful.
 
 Expand the **List nodes** step of the action, and the output will
 list all nodes in the cluster, from the perspective of the
-Machine ID bot using the command `tsh ls`.
+Machine & Workload Identity bot using the command `tsh ls`.
 
 ### Example: `teleport-actions/auth-k8s`
 
@@ -266,6 +291,18 @@ environment variable to automatically configure these clients.
 In this example, the `teleport-actions/auth-k8s` action will be used to list
 all the pods contained within the cluster, but this could just as easily be
 modified to deploy to a Kubernetes cluster with `kubectl` or `helm`.
+
+<Admonition type="info" title="Guided integration available">
+    You can use the GitHub Action + Kubernetes integration guide via the
+    Teleport Web UI?
+    
+    The guide walks you through connecting your GitHub Actions
+    workflow to Teleport and giving it the permissions it needs to access your
+    enrolled Kubernetes clusters.
+
+    Find the guide in the Web UI:<br />
+    **Add New** > **Integration** > **MWI: GitHub Actions + Kubernetes**
+</Admonition>
 
 First, you'll need to adjust the role you assigned to the bot to grant it access
 to the Kubernetes cluster. This example will grant the bot access to all
@@ -306,8 +343,8 @@ on:
 jobs:
   demo:
     permissions:
-      # The "id-token: write" permission is required or Machine ID will not be
-      # able to authenticate with the cluster.
+      # The "id-token: write" permission is required or tbot will not be able to
+      # authenticate with the cluster.
       id-token: write
       contents: read
     name: example
@@ -402,8 +439,8 @@ on:
 jobs:
   demo:
     permissions:
-      # The "id-token: write" permission is required or Machine ID will not be
-      # able to authenticate with the cluster.
+      # The "id-token: write" permission is required or tbot will not be able to
+      # authenticate with the cluster.
       id-token: write
       contents: read
     # The name of the workflow, and the Linux distro to be used to perform the
@@ -458,4 +495,3 @@ interact with.
 - Find out more about GitHub Actions itself, read
   [their documentation](https://docs.github.com/en/actions).
 - [More information about `anonymous-telemetry`.](../../reference/machine-workload-identity/telemetry.mdx)
-

@@ -95,15 +95,6 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, clusterClient *client.Clus
 		return tls.Certificate{}, trace.BadParameter("the username must be present")
 	}
 
-	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
-	err := clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
-		RouteToCluster: c.clusterClient.SiteName,
-		AccessRequests: c.status.ActiveRequests,
-	})
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
 	result, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToCluster:  c.clusterClient.SiteName,
 		RouteToDatabase: client.RouteToDatabaseToProto(routeToDatabase),
@@ -180,7 +171,7 @@ type GetDatabaseServersResponse struct {
 
 // NewDBCLICmdBuilder creates a dbcmd.CLICommandBuilder with provided cluster,
 // db route, and options.
-func NewDBCLICmdBuilder(cluster *Cluster, routeToDb tlsca.RouteToDatabase, options ...dbcmd.ConnectCommandFunc) *dbcmd.CLICommandBuilder {
+func NewDBCLICmdBuilder(cluster *Cluster, routeToDb tlsca.RouteToDatabase, getDatabaseFunc dbcmd.GetDatabaseFunc, options ...dbcmd.ConnectCommandFunc) (*dbcmd.CLICommandBuilder, error) {
 	return dbcmd.NewCmdBuilder(
 		cluster.clusterClient,
 		&cluster.status,
@@ -192,6 +183,7 @@ func NewDBCLICmdBuilder(cluster *Cluster, routeToDb tlsca.RouteToDatabase, optio
 		// generating correct CA paths. We use dbcmd.WithNoTLS here which means that the CA paths aren't
 		// included in the returned CLI command.
 		cluster.Name,
+		getDatabaseFunc,
 		options...,
 	)
 }

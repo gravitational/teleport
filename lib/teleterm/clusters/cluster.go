@@ -21,6 +21,7 @@ package clusters
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -312,6 +313,7 @@ func (c *Cluster) GetLoggedInUser() LoggedInUser {
 		SSHLogins:      c.status.Logins,
 		Roles:          c.status.Roles,
 		ActiveRequests: c.status.ActiveRequests,
+		ValidUntil:     c.status.ValidUntil,
 	}
 }
 
@@ -353,6 +355,8 @@ type LoggedInUser struct {
 	Roles []string
 	// ActiveRequests is the user active requests
 	ActiveRequests []string
+	// ValidUntil is expiration time of the certificate.
+	ValidUntil time.Time
 }
 
 // AddMetadataToRetryableError is Connect's equivalent of client.RetryWithRelogin. By adding the
@@ -396,4 +400,22 @@ type Server struct {
 	Logins []string
 
 	types.Server
+}
+
+// SaveProfileAndPreserveSiteName wraps [client.TeleportClient.SaveProfile]. It restores the original site name before
+// saving the profile.
+//
+// It's needed because teleterm/clusters.Storage.loadProfileStatusAndClusterKey overwrites the profile's site name so that
+// the cluster client is created for the cluster specified in the URI rather than the one stored in the profile.
+// This adjustment is only relevant for Connect and should not be persisted.
+func SaveProfileAndPreserveSiteName(clusterClient *client.TeleportClient, makeCurrent bool) error {
+	profile, err := clusterClient.GetProfile(clusterClient.WebProxyAddr)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if profile != nil {
+		clusterClient.SiteName = profile.SiteName
+	}
+	err = clusterClient.SaveProfile(makeCurrent)
+	return trace.Wrap(err)
 }

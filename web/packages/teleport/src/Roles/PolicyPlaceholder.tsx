@@ -57,6 +57,13 @@ export function PolicyPlaceholder({
   roleDiffProps?: RoleDiffProps;
 }) {
   const theme = useTheme();
+
+  // We don't show the Identity Security CTA when
+  // feature hiding is enabled.
+  if (cfg.hideInaccessibleFeatures) {
+    return;
+  }
+
   const waitingForSync =
     roleDiffProps?.roleDiffState === RoleDiffState.WaitingForSync;
   const loading =

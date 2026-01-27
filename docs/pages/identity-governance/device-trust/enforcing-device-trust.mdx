@@ -1,11 +1,13 @@
 ---
 title: Enforce Device Trust
+sidebar_label: Enforcement
 description: Learn how to enforce trusted devices with Teleport
 videoBanner: gBQyj_X1LVw
 tags:
  - conceptual
  - identity-governance
  - resiliency
+enterprise: Identity Governance
 ---
 
 <Admonition type="note" title="Supported Resources">
@@ -139,7 +141,7 @@ ERROR: ssh: rejected: administratively prohibited (unauthorized device)
 
 <Admonition type="tip" title="Trusted Clusters">
 It is possible to use [trusted
-clusters](../../zero-trust-access/management/admin/trustedclusters.mdx) to limit the impact of
+clusters](../../zero-trust-access/deploy-a-cluster/trustedclusters.mdx) to limit the impact of
 device mode `required`. A leaf cluster in mode `required` will enforce access to
 all of its resources, without imposing the same restrictions to the root
 cluster. Likewise, a root cluster will not enforce Device Trust on resources in
@@ -153,7 +155,7 @@ enforcement](#role-based-trusted-device-enforcement).
 
 To access apps protected by Device Trust using the Web UI (Teleport v16 or
 later), make sure your device is [registered and enrolled](
-./device-management.mdx#register-a-trusted-device), install [Teleport Connect](../../connect-your-client/teleport-connect.mdx), and
+./device-management.mdx#register-a-trusted-device), install [Teleport Connect](../../connect-your-client/teleport-clients/teleport-connect.mdx), and
 follow the instructions during login.
 
 Alternatively, you may use [tsh proxy app](../../reference/cli/tsh.mdx) or the certificates issued by
@@ -205,7 +207,7 @@ enforcement]( #role-based-trusted-device-enforcement).
 
 To access desktops protected by Device Trust make sure your device is
 [registered and enrolled](./device-management.mdx#register-a-trusted-device),
-install [Teleport Connect](../../connect-your-client/teleport-connect.mdx), and
+install [Teleport Connect](../../connect-your-client/teleport-clients/teleport-connect.mdx), and
 follow the instructions during login.
 
 As an example, to enforce Device Trust for all `env:production` desktops, save

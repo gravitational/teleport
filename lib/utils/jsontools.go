@@ -117,8 +117,7 @@ func FastMarshalIndent(v any, prefix, indent string) ([]byte, error) {
 // WriteJSONArray marshals values as a JSON array.
 func WriteJSONArray[T any](w io.Writer, values []T) error {
 	if len(values) == 0 {
-		_, err := w.Write([]byte("[]"))
-		return err
+		values = []T{}
 	}
 	return WriteJSON(w, values)
 }
@@ -161,6 +160,14 @@ func StreamJSONArray[T any](items stream.Stream[T], out io.Writer, indent bool) 
 	}
 	stream.WriteArrayEnd()
 	return trace.NewAggregate(items.Done(), stream.Flush())
+}
+
+// WriteYAMLArray marshals values as a YAML array.
+func WriteYAMLArray[T any](w io.Writer, values []T) error {
+	if len(values) == 0 {
+		values = []T{}
+	}
+	return writeYAML(w, values)
 }
 
 const yamlDocDelimiter = "---"

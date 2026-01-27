@@ -21,16 +21,16 @@
     "noEmit": true,
     "types": ["node", "@types/wicg-file-system-access"],
     "paths": {
-      "build/*": ["web/packages/build/src/*"],
-      "build": ["web/packages/build/src/"],
-      "shared/*": ["web/packages/shared/*"],
-      "design/*": ["web/packages/design/src/*"],
-      "design": ["web/packages/design/src/"],
-      "teleport/*": ["web/packages/teleport/src/*"],
-      "teleport": ["web/packages/teleport/src/"],
-      "teleterm/*": ["web/packages/teleterm/src/*"],
-      "e-teleport/*": ["e/web/teleport/src/*"],
-      "gen-proto-ts/*": ["gen/proto/ts/*"]
+      "build/*": ["./web/packages/build/*"],
+      "build": ["./web/packages/build/"],
+      "shared/*": ["./web/packages/shared/*"],
+      "design/*": ["./web/packages/design/src/*"],
+      "design": ["./web/packages/design/src/"],
+      "teleport/*": ["./web/packages/teleport/src/*"],
+      "teleport": ["./web/packages/teleport/src/"],
+      "teleterm/*": ["./web/packages/teleterm/src/*"],
+      "e-teleport/*": ["./e/web/teleport/src/*"],
+      "gen-proto-ts/*": ["./gen/proto/ts/*"]
     }
   },
   "exclude": [

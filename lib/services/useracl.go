@@ -108,6 +108,8 @@ type UserACL struct {
 	Bots ResourceAccess `json:"bots"`
 	// BotInstances defines access to manage bot instances
 	BotInstances ResourceAccess `json:"botInstances"`
+	// Instances defines access to manage instances
+	Instances ResourceAccess `json:"instances"`
 	// AccessMonitoringRule defines access to manage access monitoring rule resources.
 	AccessMonitoringRule ResourceAccess `json:"accessMonitoringRule"`
 	// CrownJewel defines access to manage CrownJewel resources.
@@ -126,6 +128,12 @@ type UserACL struct {
 	WorkloadIdentity ResourceAccess `json:"workloadIdentity"`
 	// ClientIPRestriction defines access to Cloud IP Restrictions
 	ClientIPRestriction ResourceAccess `json:"clientIpRestriction"`
+	// InferenceModel defines access to session summaries inference model.
+	InferenceModel ResourceAccess `json:"inferenceModel"`
+	// InferencePolicy defines access to session summaries inference policy.
+	InferencePolicy ResourceAccess `json:"inferencePolicy"`
+	// InferenceSecret defines access to session summaries inference secret.
+	InferenceSecret ResourceAccess `json:"inferenceSecret"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -217,6 +225,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	externalAuditStorage := newAccess(userRoles, ctx, types.KindExternalAuditStorage)
 	bots := newAccess(userRoles, ctx, types.KindBot)
 	botInstances := newAccess(userRoles, ctx, types.KindBotInstance)
+	instances := newAccess(userRoles, ctx, types.KindInstance)
 	crownJewelAccess := newAccess(userRoles, ctx, types.KindCrownJewel)
 	userTasksAccess := newAccess(userRoles, ctx, types.KindUserTask)
 	reviewRequests := userRoles.MaybeCanReviewRequests()
@@ -275,6 +284,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		AccessGraph:             accessGraphAccess,
 		Bots:                    bots,
 		BotInstances:            botInstances,
+		Instances:               instances,
 		AccessMonitoringRule:    accessMonitoringRules,
 		CrownJewel:              crownJewelAccess,
 		AccessGraphSettings:     accessGraphSettings,
@@ -283,5 +293,8 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		GitServers:              gitServersAccess,
 		WorkloadIdentity:        workloadIdentity,
 		ClientIPRestriction:     clientIPRestrictions,
+		InferenceModel:          newAccess(userRoles, ctx, types.KindInferenceModel),
+		InferencePolicy:         newAccess(userRoles, ctx, types.KindInferencePolicy),
+		InferenceSecret:         newAccess(userRoles, ctx, types.KindInferenceSecret),
 	}
 }

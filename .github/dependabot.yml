@@ -3,9 +3,10 @@ updates:
   - package-ecosystem: gomod
     directory: '/'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
+    cooldown:
+      default-days: 2
     ignore:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
@@ -31,9 +32,10 @@ updates:
   - package-ecosystem: gomod
     directory: '/api'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
+    cooldown:
+      default-days: 2
     open-pull-requests-limit: 20
     groups:
       go:
@@ -48,9 +50,10 @@ updates:
   - package-ecosystem: gomod
     directory: '/assets/aws'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
+    cooldown:
+      default-days: 2
     ignore:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
@@ -68,9 +71,10 @@ updates:
   - package-ecosystem: gomod
     directory: '/assets/backport'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
+    cooldown:
+      default-days: 2
     open-pull-requests-limit: 20
     groups:
       go:
@@ -85,9 +89,10 @@ updates:
   - package-ecosystem: gomod
     directory: '/build.assets/tooling'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
+    cooldown:
+      default-days: 2
     ignore:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
@@ -105,9 +110,10 @@ updates:
   - package-ecosystem: gomod
     directory: '/integrations/terraform'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
+    cooldown:
+      default-days: 2
     ignore:
       # breaks compatibility
       - dependency-name: github.com/hashicorp/terraform-plugin-framework
@@ -127,9 +133,10 @@ updates:
   - package-ecosystem: gomod
     directory: '/integrations/terraform-mwi'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
+    cooldown:
+      default-days: 2
     open-pull-requests-limit: 20
     groups:
       go:
@@ -144,9 +151,10 @@ updates:
   - package-ecosystem: gomod
     directory: '/integrations/event-handler'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
+    cooldown:
+      default-days: 2
     open-pull-requests-limit: 20
     groups:
       go:
@@ -164,6 +172,8 @@ updates:
       interval: monthly
       day: 'sunday'
       time: '09:00' # 9am UTC
+    cooldown:
+      default-days: 2
     open-pull-requests-limit: 20
     groups:
       rust:
@@ -181,6 +191,8 @@ updates:
       interval: monthly
       day: 'sunday'
       time: '09:00' # 9am UTC
+    cooldown:
+      default-days: 2
     open-pull-requests-limit: 20
     groups:
       rust:
@@ -198,6 +210,8 @@ updates:
       interval: monthly
       day: 'sunday'
       time: '09:00' # 9am UTC
+    cooldown:
+      default-days: 2
     open-pull-requests-limit: 20
     groups:
       rust:
@@ -215,6 +229,8 @@ updates:
       interval: monthly
       day: 'sunday'
       time: '09:00' # 9am UTC
+    cooldown:
+      default-days: 2
     open-pull-requests-limit: 20
     groups:
       rust:
@@ -232,6 +248,8 @@ updates:
       interval: monthly
       day: 'sunday'
       time: '09:00' # 9am UTC
+    cooldown:
+      default-days: 2
     labels:
       - 'dependencies'
       - 'ui'
@@ -249,6 +267,14 @@ updates:
         update-types:
           - 'minor'
           - 'patch'
+        # Contrary to what the docs say, if a dependency matches more than one rule, it is _not_
+        # included in the first group that it matches. Other groups must be explicitly included,
+        # otherwise Dependabot is going to perform minor Electron updates in the UI group.
+        # https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference#groups--
+        exclude-patterns:
+          - 'electron*'
+          - node-gyp
+          - node-pty
     open-pull-requests-limit: 20
   - package-ecosystem: github-actions
     directory: '/.github/workflows'
@@ -257,6 +283,8 @@ updates:
       day: monday
       time: '09:00'
       timezone: 'America/Los_Angeles'
+    cooldown:
+      default-days: 2
     labels:
       - 'dependencies'
       - 'github-actions'
@@ -269,6 +297,8 @@ updates:
       day: monday
       time: '09:00'
       timezone: 'America/Los_Angeles'
+    cooldown:
+      default-days: 2
     labels:
       - 'dependencies'
       - 'github-actions'

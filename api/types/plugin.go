@@ -137,6 +137,7 @@ type PluginCredentials interface {
 type PluginStatus interface {
 	GetCode() PluginStatusCode
 	GetErrorMessage() string
+	GetLastRawError() string
 	GetLastSyncTime() time.Time
 	GetGitlab() *PluginGitlabStatusV1
 	GetEntraId() *PluginEntraIDStatusV1
@@ -360,6 +361,10 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		// backfill the credentials source if it's not set.
 		if settings.EntraId.SyncSettings.CredentialsSource == EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_UNKNOWN {
 			settings.EntraId.SyncSettings.CredentialsSource = EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_OIDC
+		}
+		// backfill the Access List owners source if it's not set.
+		if settings.EntraId.SyncSettings.AccessListOwnersSource == EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_UNSPECIFIED {
+			settings.EntraId.SyncSettings.AccessListOwnersSource = EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN
 		}
 
 	case *PluginSpecV1_Scim:
@@ -977,9 +982,14 @@ func (c PluginStatusV1) GetCode() PluginStatusCode {
 	return c.Code
 }
 
-// GetErrorMessage returns the error message
+// GetErrorMessage returns the friendly error message.
 func (c PluginStatusV1) GetErrorMessage() string {
 	return c.ErrorMessage
+}
+
+// GetLastRawError returns the raw error message.
+func (c PluginStatusV1) GetLastRawError() string {
+	return c.LastRawError
 }
 
 // GetLastSyncTime returns the last run of the plugin.

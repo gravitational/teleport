@@ -63,7 +63,7 @@ func memFile(name string, fileContent []byte) (int, error) {
 	return fd, nil
 }
 
-func reexecToShell(ctx context.Context, kubeconfigData []byte) (err error) {
+func reexecToShell(ctx context.Context, kubeconfigData []byte, command string, args []string) (err error) {
 	// Create in-memory file containing kubeconfig and return file descriptor.
 	fd, err := memFile("proxy-kubeconfig", kubeconfigData)
 	if err != nil {
@@ -77,13 +77,9 @@ func reexecToShell(ctx context.Context, kubeconfigData []byte) (err error) {
 	f := os.NewFile(uintptr(fd), fp)
 	defer func() { err = trace.NewAggregate(err, f.Close()) }()
 
-	// Prepare to re-exec shell
-	command := "/bin/bash"
-	if shell, ok := os.LookupEnv("SHELL"); ok {
-		command = shell
-	}
+	command = getExecCommand(command)
 
-	cmd := exec.CommandContext(ctx, command)
+	cmd := exec.CommandContext(ctx, command, args...)
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin

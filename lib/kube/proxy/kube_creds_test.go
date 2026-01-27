@@ -39,9 +39,10 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/azure/azuretest"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/cloud/gcp/gcptest"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/fixtures"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
@@ -186,8 +187,10 @@ func Test_DynamicKubeCreds(t *testing.T) {
 			},
 		},
 	}
+
 	// Mock clients.
-	cloudclients := &cloud.TestCloudClients{
+
+	gcpClients := &gcptest.Clients{
 		GCPGKE: &mocks.GKEMock{
 			Notify: notify,
 			Clock:  fakeClock,
@@ -208,6 +211,9 @@ func Test_DynamicKubeCreds(t *testing.T) {
 				},
 			},
 		},
+	}
+
+	azureClients := &azuretest.Clients{
 		AzureAKSClientPerSub: map[string]azure.AKSClient{
 			"12345": &mocks.AKSMock{
 				Notify: notify,
@@ -339,7 +345,7 @@ func Test_DynamicKubeCreds(t *testing.T) {
 			name: "gcp gke cluster",
 			args: args{
 				cluster:             gkeKube,
-				client:              gcpRestConfigClient(cloudclients),
+				client:              gcpRestConfigClient(gcpClients),
 				validateBearerToken: func(_ string) error { return nil },
 			},
 			wantAddr: "api.gke.google.com:443",
@@ -348,7 +354,7 @@ func Test_DynamicKubeCreds(t *testing.T) {
 			name: "azure aks cluster",
 			args: args{
 				cluster:             aksKube,
-				client:              azureRestConfigClient(cloudclients),
+				client:              azureRestConfigClient(azureClients),
 				validateBearerToken: func(_ string) error { return nil },
 			},
 			wantAddr: "api.aks.microsoft.com:443",

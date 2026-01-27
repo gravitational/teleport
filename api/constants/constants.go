@@ -135,6 +135,8 @@ const (
 	// AWSCNConsoleURL is the URL of AWS management console for AWS China
 	// Partition.
 	AWSCNConsoleURL = "https://console.amazonaws.cn"
+	// AWSQuickSightURL is the URL for accessing AWS QuickSight
+	AWSQuickSightURL = "https://quicksight.aws.amazon.com"
 
 	// AWSAccountIDLabel is the key of the label containing AWS account ID.
 	AWSAccountIDLabel = "aws_account_id"
@@ -423,6 +425,9 @@ const (
 
 	// TraitJWT is the name of the trait containing JWT header for app access.
 	TraitJWT = "jwt"
+
+	// TraitIDToken is the name of the trait containing ID token header for app access.
+	TraitIDToken = "id_token"
 
 	// TraitHostUserUID is the name of the variable used to specify
 	// the UID to create host user account with.

@@ -10,11 +10,13 @@ tags:
 
 {/* lint disable page-structure remark-lint */}
 
-Teleport protects and controls access to HTTP and TCP applications. Machine ID
-can be used to grant machines secure, short-lived access to these applications.
+Teleport protects and controls access to HTTP and TCP applications. Machine &
+Workload Identity can be used to grant machines secure, short-lived access to
+these applications.
 
-In this guide, you will configure `tbot` to produce credentials that can be
-used to access an application enrolled in your Teleport cluster.
+In this guide, you will configure Machine & Workload Identity's agent, `tbot`,
+to produce credentials that can be used to access an application enrolled in
+your Teleport cluster.
 
 ## Prerequisites
 
@@ -145,7 +147,7 @@ one-shot mode, it must be executed before you attempt to use the credentials.
 </TabItem>
 </Tabs>
 
-## Step 3/3. Connect to your web application with the Machine ID identity
+## Step 3/3. Connect to your web application
 
 <Tabs>
 <TabItem label="application-tunnel service">

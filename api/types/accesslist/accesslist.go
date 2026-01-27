@@ -190,8 +190,7 @@ const (
 	// Static Access Lists are supposed to be managed with the IaC tools like Terraform. Audit
 	// reviews are not supported for them and the ownership is optional.
 	Static Type = "static"
-	// SCIM Access Lists are created with the SCIM integration. Audit reviews are not supported
-	// for them and the ownership is optional.
+	// SCIM Access Lists are created with the SCIM integration. Ownership is optional.
 	SCIM Type = "scim"
 )
 
@@ -201,7 +200,7 @@ var AllTypes = []Type{DeprecatedDynamic, Default, Static, SCIM}
 // IsReviewable returns true if the AccessList type supports the audit reviews in the web UI.
 func (t Type) IsReviewable() bool {
 	switch t {
-	case DeprecatedDynamic, Default:
+	case DeprecatedDynamic, Default, SCIM:
 		return true
 	default:
 		return false
@@ -290,6 +289,17 @@ type Requires struct {
 // IsEmpty returns true when no roles or traits are set
 func (r *Requires) IsEmpty() bool {
 	return len(r.Roles) == 0 && len(r.Traits) == 0
+}
+
+// Clone returns a deep copy of the [Requires]
+func (r *Requires) Clone() Requires {
+	if r == nil {
+		return Requires{}
+	}
+	return Requires{
+		Roles:  slices.Clone(r.Roles),
+		Traits: r.Traits.Clone(),
+	}
 }
 
 // Grants describes what access is granted by membership to the access list.

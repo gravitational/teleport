@@ -558,6 +558,11 @@ func (m *mockIdPIAMConfigClient) TagRole(ctx context.Context, params *iam.TagRol
 
 func TestNewIdPIAMConfigureClient(t *testing.T) {
 	t.Run("no aws_region env var, returns an error", func(t *testing.T) {
+		// Prevent the AWS SDK from loading user configuration files which may set the region.
+		t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/dev/null/does-not-exist")
+		t.Setenv("AWS_CONFIG_FILE", "/dev/null/does-not-exist")
+		t.Setenv("AWS_REGION", "")
+		t.Setenv("AWS_DEFAULT_REGION", "")
 		_, err := NewIdPIAMConfigureClient(context.Background())
 		require.ErrorContains(t, err, "please set the AWS_REGION environment variable")
 	})

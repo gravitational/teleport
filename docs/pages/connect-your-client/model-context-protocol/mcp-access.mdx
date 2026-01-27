@@ -1,5 +1,7 @@
 ---
-title: MCP Access
+title: Access MCP Servers with Teleport
+sidebar_label: MCP Servers
+sidebar_position: 1
 description: How to configure MCP clients to use MCP servers served by Teleport.
 tags:
  - mcp
@@ -11,7 +13,9 @@ tags:
 This guide explains how to configure MCP clients to access MCP servers served by
 Teleport.
 
-### Prerequisites
+{/* lint ignore page-structure remark-lint */}
+
+## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v18.1.0 or higher)" clients="\`tsh\` client"!)
 
@@ -21,10 +25,10 @@ Teleport.
   <summary>Configure MCP Access</summary>
 
   - [Quick-start with demo MCP server](../../enroll-resources/mcp-access/getting-started.mdx).
-  - [MCP Access with Stdio MCP Server](../../enroll-resources/mcp-access/stdio.mdx)
+  - [MCP Access with Stdio MCP Server](../../enroll-resources/mcp-access/enrolling-mcp-servers/stdio.mdx)
   </details>
   
-### Step 1/2. Installation
+## Step 1/2. Configure MCP clients
 
 First, sign in into your Teleport cluster using `tsh login`, assigning 
 <Var name="teleport.example.com" /> to the web address of the Teleport Proxy
@@ -141,7 +145,7 @@ Here is a sample JSON configuration for launching Teleport MCP servers:
 </TabItem>
 </Tabs>
 
-### Step 2/2. Usage
+## Step 2/2. Use Teleport-protected MCP servers
 
 After configuring your MCP client, the MCP tools and resources should be
 available.
@@ -151,9 +155,9 @@ You can now use the MCP servers as usual. Here is an example of using the
 
 ![MCP everything usage example](../../../img/connect-your-client/model-context-protocol/usage-example-everything.png)
 
-### Troubleshooting
+## Troubleshooting
 
-#### Server is running but it has an empty list of tools
+### Server is running but it has an empty list of tools
 
 Besides accessing the MCP servers, you also need permissions for the MCP tools
 they provide. You can see which tools are available for you by running
@@ -162,7 +166,7 @@ they provide. You can see which tools are available for you by running
 If you're missing tool permissions, reach out to your Teleport administrator to
 have them properly configured.
 
-#### Expired `tsh` session
+### Expired `tsh` session
 
 There must be a valid `tsh` session during the MCP server startup, or it won't
 start.
@@ -189,3 +193,7 @@ at least this version. You can check your `tsh` version by running
 
 Make sure your Teleport cluster has MCP access resources available and the
 correct permissions to reach them. [See our guides for enrollment instructions.](../../enroll-resources/mcp-access/mcp-access.mdx)
+
+### `tsh` path errors in your MCP clients
+
+(!docs/pages/includes/mcp-access/troubleshoot-tsh-binary-enoent.mdx!)

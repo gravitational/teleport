@@ -38,8 +38,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 )
 
@@ -65,7 +63,7 @@ type Terminal interface {
 
 	// WaitForChild blocks until the child process has completed any required
 	// setup operations before proceeding with execution.
-	WaitForChild() error
+	WaitForChild(ctx context.Context) error
 
 	// Continue will resume execution of the process after it completes its
 	// pre-processing routine (placed in a cgroup).
@@ -120,7 +118,7 @@ func NewTerminal(ctx *ServerContext) (Terminal, error) {
 
 	// If this is not a Teleport node, find out what mode the cluster is in and
 	// return the correct terminal.
-	if types.IsOpenSSHNodeSubKind(ctx.ServerSubKind) || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	if ctx.srv.Component() == teleport.ComponentForwardingNode {
 		return newRemoteTerminal(ctx)
 	}
 	return newLocalTerminal(ctx)
@@ -259,12 +257,8 @@ func (t *terminal) Wait() (*ExecResult, error) {
 	}, nil
 }
 
-func (t *terminal) WaitForChild() error {
-	err := waitForSignal(t.serverContext.readyr, 20*time.Second)
-	closeErr := t.serverContext.readyr.Close()
-	// Set to nil so the close in the context doesn't attempt to re-close.
-	t.serverContext.readyr = nil
-	return trace.NewAggregate(err, closeErr)
+func (t *terminal) WaitForChild(ctx context.Context) error {
+	return t.serverContext.WaitForChild(ctx)
 }
 
 // Continue will resume execution of the process after it completes its
@@ -369,11 +363,11 @@ func (t *terminal) closeTTY() error {
 func (t *terminal) closePTY() {
 	defer t.log.DebugContext(t.serverContext.CancelContext(), "Closed PTY")
 
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
 	// wait until all copying is over (all participants have left)
 	t.wg.Wait()
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
 
 	if t.pty == nil {
 		return
@@ -619,7 +613,7 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 	}, nil
 }
 
-func (t *remoteTerminal) WaitForChild() error {
+func (t *remoteTerminal) WaitForChild(context.Context) error {
 	return nil
 }
 

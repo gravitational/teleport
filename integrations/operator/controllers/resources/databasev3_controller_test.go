@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
@@ -118,15 +119,15 @@ func (g *databaseV3TestingPrimitives) CompareTeleportAndKubernetesResource(tReso
 
 func TestTeleportDatabaseV3Creation(t *testing.T) {
 	test := &databaseV3TestingPrimitives{}
-	testlib.ResourceCreationTest[types.Database, *resourcesv1.TeleportDatabaseV3](t, test)
+	testlib.ResourceCreationSynchronousTest[types.Database, *resourcesv1.TeleportDatabaseV3](t, resources.NewDatabaseV3Reconciler, test)
 }
 
 func TestTeleportDatabaseV3DeletionDrift(t *testing.T) {
 	test := &databaseV3TestingPrimitives{}
-	testlib.ResourceDeletionDriftTest[types.Database, *resourcesv1.TeleportDatabaseV3](t, test)
+	testlib.ResourceDeletionDriftSynchronousTest[types.Database, *resourcesv1.TeleportDatabaseV3](t, resources.NewDatabaseV3Reconciler, test)
 }
 
 func TestTeleportDatabaseV3Update(t *testing.T) {
 	test := &databaseV3TestingPrimitives{}
-	testlib.ResourceUpdateTest[types.Database, *resourcesv1.TeleportDatabaseV3](t, test)
+	testlib.ResourceUpdateTestSynchronous[types.Database, *resourcesv1.TeleportDatabaseV3](t, resources.NewDatabaseV3Reconciler, test)
 }

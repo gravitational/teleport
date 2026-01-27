@@ -12,11 +12,16 @@ argocd:
   secretNamespace: my-namespace
   secretLabels:
     baz: qux
+    cluster-region: |-
+      {{index .Labels "region"}}
   secretAnnotations:
     chunky: bacon
+    cluster-region: |-
+      {{index .Labels "region"}}
   project: my-argo-project
   namespaces:
     - dev
     - prod
   clusterResources: true
-  clusterNameTemplate: "{{.KubeName}}"
+  clusterNameTemplate: |-
+    {{.KubeName}}-{{index .Labels "region"}}

@@ -26,7 +26,7 @@ import Dialog, {
 import { userEventService } from 'teleport/services/userEvent';
 import { CaptureEvent } from 'teleport/services/userEvent/types';
 
-import resourcesPng from './resources.png';
+import resourcesSvg from './resources.svg';
 
 export function OnboardDiscover({
   onClose,
@@ -61,7 +61,7 @@ export function OnboardDiscover({
       open={true}
     >
       <DialogHeader mx="auto">
-        <Image src={resourcesPng} width="350px" height="218.97px" />
+        <Image src={resourcesSvg} width="350px" height="220px" />
       </DialogHeader>
       <DialogContent textAlign="center">
         <H2>Start by adding your first resource</H2>

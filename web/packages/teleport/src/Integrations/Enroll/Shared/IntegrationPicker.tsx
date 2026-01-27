@@ -41,7 +41,7 @@ function titleOrName<T extends BaseIntegration>(i: T) {
 export function displayName<T extends BaseIntegration>(i: T) {
   const name = titleOrName(i);
   if ('type' in i && i.type === 'bot') {
-    return `Machine ID: ${name}`;
+    return `MWI: ${name}`;
   }
   return name;
 }

@@ -48,7 +48,11 @@ export function createPtyService(
             forwardAgent: configService.get('ssh.forwardAgent').value,
           },
           customShellPath: configService.get('terminal.customShell').value,
+          tshHome: configService.get('tshHome').value,
           windowsPty,
+          setTeleportAuthServerEnvVar: configService.get(
+            'terminal.setTeleportAuthServerEnvVar'
+          ).value,
         },
         cmd: command,
       });

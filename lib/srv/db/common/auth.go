@@ -51,11 +51,12 @@ import (
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
-	libazure "github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/cloud/imds"
+	azureimds "github.com/gravitational/teleport/lib/cloud/imds/azure"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
@@ -171,17 +172,23 @@ type AuthConfig struct {
 	AuthClient AuthClient
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint AccessPoint
-	// Clients provides interface for obtaining cloud provider clients.
-	Clients cloud.Clients
+
 	// Clock is the clock implementation.
 	Clock clockwork.Clock
 	// Logger is used for logging.
 	Logger *slog.Logger
+
+	// AzureClients provides Azure SDK clients.
+	AzureClients azure.Clients
+	// GCPClients provides GCP SDK clients.
+	GCPClients gcp.Clients
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
-
 	// awsClients is an SDK client provider.
 	awsClients awsClientProvider
+
+	// azureIMDSClient is an optional IMDS client, overridden in tests.
+	azureIMDSClient imds.Client
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
@@ -192,8 +199,11 @@ func (c *AuthConfig) CheckAndSetDefaults() error {
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing AccessPoint")
 	}
-	if c.Clients == nil {
-		return trace.BadParameter("missing Clients")
+	if c.AzureClients == nil {
+		return trace.BadParameter("missing AzureClients")
+	}
+	if c.GCPClients == nil {
+		return trace.BadParameter("missing GCPClients")
 	}
 	if c.AWSConfigProvider == nil {
 		return trace.BadParameter("missing AWSConfigProvider")
@@ -207,6 +217,9 @@ func (c *AuthConfig) CheckAndSetDefaults() error {
 
 	if c.awsClients == nil {
 		c.awsClients = defaultAWSClients{}
+	}
+	if c.azureIMDSClient == nil {
+		c.azureIMDSClient = azureimds.NewInstanceMetadataClient()
 	}
 	return nil
 }
@@ -518,7 +531,7 @@ func (a *dbAuth) GetSpannerTokenSource(ctx context.Context, databaseUser string)
 }
 
 func (a *dbAuth) getCloudTokenSource(ctx context.Context, databaseUser string, scopes []string) (*cloudTokenSource, error) {
-	gcpIAM, err := a.cfg.Clients.GetGCPIAMClient(ctx)
+	gcpIAM, err := a.cfg.GCPClients.GetIAMClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -586,7 +599,7 @@ or "iam.serviceAccounts.getAccessToken" IAM permission.
 // It is used to generate a one-time password when connecting to GCP MySQL
 // databases which don't support IAM authentication.
 func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, database types.Database, databaseUser string) (string, error) {
-	gcpCloudSQL, err := a.cfg.Clients.GetGCPSQLAdminClient(ctx)
+	gcpCloudSQL, err := a.cfg.GCPClients.GetSQLAdminClient(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -647,7 +660,7 @@ SQL Admin" GCP IAM role, or "cloudsql.users.update" IAM permission.
 // GetAzureAccessToken generates Azure database access token.
 func (a *dbAuth) GetAzureAccessToken(ctx context.Context) (string, error) {
 	a.cfg.Logger.DebugContext(ctx, "Generating Azure access token")
-	cred, err := a.cfg.Clients.GetAzureCredential()
+	cred, err := a.cfg.AzureClients.GetCredential(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -728,15 +741,15 @@ func (a *dbAuth) GetAzureCacheForRedisToken(ctx context.Context, database types.
 		return "", trace.Wrap(err)
 	}
 
-	var client libazure.CacheForRedisClient
+	var client azure.CacheForRedisClient
 	switch resourceID.ResourceType.String() {
 	case "Microsoft.Cache/Redis":
-		client, err = a.cfg.Clients.GetAzureRedisClient(resourceID.SubscriptionID)
+		client, err = a.cfg.AzureClients.GetRedisClient(ctx, resourceID.SubscriptionID)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
 	case "Microsoft.Cache/redisEnterprise", "Microsoft.Cache/redisEnterprise/databases":
-		client, err = a.cfg.Clients.GetAzureRedisEnterpriseClient(resourceID.SubscriptionID)
+		client, err = a.cfg.AzureClients.GetRedisEnterpriseClient(ctx, resourceID.SubscriptionID)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -956,8 +969,14 @@ func shouldUseSystemCertPool(database types.Database) bool {
 	case types.DatabaseTypeOpenSearch:
 		// OpenSearch is commonly hosted on AWS and uses Amazon Root CAs.
 		return true
+
 	case types.DatabaseTypeSpanner:
 		// Spanner is hosted on GCP.
+		return true
+
+	case types.DatabaseTypeMongoAtlas:
+		// Atlas may use either Let's Encrypt or Google GTS Root R3/R4:
+		// https://www.mongodb.com/docs/atlas/reference/faq/security/
 		return true
 	}
 	return false
@@ -1133,17 +1152,8 @@ func (a *dbAuth) GetAzureIdentityResourceID(ctx context.Context, identityName st
 
 // getCurrentAzureVM fetches current Azure Virtual Machine struct. If Teleport
 // is not running on Azure, returns an error.
-func (a *dbAuth) getCurrentAzureVM(ctx context.Context) (*libazure.VirtualMachine, error) {
-	metadataClient, err := a.cfg.Clients.GetInstanceMetadataClient(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if metadataClient.GetType() != types.InstanceMetadataTypeAzure {
-		return nil, trace.BadParameter("fetching Azure identity resource ID is only supported on Azure")
-	}
-
-	instanceID, err := metadataClient.GetID(ctx)
+func (a *dbAuth) getCurrentAzureVM(ctx context.Context) (*azure.VirtualMachine, error) {
+	instanceID, err := a.cfg.azureIMDSClient.GetID(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1153,7 +1163,7 @@ func (a *dbAuth) getCurrentAzureVM(ctx context.Context) (*libazure.VirtualMachin
 		return nil, trace.Wrap(err)
 	}
 
-	vmClient, err := a.cfg.Clients.GetAzureVirtualMachinesClient(parsedInstanceID.SubscriptionID)
+	vmClient, err := a.cfg.AzureClients.GetVirtualMachinesClient(ctx, parsedInstanceID.SubscriptionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1231,7 +1241,7 @@ func (a *dbAuth) GetAWSIAMCreds(ctx context.Context, database types.Database, da
 
 // Close releases all resources used by authenticator.
 func (a *dbAuth) Close() error {
-	return a.cfg.Clients.Close()
+	return a.cfg.GCPClients.Close()
 }
 
 // getVerifyCloudSQLCertificate returns a function that performs verification

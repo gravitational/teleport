@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/ui"
 )
 
@@ -39,6 +40,47 @@ func newApp(t *testing.T, name, publicAddr, description string, labels map[strin
 	})
 	require.NoError(t, err)
 	return app
+}
+
+func TestMakeApp_SupportedFeatureIDs(t *testing.T) {
+	t.Parallel()
+
+	app, err := types.NewAppV3(
+		types.Metadata{Name: "test-app"},
+		types.AppSpecV3{URI: "localhost:8080"},
+	)
+	require.NoError(t, err)
+
+	baseCfg := MakeAppsConfig{
+		LocalClusterName:  "root",
+		LocalProxyDNSName: "proxy.example.com",
+		AppClusterName:    "root",
+		UserGroupLookup:   map[string]types.UserGroup{},
+	}
+
+	t.Run("nil SupportedFeatures yields empty SupportedFeatureIDs", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := baseCfg
+		cfg.SupportedFeatures = nil
+
+		out := MakeApp(app, cfg)
+		require.Empty(t, out.SupportedFeatureIDs)
+	})
+
+	t.Run("SupportedFeatures is converted to SupportedFeatureIDs", func(t *testing.T) {
+		t.Parallel()
+
+		f1 := componentfeatures.FeatureResourceConstraintsV1
+		f2 := componentfeatures.FeatureID(9999)
+
+		cfg := baseCfg
+		cfg.SupportedFeatures = componentfeatures.New(f1, f2)
+
+		out := MakeApp(app, cfg)
+
+		require.ElementsMatch(t, []int{int(f1), int(f2)}, out.SupportedFeatureIDs)
+	})
 }
 
 func TestMakeAppTypeFromSAMLApp(t *testing.T) {

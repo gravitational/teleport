@@ -103,6 +103,9 @@ func NewFetcher(cfg Config, ctx context.Context) (*Fetcher, error) {
 			return nil, trace.Wrap(err)
 		}
 		azureIntegration := integration.GetAzureOIDCIntegrationSpec()
+		if azureIntegration == nil {
+			return nil, trace.BadParameter("expected %q to be an %q integration, was %q instead", integration.GetName(), types.IntegrationSubKindAzureOIDC, integration.GetSubKind())
+		}
 		cred, err = azidentity.NewClientAssertionCredential(azureIntegration.TenantID, azureIntegration.ClientID, func(ctx context.Context) (string, error) {
 			return cfg.OIDCCredentials.GenerateAzureOIDCToken(ctx, cfg.Integration)
 		}, nil)

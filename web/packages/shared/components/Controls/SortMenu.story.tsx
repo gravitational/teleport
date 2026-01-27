@@ -81,16 +81,16 @@ export default {
     })),
     onChange: action('onChange'),
   },
-  render: (args => {
-    const [{ current }, updateArgs] =
-      useArgs<Meta<typeof SortMenu<any>>['args']>();
-    const onChange = (value: typeof current) => {
+  render: (({ fields, current, onChange }) => {
+    const [, updateArgs] =
+      useArgs<NonNullable<Meta<typeof SortMenu<any>>['args']>>();
+    const handleChange: typeof onChange = value => {
       updateArgs({ current: value });
-      args.onChange?.(value);
+      onChange?.(value);
     };
     return (
       <Flex alignItems="center" minHeight="100px">
-        <SortMenu current={current} fields={args.fields} onChange={onChange} />
+        <SortMenu current={current} fields={fields} onChange={handleChange} />
       </Flex>
     );
   }) satisfies StoryFn<typeof SortMenu>,

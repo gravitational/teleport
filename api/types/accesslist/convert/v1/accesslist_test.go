@@ -395,7 +395,7 @@ func TestConvAccessList(t *testing.T) {
 		{
 			name: "audit with only Recurrence.DayOfMonth set",
 			input: newAccessList(func(al *accesslistv1.AccessList) {
-				al.Spec.Type = string(accesslist.SCIM)
+				al.Spec.Type = string(accesslist.Static)
 				al.Spec.Audit = &accesslistv1.AccessListAudit{
 					Recurrence: &accesslistv1.Recurrence{
 						DayOfMonth: accesslistv1.ReviewDayOfMonth_REVIEW_DAY_OF_MONTH_LAST,
@@ -411,7 +411,7 @@ func TestConvAccessList(t *testing.T) {
 		{
 			name: "audit with only Recurrence.Frequency and Notifications.Start set",
 			input: newAccessList(func(al *accesslistv1.AccessList) {
-				al.Spec.Type = string(accesslist.SCIM)
+				al.Spec.Type = string(accesslist.Static)
 				al.Spec.Audit = &accesslistv1.AccessListAudit{
 					Recurrence: &accesslistv1.Recurrence{
 						Frequency: accesslistv1.ReviewFrequency_REVIEW_FREQUENCY_ONE_YEAR,
@@ -431,13 +431,13 @@ func TestConvAccessList(t *testing.T) {
 		{
 			name: "static-type",
 			input: newAccessList(func(al *accesslistv1.AccessList) {
-				al.Spec.Type = string(accesslist.SCIM)
+				al.Spec.Type = string(accesslist.Static)
 			}),
 		},
 		{
-			name: "scim-type and zero audit",
+			name: "static-type and zero audit",
 			input: newAccessList(func(al *accesslistv1.AccessList) {
-				al.Spec.Type = string(accesslist.SCIM)
+				al.Spec.Type = string(accesslist.Static)
 				al.Spec.Audit = &accesslistv1.AccessListAudit{
 					NextAuditDate: &timestamppb.Timestamp{},
 					Recurrence: &accesslistv1.Recurrence{

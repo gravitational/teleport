@@ -31,7 +31,13 @@ import (
 // ProxyGetter is a service that gets proxies.
 type ProxyGetter interface {
 	// GetProxies returns a list of registered proxies.
+	//
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
+	// ListProxyServers returns a paginated list of registered Proxy servers.
+	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 }
 
 // NodesGetter is a service that gets nodes.
@@ -83,7 +89,14 @@ type Presence interface {
 	UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error)
 
 	// GetAuthServers returns a list of registered servers
+	//
+	// Deprecated: Prefer paginated variant [ListAuthServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetAuthServers() ([]types.Server, error)
+
+	// ListAuthServers returns a paginated list of registered auth servers.
+	ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 
 	// UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
@@ -198,4 +211,9 @@ type PresenceInternal interface {
 
 	// UpsertRelayServer creates or updates a relay server heartbeat, unconditionally.
 	UpsertRelayServer(ctx context.Context, relayServer *presencev1.RelayServer) (*presencev1.RelayServer, error)
+
+	// UnconditionalUpdateApplicationServer writes an app_server if one with the
+	// same host ID and name exists in storage, no matter its contents (i.e., it
+	// doesn't check the revision of the app_server in storage).
+	UnconditionalUpdateApplicationServer(ctx context.Context, server types.AppServer) (types.AppServer, error)
 }

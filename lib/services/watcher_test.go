@@ -23,6 +23,7 @@ import (
 	"crypto/x509/pkix"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"sync"
 	"testing"
@@ -68,6 +69,10 @@ type nopProxyGetter struct{}
 
 func (n nopProxyGetter) GetProxies() ([]types.Server, error) {
 	return nil, nil
+}
+
+func (n nopProxyGetter) ListProxyServers(_ context.Context, _ int, _ string) ([]types.Server, string, error) {
+	return nil, "", nil
 }
 
 func TestResourceWatcher_Backoff(t *testing.T) {
@@ -779,6 +784,80 @@ func TestCertAuthorityWatcher(t *testing.T) {
 			},
 			Clock: clock,
 		},
+		Types:           []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA, types.OpenSSHCA},
+		AuthorityGetter: caService,
+		ResourceC:       make(chan []types.CertAuthority, 8),
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	waitForEvent := func(t *testing.T, caTypes []types.CertAuthType) {
+		select {
+		case cas := <-w.ResourcesC:
+			for _, caType := range caTypes {
+				require.True(t, slices.ContainsFunc(cas, func(ca types.CertAuthority) bool {
+					return ca.GetType() == caType
+				}))
+			}
+			require.Empty(t, w.ResourcesC)
+			require.Len(t, cas, len(caTypes))
+		case <-time.After(time.Second * 2):
+			t.Fatal("timed out waiting for event")
+		}
+	}
+
+	select {
+	case changeset := <-w.ResourcesC:
+		require.Empty(t, changeset)
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the first event.")
+	}
+
+	// Create a CA and ensure we receive the event.
+	ca := newCertAuthority(t, "test", types.HostCA)
+	require.NoError(t, caService.UpsertCertAuthority(ctx, ca))
+	waitForEvent(t, []types.CertAuthType{types.HostCA})
+
+	ca = newCertAuthority(t, "test", types.DatabaseCA)
+	require.NoError(t, caService.UpsertCertAuthority(ctx, ca))
+	waitForEvent(t, []types.CertAuthType{types.HostCA, types.DatabaseCA})
+
+	require.NoError(t, caService.DeleteCertAuthority(ctx, ca.GetID()))
+	waitForEvent(t, []types.CertAuthType{types.HostCA})
+}
+
+func TestDeprecatedCertAuthorityWatcher(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	bk, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	type client struct {
+		services.Trust
+		types.Events
+	}
+
+	caService := local.NewCAService(bk)
+	//nolint:staticcheck // SA1019 This test should be deleted after all uses of
+	// [services.DeprecatedNewCertAuthorityWatcher] are removed.
+	w, err := services.DeprecatedNewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
+			Client: &client{
+				Trust:  caService,
+				Events: local.NewEventsService(bk),
+			},
+			Clock: clock,
+		},
 		Types: []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA, types.OpenSSHCA},
 	})
 	require.NoError(t, err)
@@ -856,8 +935,7 @@ func TestCertAuthorityWatcher(t *testing.T) {
 }
 
 func newCertAuthority(t *testing.T, name string, caType types.CertAuthType) types.CertAuthority {
-	ta := testauthority.New()
-	priv, pub, err := ta.GenerateKeyPair()
+	priv, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	// CA for cluster1 with 1 key pair.

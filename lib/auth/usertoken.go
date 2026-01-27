@@ -78,7 +78,7 @@ func (a *Server) CreateResetPasswordToken(ctx context.Context, req authclient.Cr
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := a.newUserToken(req)
+	token, err := a.newUserToken(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -126,19 +126,23 @@ func (a *Server) resetMFA(ctx context.Context, user string) error {
 
 // proxyDomainGetter is a reduced subset of the Auth API for formatAccountName.
 type proxyDomainGetter interface {
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
+	ListProxyServers(context.Context, int, string) ([]types.Server, string, error)
 	GetDomainName() (string, error)
 }
 
 // formatAccountName builds the account name to display in OTP applications.
 // Format for accountName is user@address. User is passed in, this function
 // tries to find the best available address.
-func formatAccountName(s proxyDomainGetter, username string, authHostname string) (string, error) {
+func formatAccountName(ctx context.Context, s proxyDomainGetter, username string, authHostname string) (string, error) {
 	var err error
 	var proxyHost string
 
 	// Get a list of proxies.
-	proxies, err := s.GetProxies()
+	proxies, err := stream.Collect(clientutils.Resources(ctx, s.ListProxyServers))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -193,10 +197,9 @@ func (a *Server) createTOTPUserTokenSecrets(ctx context.Context, token types.Use
 	return secrets, nil
 }
 
-func (a *Server) newTOTPKey(user string) (*otp.Key, *totp.GenerateOpts, error) {
-	ctx := context.TODO()
+func (a *Server) newTOTPKey(ctx context.Context, user string) (*otp.Key, *totp.GenerateOpts, error) {
 	// Fetch account name to display in OTP apps.
-	accountName, err := formatAccountName(a, user, a.AuthServiceName)
+	accountName, err := formatAccountName(ctx, a, user, a.AuthServiceName)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -219,7 +222,7 @@ func (a *Server) newTOTPKey(user string) (*otp.Key, *totp.GenerateOpts, error) {
 	return key, &opts, nil
 }
 
-func (a *Server) newUserToken(req authclient.CreateUserTokenRequest) (types.UserToken, error) {
+func (a *Server) newUserToken(ctx context.Context, req authclient.CreateUserTokenRequest) (types.UserToken, error) {
 	var err error
 	var proxyHost string
 
@@ -235,7 +238,7 @@ func (a *Server) newUserToken(req authclient.CreateUserTokenRequest) (types.User
 
 	// Get the list of proxies and try and guess the address of the proxy. If
 	// failed to guess public address, use "<proxyhost>:3080" as a fallback.
-	proxies, err := a.GetProxies()
+	proxies, err := stream.Collect(clientutils.Resources(ctx, a.ListProxyServers))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -343,7 +346,7 @@ func (a *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 		return nil, trace.Wrap(err)
 	}
 
-	newToken, err := a.newUserToken(req)
+	newToken, err := a.newUserToken(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -424,7 +427,7 @@ func (a *Server) createPrivilegeToken(ctx context.Context, username, tokenKind s
 		return nil, trace.Wrap(err)
 	}
 
-	newToken, err := a.newUserToken(req)
+	newToken, err := a.newUserToken(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -14,9 +14,9 @@ Argo CD is a declarative, GitOps continuous delivery tool for Kubernetes. It
 runs in Kubernetes and can deploy applications to the same cluster or to other
 "external" clusters.
 
-In this guide, you will configure the Machine ID agent, `tbot`, to manage Argo
-CD's cluster credentials, enabling it to securely deploy applications using
-Teleport.
+In this guide, you will configure the Machine & Workload Identity agent, `tbot`,
+to manage Argo CD's cluster credentials, enabling it to securely deploy
+applications using Teleport.
 
 ## How it works
 
@@ -51,7 +51,8 @@ can then use to access Teleport-protected Kubernetes clusters.
 ## Step 1/4. Configure Teleport and Kubernetes RBAC
 
 First, we need to configure the RBAC for both Teleport and Kubernetes in order
-to grant the Machine ID agent the correct level of access.
+to grant the Machine & Workload Identity agent, `tbot`, the correct level of
+access.
 
 When forwarding requests to the Kubernetes API on behalf of a bot, the Teleport
 Proxy attaches the groups configured (using `kubernetes_groups`) in the bot's

@@ -19,6 +19,7 @@
 import { Alert, ButtonPrimary, ButtonText, H1, Text } from 'design';
 import Flex from 'design/Flex';
 import { DeviceConfirmationToken } from 'gen-proto-ts/teleport/devicetrust/v1/device_confirmation_token_pb';
+import { DeviceWebToken } from 'gen-proto-ts/teleport/devicetrust/v1/device_web_token_pb';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
 import { processRedirectUri } from 'shared/redirects';
@@ -36,19 +37,22 @@ export function DocumentAuthorizeWebSession(props: {
   visible: boolean;
 }) {
   const ctx = useAppContext();
+  const { tshd } = ctx;
   const { documentsService } = useWorkspaceContext();
   const rootCluster = ctx.clustersService.findCluster(props.doc.rootClusterUri);
-  const [authorizeAttempt, authorize] = useAsync(async () => {
-    const {
-      response: { confirmationToken },
-    } = await retryWithRelogin(ctx, props.doc.rootClusterUri, () =>
-      ctx.clustersService.authenticateWebDevice(
-        props.doc.rootClusterUri,
-        props.doc.webSessionRequest
-      )
-    );
-    return confirmationToken;
-  });
+  const [authorizeAttempt, authorize] = useAsync(() =>
+    retryWithRelogin(ctx, props.doc.rootClusterUri, () =>
+      tshd
+        .authenticateWebDevice({
+          rootClusterUri: props.doc.rootClusterUri,
+          deviceWebToken: DeviceWebToken.create({
+            id: props.doc.webSessionRequest.id,
+            token: props.doc.webSessionRequest.token,
+          }),
+        })
+        .then(({ response: { confirmationToken } }) => confirmationToken)
+    )
+  );
   const clusterName = routing.parseClusterName(props.doc.rootClusterUri);
   const isDeviceTrusted = rootCluster.loggedInUser?.isDeviceTrusted;
   const isRequestedUserLoggedIn =
@@ -189,13 +193,17 @@ function buildAuthorizedSessionUrl(
   webSessionRequest: WebSessionRequest,
   confirmationToken: DeviceConfirmationToken
 ): string {
-  const { redirectUri } = webSessionRequest;
+  const url = `https://${rootCluster.proxyHost}/${confirmPath}`;
 
-  let url = `https://${rootCluster.proxyHost}/${confirmPath}?id=${confirmationToken.id}&token=${confirmationToken.token}`;
-  if (redirectUri) {
-    url = `${url}&redirect_uri=${redirectUri}`;
+  const qp = new URLSearchParams();
+  qp.set('id', confirmationToken.id);
+  qp.set('token', confirmationToken.token);
+
+  if (webSessionRequest.redirectUri) {
+    qp.set('redirect_uri', webSessionRequest.redirectUri);
   }
-  return url;
+
+  return url + '?' + qp.toString();
 }
 
 function buildUnauthorizedSessionUrl(

@@ -1,0 +1,28 @@
+{/*generated file. DO NOT EDIT.*/}
+{/*To generate, run make access-monitoring-reference*/}
+{/*vale messaging.capitalization = NO*/}
+{/*vale messaging.consistent-terms = NO*/}
+
+{{ range . -}}
+## {{ .Name }}
+
+`{{ .Name }}` {{ .Description }}.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select {{ ColNameList .Columns }} from {{ .SQLViewName }} limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+{{- range .Columns }}
+|{{ .NameSQL }}|{{ .Type }}|{{ PrepareDescription . }}|
+{{- end }}
+
+{{ end }}
+{/*vale messaging.capitalization = YES*/}
+{/*vale messaging.consistent-terms = YES*/}

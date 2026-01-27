@@ -32,6 +32,7 @@ import (
 	accesslistclient "github.com/gravitational/teleport/api/client/accesslist"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -93,6 +94,33 @@ type AccessListsInternal interface {
 	// UpdateAccessListAndOverwriteMembers conditionally updates the access list,
 	// overwriting the list's members if successful.
 	UpdateAccessListAndOverwriteMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
+
+	// CleanupAccessListStatus removes invalid Status.OwnerOf and Status.MemberOf references.
+	CleanupAccessListStatus(ctx context.Context, accessListName string) (*accesslist.AccessList, error)
+
+	// EnsureNestedAccessListStatuses goes over all nested owners and nested members of the named
+	// access list and ensures nested lists' statuses owner_of/member_of contain the access list name.
+	EnsureNestedAccessListStatuses(ctx context.Context, accessListName string) error
+
+	// InsertAccessListCollection inserts a complete collection of access lists and their members from a single
+	// upstream source (e.g. EntraID) using a batch operation for improved performance.
+	//
+	// This method is designed for bulk import scenarios where an entire access list collection needs to be
+	// synchronized from an external source. All access lists and members in the collection are
+	// inserted using chunked batch operations, minimizing memory allocation while still reducing
+	// the number of write operations. Due to the batch nature of this operation (access list hierarchy
+	// is known upfront), we can avoid per-access-list locking and global locks to improve performance.
+	//
+	// Important: This method assumes the collection is self-contained. Access lists in the collection
+	// cannot reference access lists outside the collection as members or owners. This is intentional for
+	// collections representing a complete snapshot from a single upstream source.
+	// The function should be used only once during initial import where
+	// we are sure that Teleport doesn't have any pre-existing access lists from the upstream and the
+	// internal relation between upstream access lists and internal access lists doesn't exist yet.
+	//
+	// Operation can fail due to backend shutdown. In that case, if partial state was created,
+	// use UpsertAccessListWithMembers/DeleteAccessListMember to reconcile to the desired state.
+	InsertAccessListCollection(ctx context.Context, collection *accesslists.Collection) error
 }
 
 // MarshalAccessList marshals the access list resource to JSON.

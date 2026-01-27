@@ -506,7 +506,7 @@ export type Props = {
   isRecoveryEnabled?: boolean;
   onRecover?: (isRecoverPassword: boolean) => void;
   clearAttempt?: () => void;
-  onLoginWithSso(provider: AuthProvider): void;
+  onLoginWithSso(provider: AuthProvider, loginHint?: string): void;
   onLoginWithWebauthn(creds?: UserCredentials): void;
   onLogin(username: string, password: string, token: string): void;
   autoFocus?: boolean;

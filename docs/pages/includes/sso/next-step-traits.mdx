@@ -1,0 +1,43 @@
+Now that you have connected Teleport to your identity provider, you can
+customize the way Teleport includes IdP data in Teleport roles.
+
+With **role templates**, you can include user data from your IdP directly in
+Teleport roles. If you use the `external` template variable in the value of a
+role field, Teleport passes that value from your IdP. In this example, all of
+the role options you can use for allowing users to assume certain principals on
+remote systems come from your IdP:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: sso-users
+spec:
+  allow:
+    logins: ['{{external.logins}}']
+    aws_role_arns: ['{{external.aws_role_arns}}']
+    azure_identities: ['{{external.azure_identities}}']
+    db_names: ['{{external.db_names}}']
+    db_roles: ['{{external.db_roles}}']
+    db_users: ['{{external.db_users}}']
+    desktop_groups: ['{{external.desktop_groups}}']
+    gcp_service_accounts: ['{{external.gcp_service_accounts}}']
+    host_groups: ['{{external.host_groups}}']
+    host_sudoers: ['{{external.host_sudoers}}']
+    kubernetes_groups: ['{{external.kubernetes_groups}}']
+    kubernetes_users: ['{{external.kubernetes_users}}']
+    windows_desktop_logins: ['{{external.windows_desktop_logins}}']
+```
+
+For more information on using the `external` template variable, see [Role
+Templates](../../zero-trust-access/rbac-get-started/role-templates.mdx).
+
+For an explanation of the fields listed above, see the [Role
+Reference](../../reference/access-controls/roles.mdx).
+
+If you need to transform your IdP user data before you include it in Teleport
+roles, you can do so using **Login Rules**. Login Rules allow you to include
+external traits within Teleport roles even if your IdP provides user data in a
+different format than the one expected by Teleport. Read more about [Login
+Rules](../../zero-trust-access/sso/login-rules/login-rules.mdx).
+

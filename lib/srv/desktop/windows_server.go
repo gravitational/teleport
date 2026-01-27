@@ -32,6 +32,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
@@ -58,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/desktop/rdp/rdpclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/dns"
@@ -79,10 +81,15 @@ const (
 	windowsDesktopServiceCertTTL = 8 * time.Hour
 
 	// windowsUserCertTTL is the TTL for certificates issued to users connecting
-	// to Windows hosts. These certicates are generated on-demand for each session,
+	// to Windows hosts. These certificates are generated on-demand for each session,
 	// so the TTL is deliberately set to a small value to give enough time to establish
 	// a single session.
 	windowsUserCertTTL = 5 * time.Minute
+
+	// tlsConfigCacheTTL is the TTL for the cached TLS config used for LDAP
+	// queries. It is set to half of the TTL of the certificate it is requesting
+	// for safety.
+	tlsConfigCacheTTL = windowsDesktopServiceCertTTL / 2
 )
 
 // computerAttributes are the attributes we fetch when discovering
@@ -111,7 +118,7 @@ type WindowsService struct {
 
 	ca *winpki.CertificateStoreClient
 
-	// lastDisoveryResults stores the results of the most recent LDAP search
+	// lastDiscoveryResults stores the results of the most recent LDAP search
 	// when desktop discovery is enabled.
 	// no synchronization is necessary because this is only read/written from
 	// the reconciler goroutine.
@@ -135,6 +142,14 @@ type WindowsService struct {
 	// Network Level Authentication (NLA) when attempting to connect
 	// to domain-joined Windows hosts
 	enableNLA bool
+
+	// sidCache caches ActiveDirectory SID lookups
+	sidCache *utils.FnCache
+
+	// ldapTLSConfig is used as a cache for LDAP TLS config
+	ldapTLSConfig          *tls.Config
+	ldapTLSConfigExpiresAt time.Time
+	ldapTLSConfigMu        sync.Mutex
 
 	closeCtx context.Context
 	close    func()
@@ -358,6 +373,24 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	}
 
 	ctx, close := context.WithCancel(context.Background())
+
+	// Only initialize the username-to-SID cache if AD is being
+	// used. We can determine this by checking if LDAP is configured
+	var sidCache *utils.FnCache
+	if cfg.LDAPConfig.Enabled() {
+		var err error
+		sidCache, err = utils.NewFnCache(utils.FnCacheConfig{
+			TTL:         4 * time.Hour,
+			Clock:       cfg.Clock,
+			Context:     ctx,
+			ReloadOnErr: true, // don't cache the error state
+		})
+		if err != nil {
+			close()
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	s := &WindowsService{
 		cfg: cfg,
 		middleware: &authz.Middleware{
@@ -370,6 +403,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		close:       close,
 		auditCache:  newSharedDirectoryAuditCache(),
 		enableNLA:   cfg.NLA,
+		sidCache:    sidCache,
 	}
 
 	s.ca = winpki.NewCertificateStoreClient(winpki.CertificateStoreConfig{
@@ -381,11 +415,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	})
 
 	if s.cfg.LDAPConfig.Enabled() {
-		tc, err := s.tlsConfigForLDAP()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		go s.runCRLUpdateLoop(tc)
+		go s.runCRLUpdateLoop()
 	}
 
 	ok := false
@@ -438,7 +468,7 @@ func (s *WindowsService) newSessionRecorder(recConfig types.SessionRecordingConf
 	})
 }
 
-func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
+func (s *WindowsService) issueNewTLSConfigForLDAP() (*tls.Config, error) {
 	// trim NETBIOS name from username
 	user := s.cfg.Username
 	if i := strings.LastIndex(s.cfg.Username, `\`); i != -1 {
@@ -594,12 +624,12 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	log := s.cfg.Logger
 
-	tdpConn := tdp.NewConn(proxyConn)
+	tdpConn := tdp.NewConn(proxyConn, legacy.Decode)
 	defer tdpConn.Close()
 
 	// Inline function to enforce that we are centralizing TDP Error sending in this function.
 	sendTDPError := func(message string) {
-		if err := tdpConn.SendNotification(message, tdp.SeverityError); err != nil {
+		if err := tdpConn.WriteMessage(legacy.Alert{Message: message, Severity: legacy.SeverityError}); err != nil {
 			log.ErrorContext(context.Background(), "Failed to send TDP error message", "error", err)
 		}
 	}
@@ -947,8 +977,8 @@ func (s *WindowsService) makeTDPSendHandler(
 ) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
-		case byte(tdp.TypeRDPConnectionInitialized), byte(tdp.TypeRDPFastPathPDU), byte(tdp.TypePNG2Frame),
-			byte(tdp.TypePNGFrame), byte(tdp.TypeError), byte(tdp.TypeAlert):
+		case byte(legacy.TypeRDPConnectionInitialized), byte(legacy.TypeRDPFastPathPDU), byte(legacy.TypePNG2Frame),
+			byte(legacy.TypePNGFrame), byte(legacy.TypeError), byte(legacy.TypeAlert):
 			e := &events.DesktopRecording{
 				Metadata: events.Metadata{
 					Type: libevents.DesktopRecordingEvent,
@@ -969,20 +999,20 @@ func (s *WindowsService) makeTDPSendHandler(
 					s.cfg.Logger.WarnContext(ctx, "could not record desktop recording event", "error", err)
 				}
 			}
-		case byte(tdp.TypeClipboardData):
-			if clip, ok := m.(tdp.ClipboardData); ok {
+		case byte(legacy.TypeClipboardData):
+			if clip, ok := m.(legacy.ClipboardData); ok {
 				// the TDP send handler emits a clipboard receive event, because we
 				// received clipboard data from the remote desktop and are sending
 				// it on the TDP connection
 				rxEvent := audit.makeClipboardReceive(int32(len(clip)))
 				s.emit(ctx, rxEvent)
 			}
-		case byte(tdp.TypeSharedDirectoryAcknowledge):
-			if message, ok := m.(tdp.SharedDirectoryAcknowledge); ok {
+		case byte(legacy.TypeSharedDirectoryAcknowledge):
+			if message, ok := m.(legacy.SharedDirectoryAcknowledge); ok {
 				s.emit(ctx, audit.makeSharedDirectoryStart(message))
 			}
-		case byte(tdp.TypeSharedDirectoryReadRequest):
-			if message, ok := m.(tdp.SharedDirectoryReadRequest); ok {
+		case byte(legacy.TypeSharedDirectoryReadRequest):
+			if message, ok := m.(legacy.SharedDirectoryReadRequest); ok {
 				errorEvent := audit.onSharedDirectoryReadRequest(message)
 				if errorEvent != nil {
 					// if we can't audit due to a full cache, abort the connection
@@ -993,8 +1023,8 @@ func (s *WindowsService) makeTDPSendHandler(
 					s.emit(ctx, errorEvent)
 				}
 			}
-		case byte(tdp.TypeSharedDirectoryWriteRequest):
-			if message, ok := m.(tdp.SharedDirectoryWriteRequest); ok {
+		case byte(legacy.TypeSharedDirectoryWriteRequest):
+			if message, ok := m.(legacy.SharedDirectoryWriteRequest); ok {
 				errorEvent := audit.onSharedDirectoryWriteRequest(message)
 				if errorEvent != nil {
 					// if we can't audit due to a full cache, abort the connection
@@ -1018,7 +1048,7 @@ func (s *WindowsService) makeTDPReceiveHandler(
 ) func(m tdp.Message) {
 	return func(m tdp.Message) {
 		switch msg := m.(type) {
-		case tdp.ClientScreenSpec, tdp.MouseButton, tdp.MouseMove:
+		case legacy.ClientScreenSpec, legacy.MouseButton, legacy.MouseMove:
 			b, err := m.Encode()
 			if err != nil {
 				s.cfg.Logger.WarnContext(ctx, "could not emit desktop recording event", "error", err)
@@ -1040,14 +1070,14 @@ func (s *WindowsService) makeTDPReceiveHandler(
 					s.cfg.Logger.WarnContext(ctx, "could not record desktop recording event", "error", err)
 				}
 			}
-		case tdp.ClipboardData:
+		case legacy.ClipboardData:
 			// the TDP receive handler emits a clipboard send event, because we
 			// received clipboard data from the user (over TDP) and are sending
 			// it to the remote desktop
 			sendEvent := audit.makeClipboardSend(int32(len(msg)))
 			s.emit(ctx, sendEvent)
-		case tdp.SharedDirectoryAnnounce:
-			errorEvent := audit.onSharedDirectoryAnnounce(m.(tdp.SharedDirectoryAnnounce))
+		case legacy.SharedDirectoryAnnounce:
+			errorEvent := audit.onSharedDirectoryAnnounce(m.(legacy.SharedDirectoryAnnounce))
 			if errorEvent != nil {
 				// if we can't audit due to a full cache, abort the connection
 				// as a security measure
@@ -1057,11 +1087,11 @@ func (s *WindowsService) makeTDPReceiveHandler(
 				}
 				s.emit(ctx, errorEvent)
 			}
-		case tdp.SharedDirectoryReadResponse:
+		case legacy.SharedDirectoryReadResponse:
 			// shared directory audit events can be noisy, so we use a compactor
 			// to retain and delay them in an attempt to coalesce contiguous events
 			audit.compactor.handleRead(ctx, audit.makeSharedDirectoryReadResponse(msg))
-		case tdp.SharedDirectoryWriteResponse:
+		case legacy.SharedDirectoryWriteResponse:
 			audit.compactor.handleWrite(ctx, audit.makeSharedDirectoryWriteResponse(msg))
 		}
 	}
@@ -1093,8 +1123,10 @@ func (s *WindowsService) staticHostHeartbeatInfo(host servicecfg.WindowsHost,
 ) func() (types.Resource, error) {
 	return func() (types.Resource, error) {
 		addr := host.Address.String()
+
 		labels := getHostLabels(addr)
 		maps.Copy(labels, host.Labels)
+
 		name := host.Name
 		if name == "" {
 			var err error
@@ -1103,14 +1135,21 @@ func (s *WindowsService) staticHostHeartbeatInfo(host servicecfg.WindowsHost,
 				return nil, trace.Wrap(err)
 			}
 		}
+
 		labels[types.OriginLabel] = types.OriginConfigFile
 		labels[types.ADLabel] = strconv.FormatBool(host.AD)
+
+		var domain string
+		if host.AD {
+			domain = s.cfg.Domain
+		}
+
 		desktop, err := types.NewWindowsDesktopV3(
 			name,
 			labels,
 			types.WindowsDesktopSpecV3{
 				Addr:   addr,
-				Domain: s.cfg.Domain,
+				Domain: domain,
 				HostID: s.cfg.Heartbeat.HostUUID,
 				NonAD:  !host.AD,
 			})
@@ -1181,24 +1220,34 @@ func timer() func() int64 {
 func (s *WindowsService) generateUserCert(ctx context.Context, username string, ttl time.Duration, desktop types.WindowsDesktop, createUsers bool, groups []string) (certDER, keyDER []byte, err error) {
 	var activeDirectorySID string
 	if !desktop.NonAD() {
-		tc, err := s.tlsConfigForLDAP()
+		// Use FnCache to fetch the SID, or load it from cache if we already have it
+		// The cache key is the username and domain combined to handle multi-domain setups
+		cacheKey := fmt.Sprintf("%s@%s", username, desktop.GetDomain())
+		sid, err := utils.FnCacheGet(ctx, s.sidCache, cacheKey, func(ctx context.Context) (string, error) {
+			tc, err := s.loadTLSConfigForLDAP()
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+
+			ldapClient, err := winpki.DialLDAP(ctx, s.getLDAPConfig(), tc)
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+			defer ldapClient.Close()
+
+			s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username)
+			sid, err := ldapClient.GetActiveDirectorySID(ctx, username)
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+
+			s.cfg.Logger.DebugContext(ctx, "Found objectSid for Windows user", "username", username)
+			return sid, nil
+		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-
-		ldapClient, err := winpki.DialLDAP(ctx, s.getLDAPConfig(), tc)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		defer ldapClient.Close()
-
-		s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username)
-		activeDirectorySID, err = ldapClient.GetActiveDirectorySID(ctx, username)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-
-		s.cfg.Logger.DebugContext(ctx, "Found objectSid Windows user", "username", username)
+		activeDirectorySID = sid
 	}
 	return s.generateCredentials(ctx, generateCredentialsRequest{
 		username:           username,
@@ -1239,7 +1288,6 @@ type generateCredentialsRequest struct {
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
 func (s *WindowsService) generateCredentials(ctx context.Context, request generateCredentialsRequest) (certDER, keyDER []byte, err error) {
 	return winpki.GenerateWindowsDesktopCredentials(ctx, s.cfg.AuthClient, &winpki.GenerateCredentialsRequest{
-		CAType:             types.UserCA,
 		Username:           request.username,
 		Domain:             request.domain,
 		PKIDomain:          s.cfg.PKIDomain,
@@ -1307,7 +1355,7 @@ type monitorErrorSender struct {
 }
 
 func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
-	if err := m.tdpConn.SendNotification(s, tdp.SeverityError); err != nil {
+	if err := m.tdpConn.WriteMessage(legacy.Alert{Message: s, Severity: legacy.SeverityError}); err != nil {
 		return 0, trace.Wrap(err, "sending TDP error message")
 	}
 
@@ -1317,11 +1365,15 @@ func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
 // runCRLUpdateLoop publishes the Certificate Revocation List to the given
 // LDAP server. It continues to do so every 5 minutes (by default) to make sure it is present
 // and in the correct location.
-func (s *WindowsService) runCRLUpdateLoop(tlsConfig *tls.Config) {
+func (s *WindowsService) runCRLUpdateLoop() {
 	t := s.cfg.Clock.NewTicker(retryutils.SeventhJitter(s.cfg.PublishCRLInterval))
 	defer t.Stop()
 
 	for {
+		tlsConfig, err := s.loadTLSConfigForLDAP()
+		if err != nil {
+			s.cfg.Logger.ErrorContext(s.closeCtx, "failed to get TLS config for CRL update", "error", err)
+		}
 		if err := s.ca.Update(s.closeCtx, tlsConfig); err != nil && !errors.Is(err, context.Canceled) {
 			s.cfg.Logger.ErrorContext(s.closeCtx, "failed to publish CRL", "error", err)
 		}
@@ -1405,4 +1457,26 @@ func (s *WindowsService) getKDCAddress(ctx context.Context) (string, error) {
 	}
 
 	return "", trace.NotFound("no KDC servers responded successfully for domain %q: %v", s.cfg.Domain, lastErr)
+}
+
+func (s *WindowsService) loadTLSConfigForLDAP() (*tls.Config, error) {
+	s.ldapTLSConfigMu.Lock()
+	defer s.ldapTLSConfigMu.Unlock()
+
+	// If there is a config that isn't expired, return it
+	if s.ldapTLSConfig != nil && s.cfg.Clock.Now().Before(s.ldapTLSConfigExpiresAt) {
+		s.cfg.Logger.DebugContext(s.closeCtx, "using TLS config from cache", "expires_at", s.ldapTLSConfigExpiresAt)
+		return s.ldapTLSConfig, nil
+	}
+
+	s.cfg.Logger.DebugContext(s.closeCtx, "cache expired, generating new TLS for LDAP", "expires_at", s.ldapTLSConfigExpiresAt)
+	cfg, err := s.issueNewTLSConfigForLDAP()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s.ldapTLSConfig = cfg
+	s.ldapTLSConfigExpiresAt = s.cfg.Clock.Now().Add(tlsConfigCacheTTL)
+
+	return cfg, nil
 }

@@ -31,7 +31,7 @@ import { CheckboxInput } from 'design/Checkbox';
 import { ChevronDown } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 
-type Option<T> = {
+export type Option<T> = {
   value: T;
   label: string | ReactNode;
   disabled?: boolean;

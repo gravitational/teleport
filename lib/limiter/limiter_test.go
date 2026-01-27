@@ -459,3 +459,45 @@ func mustServeAndReceiveStatusCode(t *testing.T, handler http.Handler, wantStatu
 
 	require.Equal(t, wantStatusCode, response.StatusCode)
 }
+
+func TestRateLimiter_IsRateLimited(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+	limiter, err := NewRateLimiter(Config{
+		Clock: clock,
+		Rates: []Rate{
+			{
+				Period:  time.Minute,
+				Average: 10,
+				Burst:   10,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.False(t, limiter.IsRateLimited("token1"))
+
+	// Consume some tokens but not all
+	for range 5 {
+		require.NoError(t, limiter.RegisterRequest("token1", nil))
+	}
+
+	require.False(t, limiter.IsRateLimited("token1"))
+
+	// Consume the rest of the tokens
+	for range 4 {
+		require.NoError(t, limiter.RegisterRequest("token1", nil))
+	}
+	require.False(t, limiter.IsRateLimited("token1"))
+
+	// Consume the last token
+	require.NoError(t, limiter.RegisterRequest("token1", nil))
+	// Now token1 should be rate limited
+	require.True(t, limiter.IsRateLimited("token1"))
+	// token2 should not be rate limited
+	require.False(t, limiter.IsRateLimited("token2"))
+
+	clock.Advance(time.Minute)
+	// After time passes, token1 should not be rate limited anymore
+	require.False(t, limiter.IsRateLimited("token1"))
+}

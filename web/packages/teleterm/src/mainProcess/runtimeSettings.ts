@@ -57,6 +57,7 @@ const insecure =
   (dev && !!env.CONNECT_INSECURE);
 
 export async function getRuntimeSettings(): Promise<RuntimeSettings> {
+  const homeDir = app.getPath('home');
   const userDataDir = app.getPath('userData');
   const sessionDataDir = app.getPath('sessionData');
   const tempDataDir = app.getPath('temp');
@@ -79,7 +80,7 @@ export async function getRuntimeSettings(): Promise<RuntimeSettings> {
 
   const tshd = {
     binaryPath: tshBinPath,
-    homeDir: getTshHomeDir(),
+    defaultHomeDir: path.resolve(app.getPath('home'), '.tsh'),
     requestedNetworkAddress: tshAddress,
   };
   const sharedProcess = {
@@ -106,6 +107,7 @@ export async function getRuntimeSettings(): Promise<RuntimeSettings> {
     tshd,
     sharedProcess,
     tshdEvents,
+    homeDir,
     userDataDir,
     sessionDataDir,
     tempDataDir,
@@ -145,14 +147,6 @@ function getKubeConfigsDir(): string {
     fs.mkdirSync(kubeConfigsPath);
   }
   return kubeConfigsPath;
-}
-
-function getTshHomeDir() {
-  const tshPath = path.resolve(app.getPath('userData'), 'tsh');
-  if (!fs.existsSync(tshPath)) {
-    fs.mkdirSync(tshPath);
-  }
-  return tshPath;
 }
 
 // binDir is used in the packaged version to add tsh to PATH.

@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -92,7 +93,10 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 		return trace.Wrap(err, "app %q has an invalid IDN hostname %q", app.GetName(), appAddr.Host())
 	}
 
-	proxyServers, err := proxyGetter.GetProxies()
+	proxyServers, err := clientutils.CollectWithFallback(context.TODO(), proxyGetter.ListProxyServers, func(context.Context) ([]types.Server, error) {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		return proxyGetter.GetProxies()
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

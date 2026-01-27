@@ -42,6 +42,20 @@ func GlobMatch(pattern, str string) (bool, error) {
 	return matched, trace.Wrap(err)
 }
 
+// GlobMatchAllowEmptyPattern is used when comparing some rule fields from a
+// ProvisionToken  against a claim from a token. It allows simple pattern
+// matching:
+// - an empty pattern ("") matches all inputs
+// - '*' matches zero or more characters.
+// - '?' matches any single character.
+// It returns true if a match is detected.
+func GlobMatchAllowEmptyPattern(pattern, str string) (bool, error) {
+	if pattern == "" {
+		return true, nil
+	}
+	return GlobMatch(pattern, str)
+}
+
 // GenerateChallenge generates a crypto-random challenge with length random
 // bytes and encodes it to base64.
 func GenerateChallenge(encoding *base64.Encoding, length int) (string, error) {

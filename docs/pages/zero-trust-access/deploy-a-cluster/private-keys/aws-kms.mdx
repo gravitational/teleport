@@ -62,7 +62,7 @@ Start by creating the following AWS IAM policy in your account.
             "Resource": "*"
         },
         {
-            "Sid": "CreateKeys",
+            "Sid": "CreateSigningKeys",
             "Effect": "Allow",
             "Action": [
                 "kms:CreateKey",
@@ -72,25 +72,55 @@ Start by creating the following AWS IAM policy in your account.
             "Condition": {
                 "StringEquals": {
                     "aws:RequestTag/TeleportCluster": "<Var name="teleport.example.com" description="Your Teleport cluster name"/>",
+                    "aws:ResourceTag/TeleportCluster": "<Var name="teleport.example.com" description="Your Teleport cluster name"/>"
+                }
+            }
+        },
+        {
+            "Sid": "CreateEncryptionKeys",
+            "Effect": "Allow",
+            "Action": [
+                "kms:CreateKey",
+                "kms:TagResource"
+            ],
+            "Resource": "*",
+            "Condition": {
+                "StringEquals": {
+                    "aws:RequestTag/TeleportClusterEncryption": "<Var name="teleport.example.com" description="Your Teleport cluster name"/>",
                     "aws:ResourceTag/TeleportClusterEncryption": "<Var name="teleport.example.com" description="Your Teleport cluster name"/>"
                 }
             }
         },
         {
-            "Sid": "UseKeys",
+            "Sid": "UseSigningKeys",
             "Effect": "Allow",
             "Action": [
                 "kms:GetPublicKey",
                 "kms:ScheduleKeyDeletion",
                 "kms:DescribeKey",
                 "kms:ListResourceTags",
-                "kms:Sign",
-                "kms:Decrypt",
+                "kms:Sign"
             ],
             "Resource": "*",
             "Condition": {
                 "StringEquals": {
-                    "aws:ResourceTag/TeleportCluster": "<Var name="teleport.example.com" description="Your Teleport cluster name"/>",
+                    "aws:ResourceTag/TeleportCluster": "<Var name="teleport.example.com" description="Your Teleport cluster name"/>"
+                }
+            }
+        },
+        {
+            "Sid": "UseEncryptionKeys",
+            "Effect": "Allow",
+            "Action": [
+                "kms:GetPublicKey",
+                "kms:ScheduleKeyDeletion",
+                "kms:DescribeKey",
+                "kms:ListResourceTags",
+                "kms:Decrypt"
+            ],
+            "Resource": "*",
+            "Condition": {
+                "StringEquals": {
                     "aws:ResourceTag/TeleportClusterEncryption": "<Var name="teleport.example.com" description="Your Teleport cluster name"/>"
                 }
             }
@@ -220,5 +250,5 @@ their Teleport roles will also see a cluster alert reminding them to rotate the
 CAs.
 
 CA rotation can be performed manually or semi-automatically. See our admin guide
-on [Certificate rotation](../../management/operations/ca-rotation.mdx).
+on [Certificate rotation](../../management/security/ca-rotation.mdx).
 All CAs listed in the output of `tctl status` must be rotated.

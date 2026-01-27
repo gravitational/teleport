@@ -24,6 +24,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+
+	"github.com/gravitational/trace"
 )
 
 // ReadOnlyRegistry is a version of the Registry which can only be read from,
@@ -31,6 +33,7 @@ import (
 type ReadOnlyRegistry interface {
 	ServiceStatus(name string) (*ServiceStatus, bool)
 	OverallStatus() *OverallStatus
+	AllServicesReported() <-chan struct{}
 }
 
 // HTTPHandler returns an HTTP handler that implements tbot's
@@ -44,11 +47,7 @@ func HTTPHandler(reg ReadOnlyRegistry) http.Handler {
 		status, ok := reg.ServiceStatus(r.PathValue("service"))
 		if !ok {
 			w.WriteHeader(http.StatusNotFound)
-			if err := writeJSON(w, struct {
-				Error string `json:"error"`
-			}{
-				fmt.Sprintf("Service named %q not found.", r.PathValue("service")),
-			}); err != nil {
+			if err := writeJSONError(w, fmt.Sprintf("Service named %q not found.", r.PathValue("service"))); err != nil {
 				slog.ErrorContext(r.Context(), "Failed to write response", "error", err)
 			}
 			return
@@ -74,6 +73,72 @@ func HTTPHandler(reg ReadOnlyRegistry) http.Handler {
 	return mux
 }
 
+// HTTPWaitHandler returns an HTTP handler that implements tbot's
+// `/wait(/{service})` endpoints.
+func HTTPWaitHandler(reg ReadOnlyRegistry) http.Handler {
+	mux := http.NewServeMux()
+
+	mux.Handle("/wait/{service}", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue("service")
+
+		w.Header().Set("Content-Type", "application/json")
+
+		status, ok := reg.ServiceStatus(name)
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			if err := writeJSONError(w, fmt.Sprintf("Service named %q not found.", r.PathValue("service"))); err != nil {
+				slog.ErrorContext(r.Context(), "Failed to write response", "error", err)
+			}
+			return
+		}
+
+		select {
+		case <-status.Wait():
+		case <-r.Context().Done():
+			// Client went away
+			slog.WarnContext(r.Context(), "Client went away while waiting", "service", name)
+			return
+		}
+
+		// Fetch the status again as the cloned initial status may be out of
+		// date.
+		status, ok = reg.ServiceStatus(name)
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			if err := writeJSONError(w, fmt.Sprintf("Service named %q not found.", r.PathValue("service"))); err != nil {
+				slog.ErrorContext(r.Context(), "Failed to write response", "error", err)
+			}
+			return
+		}
+
+		w.WriteHeader(status.Status.HTTPStatusCode())
+		if err := writeJSON(w, status); err != nil {
+			slog.ErrorContext(r.Context(), "Failed to write response", "error", err)
+		}
+	}))
+
+	mux.Handle("/wait", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-reg.AllServicesReported():
+			// All services ready, return status as usual.
+		case <-r.Context().Done():
+			// Client went away, no need to report an error.
+			return
+		}
+
+		status := reg.OverallStatus()
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status.Status.HTTPStatusCode())
+
+		if err := writeJSON(w, status); err != nil {
+			slog.ErrorContext(r.Context(), "Failed to write response", "error", err)
+		}
+	}))
+
+	return mux
+}
+
 func writeJSON(w io.Writer, v any) error {
 	output, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
@@ -83,4 +148,12 @@ func writeJSON(w io.Writer, v any) error {
 		return err
 	}
 	return nil
+}
+
+func writeJSONError(w io.Writer, text string) error {
+	return trace.Wrap(writeJSON(w, struct {
+		Error string `json:"error"`
+	}{
+		text,
+	}))
 }

@@ -149,6 +149,7 @@ func newExecServerContext(t *testing.T, srv Server) *ServerContext {
 		term:     term,
 		emitter:  rec,
 		recorder: rec,
+		scx:      scx,
 	}
 	err = scx.SetSSHRequest(&ssh.Request{Type: sshutils.ExecRequest})
 	require.NoError(t, err)

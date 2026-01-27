@@ -1,5 +1,6 @@
 ---
 title: Join Services with Oracle Cloud
+sidebar_label: Oracle Cloud
 description: Use the Oracle join method to add services to your Teleport cluster.
 tags:
  - how-to
@@ -17,8 +18,17 @@ The Oracle join method is available to any Teleport process running on an
 OCI Compute instance.
 
 Under the hood, services prove that they are running in your OCI tenant by
-sending a presigned self-authentication request to the OCI API for the Auth
-Service to execute.
+sending their signed OCI instance identity certificate to the Auth Service,
+along with a cryptographic signature proving ownership of the instance's
+private key.
+The Auth Service verifies the instance identity certificate was signed by
+Oracle's root CAs and that the signature is valid.
+The certificate verifies the instance's tenancy, compartment, and instance ID
+and matches them against rules configured in an Oracle joining token.
+
+Instances running a version older than Teleport v18.4.0 do not send the
+instance identity certificate, instead they send a presigned
+self-authentication request to the OCI API for the Auth Service to execute.
 
 ## Prerequisites
 
@@ -34,7 +44,9 @@ allow services from your OCI tenants to join your Teleport cluster.
 
 Create the following `token.yaml` file with an `oracle.allow` rule specifying
 the Oracle tenant(s), compartment(s), and region(s) in which your OCI
-Compute instances will run:
+Compute instances will run.
+In Teleport v18.4.0 or higher you can also specify exact compute instance OCIDs
+that will be allowed.
 
 (!docs/pages/includes/provision-token/oracle-spec.mdx!)
 
@@ -46,8 +58,14 @@ $ tctl create token.yaml
 
 ## Step 2/5. Configure permissions
 
-Every OCI Compute instance needs permission to authenticate itself with the
-Oracle Cloud API so the presigned request can succeed.
+On Teleport versions older than v18.4.0, every OCI compute instance needs IAM
+permissions to authenticate itself with the Oracle Cloud API.
+Newer Teleport versions do not require any permissions.
+The permissions are only required if either the Auth Service or the joining
+instance is running a Teleport version older than v18.4.0.
+
+<details>
+<summary>Configuring OCI IAM Permissions</summary>
 
 ### Create a dynamic group
 
@@ -83,6 +101,8 @@ Allow dynamic-group '<Var name="identity-domain" />'/'join-teleport' to inspect 
 ```
 
 ![Create policy](../../../img/oracle/oracle-join-policy@2x.png)
+
+</details>
 
 ## Step 3/5. Install Teleport
 

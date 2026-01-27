@@ -1,5 +1,6 @@
 ---
 title: Managing Disaster Recovery in an Amazon EKS Teleport Cluster
+sidebar_label: Disaster Recovery
 description: Provides guidance for planning a strategy for restoring a self-hosted Teleport cluster on EKS after a regional outage.
 tags:
  - how-to
@@ -36,7 +37,7 @@ for the Teleport Proxy Service.
 
 - Your self-hosted Teleport cluster was launched using the `teleport-cluster`
   Helm chart. We recommend reading [Deploying a High Availability Teleport
-  Cluster](../high-availability.mdx) for a high-level architectural outline of a
+  Cluster](../deployments/high-availability.mdx) for a high-level architectural outline of a
   self-hosted Teleport cluster.
 - You are using Amazon DynamoDB for the cluster state backend and audit event
   backend, and using Amazon S3 for your session recording backend. For
@@ -111,7 +112,7 @@ configure it to connect to an S3 bucket in the new region.
 
 You can use S3 replication rules to create continuous backups from your primary
 region to the backup region. Follow the [Multi-Region
-Blueprint](../multi-region-blueprint.mdx#setting-up-multi-region-aws-s3-replication)
+Blueprint](../deployments/multi-region-blueprint.mdx#setting-up-multi-region-aws-s3-replication)
 guide to plan multi-region S3 bucket replication for your session recording
 backend.
 
@@ -286,7 +287,7 @@ recovery procedure. Possibilities include:
   Teleport cluster deployments across multiple regions, there is no need to lose
   availability while waiting for your cluster to deploy to a new region. Read
   about the architecture of a multi-region Teleport deployment in the
-  [Multi-Region Blueprint](../multi-region-blueprint.mdx) guide.
+  [Multi-Region Blueprint](../deployments/multi-region-blueprint.mdx) guide.
 
 ### Imposing a change freeze
 
@@ -345,7 +346,7 @@ $ tctl get lock --format=json \
 
 ## Further reading
 
-- Read the [Backup and Restore](../../management/operations/backup-restore.mdx)
+- Read the [Backup and Restore](../reliability/backup-restore.mdx)
   guide for general information on backing up your Teleport cluster backends.
 - For more information on preventing Teleport roles from making changes to your
   cluster state backend, read [Session and Identity

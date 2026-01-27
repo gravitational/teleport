@@ -55,17 +55,14 @@ func TestEncryptedCredentialProto(t *testing.T) {
 
 func TestPlatformParametersProto(t *testing.T) {
 	want := &attest.PlatformParameters{
-		TPMVersion: attest.TPMVersion20,
-		EventLog:   []byte("event_log"),
-		Public:     []byte("public"),
+		EventLog: []byte("event_log"),
+		Public:   []byte("public"),
 		Quotes: []attest.Quote{
 			{
-				Version:   attest.TPMVersion20,
 				Quote:     []byte("quote_0"),
 				Signature: []byte("signature_0"),
 			},
 			{
-				Version:   attest.TPMVersion20,
 				Quote:     []byte("quote_1"),
 				Signature: []byte("signature_1"),
 			},
@@ -95,16 +92,13 @@ func TestPlatformParametersProto(t *testing.T) {
 
 func TestPlatformAttestationProto(t *testing.T) {
 	want := &attest.PlatformParameters{
-		TPMVersion: attest.TPMVersion20,
-		EventLog:   []byte("event_log"),
+		EventLog: []byte("event_log"),
 		Quotes: []attest.Quote{
 			{
-				Version:   attest.TPMVersion20,
 				Quote:     []byte("quote_0"),
 				Signature: []byte("signature_0"),
 			},
 			{
-				Version:   attest.TPMVersion20,
 				Quote:     []byte("quote_1"),
 				Signature: []byte("signature_1"),
 			},

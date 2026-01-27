@@ -37,9 +37,11 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
@@ -245,47 +247,36 @@ func (n *NotificationCommand) List(ctx context.Context, client *authclient.Clien
 		return trace.Wrap(err)
 	}
 
-	var result []*notificationspb.Notification
-	var pageToken string
+	filters := &notificationspb.NotificationFilters{
+		UserCreatedOnly: !n.allNotifications,
+		Labels:          labels,
+	}
+
+	if n.user != "" {
+		// If a user was specified, list user-specific notifications for them.
+		filters.Username = n.user
+	} else {
+		// Otherwise, list global notifications
+		filters.GlobalOnly = true
+	}
+
 	nc := client.NotificationServiceClient()
-	for {
-		var resp *notificationspb.ListNotificationsResponse
-		var err error
-
-		// If a user was specified, list user-specific notifications for them, if not, default to listing global notifications.
-		if n.user != "" {
-			resp, err = nc.ListNotifications(ctx, &notificationspb.ListNotificationsRequest{
+	result, err := stream.Collect(clientutils.Resources(
+		ctx,
+		func(ctx context.Context, pageSize int, pageToken string) ([]*notificationspb.Notification, string, error) {
+			resp, err := nc.ListNotifications(ctx, &notificationspb.ListNotificationsRequest{
 				PageSize:  defaults.DefaultChunkSize,
 				PageToken: pageToken,
-				Filters: &notificationspb.NotificationFilters{
-					Username:        n.user,
-					UserCreatedOnly: !n.allNotifications,
-					Labels:          labels,
-				},
+				Filters:   filters,
 			})
 			if err != nil {
-				return trace.Wrap(err)
+				return nil, "", trace.Wrap(err)
 			}
-		} else {
-			resp, err = nc.ListNotifications(ctx, &notificationspb.ListNotificationsRequest{
-				PageSize:  defaults.DefaultChunkSize,
-				PageToken: pageToken,
-				Filters: &notificationspb.NotificationFilters{
-					GlobalOnly:      true,
-					UserCreatedOnly: !n.allNotifications,
-					Labels:          labels,
-				},
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-
-		result = append(result, resp.Notifications...)
-		pageToken = resp.GetNextPageToken()
-		if pageToken == "" {
-			break
-		}
+			return resp.Notifications, resp.GetNextPageToken(), nil
+		}),
+	)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	displayNotifications(n.format, result, n.stdout)

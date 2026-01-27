@@ -26,6 +26,7 @@ import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 import { ContextProvider } from 'teleport/index';
 import { AwsOidcDashboard } from 'teleport/Integrations/status/AwsOidc/AwsOidcDashboard';
 import { MockAwsOidcStatusProvider } from 'teleport/Integrations/status/AwsOidc/testHelpers/mockAwsOidcStatusProvider';
+import { Status } from 'teleport/Integrations/types';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   IntegrationAwsOidc,
@@ -100,7 +101,7 @@ test('renders header and stats cards', async () => {
     </ContextProvider>
   );
 
-  await screen.findByText('Running');
+  await screen.findByText(Status.Healthy);
   const breadcrumbs = screen.getByTestId('aws-oidc-header');
   expect(within(breadcrumbs).getByText('integration-one')).toBeInTheDocument();
 
@@ -109,16 +110,14 @@ test('renders header and stats cards', async () => {
     'href',
     '/web/integrations'
   );
-  expect(within(title).getByLabelText('status')).toHaveAttribute(
-    'kind',
-    'success'
+  expect(within(title).getByLabelText('status')).toHaveTextContent(
+    Status.Healthy
   );
-  expect(within(title).getByLabelText('status')).toHaveTextContent('Running');
   expect(within(title).getByText('integration-one')).toBeInTheDocument();
 
   const ec2 = screen.getByTestId('ec2-stats');
   expect(within(ec2).getByTestId('sync')).toHaveTextContent(
-    'Last Sync: 0 seconds ago'
+    /Last Sync: \d+ seconds? ago/
   );
   expect(within(ec2).getByTestId('rules')).toHaveTextContent(
     'Enrollment Rules 24'

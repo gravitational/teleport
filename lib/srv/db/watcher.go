@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	discovery "github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -117,7 +118,12 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	azureFetchers, err := dbfetchers.MakeAzureFetchers(s.cfg.CloudClients, s.cfg.AzureMatchers, "" /* discovery config */)
+	azureFetchers, err := dbfetchers.MakeAzureFetchers(ctx, func(ctx context.Context, integration string) (azure.Clients, error) {
+		if integration != "" {
+			return nil, trace.NotImplemented("db_service discovery does not support Azure OIDC authentication; use discovery_service instead.")
+		}
+		return s.cfg.AzureClients, nil
+	}, s.cfg.AzureMatchers, "" /* discovery config */)
 	if err != nil {
 		return trace.Wrap(err)
 	}

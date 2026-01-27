@@ -410,8 +410,9 @@ func (dd *Directory) Write(ctx context.Context, name string, data []byte) error 
 	// things have drifted since `Init()` was run. We don't bother with secure
 	// botfs.Create() since it's a no-op for directory creation.
 	if dir, _ := filepath.Split(name); dir != "" {
-		if err := mkdir(filepath.Join(dd.Path, dir)); err != nil {
-			return trace.Wrap(err)
+		dirPath := filepath.Join(dd.Path, dir)
+		if err := mkdir(dirPath); err != nil {
+			return trace.Wrap(err, "creating directory %q", dirPath)
 		}
 	}
 
@@ -427,7 +428,7 @@ func (dd *Directory) Write(ctx context.Context, name string, data []byte) error 
 			return trace.Wrap(err)
 		}
 	} else if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "reading %q", path)
 	}
 
 	if dd.aclsEnabled {
@@ -445,7 +446,7 @@ func (dd *Directory) Write(ctx context.Context, name string, data []byte) error 
 		}
 	}
 
-	return trace.Wrap(botfs.Write(path, data, dd.Symlinks))
+	return trace.Wrap(botfs.Write(path, data, dd.Symlinks), "writing %q", path)
 }
 
 func (dd *Directory) Read(ctx context.Context, name string) ([]byte, error) {
@@ -456,9 +457,10 @@ func (dd *Directory) Read(ctx context.Context, name string) ([]byte, error) {
 	)
 	defer span.End()
 
-	data, err := botfs.Read(filepath.Join(dd.Path, name), dd.Symlinks)
+	artifactPath := filepath.Join(dd.Path, name)
+	data, err := botfs.Read(artifactPath, dd.Symlinks)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "reading %q", artifactPath)
 	}
 
 	return data, nil
@@ -472,8 +474,9 @@ func (dd *Directory) TryLock() (func() error, error) {
 	// TryLock should only be used for bot data directory and not for
 	// destinations until an investigation on how locks will play with
 	// ACLs has been completed.
-	unlock, err := utils.FSTryWriteLock(filepath.Join(dd.Path, "lock"))
-	return unlock, trace.Wrap(err)
+	lockPath := filepath.Join(dd.Path, "lock")
+	unlock, err := utils.FSTryWriteLock(lockPath)
+	return unlock, trace.Wrap(err, "locking %q", lockPath)
 }
 
 func (dm *Directory) MarshalYAML() (any, error) {

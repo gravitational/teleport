@@ -31,6 +31,8 @@ lint:
     - api/proto/teleport/legacy/types/events/athena.proto
     - api/proto/teleport/legacy/types/events/events.proto
     - api/proto/teleport/legacy/types/types.proto
+    - api/proto/teleport/legacy/types/metadata.proto
+    - api/proto/teleport/legacy/types/mfa_device.proto
     - api/proto/teleport/legacy/types/wrappers/wrappers.proto
     - proto/teleport/lib/multiplexer/test/ping.proto
     - proto/teleport/lib/web/terminal/envelope.proto
@@ -55,15 +57,18 @@ lint:
     FIELD_LOWER_SNAKE_CASE:
       - api/proto/teleport/legacy/client/proto/inventory.proto
       - api/proto/teleport/legacy/types/device.proto
+      - api/proto/teleport/legacy/types/resources.proto
     PACKAGE_DIRECTORY_MATCH:
       - api/proto/teleport/legacy/client/proto/joinservice.proto
       - api/proto/teleport/legacy/types/device.proto
       - api/proto/teleport/legacy/types/trusted_device_requirement.proto
+      - api/proto/teleport/legacy/types/resources.proto
       - api/proto/teleport/legacy/types/webauthn/webauthn.proto
     PACKAGE_VERSION_SUFFIX:
       - api/proto/teleport/legacy/client/proto/joinservice.proto
       - api/proto/teleport/legacy/types/device.proto
       - api/proto/teleport/legacy/types/trusted_device_requirement.proto
+      - api/proto/teleport/legacy/types/resources.proto
       - api/proto/teleport/legacy/types/webauthn/webauthn.proto
     RPC_REQUEST_STANDARD_NAME:
       - proto/teleport/lib/teleterm/v1/service.proto

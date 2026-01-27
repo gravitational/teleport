@@ -94,11 +94,18 @@ func (m *mockProxyGetter) GetProxies() ([]types.Server, error) {
 	return m.proxies, nil
 }
 
+func (m *mockProxyGetter) ListProxyServers(_ context.Context, _ int, _ string) ([]types.Server, string, error) {
+	if m.returnErr != nil {
+		return nil, "", m.returnErr
+	}
+	return m.proxies, "", nil
+}
+
 func TestIssuerForCluster(t *testing.T) {
 	ctx := context.Background()
 	for _, tt := range []struct {
 		name           string
-		path           string
+		paths          []string
 		mockProxies    []types.Server
 		mockErr        error
 		checkErr       require.ErrorAssertionFunc
@@ -114,14 +121,24 @@ func TestIssuerForCluster(t *testing.T) {
 			expectedIssuer: "https://127.0.0.1.nip.io",
 		},
 		{
-			name: "valid with subpath",
-			path: "/workload-identity",
+			name:  "valid with subpath",
+			paths: []string{"/workload-identity"},
 			mockProxies: []types.Server{
 				&types.ServerV2{Spec: types.ServerSpecV2{
 					PublicAddrs: []string{"127.0.0.1.nip.io"},
 				}},
 			},
 			expectedIssuer: "https://127.0.0.1.nip.io/workload-identity",
+		},
+		{
+			name:  "valid with multiple subpath",
+			paths: []string{"aaa", "/bbb", "ccc"},
+			mockProxies: []types.Server{
+				&types.ServerV2{Spec: types.ServerSpecV2{
+					PublicAddrs: []string{"127.0.0.1.nip.io"},
+				}},
+			},
+			expectedIssuer: "https://127.0.0.1.nip.io/aaa/bbb/ccc",
 		},
 		{
 			name: "only the second server has a valid public address",
@@ -151,7 +168,7 @@ func TestIssuerForCluster(t *testing.T) {
 				proxies:   tt.mockProxies,
 				returnErr: tt.mockErr,
 			}
-			issuer, err := IssuerForCluster(ctx, clt, tt.path)
+			issuer, err := IssuerForCluster(ctx, clt, tt.paths...)
 			if tt.checkErr != nil {
 				tt.checkErr(t, err)
 			}

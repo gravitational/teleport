@@ -59,6 +59,8 @@ type Application interface {
 	SetURI(string)
 	// GetPublicAddr returns the app public address.
 	GetPublicAddr() string
+	// SetPublicAddr sets the app public address.
+	SetPublicAddr(s string)
 	// GetInsecureSkipVerify returns the app insecure setting.
 	GetInsecureSkipVerify() bool
 	// GetRewrite returns the app rewrite configuration.
@@ -106,6 +108,8 @@ type Application interface {
 	GetIdentityCenter() *AppIdentityCenter
 	// GetMCP fetches MCP specific configuration.
 	GetMCP() *MCP
+	// IsEqual determines if two application resources are equivalent to one another.
+	IsEqual(Application) bool
 }
 
 // NewAppV3 creates a new app resource.
@@ -249,6 +253,11 @@ func (a *AppV3) GetPublicAddr() string {
 	return a.Spec.PublicAddr
 }
 
+// SetPublicAddr sets the app public address.
+func (a *AppV3) SetPublicAddr(addr string) {
+	a.Spec.PublicAddr = addr
+}
+
 // GetInsecureSkipVerify returns the app insecure setting.
 func (a *AppV3) GetInsecureSkipVerify() bool {
 	return a.Spec.InsecureSkipVerify
@@ -267,6 +276,7 @@ func (a *AppV3) IsAWSConsole() bool {
 		constants.AWSConsoleURL,
 		constants.AWSUSGovConsoleURL,
 		constants.AWSCNConsoleURL,
+		constants.AWSQuickSightURL,
 	} {
 		if strings.HasPrefix(a.Spec.URI, consoleURL) {
 			return true

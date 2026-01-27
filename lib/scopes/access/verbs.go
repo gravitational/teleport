@@ -27,6 +27,9 @@ func isAllowedScopedRule(kind string, verb string) bool {
 	case KindScopedRoleAssignment:
 		// scoped role assignments can be read/written, and do not currently contain a concept of a secret.
 		return isReadWriteNoSecrets(verb)
+	case types.KindScopedToken:
+		// scoped tokens can be read/written, and contain secrets.
+		return isReadWriteWithSecrets(verb)
 	default:
 		return false
 	}
@@ -37,10 +40,25 @@ func isReadWriteNoSecrets(verb string) bool {
 	return isReadNoSecrets(verb) || isWrite(verb)
 }
 
+// isReadWriteWithSecrets returns true if the given verb conforms to the "read-write-with-secrets" category of verbs.
+func isReadWriteWithSecrets(verb string) bool {
+	return isReadWithSecrets(verb) || isWrite(verb)
+}
+
 // isReadNoSecrets returns true if the given verb conforms to the "read-no-secrets" category of verbs.
 func isReadNoSecrets(verb string) bool {
 	switch verb {
 	case types.VerbList, types.VerbReadNoSecrets:
+		return true
+	default:
+		return false
+	}
+}
+
+// isReadWithSecrets returns true if the given verb conforms to the "read-with-secrets" category of verbs.
+func isReadWithSecrets(verb string) bool {
+	switch verb {
+	case types.VerbList, types.VerbRead:
 		return true
 	default:
 		return false

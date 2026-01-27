@@ -24,7 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/teleportcr"
 )
 
 func init() {
@@ -40,7 +40,7 @@ type TeleportOktaImportRule struct {
 	metav1.ObjectMeta `json:"metadata"`
 
 	Spec   TeleportOktaImportRuleSpec `json:"spec"`
-	Status resources.Status           `json:"status"`
+	Status teleportcr.Status          `json:"status"`
 }
 
 // TeleportOktaImportRuleSpec matches the JSON of generated CRD spec
@@ -81,7 +81,7 @@ func (o TeleportOktaImportRule) ToTeleport() types.OktaImportRule {
 			Metadata: types.Metadata{
 				Name:        o.Name,
 				Labels:      o.Labels,
-				Description: o.Annotations[resources.DescriptionKey],
+				Description: o.Annotations[teleportcr.DescriptionKey],
 			},
 			Version: types.V1,
 		},

@@ -26,6 +26,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
@@ -53,7 +55,10 @@ func (p *ProxyCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLI
 
 // ListProxies prints currently connected proxies
 func (p *ProxyCommand) ListProxies(ctx context.Context, clusterAPI *authclient.Client) error {
-	proxies, err := clusterAPI.GetProxies()
+	proxies, err := clientutils.CollectWithFallback(ctx, clusterAPI.ListProxyServers, func(context.Context) ([]types.Server, error) {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		return clusterAPI.GetProxies()
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

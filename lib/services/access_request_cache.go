@@ -376,9 +376,16 @@ func (c *AccessRequestCache) SetInitCallback(cb func()) {
 // processEventsAndUpdateCurrent is part of the resourceCollector interface and is used to update the
 // primary cache state when modification events occur.
 func (c *AccessRequestCache) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+	if len(events) < 1 {
+		return
+	}
+
 	c.rw.RLock()
 	cache := c.primaryCache
 	c.rw.RUnlock()
+	if cache == nil {
+		return
+	}
 
 	for _, event := range events {
 		switch event.Type {

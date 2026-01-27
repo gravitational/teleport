@@ -1,5 +1,6 @@
 ---
 title: AWS Database Discovery
+sidebar_label: AWS
 description: How to configure Teleport to auto-discover AWS databases.
 tags:
  - how-to
@@ -256,15 +257,14 @@ resources in your Teleport cluster.
 In this case, it will match auto-discovered AWS databases in the
 <Var name="us-east-1"/> region
 from any AWS account (`"*"` is a wildcard and it can be used as a label key and/or value).
-You can make it match more specific databases by adjusting the label selectors.
 
-<Admonition type="tip">
+(!docs/pages/includes/discovery/db-label-warning.mdx!)
+
 The AWS tags attached to AWS databases are imported as Teleport `db` labels
 in addition to some other identifying metadata.
 Refer to
-[Database Labels Reference](../../../reference/agent-services/database-access-reference/labels.mdx)
+[Database Labels Reference](../../database-access/reference/labels.mdx)
 for more information about available database labels.
-</Admonition>
 
 ### Generate a join token
 
@@ -297,7 +297,7 @@ Additional Teleport RBAC configuration and possibly IAM configuration may also
 be required to connect to the discovered databases via Teleport.
 
 Refer to the appropriate guide in
-[Enroll AWS Databases](../../database-access/enroll-aws-databases/enroll-aws-databases.mdx)
+[Enroll AWS Databases](../../database-access/enrollment/aws/aws.mdx)
 for information about database user provisioning and configuration.
 </Admonition>
 
@@ -305,9 +305,9 @@ for information about database user provisioning and configuration.
 - Learn about [Dynamic Registration](../../database-access/guides/dynamic-registration.mdx) by the
   Teleport Database Service.
 - Get started by [connecting](../../database-access/guides/guides.mdx) your database.
-- Connect AWS databases in [external AWS accounts](../../database-access/enroll-aws-databases/aws-cross-account.mdx).
+- Connect AWS databases in [external AWS accounts](../../database-access/enrollment/aws/aws-cross-account.mdx).
 - Refer to the appropriate guide in
-[Enroll AWS Databases](../../database-access/enroll-aws-databases/enroll-aws-databases.mdx)
+[Enroll AWS Databases](../../database-access/enrollment/aws/aws.mdx)
 for information about database user provisioning and configuration.
 
 ## Troubleshooting

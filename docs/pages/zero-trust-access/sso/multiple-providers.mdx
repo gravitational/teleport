@@ -1,0 +1,114 @@
+---
+title: Working with Multiple Identity Providers
+sidebar_label: Multiple Identity Providers
+sidebar_position: 2
+description: Provides guidance on integrating Teleport with multiple identity providers.
+---
+
+Teleport allows you to create and manage multiple authentication connectors, so
+you can centralize authentication and access controls in your organization's
+infrastructure even if your organization uses several identity providers.
+
+This guide explains how you can work with multiple identity providers in
+Teleport.
+
+## Managing authentication connector resources
+
+An authentication connector, which configures the integration between an
+identity provider and Teleport, is a dynamic resource. This means that you can
+manage it, like other dynamic resources, with `tctl` and other Teleport Auth
+Service clients.
+
+To see all configured connectors, execute this command:
+
+```code
+$ tctl get connectors
+```
+
+To delete/update connectors, use the usual `tctl rm` and `tctl create` commands
+as described in the [Resources
+Reference](../../reference/infrastructure-as-code/teleport-resources/teleport-resources.mdx).
+
+## Specifying a connector
+
+If multiple authentication connectors exist, the clients must supply a
+connector name to `tsh login` via `--auth` argument:
+
+```code
+# use "okta" SAML connector:
+$ tsh --proxy=proxy.example.com login --auth=okta
+
+# use local Teleport user DB:
+$ tsh --proxy=proxy.example.com login --auth=local --user=admin
+```
+
+No persistent backend data in Teleport associates a user's account with the SSO
+provider they used to authenticate.
+
+This also means that if one SSO provider becomes unavailable, the end user only
+needs to choose another SSO provider when signing in to Teleport. While the user
+may be locked out of their account with the first SSO provider, signing in via
+the second provider is sufficient for Teleport to issue a new certificate and
+grant the user access to your infrastructure.
+
+Note that if the username of an SSO user already belongs to a user registered
+locally with the Auth Service (i.e., created via `tctl users add`), the SSO
+login will fail.
+
+## Identifier-first login
+
+Identifier-first login is a feature that simplifies the login experience in clusters with
+multiple authentication connectors. When identifier-first login is enabled, the initial
+login screen prompts the user for their username only.
+Teleport will then present only the auth connectors
+that are relevant to the specified user.
+
+### Configuration
+
+You can enable identifier-first login on a cluster by configuring one or more
+SAML, OIDC, or GitHub auth connectors with a `spec.user_matchers` field, which
+takes a set of one or more user matchers for usernames. A user matcher is a
+string matcher that can either be a specific username to match, or a glob
+pattern using wildcard characters (`*`). An auth connector will be mapped to a
+user if one or more of its `user_matchers` matches their username.
+
+```yaml
+kind: saml
+version: v2
+metadata:
+  name: okta
+spec:
+  user_matchers: ['joe', '*@example.com']
+```
+
+Once enabled, users without an auth connector mapped to them will not be able to see
+any auth connectors on the login page. For this reason, it is recommended to configure
+one or more fallback connectors. A user matcher of `*` is a special case that marks a
+connector as a fallback, which will only be presented to users who don't match any other connector.
+
+### Examples
+
+Match users with a username that ends in "@example.com":
+
+```yaml
+  user_matchers: ['*@example.com']
+```
+
+Match users with a username that ends in "@example.com" and also match "alice":
+
+```yaml
+user_matchers: ['*@example.com', 'alice']
+```
+
+Match only users that weren't matched to any other auth connectors:
+
+```yaml
+user_matchers: ['*']
+```
+
+Match users that end in "@example.com" or weren't matched to any other connectors:
+
+```yaml
+user_matchers: ['*', '*@example.com']
+```
+

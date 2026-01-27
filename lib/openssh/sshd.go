@@ -20,7 +20,9 @@ package openssh
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -43,8 +45,6 @@ var (
 func sshdConfigInclude(dataDir string) string {
 	return fmt.Sprintf("Include %s", filepath.Join(dataDir, sshdConfigFile))
 }
-
-const DefaultRestartCommand = "systemctl restart sshd"
 
 const (
 	// TeleportKey is the name the OpenSSH private key
@@ -202,10 +202,17 @@ func (b *sshdBackend) restart() error {
 		return trace.Wrap(err)
 	}
 
-	cmd := exec.Command("/bin/sh", "-c", b.restartCmd)
-	if err := cmd.Run(); err != nil {
-		return trace.Wrap(err, "failed to restart the sshd service")
+	if b.restartCmd == "" {
+		if err := defaultRestart(); err != nil {
+			return trace.Wrap(err, "failed to restart OpenSSH")
+		}
+	} else {
+		cmd := exec.Command("/bin/sh", "-c", b.restartCmd)
+		if err := cmd.Run(); err != nil {
+			return trace.Wrap(err, "failed to restart OpenSSH")
+		}
 	}
+
 	return nil
 }
 
@@ -262,4 +269,32 @@ func checkSSHDConfigAlreadyUpdated(sshdConfigPath, fileContains string) (bool, e
 		return false, trace.ConvertSystemError(err)
 	}
 	return !strings.Contains(string(contents), fileContains), nil
+}
+
+// defaultRestart invokes systemctl to restart the OpenSSH service. Due to varying names
+// of OpenSSH services on different distributions both ssh and the sshd service are attempted
+// to be restarted if they are active. An error is returned if any of the enabled services fail to be restarted.
+func defaultRestart() error {
+	var restartErrors []error
+	for _, service := range []string{"ssh", "sshd"} {
+		sshShowCommand := exec.Command("/bin/sh", "-c", "systemctl show --property=ActiveState "+service+".service")
+		out, err := sshShowCommand.CombinedOutput()
+		if err != nil {
+			return trace.Wrap(err, "listing OpenSSH services")
+		}
+
+		const activeService = "ActiveState=active"
+		if !bytes.Equal([]byte(activeService), out) {
+			slog.DebugContext(context.Background(), "skipping inactive OpenSSH service", "service", service)
+			continue
+		}
+
+		slog.DebugContext(context.Background(), "restarting active OpenSSH service", "service", service)
+		restartCommand := exec.Command("/bin/sh", "-c", "systemctl restart "+service)
+		if err := restartCommand.Run(); err != nil {
+			restartErrors = append(restartErrors, err)
+		}
+	}
+
+	return trace.NewAggregate(restartErrors...)
 }

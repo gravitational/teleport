@@ -307,6 +307,7 @@ func TestListRoles(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
+		require.True(t, req.Filter.SkipSystemRoles)
 
 		return &proto.ListRolesResponse{
 			Roles:   []*types.RoleV6{role.(*types.RoleV6)},
@@ -319,6 +320,49 @@ func TestListRoles(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, roles.Items, 1)
 	require.Contains(t, roles.Items.([]ui.ResourceItem)[0].Content, "name: test")
+	require.Empty(t, roles.Items.([]ui.ResourceItem)[0].Object)
+}
+
+func TestListRolesQueryParamIncludeObject(t *testing.T) {
+	m := &mockedResourceAPIGetter{}
+
+	m.mockListRoles = func(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+		role, err := types.NewRole("test", types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Logins: []string{"test"},
+			},
+		})
+		require.NoError(t, err)
+		require.True(t, req.Filter.SkipSystemRoles)
+
+		return &proto.ListRolesResponse{
+			Roles:   []*types.RoleV6{role.(*types.RoleV6)},
+			NextKey: "",
+		}, nil
+	}
+
+	// Test response is converted to ui objects.
+	roles, err := listRoles(m, url.Values{
+		"includeObject": []string{"yes"},
+	})
+	require.NoError(t, err)
+	require.Len(t, roles.Items, 1)
+	require.Contains(t, roles.Items.([]ui.ResourceItem)[0].Content, "name: test")
+	require.NotEmpty(t, roles.Items.([]ui.ResourceItem)[0].Object)
+	require.Equal(t, "test", roles.Items.([]ui.ResourceItem)[0].Object.GetName())
+}
+
+func TestListRolesQueryParamIncludeSystemRoles(t *testing.T) {
+	m := &mockedResourceAPIGetter{}
+
+	m.mockListRoles = func(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+		require.False(t, req.Filter.SkipSystemRoles)
+		return nil, nil
+	}
+
+	listRoles(m, url.Values{
+		"includeSystemRoles": []string{"yes"},
+	})
 }
 
 func TestRoleCRUD(t *testing.T) {

@@ -19,14 +19,14 @@
 import { useEffect, useState } from 'react';
 import styled, { css } from 'styled-components';
 
-import { Box, ButtonIcon, Flex, Label, Text } from 'design';
+import { Box, ButtonIcon, Flex, Text } from 'design';
 import { CheckboxInput } from 'design/Checkbox';
+import { makeLabelTag } from 'design/formatters';
 import { Tags, Warning } from 'design/Icon';
+import { LabelKind } from 'design/Label';
+import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { HoverTooltip } from 'design/Tooltip';
-
-// eslint-disable-next-line no-restricted-imports -- FIXME
-import { makeLabelTag } from 'teleport/components/formatters';
 
 import { CopyButton } from '../../CopyButton/CopyButton';
 import {
@@ -36,6 +36,7 @@ import {
 } from '../shared/getBackgroundColor';
 import { PinButton } from '../shared/PinButton';
 import { ResourceActionButtonWrapper } from '../shared/ResourceActionButton';
+import { ResourceSelectedIcon } from '../shared/ResourceSelectedIcon';
 import { shouldWarnResourceStatus } from '../shared/StatusInfo';
 import { ResourceItemProps } from '../types';
 
@@ -50,6 +51,14 @@ export function ResourceListItem({
   onShowStatusInfo,
   showingStatusInfo,
   viewItem,
+  visibleInputFields = {
+    pin: true,
+    checkbox: true,
+    copy: true,
+    hoverState: true,
+  },
+  resourceLabelConfig,
+  showResourceSelectedIcon,
 }: ResourceItemProps) {
   const {
     name,
@@ -94,6 +103,8 @@ export function ResourceListItem({
       onMouseLeave={() => setHovered(false)}
       shouldDisplayWarning={shouldDisplayStatusWarning}
       showingStatusInfo={showingStatusInfo}
+      showHoverState={visibleInputFields.hoverState}
+      data-testid={name}
     >
       <RowInnerContainer
         requiresRequest={requiresRequest}
@@ -102,29 +113,36 @@ export function ResourceListItem({
         selected={selected}
         shouldDisplayWarning={shouldDisplayStatusWarning}
         showingStatusInfo={showingStatusInfo}
+        hideCheckbox={!visibleInputFields.checkbox}
+        hidePin={!visibleInputFields.pin}
+        showHoverState={visibleInputFields.hoverState}
       >
         {/* checkbox */}
-        <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
-          <CheckboxInput
-            checked={selected}
-            onChange={selectResource}
-            css={`
-              grid-area: checkbox;
-            `}
-          />
-        </HoverTooltip>
+        {visibleInputFields.checkbox && (
+          <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
+            <CheckboxInput
+              checked={selected}
+              onChange={selectResource}
+              css={`
+                grid-area: checkbox;
+              `}
+            />
+          </HoverTooltip>
+        )}
 
         {/* pin button */}
-        <PinButton
-          setPinned={pinResource}
-          pinned={pinned}
-          pinningSupport={pinningSupport}
-          hovered={hovered}
-          css={`
-            grid-area: pin;
-            place-self: center center;
-          `}
-        />
+        {visibleInputFields.pin && (
+          <PinButton
+            setPinned={pinResource}
+            pinned={pinned}
+            pinningSupport={pinningSupport}
+            hovered={hovered}
+            css={`
+              grid-area: pin;
+              place-self: center center;
+            `}
+          />
+        )}
 
         {/* icon */}
         <ResourceIcon
@@ -154,7 +172,10 @@ export function ResourceListItem({
             `}
           >
             <HoverTooltip tipContent={name} showOnlyOnOverflow>
-              <Name>{name}</Name>
+              <Flex alignItems="center" gap={2}>
+                <Name>{name}</Name>
+                {showResourceSelectedIcon && <ResourceSelectedIcon />}
+              </Flex>
             </HoverTooltip>
             <HoverTooltip tipContent={description} showOnlyOnOverflow>
               <Description>{description}</Description>
@@ -165,7 +186,9 @@ export function ResourceListItem({
               align-self: start;
             `}
           >
-            {hovered && <CopyButton value={name} ml={1} />}
+            {visibleInputFields.copy && hovered && (
+              <CopyButton value={name} ml={1} />
+            )}
           </Box>
         </Flex>
 
@@ -273,14 +296,19 @@ export function ResourceListItem({
             mb={2}
           >
             {labels.map((label, i) => {
+              let kind: LabelKind = 'secondary';
+              if (resourceLabelConfig?.processLabel) {
+                kind = resourceLabelConfig.processLabel(label).kind;
+              }
+
               const labelText = makeLabelTag(label);
-              // We can use the index i as the key since it will always be unique to this label.
               return (
-                <Label
+                <LabelButtonWithIcon
                   key={i}
                   title={labelText}
                   onClick={() => onLabelClick?.(label)}
-                  kind="secondary"
+                  withHoverState={!!onLabelClick}
+                  kind={kind}
                   mr={2}
                   css={`
                     cursor: pointer;
@@ -291,9 +319,10 @@ export function ResourceListItem({
                     text-overflow: ellipsis;
                     white-space: nowrap;
                   `}
+                  {...resourceLabelConfig}
                 >
                   {labelText}
-                </Label>
+                </LabelButtonWithIcon>
               );
             })}
           </Box>
@@ -310,6 +339,7 @@ const ResTypeIconBox = styled(Box)`
 const RowContainer = styled(Box)<{
   shouldDisplayWarning: boolean;
   showingStatusInfo: boolean;
+  showHoverState: boolean;
 }>`
   transition: all 150ms;
   position: relative;
@@ -326,10 +356,12 @@ const RowContainer = styled(Box)<{
     `}
 
   &:hover {
-    background-color: ${props => props.theme.colors.levels.surface};
+    background-color: ${props =>
+      props.showHoverState ? props.theme.colors.levels.surface : 'transparent'};
 
     ${p =>
       p.shouldDisplayWarning &&
+      p.showHoverState &&
       css`
         background-color: ${getStatusBackgroundColor({
           showingStatusInfo: p.showingStatusInfo,
@@ -339,29 +371,31 @@ const RowContainer = styled(Box)<{
         })};
       `}
 
-    // We use a pseudo element for the shadow with position: absolute in order to prevent
-    // the shadow from increasing the size of the layout and causing scrollbar flicker.
-    &:after {
-      box-shadow: ${props => props.theme.boxShadow[3]};
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      z-index: -1;
-      width: 100%;
-      height: 100%;
-    }
+    ${p =>
+      p.showHoverState &&
+      css`
+        // We use a pseudo element for the shadow with position: absolute in order to prevent
+        // the shadow from increasing the size of the layout and causing scrollbar flicker.
+        &:after {
+          box-shadow: ${props => props.theme.boxShadow[3]};
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          z-index: -1;
+          width: 100%;
+          height: 100%;
+        }
+      `}
   }
 `;
 
-const RowInnerContainer = styled(Flex)<BackgroundColorProps>`
+const RowInnerContainer = styled(Flex)<
+  BackgroundColorProps & { showHoverState: boolean }
+>`
   display: grid;
-  grid-template-columns: 22px 24px 36px 2fr 1fr 1fr 32px min-content;
   column-gap: ${props => props.theme.space[3]}px;
   grid-template-rows: 56px min-content;
-  grid-template-areas:
-    'checkbox pin icon name type address labels-btn warning-icon button'
-    '. . labels labels labels labels labels labels labels';
   align-items: center;
   height: 100%;
   min-width: 100%;
@@ -373,10 +407,41 @@ const RowInnerContainer = styled(Flex)<BackgroundColorProps>`
   border-bottom: ${props => props.theme.borders[2]}
     ${props => props.theme.colors.spotBackground[0]};
 
-  &:hover {
-    // Make the border invisible instead of removing it, this is to prevent things from shifting due to the size change.
-    border-bottom: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
-  }
+  ${p =>
+    p.showHoverState &&
+    css`
+      &:hover {
+        // Make the border invisible instead of removing it, this is to prevent things from shifting due to the size change.
+        border-bottom: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
+      }
+    `}
+
+  grid-template-columns: 22px 24px 36px 2fr 1fr 1fr 32px min-content;
+  grid-template-areas:
+    'checkbox pin icon name type address labels-btn warning-icon button'
+    '. . labels labels labels labels labels labels labels';
+
+  ${p =>
+    p.hideCheckbox &&
+    `grid-template-columns: 24px 36px 2fr 1fr 1fr 32px min-content;
+    grid-template-areas:
+    'pin icon name type address labels-btn warning-icon button'
+    '. labels labels labels labels labels labels labels';`}
+
+  ${p =>
+    p.hidePin &&
+    `grid-template-columns: 22px 36px 2fr 1fr 1fr 32px min-content;
+    grid-template-areas:
+    'checkbox icon name type address labels-btn warning-icon button'
+    '. labels labels labels labels labels labels labels';`}
+
+  ${p =>
+    p.hideCheckbox &&
+    p.hidePin &&
+    `grid-template-columns: 36px 2fr 1fr 1fr 32px min-content;
+    grid-template-areas:
+    'icon name type address labels-btn warning-icon button'
+    'labels labels labels labels labels labels labels';`}
 `;
 
 const Name = styled(Text)`

@@ -310,7 +310,7 @@ func TransferFiles(ctx context.Context, req *FileTransferRequest) error {
 			return trace.Wrap(err)
 		}
 		for i, srcPath := range req.Sources.Paths {
-			expandedPath, err := expandPath(srcPath)
+			expandedPath, err := ExpandHomeDir(srcPath)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -338,7 +338,7 @@ func TransferFiles(ctx context.Context, req *FileTransferRequest) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		expandedPath, err := expandPath(req.Destination.Path)
+		expandedPath, err := ExpandHomeDir(req.Destination.Path)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -361,27 +361,28 @@ func (p PathExpansionError) Error() string {
 	return fmt.Sprintf("expanding remote ~user paths is not supported, specify an absolute path instead of %q", p.path)
 }
 
-func expandPath(pathStr string) (string, error) {
+// ExpandHomeDir evaluates the home directory ('~') in a path.
+func ExpandHomeDir(pathStr string) (string, error) {
 	pfxLen, ok := homeDirPrefixLen(pathStr)
 	if !ok {
 		return pathStr, nil
 	}
 
-	// Removing the home dir prefix would mean returning an empty string,
-	// which is supported by SFTP but won't be as clear in logs or audit
-	// events. Since the SFTP server will be rooted at the user's home
-	// directory, "." and "" are equivalent in this context.
-	if pathStr == "~" {
-		return ".", nil
-	}
 	if pfxLen == 1 && len(pathStr) > 1 {
 		return "", trace.Wrap(PathExpansionError{path: pathStr})
 	}
 
 	// if an SFTP path is not absolute, it is assumed to start at the user's
 	// home directory so just strip the prefix and let the SFTP server
-	// figure out the correct remote path
-	return pathStr[pfxLen:], nil
+	// figure out the correct remote path.
+	trimmedPath := pathStr[pfxLen:]
+	// Returning an empty string is supported by SFTP but won't be as clear in
+	// logs or audit events. Since the SFTP server will be rooted at the user's
+	// home directory, "." and "" are equivalent in this context.
+	if trimmedPath == "" {
+		return ".", nil
+	}
+	return trimmedPath, nil
 }
 
 // homeDirPrefixLen returns the length of a set of characters that

@@ -1,6 +1,6 @@
 ---
 title: Deploying tbot on Kubernetes
-description: How to install and configure Machine ID on Kubernetes with Static JWKS Keys
+description: How to install and configure the Machine & Workload Identity agent, `tbot`, on Kubernetes with Static JWKS Keys
 sidebar_label: Kubernetes (Static JWKS)
 tags:
  - how-to
@@ -8,8 +8,9 @@ tags:
  - infrastructure-identity
 ---
 
-This guide shows you how to deploy the Machine ID daemon `tbot`, on a Kubernetes
-cluster using a static set of JWKS keys.
+This guide shows you how to deploy the Machine & Workload Identity agent,
+`tbot`, on a Kubernetes cluster and use a static reference to the cluster's
+Service Account issuer keys for authentication.
 
 ## How it works
 

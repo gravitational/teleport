@@ -27,6 +27,8 @@ export type JoinToken = {
   // bot_name is present on tokens with Bot in their join roles
   bot_name?: string;
   isStatic: boolean;
+  // the token is managed by the Teleport Cloud system and should not be edited by end users
+  isCloudSystem?: boolean;
   // the join method of the token
   method: string;
   // Roles are the roles granted to the token

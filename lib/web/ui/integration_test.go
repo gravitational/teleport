@@ -47,6 +47,19 @@ func TestMakeIntegration(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	terraformManagedIntegration, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{
+			Name: "terraform-managed",
+			Labels: map[string]string{
+				types.CreatedByIaCLabel: IaCTerraformLabel,
+			},
+		},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "arn:aws:iam::123456789012:role/TerraformRole",
+		},
+	)
+	require.NoError(t, err)
+
 	testCases := []struct {
 		integration types.Integration
 		want        Integration
@@ -69,6 +82,17 @@ func TestMakeIntegration(t *testing.T) {
 				GitHub: &IntegrationGitHub{
 					Organization: "my-org",
 				},
+			},
+		},
+		{
+			integration: terraformManagedIntegration,
+			want: Integration{
+				Name:    "terraform-managed",
+				SubKind: types.IntegrationSubKindAWSOIDC,
+				AWSOIDC: &IntegrationAWSOIDCSpec{
+					RoleARN: "arn:aws:iam::123456789012:role/TerraformRole",
+				},
+				IsManagedByTerraform: true,
 			},
 		},
 	}

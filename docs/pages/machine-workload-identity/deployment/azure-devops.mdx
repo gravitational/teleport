@@ -1,6 +1,6 @@
 ---
 title: Deploying tbot on Azure DevOps
-description: How to install and configure Machine ID on Azure DevOps.
+description: How to install and configure the Machine & Workload Identity agent, `tbot`, on Azure DevOps.
 sidebar_label: Azure DevOps
 tags:
  - how-to
@@ -9,16 +9,17 @@ tags:
  - azure
 ---
 
-In this guide, you will configure Machine ID's agent, `tbot`, to run within a
-Azure DevOps pipeline run. The bot will be configured to use the `azure_devops`
-delegated joining method to eliminate the need for long-lived secrets.
+In this guide, you will configure Machine & Workload Identity's agent, `tbot`,
+to run within a Azure DevOps pipeline run. The bot will be configured to use
+the `azure_devops` delegated joining method to eliminate the need for long-lived
+secrets.
 
 ## How it works
 
-The `azure_devops` join method is a secure way for Machine ID bots to
-authenticate with the Teleport Auth Service without using any shared secrets.
-Instead, it makes use of an OpenID Connect token that Azure DevOps provides via
-an API to the pipeline job.
+The `azure_devops` join method is a secure way for Machine & Workload Identity
+bots to authenticate with the Teleport Auth Service without using any shared
+secrets. Instead, it makes use of an OpenID Connect token that Azure DevOps
+provides via an API to the pipeline job.
 
 This token is sent to the Teleport Auth Service, and assuming it has been
 configured to trust Azure DevOps's identity provider and all identity assertions

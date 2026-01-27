@@ -47,7 +47,7 @@ func TestConnectSSEServer(t *testing.T) {
 	initReq := mcpclienttransport.JSONRPCRequest{
 		JSONRPC: mcp.JSONRPC_VERSION,
 		ID:      mcp.NewRequestId(int64(1)),
-		Method:  string(mcp.MethodInitialize),
+		Method:  MethodInitialize,
 		Params: mcp.InitializeParams{
 			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
 			ClientInfo: mcp.Implementation{
@@ -65,12 +65,4 @@ func TestConnectSSEServer(t *testing.T) {
 	initResult, err := initResp.GetInitializeResult()
 	require.NoError(t, err)
 	require.Equal(t, "test-server", initResult.ServerInfo.Name)
-}
-
-func TestEventMarshal(t *testing.T) {
-	e := event{
-		name: sseEventMessage,
-		data: []byte("hello"),
-	}
-	require.Equal(t, "event: message\ndata: hello\n\n", string(e.marshal()))
 }

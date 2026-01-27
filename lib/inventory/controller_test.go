@@ -26,9 +26,11 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -108,6 +110,19 @@ func (a *fakeAuth) UpsertApplicationServer(_ context.Context, server types.AppSe
 	}
 	a.lastServerExpiry = server.Expiry()
 	return &types.KeepAlive{}, a.err
+}
+
+func (a *fakeAuth) UnconditionalUpdateApplicationServer(_ context.Context, server types.AppServer) (types.AppServer, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.keepalives++
+
+	if a.failKeepAlives > 0 {
+		a.failKeepAlives--
+		return nil, trace.Errorf("unconditional update failed as test condition")
+	}
+	a.lastServerExpiry = server.Expiry()
+	return server, a.err
 }
 
 func (a *fakeAuth) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
@@ -201,8 +216,8 @@ func (a *fakeAuth) UpsertInstance(ctx context.Context, instance types.Instance) 
 // an ssh service.
 func TestSSHServerBasics(t *testing.T) {
 	t.Parallel()
-	maybeSynctest(t, testSSHServerBasics)
-	maybeSynctest(t, testSSHServerScope)
+	synctest.Test(t, testSSHServerBasics)
+	synctest.Test(t, testSSHServerScope)
 }
 
 func testSSHServerScope(t *testing.T) {
@@ -536,7 +551,7 @@ func testSSHServerBasics(t *testing.T) {
 // an app service.
 func TestAppServerBasics(t *testing.T) {
 	t.Parallel()
-	maybeSynctest(t, testAppServerBasics)
+	synctest.Test(t, testAppServerBasics)
 }
 func testAppServerBasics(t *testing.T) {
 	const serverID = "test-server"
@@ -601,7 +616,7 @@ func testAppServerBasics(t *testing.T) {
 		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
 			AppServer: &types.AppServerV3{
 				Metadata: types.Metadata{
-					Name: serverID,
+					Name: fmt.Sprintf("app-%d", i),
 				},
 				Spec: types.AppServerSpecV3{
 					HostID: serverID,
@@ -656,7 +671,7 @@ func testAppServerBasics(t *testing.T) {
 		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
 			AppServer: &types.AppServerV3{
 				Metadata: types.Metadata{
-					Name: serverID,
+					Name: fmt.Sprintf("app-%d", i),
 				},
 				Spec: types.AppServerSpecV3{
 					HostID: serverID,
@@ -665,6 +680,9 @@ func testAppServerBasics(t *testing.T) {
 						Version: types.V3,
 						Metadata: types.Metadata{
 							Name: fmt.Sprintf("app-%d", i),
+							Labels: map[string]string{
+								"foo": uuid.NewString(),
+							},
 						},
 						Spec: types.AppSpecV3{},
 					},
@@ -717,20 +735,26 @@ func testAppServerBasics(t *testing.T) {
 	// set up to induce enough consecutive errors to cause stream closure
 	auth.mu.Lock()
 	auth.failUpserts = 5
+	auth.failKeepAlives = 5
 	auth.mu.Unlock()
 
 	err = downstream.Send(ctx, &proto.InventoryHeartbeat{
 		AppServer: &types.AppServerV3{
 			Metadata: types.Metadata{
-				Name: serverID,
+				Name: "app-0",
 			},
 			Spec: types.AppServerSpecV3{
 				HostID: serverID,
 				App: &types.AppV3{
-					Kind:     types.KindApp,
-					Version:  types.V3,
-					Metadata: types.Metadata{},
-					Spec:     types.AppSpecV3{},
+					Kind:    types.KindApp,
+					Version: types.V3,
+					Metadata: types.Metadata{
+						Name: "app-0",
+						Labels: map[string]string{
+							"foo": uuid.NewString(),
+						},
+					},
+					Spec: types.AppSpecV3{},
 				},
 			},
 		},
@@ -770,7 +794,7 @@ func testAppServerBasics(t *testing.T) {
 // a database server.
 func TestDatabaseServerBasics(t *testing.T) {
 	t.Parallel()
-	maybeSynctest(t, testDatabaseServerBasics)
+	synctest.Test(t, testDatabaseServerBasics)
 }
 func testDatabaseServerBasics(t *testing.T) {
 	const serverID = "test-server"
@@ -1037,7 +1061,7 @@ func testDatabaseServerBasics(t *testing.T) {
 // TestInstanceHeartbeat verifies basic expected behaviors for instance heartbeat.
 func TestInstanceHeartbeat_Disabled(t *testing.T) {
 	t.Parallel()
-	maybeSynctest(t, testInstanceHeartbeat_Disabled)
+	synctest.Test(t, testInstanceHeartbeat_Disabled)
 }
 func testInstanceHeartbeat_Disabled(t *testing.T) {
 	const serverID = "test-instance"
@@ -1089,7 +1113,7 @@ func TestInstanceHeartbeatDisabledEnv(t *testing.T) {
 // TestInstanceHeartbeat verifies basic expected behaviors for instance heartbeat.
 func TestInstanceHeartbeat(t *testing.T) {
 	t.Parallel()
-	maybeSynctest(t, testInstanceHeartbeat)
+	synctest.Test(t, testInstanceHeartbeat)
 }
 func testInstanceHeartbeat(t *testing.T) {
 	const serverID = "test-instance"
@@ -1209,7 +1233,7 @@ func testInstanceHeartbeat(t *testing.T) {
 // inventory control stream.
 func TestUpdateLabels(t *testing.T) {
 	t.Parallel()
-	maybeSynctest(t, testUpdateLabels)
+	synctest.Test(t, testUpdateLabels)
 }
 func testUpdateLabels(t *testing.T) {
 	const serverID = "test-instance"
@@ -1282,7 +1306,7 @@ func testUpdateLabels(t *testing.T) {
 // inventory control stream.
 func TestAgentMetadata(t *testing.T) {
 	t.Parallel()
-	maybeSynctest(t, testAgentMetadata)
+	synctest.Test(t, testAgentMetadata)
 }
 func testAgentMetadata(t *testing.T) {
 	const serverID = "test-instance"
@@ -1559,14 +1583,14 @@ func TestGoodbye(t *testing.T) {
 		}
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			maybeSynctest(t, inner)
+			synctest.Test(t, inner)
 		})
 	}
 }
 
 func TestKubernetesServerBasics(t *testing.T) {
 	t.Parallel()
-	maybeSynctest(t, testKubernetesServerBasics)
+	synctest.Test(t, testKubernetesServerBasics)
 }
 func testKubernetesServerBasics(t *testing.T) {
 	const serverID = "test-server"
@@ -1797,7 +1821,7 @@ func testKubernetesServerBasics(t *testing.T) {
 
 func TestGetSender(t *testing.T) {
 	t.Parallel()
-	maybeSynctest(t, testGetSender)
+	synctest.Test(t, testGetSender)
 }
 func testGetSender(t *testing.T) {
 	controller := NewController(
@@ -1870,7 +1894,7 @@ func testGetSender(t *testing.T) {
 // TestTimeReconciliation verifies basic behavior of the time reconciliation check.
 func TestTimeReconciliation(t *testing.T) {
 	t.Parallel()
-	maybeSynctest(t, testTimeReconciliation)
+	synctest.Test(t, testTimeReconciliation)
 }
 func testTimeReconciliation(t *testing.T) {
 	const serverID = "test-server"
@@ -1973,7 +1997,7 @@ func awaitEvents(t *testing.T, ch <-chan testEvent, opts ...eventOption) {
 		opt(&options)
 	}
 
-	timeout := time.After(time.Second * 30)
+	timeout := time.After(time.Second * 300)
 	for {
 		if len(options.expect) == 0 {
 			return

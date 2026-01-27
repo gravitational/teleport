@@ -15,8 +15,8 @@ tags:
 ## Prerequisites
 
 - Teleport cluster with a configured [self-hosted
-  PostgreSQL](../enroll-self-hosted-databases/postgres-self-hosted.mdx) or [RDS
-  PostgreSQL](../enroll-aws-databases/rds.mdx) database. To configure
+  PostgreSQL](../enrollment/self-hosted/postgres-self-hosted.mdx) or [RDS
+  PostgreSQL](../enrollment/aws/rds/mysql-postgres-mariadb.mdx) database. To configure
   permissions for database objects like tables, your cluster must be on version
   v15.2 or above.
 - Ability to connect to and create user accounts in the target database.
@@ -84,7 +84,7 @@ hostssl all             all             ::/0                    cert
 hostssl all             all             0.0.0.0/0               cert
 ```
 
-Refer to the [self-hosted PostgreSQL guide](../enroll-self-hosted-databases/postgres-self-hosted.mdx#step-35-configure-your-postgresql-server)
+Refer to the [self-hosted PostgreSQL guide](../enrollment/self-hosted/postgres-self-hosted.mdx#step-35-configure-your-postgresql-server)
 to ensure that your configuration is correct.
 </TabItem>
 </Tabs>
@@ -301,7 +301,7 @@ admin user through Teleport.
 ## Next steps
 
 - Connect using your [GUI database
-  client](../../../connect-your-client/gui-clients.mdx).
+  client](../../../connect-your-client/third-party/gui-clients.mdx).
 - Learn about [role
   templating](../../../zero-trust-access/rbac-get-started/role-templates.mdx).
 - Read automatic user provisioning [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).

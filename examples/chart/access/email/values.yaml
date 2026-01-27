@@ -32,7 +32,7 @@ teleport:
   # ```
   #
   # Check out the [Access Requests with
-  # Email](../../identity-governance/access-request-plugins/ssh-approval-email.mdx) guide
+  # Email](../../identity-governance/access-requests/plugins/email.mdx) guide
   # for more information about how to acquire these credentials.
   identitySecretName: ""
   # teleport.identitySecretPath(string) -- is the key in the Kubernetes secret
@@ -176,7 +176,7 @@ tbot:
   teleportAuthAddress: ""
 
   # tbot.joinMethod(string) -- describes how tbot joins the Teleport cluster.
-  # See [the join method reference](../../reference/deployment/join-methods.mdx) for a list fo supported values and detailed explanations.
+  # See [the join method reference](../../reference/deployment/join-methods.mdx) for a list of supported values and detailed explanations.
   joinMethod: "kubernetes"
   token: ""
 

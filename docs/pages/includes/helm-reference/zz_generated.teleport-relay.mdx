@@ -321,6 +321,23 @@ the chart. See [the Kubernetes
 documentation](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
 for more details.
 
+## `goMemLimitRatio`
+
+| Type | Default |
+|------|---------|
+| `float` | `0.9` |
+
+`goMemLimitRatio` configures the GOMEMLIMIT env var set by the chart.
+GOMEMLIMIT instructs the go garbage collector to try to keep allocated memory
+below a given threshold. This is a best-effort attempt, but this helps
+to prevent OOMs in case of bursts.
+
+When the memory limits are set and goMemLimitRatio is non-zero,
+the chart sets the GOMEMLIMIT to `resources.memory.limits * goMemLimitRatio`.
+The value must be between 0 and 1.
+Set to 0 to unset GOMEMLIMIT.
+This has no effect if GOMEMLIMIT is already set through `extraEnv`.
+
 ## `service`
 
 `service` options for the Service that points to the Teleport Relay
@@ -540,7 +557,7 @@ By default, the image contains only the Teleport application and its runtime
 dependencies, and does not contain a shell.
 
 This setting only takes effect when [`enterprise`](#enterprise) is `true`.
-When running an enterprise version, you must use [`image`](#image) instead.
+When running an OSS version, you must use [`image`](#image) instead.
 
 ## `imagePullSecrets`
 

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Link as InternalLink } from 'react-router-dom';
 
 import { Alert, Box, Button, Link as ExternalLink, Flex, Text } from 'design';
@@ -27,7 +27,9 @@ import {
   InfoParagraph,
   InfoUl,
   ReferenceLinks,
+  useInfoGuide,
 } from 'shared/components/SlidingSidePanel/InfoGuide';
+import { useEscape } from 'shared/hooks/useEscape';
 
 import { useServerSidePagination } from 'teleport/components/hooks';
 import {
@@ -36,10 +38,13 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
+import { useNoMinWidth } from 'teleport/Main';
 import { User } from 'teleport/services/user';
 
+import { useUrlParams } from './state';
 import { UserAddEdit } from './UserAddEdit';
 import { UserDelete } from './UserDelete';
+import { UserDetailsTitle } from './UserDetails';
 import UserList from './UserList';
 import UserReset from './UserReset';
 import useUsers, { State, UsersContainerProps } from './useUsers';
@@ -66,12 +71,15 @@ export function Users(props: State) {
     inviteCollaboratorsOpen,
     InviteCollaborators,
     EmailPasswordReset,
+    UserDetails,
     onEmailPasswordResetClose,
     fetch,
   } = props;
 
-  const [search, setSearch] = useState('');
+  const [params, setParams] = useUrlParams();
   const abortControllerRef = useRef<AbortController | null>(null);
+  const { setInfoGuideConfig, infoGuideConfig } = useInfoGuide();
+  const detailsPanelWidth = 480;
 
   const serverSidePagination = useServerSidePagination<User>({
     pageSize: 20,
@@ -83,8 +91,10 @@ export function Users(props: State) {
       return { agents: items || [], startKey };
     },
     clusterId: '',
-    params: { search },
+    params: { search: params.search },
   });
+
+  useNoMinWidth();
 
   useEffect(() => {
     // Cancel previous request and create new controller
@@ -92,7 +102,7 @@ export function Users(props: State) {
     abortControllerRef.current = new AbortController();
 
     serverSidePagination.fetch();
-  }, [search]);
+  }, [params.search]);
 
   // Cleanup controller on unmount
   useEffect(() => {
@@ -100,6 +110,70 @@ export function Users(props: State) {
       abortControllerRef.current?.abort();
     };
   }, []);
+
+  const isSuccess = serverSidePagination.attempt.status === 'success';
+  const userData = serverSidePagination.fetchedData.agents;
+
+  // fetch user from username
+  const user = useMemo(() => {
+    if (isSuccess && params.user) {
+      return userData?.find(u => u.name === params.user) || null;
+    }
+  }, [params.user, userData, isSuccess]);
+
+  // this effect will open the user details panel if the selected user is found
+  // in the pagination results, otherwise it will close the panel and clear the
+  // user URL param
+  useEffect(() => {
+    if (params.user && user) {
+      const botOrExternal = user.isBot || !user.isLocal;
+
+      const onEdit =
+        usersAcl.edit && !botOrExternal ? () => onStartEdit(user) : undefined;
+
+      const onReset = usersAcl.edit ? () => onStartReset(user) : undefined;
+
+      const onDelete = usersAcl.remove ? () => onStartDelete(user) : undefined;
+
+      setInfoGuideConfig({
+        id: user.name,
+        guide: <UserDetails user={user} onEdit={onEdit} />,
+        title: (
+          <UserDetailsTitle
+            user={user}
+            onEdit={onEdit}
+            onReset={onReset}
+            onDelete={onDelete}
+            panelWidth={detailsPanelWidth}
+          />
+        ),
+        panelWidth: detailsPanelWidth,
+      });
+    } else {
+      const userNotFound = params.user && isSuccess && !user;
+
+      if (userNotFound) {
+        setCurrentUser(null);
+      }
+      setInfoGuideConfig(null);
+    }
+  }, [user]);
+
+  // detect if panel was closed by user interaction (i.e. clicking x)
+  // and clear current user
+  useEffect(() => {
+    if (!infoGuideConfig && user && params.user) {
+      setCurrentUser(null);
+    }
+  }, [infoGuideConfig]);
+
+  useEscape(() => {
+    setCurrentUser(null);
+  });
+
+  const setCurrentUser = (user: User | null) => {
+    setParams({ ...params, user: user?.name || null });
+  };
 
   const requiredPermissions = Object.entries(usersAcl)
     .map(([key, value]) => {
@@ -221,12 +295,14 @@ export function Users(props: State) {
       )}
       <UserList
         serversidePagination={serverSidePagination}
-        onSearchChange={setSearch}
-        search={search}
+        onSearchChange={search => setParams({ ...params, search: search })}
+        search={params.search}
         onEdit={onStartEdit}
         onDelete={onStartDelete}
         onReset={onStartReset}
+        onUserClick={setCurrentUser}
         usersAcl={usersAcl}
+        selectedUser={user}
       />
       {(operation.type === 'create' || operation.type === 'edit') && (
         <UserAddEdit

@@ -103,6 +103,8 @@ spec:
     # Defaults to true if unspecified.
     # If one or more of the user's roles has disabled directory sharing, then it will be disabled.
     desktop_directory_sharing: true
+    # Specify whether this role supports auto-provisioning of local Windows users.
+    create_desktop_user: true
     # enterprise-only: when enabled, the source IP that was used to log in is embedded in the user
     # certificates, preventing a compromised certificate from being used on another
     # network. The default is false.
@@ -170,6 +172,16 @@ spec:
       # with the logged in username.
       "ALL = (root) NOPASSWD: /usr/bin/systemctl restart nginx.service"
     ]
+
+    # List of local Windows groups the created user will be added to.
+    # Any that don't already exist are created. Only applies when
+    # create_desktop_user is 'true'.
+    desktop_groups:
+    - developers
+    # to make the newly-created user an administrator
+    - Administrators
+    # IdP trait templating is also supported
+    - '{{external.desktop_groups}}'
 
     # kubernetes_groups specifies Kubernetes groups a user with this role will assume.
     # You can refer to a SAML/OIDC trait via the 'external' property bag.

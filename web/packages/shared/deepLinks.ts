@@ -112,15 +112,18 @@ export function makeDeepLinkWithSafeInput<
     ? encodeURIComponent(args.username) + '@'
     : '';
 
-  const searchParamsString = Object.entries(args.searchParams)
-    // filter out params that have no value to prevent a string like "&myparam=null"
-    .filter(kv => kv[1] !== null && kv[1] !== undefined)
-    .map(kv => kv.map(encodeURIComponent).join('='))
-    .join('&');
+  const searchParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(args.searchParams)) {
+    // Filter out params that have no value to prevent a param like "&myparam=null".
+    if (value === null || value === undefined) {
+      continue;
+    }
+    searchParams.set(key, value);
+  }
 
   const url = `${CUSTOM_PROTOCOL}://${encodedUsername}${args.proxyHost}${args.path}`;
-  if (searchParamsString !== '') {
-    return url + '?' + searchParamsString;
+  if (searchParams.size > 0) {
+    return url + '?' + searchParams.toString();
   }
   return url;
 }

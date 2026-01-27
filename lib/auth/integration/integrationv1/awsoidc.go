@@ -86,7 +86,7 @@ type AWSOIDCServiceConfig struct {
 	Cache                 CacheAWSOIDC
 	TokenCreator          TokenCreator
 	Clock                 clockwork.Clock
-	ProxyPublicAddrGetter func() string
+	ProxyPublicAddrGetter func(context.Context) string
 	Logger                *slog.Logger
 }
 
@@ -225,7 +225,7 @@ type AWSOIDCService struct {
 	authorizer            authz.Authorizer
 	logger                *slog.Logger
 	clock                 clockwork.Clock
-	proxyPublicAddrGetter func() string
+	proxyPublicAddrGetter func(context.Context) string
 	cache                 CacheAWSOIDC
 	tokenCreator          TokenCreator
 }
@@ -669,7 +669,7 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 		return nil, trace.Wrap(err)
 	}
 
-	publicProxyAddr := s.proxyPublicAddrGetter()
+	publicProxyAddr := s.proxyPublicAddrGetter(ctx)
 	if publicProxyAddr == "" {
 		return nil, trace.BadParameter("could not get public proxy address.")
 	}

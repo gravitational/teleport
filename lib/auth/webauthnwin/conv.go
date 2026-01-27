@@ -19,6 +19,7 @@
 package webauthnwin
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"syscall"
@@ -37,25 +38,52 @@ func assertOptionsToCType(in wantypes.PublicKeyCredentialRequestOptions, loginOp
 	}
 
 	var dwAuthenticatorAttachment uint32
+	var credentialHint string
 	if loginOpts != nil {
 		switch loginOpts.AuthenticatorAttachment {
 		case AttachmentPlatform:
-			dwAuthenticatorAttachment = 1
+			dwAuthenticatorAttachment = webauthnAttachmentPlatform
+			getPackageLogger().DebugContext(context.Background(),
+				"Using platform attachment",
+				"attachment", dwAuthenticatorAttachment,
+			)
 		case AttachmentCrossPlatform:
-			dwAuthenticatorAttachment = 2
+			dwAuthenticatorAttachment = webauthnAttachmentCrossPlatform
+			// If we are setting cross-platform we imply a physical security-key (not
+			// a phone).
+			// See https://github.com/gravitational/teleport/issues/62060.
+			credentialHint = webauthnCredentialHintSecurityKey
+			getPackageLogger().DebugContext(context.Background(),
+				"Using cross-platform attachment with security-key hint",
+				"attachment", dwAuthenticatorAttachment,
+				"credential_hint", credentialHint,
+			)
 		}
+	}
+
+	var cCredentialHints uint32  // number of hints
+	var pCredentialHints *uint16 // pointer to array of NULL-terminated UTF-16 strings
+	if credentialHint != "" {
+		var err error
+		pCredentialHints, err = utf16PtrFromString(credentialHint)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cCredentialHints = 1
 	}
 
 	return &webauthnAuthenticatorGetAssertionOptions{
 		// https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L36-L97
 		// contains information about different versions.
 		// We can set newest version and it still works on older APIs.
-		dwVersion:                     5,
+		dwVersion:                     9,
 		dwTimeoutMilliseconds:         uint32(in.Timeout),
 		dwAuthenticatorAttachment:     dwAuthenticatorAttachment,
 		dwUserVerificationRequirement: userVerificationToCType(in.UserVerification),
 		// TODO(tobiaszheller): support U2fAppId.
 		pAllowCredentialList: allowCredList,
+		cCredentialHints:     cCredentialHints,
+		ppwszCredentialHints: pCredentialHints,
 	}, nil
 }
 

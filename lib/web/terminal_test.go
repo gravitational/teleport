@@ -115,7 +115,7 @@ func connectToHost(ctx context.Context, cfg connectConfig) (*testTerminal, error
 			W: 100,
 			H: 100,
 		},
-		SessionID:         cfg.sessionID,
+		JoinSessionID:     cfg.sessionID,
 		ParticipantMode:   cfg.participantMode,
 		KeepAliveInterval: cfg.keepAliveInterval,
 	}

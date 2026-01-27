@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -47,10 +48,27 @@ func (s *ProvisioningService) UpsertToken(ctx context.Context, p types.Provision
 		return trace.Wrap(err)
 	}
 
-	_, err = s.Put(ctx, *item)
-	if err != nil {
+	if _, err := s.AtomicWrite(ctx, []backend.ConditionalAction{
+		{
+			Key:       backend.NewKey(tokensPrefix, p.GetName()),
+			Condition: backend.Whatever(),
+			Action:    backend.Put(*item),
+		},
+		{
+			Key:       backend.NewKey(scopedTokenPrefix, p.GetName()),
+			Condition: backend.NotExists(),
+			// the second action is a no-op because we only need to
+			// execute a single action to create the token,
+			// but both conditions must be met
+			Action: backend.Nop(),
+		},
+	}); err != nil {
+		if errors.Is(err, backend.ErrConditionFailed) {
+			return trace.AlreadyExists("token could not be created due to name conflict with an existing scoped or unscoped token, please try again with a different name or delete the conflicting token")
+		}
 		return trace.Wrap(err)
 	}
+
 	return nil
 }
 
@@ -117,8 +135,24 @@ func (s *ProvisioningService) CreateToken(ctx context.Context, p types.Provision
 		return trace.Wrap(err)
 	}
 
-	_, err = s.Create(ctx, *item)
-	if err != nil {
+	if _, err := s.AtomicWrite(ctx, []backend.ConditionalAction{
+		{
+			Key:       backend.NewKey(tokensPrefix, p.GetName()),
+			Condition: backend.NotExists(),
+			Action:    backend.Put(*item),
+		},
+		{
+			Key:       backend.NewKey(scopedTokenPrefix, p.GetName()),
+			Condition: backend.NotExists(),
+			// the second action is a no-op because we only need to
+			// execute a single action to create the token,
+			// but both conditions must be met
+			Action: backend.Nop(),
+		},
+	}); err != nil {
+		if errors.Is(err, backend.ErrConditionFailed) {
+			return trace.AlreadyExists("token could not be created due to name conflict with an existing scoped or unscoped token, please try again with a different name or delete the conflicting token")
+		}
 		return trace.Wrap(err)
 	}
 

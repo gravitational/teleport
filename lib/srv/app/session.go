@@ -144,7 +144,9 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 // withJWTTokenForwarder is a sessionOpt that creates a forwarder that attaches
 // a generated JWT token to all requests.
 func (c *ConnectionsHandler) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
-	jwt, traits, err := common.GenerateJWTAndTraits(ctx, identity, app, c.cfg.AuthClient)
+	// TODO(greedy52) consider using a shorter ttl for the token. The chunk is
+	// only 5 minutes anyway.
+	jwt, traits, err := common.GenerateJWTAndTraits(ctx, identity, app, c.cfg.AuthClient, identity.Expires)
 	if err != nil {
 		return trace.Wrap(err)
 	}

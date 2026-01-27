@@ -1,0 +1,59 @@
+Edit your cluster authentication preferences so you can make the authentication
+connector you configured in this guide the default authentication method for
+your Teleport cluster.
+
+Open the Teleport Web UI. From the left sidebar, navigate to **Zero Trust
+Access** > **Auth Connectors**. Find the connector you would like to make the
+default and, from its three-dot menu, select **Set as default**. 
+
+If you are managing your Teleport resources as configuration files, you can
+choose a default authentication connector using a dynamic resource. In this
+case, use `tctl` to edit the `cluster_auth_preference` value:
+
+```code
+$ tctl edit cluster_auth_preference
+```
+
+Set the value of `spec.type` to `{{ type }}`:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  ...
+  name: cluster-auth-preference
+spec:
+  ...
+  type: {{ type }}
+  ...
+version: v2
+```
+
+After you save and exit the editor, `tctl` will update the resource:
+
+```text
+cluster auth preference has been updated
+```
+
+<details>
+<summary>Additional ways to edit cluster auth preferences</summary>
+
+The cluster auth preference is available as a Teleport Terraform provider
+resource. Find a list of configuration options in the [Cluster Auth Preferences
+Resource
+Reference](../../reference/infrastructure-as-code/teleport-resources/cluster-auth-preferences.mdx).
+
+If you self-host Teleport, you can edit your Teleport Auth Service configuration
+file to include the following:
+
+```yaml
+# Snippet from /etc/teleport.yaml
+auth_service:
+  authentication:
+    type: {{ type }}
+```
+
+</details>
+
+If you need to log in again before configuring your identity provider, use the
+flag <nobr>`--auth=local`</nobr>.
+

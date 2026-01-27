@@ -28,6 +28,7 @@ export default function makeToken(json: any): JoinToken {
     id,
     roles,
     isStatic,
+    isCloudSystem,
     allow,
     gcp,
     github,
@@ -45,6 +46,7 @@ export default function makeToken(json: any): JoinToken {
   return {
     id,
     isStatic,
+    isCloudSystem,
     safeName,
     bot_name,
     method,

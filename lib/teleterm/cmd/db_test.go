@@ -72,14 +72,6 @@ func (m fakeDatabaseGateway) LocalPortInt() int             { return 8888 }
 func (m fakeDatabaseGateway) LocalPort() string             { return "8888" }
 
 func TestNewDBCLICommand(t *testing.T) {
-	// TODO mock other types
-	authClient := &mockAuthClient{
-		database: &types.DatabaseV3{
-			Spec: types.DatabaseSpecV3{
-				Protocol: types.DatabaseProtocolMongoDB,
-			},
-		},
-	}
 
 	testCases := []struct {
 		name                  string
@@ -87,30 +79,55 @@ func TestNewDBCLICommand(t *testing.T) {
 		argsCount             int
 		protocol              string
 		checkCmds             func(*testing.T, fakeDatabaseGateway, Cmds)
+		database              *types.DatabaseV3
 	}{
 		{
 			name:                  "empty name",
 			protocol:              defaults.ProtocolMongoDB,
 			targetSubresourceName: "",
 			checkCmds:             checkMongoCmds,
+			database: &types.DatabaseV3{
+				Spec: types.DatabaseSpecV3{
+					Protocol: types.DatabaseProtocolMongoDB,
+				},
+			},
 		},
 		{
 			name:                  "with name",
 			protocol:              defaults.ProtocolMongoDB,
 			targetSubresourceName: "bar",
 			checkCmds:             checkMongoCmds,
+			database: &types.DatabaseV3{
+				Spec: types.DatabaseSpecV3{
+					Protocol: types.DatabaseProtocolMongoDB,
+				},
+			},
 		},
 		{
 			name:                  "custom handling of DynamoDB does not blow up",
 			targetSubresourceName: "bar",
 			protocol:              defaults.ProtocolDynamoDB,
 			checkCmds:             checkArgsNotEmpty,
+			database: &types.DatabaseV3{
+				Spec: types.DatabaseSpecV3{
+					Protocol: types.DatabaseTypeDynamoDB,
+				},
+			},
 		},
 		{
 			name:                  "custom handling of Spanner does not blow up",
 			targetSubresourceName: "bar",
 			protocol:              defaults.ProtocolSpanner,
 			checkCmds:             checkArgsNotEmpty,
+			database: &types.DatabaseV3{
+				Spec: types.DatabaseSpecV3{
+					Protocol: types.DatabaseTypeSpanner,
+					GCP: types.GCPCloudSQL{
+						ProjectID:  "proj",
+						InstanceID: "inst",
+					},
+				},
+			},
 		},
 	}
 
@@ -126,6 +143,7 @@ func TestNewDBCLICommand(t *testing.T) {
 				protocol:        tc.protocol,
 			}
 
+			authClient := &mockAuthClient{database: tc.database}
 			cmds, err := newDBCLICommandWithExecer(context.Background(), &cluster, mockGateway, fakeExec{}, authClient)
 			require.NoError(t, err)
 

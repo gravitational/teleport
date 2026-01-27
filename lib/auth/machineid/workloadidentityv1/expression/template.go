@@ -135,8 +135,10 @@ func (t *Template) Render(env *Environment) (string, error) {
 				_, _ = b.WriteString(strconv.FormatBool(t))
 			case int:
 				_, _ = b.WriteString(strconv.Itoa(t))
+			case uint:
+				_, _ = b.WriteString(strconv.Itoa(int(t)))
 			default:
-				return "", trace.Errorf("expression did not evaluate to a string: %s", frag.text)
+				return "", trace.Errorf("expression did not evaluate to a string: %q, %T", frag.text, result)
 			}
 		}
 	}

@@ -100,6 +100,12 @@ func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ htt
 // It returns a full URL if the unsafeRedirectURI points to SAML IdP SSO endpoint.
 // In any other case, as long as the redirect URL is parsable, it returns
 // a path ensuring its prefixed with "/web".
+//
+// Nobody seems to know why we need to prepend the base path to the URL, so we keep doing it. It
+// might be related to the URLs we get from SSO redirects [1], but it's unclear why we'd be getting
+// a URL that's missing the base path and becomes valid only after appending the base path.
+//
+// [1]: https://github.com/gravitational/teleport/pull/47221#discussion_r1792248868
 func (h *Handler) getRedirectURL(host, unsafeRedirectURI string) (string, error) {
 	const (
 		basePath                = "/web"
@@ -145,7 +151,11 @@ func (h *Handler) getRedirectURL(host, unsafeRedirectURI string) (string, error)
 
 	// Prepend "/web" only if it's not already present
 	if !strings.HasPrefix(cleanPath, basePath) {
-		return path.Join(basePath, cleanPath), nil
+		cleanPath = path.Join(basePath, cleanPath)
+	}
+
+	if parsedURL.RawQuery != "" {
+		return cleanPath + "?" + parsedURL.RawQuery, nil
 	}
 	return cleanPath, nil
 }

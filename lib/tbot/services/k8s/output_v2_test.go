@@ -303,13 +303,14 @@ func TestKubernetesV2OutputService_render(t *testing.T) {
 				[]types.CertAuthority{fakeCA(t, types.HostCA, mockClusterName)},
 			)
 			require.NoError(t, err)
+			mockSNI := client.GetKubeTLSServerName(mockClusterName)
 			status := &kubernetesStatusV2{
 				kubernetesClusterNames: []string{"a", "b", "c"},
 				defaultNamespaces: map[string]string{
 					"a": "namespace-a",
 				},
 				teleportClusterName: mockClusterName,
-				tlsServerName:       client.GetKubeTLSServerName(mockClusterName),
+				tlsServerNameFunc:   func(teleportClusterName, kubeClusterName string) string { return mockSNI },
 				credentials:         keyRing,
 				clusterAddr:         fmt.Sprintf("https://%s:443", mockClusterName),
 			}

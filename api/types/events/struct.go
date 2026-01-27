@@ -97,6 +97,11 @@ func (s *Struct) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// DecodeToMap decodes a protobuf Struct into a map[string]any
+func DecodeToMap(s *Struct) (map[string]any, error) {
+	return decodeToMap(&s.Struct)
+}
+
 // EncodeMap encodes map[string]interface{} to map<string, Value>
 func EncodeMap(msg map[string]interface{}) (*Struct, error) {
 	data, err := json.Marshal(msg)

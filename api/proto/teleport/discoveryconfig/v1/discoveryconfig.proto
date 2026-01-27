@@ -97,6 +97,9 @@ message IntegrationDiscoveredSummary {
 
   // AWSEKS contains the summary for the AWS EKS discovered clusters.
   ResourcesDiscoveredSummary aws_eks = 3;
+
+  // The summary for the Azure VM discovered instances.
+  ResourcesDiscoveredSummary azure_vms = 4;
 }
 
 // ResourcesDiscoveredSummary represents the AWS resources that were discovered.

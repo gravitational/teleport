@@ -34,7 +34,7 @@ should match the snapshot (argocd):
           join_method: kubernetes
           token: my-token
         outputs:
-        - cluster_name_template: '{{.KubeName}}'
+        - cluster_name_template: '{{.KubeName}}-{{index .Labels "region"}}'
           cluster_resources: true
           namespaces:
           - dev
@@ -42,8 +42,10 @@ should match the snapshot (argocd):
           project: my-argo-project
           secret_annotations:
             chunky: bacon
+            cluster-region: '{{index .Labels "region"}}'
           secret_labels:
             baz: qux
+            cluster-region: '{{index .Labels "region"}}'
           secret_namespace: my-namespace
           selectors:
           - name: foo

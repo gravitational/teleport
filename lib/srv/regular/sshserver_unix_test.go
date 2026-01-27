@@ -70,10 +70,10 @@ func BenchmarkRootExecCommand(b *testing.B) {
 					b.Cleanup(func() { _, _ = host.UserDel(username) })
 				}
 
-				_, err := newUpack(f.testSrv, username, []string{username, f.user}, wildcardAllow)
+				_, err := newUpack(b.Context(), f.testSrv, username, []string{username, f.user}, wildcardAllow)
 				require.NoError(b, err)
 
-				clt := f.newSSHClient(context.Background(), b, &user.User{Username: username})
+				clt := f.newSSHClient(b.Context(), b, &user.User{Username: username})
 
 				executeCommand(b, clt, "uptime", 10)
 			}

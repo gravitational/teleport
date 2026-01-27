@@ -95,6 +95,16 @@ export interface DeviceWebToken {
      * @generated from protobuf field: repeated string expected_device_ids = 7;
      */
     expectedDeviceIds: string[];
+    /**
+     * BrowserMaxTouchPoints indicates whether the client device supports touch controls. It is sent
+     * by the frontend app to the proxy service and then forwarded to the auth service. It
+     * differentiates iPadOS from macOS since they both use the same user agent otherwise. This
+     * information is needed to decide whether to show the Device Trust prompt in the Web UI after a
+     * successful login.
+     *
+     * @generated from protobuf field: uint32 browser_max_touch_points = 8;
+     */
+    browserMaxTouchPoints: number;
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class DeviceWebToken$Type extends MessageType<DeviceWebToken> {
@@ -106,7 +116,8 @@ class DeviceWebToken$Type extends MessageType<DeviceWebToken> {
             { no: 4, name: "browser_user_agent", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 5, name: "browser_ip", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 6, name: "user", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 7, name: "expected_device_ids", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+            { no: 7, name: "expected_device_ids", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 8, name: "browser_max_touch_points", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
         ]);
     }
     create(value?: PartialMessage<DeviceWebToken>): DeviceWebToken {
@@ -118,6 +129,7 @@ class DeviceWebToken$Type extends MessageType<DeviceWebToken> {
         message.browserIp = "";
         message.user = "";
         message.expectedDeviceIds = [];
+        message.browserMaxTouchPoints = 0;
         if (value !== undefined)
             reflectionMergePartial<DeviceWebToken>(this, message, value);
         return message;
@@ -147,6 +159,9 @@ class DeviceWebToken$Type extends MessageType<DeviceWebToken> {
                     break;
                 case /* repeated string expected_device_ids */ 7:
                     message.expectedDeviceIds.push(reader.string());
+                    break;
+                case /* uint32 browser_max_touch_points */ 8:
+                    message.browserMaxTouchPoints = reader.uint32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -181,6 +196,9 @@ class DeviceWebToken$Type extends MessageType<DeviceWebToken> {
         /* repeated string expected_device_ids = 7; */
         for (let i = 0; i < message.expectedDeviceIds.length; i++)
             writer.tag(7, WireType.LengthDelimited).string(message.expectedDeviceIds[i]);
+        /* uint32 browser_max_touch_points = 8; */
+        if (message.browserMaxTouchPoints !== 0)
+            writer.tag(8, WireType.Varint).uint32(message.browserMaxTouchPoints);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

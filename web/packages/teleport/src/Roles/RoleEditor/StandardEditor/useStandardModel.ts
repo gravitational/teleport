@@ -47,6 +47,8 @@ const logger = new Logger('useStandardModel');
 // Enable support for the Set type in Immer. We use it for `disabledTabs`.
 enableMapSet();
 
+export type RoleStandardModel = [StandardEditorModel, StandardModelDispatcher];
+
 /**
  * Creates a standard model state and returns an array composed of the state
  * and an action dispatcher that can be used to change it. Since the conversion
@@ -54,9 +56,7 @@ enableMapSet();
  * here: if an error is thrown, the {@link StandardEditorModel.roleModel} and
  * {@link StandardEditorModel.validationResult} will be set to `undefined`.
  */
-export const useStandardModel = (
-  originalRole?: Role
-): [StandardEditorModel, StandardModelDispatcher] =>
+export const useStandardModel = (originalRole?: Role): RoleStandardModel =>
   useImmerReducer(reduce, originalRole, initializeState);
 
 const initializeState = (originalRole?: Role): StandardEditorModel => {

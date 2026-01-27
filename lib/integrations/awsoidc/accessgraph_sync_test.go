@@ -286,6 +286,7 @@ func TestAccessGraphAWSIAMConfigWithActivityCenterOuput(t *testing.T) {
 		SQSQueueURL:         "https://sqs.us-west-2.amazonaws.com/123456789012/my-queue",
 		CloudTrailBucketARN: "arn:aws:s3:::my-cloudtrail-bucket",
 		KMSKeyARNs:          []string{"arn:aws:kms:us-west-2:123456789012:key/my-kms-key"},
+		EnableEKSAuditLogs:  true,
 	}
 	clt := mockAccessGraphAWSAMConfigClient{
 		CallerIdentityGetter: mockSTSClient{accountID: req.AccountID},

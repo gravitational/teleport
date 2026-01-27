@@ -35,6 +35,7 @@ import (
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
@@ -304,4 +305,9 @@ func Diag(ctx context.Context) (*DiagResult, error) {
 	res.LoginSuccessful = true
 
 	return res, nil
+}
+
+// getPackageLogger returns a logger with component="WebAuthnWin".
+func getPackageLogger() *slog.Logger {
+	return slog.With(teleport.ComponentKey, "WebAuthnWin")
 }

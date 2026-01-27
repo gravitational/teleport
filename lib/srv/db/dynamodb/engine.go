@@ -21,7 +21,6 @@ package dynamodb
 import (
 	"bufio"
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/json"
 	"io"
@@ -37,7 +36,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/net/http/httpproxy"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -48,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
-	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/utils"
 	libaws "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/dynamodbutils"
@@ -494,41 +491,4 @@ func getTargetHeader(req *http.Request) (string, error) {
 		return "", trace.BadParameter("missing %q header in http request", libaws.AmzTargetHeader)
 	}
 	return target, nil
-}
-
-// NewEndpointsResolver resolves endpoints from DB URI.
-func NewEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
-	aws := db.GetAWS()
-	fips := dynamodbutils.IsFIPSEnabled()
-	resolverFns := []resolverFn{
-		resolveDynamoDBEndpoint,
-		resolveDynamoDBStreamsEndpoint,
-	}
-	return endpoints.ResolverFn(func(ctx context.Context) ([]string, error) {
-		addrs := make([]string, 0, len(resolverFns))
-		for _, resolve := range resolverFns {
-			re, err := resolve(ctx, aws.Region, aws.AccountID, fips)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			// Not all of our DB engines respect http proxy env vars, but this one does.
-			// The endpoint resolved for TCP health checks should be the one that the
-			// agent will actually connect to, since often proxy env vars are set to
-			// accommodate self-imposed network restrictions that force external traffic
-			// to go through a proxy.
-			proxyFunc := httpproxy.FromEnvironment().ProxyFunc()
-			proxyURL, err := proxyFunc(re.URL)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			if proxyURL != nil {
-				re.URL = proxyURL
-			}
-			host := re.URL.Hostname()
-			port := cmp.Or(re.URL.Port(), "443")
-			addrs = append(addrs, net.JoinHostPort(host, port))
-		}
-		return addrs, nil
-	}), nil
 }

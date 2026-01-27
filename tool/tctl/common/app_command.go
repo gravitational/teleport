@@ -138,7 +138,7 @@ Fill out and run this command on a node to make the application available:
 > teleport app start \
    --token={{.token}} \{{range .ca_pins}}
    --ca-pin={{.}} \{{end}}
-   --auth-server={{.auth_server}} \
+   --auth-server={{.proxy_server}} \
    --name={{printf "%-30v" .app_name}} ` + "`" + `# Change "{{.app_name}}" to the name of your application.` + "`" + ` \
    --uri={{printf "%-31v" .app_uri}} ` + "`" + `# Change "{{.app_uri}}" to the address of your application.` + "`" + `
 
@@ -147,7 +147,7 @@ Your application will be available at {{.app_public_addr}}.
 Please note:
 
   - This invitation token will expire in {{.minutes}} minutes.
-  - {{.auth_server}} must be reachable from the new application service.
+  - {{.proxy_server}} must be reachable from the new application service.
   - Update DNS to point {{.app_public_addr}} to the Teleport proxy.
   - Add a TLS certificate for {{.app_public_addr}} to the Teleport proxy under "https_keypairs".
 `))

@@ -24,13 +24,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"os/user"
 	"path"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -90,7 +88,22 @@ func newSFTPHandler(logger *slog.Logger, req *srv.FileTransferRequest, events ch
 		}
 		// TODO(capnspacehook): reject relative paths and symlinks
 		// make filepaths consistent by ensuring all separators use backslashes
-		allowed.path = path.Clean(req.Location)
+		allowedPath, err := sftputils.ExpandHomeDir(req.Location)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !path.IsAbs(allowedPath) {
+			currentUser, err := user.Current()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if currentUser.HomeDir != "" {
+				allowedPath = path.Join(currentUser.HomeDir, allowedPath)
+			} else {
+				allowedPath = path.Join(string(os.PathSeparator), allowedPath)
+			}
+		}
+		allowed.path = path.Clean(allowedPath)
 	}
 
 	return &sftpHandler{
@@ -98,10 +111,6 @@ func newSFTPHandler(logger *slog.Logger, req *srv.FileTransferRequest, events ch
 		allowed: allowed,
 		events:  events,
 	}, nil
-}
-
-func newDisallowedErr(req *sftp.Request) error {
-	return fmt.Errorf("method %s is not allowed on %s", strings.ToLower(req.Method), req.Filepath)
 }
 
 // ensureReqIsAllowed returns an error if the SFTP request isn't
@@ -112,8 +121,9 @@ func (s *sftpHandler) ensureReqIsAllowed(req *sftp.Request) error {
 		return nil
 	}
 
-	if s.allowed.path != path.Clean(req.Filepath) {
-		return newDisallowedErr(req)
+	cleaned := path.Clean(req.Filepath)
+	if s.allowed.path != cleaned {
+		return trace.Errorf("operations are only allowed on %s, not %s", s.allowed.path, cleaned)
 	}
 
 	switch req.Method {
@@ -122,15 +132,15 @@ func (s *sftpHandler) ensureReqIsAllowed(req *sftp.Request) error {
 	case sftputils.MethodGet:
 		// only allow reads for downloads
 		if s.allowed.write {
-			return newDisallowedErr(req)
+			return trace.Errorf("reading is not allowed for this request")
 		}
 	case sftputils.MethodPut, sftputils.MethodSetStat:
 		// only allow writes and chmods for uploads
 		if !s.allowed.write {
-			return newDisallowedErr(req)
+			return trace.Errorf("writing is not allowed for this request")
 		}
 	default:
-		return newDisallowedErr(req)
+		return trace.Errorf("method %s is not allowed on %s", strings.ToLower(req.Method), req.Filepath)
 	}
 
 	return nil
@@ -235,7 +245,7 @@ func (s *sftpHandler) Filelist(req *sftp.Request) (_ sftp.ListerAt, retErr error
 // RealPath canonicalizes a path name, including resolving ".." and
 // following symlinks. Required to implement [sftp.RealPathFileLister].
 func (s *sftpHandler) RealPath(path string) (string, error) {
-	return filepath.EvalSymlinks(path)
+	return sftputils.Realpath(path)
 }
 
 func (s *sftpHandler) sendSFTPEvent(req *sftp.Request, reqErr error) {

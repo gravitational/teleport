@@ -732,8 +732,21 @@ func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr er
 	// should retry the request themselves.
 	if errString := respErr.Error(); strings.HasSuffix(errString, `after Request.Body was written; define Request.GetBody to avoid this error`) &&
 		strings.Contains(errString, `http2: Transport: cannot retry err`) {
+
+		data, err := runtime.Encode(globalKubeCodecs.LegacyCodec(), &kubeerrors.NewTooManyRequests("Connection closed by upstream Kubernetes server", 1).ErrStatus)
+		if err != nil {
+			f.log.WarnContext(f.ctx, "Failed encoding error into kube Status object", "error", err)
+			trace.WriteError(rw, respErr)
+			return
+		}
+
 		rw.Header().Set("Retry-After", "1")
+		rw.Header().Set(responsewriters.ContentTypeHeader, "application/json")
 		rw.WriteHeader(http.StatusTooManyRequests)
+
+		if _, err := rw.Write(data); err != nil && !utils.IsOKNetworkError(err) {
+			f.log.WarnContext(f.ctx, "Failed writing kube error response body", "error", err)
+		}
 		return
 	}
 
@@ -759,7 +772,7 @@ func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr er
 	// `Error from server (InternalError): an error on the server ("unknown")
 	// has prevented the request from succeeding`` instead of the correct reason.
 	rw.WriteHeader(trace.ErrorToCode(respErr))
-	if _, err := rw.Write(data); err != nil {
+	if _, err := rw.Write(data); err != nil && !utils.IsOKNetworkError(err) {
 		f.log.WarnContext(f.ctx, "Failed writing kube error response body", "error", err)
 	}
 }
@@ -1265,32 +1278,24 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		closeC := make(chan struct{})
-		var wg sync.WaitGroup
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			select {
-			case <-stream.Done():
-				party.InformClose(trace.BadParameter("websocket connection closed"))
-			case <-closeC:
-				return
+
+		defer func() {
+			if _, err := session.leave(party.ID); err != nil {
+				f.log.DebugContext(req.Context(), "Participant was unable to leave session",
+					"participant_id", party.ID,
+					"session_id", session.id,
+					"error", err,
+				)
 			}
 		}()
 
-		err = <-party.closeC
-		close(closeC)
-
-		if _, err := session.leave(party.ID); err != nil {
-			f.log.DebugContext(req.Context(), "Participant was unable to leave session",
-				"participant_id", party.ID,
-				"session_id", session.id,
-				"error", err,
-			)
+		select {
+		case <-stream.Done():
+			party.InformClose(trace.BadParameter("websocket connection closed"))
+			return nil
+		case err := <-party.closeC:
+			return trace.Wrap(err)
 		}
-		wg.Wait()
-
-		return trace.Wrap(err)
 	}(); err != nil {
 		writeErr := ws.WriteControl(gwebsocket.CloseMessage, gwebsocket.FormatCloseMessage(gwebsocket.CloseInternalServerErr, err.Error()), time.Now().Add(time.Second*10))
 		if writeErr != nil {

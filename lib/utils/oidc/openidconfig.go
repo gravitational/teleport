@@ -40,6 +40,6 @@ func OpenIDConfigurationForIssuer(issuer, jwksURI string) OpenIDConfiguration {
 		IdTokenSigningAlgValuesSupported: []string{"RS256"},
 		ResponseTypesSupported:           []string{"id_token"},
 		ScopesSupported:                  []string{"openid"},
-		SubjectTypesSupported:            []string{"public", "pair-wise"},
+		SubjectTypesSupported:            []string{"public"},
 	}
 }

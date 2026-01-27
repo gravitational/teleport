@@ -74,6 +74,7 @@ export class MockTshClient implements TshdClient {
   login = () => new MockedUnaryCall({});
   loginPasswordless = undefined;
   logout = () => new MockedUnaryCall({});
+  clearStaleClusterClients = () => new MockedUnaryCall({});
   transferFile = undefined;
   reportUsageEvent = () => new MockedUnaryCall({});
   createConnectMyComputerRole = () =>

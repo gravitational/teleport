@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -105,6 +106,12 @@ func TestDefaultConfig(t *testing.T) {
 
 	// Debug should always be enabled by default.
 	require.True(t, config.DebugService.Enabled)
+
+	// Reconnect section
+	require.Equal(t, defaults.MaxWatcherBackoff, config.AuthConnectionConfig.UpperLimitBetweenRetries)
+	require.Equal(t, 18*time.Second, config.AuthConnectionConfig.BackoffStepDuration)
+	require.Equal(t, 9*time.Second, config.AuthConnectionConfig.InitialConnectionDelay)
+
 }
 
 // TestCheckApp validates application configuration.

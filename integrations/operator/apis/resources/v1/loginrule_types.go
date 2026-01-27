@@ -24,7 +24,7 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/teleportcr"
 )
 
 func init() {
@@ -40,7 +40,7 @@ type TeleportLoginRule struct {
 	metav1.ObjectMeta `json:"metadata"`
 
 	Spec   TeleportLoginRuleSpec `json:"spec"`
-	Status resources.Status      `json:"status"`
+	Status teleportcr.Status     `json:"status"`
 }
 
 // TeleportLoginRuleSpec matches the JSON of generated CRD spec
@@ -69,7 +69,7 @@ func (l TeleportLoginRule) ToTeleport() *LoginRuleResource {
 			Metadata: &types.Metadata{
 				Name:        l.Name,
 				Labels:      l.Labels,
-				Description: l.Annotations[resources.DescriptionKey],
+				Description: l.Annotations[teleportcr.DescriptionKey],
 			},
 			Version:          types.V1,
 			Priority:         l.Spec.Priority,

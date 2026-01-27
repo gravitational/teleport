@@ -165,17 +165,32 @@ func (g *accessListTestingPrimitives) CompareTeleportAndKubernetesResource(tReso
 
 func AccessListCreationTest(t *testing.T, clt *client.Client) {
 	test := &accessListTestingPrimitives{}
-	ResourceCreationTest[*accesslist.AccessList, *resourcesv1.TeleportAccessList](t, test, WithTeleportClient(clt))
+	ResourceCreationSynchronousTest[*accesslist.AccessList, *resourcesv1.TeleportAccessList](
+		t,
+		resources.NewAccessListReconciler,
+		test,
+		WithTeleportClient(clt),
+	)
 }
 
 func AccessListDeletionDriftTest(t *testing.T, clt *client.Client) {
 	test := &accessListTestingPrimitives{}
-	ResourceDeletionDriftTest[*accesslist.AccessList, *resourcesv1.TeleportAccessList](t, test, WithTeleportClient(clt))
+	ResourceDeletionDriftSynchronousTest[*accesslist.AccessList, *resourcesv1.TeleportAccessList](
+		t,
+		resources.NewAccessListReconciler,
+		test,
+		WithTeleportClient(clt),
+	)
 }
 
 func AccessListUpdateTest(t *testing.T, clt *client.Client) {
 	test := &accessListTestingPrimitives{}
-	ResourceUpdateTest[*accesslist.AccessList, *resourcesv1.TeleportAccessList](t, test, WithTeleportClient(clt))
+	ResourceUpdateTestSynchronous[*accesslist.AccessList, *resourcesv1.TeleportAccessList](
+		t,
+		resources.NewAccessListReconciler,
+		test,
+		WithTeleportClient(clt),
+	)
 }
 
 // AccessListMutateExistingTest checks that the operator propagates the expiry

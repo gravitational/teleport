@@ -16,9 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
-
-import { H2, P1 } from 'design';
+import { H2, Link, P1 } from 'design';
 
 import { OnboardCard } from 'teleport/components/Onboard';
 
@@ -32,24 +30,11 @@ export function Expired({ resetMode = false }) {
         {titleCodeTxt} Code Expired
       </H2>
       <P1>
-        It appears that your {paraCodeTxt} code isn't valid any more. Please
-        contact your account administrator and request another {paraCodeTxt}{' '}
-        link.
-      </P1>
-      <P1>
-        If you believe this is an issue with the product, please create a
-        <GithubLink> GitHub issue</GithubLink>.
+        It appears that your {paraCodeTxt} code isn&apos;t valid any more.
+        Please contact your account administrator and request another{' '}
+        {paraCodeTxt} link or open a{' '}
+        <Link href="https://support.goteleport.com">support ticket</Link>.
       </P1>
     </OnboardCard>
   );
 }
-
-const GithubLink = styled.a.attrs({
-  href: 'https://github.com/gravitational/teleport/issues/new',
-})`
-  color: ${props => props.theme.colors.buttons.link.default};
-
-  &:visited {
-    color: ${props => props.theme.colors.buttons.link.default};
-  }
-`;

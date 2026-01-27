@@ -306,7 +306,7 @@ func (p *proxyTunnelStrategy) makeAuth(t *testing.T) {
 		require.Fail(t, "auth already initialized")
 	}
 
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	privateKey, publicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	auth := helpers.NewInstance(t, helpers.InstanceConfig{
@@ -349,6 +349,7 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	authAddr := utils.MustParseAddr(p.auth.Auth)
 
 	conf := servicecfg.MakeDefaultConfig()
+	conf.DebugService.Enabled = false
 	conf.SetAuthServerAddress(*authAddr)
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
@@ -399,6 +400,7 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 	conf.DataDir = t.TempDir()
 	conf.Logger = node.Log
 	conf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	conf.DebugService.Enabled = false
 
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
@@ -440,6 +442,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	})
 
 	conf := servicecfg.MakeDefaultConfig()
+	conf.DebugService.Enabled = false
 	conf.Version = types.V3
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()

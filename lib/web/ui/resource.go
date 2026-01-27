@@ -42,6 +42,9 @@ type ResourceItem struct {
 	Description string `json:"description,omitempty"`
 	// Content is resource yaml content.
 	Content string `json:"content"`
+	// Object is the resource itself (the non string format).
+	// Supported for roles.
+	Object types.Resource `json:"object,omitempty"`
 }
 
 // NewResourceItem creates UI objects for a resource.
@@ -66,12 +69,16 @@ func NewResourceItem(resource types.Resource) (*ResourceItem, error) {
 }
 
 // NewRoles creates resource item for each role.
-func NewRoles(roles []types.Role) ([]ResourceItem, error) {
+func NewRoles(roles []types.Role, includeRoleObject bool) ([]ResourceItem, error) {
 	items := make([]ResourceItem, 0, len(roles))
 	for _, role := range roles {
 		item, err := NewResourceItem(role)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		if includeRoleObject {
+			item.Object = role
 		}
 
 		items = append(items, *item)

@@ -963,8 +963,41 @@ const (
 	// SCIMDeleteEvent is emitted when a resource is deleted via SCIM.
 	SCIMDeleteEvent = "scim.delete"
 
+	// SCIMPatchEvent is emitted when a resource is patched via SCIM.
+	SCIMPatchEvent = "scim.patch"
+
 	// ClientIPRestrictionsUpdateEvent is emitted when a Client IP Restriction list is updated.
 	ClientIPRestrictionsUpdateEvent = "cir.update"
+
+	// AppAuthConfigCreateEvent is emitted when an app auth config
+	// resource is created.
+	AppAuthConfigCreateEvent = "app_auth_config.create"
+	// AppAuthConfigUpdateEvent is emitted when an app auth config
+	// resource is updated.
+	AppAuthConfigUpdateEvent = "app_auth_config.update"
+	// AppAuthConfigDeleteEvent is emitted when an app auth config
+	// resource is deleted.
+	AppAuthConfigDeleteEvent = "app_auth_config.delete"
+	// AppAuthConfigVerifySuccessEvent is emitted when an app auth verification
+	// succeeds.
+	AppAuthConfigVerifySuccessEvent = "app_auth_config.verify.success"
+	// AppAuthConfigVerifyFailureEvent is emitted when an app auth verification
+	// fails.
+	AppAuthConfigVerifyFailureEvent = "app_auth_config.verify.failure"
+
+	// VnetConfigCreateEvent is emitted when a Vnet config resource is created.
+	VnetConfigCreateEvent = "vnet.config.create"
+	// VnetConfigUpdateEvent is emitted when a Vnet config resource is updated.
+	VnetConfigUpdateEvent = "vnet.config.update"
+	// VnetConfigDeleteEvent is emitted when a Vnet config resource is deleted.
+	VnetConfigDeleteEvent = "vnet.config.delete"
+
+	// WorkloadClusterCreateEvent is emitted when a WorkloadCluster resource is created.
+	WorkloadClusterCreateEvent = "workload_cluster.create"
+	// WorkloadClusterUpdateEvent is emitted when a WorkloadCluster resource is updated.
+	WorkloadClusterUpdateEvent = "workload_cluster.update"
+	// WorkloadClusterDeleteEvent is emitted when a WorkloadCluster resource is deleted.
+	WorkloadClusterDeleteEvent = "workload_cluster.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add
@@ -984,11 +1017,18 @@ const (
 )
 
 // SessionRecordingEvents is a list of events that are related to session
-// recorings.
+// recordings.
 var SessionRecordingEvents = []string{
 	SessionEndEvent,
 	WindowsDesktopSessionEndEvent,
 	DatabaseSessionEndEvent,
+
+	// HTTP/HTTPS application sessions do not emit AppSessionEndEvent.
+	// Their recordings IDs are in AppSessionChunkEvent, so it is included.
+	//
+	// TCP application sessions emit AppSessionEndEvent but produce no
+	// recordings, so it is excluded.
+	AppSessionChunkEvent,
 }
 
 // ServerMetadataGetter represents interface

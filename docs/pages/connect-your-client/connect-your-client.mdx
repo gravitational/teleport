@@ -6,4 +6,32 @@ tags:
  - platform-wide
 ---
 
-<DocCardList />
+The guides in this section explain how to access infrastructure resources
+protected by Teleport.
+
+## Teleport clients
+
+Teleport Connect is a graphical interface that allows you to access protected
+resources, often without needing a third-party client tool. For a similar
+experience within your browser, you can use the Teleport Web UI.
+
+Teleport provides a command-line tool, `tsh`, that allows you to access
+Teleport-protected resources using terminal-based workflows the same as a
+protected resource's native tooling.
+
+Read the [Introduction to Teleport
+Clients](./teleport-clients/teleport-clients.mdx).
+
+## MCP clients
+
+You can configure MCP clients like Cursor and Claude Desktop to securely access
+Teleport-protected resources.
+
+Read [MCP Clients](./model-context-protocol/model-context-protocol.mdx).
+
+## Third-party clients
+
+You can use Teleport-issued credentials to give your third-party client tools,
+including graphical clients and IDEs, access to Teleport-protected resources.
+Read [Third-Party Clients](./third-party/third-party.mdx).
+

@@ -1,10 +1,12 @@
 ---
 title: SCIM Integration
+sidebar_label: SCIM
 description: How to manage Access List membership using SCIM integration
 tags:
 - how-to
 - identity-governance
 - privileged-access
+enterprise: Identity Governance
 ---
 
 The SCIM integration between **SCIM providers** and **Teleport** enables automated
@@ -39,7 +41,7 @@ Access List.
 ## Step 1/3: Create an SCIM-Managed Access List in Teleport
 
 Create a new Access List in Teleport using Terraform. Be sure to set `type = "scim"`
-and match `spec.title` to the name of `displayName` of  SCIM group that we be provided to Teleport:
+and match `spec.title` to the name of `displayName` of the SCIM group that will be provided to Teleport:
 
 
 ```hcl
@@ -110,6 +112,7 @@ Click **Continue** to proceed to the **SCIM Credentials** screen.
 
 SCIM configuration may differ depending on your IdP. The integration has been officially tested with the following providers:
 
+- [Okta Teleport SCIM Integration](../okta/scim-integration.mdx)
 - [SailPoint Teleport SCIM connector setup](./sailpoint.mdx)
 
 In case of other SCIM providers, please refer to their documentation for setting up a SCIM integration.

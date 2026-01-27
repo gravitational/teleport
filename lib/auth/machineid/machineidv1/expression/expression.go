@@ -17,8 +17,7 @@
 package expression
 
 import (
-	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/trace"
+	"maps"
 
 	"github.com/gravitational/teleport/lib/expression"
 	"github.com/gravitational/teleport/lib/utils/typical"
@@ -27,7 +26,7 @@ import (
 func NewBotInstanceExpressionParser() (*typical.Parser[*Environment, bool], error) {
 	spec := expression.DefaultParserSpec[*Environment]()
 
-	spec.Variables = map[string]typical.Variable{
+	newVariables := map[string]typical.Variable{
 		"name": typical.DynamicVariable(func(env *Environment) (string, error) {
 			return env.GetMetadata().GetName(), nil
 		}),
@@ -60,75 +59,11 @@ func NewBotInstanceExpressionParser() (*typical.Parser[*Environment, bool], erro
 		}),
 	}
 
-	// e.g. `newer_than(status.latest_heartbeat.version, "19.0.0")`
-	spec.Functions["newer_than"] = typical.BinaryFunction[*Environment](semverGt)
-	// e.g. `older_than(status.latest_heartbeat.version, "19.0.2")`
-	spec.Functions["older_than"] = typical.BinaryFunction[*Environment](semverLt)
-	// e.g. `between(status.latest_heartbeat.version, "19.0.0", "19.0.2")`
-	spec.Functions["between"] = typical.TernaryFunction[*Environment](semverBetween)
+	if len(spec.Variables) < 1 {
+		spec.Variables = newVariables
+	} else {
+		maps.Copy(spec.Variables, newVariables)
+	}
 
 	return typical.NewParser[*Environment, bool](spec)
-}
-
-func semverGt(a, b any) (bool, error) {
-	va, err := toSemver(a)
-	if va == nil || err != nil {
-		return false, err
-	}
-	vb, err := toSemver(b)
-	if vb == nil || err != nil {
-		return false, err
-	}
-	return va.Compare(*vb) > 0, nil
-}
-
-func semverLt(a, b any) (bool, error) {
-	va, err := toSemver(a)
-	if va == nil || err != nil {
-		return false, err
-	}
-	vb, err := toSemver(b)
-	if vb == nil || err != nil {
-		return false, err
-	}
-	return va.Compare(*vb) < 0, nil
-}
-
-func semverEq(a, b any) (bool, error) {
-	va, err := toSemver(a)
-	if va == nil || err != nil {
-		return false, err
-	}
-	vb, err := toSemver(b)
-	if vb == nil || err != nil {
-		return false, err
-	}
-	return va.Compare(*vb) == 0, nil
-}
-
-func semverBetween(c, a, b any) (bool, error) {
-	gt, err := semverGt(c, a)
-	if err != nil {
-		return false, err
-	}
-	eq, err := semverEq(c, a)
-	if err != nil {
-		return false, err
-	}
-	lt, err := semverLt(c, b)
-	if err != nil {
-		return false, err
-	}
-	return (gt || eq) && lt, nil
-}
-
-func toSemver(anyV any) (*semver.Version, error) {
-	switch v := anyV.(type) {
-	case *semver.Version:
-		return v, nil
-	case string:
-		return semver.NewVersion(v)
-	default:
-		return nil, trace.BadParameter("type %T cannot be parsed as semver.Version", v)
-	}
 }

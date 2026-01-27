@@ -1,0 +1,13 @@
+# Build artifacts
+build/*
+docs/
+bin/
+
+# Terraform state
+.terraform
+*.tfstate*
+*.lock.hcl
+
+tmp
+*.swp
+*.log

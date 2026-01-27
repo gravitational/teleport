@@ -337,15 +337,9 @@ func removeSecure(filePath string, fi os.FileInfo) error {
 	defer f.Close()
 
 	if runtime.GOOS == "windows" {
-		// Windows can't unlink the file before overwriting.
-		if f != nil {
-			for range 3 {
-				if err := overwriteFile(f, fi); err != nil {
-					break
-				}
-			}
-		}
-		// The file should be closed before removing it on Windows.
+		// On windows, os.Remove() will fail if there are any open handles to the
+		// file, including in other processes. Skip overwrite to avoid leaving
+		// files in a broken state.
 		closeErr := trace.ConvertSystemError(f.Close())
 		removeErr := trace.ConvertSystemError(os.Remove(filePath))
 		return trace.NewAggregate(closeErr, removeErr)

@@ -64,6 +64,7 @@ const (
 	TerminalService_Login_FullMethodName                               = "/teleport.lib.teleterm.v1.TerminalService/Login"
 	TerminalService_LoginPasswordless_FullMethodName                   = "/teleport.lib.teleterm.v1.TerminalService/LoginPasswordless"
 	TerminalService_Logout_FullMethodName                              = "/teleport.lib.teleterm.v1.TerminalService/Logout"
+	TerminalService_ClearStaleClusterClients_FullMethodName            = "/teleport.lib.teleterm.v1.TerminalService/ClearStaleClusterClients"
 	TerminalService_TransferFile_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/TransferFile"
 	TerminalService_ReportUsageEvent_FullMethodName                    = "/teleport.lib.teleterm.v1.TerminalService/ReportUsageEvent"
 	TerminalService_UpdateHeadlessAuthenticationState_FullMethodName   = "/teleport.lib.teleterm.v1.TerminalService/UpdateHeadlessAuthenticationState"
@@ -178,6 +179,8 @@ type TerminalServiceClient interface {
 	// Optionally removes the profile.
 	// This operation is idempotent and can be safely invoked multiple times.
 	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
+	// Closes root and leaf cluster clients that use outdated TLS certificates.
+	ClearStaleClusterClients(ctx context.Context, in *ClearStaleClusterClientsRequest, opts ...grpc.CallOption) (*ClearStaleClusterClientsResponse, error)
 	// TransferFile sends a request to download/upload a file
 	TransferFile(ctx context.Context, in *FileTransferRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[FileTransferProgress], error)
 	// ReportUsageEvent allows to send usage events that are then anonymized and forwarded to prehog
@@ -520,6 +523,16 @@ func (c *terminalServiceClient) Logout(ctx context.Context, in *LogoutRequest, o
 	return out, nil
 }
 
+func (c *terminalServiceClient) ClearStaleClusterClients(ctx context.Context, in *ClearStaleClusterClientsRequest, opts ...grpc.CallOption) (*ClearStaleClusterClientsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClearStaleClusterClientsResponse)
+	err := c.cc.Invoke(ctx, TerminalService_ClearStaleClusterClients_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *terminalServiceClient) TransferFile(ctx context.Context, in *FileTransferRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[FileTransferProgress], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &TerminalService_ServiceDesc.Streams[1], TerminalService_TransferFile_FullMethodName, cOpts...)
@@ -779,6 +792,8 @@ type TerminalServiceServer interface {
 	// Optionally removes the profile.
 	// This operation is idempotent and can be safely invoked multiple times.
 	Logout(context.Context, *LogoutRequest) (*EmptyResponse, error)
+	// Closes root and leaf cluster clients that use outdated TLS certificates.
+	ClearStaleClusterClients(context.Context, *ClearStaleClusterClientsRequest) (*ClearStaleClusterClientsResponse, error)
 	// TransferFile sends a request to download/upload a file
 	TransferFile(*FileTransferRequest, grpc.ServerStreamingServer[FileTransferProgress]) error
 	// ReportUsageEvent allows to send usage events that are then anonymized and forwarded to prehog
@@ -921,6 +936,9 @@ func (UnimplementedTerminalServiceServer) LoginPasswordless(grpc.BidiStreamingSe
 }
 func (UnimplementedTerminalServiceServer) Logout(context.Context, *LogoutRequest) (*EmptyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Logout not implemented")
+}
+func (UnimplementedTerminalServiceServer) ClearStaleClusterClients(context.Context, *ClearStaleClusterClientsRequest) (*ClearStaleClusterClientsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ClearStaleClusterClients not implemented")
 }
 func (UnimplementedTerminalServiceServer) TransferFile(*FileTransferRequest, grpc.ServerStreamingServer[FileTransferProgress]) error {
 	return status.Errorf(codes.Unimplemented, "method TransferFile not implemented")
@@ -1481,6 +1499,24 @@ func _TerminalService_Logout_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TerminalService_ClearStaleClusterClients_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClearStaleClusterClientsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).ClearStaleClusterClients(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_ClearStaleClusterClients_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).ClearStaleClusterClients(ctx, req.(*ClearStaleClusterClientsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _TerminalService_TransferFile_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(FileTransferRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -1847,6 +1883,10 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Logout",
 			Handler:    _TerminalService_Logout_Handler,
+		},
+		{
+			MethodName: "ClearStaleClusterClients",
+			Handler:    _TerminalService_ClearStaleClusterClients_Handler,
 		},
 		{
 			MethodName: "ReportUsageEvent",

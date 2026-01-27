@@ -19,6 +19,7 @@
 import { renderHook } from '@testing-library/react';
 
 import { rootClusterUri } from 'teleterm/services/tshd/testHelpers';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 
 import {
   ResourcesContextProvider,
@@ -28,7 +29,9 @@ import {
 describe('requestResourcesRefresh', () => {
   it('calls listener registered with onResourcesRefreshRequest', () => {
     const wrapper = ({ children }) => (
-      <ResourcesContextProvider>{children}</ResourcesContextProvider>
+      <MockAppContextProvider>
+        <ResourcesContextProvider>{children}</ResourcesContextProvider>
+      </MockAppContextProvider>
     );
     const { result } = renderHook(
       () => ({
@@ -58,7 +61,9 @@ describe('requestResourcesRefresh', () => {
 describe('onResourcesRefreshRequest cleanup function', () => {
   it('removes the listener', () => {
     const wrapper = ({ children }) => (
-      <ResourcesContextProvider>{children}</ResourcesContextProvider>
+      <MockAppContextProvider>
+        <ResourcesContextProvider>{children}</ResourcesContextProvider>
+      </MockAppContextProvider>
     );
     const { result } = renderHook(() => useResourcesContext(rootClusterUri), {
       wrapper,

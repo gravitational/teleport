@@ -47,7 +47,6 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
@@ -123,9 +122,6 @@ func NewProcess(ctx context.Context, cmd *exec.Cmd) (*Process, error) {
 	defer remoteFD.Close()
 	cmd.ExtraFiles = append(cmd.ExtraFiles, remoteFD)
 
-	// Propagate stderr from the spawned Teleport process to log any errors.
-	cmd.Stderr = os.Stderr
-
 	proc := &Process{
 		cmd:  cmd,
 		conn: localConn,
@@ -145,25 +141,6 @@ func (p *Process) start(ctx context.Context) error {
 		p.conn.Close()
 		return trace.Wrap(err)
 	}
-
-	// The child process writes errors to the parent connection for logging purposes.
-	go func() {
-		for {
-			buf := make([]byte, RequestBufferSize)
-			n, err := p.conn.Read(buf)
-			if err != nil {
-				if utils.IsOKNetworkError(err) {
-					return
-				}
-				slog.WarnContext(ctx, "Failed to read error from networking process.", "error", err)
-				return
-			}
-
-			if n > 0 {
-				slog.WarnContext(ctx, "Received unexpected error from networking process.", "error", string(buf[:n]))
-			}
-		}
-	}()
 
 	go func() {
 		defer close(p.done)

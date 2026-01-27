@@ -90,6 +90,13 @@ const (
 	// RDPListenPort is the standard port for RDP servers.
 	RDPListenPort = 3389
 
+	// CloudProxyListenPort is the Proxy Service port when running in Teleport Cloud.
+	CloudProxyListenPort = 443
+
+	// CloudDomainSuffix can be used to identify when an address is a Teleport Cloud domain
+	// and provide helpful Cloud-specific instructions.
+	CloudDomainSuffix = "teleport.sh"
+
 	// BackendDir is a default backend subdirectory
 	BackendDir = "backend"
 

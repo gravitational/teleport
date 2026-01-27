@@ -32,7 +32,7 @@ teleport:
   # ```
   #
   # Check out the [Access Requests with
-  # Microsoft Teams](../../identity-governance/access-request-plugins/ssh-approval-msteams.mdx) guide
+  # Microsoft Teams](../../identity-governance/access-requests/plugins/msteams.mdx) guide
   # for more information about how to acquire these credentials.
   identitySecretName: ""
   # teleport.identitySecretPath(string) -- is the key in the Kubernetes secret
@@ -48,17 +48,17 @@ teleport:
 # - via an existing Kubernetes Secret by setting `msTeams.appSecretFromSecret`
 msTeams:
   # msTeams.appID(string) -- is the Azure app ID used by the plugin.
-  # See [the MsTeams guide](../../identity-governance/access-request-plugins/ssh-approval-msteams.mdx) to know how to get this value.
+  # See [the MsTeams guide](../../identity-governance/access-requests/plugins/msteams.mdx) to know how to get this value.
   #
   # This value is mandatory.
   appID: ""
   # msTeams.tenantID(string) -- is the Azure tenant ID used by the plugin and Microsoft Teams.
-  # See [the MsTeams guide](../../identity-governance/access-request-plugins/ssh-approval-msteams.mdx) to know how to get this value.
+  # See [the MsTeams guide](../../identity-governance/access-requests/plugins/msteams.mdx) to know how to get this value.
   #
   # This value is mandatory.
   tenantID: ""
   # msTeams.teamsAppID(string) -- is the MsTeams app ID used by the plugin.
-  # See [the MsTeams guide](../../identity-governance/access-request-plugins/ssh-approval-msteams.mdx) to know how to get this value.
+  # See [the MsTeams guide](../../identity-governance/access-requests/plugins/msteams.mdx) to know how to get this value.
   #
   # This value is mandatory.
   teamsAppID: ""
@@ -144,7 +144,7 @@ tbot:
   teleportAuthAddress: ""
 
   # tbot.joinMethod(string) -- describes how tbot joins the Teleport cluster.
-  # See [the join method reference](../../reference/deployment/join-methods.mdx) for a list fo supported values and detailed explanations.
+  # See [the join method reference](../../reference/deployment/join-methods.mdx) for a list of supported values and detailed explanations.
   joinMethod: "kubernetes"
   token: ""
 

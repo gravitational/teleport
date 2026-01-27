@@ -1,28 +1,134 @@
 ---
 title: Linux Servers
-description: Guides to protecting Linux servers with Teleport, including OpenSSH servers.
+description: Securely connect to Linux servers via SSH
+template: "doc-page"
 tags:
  - zero-trust
  - infrastructure-identity
 ---
 
-The guides in this section explain how to protect Linux servers with
-Teleport.
+import DocHero from "@site/src/components/Pages/Landing/DocHero";
+import UseCasesList from "@site/src/components/Pages/Landing/UseCasesList";
+import Resources from "@site/src/components/Pages/Homepage/Resources";
 
-## Getting started
+import linuxServersImg from "@version/docs/img/server-access/linux-servers-hero.jpg";
+import userCheckSvg from "@site/src/components/Icon/svg/user-check.svg";
+import questionSvg from "@site/src/components/Icon/svg/question2.svg";
+import linuxServersSvg from "@site/src/components/Icon/teleport-svg/linux-servers.svg";
+import cliSvg from "@site/src/components/Icon/teleport-svg/cli.svg";
+import vscodeSvg from "@site/src/components/Icon/svg/vscode.svg";
+import jetbrainsSvg from "@site/src/components/Icon/svg/jetbrains.svg";
+import ansibleSvg from "@site/src/components/Icon/svg/ansible.svg";
+import teleportSvg from "@site/src/components/Icon/teleport-svg/teleport.svg";
+import linuxSvg from "@site/src/components/Icon/svg/linux.svg";
+import playCircleSvg from "@site/src/components/Icon/svg/play-circle.svg";
+import addUserSvg from "@site/src/components/Icon/svg/add-user.svg";
 
-- [Introduction to Enrolling Servers](./introduction.mdx): Teleport server access features and introduction.
-- [Getting Started Guide](./getting-started.mdx): Getting started with Teleport server access.
+<DocHero
+  title="Enroll your first Linux server"
+  image={linuxServersImg}
+  ctaLinks={[
+    {
+      title: "Get started with server access",
+      href: "./getting-started/",
+      variant: "secondary",
+      arrow: true,
+    },
+  ]}
+  links={[
+    {
+      title: "Access controls for servers",
+      description: "Teleport's role-based access control (RBAC) system to set up granular permissions for authenticating to Linux servers connected to Teleport.",
+      href: "./rbac/",
+      icon: userCheckSvg,
+    },
+    {
+      title: "Troubleshooting",
+      description: "Common issues you might encounter in managing access to servers with Teleport and how to resolve them.",
+      href: "./troubleshooting-server/",
+      icon: questionSvg,
+    },
+  ]}
+>
+Consolidates SSH access across all environments, decreases configuration complexity, supports industry best practices and compliance while giving complete visibility over all sessions and events.
 
-## Guides
+Teleport protects servers through the Teleport SSH Service, which is a Teleport Agent service. For more information on agent services, read [Teleport Agent Architecture](../../reference/architecture/agents.mdx).
+</DocHero>
 
-- [Guides (section)](./guides/): Teleport server access guides.
-- [OpenSSH Guides (section)](./openssh/): Teleport Agentless OpenSSH integration guides.
+<Resources
+  title="Enrollment options"
+  variant="doc"
+  desktopColumnsCount={2}
+  resources={[
+    {
+      title: "SSH server access",
+      description: "Secure a server by running the Teleport SSH Service and enrolling it in your cluster.",
+      iconComponent: linuxServersSvg,
+      href: "./getting-started/"
+    },
+    {
+      title: "Agentless OpenSSH",
+      description: "Use Teleport in agentless mode with existing OpenSSH servers.",
+      iconComponent: cliSvg,
+      href: "./openssh/"
+    },
+  ]}
+/>
 
-## Configuration & management
+<Resources
+  title="Developer experience"
+  variant="doc"
+  desktopColumnsCount={3}
+  resources={[
+    {
+      title: "Visual Studio Code",
+      description: "Remotely develop with Visual Studio Code and Teleport.",
+      iconComponent: vscodeSvg,
+      href: "../../connect-your-client/third-party/vscode/"
+    },
+    {
+      title: "JetBrains SFTP",
+      description: "Use a JetBrains IDE to access SFTP with Teleport.",
+      iconComponent: jetbrainsSvg,
+      href: "../../connect-your-client/third-party/jetbrains-sftp/"
+    },
+    {
+      title: "Ansible",
+      description: "Run Ansible playbooks with Teleport-issued SSH certificates.",
+      iconComponent: ansibleSvg,
+      href: "../../connect-your-client/third-party/ansible/"
+    },
+  ]}
+/>
 
-- [Access Controls for Servers](./rbac.mdx): Role-based access control (RBAC) for Teleport server access.
-
-## Troubleshooting & support
-
-- [Troubleshooting](./troubleshooting-server.mdx): Describes common issues and solutions for access to servers.
+<Resources
+  title="Agent configuration"
+  variant="doc"
+  desktopColumnsCount={3}
+  resources={[
+    {
+      title: "Teleport with PAM",
+      description: "Configure Teleport SSH with PAM (Pluggable Authentication Modules).",
+      iconComponent: teleportSvg,
+      href: "./guides/ssh-pam/"
+    },
+    {
+      title: "Linux Auditing System",
+      description: "Integrate Teleport with the Linux Auditing System (auditd).",
+      iconComponent: linuxSvg,
+      href: "./guides/auditd/"
+    },
+    {
+      title: "Enhanced Session Recording with BPF",
+      description: "Use BPF to record SSH session commands, modified files and network connections.",
+      iconComponent: playCircleSvg,
+      href: "./guides/bpf-session-recording/"
+    },
+    {
+      title: "Automatic host user creation",
+      description: "Create local host users on login with fine-grained access controls.",
+      iconComponent: addUserSvg,
+      href: "./guides/host-user-creation/"
+    },
+  ]}
+/>

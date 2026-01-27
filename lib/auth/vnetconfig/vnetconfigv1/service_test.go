@@ -32,8 +32,10 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
@@ -57,6 +59,7 @@ func TestServiceAccess(t *testing.T) {
 		allowedVerbs  []string
 		allowedStates []authz.AdminActionAuthState
 		action        func(*Service) error
+		requireEvent  apievents.AuditEvent
 	}
 	testCases := []testCase{
 		{
@@ -71,6 +74,7 @@ func TestServiceAccess(t *testing.T) {
 				_, err := service.CreateVnetConfig(ctx, &vnet.CreateVnetConfigRequest{VnetConfig: vnetConfig})
 				return trace.Wrap(err)
 			},
+			requireEvent: &apievents.VnetConfigCreate{},
 		},
 		{
 			name: "UpdateVnetConfig",
@@ -87,6 +91,7 @@ func TestServiceAccess(t *testing.T) {
 				_, err := service.UpdateVnetConfig(ctx, &vnet.UpdateVnetConfigRequest{VnetConfig: vnetConfig})
 				return trace.Wrap(err)
 			},
+			requireEvent: &apievents.VnetConfigUpdate{},
 		},
 		{
 			name: "DeleteVnetConfig",
@@ -103,6 +108,7 @@ func TestServiceAccess(t *testing.T) {
 				_, err := service.DeleteVnetConfig(ctx, &vnet.DeleteVnetConfigRequest{})
 				return trace.Wrap(err)
 			},
+			requireEvent: &apievents.VnetConfigDelete{},
 		},
 		{
 			name: "UpsertVnetConfig",
@@ -116,6 +122,7 @@ func TestServiceAccess(t *testing.T) {
 				_, err := service.UpsertVnetConfig(ctx, &vnet.UpsertVnetConfigRequest{VnetConfig: vnetConfig})
 				return trace.Wrap(err)
 			},
+			requireEvent: &apievents.VnetConfigCreate{},
 		},
 		{
 			name: "UpsertVnetConfig with existing",
@@ -132,6 +139,7 @@ func TestServiceAccess(t *testing.T) {
 				_, err := service.UpsertVnetConfig(ctx, &vnet.UpsertVnetConfigRequest{VnetConfig: vnetConfig})
 				return trace.Wrap(err)
 			},
+			requireEvent: &apievents.VnetConfigCreate{},
 		},
 		{
 			name: "GetVnetConfig",
@@ -158,13 +166,20 @@ func TestServiceAccess(t *testing.T) {
 					t.Run(stateToString(state), func(t *testing.T) {
 						for _, verbs := range utils.Combinations(tc.allowedVerbs) {
 							t.Run(fmt.Sprintf("verbs=%v", verbs), func(t *testing.T) {
-								service := newService(t, state, fakeChecker{allowedVerbs: verbs})
+								service, emitter := newService(t, state, fakeChecker{allowedVerbs: verbs})
 								err := tc.action(service)
 								// expect access denied except with full set of verbs.
 								if len(verbs) == len(tc.allowedVerbs) {
 									require.NoError(t, err, trace.DebugReport(err))
+									if tc.requireEvent != nil {
+										got := emitter.LastEvent()
+										require.NotNil(t, got, "expected an audit event to be emitted")
+										require.IsType(t, tc.requireEvent, got)
+										require.True(t, eventStatusSuccess(t, got), "expected audit event status success to be true")
+									}
 								} else {
 									require.True(t, trace.IsAccessDenied(err), "expected access denied for verbs %v, got err=%v", verbs, err)
+									require.Empty(t, emitter.Events(), "expected no audit events on access denied")
 								}
 							})
 						}
@@ -179,16 +194,17 @@ func TestServiceAccess(t *testing.T) {
 					t.Run(stateToString(state), func(t *testing.T) {
 						// it is enough to test against tc.allowedVerbs,
 						// this is the only different data point compared to the test cases above.
-						service := newService(t, state, fakeChecker{allowedVerbs: tc.allowedVerbs})
+						service, emitter := newService(t, state, fakeChecker{allowedVerbs: tc.allowedVerbs})
 						err := tc.action(service)
 						require.True(t, trace.IsAccessDenied(err))
+						require.Empty(t, emitter.Events(), "expected no audit events on access denied")
 					})
 				}
 			})
 
 			// test the method with storage-layer errors
 			t.Run("storage error", func(t *testing.T) {
-				service := newServiceWithStorage(t, tc.allowedStates[0],
+				service, _ := newServiceWithStorage(t, tc.allowedStates[0],
 					fakeChecker{allowedVerbs: tc.allowedVerbs}, badStorage{})
 				err := tc.action(service)
 				// the returned error should wrap the unexpected storage-layer error.
@@ -208,6 +224,22 @@ func TestServiceAccess(t *testing.T) {
 			})
 		}
 	})
+}
+
+func eventStatusSuccess(t *testing.T, evt apievents.AuditEvent) bool {
+	t.Helper()
+
+	switch e := evt.(type) {
+	case *apievents.VnetConfigCreate:
+		return e.Status.Success
+	case *apievents.VnetConfigUpdate:
+		return e.Status.Success
+	case *apievents.VnetConfigDelete:
+		return e.Status.Success
+	default:
+		t.Fatalf("unexpected audit event type %T", evt)
+	}
+	return false
 }
 
 var allAdminStates = map[authz.AdminActionAuthState]string{
@@ -252,7 +284,7 @@ func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resourc
 	return trace.AccessDenied("access denied to rule=%v/verb=%v", resource, verb)
 }
 
-func newService(t *testing.T, authState authz.AdminActionAuthState, checker services.AccessChecker) *Service {
+func newService(t *testing.T, authState authz.AdminActionAuthState, checker services.AccessChecker) (*Service, *eventstest.MockRecorderEmitter) {
 	t.Helper()
 
 	bk, err := memory.New(memory.Config{})
@@ -264,9 +296,10 @@ func newService(t *testing.T, authState authz.AdminActionAuthState, checker serv
 	return newServiceWithStorage(t, authState, checker, storage)
 }
 
-func newServiceWithStorage(t *testing.T, authState authz.AdminActionAuthState, checker services.AccessChecker, storage services.VnetConfigService) *Service {
+func newServiceWithStorage(t *testing.T, authState authz.AdminActionAuthState, checker services.AccessChecker, storage services.VnetConfigService) (*Service, *eventstest.MockRecorderEmitter) {
 	t.Helper()
 
+	emitter := &eventstest.MockRecorderEmitter{}
 	authorizer := authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
 		user, err := types.NewUser("alice")
 		if err != nil {
@@ -279,7 +312,13 @@ func newServiceWithStorage(t *testing.T, authState authz.AdminActionAuthState, c
 		}, nil
 	})
 
-	return NewService(storage, authorizer)
+	service, err := NewService(ServiceConfig{
+		Authorizer: authorizer,
+		Storage:    storage,
+		Emitter:    emitter,
+	})
+	require.NoError(t, err)
+	return service, emitter
 }
 
 var errBadStorage = errors.New("bad storage")

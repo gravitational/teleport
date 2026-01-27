@@ -51,7 +51,10 @@ export class ClusterStore {
     private readonly windowsManager: Pick<WindowsManager, 'crashWindow'>
   ) {}
 
-  /** Adds a cluster. */
+  /**
+   * Adds a cluster.
+   * Should only be called via ClusterLifecycleManager.
+   */
   async add(proxyAddress: string): Promise<Cluster> {
     const client = await this.getTshdClient();
     const { response } = await client.addCluster({
@@ -72,7 +75,10 @@ export class ClusterStore {
     return response;
   }
 
-  /** Logs out of the cluster and removes its profile.*/
+  /**
+   * Logs out of the cluster and removes its profile.
+   * Should only be called via ClusterLifecycleManager.
+   */
   async logoutAndRemove(uri: RootClusterUri): Promise<void> {
     const client = await this.getTshdClient();
     await client.logout({ clusterUri: uri, removeProfile: true });
@@ -101,10 +107,13 @@ export class ClusterStore {
   }
 
   /**
-   * Synchronizes a root cluster.
+   * Synchronizes the root cluster and returns its state before and after the update.
    * Makes network calls to get cluster details and its leaf clusters.
+   * Should only be called via ClusterLifecycleManager.
    */
-  async sync(uri: RootClusterUri): Promise<void> {
+  async sync(
+    uri: RootClusterUri
+  ): Promise<{ previous: Cluster | undefined; next: Cluster }> {
     let cluster: Cluster;
     let leafs: Cluster[];
     const client = await this.getTshdClient();
@@ -126,11 +135,19 @@ export class ClusterStore {
       throw error;
     }
 
+    const previous = this.state.get(uri);
     await this.update(draft => {
       draft.set(cluster.uri, cluster);
       leafs.forEach(leaf => {
         draft.set(leaf.uri, leaf);
       });
+    });
+    return { previous, next: cluster };
+  }
+
+  async set(cluster: Cluster): Promise<void> {
+    await this.update(draft => {
+      draft.set(cluster.uri, cluster);
     });
   }
 

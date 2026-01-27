@@ -54,6 +54,8 @@ func newNativeImpl() *nativeImpl {
 		hasCompileSupport: true,
 	}
 
+	// Do not hold onto this logger. It is created before tsh has a chance to
+	// initialize it properly.
 	logger := slog.With(teleport.ComponentKey, "WebAuthnWin")
 	ctx := context.Background()
 
@@ -113,6 +115,21 @@ func (n *nativeImpl) GetAssertion(origin string, in *getAssertionRequest) (*want
 	hwnd, err := getForegroundWindow()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	logger := getPackageLogger()
+	logger.DebugContext(context.Background(), "WebAuthn.dll API version",
+		"version", n.webauthnAPIVersion,
+	)
+
+	if n.webauthnAPIVersion < int(in.opts.dwVersion) {
+		const legacyVersion = 5
+		in.opts.dwVersion = legacyVersion
+		logger.DebugContext(context.Background(),
+			"WebAuthn.dll too old, falling back to legacy version",
+			"api_version", n.webauthnAPIVersion,
+			"legacy_version", in.opts.dwVersion,
+		)
 	}
 
 	var out *webauthnAssertion

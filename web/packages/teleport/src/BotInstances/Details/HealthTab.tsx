@@ -93,7 +93,9 @@ export function HealthTab(props: { data: GetBotInstanceResponse }) {
 
                 {h.reason ? (
                   <ReasonContainer $status={h.status}>
-                    {h.reason}
+                    <ReasonInnerContainer>
+                      <ReasonText>{h.reason}</ReasonText>
+                    </ReasonInnerContainer>
                   </ReasonContainer>
                 ) : undefined}
               </ItemContainer>
@@ -145,6 +147,7 @@ export const HealthStatusDot = styled.div<{
 const ReasonContainer = styled.div<{
   $status: BotInstanceServiceHealthStatus | undefined;
 }>`
+  background-color: ${p => p.theme.colors.levels.sunken};
   border-width: 0;
   border-left-width: ${({ theme }) => theme.space[1]}px;
   border-style: solid;
@@ -160,6 +163,17 @@ const ReasonContainer = styled.div<{
           ? theme.colors.interactive.tonal.neutral[1]
           : theme.colors.interactive.solid.alert.default};
   padding: 0 ${({ theme }) => theme.space[2]}px;
+  overflow: auto;
+`;
+
+const ReasonInnerContainer = styled.div`
+  width: max-content;
+`;
+
+const ReasonText = styled.code`
+  font-size: ${({ theme }) => theme.fontSizes[1]}px;
+  white-space: pre-wrap;
+  tab-size: ${({ theme }) => theme.space[3]}px;
 `;
 
 const TitleText = styled(Text).attrs({

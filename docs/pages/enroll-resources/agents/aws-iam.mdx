@@ -1,5 +1,6 @@
 ---
 title: Joining Services via AWS IAM Role
+sidebar_label: IAM Role
 description: Use the IAM join method to add services to your Teleport cluster on AWS
 tags:
  - how-to
@@ -40,9 +41,6 @@ Teleport processes prove that they are running in your AWS account by sending a
 pre-signed `sts:GetCallerIdentity` request to the Teleport Auth Service. The
 service's identity must match an allow rule configured in your AWS service
 joining token.
-
-Support for joining a cluster with the Proxy Service behind a layer 7 load
-balancer or reverse proxy is available in Teleport 13.0+.
 
 ## Prerequisites
 
@@ -95,9 +93,6 @@ Install Teleport on your AWS EC2 instance.
 
 ## Step 4/5. Configure your services
 
-The IAM join method can be used for Teleport processes running the SSH, Proxy,
-Kubernetes, Application, or Database Service.
-
 Configure your Teleport service with a custom `teleport.yaml` file. Use the
 `join_params` section with `token_name` matching your token created in Step 2
 and `method: iam` as shown in the following example config:
@@ -129,4 +124,4 @@ port of your Teleport Proxy Service or Teleport Enterprise Cloud tenant, e.g.,
 (!docs/pages/includes/start-teleport.mdx!)
 
 Once you have started Teleport, confirm that your service is able to connect to and
-join your cluster. 
+join your cluster.

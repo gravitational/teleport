@@ -38,21 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func scimCommon() apievents.SCIMCommonData {
-	return apievents.SCIMCommonData{
-		Request: &apievents.SCIMRequest{
-			Body: apievents.MustEncodeMap(map[string]any{
-				"zero": nil,
-				"one":  3.14159,
-				"two":  eventString + eventString,
-				"three": map[string]any{
-					"nested": eventString,
-				},
-			}),
-		},
-	}
-}
-
 // eventsMap maps event names to event types for testing. Be sure to update
 // this map if you add a new event type.
 var eventsMap = map[string]apievents.AuditEvent{
@@ -282,20 +267,15 @@ var eventsMap = map[string]apievents.AuditEvent{
 	BoundKeypairRecovery:                          &apievents.BoundKeypairRecovery{},
 	BoundKeypairRotation:                          &apievents.BoundKeypairRotation{},
 	BoundKeypairJoinStateVerificationFailed:       &apievents.BoundKeypairJoinStateVerificationFailed{},
-
-	// SCIM events contain a protobuf struct, which will cause the default data
-	// generator to infinitely recurse while trying to populate an infinitely
-	// nested map of maps. Providing a pre-built value bypasses the data generator.
-	// SCIMListingEvent: &apievents.SCIMListingEvent{SCIMCommonData: scimCommon()},
-	// SCIMGetEvent:     &apievents.SCIMResourceEvent{SCIMCommonData: scimCommon()},
-	// SCIMCreateEvent:  &apievents.SCIMResourceEvent{SCIMCommonData: scimCommon()},
-	// SCIMUpdateEvent:  &apievents.SCIMResourceEvent{SCIMCommonData: scimCommon()},
-	// SCIMDeleteEvent:  &apievents.SCIMResourceEvent{SCIMCommonData: scimCommon()},
-	SCIMListingEvent: &apievents.SCIMListingEvent{SCIMCommonData: scimCommon()},
-	SCIMGetEvent:     &apievents.SCIMResourceEvent{},
-	SCIMCreateEvent:  &apievents.SCIMResourceEvent{},
-	SCIMUpdateEvent:  &apievents.SCIMResourceEvent{},
-	SCIMDeleteEvent:  &apievents.SCIMResourceEvent{},
+	VnetConfigCreateEvent:                         &apievents.VnetConfigCreate{},
+	VnetConfigUpdateEvent:                         &apievents.VnetConfigUpdate{},
+	VnetConfigDeleteEvent:                         &apievents.VnetConfigDelete{},
+	SCIMListingEvent:                              &apievents.SCIMListingEvent{},
+	SCIMGetEvent:                                  &apievents.SCIMResourceEvent{},
+	SCIMCreateEvent:                               &apievents.SCIMResourceEvent{},
+	SCIMUpdateEvent:                               &apievents.SCIMResourceEvent{},
+	SCIMDeleteEvent:                               &apievents.SCIMResourceEvent{},
+	SCIMPatchEvent:                                &apievents.SCIMResourceEvent{},
 }
 
 // TestJSON tests JSON marshal events
@@ -1108,6 +1088,75 @@ func TestJSON(t *testing.T) {
 				TeleportID: "root@localhost",
 				ExternalID: "1234",
 				Display:    "root user",
+			},
+		},
+		{
+			name: "VNetConfig Create",
+			json: `{"ei":0,"event":"vnet.config.create","uid":"vnet-create-id","success":true,"code":"TVNET001I","time":"2022-02-22T22:22:22.222Z","cluster_name":"test-cluster","user":"alice@example.com","addr.local":"127.0.0.1:3022","addr.remote":"[::1]:34902"}`,
+			event: apievents.VnetConfigCreate{
+				Metadata: apievents.Metadata{
+					ID:          "vnet-create-id",
+					Type:        VnetConfigCreateEvent,
+					Code:        VnetConfigCreateCode,
+					Time:        time.Date(2022, 0o2, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
+				},
+				Status: apievents.Status{
+					Success: true,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					LocalAddr:  "127.0.0.1:3022",
+					RemoteAddr: "[::1]:34902",
+				},
+			},
+		},
+		{
+			name: "VNetConfig Update",
+			json: `{"ei":0,"event":"vnet.config.update","uid":"vnet-update-id","success":true,"code":"TVNET002I","time":"2022-02-22T22:22:22.222Z","cluster_name":"root","user":"alice@example.com","addr.local":"127.0.0.1:3022","addr.remote":"[::1]:34902"}`,
+			event: apievents.VnetConfigUpdate{
+				Metadata: apievents.Metadata{
+					ID:          "vnet-update-id",
+					Type:        VnetConfigUpdateEvent,
+					Code:        VnetConfigUpdateCode,
+					Time:        time.Date(2022, 0o2, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "root",
+				},
+				Status: apievents.Status{
+					Success: true,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					LocalAddr:  "127.0.0.1:3022",
+					RemoteAddr: "[::1]:34902",
+				},
+			},
+		},
+		{
+			name: "VNetConfig Delete",
+			json: `{"ei":0,"event":"vnet.config.delete","uid":"vnet-delete-id","success":true,"code":"TVNET003I","time":"2022-02-22T22:22:22.222Z","cluster_name":"leaf","user":"alice@example.com","addr.local":"127.0.0.1:3022","addr.remote":"[::1]:34902"}`,
+			event: apievents.VnetConfigDelete{
+				Metadata: apievents.Metadata{
+					ID:          "vnet-delete-id",
+					Type:        VnetConfigDeleteEvent,
+					Code:        VnetConfigDeleteCode,
+					Time:        time.Date(2022, 0o2, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "leaf",
+				},
+				Status: apievents.Status{
+					Success: true,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					LocalAddr:  "127.0.0.1:3022",
+					RemoteAddr: "[::1]:34902",
+				},
 			},
 		},
 	}

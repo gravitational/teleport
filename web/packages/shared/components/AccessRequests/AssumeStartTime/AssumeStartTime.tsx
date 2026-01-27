@@ -29,7 +29,7 @@ import { ButtonSecondary } from 'design/Button';
 import { StyledDateRange } from 'design/DatePicker';
 import { displayShortDate } from 'design/datetime';
 import { Calendar as CalendarIcon, Refresh as RefreshIcon } from 'design/Icon';
-import FieldSelect from 'shared/components/FieldSelect';
+import { FieldSelect } from 'shared/components/FieldSelect';
 import Validation from 'shared/components/Validation';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 import { AccessRequest } from 'shared/services/accessRequests';
@@ -135,15 +135,14 @@ export function AssumeStartTime({
 
   return (
     <Validation>
-      <Flex gap={2} alignItems="end" mb={2}>
+      <Container threeColumns={!!showResetDateTime}>
         <Box css={{ position: 'relative' }} ref={dayPickerRef}>
           <LabelInput>Start Date</LabelInput>
           <CalendarPicker
+            $open={showDayPicker}
             onClick={() => {
               setShowDayPicker(s => !s);
             }}
-            maxWidth="270px"
-            minWidth="200px"
           >
             {startDateText}
             <CalendarIcon ml={3} />
@@ -198,7 +197,6 @@ export function AssumeStartTime({
             <LabelInput>Start Time</LabelInput>
             <FieldSelect
               mb={0}
-              width="190px"
               isSearchable={true}
               options={startTimeOptions}
               value={startTime}
@@ -216,21 +214,31 @@ export function AssumeStartTime({
             <RefreshIcon size="medium" />
           </ButtonIcon>
         )}
-      </Flex>
+      </Container>
     </Validation>
   );
 }
 
-const CalendarPicker = styled(Flex)`
+const Container = styled(Flex).attrs({ gap: 2, mb: 2, alignItems: 'end' })<{
+  threeColumns: boolean;
+}>`
+  display: grid;
+  grid-template-columns: ${props => (props.threeColumns ? '1fr 1fr auto' : '1fr 1fr')};
+}`;
+
+const CalendarPicker = styled(Flex)<{ $open: boolean }>`
   height: 40px;
-  border: 1px solid ${p => p.theme.colors.text.muted};
+  border: 1px solid ${p => p.theme.colors.interactive.tonal.neutral[2]};
   border-radius: ${p => p.theme.radii[2]}px;
-  padding: 0 ${p => p.theme.space[2]}px;
+  padding-right: ${p => p.theme.space[2]}px;
+  padding-left: ${p => p.theme.space[3]}px;
   align-items: center;
   justify-content: space-between;
   cursor: pointer;
   &:hover {
-    background-color: ${p => p.theme.colors.spotBackground[0]};
-    border: 1px solid ${p => p.theme.colors.text.slightlyMuted};
+    border: 1px solid ${p => p.theme.colors.text.muted};
   }
+  ${p =>
+    p.$open &&
+    `border-color: ${p.theme.colors.interactive.solid.primary.default};`}
 `;

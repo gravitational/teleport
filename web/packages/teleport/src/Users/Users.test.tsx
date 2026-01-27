@@ -30,6 +30,8 @@ import {
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { ContextProvider } from 'teleport';
+import { InfoGuideSidePanel } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
+import * as Main from 'teleport/Main/Main';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { Access } from 'teleport/services/user';
 import { successGetUsersV2 } from 'teleport/test/helpers/users';
@@ -60,6 +62,8 @@ describe('invite collaborators integration', () => {
 
   let props: State;
   beforeEach(() => {
+    jest.spyOn(Main, 'useNoMinWidth').mockReturnValue();
+
     props = {
       operation: { type: 'invite-collaborators' },
       fetch: ctx.userService.fetchUsersV2,
@@ -75,6 +79,7 @@ describe('invite collaborators integration', () => {
       inviteCollaboratorsOpen: false,
       onEmailPasswordResetClose: () => undefined,
       EmailPasswordReset: null,
+      UserDetails: null,
       showMauInfo: false,
       onDismissUsersMauNotice: () => null,
       usersAcl: defaultAcl,
@@ -168,6 +173,7 @@ test('Users not equal to MAU Notice', async () => {
     inviteCollaboratorsOpen: false,
     onEmailPasswordResetClose: () => undefined,
     EmailPasswordReset: null,
+    UserDetails: null,
     showMauInfo: true,
     onDismissUsersMauNotice: jest.fn(),
     usersAcl: defaultAcl,
@@ -221,6 +227,7 @@ describe('email password reset integration', () => {
       inviteCollaboratorsOpen: false,
       onEmailPasswordResetClose: () => undefined,
       EmailPasswordReset: null,
+      UserDetails: null,
       showMauInfo: false,
       onDismissUsersMauNotice: () => null,
       usersAcl: defaultAcl,
@@ -276,6 +283,7 @@ describe('permission handling', () => {
       inviteCollaboratorsOpen: false,
       onEmailPasswordResetClose: () => undefined,
       EmailPasswordReset: null,
+      UserDetails: null,
       showMauInfo: false,
       onDismissUsersMauNotice: () => null,
       usersAcl: defaultAcl,
@@ -404,5 +412,47 @@ describe('permission handling', () => {
     expect(
       menuItems.every(item => item.textContent.includes('Delete'))
     ).not.toBe(true);
+  });
+
+  test('users detail panel opens when clicking on a row', async () => {
+    const testProps = {
+      ...props,
+      usersAcl: {
+        read: true,
+        list: true,
+        edit: true,
+        create: true,
+        remove: false,
+      },
+      UserDetails: ({ user }) => (
+        <div data-testid="user-details-panel">
+          <div>Test Details: {user.name}</div>
+        </div>
+      ),
+    };
+
+    render(
+      <MemoryRouter>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Users {...testProps} />
+            <InfoGuideSidePanel />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
+      </MemoryRouter>
+    );
+
+    await screen.findByPlaceholderText('Search...');
+    const userRow = screen.getByText('tester');
+    expect(userRow).toBeInTheDocument();
+    expect(screen.queryByTestId('user-details-panel')).not.toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(userRow);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('user-details-panel')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Test Details: tester')).toBeInTheDocument();
   });
 });

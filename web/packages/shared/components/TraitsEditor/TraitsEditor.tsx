@@ -255,7 +255,7 @@ export function TraitsEditor({
         size="small"
         pr={3}
         compact={false}
-        inputAlignment
+        $inputAlignment
       />
     </Fieldset>
   );

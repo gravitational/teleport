@@ -26,7 +26,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/teleportcr"
 )
 
 func init() {
@@ -42,7 +42,7 @@ type TeleportBotV1 struct {
 	metav1.ObjectMeta `json:"metadata"`
 
 	Spec   *TeleportBotV1Spec `json:"spec,omitempty"`
-	Status resources.Status   `json:"status"`
+	Status teleportcr.Status  `json:"status"`
 }
 
 // TeleportBotV1Spec defines the desired state of TeleportBotV1
@@ -66,7 +66,7 @@ func (l *TeleportBotV1) ToTeleport() *machineidv1.Bot {
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name:        l.Name,
-			Description: l.Annotations[resources.DescriptionKey],
+			Description: l.Annotations[teleportcr.DescriptionKey],
 			Labels:      l.Labels,
 		},
 		Spec: (*machineidv1.BotSpec)(l.Spec),

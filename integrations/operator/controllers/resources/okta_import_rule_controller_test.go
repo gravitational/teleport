@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
@@ -162,17 +163,17 @@ func (g *oktaImportRuleTestingPrimitives) CompareTeleportAndKubernetesResource(t
 func TestOktaImportRuleCreation(t *testing.T) {
 	t.Skip("Skipping test since okta reconsider is not available in OSS")
 	test := &oktaImportRuleTestingPrimitives{}
-	testlib.ResourceCreationTest[types.OktaImportRule, *resourcesv1.TeleportOktaImportRule](t, test)
+	testlib.ResourceCreationSynchronousTest[types.OktaImportRule, *resourcesv1.TeleportOktaImportRule](t, resources.NewOktaImportRuleReconciler, test)
 }
 
 func TestOktaImportRuleDeletionDrift(t *testing.T) {
 	t.Skip("Skipping test since okta reconsider is not available in OSS")
 	test := &oktaImportRuleTestingPrimitives{}
-	testlib.ResourceDeletionDriftTest[types.OktaImportRule, *resourcesv1.TeleportOktaImportRule](t, test)
+	testlib.ResourceDeletionDriftSynchronousTest[types.OktaImportRule, *resourcesv1.TeleportOktaImportRule](t, resources.NewOktaImportRuleReconciler, test)
 }
 
 func TestOktaImportRuleUpdate(t *testing.T) {
 	t.Skip("Skipping test since okta reconsider is not available in OSS")
 	test := &oktaImportRuleTestingPrimitives{}
-	testlib.ResourceUpdateTest[types.OktaImportRule, *resourcesv1.TeleportOktaImportRule](t, test)
+	testlib.ResourceUpdateTestSynchronous[types.OktaImportRule, *resourcesv1.TeleportOktaImportRule](t, resources.NewOktaImportRuleReconciler, test)
 }

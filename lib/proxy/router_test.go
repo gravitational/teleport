@@ -32,6 +32,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -76,6 +77,7 @@ func (t testSite) GetGitServers(ctx context.Context, fn func(n readonly.Server) 
 }
 
 type server struct {
+	scope    string
 	name     string
 	hostname string
 	addr     string
@@ -91,6 +93,7 @@ func createServers(srvs []server) []types.Server {
 			Metadata: types.Metadata{
 				Name: s.name,
 			},
+			Scope: s.scope,
 			Spec: types.ServerSpecV2{
 				Addr:      s.addr,
 				Hostname:  s.hostname,
@@ -109,6 +112,150 @@ type mockHostResolver struct {
 
 func (r *mockHostResolver) LookupHost(ctx context.Context, host string) (addrs []string, err error) {
 	return r.hosts[host], nil
+}
+
+// TestScopePinning verifies expected routing behavior for scoped nodes.
+func TestScopePinning(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	// set up servers across varioous scopes with various hostname collision
+	// scenarios (parent/child, same-scope, orthogonal scopes, etc).
+	servers := createServers([]server{
+		{
+			scope:    "",
+			name:     uuid.NewString(),
+			hostname: "unscoped.example.com",
+			addr:     "1.2.3.4:0",
+		},
+		{
+			scope:    "/staging",
+			name:     uuid.NewString(),
+			hostname: "unique-parent.example.com",
+			addr:     "1.2.3.4:0",
+		},
+		{
+			scope:    "/staging/west",
+			name:     uuid.NewString(),
+			hostname: "unique-child.example.com",
+			addr:     "1.2.3.4:0",
+		},
+		{
+			scope:    "/staging",
+			name:     uuid.NewString(),
+			hostname: "orthogonal.example.com",
+			addr:     "1.2.3.4:0",
+		},
+		{
+			scope:    "/prod",
+			name:     uuid.NewString(),
+			hostname: "orthogonal.example.com",
+			addr:     "1.2.3.4:0",
+		},
+		{
+			scope:    "/staging",
+			name:     uuid.NewString(),
+			hostname: "parent-child.example.com",
+			addr:     "1.2.3.4:0",
+		},
+		{
+			scope:    "/staging/west",
+			name:     uuid.NewString(),
+			hostname: "parent-child.example.com",
+			addr:     "1.2.3.4:0",
+		},
+	})
+
+	tts := []struct {
+		name      string
+		host      string
+		pin       *scopesv1.Pin
+		ambiguous bool
+		unmatched bool
+	}{
+		{
+			name: "unscoped node reachable when unpinned",
+			host: "unscoped.example.com",
+			pin:  nil,
+		},
+		{
+			name:      "unscoped node unreachable when pinned",
+			host:      "unscoped.example.com",
+			pin:       &scopesv1.Pin{Scope: "/staging"},
+			unmatched: true,
+		},
+		{
+			name: "parent scoped node reachable when pinned to exact scope",
+			host: "unique-parent.example.com",
+			pin:  &scopesv1.Pin{Scope: "/staging"},
+		},
+		{
+			name:      "parent scoped node unreachable when pinned to child scope",
+			host:      "unique-parent.example.com",
+			pin:       &scopesv1.Pin{Scope: "/staging/west"},
+			unmatched: true,
+		},
+		{
+			name: "child scoped node reachable when pinned to child scope",
+			host: "unique-child.example.com",
+			pin:  &scopesv1.Pin{Scope: "/staging/west"},
+		},
+		{
+			name: "child scoped node reachable when pinned to parent scope",
+			host: "unique-child.example.com",
+			pin:  &scopesv1.Pin{Scope: "/staging"},
+		},
+		{
+			name: "no collisions from orthogonal scopes when pinned",
+			host: "orthogonal.example.com",
+			pin:  &scopesv1.Pin{Scope: "/staging"},
+		},
+		{
+			name:      "parent/child conflict when pinned to parent",
+			host:      "parent-child.example.com",
+			pin:       &scopesv1.Pin{Scope: "/staging"},
+			ambiguous: true,
+		},
+		{
+			name: "parent/child doesn't conflict when pinned to child",
+			host: "parent-child.example.com",
+			pin:  &scopesv1.Pin{Scope: "/staging/west"},
+		},
+		{
+			name:      "parent/child conflict when unpinned",
+			host:      "parent-child.example.com",
+			pin:       nil,
+			ambiguous: true,
+		},
+	}
+
+	// use strict routing to ensure only one match is possible per test case.
+	site := &testSite{
+		cfg: &types.ClusterNetworkingConfigV2{
+			Spec: types.ClusterNetworkingConfigSpecV2{
+				RoutingStrategy: types.RoutingStrategy_UNAMBIGUOUS_MATCH,
+			},
+		},
+		nodes: servers,
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			srv, err := getServer(ctx, tt.pin, tt.host, "0", site)
+			switch {
+			case tt.ambiguous:
+				require.ErrorIs(t, err, teleport.ErrNodeIsAmbiguous)
+			case tt.unmatched:
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "offline or does not exist")
+			default:
+				require.NoError(t, err)
+				require.NotNil(t, srv)
+			}
+		})
+	}
+
 }
 
 // TestRouteScoring verifies expected behavior in the specific cases where multiple matches
@@ -231,7 +378,7 @@ func TestRouteScoring(t *testing.T) {
 
 	for _, tt := range tts {
 		t.Run(tt.desc, func(t *testing.T) {
-			srv, err := getServerWithResolver(ctx, tt.host, tt.port, site, resolver)
+			srv, err := getServerWithResolver(ctx, nil /*scopePin*/, tt.host, tt.port, site, resolver)
 			if tt.ambiguous {
 				require.ErrorIs(t, err, teleport.ErrNodeIsAmbiguous)
 				return
@@ -535,7 +682,7 @@ func TestGetServers(t *testing.T) {
 	ctx := context.Background()
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			srv, err := getServer(ctx, tt.host, tt.port, tt.site)
+			srv, err := getServer(ctx, nil /*scopePin*/, tt.host, tt.port, tt.site)
 			tt.errAssertion(t, err)
 			tt.serverAssertion(t, srv)
 		})
@@ -543,7 +690,7 @@ func TestGetServers(t *testing.T) {
 }
 
 func serverResolver(srv types.Server, err error) serverResolverFn {
-	return func(ctx context.Context, host, port string, site cluster) (types.Server, error) {
+	return func(ctx context.Context, scopePin *scopesv1.Pin, host, port string, site cluster) (types.Server, error) {
 		return srv, err
 	}
 }
@@ -824,7 +971,7 @@ func TestRouter_DialHost(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			conn, err := tt.router.DialHost(ctx, &utils.NetAddr{}, &utils.NetAddr{}, "host", "0", "test", nil, agentGetter, createSigner)
+			conn, err := tt.router.DialHost(ctx, nil /*scopePin*/, &utils.NetAddr{}, &utils.NetAddr{}, "host", "0", "test", nil, agentGetter, createSigner)
 
 			var params reversetunnelclient.DialParams
 			if tt.router.localCluster != nil {

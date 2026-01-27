@@ -544,8 +544,9 @@ func TestKubeMiddleware(t *testing.T) {
 			require.Contains(t, rw.Buffer().String(), "context canceled")
 
 			// but certificate still was reissued.
-			certs, err := km.OverwriteClientCerts(req)
+			certs, ok, err := km.GetClientCerts(req)
 			require.NoError(t, err)
+			require.True(t, ok)
 			require.Len(t, certs, 1)
 			require.Equal(t, newCert, certs[0], "certificate was not reissued")
 
@@ -618,12 +619,13 @@ func TestKubeMiddleware(t *testing.T) {
 			// HandleRequest will reissue certificate if needed
 			km.HandleRequest(responsewriters.NewMemoryResponseWriter(), &req)
 
-			certs, err := km.OverwriteClientCerts(&req)
+			certs, ok, err := km.GetClientCerts(&req)
 
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 			} else {
 				require.NoError(t, err)
+				require.True(t, ok)
 				require.Len(t, certs, 1)
 				require.Equal(t, tt.overwrittenCert, certs[0])
 			}

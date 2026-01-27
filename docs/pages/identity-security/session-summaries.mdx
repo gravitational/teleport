@@ -7,6 +7,7 @@ tags:
   - conceptual
   - identity-security
   - ai
+enterprise: Identity Security
 ---
 
 Teleport Identity Security allows you to generate and view session recording
@@ -18,17 +19,27 @@ deeper and reviewing the entire recording.
 **Session Recording Summaries and AI Usage**
 Session Recording Summaries are available to Teleport Enterprise customers with Teleport Identity Security.
 
-**Important**: AI-powered summarization is **disabled by default** in all Teleport deployments 
-(both self-hosted and cloud). No AI processing occurs unless you explicitly enable this feature. 
+**Important**: AI-powered summarization is **disabled by default** in all
+Teleport deployments (both self-hosted and cloud). No AI processing occurs
+unless you explicitly enable this feature. This ensures you have complete
+control over whether and how AI is used with your session recordings.
 
-When you choose to enable summarization:
+When you choose to enable summarization, the following options are available:
 
-- For Teleport Enterprise (Self-hosted): You configure and manage your own AI integration. Using OpenAI or 
-OpenAI compatible LLMs gateways such as Lite LMM.
-- For Teleport Enterprise (Cloud) with Identity Security: Session Recording Summarization can be enabled 
-with your own OpenAI key. Later this year, Teleport Enterprise (Cloud) will provide summarization via Amazon Bedrock. 
+| Integration mode | Self-hosted Teleport Enterprise | Teleport Enterprise Cloud |
+| --- | --- | --- |
+| Using OpenAI with your own OpenAI key | ✅ | ✅ |
+| Using OpenAI-compatible LLM gateways such as LiteLLM  | ✅ | ✅ (*) |
+| Using Amazon Bedrock models provided by your own AWS account | ✅ | ❌ (**) |
+| Using an Amazon Bedrock model provided by Teleport | ❌ | ❌ (**) |
 
-This ensures you have complete control over whether and how AI is used with your session recordings.
+(*) In case of Teleport Cloud, the Teleport Auth Service must be able to reach
+the LLM gateway. It means the gateway needs to be publicly accessible and
+properly secured. Access to the gateway should be guarded by the equivalent of
+OpenAI API key (e.g. LiteLLM master key).
+
+(**) Amazon Bedrock will be available in Teleport Enterprise
+Cloud later this year.
 
 Existing customers will never have AI features automatically enabled without explicit consent.
 Learn more about the features included in [Teleport Identity Security](https://goteleport.com/platform/identity-security/).
@@ -47,13 +58,13 @@ participants, resource labels, user traits, etc.
 
 If a match is found, Teleport proceeds to summarize the session recording. It
 uses an inference model configuration indicated by the policy to generate a
-summary using an external inference provider, such as OpenAI. There is no way
-to run this process on demand.
+summary using an external inference provider, such as OpenAI or Amazon Bedrock.
+There is no way to run this process on demand.
 
 There are three fundamental concepts to that underpin session summarization:
 
-- **Inference providers** do the heavy lifting of summarization. Currently,
-  Teleport only supports OpenAI or compatible inference providers.
+- **Inference providers** (OpenAI, Amazon Bedrock) do the heavy lifting of
+  summarization.
 - **Inference models** indicate *how* sessions get summarized: they are
   Teleport configuration resources that provide model settings.
 - **Inference policies** indicate *what* gets summarized and which inference
@@ -71,10 +82,12 @@ token budget is your responsibility.
 
 - A running Teleport Enterprise (Self-Hosted) cluster v18.2.0 or later with Identity 
   Security enabled.
-- Access to OpenAI or OpenAI-compatible inference API, either public or
-  self-hosted.
+- Access to an LLM API. This can be:
+  - OpenAI or OpenAI-compatible inference API, either public or self-hosted.
+  - Amazon Bedrock (available in self-hosted mode only; see the availability
+    table above).
 
-## Step 1/4: Configure access to inference configuration
+## Step 1/5: Configure access to inference configuration
 
 In order to manage the summary inference configuration, you need a write access
 to `inference_model`, `inference_secret`, and `inference_policy` resources,
@@ -115,16 +128,19 @@ access to all necessary resources. To create a new role:
 
 1. (!docs/pages/includes/add-role-to-user.mdx role="summarizer-admin"!)
 
-## Step 2/4: Create the inference configuration resources
+## Step 2/5 : Configure the inference model
 
-Let's start by defining an `inference_model` resource. It tells Teleport how to
-summarize a session by pointing it to a large language model (LLM) API. In
-particular, it contains an API-specific model name. Note that the *Teleport
+In this step, you will create an `inference_model` resource. It tells Teleport
+how to summarize a session by pointing it to a large language model (LLM) API.
+In particular, it contains an API-specific model name. Note that the *Teleport
 inference model name* and *API-specific model name* are two different things.
-This allows, for example, using the same OpenAI model with different
-temperature settings or using different API gateways by creating multiple
-Teleport inference models with the same OpenAI model name.
+This allows, for example, using the same model from providers like OpenAI or
+Amazon Bedrock with different temperature settings, or routing to different API
+gateways by creating multiple Teleport inference models that reference the same
+underlying API-specific model name
 
+<Tabs>
+<TabItem label="OpenAI">
 To communicate with OpenAI, an inference model needs an API key. It's stored
 separately in an `inference_secret` resource and referenced by the
 `inference_model`'s `spec.openai.api_key_secret_ref` field.
@@ -134,22 +150,7 @@ To protect your API key, once written, an `inference_secret` value cannot be
 retrieved through `tctl` or Teleport API. It can only be updated or deleted.
 </Admonition>
 
-Finally, we add an `inference_policy` that routes sessions to inference models
-using session kinds and optional custom filters. Only one policy is allowed to
-match a given session to guarantee that its recording will be summarized at
-most once. Policies are checked in alphabetical order of names and the first
-one that matches is used. Here are some example scenarios that can be expressed
-using inference policies:
-
-- Only summarize sessions to your production resources using resource labels.
-- Use different models for summarizing shell and database sessions.
-
-See [Session matching examples](#session-matching-examples) for details on how
-to configure Teleport to achieve these goals.
-
-To create the required configuration resources:
-
-1. Create an `inference-config.yaml` file with the following content:
+1. Create an `inference-model.yaml` file with the following content:
 
    ```yaml
    kind: inference_model
@@ -157,7 +158,6 @@ To create the required configuration resources:
    metadata:
      name: shell-summary-model
    spec:
-     # "openai" is currently the only supported inference provider.
      openai:
        # In this scenario, where we connect to OpenAI directly, openai_model_id
        # needs to be a valid OpenAI model name.
@@ -177,9 +177,163 @@ To create the required configuration resources:
      name: openai-key
    spec:
      value: '<paste-your-openai-api-key-here>'
+   ```
 
-   ---
+1. Apply your changes:
 
+   ```code
+   $ tctl create -f inference-model.yaml
+   ```
+
+</TabItem>
+
+<TabItem label="Amazon Bedrock">
+
+### Pick a model
+
+Depending on the model that you'd like to use, you may need to use an existing
+inference profile in Amazon Bedrock (not to be confused with Teleport inference
+policy) or create a new one. If the model in question supports on-demand
+invocation, an inference profile is not required. As of time of writing, Claude
+3.5 Haiku and Claude 3.5 Sonnet are examples of models that don't require
+creating Amazon Bedrock inference profiles and can be used as is. Use the
+following command to list models that support on-demand invocation:
+
+```sh
+aws bedrock list-foundation-models --by-inference-type=ON_DEMAND --query='modelSummaries[*].modelId'
+```
+
+Refer to Amazon Bedrock documentation for details on inference pricing for
+various models.
+
+### Find or create an Amazon Bedrock inference profile
+
+If you'd like to use a model that doesn't support on-demand invocation, you
+need to first find a system-defined inference profile for that model or create
+your own one. If the model supports on-demand invocation, you can skip this
+part.
+
+To pick a system-defined inference profile for the model of your choosing,
+start by listing all available models and pick a model ARN.
+
+```sh
+aws bedrock list-foundation-models --query='modelSummaries[*].modelArn'
+```
+
+Next, find an inference profile for that model, replacing <Var
+name="bedrock-model-arn"/> with the model ARN:
+
+```sh
+aws bedrock list-inference-profiles --query "inferenceProfileSummaries[?contains(@.models[*].modelArn, '<Var name="bedrock-model-arn"/>')].inferenceProfileArn"
+```
+
+Now that you have an inference profile ARN, you can move on to creating the
+actual model configuration on the Teleport side.
+
+### Ensure that Teleport can invoke models
+
+The Teleport Auth Service must be able to read AWS credentials in order to
+authenticate to Amazon Bedrock.
+
+(!docs/pages/includes/aws-credentials.mdx service="the Teleport Auth Service"!)
+
+In case of invoking a model directly, attach the following AWS IAM policy (not
+to be confused with Teleport inference policy) to the IAM role that is used by
+Teleport to authenticate to Amazon Bedrock:
+
+```yaml
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "bedrock:InvokeModel",
+      "Resource": "<Var name="bedrock-model-arn"/>"
+    }
+  ]
+}
+```
+
+Replace <Var name="bedrock-model-arn"/> with the ARN of the Amazon Bedrock
+model.
+
+If you're using an inference profile, the `Resource` field must instead specify
+the inference profile ARN, as well as ARNS of *all* of the models that given
+inference profile may end up calling. These can be given either as an array of
+specific elements or using wildcards. For more details, see [the Amazon Bedrock
+documentation on prerequisites for using inference
+profiles](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-prereq.html).
+
+The exact procedure for attaching this policy is different depending on the
+details of your infrastructure; for example, if you are running Teleport on an
+EC2 instance, you should navigate to that instance in the AWS Console, and
+modify the role specified in the **IAM Role** section of the instance summary.
+(If there's no IAM role set, use **Actions -> Security -> Modify IAM role**.) 
+
+### Create an `inference_model` resource
+
+1. Create an `inference-model.yaml` file with the following content:
+
+   ```yaml
+   kind: inference_model
+   version: v1
+   metadata:
+     name: shell-summary-model
+   spec:
+     bedrock:
+       # Indicates a region where the inference will be performed. See below
+       # for more details.
+       region: <Var name="region"/>
+       bedrock_model_id: <Var name="bedrock-model-or-inference-profile-arn"/>
+     # It's a good idea to limit the session length to prevent incurring cost for
+     # sessions that were too long anyway to fit in the model's context window.
+     # If unset, defaults to 200kB. See the Limitations section for more details.
+     max_session_length_bytes: 190000
+   ```
+   
+   Replace <Var name="bedrock-model-or-inference-profile-arn"/> with an ARN of
+   the Amazon Bedrock foundation model or an inference profile. A Bedrock model
+   ID can also be used.
+
+   If a foundation model is directly invoked (i.e. `bedrock_model_id` points to
+   a model, not an inference profile), <Var name="region"/> should be replaced
+   with one of the supported regions for a given model. Consult the [table of
+   model support by AWS
+   region](https://docs.aws.amazon.com/bedrock/latest/userguide/models-regions.html)
+   from the official AWS documentation.
+   
+   If `bedrock_model_id` refers to an inference profile, <Var name="region"/>
+   needs to point to a region specified in the inference profile ARN.
+
+1. Apply your changes:
+
+   ```code
+   $ tctl create -f inference-model.yaml
+   ```
+
+</TabItem>
+</Tabs>
+
+## Step 3/5: Set up an inference policy
+
+In this step, you will add an `inference_policy` resource that routes sessions
+to inference models using session kinds and optional custom filters. Only one
+policy is allowed to match a given session to guarantee that its recording will
+be summarized at most once. Policies are checked in alphabetical order of names
+and the first one that matches is used. Here are some example scenarios that
+can be expressed using inference policies:
+
+- Only summarize sessions to your production resources using resource labels.
+- Use different models for summarizing shell and database sessions.
+
+See [Session matching examples](#session-matching-examples) for details on how
+to configure Teleport to achieve these goals.
+
+To create the required configuration resources:
+
+1. Create an `inference-policy.yaml` file with the following content:
+
+   ```yaml
    kind: inference_policy
    version: v1
    metadata:
@@ -196,20 +350,20 @@ To create the required configuration resources:
      model: shell-summary-model
    ```
 
-1. Create the configuration resources in the backend:
+1. Create the inference policy in the backend:
 
    ```code
-   $ tctl create -f inference-config.yaml
+   $ tctl create -f inference-policy.yaml
    ```
 
 For full description of the inference configuration resources, see appropriate
 sections of [Teleport Resources Reference](../reference/infrastructure-as-code/teleport-resources/teleport-resources.mdx):
 
 - [`inference_model`](../reference/infrastructure-as-code/teleport-resources/inference-model.mdx)
-- [`inference_secret`](../reference/infrastructure-as-code/teleport-resources/inference-secret.mdx)
+- [`inference_secret`](../reference/infrastructure-as-code/teleport-resources/inference-secret.mdx) (only for OpenAI and compatible APIs)
 - [`inference_policy`](../reference/infrastructure-as-code/teleport-resources/inference-policy.mdx)
 
-## Step 3/4: Configure access to session summaries
+## Step 4/5: Configure access to session summaries
 
 Every user who has access to
 [given session recording](../reference/access-controls/roles.mdx#rbac-for-session-recordings)
@@ -241,12 +395,12 @@ access to all recordings. To create a new role:
 1. Apply your changes:
 
    ```code
-   $ tctl create -f summary-auditor
+   $ tctl create -f summary-auditor.yaml
    ```
 
 1. (!docs/pages/includes/add-role-to-user.mdx role="summary-auditor"!)
 
-## Step 4/4: Conduct a session and view its summary
+## Step 5/5: Conduct a session and view its summary
 
 That's it! We are ready to conduct a test session. Connect to any of your
 cluster resources using `tsh ssh`, `kubectl exec`, `tsh db connect`, or a web
@@ -350,39 +504,43 @@ The language also supports the following functions:
 
 | Functions                         | Return type | Description                                                                                                                                |
 | --------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `contains(list, item)`            | `Boolean`   | Returns true if `item` is included in the `list`                                                                                           |
-| `equals(a, b)`                    | `Boolean`   | Returns true if value `a` is equal to `b`                                                                                                  |
-| `contains_all(list, items)`       | `Boolean`   | Returns true if all `items` are included in the `list`                                                                                     |
-| `contains_any(list, items)`       | `Boolean`   | Returns true if any of `items` is included in the `list`                                                                                   |
-| `set(value1, value2, ...)`        | `[]string`  | Returns a list of strings                                                                                                                  |
 | `all_end_with(a, suffix)`         | `Boolean`   | If `a` is a list, returns true if all strings in the `a` end with `suffix`. If `a` is a string, returns true if `a` ends with `suffix`.    |
 | `all_equal(a, b)`                 | `Boolean`   | If `a` is a list, returns true if all items in `a` are equal to `b`. If `a` is a string, returns true if it's equal to `b`.                |
-| `is_subset(a, item1, item2, ...)` | `Boolean`   | If `a` is a list, returns true if `list(item1, item2, ...)` is a subset of `a`. If `a` is a string, returns true if the list contains `a`. |
+| `contains(list, item)`            | `Boolean`   | Returns true if `item` is included in the `list`                                                                                           |
+| `contains_all(list, items)`       | `Boolean`   | Returns true if all `items` are included in the `list`                                                                                     |
+| `contains_any(list, items)`       | `Boolean`   | Returns true if any of `items` is included in the `list`                                                                                   |
+| `equals(a, b)`                    | `Boolean`   | Returns true if value `a` is equal to `b`                                                                                                  |
 | `has_prefix(s, prefix)`           | `Boolean`   | Returns true if string `s` starts with `prefix`                                                                                            |
+| `is_subset(a, item1, item2, ...)` | `Boolean`   | If `a` is a list, returns true if `list(item1, item2, ...)` is a subset of `a`. If `a` is a string, returns true if the list contains `a`. |
+| `set(value1, value2, ...)`        | `[]string`  | Returns a list of strings                                                                                                                  |
 
 It's possible to build predicates using information about target resource,
 session, and user.
 
 | Field                            | Meaning                                                                                                                                                         | Example                                           |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| user                             | User that created the session.                                                                                                                                  |                                                   |
-| user.metadata.name               | User's name                                                                                                                                                     | `is_subset(user.metadata.name, "alice", "bob")`   |
-| user.spec.roles                  | User's roles                                                                                                                                                    | `contains(user.spec.roles, "intern")`             |
-| user.spec.traits                 | User's traits                                                                                                                                                   | `contains(user.spec.traits["teams"], "alpha")`    |
 | resource                         | Resource that this session connects to (server, Kubernetes cluster, or database)                                                                                |                                                   |
-| resource.kind                    | Resource kind                                                                                                                                                   | `resource.kind == "node`                          |
-| resource.metadata.name           | Resource name. In case of SSH servers, it's the server ID.                                                                                                      | `resource.name == "production-cluster"`           |
+| resource.kind                    | Resource kind                                                                                                                                                   | `resource.kind == "node"`                         |
 | resource.metadata.labels         | Resource labels                                                                                                                                                 | `equals(resource.metadata.labels["env"], "prod")` |
-| session                          | The session that is being matched. This object supports all the fields of `session.end` and `db.session.end` events, so we only name the most useful ones here. |
-| session.participants             | Users that participated in the session (SSH and Kubernetes sessions only)                                                                                       | `contains(session.participants, "alice")`         |
+| resource.metadata.name           | Resource name. In case of SSH servers, it's the server ID.                                                                                                      | `resource.name == "production-cluster"`           |
+| resource.spec.addr               | Server address (SSH sessions only)                                                                                                                              | `resource.spec.addr == "123.123.123.123:3022"`    |
+| resource.spec.db_protocol        | Database protocol (database sessions only). See [DB resource reference](../reference/infrastructure-as-code/teleport-resources/db.mdx) for supported values.    | `resource.spec.protocol == "postgres"`            |
+| resource.spec.hostname           | Server hostname (SSH sessions only)                                                                                                                             | `resource.spec.hostname == "dummy-host"`          |
+| resource.spec.uri                | Database URI (database sessions only)                                                                                                                           | `has_prefix(resource.spec.uri, "db-host")`        |
+| session                          | The session that is being matched. This object supports all the fields of `session.end` and `db.session.end` events, so we only name the most useful ones here. |                                                   |
 | session.cluster_name             | Name of the Teleport cluster                                                                                                                                    | `cluster_name == "teleport.example.com"`          |
 | session.db_name                  | Name of database (the underlying one, not the Teleport resource; database sessions only)                                                                        | `session.db_name == "orders"`                     |
 | session.db_service               | Database service name (database sessions only)                                                                                                                  | `session.db_service == "prod-db-service"`         |
-| session.kubernetes_users         | List of Kubernetes usernames (Kubernetes sessions only)                                                                                                         | `contains(session.kubernetes_users, "admin")`     |
 | session.kubernetes_groups        | List of Kubernetes groups (Kubernetes sessions only)                                                                                                            | `contains(session.kubernetes_groups, "viewers")`  |
 | session.kubernetes_node_name     | Name of node that runs the pod (Kubernetes sessions only)                                                                                                       | `session.kubernetes_node_name == "node1"`         |
 | session.kubernetes_pod_name      | Name of the pod (Kubernetes sessions only)                                                                                                                      | `session.kubernetes_pod_name == "some-pod"`       |
 | session.kubernetes_pod_namespace | Namespace that contains the pod (Kubernetes sessions only)                                                                                                      | `session.kubernetes_pod_namespace == "default"`   |
+| session.kubernetes_users         | List of Kubernetes usernames (Kubernetes sessions only)                                                                                                         | `contains(session.kubernetes_users, "admin")`     |
+| session.participants             | Users that participated in the session (SSH and Kubernetes sessions only)                                                                                       | `contains(session.participants, "alice")`         |
+| user                             | User that created the session.                                                                                                                                  |                                                   |
+| user.metadata.name               | User's name                                                                                                                                                     | `is_subset(user.metadata.name, "alice", "bob")`   |
+| user.spec.roles                  | User's roles                                                                                                                                                    | `contains(user.spec.roles, "intern")`             |
+| user.spec.traits                 | User's traits                                                                                                                                                   | `contains(user.spec.traits["teams"], "alpha")`    |
 
 ## Using LiteLLM and other OpenAI-compatible proxies
 
@@ -437,3 +595,42 @@ and in case of OpenAI errors — additionally with the OpenAI API error code. Se
 the [Teleport Metrics
 reference](../reference/deployment/monitoring/metrics.mdx#session-recording-summarizer)
 for details.
+
+## Troubleshooting
+
+### Amazon Bedrock fails to invoke a model with on-demand throughput
+
+**Problem:** Summarization fails with "ValidationException: Invocation of model
+ID *[model-id]* with on-demand throughput isn’t supported. Retry your request
+with the ID or ARN of an inference profile that contains this model."
+
+**Solution:** Use an Amazon Bedrock inference profile instead of a model ID in
+the `inference_model` resource.
+
+### Amazon Bedrock model identifier is invalid
+
+**Problem:** Summarization fails with "ValidationException: The provided model
+identifier is invalid." 
+
+**Solution:** One possible reason is a mismatch between the `region` declared
+in the `inference_model` resource and available regions for the given model or
+inference profile. Make sure that the region is supported.
+
+### Amazon Bedrock denies access to a model or inference policy
+
+**Problem:** Summarization fails with "AccessDeniedException: User: *[user]* is
+not authorized to perform: bedrock:InvokeModel on resource: *[resource-arn]*
+because no identity-based policy allows the bedrock:InvokeModel action"
+
+**Solution:** First, make sure that the AWS IAM role used by Teleport has a
+policy attached that allows the `InvokeModel` action on the model or inference
+policy that you specified in Teleport configuration (`inference_model`
+resource). Then make sure that if you're using an Amazon Bedrock inference
+profile, the policy references not only the inference profile itself, but also
+all Amazon Bedrock models that this inference profile is associated with. Use
+the following command to fetch details of the inference profile, replacing <Var
+name="bedrock-inference-profile-arn"/> with the inference profile ARN:
+
+```sh
+aws bedrock get-inference-profile --inference-profile-identifier="<Var name="bedrock-inference-profile-arn"/>"
+```

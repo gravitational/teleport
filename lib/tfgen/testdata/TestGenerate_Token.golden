@@ -1,0 +1,19 @@
+resource "teleport_provision_token" "github-gravitational-teleport" {
+  version = "v2"
+
+  metadata = {
+    name = "github-gravitational-teleport"
+  }
+
+  spec = {
+    roles       = ["Bot"]
+    join_method = "github"
+    bot_name    = "gha-gravitational-teleport"
+    github = {
+      allow = [{
+        repository       = "graviational/teleport"
+        repository_owner = "gravitational"
+      }]
+    }
+  }
+}

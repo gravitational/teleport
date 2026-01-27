@@ -22,12 +22,26 @@ import styled from 'styled-components';
 import { border, BorderProps, space, SpaceProps } from '../system';
 import { Theme } from '../theme';
 
-const kind = ({ kind, theme }: { kind?: LabelKind; theme: Theme }) => {
+const kind = ({
+  kind,
+  theme,
+  withHoverState = false,
+}: {
+  kind?: LabelKind;
+  theme: Theme;
+  withHoverState?: boolean;
+}) => {
   if (kind === 'secondary') {
     return {
       backgroundColor: theme.colors.spotBackground[0],
       color: theme.colors.text.main,
       fontWeight: theme.fontWeights.regular,
+      ...(withHoverState && {
+        '&:hover': {
+          text: theme.colors.text.primaryInverse,
+          background: theme.colors.interactive.tonal.neutral[1],
+        },
+      }),
     };
   }
 
@@ -35,6 +49,12 @@ const kind = ({ kind, theme }: { kind?: LabelKind; theme: Theme }) => {
     return {
       backgroundColor: theme.colors.warning.main,
       color: theme.colors.text.primaryInverse,
+      ...(withHoverState && {
+        '&:hover': {
+          color: theme.colors.text.primaryInverse,
+          backgroundColor: theme.colors.interactive.solid['alert'].hover,
+        },
+      }),
     };
   }
 
@@ -42,6 +62,12 @@ const kind = ({ kind, theme }: { kind?: LabelKind; theme: Theme }) => {
     return {
       backgroundColor: theme.colors.error.main,
       color: theme.colors.text.primaryInverse,
+      ...(withHoverState && {
+        '&:hover': {
+          color: theme.colors.text.primaryInverse,
+          backgroundColor: theme.colors.interactive.solid['danger'].hover,
+        },
+      }),
     };
   }
 
@@ -49,17 +75,63 @@ const kind = ({ kind, theme }: { kind?: LabelKind; theme: Theme }) => {
     return {
       backgroundColor: theme.colors.success.main,
       color: theme.colors.text.primaryInverse,
+      ...(withHoverState && {
+        '&:hover': {
+          color: theme.colors.text.primaryInverse,
+          backgroundColor: theme.colors.interactive.solid['success'].hover,
+        },
+      }),
+    };
+  }
+
+  if (kind === 'outline-primary') {
+    return {
+      color: theme.colors.brand,
+      backgroundColor: 'transparent',
+      borderColor: theme.colors.brand,
+      borderWidth: 1,
+      borderStyle: 'solid',
+      fontWeight: theme.fontWeights.regular,
+      ...(withHoverState && {
+        '&:hover': {
+          color: theme.colors.text.primaryInverse,
+          backgroundColor: theme.colors.interactive.solid['primary'].hover,
+        },
+      }),
     };
   }
 
   if (kind === 'outline-secondary') {
     return {
-      color: theme.colors.text.main,
-      backgroundColor: 'transparent',
-      borderColor: theme.colors.interactive.tonal.neutral[0],
+      color: theme.colors.text.slightlyMuted,
+      backgroundColor: theme.colors.interactive.tonal.neutral[0],
+      borderColor: theme.colors.text.slightlyMuted,
       borderWidth: 1,
       borderStyle: 'solid',
       fontWeight: theme.fontWeights.regular,
+      ...(withHoverState && {
+        '&:hover': {
+          text: theme.colors.text.primaryInverse,
+          background: theme.colors.interactive.tonal.neutral[1],
+        },
+      }),
+    };
+  }
+
+  if (kind === 'outline-success') {
+    return {
+      color: theme.colors.interactive.solid.success.hover,
+      backgroundColor: theme.colors.interactive.tonal.success[0],
+      borderColor: theme.colors.interactive.solid.success.hover,
+      borderWidth: 1,
+      borderStyle: 'solid',
+      fontWeight: theme.fontWeights.regular,
+      ...(withHoverState && {
+        '&:hover': {
+          color: theme.colors.text.primaryInverse,
+          backgroundColor: theme.colors.interactive.solid['success'].hover,
+        },
+      }),
     };
   }
 
@@ -67,21 +139,33 @@ const kind = ({ kind, theme }: { kind?: LabelKind; theme: Theme }) => {
     return {
       color: theme.colors.dataVisualisation.primary.sunflower,
       backgroundColor: theme.colors.interactive.tonal.alert[0],
-      borderColor: theme.colors.interactive.tonal.alert[2],
+      borderColor: theme.colors.dataVisualisation.primary.sunflower,
       borderWidth: 1,
       borderStyle: 'solid',
       fontWeight: theme.fontWeights.regular,
+      ...(withHoverState && {
+        '&:hover': {
+          color: theme.colors.text.primaryInverse,
+          backgroundColor: theme.colors.interactive.solid['alert'].hover,
+        },
+      }),
     };
   }
 
   if (kind === 'outline-danger') {
     return {
-      color: theme.colors.interactive.solid.danger.default,
+      color: theme.colors.dataVisualisation.tertiary.abbey,
       backgroundColor: theme.colors.interactive.tonal.danger[0],
-      borderColor: theme.colors.interactive.tonal.danger[2],
+      borderColor: theme.colors.interactive.solid.danger.default,
       borderWidth: 1,
       borderStyle: 'solid',
       fontWeight: theme.fontWeights.regular,
+      ...(withHoverState && {
+        '&:hover': {
+          color: theme.colors.text.primaryInverse,
+          backgroundColor: theme.colors.interactive.solid['danger'].hover,
+        },
+      }),
     };
   }
 
@@ -89,6 +173,12 @@ const kind = ({ kind, theme }: { kind?: LabelKind; theme: Theme }) => {
   return {
     backgroundColor: theme.colors.brand,
     color: theme.colors.text.primaryInverse,
+    ...(withHoverState && {
+      '&:hover': {
+        color: theme.colors.text.primaryInverse,
+        backgroundColor: theme.colors.interactive.solid['primary'].hover,
+      },
+    }),
   };
 };
 
@@ -100,10 +190,13 @@ export type LabelKind =
   | 'success'
   | 'outline-secondary'
   | 'outline-warning'
-  | 'outline-danger';
+  | 'outline-danger'
+  | 'outline-primary'
+  | 'outline-success';
 
-type LabelProps = {
+export type LabelProps = {
   kind?: LabelKind;
+  withHoverState?: boolean;
   children?: React.ReactNode;
 } & SpaceProps &
   BorderProps;
@@ -142,6 +235,9 @@ export const Danger = (props: LabelPropsWithoutKind) => (
 );
 export const SecondaryOutlined = (props: LabelPropsWithoutKind) => (
   <Label kind="outline-secondary" {...props} />
+);
+export const SuccessOutlined = (props: LabelPropsWithoutKind) => (
+  <Label kind="outline-success" {...props} />
 );
 export const WarningOutlined = (props: LabelPropsWithoutKind) => (
   <Label kind="outline-warning" {...props} />

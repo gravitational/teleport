@@ -1,6 +1,6 @@
 ---
 title: Deploying tbot on Jenkins
-description: How to install and configure Machine ID on Jenkins
+description: How to install and configure the Machine & Workload Identity agent, `tbot`, on Jenkins
 sidebar_label: Jenkins
 tags:
  - ci-cd
@@ -15,7 +15,8 @@ Jenkins is an open source automation server that is frequently used to build
 Continuous Integration and Continuous Delivery (CI/CD) pipelines.
 
 In this guide, we will demonstrate how to migrate existing Jenkins pipelines to
-utilize Machine ID with minimal changes.
+utilize Machine & Workload Identity to connect to infrastructure protected by
+Teleport.
 
 ## Prerequisites
 
@@ -30,9 +31,10 @@ You will need the following tools to use Teleport with Jenkins.
 ## Architecture
 
 Before we begin, it should be noted that Jenkins is a tool that is notoriously
-difficult to secure. Machine ID is one part of securing your infrastructure,
-but it alone is not sufficient. Below we will provide some basic guidance which
-can help improve the security posture of your Jenkins installation.
+difficult to secure. Machine & Workload Identity is one part of securing your
+infrastructure, but it alone is not sufficient. Below we will provide some basic
+guidance which can help improve the security posture of your Jenkins
+installation.
 
 ### Single-host deployments
 
@@ -53,19 +55,20 @@ to a subset of your CI/CD infrastructure instead of all of your infrastructure.
 ### Best practices
 
 We strongly encourage the use of the second deployment model whenever possible,
-with ephemeral hosts and IAM joining when possible. When using Machine ID with
-this model, create and run Machine ID bots per-host and pin particular
-pipelines to a worker. This will allow you to give each pipeline the minimal
-scope for server access, reduce the blast radius if one pipeline is
+with ephemeral hosts and IAM joining when possible. When using Machine &
+Workload Identity with this model, create and run separate bots per-host and pin
+particular pipelines to a worker. This will allow you to give each pipeline the
+minimal scope for server access, reduce the blast radius if one pipeline is
 compromised, and allow you to remotely audit and lock pipelines if you detect
 malicious behavior.
 
   ![Jenkins Deployments](../../../img/machine-id/jenkins.png)
 
-## Step 1/2 Configure and start Machine ID
+## Step 1/2 Configure and start `tbot`
 
-First, determine if you would like to create a new role for Machine ID or use
-an existing role. You can run `tctl get roles` to examine your existing roles.
+First, determine if you would like to create a new role or use an existing role
+for your Jenkins workflow. You can run `tctl get roles` to examine your existing
+roles.
 
 In the example below, create a file called `api-workers.yaml` with the content below
 to create a new role called `api-workers` that will allow you to log in to Nodes
@@ -104,12 +107,13 @@ $ tctl bots add jenkins --roles=api-workers
 
 </Tabs>
 
-Machine ID allows you to use Linux Access Control Lists (ACLs) to control
-access to certificates on disk. You will use this to limit the access Jenkins
-has to the short-lived certificates Machine ID issues.
+The Machine & Workload Identity agent, `tbot`, allows you to use Linux Access
+Control Lists (ACLs) to control access to certificates on disk. You will use
+this to limit the access Jenkins has to the short-lived certificates `tbot`
+issues.
 
 In the example that follows, you will create a Linux user called `teleport` to
-run Machine ID but short-lived certificates will be written to disk as the
+run `tbot` but short-lived certificates will be written to disk as the
 Linux user `jenkins`.
 
 ```code
@@ -134,9 +138,9 @@ $ sudo tbot init \
 
 (!docs/pages/includes/machine-id/machine-id-init-bot-data.mdx!)
 
-Next, you need to start Machine ID in the background of each Jenkins worker.
+Next, you need to start `tbot` in the background of each Jenkins worker.
 
-First create a configuration file for Machine ID at `/etc/tbot.yaml`.
+First create a configuration file for `tbot` at `/etc/tbot.yaml`.
 
 ```yaml
 version: v2
@@ -164,9 +168,9 @@ services:
 
 ## Step 2/2. Update and run Jenkins pipelines
 
-Using Machine ID within a Jenkins pipeline is now a one-line change. For
-example, if you want to run the `hostname` command on a remote host, add the
-following to your Jenkins pipeline.
+Using the credentials produced by `tbot` within a Jenkins pipeline is now a
+one-line change. For example, if you want to run the `hostname` command on a
+remote host, add the following to your Jenkins pipeline.
 
 ```
 steps {

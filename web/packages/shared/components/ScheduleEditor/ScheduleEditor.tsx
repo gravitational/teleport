@@ -82,7 +82,7 @@ export const ScheduleEditor = ({
             key={weekday.value}
             size="large"
             width={40}
-            inputAlignment={true}
+            $inputAlignment={true}
             intent={schedule.shifts[weekday.value] ? 'primary' : 'neutral'}
             onClick={() => toggleWeekday(weekday.value)}
           >

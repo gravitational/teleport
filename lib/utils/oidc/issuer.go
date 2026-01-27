@@ -21,24 +21,35 @@ package oidc
 import (
 	"context"
 	"net/url"
+	"path"
 	"strings"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 )
 
-// ProxyGetter is a service that gets proxies.
+// ProxiesGetter is a service that gets proxies.
 type ProxiesGetter interface {
 	// GetProxies returns a list of registered proxies.
+	//
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
+	// ListProxyServers returns a paginated list of registered proxies.
+	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 }
 
 // IssuerForCluster returns the issuer URL using the Cluster state.
 // Path is an optional element to append to the issuer to distinguish a
 // separate CA within the same cluster.
-func IssuerForCluster(ctx context.Context, clt ProxiesGetter, path string) (string, error) {
-	proxies, err := clt.GetProxies()
+func IssuerForCluster(ctx context.Context, clt ProxiesGetter, paths ...string) (string, error) {
+	proxies, err := clientutils.CollectWithFallback(ctx, clt.ListProxyServers, func(context.Context) ([]types.Server, error) {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		return clt.GetProxies()
+	})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -46,7 +57,7 @@ func IssuerForCluster(ctx context.Context, clt ProxiesGetter, path string) (stri
 	for _, p := range proxies {
 		proxyPublicAddress := p.GetPublicAddr()
 		if proxyPublicAddress != "" {
-			return IssuerFromPublicAddress(proxyPublicAddress, path)
+			return IssuerFromPublicAddress(proxyPublicAddress, path.Join(paths...))
 		}
 	}
 

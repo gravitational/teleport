@@ -40,6 +40,7 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/clientcache"
 	"github.com/gravitational/teleport/lib/client/sso"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -1281,6 +1282,14 @@ func (s *Service) GetCachedClient(ctx context.Context, resourceURI uri.ResourceU
 func (s *Service) ClearCachedClientsForRoot(clusterURI uri.ResourceURI) error {
 	profileName := clusterURI.GetProfileName()
 	return trace.Wrap(s.clientCache.ClearForRoot(profileName))
+}
+
+// ClearStaleCachedClientsForRoot closes and removes clients from the cache
+// for the root cluster and its leaf clusters, if their cert is outdated.
+func (s *Service) ClearStaleCachedClientsForRoot(clusterURI uri.ResourceURI) error {
+	profileName := clusterURI.GetProfileName()
+	err := s.clientCache.ClearForRoot(profileName, clientcache.WithClearingOnlyClientsWithStaleCert())
+	return trace.Wrap(err)
 }
 
 // SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.

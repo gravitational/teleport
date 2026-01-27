@@ -97,14 +97,13 @@ func SimplifyAzureMatchers(matchers []types.AzureMatcher) []types.AzureMatcher {
 				regions[i] = azureutils.NormalizeLocation(region)
 			}
 		}
-		result = append(result, types.AzureMatcher{
-			Subscriptions:  subs,
-			ResourceGroups: groups,
-			Regions:        regions,
-			Types:          ts,
-			ResourceTags:   m.ResourceTags,
-			Params:         m.Params,
-		})
+		elem := m
+		elem.Subscriptions = subs
+		elem.ResourceGroups = groups
+		elem.Regions = regions
+		elem.Types = ts
+
+		result = append(result, elem)
 	}
 	return result
 }

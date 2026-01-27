@@ -1,0 +1,16 @@
+suite: Test ClusterRole
+templates:
+  - clusterrole.yaml
+tests:
+  - it: should match the snapshot (simple)
+    template: clusterrole.yaml
+    values:
+      - ../.lint/simple.yaml
+    asserts:
+      - matchSnapshot: {}
+  - it: should match the snapshot (full)
+    template: clusterrole.yaml
+    values:
+      - ../.lint/full.yaml
+    asserts:
+      - matchSnapshot: {}

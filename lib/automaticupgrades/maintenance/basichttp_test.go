@@ -118,7 +118,7 @@ func Test_basicHTTPMaintenanceClient_Get(t *testing.T) {
 			response:   "",
 			expected:   false,
 			assertErr: func(t2 require.TestingT, err2 error, _ ...any) {
-				require.IsType(t2, &trace.BadParameterError{}, trace.Unwrap(err2))
+				require.ErrorAs(t2, trace.Unwrap(err2), new(*trace.BadParameterError))
 			},
 		},
 		{

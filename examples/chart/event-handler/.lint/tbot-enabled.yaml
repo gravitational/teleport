@@ -1,0 +1,5 @@
+tbot:
+  enabled: true
+  clusterName: "test.teleport.sh"
+  teleportProxyAddress: "test.teleport.sh:443"
+  token: "test-token"

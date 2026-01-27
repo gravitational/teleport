@@ -41,13 +41,13 @@ type ApplicationProxyCommand struct {
 // NewApplicationProxyCommand initializes flags for an app proxy command and
 // returns a struct to contain the parse result.
 func NewApplicationProxyCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *ApplicationProxyCommand {
-	cmd := parentCmd.Command("application-proxy", fmt.Sprintf("%s tbot with an application proxy.", mode)).Alias("app-proxy")
+	cmd := parentCmd.Command("application-proxy", fmt.Sprintf("%s tbot with a HTTP application proxy.", mode)).Alias("app-proxy")
 
 	c := &ApplicationProxyCommand{}
 	c.sharedStartArgs = newSharedStartArgs(cmd)
 	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
 
-	cmd.Flag("listen", "A socket URI, such as tcp://0.0.0.0:8080").Required().StringVar(&c.Listen)
+	cmd.Flag("listen", "The socket URI on which the local proxy should listen, such as `tcp://0.0.0.0:8080`.").Required().StringVar(&c.Listen)
 
 	return c
 }

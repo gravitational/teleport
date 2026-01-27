@@ -296,6 +296,10 @@ func (u *Uploader) Scan(ctx context.Context) (*ScanStats, error) {
 				u.log.DebugContext(ctx, "Recording was uploaded by another process.", "recording", fi.Name())
 				continue
 			}
+			if errors.Is(err, errNoEncryptedUploader) {
+				u.log.ErrorContext(ctx, "Skipped encrypted session recording due to missing uploader", "recording", fi.Name())
+				continue
+			}
 			if isSessionError(err) || trace.IsBadParameter(err) {
 				u.log.WarnContext(ctx, "Skipped session recording.", "recording", fi.Name(), "error", err)
 				stats.Corrupted++
@@ -366,8 +370,7 @@ func (u *upload) writeStatus(status apievents.StreamStatus) error {
 	return nil
 }
 
-// releaseFile releases file and associated resources
-// in a correct order
+// Close an upload's proto stream, files, and release it's file lock in the correct order.
 func (u *upload) Close() error {
 	return trace.NewAggregate(
 		u.reader.Close(),
@@ -392,40 +395,6 @@ func (u *upload) removeFiles() error {
 
 var errSkipEncryptedUpload = errors.New("skip encrypted upload")
 
-func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID string, in io.ReadSeeker) error {
-	if u.cfg.EncryptedRecordingUploader == nil {
-		return trace.Wrap(errSkipEncryptedUpload, "no encrypted uploader configured")
-	}
-
-	header, err := events.ParsePartHeader(in)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if header.Flags&events.ProtoStreamFlagEncrypted == 0 {
-		return trace.Wrap(errSkipEncryptedUpload, "recording not encrypted")
-	}
-
-	if _, err := in.Seek(0, 0); err != nil {
-		return trace.Wrap(err, "resetting recording for plaintext upload")
-	}
-
-	// The upload parts in the given reader are each ~128KB. Usually these parts are consumed and reconstructed
-	// by Auth in 5MB chunks to meet the minimum upload size of upload providers like S3. Since these uploads
-	// are proxied directly to the uploader from the agent here (see link below), this agent needs to combine
-	// these upload parts into larger, aggregated upload parts.
-	//
-	// https://github.com/gravitational/teleport/blob/master/rfd/0127-encrypted-session-recordings.md#session-recording-modes
-	partIter := encryptedUploadAggregateIter(in, u.cfg.EncryptedRecordingUploadTargetSize, u.cfg.EncryptedRecordingUploadMaxSize)
-
-	u.log.DebugContext(ctx, "uploading encrypted recording", "session_id", sessionID)
-	if err := u.cfg.EncryptedRecordingUploader.UploadEncryptedRecording(ctx, sessionID, partIter); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 // encryptedUploadAggregateIter returns an iterator that aggregates upload parts from the given reader
 // into larger upload with size greater than targetSize, or as near targetSize as possible without exceeding
 // the maxSize.
@@ -440,7 +409,7 @@ func encryptedUploadAggregateIter(in io.Reader, targetSize int, maxSize int) ite
 		}
 
 		if header.Flags&events.ProtoStreamFlagEncrypted == 0 {
-			return events.PartHeader{}, trace.Wrap(errSkipEncryptedUpload, "recording not encrypted")
+			return events.PartHeader{}, trace.Wrap(errSkipEncryptedUpload, "recording part not encrypted")
 		}
 
 		// Ensure that the individual file upload parts are not larger than the max size allowed here (e.g. 4MB gRPC max message size).
@@ -486,7 +455,16 @@ func encryptedUploadAggregateIter(in io.Reader, targetSize int, maxSize int) ite
 		return nil
 	}
 
-	return func(yield func([]byte, error) bool) {
+	return func(yieldFn func([]byte, error) bool) {
+		// wrap any yielded errors with sessionError since any failure to
+		// read the file itself should be treated as a corrupted recording
+		yield := func(b []byte, err error) bool {
+			if err != nil {
+				return yieldFn(b, sessionError{err})
+			}
+			return yieldFn(b, nil)
+		}
+
 		// yield the current aggregated upload part and reset the buffer.
 		yieldCurrent := func() bool {
 			// Copy the buffer to a new []byte so that the next
@@ -596,22 +574,34 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 		return trace.Wrap(err, "uploader could not acquire file lock for %q", sessionFilePath)
 	}
 
-	if err := u.uploadEncryptedRecording(ctx, sessionID.String(), sessionFile); !errors.Is(err, errSkipEncryptedUpload) {
+	upload := &upload{
+		sessionID:    sessionID,
+		file:         sessionFile,
+		fileUnlockFn: unlock,
+		reader:       nil,
+	}
+
+	defer func() {
+		// If we get an error, that signals that the upload goroutine (encrypted or nonencrypted)
+		// failed to start, so we must manually close the upload as the defers in the goroutine will
+		// never be called.
 		if err != nil {
-			log.WarnContext(ctx, "Encrypted upload failed.", "error", err)
+			if err := upload.Close(); err != nil {
+				log.WarnContext(ctx, "Failed to close upload.", "error", err)
+			}
+		}
+	}()
+
+	if err := u.uploadEncrypted(ctx, upload); err != nil {
+		if !errors.Is(err, errSkipEncryptedUpload) {
 			u.emitEvent(events.UploadEvent{
 				SessionID: sessionID.String(),
-				Error:     sessionError{err},
+				Error:     err,
 				Created:   u.cfg.Clock.Now().UTC(),
 			})
-
 			return trace.Wrap(err)
 		}
-
-		if err := os.Remove(sessionFile.Name()); err != nil {
-			return trace.Wrap(err)
-		}
-
+	} else {
 		return nil
 	}
 
@@ -621,25 +611,14 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 		return trace.Wrap(err)
 	}
 
-	protoReader := events.NewProtoReader(sessionFile, nil)
+	upload.reader = events.NewProtoReader(sessionFile, nil)
 
-	upload := &upload{
-		sessionID:    sessionID,
-		reader:       protoReader,
-		file:         sessionFile,
-		fileUnlockFn: unlock,
-	}
 	upload.checkpointFile, err = os.OpenFile(u.checkpointFilePath(sessionID), os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
-		if err := upload.Close(); err != nil {
-			log.WarnContext(ctx, "Failed to close upload.", "error", err)
-		}
 		return trace.ConvertSystemError(err)
 	}
 
-	u.wg.Add(1)
-	go func() {
-		defer u.wg.Done()
+	u.wg.Go(func() {
 		if err := u.upload(ctx, upload); err != nil {
 			log.WarnContext(ctx, "Upload failed.", "error", err)
 			u.emitEvent(events.UploadEvent{
@@ -654,7 +633,67 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 			SessionID: string(upload.sessionID),
 			Created:   u.cfg.Clock.Now().UTC(),
 		})
-	}()
+	})
+	return nil
+}
+
+var errNoEncryptedUploader = &trace.BadParameterError{Message: "no encrypted uploader configured while uploading encrypted recording"}
+
+func (u *Uploader) uploadEncrypted(ctx context.Context, up *upload) error {
+	log := u.log.With(fieldSessionID, up.sessionID)
+	header, err := events.ParsePartHeader(up.file)
+	if err != nil {
+		// Empty upload files are not treated as a session error.
+		if errors.Is(err, io.EOF) {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(sessionError{err})
+	}
+
+	if header.Flags&events.ProtoStreamFlagEncrypted == 0 {
+		return trace.Wrap(errSkipEncryptedUpload, "recording not encrypted")
+	}
+
+	if u.cfg.EncryptedRecordingUploader == nil {
+		return trace.Wrap(errNoEncryptedUploader)
+	}
+
+	if _, err := up.file.Seek(0, io.SeekStart); err != nil {
+		return trace.Wrap(err, "resetting recording for plaintext upload")
+	}
+
+	// The upload parts in the given reader are each ~128KB. Usually these parts are consumed and reconstructed
+	// by Auth in 5MB chunks to meet the minimum upload size of upload providers like S3. Since these uploads
+	// are proxied directly to the uploader from the agent here (see link below), this agent needs to combine
+	// these upload parts into larger, aggregated upload parts.
+	//
+	// https://github.com/gravitational/teleport/blob/master/rfd/0127-encrypted-session-recordings.md#session-recording-modes
+	partIter := encryptedUploadAggregateIter(up.file, u.cfg.EncryptedRecordingUploadTargetSize, u.cfg.EncryptedRecordingUploadMaxSize)
+
+	u.wg.Go(func() {
+		defer u.releaseSemaphore(ctx)
+		defer up.Close()
+		log.DebugContext(ctx, "uploading encrypted recording")
+		if err := u.cfg.EncryptedRecordingUploader.UploadEncryptedRecording(ctx, up.sessionID.String(), partIter); err != nil {
+			log.ErrorContext(ctx, "Encrypted upload failed", "error", err)
+			u.emitEvent(events.UploadEvent{
+				SessionID: up.sessionID.String(),
+				Error:     err,
+				Created:   u.cfg.Clock.Now().UTC(),
+			})
+			return
+		}
+
+		u.emitEvent(events.UploadEvent{
+			SessionID: up.sessionID.String(),
+			Created:   u.cfg.Clock.Now().UTC(),
+		})
+
+		if err := os.Remove(up.file.Name()); err != nil {
+			log.ErrorContext(ctx, "failed to remove session file after successful upload", "error", err)
+		}
+	})
+
 	return nil
 }
 
@@ -741,6 +780,7 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 	for {
 		event, err := up.reader.Read(ctx)
 		if err != nil {
+			// Note that empty upload files are not treated as a session error.
 			if errors.Is(err, io.EOF) {
 				break
 			}
