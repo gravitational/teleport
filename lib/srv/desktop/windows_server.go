@@ -1367,9 +1367,13 @@ func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
 	return len(s), nil
 }
 
-// runCRLUpdateLoop publishes the Certificate Revocation List to the given
-// LDAP server. It continues to do so every 5 minutes (by default) to make sure it is present
-// and in the correct location.
+// runCRLUpdateLoop publishes the Certificate Revocation List to the given LDAP
+// server.
+//
+// It publishes all known CRLs of the WindowsCA:
+//   - Immediately, once called,
+//   - Periodically, as defined by PublishCRLInterval; and
+//   - Whenever the CA is updated, using a types.Watcher.
 func (s *WindowsService) runCRLUpdateLoop() {
 	t := s.cfg.Clock.NewTicker(retryutils.SeventhJitter(s.cfg.PublishCRLInterval))
 	defer t.Stop()
