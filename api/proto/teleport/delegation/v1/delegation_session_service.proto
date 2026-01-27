@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.delegation.v1;
 
 import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/delegation/v1/delegation_session_resource.proto";
 
@@ -31,6 +32,9 @@ service DelegationSessionService {
   // GenerateCerts generates TLS and/or SSH certificates, scoped to a delegation
   // session.
   rpc GenerateCerts(GenerateCertsRequest) returns (GenerateCertsResponse);
+
+  // TerminateDelegationSession terminates an ongoing delegation session.
+  rpc TerminateDelegationSession(TerminateDelegationSessionRequest) returns (google.protobuf.Empty);
 }
 
 // CreateDelegationSessionRequest are the parameters to CreateDelegationSession.
@@ -153,4 +157,10 @@ message GenerateCertsResponse {
 
   // TLS certificate authorities.
   repeated bytes tls_cas = 4;
+}
+
+// TerminateDelegationSessionRequest are the parameters to TerminateDelegationSession.
+message TerminateDelegationSessionRequest {
+  // ID of the delegation session that will be terminated.
+  string delegation_session_id = 1;
 }

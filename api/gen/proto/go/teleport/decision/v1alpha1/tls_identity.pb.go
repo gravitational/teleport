@@ -148,8 +148,11 @@ type TLSIdentity struct {
 	// When present, AllowedResourceAccessIDs should be treated as authoritative
 	// (ResourceIDs can be derived by mapping to ResourceAccessID.id).
 	AllowedResourceAccessIds []*types.ResourceAccessID `protobuf:"bytes,38,rep,name=allowed_resource_access_ids,json=allowedResourceAccessIds,proto3" json:"allowed_resource_access_ids,omitempty"`
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
+	// DelegationSessionID is the identifier of the DelegationSession, when access
+	// delegation is being used to lend the user's access to a bot or workload.
+	DelegationSessionId string `protobuf:"bytes,39,opt,name=delegation_session_id,json=delegationSessionId,proto3" json:"delegation_session_id,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *TLSIdentity) Reset() {
@@ -446,6 +449,13 @@ func (x *TLSIdentity) GetAllowedResourceAccessIds() []*types.ResourceAccessID {
 		return x.AllowedResourceAccessIds
 	}
 	return nil
+}
+
+func (x *TLSIdentity) GetDelegationSessionId() string {
+	if x != nil {
+		return x.DelegationSessionId
+	}
+	return ""
 }
 
 // RouteToApp holds routing information for applications.
@@ -822,7 +832,7 @@ var File_teleport_decision_v1alpha1_tls_identity_proto protoreflect.FileDescript
 
 const file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/decision/v1alpha1/tls_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a%teleport/legacy/types/resources.proto\x1a\x1fteleport/scopes/v1/scopes.proto\x1a\x1dteleport/trait/v1/trait.proto\"\xe3\r\n" +
+	"-teleport/decision/v1alpha1/tls_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a%teleport/legacy/types/resources.proto\x1a\x1fteleport/scopes/v1/scopes.proto\x1a\x1dteleport/trait/v1/trait.proto\"\x97\x0e\n" +
 	"\vTLSIdentity\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\"\n" +
 	"\fimpersonator\x18\x02 \x01(\tR\fimpersonator\x12\x16\n" +
@@ -868,7 +878,8 @@ const file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc = "" +
 	"\n" +
 	"join_token\x18$ \x01(\tR\tjoinToken\x124\n" +
 	"\tscope_pin\x18% \x01(\v2\x17.teleport.scopes.v1.PinR\bscopePin\x12V\n" +
-	"\x1ballowed_resource_access_ids\x18& \x03(\v2\x17.types.ResourceAccessIDR\x18allowedResourceAccessIds\"\xfb\x02\n" +
+	"\x1ballowed_resource_access_ids\x18& \x03(\v2\x17.types.ResourceAccessIDR\x18allowedResourceAccessIds\x122\n" +
+	"\x15delegation_session_id\x18' \x01(\tR\x13delegationSessionId\"\xfb\x02\n" +
 	"\n" +
 	"RouteToApp\x12\x1d\n" +
 	"\n" +

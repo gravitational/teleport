@@ -28,16 +28,17 @@ import (
 
 func TestLockTargetConversion(t *testing.T) {
 	lt := types.LockTarget{
-		User:           "user",
-		Role:           "role",
-		Login:          "login",
-		MFADevice:      "mfadevice",
-		WindowsDesktop: "windows",
-		AccessRequest:  "request",
-		Device:         "device",
-		ServerID:       "server",
-		JoinToken:      "jointoken",
-		BotInstanceID:  "botinstance",
+		User:                "user",
+		Role:                "role",
+		Login:               "login",
+		MFADevice:           "mfadevice",
+		WindowsDesktop:      "windows",
+		AccessRequest:       "request",
+		Device:              "device",
+		ServerID:            "server",
+		JoinToken:           "jointoken",
+		BotInstanceID:       "botinstance",
+		DelegationSessionID: "delegationsessionid",
 	}
 
 	ignores := []string{

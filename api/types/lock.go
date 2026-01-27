@@ -274,7 +274,8 @@ func (t LockTarget) IsEmpty() bool {
 		t.Device == "" &&
 		t.ServerID == "" &&
 		t.BotInstanceID == "" &&
-		t.JoinToken == ""
+		t.JoinToken == "" &&
+		t.DelegationSessionID == ""
 }
 
 // Match returns true if the lock's target is matched by this target.
@@ -292,7 +293,8 @@ func (t LockTarget) Match(lock Lock) bool {
 		(t.Device == "" || lockTarget.Device == t.Device) &&
 		(t.ServerID == "" || lockTarget.ServerID == t.ServerID) &&
 		(t.BotInstanceID == "" || lockTarget.BotInstanceID == t.BotInstanceID) &&
-		(t.JoinToken == "" || lockTarget.JoinToken == t.JoinToken)
+		(t.JoinToken == "" || lockTarget.JoinToken == t.JoinToken) &&
+		(t.DelegationSessionID == "" || lockTarget.DelegationSessionID == t.DelegationSessionID)
 }
 
 // String returns string representation of the LockTarget.
@@ -311,5 +313,6 @@ func (t LockTarget) Equals(t2 LockTarget) bool {
 		t.Device == t2.Device &&
 		t.ServerID == t2.ServerID &&
 		t.BotInstanceID == t2.BotInstanceID &&
-		t.JoinToken == t2.JoinToken
+		t.JoinToken == t2.JoinToken &&
+		t.DelegationSessionID == t2.DelegationSessionID
 }
