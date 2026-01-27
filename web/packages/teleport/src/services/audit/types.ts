@@ -54,6 +54,7 @@ export const eventCodes = {
   ACCESS_REQUEST_EXPIRED: 'T5005I',
   APP_SESSION_CHUNK: 'T2008I',
   APP_SESSION_START: 'T2007I',
+  APP_SESSION_START_FAILURE: 'T2007E',
   APP_SESSION_END: 'T2011I',
   APP_SESSION_DYNAMODB_REQUEST: 'T2013I',
   APP_CREATED: 'TAP03I',
@@ -369,6 +370,9 @@ export const eventCodes = {
   VNET_CONFIG_CREATE: 'TVNET001I',
   VNET_CONFIG_UPDATE: 'TVNET002I',
   VNET_CONFIG_DELETE: 'TVNET003I',
+  WORKLOAD_CLUSTER_CREATE: 'WC001I',
+  WORKLOAD_CLUSTER_UPDATE: 'WC002I',
+  WORKLOAD_CLUSTER_DELETE: 'WC003I',
 } as const;
 
 /**
@@ -631,6 +635,14 @@ export type RawEvents = {
       sid: string;
       aws_role_arn: string;
       app_name: string;
+    }
+  >;
+  [eventCodes.APP_SESSION_START_FAILURE]: RawEvent<
+    typeof eventCodes.APP_SESSION_START_FAILURE,
+    {
+      app_name: string;
+      error: string;
+      message: string;
     }
   >;
   [eventCodes.APP_SESSION_END]: RawEvent<
@@ -2161,6 +2173,18 @@ export type RawEvents = {
   >;
   [eventCodes.VNET_CONFIG_DELETE]: RawEvent<
     typeof eventCodes.VNET_CONFIG_DELETE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_CLUSTER_CREATE]: RawEvent<
+    typeof eventCodes.WORKLOAD_CLUSTER_CREATE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_CLUSTER_UPDATE]: RawEvent<
+    typeof eventCodes.WORKLOAD_CLUSTER_UPDATE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_CLUSTER_DELETE]: RawEvent<
+    typeof eventCodes.WORKLOAD_CLUSTER_DELETE,
     HasName
   >;
 };

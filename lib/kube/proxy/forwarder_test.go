@@ -1152,11 +1152,14 @@ func newMockForwarder(ctx context.Context, t *testing.T) *Forwarder {
 	caClient, err := newMockCAClient()
 	require.NoError(t, err)
 
+	authority, err := testauthority.NewKeygen(modules.BuildOSS, clock.Now)
+	require.NoError(t, err)
+
 	return &Forwarder{
 		log:    logtest.NewLogger(),
 		router: httprouter.New(),
 		cfg: ForwarderConfig{
-			Keygen:            testauthority.New(),
+			Keygen:            authority,
 			AuthClient:        caClient,
 			CachingAuthClient: mockAccessPoint{},
 			Clock:             clock,
@@ -1665,10 +1668,13 @@ func TestForwarderTLSConfigCAs(t *testing.T) {
 	require.NoError(t, err)
 	cl.leafClusterName = clusterName
 
+	authority, err := testauthority.NewKeygen(modules.BuildOSS, time.Now)
+	require.NoError(t, err)
+
 	var getConnTLSRootsCalled bool
 	f := &Forwarder{
 		cfg: ForwarderConfig{
-			Keygen:            testauthority.New(),
+			Keygen:            authority,
 			AuthClient:        cl,
 			TracerProvider:    otel.GetTracerProvider(),
 			tracer:            otel.Tracer(teleport.ComponentKube),

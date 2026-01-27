@@ -136,8 +136,6 @@ func makeCerts(privateKey *keys.PrivateKey) ([]byte, []byte, error) {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	keygen := testauthority.New()
-
 	clock := clockwork.NewRealClock()
 	identity := tlsca.Identity{
 		Username: "testuser",
@@ -167,7 +165,7 @@ func makeCerts(privateKey *keys.PrivateKey) ([]byte, []byte, error) {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	sshCert, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+	sshCert, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
 		CASigner:      caSigner,
 		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
 		Identity: sshca.Identity{

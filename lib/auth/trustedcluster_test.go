@@ -448,11 +448,15 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *auth.
 		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
+
+	keygen, err := authority.NewKeygen(modules.BuildOSS, time.Now)
+	require.NoError(t, err)
+
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterNameRes,
 		Backend:                bk,
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
-		Authority:              authority.New(),
+		Authority:              keygen,
 		SkipPeriodicOperations: true,
 		HostUUID:               uuid.NewString(),
 	}

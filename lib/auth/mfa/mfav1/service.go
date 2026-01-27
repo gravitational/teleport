@@ -17,6 +17,7 @@
 package mfav1
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"log/slog"
@@ -80,10 +81,17 @@ type Identity interface {
 }
 
 // MFAService defines the interface for managing MFA resources.
+// See lib/auth.MFAService.
 type MFAService interface {
 	CreateValidatedMFAChallenge(ctx context.Context,
 		username string,
 		chal *mfav1.ValidatedMFAChallenge,
+	) (*mfav1.ValidatedMFAChallenge, error)
+
+	GetValidatedMFAChallenge(
+		ctx context.Context,
+		username string,
+		challengeName string,
 	) (*mfav1.ValidatedMFAChallenge, error)
 }
 
@@ -377,6 +385,49 @@ func (s *Service) ValidateSessionChallenge(
 	return &mfav1.ValidateSessionChallengeResponse{}, nil
 }
 
+func (s *Service) VerifyValidatedMFAChallenge(
+	ctx context.Context,
+	req *mfav1.VerifyValidatedMFAChallengeRequest,
+) (*mfav1.VerifyValidatedMFAChallengeResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if b, ok := authCtx.Identity.(authz.BuiltinRole); !ok || (ok && !b.IsServer()) {
+		return nil, trace.AccessDenied("only server identities can verify validated MFA challenges")
+	}
+
+	if err := checkVerifyValidatedMFAChallengeRequest(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	chal, err := s.storage.GetValidatedMFAChallenge(ctx, req.GetUsername(), req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Ensure the source cluster that was initially used to create the challenge matches the source cluster provided in
+	// the request. Performed first to reduce unnecessary information leakage.
+	if req.GetSourceCluster() != chal.GetSpec().GetSourceCluster() {
+		return nil, trace.AccessDenied("request source cluster does not match validated challenge source cluster")
+	}
+
+	// Ensure the payload in the request matches the stored challenge payload for the same type.
+	switch reqPayload := req.GetPayload().GetPayload().(type) {
+	case *mfav1.SessionIdentifyingPayload_SshSessionId:
+		storedSshSessionId := chal.GetSpec().GetPayload().GetSshSessionId()
+		if !bytes.Equal(reqPayload.SshSessionId, storedSshSessionId) {
+			return nil, trace.AccessDenied("request payload does not match validated challenge payload")
+		}
+
+	default:
+		return nil, trace.AccessDenied("unsupported or mismatched payload type in request for this validated challenge")
+	}
+
+	return &mfav1.VerifyValidatedMFAChallengeResponse{}, nil
+}
+
 func validateCreateSessionChallengeRequest(req *mfav1.CreateSessionChallengeRequest) error {
 	payload := req.GetPayload()
 	if payload == nil {
@@ -604,4 +655,37 @@ func mfaPreferences(pref types.AuthPreference) (*types.U2F, *types.Webauthn, err
 	}
 
 	return u2f, webauthn, nil
+}
+
+func checkVerifyValidatedMFAChallengeRequest(req *mfav1.VerifyValidatedMFAChallengeRequest) error {
+	switch {
+	case req == nil:
+		return trace.BadParameter("param VerifyValidatedMFAChallengeRequest is nil")
+
+	case req.GetUsername() == "":
+		return trace.BadParameter("missing VerifyValidatedMFAChallengeRequest username")
+
+	case req.GetName() == "":
+		return trace.BadParameter("missing VerifyValidatedMFAChallengeRequest name")
+	}
+
+	payload := req.GetPayload()
+	if payload == nil {
+		return trace.BadParameter("missing VerifyValidatedMFAChallengeRequest payload")
+	}
+
+	switch p := payload.GetPayload().(type) {
+	case *mfav1.SessionIdentifyingPayload_SshSessionId:
+		if len(p.SshSessionId) == 0 {
+			return trace.BadParameter("empty SshSessionId in payload")
+		}
+
+	case nil:
+		return trace.NotImplemented("missing or unsupported SessionIdentifyingPayload in request")
+
+	default:
+		return trace.BadParameter("unexpected SessionIdentifyingPayload type %T (this is a bug)", p)
+	}
+
+	return nil
 }

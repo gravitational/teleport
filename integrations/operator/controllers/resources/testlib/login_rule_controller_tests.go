@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 )
 
 type loginRuleTestingPrimitives struct {
@@ -146,15 +147,30 @@ func (l *loginRuleTestingPrimitives) CompareTeleportAndKubernetesResource(
 
 func LoginRuleCreationTest(t *testing.T, clt *client.Client) {
 	test := &loginRuleTestingPrimitives{}
-	ResourceCreationTest[*resourcesv1.LoginRuleResource, *resourcesv1.TeleportLoginRule](t, test, WithTeleportClient(clt))
+	ResourceCreationSynchronousTest[*resourcesv1.LoginRuleResource, *resourcesv1.TeleportLoginRule](
+		t,
+		resources.NewLoginRuleReconciler,
+		test,
+		WithTeleportClient(clt),
+	)
 }
 
 func LoginRuleDeletionDriftTest(t *testing.T, clt *client.Client) {
 	test := &loginRuleTestingPrimitives{}
-	ResourceDeletionDriftTest[*resourcesv1.LoginRuleResource, *resourcesv1.TeleportLoginRule](t, test, WithTeleportClient(clt))
+	ResourceDeletionDriftSynchronousTest[*resourcesv1.LoginRuleResource, *resourcesv1.TeleportLoginRule](
+		t,
+		resources.NewLoginRuleReconciler,
+		test,
+		WithTeleportClient(clt),
+	)
 }
 
 func LoginRuleUpdateTest(t *testing.T, clt *client.Client) {
 	test := &loginRuleTestingPrimitives{}
-	ResourceUpdateTest[*resourcesv1.LoginRuleResource, *resourcesv1.TeleportLoginRule](t, test, WithTeleportClient(clt))
+	ResourceUpdateTestSynchronous[*resourcesv1.LoginRuleResource, *resourcesv1.TeleportLoginRule](
+		t,
+		resources.NewLoginRuleReconciler,
+		test,
+		WithTeleportClient(clt),
+	)
 }

@@ -2275,6 +2275,14 @@ func (m RoleMatchers) MatchAny(role types.Role, condition types.RoleConditionTyp
 	return false, nil, nil
 }
 
+// AnyOf returns a RoleMatcher that succeeds if ANY of the underlying matchers match.
+func (m RoleMatchers) AnyOf() RoleMatcher {
+	return RoleMatcherFunc(func(r types.Role, cond types.RoleConditionType) (bool, error) {
+		ok, _, err := m.MatchAny(r, cond)
+		return ok, err
+	})
+}
+
 // databaseUserMatcher matches a role against database account name.
 type databaseUserMatcher struct {
 	// user is the name of the database user.
@@ -2801,6 +2809,36 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	)
 	return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 		r.GetKind(), additionalDeniedMessage)
+}
+
+// CheckDeviceAccess verifies if the device state satisfies the device trust
+// requirements of the user's RoleSet.
+//
+// Only device-related fields on AccessState are considered.
+// EnableDeviceVerification is respected; if set to false, this check is a no-op
+// and returns nil.
+//
+// This is used for early authorization checks where a full resource object
+// is not yet available, but we need to verify the device before proceeding.
+func (set RoleSet) CheckDeviceAccess(state AccessState) error {
+	if !state.EnableDeviceVerification {
+		return nil
+	}
+	for _, role := range set {
+		// Note: Unlike RoleSet.checkAccess, VerifyTrustedDeviceMode does not short-circuit
+		// if the device is already verified. It performs validation across the entire RoleSet.
+		if err := dtauthz.VerifyTrustedDeviceMode(
+			role.GetOptions().DeviceTrustMode,
+			dtauthz.VerifyTrustedDeviceModeParams{
+				IsTrustedDevice: state.DeviceVerified,
+				IsBot:           state.IsBot,
+				AllowEmptyMode:  true,
+			},
+		); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 // checkRoleLabelsMatch checks if the [role] matches the labels of [resource]

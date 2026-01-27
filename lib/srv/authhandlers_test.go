@@ -34,6 +34,7 @@ import (
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -257,11 +258,12 @@ func TestRBAC(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := &AuthHandlerConfig{
-				Server:       server,
-				Component:    tt.component,
-				Emitter:      &eventstest.MockRecorderEmitter{},
-				AccessPoint:  accessPoint,
-				TargetServer: tt.targetServer,
+				Server:                        server,
+				Component:                     tt.component,
+				Emitter:                       &eventstest.MockRecorderEmitter{},
+				AccessPoint:                   accessPoint,
+				TargetServer:                  tt.targetServer,
+				ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
 			}
 			ah, err := NewAuthHandlers(config)
 			require.NoError(t, err)
@@ -275,11 +277,10 @@ func TestRBAC(t *testing.T) {
 			// create SSH certificate
 			caSigner, err := ssh.NewSignerFromKey(userCAPriv)
 			require.NoError(t, err)
-			keygen := testauthority.New()
 			privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 			require.NoError(t, err)
 
-			c, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+			c, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
 				CASigner:      caSigner,
 				PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
 				Identity: sshca.Identity{
@@ -576,11 +577,12 @@ func TestScopedRBAC(t *testing.T) {
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
 			config := &AuthHandlerConfig{
-				Server:       server,
-				Component:    teleport.ComponentNode,
-				Emitter:      &eventstest.MockRecorderEmitter{},
-				AccessPoint:  accessPoint,
-				TargetServer: node,
+				Server:                        server,
+				Component:                     teleport.ComponentNode,
+				Emitter:                       &eventstest.MockRecorderEmitter{},
+				AccessPoint:                   accessPoint,
+				TargetServer:                  node,
+				ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
 			}
 			ah, err := NewAuthHandlers(config)
 			require.NoError(t, err)
@@ -588,11 +590,10 @@ func TestScopedRBAC(t *testing.T) {
 			// create SSH certificate
 			caSigner, err := ssh.NewSignerFromKey(userCAPriv)
 			require.NoError(t, err)
-			keygen := testauthority.New()
 			privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 			require.NoError(t, err)
 
-			c, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+			c, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
 				CASigner:      caSigner,
 				PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
 				Identity: sshca.Identity{
@@ -684,11 +685,12 @@ func TestForwardingGitLocalOnly(t *testing.T) {
 	}
 
 	config := &AuthHandlerConfig{
-		Server:       server,
-		Component:    teleport.ComponentForwardingGit,
-		Emitter:      &eventstest.MockRecorderEmitter{},
-		AccessPoint:  accessPoint,
-		TargetServer: gitServer,
+		Server:                        server,
+		Component:                     teleport.ComponentForwardingGit,
+		Emitter:                       &eventstest.MockRecorderEmitter{},
+		AccessPoint:                   accessPoint,
+		TargetServer:                  gitServer,
+		ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
 	}
 	ah, err := NewAuthHandlers(config)
 	require.NoError(t, err)
@@ -699,13 +701,11 @@ func TestForwardingGitLocalOnly(t *testing.T) {
 	privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
-	keygen := testauthority.New()
-
 	// create local SSH certificate
 	localCASigner, err := ssh.NewSignerFromKey(localCAPriv)
 	require.NoError(t, err)
 
-	localCertRaw, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+	localCertRaw, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
 		CASigner:      localCASigner,
 		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
 		Identity: sshca.Identity{
@@ -722,7 +722,7 @@ func TestForwardingGitLocalOnly(t *testing.T) {
 	remoteCASigner, err := ssh.NewSignerFromKey(remoteCAPriv)
 	require.NoError(t, err)
 
-	remoteCertRaw, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+	remoteCertRaw, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
 		CASigner:      remoteCASigner,
 		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
 		Identity: sshca.Identity{
@@ -792,9 +792,10 @@ func TestRBACJoinMFA(t *testing.T) {
 
 	// create auth handler and dummy node
 	config := &AuthHandlerConfig{
-		Server:      server,
-		Emitter:     &eventstest.MockRecorderEmitter{},
-		AccessPoint: accessPoint,
+		Server:                        server,
+		Emitter:                       &eventstest.MockRecorderEmitter{},
+		AccessPoint:                   accessPoint,
+		ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
 	}
 	ah, err := NewAuthHandlers(config)
 	require.NoError(t, err)
@@ -900,8 +901,7 @@ func TestRBACJoinMFA(t *testing.T) {
 			privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 			require.NoError(t, err)
 
-			keygen := testauthority.New()
-			c, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+			c, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
 				CASigner:          caSigner,
 				PublicUserKey:     privateKey.MarshalSSHPublicKey(),
 				CertificateFormat: constants.CertificateFormatStandard,
@@ -1037,11 +1037,12 @@ func TestAuthAttemptAuditEvent(t *testing.T) {
 
 	// create auth handler
 	config := &AuthHandlerConfig{
-		Server:       server,
-		Component:    teleport.ComponentNode,
-		Emitter:      emitter,
-		AccessPoint:  accessPoint,
-		TargetServer: node,
+		Server:                        server,
+		Component:                     teleport.ComponentNode,
+		Emitter:                       emitter,
+		AccessPoint:                   accessPoint,
+		TargetServer:                  node,
+		ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
 	}
 	ah, err := NewAuthHandlers(config)
 	require.NoError(t, err)
@@ -1049,11 +1050,10 @@ func TestAuthAttemptAuditEvent(t *testing.T) {
 	// create SSH certificate
 	caSigner, err := ssh.NewSignerFromKey(userCAPriv)
 	require.NoError(t, err)
-	keygen := testauthority.New()
 	privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
-	c, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+	c, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
 		CASigner:      caSigner,
 		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
 		Identity: sshca.Identity{
@@ -1074,4 +1074,8 @@ func TestAuthAttemptAuditEvent(t *testing.T) {
 	authEvent := emitter.LastEvent().(*apievents.AuthAttempt)
 	require.Equal(t, node.GetName(), authEvent.ServerID)
 	require.Equal(t, node.GetHostname(), authEvent.ServerHostname)
+}
+
+type mockMFAServiceClient struct {
+	mfav1.MFAServiceClient
 }

@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/desktop/rdp/rdpclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/dns"
@@ -623,12 +624,12 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	log := s.cfg.Logger
 
-	tdpConn := tdp.NewConn(proxyConn)
+	tdpConn := tdp.NewConn(proxyConn, legacy.Decode)
 	defer tdpConn.Close()
 
 	// Inline function to enforce that we are centralizing TDP Error sending in this function.
 	sendTDPError := func(message string) {
-		if err := tdpConn.SendNotification(message, tdp.SeverityError); err != nil {
+		if err := tdpConn.WriteMessage(legacy.Alert{Message: message, Severity: legacy.SeverityError}); err != nil {
 			log.ErrorContext(context.Background(), "Failed to send TDP error message", "error", err)
 		}
 	}
@@ -976,8 +977,8 @@ func (s *WindowsService) makeTDPSendHandler(
 ) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
-		case byte(tdp.TypeRDPConnectionInitialized), byte(tdp.TypeRDPFastPathPDU), byte(tdp.TypePNG2Frame),
-			byte(tdp.TypePNGFrame), byte(tdp.TypeError), byte(tdp.TypeAlert):
+		case byte(legacy.TypeRDPConnectionInitialized), byte(legacy.TypeRDPFastPathPDU), byte(legacy.TypePNG2Frame),
+			byte(legacy.TypePNGFrame), byte(legacy.TypeError), byte(legacy.TypeAlert):
 			e := &events.DesktopRecording{
 				Metadata: events.Metadata{
 					Type: libevents.DesktopRecordingEvent,
@@ -998,20 +999,20 @@ func (s *WindowsService) makeTDPSendHandler(
 					s.cfg.Logger.WarnContext(ctx, "could not record desktop recording event", "error", err)
 				}
 			}
-		case byte(tdp.TypeClipboardData):
-			if clip, ok := m.(tdp.ClipboardData); ok {
+		case byte(legacy.TypeClipboardData):
+			if clip, ok := m.(legacy.ClipboardData); ok {
 				// the TDP send handler emits a clipboard receive event, because we
 				// received clipboard data from the remote desktop and are sending
 				// it on the TDP connection
 				rxEvent := audit.makeClipboardReceive(int32(len(clip)))
 				s.emit(ctx, rxEvent)
 			}
-		case byte(tdp.TypeSharedDirectoryAcknowledge):
-			if message, ok := m.(tdp.SharedDirectoryAcknowledge); ok {
+		case byte(legacy.TypeSharedDirectoryAcknowledge):
+			if message, ok := m.(legacy.SharedDirectoryAcknowledge); ok {
 				s.emit(ctx, audit.makeSharedDirectoryStart(message))
 			}
-		case byte(tdp.TypeSharedDirectoryReadRequest):
-			if message, ok := m.(tdp.SharedDirectoryReadRequest); ok {
+		case byte(legacy.TypeSharedDirectoryReadRequest):
+			if message, ok := m.(legacy.SharedDirectoryReadRequest); ok {
 				errorEvent := audit.onSharedDirectoryReadRequest(message)
 				if errorEvent != nil {
 					// if we can't audit due to a full cache, abort the connection
@@ -1022,8 +1023,8 @@ func (s *WindowsService) makeTDPSendHandler(
 					s.emit(ctx, errorEvent)
 				}
 			}
-		case byte(tdp.TypeSharedDirectoryWriteRequest):
-			if message, ok := m.(tdp.SharedDirectoryWriteRequest); ok {
+		case byte(legacy.TypeSharedDirectoryWriteRequest):
+			if message, ok := m.(legacy.SharedDirectoryWriteRequest); ok {
 				errorEvent := audit.onSharedDirectoryWriteRequest(message)
 				if errorEvent != nil {
 					// if we can't audit due to a full cache, abort the connection
@@ -1047,7 +1048,7 @@ func (s *WindowsService) makeTDPReceiveHandler(
 ) func(m tdp.Message) {
 	return func(m tdp.Message) {
 		switch msg := m.(type) {
-		case tdp.ClientScreenSpec, tdp.MouseButton, tdp.MouseMove:
+		case legacy.ClientScreenSpec, legacy.MouseButton, legacy.MouseMove:
 			b, err := m.Encode()
 			if err != nil {
 				s.cfg.Logger.WarnContext(ctx, "could not emit desktop recording event", "error", err)
@@ -1069,14 +1070,14 @@ func (s *WindowsService) makeTDPReceiveHandler(
 					s.cfg.Logger.WarnContext(ctx, "could not record desktop recording event", "error", err)
 				}
 			}
-		case tdp.ClipboardData:
+		case legacy.ClipboardData:
 			// the TDP receive handler emits a clipboard send event, because we
 			// received clipboard data from the user (over TDP) and are sending
 			// it to the remote desktop
 			sendEvent := audit.makeClipboardSend(int32(len(msg)))
 			s.emit(ctx, sendEvent)
-		case tdp.SharedDirectoryAnnounce:
-			errorEvent := audit.onSharedDirectoryAnnounce(m.(tdp.SharedDirectoryAnnounce))
+		case legacy.SharedDirectoryAnnounce:
+			errorEvent := audit.onSharedDirectoryAnnounce(m.(legacy.SharedDirectoryAnnounce))
 			if errorEvent != nil {
 				// if we can't audit due to a full cache, abort the connection
 				// as a security measure
@@ -1086,11 +1087,11 @@ func (s *WindowsService) makeTDPReceiveHandler(
 				}
 				s.emit(ctx, errorEvent)
 			}
-		case tdp.SharedDirectoryReadResponse:
+		case legacy.SharedDirectoryReadResponse:
 			// shared directory audit events can be noisy, so we use a compactor
 			// to retain and delay them in an attempt to coalesce contiguous events
 			audit.compactor.handleRead(ctx, audit.makeSharedDirectoryReadResponse(msg))
-		case tdp.SharedDirectoryWriteResponse:
+		case legacy.SharedDirectoryWriteResponse:
 			audit.compactor.handleWrite(ctx, audit.makeSharedDirectoryWriteResponse(msg))
 		}
 	}
@@ -1354,7 +1355,7 @@ type monitorErrorSender struct {
 }
 
 func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
-	if err := m.tdpConn.SendNotification(s, tdp.SeverityError); err != nil {
+	if err := m.tdpConn.WriteMessage(legacy.Alert{Message: s, Severity: legacy.SeverityError}); err != nil {
 		return 0, trace.Wrap(err, "sending TDP error message")
 	}
 

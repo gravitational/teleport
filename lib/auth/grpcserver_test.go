@@ -3037,7 +3037,7 @@ func TestGenerateHostCerts(t *testing.T) {
 	clt, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
-	priv, pub, err := testauthority.New().GenerateKeyPair()
+	priv, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	pubTLS, err := authtest.PrivateKeyToPublicKeyTLS(priv)
@@ -3099,7 +3099,7 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	require.NoError(t, err)
 	defer clt.Close()
 
-	priv, pub, err := testauthority.New().GenerateKeyPair()
+	priv, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	pubTLS, err := authtest.PrivateKeyToPublicKeyTLS(priv)

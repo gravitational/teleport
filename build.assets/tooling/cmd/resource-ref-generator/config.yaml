@@ -1,11 +1,16 @@
 source: "../../../../api"
 destination: "../../../../docs/pages/reference/infrastructure-as-code/teleport-resources"
+examples_directory: "./resource_examples"
 
 # Please alphabetize the resource list by type name.
 resources:
   - type: AppV3
     package: types
     yaml_kind: app
+    yaml_version: v3
+  - type: DatabaseServerV3
+    package: types
+    yaml_kind: db_server
     yaml_version: v3
   - type: DiscoveryConfig
     package: discoveryconfig
@@ -30,12 +35,23 @@ resources:
 
 camel_case_exceptions:
   - AWS
+  - AlloyDB
   - CORS
+  - DocumentDB
   - EKS
+  - ElastiCache
   - GCP
   - HTTP
+  - IAM
   - ID
+  - IdP
   - MFA
+  - MemoryDB
+  - MySQL
   - OIDC
+  - OpenSearch
+  - RDS
   - SAML
+  - SQL
   - SSO
+  - TLS

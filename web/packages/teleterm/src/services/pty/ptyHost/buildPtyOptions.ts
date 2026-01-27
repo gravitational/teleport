@@ -40,11 +40,12 @@ import {
   ResolveShellEnvTimeoutError,
 } from './resolveShellEnv';
 
-type PtyOptions = {
+export type PtyConfigOptions = {
   ssh: SshOptions;
   windowsPty: Pick<WindowsPty, 'useConpty'>;
   customShellPath: string;
   tshHome: string;
+  setTeleportAuthServerEnvVar: boolean;
 };
 
 const WSLENV_VAR = 'WSLENV';
@@ -56,7 +57,7 @@ export async function buildPtyOptions({
   processEnv = process.env,
 }: {
   settings: RuntimeSettings;
-  options: PtyOptions;
+  options: PtyConfigOptions;
   cmd: PtyCommand;
   processEnv?: typeof process.env;
 }): Promise<{
@@ -97,7 +98,7 @@ export async function buildPtyOptions({
       // combinedEnv is going to be used as env by every command coming out of buildPtyOptions. Some
       // commands might add extra variables, but they shouldn't remove any of the env vars that are
       // added here.
-      const combinedEnv = {
+      const combinedEnv: Record<string, string> = {
         ...processEnv,
         ...shellEnv,
         TERM_PROGRAM: 'Teleport_Connect',
@@ -107,6 +108,11 @@ export async function buildPtyOptions({
         TELEPORT_PROXY: cmd.proxyHost,
         [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
       };
+
+      if (options.setTeleportAuthServerEnvVar) {
+        // Makes tctl operate on the root cluster of the current workspace.
+        combinedEnv['TELEPORT_AUTH_SERVER'] = cmd.proxyHost;
+      }
 
       // The regular env vars are not available in WSL,
       // they need to be passed via the special variable WSLENV.
@@ -122,6 +128,10 @@ export async function buildPtyOptions({
           'TELEPORT_HOME/p',
           TSH_AUTOUPDATE_ENV_VAR,
         ];
+        if (options.setTeleportAuthServerEnvVar) {
+          wslEnv.push('TELEPORT_AUTH_SERVER');
+        }
+
         // Preserve the user defined WSLENV and add ours (ours takes precedence).
         combinedEnv[WSLENV_VAR] = [combinedEnv[WSLENV_VAR], wslEnv]
           .flat()
@@ -152,7 +162,7 @@ export function getPtyProcessOptions({
   shellBinPath,
 }: {
   settings: RuntimeSettings;
-  options: PtyOptions;
+  options: PtyConfigOptions;
   cmd: PtyCommand;
   env: typeof process.env;
   shellBinPath: string;
@@ -250,7 +260,7 @@ function prependBinDirToPath(
 async function resolveShell(
   cmd: ShellCommand,
   settings: RuntimeSettings,
-  ptyOptions: PtyOptions
+  ptyOptions: PtyConfigOptions
 ): Promise<Shell | undefined> {
   if (cmd.shellId !== CUSTOM_SHELL_ID) {
     return settings.availableShells.find(s => s.id === cmd.shellId);
