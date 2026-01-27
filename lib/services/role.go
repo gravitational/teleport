@@ -2626,7 +2626,7 @@ func (set RoleSet) checkConditionalAccess(
 	traits wrappers.Traits,
 	state AccessState,
 	matchers ...RoleMatcher,
-) (map[decisionpb.PreconditionKind]struct{}, error) {
+) (Preconditions, error) {
 	// Note: logging in this function only happens in trace mode. This is because
 	// adding logging to this function (which is called on every resource returned
 	// by the backend) can slow down this function by 50x for large clusters!
@@ -2638,7 +2638,7 @@ func (set RoleSet) checkConditionalAccess(
 	}
 
 	// Collect preconditions to return to the caller.
-	preconds := make(map[decisionpb.PreconditionKind]struct{})
+	preconds := make(Preconditions)
 
 	// Based on the state, check if MFA is always required and just hasn't been verified yet.
 	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {

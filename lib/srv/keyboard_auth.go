@@ -26,6 +26,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	"github.com/gravitational/teleport/lib/services"
 	srvssh "github.com/gravitational/teleport/lib/srv/ssh"
 	"github.com/gravitational/teleport/lib/sshca"
 )
@@ -36,7 +37,7 @@ import (
 // authentication process.
 func (h *AuthHandlers) KeyboardInteractiveAuth(
 	ctx context.Context,
-	preconds map[decisionpb.PreconditionKind]struct{},
+	preconds services.Preconditions,
 	id *sshca.Identity,
 	perms *ssh.Permissions,
 ) (*ssh.Permissions, error) {
@@ -77,7 +78,8 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 	keyboardInteractiveCallback := func(metadata ssh.ConnMetadata, challenge ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
 		var verifiers []srvssh.PromptVerifier
 
-		for kind := range preconds {
+		// Range over preconditions in a sorted order to ensure deterministic behavior and consistent error messages.
+		for _, kind := range preconds.Sorted() {
 			switch kind {
 			case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
 				// TODO(cthach): Use the source cluster name that the client will do the MFA ceremony with.
@@ -112,8 +114,9 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 	}
 }
 
-func ensureSupportedPreconditions(preconds map[decisionpb.PreconditionKind]struct{}) error {
-	for kind := range preconds {
+func ensureSupportedPreconditions(preconds services.Preconditions) error {
+	// Range over preconditions in a sorted order to ensure deterministic behavior and consistent error messages.
+	for _, kind := range preconds.Sorted() {
 		switch kind {
 		case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
 			// OK
@@ -127,7 +130,7 @@ func ensureSupportedPreconditions(preconds map[decisionpb.PreconditionKind]struc
 }
 
 func denyRegularSSHCertsIfMFARequired(
-	preconds map[decisionpb.PreconditionKind]struct{},
+	preconds services.Preconditions,
 	id *sshca.Identity,
 ) error {
 	// Determine if MFA is required based on the provided preconditions.
