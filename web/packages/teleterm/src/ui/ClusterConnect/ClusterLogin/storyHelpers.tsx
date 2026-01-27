@@ -126,7 +126,6 @@ export function makeProps(
     props.appUpdateEvent = {
       kind: 'update-available',
       update: {
-        updateKind: 'upgrade',
         version: '19.0.0',
         files: [
           {
