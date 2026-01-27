@@ -94,10 +94,10 @@ export function KubernetesLabelsSelect(
 
   return (
     <Box {...styles}>
-      <LabelInput mb={0} aria-label="Labels">
-        <LabelContent>Labels</LabelContent>
+      <LabelInput mb={0} aria-label="Teleport Labels">
+        <LabelContent>Teleport Labels</LabelContent>
 
-        <LabelsContainer aria-describedby={'labels-select-helper-text'}>
+        <LabelsContainer aria-describedby={'labels-select-helper-text'} mt={1}>
           {selected.map(l => (
             <Label key={l.name} label={formatLabel(l)} style="secondary" />
           ))}
@@ -153,7 +153,8 @@ function Picker(props: {
   const { selected: initial, onChange, onCancel } = props;
 
   const [selected, setSelected] = useState(initial);
-  const [manualInput, setManualInput] = useState('');
+  const [manualName, setManualName] = useState('');
+  const [manualValue, setManualValue] = useState('');
 
   const ctx = useTeleport();
   const flags = ctx.getFeatureFlags();
@@ -178,7 +179,13 @@ function Picker(props: {
     fetchNextPage,
   } = useInfiniteQuery({
     enabled: hasListPermission,
-    queryKey: ['list', 'unified_resources', cfg.proxyCluster, ['kube_cluster']],
+    queryKey: [
+      'list',
+      'unified_resources',
+      'paged',
+      cfg.proxyCluster,
+      ['kube_cluster'],
+    ],
     queryFn: ({ pageParam, signal }) =>
       ctx.resourceService.fetchUnifiedResources(
         cfg.proxyCluster,
@@ -197,20 +204,29 @@ function Picker(props: {
 
   const handleAdd = (name: string, value: string) => {
     setSelected(prev => {
-      const index = prev.findIndex(l => l.name === name);
-      if (index == -1) {
-        return [...prev, { name, values: [value] }];
+      // Clear other labels when the wildcard is added
+      if (isWildcardPair(name, value)) {
+        return [WILDCARD_LABEL];
       }
-      return prev.map(l => {
-        if (l.name === name) {
-          const vs = new Set([...l.values, value]);
-          return {
-            ...l,
-            values: [...vs],
-          };
-        }
-        return l;
-      });
+
+      const index = prev.findIndex(l => l.name === name);
+      let next: KubernetesLabel[];
+      if (index == -1) {
+        next = [...prev, { name, values: [value] }];
+      } else {
+        next = prev.map(l => {
+          if (l.name === name) {
+            const vs = new Set([...l.values, value]);
+            return {
+              ...l,
+              values: [...vs],
+            };
+          }
+          return l;
+        });
+      }
+
+      return stripWildcard(next);
     });
   };
 
@@ -219,32 +235,36 @@ function Picker(props: {
       return;
     }
 
-    const [n, ...rest] = manualInput.split(': ');
-    const name = n.trim();
-    const value = rest.join(': ').trim();
+    const name = manualName.trim();
+    const value = manualValue.trim();
     handleAdd(name, value);
 
     validator.reset();
-    setManualInput('');
+    setManualName('');
+    setManualValue('');
   };
 
   const handleRemove = (name: string, value?: string) => {
     setSelected(prev => {
+      let next: KubernetesLabel[];
       if (value === undefined) {
-        return prev.filter(l => l.name !== name);
+        next = prev.filter(l => l.name !== name);
+      } else {
+        next = prev.flatMap(l => {
+          if (l.name === name) {
+            l.values = l.values.filter(v => v != value);
+
+            if (l.values.length < 1) {
+              return [];
+            }
+          }
+
+          return [l];
+        });
       }
 
-      return prev.flatMap(l => {
-        if (l.name === name) {
-          l.values = l.values.filter(v => v != value);
-
-          if (l.values.length < 1) {
-            return [];
-          }
-        }
-
-        return [l];
-      });
+      // Add wildcard if all labels are removed
+      return next.length === 0 ? [WILDCARD_LABEL] : next;
     });
   };
 
@@ -261,7 +281,7 @@ function Picker(props: {
     <Dialog open onClose={onCancel}>
       <DialogHeader>
         <Box width={'100%'}>
-          <DialogTitle>Kubernetes Labels</DialogTitle>
+          <DialogTitle>Teleport Labels</DialogTitle>
           <Text>Select one or more labels to configure access.</Text>
 
           {!hasListPermission ? (
@@ -362,14 +382,26 @@ function Picker(props: {
                         flex={1}
                         m={0}
                         size="small"
-                        rule={requireValidManualLabel}
-                        label={'Add custom label'}
-                        placeholder="name: value"
-                        value={manualInput}
-                        onChange={e => setManualInput(e.target.value)}
-                        toolTipContent="e.g. env: prod, region: us-*, name: ^kube-(a|b).+$"
+                        rule={requireValidLabelName}
+                        label="Name"
+                        placeholder="e.g. env"
+                        value={manualName}
+                        onChange={e => setManualName(e.target.value)}
                       />
-                      <ButtonSecondary type="submit">Add</ButtonSecondary>
+                      <FieldInput
+                        flex={1}
+                        m={0}
+                        size="small"
+                        rule={requireValidLabelValue}
+                        label="Value"
+                        placeholder="e.g. prod"
+                        value={manualValue}
+                        onChange={e => setManualValue(e.target.value)}
+                        toolTipContent="e.g. prod, us-*, ^kube-(a|b).+$"
+                      />
+                      <ButtonIcon type="submit" aria-label="add label">
+                        <Plus size="small" />
+                      </ButtonIcon>
                     </ManualInputContainer>
                   </div>
                 </form>
@@ -396,6 +428,7 @@ const PickerContainer = styled(Flex)`
 `;
 
 const ColumnContainer = styled(Flex)`
+  min-width: 360px;
   flex: 1;
   flex-direction: column;
   overflow: auto;
@@ -424,16 +457,42 @@ const EmptyText = styled(Text)`
   color: ${p => p.theme.colors.text.muted};
 `;
 
-function formatLabel(label: KubernetesLabel) {
-  return `${label.name}: ${label.values.join(' or ')}`;
+function formatLabel({ name, values }: KubernetesLabel) {
+  if (values.length === 1) {
+    return `${name}: ${values[0]}`;
+  }
+  return `${name}: ( ${values.join(' | ')} )`;
 }
 
-const manualLabelRegex = /^ *[a-z0-9:*]+ *: .+$/;
-export const requireValidManualLabel: Rule = value => () => {
-  const match = manualLabelRegex.test(value);
+const WILDCARD_LABEL_NAME = '*';
+const WILDCARD_LABEL_VALUE = '*';
+const WILDCARD_LABEL: KubernetesLabel = {
+  name: WILDCARD_LABEL_NAME,
+  values: [WILDCARD_LABEL_VALUE],
+};
+
+function isWildcardPair(name: string, value: string) {
+  return name === WILDCARD_LABEL_NAME && value === WILDCARD_LABEL_VALUE;
+}
+
+function stripWildcard(labels: KubernetesLabel[]) {
+  return labels.filter(l => l.name !== WILDCARD_LABEL_NAME);
+}
+
+const labelNameRegex = /^([a-z0-9:]+|\*)$/; // 1-n alphanumerics or colon, or a single asterisk
+export const requireValidLabelName: Rule = value => () => {
+  const match = labelNameRegex.test(value.trim());
   return {
     valid: match,
-    message: match ? undefined : 'Must be in the format "name: value"',
+    message: match ? undefined : 'Alphanumeric or * is required',
+  };
+};
+
+export const requireValidLabelValue: Rule = value => () => {
+  const trimmed = value.trim();
+  return {
+    valid: trimmed.length > 0,
+    message: trimmed.length > 0 ? undefined : 'Value is required',
   };
 };
 

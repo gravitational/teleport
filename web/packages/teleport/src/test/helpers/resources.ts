@@ -28,7 +28,9 @@ import { JsonObject } from 'teleport/types';
 const path = '/v1/webapi/sites/:clusterId/resources';
 
 export const fetchUnifiedResourcesSuccess = (opts?: {
-  response?: ResourcesResponse<UnifiedResource>;
+  response?: ResourcesResponse<UnifiedResource> & { items: UnifiedResource[] };
+  delayMs?: number;
+  mockSearch?: boolean;
 }) => {
   const {
     response = {
@@ -91,10 +93,28 @@ export const fetchUnifiedResourcesSuccess = (opts?: {
         },
       ],
     },
+    delayMs = 0,
+    mockSearch = false,
   } = opts ?? {};
 
-  return http.get(path, () => {
-    return HttpResponse.json(response);
+  return http.get(path, async ({ request }) => {
+    const url = new URL(request.url);
+    const search = url.searchParams.get('search');
+
+    if (delayMs) {
+      await new Promise(res => setTimeout(res, delayMs));
+    }
+
+    return HttpResponse.json({
+      ...response,
+      ...(mockSearch && search
+        ? {
+            items: response.items.filter(
+              a => a.kind != 'kube_cluster' || a.name.includes(search)
+            ),
+          }
+        : {}),
+    });
   });
 };
 

@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2025 Gravitational, Inc.
+ * Copyright (C) 2026  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -18,26 +18,25 @@
 
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router';
 import styled from 'styled-components';
 
 import Flex from 'design/Flex/Flex';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
+import { BotFlowType } from 'teleport/Bots/types';
+import cfg from 'teleport/config';
 import { ContextProvider } from 'teleport/index';
+import { ContentMinWidth } from 'teleport/Main/Main';
 import { createTeleportContext } from 'teleport/mocks/contexts';
-import {
-  genWizardCiCdError,
-  genWizardCiCdForever,
-  genWizardCiCdSuccess,
-} from 'teleport/test/helpers/bots';
+import { genWizardCiCdSuccess } from 'teleport/test/helpers/bots';
 import { fetchUnifiedResourcesSuccess } from 'teleport/test/helpers/resources';
 import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 
-import { TrackingProvider } from '../Shared/useTracking';
-import { ConnectGitHub } from './ConnectGitHub';
-import { GitHubK8sFlowProvider } from './useGitHubK8sFlow';
+import { GitHubActionsK8s } from './GitHubActionsK8s';
 
 const meta = {
-  title: 'Teleport/Bots/Add/GitHubActions+K8s/ConnectGitHub',
+  title: 'Teleport/Bots/Add/GitHubActions+K8s/GitHubActionsK8s',
   component: Wrapper,
   beforeEach: () => {
     queryClient.clear(); // Prevent cached data sharing between stories
@@ -53,31 +52,10 @@ export const Happy: Story = {
     msw: {
       handlers: [
         genWizardCiCdSuccess({ prettyFormat: true }),
-        fetchUnifiedResourcesSuccess(),
-        userEventCaptureSuccess(),
-      ],
-    },
-  },
-};
-
-export const TemplateFetchFailed: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        genWizardCiCdError(500, 'something went wrong'),
-        fetchUnifiedResourcesSuccess(),
-        userEventCaptureSuccess(),
-      ],
-    },
-  },
-};
-
-export const TemplateFetching: Story = {
-  parameters: {
-    msw: {
-      handlers: [
-        genWizardCiCdForever(),
-        fetchUnifiedResourcesSuccess(),
+        fetchUnifiedResourcesSuccess({
+          delayMs: 1000,
+          mockSearch: true,
+        }),
         userEventCaptureSuccess(),
       ],
     },
@@ -95,22 +73,30 @@ const queryClient = new QueryClient({
 
 function Wrapper() {
   const ctx = createTeleportContext();
+
   return (
     <QueryClientProvider client={queryClient}>
       <ContextProvider ctx={ctx}>
-        <TrackingProvider>
-          <GitHubK8sFlowProvider>
-            <Container>
-              <ConnectGitHub />
-            </Container>
-          </GitHubK8sFlowProvider>
-        </TrackingProvider>
+        <InfoGuidePanelProvider>
+          <ContentMinWidth>
+            <MemoryRouter
+              initialEntries={[
+                cfg.getBotsNewRoute(BotFlowType.GitHubActionsK8s),
+              ]}
+            >
+              <Container>
+                <GitHubActionsK8s />
+              </Container>
+            </MemoryRouter>
+          </ContentMinWidth>
+        </InfoGuidePanelProvider>
       </ContextProvider>
     </QueryClientProvider>
   );
 }
 
 const Container = styled(Flex)`
+  flex-direction: column;
   height: 820px;
   overflow: auto;
 `;
