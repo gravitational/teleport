@@ -2744,7 +2744,7 @@ export const events = [
     event: 'user.login',
     method: 'headless',
     ei: 0,
-    success: true,
+    success: false,
     time: '2019-04-22T00:49:03Z',
     uid: '173d6b6e-d613-44be-8ff6-f9f893791ef5',
     user: 'admin@example.com',
