@@ -1,5 +1,14 @@
 # Changelog
 
+## 17.7.15 (01/26/26)
+
+* Updated indirect dependency go-chi/chi/v5 (addresses GO-2026-4316). [#63093](https://github.com/gravitational/teleport/pull/63093)
+* The `tbot systemd install` command now supports a `--pid-file` flag for setting the path to the PID file. [#63038](https://github.com/gravitational/teleport/pull/63038)
+* Fixed GCS session recording backend not respecting rate limits. [#62987](https://github.com/gravitational/teleport/pull/62987)
+* Made the teleport-cluster Helm chart job resources configurable again via the `jobResources` value. [#62924](https://github.com/gravitational/teleport/pull/62924)
+* Reverted a disruptive change from v17.7.11: `teleport-cluster` Helm chart uses `resources` for Jobs again. If set `jobResources` takes precedence. This will change in v18, only `jobResources` will be used. [#62924](https://github.com/gravitational/teleport/pull/62924)
+
+
 ## 17.7.14 (01/06/26)
 
 * Updated Go to 1.24.12. [#62886](https://github.com/gravitational/teleport/pull/62886)
