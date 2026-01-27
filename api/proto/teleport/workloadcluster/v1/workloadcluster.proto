@@ -1,0 +1,73 @@
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.workloadcluster.v1;
+
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1;workloadcluster";
+
+// WorkloadCluster represents a child Teleport Cloud cluster
+message WorkloadCluster {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+
+  WorkloadClusterSpec spec = 5;
+  WorkloadClusterStatus status = 6;
+}
+
+// WorkloadClusterSpec configures where a child Teleport Cloud cluster should be created and the initial bot
+message WorkloadClusterSpec {
+  repeated Region regions = 1;
+  Bot bot = 2;
+  Token token = 3;
+}
+
+// Region configures a region for deploying Teleport services
+message Region {
+  // name is the region's name
+  string name = 1;
+}
+
+// Bot configures a bot for the child Teleport Cloud cluster
+message Bot {
+  // name is the name of the bot, token, and role that will be created
+  string name = 1;
+}
+
+// Token configures a token for a bot
+message Token {
+  // join_method is type of join method to allow for the token
+  string join_method = 1;
+  // allow defines the AWS Accounts and ARNs to allow joining from
+  repeated Allow allow = 2;
+}
+
+// Allow configures rules for using the corresponding join method
+message Allow {
+  string aws_account = 1;
+  string aws_arn = 2;
+}
+
+// WorkloadClusterStatus is populated with status from Teleport Cloud about the child Teleport Cloud cluster
+message WorkloadClusterStatus {
+  // state is the status of the child cluster running in Teleport Cloud
+  string state = 1;
+  // domain is the Teleport Proxy address of the child Teleport Cloud cluster
+  string domain = 2;
+}
