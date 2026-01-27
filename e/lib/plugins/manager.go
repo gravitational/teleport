@@ -73,9 +73,12 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 
 	if cfg.Factories == nil {
 		cfg.Factories = map[types.PluginType]factory.Factory{
-			types.PluginTypeDiscord:           factory.Discord,
-			types.PluginTypeOkta:              factory.Okta,
-			types.PluginTypeSlack:             factory.Slack,
+			types.PluginTypeDiscord: factory.Discord,
+			types.PluginTypeOkta:    factory.Okta,
+			// We added the leader lock in slack to mitigate an issue in Cloud where several slack
+			// instances might race when refreshing tokens.
+			// TODO(hugoShaka): remove this once we have a better idea of what's going on
+			types.PluginTypeSlack:             withLeaderLock(factory.Slack),
 			types.PluginTypeOpsgenie:          factory.OpsGenie,
 			types.PluginTypeServiceNow:        factory.ServiceNow,
 			types.PluginTypePagerDuty:         factory.PagerDuty,

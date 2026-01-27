@@ -180,8 +180,10 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 	_, err = s.pluginService.GetPlugin(ctx, req.GetPlugin().GetName(), false /* withSecrets */)
 	switch {
 	case err == nil:
+		s.logger.DebugContext(ctx, "failed to create already existing plugin", "plugin", req.GetPlugin().GetName())
 		return nil, trace.AlreadyExists("plugin %q already exists", req.Plugin.GetName())
 	case !trace.IsNotFound(err):
+		s.logger.DebugContext(ctx, "failed to create plugin", "plugin", req.GetPlugin().GetName(), "error", err)
 		return nil, trace.Wrap(err)
 	default:
 		// If the plugin doesn't exist, we'll continue.
@@ -483,6 +485,8 @@ func (s *Service) updatePluginWithLiveCredentials(ctx context.Context, plugin ty
 	if !plugins.NeedsOAuth(plugin) {
 		return nil
 	}
+	log := s.logger.With("plugin", plugin.GetName())
+	log.DebugContext(ctx, "Updating plugin with live credentials")
 
 	if bootstrapCreds == nil {
 		return trace.BadParameter("BootstrapCredentials must be set")
@@ -500,6 +504,7 @@ func (s *Service) updatePluginWithLiveCredentials(ctx context.Context, plugin ty
 
 	creds, err := authorizer.Exchange(ctx, authCodeCreds.AuthorizationCode, authCodeCreds.RedirectUri)
 	if err != nil {
+		log.WarnContext(ctx, "failed to exchange bootstrap credentials", "error", err)
 		return trace.Wrap(err)
 	}
 
