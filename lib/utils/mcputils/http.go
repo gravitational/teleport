@@ -130,7 +130,7 @@ func (r *httpSSEResponseReplacer) Read(p []byte) (int, error) {
 	}
 
 	var base BaseJSONRPCMessage
-	if err := json.Unmarshal([]byte(msg), &base); err != nil {
+	if err := UnmarshalJSONRPCMessage([]byte(msg), &base); err != nil {
 		return 0, trace.Wrap(err)
 	}
 

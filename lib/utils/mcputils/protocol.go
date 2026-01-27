@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 
 	"github.com/gravitational/trace"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/mark3labs/mcp-go/mcp"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -158,7 +159,7 @@ type JSONRPCResponse struct {
 // the corresponding go object.
 func (r *JSONRPCResponse) GetListToolResult() (*mcp.ListToolsResult, error) {
 	var listResult mcp.ListToolsResult
-	if err := json.Unmarshal([]byte(r.Result), &listResult); err != nil {
+	if err := UnmarshalJSONRPCMessage(r.Result, &listResult); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &listResult, nil
@@ -168,7 +169,7 @@ func (r *JSONRPCResponse) GetListToolResult() (*mcp.ListToolsResult, error) {
 // returns the corresponding go object.
 func (r *JSONRPCResponse) GetInitializeResult() (*mcp.InitializeResult, error) {
 	var result mcp.InitializeResult
-	if err := json.Unmarshal(r.Result, &result); err != nil {
+	if err := UnmarshalJSONRPCMessage(r.Result, &result); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &result, nil
@@ -178,7 +179,7 @@ func (r *JSONRPCResponse) GetInitializeResult() (*mcp.InitializeResult, error) {
 // JSONRPCResponse.
 func unmarshalResponse(rawMessage string) (*JSONRPCResponse, error) {
 	var base BaseJSONRPCMessage
-	if err := json.Unmarshal([]byte(rawMessage), &base); err != nil {
+	if err := UnmarshalJSONRPCMessage([]byte(rawMessage), &base); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if !base.IsResponse() {
@@ -186,6 +187,21 @@ func unmarshalResponse(rawMessage string) (*JSONRPCResponse, error) {
 	}
 	return base.MakeResponse(), nil
 }
+
+// UnmarshalJSONRPCMessage performs case-sensitive JSON umarshal.
+func UnmarshalJSONRPCMessage(data []byte, v any) error {
+	return trace.Wrap(caseSensitiveJSONConfig.Unmarshal(data, v))
+}
+
+// caseSensitiveJSONConfig is used to decode JSON RPC messages. The config is
+// based on jsoniter.ConfigCompatibleWithStandardLibrary with the addition of
+// CaseSensitive enabled.
+var caseSensitiveJSONConfig = jsoniter.Config{
+	EscapeHTML:             true,
+	SortMapKeys:            true,
+	ValidateJsonRawMessage: true,
+	CaseSensitive:          true,
+}.Froze()
 
 const (
 	// MethodInitialize initiates connection and negotiates protocol capabilities.

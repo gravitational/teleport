@@ -214,7 +214,7 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 	if reqBody, err := utils.GetAndReplaceRequestBody(r); err != nil {
 		t.emitInvalidHTTPRequest(t.parentCtx, r)
 		return nil, trace.BadParameter("invalid request body %v", err)
-	} else if err := json.Unmarshal(reqBody, &baseMessage); err != nil {
+	} else if err := mcputils.UnmarshalJSONRPCMessage(reqBody, &baseMessage); err != nil {
 		t.emitInvalidHTTPRequest(t.parentCtx, r)
 		return nil, trace.BadParameter("invalid request body %v", err)
 	}

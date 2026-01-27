@@ -82,7 +82,7 @@ var (
 
 func TestJSONRPCNotification(t *testing.T) {
 	var base BaseJSONRPCMessage
-	require.NoError(t, json.Unmarshal(sampleNotificationJSON, &base))
+	require.NoError(t, UnmarshalJSONRPCMessage(sampleNotificationJSON, &base))
 	assert.True(t, base.IsNotification())
 	assert.False(t, base.IsRequest())
 	assert.False(t, base.IsResponse())
@@ -99,7 +99,7 @@ func TestJSONRPCNotification(t *testing.T) {
 
 func TestJSONRPCRequest(t *testing.T) {
 	var base BaseJSONRPCMessage
-	require.NoError(t, json.Unmarshal(sampleRequestJSON, &base))
+	require.NoError(t, UnmarshalJSONRPCMessage(sampleRequestJSON, &base))
 	assert.False(t, base.IsNotification())
 	assert.True(t, base.IsRequest())
 	assert.False(t, base.IsResponse())
@@ -119,7 +119,7 @@ func TestJSONRPCRequest(t *testing.T) {
 
 func TestJSONRPCResponse(t *testing.T) {
 	var base BaseJSONRPCMessage
-	require.NoError(t, json.Unmarshal(sampleResponseJSON, &base))
+	require.NoError(t, UnmarshalJSONRPCMessage(sampleResponseJSON, &base))
 	assert.False(t, base.IsNotification())
 	assert.False(t, base.IsRequest())
 	assert.True(t, base.IsResponse())
@@ -153,4 +153,25 @@ func TestJSONRPCResponse(t *testing.T) {
 			},
 		}},
 	}, toolList)
+}
+
+func TestUnmarshalJSONRPCMessage_caseSensitive(t *testing.T) {
+	input := []byte(`
+{ "jsonrpc": "2.0",
+  "id": "good-id",
+  "iD": "bad-id",
+  "method": "tools/call",
+  "params": { "name": "good-name" },
+  "Params": { "name": "bad-name" }
+}`)
+	var output BaseJSONRPCMessage
+	require.NoError(t, UnmarshalJSONRPCMessage(input, &output))
+	require.Equal(t, BaseJSONRPCMessage{
+		JSONRPC: "2.0",
+		ID:      mcp.NewRequestId("good-id"),
+		Method:  "tools/call",
+		Params: map[string]interface{}{
+			"name": "good-name",
+		},
+	}, output)
 }

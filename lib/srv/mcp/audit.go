@@ -395,7 +395,7 @@ func (a *sessionAuditor) updatePendingSessionStartEventWithInitializeRequest(msg
 		return
 	}
 	var params mcp.InitializeParams
-	if err := json.Unmarshal(paramsData, &params); err != nil {
+	if err := mcputils.UnmarshalJSONRPCMessage(paramsData, &params); err != nil {
 		return
 	}
 	a.updatePendingSessionStartEvent(func(sessionStartEvent *apievents.MCPSessionStart) {

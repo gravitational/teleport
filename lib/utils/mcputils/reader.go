@@ -20,7 +20,6 @@ package mcputils
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -194,7 +193,7 @@ func (r *MessageReader) processNextLine(ctx context.Context) error {
 	r.cfg.Logger.Log(ctx, logutils.TraceLevel, "Trace read", "raw", rawMessage)
 
 	var base BaseJSONRPCMessage
-	if parseError := json.Unmarshal([]byte(rawMessage), &base); parseError != nil {
+	if parseError := UnmarshalJSONRPCMessage([]byte(rawMessage), &base); parseError != nil {
 		if err := r.cfg.OnParseError(ctx, mcp.NewRequestId(nil), parseError); err != nil {
 			return trace.Wrap(err, "handling JSON unmarshal error")
 		}
