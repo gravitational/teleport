@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.delegation.v1;
 
 import "google/protobuf/duration.proto";
+import "teleport/delegation/v1/delegation_session_resource.proto";
 import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1;delegationv1";
@@ -60,18 +61,6 @@ message DelegationProfileSpec {
   optional DelegationConsentSpec consent = 4;
 }
 
-// DelegationUserSpec describes a bot or workload who is allowed to use a
-// delegation session.
-message DelegationUserSpec {
-  // Type of user (currently only "bot" is supported).
-  string type = 1;
-
-  oneof matcher {
-    // Name of the bot who may use the delegation session.
-    string bot_name = 2;
-  }
-}
-
 // DelegationConsentSpec contains configuration for the delegation consent screen.
 message DelegationConsentSpec {
   // Succinct description of the bot/workload to whom the user is delegating
@@ -85,71 +74,4 @@ message DelegationConsentSpec {
   // Allowlist of URLs where the user may be redirected after giving their
   // consent. Used to prevent open-redirect vulnerabilities.
   repeated string allowed_redirect_urls = 3;
-}
-
-// DelegationResourceSpec describes a Teleport Protected Resource that the bot
-// or workload will be allowed to access on behalf of the user.
-message DelegationResourceSpec {
-  // Kind of resource.
-  string kind = 1;
-
-  // Name of the resource.
-  string name = 2;
-
-  oneof constraints {
-    // Constraints for MCP server resources.
-    DelegationMCPResourceConstraints mcp = 3;
-
-    // Constraints for database server resources.
-    DelegationDatabaseResourceConstraints db = 4;
-
-    // Constraints for node resources.
-    DelegationSSHResourceConstraints ssh = 5;
-
-    // Constraints for Kubernetes cluster resources.
-    DelegationKubernetesResourceConstraints kubernetes = 6;
-  }
-}
-
-// DelegationMCPResourceConstraints constrains access to MCP server resources.
-message DelegationMCPResourceConstraints {
-  // Tools that may be used.
-  repeated string tools = 1;
-}
-
-// DelegationDatabaseResourceConstraints constrains access to database resources.
-message DelegationDatabaseResourceConstraints {
-  // Names of databases that may be accessed.
-  repeated string databases = 1;
-
-  // Names of database users that may be used.
-  repeated string users = 2;
-}
-
-// DelegationSSHResourceConstraints constrains access to node resources.
-message DelegationSSHResourceConstraints {
-  // SSH users that may be used.
-  repeated string users = 1;
-}
-
-// DelegationSSHResourceConstraints constrains access to Kubernetes cluster resources.
-message DelegationKubernetesResourceConstraints {
-  // Kubernetes resources that may be accessed.
-  repeated DelegationKubernetesResource resources = 1;
-}
-
-// DelegationKubernetesResource describes a Kubernetes resource that may be
-// accessed.
-message DelegationKubernetesResource {
-  // Resource kind.
-  string kind = 1;
-
-  // Resource API group.
-  string api_group = 2;
-
-  // Kubernetes namespace (may be wildcard "*", or empty for cluster-wide resources).
-  string namespace = 3;
-
-  // Name of the resource (may be wildcard "*").
-  string name = 4;
 }

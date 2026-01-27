@@ -45,6 +45,7 @@ type Services struct {
 	services.Databases
 	services.DatabaseServices
 	services.DelegationProfiles
+	services.DelegationSessions
 	services.WindowsDesktops
 	services.DynamicWindowsDesktops
 	services.SAMLIdPServiceProviders
