@@ -44,7 +44,7 @@ import (
 //	└── /staging/west
 //	    └── /staging/west - staging-west-test
 //
-// Note that the output lends itself to placing a title in the preceeding line, for example:
+// Note that the output lends itself to placing a title in the preceding line, for example:
 //
 //	Scoped Roles:
 //	├── / (root)
@@ -52,7 +52,7 @@ import (
 //	└── ...
 //
 // This utility was written primarily for use in tsh when displaying scoped role assignments as part
-// of 'tsh status', but may have other applications as well. Note that this utiltiy does not perform
+// of 'tsh status', but may have other applications as well. Note that this utility does not perform
 // validation and may produce confusing output if the input tree is malformed.
 func FormatAssignmentTree(tree *scopesv1.AssignmentNode, prefix string) string {
 	assignmentMap := AssignmentTreeIntoMap(tree)
