@@ -21,10 +21,12 @@ import { useHistory } from 'react-router';
 import { Link as InternalRouteLink } from 'react-router-dom';
 import styled from 'styled-components';
 
-import { Box, Flex } from 'design';
+import { Box, Flex, Text } from 'design';
 import Table, { Cell, StyledPanel } from 'design/DataTable';
 import InputSearch from 'design/DataTable/InputSearch';
+import { CircleCheck, CircleCross, Warning } from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
+import { HoverTooltip } from 'design/Tooltip';
 import {
   applyFilters,
   FilterMap,
@@ -33,6 +35,7 @@ import {
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { useAsync } from 'shared/hooks/useAsync';
 import { saveOnDisk } from 'shared/utils/saveOnDisk';
+import { pluralize } from 'shared/utils/text';
 
 import cfg from 'teleport/config';
 import {
@@ -85,13 +88,22 @@ export function IntegrationList(props: Props) {
   const history = useHistory();
 
   function handleRowClick(row: IntegrationLike) {
+    if ('isManagedByTerraform' in row && row.isManagedByTerraform) {
+      history.push(cfg.getIaCIntegrationRoute(row.kind, row.name));
+      return;
+    }
+
     if (!statusKinds.includes(row.kind)) return;
     history.push(cfg.getIntegrationStatusRoute(row.kind, row.name));
   }
 
   function getRowStyle(row: IntegrationLike): React.CSSProperties {
-    if (!statusKinds.includes(row.kind)) return;
-    return { cursor: 'pointer' };
+    if (
+      ('isManagedByTerraform' in row && row.isManagedByTerraform) ||
+      statusKinds.includes(row.kind)
+    ) {
+      return { cursor: 'pointer' };
+    }
   }
 
   const [downloadAttempt, download] = useAsync(
@@ -161,8 +173,14 @@ export function IntegrationList(props: Props) {
             ),
           },
           {
+            key: 'summary',
+            headerText: 'Issues',
+            render: item => <IssuesCell integration={item} />,
+          },
+          {
             key: 'details',
             headerText: 'Details',
+            render: item => <DetailsCell integration={item} />,
           },
           {
             altKey: 'options-btn',
@@ -398,4 +416,132 @@ const NameCell = ({ item }: { item: IntegrationLike }) => {
 const IconContainer = styled(ResourceIcon)`
   width: 22px;
   margin-right: 10px;
+`;
+
+const IssuesCell = ({ integration }: { integration: IntegrationLike }) => {
+  const issueCount = integration.summary?.unresolvedUserTasks?.length;
+  if (issueCount > 0) {
+    // In the list tooltip, we only want to show up to 3 tasks. If there are more,
+    // the user can go to the integration dashboard to see all of them.
+    const showTopX = 3;
+    return (
+      <Cell>
+        <HoverTooltip
+          tipContent={
+            <Box>
+              <Text fontWeight={600}>
+                {issueCount.toLocaleString()} {pluralize(issueCount, 'Issue')}
+              </Text>
+              <TaskUL>
+                {integration.summary.unresolvedUserTasks
+                  .slice(0, showTopX)
+                  .map(issue => (
+                    <TaskLI key={issue.name}>{issue.title}</TaskLI>
+                  ))}
+              </TaskUL>
+              {issueCount > showTopX && (
+                <Text>
+                  and {(issueCount - showTopX).toLocaleString()} more...
+                </Text>
+              )}
+            </Box>
+          }
+        >
+          <PointerFlex inline alignItems="center" gap={1}>
+            {issueCount.toLocaleString()}
+            <Warning size="small" />
+          </PointerFlex>
+        </HoverTooltip>
+      </Cell>
+    );
+  }
+  return <Cell>-</Cell>;
+};
+
+const TaskUL = styled.ul`
+  margin: 0;
+  padding-left: ${p => p.theme.space[2]}px;
+`;
+
+const TaskLI = styled.li`
+  list-style-position: inside;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+`;
+
+const percentFormatter = new Intl.NumberFormat(undefined, {
+  style: 'percent',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 1,
+  roundingMode: 'trunc',
+});
+
+export function percent(n: number, d: number): string {
+  if (!Number.isFinite(n) || !Number.isFinite(d) || d <= 0) {
+    return '-';
+  }
+
+  const ratio = n / d;
+
+  if (isNaN(ratio)) {
+    return '-';
+  }
+
+  return percentFormatter.format(ratio);
+}
+
+const DetailsCell = ({ integration }: { integration: IntegrationLike }) => {
+  let content = <Text>{integration.details}</Text>;
+  switch (integration.kind) {
+    case IntegrationKind.AwsOidc:
+    case IntegrationKind.AzureOidc:
+      if (integration.summary?.resourcesCount) {
+        const rc = integration.summary.resourcesCount;
+        const hasFailures = rc.failed > 0;
+        const enrolledPct = percent(rc.enrolled, rc.found);
+        const failedPct = percent(rc.failed, rc.found);
+        content = (
+          <HoverTooltip
+            tipContent={
+              <Box>
+                <Text fontWeight={600}>
+                  {rc.found.toLocaleString()} Resources Found
+                </Text>
+                <Flex alignItems="center" mt={1} gap={1}>
+                  <CircleCheck size="small" color="success.main" />
+                  <Text>
+                    {rc.enrolled.toLocaleString()} enrolled ({enrolledPct})
+                  </Text>
+                </Flex>
+                {hasFailures && (
+                  <>
+                    <Flex alignItems="center" gap={1}>
+                      <CircleCross size="small" color="error.main" />
+                      <Text>
+                        {rc.failed.toLocaleString()} failed ({failedPct})
+                      </Text>
+                    </Flex>
+                    <Text mt={1}>
+                      For more information on failures, please check the
+                      integration overview.
+                    </Text>
+                  </>
+                )}
+              </Box>
+            }
+          >
+            <PointerFlex inline gap={1}>
+              {rc.enrolled.toLocaleString()} Resources enrolled ({enrolledPct})
+            </PointerFlex>
+          </HoverTooltip>
+        );
+      }
+      break;
+  }
+  return <Cell>{content}</Cell>;
+};
+
+const PointerFlex = styled(Flex)`
+  cursor: pointer;
 `;

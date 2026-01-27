@@ -51,7 +51,7 @@ export function useSlidingBottomBorderTabs<T>({ activeTab }: { activeTab: T }) {
       borderRef.current.style.left = `${left}px`;
       borderRef.current.style.width = `${width}px`;
     }
-  }, [activeTab]);
+  });
 
   return { borderRef, parentRef };
 }

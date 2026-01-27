@@ -43,8 +43,36 @@ func TestValidateInferenceModel(t *testing.T) {
 			},
 		},
 	})
+	validBedrockCloudDefault := NewInferenceModel(CloudDefaultInferenceModelName,
+		&summarizerv1.InferenceModelSpec{
+			Provider: &summarizerv1.InferenceModelSpec_Bedrock{
+				Bedrock: &summarizerv1.BedrockProvider{
+					BedrockModelId: BedrockModelExpansionPlaceholder,
+					Region:         BedrockRegionExpansionPlaceholder,
+				},
+			},
+		})
+	invalidBedrockModelIDPlaceholder := NewInferenceModel(CloudDefaultInferenceModelName,
+		&summarizerv1.InferenceModelSpec{
+			Provider: &summarizerv1.InferenceModelSpec_Bedrock{
+				Bedrock: &summarizerv1.BedrockProvider{
+					BedrockModelId: "{{ env.bedrock_model_i }}",
+					Region:         BedrockRegionExpansionPlaceholder,
+				},
+			},
+		})
+	invalidBedrockRegionPlaceholder := NewInferenceModel(CloudDefaultInferenceModelName,
+		&summarizerv1.InferenceModelSpec{
+			Provider: &summarizerv1.InferenceModelSpec_Bedrock{
+				Bedrock: &summarizerv1.BedrockProvider{
+					BedrockModelId: "{{ env.bedrock_model_id }}",
+					Region:         "{{ env.bedrock_regio}}",
+				},
+			},
+		})
 	require.NoError(t, ValidateInferenceModel(validOpenAI))
 	require.NoError(t, ValidateInferenceModel(validBedrock))
+	require.NoError(t, ValidateInferenceModel(validBedrockCloudDefault))
 
 	cases := []struct {
 		base *summarizerv1.InferenceModel
@@ -89,7 +117,7 @@ func TestValidateInferenceModel(t *testing.T) {
 		{
 			base: validOpenAI,
 			fn:   func(m *summarizerv1.InferenceModel) { m.Spec.Provider = nil },
-			msg:  "missing or unsupported inference provider in spec, supported providers: openai",
+			msg:  "missing or unsupported inference provider in spec, supported providers: openai, bedrock",
 		},
 		{
 			base: validOpenAI,
@@ -105,6 +133,16 @@ func TestValidateInferenceModel(t *testing.T) {
 			base: validBedrock,
 			fn:   func(m *summarizerv1.InferenceModel) { m.Spec.GetBedrock().Region = "" },
 			msg:  "spec.bedrock.region is required",
+		},
+		{
+			base: invalidBedrockModelIDPlaceholder,
+			fn:   func(m *summarizerv1.InferenceModel) {},
+			msg:  "spec.bedrock.bedrock_model_id contains invalid placeholder instructions. Valid placeholder: {{env.bedrock_model_id}}; got {{ env.bedrock_model_i }}",
+		},
+		{
+			base: invalidBedrockRegionPlaceholder,
+			fn:   func(m *summarizerv1.InferenceModel) {},
+			msg:  "spec.bedrock.region contains invalid placeholder instructions. Valid placeholder: {{env.bedrock_region}}; got {{ env.bedrock_regio}}",
 		},
 	}
 
