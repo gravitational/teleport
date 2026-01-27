@@ -22,7 +22,6 @@ import styled from 'styled-components';
 import { Alert, Box, Button, ButtonText, Flex, Text } from 'design';
 import { Check, Copy, Notification, Spinner } from 'design/Icon';
 import { rotate360 } from 'design/keyframes';
-import { HoverTooltip } from 'design/Tooltip';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import { useValidation } from 'shared/components/Validation';
@@ -35,11 +34,12 @@ type DeploymentMethodSectionProps = {
   terraformConfig?: string;
   copyConfigButtonRef?: React.RefObject<HTMLButtonElement>;
   integrationExists?: boolean;
-  integrationName: string;
-  onCheckIntegration: () => void;
-  isCheckingIntegration: boolean;
+  integrationName?: string;
+  onCheckIntegration?: () => void;
+  isCheckingIntegration?: boolean;
   configCopied: boolean;
   onConfigCopy: () => void;
+  showVerificationStep?: boolean;
 };
 
 export function DeploymentMethodSection({
@@ -51,6 +51,7 @@ export function DeploymentMethodSection({
   isCheckingIntegration,
   configCopied = false,
   onConfigCopy,
+  showVerificationStep = true,
 }: DeploymentMethodSectionProps) {
   const validator = useValidation();
 
@@ -120,81 +121,83 @@ export function DeploymentMethodSection({
           <TextSelectCopyMulti
             lines={[{ text: `terraform init` }, { text: `terraform apply` }]}
           />
-          <Text bold={true} fontSize="14px">
-            3. Verify the integration
-          </Text>
-          {integrationExists ? (
-            <Alert kind="success" mb={0}>
-              <Text fontWeight="regular">
-                Amazon Web Services successfully added
+          {showVerificationStep && (
+            <Box>
+              <Text bold={true} fontSize="14px" mb={2}>
+                3. Verify the integration
               </Text>
-            </Alert>
-          ) : (
-            <>
-              {isCheckingIntegration ? (
-                <Alert kind="info" icon={Notification} mb={0}>
-                  Verifying integration '{integrationName}'...
+              {integrationExists ? (
+                <Alert kind="success" mb={2}>
+                  <Text fontWeight="regular">
+                    Amazon Web Services successfully added
+                  </Text>
                 </Alert>
               ) : (
-                <Alert kind="neutral" icon={Notification} mb={0}>
-                  <Text fontWeight="regular" color="text.slightlyMuted">
-                    After applying your Terraform configuration, verify your
-                    integration was created successfully.
-                  </Text>
-                </Alert>
-              )}
-              <Box mt={2}>
-                {isCheckingIntegration ? (
-                  <HoverTooltip
-                    tipContent={`Checking the integration '${integrationName}' has been created`}
-                  >
-                    <Button
-                      fill="filled"
-                      intent="primary"
-                      disabled={true}
-                      onClick={onCheckIntegration}
-                      gap={2}
-                    >
-                      <AnimatedSpinner size="small" />
-                      Checking...
-                    </Button>
-                  </HoverTooltip>
-                ) : (
-                  <Button
-                    fill="filled"
-                    intent="primary"
-                    disabled={false}
-                    onClick={onCheckIntegration}
-                    gap={2}
-                  >
-                    Check Integration
-                  </Button>
-                )}
-              </Box>
-              <Box
-                pl={3}
-                borderLeft="2px solid"
-                borderColor="interactive.tonal.neutral.0"
-              >
-                <Flex gap={2} flexDirection="column">
-                  <Text bold={true} fontSize={1}>
-                    Don't want to wait?
-                  </Text>
-                  <Text>
-                    Once you've successfully applied your Terraform
-                    configuration, the integration will be available on the
-                    Integrations page.
-                  </Text>
-                  <Box css={{ position: 'relative', left: '-8px' }}>
-                    <InternalLink to={cfg.routes.integrations}>
-                      <ButtonText intent="primary" size="small">
-                        View Integrations
-                      </ButtonText>
-                    </InternalLink>
+                <>
+                  <Box mb={3}>
+                    {isCheckingIntegration ? (
+                      <Alert kind="info" icon={Notification} mb={0}>
+                        Verifying integration '{integrationName}'...
+                      </Alert>
+                    ) : (
+                      <Alert kind="neutral" icon={Notification} mb={0}>
+                        <Text fontWeight="regular" color="text.slightlyMuted">
+                          After applying your Terraform configuration, verify
+                          your integration was created successfully.
+                        </Text>
+                      </Alert>
+                    )}
                   </Box>
-                </Flex>
-              </Box>
-            </>
+                  <Box mb={2}>
+                    {isCheckingIntegration ? (
+                      <Button
+                        fill="filled"
+                        intent="primary"
+                        disabled={true}
+                        onClick={onCheckIntegration}
+                        gap={2}
+                      >
+                        <AnimatedSpinner size="small" />
+                        Checking...
+                      </Button>
+                    ) : (
+                      <Button
+                        fill="filled"
+                        intent="primary"
+                        disabled={false}
+                        onClick={onCheckIntegration}
+                        gap={2}
+                      >
+                        Check Integration
+                      </Button>
+                    )}
+                  </Box>
+                  <Box
+                    pl={3}
+                    borderLeft="2px solid"
+                    borderColor="interactive.tonal.neutral.0"
+                  >
+                    <Flex gap={2} flexDirection="column">
+                      <Text bold={true} fontSize={1}>
+                        Don't want to wait?
+                      </Text>
+                      <Text>
+                        Once you've successfully applied your Terraform
+                        configuration, the integration will be available on the
+                        Integrations page.
+                      </Text>
+                      <Box css={{ position: 'relative', left: '-8px' }}>
+                        <InternalLink to={cfg.routes.integrations}>
+                          <ButtonText intent="primary" size="small">
+                            View Integrations
+                          </ButtonText>
+                        </InternalLink>
+                      </Box>
+                    </Flex>
+                  </Box>
+                </>
+              )}
+            </Box>
           )}
         </Flex>
       </Box>
