@@ -76,8 +76,14 @@ $ tctl create app-auth-config.yaml
 
 Teleport exposes MCP servers at the proxy using the following endpoints:
 
-- **Current cluster:** `https://<proxy-host>/mcp/apps/<app-name>`
-- **Trusted cluster:** `https://<proxy-host>/mcp/sites/<cluster-name>/apps/<app-name>`
+- **Current cluster:**
+  ```code
+  https://<Var name="teleport.example.com" />/mcp/apps/<Var name="app-name" />
+  ```
+- **Trusted cluster:**
+  ```code
+  https://<Var name="teleport.example.com" />/mcp/sites/<Var name="cluster-name" />/apps/<Var name="app-name" />
+  ```
 
 Your MCP client should use one of these URLs as the MCP server endpoint and send
 the token in the configured header.
@@ -110,7 +116,7 @@ from mcp.client.streamable_http import streamablehttp_client
 
 async def main():
     token = "<access-token>"
-    endpoint = "https://proxy.example.com/mcp/apps/mcp-everything"
+    endpoint = "https://<Var name="teleport.example.com" />/mcp/apps/<Var name="app-name" />"
 
     http_client = create_http_client(
         headers={"Authorization": f"Bearer {token}"},
