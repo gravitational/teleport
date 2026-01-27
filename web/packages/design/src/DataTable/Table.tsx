@@ -50,6 +50,7 @@ export default function Table<T>(props: TableProps<T>) {
     isSearchable,
     fetching,
     className,
+    hideEmptyIcon,
     style,
     serversideProps,
     customSort,
@@ -170,6 +171,7 @@ export default function Table<T>(props: TableProps<T>) {
     return (
       <EmptyIndicator
         emptyText={emptyText}
+        hideIcon={hideEmptyIcon}
         emptyHint={emptyHint}
         emptyButton={emptyButton}
         colSpan={columns.length}
@@ -396,7 +398,9 @@ const EmptyIndicator = ({
   emptyHint,
   emptyButton,
   colSpan,
+  hideIcon = false,
 }: {
+  hideIcon?: boolean;
   emptyText: string;
   emptyHint: string | undefined;
   emptyButton: JSX.Element | undefined;
@@ -418,15 +422,18 @@ const EmptyIndicator = ({
             alignItems="flex-start"
             justifyContent="center"
           >
-            <Icons.Database
-              color="text.main"
-              // line-height and height must match line-height of Text below for the icon to be
-              // aligned to the first line of Text if Text spans multiple lines.
-              css={`
-                line-height: 32px;
-                height: 32px;
-              `}
-            />
+            {/* TODO (avatus) allow overriding this icon */}
+            {!hideIcon && (
+              <Icons.Database
+                color="text.main"
+                // line-height and height must match line-height of Text below for the icon to be
+                // aligned to the first line of Text if Text spans multiple lines.
+                css={`
+                  line-height: 32px;
+                  height: 32px;
+                `}
+              />
+            )}
             <Text textAlign="center" typography="h1" m="0" color="text.main">
               {emptyText}
             </Text>
