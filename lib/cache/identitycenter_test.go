@@ -171,8 +171,8 @@ func TestIdentityCenterAccountAssignment(t *testing.T) {
 		},
 		cacheList: fixturePack.cache.ListIdentityCenterAccountAssignments,
 		cacheGet: func(ctx context.Context, id string) (*identitycenterv1.AccountAssignment, error) {
-			r, err := fixturePack.cache.GetAccountAssignment(ctx, services.IdentityCenterAccountAssignmentID(id))
-			return r.AccountAssignment, trace.Wrap(err)
+			r, err := fixturePack.cache.GetIdentityCenterAccountAssignment(ctx, id)
+			return r, trace.Wrap(err)
 		},
 	})
 }

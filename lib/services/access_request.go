@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -2378,9 +2379,9 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		}
 
 		switch rr := resource.(type) {
-		case types.Resource153UnwrapperT[IdentityCenterAccount]:
+		case types.Resource153UnwrapperT[*identitycenterv1.Account]:
 			matchers = append(matchers, NewIdentityCenterAccountMatcher(rr.UnwrapT()))
-		case types.Resource153UnwrapperT[IdentityCenterAccountAssignment]:
+		case types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment]:
 			matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
 		}
 

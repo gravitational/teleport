@@ -19,6 +19,8 @@ package local
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -28,9 +30,12 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 func newTestBackend(t *testing.T, ctx context.Context, clock clockwork.Clock) backend.Backend {
@@ -267,6 +272,72 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 	}
 }
 
+func TestIdentityCenterAccountListing(t *testing.T) {
+	type accountFilter func(*identitycenterv1.Account) bool
+	type accountPager func(ctx context.Context, pageSize int, page string) ([]*identitycenterv1.Account, string, error)
+
+	// GIVEN a test cluster
+	ctx := newTestContext(t)
+	clock := clockwork.NewFakeClock()
+	backend := newTestBackend(t, ctx, clock)
+
+	// GIVEN an Identity Center Service
+	uut, err := NewIdentityCenterService(IdentityCenterServiceConfig{Backend: backend})
+	require.NoError(t, err)
+
+	// GIVEN a collection of Identity Center accounts
+	accounts := make(map[string]*identitycenterv1.Account)
+	for _, id := range []string{"alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel"} {
+		accounts[id] = makeTestIdentityCenterAccount(t, ctx, uut, id)
+	}
+
+	testCases := []struct {
+		name     string
+		pageSize int
+		filter   func(*identitycenterv1.Account) bool
+		expected []string
+	}{
+		{
+			name:     "full",
+			pageSize: 0,
+			filter:   func(*identitycenterv1.Account) bool { return true },
+			expected: slices.Collect(maps.Keys(accounts)),
+		},
+		{
+			name:     "paged",
+			pageSize: 2,
+			filter:   func(*identitycenterv1.Account) bool { return true },
+			expected: slices.Collect(maps.Keys(accounts)),
+		},
+		{
+			name:     "filtered",
+			pageSize: 3,
+			expected: []string{"alpha", "charlie", "echo", "golf"},
+			filter: func(acct *identitycenterv1.Account) bool {
+				name := getName(acct)
+				return name == "alpha" || name == "charlie" ||
+					name == "echo" || name == "golf"
+			},
+		},
+	}
+
+	getPageWithFilter := func(filter accountFilter) accountPager {
+		return func(ctx context.Context, pageSize int, page string) ([]*identitycenterv1.Account, string, error) {
+			return uut.ListIdentityCenterAccountsWithFilter(ctx, pageSize, page, filter)
+		}
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			output, err := stream.Collect(clientutils.ResourcesWithPageSize(ctx, getPageWithFilter(test.filter), test.pageSize))
+			require.NoError(t, err)
+
+			actual := sliceutils.Map(output, getName)
+			require.ElementsMatch(t, test.expected, actual)
+		})
+	}
+}
+
 func makeTestIdentityCenterAccount(t *testing.T, ctx context.Context, svc services.IdentityCenter, id string) *identitycenterv1.Account {
 	t.Helper()
 	created, err := svc.CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
@@ -343,4 +414,8 @@ func makeTestIdentityCenterPrincipalAssignment(t *testing.T, ctx context.Context
 	})
 	require.NoError(t, err)
 	return created
+}
+
+func getName[R interface{ GetMetadata() *headerv1.Metadata }](r R) string {
+	return r.GetMetadata().Name
 }

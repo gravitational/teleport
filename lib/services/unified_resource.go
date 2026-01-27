@@ -1271,24 +1271,24 @@ func MakePaginatedResource(requestType string, r types.ResourceWithLabels, requi
 			RequiresRequest: requiresRequest,
 		}
 	case types.KindIdentityCenterAccount:
-		unwrapper, ok := resource.(types.Resource153UnwrapperT[IdentityCenterAccount])
+		unwrapper, ok := resource.(types.Resource153UnwrapperT[*identitycenterv1.Account])
 		if !ok {
 			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 		}
 
 		protoResource = &proto.PaginatedResource{
 			Resource: &proto.PaginatedResource_AppServer{
-				AppServer: IdentityCenterAccountToAppServer(unwrapper.UnwrapT().Account),
+				AppServer: IdentityCenterAccountToAppServer(unwrapper.UnwrapT()),
 			},
 			RequiresRequest: requiresRequest,
 		}
 	case types.KindIdentityCenterAccountAssignment:
-		unwrapper, ok := resource.(types.Resource153UnwrapperT[IdentityCenterAccountAssignment])
+		unwrapper, ok := resource.(types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment])
 		if !ok {
 			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 		}
 		protoResource = &proto.PaginatedResource{
-			Resource:        proto.PackICAccountAssignment(unwrapper.UnwrapT().AccountAssignment),
+			Resource:        proto.PackICAccountAssignment(unwrapper.UnwrapT()),
 			RequiresRequest: requiresRequest,
 		}
 	case types.KindGitServer:
