@@ -1426,7 +1426,6 @@ func (s *WindowsService) watchCAEvents(
 		afterC = time.After(watcherCreatePeriod)
 	}
 
-Outer:
 	for {
 		select {
 		case <-ctx.Done():
@@ -1457,58 +1456,77 @@ Outer:
 		}
 		logger.DebugContext(ctx, "Initialized CA watcher")
 
-		isFirstEvent := true
-		for {
-			select {
-			case <-ctx.Done():
-				_ = watcher.Close()
-				return trace.Wrap(ctx.Err())
-			case <-watcher.Done():
-				_ = watcher.Close()
-				logger.DebugContext(ctx, "CA watcher closed prematurely. Attempting to re-create.")
-				resetTimer()
-				continue Outer
-			case e := <-watcher.Events():
-				eLog := logger.With("op", e.Type)
-				if e.Resource != nil {
-					eLog = eLog.With(
-						"kind", e.Resource.GetKind(),
-						"sub_kind", e.Resource.GetSubKind(),
-						"name", e.Resource.GetName(),
-						"revision", e.Resource.GetRevision(),
-					)
-				}
-				eLog.DebugContext(ctx, "Received CA event")
+		// Handle events until we either:
+		//   1. Abort with an error (ctx is done); or
+		//   2. Need to re-create the watcher (watcher is done, first event is not
+		//      OpInit, etc)
+		err = runCAWatcherLoop(ctx, signalCAEvent, logger, watcher)
+		if closeErr := watcher.Close(); closeErr != nil {
+			logger.DebugContext(ctx, "Error closing CA watcher", "error", closeErr)
+		}
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		resetTimer()
+	}
+}
 
-				// The first event MUST be an OpInit event, as dictated by the secret
-				// rules of watchers. If it's not then we must fail.
-				//
-				// * lib/services/watcher.go:336
-				// * https://github.com/gravitational/teleport/blob/1f0ca9e4ae66a47f39d10c40f35e55d5ac5e15ac/lib/services/watcher.go#L336-L338
-				switch {
-				case e.Type == types.OpInit && isFirstEvent:
-					isFirstEvent = false
-					continue // OK, expected.
-				case isFirstEvent:
-					logger.WarnContext(ctx,
-						"Received non-init event as the first event. Will attempt to re-create the watcher.",
-						"op", e.Type,
-					)
-					_ = watcher.Close()
-					resetTimer()
-					continue Outer
-				case e.Type != types.OpPut:
-					continue // OK, we only care about mutating events.
-				}
+func runCAWatcherLoop(
+	ctx context.Context,
+	signalCAEvent chan<- struct{},
+	logger *slog.Logger,
+	watcher types.Watcher,
+) error {
+	isFirstEvent := true
+	for {
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
 
-				logger.InfoContext(ctx,
-					"Received mutating WindowsCA event, signaling CRL update",
+		case <-watcher.Done():
+			logger.DebugContext(ctx, "CA watcher closed prematurely. Attempting to re-create.")
+			return nil
+
+		case e := <-watcher.Events():
+			eLog := logger.With("op", e.Type)
+			if e.Resource != nil {
+				eLog = eLog.With(
+					"kind", e.Resource.GetKind(),
+					"sub_kind", e.Resource.GetSubKind(),
+					"name", e.Resource.GetName(),
+					"revision", e.Resource.GetRevision(),
+				)
+			}
+			eLog.DebugContext(ctx, "Received CA event")
+
+			// The first event MUST be an OpInit event, as dictated by the secret
+			// rules of watchers. If it's not then we must fail.
+			//
+			// * lib/services/watcher.go:336
+			// * https://github.com/gravitational/teleport/blob/1f0ca9e4ae66a47f39d10c40f35e55d5ac5e15ac/lib/services/watcher.go#L336-L338
+			switch {
+			case e.Type == types.OpInit && isFirstEvent:
+				isFirstEvent = false
+				continue // OK, expected.
+
+			case isFirstEvent:
+				logger.WarnContext(ctx,
+					"Received non-init event as the first event. Will attempt to re-create the watcher.",
 					"op", e.Type,
 				)
-				select {
-				case signalCAEvent <- struct{}{}:
-				default:
-				}
+				return nil
+
+			case e.Type != types.OpPut:
+				continue // OK, we only care about mutating events.
+			}
+
+			logger.InfoContext(ctx,
+				"Received mutating WindowsCA event, signaling CRL update",
+				"op", e.Type,
+			)
+			select {
+			case signalCAEvent <- struct{}{}:
+			default:
 			}
 		}
 	}
