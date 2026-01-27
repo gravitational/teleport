@@ -201,7 +201,13 @@ func TestAuditEvents(t *testing.T) {
 						withIntegration("generic"),
 						withResourceType("Users")),
 					withExternalID(scimUser.ExternalID),
-					withTeleportID(scimUser.UserName))
+					withTeleportID(scimUser.UserName),
+					withResponseStatusCode(http.StatusCreated),
+					withResponseBody(
+						fieldEquals("id", "create-test-user@example.com"),
+						fieldEquals("externalId", "create-test-user"),
+					),
+				)
 			})
 
 			t.Run("OnInvalidUsername", func(t *testing.T) {
@@ -216,7 +222,9 @@ func TestAuditEvents(t *testing.T) {
 						withSuccess(false),
 						withErrorMatching(`.*special characters are not allowed.*`)),
 					withExternalID(scimUser.ExternalID),
-					withTeleportID(""))
+					withTeleportID(""),
+					withNoResponse,
+				)
 			})
 
 			t.Run("OnAccessDenied", func(t *testing.T) {
@@ -257,7 +265,14 @@ func TestAuditEvents(t *testing.T) {
 						withResourceType("Groups")),
 					withExternalID(""), // we don't know what the upstream system calls groups
 					withTeleportID(scimGroup.ID),
-					withDisplayName(scimGroup.DisplayName))
+					withDisplayName(scimGroup.DisplayName),
+					withResponseStatusCode(http.StatusCreated),
+					withResponseBody(
+						fieldNotEmpty("id"),
+						fieldEquals("displayName", "Test Group #01"),
+						fieldLen("members", 0),
+					),
+				)
 			})
 
 			t.Run("OnNoSuchGroup", func(t *testing.T) {
@@ -281,7 +296,9 @@ func TestAuditEvents(t *testing.T) {
 						withResourceType("Groups")),
 					withExternalID(""),
 					withTeleportID(""),
-					withDisplayName(""))
+					withDisplayName(""),
+					withNoResponse,
+				)
 			})
 		})
 	})
@@ -316,7 +333,8 @@ func TestAuditEvents(t *testing.T) {
 						withIntegration("generic"),
 						withResourceType("Users")),
 					withExternalID("user-002-external-id"),
-					withTeleportID("user-002"))
+					withTeleportID("user-002"),
+					withNoResponse)
 			})
 
 			t.Run("OnNoSuchResource", func(t *testing.T) {
@@ -333,7 +351,8 @@ func TestAuditEvents(t *testing.T) {
 						withIntegration("generic"),
 						withResourceType("Users")),
 					withTeleportID("no-such-user"),
-					withExternalID(""))
+					withExternalID(""),
+					withNoResponse)
 			})
 
 			t.Run("OnUnauthorized", func(t *testing.T) {
@@ -388,7 +407,12 @@ func TestAuditEvents(t *testing.T) {
 						withIntegration("generic"),
 						withResourceType("Users")),
 					withExternalID("update-test-user-external-id"),
-					withTeleportID("update-test-user"))
+					withTeleportID("update-test-user"),
+					withResponseStatusCode(http.StatusOK),
+					withResponseBody(
+						fieldEquals("id", "update-test-user"),
+					),
+				)
 			})
 
 			t.Run("OnNoSuchResource", func(t *testing.T) {
@@ -410,7 +434,8 @@ func TestAuditEvents(t *testing.T) {
 						withIntegration("generic"),
 						withResourceType("Users")),
 					withTeleportID("no-such-user-to-update"),
-					withExternalID(""))
+					withExternalID(""),
+					withNoResponse)
 			})
 
 			t.Run("OnUnauthorized", func(t *testing.T) {
@@ -452,8 +477,10 @@ func TestAuditEvents(t *testing.T) {
 						withIntegration("generic"),
 						withResourceType("Groups")),
 					withExternalID(""),
-					withTeleportID("update-resource-test-group"),
-					withDisplayName("Updated Access List!"))
+					withResponseStatusCode(http.StatusOK),
+					withResponseBody(
+						fieldEquals("displayName", "Updated Access List!"),
+					))
 			})
 		})
 	})
@@ -494,7 +521,11 @@ func TestAuditEvents(t *testing.T) {
 						withResourceType("Users")),
 					withExternalID("patch-test-user-external-id"),
 					withTeleportID("patch-test-user"),
-					withBody(patch),
+					withRequestBody(withExactly(patch)),
+					withResponseStatusCode(http.StatusOK),
+					withResponseBody(
+						fieldEquals("id", targetUser.GetName()),
+					),
 				)
 			})
 
@@ -516,8 +547,8 @@ func TestAuditEvents(t *testing.T) {
 						withResourceType("Users")),
 					withTeleportID("no-such-user-to-patch"),
 					withExternalID(""),
-					withBody(patch),
-				)
+					withRequestBody(withExactly(patch)),
+					withNoResponse)
 			})
 
 			t.Run("OnUnauthorized", func(t *testing.T) {
@@ -571,7 +602,12 @@ func TestAuditEvents(t *testing.T) {
 					withExternalID(""),
 					withTeleportID(accessList.GetName()),
 					withDisplayName("Updated Access List display name!"),
-					withBody(patch),
+					withRequestBody(withExactly(patch)),
+					withResponseStatusCode(http.StatusOK),
+					withResponseBody(
+						fieldNotEmpty("id"),
+						fieldEquals("displayName", "Updated Access List display name!"),
+					),
 				)
 			})
 		})
@@ -594,7 +630,8 @@ func TestAuditEvents(t *testing.T) {
 						withIntegration("generic"),
 						withResourceType("Users")),
 					withTeleportID("delete-test-user"),
-					withExternalID(""))
+					withExternalID(""),
+					withNoResponse)
 			})
 
 			t.Run("OnNoSuchResource", func(t *testing.T) {
@@ -611,7 +648,8 @@ func TestAuditEvents(t *testing.T) {
 						withIntegration("generic"),
 						withResourceType("Users")),
 					withExternalID(""),
-					withTeleportID("no-such-user"))
+					withTeleportID("no-such-user"),
+					withNoResponse)
 			})
 
 			t.Run("OnUnauthorized", func(t *testing.T) {
@@ -646,7 +684,8 @@ func TestAuditEvents(t *testing.T) {
 						withResourceType("Groups")),
 					withTeleportID("delete-resource-test-group"),
 					withDisplayName(""),
-					withExternalID(""))
+					withExternalID(""),
+					withNoResponse)
 			})
 		})
 	})

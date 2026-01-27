@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strconv"
@@ -343,10 +344,6 @@ func (p *Plugin) scimCreateResource(w http.ResponseWriter, r *http.Request, para
 	auditEvent.TeleportID = created.Id
 	auditEvent.Display = extractDisplayName(created)
 
-	body, err := scimsdk.MarshalResource(created)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	// Return 201 Created status code
 	//
 	// According to SCIM RFC https://datatracker.ietf.org/doc/html/rfc7644#section-3.3
@@ -357,8 +354,10 @@ func (p *Plugin) scimCreateResource(w http.ResponseWriter, r *http.Request, para
 	// This is consistent with Okta behavior
 	// https://developer.okta.com/docs/api/openapi/okta-scim/guides/scim-20/#create-the-user
 	// when 201 is returned when a new user is created.
-	writeSCIMResponse(w, http.StatusCreated, body,
-		withETag(created.GetMeta().GetVersion()))
+	err = writeSCIMResourceUpdateResponse(w, http.StatusCreated, created, auditEvent)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
@@ -423,12 +422,10 @@ func (p *Plugin) scimUpdateResource(w http.ResponseWriter, r *http.Request, para
 	auditEvent.ExternalID = updated.ExternalId
 	auditEvent.Display = extractDisplayName(updated)
 
-	body, err := scimsdk.MarshalResource(updated)
+	err = writeSCIMResourceUpdateResponse(w, http.StatusOK, updated, auditEvent)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	writeSCIMResponse(w, http.StatusOK, body,
-		withETag(updated.GetMeta().GetVersion()))
 	return nil
 }
 
@@ -540,11 +537,10 @@ func (p *Plugin) scimPatchResource(w http.ResponseWriter, r *http.Request, param
 	auditEvent.ExternalID = updated.ExternalId
 	auditEvent.Display = extractDisplayName(updated)
 
-	body, err := scimsdk.MarshalResource(updated)
+	err = writeSCIMResourceUpdateResponse(w, http.StatusOK, updated, auditEvent)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	writeSCIMResponse(w, http.StatusOK, body, withETag(updated.GetMeta().GetVersion()))
 	return nil
 }
 
@@ -592,6 +588,35 @@ func withETag(etag string) scimResponseOption {
 	return func(opts *scimResponseOptions) {
 		opts.etag = etag
 	}
+}
+
+// writeSCIMResourceUpdateResponse records the updated resource in the supplied
+// audit event before writing the SCIM respinse as usual
+func writeSCIMResourceUpdateResponse(w http.ResponseWriter, statusCode int, resource *scimpb.Resource, auditEvent *apievents.SCIMResourceEvent) error {
+	resourceAttributes, err := scimsdk.FlattenResource(resource)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	eventBody, err := apievents.EncodeMap(resourceAttributes)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	responseBody, err := json.Marshal(&resourceAttributes)
+	if err != nil {
+		return trace.Wrap(err, "marshaling SCIM resource")
+	}
+
+	// TODO(tcsc): Implement truncation for large respionse bodies
+
+	auditEvent.Response = &apievents.SCIMResponse{
+		StatusCode: uint32(statusCode),
+		Body:       eventBody,
+	}
+
+	writeSCIMResponse(w, statusCode, responseBody, withETag(resource.GetMeta().GetVersion()))
+	return nil
 }
 
 func writeSCIMResponse(w http.ResponseWriter, statusCode int, body []byte, options ...scimResponseOption) {

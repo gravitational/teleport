@@ -123,7 +123,7 @@ func MarshalResourceList(list *scimpb.ResourceList) ([]byte, error) {
 
 	resources := make([]AttributeSet, len(list.Resources))
 	for i, r := range list.Resources {
-		attribs, err := flattenResource(r)
+		attribs, err := FlattenResource(r)
 		if err != nil {
 			return nil, trace.Wrap(err, "flattening %s resource %s", r.Meta.ResourceType, r.Id)
 		}
@@ -202,12 +202,12 @@ func DecodeResourceHeader(attribs AttributeSet) (*Resource, error) {
 	return &jsonFmt, nil
 }
 
-// flattenResource creates an attributeSet representing the supplied SCIM
-// resource. We go through this intermediate flattening stage so that we cam
+// FlattenResource creates an attributeSet representing the supplied SCIM
+// resource. We go through this intermediate flattening stage so that we can
 // merge the resource Attributes back into the top level of the structure
 // before being serialized to JSON.
-func flattenResource(res *scimpb.Resource) (AttributeSet, error) {
-	jsonFmt := Resource{
+func FlattenResource(res *scimpb.Resource) (AttributeSet, error) {
+	headerFmt := Resource{
 		Schemas:    res.Schemas,
 		ID:         res.Id,
 		ExternalID: res.ExternalId,
@@ -221,8 +221,8 @@ func flattenResource(res *scimpb.Resource) (AttributeSet, error) {
 	}
 
 	// format the resource header as a nested set of attributes
-	var attribs AttributeSet
-	if err := mapstructure.Decode(&jsonFmt, &attribs); err != nil {
+	var dst AttributeSet
+	if err := mapstructure.Decode(&headerFmt, &dst); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -232,14 +232,14 @@ func flattenResource(res *scimpb.Resource) (AttributeSet, error) {
 	for _, k := range reservedAttributeNames {
 		delete(resourceAttribs, k)
 	}
-	maps.Copy(attribs, res.Attributes.AsMap())
+	maps.Copy(dst, res.Attributes.AsMap())
 
-	return attribs, nil
+	return dst, nil
 }
 
-// MarshalResource flattens and formats a SCIM resource object into a JSON.
+// MarshalResource flattens and formats a SCIM resource object into JSON.
 func MarshalResource(res *scimpb.Resource) ([]byte, error) {
-	attribs, err := flattenResource(res)
+	attribs, err := FlattenResource(res)
 	if err != nil {
 		return nil, trace.Wrap(err, "marshaling SCIM resource")
 	}
