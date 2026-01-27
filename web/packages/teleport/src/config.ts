@@ -105,9 +105,8 @@ const cfg = {
 
   // terraform contains terraform related configuration
   terraform: {
-    // discoveryAwsModuleRegistry contains the registry for the AWS discovery terraform module
-    discoveryAwsModuleRegistry:
-      'terraform.releases.teleport.dev/teleport/discovery/aws',
+    registry: 'terraform.releases.teleport.dev',
+    stagingRegistry: 'terraform-staging.releases.teleport.dev',
   },
 
   // enterprise non-exact routes will be merged into this
