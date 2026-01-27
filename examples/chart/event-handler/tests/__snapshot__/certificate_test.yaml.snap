@@ -17,11 +17,13 @@ should request certificates when certManager enabled:
       duration: 87600h
       ipAddresses: []
       issuerRef:
-        group: test.cert-manager.io
-        kind: TestClusterIssuer
-        name: test-issuer
+        group: cert-manager.io
+        kind: Issuer
+        name: RELEASE-NAME-teleport-plugin-event-handler-ca-issuer
       privateKey:
-        size: 4096
+        algorithm: ECDSA
+        encoding: PKCS8
+        size: 256
       renewBefore: null
       secretName: RELEASE-NAME-teleport-plugin-event-handler-server-tls
       usages:
@@ -42,11 +44,13 @@ should request certificates when certManager enabled:
       commonName: RELEASE-NAME-teleport-plugin-event-handler
       duration: 87600h
       issuerRef:
-        group: test.cert-manager.io
-        kind: TestClusterIssuer
-        name: test-issuer
+        group: cert-manager.io
+        kind: Issuer
+        name: RELEASE-NAME-teleport-plugin-event-handler-ca-issuer
       privateKey:
-        size: 4096
+        algorithm: ECDSA
+        encoding: PKCS8
+        size: 256
       renewBefore: null
       secretName: RELEASE-NAME-teleport-plugin-event-handler-client-tls
       usages:

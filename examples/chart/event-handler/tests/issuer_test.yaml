@@ -1,0 +1,29 @@
+suite: Test cert-manager issuer
+templates:
+  - issuer.yaml
+tests:
+  - it: should create CA Issuer if certManager.enabled is true
+    values:
+      - ../.lint/cert-manager-enabled.yaml
+    asserts:
+      - hasDocuments:
+          count: 3
+      - containsDocument:
+          kind: Issuer
+          apiVersion: cert-manager.io/v1
+          name: RELEASE-NAME-teleport-plugin-event-handler-selfsigned-issuer
+      - containsDocument:
+          kind: Certificate
+          apiVersion: cert-manager.io/v1
+          name: RELEASE-NAME-teleport-plugin-event-handler-selfsigned-ca
+      - containsDocument:
+          kind: Issuer
+          apiVersion: cert-manager.io/v1
+          name: RELEASE-NAME-teleport-plugin-event-handler-ca-issuer
+  - it: should not create CA Issuer if certManager.enabled is false
+    set:
+      certManager:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

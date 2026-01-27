@@ -14,15 +14,15 @@ spec:
   duration: {{ .Values.certManager.ttl }}
   renewBefore: {{ .Values.certManager.renewBefore }}
   privateKey:
-    size: {{ .Values.certManager.length }}
+    algorithm: ECDSA
+    encoding: PKCS8
+    size: 256
   usages:
     - server auth
   dnsNames: {{ .Values.certManager.dnsNames }}
   ipAddresses: {{ .Values.certManager.ipAddresses }}
   issuerRef:
-    name: {{ required "certManager.issuerName is required in chart values" .Values.certManager.issuerName }}
-    kind: {{ required "certManager.issuerKind is required in chart values" .Values.certManager.issuerKind }}
-    group: {{ required "certManager.issuerGroup is required in chart values" .Values.certManager.issuerGroup }}
+    {{- include "event-handler.certManager.issuer" . | nindent 4 }}
   {{- if or .Values.annotations.certSecret .Values.extraLabels.certSecret }}
   secretTemplate:
     {{- with .Values.annotations.certSecret }}
@@ -47,14 +47,14 @@ spec:
   duration: {{ .Values.certManager.ttl }}
   renewBefore: {{ .Values.certManager.renewBefore }}
   privateKey:
-    size: {{ .Values.certManager.length }}
+    algorithm: ECDSA
+    encoding: PKCS8
+    size: 256
   usages:
     - client auth
   commonName: {{ include "event-handler.fullname" . }}
   issuerRef:
-    name: {{ required "certManager.issuerName is required in chart values" .Values.certManager.issuerName }}
-    kind: {{ required "certManager.issuerKind is required in chart values" .Values.certManager.issuerKind }}
-    group: {{ required "certManager.issuerGroup is required in chart values" .Values.certManager.issuerGroup }}
+    {{- include "event-handler.certManager.issuer" . | nindent 4 }}
   {{- if or .Values.annotations.certSecret .Values.extraLabels.certSecret }}
   secretTemplate:
     {{- with .Values.annotations.certSecret }}
