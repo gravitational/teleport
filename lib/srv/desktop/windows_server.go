@@ -1417,14 +1417,33 @@ func (s *WindowsService) watchCAEvents(
 ) error {
 	logger := s.cfg.Logger
 
+	timeC := make(chan time.Time, 1)
+	timeC <- time.Time{} // tick immediately
+	var afterC <-chan time.Time = timeC
+
+	resetTimer := func() {
+		const watcherCreatePeriod = 5 * time.Minute
+		afterC = time.After(watcherCreatePeriod)
+	}
+
 Outer:
 	for {
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		case <-afterC:
+		}
+
 		watcher, err := s.cfg.AccessPoint.NewWatcher(ctx, types.Watch{
-			Name: fmt.Sprintf("%s-ca-watcher", teleport.ComponentWindowsDesktop),
+			Name: teleport.ComponentWindowsDesktop + "-ca-watcher",
 			Kinds: []types.WatchKind{
 				{
 					Kind:        types.KindCertAuthority,
 					LoadSecrets: false,
+					// Only watch the WindowsCA.
+					Filter: map[string]string{
+						string(types.WindowsCA): types.Wildcard,
+					},
 				},
 			},
 		})
@@ -1433,16 +1452,12 @@ Outer:
 				"Failed to create CA watcher. Service will be unable to react to CA rotation events.",
 				"error", err,
 			)
-			const watcherCreatePeriod = 5 * time.Minute
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(watcherCreatePeriod):
-				continue // Try again.
-			}
+			resetTimer()
+			continue
 		}
 		logger.DebugContext(ctx, "Initialized CA watcher")
 
+		isFirstEvent := true
 		for {
 			select {
 			case <-ctx.Done():
@@ -1451,21 +1466,44 @@ Outer:
 			case <-watcher.Done():
 				_ = watcher.Close()
 				logger.DebugContext(ctx, "CA watcher closed prematurely. Attempting to re-create.")
+				resetTimer()
 				continue Outer
 			case e := <-watcher.Events():
-				if e.Type != types.OpPut ||
-					e.Resource == nil ||
-					e.Resource.GetKind() != types.KindCertAuthority ||
-					e.Resource.GetSubKind() != string(types.WindowsCA) {
-					continue
+				eLog := logger.With("op", e.Type)
+				if e.Resource != nil {
+					eLog = eLog.With(
+						"kind", e.Resource.GetKind(),
+						"sub_kind", e.Resource.GetSubKind(),
+						"name", e.Resource.GetName(),
+						"revision", e.Resource.GetRevision(),
+					)
 				}
+				eLog.DebugContext(ctx, "Received CA event")
+
+				// The first event MUST be an OpInit event, as dictated by the secret
+				// rules of watchers. If it's not then we must fail.
+				//
+				// * lib/services/watcher.go:336
+				// * https://github.com/gravitational/teleport/blob/1f0ca9e4ae66a47f39d10c40f35e55d5ac5e15ac/lib/services/watcher.go#L336-L338
+				switch {
+				case e.Type == types.OpInit && isFirstEvent:
+					isFirstEvent = false
+					continue // OK, expected.
+				case isFirstEvent:
+					logger.WarnContext(ctx,
+						"Received non-init event as the first event. Will attempt to re-create the watcher.",
+						"op", e.Type,
+					)
+					_ = watcher.Close()
+					resetTimer()
+					continue Outer
+				case e.Type != types.OpPut:
+					continue // OK, we only care about mutating events.
+				}
+
 				logger.InfoContext(ctx,
-					"Received WindowsCA event, signaling CRL update",
+					"Received mutating WindowsCA event, signaling CRL update",
 					"op", e.Type,
-					"kind", e.Resource.GetKind(),
-					"sub_kind", e.Resource.GetSubKind(),
-					"name", e.Resource.GetName(),
-					"revision", e.Resource.GetRevision(),
 				)
 				select {
 				case signalCAEvent <- struct{}{}:
