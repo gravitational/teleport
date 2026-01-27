@@ -6,8 +6,8 @@ state: draft
 # RFD 223 - Installation and Upgrade Documentation Organization
 
 # Required Approvers
-* R&D Owner: @roraback
-* Docs: @ptgott
+* R&D Owner: Kenny Roraback
+* Docs: Paul Gott
 
 ## What
 
@@ -152,8 +152,8 @@ which Teleport component they need to install.
 A Teleport user may need to mix and match instructions for their use case.
 For example, they may need to install a self-hosted cluster on GKE, deploy an agent into EKS, and then configure the agent to allow App access.
 
-To address this complexity, the top-level subsections divide users into categories to ensure any misnavigation happens early and is obvious to users.
-The top-level subsection names will be verbose to avoid misnavigation.
+To address this complexity, the top-level subsections divide users into categories to ensure any incorrect navigation happens early and is obvious to users.
+The top-level subsection names will be verbose to avoid incorrect navigation.
 
 ### Proposed Organization
 
