@@ -1223,10 +1223,8 @@ func TestEnforcementPointsForResourceScope(t *testing.T) {
 			name:          "single segment scope",
 			resourceScope: "/foo",
 			expect: []EnforcementPoint{
-				// Root origin, descending effects
 				{ScopeOfOrigin: "/", ScopeOfEffect: "/foo"},
 				{ScopeOfOrigin: "/", ScopeOfEffect: "/"},
-				// Foo origin, foo effect
 				{ScopeOfOrigin: "/foo", ScopeOfEffect: "/foo"},
 			},
 		},
@@ -1234,14 +1232,11 @@ func TestEnforcementPointsForResourceScope(t *testing.T) {
 			name:          "two segment scope",
 			resourceScope: "/staging/west",
 			expect: []EnforcementPoint{
-				// Root origin, descending effects
 				{ScopeOfOrigin: "/", ScopeOfEffect: "/staging/west"},
 				{ScopeOfOrigin: "/", ScopeOfEffect: "/staging"},
 				{ScopeOfOrigin: "/", ScopeOfEffect: "/"},
-				// Staging origin, descending effects
 				{ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging/west"},
 				{ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging"},
-				// West origin, west effect
 				{ScopeOfOrigin: "/staging/west", ScopeOfEffect: "/staging/west"},
 			},
 		},
@@ -1249,19 +1244,15 @@ func TestEnforcementPointsForResourceScope(t *testing.T) {
 			name:          "three segment scope",
 			resourceScope: "/prod/us/east",
 			expect: []EnforcementPoint{
-				// Root origin
 				{ScopeOfOrigin: "/", ScopeOfEffect: "/prod/us/east"},
 				{ScopeOfOrigin: "/", ScopeOfEffect: "/prod/us"},
 				{ScopeOfOrigin: "/", ScopeOfEffect: "/prod"},
 				{ScopeOfOrigin: "/", ScopeOfEffect: "/"},
-				// Prod origin
 				{ScopeOfOrigin: "/prod", ScopeOfEffect: "/prod/us/east"},
 				{ScopeOfOrigin: "/prod", ScopeOfEffect: "/prod/us"},
 				{ScopeOfOrigin: "/prod", ScopeOfEffect: "/prod"},
-				// US origin
 				{ScopeOfOrigin: "/prod/us", ScopeOfEffect: "/prod/us/east"},
 				{ScopeOfOrigin: "/prod/us", ScopeOfEffect: "/prod/us"},
-				// East origin
 				{ScopeOfOrigin: "/prod/us/east", ScopeOfEffect: "/prod/us/east"},
 			},
 		},

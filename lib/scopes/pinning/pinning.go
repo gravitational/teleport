@@ -103,20 +103,10 @@ func WeakValidate(pin *scopesv1.Pin) error {
 		return trace.BadParameter("scope pin uses outdated format, plase ensure all teleport components are upgraded and relogin")
 	}
 
-	// validate that the scopes in the assignment tree are well-formed. Due to how scoped access checks work,
-	// we cannot perform any checks if any scopes are malformed as we cannot determine whether or not the
-	// assignments within that scope ought to apply to the scope of the resource being targeted, and we cannot
-	// fallback to the strategy of only evaluating parent assignments since we cannot safely determine the
-	// intended parent/child relationship with invalid scopes.
-	for assignment := range EnumerateAllAssignments(pin) {
-		if err := scopes.WeakValidate(assignment.ScopeOfOrigin); err != nil {
-			return trace.Errorf("invalid scope of origin in pinned assignment: %w", err)
-		}
-
-		if err := scopes.WeakValidate(assignment.ScopeOfEffect); err != nil {
-			return trace.Errorf("invalid scope of effect in pinned assignment: %w", err)
-		}
-	}
+	// Note that we do not valdiate the assignment tree here. Scoped access checks are designed to omit
+	// any assignments that are malformed. This is allowable because the scoped role model promises to
+	// never apply deny rules or cross-role side effects via roles. This makes it safe to simply skip
+	// anything we don't understand.
 
 	return nil
 }
@@ -135,44 +125,6 @@ func PinCompatibleWithPolicyScope(pin *scopesv1.Pin, scope string) bool {
 // the target resource is assigned to /foo/bar or one of its descendants.
 func PinAppliesToResourceScope(pin *scopesv1.Pin, resourceScope string) bool {
 	return scopes.PolicyScope(pin.GetScope()).AppliesToResourceScope(resourceScope)
-}
-
-// RoleAssignment contains the details of a pinned role assignment yielded from descending a pinned assignment tree.
-type RoleAssignment struct {
-	// ScopeOfOrigin is the scope that the role was assigned *from* (i.e. the scope of the assignment resource that specified the
-	// role assignment). Roles with a more ancestral Scope of Origin take precedence over roles with a more descendant Scope of Origin.
-	ScopeOfOrigin string
-
-	// ScopeOfEffect is the scope that the role is assigned *to* (i.e. the scope of resources that the role's privileges apply to). Roles with
-	// a more descendant/specific Scope of Effect take precedence over roles with a more ancestral/general Scope of Effect.
-	ScopeOfEffect string
-
-	// RoleName is the name of the role that is assigned.
-	RoleName string
-}
-
-// WriteRoleAssignment encodes a role assignment into the given scope pin's assignment tree. The pin must be compatible
-// with both the scope of origin and scope of effect of the assignment, and the scopes must be valid.
-func WriteRoleAssignment(pin *scopesv1.Pin, assignment RoleAssignment) error {
-	if !PinCompatibleWithPolicyScope(pin, assignment.ScopeOfOrigin) {
-		return trace.Errorf("cannot write role assignment with scope of origin %q to pin at %q: incompatible scopes", assignment.ScopeOfOrigin, pin.GetScope())
-	}
-
-	if !PinCompatibleWithPolicyScope(pin, assignment.ScopeOfEffect) {
-		return trace.Errorf("cannot write role assignment with scope of effect %q to pin at %q: incompatible scopes", assignment.ScopeOfEffect, pin.GetScope())
-	}
-
-	if err := scopes.WeakValidate(assignment.ScopeOfOrigin); err != nil {
-		return trace.Errorf("cannot write role assignment to scope pin, invalid scope of origin %q for role %q: %w", assignment.ScopeOfOrigin, assignment.RoleName, err)
-	}
-
-	if err := scopes.WeakValidate(assignment.ScopeOfEffect); err != nil {
-		return trace.Errorf("cannot write role assignment to scope pin, invalid scope of effect %q for role %q: %w", assignment.ScopeOfEffect, assignment.RoleName, err)
-	}
-
-	WriteRoleAssignmentUnchecked(pin, assignment)
-
-	return nil
 }
 
 // AssignmentTreeFromMap builds an assignment tree from a nested mapping of the form scopeOfOrigin -> scopeOfEffect -> roles. This is useful
@@ -215,6 +167,45 @@ func AssignmentTreeIntoMap(tree *scopesv1.AssignmentNode) map[string]map[string]
 	}
 
 	return out
+}
+
+// RoleAssignment contains the details of a pinned role assignment. This type is used when building and iterating the assignment
+// tree structure within a scope pin.
+type RoleAssignment struct {
+	// ScopeOfOrigin is the scope that the role was assigned *from* (i.e. the scope of the assignment resource that specified the
+	// role assignment). Roles with a more ancestral Scope of Origin take precedence over roles with a more descendant Scope of Origin.
+	ScopeOfOrigin string
+
+	// ScopeOfEffect is the scope that the role is assigned *to* (i.e. the scope of resources that the role's privileges apply to). Roles with
+	// a more descendant/specific Scope of Effect take precedence over roles with a more ancestral/general Scope of Effect.
+	ScopeOfEffect string
+
+	// RoleName is the name of the role that is assigned.
+	RoleName string
+}
+
+// WriteRoleAssignment encodes a role assignment into the given scope pin's assignment tree. The pin must be compatible
+// with both the scope of origin and scope of effect of the assignment, and the scopes must be valid.
+func WriteRoleAssignment(pin *scopesv1.Pin, assignment RoleAssignment) error {
+	// verify that the assignment's scopes look like valid scopes.
+	if err := scopes.WeakValidate(assignment.ScopeOfOrigin); err != nil {
+		return trace.Errorf("cannot write role assignment to scope pin, invalid scope of origin %q for role %q: %w", assignment.ScopeOfOrigin, assignment.RoleName, err)
+	}
+	if err := scopes.WeakValidate(assignment.ScopeOfEffect); err != nil {
+		return trace.Errorf("cannot write role assignment to scope pin, invalid scope of effect %q for role %q: %w", assignment.ScopeOfEffect, assignment.RoleName, err)
+	}
+
+	// verify that the assignemnt's scopes actually apply to the pin's scope.
+	if !PinCompatibleWithPolicyScope(pin, assignment.ScopeOfOrigin) {
+		return trace.Errorf("cannot write role assignment with scope of origin %q to pin at %q: incompatible scopes", assignment.ScopeOfOrigin, pin.GetScope())
+	}
+	if !PinCompatibleWithPolicyScope(pin, assignment.ScopeOfEffect) {
+		return trace.Errorf("cannot write role assignment with scope of effect %q to pin at %q: incompatible scopes", assignment.ScopeOfEffect, pin.GetScope())
+	}
+
+	WriteRoleAssignmentUnchecked(pin, assignment)
+
+	return nil
 }
 
 // WriteRoleAssignmentUnchecked is like WriteRoleAssignment, but does not perform any validation on the pin or assignment. This is useful
@@ -274,12 +265,13 @@ func WriteRoleAssignmentUnchecked(pin *scopesv1.Pin, assignment RoleAssignment) 
 	}
 }
 
-// DescendAssignmentTree is the helper used to determine the sequence of pinned role assignments applicable to a given resource. The order
-// in which assignments are yielded is the order in which roles should be evaluated for access checking. Ordering is determined by a combination
-// of both the Scope of Origin and Scope of Effect of a role. Roles with more ancestral Scopes of Origin are yielded before roles with more
-// descendant Scope of Origin to preserve scope hierarchy. Within a given Scope of Origin, roles with more descendant/specific Scopes of Effect are yielded
-// before roles with more ancestral/general Scopes of Effect to allow more specific assignments to override more general ones. See the Scopes RFD
-// for an in-depth discussion of scoped role evaluation ordering and why it matters.
+// DescendAssignmentTree is the helper used to determine the sequence of pinned role assignments applicable to a given
+// resource. The order in which assignments are yielded is the order in which roles should be evaluated for access
+// checking. Ordering is determined by a combination of both the Scope of Origin and Scope of Effect of a role. Roles with
+// more ancestral Scopes of Origin are yielded before roles with more descendant Scope of Origin to preserve scope hierarchy.
+// Within a given Scope of Origin, roles with more descendant/specific Scopes of Effect are yielded before roles with more
+// ancestral/general Scopes of Effect to allow more specific assignments to override more general ones. See the Scopes RFD for
+// an in-depth discussion of scoped role evaluation ordering and why it matters.
 func DescendAssignmentTree(pin *scopesv1.Pin, resourceScope string) (iter.Seq[RoleAssignment], error) {
 	if !PinAppliesToResourceScope(pin, resourceScope) {
 		// a pin with a scope that does not apply to the resource scope should be caught at an
@@ -297,9 +289,10 @@ func DescendAssignmentTree(pin *scopesv1.Pin, resourceScope string) (iter.Seq[Ro
 	}, nil
 }
 
-// yeildAssignmentNode recursively descends the assignment tree, yielding all role assignments that match the given resource scope segments. The
-// assignment tree represents the Scope of Origin of the roles it contains and is descended from root to leaf, with roles with an ancestral
-// Scope of Origin being yielded before roles with a more specific Scope of Origin in order to preserve scope hierarchy during evaluation.
+// yeildAssignmentNode recursively descends the assignment tree, yielding all role assignments that match the given resource
+// scope segments. The assignment tree represents the Scope of Origin of the roles it contains and is descended from root to
+// leaf, with roles with an ancestral Scope of Origin being yielded before roles with a more specific Scope of Origin in order
+// to preserve scope hierarchy during evaluation.
 func yieldAssignmentNode(node *scopesv1.AssignmentNode, resourceScopeSegments []string, depth int, yield func(RoleAssignment) bool) bool {
 	// first yield any matching roles from the current depth's role tree
 	if node.RoleTree != nil {
@@ -320,13 +313,14 @@ func yieldAssignmentNode(node *scopesv1.AssignmentNode, resourceScopeSegments []
 	return true
 }
 
-// yeildRoleNode recursively yeidls a sequence of role assignments encoded in the pinned role tree matching the given resource scope
-// segments. The assignments are yielded in specificity order, starting from the most specific (leaf) scope and ascending to the least
-// specific (root) scope. Note that this is the opposite of how we typically traverse the scope hierarchy. Most hierarchical operations
-// in scopes are performed from top to bottom in order to preserve scope hierarchy. Because all roles within a given role tree were assigned
-// *from* the same Scope of Origin, they are of equivalent seniority from a scope hierarchy perspective. This frees us to process them using
-// a most-specific-first approach, which allows admins within a given scope to have greater expressiveness and control when authoring scoped roles.
-// See the scopes RFD for details on scoped role evaluation ordering and its implications.
+// yeildRoleNode recursively yeidls a sequence of role assignments encoded in the pinned role tree matching the given
+// resource scope segments. The assignments are yielded in specificity order, starting from the most specific (leaf) scope
+// and ascending to the least specific (root) scope. Note that this is the opposite of how we typically traverse the scope
+// hierarchy. Most hierarchical operations in scopes are performed from top to bottom in order to preserve scope hierarchy.
+// Because all roles within a given role tree were assigned *from* the same Scope of Origin, they are of equivalent seniority
+// from a scope hierarchy perspective. This frees us to process them using a most-specific-first approach, which allows
+// admins within a given scope to have greater expressiveness and control when authoring scoped roles. See the scopes RFD for
+// details on scoped role evaluation ordering and its implications.
 func yeildRoleNode(node *scopesv1.RoleNode, scopeOfOrigin string, resourceScopeSegments []string, depth int, yield func(RoleAssignment) bool) bool {
 	if len(resourceScopeSegments) > depth {
 		if child, ok := node.Children[resourceScopeSegments[depth]]; ok {
@@ -357,11 +351,15 @@ func yeildRoleNode(node *scopesv1.RoleNode, scopeOfOrigin string, resourceScopeS
 // GetRolesAtEnforcementPoint returns an iterator over role names assigned at the specified enforcement point
 // within the assignment tree. Returns an empty iterator if no roles are assigned at that combination.
 //
-// This function is intended to be composed with EnforcementPointsForResourceScope to allow callers to fetch roles
+// This function is intended to be composed with [scopes.EnforcementPointsForResourceScope] to allow callers to fetch roles
 // at each hierarchy level as they evaluate access. Note that it would be more efficient to build an iterator that
 // traverses the tree once in enforcement order rather than repeatedly navigating to specific points, but the decoupling
 // of reading from ordering results in better decoupling of concerns and keeps our options open for future policy
 // types to be added to higher level logic without needing to care about assignment tree internals.
+//
+// NOTE: the order in which roles are evaluated is *extremely important* for correct scoped role behavior. Before calling
+// this function in an access evaluation context, ensure that the enforcement points are being processed in the correct
+// order as described in the scopes RFD.
 func GetRolesAtEnforcementPoint(pin *scopesv1.Pin, point scopes.EnforcementPoint) iter.Seq[string] {
 	return func(yield func(string) bool) {
 		if pin == nil || pin.AssignmentTree == nil {
@@ -413,8 +411,7 @@ func GetRolesAtEnforcementPoint(pin *scopesv1.Pin, point scopes.EnforcementPoint
 // for access control decisions. This is primarily useful for operations that need to examine
 // the full set of possible permissions (e.g. determining all possible logins a user might have).
 //
-// This function walks the entire assignment tree structure, yielding every (ScopeOfOrigin, ScopeOfEffect, RoleName)
-// tuple it encounters.
+// *NOTE*: this function is not suitable for being the basis of access control evaluation ordering.
 func EnumerateAllAssignments(pin *scopesv1.Pin) iter.Seq[RoleAssignment] {
 	return func(yield func(RoleAssignment) bool) {
 		if pin == nil || pin.AssignmentTree == nil {

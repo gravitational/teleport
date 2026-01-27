@@ -687,9 +687,9 @@ func globIsSubjectToPolicyResourceScope(glob string, scope string) bool {
 // EnforcementPoint combines a Scope of Origin and Scope of Effect to define specific point or target that
 // one or more policies may be defined for. Since each policy has some scope it originates *from* and some
 // scope it applies *to*, any given scoped policy (e.g. a scoped role) should exist "at" a specific enforcement
-// point during access-control evaluation. Policy evaluation order is determined primarily by the enforcement
-// point at which the policy exists, with policies at more ancestral origin scopes taking precedence over
-// those at more descendant origin scopes, and within a given origin scope, policies at more specific effect
+// point during access-control evaluation. Policy evaluation order and precedence is determined primarily by the
+// enforcement point at which the policy exists, with policies at more ancestral origin scopes taking precedence
+// over those at more descendant origin scopes, and within a given origin scope, policies at more specific effect
 // scopes taking precedence over those at more general effect scopes.
 //
 // This type is primarily intended to be used in conjunction with [EnforcementPointsForResourceScope] to
@@ -722,7 +722,7 @@ type EnforcementPoint struct {
 //   - (/staging/west,  /staging/west)  - west origin, west effect
 func EnforcementPointsForResourceScope(resourceScope string) iter.Seq[EnforcementPoint] {
 	return func(yield func(EnforcementPoint) bool) {
-		// Iterate through all Scopes of Origin from root to resourceScope
+		// iterate through all Scopes of Origin from root to resourceScope
 		for scopeOfOrigin := range DescendingScopes(resourceScope) {
 			// For each Scope of Origin, iterate through Scopes of Effect from resourceScope
 			// UP to (and including) the current Scope of Origin. This ensures more specific

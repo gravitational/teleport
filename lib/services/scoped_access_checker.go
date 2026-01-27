@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -121,7 +122,7 @@ func (c *ScopedAccessCheckerContext) RiskyUnpinnedCheckersForResourceScope(ctx c
 
 func (c *ScopedAccessCheckerContext) checkersForResourceScope(ctx context.Context, scope string, enforcePin bool) stream.Stream[*ScopedAccessChecker] {
 	return func(yield func(*ScopedAccessChecker, error) bool) {
-		// Deny immediately if the resource scope is not subject to the pinned scope. Note that this denial isn't just an
+		// deny immediately if the resource scope is not subject to the pinned scope. note that this denial isn't just an
 		// optimization, we have to perform this check separately from whatever access checks are performed by particular
 		// checkers. This is vital as the pin scope itself may deny access to a resource that would be permitted by any
 		// particular role. For example, if a user has a scoped role assigned at /foo which grants access to all ssh
@@ -132,13 +133,16 @@ func (c *ScopedAccessCheckerContext) checkersForResourceScope(ctx context.Contex
 			return
 		}
 
+		var yielded int
+		var lastErr error
+
 		// iterate through the ordered enforcement points for this resource scope. policy evaluation by scope is ordered first by
 		// Scope of Origin (ancestral to descendant) and then by Scope of Effect (descendant to ancestral within each origin).
 		// We proceed through each permutation in order, evaluating any roles assigned at that specific point.
 		for point := range scopes.EnforcementPointsForResourceScope(scope) {
-			// Get all roles assigned at this (scopeOfOrigin, scopeOfEffect) pair
+			// get all roles assigned at this (scopeOfOrigin, scopeOfEffect) pair
 			for roleName := range pinning.GetRolesAtEnforcementPoint(c.builder.info.ScopePin, point) {
-				// Create/retrieve cached checker for this specific role
+				// create/retrieve cached checker for this specific role
 				key := roleCheckerKey{
 					scopeOfOrigin: point.ScopeOfOrigin,
 					scopeOfEffect: point.ScopeOfEffect,
@@ -147,14 +151,24 @@ func (c *ScopedAccessCheckerContext) checkersForResourceScope(ctx context.Contex
 
 				checker, err := c.cachedCheckerForRole(ctx, key)
 				if err != nil {
-					yield(nil, trace.Wrap(err))
-					return
+					// in classic teleport access checking skipping a role would be unacceptable due to side effects and deny rules. the scoped model
+					// however relies on cross-role isolation and explicitly allows omission of roles.
+					slog.WarnContext(ctx, "skipping role evaluation due to error", "role_name", roleName, "scope_of_origin", point.ScopeOfOrigin, "scope_of_effect", point.ScopeOfEffect, "error", err)
+					lastErr = err
+					continue
 				}
 
 				if !yield(checker, nil) {
 					return
 				}
+
+				yielded++
 			}
+		}
+
+		if yielded == 0 && lastErr != nil {
+			// if we didn't yield any checkers and encountered errors, return the last error encountered.
+			yield(nil, lastErr)
 		}
 	}
 }
@@ -170,10 +184,12 @@ func (c *ScopedAccessCheckerContext) checkersForResourceScope(ctx context.Contex
 // violation.
 func (c *ScopedAccessCheckerContext) RiskyEnumerateCheckers(ctx context.Context) stream.Stream[*ScopedAccessChecker] {
 	return func(yield func(*ScopedAccessChecker, error) bool) {
-		// Enumerate all role assignments in the entire pin, including assignments at scopes
+		// enumerate all role assignments in the entire pin, including assignments at scopes
 		// descendant to the pinned scope. This provides the complete set of possible permissions.
+		var yielded int
+		var lastErr error
 		for assignment := range pinning.EnumerateAllAssignments(c.builder.info.ScopePin) {
-			// Create/retrieve cached checker for this specific role
+			// create/retrieve cached checker for this specific role
 			key := roleCheckerKey{
 				scopeOfOrigin: assignment.ScopeOfOrigin,
 				scopeOfEffect: assignment.ScopeOfEffect,
@@ -182,13 +198,20 @@ func (c *ScopedAccessCheckerContext) RiskyEnumerateCheckers(ctx context.Context)
 
 			checker, err := c.cachedCheckerForRole(ctx, key)
 			if err != nil {
-				yield(nil, trace.Wrap(err))
-				return
+				slog.WarnContext(ctx, "skipping role evaluation due to error", "role_name", assignment.RoleName, "scope_of_origin", assignment.ScopeOfOrigin, "scope_of_effect", assignment.ScopeOfEffect, "error", err)
+				continue
 			}
 
 			if !yield(checker, nil) {
 				return
 			}
+
+			yielded++
+		}
+
+		if yielded == 0 && lastErr != nil {
+			// if we didn't yield any checkers and encountered errors, return the last error encountered.
+			yield(nil, lastErr)
 		}
 	}
 }
@@ -235,11 +258,15 @@ func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key 
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(fspmarshall/scopes): Validate that the role's scoping configuration is compatible with the
-	// observed assignment. If a role is updated after it was assigned, we need to ensure its scope
-	// settings (e.g. assignable_scopes, policy_scope) haven't changed in a way that conflicts with
-	// how it was assigned at (scopeOfOrigin, scopeOfEffect). This validation should reject roles
-	// that have been modified to be incompatible with their existing assignments.
+	// ensure the role's scope matches the scope of origin in the assignment
+	if scopes.Compare(rsp.Role.GetScope(), key.scopeOfOrigin) != scopes.Equivalent {
+		return nil, trace.BadParameter("scope of role %q (%q) does not match scope of origin %q in assignment", key.roleName, rsp.Role.GetScope(), key.scopeOfOrigin)
+	}
+
+	// ensure the role's configuration makes it assignable at the scope of effect
+	if !scopedaccess.RoleIsAssignableAtScope(rsp.Role, key.scopeOfEffect) {
+		return nil, trace.BadParameter("scoped role %q is not assignable at scope %q", key.roleName, key.scopeOfEffect)
+	}
 
 	// Convert the scoped role to a classic role using the scope of effect.
 	// The scope of effect determines which resources this role's privileges apply to.

@@ -3536,8 +3536,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		}
 	}
 
-	if unscopedChecker := req.checkerContext.UnscopedChecker(); unscopedChecker != nil {
-		if len(unscopedChecker.GetAllowedResourceIDs()) > 0 && modules.GetModules().BuildType() != modules.BuildEnterprise {
+	if unscoped := req.checkerContext.CertParams().UnscopedCertParams(); unscoped != nil {
+		if len(unscoped.GetAllowedResourceIDs()) > 0 && modules.GetModules().BuildType() != modules.BuildEnterprise {
 			return nil, trace.Errorf("resource access requests: %w", ErrRequiresEnterprise)
 		}
 	}
@@ -3572,7 +3572,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 
 	// scoped identities must use the standard certificate format, unscoped identities may have their
 	// certificate format customized by request parameters and/or role settings.
-	if unscoped := certParams.Unscoped(); unscoped != nil {
+	if unscoped := certParams.UnscopedCertParams(); unscoped != nil {
 		if certificateFormat == teleport.CertificateFormatUnspecified {
 			certificateFormat = unscoped.CertificateFormat()
 		}
@@ -3681,7 +3681,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		req.routeToCluster = clusterName
 	}
 	if req.routeToCluster != clusterName {
-		unscoped := certParams.Unscoped()
+		unscoped := certParams.UnscopedCertParams()
 		if unscoped == nil {
 			return nil, trace.BadParameter("cannot generate certs for remote cluster %q, remote cluster access is only supported for unscoped certs", req.routeToCluster)
 		}
@@ -3738,9 +3738,9 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		scopePin = pin
 	}
 
-	if unscopedChecker := req.checkerContext.UnscopedChecker(); unscopedChecker != nil {
-		roleNames = unscopedChecker.RoleNames()
-		allowedResourceIDs = unscopedChecker.GetAllowedResourceIDs()
+	if unscoped := certParams.UnscopedCertParams(); unscoped != nil {
+		roleNames = unscoped.RoleNames()
+		allowedResourceIDs = unscoped.GetAllowedResourceIDs()
 	}
 
 	var signedSSHCert []byte
@@ -3752,7 +3752,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 
 		// certificate extensions are only supported for unscoped ssh certs
 		var certificateExtensions []*types.CertExtension
-		if unscoped := certParams.Unscoped(); unscoped != nil {
+		if unscoped := certParams.UnscopedCertParams(); unscoped != nil {
 			certificateExtensions = unscoped.CertificateExtensions()
 		}
 
@@ -3830,7 +3830,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	)
 
 	// only unscoped identities currently support kube groups/users.
-	if unscoped := certParams.Unscoped(); unscoped != nil {
+	if unscoped := certParams.UnscopedCertParams(); unscoped != nil {
 		kubeGroups, kubeUsers, err = unscoped.CheckKubeGroupsAndUsers(sessionTTL, req.overrideRoleTTL)
 		// NotFound errors are acceptable - this user may have no k8s access
 		// granted and that shouldn't prevent us from issuing a TLS cert.
@@ -4110,9 +4110,9 @@ func (a *Server) verifyLocksForUserCerts(req verifyLocksForUserCertsReq) error {
 		{Device: req.deviceID},
 	}
 
-	if unscopedChecker := req.checkerContext.UnscopedChecker(); unscopedChecker != nil {
+	if unscoped := req.checkerContext.CertParams().UnscopedCertParams(); unscoped != nil {
 		lockTargets = append(lockTargets,
-			services.RolesToLockTargets(unscopedChecker.RoleNames())...,
+			services.RolesToLockTargets(unscoped.RoleNames())...,
 		)
 	}
 

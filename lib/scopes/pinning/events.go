@@ -34,10 +34,6 @@ func ToEventsPin(pin *scopesv1.Pin) *events.ScopePin {
 	// TODO(fspmarshall/scopes): reevaluate how we show the pin in events. Should we convert it to the
 	// new assignment tree format even though it is less readable? Keep as old flat format? Some third option?
 	// For now, we flatten the tree by grouping roles by their scope of effect (where they apply).
-
-	// Build a flat mapping of scope -> roles by enumerating the assignment tree.
-	// For audit purposes, we don't need the full tree structure with scope of origin/effect separation,
-	// just a simple record of what roles are assigned at what scopes.
 	ea := make(map[string]*events.ScopePinnedAssignments)
 	for assignment := range EnumerateAllAssignments(pin) {
 		// Group roles by their scope of effect (where they apply) for the audit record

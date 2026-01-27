@@ -352,12 +352,6 @@ func (c *SplitAccessCheckerContext) AccessStateFromSSHIdentity(ctx context.Conte
 	}, nil
 }
 
-// UnscopedChecker returns the underlying unscoped access checker if this context wraps an unscoped identity.
-// Returns nil if this is a scoped context.
-func (c *SplitAccessCheckerContext) UnscopedChecker() AccessChecker {
-	return c.unscopedChecker
-}
-
 // Traits returns the user traits for this context.
 func (c *SplitAccessCheckerContext) Traits() wrappers.Traits {
 	if c.scopedContext == nil {
@@ -367,21 +361,21 @@ func (c *SplitAccessCheckerContext) Traits() wrappers.Traits {
 	return c.scopedContext.builder.info.Traits
 }
 
-// CertParams returns a namespace for resolving certificate parameters. Use this when
-// generating certificates to get parameters that vary between scoped and unscoped
-// identities. These parameters are determined from roles (unscoped) or cluster/scope
-// configuration (scoped), not from access-control evaluation.
+// CertParams returns a sub-context for resolving certificate parameters during certificate
+// generation. This should not be used outside of certificate generation logic. This sub-context
+// exists mostly for organizational purposes, to group certificate-parameter-related methods
+// together. Note that many of these methods mirror standard access checker methods, but the
+// underlying logic may differ, particularly for scoped identities as scoped roles typically
+// cannot affect certificate parameters.
 func (c *SplitAccessCheckerContext) CertParams() *CertificateParameterContext {
 	return &CertificateParameterContext{ctx: c}
 }
 
-// UnscopedCertificateParameters is the subset of AccessChecker methods that are
-// relevant for unscoped certificate generation. This interface is satisfied by
-// AccessChecker and is returned by CertificateParameterContext.Unscoped() when
-// dealing with unscoped identities. When implementing a certificate parameter for
-// scopes, remove it from this interface and implement it directly on
-// CertificateParameterContext instead.
+// UnscopedCertificateParameters represents a subset of the AccessChecker interface that
+// is used during certificate generation to obtain certificate parameters that are only
+// meaningful for unscoped identities.
 type UnscopedCertificateParameters interface {
+	RoleNames() []string
 	CertificateFormat() string
 	CertificateExtensions() []*types.CertExtension
 	CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) ([]string, []string, error)
@@ -406,10 +400,10 @@ type CertificateParameterContext struct {
 	ctx *SplitAccessCheckerContext
 }
 
-// Unscoped returns unscoped-specific certificate parameters if this is an unscoped
+// UnscopedCertParams returns unscoped-specific certificate parameters if this is an unscoped
 // identity, or nil if this is a scoped identity. Use this for certificate parameters
 // that are only meaningful for unscoped identities (e.g., kube groups, db users).
-func (n *CertificateParameterContext) Unscoped() UnscopedCertificateParameters {
+func (n *CertificateParameterContext) UnscopedCertParams() UnscopedCertificateParameters {
 	return n.ctx.unscopedChecker
 }
 
