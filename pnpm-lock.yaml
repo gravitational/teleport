@@ -5295,8 +5295,8 @@ packages:
   lodash.merge@4.6.2:
     resolution: {integrity: sha512-0KpjqXRVvrYyCsX1swR/XTK0va6VQkQM6MNo7PqW77ByjAhoARA8EfrP1N4+KlKj8YS0ZUCtRT/YUuhyYDujIQ==}
 
-  lodash@4.17.21:
-    resolution: {integrity: sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==}
+  lodash@4.17.23:
+    resolution: {integrity: sha512-LgVTMpQtIopCi79SJeDiP0TfWi5CNEc/L/aRdTh3yIvmZXTnheWpKjSZhnvMl8iXbC1tFg9gdHHDMLoV7CnG+w==}
 
   log-symbols@4.1.0:
     resolution: {integrity: sha512-8XPvpAA8uyhfteu8pIvQxpJZ7SYYdpUivZpGy6sFsBuKRY/7rQGavedeB8aK+Zkyq6upMFVL/9AW6vOYzfRyLg==}
@@ -8803,7 +8803,7 @@ snapshots:
     dependencies:
       debug: 4.4.3
       fs-extra: 9.1.0
-      lodash: 4.17.21
+      lodash: 4.17.23
       tmp-promise: 3.0.3
     transitivePeerDependencies:
       - supports-color
@@ -8832,7 +8832,7 @@ snapshots:
       '@nivo/core': 0.99.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@nivo/theming': 0.99.0(react@19.2.3)
       '@react-spring/web': 10.0.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      lodash: 4.17.21
+      lodash: 4.17.23
       react: 19.2.3
     transitivePeerDependencies:
       - react-dom
@@ -8869,7 +8869,7 @@ snapshots:
       '@types/d3-shape': 3.1.7
       d3-scale: 4.0.2
       d3-shape: 3.2.0
-      lodash: 4.17.21
+      lodash: 4.17.23
       react: 19.2.3
     transitivePeerDependencies:
       - react-dom
@@ -8886,7 +8886,7 @@ snapshots:
       d3-color: 3.1.0
       d3-scale: 4.0.2
       d3-scale-chromatic: 3.1.0
-      lodash: 4.17.21
+      lodash: 4.17.23
       react: 19.2.3
     transitivePeerDependencies:
       - react-dom
@@ -8904,7 +8904,7 @@ snapshots:
       d3-scale-chromatic: 3.1.0
       d3-shape: 3.2.0
       d3-time-format: 3.0.0
-      lodash: 4.17.21
+      lodash: 4.17.23
       react: 19.2.3
       react-virtualized-auto-sizer: 1.0.26(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       use-debounce: 10.0.4(react@19.2.3)
@@ -8933,7 +8933,7 @@ snapshots:
       d3-scale: 4.0.2
       d3-time: 1.1.0
       d3-time-format: 3.0.0
-      lodash: 4.17.21
+      lodash: 4.17.23
 
   '@nivo/text@0.99.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:
@@ -8946,7 +8946,7 @@ snapshots:
 
   '@nivo/theming@0.99.0(react@19.2.3)':
     dependencies:
-      lodash: 4.17.21
+      lodash: 4.17.23
       react: 19.2.3
 
   '@nivo/tooltip@0.99.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
@@ -10238,7 +10238,7 @@ snapshots:
       '@babel/helper-annotate-as-pure': 7.27.3
       '@babel/helper-module-imports': 7.27.1
       '@babel/plugin-syntax-jsx': 7.27.1(@babel/core@7.28.5)
-      lodash: 4.17.21
+      lodash: 4.17.23
       picomatch: 2.3.1
       styled-components: 6.1.19(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
     transitivePeerDependencies:
@@ -12590,7 +12590,7 @@ snapshots:
 
   lodash.merge@4.6.2: {}
 
-  lodash@4.17.21: {}
+  lodash@4.17.23: {}
 
   log-symbols@4.1.0:
     dependencies:
