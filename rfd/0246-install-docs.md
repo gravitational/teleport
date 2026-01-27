@@ -3,11 +3,11 @@ authors: Stephen Levine (stephen.levine@goteleport.com)
 state: draft
 ---
 
-# RFD 223 - Installation and Upgrade Documentation Organization
+# RFD 246 - Installation and Upgrade Documentation Organization
 
 # Required Approvers
-* R&D Owner: Kenny Roraback
-* Docs: Paul Gott
+* R&D Owner: @roraback
+* Docs: @ptgott
 
 ## What
 
