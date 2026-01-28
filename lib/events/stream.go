@@ -783,6 +783,8 @@ func (w *sliceWriter) newSlice() (*slice, error) {
 		// Return the unused buffer to the pool.
 		w.proto.cfg.BufferPool.Put(buffer)
 		writer.Close()
+		slog.WarnContext(w.proto.cancelCtx, "Failed to reserve upload part.",
+			"session_id", w.proto.cfg.Upload.SessionID, "error", err)
 		return nil, trace.ConnectionProblem(err, uploaderReservePartErrorMessage)
 	}
 
