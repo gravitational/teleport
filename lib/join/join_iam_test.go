@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -831,6 +832,7 @@ func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 			AssignedScope: "/test/one",
 			JoinMethod:    string(token.GetJoinMethod()),
 			Roles:         []string{types.RoleNode.String()},
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
 			Aws: &joiningv1.AWS{
 				Integration: token.GetIntegration(),
 				Allow:       convertRules(token.GetAllowRules()),

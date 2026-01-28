@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/join/ec2join"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
 type ec2Instance struct {
@@ -524,6 +525,7 @@ func TestJoinEC2(t *testing.T) {
 					AssignedScope: "/test/one",
 					JoinMethod:    string(types.JoinMethodEC2),
 					Roles:         []string{types.RoleNode.String()},
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
 					Aws: &joiningv1.AWS{
 						Allow:     convertRules(token.GetAllowRules()),
 						AwsIidTtl: int64(token.GetAWSIIDTTL()),
