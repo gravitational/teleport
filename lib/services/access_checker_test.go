@@ -730,10 +730,9 @@ func TestAccessChecker_CheckConditionalAccess_StateMFAAlwaysRequired_ReturnsPrec
 		},
 	)
 	require.NoError(t, err)
-	require.Contains(
+	require.True(
 		t,
-		preconds,
-		decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
+		preconds.Contains(decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA),
 		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to be included", preconds,
 	)
 }
@@ -773,10 +772,9 @@ func TestAccessChecker_CheckConditionalAccess_RoleRequiresMFA_ReturnsPreconditio
 		},
 	)
 	require.NoError(t, err)
-	require.Contains(
+	require.True(
 		t,
-		preconds,
-		decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
+		preconds.Contains(decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA),
 		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to be included", preconds,
 	)
 }

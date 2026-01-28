@@ -41,7 +41,7 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 	id *sshca.Identity,
 	perms *ssh.Permissions,
 ) (*ssh.Permissions, error) {
-	if preconds.Len() == 0 {
+	if preconds == nil || preconds.Len() == 0 {
 		return perms, nil
 	}
 

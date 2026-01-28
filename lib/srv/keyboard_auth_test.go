@@ -43,24 +43,38 @@ func TestKeyboardInteractiveAuth_NoPreconds(t *testing.T) {
 
 	h, id := setupKeyboardInteractiveAuthTest(t)
 
-	preconds := services.NewPreconditions()
-
 	inPerms := &ssh.Permissions{
 		Extensions: map[string]string{
 			"foo": "bar",
 		},
 	}
 
-	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms)
-	require.NoError(t, err)
-	require.Empty(
-		t,
-		cmp.Diff(
-			inPerms,
-			outPerms,
-		),
-		"KeyboardInteractiveAuth() perms mismatch (-want +got)",
-	)
+	for _, tc := range []struct {
+		name     string
+		preconds *services.Preconditions
+	}{
+		{
+			name:     "nil preconditions",
+			preconds: nil,
+		},
+		{
+			name:     "empty preconditions",
+			preconds: services.NewPreconditions(),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			outPerms, err := h.KeyboardInteractiveAuth(t.Context(), tc.preconds, id, inPerms)
+			require.NoError(t, err)
+			require.Empty(
+				t,
+				cmp.Diff(
+					inPerms,
+					outPerms,
+				),
+				"KeyboardInteractiveAuth() perms mismatch (-want +got)",
+			)
+		})
+	}
 }
 
 func TestKeyboardInteractiveAuth_PreCondInBandMFA_Success(t *testing.T) {
