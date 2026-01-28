@@ -210,9 +210,7 @@ func TestPutHeadlessState(t *testing.T) {
 
 			endpoint := pack.clt.Endpoint("webapi", "headless", headlessID)
 			resp, err := pack.clt.PutJSON(t.Context(), endpoint, request)
-
 			require.Equal(t, tt.expectedStatus, resp.Code(), "unexpected status code")
-
 			if tt.expectedStatus != 200 {
 				require.ErrorContains(t, err, tt.expectedErrMsg, "unexpected error message")
 				return
@@ -285,9 +283,7 @@ func TestGetHeadless(t *testing.T) {
 
 			endpoint := pack.clt.Endpoint("webapi", "headless", headlessID)
 			resp, err := pack.clt.Get(t.Context(), endpoint, nil)
-
 			require.Equal(t, tt.expectedStatus, resp.Code(), "unexpected status code")
-
 			if tt.expectedStatus != 200 {
 				require.ErrorContains(t, err, tt.expectedErrMsg, "unexpected error message")
 				return
