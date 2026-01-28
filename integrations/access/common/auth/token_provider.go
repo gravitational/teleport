@@ -33,7 +33,7 @@ import (
 
 const defaultRefreshRetryInterval = 5 * time.Minute
 
-const defaultTokenBufferInterval = 12*time.Hour - 50*time.Minute
+const defaultTokenBufferInterval = 12*time.Hour - 10*time.Minute
 
 // const defaultTokenBufferInterval = 12 * time.Hour
 
