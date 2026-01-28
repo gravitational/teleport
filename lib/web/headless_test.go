@@ -62,6 +62,9 @@ func TestPutHeadlessState(t *testing.T) {
 	// Register a WebAuthn device for the user.
 	userClient, err := env.server.NewClient(authtest.TestUser(username))
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, userClient.Close())
+	})
 	webauthnDev, err := authtest.RegisterTestDevice(
 		t.Context(),
 		userClient,
