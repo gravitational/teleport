@@ -2,7 +2,7 @@
 
 /*
  * Teleport
- * Copyright (C) 2025  Gravitational, Inc.
+ * Copyright (C) 2026  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -28,6 +28,11 @@ import (
 )
 
 func init() {
+	// The loginuid must be written to by the main thread or the write
+	// may fail with EPERM sporadically. By locking the thread in an
+	// init function we ensure that the write will always be done on
+	// the main thread. See the comment in init() in lib/pam/pam.go
+	// for more details.
 	runtime.LockOSThread()
 }
 

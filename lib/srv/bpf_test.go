@@ -113,17 +113,17 @@ type addrInfo struct {
 }
 
 func TestBPFRecording(t *testing.T) {
-	checkBPF(t)
+	skipIfNoBPF(t)
 
 	srv, bpfSrv := newServices(t)
 
 	testBPFRecording(t, srv, bpfSrv)
 }
 
-// TODO: test with PAM auth enabled, and with a different login user.
+// TODO(capnspacehook): test with PAM auth enabled, and with a different login user.
 func TestBPFRecordingWithPAM(t *testing.T) {
-	checkBPF(t)
-	checkPAM(t)
+	skipIfNoBPF(t)
+	skipIfNoPAM(t)
 
 	srv, bpfSrv := newServices(t)
 	srv.pamCfg = &servicecfg.PAMConfig{
@@ -657,17 +657,17 @@ eval $(echo %s | base64 --decode)`,
 }
 
 func TestBPFMonitoring(t *testing.T) {
-	checkBPF(t)
+	skipIfNoBPF(t)
 
 	srv, bpfSrv := newServices(t)
 
 	testBPFMonitoring(t, srv, bpfSrv)
 }
 
-// TODO: test with PAM auth enabled, and with a different login user.
+// TODO(capnspacehook): test with PAM auth enabled, and with a different login user.
 func TestBPFMonitoringWithPAM(t *testing.T) {
-	checkBPF(t)
-	checkPAM(t)
+	skipIfNoBPF(t)
+	skipIfNoPAM(t)
 
 	srv, bpfSrv := newServices(t)
 	srv.pamCfg = &servicecfg.PAMConfig{
@@ -678,7 +678,7 @@ func TestBPFMonitoringWithPAM(t *testing.T) {
 	testBPFMonitoring(t, srv, bpfSrv)
 }
 
-// TestBPFMonitoring verifies that events will not be emitted for
+// testBPFMonitoring verifies that events will not be emitted for
 // syscalls that happen outside the monitored SSH session.
 func testBPFMonitoring(t *testing.T, srv Server, bpfSrv bpf.BPF) {
 	lis, err := net.Listen("tcp4", "127.0.0.1:0")
@@ -723,11 +723,13 @@ func testBPFMonitoring(t *testing.T, srv Server, bpfSrv bpf.BPF) {
 	for _, e := range events {
 		switch e := e.(type) {
 		case *apievents.SessionCommand:
-			require.NotEqual(t, "curl", e.BPFMetadata.Program)
+			require.Equal(t, "sleep", e.BPFMetadata.Program)
 		case *apievents.SessionDisk:
+			// Many disk events should be emitted but we only care that
+			// no curl events were emitted.
 			require.NotEqual(t, "curl", e.BPFMetadata.Program)
 		case *apievents.SessionNetwork:
-			require.NotEqual(t, "curl", e.BPFMetadata.Program)
+			t.Fatal("Did not expect a network event")
 		default:
 			t.Fatalf("Unexpected event type: %T", e)
 		}
@@ -737,7 +739,7 @@ func testBPFMonitoring(t *testing.T, srv Server, bpfSrv bpf.BPF) {
 // TestBPFRoleOptions verifies that only event types configured in
 // role options will be recorded in the audit log.
 func TestBPFRoleOptions(t *testing.T) {
-	checkBPF(t)
+	skipIfNoBPF(t)
 
 	srv, bpfSrv := newServices(t)
 
@@ -1079,9 +1081,9 @@ func quoteStrings(s []string) string {
 	return strings.Join(quoted, ", ")
 }
 
-// checkBPF skips the test if BPF tests are not enabled or the test is not run
+// skipIfNoBPF skips the test if BPF tests are not enabled or the test is not run
 // as root.
-func checkBPF(t *testing.T) {
+func skipIfNoBPF(t *testing.T) {
 	t.Helper()
 
 	if os.Getenv("TELEPORT_BPF_TEST") == "" {
@@ -1090,7 +1092,9 @@ func checkBPF(t *testing.T) {
 	testutils.RequireRoot(t)
 }
 
-func checkPAM(t *testing.T) {
+// skipIfNoPAM skips the test if PAM support is not built in or the host
+// does not support PAM.
+func skipIfNoPAM(t *testing.T) {
 	t.Helper()
 
 	if !pam.BuildHasPAM() || !pam.SystemHasPAM() {

@@ -2,7 +2,7 @@
 
 /*
  * Teleport
- * Copyright (C) 2025  Gravitational, Inc.
+ * Copyright (C) 2026  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -20,9 +20,7 @@
 
 package loginuid
 
-// WriteLoginUID writes the login UID to /proc/self/loginuid. This will
-// ensure the kernel will update the audit session ID for the next
-// child process.
+// WriteLoginUID is a no-op in non-BPF builds.
 func WriteLoginUID(uid string) error {
 	return nil
 }
