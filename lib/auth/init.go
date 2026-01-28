@@ -438,6 +438,9 @@ type InitConfig struct {
 
 	// MFAService is the service that manages backend MFA resources.
 	MFAService MFAService
+
+	// WorkloadClusterService is the service that manages WorkloadClusters.
+	WorkloadClusterService services.WorkloadClusterService
 }
 
 // Init instantiates and configures an instance of AuthServer

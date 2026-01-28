@@ -303,6 +303,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindRelayServer, nil
 	case types.KindAppAuthConfig, types.KindAppAuthConfig + "s", "aac":
 		return types.KindAppAuthConfig, nil
+	case types.KindWorkloadCluster, types.KindWorkloadCluster + "s":
+		return types.KindWorkloadCluster, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
