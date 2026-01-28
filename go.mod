@@ -186,7 +186,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/selinux v1.12.0
 	github.com/opensearch-project/opensearch-go/v2 v2.3.0
-	github.com/oracle/oci-go-sdk/v65 v65.89.3
+	github.com/oracle/oci-go-sdk/v65 v65.107.0
 	github.com/parquet-go/parquet-go v0.25.0
 	github.com/patrickmn/go-cache v2.1.1-0.20191004192108-46f407853014+incompatible
 	github.com/pavlo-v-chernykh/keystore-go/v4 v4.5.0
