@@ -376,6 +376,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 			AWSConfigCache:                   cfgCache,
 			EnvBedrockRegion:                 os.Getenv(envVarNameBedrockRegion),
 			EnvBedrockModelID:                os.Getenv(envVarNameBedrockModel),
+			UsageReporter:                    p.authServer.AuthServer.UsageReporter,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -389,6 +390,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 			Decrypter:                        p.authServer.AuthServer.EncryptedIO,
 			AWSConfigCache:                   cfgCache,
 			EnableBedrockWithoutRestrictions: !modules.GetModules().Features().Cloud,
+			UsageReporter:                    p.authServer.AuthServer.UsageReporter,
 		})
 		if err != nil {
 			return trace.Wrap(err)

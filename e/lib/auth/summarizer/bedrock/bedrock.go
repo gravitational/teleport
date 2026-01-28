@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"strings"
+	"sync/atomic"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
@@ -109,6 +110,8 @@ type InferenceProvider struct {
 	client            Client
 	logger            *slog.Logger
 	modelResourceName string
+	totalInputTokens  atomic.Uint64
+	totalOutputTokens atomic.Uint64
 }
 
 func NewProvider(ctx context.Context, cfg ProviderConfig) (*InferenceProvider, error) {
@@ -159,6 +162,16 @@ func NewProvider(ctx context.Context, cfg ProviderConfig) (*InferenceProvider, e
 		logger:            logger,
 		modelResourceName: cfg.ModelResourceName,
 	}, nil
+}
+
+// GetTotalTokens returns the total number of input and output tokens used by this provider.
+func (p *InferenceProvider) GetTotalTokens() (input uint64, output uint64) {
+	return p.totalInputTokens.Load(), p.totalOutputTokens.Load()
+}
+
+// GetType returns the type of the inference provider.
+func (p *InferenceProvider) GetType() string {
+	return "bedrock"
 }
 
 // Summarize summarizes a session recording using Bedrock. Closes the reader
@@ -363,6 +376,8 @@ func (p *InferenceProvider) makeRequest(ctx context.Context, sessionID session.I
 	if resp.Usage != nil {
 		res.inputTokens = aws.ToInt32(resp.Usage.InputTokens)
 		res.outputTokens = aws.ToInt32(resp.Usage.OutputTokens)
+		p.totalInputTokens.Add(uint64(res.inputTokens))
+		p.totalOutputTokens.Add(uint64(res.outputTokens))
 	}
 
 	switch resp.StopReason {

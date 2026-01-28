@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"sync/atomic"
 
 	"github.com/gravitational/trace"
 	"github.com/openai/openai-go/v3"
@@ -117,6 +118,8 @@ type InferenceProvider struct {
 	client            Client
 	logger            *slog.Logger
 	modelResourceName string
+	totalInputTokens  atomic.Uint64
+	totalOutputTokens atomic.Uint64
 }
 
 // NewProvider creates a new OpenAI inference provider.
@@ -157,6 +160,16 @@ func NewProvider(ctx context.Context, cfg ProviderConfig) (*InferenceProvider, e
 		logger:            logger,
 		modelResourceName: cfg.ModelResourceName,
 	}, nil
+}
+
+// GetTotalTokens returns the total number of input and output tokens used by this provider.
+func (p *InferenceProvider) GetTotalTokens() (input uint64, output uint64) {
+	return p.totalInputTokens.Load(), p.totalOutputTokens.Load()
+}
+
+// GetType returns the type of the inference provider.
+func (p *InferenceProvider) GetType() string {
+	return "openai"
 }
 
 // Summarize summarizes a session recording using OpenAI. Closes the reader
@@ -338,6 +351,9 @@ func (p *InferenceProvider) makeRequest(ctx context.Context, sessionID session.I
 		finishReason:     choice.FinishReason,
 		result:           choice.Message.Content,
 	}
+
+	p.totalInputTokens.Add(uint64(res.promptTokens))
+	p.totalOutputTokens.Add(uint64(res.completionTokens))
 
 	switch choice.FinishReason {
 	case string(openai.CompletionChoiceFinishReasonStop):

@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 // SummaryDownloader provides backend access to session summary recordings.
@@ -53,6 +54,7 @@ type ServiceConfig struct {
 	// EnableBedrockWithoutRestrictions enables access to Amazon Bedrock models
 	// outside of Teleport Cloud restrictions. Optional.
 	EnableBedrockWithoutRestrictions bool
+	UsageReporter                    usagereporter.UsageReporter
 }
 
 // Service provides an implementation of [pb.SummarizerServiceServer] and
@@ -70,6 +72,7 @@ type Service struct {
 	bedrockClientFactory             bedrock.ClientFactory
 	awsConfigCache                   *awsconfig.Cache
 	enableBedrockWithoutRestrictions bool
+	usageReporter                    usagereporter.UsageReporter
 }
 
 var _ pb.SummarizerServiceServer = (*Service)(nil)
@@ -87,6 +90,9 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	if cfg.SummaryDownloader == nil {
 		return nil, trace.BadParameter("upload handler is required")
 	}
+	if cfg.UsageReporter == nil {
+		return nil, trace.BadParameter("usage reporter is required")
+	}
 
 	return &Service{
 		authorizer:                       cfg.Authorizer,
@@ -98,6 +104,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		bedrockClientFactory:             cfg.BedrockClientFactory,
 		awsConfigCache:                   cfg.AWSConfigCache,
 		enableBedrockWithoutRestrictions: cfg.EnableBedrockWithoutRestrictions,
+		usageReporter:                    cfg.UsageReporter,
 	}, nil
 }
 
@@ -558,6 +565,16 @@ func (s *Service) GetSummary(
 		return nil, trace.Wrap(err)
 	}
 
+	resourceName, sessionKind := resourceToSessionKind(sctx.Resource)
+	s.usageReporter.AnonymizeAndSubmit(
+		&usagereporter.SessionSummaryAccessEvent{
+			UserName:     authCtx.User.GetName(),
+			SessionType:  string(sessionKind),
+			ResourceName: resourceName,
+			UserKind:     usagereporter.PrehogUserKindFromEventKind(authCtx.GetUserMetadata().UserKind),
+		},
+	)
+
 	// All checks passed, return the summary.
 	return &pb.GetSummaryResponse{Summary: summary}, nil
 }
@@ -887,4 +904,24 @@ func formatBedrockError(err error, provider *pb.BedrockProvider) string {
 
 	// Generic error
 	return fmt.Sprintf("Failed to connect to Amazon Bedrock: %v", err)
+}
+
+func resourceToSessionKind(resource types.Resource) (string, types.SessionKind) {
+	if resource == nil {
+		return "unknown", types.UnknownSessionKind
+	}
+	switch resource.GetKind() {
+	case types.KindNode:
+		return resource.GetName(), types.DatabaseSessionKind
+	case types.KindKubernetesCluster:
+		return resource.GetName(), types.KubernetesSessionKind
+	case types.KindApp:
+		return resource.GetName(), types.AppSessionKind
+	case types.KindDatabase:
+		return resource.GetName(), types.DatabaseSessionKind
+	case types.KindWindowsDesktop:
+		return resource.GetName(), types.WindowsDesktopSessionKind
+	default:
+		return "unknown", types.UnknownSessionKind
+	}
 }

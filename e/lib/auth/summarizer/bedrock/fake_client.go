@@ -55,6 +55,10 @@ func (m *fakeClient) Converse(
 	case "make the output too long":
 		return &bedrockruntime.ConverseOutput{
 			StopReason: bedrocktypes.StopReasonMaxTokens,
+			Usage: &bedrocktypes.TokenUsage{
+				InputTokens:  aws.Int32(100),
+				OutputTokens: aws.Int32(50),
+			},
 		}, nil
 	case "no choices":
 		return &bedrockruntime.ConverseOutput{
@@ -64,6 +68,10 @@ func (m *fakeClient) Converse(
 				},
 			},
 			StopReason: bedrocktypes.StopReasonEndTurn,
+			Usage: &bedrocktypes.TokenUsage{
+				InputTokens:  aws.Int32(100),
+				OutputTokens: aws.Int32(50),
+			},
 		}, nil
 	case "respond with multiple content blocks":
 		return &bedrockruntime.ConverseOutput{
@@ -87,6 +95,10 @@ func (m *fakeClient) Converse(
 				},
 			},
 			StopReason: bedrocktypes.StopReasonEndTurn,
+			Usage: &bedrocktypes.TokenUsage{
+				InputTokens:  aws.Int32(100),
+				OutputTokens: aws.Int32(50),
+			},
 		}, nil
 	case "respond with multiple empty content blocks":
 		return &bedrockruntime.ConverseOutput{
@@ -110,6 +122,10 @@ func (m *fakeClient) Converse(
 				},
 			},
 			StopReason: bedrocktypes.StopReasonEndTurn,
+			Usage: &bedrocktypes.TokenUsage{
+				InputTokens:  aws.Int32(100),
+				OutputTokens: aws.Int32(50),
+			},
 		}, nil
 	case "json response for command analysis":
 		ca := &schema.CommandAnalysis{
@@ -139,6 +155,10 @@ func (m *fakeClient) Converse(
 				},
 			},
 			StopReason: bedrocktypes.StopReasonEndTurn,
+			Usage: &bedrocktypes.TokenUsage{
+				InputTokens:  aws.Int32(100),
+				OutputTokens: aws.Int32(50),
+			},
 		}, nil
 	case "respond with json over multiple content blocks":
 		ca := &schema.CommandAnalysis{
@@ -178,6 +198,10 @@ func (m *fakeClient) Converse(
 				},
 			},
 			StopReason: bedrocktypes.StopReasonEndTurn,
+			Usage: &bedrocktypes.TokenUsage{
+				InputTokens:  aws.Int32(100),
+				OutputTokens: aws.Int32(50),
+			},
 		}, nil
 
 	case "respond with region and Bedrock model ID":
@@ -192,6 +216,10 @@ func (m *fakeClient) Converse(
 				},
 			},
 			StopReason: bedrocktypes.StopReasonEndTurn,
+			Usage: &bedrocktypes.TokenUsage{
+				InputTokens:  aws.Int32(100),
+				OutputTokens: aws.Int32(50),
+			},
 		}, nil
 
 	default:
@@ -229,6 +257,10 @@ func (m *fakeClient) Converse(
 				},
 			},
 			StopReason: bedrocktypes.StopReasonEndTurn,
+			Usage: &bedrocktypes.TokenUsage{
+				InputTokens:  aws.Int32(100),
+				OutputTokens: aws.Int32(50),
+			},
 		}, nil
 	}
 }
@@ -272,6 +304,10 @@ func handleBedrockCommandAnalysis(content string) (*bedrockruntime.ConverseOutpu
 			},
 		},
 		StopReason: bedrocktypes.StopReasonEndTurn,
+		Usage: &bedrocktypes.TokenUsage{
+			InputTokens:  aws.Int32(100),
+			OutputTokens: aws.Int32(50),
+		},
 	}, nil
 }
 
@@ -312,5 +348,9 @@ func handleBedrockSessionAnalysis(content string) (*bedrockruntime.ConverseOutpu
 			},
 		},
 		StopReason: bedrocktypes.StopReasonEndTurn,
+		Usage: &bedrocktypes.TokenUsage{
+			InputTokens:  aws.Int32(100),
+			OutputTokens: aws.Int32(50),
+		},
 	}, nil
 }

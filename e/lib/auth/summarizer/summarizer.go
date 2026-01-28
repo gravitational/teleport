@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 const (
@@ -76,6 +77,9 @@ type SummarizerConfig struct {
 	// EnvBedrockModelID, if set to a non-empty value, will override Amazon
 	// Bedrock model ID where it's set to {{env.bedrock_model_id}}.
 	EnvBedrockModelID string
+
+	// UsageReporter reports usage events.
+	UsageReporter usagereporter.UsageReporter
 }
 
 // SummaryUploader allows uploading recording summaries.
@@ -101,6 +105,12 @@ type InferenceProvider interface {
 	// SummarizeMultipleCommands summarizes multiple commands and returns the
 	// overall session analysis.
 	SummarizeMultipleCommands(ctx context.Context, sessionID session.ID, username, loginName, prompt string) (*schema.SessionAnalysis, error)
+
+	// GetTotalTokens returns the total number of input and output tokens used by this provider.
+	GetTotalTokens() (input uint64, output uint64)
+
+	// GetType returns the type of the inference provider.
+	GetType() string
 }
 
 // SessionSummarizer summarizes session recordings using language model
@@ -121,6 +131,7 @@ type SessionSummarizer struct {
 	pool                             *workerPool
 	envBedrockRegion                 string
 	envBedrockModelID                string
+	usageReporter                    usagereporter.UsageReporter
 }
 
 var _ summarizer.SessionSummarizer = (*SessionSummarizer)(nil)
@@ -139,6 +150,9 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 	}
 	if cfg.AWSConfigCache == nil {
 		return nil, trace.BadParameter("AWS config cache is required")
+	}
+	if cfg.UsageReporter == nil {
+		return nil, trace.BadParameter("usage reporter is required")
 	}
 
 	clock := cfg.Clock
@@ -161,18 +175,20 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 		pool:                             newWorkerPool(workerCount),
 		envBedrockRegion:                 cfg.EnvBedrockRegion,
 		envBedrockModelID:                cfg.EnvBedrockModelID,
+		usageReporter:                    cfg.UsageReporter,
 	}, nil
 }
 
 // sessionDetails contains details about the session to be summarized,
 // including any pending summarization result.
 type sessionDetails struct {
-	sessionID session.ID
-	username  string
-	loginName string
-	kind      types.SessionKind
-	summary   *summarizerv1pb.Summary
-	provider  InferenceProvider
+	sessionID    session.ID
+	username     string
+	loginName    string
+	resourceName string
+	kind         types.SessionKind
+	summary      *summarizerv1pb.Summary
+	provider     InferenceProvider
 }
 
 // TODO(bl-nero): rename SummarizeSSH to SummarizePTYSession.
@@ -188,12 +204,15 @@ func (s *SessionSummarizer) SummarizeSSH(ctx context.Context, sessionEndEvent *a
 	username := sessionEndEvent.User
 	loginName := sessionEndEvent.Login
 
+	var resourceName string
 	var kind types.SessionKind
 	switch sessionEndEvent.Protocol {
 	case events.EventProtocolSSH:
 		kind = types.SSHSessionKind
+		resourceName = sessionEndEvent.ServerMetadata.ServerID
 	case events.EventProtocolKube:
 		kind = types.KubernetesSessionKind
+		resourceName = sessionEndEvent.KubernetesClusterMetadata.KubernetesCluster
 	default:
 		return trace.BadParameter("unsupported session protocol %s", sessionEndEvent.Protocol)
 	}
@@ -204,10 +223,11 @@ func (s *SessionSummarizer) SummarizeSSH(ctx context.Context, sessionEndEvent *a
 	)
 
 	details := sessionDetails{
-		sessionID: sessionID,
-		username:  username,
-		loginName: loginName,
-		kind:      kind,
+		sessionID:    sessionID,
+		resourceName: resourceName,
+		username:     username,
+		loginName:    loginName,
+		kind:         kind,
 	}
 
 	if err := s.summarize(ctx, details, sessionEndEvent); err != nil {
@@ -238,9 +258,10 @@ func (s *SessionSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEve
 	)
 
 	details := sessionDetails{
-		sessionID: sessionID,
-		username:  username,
-		kind:      kind,
+		sessionID:    sessionID,
+		resourceName: sessionEndEvent.DatabaseMetadata.DatabaseName,
+		username:     username,
+		kind:         kind,
 	}
 
 	return trace.Wrap(s.summarize(ctx, details, sessionEndEvent))
@@ -330,10 +351,24 @@ func (s *SessionSummarizer) summarize(ctx context.Context, details sessionDetail
 func (s *SessionSummarizer) summarizeNowAndReportMetrics(ctx context.Context, details sessionDetails) {
 	metrics.SummarizationsTotal.WithLabelValues(details.summary.ModelName).Inc()
 
+	success := true
 	if err := s.summarizeNow(ctx, details); err != nil {
 		s.logger.ErrorContext(ctx, "Failed to summarize session", "session_id", details.sessionID, "kind", details.kind, "error", err)
 		metrics.SummarizationErrors.WithLabelValues(details.summary.ModelName).Inc()
+		success = false
 	}
+
+	inputTokens, outputTokens := details.provider.GetTotalTokens()
+	s.usageReporter.AnonymizeAndSubmit(&usagereporter.SessionSummaryCreateEvent{
+		SessionType:       string(details.kind),
+		Provider:          details.provider.GetType(),
+		TotalInputTokens:  inputTokens,
+		TotalOutputTokens: outputTokens,
+		Success:           success,
+		ResourceName:      details.resourceName,
+		IsCloudDefaultModel: details.summary.GetModelName() == apisummarizer.CloudDefaultInferenceModelName &&
+			s.enableBedrockWithoutRestrictions,
+	})
 }
 
 // summarizeNow summarizes the session recording synchronously and uploads the

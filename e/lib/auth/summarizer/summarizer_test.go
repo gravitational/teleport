@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -48,7 +49,32 @@ import (
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
+
+// mockUsageReporter is a mock implementation of UsageReporter for testing.
+type mockUsageReporter struct {
+	mu     sync.Mutex
+	events []usagereporter.Anonymizable
+}
+
+func (m *mockUsageReporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.events = append(m.events, events...)
+}
+
+func (m *mockUsageReporter) getEvents() []usagereporter.Anonymizable {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return slices.Clone(m.events)
+}
+
+func (m *mockUsageReporter) reset() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.events = nil
+}
 
 type summarizerTestPlugin struct {
 	clock                            *clockwork.FakeClock
@@ -79,6 +105,7 @@ func (p *summarizerTestPlugin) RegisterAuthServices(
 		Backend:           authServer.AuthServer,
 		SummaryDownloader: authServer.AuthServer,
 		Decrypter:         p.decrypter,
+		UsageReporter:     authServer.AuthServer.UsageReporter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -113,6 +140,7 @@ func (p *summarizerTestPlugin) RegisterAuthServices(
 		AWSConfigCache:                   cfgCache,
 		EnvBedrockRegion:                 p.envBedrockRegion,
 		EnvBedrockModelID:                p.envBedrockModelID,
+		UsageReporter:                    authServer.AuthServer.UsageReporter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -129,6 +157,7 @@ type summarizerTestTLSServerConfig struct {
 	decrypter                        events.DecryptionWrapper
 	envBedrockRegion                 string
 	envBedrockModelID                string
+	usageReporter                    usagereporter.UsageReporter
 }
 
 func newSummarizerTestTLSServer(t *testing.T, scfg summarizerTestTLSServerConfig) *authtest.TLSServer {
@@ -150,6 +179,11 @@ func newSummarizerTestTLSServer(t *testing.T, scfg summarizerTestTLSServerConfig
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
+
+	// Override usage reporter if provided
+	if scfg.usageReporter != nil {
+		as.AuthServer.SetUsageReporter(scfg.usageReporter)
+	}
 
 	srv, err := as.NewTestTLSServer(func(cfg *authtest.TLSServerConfig) {
 		cfg.APIConfig.PluginRegistry = plugin.NewRegistry()
@@ -320,6 +354,10 @@ func (m fakeOpenAIClient) NewChatCompletion(
 				},
 				FinishReason: "length",
 			}},
+			Usage: openai.CompletionUsage{
+				PromptTokens:     100,
+				CompletionTokens: 50,
+			},
 		}, nil
 	case "no choices":
 		return &openai.ChatCompletion{}, nil
@@ -331,6 +369,10 @@ func (m fakeOpenAIClient) NewChatCompletion(
 				},
 				FinishReason: "stop",
 			}},
+			Usage: openai.CompletionUsage{
+				PromptTokens:     100,
+				CompletionTokens: 50,
+			},
 		}, nil
 	}
 }
@@ -364,6 +406,10 @@ func (m fakeOpenAIClient) handleCommandAnalysis(content string) (*openai.ChatCom
 			},
 			FinishReason: "stop",
 		}},
+		Usage: openai.CompletionUsage{
+			PromptTokens:     100,
+			CompletionTokens: 50,
+		},
 	}, nil
 }
 
@@ -392,6 +438,10 @@ func (m fakeOpenAIClient) handleSessionAnalysis(content string) (*openai.ChatCom
 			},
 			FinishReason: "stop",
 		}},
+		Usage: openai.CompletionUsage{
+			PromptTokens:     100,
+			CompletionTokens: 50,
+		},
 	}, nil
 }
 
@@ -413,9 +463,11 @@ func TestSummarizer(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
+	mockReporter := &mockUsageReporter{}
 	srv := newSummarizerTestTLSServer(t, summarizerTestTLSServerConfig{
 		uploader:                         eventstest.NewMemoryUploader(),
 		enableBedrockWithoutRestrictions: true,
+		usageReporter:                    mockReporter,
 	})
 
 	createTestUser(t, srv, "alice")
@@ -539,6 +591,7 @@ func TestSummarizer(t *testing.T) {
 		for _, tc := range cases {
 			t.Run(fmt.Sprintf("%s provider %s", providerName, tc.name), func(t *testing.T) {
 				ctx := t.Context()
+				mockReporter.reset()
 				startTime := srv.Clock().Now()
 				sessionID := uuid.NewString()
 				sessEvents := tc.setup(providerName+"-cluster", sessionID)
@@ -565,8 +618,48 @@ func TestSummarizer(t *testing.T) {
 					summary,
 					protocmp.Transform(),
 				))
+
+				// Verify usage reporter was called with the correct event
+				allEvents := mockReporter.getEvents()
+
+				// Filter for SessionSummaryCreateEvent only
+				var summaryEvents []*usagereporter.SessionSummaryCreateEvent
+				for _, e := range allEvents {
+					if summaryEvent, ok := e.(*usagereporter.SessionSummaryCreateEvent); ok {
+						summaryEvents = append(summaryEvents, summaryEvent)
+					}
+				}
+
+				require.Len(t, summaryEvents, 1, "Expected exactly one SessionSummaryCreateEvent to be emitted")
+				summaryEvent := summaryEvents[0]
+
+				// Verify the event fields
+				assert.Equal(t, providerName, summaryEvent.Provider, "Provider mismatch")
+				if tc.state == summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS {
+					assert.Equal(t, uint64(100), summaryEvent.TotalInputTokens, "Input tokens mismatch")
+					assert.Equal(t, uint64(50), summaryEvent.TotalOutputTokens, "Output tokens mismatch")
+				}
+				assert.Equal(t, tc.state == summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS, summaryEvent.Success, "Success flag mismatch")
+				resourceType, resourceName := getResourceNameFromSessionEnd(sessEvents[len(sessEvents)-1])
+				assert.Equal(t, resourceName, summaryEvent.ResourceName, "Resource name mismatch")
+				assert.Equal(t, resourceType, summaryEvent.SessionType, "Resource type mismatch")
+
 			})
 		}
+	}
+}
+
+func getResourceNameFromSessionEnd(evt apievents.AuditEvent) (string, string) {
+	switch e := evt.(type) {
+	case *apievents.SessionEnd:
+		if e.KubernetesCluster != "" {
+			return "k8s", e.KubernetesCluster
+		}
+		return "ssh", e.ServerID
+	case *apievents.DatabaseSessionEnd:
+		return "db", e.DatabaseName
+	default:
+		return "", ""
 	}
 }
 

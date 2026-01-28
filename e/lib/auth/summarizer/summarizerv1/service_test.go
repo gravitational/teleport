@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/session"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 type testPlugin struct{}
@@ -62,6 +63,7 @@ func (p *testPlugin) RegisterAuthServices(
 		Backend:           authServer.AuthServer,
 		SummaryDownloader: authServer.AuthServer,
 		Decrypter:         &fakeEncryptedIO{},
+		UsageReporter:     authServer.AuthServer.UsageReporter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -76,12 +78,40 @@ func (p *testPlugin) RegisterAuthServices(
 	return nil
 }
 
-func newTestTLSServer(t testing.TB) *authtest.TLSServer {
+type fakeUsageReporter struct {
+	events []usagereporter.Anonymizable
+}
+
+func (f *fakeUsageReporter) AnonymizeAndSubmit(event ...usagereporter.Anonymizable) {
+	f.events = append(f.events, event...)
+}
+
+type newTestTLSServerOptions struct {
+	usageReporter usagereporter.UsageReporter
+}
+
+type newTestTLSServerOption func(*newTestTLSServerOptions)
+
+func withUsageReporter(ur usagereporter.UsageReporter) newTestTLSServerOption {
+	return func(o *newTestTLSServerOptions) {
+		o.usageReporter = ur
+	}
+}
+
+func newTestTLSServer(t testing.TB, opts ...newTestTLSServerOption) *authtest.TLSServer {
+	opt := &newTestTLSServerOptions{}
+	for _, o := range opts {
+		o(opt)
+	}
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
+
+	if opt.usageReporter != nil {
+		as.AuthServer.SetUsageReporter(opt.usageReporter)
+	}
 
 	srv, err := as.NewTestTLSServer(func(cfg *authtest.TLSServerConfig) {
 		cfg.APIConfig.PluginRegistry = plugin.NewRegistry()
@@ -963,7 +993,8 @@ func newTestSummary(t *testing.T, sessionEnd *apievents.SessionEnd) *summarizerv
 func TestService_GetSummary(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	srv := newTestTLSServer(t)
+	usageReporter := &fakeUsageReporter{}
+	srv := newTestTLSServer(t, withUsageReporter(usageReporter))
 	user := createTestUser(t, srv, "alice")
 
 	clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
@@ -1045,6 +1076,20 @@ func TestService_GetSummary(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, cmp.Diff(expectedSummary, got.Summary, protocmp.Transform()))
 	})
+
+	// Validate that usage events were emitted for both GetSummary calls.
+	sessionSummaryAccessEvents := make([]*usagereporter.SessionSummaryAccessEvent, 0, 3)
+	for _, event := range usageReporter.events {
+		if summaryEvent, ok := event.(*usagereporter.SessionSummaryAccessEvent); ok {
+			sessionSummaryAccessEvents = append(sessionSummaryAccessEvents, summaryEvent)
+		}
+	}
+
+	require.Len(t, sessionSummaryAccessEvents, 3, "expected 3 usage events to be emitted")
+	for i, event := range sessionSummaryAccessEvents {
+		assert.Equal(t, "alice", event.UserName, "event %d: unexpected user name", i)
+		assert.NotEmpty(t, event.SessionType, "event %d: session type should not be empty", i)
+	}
 }
 
 func TestService_GetSummary_RBAC(t *testing.T) {
