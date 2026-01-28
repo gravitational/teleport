@@ -19,6 +19,7 @@ package state
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"slices"
@@ -88,6 +89,9 @@ type Identity struct {
 	SystemRoles []string
 	// AgentScope is the scope an identity is constrained to.
 	AgentScope string
+	// ImmutableLabelHash is the hash used to verify immutable labels against
+	// the identity.
+	ImmutableLabelHash []byte
 }
 
 // HasSystemRole checks if this identity encompasses the supplied system role.
@@ -334,13 +338,19 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 	}
 
 	agentScope := cert.Permissions.Extensions[teleport.CertExtensionAgentScope]
+	labelHash, err := hex.DecodeString(cert.Permissions.Extensions[teleport.CertExtensionImmutableLabelHash])
+	if err != nil {
+		return nil, trace.BadParameter("expected hex-encoded immutable label hash")
+	}
+
 	return &Identity{
-		ID:          IdentityID{HostUUID: cert.ValidPrincipals[0], Role: role},
-		ClusterName: clusterName,
-		KeyBytes:    keyBytes,
-		CertBytes:   certBytes,
-		KeySigner:   certSigner,
-		Cert:        cert,
-		AgentScope:  agentScope,
+		ID:                 IdentityID{HostUUID: cert.ValidPrincipals[0], Role: role},
+		ClusterName:        clusterName,
+		KeyBytes:           keyBytes,
+		CertBytes:          certBytes,
+		KeySigner:          certSigner,
+		Cert:               cert,
+		AgentScope:         agentScope,
+		ImmutableLabelHash: labelHash,
 	}, nil
 }

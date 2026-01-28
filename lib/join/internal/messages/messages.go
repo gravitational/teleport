@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/joinutils"
@@ -546,7 +547,8 @@ type HostResult struct {
 	// Certificates holds issued certificates and cluster CAs.
 	Certificates Certificates
 	// HostId is the unique ID assigned to the host.
-	HostID string
+	HostID          string
+	ImmutableLabels *joiningv1.ImmutableLabels
 }
 
 // BotResult holds results for bot joining.

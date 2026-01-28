@@ -29,6 +29,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	authjoin "github.com/gravitational/teleport/lib/auth/join"
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
@@ -259,9 +260,9 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	// Convert the result message into a JoinResult.
 	switch typedResult := resultMsg.(type) {
 	case *messages.HostResult:
-		return makeJoinResult(signer, typedResult.Certificates)
+		return makeJoinResult(signer, typedResult.Certificates, typedResult.ImmutableLabels)
 	case *messages.BotResult:
-		joinResult, err := makeJoinResult(signer, typedResult.Certificates)
+		joinResult, err := makeJoinResult(signer, typedResult.Certificates, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -442,7 +443,7 @@ func makeClientParams(params JoinParams, publicKeys *messages.PublicKeys) messag
 	}
 }
 
-func makeJoinResult(signer crypto.Signer, certs messages.Certificates) (*JoinResult, error) {
+func makeJoinResult(signer crypto.Signer, certs messages.Certificates, immutableLabels *joiningv1.ImmutableLabels) (*JoinResult, error) {
 	// Callers expect proto.Certs with PEM-formatted TLS certs and
 	// authorized_keys formated SSH certs/keys.
 	sshCert, err := toAuthorizedKey(certs.SSHCert)
@@ -460,7 +461,8 @@ func makeJoinResult(signer crypto.Signer, certs messages.Certificates) (*JoinRes
 			SSH:        sshCert,
 			SSHCACerts: sshCAKeys, // SSHCACerts is a misnomer, SSH CAs are just public keys.
 		},
-		PrivateKey: signer,
+		PrivateKey:      signer,
+		ImmutableLabels: immutableLabels,
 	}, nil
 }
 
