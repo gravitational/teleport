@@ -4,5 +4,5 @@ package teleport
 
 import _ "embed"
 
-//go:embed build/linux_arm/teleport-sshd-helper
-var SSHDHelperBinary string
+//go:embed build/linux_arm/teleport-sshd-helper.gz
+var SSHDHelperBinaryGZ string
