@@ -84,7 +84,9 @@ import (
 // and checks that all parameters are valid
 func TestReadIdentity(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	a := testauthority.NewWithClock(clock)
+	a, err := testauthority.NewKeygen(modules.BuildOSS, clock.Now)
+	require.NoError(t, err)
+
 	priv, pub, err := a.GenerateKeyPair()
 	require.NoError(t, err)
 	caSigner, err := ssh.ParsePrivateKey(priv)
@@ -131,7 +133,9 @@ func TestReadIdentity(t *testing.T) {
 }
 
 func TestBadIdentity(t *testing.T) {
-	a := testauthority.New()
+	a, err := testauthority.NewKeygen(modules.BuildOSS, time.Now)
+	require.NoError(t, err)
+
 	priv, pub, err := a.GenerateKeyPair()
 	require.NoError(t, err)
 	caSigner, err := ssh.ParsePrivateKey(priv)
@@ -1547,13 +1551,16 @@ func setupConfig(t *testing.T) auth.InitConfig {
 		processStorage.Close()
 	})
 
+	authority, err := testauthority.NewKeygen(modules.BuildOSS, time.Now)
+	require.NoError(t, err)
+
 	return auth.InitConfig{
 		DataDir:                 tempDir,
 		HostUUID:                "00000000-0000-0000-0000-000000000000",
 		NodeName:                "foo",
 		Backend:                 bk,
 		VersionStorage:          processStorage,
-		Authority:               testauthority.New(),
+		Authority:               authority,
 		ClusterAuditConfig:      types.DefaultClusterAuditConfig(),
 		ClusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
 		SessionRecordingConfig:  types.DefaultSessionRecordingConfig(),

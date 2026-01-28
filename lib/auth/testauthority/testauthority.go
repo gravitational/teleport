@@ -21,13 +21,13 @@
 package testauthority
 
 import (
-	"context"
+	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/sshca"
 )
 
@@ -35,15 +35,72 @@ type Keygen struct {
 	*keygen.Keygen
 }
 
-// New creates a new key generator with defaults
-func New() *Keygen {
-	return NewWithClock(clockwork.NewRealClock())
+// NewKeygen creates a key generator for tests.
+func NewKeygen(buildType string, now func() time.Time) (*Keygen, error) {
+	inner, err := keygen.New(keygen.Config{Now: now, BuildType: buildType})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &Keygen{Keygen: inner}, nil
 }
 
-// NewWithClock creates a new key generator with the specified configuration
-func NewWithClock(clock clockwork.Clock) *Keygen {
-	inner := keygen.New(context.Background(), keygen.SetClock(clock))
-	return &Keygen{Keygen: inner}
+// New creates a new key generator with defaults
+// Deprecated: Use NewKeygen instead.
+//
+// TODO(tross): Remove when all callers are converted to NewKeyGen
+func New() *Keygen {
+	kg, err := NewKeygen(modules.GetModules().BuildType(), time.Now)
+	if err != nil {
+		panic(err)
+	}
+
+	return kg
+}
+
+// GenerateKeyPair returns a new private key in PEM format and an ssh
+// public key in authorized_key format.
+func GenerateKeyPair() (priv, pub []byte, err error) {
+	kg, err := NewKeygen(modules.BuildOSS, time.Now)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	priv, pub, err = kg.GenerateKeyPair()
+	return priv, pub, trace.Wrap(err)
+}
+
+// GenerateJWT returns a JWT keypair.
+func GenerateJWT() (pub, priv []byte, err error) {
+	kg, err := NewKeygen(modules.BuildOSS, time.Now)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	priv, pub, err = kg.GenerateJWT()
+	return priv, pub, trace.Wrap(err)
+}
+
+// GenerateHostCert generates a host certificate with the passed in parameters.
+func GenerateHostCert(req sshca.HostCertificateRequest) ([]byte, error) {
+	kg, err := NewKeygen(modules.BuildOSS, time.Now)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, err := kg.GenerateHostCert(req)
+	return cert, trace.Wrap(err)
+}
+
+// GenerateUserCert generates a user certificate with the passed in parameters.
+func GenerateUserCert(c sshca.UserCertificateRequest) ([]byte, error) {
+	kg, err := NewKeygen(modules.BuildOSS, time.Now)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, err := kg.GenerateUserCert(c)
+	return cert, trace.Wrap(err)
 }
 
 // GenerateKeyPair returns a new private key in PEM format and an ssh
@@ -56,14 +113,17 @@ func (n *Keygen) GenerateKeyPair() (priv []byte, pub []byte, err error) {
 	return privateKey.PrivateKeyPEM(), privateKey.MarshalSSHPublicKey(), nil
 }
 
+// GenerateHostCert generates a host certificate with the passed in parameters.
 func (n *Keygen) GenerateHostCert(req sshca.HostCertificateRequest) ([]byte, error) {
 	return n.GenerateHostCertWithoutValidation(req)
 }
 
+// GenerateUserCert generates a user certificate with the passed in parameters.
 func (n *Keygen) GenerateUserCert(c sshca.UserCertificateRequest) ([]byte, error) {
 	return n.GenerateUserCertWithoutValidation(c)
 }
 
+// GenerateJWT returns a JWT keypair.
 func (n *Keygen) GenerateJWT() (pub []byte, priv []byte, err error) {
 	return []byte(`-----BEGIN RSA PUBLIC KEY-----
 MIIBCgKCAQEA+Igxw1i29PtAgaXOdJnkpPRaKANbIYvXpXZ3+UZ0MGYEnS01nqVE

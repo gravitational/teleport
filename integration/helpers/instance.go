@@ -20,6 +20,7 @@ package helpers
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/tls"
 	"crypto/x509/pkix"
@@ -50,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -369,8 +370,12 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	sshSigner, err := ssh.NewSignerFromSigner(key)
 	fatalIf(err)
 
-	keygen := keygen.New(context.TODO())
-	hostCert, err := keygen.GenerateHostCert(sshca.HostCertificateRequest{
+	clock := cmp.Or(cfg.Clock, clockwork.NewRealClock())
+	// TODO(tross): replace modules.GetModules with cfg.Modules
+	authority, err := testauthority.NewKeygen(modules.GetModules().BuildType(), clock.Now)
+	fatalIf(err)
+
+	hostCert, err := authority.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      sshSigner,
 		PublicHostKey: cfg.Pub,
 		HostID:        cfg.HostID,
@@ -382,11 +387,6 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 		},
 	})
 	fatalIf(err)
-
-	clock := cfg.Clock
-	if clock == nil {
-		clock = clockwork.NewRealClock()
-	}
 
 	identity := tlsca.Identity{
 		Username: fmt.Sprintf("%v.%v", cfg.HostID, cfg.ClusterName),
@@ -621,7 +621,13 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 
 	tconf.Kube.CheckImpersonationPermissions = nullImpersonationCheck
 
-	tconf.Keygen = testauthority.New()
+	// TODO(tross): replace modules.GetModules with tconf.Modules
+	clock := cmp.Or(tconf.Clock, clockwork.NewRealClock())
+	keygen, err := testauthority.NewKeygen(modules.GetModules().BuildType(), clock.Now)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tconf.Keygen = keygen
 	tconf.AuthConnectionConfig = *servicecfg.DefaultRatioAuthConnectionConfig(defaults.HighResPollingPeriod)
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	tconf.FileDescriptors = append(tconf.FileDescriptors, i.Fds...)

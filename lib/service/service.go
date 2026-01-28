@@ -1494,7 +1494,11 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	// Create a process wide key generator that will be shared. This is so the
 	// key generator can pre-generate keys and share these across services.
 	if cfg.Keygen == nil {
-		cfg.Keygen = keygen.New(process.ExitContext())
+		// TODO(tross): replace modules.GetModules with cfg.Modules
+		cfg.Keygen, err = keygen.New(keygen.Config{Now: cfg.Clock.Now, BuildType: modules.GetModules().BuildType()})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Produce global TeleportReadyEvent

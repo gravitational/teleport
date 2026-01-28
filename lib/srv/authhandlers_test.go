@@ -276,11 +276,10 @@ func TestRBAC(t *testing.T) {
 			// create SSH certificate
 			caSigner, err := ssh.NewSignerFromKey(userCAPriv)
 			require.NoError(t, err)
-			keygen := testauthority.New()
 			privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 			require.NoError(t, err)
 
-			c, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+			c, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
 				CASigner:      caSigner,
 				PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
 				Identity: sshca.Identity{
@@ -589,11 +588,10 @@ func TestScopedRBAC(t *testing.T) {
 			// create SSH certificate
 			caSigner, err := ssh.NewSignerFromKey(userCAPriv)
 			require.NoError(t, err)
-			keygen := testauthority.New()
 			privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 			require.NoError(t, err)
 
-			c, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+			c, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
 				CASigner:      caSigner,
 				PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
 				Identity: sshca.Identity{
@@ -700,13 +698,11 @@ func TestForwardingGitLocalOnly(t *testing.T) {
 	privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
-	keygen := testauthority.New()
-
 	// create local SSH certificate
 	localCASigner, err := ssh.NewSignerFromKey(localCAPriv)
 	require.NoError(t, err)
 
-	localCertRaw, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+	localCertRaw, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
 		CASigner:      localCASigner,
 		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
 		Identity: sshca.Identity{
@@ -723,7 +719,7 @@ func TestForwardingGitLocalOnly(t *testing.T) {
 	remoteCASigner, err := ssh.NewSignerFromKey(remoteCAPriv)
 	require.NoError(t, err)
 
-	remoteCertRaw, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+	remoteCertRaw, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
 		CASigner:      remoteCASigner,
 		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
 		Identity: sshca.Identity{
@@ -902,8 +898,7 @@ func TestRBACJoinMFA(t *testing.T) {
 			privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 			require.NoError(t, err)
 
-			keygen := testauthority.New()
-			c, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+			c, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
 				CASigner:          caSigner,
 				PublicUserKey:     privateKey.MarshalSSHPublicKey(),
 				CertificateFormat: constants.CertificateFormatStandard,
@@ -1051,11 +1046,10 @@ func TestAuthAttemptAuditEvent(t *testing.T) {
 	// create SSH certificate
 	caSigner, err := ssh.NewSignerFromKey(userCAPriv)
 	require.NoError(t, err)
-	keygen := testauthority.New()
 	privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
-	c, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+	c, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
 		CASigner:      caSigner,
 		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
 		Identity: sshca.Identity{
