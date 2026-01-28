@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { AccessListPreset } from 'e-teleport/services/accessmanagement/preset';
+import { RoleVersion } from 'teleport/services/resources';
 
 import {
   AwsIcRoleState,
@@ -14,6 +15,14 @@ import {
   definableResourceAccessFields,
   DefinableResourceAccessFields,
 } from './Preset/role/listaccess';
+
+/**
+ * Do not change.
+ *
+ * This is the lowest role version that this guide editor supports.
+ * It also marks the start of this guide editor feature.
+ */
+export const MinimumRoleVersionSupported = RoleVersion.V8;
 
 export type GuideEditorState = {
   /**

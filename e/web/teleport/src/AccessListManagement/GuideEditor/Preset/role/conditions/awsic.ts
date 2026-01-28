@@ -1,8 +1,6 @@
-import { defaultRoleVersion } from 'teleport/Roles/RoleEditor/StandardEditor/standardmodel';
-import { Labels } from 'teleport/services/resources';
+import { AccountAssignment, Labels, Role } from 'teleport/services/resources';
 
 import { TeleportOriginLabelKey } from '../label';
-import { WithRoleVersion } from '../role';
 
 export const PluginTypeAwsIdentityCenter = 'aws-identity-center';
 
@@ -36,7 +34,7 @@ export type AwsIcRoleConditions = {
    * An account ID can have access to multiple ARNs.
    */
   account: AwsAccountMap;
-} & WithRoleVersion;
+};
 
 /**
  * Key is the AWS account ID and is also the name of its app resource.
@@ -70,8 +68,54 @@ export type AwsIcApp = {
 };
 
 export const defaultAwsIcRoleConditions = (): AwsIcRoleConditions => ({
-  roleVersion: defaultRoleVersion,
-
   labels: AwsIcAppLabel,
   account: new Map(),
 });
+
+/**
+ * Converts web version of "account_assignments" role field to the type
+ * that the role resource accepts.
+ */
+export function convertAwsAccountMapToRoleType(
+  account: AwsAccountMap
+): AccountAssignment[] {
+  if (account.size === 0) {
+    return undefined;
+  }
+
+  const assignments: AccountAssignment[] = [];
+
+  for (const [awsAccount, arns] of account) {
+    arns.forEach(arn => {
+      assignments.push({
+        account: awsAccount,
+        permission_set: arn,
+      });
+    });
+  }
+
+  return assignments;
+}
+
+/**
+ * Converts role field "account_assignments" to the type that
+ * the web UI expects.
+ */
+export function extractAwsIcRoleConditionsFromRole(
+  role: Role
+): AwsIcRoleConditions {
+  const allow = role.spec.allow;
+  const account: AwsAccountMap = new Map();
+
+  allow.account_assignments.forEach(aws => {
+    if (!account.has(aws.account)) {
+      account.set(aws.account, new Set());
+    }
+    account.get(aws.account).add(aws.permission_set);
+  });
+
+  return {
+    labels: allow.app_labels,
+    account,
+  };
+}
