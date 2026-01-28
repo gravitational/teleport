@@ -27,6 +27,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -553,6 +555,64 @@ func TestJoinGitlab(t *testing.T) {
 			require.NoError(t, auth.CreateToken(ctx, token))
 			tt.request.Token = tt.name
 
+			convertRules := func(rules []*types.ProvisionTokenSpecV2GitLab_Rule) []*joiningv1.GitLab_Rule {
+				t.Helper()
+				out := make([]*joiningv1.GitLab_Rule, len(rules))
+				for i, rule := range rules {
+					var refProtected, environmentProtected *bool
+					if rule.RefProtected != nil {
+						refProtected = &rule.RefProtected.Value
+					}
+
+					if rule.EnvironmentProtected != nil {
+						environmentProtected = &rule.EnvironmentProtected.Value
+					}
+					out[i] = &joiningv1.GitLab_Rule{
+						Sub:                  rule.Sub,
+						Ref:                  rule.Ref,
+						RefType:              rule.RefType,
+						NamespacePath:        rule.NamespacePath,
+						ProjectPath:          rule.ProjectPath,
+						PipelineSource:       rule.PipelineSource,
+						Environment:          rule.Environment,
+						UserLogin:            rule.UserLogin,
+						UserId:               rule.UserID,
+						UserEmail:            rule.UserEmail,
+						RefProtected:         refProtected,
+						EnvironmentProtected: environmentProtected,
+						CiConfigSha:          rule.CIConfigSHA,
+						CiConfigRefUri:       rule.CIConfigRefURI,
+						DeploymentTier:       rule.DeploymentTier,
+						ProjectVisibility:    rule.ProjectVisibility,
+					}
+				}
+
+				return out
+			}
+
+			scopedToken := &joiningv1.ScopedToken{
+				Kind:    types.KindScopedToken,
+				Version: types.V1,
+				Scope:   "/test",
+				Metadata: &headerv1.Metadata{
+					Name: "scoped_" + token.GetName(),
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					AssignedScope: "/test/one",
+					JoinMethod:    string(token.GetJoinMethod()),
+					Roles:         []string{types.RoleNode.String()},
+					Gitlab: &joiningv1.GitLab{
+						Allow:      convertRules(token.GetGitlabRules().Allow),
+						Domain:     token.GetGitlabRules().Domain,
+						StaticJwks: token.GetGitlabRules().StaticJWKS,
+					},
+				},
+			}
+			_, err = authServer.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+				Token: scopedToken,
+			})
+			require.NoError(t, err)
+
 			nopClient, err := authServer.NewClient(authtest.TestNop())
 			require.NoError(t, err)
 
@@ -599,6 +659,23 @@ func TestJoinGitlab(t *testing.T) {
 			t.Run("new joinclient", func(t *testing.T) {
 				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
 					Token:      tt.request.Token,
+					JoinMethod: types.JoinMethodGitLab,
+					ID: state.IdentityID{
+						Role:     types.RoleInstance, // RoleNode is not allowed
+						NodeName: "testnode",
+					},
+					IDToken:    tt.request.IDToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+				if err != nil {
+					return
+				}
+			})
+
+			t.Run("scoped joinclient", func(t *testing.T) {
+				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token:      "scoped_" + tt.request.Token,
 					JoinMethod: types.JoinMethodGitLab,
 					ID: state.IdentityID{
 						Role:     types.RoleInstance, // RoleNode is not allowed

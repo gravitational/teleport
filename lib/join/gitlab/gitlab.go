@@ -190,23 +190,23 @@ func CheckIDToken(ctx context.Context, params *CheckIDTokenParams) (*IDTokenClai
 		return nil, trace.AccessDenied("%s", err.Error())
 	}
 
-	token, ok := params.ProvisionToken.(*types.ProvisionTokenV2)
-	if !ok {
-		return nil, trace.BadParameter("gitlab join method only supports ProvisionTokenV2, '%T' was provided", params.ProvisionToken)
+	gl := params.ProvisionToken.GetGitlabRules()
+	if gl == nil {
+		return nil, trace.BadParameter("token does not support gitlab join method")
 	}
 
 	var claims *IDTokenClaims
 	var err error
-	if token.Spec.GitLab.StaticJWKS != "" {
+	if gl.StaticJWKS != "" {
 		claims, err = params.Validator.ValidateTokenWithJWKS(
-			ctx, []byte(token.Spec.GitLab.StaticJWKS), string(params.IDToken),
+			ctx, []byte(gl.StaticJWKS), string(params.IDToken),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "validating with static jwks")
 		}
 	} else {
 		claims, err = params.Validator.Validate(
-			ctx, token.Spec.GitLab.Domain, string(params.IDToken),
+			ctx, gl.Domain, string(params.IDToken),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "validating with oidc")
@@ -218,10 +218,10 @@ func CheckIDToken(ctx context.Context, params *CheckIDTokenParams) (*IDTokenClai
 		"token", params.ProvisionToken.GetName(),
 	)
 
-	return claims, trace.Wrap(checkGitLabAllowRules(token, claims))
+	return claims, trace.Wrap(checkGitLabAllowRules(gl.Allow, claims))
 }
 
-func checkGitLabAllowRules(token *types.ProvisionTokenV2, claims *IDTokenClaims) error {
+func checkGitLabAllowRules(allow []*types.ProvisionTokenSpecV2GitLab_Rule, claims *IDTokenClaims) error {
 	// Helper for comparing a BoolOption with GitLabs string bool.
 	// Returns true if OK - returns false if not OK
 	boolEqual := func(want *types.BoolOption, got string) bool {
@@ -232,7 +232,7 @@ func checkGitLabAllowRules(token *types.ProvisionTokenV2, claims *IDTokenClaims)
 	}
 
 	// If a single rule passes, accept the IDToken
-	for i, rule := range token.Spec.GitLab.Allow {
+	for i, rule := range allow {
 		// Please consider keeping these field validators in the same order they
 		// are defined within the ProvisionTokenSpecV2GitLab proto spec.
 		subMatches, err := joinutils.GlobMatchAllowEmptyPattern(rule.Sub, claims.Sub)
