@@ -33,6 +33,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -1349,6 +1350,9 @@ func startSSHServer(t *testing.T, listener net.Listener) {
 }
 
 func BenchmarkMux_ProxyV2Signature(b *testing.B) {
+	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_MICRO")); skip {
+		b.Skip("skipping micro benchmark")
+	}
 	const clusterName = "test-teleport"
 	tlsProxyCert, caGetter, jwtSigner := getTestCertCAsGetterAndSigner(b, clusterName)
 	ip := "1.2.3.4"

@@ -21,6 +21,8 @@ package tncon
 import (
 	"fmt"
 	"io"
+	"os"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -150,6 +152,9 @@ func TestBufferedChannelPipeRead(t *testing.T) {
 }
 
 func BenchmarkBufferedChannelPipe(b *testing.B) {
+	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_MICRO")); skip {
+		b.Skip("skipping micro benchmark")
+	}
 	for _, s := range []int{1, 10, 100, 500, 1000} {
 		data := make([]byte, 1000)
 		b.Run(fmt.Sprintf("size=%d", s), func(b *testing.B) {

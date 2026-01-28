@@ -20,6 +20,8 @@ package userloginstate
 
 import (
 	"fmt"
+	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -32,6 +34,9 @@ import (
 )
 
 func BenchmarkGenerate(b *testing.B) {
+	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_MICRO")); skip {
+		b.Skip("skipping micro benchmark")
+	}
 	user, err := types.NewUser("alice")
 	if err != nil {
 		b.Fatalf("NewUser: %v", err)
@@ -63,7 +68,6 @@ func BenchmarkGenerate(b *testing.B) {
 			}
 
 			b.ReportAllocs()
-			b.ResetTimer()
 
 			for b.Loop() {
 				_, err := svc.generate(b.Context(), user, backendSvc, false /* pure */)

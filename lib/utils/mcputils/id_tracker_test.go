@@ -20,7 +20,9 @@ package mcputils
 
 import (
 	"fmt"
+	"os"
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -87,6 +89,9 @@ func TestIDTracker(t *testing.T) {
 }
 
 func BenchmarkIDTracker(b *testing.B) {
+	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_MICRO")); skip {
+		b.Skip("skipping micro benchmark")
+	}
 	idTracker, err := NewIDTracker(100)
 	require.NoError(b, err)
 

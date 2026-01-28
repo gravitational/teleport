@@ -1,9 +1,7 @@
-name: Benchmarks (Root) (Go)
-run-name: Benchmarks (Root) (Go) - ${{ github.run_id }} - @${{ github.actor }}
+name: Benchmarks Diff (Root) (Go)
+run-name: Benchmarks Diff (Root) (Go) - ${{ github.run_id }} - @${{ github.actor }}
 
 on:
-  pull_request:
-
   merge_group:
 
 jobs:
@@ -16,7 +14,6 @@ jobs:
       changed: ${{ steps.changes.outputs.changed }}
     steps:
       - name: Checkout
-        if: ${{ github.event_name == 'merge_group' }}
         uses: actions/checkout@v6
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: changes
@@ -33,39 +30,96 @@ jobs:
               - 'build.assets/Dockerfile*'
               - 'Makefile'
 
-  test:
-    name: Benchmarks (Root)
+  benchmark:
+    name: Benchmarks (Root) (Go)
     needs: changes
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' }}
+    if: ${{ needs.changes.outputs.changed == 'true' }}
     runs-on: ubuntu-22.04-32core
-
     permissions:
       contents: read
+
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
       options: --cap-add=SYS_ADMIN --privileged
       env:
-        WEBASSETS_SKIP_BUILD: 1
         TELEPORT_XAUTH_TEST: yes
+        WEBASSETS_SKIP_BUILD: 1
+        BENCH_TIME: "2s"
+        BENCH_COUNT: 10
 
     steps:
-      - name: Checkout Teleport
+      - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
 
-      # Run benchmarks once to make sure they don't break
-      # Must be run separate since gotestsum is not compatible with benchmark output
-      - name: Run Benchmarks Once
-        timeout-minutes: 5
-        shell: bash # Overriding default shell which is `sh -e`
-        run: make test-go-bench-root | sed -u -E "s/^(FAIL\s+github)/::error title=Benchmark Failed::\1/"
-
-      - name: Construct Summary
+      - name: Determine base SHA
+        id: base
         shell: bash
         run: |
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          go run golang.org/x/perf/cmd/benchstat@latest test-logs/bench.txt \
-          | sed -E -e 's/^pkg:\s+(github.*)/\n```\n## \1\n\n```/'  >> "$GITHUB_STEP_SUMMARY"
+          set -e
+          case "${{ github.event_name }}" in
+            merge_group)
+              BASE_SHA="${{ github.event.merge_group.base_sha }}"
+              ;;
+            pull_request)
+              BASE_SHA="${{ github.event.pull_request.base.sha }}"
+              ;;
+            push)
+              BASE_SHA="$(git rev-parse HEAD^)"
+              ;;
+            *)
+              echo "Unsupported event: ${{ github.event_name }}"
+              exit 1
+              ;;
+          esac
+          echo "Using base SHA: $BASE_SHA"
+          echo "sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Run head benchmarks
+        timeout-minutes: 10
+        run: |
+          make test-go-bench-root
+          mv test-logs/bench.txt test-logs/bench-${{ github.sha }}.txt
+
+      - name: Checkout base commit
+        uses: actions/checkout@v6
+        with:
+          clean: false # Preserve previous results
+          ref: ${{ steps.base.outputs.sha }}
+
+      - name: Run base benchmarks
+        timeout-minutes: 10
+        run: |
+          make test-go-bench-root
+          mv test-logs/bench.txt test-logs/bench-${{ steps.base.outputs.sha }}.txt
+
+      - name: Generate benchstat output
+        shell: bash
+        run: |
+          BASE_SHA=${{ steps.base.outputs.sha }}
+          HEAD_SHA=${{ github.sha }}
+          go run golang.org/x/perf/cmd/benchstat@latest \
+            test-logs/bench-${BASE_SHA}.txt \
+            test-logs/bench-${HEAD_SHA}.txt \
+            | tee test-logs/benchstat.txt
+
+      - name: Publish benchstat summary
+        shell: bash
+        run: |
+          BASE_SHA=${{ steps.base.outputs.sha }}
+          HEAD_SHA=${{ github.sha }}
+          {
+            echo "## Go benchmark diff"
+            echo ""
+            echo "**Base:** \`${BASE_SHA}\`"
+            echo "**Head:** \`${HEAD_SHA}\`"
+            echo ""
+            echo '```'
+            cat test-logs/benchstat.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -997,7 +997,7 @@ ifneq ("$(TOUCHID_TAG)", "")
 		| go tool gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-touchid.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-touchid.json --raw-command -- cat
 endif
 
-# Runs benchmarks once to make sure they pass.
+# By default, the parameters run each benchmark only once.
 # This is intended to run in CI during unit testing to make sure benchmarks don't break.
 # To limit noise and improve speed this will only run on packages that have benchmarks.
 # Race detection is not enabled because it significantly slows down benchmarks.
@@ -1005,15 +1005,19 @@ endif
 .PHONY: test-go-bench
 test-go-bench: PACKAGES = $(shell grep --exclude-dir api --exclude-dir gen --include "*_test.go" -lr testing.B .  | xargs dirname | xargs go list | sort -u)
 test-go-bench: BENCHMARK_SKIP_PATTERN = "^BenchmarkRoot"
+test-go-bench: BENCH_TIME ?= "1x"
+test-go-bench: BENCH_COUNT ?= 1
 test-go-bench: | $(TEST_LOG_DIR)
-	go test -run ^$$ -bench . -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $(PACKAGES) \
+	go test -run ^$$ -bench . -skip $(BENCHMARK_SKIP_PATTERN) -benchtime $(BENCH_TIME) -count $(BENCH_COUNT) $(PACKAGES) \
 		| tee $(TEST_LOG_DIR)/bench.txt
 
 test-go-bench-root: PACKAGES = $(shell grep --exclude-dir api --exclude-dir gen --include "*_test.go" -lr BenchmarkRoot .  | xargs dirname | xargs go list | sort -u)
 test-go-bench-root: BENCHMARK_PATTERN = "^BenchmarkRoot"
 test-go-bench-root: BENCHMARK_SKIP_PATTERN = ""
+test-go-bench-root: BENCH_TIME ?= "1x"
+test-go-bench-root: BENCH_COUNT ?= 1
 test-go-bench-root: | $(TEST_LOG_DIR)
-	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $(PACKAGES) \
+	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -skip $(BENCHMARK_SKIP_PATTERN) -benchtime $(BENCH_TIME) -count $(BENCH_COUNT) $(PACKAGES) \
 		| tee $(TEST_LOG_DIR)/bench.txt
 
 # Make sure untagged vnetdaemon code build/tests.

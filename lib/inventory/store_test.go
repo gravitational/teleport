@@ -20,6 +20,8 @@ package inventory
 
 import (
 	"fmt"
+	"os"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -36,6 +38,9 @@ cpu: Intel(R) Xeon(R) CPU @ 2.80GHz
 BenchmarkStore-4               3         480249642 ns/op
 */
 func BenchmarkStore(b *testing.B) {
+	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_HEAVY")); skip {
+		b.Skip("skipping heavy benchmark")
+	}
 	const insertions = 100_000
 	const uniqueServers = 10_000
 	const readMod = 100

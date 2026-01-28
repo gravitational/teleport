@@ -20,6 +20,8 @@ package services
 
 import (
 	"fmt"
+	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -406,6 +408,9 @@ func TestResourceParserLabelExpansion(t *testing.T) {
 }
 
 func BenchmarkContains(b *testing.B) {
+	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_MICRO")); skip {
+		b.Skip("skipping micro benchmark")
+	}
 	server, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
 		Hostname: "server-hostname",
 	}, map[string]string{"ip": "1.2.3.11|1.2.3.101|1.2.3.1"})

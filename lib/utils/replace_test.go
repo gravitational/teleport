@@ -19,6 +19,7 @@
 package utils
 
 import (
+	"os"
 	"strconv"
 	"testing"
 
@@ -1414,6 +1415,9 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 }
 
 func BenchmarkReplaceRegexp(b *testing.B) {
+	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_MICRO")); skip {
+		b.Skip("skipping micro benchmark")
+	}
 	b.Run("same expression", func(b *testing.B) {
 		for b.Loop() {
 			replaced, err := ReplaceRegexp("*", "foo", "test")
