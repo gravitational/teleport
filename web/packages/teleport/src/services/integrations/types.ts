@@ -95,6 +95,8 @@ export enum IntegrationKind {
   AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',
   GitHub = 'github',
+  AzureCloud = 'azure-cloud',
+  GoogleCloud = 'google-cloud',
 }
 
 export type IntegrationSpecGitHub = {
