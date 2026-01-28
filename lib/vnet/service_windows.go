@@ -133,7 +133,7 @@ func ServiceMain() error {
 		Handler: &handler{},
 		Logger:  logger,
 	})
-	return trace.NewAggregate(closeLogger(), err)
+	return trace.NewAggregate(err, closeLogger())
 }
 
 type handler struct{}
