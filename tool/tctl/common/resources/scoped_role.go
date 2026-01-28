@@ -44,21 +44,20 @@ func NewScopedRoleCollection(roles []*scopedaccessv1.ScopedRole) Collection {
 
 func (c *scopedRoleCollection) Resources() []types.Resource {
 	r := make([]types.Resource, 0, len(c.roles))
-	for _, resource := range c.roles {
-		r = append(r, types.Resource153ToLegacy(resource))
+	for i, resource := range c.roles {
+		r[i] = types.Resource153ToLegacy(resource)
 	}
 	return r
 }
 
-// WriteText implements [Collection].
 func (c *scopedRoleCollection) WriteText(w io.Writer, verbose bool) error {
 	headers := []string{"Scope", "Name"}
-	var rows [][]string
-	for _, item := range c.roles {
-		rows = append(rows, []string{
+	rows := make([][]string, len(c.roles))
+	for i, item := range c.roles {
+		rows[i] = []string{
 			item.GetScope(),
 			item.GetMetadata().GetName(),
-		})
+		}
 	}
 
 	t := asciitable.MakeTable(headers, rows...)
@@ -73,7 +72,7 @@ func scopedRoleHandler() Handler {
 		createHandler: createScopedRole,
 		updateHandler: updateScopedRole,
 		deleteHandler: deleteScopedRole,
-		description:   "A scoped role is a role with scoped permissions and resources that can be assigned to users",
+		description:   "A scoped set permissions and resources that can be granted to users",
 	}
 }
 

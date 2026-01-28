@@ -45,29 +45,28 @@ func NewScopedRoleAssignmentCollection(roles []*scopedaccessv1.ScopedRoleAssignm
 
 func (c *scopedRoleAssignmentCollection) Resources() []types.Resource {
 	r := make([]types.Resource, 0, len(c.roleAssignments))
-	for _, resource := range c.roleAssignments {
-		r = append(r, types.Resource153ToLegacy(resource))
+	for i, resource := range c.roleAssignments {
+		r[i] = types.Resource153ToLegacy(resource)
 	}
 	return r
 }
 
-// WriteText implements [Collection].
 func (c *scopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) error {
 	headers := []string{"Scope", "Name", "User", "Assigns"}
-	var rows [][]string
+	rows := make([][]string, len(c.roleAssignments))
 
-	for _, item := range c.roleAssignments {
-		var assigns []string
-		for _, subAssignment := range item.GetSpec().GetAssignments() {
-			assigns = append(assigns, fmt.Sprintf("%s -> %s", subAssignment.GetRole(), subAssignment.GetScope()))
+	for i, item := range c.roleAssignments {
+		assigns := make([]string, len(item.GetSpec().GetAssignments()))
+		for i, subAssignment := range item.GetSpec().GetAssignments() {
+			assigns[i] = fmt.Sprintf("%s -> %s", subAssignment.GetRole(), subAssignment.GetScope())
 		}
 
-		rows = append(rows, []string{
+		rows[i] = []string{
 			item.GetScope(),
 			item.GetMetadata().GetName(),
 			item.GetSpec().GetUser(),
 			strings.Join(assigns, ", "),
-		})
+		}
 	}
 
 	t := asciitable.MakeTable(headers, rows...)
