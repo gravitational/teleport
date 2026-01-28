@@ -271,6 +271,13 @@ func TranslateToLegacy(msg tdp.Message) ([]tdp.Message, error) {
 			return nil, trace.WrapWithMessage(err, "Cannot parse uuid bytes from ping")
 		}
 		return []tdp.Message{legacy.Ping{UUID: id}}, nil
+	case *ServerHello:
+		return []tdp.Message{legacy.ConnectionActivated{
+			IOChannelID:   uint16(m.ActivationSpec.IoChannelId),
+			UserChannelID: uint16(m.ActivationSpec.UserChannelId),
+			ScreenWidth:   uint16(m.ActivationSpec.ScreenWidth),
+			ScreenHeight:  uint16(m.ActivationSpec.ScreenHeight),
+		}}, nil
 	default:
 		return nil, trace.Errorf("Could not translate to TDP. Encountered unexpected message type %T", m)
 	}

@@ -130,6 +130,18 @@ func (c *Conn) Close() error {
 	return err
 }
 
+// PeekNextByte peeks at the next byte without consuming it.
+func (c *Conn) PeekNextByte() (byte, error) {
+	b, err := c.bufr.ReadByte()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	if err := c.bufr.UnreadByte(); err != nil {
+		return 0, trace.Wrap(err)
+	}
+	return b, nil
+}
+
 // ReadMessage reads the next incoming message from the connection.
 func (c *Conn) ReadMessage() (Message, error) {
 	m, err := c.decode(c.bufr)

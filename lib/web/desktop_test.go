@@ -202,7 +202,7 @@ func TestProxyConnection(t *testing.T) {
 		{
 			name:           "tdp-tdpb",
 			clientProtocol: protocolTDP,
-			serverProtocol: protocolTDPB,
+			serverProtocol: tdpb.ProtocolName,
 			version:        "17.5.0",
 			clientFn:       tdpClient,
 			echoFn:         tdpbEchoServer,
@@ -217,7 +217,7 @@ func TestProxyConnection(t *testing.T) {
 		},
 		{
 			name:           "tdpb-tdp",
-			clientProtocol: protocolTDPB,
+			clientProtocol: tdpb.ProtocolName,
 			serverProtocol: protocolTDP,
 			version:        "17.5.0",
 			clientFn:       tdpbClient,
@@ -225,8 +225,8 @@ func TestProxyConnection(t *testing.T) {
 		},
 		{
 			name:           "tdpb-tdpb",
-			clientProtocol: protocolTDPB,
-			serverProtocol: protocolTDPB,
+			clientProtocol: tdpb.ProtocolName,
+			serverProtocol: tdpb.ProtocolName,
 			version:        "17.5.0",
 			clientFn:       tdpbClient,
 			echoFn:         tdpbEchoServer,
@@ -234,7 +234,7 @@ func TestProxyConnection(t *testing.T) {
 		{
 			name:           "tdp-tdpb-no-latency-monitor",
 			clientProtocol: protocolTDP,
-			serverProtocol: protocolTDPB,
+			serverProtocol: tdpb.ProtocolName,
 			/* server version does not support latency monitoring */
 			version:  "17.0.0",
 			clientFn: tdpClient,
@@ -339,7 +339,7 @@ func TestHandshaker(t *testing.T) {
 		defer handshaker.Close()
 		defer client.Close()
 
-		shaker := newHandshaker(protocolTDPB, handshaker)
+		shaker := newHandshaker(tdpb.ProtocolName, handshaker)
 
 		done := make(chan error)
 		go func() {

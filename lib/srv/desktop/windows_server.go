@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/desktop/rdp/rdpclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -619,33 +620,62 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 	}
 }
 
+func newErrorSender(protocol string, conn *tdp.Conn, logger *slog.Logger) func(string) {
+	if protocol == tdpb.ProtocolName {
+		return func(message string) {
+			if err := conn.WriteMessage(&tdpb.Alert{Message: message, Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR}); err != nil {
+				logger.ErrorContext(context.Background(), "Failed to send TDPB error message", "error", err, "message", message)
+			}
+		}
+	} else {
+		return func(message string) {
+			if err := conn.WriteMessage(&legacy.Alert{Message: message, Severity: legacy.SeverityError}); err != nil {
+				logger.ErrorContext(context.Background(), "Failed to send TDP error message", "error", err, "message", message)
+			}
+		}
+	}
+}
+
 // handleConnection handles TLS connections from a Teleport proxy.
 // It authenticates and authorizes the connection, and then begins
 // translating the TDP messages from the proxy into native RDP.
 func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	log := s.cfg.Logger
 
-	tdpConn := tdp.NewConn(proxyConn, tdp.DecoderAdapter(tdpb.DecodePermissive))
+	// Ensure handshake is complete so that we can the read ALPN result.
+	if err := proxyConn.Handshake(); err != nil {
+		log.Error("Failed to complete TLS handshake")
+		return
+	}
+
+	// Figure out which protocol the client is using
+	clientProtocol := proxyConn.ConnectionState().NegotiatedProtocol
+	if clientProtocol == "" {
+		clientProtocol = legacy.ProtocolName
+	}
+	// Assume legacy tdp by default.
+	decoder := legacy.Decode
+	if clientProtocol == tdpb.ProtocolName {
+		decoder = tdp.DecoderAdapter(tdpb.DecodePermissive)
+	}
+
+	tdpConn := tdp.NewConn(proxyConn, decoder)
 	defer tdpConn.Close()
 
-	// Inline function to enforce that we are centralizing TDP Error sending in this function.
-	sendTDPError := func(message string) {
-		if err := tdpConn.WriteMessage(&tdpb.Alert{Message: message, Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR}); err != nil {
-			log.ErrorContext(context.Background(), "Failed to send TDPB error message", "error", err, "message", message)
-		}
-	}
+	// Inline function to enforce that we are centralizing TDP/TDPB Error sending in this function.
+	sendError := newErrorSender(clientProtocol, tdpConn, log)
 
 	// Check connection limits.
 	remoteAddr, _, err := net.SplitHostPort(proxyConn.RemoteAddr().String())
 	if err != nil {
 		log.ErrorContext(context.Background(), "Could not parse client IP", "addr", proxyConn.RemoteAddr().String(), "error", err)
-		sendTDPError("Internal error.")
+		sendError("Internal error.")
 		return
 	}
 	log = log.With("client_ip", remoteAddr)
 	if err := s.cfg.ConnLimiter.AcquireConnection(remoteAddr); err != nil {
 		log.WarnContext(context.Background(), "Connection limit exceeded, rejecting connection")
-		sendTDPError("Connection limit exceeded.")
+		sendError("Connection limit exceeded.")
 		return
 	}
 	defer s.cfg.ConnLimiter.ReleaseConnection(remoteAddr)
@@ -654,7 +684,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	ctx, err := s.middleware.WrapContextWithUser(s.closeCtx, proxyConn)
 	if err != nil {
 		log.WarnContext(ctx, "mTLS authentication failed for incoming connection", "error", err)
-		sendTDPError("Connection authentication failed.")
+		sendError("Connection authentication failed.")
 		return
 	}
 	log.DebugContext(ctx, "Authenticated Windows desktop connection")
@@ -662,7 +692,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	authContext, err := s.cfg.Authorizer.Authorize(ctx)
 	if err != nil {
 		log.WarnContext(ctx, "authorization failed for Windows desktop connection", "error", err)
-		sendTDPError("Connection authorization failed.")
+		sendError("Connection authorization failed.")
 		return
 	}
 
@@ -685,12 +715,12 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 		}))
 	if err != nil {
 		log.WarnContext(ctx, "Failed to fetch desktop by name", "error", err)
-		sendTDPError("Teleport failed to find the requested desktop in its database.")
+		sendError("Teleport failed to find the requested desktop in its database.")
 		return
 	}
 	if len(desktops) == 0 {
 		log.ErrorContext(ctx, "desktop not found", "host_uuid", s.cfg.Heartbeat.HostUUID, "name", desktopName)
-		sendTDPError(fmt.Sprintf("Could not find desktop %v.", desktopName))
+		sendError(fmt.Sprintf("Could not find desktop %v.", desktopName))
 		return
 	}
 	desktop := desktops[0]
@@ -699,19 +729,19 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	log.DebugContext(ctx, "Connecting to Windows desktop")
 	defer log.DebugContext(ctx, "Windows desktop disconnected")
 
-	if err := s.connectRDP(ctx, log, tdpConn, desktop, authContext); err != nil {
+	if err := s.connectRDP(ctx, log, tdpConn, desktop, authContext, clientProtocol); err != nil {
 		log.ErrorContext(context.Background(), "RDP connection failed", "error", err)
 		msg := "RDP connection failed."
 		var um trace.UserMessager
 		if errors.As(err, &um) {
 			msg = um.UserMessage()
 		}
-		sendTDPError(msg)
+		sendError(msg)
 		return
 	}
 }
 
-func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpConn *tdp.Conn, desktop types.WindowsDesktop, authCtx *authz.Context) error {
+func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpConn *tdp.Conn, desktop types.WindowsDesktop, authCtx *authz.Context, clientProtocol string) error {
 	identity := authCtx.Identity.GetIdentity()
 
 	log = log.With("teleport_user", identity.Username, "desktop_addr", desktop.GetAddr(), "ad", !desktop.NonAD())
@@ -833,17 +863,16 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	}
 
 	log = log.With("kdc_addr", kdcAddr, "nla", nla)
-	log.InfoContext(context.Background(), "initiating RDP client")
+	log.InfoContext(context.Background(), "initiating RDP client", "client_protocol", clientProtocol)
 
 	//nolint:staticcheck // SA4023. False positive, depends on build tags.
-	rdpc, err := rdpclient.New(rdpclient.Config{
+	rdpc, err := rdpclient.New(tdpConn, rdpclient.Config{
 		LicenseStore:          s.cfg.LicenseStore,
 		HostID:                s.cfg.Heartbeat.HostUUID,
 		Logger:                log,
 		Addr:                  addr.String(),
 		ComputerName:          computerName,
 		KDCAddr:               kdcAddr,
-		Conn:                  tdpConn,
 		AuthorizeFn:           authorize,
 		AllowClipboard:        authCtx.Checker.DesktopClipboard(),
 		AllowDirectorySharing: authCtx.Checker.DesktopDirectorySharing(),
@@ -852,6 +881,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		Height:                height,
 		AD:                    !desktop.NonAD(),
 		NLA:                   nla,
+		ClientProtocol:        clientProtocol,
 	})
 	// before we check the error above, we grab the Windows user so that
 	// future audit events include the proper username
