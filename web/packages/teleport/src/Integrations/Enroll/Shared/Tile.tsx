@@ -69,6 +69,14 @@ export function IntegrationTileWithSpec({
     );
   }
 
+  const comingSoon =
+    spec.kind === IntegrationKind.AzureCloud ||
+    spec.kind === IntegrationKind.GoogleCloud;
+  if (comingSoon) {
+    Badge = <BadgeGuided>Coming Soon</BadgeGuided>;
+    hasAccess = false;
+  }
+
   if (!hasAccess) {
     Badge ||= <GenericNoPermBadge noAccess={!hasAccess} />;
   }
