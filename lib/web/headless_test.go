@@ -90,20 +90,18 @@ func TestPutHeadlessState(t *testing.T) {
 
 	tests := []struct {
 		name string
-		// setupHeadless creates new headless auth and returns its ID. If an actual headless auth ID
-		// is not needed (e.g. to test a case where the headless auth ID is incorrect), use headlessID
-		// instead.
-		setupHeadless func(context.Context) string
-		// headlessID is used when setupHeadless is nil.
-		headlessID     string
+		// setupHeadless creates new headless auth and returns its ID.
+		setupHeadless  func(context.Context) string
 		request        client.HeadlessRequest
 		useMFA         bool
 		expectedStatus int
 		expectedErrMsg string
 	}{
 		{
-			name:       "invalid headless authentication ID",
-			headlessID: "non-existent-id",
+			name: "invalid headless authentication ID",
+			setupHeadless: func(ctx context.Context) string {
+				return "non-existent-id"
+			},
 			request: client.HeadlessRequest{
 				Action: "denied",
 			},
@@ -199,12 +197,7 @@ func TestPutHeadlessState(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var headlessID string
-			if tt.setupHeadless != nil {
-				headlessID = tt.setupHeadless(t.Context())
-			} else {
-				headlessID = tt.headlessID
-			}
+			headlessID := tt.setupHeadless(t.Context())
 
 			request := tt.request
 			if tt.useMFA {
@@ -254,12 +247,8 @@ func TestGetHeadless(t *testing.T) {
 
 	tests := []struct {
 		name string
-		// setupHeadless creates new headless auth and returns its ID. If an actual headless auth ID
-		// is not needed (e.g. to test a case where the headless auth ID is incorrect), use headlessID
-		// instead.
-		setupHeadless func(context.Context) string
-		// headlessID is used when setupHeadless is nil.
-		headlessID     string
+		// setupHeadless creates new headless auth and returns its ID.
+		setupHeadless  func(context.Context) string
 		expectedStatus int
 		expectedErrMsg string
 	}{
@@ -281,8 +270,10 @@ func TestGetHeadless(t *testing.T) {
 			expectedStatus: 200,
 		},
 		{
-			name:           "non-existent headless authentication",
-			headlessID:     "non-existent-id",
+			name: "non-existent headless authentication",
+			setupHeadless: func(ctx context.Context) string {
+				return "non-existent-id"
+			},
 			expectedStatus: 400,
 			expectedErrMsg: "requested invalid headless session",
 		},
@@ -290,12 +281,7 @@ func TestGetHeadless(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var headlessID string
-			if tt.setupHeadless != nil {
-				headlessID = tt.setupHeadless(t.Context())
-			} else {
-				headlessID = tt.headlessID
-			}
+			headlessID := tt.setupHeadless(t.Context())
 
 			endpoint := pack.clt.Endpoint("webapi", "headless", headlessID)
 			resp, err := pack.clt.Get(t.Context(), endpoint, nil)
