@@ -31,11 +31,11 @@ import { RoleDiffProps, RoleDiffState } from '../Roles';
 import { RoleEditorVisualizer } from './RoleEditorVisualizer';
 
 const defaultDemoMode = cfg.entitlements.AccessGraphDemoMode;
-const defaultIsPolicyEnabled = cfg.isPolicyEnabled;
+const defaultIsAccessGraphEnabled = cfg.isAccessGraphEnabled;
 const defaultIsCloud = cfg.isCloud;
 afterEach(() => {
   cfg.entitlements.AccessGraphDemoMode = defaultDemoMode;
-  cfg.isPolicyEnabled = defaultIsPolicyEnabled;
+  cfg.isAccessGraphEnabled = defaultIsAccessGraphEnabled;
   cfg.isCloud = defaultIsCloud;
 });
 
@@ -47,10 +47,10 @@ test('no roleDiffProps shows policyPlaceHolder', async () => {
   ).toBeInTheDocument();
 });
 
-test('POLICY_ENABLED displays roll diff visualizer', async () => {
+test('ACCESS_GRAPH_ENABLED displays roll diff visualizer', async () => {
   render(
     getComponent(
-      makeRoleDiffProps({ roleDiffState: RoleDiffState.PolicyEnabled })
+      makeRoleDiffProps({ roleDiffState: RoleDiffState.AccessGraphEnabled })
     )
   );
   expect(screen.getByText('i am rendered')).toBeInTheDocument();

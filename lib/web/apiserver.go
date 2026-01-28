@@ -2224,7 +2224,10 @@ func setEntitlementsWithLegacyLogic(webCfg *webclient.WebConfig, clusterFeatures
 		webCfg.ExternalAuditStorage = modules.GetProtoEntitlement(&clusterFeatures, entitlements.ExternalAuditStorage).Enabled
 		webCfg.HideInaccessibleFeatures = modules.GetProtoEntitlement(&clusterFeatures, entitlements.FeatureHiding).Enabled
 		webCfg.IsIGSEnabled = modules.GetProtoEntitlement(&clusterFeatures, entitlements.Identity).Enabled
-		webCfg.IsPolicyEnabled = modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy).Enabled
+		// TODO(emargetis) DELETE IN 20.0.0
+		// Deprecated: Policy is deprecated, use AccessGraph instead
+		webCfg.IsPolicyEnabled = modules.GetProtoEntitlement(&clusterFeatures, entitlements.AccessGraph).Enabled || modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy).Enabled
+		webCfg.IsAccessGraphEnabled = modules.GetProtoEntitlement(&clusterFeatures, entitlements.AccessGraph).Enabled || modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy).Enabled
 		webCfg.JoinActiveSessions = modules.GetProtoEntitlement(&clusterFeatures, entitlements.JoinActiveSessions).Enabled
 		webCfg.MobileDeviceManagement = modules.GetProtoEntitlement(&clusterFeatures, entitlements.MobileDeviceManagement).Enabled
 		webCfg.OIDC = modules.GetProtoEntitlement(&clusterFeatures, entitlements.OIDC).Enabled
@@ -2244,7 +2247,10 @@ func setEntitlementsWithLegacyLogic(webCfg *webclient.WebConfig, clusterFeatures
 		webCfg.Entitlements[string(entitlements.JoinActiveSessions)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetJoinActiveSessions()}
 		webCfg.Entitlements[string(entitlements.MobileDeviceManagement)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetMobileDeviceManagement()}
 		webCfg.Entitlements[string(entitlements.OIDC)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetOIDC()}
-		webCfg.Entitlements[string(entitlements.Policy)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetPolicy() != nil && clusterFeatures.GetPolicy().Enabled}
+		// TODO(emargetis) DELETE IN 20.0.0
+		// Deprecated: Policy is deprecated, use AccessGraph instead
+		webCfg.Entitlements[string(entitlements.Policy)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetAccessGraph() || (clusterFeatures.GetPolicy() != nil && clusterFeatures.GetPolicy().Enabled)}
+		webCfg.Entitlements[string(entitlements.AccessGraph)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetAccessGraph() || (clusterFeatures.GetPolicy() != nil && clusterFeatures.GetPolicy().Enabled)}
 		webCfg.Entitlements[string(entitlements.SAML)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetSAML()}
 		// set default Identity fields to legacy feature value
 		webCfg.Entitlements[string(entitlements.AccessLists)] = webclient.EntitlementInfo{Enabled: true, Limit: clusterFeatures.GetAccessList().GetCreateLimit()}
@@ -2267,7 +2273,10 @@ func setEntitlementsWithLegacyLogic(webCfg *webclient.WebConfig, clusterFeatures
 		webCfg.ExternalAuditStorage = clusterFeatures.GetExternalAuditStorage()
 		webCfg.HideInaccessibleFeatures = clusterFeatures.GetFeatureHiding()
 		webCfg.IsIGSEnabled = clusterFeatures.GetIdentityGovernance()
-		webCfg.IsPolicyEnabled = clusterFeatures.GetPolicy() != nil && clusterFeatures.GetPolicy().Enabled
+		// TODO(emargetis) DELETE IN 20.0.0
+		// Deprecated: Policy is deprecated, use AccessGraph instead
+		webCfg.IsPolicyEnabled = clusterFeatures.GetAccessGraph() || clusterFeatures.GetPolicy() != nil && clusterFeatures.GetPolicy().Enabled
+		webCfg.IsAccessGraphEnabled = clusterFeatures.GetAccessGraph() || (clusterFeatures.GetPolicy() != nil && clusterFeatures.GetPolicy().Enabled)
 		webCfg.JoinActiveSessions = clusterFeatures.GetJoinActiveSessions()
 		webCfg.MobileDeviceManagement = clusterFeatures.GetMobileDeviceManagement()
 		webCfg.OIDC = clusterFeatures.GetOIDC()

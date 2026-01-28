@@ -318,7 +318,7 @@ test('renders the role diff component', async () => {
               {...defaultState()}
               roleDiffProps={{
                 roleDiffElement,
-                roleDiffState: RoleDiffState.PolicyEnabled,
+                roleDiffState: RoleDiffState.AccessGraphEnabled,
                 updateRoleDiff: () => null,
                 roleDiffAttempt: {
                   status: 'error',

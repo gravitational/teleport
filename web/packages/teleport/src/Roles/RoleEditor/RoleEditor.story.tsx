@@ -43,7 +43,7 @@ import { RoleEditorDialog } from './RoleEditorDialog';
 import { unableToUpdatePreviewMessage } from './Shared';
 import { withDefaults } from './StandardEditor/withDefaults';
 
-const defaultIsPolicyEnabled = cfg.isPolicyEnabled;
+const defaultIsAccessGraphEnabled = cfg.isAccessGraphEnabled;
 const defaultGetAccessGraphRoleTesterEnabled =
   storageService.getAccessGraphRoleTesterEnabled;
 
@@ -56,13 +56,13 @@ export default {
         ctx.storeUser.getRoleAccess = () => parameters.acl;
       }
       if (args.roleDiffEnabled) {
-        cfg.isPolicyEnabled = true;
+        cfg.isAccessGraphEnabled = true;
         storageService.getAccessGraphRoleTesterEnabled = () => true;
       }
       useEffect(() => {
         // Clean up
         return () => {
-          cfg.isPolicyEnabled = defaultIsPolicyEnabled;
+          cfg.isAccessGraphEnabled = defaultIsAccessGraphEnabled;
           storageService.getAccessGraphRoleTesterEnabled =
             defaultGetAccessGraphRoleTesterEnabled;
         };

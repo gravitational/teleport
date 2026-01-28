@@ -86,7 +86,7 @@ export function PolicyPlaceholder({
         </Box>
         <Flex flex="0 0 auto" alignItems="start">
           {canUpdateAccessGraphSettings &&
-            !cfg.isPolicyEnabled &&
+            !cfg.isAccessGraphEnabled &&
             cfg.isCloud &&
             enableDemoMode && ( // cloud can enable a demo mode so show that button
               <ButtonPrimary
@@ -99,7 +99,7 @@ export function PolicyPlaceholder({
                 {loading ? 'Creating graph…' : 'Preview Identity Security'}
               </ButtonPrimary>
             )}
-          {!cfg.isPolicyEnabled &&
+          {!cfg.isAccessGraphEnabled &&
             !cfg.isCloud && ( // non-cloud must contact sales
               <>
                 <ButtonLockedFeature noIcon py={0} width={undefined}>

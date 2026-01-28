@@ -100,9 +100,12 @@ type WebConfig struct {
 	// IsIGSEnabled is true if [Features.IdentityGovernance] = true
 	// Deprecated, use entitlements
 	IsIGSEnabled bool `json:"isIgsEnabled"`
-	// IsPolicyEnabled is true if [Features.Policy] = true
+	// IsPolicyEnabled is true if [entitlements.AccessGraph] or [entitlements.Policy] is enabled
 	// Deprecated, use entitlements
 	IsPolicyEnabled bool `json:"isPolicyEnabled"`
+	// IsAccessGraphEnabled is true if [entitlements.AccessGraph] or [entitlements.Policy] is enabled
+	// Deprecated, use entitlements
+	IsAccessGraphEnabled bool `json:"isAcessGraphEnabled"`
 	// TODO (avatus) delete in v18
 	// IsPolicyRoleVisualizerEnabled is the graph visualizer for diffs made
 	// when editing roles in the Web UI. This defaults to true, but has an environment

@@ -52,7 +52,7 @@ import { State, useRoles } from './useRoles';
 export enum RoleDiffState {
   Disabled,
   Error,
-  PolicyEnabled,
+  AccessGraphEnabled,
   LoadingSettings,
   WaitingForSync,
   DemoReady,
