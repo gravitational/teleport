@@ -680,7 +680,7 @@ func TestGetCertAuthority_outdatedTctl(t *testing.T) {
 		})
 	}
 
-	const oldVer, newVer = "18.6.4", "18.7.0"
+	const oldVer, newVer = "18.6.4", "18.8.0"
 	oldTlctContext := func(ctx context.Context) context.Context {
 		return makeClientContext(ctx, teleport.ComponentTCTL, oldVer)
 	}
