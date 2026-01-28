@@ -1,6 +1,12 @@
 #!/bin/bash
 set -eu
 
+###
+# Based on the default after-remove.tpl copied from electron-builder.
+# https://github.com/electron-userland/electron-builder/blob/e394e0c48be965bd8a02c593ecda7e57b84b4f15/packages/app-builder-lib/templates/linux/after-remove.tpl
+# Our copy has all the changes from upstream up to commit 88cc0b06dba22139721fd1e04f6a1cf2d447edbd.
+###
+
 # Do not touch symlinks if the package is being upgraded.
 #
 # Why?

@@ -2,8 +2,9 @@
 set -eu
 
 ###
-# Default after-install.tpl copied from electron-builder.
-# https://github.com/electron-userland/electron-builder/blob/v24.4.0/packages/app-builder-lib/templates/linux/after-install.tpl
+# Based on the default after-install.tpl copied from electron-builder.
+# https://github.com/electron-userland/electron-builder/blob/e394e0c48be965bd8a02c593ecda7e57b84b4f15/packages/app-builder-lib/templates/linux/after-install.tpl
+# Our copy has all the changes from upstream up to commit e1ea62b0029c4adca20196ef060948777caeac37.
 ###
 
 # Check if user namespaces are supported by the kernel and working with a quick test:
