@@ -20,18 +20,26 @@ package trustv1
 
 import (
 	"context"
+	"log/slog"
+	"strings"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+// TODO(codingllama): DELETE IN 20. All valid clients support WindowsCA by then.
+var minGetUserCASemver = semver.New("18.8.0")
 
 type authServer interface {
 	// GetClusterName returns cluster name
@@ -145,12 +153,57 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 		return nil, trace.Wrap(err)
 	}
 
+	if err := failPreWindowsTctlUserCAQuery(ctx, req.Type); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	authority, ok := ca.(*types.CertAuthorityV2)
 	if !ok {
 		return nil, trace.BadParameter("unexpected ca type %T", ca)
 	}
 
 	return authority, nil
+}
+
+// TODO(codingllama): DELETE IN 20. All valid clients support WindowsCA by then.
+func failPreWindowsTctlUserCAQuery(ctx context.Context, caType string) error {
+	// Query for UserCA?
+	if caType != string(types.UserCA) {
+		return nil
+	}
+
+	// Client metadata present?
+	clientVersion, ok := metadata.ClientVersionFromContext(ctx)
+	ua := metadata.UserAgentFromContext(ctx)
+	if !ok || ua == "" {
+		slog.WarnContext(ctx,
+			"Client context lacks version or user agent. Unable to make GetCertAuthority compatibility decision, letting the request through.",
+			"client_version", clientVersion,
+			"user_agent", ua,
+		)
+		return nil
+	}
+
+	// Client is tctl?
+	if !strings.HasPrefix(ua, teleport.ComponentTCTL+"/") {
+		return nil
+	}
+
+	// tctl pre WindowsCA?
+	clientSemver, err := semver.NewVersion(clientVersion)
+	if err != nil {
+		slog.WarnContext(ctx,
+			"Client version invalid. Unable to make GetCertAuthority compatibility decision, letting the request through.",
+			"error", err,
+			"client_version", clientVersion,
+		)
+		return nil
+	}
+	if clientSemver.Compare(*minGetUserCASemver) >= 0 {
+		return nil
+	}
+
+	return trace.BadParameter(
+		"in order to query the User CA, tctl must be upgraded to version %v or newer", minGetUserCASemver)
 }
 
 // GetCertAuthorities retrieves the cert authorities with the specified type.
