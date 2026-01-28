@@ -236,8 +236,8 @@ module.exports = {
   },
   rpm: {
     artifactName: '${name}-${version}.${arch}.${ext}',
-    afterInstall: 'build_resources/linux/after-install.tpl',
-    afterRemove: 'build_resources/linux/after-remove.tpl',
+    afterInstall: 'build_resources/linux/after-install.sh.tmpl',
+    afterRemove: 'build_resources/linux/after-remove.sh.tmpl',
     // --rpm-rpmbuild-define "_build_id_links none" fixes the problem with not being able to install
     // Connect's rpm next to other Electron apps.
     // https://github.com/gravitational/teleport/issues/18859
@@ -245,8 +245,8 @@ module.exports = {
   },
   deb: {
     artifactName: '${name}_${version}_${arch}.${ext}',
-    afterInstall: 'build_resources/linux/after-install.tpl',
-    afterRemove: 'build_resources/linux/after-remove.tpl',
+    afterInstall: 'build_resources/linux/after-install.sh.tmpl',
+    afterRemove: 'build_resources/linux/after-remove.sh.tmpl',
   },
   linux: {
     target: ['tar.gz', 'rpm', 'deb'],

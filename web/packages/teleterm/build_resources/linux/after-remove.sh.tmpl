@@ -29,10 +29,12 @@ set -eu
 #
 # Is the first argument "upgrade" or "1"?
 if [ "$1" = "upgrade" ] || [ "$1" = "1" ]; then
+  # shellcheck disable=SC2154 # This is custom electron-builder macro expansion, not Bash templating.
   echo "${executable}: Upgrade detected, skipping symlink operations"
   exit 0
 fi
 
+# shellcheck disable=SC2154 # This is custom electron-builder macro expansion, not Bash templating.
 APP="/opt/${sanitizedProductName}"
 BIN=/usr/local/bin
 TSH_SYMLINK_TARGET=$BIN/tsh
@@ -52,6 +54,7 @@ if [ -L "$TSH_SYMLINK_TARGET" ] && [ ! -e "$TSH_SYMLINK_TARGET" ]; then
   rm -f "$TSH_SYMLINK_TARGET"
 fi
 
+# shellcheck disable=SC2016 # This is custom electron-builder macro expansion, not Bash templating.
 APPARMOR_PROFILE_DEST='/etc/apparmor.d/${executable}'
 
 # Remove apparmor profile.
