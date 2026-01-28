@@ -35,6 +35,7 @@ var joinMethodsSupportingScopes = map[string]struct{}{
 	string(types.JoinMethodToken): {},
 	string(types.JoinMethodEC2):   {},
 	string(types.JoinMethodIAM):   {},
+	string(types.JoinMethodGCP):   {},
 }
 
 // TokenUsageMode represents the possible usage modes of a scoped token.
@@ -262,6 +263,11 @@ func (t *Token) GetAssignedScope() string {
 	return t.scoped.GetSpec().GetAssignedScope()
 }
 
+// GetSecret returns the token's secret value.
+func (t *Token) GetSecret() (string, bool) {
+	return t.scoped.GetStatus().GetSecret(), t.GetJoinMethod() == types.JoinMethodToken
+}
+
 // GetAllowRules returns the list of allow rules.
 func (t *Token) GetAllowRules() []*types.TokenRule {
 	allow := make([]*types.TokenRule, len(t.scoped.GetSpec().GetAws().GetAllow()))
@@ -289,9 +295,20 @@ func (t *Token) GetIntegration() string {
 	return t.scoped.GetSpec().GetAws().GetIntegration()
 }
 
-// GetSecret returns the token's secret value.
-func (t *Token) GetSecret() (string, bool) {
-	return t.scoped.GetStatus().GetSecret(), t.GetJoinMethod() == types.JoinMethodToken
+// GetGCPRules returns the GCP-specific configuration for this token.
+func (t *Token) GetGCPRules() *types.ProvisionTokenSpecV2GCP {
+	allow := make([]*types.ProvisionTokenSpecV2GCP_Rule, len(t.scoped.GetSpec().GetGcp().GetAllow()))
+	for i, rule := range t.scoped.GetSpec().GetGcp().GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2GCP_Rule{
+			ProjectIDs:      rule.GetProjectIds(),
+			Locations:       rule.GetLocations(),
+			ServiceAccounts: rule.GetServiceAccounts(),
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2GCP{
+		Allow: allow,
+	}
 }
 
 // GetScopedToken attempts to return the underlying [*joiningv1.ScopedToken] backing a
