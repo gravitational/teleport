@@ -22,7 +22,6 @@ import (
 	"github.com/gravitational/trace"
 
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/azuredevops"
 	"github.com/gravitational/teleport/lib/join/provision"
 )
@@ -32,13 +31,8 @@ func (s *Server) validateAzureDevopsToken(
 	pt provision.Token,
 	idToken []byte,
 ) (any, *workloadidentityv1.JoinAttrs, error) {
-	ptv2, ok := pt.(*types.ProvisionTokenV2)
-	if !ok {
-		return nil, nil, trace.BadParameter("Azure Devops joining only supports ProvisionTokenV2, got %T", pt)
-	}
-
 	claims, err := azuredevops.CheckIDToken(ctx, &azuredevops.CheckIDTokenParams{
-		ProvisionToken: ptv2,
+		ProvisionToken: pt,
 		IDToken:        string(idToken),
 		Validator:      s.cfg.AuthService.GetAzureDevopsIDTokenValidator(),
 	})

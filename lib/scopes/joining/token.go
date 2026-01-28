@@ -32,11 +32,12 @@ var rolesSupportingScopes = types.SystemRoles{
 }
 
 var joinMethodsSupportingScopes = map[string]struct{}{
-	string(types.JoinMethodToken): {},
-	string(types.JoinMethodEC2):   {},
-	string(types.JoinMethodIAM):   {},
-	string(types.JoinMethodGCP):   {},
-	string(types.JoinMethodAzure): {},
+	string(types.JoinMethodToken):       {},
+	string(types.JoinMethodEC2):         {},
+	string(types.JoinMethodIAM):         {},
+	string(types.JoinMethodGCP):         {},
+	string(types.JoinMethodAzure):       {},
+	string(types.JoinMethodAzureDevops): {},
 }
 
 // TokenUsageMode represents the possible usage modes of a scoped token.
@@ -324,6 +325,28 @@ func (t *Token) GetAzure() *types.ProvisionTokenSpecV2Azure {
 
 	return &types.ProvisionTokenSpecV2Azure{
 		Allow: allow,
+	}
+}
+
+// GetAzureDevops returns the AzureDevops-specific configuration for this token.
+func (t *Token) GetAzureDevops() *types.ProvisionTokenSpecV2AzureDevops {
+	allow := make([]*types.ProvisionTokenSpecV2AzureDevops_Rule, len(t.scoped.GetSpec().GetAzureDevops().GetAllow()))
+	for i, rule := range t.scoped.GetSpec().GetAzureDevops().GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2AzureDevops_Rule{
+			Sub:               rule.GetSub(),
+			ProjectName:       rule.GetProjectName(),
+			PipelineName:      rule.GetPipelineName(),
+			ProjectID:         rule.GetProjectId(),
+			DefinitionID:      rule.GetDefinitionId(),
+			RepositoryURI:     rule.GetRepositoryUri(),
+			RepositoryVersion: rule.GetRepositoryVersion(),
+			RepositoryRef:     rule.GetRepositoryRef(),
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2AzureDevops{
+		Allow:          allow,
+		OrganizationID: t.scoped.GetSpec().GetAzureDevops().GetOrganizationId(),
 	}
 }
 
