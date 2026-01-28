@@ -89,6 +89,7 @@ func Handlers() map[string]Handler {
 		types.KindWorkloadIdentityX509IssuerOverride: workloadIdentityX509IssuerOverrideHandler(),
 		types.KindWorkloadIdentityX509Revocation:     workloadIdentityX509RevocationHandler(),
 		types.KindAppAuthConfig:                      appAuthConfigHandler(),
+		types.KindWorkloadCluster:                    workloadClusterHandler(),
 	}
 }
 
