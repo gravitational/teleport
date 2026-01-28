@@ -140,6 +140,8 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
   const canConnectCloud =
     acl.integrations.create && acl.tokens.create && acl.discoverConfigs.create;
 
+  const showCloudCTA = canConnectCloud && cfg.isCloud;
+
   const [showApp, setShowApp] = useState(false);
 
   function onSearch(s: string, customList?: SelectResourceSpec[]) {
@@ -264,7 +266,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
           />
         </Box>
       </Flex>
-      {canConnectCloud && (
+      {showCloudCTA && (
         <Alert
           kind="cta"
           dismissible={true}
