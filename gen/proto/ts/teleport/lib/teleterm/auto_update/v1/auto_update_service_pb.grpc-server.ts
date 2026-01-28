@@ -20,10 +20,10 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
+import { GetConfigResponse } from "./auto_update_service_pb";
+import { GetConfigRequest } from "./auto_update_service_pb";
 import { GetInstallationMetadataResponse } from "./auto_update_service_pb";
 import { GetInstallationMetadataRequest } from "./auto_update_service_pb";
-import { GetDownloadBaseUrlResponse } from "./auto_update_service_pb";
-import { GetDownloadBaseUrlRequest } from "./auto_update_service_pb";
 import { GetClusterVersionsResponse } from "./auto_update_service_pb";
 import { GetClusterVersionsRequest } from "./auto_update_service_pb";
 import type * as grpc from "@grpc/grpc-js";
@@ -40,20 +40,21 @@ export interface IAutoUpdateService extends grpc.UntypedServiceImplementation {
      */
     getClusterVersions: grpc.handleUnaryCall<GetClusterVersionsRequest, GetClusterVersionsResponse>;
     /**
-     * GetDownloadBaseUrl returns a base URL (e.g. cdn.teleport.dev) for downloading packages.
-     * Can be overridden with TELEPORT_CDN_BASE_URL env var.
-     * OSS builds require this env var to be set, otherwise an error is returned.
-     *
-     * @generated from protobuf rpc: GetDownloadBaseUrl(teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlRequest) returns (teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlResponse);
-     */
-    getDownloadBaseUrl: grpc.handleUnaryCall<GetDownloadBaseUrlRequest, GetDownloadBaseUrlResponse>;
-    /**
      * GetInstallationMetadata returns installation metadata of the currently running app instance.
      * Implemented only on Windows.
      *
      * @generated from protobuf rpc: GetInstallationMetadata(teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataRequest) returns (teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataResponse);
      */
     getInstallationMetadata: grpc.handleUnaryCall<GetInstallationMetadataRequest, GetInstallationMetadataResponse>;
+    /**
+     * GetConfigRequest retrieves the local auto updates configuration.
+     * It resolves settings using platform-specific mechanisms:
+     * * macOS/Linux: Environment variables.
+     * * Windows: System Registry policies (respecting per-machine vs. per-user installation scopes).
+     *
+     * @generated from protobuf rpc: GetConfig(teleport.lib.teleterm.auto_update.v1.GetConfigRequest) returns (teleport.lib.teleterm.auto_update.v1.GetConfigResponse);
+     */
+    getConfig: grpc.handleUnaryCall<GetConfigRequest, GetConfigResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.auto_update.v1.AutoUpdateService.
@@ -77,16 +78,6 @@ export const autoUpdateServiceDefinition: grpc.ServiceDefinition<IAutoUpdateServ
         responseSerialize: value => Buffer.from(GetClusterVersionsResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(GetClusterVersionsRequest.toBinary(value))
     },
-    getDownloadBaseUrl: {
-        path: "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/GetDownloadBaseUrl",
-        originalName: "GetDownloadBaseUrl",
-        requestStream: false,
-        responseStream: false,
-        responseDeserialize: bytes => GetDownloadBaseUrlResponse.fromBinary(bytes),
-        requestDeserialize: bytes => GetDownloadBaseUrlRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(GetDownloadBaseUrlResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(GetDownloadBaseUrlRequest.toBinary(value))
-    },
     getInstallationMetadata: {
         path: "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/GetInstallationMetadata",
         originalName: "GetInstallationMetadata",
@@ -96,5 +87,15 @@ export const autoUpdateServiceDefinition: grpc.ServiceDefinition<IAutoUpdateServ
         requestDeserialize: bytes => GetInstallationMetadataRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(GetInstallationMetadataResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(GetInstallationMetadataRequest.toBinary(value))
+    },
+    getConfig: {
+        path: "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/GetConfig",
+        originalName: "GetConfig",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => GetConfigResponse.fromBinary(bytes),
+        requestDeserialize: bytes => GetConfigRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(GetConfigResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(GetConfigRequest.toBinary(value))
     }
 };

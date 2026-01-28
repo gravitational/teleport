@@ -155,7 +155,8 @@ context.addRootCluster(makeRootCluster({ uri: '/clusters/bar', name: 'bar' }));
 
 async function resolveEvent(storyProps: StoryProps): Promise<AppUpdateEvent> {
   const status = await resolveAutoUpdatesStatus({
-    versionEnvVar:
+    downloadBaseUrl: 'https://cdn.teleport.dev',
+    requiredToolsVersion:
       storyProps.envVar === 'Set to version - v15'
         ? '15.0.0'
         : storyProps.envVar === 'Unset'

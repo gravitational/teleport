@@ -38,14 +38,15 @@ const logger = new Logger('resolveAutoUpdatesStatus');
  * 4. If there's no version at this point, stop auto updates.
  */
 export async function resolveAutoUpdatesStatus(sources: {
-  versionEnvVar: string;
+  downloadBaseUrl: string;
+  requiredToolsVersion: string;
   managingClusterUri: string | undefined;
   getClusterVersions(): Promise<GetClusterVersionsResponse>;
 }): Promise<AutoUpdatesStatus> {
-  if (sources.versionEnvVar === 'off') {
+  if (sources.requiredToolsVersion === 'off') {
     return {
       enabled: false,
-      reason: 'disabled-by-env-var',
+      reason: 'disabled-by-env-config',
       options: {
         clusters: [],
         unreachableClusters: [],
@@ -54,11 +55,23 @@ export async function resolveAutoUpdatesStatus(sources: {
       },
     };
   }
-  if (sources.versionEnvVar) {
+  if (sources.downloadBaseUrl === '') {
+    return {
+      enabled: false,
+      reason: 'no-base-url',
+      options: {
+        clusters: [],
+        unreachableClusters: [],
+        highestCompatibleVersion: '',
+        managingClusterUri: '',
+      },
+    };
+  }
+  if (sources.requiredToolsVersion) {
     return {
       enabled: true,
-      version: sources.versionEnvVar,
-      source: 'env-var',
+      version: sources.requiredToolsVersion,
+      source: 'env-config',
       options: {
         clusters: [],
         unreachableClusters: [],
@@ -163,7 +176,7 @@ function findVersionFromClusters(
 export function shouldAutoDownload(updatesStatus: AutoUpdatesEnabled): boolean {
   const { source } = updatesStatus;
   switch (source) {
-    case 'env-var':
+    case 'env-config':
     case 'managing-cluster':
       return true;
     case 'highest-compatible':
@@ -239,11 +252,11 @@ export interface AutoUpdatesEnabled {
   version: string;
   /**
    * Source of the update:
-   * - `env-var` - TELEPORT_TOOLS_VERSION configures app version.
+   * - `env-config` - TELEPORT_TOOLS_VERSION env var or ToolsVersion in system registry configures app version.
    * - `managing-cluster` - updates are managed by a manually configured cluster.
    * - `highest-compatible` - updates are determined by the highest compatible version available.
    */
-  source: 'env-var' | 'managing-cluster' | 'highest-compatible';
+  source: 'env-config' | 'managing-cluster' | 'highest-compatible';
   /**
    * Represents the options considered during the auto-update version resolution process.
    * If updates are configured via the environment variable, all fields will be empty or undefined.
@@ -255,7 +268,7 @@ export interface AutoUpdatesDisabled {
   enabled: false;
   /**
    * Reason the updates are disabled:
-   * `disabled-by-env-var` - `TELEPORT_TOOLS_VERSION` is 'off'.
+   * `disabled-by-env-config` - `TELEPORT_TOOLS_VERSION` env var or ToolsVersion in system registry is 'off'.
    * `managing-cluster-unable-to-manage` - the manually selected managing cluster is either
    * unreachable or it has since disabled autoupdates.
    * `no-cluster-with-auto-update` - there is no cluster that could manage updates.
@@ -263,7 +276,8 @@ export interface AutoUpdatesDisabled {
    * they specify incompatible client tools versions.
    */
   reason:
-    | 'disabled-by-env-var'
+    | 'no-base-url'
+    | 'disabled-by-env-config'
     | 'managing-cluster-unable-to-manage'
     | 'no-cluster-with-auto-update'
     | 'no-compatible-version';

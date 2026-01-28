@@ -284,7 +284,7 @@ function makeContentForEnabledAutoUpdates(status: AutoUpdatesEnabled): {
   showRetry?: boolean;
 } {
   switch (status.source) {
-    case 'env-var':
+    case 'env-config':
       return {
         kind: 'neutral',
         description: `The app is set to stay on version ${status.version} by your device settings.`,
@@ -315,7 +315,18 @@ function makeContentForDisabledAutoUpdates(updateSource: AutoUpdatesDisabled): {
   showRetry?: boolean;
 } {
   switch (updateSource.reason) {
-    case 'disabled-by-env-var':
+    case 'no-base-url':
+      return {
+        kind: 'danger',
+        description: (
+          <>
+            Client tools updates are disabled as they are licensed under AGPL.
+            To use Community Edition builds or custom binaries, set the{' '}
+            <code>TELEPORT_CDN_BASE_URL</code> environment variable.
+          </>
+        ),
+      };
+    case 'disabled-by-env-config':
       return {
         kind: 'neutral',
         description: 'App updates are disabled by your device settings.',

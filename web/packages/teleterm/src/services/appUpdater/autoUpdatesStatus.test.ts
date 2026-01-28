@@ -33,16 +33,18 @@ beforeAll(() => {
 test.each<{
   title: string;
   input: {
-    versionEnvVar: string;
-    managingClusterUri: string;
+    requiredToolsVersion?: string;
+    downloadBaseUrl?: string;
+    managingClusterUri?: string;
     getClusterVersions: () => Promise<GetClusterVersionsResponse>;
   };
   expected: AutoUpdatesStatus;
 }>([
   {
-    title: 'disabled when env var is "off"',
+    title: 'disabled when tools version is "off"',
     input: {
-      versionEnvVar: 'off',
+      requiredToolsVersion: 'off',
+      downloadBaseUrl: '',
       managingClusterUri: '',
       getClusterVersions: async () => ({
         reachableClusters: [],
@@ -51,7 +53,7 @@ test.each<{
     },
     expected: {
       enabled: false,
-      reason: 'disabled-by-env-var',
+      reason: 'disabled-by-env-config',
       options: {
         managingClusterUri: '',
         highestCompatibleVersion: '',
@@ -61,9 +63,30 @@ test.each<{
     },
   },
   {
-    title: 'resolving with env var when set to version',
+    title: 'disabled when there is no base URL defined',
     input: {
-      versionEnvVar: '14.0.0',
+      downloadBaseUrl: '',
+      managingClusterUri: '',
+      getClusterVersions: async () => ({
+        reachableClusters: [],
+        unreachableClusters: [],
+      }),
+    },
+    expected: {
+      enabled: false,
+      reason: 'no-base-url',
+      options: {
+        managingClusterUri: '',
+        highestCompatibleVersion: '',
+        unreachableClusters: [],
+        clusters: [],
+      },
+    },
+  },
+  {
+    title: 'resolving with tools version when set to version',
+    input: {
+      requiredToolsVersion: '14.0.0',
       managingClusterUri: '',
       getClusterVersions: async () => ({
         reachableClusters: [],
@@ -73,7 +96,7 @@ test.each<{
     expected: {
       enabled: true,
       version: '14.0.0',
-      source: 'env-var',
+      source: 'env-config',
       options: {
         managingClusterUri: '',
         highestCompatibleVersion: '',
@@ -85,7 +108,7 @@ test.each<{
   {
     title: 'disabled when no versions with auto-update enabled',
     input: {
-      versionEnvVar: '',
+      requiredToolsVersion: '',
       managingClusterUri: undefined,
       getClusterVersions: async () => ({
         reachableClusters: [
@@ -121,7 +144,7 @@ test.each<{
   {
     title: 'resolving with managing cluster if specified',
     input: {
-      versionEnvVar: '',
+      requiredToolsVersion: '',
       getClusterVersions: async () => ({
         reachableClusters: [
           {
@@ -159,7 +182,7 @@ test.each<{
     title:
       'resolving using most compatible version when clusters are on the same version',
     input: {
-      versionEnvVar: '',
+      requiredToolsVersion: '',
       getClusterVersions: async () => ({
         reachableClusters: [
           {
@@ -210,7 +233,7 @@ test.each<{
     title:
       'resolving using most compatible version when clusters are on the same major version',
     input: {
-      versionEnvVar: '',
+      requiredToolsVersion: '',
       getClusterVersions: async () => ({
         reachableClusters: [
           {
@@ -261,7 +284,7 @@ test.each<{
     title:
       'resolving to stable version when both stable and pre-release are available',
     input: {
-      versionEnvVar: '',
+      requiredToolsVersion: '',
       getClusterVersions: async () => ({
         reachableClusters: [
           {
@@ -312,7 +335,7 @@ test.each<{
     title:
       'resolving using most compatible version when clusters are on different major version',
     input: {
-      versionEnvVar: '',
+      requiredToolsVersion: '',
       getClusterVersions: async () => ({
         reachableClusters: [
           {
@@ -363,7 +386,7 @@ test.each<{
     title:
       'disabled when cluster managing updates no longer has `toolsAutoUpdate` set to true',
     input: {
-      versionEnvVar: '',
+      requiredToolsVersion: '',
       getClusterVersions: async () => ({
         reachableClusters: [
           {
@@ -412,7 +435,7 @@ test.each<{
   {
     title: 'disabled when cluster managing updates is unreachable',
     input: {
-      versionEnvVar: '',
+      requiredToolsVersion: '',
       getClusterVersions: async () => ({
         reachableClusters: [
           {
@@ -459,7 +482,7 @@ test.each<{
     title:
       'resolving with no compatible version when clusters are on incompatibles versions',
     input: {
-      versionEnvVar: '',
+      requiredToolsVersion: '',
       getClusterVersions: async () => ({
         reachableClusters: [
           {
@@ -519,7 +542,12 @@ test.each<{
     },
   },
 ])('$title', async ({ input, expected }) => {
-  const result = await resolveAutoUpdatesStatus(input);
+  const result = await resolveAutoUpdatesStatus({
+    downloadBaseUrl: input.downloadBaseUrl || '',
+    requiredToolsVersion: input.requiredToolsVersion || '',
+    managingClusterUri: input.managingClusterUri || '',
+    getClusterVersions: input.getClusterVersions,
+  });
   expect(result).toEqual(expected);
 });
 

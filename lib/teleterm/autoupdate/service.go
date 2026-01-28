@@ -18,7 +18,6 @@ package autoupdate
 
 import (
 	"context"
-	"os"
 	"sync"
 	"time"
 
@@ -131,28 +130,17 @@ func (s *Service) pingCluster(ctx context.Context, cluster *clusters.Cluster) (*
 	return find, trace.Wrap(err)
 }
 
-// GetDownloadBaseUrl returns base URL for downloading Teleport packages.
-func (s *Service) GetDownloadBaseUrl(_ context.Context, _ *api.GetDownloadBaseUrlRequest) (*api.GetDownloadBaseUrlResponse, error) {
-	baseURL, err := resolveBaseURL()
+// GetConfig retrieves the local auto updates configuration.
+func (s *Service) GetConfig(_ context.Context, _ *api.GetConfigRequest) (*api.GetConfigResponse, error) {
+	config, err := platformGetConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &api.GetDownloadBaseUrlResponse{BaseUrl: baseURL}, nil
-}
-
-// resolveBaseURL generates the base URL using the same logic as the teleport/lib/autoupdate/tools package.
-func resolveBaseURL() (string, error) {
-	envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar)
-	if envBaseURL != "" {
-		// TODO(gzdunek): Validate if it's correct URL.
-		return envBaseURL, nil
-	}
-
 	m := modules.GetModules()
-	if m.BuildType() == modules.BuildOSS {
-		return "", trace.BadParameter("Client tools updates are disabled as they are licensed under AGPL. To use Community Edition builds or custom binaries, set the 'TELEPORT_CDN_BASE_URL' environment variable.")
+	// Uses the same logic as the teleport/lib/autoupdate/tools package.
+	if config.DownloadBaseUrl == "" && m.BuildType() != modules.BuildOSS {
+		config.DownloadBaseUrl = autoupdate.DefaultBaseURL
 	}
-
-	return autoupdate.DefaultBaseURL, nil
+	return config, nil
 }

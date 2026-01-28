@@ -24,13 +24,14 @@ option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib
 service AutoUpdateService {
   // GetClusterVersions returns client tools versions for all clusters.
   rpc GetClusterVersions(GetClusterVersionsRequest) returns (GetClusterVersionsResponse);
-  // GetDownloadBaseUrl returns a base URL (e.g. cdn.teleport.dev) for downloading packages.
-  // Can be overridden with TELEPORT_CDN_BASE_URL env var.
-  // OSS builds require this env var to be set, otherwise an error is returned.
-  rpc GetDownloadBaseUrl(GetDownloadBaseUrlRequest) returns (GetDownloadBaseUrlResponse);
   // GetInstallationMetadata returns installation metadata of the currently running app instance.
   // Implemented only on Windows.
   rpc GetInstallationMetadata(GetInstallationMetadataRequest) returns (GetInstallationMetadataResponse);
+  // GetConfigRequest retrieves the local auto updates configuration.
+  // It resolves settings using platform-specific mechanisms:
+  // * macOS/Linux: Environment variables.
+  // * Windows: System Registry policies (respecting per-machine vs. per-user installation scopes).
+  rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
 }
 
 // Request for GetClusterVersions.
@@ -62,14 +63,6 @@ message UnreachableCluster {
   string error_message = 2;
 }
 
-// Request for GetDownloadBaseUrl.
-message GetDownloadBaseUrlRequest {}
-
-// Response for GetDownloadBaseUrl.
-message GetDownloadBaseUrlResponse {
-  string base_url = 1;
-}
-
 // Request for GetInstallationMetadata.
 message GetInstallationMetadataRequest {}
 
@@ -77,4 +70,28 @@ message GetInstallationMetadataRequest {}
 message GetInstallationMetadataResponse {
   // Determines whether updates should target a per-machine installation.
   bool is_per_machine_install = 1;
+}
+
+// Request for GetConfig.
+message GetConfigRequest {}
+
+// Response for GetConfig.
+message GetConfigResponse {
+  // A base URL (e.g. cdn.teleport.dev) for downloading packages.
+  // Sources resolved by platform:
+  // * macOS/Linux: The `TELEPORT_CDN_BASE_URL` environment variable.
+  // * Windows: The `DownloadBaseUrl` value in the system registry (Software\Policies\TeleportConnect).
+  //   - HKEY_LOCAL_MACHINE (Machine Policy): Takes precedence over user policies.
+  //   - HKEY_CURRENT_USER (User Policy): Used only for per-user installations if no machine policy is defined.
+  //
+  // Note: OSS builds require this to be set (via env var or registry), otherwise an empty value is returned.
+  string download_base_url = 1;
+
+  // The specific client tools version to use.
+  // Sources resolved by platform:
+  // * macOS/Linux: The `TELEPORT_TOOLS_VERSION` environment variable.
+  // * Windows: The `ToolsVersion` value in the system registry (Software\Policies\TeleportConnect).
+  //   - HKEY_LOCAL_MACHINE (Machine Policy): Takes precedence over user policies.
+  //   - HKEY_CURRENT_USER (User Policy): Used only for per-user installations if no machine policy is defined.
+  string required_tools_version = 2;
 }

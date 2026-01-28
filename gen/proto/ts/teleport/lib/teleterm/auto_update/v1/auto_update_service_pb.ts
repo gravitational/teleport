@@ -103,24 +103,6 @@ export interface UnreachableCluster {
     errorMessage: string;
 }
 /**
- * Request for GetDownloadBaseUrl.
- *
- * @generated from protobuf message teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlRequest
- */
-export interface GetDownloadBaseUrlRequest {
-}
-/**
- * Response for GetDownloadBaseUrl.
- *
- * @generated from protobuf message teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlResponse
- */
-export interface GetDownloadBaseUrlResponse {
-    /**
-     * @generated from protobuf field: string base_url = 1;
-     */
-    baseUrl: string;
-}
-/**
  * Request for GetInstallationMetadata.
  *
  * @generated from protobuf message teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataRequest
@@ -139,6 +121,44 @@ export interface GetInstallationMetadataResponse {
      * @generated from protobuf field: bool is_per_machine_install = 1;
      */
     isPerMachineInstall: boolean;
+}
+/**
+ * Request for GetConfig.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.auto_update.v1.GetConfigRequest
+ */
+export interface GetConfigRequest {
+}
+/**
+ * Response for GetConfig.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.auto_update.v1.GetConfigResponse
+ */
+export interface GetConfigResponse {
+    /**
+     * A base URL (e.g. cdn.teleport.dev) for downloading packages.
+     * Sources resolved by platform:
+     * * macOS/Linux: The `TELEPORT_CDN_BASE_URL` environment variable.
+     * * Windows: The `DownloadBaseUrl` value in the system registry (Software\Policies\TeleportConnect).
+     *   - HKEY_LOCAL_MACHINE (Machine Policy): Takes precedence over user policies.
+     *   - HKEY_CURRENT_USER (User Policy): Used only for per-user installations if no machine policy is defined.
+     *
+     * Note: OSS builds require this to be set (via env var or registry), otherwise an empty value is returned.
+     *
+     * @generated from protobuf field: string download_base_url = 1;
+     */
+    downloadBaseUrl: string;
+    /**
+     * The specific client tools version to use.
+     * Sources resolved by platform:
+     * * macOS/Linux: The `TELEPORT_TOOLS_VERSION` environment variable.
+     * * Windows: The `ToolsVersion` value in the system registry (Software\Policies\TeleportConnect).
+     *   - HKEY_LOCAL_MACHINE (Machine Policy): Takes precedence over user policies.
+     *   - HKEY_CURRENT_USER (User Policy): Used only for per-user installations if no machine policy is defined.
+     *
+     * @generated from protobuf field: string required_tools_version = 2;
+     */
+    requiredToolsVersion: string;
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class GetClusterVersionsRequest$Type extends MessageType<GetClusterVersionsRequest> {
@@ -347,78 +367,6 @@ class UnreachableCluster$Type extends MessageType<UnreachableCluster> {
  */
 export const UnreachableCluster = new UnreachableCluster$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class GetDownloadBaseUrlRequest$Type extends MessageType<GetDownloadBaseUrlRequest> {
-    constructor() {
-        super("teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlRequest", []);
-    }
-    create(value?: PartialMessage<GetDownloadBaseUrlRequest>): GetDownloadBaseUrlRequest {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        if (value !== undefined)
-            reflectionMergePartial<GetDownloadBaseUrlRequest>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetDownloadBaseUrlRequest): GetDownloadBaseUrlRequest {
-        return target ?? this.create();
-    }
-    internalBinaryWrite(message: GetDownloadBaseUrlRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlRequest
- */
-export const GetDownloadBaseUrlRequest = new GetDownloadBaseUrlRequest$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class GetDownloadBaseUrlResponse$Type extends MessageType<GetDownloadBaseUrlResponse> {
-    constructor() {
-        super("teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlResponse", [
-            { no: 1, name: "base_url", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<GetDownloadBaseUrlResponse>): GetDownloadBaseUrlResponse {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.baseUrl = "";
-        if (value !== undefined)
-            reflectionMergePartial<GetDownloadBaseUrlResponse>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetDownloadBaseUrlResponse): GetDownloadBaseUrlResponse {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string base_url */ 1:
-                    message.baseUrl = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: GetDownloadBaseUrlResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string base_url = 1; */
-        if (message.baseUrl !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.baseUrl);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlResponse
- */
-export const GetDownloadBaseUrlResponse = new GetDownloadBaseUrlResponse$Type();
-// @generated message type with reflection information, may provide speed optimized methods
 class GetInstallationMetadataRequest$Type extends MessageType<GetInstallationMetadataRequest> {
     constructor() {
         super("teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataRequest", []);
@@ -490,11 +438,91 @@ class GetInstallationMetadataResponse$Type extends MessageType<GetInstallationMe
  * @generated MessageType for protobuf message teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataResponse
  */
 export const GetInstallationMetadataResponse = new GetInstallationMetadataResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetConfigRequest$Type extends MessageType<GetConfigRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.auto_update.v1.GetConfigRequest", []);
+    }
+    create(value?: PartialMessage<GetConfigRequest>): GetConfigRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetConfigRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetConfigRequest): GetConfigRequest {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: GetConfigRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.auto_update.v1.GetConfigRequest
+ */
+export const GetConfigRequest = new GetConfigRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetConfigResponse$Type extends MessageType<GetConfigResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.auto_update.v1.GetConfigResponse", [
+            { no: 1, name: "download_base_url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "required_tools_version", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<GetConfigResponse>): GetConfigResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.downloadBaseUrl = "";
+        message.requiredToolsVersion = "";
+        if (value !== undefined)
+            reflectionMergePartial<GetConfigResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetConfigResponse): GetConfigResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string download_base_url */ 1:
+                    message.downloadBaseUrl = reader.string();
+                    break;
+                case /* string required_tools_version */ 2:
+                    message.requiredToolsVersion = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetConfigResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string download_base_url = 1; */
+        if (message.downloadBaseUrl !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.downloadBaseUrl);
+        /* string required_tools_version = 2; */
+        if (message.requiredToolsVersion !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.requiredToolsVersion);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.auto_update.v1.GetConfigResponse
+ */
+export const GetConfigResponse = new GetConfigResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.auto_update.v1.AutoUpdateService
  */
 export const AutoUpdateService = new ServiceType("teleport.lib.teleterm.auto_update.v1.AutoUpdateService", [
     { name: "GetClusterVersions", options: {}, I: GetClusterVersionsRequest, O: GetClusterVersionsResponse },
-    { name: "GetDownloadBaseUrl", options: {}, I: GetDownloadBaseUrlRequest, O: GetDownloadBaseUrlResponse },
-    { name: "GetInstallationMetadata", options: {}, I: GetInstallationMetadataRequest, O: GetInstallationMetadataResponse }
+    { name: "GetInstallationMetadata", options: {}, I: GetInstallationMetadataRequest, O: GetInstallationMetadataResponse },
+    { name: "GetConfig", options: {}, I: GetConfigRequest, O: GetConfigResponse }
 ]);
