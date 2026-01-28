@@ -164,6 +164,9 @@ export class WindowsManager {
         this.configService.get('runInBackground').value;
 
       if (isAppQuitting || !shouldRunInBackground) {
+        // If frontendAppInit wasn't resolved yet, reject it with an error since the app is about to
+        // quit. Electron apps by default quit after the last window is closed.
+        // https://www.electronjs.org/docs/latest/api/app#event-window-all-closed
         this.frontendAppInit.reject(
           new Error('Window was closed before frontend app got initialized')
         );
@@ -171,13 +174,7 @@ export class WindowsManager {
       }
 
       e.preventDefault();
-
-      if (shouldRunInBackground) {
-        this.enterBackgroundMode();
-        return;
-      }
-      // Retry closing.
-      window.close();
+      this.enterBackgroundMode();
     });
 
     // shows the window when the DOM is ready, so we don't have a brief flash of a blank screen
