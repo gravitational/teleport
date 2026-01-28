@@ -1,6 +1,6 @@
 ---
 authors: Edoardo Spadolini (edoardo.spadolini@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0193 - Stable UNIX user UIDs

@@ -1,6 +1,6 @@
 ---
 authors: Tim Ross (tim.ross@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0093 - Robust Access to Nodes

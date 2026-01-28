@@ -1,6 +1,6 @@
 ---
 authors: Tiago Silva (tiago.silva@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0122 - Robust Access to Kubernetes Clusters

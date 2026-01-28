@@ -1,6 +1,6 @@
 ---
 authors: Andrew LeFevre (andrew.lefevere@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0208 - Official SELinux Module for Teleport SSH Agents

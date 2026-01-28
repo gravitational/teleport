@@ -1,6 +1,6 @@
 ---
 authors: Noah Stride (noah@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 185 - Kubernetes Access without Certificate-based Routing

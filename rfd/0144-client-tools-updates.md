@@ -1,6 +1,6 @@
 ---
 authors: Russell Jones (rjones@goteleport.com) and Bernard Kim (bernard@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0144 - Client Tools Updates

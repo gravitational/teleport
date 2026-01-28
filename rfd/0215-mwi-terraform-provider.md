@@ -1,6 +1,6 @@
 ---
 authors: Noah Stride (noah@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 215 - MWI Terraform Provider 

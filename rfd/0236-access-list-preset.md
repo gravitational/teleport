@@ -1,6 +1,6 @@
 ---
 author: Lisa Kim (lisa@goteleport.com) and Marek Smoliński (marek@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0236 - Access Lists Created with Presets

@@ -1,6 +1,6 @@
 ---
 authors: Rana Ian (rana.ian@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0223 - Kubernetes Health Checks

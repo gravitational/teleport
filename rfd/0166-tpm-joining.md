@@ -1,6 +1,6 @@
 ---
 authors: @strideynet (noah@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0166 - TPM Joining

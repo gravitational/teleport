@@ -1,6 +1,6 @@
 ---
 authors: Marco Dinis (marco.dinis@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0125 - Dynamic Auto-Discovery Configuration
