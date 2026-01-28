@@ -17,6 +17,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router';
 
 import { Alert, Box, Button, Flex, Link } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
@@ -89,8 +90,11 @@ export function RolesContainer({ roleDiffProps }: RolesProps) {
 const useNewRoleEditor = storageService.getUseNewRoleEditor();
 
 export function Roles(props: State & RolesProps) {
+  const { search: searchPath } = useLocation();
+  const searchParams = new URLSearchParams(searchPath);
+
   const { remove, create, update, fetch, rolesAcl } = props;
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(searchParams.get('search'));
   const toastNotification = useToastNotifications();
 
   const serverSidePagination = useServerSidePagination<RoleResource>({

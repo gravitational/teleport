@@ -46,7 +46,7 @@ export function FieldSelect<
   >(props, {});
   return (
     <FieldSelectWrapper {...wrapper} {...others}>
-      <Select<Opt, IsMulti, Group> {...base} />
+      <Select<Opt, IsMulti, Group> {...base} isLoading={others.isLoading} />
     </FieldSelectWrapper>
   );
 }
