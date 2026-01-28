@@ -1,0 +1,90 @@
+---
+title: Teleport Users with Zero Standing Privileges
+sidebar_label: Zero Standing Privileges
+enterprise: Identity Governance
+tags:
+ - identity-governance
+description: Shows you how to configure Teleport roles to require an Access Request for any Teleport access at all.
+---
+
+You can configure Teleport users to authenticate with no standing privileges,
+meaning that, by default, their roles do not allow them to access infrastructure
+or manage resources in your Teleport cluster. Instead, when the user first signs
+in to Teleport, they must describe their reason for requesting access and create
+an Access Request. Teleport shows them a **Waiting Room** until they receive
+approval.
+
+This guide explains the options that allow you to configure Teleport users
+without standing privileges.
+
+## Configuration fields
+
+You can configure Teleport users with no standing privileges by editing a user's
+Teleport roles. 
+
+The `options.request_access` field has three possible values:
+
+|Value|Meaning|
+|---|---|
+|`optional`|The default. The user does not need to specify a reason when making a request. The user must initiate a request manually when they log in to Teleport.|
+|`always`| When a user signs in to Teleport, their client automatically generates an Access Request for all roles available to the user, without providing a reason.|
+|`reason`| When a user signs in to Teleport, their client automatically generates an Access Request for all roles available to the user. The user must provide a reason when authenticating.|
+
+If a role includes the `reason` strategy, you can specify a prompt to instruct
+the user to provide a reason when authenticating to Teleport. To do so, set the
+`options.request_prompt` option in a role. For example, the following role
+prompts the user with the text, "Please provide your ticket ID":
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: employee
+spec:
+  allow:
+    request:
+      roles:
+        - 'dba'
+  options:
+    request_access: reason
+    request_prompt: Please provide your ticket ID
+```
+
+## Access strategies
+
+Each user can have a single **access strategy** when they authenticate to
+Teleport. If at least one of the user's roles has the value `reason`, the user
+must provide a reason for requesting access when they authenticate to Teleport,
+and when they input the reason, Teleport creates an Access Request for them.
+
+If none of the user's roles has the value `reason`, but at least one has the
+value `always`, Teleport creates an Access Request for the user when they first
+authenticate.
+
+If the user has no roles with `options.request_access` set to `reason` or
+`always`, the user must request access manually.
+
+## The Waiting Room
+
+When a user with an access strategy of `reason` or `always` signs in to the
+Teleport Web UI, they navigate to the Waiting Room, where they wait for their
+initial Access Request to receive a review.
+
+Users with the `reason` strategy must first enter a reason for the request:
+
+[A screenshot showing a form in the Waiting Room in which a user can enter a
+request reason](../../../../img/identity-governance/waiting1.png)
+
+After the user enters the reason, or if the user has the `always` strategy, the
+Web UI creates an Access Request for that user (marked as `PENDING`). The user
+sees a status bar: 
+
+[A screenshot showing a form in the Waiting Room in which a user can enter a
+request reason](../../../../img/identity-governance/waiting2.png)
+
+Once the request receives an `APPROVED` status, the user's Web UI session
+refreshes and they can see the resources available to their new role.
+
+Users authenticating with `tsh` have a similar experience: if their access
+strategy is `reason`, they see a prompt to enter a reason. If it is `always`,
+`tsh` creates an Access Request for them immediately.
