@@ -93,6 +93,11 @@ export type TableProps<T> = {
      * dropdown selector.
      */
     customRow?(row: T): JSX.Element;
+    /**
+     * conditionally render a custom row after either `customRow` or
+     * the base table row.
+     */
+    renderAfter?(row: T): JSX.Element | null;
   };
 };
 
