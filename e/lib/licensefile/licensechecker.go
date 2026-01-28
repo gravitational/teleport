@@ -16,7 +16,7 @@ import (
 )
 
 // RunLicenseChecker is used for running periodic checks that generate license warning alerts.
-func RunLicenseChecker(ctx context.Context, alertHandler services.StatusInternal, license *LicenseFile) {
+func RunLicenseChecker(ctx context.Context, alertHandler services.Status, license *LicenseFile) {
 	if err := checkLicense(ctx, alertHandler, license); err != nil {
 		slog.WarnContext(ctx, "Failed to check the license", "error", err)
 	}
@@ -56,7 +56,7 @@ func RunLicenseChecker(ctx context.Context, alertHandler services.StatusInternal
 	}
 }
 
-func checkLicense(ctx context.Context, alertHandler services.StatusInternal, license *LicenseFile) error {
+func checkLicense(ctx context.Context, alertHandler services.Status, license *LicenseFile) error {
 	if err := clearOldLicenseAlerts(ctx, alertHandler); err != nil {
 		return trace.Wrap(err)
 	}
@@ -132,7 +132,7 @@ func durationMessage(d time.Duration) string {
 	return fmt.Sprintf("in %d days", days)
 }
 
-func clearOldLicenseAlerts(ctx context.Context, alertHandler services.StatusInternal) error {
+func clearOldLicenseAlerts(ctx context.Context, alertHandler services.Status) error {
 	query := types.GetClusterAlertsRequest{
 		Labels: map[string]string{
 			types.AlertOnLogin:   "yes",
