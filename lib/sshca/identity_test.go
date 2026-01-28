@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
@@ -46,11 +47,9 @@ func TestIdentityConversion(t *testing.T) {
 		Username:    "user",
 		ScopePin: &scopesv1.Pin{
 			Scope: "/foo",
-			Assignments: map[string]*scopesv1.PinnedAssignments{
-				"/": {
-					Roles: []string{"role1", "role2"},
-				},
-			},
+			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+				"/": {"/": {"role1", "role2"}},
+			}),
 		},
 		Impersonator:            "impersonator",
 		Principals:              []string{"login1", "login2"},
@@ -116,6 +115,7 @@ func TestIdentityConversion(t *testing.T) {
 		"Pin.XXX_NoUnkeyedLiteral",
 		"Pin.XXX_unrecognized",
 		"Pin.XXX_sizecache",
+		"Pin.Assignments", // TODO(fspamrshall/scopes): deprecate & remove assignments field
 		"PinnedAssignments.XXX_NoUnkeyedLiteral",
 		"PinnedAssignments.XXX_unrecognized",
 		"PinnedAssignments.XXX_sizecache",
@@ -129,6 +129,14 @@ func TestIdentityConversion(t *testing.T) {
 		"AWSConsoleResourceConstraints.XXX_unrecognized",
 		"AWSConsoleResourceConstraints.XXX_sizecache",
 		"Identity.AllowedResourceIDs", // at decode, allowedResourceIDs are converted to ResourceAccessIDs and stored in Identity.AllowedResourceAccessIDs
+		"AssignmentNode.XXX_NoUnkeyedLiteral",
+		"AssignmentNode.XXX_unrecognized",
+		"AssignmentNode.XXX_sizecache",
+		"AssignmentNode.Children", // has to be empty in leaf nodes because of how trees work
+		"RoleNode.XXX_NoUnkeyedLiteral",
+		"RoleNode.XXX_unrecognized",
+		"RoleNode.XXX_sizecache",
+		"RoleNode.Children", // has to be empty in leaf nodes because of how trees work
 	}
 
 	require.True(t, testutils.ExhaustiveNonEmpty(ident, ignores...), "empty=%+v", testutils.FindAllEmpty(ident, ignores...))

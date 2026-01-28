@@ -63,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
@@ -93,6 +94,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
@@ -5438,15 +5440,10 @@ func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string,
 	if cluster != "" {
 		fmt.Fprintf(w, "  Cluster:            %v\n", cluster)
 	}
-	if p.Scope != "" {
-		fmt.Fprintf(w, "  Scope:              %v\n", p.Scope)
+	if p.ScopePin != nil {
+		fmt.Fprintf(w, "  Scope:              %v\n", p.ScopePin.GetScope())
 		fmt.Fprintf(w, "  Scoped Roles:\n")
-
-		assignedScopes := slices.Collect(maps.Keys(p.ScopedRoles))
-		slices.Sort(assignedScopes)
-		for _, scope := range assignedScopes {
-			fmt.Fprintf(w, "    %s: %v\n", scope, rolesToString(debug, p.ScopedRoles[scope]))
-		}
+		fmt.Fprintf(w, "%v", pinning.FormatAssignmentTree(p.ScopePin.GetAssignmentTree(), "  "))
 	} else {
 		fmt.Fprintf(w, "  Roles:              %v\n", rolesToString(debug, p.Roles))
 	}
@@ -5647,8 +5644,7 @@ type profileInfo struct {
 	ActiveRequests           []string                 `json:"active_requests,omitempty"`
 	Cluster                  string                   `json:"cluster"`
 	Roles                    []string                 `json:"roles,omitempty"`
-	Scope                    string                   `json:"scope,omitempty"`
-	ScopedRoles              map[string][]string      `json:"scoped_roles,omitempty"`
+	ScopePin                 *scopesv1.Pin            `json:"scope_pin,omitempty"`
 	Traits                   wrappers.Traits          `json:"traits,omitempty"`
 	Logins                   []string                 `json:"logins,omitempty"`
 	KubernetesEnabled        bool                     `json:"kubernetes_enabled"`
@@ -5701,8 +5697,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		ActiveRequests:           p.ActiveRequests,
 		Cluster:                  p.Cluster,
 		Roles:                    p.Roles,
-		Scope:                    p.Scope,
-		ScopedRoles:              p.ScopedRoles,
+		ScopePin:                 p.ScopePin,
 		Traits:                   p.Traits,
 		Logins:                   logins,
 		KubernetesEnabled:        p.KubeEnabled,
