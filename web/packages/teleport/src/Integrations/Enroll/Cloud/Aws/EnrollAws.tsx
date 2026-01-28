@@ -54,6 +54,7 @@ import {
   IntegrationKind,
   integrationService,
 } from 'teleport/services/integrations';
+import { useClusterVersion } from 'teleport/useClusterVersion';
 
 import { DeploymentMethodSection } from './DeploymentMethodSection';
 import {
@@ -75,6 +76,8 @@ export type InfoGuideTab = 'info' | 'terraform' | null;
 
 export function EnrollAws() {
   useNoMinWidth();
+
+  const { clusterVersion } = useClusterVersion();
 
   const [integrationName, setIntegrationName] = useState('');
 
@@ -102,8 +105,9 @@ export function EnrollAws() {
         integrationName,
         regions,
         ec2Config,
+        version: clusterVersion,
       }),
-    [integrationName, regions, ec2Config]
+    [integrationName, regions, ec2Config, clusterVersion]
   );
 
   const copyConfigButtonRef = useRef<HTMLButtonElement>(null);

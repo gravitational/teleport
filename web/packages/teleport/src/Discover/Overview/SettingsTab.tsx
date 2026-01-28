@@ -50,6 +50,7 @@ import {
   IntegrationWithSummary,
   Regions,
 } from 'teleport/services/integrations';
+import { useClusterVersion } from 'teleport/useClusterVersion';
 
 import { DeleteIntegrationSection } from './DeleteIntegrationSection';
 
@@ -65,6 +66,7 @@ export function SettingsTab({
   onInfoGuideTabChange: (tab: InfoGuideTab) => void;
 }) {
   const integrationName = stats.name;
+  const { clusterVersion } = useClusterVersion();
   const [configCopied, setConfigCopied] = useState(false);
 
   const handleConfigCopy = () => {
@@ -128,8 +130,9 @@ export function SettingsTab({
         integrationName,
         regions: regions,
         ec2Config: ec2Config,
+        version: clusterVersion,
       }),
-    [integrationName, regions, ec2Config]
+    [integrationName, regions, ec2Config, clusterVersion]
   );
 
   const { infoGuideConfig: currentInfoGuideConfig, setInfoGuideConfig } =
