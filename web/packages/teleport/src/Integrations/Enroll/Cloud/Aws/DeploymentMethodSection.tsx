@@ -128,6 +128,7 @@ export function DeploymentMethodSection({
               </Text>
               {integrationExists ? (
                 <Alert kind="success" mb={2}>
+                  Integration Detected
                   <Text fontWeight="regular">
                     Amazon Web Services successfully added
                   </Text>
@@ -135,20 +136,6 @@ export function DeploymentMethodSection({
               ) : (
                 <>
                   <Box mb={3}>
-                    {isCheckingIntegration ? (
-                      <Alert kind="info" icon={Notification} mb={0}>
-                        Verifying integration '{integrationName}'...
-                      </Alert>
-                    ) : (
-                      <Alert kind="neutral" icon={Notification} mb={0}>
-                        <Text fontWeight="regular" color="text.slightlyMuted">
-                          After applying your Terraform configuration, verify
-                          your integration was created successfully.
-                        </Text>
-                      </Alert>
-                    )}
-                  </Box>
-                  <Box mb={2}>
                     {isCheckingIntegration ? (
                       <Button
                         fill="filled"
@@ -170,6 +157,20 @@ export function DeploymentMethodSection({
                       >
                         Check Integration
                       </Button>
+                    )}
+                  </Box>
+                  <Box mb={3}>
+                    {isCheckingIntegration ? (
+                      <Alert kind="info" icon={Notification} mb={0}>
+                        Checking for integration '{integrationName}'...
+                      </Alert>
+                    ) : (
+                      <Alert kind="neutral" icon={Notification} mb={0}>
+                        <Text fontWeight="regular" color="text.slightlyMuted">
+                          After applying your Terraform configuration, verify
+                          your integration was created successfully.
+                        </Text>
+                      </Alert>
                     )}
                   </Box>
                   <Box
