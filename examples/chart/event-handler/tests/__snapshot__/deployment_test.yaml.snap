@@ -50,15 +50,8 @@ should match the snapshot:
               subPath: teleport-event-handler.toml
             - mountPath: /var/lib/teleport/plugins/event-handler/teleport-identity
               name: teleport-identity
-            - mountPath: /var/lib/teleport/plugins/event-handler/ca.crt
+            - mountPath: /var/lib/teleport/plugins/event-handler
               name: certificate
-              subPath: ca.crt
-            - mountPath: /var/lib/teleport/plugins/event-handler/client.crt
-              name: certificate
-              subPath: client.crt
-            - mountPath: /var/lib/teleport/plugins/event-handler/client.key
-              name: certificate
-              subPath: client.key
           securityContext: {}
           volumes:
           - configMap:
@@ -72,6 +65,13 @@ should match the snapshot:
           - name: certificate
             secret:
               defaultMode: 384
+              items:
+              - key: ca.crt
+                path: ca.crt
+              - key: client.crt
+                path: client.crt
+              - key: client.key
+                path: client.key
               secretName: ""
 should mount tls.existingCASecretName and set environment when set in values:
   1: |
@@ -102,15 +102,8 @@ should mount tls.existingCASecretName and set environment when set in values:
         subPath: teleport-event-handler.toml
       - mountPath: /var/lib/teleport/plugins/event-handler/teleport-identity
         name: teleport-identity
-      - mountPath: /var/lib/teleport/plugins/event-handler/ca.crt
+      - mountPath: /var/lib/teleport/plugins/event-handler
         name: certificate
-        subPath: ca.crt
-      - mountPath: /var/lib/teleport/plugins/event-handler/client.crt
-        name: certificate
-        subPath: client.crt
-      - mountPath: /var/lib/teleport/plugins/event-handler/client.key
-        name: certificate
-        subPath: client.key
       - mountPath: /etc/teleport-tls-ca
         name: teleport-tls-ca
         readOnly: true
@@ -127,6 +120,13 @@ should mount tls.existingCASecretName and set environment when set in values:
     - name: certificate
       secret:
         defaultMode: 384
+        items:
+        - key: ca.crt
+          path: ca.crt
+        - key: client.crt
+          path: client.crt
+        - key: client.key
+          path: client.key
         secretName: ""
     - name: teleport-tls-ca
       secret:
