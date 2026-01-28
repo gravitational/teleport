@@ -1,6 +1,6 @@
 ---
 authors: Pawel Kopiczko (pawel.kopiczko@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 218 - Access List members IaC

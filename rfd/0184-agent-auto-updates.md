@@ -1,6 +1,6 @@
 ---
 authors: Stephen Levine (stephen.levine@goteleport.com) & Hugo Hervieux (hugo.hervieux@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0184 - Agent Automatic Updates

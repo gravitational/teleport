@@ -1,6 +1,6 @@
 ---
 author: Noah Stride (noah@goteleport.com)
-state: draft
+state: implemented
 ---
  
 # RFD 172 - Long-lived Local `tbot` SSH Proxy

@@ -1,6 +1,6 @@
 ---
 authors: Dan Upton (daniel.upton@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 220 - `tbot` Argo CD Output

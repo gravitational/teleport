@@ -1,6 +1,6 @@
 ---
 authors: Edoardo Spadolini (edoardo.spadolini@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 213 - Relay, a lightweight tier 2 proxy

@@ -1,6 +1,6 @@
 ---
 authors: STeve Huang (xin.huang@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 152 - Database Automatic User Provisioning for MongoDB
