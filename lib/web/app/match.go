@@ -103,3 +103,18 @@ func ResolveFQDN(ctx context.Context, clusterGetter reversetunnelclient.ClusterG
 
 	return nil, "", trace.NotFound("failed to resolve %v to any application within any cluster", fqdn)
 }
+
+// ResolveByName resolves app name into an application running on a
+// specific site (cluster).
+func ResolveByName(ctx context.Context, cluster reversetunnelclient.Cluster, appName string) (types.AppServer, error) {
+	servers, err := MatchUnshuffled(ctx, cluster, MatchName(appName))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(servers) == 0 {
+		return nil, trace.BadParameter("unable to solve requested app by name")
+	}
+
+	return servers[0], nil
+}
