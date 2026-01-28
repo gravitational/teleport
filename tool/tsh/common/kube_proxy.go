@@ -72,7 +72,7 @@ func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
 		CmdClause: parent.Command("kube", "Start local proxy for Kubernetes access."),
 	}
 
-	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
+	c.Flag("cluster", clusterHelp).Short('c').Envar(clusterEnvVar).StringVar(&c.siteName)
 	c.Arg("kube-cluster", "Name of the Kubernetes cluster to proxy. Check 'tsh kube ls' for a list of available clusters. If not specified, all clusters previously logged in through `tsh kube login` will be used.").StringsVar(&c.kubeClusters)
 	c.Flag("as", "Configure custom Kubernetes user impersonation.").StringVar(&c.impersonateUser)
 	c.Flag("as-groups", "Configure custom Kubernetes group impersonation.").StringsVar(&c.impersonateGroups)
