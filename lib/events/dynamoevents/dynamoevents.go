@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"maps"
 	"math"
@@ -95,6 +96,15 @@ var tableSchema = []dynamodbtypes.AttributeDefinition{
 	// New attribute in RFD 24.
 	{
 		AttributeName: aws.String(keyDate),
+		AttributeType: dynamodbtypes.ScalarAttributeTypeS,
+	},
+	// New attributes to support chunks in Teleport v19.
+	{
+		AttributeName: aws.String(keyChunkID),
+		AttributeType: dynamodbtypes.ScalarAttributeTypeS,
+	},
+	{
+		AttributeName: aws.String(keyChunkStatus),
 		AttributeType: dynamodbtypes.ScalarAttributeTypeS,
 	},
 }
@@ -221,6 +231,13 @@ type Log struct {
 	// Config is a backend configuration
 	Config
 	svc *dynamodb.Client
+
+	// chunkID is the current open chunkID.
+	chunkID string
+	// chunkCount is the current number of events added to the open chunk.
+	chunkCount int
+	// chunkCreatedAt specifies the created at timestamp for the current open chunk.
+	chunkCreatedAt time.Time
 }
 
 // EventKey contains the subset of event fields used as a dynamo primary key,
@@ -262,6 +279,7 @@ type event struct {
 	Expires        *int64 `json:"Expires,omitempty" dynamodbav:",omitempty"`
 	FieldsMap      events.EventFields
 	EventNamespace string
+	ChunkID        string
 }
 
 // toIterator marshals an event's EventKey, to be used in checkpointKey.
@@ -291,9 +309,23 @@ const (
 	// Specified in RFD 24.
 	keyDate = "CreatedAtDate"
 
+	// keyChunkID identifies the chunk id of an event.
+	keyChunkID = "ChunkID"
+
+	// keyChunkStatus identifies the status of a chunk.
+	keyChunkStatus = "ChunkStatus"
+
 	// indexTimeSearchV2 is the new secondary global index proposed in RFD 24.
 	// Allows searching events by time.
 	indexTimeSearchV2 = "timesearchV2"
+
+	// indexChunkIDSearch is a secondary global index for events.
+	// Allows searching events by chunk id.
+	indexChunkIDSearch = "chunkIDSearch"
+
+	// indexChunkStatusSearch is a secondary global index for chunks.
+	// Allows searching chunks by status.
+	indexChunkStatusSearch = "chunkStatusSearch"
 
 	// DefaultReadCapacityUnits specifies default value for read capacity units
 	DefaultReadCapacityUnits = 10
@@ -304,6 +336,12 @@ const (
 	// DefaultRetentionPeriod is a default data retention period in events table.
 	// The default is 1 year.
 	DefaultRetentionPeriod = types.Duration(365 * 24 * time.Hour)
+
+	// chunkTTL defines the TTL of an OPEN chunk.
+	chunkTTL = time.Minute * 3
+
+	// maxChunkSize defines the maximum size of a chunk.
+	maxChunkSize = 1000
 )
 
 // New returns new instance of DynamoDB backend.
@@ -392,6 +430,8 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		"table", cfg.Tablename,
 		"region", cfg.Region,
 	)
+
+	go b.reconcileChunks(ctx)
 
 	return b, nil
 }
@@ -639,8 +679,165 @@ const (
 	largeEventHandledContextKey
 )
 
+// chunk identifies a chunk of events.
+type chunk struct {
+	// ID identifies a chunk.
+	// The ID is written as SessionID in DynamoDB to satisfy the primary key
+	// constraint. ID must always be set.
+	ID string `dynamodbav:"SessionID"`
+	// EventIndex is not used for chunks, but it is a required in DynamoDB to
+	// satisfy the sort key constraint. EventIndex will always be 0.
+	EventIndex int64
+	// ChunkStatus indicates the status of the chunk.
+	// This can be either "OPEN" or "CLOSED".
+	ChunkStatus string
+	// CreatedAt is the timestamp in unix format specifying when the chunk was
+	// created. This is used to used to identify and close chunks that have passed
+	// their OPEN status TTL. This is also used as a secondary DynamoDB index.
+	CreatedAt int64 `json:",omitempty" dynamodbav:",omitempty"`
+	// CreatedAtDate is used to idnetify the chunk partition.
+	CreatedAtDate string `json:",omitempty" dynamodbav:",omitempty"`
+}
+
+// reconcileChunks periodically attempts to close expired chunks.
+func (l *Log) reconcileChunks(ctx context.Context) {
+	const interval = time.Minute * 3
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			l.logger.DebugContext(ctx, "reconcileChunks stopped")
+			return
+		case <-ticker.C:
+			if err := l.closeExpiredChunks(ctx); err != nil {
+				l.logger.WarnContext(ctx, "failed to close expired chunks", "error", err)
+			}
+		}
+	}
+}
+
+func (l *Log) closeExpiredChunks(ctx context.Context) error {
+	expiredThreshold := time.Now().Add(-chunkTTL * 2).Unix()
+	input := dynamodb.QueryInput{
+		TableName:              aws.String(l.Tablename),
+		IndexName:              aws.String(indexChunkStatusSearch),
+		KeyConditionExpression: aws.String("#date = :date AND #status = :status AND #createdAt <= :threshold"),
+		ExpressionAttributeNames: map[string]string{
+			"#date":      keyDate,
+			"#status":    keyChunkStatus,
+			"#createdAt": keyCreatedAt,
+		},
+		ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
+			":date":      &dynamodbtypes.AttributeValueMemberS{Value: time.Now().Format(time.DateOnly)},
+			":status":    &dynamodbtypes.AttributeValueMemberS{Value: "OPEN"},
+			":threshold": &dynamodbtypes.AttributeValueMemberN{Value: strconv.FormatInt(expiredThreshold, 10)},
+		},
+		// TODO: Handle pagination
+		Limit: aws.Int32(1000),
+	}
+
+	start := time.Now()
+	out, err := l.svc.Query(ctx, &input)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO: Remove debug logs
+	l.logger.DebugContext(ctx, "Successfully queried OPEN chunk IDs",
+		"duration", time.Since(start),
+		"items", len(out.Items),
+		"date", time.Now().Format(time.DateOnly),
+	)
+
+	for _, item := range out.Items {
+		var result chunk
+		if err := attributevalue.UnmarshalMap(item, &result); err != nil {
+			return trace.Wrap(err, "failed to unmarshal chunk")
+		}
+		if err := l.closeChunk(ctx, result.ID); err != nil {
+			return trace.Wrap(err, "unable to close chunk")
+		}
+	}
+	return nil
+}
+
+func (l *Log) getChunkID(ctx context.Context) (string, error) {
+	chunkFull := l.chunkCount >= maxChunkSize
+	chunkExpired := time.Now().After(l.chunkCreatedAt.Add(chunkTTL))
+	if chunkFull || chunkExpired {
+		if err := l.closeChunk(ctx, l.chunkID); err != nil {
+			l.logger.WarnContext(ctx, "unable to close chunk", "chunk", l.chunkID)
+		}
+		l.chunkID = ""
+	}
+
+	if l.chunkID == "" {
+		l.chunkID = "CHUNK#" + uuid.New().String()
+		l.chunkCount = 0
+		l.chunkCreatedAt = time.Now()
+
+		if err := l.openChunk(ctx, l.chunkID, l.chunkCreatedAt); err != nil {
+			return "", trace.Wrap(err, "unable to open new chunk")
+		}
+	}
+
+	return l.chunkID, nil
+}
+
+func (l *Log) incChunk() {
+	l.chunkCount++
+}
+
+func (l *Log) openChunk(ctx context.Context, chunkID string, createdAt time.Time) error {
+	item, err := attributevalue.MarshalMap(chunk{
+		ID:            chunkID,
+		EventIndex:    0,
+		CreatedAt:     createdAt.Unix(),
+		CreatedAtDate: createdAt.Format(time.DateOnly),
+		ChunkStatus:   "OPEN",
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = l.svc.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName:           aws.String(l.Tablename),
+		Item:                item,
+		ConditionExpression: aws.String("attribute_not_exists(SessionID)"),
+	})
+	return trace.Wrap(err)
+}
+
+func (l *Log) closeChunk(ctx context.Context, chunkID string) error {
+	_, err := l.svc.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		TableName: aws.String(l.Tablename),
+		Key: map[string]dynamodbtypes.AttributeValue{
+			keySessionID:  &dynamodbtypes.AttributeValueMemberS{Value: chunkID},
+			keyEventIndex: &dynamodbtypes.AttributeValueMemberN{Value: "0"},
+		},
+		UpdateExpression:    aws.String("SET #status = :closed"),
+		ConditionExpression: aws.String("#status = :open"),
+		ExpressionAttributeNames: map[string]string{
+			"#status": keyChunkStatus,
+		},
+		ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
+			":closed": &dynamodbtypes.AttributeValueMemberS{Value: "CLOSED"},
+			":open":   &dynamodbtypes.AttributeValueMemberS{Value: "OPEN"},
+		},
+	})
+	return trace.Wrap(err)
+}
+
 func (l *Log) putAuditEvent(ctx context.Context, sessionID string, in apievents.AuditEvent) error {
-	input, err := l.createPutItem(sessionID, in)
+	chunkID, err := l.getChunkID(ctx)
+	if err != nil {
+		return trace.Wrap(err, "unable to get chunk ID")
+	}
+
+	input, err := l.createPutItem(sessionID, chunkID, in)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -675,10 +872,13 @@ func (l *Log) putAuditEvent(ctx context.Context, sessionID string, in apievents.
 		return err
 	}
 
+	// Increment chunk counter on success
+	l.incChunk()
+
 	return nil
 }
 
-func (l *Log) createPutItem(sessionID string, in apievents.AuditEvent) (*dynamodb.PutItemInput, error) {
+func (l *Log) createPutItem(sessionID, chunkID string, in apievents.AuditEvent) (*dynamodb.PutItemInput, error) {
 	fieldsMap, err := events.ToEventFields(in)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -693,6 +893,7 @@ func (l *Log) createPutItem(sessionID string, in apievents.AuditEvent) (*dynamod
 		EventType:      in.GetType(),
 		EventNamespace: apidefaults.Namespace,
 		FieldsMap:      fieldsMap,
+		ChunkID:        chunkID,
 	}
 	l.setExpiry(&e)
 	av, err := attributevalue.MarshalMap(e)
@@ -824,11 +1025,153 @@ func (l *Log) searchEventsWithFilter(ctx context.Context, fromUTC, toUTC time.Ti
 }
 
 func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
-	return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.NotImplemented("dynamoevents backend does not support streaming export"))
+	if req.Chunk == "" {
+		return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.BadParameter("missing required parameter 'chunk'"))
+	}
+
+	var cursor int
+	var err error
+	if req.GetCursor() != "" {
+		cursor, err = strconv.Atoi(req.GetCursor())
+		if err != nil {
+			return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.Wrap(err, "failed to parse cursor"))
+		}
+	}
+
+	// Skip to cursor
+	evts := stream.Skip(l.streamEventsFromChunk(ctx, req.Chunk), cursor)
+
+	return stream.FilterMap(evts, func(e events.EventFields) (*auditlogpb.ExportEventUnstructured, bool) {
+		// Increment cursor position
+		cursor++
+
+		unstructuredEvent, err := events.EventFieldsToUnstructured(e)
+		if err != nil {
+			l.logger.WarnContext(ctx, "skipping export of audit event due to failed conversion to unstructured event",
+				"error", err,
+				"chunk", req.Chunk,
+			)
+			return nil, false
+		}
+
+		return &auditlogpb.ExportEventUnstructured{
+			Event:  unstructuredEvent,
+			Cursor: strconv.Itoa(cursor),
+		}, true
+	})
+}
+
+func (l *Log) streamEventsFromChunk(ctx context.Context, chunkID string) stream.Stream[events.EventFields] {
+	input := dynamodb.QueryInput{
+		TableName:              aws.String(l.Tablename),
+		IndexName:              aws.String(indexChunkIDSearch),
+		KeyConditionExpression: aws.String("#id = :chunk_id"),
+		ExpressionAttributeNames: map[string]string{
+			"#id": keyChunkID,
+		},
+		ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
+			":chunk_id": &dynamodbtypes.AttributeValueMemberS{Value: chunkID},
+		},
+		// TODO: Handle pagination
+		Limit: aws.Int32(1000),
+	}
+
+	start := time.Now()
+	out, err := l.svc.Query(ctx, &input)
+	if err != nil {
+		return stream.Fail[events.EventFields](err)
+	}
+
+	// TODO: Remove debug logs
+	l.logger.DebugContext(ctx, "Successfully queried events",
+		"duration", time.Since(start),
+		"items", len(out.Items),
+		"chunk_id", chunkID,
+	)
+
+	// Return empty stream if query returned 0 events
+	if out.Count == 0 {
+		return stream.Empty[events.EventFields]()
+	}
+
+	var index = 0
+	return stream.Func(func() (events.EventFields, error) {
+		if index >= int(out.Count) {
+			return events.EventFields{}, io.EOF
+		}
+
+		item := out.Items[index]
+		index++
+
+		var result event
+		if err := attributevalue.UnmarshalMap(item, &result); err != nil {
+			return nil, trace.Wrap(err, "failed to unmarshal event")
+		}
+
+		return result.FieldsMap, nil
+	})
 }
 
 func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
-	return stream.Fail[*auditlogpb.EventExportChunk](trace.NotImplemented("dynamoevents backend does not support streaming export"))
+	// TODO: May need to return NotImplemented error stream if chunk indexes have not been initialized.
+
+	date := req.Date.AsTime()
+	if date.IsZero() {
+		return stream.Fail[*auditlogpb.EventExportChunk](trace.BadParameter("missing required parameter 'date'"))
+	}
+
+	input := dynamodb.QueryInput{
+		TableName:              aws.String(l.Tablename),
+		IndexName:              aws.String(indexChunkStatusSearch),
+		KeyConditionExpression: aws.String("#date = :date AND #status = :status"),
+		ExpressionAttributeNames: map[string]string{
+			"#date":   keyDate,
+			"#status": keyChunkStatus,
+		},
+		ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
+			":date":   &dynamodbtypes.AttributeValueMemberS{Value: date.Format(time.DateOnly)},
+			":status": &dynamodbtypes.AttributeValueMemberS{Value: "CLOSED"},
+		},
+		// TODO: Handle pagination
+		Limit: aws.Int32(1000),
+	}
+
+	start := time.Now()
+	out, err := l.svc.Query(ctx, &input)
+	if err != nil {
+		return stream.Fail[*auditlogpb.EventExportChunk](trace.Wrap(err, "failed to query chunks"))
+	}
+
+	// TODO: Remove debug logs
+	l.logger.DebugContext(ctx, "Successfully queried CLOSED chunk IDs",
+		"duration", time.Since(start),
+		"items", len(out.Items),
+		"date", date,
+	)
+
+	// Return empty stream if query returned 0 chunks
+	if out.Count == 0 {
+		return stream.Empty[*auditlogpb.EventExportChunk]()
+	}
+
+	index := 0
+	return stream.Func(func() (*auditlogpb.EventExportChunk, error) {
+		if index >= int(out.Count) {
+			return nil, io.EOF
+		}
+
+		item := out.Items[index]
+		index++
+
+		var result chunk
+		if err := attributevalue.UnmarshalMap(item, &result); err != nil {
+			return nil, trace.Wrap(err, "failed to unmarshal chunk")
+		}
+
+		return &auditlogpb.EventExportChunk{
+			Chunk: result.ID,
+		}, nil
+	})
 }
 
 // eventFilterList constructs a string of the form
@@ -1435,6 +1778,44 @@ func (l *Log) createTable(ctx context.Context, tableName string) error {
 				},
 				Projection: &dynamodbtypes.Projection{
 					ProjectionType: dynamodbtypes.ProjectionTypeAll,
+				},
+				ProvisionedThroughput: &provisionedThroughput,
+			},
+			{
+				IndexName: aws.String(indexChunkIDSearch),
+				KeySchema: []dynamodbtypes.KeySchemaElement{
+					{
+						AttributeName: aws.String(keyChunkID),
+						KeyType:       dynamodbtypes.KeyTypeHash,
+					},
+					{
+						AttributeName: aws.String(keyCreatedAt),
+						KeyType:       dynamodbtypes.KeyTypeRange,
+					},
+				},
+				Projection: &dynamodbtypes.Projection{
+					ProjectionType: dynamodbtypes.ProjectionTypeAll,
+				},
+				ProvisionedThroughput: &provisionedThroughput,
+			},
+			{
+				IndexName: aws.String(indexChunkStatusSearch),
+				KeySchema: []dynamodbtypes.KeySchemaElement{
+					{
+						AttributeName: aws.String(keyChunkStatus),
+						KeyType:       dynamodbtypes.KeyTypeHash,
+					},
+					{
+						AttributeName: aws.String(keyDate),
+						KeyType:       dynamodbtypes.KeyTypeHash,
+					},
+					{
+						AttributeName: aws.String(keyCreatedAt),
+						KeyType:       dynamodbtypes.KeyTypeRange,
+					},
+				},
+				Projection: &dynamodbtypes.Projection{
+					ProjectionType: dynamodbtypes.ProjectionTypeKeysOnly,
 				},
 				ProvisionedThroughput: &provisionedThroughput,
 			},
