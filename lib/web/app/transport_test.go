@@ -522,3 +522,59 @@ func Test_transport_with_integration(t *testing.T) {
 
 	require.Equal(t, message, string(bs))
 }
+
+func Test_isAppServerDialable(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string // description of this test case
+		dialErr error
+		match   bool
+		app     func() types.AppServer
+	}{
+		{
+			name:  "WithHealthyApp",
+			match: true,
+			app:   mustNewAppServer(t, types.OriginDynamic),
+		},
+		{
+			name:    "WithUnhealthyApp",
+			dialErr: errors.New("failed to connect"),
+			match:   false,
+			app:     mustNewAppServer(t, types.OriginDynamic),
+		},
+		{
+			name:    "WithUnhealthyOktaApp",
+			dialErr: errors.New("failed to connect"),
+			match:   true,
+			app:     mustNewAppServer(t, types.OriginOkta),
+		},
+		{
+			name:    "WithIntegrationApp",
+			dialErr: errors.New("failed to connect"),
+			match:   true,
+			app: func() types.AppServer {
+				appServer := mustNewAppServer(t, types.OriginDynamic)()
+				app := appServer.GetApp().Copy()
+				app.Spec.Integration = "my-integration"
+				appServer.SetApp(app)
+
+				return appServer
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := t.Context()
+			clusterGetter := &mockClusterGetter{
+				cluster: &mockCluster{
+					dialErr: tt.dialErr,
+				},
+			}
+
+			clusterClient, _ := clusterGetter.Cluster(ctx, "")
+			got := isAppServerDialable(ctx, clusterClient, tt.app())
+			require.Equal(t, tt.match, got, tt.app())
+		})
+	}
+}

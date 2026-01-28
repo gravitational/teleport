@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -43,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -228,17 +230,23 @@ func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, c
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	accessPoint, err := clusterClient.CachingAccessPoint()
+
+	servers, err := MatchUnshuffled(ctx, clusterClient, MatchPublicAddr(publicAddr))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// At least one AppServer needs to be present to serve the requests. Using
-	// MatchOne can reduce the amount of work required by the app matcher by not
-	// dialing every AppServer.
-	_, err = MatchOne(ctx, accessPoint, appServerMatcher(h.c.ClusterGetter, publicAddr, clusterName))
-	if err != nil {
-		return trace.Wrap(err)
+	if len(servers) == 0 {
+		// This error path is unexpected as the healthcheck is typically performed post resolution.
+		return trace.NotFound("failed to match applications with public addr %s", publicAddr)
+	}
+
+	// At least one AppServer needs to be present to serve the requests.
+	i := slices.IndexFunc(servers, func(appServer types.AppServer) bool {
+		return isAppServerDialable(ctx, clusterClient, appServer)
+	})
+	if i < 0 {
+		return trace.NotFound("all app servers unheatlhy")
 	}
 
 	return nil
@@ -689,6 +697,6 @@ func makeAppRedirectURL(r *http.Request, proxyPublicAddr, addr string, req launc
 
 // redirectInsteadOfForward returns true if an application shouldn't be forwarded, but
 // should be redirected directly to the public address instead.
-func redirectInsteadOfForward(appServer types.AppServer) bool {
+func redirectInsteadOfForward(appServer readonly.AppServer) bool {
 	return appServer.GetApp().Origin() == types.OriginOkta
 }
