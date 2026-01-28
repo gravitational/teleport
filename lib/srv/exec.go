@@ -226,7 +226,10 @@ func (e *localExec) ReadAuditSessionID() (uint32, error) {
 		return 0, nil
 	}
 
-	id, err := readAuditSessionID(e.Ctx.auditSessionIDr, 20*time.Second)
+	ctx, cancel := context.WithTimeout(e.Ctx.cancelContext, 20*time.Second)
+	defer cancel()
+
+	id, err := readAuditSessionID(ctx, e.Ctx.auditSessionIDr)
 	closeErr := e.Ctx.auditSessionIDr.Close()
 	// Set to nil so the close in the context doesn't attempt to re-close.
 	e.Ctx.auditSessionIDr = nil
@@ -308,30 +311,29 @@ func checkSCPAllowed(scx *ServerContext, command string) (bool, error) {
 	return true, trace.Wrap(scx.CheckFileCopyingAllowed())
 }
 
-func readAuditSessionID(fd *os.File, timeout time.Duration) (uint32, error) {
-	var readBytes int
-	idBuf := make([]byte, 8)
+func readAuditSessionID(ctx context.Context, fd *os.File) (uint32, error) {
+	var idStr string
 	waitCh := make(chan error, 1)
 	go func() {
 		// Reading from the file descriptor will block until it's closed.
+		idBuf := make([]byte, 10)
 		n, err := fd.Read(idBuf)
 		if errors.Is(err, io.EOF) {
 			err = nil
 		}
-		readBytes = n
+		idStr = string(idBuf[:n])
 		waitCh <- err
 	}()
 
 	select {
-	case <-time.After(timeout):
-		return 0, trace.LimitExceeded("timed out waiting for audit login session ID")
+	case <-ctx.Done():
+		return 0, trace.Wrap(ctx.Err(), "reading audit login session ID")
 	case err := <-waitCh:
 		if err != nil {
 			return 0, trace.Wrap(err)
 		}
 	}
 
-	idStr := string(idBuf[:readBytes])
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		return 0, trace.Wrap(err)

@@ -78,7 +78,7 @@ const (
 	// it can continue after the parent process starts monitoring the
 	// child's audit login session ID.
 	ContinueFile
-	// ReadyFileDeprecated is a placeholder for the unused file that
+	// Deprecated:ReadyFileDeprecated is a placeholder for the unused file that
 	// was passed to the child process and used to communicate to the
 	// parent that the child is ready to be placed into its cgroup.
 	// This is unnecessary now that we don't use cgroups anymore.
@@ -511,6 +511,8 @@ func setAuditSessionID(ctx context.Context, c ExecCommand, auditIDFile, tty *os.
 		}
 
 		slog.DebugContext(ctx, "Audit login session IDs", "old", id, "new", newID)
+		// If the audit login session IDs are the same, the session ID
+		// was not changed and ESR logging will not work correctly.
 		if bytes.Equal(id, newID) {
 			return nil, trace.Errorf("audit login session ID was not changed")
 		}

@@ -256,7 +256,10 @@ func (t *terminal) ReadAuditSessionID() (uint32, error) {
 		return 0, nil
 	}
 
-	auditSessionID, err := readAuditSessionID(t.serverContext.auditSessionIDr, 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.serverContext.cancelContext, 20*time.Second)
+	defer cancel()
+
+	auditSessionID, err := readAuditSessionID(ctx, t.serverContext.auditSessionIDr)
 	closeErr := t.serverContext.auditSessionIDr.Close()
 	// Set to nil so the close in the context doesn't attempt to re-close.
 	t.serverContext.auditSessionIDr = nil

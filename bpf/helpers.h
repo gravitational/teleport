@@ -34,7 +34,6 @@
         __uint(max_entries, size); \
     } name SEC(".maps")
 
-
 #define TASK_COMM_LEN 16
 #define __user
 

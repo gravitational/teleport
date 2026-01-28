@@ -170,7 +170,7 @@ func (s *Service) OpenSession(ctx *SessionContext) error {
 	}
 	sctx, found := s.watch.Load(auditSessID)
 	if found {
-		logger.WarnContext(s.closeContext, "audit session ID already in use", "session_id", sctx.SessionID, "current_session_id", ctx.SessionID, "audit_session_id", auditSessID)
+		logger.WarnContext(s.closeContext, "Audit session ID already in use", "session_id", sctx.SessionID, "current_session_id", ctx.SessionID, "audit_session_id", auditSessID)
 		return trace.BadParameter("audit session ID already in use")
 	}
 
@@ -263,9 +263,9 @@ func sendEvents(bpfEvents chan []byte, eventBuf *ringbuf.Reader) {
 	}
 }
 
-// TODO(capnspacehook): combine processAccessEvents and processNetworkEvents
 // processAccessEvents pulls events off the perf ring buffer, parses them, and emits them to
 // the audit log.
+// TODO(capnspacehook): combine processAccessEvents and processNetworkEvents
 func (s *Service) processAccessEvents() {
 	for {
 		select {

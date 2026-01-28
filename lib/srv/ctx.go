@@ -428,7 +428,7 @@ type ServerContext struct {
 	killShellr *os.File
 	killShellw *os.File
 
-	// auditSessionIDr{r,w} are used to send the unique audit session ID of the
+	// auditSessionID{r,w} are used to send the unique audit session ID of the
 	// process that will be used to correlate audit events to the SSH session
 	// for sessions with Enhanced Session Recording enabled.
 	auditSessionIDr *os.File
@@ -627,7 +627,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	child.auditSessionIDr, child.auditSessionIDw, err = os.Pipe()
 	if err != nil {
 		childErr := child.Close()
-		return nil, trace.Wrap(err, childErr)
+		return nil, trace.NewAggregate(err, childErr)
 	}
 	child.AddCloser(child.auditSessionIDr)
 	child.AddCloser(child.auditSessionIDw)
