@@ -80,6 +80,7 @@ export function makeProps(
     shouldSkipVersionCheck: false,
     disableVersionCheck: () => {},
     platform: 'darwin',
+    currentVersion: '14.7.2',
     changeAppUpdatesManagingCluster: async () => {},
     checkForAppUpdates: async () => {},
     downloadAppUpdate: async () => {},
@@ -126,7 +127,6 @@ export function makeProps(
     props.appUpdateEvent = {
       kind: 'update-available',
       update: {
-        updateKind: 'upgrade',
         version: '19.0.0',
         files: [
           {
