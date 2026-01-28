@@ -40,6 +40,8 @@ type AppServer interface {
 	GetHostname() string
 	// GetHostID returns ID of the host the server is running on.
 	GetHostID() string
+	// SetHostID sets ID of the host the server is running on.
+	SetHostID(string)
 	// GetRotation gets the state of certificate authority rotation.
 	GetRotation() Rotation
 	// SetRotation sets the state of certificate authority rotation.
@@ -121,6 +123,11 @@ func (s *AppServerV3) GetHostname() string {
 // GetHostID returns ID of the host the server is running on.
 func (s *AppServerV3) GetHostID() string {
 	return s.Spec.HostID
+}
+
+// SetHostID sets ID of the host the server is running on.
+func (s *AppServerV3) SetHostID(hostID string) {
+	s.Spec.HostID = hostID
 }
 
 // GetKind returns the resource kind.

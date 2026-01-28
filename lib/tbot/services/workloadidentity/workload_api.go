@@ -197,8 +197,10 @@ func (s *WorkloadAPIService) Run(ctx context.Context) error {
 	)
 	workloadpb.RegisterSpiffeWorkloadAPIServer(srv, s)
 	sdsHandler, err := sds.NewHandler(sds.HandlerConfig{
-		Logger:           s.log,
-		RenewalInterval:  s.defaultCredentialLifetime.RenewalInterval,
+		Logger: s.log,
+		RenewalInterval: cmp.Or(
+			s.cfg.CredentialLifetime, s.defaultCredentialLifetime,
+		).RenewalInterval,
 		TrustBundleCache: s.trustBundleCache,
 		ClientAuthenticator: func(ctx context.Context) (*slog.Logger, sds.SVIDFetcher, error) {
 			log, attrs, err := s.authenticateClient(ctx)

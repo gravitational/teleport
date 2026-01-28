@@ -100,9 +100,14 @@ type App struct {
 	// Only applicable to TCP App Access.
 	// If this field is not empty, URI is expected to contain no port number and start with the tcp
 	// protocol.
-	TcpPorts      []*PortRange `protobuf:"bytes,12,rep,name=tcp_ports,json=tcpPorts,proto3" json:"tcp_ports,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	TcpPorts []*PortRange `protobuf:"bytes,12,rep,name=tcp_ports,json=tcpPorts,proto3" json:"tcp_ports,omitempty"`
+	// Subkind of the app resource. Used to differentiate different flavors of app.
+	SubKind string `protobuf:"bytes,13,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
+	// Defines a permission set that is available on an IdentityCenter account app.
+	// Such apps can be recognized by sub_kind == 'aws_ic_account'.
+	PermissionSets []*IdentityCenterPermissionSet `protobuf:"bytes,14,rep,name=permission_sets,json=permissionSets,proto3" json:"permission_sets,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *App) Reset() {
@@ -215,6 +220,20 @@ func (x *App) GetAwsRoles() []*AWSRole {
 func (x *App) GetTcpPorts() []*PortRange {
 	if x != nil {
 		return x.TcpPorts
+	}
+	return nil
+}
+
+func (x *App) GetSubKind() string {
+	if x != nil {
+		return x.SubKind
+	}
+	return ""
+}
+
+func (x *App) GetPermissionSets() []*IdentityCenterPermissionSet {
+	if x != nil {
+		return x.PermissionSets
 	}
 	return nil
 }
@@ -439,11 +458,76 @@ func (x *RouteToApp) GetTargetPort() uint32 {
 	return 0
 }
 
+// Defines a permission set that is available on an IdentityCenter account app.
+type IdentityCenterPermissionSet struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// AWS-assigned ARN of the permission set.
+	Arn string `protobuf:"bytes,1,opt,name=arn,proto3" json:"arn,omitempty"`
+	// Human-readable name of the permission set.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// ID of the Teleport Account Assignment resource that represents this permission being assigned
+	// on the enclosing Account.
+	AssignmentId  string `protobuf:"bytes,3,opt,name=assignment_id,json=assignmentId,proto3" json:"assignment_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IdentityCenterPermissionSet) Reset() {
+	*x = IdentityCenterPermissionSet{}
+	mi := &file_teleport_lib_teleterm_v1_app_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IdentityCenterPermissionSet) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IdentityCenterPermissionSet) ProtoMessage() {}
+
+func (x *IdentityCenterPermissionSet) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_app_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IdentityCenterPermissionSet.ProtoReflect.Descriptor instead.
+func (*IdentityCenterPermissionSet) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_app_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *IdentityCenterPermissionSet) GetArn() string {
+	if x != nil {
+		return x.Arn
+	}
+	return ""
+}
+
+func (x *IdentityCenterPermissionSet) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *IdentityCenterPermissionSet) GetAssignmentId() string {
+	if x != nil {
+		return x.AssignmentId
+	}
+	return ""
+}
+
 var File_teleport_lib_teleterm_v1_app_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_app_proto_rawDesc = "" +
 	"\n" +
-	"\"teleport/lib/teleterm/v1/app.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\"\xb3\x03\n" +
+	"\"teleport/lib/teleterm/v1/app.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\"\xae\x04\n" +
 	"\x03App\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12!\n" +
@@ -459,7 +543,9 @@ const file_teleport_lib_teleterm_v1_app_proto_rawDesc = "" +
 	"\x04fqdn\x18\n" +
 	" \x01(\tR\x04fqdn\x12>\n" +
 	"\taws_roles\x18\v \x03(\v2!.teleport.lib.teleterm.v1.AWSRoleR\bawsRoles\x12@\n" +
-	"\ttcp_ports\x18\f \x03(\v2#.teleport.lib.teleterm.v1.PortRangeR\btcpPorts\"h\n" +
+	"\ttcp_ports\x18\f \x03(\v2#.teleport.lib.teleterm.v1.PortRangeR\btcpPorts\x12\x19\n" +
+	"\bsub_kind\x18\r \x01(\tR\asubKind\x12^\n" +
+	"\x0fpermission_sets\x18\x0e \x03(\v25.teleport.lib.teleterm.v1.IdentityCenterPermissionSetR\x0epermissionSets\"h\n" +
 	"\aAWSRole\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\adisplay\x18\x02 \x01(\tR\adisplay\x12\x10\n" +
@@ -477,7 +563,11 @@ const file_teleport_lib_teleterm_v1_app_proto_rawDesc = "" +
 	"\fcluster_name\x18\x03 \x01(\tR\vclusterName\x12\x10\n" +
 	"\x03uri\x18\x04 \x01(\tR\x03uri\x12\x1f\n" +
 	"\vtarget_port\x18\x05 \x01(\rR\n" +
-	"targetPortBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
+	"targetPort\"h\n" +
+	"\x1bIdentityCenterPermissionSet\x12\x10\n" +
+	"\x03arn\x18\x01 \x01(\tR\x03arn\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12#\n" +
+	"\rassignment_id\x18\x03 \x01(\tR\fassignmentIdBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
 
 var (
 	file_teleport_lib_teleterm_v1_app_proto_rawDescOnce sync.Once
@@ -491,23 +581,25 @@ func file_teleport_lib_teleterm_v1_app_proto_rawDescGZIP() []byte {
 	return file_teleport_lib_teleterm_v1_app_proto_rawDescData
 }
 
-var file_teleport_lib_teleterm_v1_app_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_teleport_lib_teleterm_v1_app_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_teleport_lib_teleterm_v1_app_proto_goTypes = []any{
-	(*App)(nil),        // 0: teleport.lib.teleterm.v1.App
-	(*AWSRole)(nil),    // 1: teleport.lib.teleterm.v1.AWSRole
-	(*PortRange)(nil),  // 2: teleport.lib.teleterm.v1.PortRange
-	(*RouteToApp)(nil), // 3: teleport.lib.teleterm.v1.RouteToApp
-	(*Label)(nil),      // 4: teleport.lib.teleterm.v1.Label
+	(*App)(nil),                         // 0: teleport.lib.teleterm.v1.App
+	(*AWSRole)(nil),                     // 1: teleport.lib.teleterm.v1.AWSRole
+	(*PortRange)(nil),                   // 2: teleport.lib.teleterm.v1.PortRange
+	(*RouteToApp)(nil),                  // 3: teleport.lib.teleterm.v1.RouteToApp
+	(*IdentityCenterPermissionSet)(nil), // 4: teleport.lib.teleterm.v1.IdentityCenterPermissionSet
+	(*Label)(nil),                       // 5: teleport.lib.teleterm.v1.Label
 }
 var file_teleport_lib_teleterm_v1_app_proto_depIdxs = []int32{
-	4, // 0: teleport.lib.teleterm.v1.App.labels:type_name -> teleport.lib.teleterm.v1.Label
+	5, // 0: teleport.lib.teleterm.v1.App.labels:type_name -> teleport.lib.teleterm.v1.Label
 	1, // 1: teleport.lib.teleterm.v1.App.aws_roles:type_name -> teleport.lib.teleterm.v1.AWSRole
 	2, // 2: teleport.lib.teleterm.v1.App.tcp_ports:type_name -> teleport.lib.teleterm.v1.PortRange
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	4, // 3: teleport.lib.teleterm.v1.App.permission_sets:type_name -> teleport.lib.teleterm.v1.IdentityCenterPermissionSet
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_teleterm_v1_app_proto_init() }
@@ -522,7 +614,7 @@ func file_teleport_lib_teleterm_v1_app_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_app_proto_rawDesc), len(file_teleport_lib_teleterm_v1_app_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

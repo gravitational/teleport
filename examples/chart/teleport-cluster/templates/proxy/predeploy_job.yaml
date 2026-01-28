@@ -1,5 +1,7 @@
 {{- $proxy := mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy -}}
 {{- if $proxy.validateConfigOnDeploy }}
+{{/* Replicating a v17 bug for stability: we were granting the Teleport resources to the job. */}}
+{{- $resources := coalesce $proxy.jobResources $proxy.resources }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -39,6 +41,9 @@ spec:
       - name: "teleport"
         image: '{{ if $proxy.enterprise }}{{ $proxy.enterpriseImage }}{{ else }}{{ $proxy.image }}{{ end }}:{{ include "teleport-cluster.version" . }}'
         imagePullPolicy: {{ $proxy.imagePullPolicy }}
+{{- if $resources }}
+        resources: {{- toYaml $resources | nindent 10 }}
+{{- end }}
 {{- if or $proxy.extraEnv $proxy.tls.existingCASecretName }}
         env:
   {{- if (gt (len $proxy.extraEnv) 0) }}
