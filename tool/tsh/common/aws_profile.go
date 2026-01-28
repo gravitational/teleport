@@ -156,8 +156,8 @@ func writeAWSProfileSummary(w io.Writer, configPath string, profiles []awsProfil
 		table.WriteTo(w)
 		fmt.Fprintln(w)
 
-		fmt.Fprintf(w, "To use these profiles, first authenticate with AWS using the name of an SSO session. Example:\n")
-		fmt.Fprintf(w, "  aws sso login --sso-session %s\n", profiles[0].Session)
+		fmt.Fprintf(w, "To use these profiles, first authenticate with AWS. We recommend using the --profile flag to avoid conflicts with existing environment variables:\n")
+		fmt.Fprintf(w, "  aws sso login --profile %s\n", profiles[0].Name)
 		fmt.Fprintln(w)
 		fmt.Fprintf(w, "Then set the AWS_PROFILE environment variable. Example:\n")
 		fmt.Fprintf(w, "  export AWS_PROFILE=%s\n", profiles[0].Name)
