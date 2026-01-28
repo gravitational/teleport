@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.6.4"
+const Version = "19.0.0-dev.avatus.6"
 
-const VersionMajor = 18
-const VersionMinor = 6
-const VersionPatch = 4
-const VersionPreRelease = ""
+const VersionMajor = 19
+const VersionMinor = 0
+const VersionPatch = 0
+const VersionPreRelease = "dev.avatus.6"
 const VersionMetadata = ""
