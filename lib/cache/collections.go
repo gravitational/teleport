@@ -39,6 +39,7 @@ import (
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
+	workloadclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -148,6 +149,7 @@ type collections struct {
 	recordingEncryption                *collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex]
 	plugins                            *collection[types.Plugin, pluginIndex]
 	appAuthConfig                      *collection[*appauthconfigv1.AppAuthConfig, appAuthConfigIndex]
+	workloadClusters                   *collection[*workloadclusterv1.WorkloadCluster, workloadClusterIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -787,6 +789,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.appAuthConfig = collect
 			out.byKind[resourceKind] = out.appAuthConfig
+		case types.KindWorkloadCluster:
+			collect, err := newWorkloadClusterCollection(c.WorkloadClusterService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.workloadClusters = collect
+			out.byKind[resourceKind] = out.workloadClusters
 		default:
 			if _, ok := out.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
