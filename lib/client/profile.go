@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -236,14 +237,13 @@ type ProfileStatus struct {
 	// Username is the Teleport username.
 	Username string
 
-	// Roles is a list of Teleport Roles this user has been assigned.
+	// Roles is a list of Teleport Roles this user has been assigned. Mutually
+	// exclusive with the ScopePin field.
 	Roles []string
 
-	// Scope is the scope that this profile is pinned to.
-	Scope string
-
-	// ScopedRoles is a map of scopes to scoped role assignments.
-	ScopedRoles map[string][]string
+	// ScopePin describes the scope that this profile is pinned to, if any, and
+	// encodes scoped role assignments. Mutually exclusive with the Roles field.
+	ScopePin *scopesv1.Pin
 
 	// Logins are the Linux accounts, also known as principals in OpenSSH terminology.
 	Logins []string
@@ -366,20 +366,6 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 	roles := slices.Clone(sshIdent.Roles)
 	sort.Strings(roles)
 
-	var scope string
-	var scopedRoles map[string][]string
-	if pin := sshIdent.ScopePin; pin != nil {
-		scope = pin.GetScope()
-		scopedRoles = make(map[string][]string)
-		for scope, assigned := range pin.GetAssignments() {
-			if len(assigned.GetRoles()) == 0 {
-				continue
-			}
-
-			scopedRoles[scope] = assigned.GetRoles()
-		}
-	}
-
 	// Extract extensions from certificate. This lists the abilities of the
 	// certificate (like can the user request a PTY, port forwarding, etc.)
 	var extensions []string
@@ -448,8 +434,7 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 		Extensions:               extensions,
 		CriticalOptions:          sshCert.CriticalOptions,
 		Roles:                    roles,
-		Scope:                    scope,
-		ScopedRoles:              scopedRoles,
+		ScopePin:                 sshIdent.ScopePin,
 		Cluster:                  opts.SiteName,
 		Traits:                   sshIdent.Traits,
 		ActiveRequests:           sshIdent.ActiveRequests,

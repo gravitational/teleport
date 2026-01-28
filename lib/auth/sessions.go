@@ -310,7 +310,7 @@ func (a *Server) newWebSession(
 		ttl:            sessionTTL,
 		sshPublicKey:   sshAuthorizedKey,
 		tlsPublicKey:   tlsPublicKeyPEM,
-		checker:        services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to newWebSession.
+		checkerContext: services.NewUnscopedSplitAccessCheckerContext(checker), // TODO(fspmarshall/scopes): add scoping support to newWebSession.
 		traits:         req.Traits,
 		activeRequests: req.AccessRequests,
 	}
@@ -663,7 +663,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		user:           user,
 		loginIP:        req.LoginIP,
 		tlsPublicKey:   tlsPublicKey,
-		checker:        services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to newAppSession.
+		checkerContext: services.NewUnscopedSplitAccessCheckerContext(checker), // TODO(fspmarshall/scopes): add scoping support to newAppSession.
 		ttl:            req.SessionTTL,
 		traits:         req.Traits,
 		activeRequests: req.AccessRequests,
@@ -850,7 +850,7 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 		sshPublicKeyAttestationStatement: req.SSHAttestationStatement,
 		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
 		compatibility:                    req.Compatibility,
-		checker:                          checker,
+		checkerContext:                   checker,
 		traits:                           req.UserState.GetTraits(),
 		routeToCluster:                   req.RouteToCluster,
 		kubernetesCluster:                req.KubernetesCluster,

@@ -32,6 +32,7 @@ import (
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 )
 
 // TestPopulatePinnedAssignmentsForUser verifies the basic expected behavior of scope pin assignment population.
@@ -221,14 +222,10 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 			ok: true,
 			expect: &scopesv1.Pin{
 				Scope: "/aa/bb",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/aa": {
-						Roles: []string{"role-01", "role-03"},
-					},
-					"/aa/bb": {
-						Roles: []string{"role-04"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/":   {"/aa": {"role-01"}},
+					"/aa": {"/aa": {"role-03"}, "/aa/bb": {"role-04"}},
+				}),
 			},
 		},
 		{
@@ -240,20 +237,11 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 			ok: true,
 			expect: &scopesv1.Pin{
 				Scope: "/",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/aa": {
-						Roles: []string{"role-01", "role-03"},
-					},
-					"/aa/bb": {
-						Roles: []string{"role-04", "role-05"},
-					},
-					"/aa/bb/cc": {
-						Roles: []string{"role-06"},
-					},
-					"/bb": {
-						Roles: []string{"role-02"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/":      {"/aa": {"role-01"}, "/bb": {"role-02"}},
+					"/aa":    {"/aa": {"role-03"}, "/aa/bb": {"role-04"}},
+					"/aa/bb": {"/aa/bb": {"role-05"}, "/aa/bb/cc": {"role-06"}},
+				}),
 			},
 		},
 		{
