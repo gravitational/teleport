@@ -94,6 +94,13 @@ func TestValidateClientVersion(t *testing.T) {
 			middleware:    &auth.Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
 			clientVersion: semver.Version{Major: api.VersionMajor - 1}.String(),
 			errAssertion: func(t *testing.T, err error) {
+				if api.VersionMajor <= 19 {
+					// TODO(codingllama): DELETE IN 20.
+					//  Min required version bumped to 19 due to the WindowsCA migration.
+					require.ErrorContains(t, err, "client version")
+					return
+				}
+
 				require.NoError(t, err)
 			},
 		},
@@ -114,10 +121,26 @@ func TestValidateClientVersion(t *testing.T) {
 			},
 		},
 		{
-			name:          "pre-release client allowed",
+			name:          "pre-release client v-1 allowed",
 			middleware:    &auth.Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
 			clientVersion: semver.Version{Major: api.VersionMajor - 1, PreRelease: "dev.abcd.123"}.String(),
 			errAssertion: func(t *testing.T, err error) {
+				if api.VersionMajor <= 19 {
+					// TODO(codingllama): DELETE IN 20.
+					//  Min required version bumped to 19 due to the WindowsCA migration.
+					require.ErrorContains(t, err, "client version")
+					return
+				}
+
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:          "pre-release client v-0 allowed",
+			middleware:    &auth.Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
+			clientVersion: semver.Version{Major: api.VersionMajor, PreRelease: "dev.abcd.123"}.String(),
+			errAssertion: func(t *testing.T, err error) {
+				// TODO(codingllama): DELETE IN 20. "pre-release client v-0" is enough by then.
 				require.NoError(t, err)
 			},
 		},

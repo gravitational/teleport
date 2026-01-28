@@ -37,7 +37,12 @@ func SemVer() *semver.Version {
 // version comes before <version>-alpha so that alpha, beta, rc, and dev builds
 // are permitted.
 func MinClientSemVer() *semver.Version {
-	return &semver.Version{Major: api.VersionMajor - 1, PreRelease: "aa"}
+	// TODO(codingllama): DELETE IN 20. Obsolete by then.
+	const minWindowsCAMajor = 19
+	return &semver.Version{
+		Major:      max(minWindowsCAMajor, api.VersionMajor-1),
+		PreRelease: "aa",
+	}
 }
 
 // Gitref is set to the output of "git describe" during the build process.
