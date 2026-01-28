@@ -161,6 +161,8 @@ type ProvisionToken interface {
 	GetGitlabRules() *ProvisionTokenSpecV2GitLab
 	// GetAzure will return the Azure specific configuration for this token.
 	GetAzure() *ProvisionTokenSpecV2Azure
+	// GetAzureDevops will return the AzureDevops specific configuration for this token.
+	GetAzureDevops() *ProvisionTokenSpecV2AzureDevops
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
@@ -555,6 +557,11 @@ func (p *ProvisionTokenV2) GetAWSIIDTTL() Duration {
 // GetAzure the Azure specific configuration for this token.
 func (p *ProvisionTokenV2) GetAzure() *ProvisionTokenSpecV2Azure {
 	return p.Spec.Azure
+}
+
+// GetAzureDevops will return the AzureDevops specific configuration for this token.
+func (p *ProvisionTokenV2) GetAzureDevops() *ProvisionTokenSpecV2AzureDevops {
+	return p.Spec.AzureDevops
 }
 
 // GetJoinMethod returns joining method that must be used with this token.

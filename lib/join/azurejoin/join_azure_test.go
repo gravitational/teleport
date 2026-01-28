@@ -493,21 +493,18 @@ func TestJoinAzure(t *testing.T) {
 				require.NoError(t, a.DeleteToken(ctx, token.GetName()))
 			})
 
-			scopedToken := &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Version: types.V1,
-				Scope:   "/test",
+			scopedToken, err := jointest.ScopedTokenFromProvisionToken(token, &joiningv1.ScopedToken{
+				Scope: "/test",
 				Metadata: &headerv1.Metadata{
 					Name: "scoped_" + token.GetName(),
 				},
 				Spec: &joiningv1.ScopedTokenSpec{
 					AssignedScope: "/test/one",
-					JoinMethod:    string(types.JoinMethodAzure),
-					Roles:         []string{types.RoleNode.String()},
 					UsageMode:     string(joining.TokenUsageModeUnlimited),
-					Azure:         convertAzureParams(t, token.GetAzure()),
 				},
-			}
+			})
+			require.NoError(t, err)
+
 			_, err = a.CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
 				Token: scopedToken,
 			})
@@ -1304,18 +1301,4 @@ func (c *fakeAzureIssuerHTTPClient) Do(req *http.Request) (*http.Response, error
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(bytes.NewReader(c.issuerCertDER)),
 	}, nil
-}
-
-func convertAzureParams(t *testing.T, azure *types.ProvisionTokenSpecV2Azure) *joiningv1.Azure {
-	t.Helper()
-	allow := make([]*joiningv1.Azure_Rule, len(azure.Allow))
-	for i, rule := range azure.Allow {
-		allow[i] = &joiningv1.Azure_Rule{
-			Subscription:   rule.Subscription,
-			ResourceGroups: rule.ResourceGroups,
-		}
-	}
-	return &joiningv1.Azure{
-		Allow: allow,
-	}
 }
