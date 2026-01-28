@@ -313,7 +313,13 @@ function cloneError(error: unknown): TshdRpcError | Error | unknown {
       stack: error.stack,
       cause: error.cause,
       code: error.code,
-      isResolvableWithRelogin: error.meta['is-resolvable-with-relogin'] === '1',
+      // If a gRPC handler adds multiple trailers of the "is-resolvable-with-relogin": "1" pair,
+      // each pair is going to get the value appended to the key, resulting in
+      // "is-resolvable-with-relogin": "1, 1, 1, 1" (yes, a single string and not an array of
+      // strings).
+      // Since trailers in theory can be arrays of strings too, instead of discerning between those
+      // three cases we just check merely for the existence of the trailer.
+      isResolvableWithRelogin: !!error.meta['is-resolvable-with-relogin'],
       toString: () => error.toString(),
     } satisfies TshdRpcError;
   }
