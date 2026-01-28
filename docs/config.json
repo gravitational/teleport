@@ -1347,7 +1347,7 @@
     },
     {
       "source": "/admin-guides/management/admin/daemon/",
-      "destination": "/zero-trust-access/management/daemon/",
+      "destination": "/reference/cli/teleport/",
       "permanent": true
     },
     {
@@ -3434,7 +3434,7 @@
     },
     {
       "source": "/zero-trust-access/management/admin/daemon/",
-      "destination": "/zero-trust-access/management/daemon/",
+      "destination": "/reference/cli/teleport/",
       "permanent": true
     },
     {
@@ -3475,6 +3475,11 @@
     {
       "source": "/identity-governance/access-lists/terraform/",
       "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/access-list/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/daemon/",
+      "destination": "/reference/cli/teleport/",
       "permanent": true
     }
   ]
