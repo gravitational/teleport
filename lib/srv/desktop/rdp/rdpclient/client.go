@@ -146,6 +146,10 @@ type Client struct {
 	// handle allows the rust code to call back into the client.
 	handle cgo.Handle
 
+	// conn handles TDP messages between Windows Desktop Service
+	// and a Teleport Proxy.
+	conn tdp.MessageReadWriteCloser
+
 	// Synchronization point to prevent input messages from being forwarded
 	// until the connection is established.
 	// Used with sync/atomic, 0 means false, 1 means true.
@@ -168,8 +172,21 @@ type Client struct {
 	mouseX, mouseY uint32
 }
 
+// reads in handshake messages and optionally wraps the connection in a translation layer
+// based on the client protocol.
+func prepareConnecton(clientProtocol string, conn *tdp.Conn, logger *slog.Logger) (tdp.MessageReadWriteCloser, *tdpb.ClientHello, error) {
+	// Read Hello either from tdpb or tdp.
+	if clientProtocol == tdpb.ProtocolName {
+		hello, err := readClientHello(conn, logger)
+		return conn, hello, trace.Wrap(err)
+	}
+	hello, err := readLegacyHandshake(conn, logger)
+	// Translate to legacy tdp
+	return tdp.NewReadWriteInterceptor(conn, tdpb.TranslateToModern, tdpb.TranslateToLegacy), hello, trace.Wrap(err)
+}
+
 // New creates and connects a new Client based on cfg.
-func New(cfg Config) (*Client, error) {
+func New(conn *tdp.Conn, cfg Config) (*Client, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, err
 	}
@@ -178,14 +195,21 @@ func New(cfg Config) (*Client, error) {
 		readyForInput: 0,
 	}
 
-	if err := c.readClientHello(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := cfg.AuthorizeFn(c.username); err != nil {
+	// read the client hello and wrap the connection with a translation layer (if needed)
+	wrappedConn, hello, err := prepareConnecton(cfg.ClientProtocol, conn, cfg.Logger)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return c, nil
+	c.conn = wrappedConn
+	c.username = hello.Username
+	c.keyboardLayout = hello.KeyboardLayout
+
+	if err := cfg.AuthorizeFn(hello.Username); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return c, trace.Wrap(c.setClientSize(hello.ScreenSpec.GetHeight(), hello.ScreenSpec.GetHeight()))
 }
 
 // Run starts the RDP client, using the provided user certificate and private key.
@@ -230,28 +254,121 @@ func (c *Client) GetClientUsername() string {
 	return c.username
 }
 
-func (c *Client) readClientHello() error {
+// ReadClientScreenSpec reads the next message from the connection, expecting
+// it to be a ClientScreenSpec. If it is not, an error is returned.
+func ReadClientScreenSpec(conn *tdp.Conn) (*tdpbv1.ClientScreenSpec, error) {
+	m, err := conn.ReadMessage()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	spec, ok := m.(legacy.ClientScreenSpec)
+	if !ok {
+		return nil, trace.BadParameter("expected ClientScreenSpec, got %T", m)
+	}
+
+	return &tdpbv1.ClientScreenSpec{Width: spec.Width, Height: spec.Height}, nil
+}
+
+// SendNotification is a convenience function for sending a Notification message.
+func (c *Client) SendNotification(message string, severity legacy.Severity) error {
+	return c.conn.WriteMessage(legacy.Alert{Message: message, Severity: severity})
+}
+
+func readClientUsername(conn *tdp.Conn, logger *slog.Logger) (string, error) {
 	for {
-		msg, err := c.cfg.Conn.ReadMessage()
+		msg, err := conn.ReadMessage()
 		if err != nil {
-			return trace.Wrap(err)
+			return "", trace.Wrap(err)
+		}
+		u, ok := msg.(legacy.ClientUsername)
+		if !ok {
+			logger.DebugContext(context.Background(), "Received unexpected ClientUsername message", "message_type", logutils.TypeAttr(msg))
+			continue
+		}
+		logger.DebugContext(context.Background(), "Got RDP username", "username", u.Username)
+		return u.Username, nil
+	}
+}
+
+func readClientSize(conn *tdp.Conn, logger *slog.Logger) (*tdpbv1.ClientScreenSpec, error) {
+	for {
+		s, err := ReadClientScreenSpec(conn)
+		if err != nil {
+			if trace.IsBadParameter(err) {
+				logger.DebugContext(context.Background(), "Failed to read client screen spec", "error", err)
+				continue
+			} else {
+				return nil, err
+			}
+		}
+		return s, nil
+	}
+}
+
+func readClientKeyboardLayout(conn *tdp.Conn, logger *slog.Logger) (uint32, error) {
+	msgType, err := conn.PeekNextByte()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	if legacy.MessageType(msgType) != legacy.TypeClientKeyboardLayout {
+		logger.DebugContext(context.Background(), "Client did not send keyboard layout")
+		return 0, nil
+	}
+	msg, err := conn.ReadMessage()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	k, ok := msg.(legacy.ClientKeyboardLayout)
+	if !ok {
+		return 0, trace.BadParameter("Unexpected message %T", msg)
+	}
+	logger.DebugContext(context.Background(), "Got RDP keyboard layout", "keyboard_layout", k.KeyboardLayout)
+	return k.KeyboardLayout, nil
+}
+
+func (c *Client) sendTDBPAlert(message string, severity tdpbv1.AlertSeverity) error {
+	return c.conn.WriteMessage(&tdpb.Alert{Message: message, Severity: severity})
+}
+
+func readClientHello(conn *tdp.Conn, logger *slog.Logger) (*tdpb.ClientHello, error) {
+	for {
+		msg, err := conn.ReadMessage()
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 		m, ok := msg.(*tdpb.ClientHello)
 		if !ok {
 			// Most likely we received an early ping message
 			if _, isPing := msg.(*tdpb.Ping); !isPing {
-				c.cfg.Logger.DebugContext(context.Background(), "Received unexpected ClientHello message", "message_type", logutils.TypeAttr(msg))
+				logger.DebugContext(context.Background(), "Received unexpected ClientHello message", "message_type", logutils.TypeAttr(msg))
 			}
 			continue
 		}
-		c.cfg.Logger.DebugContext(context.Background(), "Got ClientHello", "message", m)
-		c.username = m.Username
-		c.keyboardLayout = m.KeyboardLayout
-		return trace.Wrap(c.setclientSize(m.ScreenSpec))
+		logger.DebugContext(context.Background(), "Got ClientHello", "message", m)
+		return m, nil
 	}
 }
 
-func (c *Client) setclientSize(s *tdpbv1.ClientScreenSpec) error {
+func readLegacyHandshake(conn *tdp.Conn, logger *slog.Logger) (*tdpb.ClientHello, error) {
+	hello := &tdpb.ClientHello{}
+	var err error
+
+	if hello.Username, err = readClientUsername(conn, logger); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if hello.ScreenSpec, err = readClientSize(conn, logger); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if hello.KeyboardLayout, err = readClientKeyboardLayout(conn, logger); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return hello, nil
+}
+
+func (c *Client) setClientSize(width uint32, height uint32) error {
 	if c.cfg.hasSizeOverride() {
 		// Some desktops have a screen size in their resource definition.
 		// If non-zero then we always request this screen size.
@@ -261,27 +378,20 @@ func (c *Client) setclientSize(s *tdpbv1.ClientScreenSpec) error {
 	} else {
 		// If not otherwise specified, we request the screen size based
 		// on what the client (browser) reports.
-		c.cfg.Logger.DebugContext(context.Background(), "Got RDP screen size", "width", s.Width, "height", s.Height)
-		c.requestedWidth = uint16(s.Width)
-		c.requestedHeight = uint16(s.Height)
+		c.cfg.Logger.DebugContext(context.Background(), "Got RDP screen size", "width", width, "height", height)
+		c.requestedWidth = uint16(width)
+		c.requestedHeight = uint16(height)
 	}
 
-	if c.requestedWidth > types.MaxRDPScreenWidth || c.requestedHeight > types.MaxRDPScreenHeight {
+	if width > types.MaxRDPScreenWidth || c.requestedHeight > types.MaxRDPScreenHeight {
 		err := trace.BadParameter(
 			"screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
-			s.Width, s.Height, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight,
+			width, height, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight,
 		)
-		if err := c.sendTDPAlert(err.Error(), tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR); err != nil {
-			return trace.Wrap(err)
-		}
 		return trace.Wrap(err)
 	}
 
 	return nil
-}
-
-func (c *Client) sendTDPAlert(message string, severity tdpbv1.AlertSeverity) error {
-	return c.cfg.Conn.WriteMessage(&tdpb.Alert{Message: message, Severity: severity})
 }
 
 func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error {
@@ -380,7 +490,7 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 			err = trace.Errorf("RDP client exited with an unknown error")
 		}
 
-		c.sendTDPAlert(err.Error(), tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR)
+		c.sendTDBPAlert(err.Error(), tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR)
 		return err
 	}
 
@@ -392,7 +502,7 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 
 	c.cfg.Logger.InfoContext(ctx, message)
 
-	c.sendTDPAlert(message, tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR)
+	c.sendTDBPAlert(message, tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR)
 
 	return nil
 }
@@ -421,11 +531,11 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 		default:
 		}
 
-		msg, err := c.cfg.Conn.ReadMessage()
+		msg, err := c.conn.ReadMessage()
 		if utils.IsOKNetworkError(err) {
 			return nil
 		} else if legacy.IsNonFatalErr(err) {
-			_ = c.cfg.Conn.WriteMessage(&tdpb.Alert{
+			_ = c.conn.WriteMessage(&tdpb.Alert{
 				Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR,
 				Message:  err.Error(),
 			})
@@ -445,7 +555,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 						conn.Close()
 					}
 				}
-				if err := c.cfg.Conn.WriteMessage(m); err != nil {
+				if err := c.conn.WriteMessage(m); err != nil {
 					c.cfg.Logger.WarnContext(context.Background(), "Failed writing TDPB ping message", "error", err)
 				}
 			}()
@@ -913,7 +1023,7 @@ func (c *Client) handleRDPFastPathPDU(data []byte) C.CGOErrCode {
 	// from the fact that a fast path pdu was sent.
 	atomic.StoreUint32(&c.readyForInput, 1)
 
-	if err := c.cfg.Conn.WriteMessage(&tdpb.FastPathPDU{Pdu: data}); err != nil {
+	if err := c.conn.WriteMessage(&tdpb.FastPathPDU{Pdu: data}); err != nil {
 		c.cfg.Logger.ErrorContext(context.Background(), "failed handling RDPFastPathPDU", "error", err)
 		return C.ErrCodeFailure
 	}
@@ -942,7 +1052,7 @@ func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screen
 	// This is especially true when we request dimensions that are not a multiple of 4.
 	c.cfg.Logger.DebugContext(context.Background(), "RDP server provided resolution", "width", screenWidth, "height", screenHeight)
 
-	if err := c.cfg.Conn.WriteMessage(&tdpb.ServerHello{
+	if err := c.conn.WriteMessage(&tdpb.ServerHello{
 		ActivationSpec: &tdpbv1.ConnectionActivated{
 			IoChannelId:   uint32(ioChannelID),
 			UserChannelId: uint32(userChannelID),
@@ -979,7 +1089,7 @@ func (c *Client) handleRemoteCopy(data []byte) C.CGOErrCode {
 
 	c.cfg.Logger.DebugContext(context.Background(), "Received clipboard data from Windows desktop", "len", len(data))
 
-	if err := c.cfg.Conn.WriteMessage(&tdpb.ClipboardData{Data: data}); err != nil {
+	if err := c.conn.WriteMessage(&tdpb.ClipboardData{Data: data}); err != nil {
 		c.cfg.Logger.ErrorContext(context.Background(), "failed handling remote copy", "error", err)
 		return C.ErrCodeFailure
 	}
@@ -1006,7 +1116,7 @@ func (c *Client) sharedDirectoryAcknowledge(ack *tdpb.SharedDirectoryAcknowledge
 		return C.ErrCodeFailure
 	}
 
-	if err := c.cfg.Conn.WriteMessage(ack); err != nil {
+	if err := c.conn.WriteMessage(ack); err != nil {
 		c.cfg.Logger.ErrorContext(context.Background(), "failed to send SharedDirectoryAcknowledge", "error", err)
 		return C.ErrCodeFailure
 	}
@@ -1036,7 +1146,7 @@ func (c *Client) sharedDirectoryRequest(req *tdpb.SharedDirectoryRequest) C.CGOE
 		return C.ErrCodeFailure
 	}
 
-	if err := c.cfg.Conn.WriteMessage(req); err != nil {
+	if err := c.conn.WriteMessage(req); err != nil {
 		c.cfg.Logger.ErrorContext(context.Background(), "failed to send shared directory request", "error", err, "operation", req.Operation)
 		return C.ErrCodeFailure
 	}
