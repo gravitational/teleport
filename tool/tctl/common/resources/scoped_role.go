@@ -43,7 +43,7 @@ func NewScopedRoleCollection(roles []*scopedaccessv1.ScopedRole) Collection {
 }
 
 func (c *scopedRoleCollection) Resources() []types.Resource {
-	r := make([]types.Resource, 0, len(c.roles))
+	r := make([]types.Resource, len(c.roles))
 	for i, resource := range c.roles {
 		r[i] = types.Resource153ToLegacy(resource)
 	}
@@ -72,7 +72,7 @@ func scopedRoleHandler() Handler {
 		createHandler: createScopedRole,
 		updateHandler: updateScopedRole,
 		deleteHandler: deleteScopedRole,
-		description:   "A scoped set permissions and resources that can be granted to users",
+		description:   "A scoped set of permissions and resources that can be granted to users",
 	}
 }
 
@@ -93,7 +93,7 @@ func createScopedRole(ctx context.Context, client *authclient.Client, raw servic
 	}
 
 	fmt.Printf(
-		scopedaccess.KindScopedRole+" %q has been created\n",
+		scopedaccess.KindScopedRole+" %q created\n",
 		r.GetMetadata().GetName(),
 	)
 
@@ -113,7 +113,7 @@ func updateScopedRole(ctx context.Context, client *authclient.Client, raw servic
 	}
 
 	fmt.Printf(
-		scopedaccess.KindScopedRole+" %q has been updated\n",
+		scopedaccess.KindScopedRole+" %q updated\n",
 		r.GetMetadata().GetName(),
 	)
 
@@ -146,7 +146,8 @@ func deleteScopedRole(ctx context.Context, client *authclient.Client, ref servic
 		return trace.Wrap(err)
 	}
 	fmt.Printf(
-		scopedaccess.KindScopedRole+" %q has been deleted\n",
+		"%q %q has been deleted\n",
+		scopedaccess.KindScopedRole,
 		ref.Name,
 	)
 	return nil

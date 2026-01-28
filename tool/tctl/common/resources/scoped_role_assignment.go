@@ -44,7 +44,7 @@ func NewScopedRoleAssignmentCollection(roles []*scopedaccessv1.ScopedRoleAssignm
 }
 
 func (c *scopedRoleAssignmentCollection) Resources() []types.Resource {
-	r := make([]types.Resource, 0, len(c.roleAssignments))
+	r := make([]types.Resource, len(c.roleAssignments))
 	for i, resource := range c.roleAssignments {
 		r[i] = types.Resource153ToLegacy(resource)
 	}
@@ -102,7 +102,8 @@ func createScopedRoleAssignment(ctx context.Context, client *authclient.Client, 
 	}
 
 	fmt.Printf(
-		scopedaccess.KindScopedRoleAssignment+" %q has been created\n",
+		"%q %q creates\n",
+		scopedaccess.KindScopedRoleAssignment,
 		rsp.GetAssignment().GetMetadata().GetName(), // must extract from rsp since assignment names are generated server-side
 	)
 
