@@ -9,6 +9,9 @@ metadata:
     {{- if $auth.extraLabels.service }}
     {{- toYaml $auth.extraLabels.service | nindent 4 }}
     {{- end }}
+{{- if $auth.annotations.service }}
+  annotations: {{- toYaml $auth.annotations.service | nindent 4 }}
+{{- end }}
 spec:
   # This is a headless service. Resolving it will return the list of all auth pods running the previous major version
   # Proxies should not connect to auth pods from the previous major version
@@ -30,6 +33,9 @@ metadata:
     {{- if $auth.extraLabels.service }}
     {{- toYaml $auth.extraLabels.service | nindent 4 }}
     {{- end }}
+{{- if $auth.annotations.service }}
+  annotations: {{- toYaml $auth.annotations.service | nindent 4 }}
+{{- end }}
 spec:
   # This is a headless service. Resolving it will return the list of all auth pods running the current major version
   clusterIP: "None"
