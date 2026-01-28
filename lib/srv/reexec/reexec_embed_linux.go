@@ -26,10 +26,12 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"syscall"
 
 	"github.com/gravitational/trace"
+	"github.com/klauspost/compress/gzip"
 	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport"
@@ -84,8 +86,13 @@ func embedFileInit() {
 		return
 	}
 
+	gzreader, err := gzip.NewReader(strings.NewReader(teleport.SSHDHelperBinaryGZ))
+	if err != nil {
+		slog.WarnContext(context.Background(), "failed to decompress embedded binary (this is a bug)", "error", err)
+		return
+	}
 	mf := os.NewFile(uintptr(mfd), fmt.Sprintf("/proc/%d/fd/%d", os.Getpid(), mfd))
-	if _, err := mf.WriteString(teleport.SSHDHelperBinary); err != nil {
+	if _, err := gzreader.WriteTo(mf); err != nil {
 		slog.WarnContext(context.Background(), "failed to write embedded binary in memfd", "error", err)
 		_ = mf.Close()
 		return
