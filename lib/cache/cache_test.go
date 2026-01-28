@@ -594,6 +594,7 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		AppAuthConfig:           p.appAuthConfigs,
+		StaticScopedToken:       p.clusterConfigS,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -864,6 +865,7 @@ func TestCompletenessInit(t *testing.T) {
 			BotInstanceService:      p.botInstanceService,
 			Plugin:                  p.plugin,
 			AppAuthConfig:           p.appAuthConfigs,
+			StaticScopedToken:       p.clusterConfigS,
 		}))
 		require.NoError(t, err)
 
@@ -953,6 +955,7 @@ func TestCompletenessReset(t *testing.T) {
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
 		AppAuthConfig:           p.appAuthConfigs,
+		StaticScopedToken:       p.clusterConfigS,
 	}))
 	require.NoError(t, err)
 
@@ -1114,6 +1117,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
 		AppAuthConfig:           p.appAuthConfigs,
+		StaticScopedToken:       p.clusterConfigS,
 	}))
 	require.NoError(t, err)
 
@@ -1214,6 +1218,7 @@ func initStrategy(t *testing.T) {
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
 		AppAuthConfig:           p.appAuthConfigs,
+		StaticScopedToken:       p.clusterConfigS,
 	}))
 	require.NoError(t, err)
 
@@ -1887,6 +1892,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindSessionRecordingConfig:            types.DefaultSessionRecordingConfig(),
 		types.KindUIConfig:                          &types.UIConfigV1{},
 		types.KindStaticTokens:                      &types.StaticTokensV2{},
+		types.KindStaticScopedTokens:                &types.StaticTokensV2{},
 		types.KindToken:                             &types.ProvisionTokenV2{},
 		types.KindUser:                              &types.UserV2{},
 		types.KindRole:                              &types.RoleV6{Version: types.V4},
