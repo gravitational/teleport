@@ -159,6 +159,8 @@ type ProvisionToken interface {
 	GetGithubRules() *ProvisionTokenSpecV2GitHub
 	// GetGitlabRules will return the GitLab rules within this token.
 	GetGitlabRules() *ProvisionTokenSpecV2GitLab
+	// GetAzure will return the Azure specific configuration for this token.
+	GetAzure() *ProvisionTokenSpecV2Azure
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
@@ -548,6 +550,11 @@ func (p *ProvisionTokenV2) GetGitlabRules() *ProvisionTokenSpecV2GitLab {
 // GetAWSIIDTTL returns the TTL of EC2 IIDs
 func (p *ProvisionTokenV2) GetAWSIIDTTL() Duration {
 	return p.Spec.AWSIIDTTL
+}
+
+// GetAzure the Azure specific configuration for this token.
+func (p *ProvisionTokenV2) GetAzure() *ProvisionTokenSpecV2Azure {
+	return p.Spec.Azure
 }
 
 // GetJoinMethod returns joining method that must be used with this token.

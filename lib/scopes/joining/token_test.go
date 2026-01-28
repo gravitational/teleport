@@ -443,6 +443,25 @@ func TestValidateScopedToken(t *testing.T) {
 			expectedWeakErr:   "gcp configuration must be defined for a scoped token when using the gcp join method",
 		},
 		{
+			name: "azure token without azure configuration",
+			token: &joiningv1.ScopedToken{
+				Kind:    types.KindScopedToken,
+				Scope:   "/aa/bb",
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "testtoken",
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					AssignedScope: "/aa/bb",
+					Roles:         []string{types.RoleNode.String()},
+					JoinMethod:    string(types.JoinMethodAzure),
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
+				},
+			},
+			expectedStrongErr: "azure configuration must be defined for a scoped token when using the azure join method",
+			expectedWeakErr:   "azure configuration must be defined for a scoped token when using the azure join method",
+		},
+		{
 			name: "invalid usage mode",
 			token: &joiningv1.ScopedToken{
 				Kind:    types.KindScopedToken,
@@ -634,6 +653,37 @@ func TestValidateScopedToken(t *testing.T) {
 						Allow: []*joiningv1.GCP_Rule{
 							{
 								ProjectIds: []string{"1234567890"},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "valid azure scoped token",
+			token: &joiningv1.ScopedToken{
+				Kind:    types.KindScopedToken,
+				Scope:   "/aa/bb",
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "testtoken",
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					Roles:         []string{types.RoleNode.String()},
+					AssignedScope: "/aa/bb",
+					JoinMethod:    string(types.JoinMethodAzure),
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
+					ImmutableLabels: &joiningv1.ImmutableLabels{
+						Ssh: map[string]string{
+							"one":   "1",
+							"two":   "2",
+							"three": "3",
+						},
+					},
+					Azure: &joiningv1.Azure{
+						Allow: []*joiningv1.Azure_Rule{
+							{
+								Subscription: "1234567890",
 							},
 						},
 					},

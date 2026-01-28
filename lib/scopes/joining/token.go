@@ -60,6 +60,10 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 		if len(token.GetSpec().GetGcp().GetAllow()) == 0 {
 			return trace.BadParameter("gcp configuration must be defined for a scoped token when using the gcp join method")
 		}
+	case types.JoinMethodAzure:
+		if len(token.GetSpec().GetAzure().GetAllow()) == 0 {
+			return trace.BadParameter("azure configuration must be defined for a scoped token when using the azure join method")
+		}
 	default:
 		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
 	}
@@ -331,6 +335,21 @@ func (t *Token) GetGCPRules() *types.ProvisionTokenSpecV2GCP {
 	}
 
 	return &types.ProvisionTokenSpecV2GCP{
+		Allow: allow,
+	}
+}
+
+// GetAzure returns the Azure-specific configuration for this token.
+func (t *Token) GetAzure() *types.ProvisionTokenSpecV2Azure {
+	allow := make([]*types.ProvisionTokenSpecV2Azure_Rule, len(t.scoped.GetSpec().GetAzure().GetAllow()))
+	for i, rule := range t.scoped.GetSpec().GetAzure().GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2Azure_Rule{
+			Subscription:   rule.GetSubscription(),
+			ResourceGroups: rule.GetResourceGroups(),
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2Azure{
 		Allow: allow,
 	}
 }

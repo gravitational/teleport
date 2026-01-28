@@ -45,6 +45,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
@@ -52,6 +53,8 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/join/azurejoin"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -490,6 +493,32 @@ func TestJoinAzure(t *testing.T) {
 				require.NoError(t, a.DeleteToken(ctx, token.GetName()))
 			})
 
+			scopedToken := &joiningv1.ScopedToken{
+				Kind:    types.KindScopedToken,
+				Version: types.V1,
+				Scope:   "/test",
+				Metadata: &headerv1.Metadata{
+					Name: "scoped_" + token.GetName(),
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					AssignedScope: "/test/one",
+					JoinMethod:    string(types.JoinMethodAzure),
+					Roles:         []string{types.RoleNode.String()},
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
+					Azure:         convertAzureParams(t, token.GetAzure()),
+				},
+			}
+			_, err = a.CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+				Token: scopedToken,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_, err := a.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
+					Name: scopedToken.GetMetadata().GetName(),
+				})
+				require.NoError(t, err)
+			})
+
 			mirID := tc.tokenManagedIdentityResourceID
 			if mirID == "" {
 				mirID = vmResourceID(defaultSubscription, defaultResourceGroup, defaultVMName)
@@ -527,6 +556,21 @@ func TestJoinAzure(t *testing.T) {
 			t.Run("new", func(t *testing.T) {
 				_, err = joinclient.Join(ctx, joinclient.JoinParams{
 					Token: tc.requestTokenName,
+					ID: state.IdentityID{
+						Role: types.RoleInstance,
+					},
+					AuthClient: nopClient,
+					AzureParams: joinclient.AzureParams{
+						ClientID:         tc.tokenVMID,
+						IMDSClient:       imdsClient,
+						IssuerHTTPClient: httpClient,
+					},
+				})
+				tc.assertError(t, err)
+			})
+			t.Run("scoped", func(t *testing.T) {
+				_, err = joinclient.Join(ctx, joinclient.JoinParams{
+					Token: "scoped_" + tc.requestTokenName,
 					ID: state.IdentityID{
 						Role: types.RoleInstance,
 					},
@@ -818,6 +862,29 @@ func TestJoinAzureClaims(t *testing.T) {
 				require.NoError(t, a.DeleteToken(ctx, token.GetName()))
 			})
 
+			scopedToken, err := jointest.ScopedTokenFromProvisionToken(token, &joiningv1.ScopedToken{
+				Scope: "/test",
+				Metadata: &headerv1.Metadata{
+					Name: "scoped_" + token.GetName(),
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					AssignedScope: "/test/one",
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
+				},
+			})
+			require.NoError(t, err)
+
+			_, err = a.CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+				Token: scopedToken,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_, err := a.DeleteScopedToken(t.Context(), &joiningv1.DeleteScopedTokenRequest{
+					Name: scopedToken.GetMetadata().GetName(),
+				})
+				require.NoError(t, err)
+			})
+
 			mirID := tc.tokenManagedIdentityResourceID
 			azrID := tc.tokenAzureResourceID
 			accessToken, err := makeToken(mirID, azrID, a.GetClock().Now())
@@ -867,6 +934,22 @@ func TestJoinAzureClaims(t *testing.T) {
 				// Try to join via the new join service.
 				_, err = joinclient.Join(ctx, joinclient.JoinParams{
 					Token: tc.requestTokenName,
+					ID: state.IdentityID{
+						Role: types.RoleInstance,
+					},
+					AuthClient: nopClient,
+					AzureParams: joinclient.AzureParams{
+						ClientID:         tc.tokenVMID,
+						IMDSClient:       imdsClient,
+						IssuerHTTPClient: httpClient,
+					},
+				})
+				tc.assertError(t, err)
+			})
+			t.Run("scoped", func(t *testing.T) {
+				// Try to join via the new join service.
+				_, err = joinclient.Join(ctx, joinclient.JoinParams{
+					Token: "scoped_" + tc.requestTokenName,
 					ID: state.IdentityID{
 						Role: types.RoleInstance,
 					},
@@ -1221,4 +1304,18 @@ func (c *fakeAzureIssuerHTTPClient) Do(req *http.Request) (*http.Response, error
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(bytes.NewReader(c.issuerCertDER)),
 	}, nil
+}
+
+func convertAzureParams(t *testing.T, azure *types.ProvisionTokenSpecV2Azure) *joiningv1.Azure {
+	t.Helper()
+	allow := make([]*joiningv1.Azure_Rule, len(azure.Allow))
+	for i, rule := range azure.Allow {
+		allow[i] = &joiningv1.Azure_Rule{
+			Subscription:   rule.Subscription,
+			ResourceGroups: rule.ResourceGroups,
+		}
+	}
+	return &joiningv1.Azure{
+		Allow: allow,
+	}
 }
