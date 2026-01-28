@@ -1,6 +1,6 @@
 ---
 authors: Nic Klaassen (nic@goteleport.com)
-state: implemented
+state: implemented (v17.6.0, v18.1.0)
 ---
 
 # RFD 207 - VNet SSH

@@ -1,6 +1,6 @@
 ---
 authors: Paul Gottschling (paul.gottschling@goteleport.com)
-state: draft
+state: implemented
 title: 0130 - Automatically Generate the Teleport Resource Reference
 ---
 

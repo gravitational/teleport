@@ -1,6 +1,6 @@
 ---
 authors: Hugo Hervieux (hugo.hervieux@goteleport.com)
-state: draft
+state: implemented
 ---
 # RFD 87 - Access request notification routing
 

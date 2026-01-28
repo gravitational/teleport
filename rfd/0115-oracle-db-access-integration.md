@@ -1,7 +1,7 @@
 ---
 
 authors: Marek Smoliński (marek@goteleport.com)
-state: draft
+state: implemented
 ---
 ## Required Approvers
 

@@ -1,6 +1,6 @@
 ---
 authors: STeve Huang (xin.huang@goteleport.com)
-state: implemented
+state: implemented (v18.0.0)
 ---
 
 RFD 202 - Database Multi-session MFA

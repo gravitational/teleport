@@ -1,6 +1,6 @@
 ---
 authors: Dave Sudia (david.sudia@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0187 - Redesign Enroll New Resource Page

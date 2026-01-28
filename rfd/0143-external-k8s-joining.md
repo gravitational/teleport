@@ -1,6 +1,6 @@
 ---
 authors: Noah Stride (noah.stride@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 00143 - Static JWKS External Kubernetes Joining

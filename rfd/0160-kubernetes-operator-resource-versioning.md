@@ -1,6 +1,6 @@
 ---
 authors: @hugoShaka (hugo.hervieux@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0160 - Kubernetes Operator Resource Versioning

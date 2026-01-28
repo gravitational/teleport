@@ -1,6 +1,6 @@
 ---
 authors: Bernard Kim (bernard@goteleport.com)
-state: implemented
+state: implemented (v18.0.1)
 ---
 
 # RFD 0201 - Native Automatic Review

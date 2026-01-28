@@ -1,6 +1,6 @@
 ---
 authors: Edoardo Spadolini (edoardo.spadolini@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0194 - SPIFFE X.509 issuer override for external PKI support

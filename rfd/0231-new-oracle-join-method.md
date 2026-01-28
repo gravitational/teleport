@@ -1,6 +1,6 @@
 ---
 authors: Nic Klaassen (nic@goteleport.com)
-state: draft
+state: implemented (v18.4.0)
 ---
 
 # RFD 231 - New Oracle Join Method

@@ -1,6 +1,6 @@
 ---
 authors: Trent Clarke (trent@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 22 - SSH key agent forwarding
