@@ -39,7 +39,6 @@ import (
 func TestPutHeadlessState(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 
@@ -57,14 +56,14 @@ func TestPutHeadlessState(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	_, err = env.server.Auth().UpsertAuthPreference(ctx, ap)
+	_, err = env.server.Auth().UpsertAuthPreference(t.Context(), ap)
 	require.NoError(t, err)
 
 	// Register a WebAuthn device for the user.
 	userClient, err := env.server.NewClient(authtest.TestUser(username))
 	require.NoError(t, err)
 	webauthnDev, err := authtest.RegisterTestDevice(
-		ctx,
+		t.Context(),
 		userClient,
 		"webauthn",
 		authproto.DeviceType_DEVICE_TYPE_WEBAUTHN,
@@ -74,7 +73,7 @@ func TestPutHeadlessState(t *testing.T) {
 
 	getMFAResponse := func() *client.MFAChallengeResponse {
 		// Create an authentication challenge and solve it with the WebAuthn device.
-		chal, err := userClient.CreateAuthenticateChallenge(ctx, &authproto.CreateAuthenticateChallengeRequest{
+		chal, err := userClient.CreateAuthenticateChallenge(t.Context(), &authproto.CreateAuthenticateChallengeRequest{
 			Request: &authproto.CreateAuthenticateChallengeRequest_ContextUser{},
 			ChallengeExtensions: &mfav1.ChallengeExtensions{
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_HEADLESS_LOGIN,
@@ -94,7 +93,7 @@ func TestPutHeadlessState(t *testing.T) {
 		// setupHeadless creates new headless auth and returns its ID. If an actual headless auth ID
 		// is not needed (e.g. to test a case where the headless auth ID is incorrect), use headlessID
 		// instead.
-		setupHeadless func() string
+		setupHeadless func(context.Context) string
 		// headlessID is used when setupHeadless is nil.
 		headlessID     string
 		request        client.HeadlessRequest
@@ -113,7 +112,7 @@ func TestPutHeadlessState(t *testing.T) {
 		},
 		{
 			name: "invalid action",
-			setupHeadless: func() string {
+			setupHeadless: func(ctx context.Context) string {
 				sshPubKey := []byte("fake-ssh-public-key-invalid-action")
 				headlessID := services.NewHeadlessAuthenticationID(sshPubKey)
 
@@ -134,7 +133,7 @@ func TestPutHeadlessState(t *testing.T) {
 		},
 		{
 			name: "accept without MFA response",
-			setupHeadless: func() string {
+			setupHeadless: func(ctx context.Context) string {
 				sshPubKey := []byte("fake-ssh-public-key-accept-no-mfa")
 				headlessID := services.NewHeadlessAuthenticationID(sshPubKey)
 
@@ -155,7 +154,7 @@ func TestPutHeadlessState(t *testing.T) {
 		},
 		{
 			name: "accept with MFA response",
-			setupHeadless: func() string {
+			setupHeadless: func(ctx context.Context) string {
 				// Create the headless authentication request.
 				sshPubKey := []byte("fake-ssh-public-key-accept-with-mfa")
 				headlessID := services.NewHeadlessAuthenticationID(sshPubKey)
@@ -178,7 +177,7 @@ func TestPutHeadlessState(t *testing.T) {
 		},
 		{
 			name: "denied without MFA response",
-			setupHeadless: func() string {
+			setupHeadless: func(ctx context.Context) string {
 				sshPubKey := []byte("fake-ssh-public-key")
 				headlessID := services.NewHeadlessAuthenticationID(sshPubKey)
 
@@ -202,7 +201,7 @@ func TestPutHeadlessState(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var headlessID string
 			if tt.setupHeadless != nil {
-				headlessID = tt.setupHeadless()
+				headlessID = tt.setupHeadless(t.Context())
 			} else {
 				headlessID = tt.headlessID
 			}
@@ -213,7 +212,7 @@ func TestPutHeadlessState(t *testing.T) {
 			}
 
 			endpoint := pack.clt.Endpoint("webapi", "headless", headlessID)
-			resp, err := pack.clt.PutJSON(ctx, endpoint, request)
+			resp, err := pack.clt.PutJSON(t.Context(), endpoint, request)
 
 			require.Equal(t, tt.expectedStatus, resp.Code(), "unexpected status code")
 			if tt.expectedStatus == 200 {
@@ -228,7 +227,7 @@ func TestPutHeadlessState(t *testing.T) {
 			}
 
 			// Verify the state was updated correctly.
-			ha, err := env.server.Auth().GetHeadlessAuthentication(ctx, username, headlessID)
+			ha, err := env.server.Auth().GetHeadlessAuthentication(t.Context(), username, headlessID)
 			require.NoError(t, err)
 
 			var expectedState types.HeadlessAuthenticationState
@@ -246,7 +245,6 @@ func TestPutHeadlessState(t *testing.T) {
 func TestGetHeadless(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 
@@ -259,7 +257,7 @@ func TestGetHeadless(t *testing.T) {
 		// setupHeadless creates new headless auth and returns its ID. If an actual headless auth ID
 		// is not needed (e.g. to test a case where the headless auth ID is incorrect), use headlessID
 		// instead.
-		setupHeadless func() string
+		setupHeadless func(context.Context) string
 		// headlessID is used when setupHeadless is nil.
 		headlessID     string
 		expectedStatus int
@@ -267,7 +265,7 @@ func TestGetHeadless(t *testing.T) {
 	}{
 		{
 			name: "get existing headless authentication",
-			setupHeadless: func() string {
+			setupHeadless: func(ctx context.Context) string {
 				sshPubKey := []byte("fake-ssh-public-key-get")
 				headlessID := services.NewHeadlessAuthenticationID(sshPubKey)
 
@@ -294,13 +292,13 @@ func TestGetHeadless(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var headlessID string
 			if tt.setupHeadless != nil {
-				headlessID = tt.setupHeadless()
+				headlessID = tt.setupHeadless(t.Context())
 			} else {
 				headlessID = tt.headlessID
 			}
 
 			endpoint := pack.clt.Endpoint("webapi", "headless", headlessID)
-			resp, err := pack.clt.Get(ctx, endpoint, nil)
+			resp, err := pack.clt.Get(t.Context(), endpoint, nil)
 
 			require.Equal(t, tt.expectedStatus, resp.Code(), "unexpected status code")
 
