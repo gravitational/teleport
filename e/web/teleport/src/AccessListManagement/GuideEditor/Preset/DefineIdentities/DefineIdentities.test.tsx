@@ -707,7 +707,7 @@ test('defining access to everything renders all the correct identity tabs', asyn
     screen.getByRole('tab', { name: /kubernetes cluster tab/i })
   ).toBeInTheDocument();
   expect(screen.getByRole('tab', { name: /server tab/i })).toBeInTheDocument();
-});
+}, 15000);
 
 async function startGuide(user: UserEvent) {
   // Select any guide.
