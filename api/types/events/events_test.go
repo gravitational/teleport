@@ -159,6 +159,81 @@ func TestTrimToMaxSize(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:    "SCIM Resource Event trimmed",
+			maxSize: 200,
+			in: &SCIMResourceEvent{
+				Metadata: Metadata{
+					Code: "TSCIM006I",
+					Type: "scim.patch",
+				},
+				Status: Status{
+					Success:     true,
+					Error:       "I am the very model of a modern Major General",
+					UserMessage: "I have information animal, vegetable and mineral",
+				},
+				SCIMCommonData: SCIMCommonData{
+					Integration:  "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii",
+					ResourceType: "ttttttttttttttttttttttttttttttttttttttttttt",
+					Request: &SCIMRequest{
+						ID:            "idididididididididididididididididididididid",
+						SourceAddress: "srcsrcsrcsrcsrcsrcsrcsrcsrcsrcsrcsrcsrc",
+						UserAgent:     "agentagentagentagentagentagentagentagentagent",
+						Method:        "PATCHPATCHPATCHPATCHPATCHPATCHPATCHPATCHPATCHPATCH",
+						Path:          "/Users/teleport-user-with-a-long-name",
+						Body: MustEncodeMap(map[string]any{
+							"Alpha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+						}),
+					},
+					Response: &SCIMResponse{
+						StatusCode: 404,
+						Body: MustEncodeMap(map[string]any{
+							"plain": "text",
+							"Gamma": "gggggggggggggggggggggggggggggggggggggggggg",
+						}),
+					},
+				},
+			},
+			want: &SCIMResourceEvent{
+				Metadata: Metadata{
+					Code: "TSCIM006I",
+					Type: "scim.patch",
+				},
+				Status: Status{
+					Success:     true,
+					Error:       "I am t",
+					UserMessage: "I have",
+				},
+				SCIMCommonData: SCIMCommonData{
+					Integration:  "iiiiii",
+					ResourceType: "tttttt",
+					Request: &SCIMRequest{
+						ID:            "ididid",
+						SourceAddress: "srcsrc",
+						UserAgent:     "agenta",
+						Method:        "PATCHP",
+						Path:          "/Users",
+						Body: MustEncodeMap(map[string]any{
+							"Alpha": "aaaaaa",
+						}),
+					},
+					Response: &SCIMResponse{
+						StatusCode: 404,
+						Body: MustEncodeMap(map[string]any{
+							"plain": "text",
+							"Gamma": "gggggg",
+						}),
+					},
+				},
+			},
+			cmpOpts: []cmp.Option{
+				cmp.Transformer("struct", func(s *Struct) map[string]any {
+					result, err := DecodeToMap(s)
+					require.NoError(t, err)
+					return result
+				}),
+			},
+		},
 	}
 
 	for _, tc := range testCases {

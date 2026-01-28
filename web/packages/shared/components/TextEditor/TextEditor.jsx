@@ -36,6 +36,10 @@ import StyledTextEditor from './StyledTextEditor';
 const { UndoManager } = ace.require('ace/undomanager');
 
 class TextEditor extends Component {
+  handleEditorCopy = () => {
+    this.props.onCopy?.();
+  };
+
   onChange = () => {
     const isClean = this.editor.session.getUndoManager().isClean();
     if (this.props.onDirty) {
@@ -115,6 +119,7 @@ class TextEditor extends Component {
     this.editor.renderer.setShowPrintMargin(false);
     this.editor.renderer.setShowGutter(true);
     this.editor.on('input', this.onChange);
+    this.editor.on('copy', this.handleEditorCopy);
     this.editor.setReadOnly(readOnly);
     this.editor.setTheme({ cssClass: 'ace-teleport' });
     this.initSessions(data);

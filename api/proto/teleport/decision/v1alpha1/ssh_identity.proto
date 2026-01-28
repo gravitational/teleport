@@ -176,6 +176,9 @@ message SSHIdentity {
   // When present, AllowedResourceAccessIDs should be treated as authoritative
   // (ResourceIDs can be derived by mapping to ResourceAccessID.id).
   repeated types.ResourceAccessID allowed_resource_access_ids = 37;
+
+  // The hash of the immutable labels assigned to the identity.
+  string immutable_label_hash = 38;
 }
 
 // CertExtensionMode specifies the type of extension to use in the cert. This type

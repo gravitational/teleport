@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { MultiValue } from 'react-select';
 import styled from 'styled-components';
 
 import Box from 'design/Box/Box';
@@ -24,6 +25,7 @@ import Flex from 'design/Flex/Flex';
 import Link from 'design/Link/Link';
 import Text, { H2 } from 'design/Text';
 import { FieldSelectCreatable } from 'shared/components/FieldSelect/FieldSelectCreatable';
+import { Rule } from 'shared/components/Validation/rules';
 import Validator, { Validation } from 'shared/components/Validation/Validation';
 
 import { SectionBox } from 'teleport/Roles/RoleEditor/StandardEditor/sections';
@@ -63,6 +65,18 @@ export function ConfigureAccess(props: FlowStepProps) {
     nextStep?.();
   };
 
+  const kubernetesAccessRule: Rule<
+    MultiValue<{ label: string; value: string }>
+  > = () => () => {
+    const valid =
+      state.kubernetesGroups.length > 0 || state.kubernetesUsers.length > 0;
+
+    return {
+      valid,
+      message: valid ? '' : 'A Kubernetes group or user is required',
+    };
+  };
+
   return (
     <Container>
       <FormContainer>
@@ -72,9 +86,9 @@ export function ConfigureAccess(props: FlowStepProps) {
           </H2>
 
           <Text mb={3}>
-            Fine tune the access your workflow needs to perform its steps.
-            Restrict which clusters can be accessed using labels and what level
-            of access using the other options.
+            Choose a cluster to access. Then fine tune the access your workflow
+            needs. Restrict <em>which</em> clusters can be accessed using labels
+            and <em>what</em> level of access using groups and users.
           </Text>
         </Box>
 
@@ -111,7 +125,7 @@ export function ConfigureAccess(props: FlowStepProps) {
                   >
                     Teleport Kubernetes Access Controls
                   </Link>{' '}
-                  docs for information about using Kubernetes labels.
+                  docs for information about using labels.
                 </Text>
 
                 <FieldSelectCreatable
@@ -119,6 +133,7 @@ export function ConfigureAccess(props: FlowStepProps) {
                   mt={2}
                   placeholder="e.g. system:masters"
                   isMulti
+                  rule={kubernetesAccessRule}
                   value={state.kubernetesGroups.map(g => ({
                     label: g,
                     value: g,
@@ -134,6 +149,13 @@ export function ConfigureAccess(props: FlowStepProps) {
                     );
                   }}
                   createOptionPosition="last"
+                  components={{
+                    // Hide the dropdown indicator and spacing
+                    DropdownIndicator: () => null,
+                    IndicatorSeparator: () => null,
+                  }}
+                  noOptionsMessage={() => 'Type to add a value'}
+                  formatCreateLabel={input => `Add group "${input}"`}
                 />
                 <Text mb={3}>
                   Add Kubernetes groups created using RoleBinding or
@@ -173,6 +195,7 @@ export function ConfigureAccess(props: FlowStepProps) {
                   mt={2}
                   isMulti
                   placeholder={'e.g. user@example.com'}
+                  rule={kubernetesAccessRule}
                   value={state.kubernetesUsers.map(g => ({
                     label: g,
                     value: g,
@@ -188,6 +211,13 @@ export function ConfigureAccess(props: FlowStepProps) {
                     );
                   }}
                   createOptionPosition="last"
+                  components={{
+                    // Hide the dropdown indicator and spacing
+                    DropdownIndicator: () => null,
+                    IndicatorSeparator: () => null,
+                  }}
+                  noOptionsMessage={() => 'Type to add a value'}
+                  formatCreateLabel={input => `Add user "${input}"`}
                 />
                 <Text mb={3}>
                   See the{' '}
@@ -216,6 +246,7 @@ export function ConfigureAccess(props: FlowStepProps) {
       <CodeContainer>
         <CodePanel
           trackingStep={IntegrationEnrollStep.MWIGHAK8SConfigureAccess}
+          inProgress
         />
       </CodeContainer>
     </Container>
