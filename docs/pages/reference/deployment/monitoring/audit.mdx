@@ -161,6 +161,12 @@ read [Exporting Teleport Audit Events](../../../zero-trust-access/export-audit-e
 | mcp.session.request | A request has been sent from the MCP client. |
 | mcp.session.listen_sse_stream | Streamable HTTP client has started to listening server notifications via an SSE stream. |
 | mcp.session.invalid_http_request | The client has sent an HTTP request that Teleport could not process. |
+| scim.create | An upstream IdP issued a SCIM request to create a Teleport User or Access List. |
+| scim.delete | An upstream IdP issued a SCIM request to delete a Teleport User or Access List. |
+| scim.get | An upstream IdP issued a SCIM request for a specific Teleport User or Access List. |
+| scim.list | An upstream IdP issued a SCIM request to list Teleport Users or Access Lists. |
+| scim.patch | An upstream IdP issued a SCIM request to update a specific Teleport User or Access List via a patch. |
+| scim.update | An upstream IdP issued a SCIM request to update a specific Teleport User or Access List. |
 
 ## Recorded sessions
 
