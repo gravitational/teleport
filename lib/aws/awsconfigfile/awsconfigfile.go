@@ -26,7 +26,8 @@ import (
 )
 
 const (
-	ownershipComment = "Do not edit. Section managed by Teleport."
+	ownershipComment    = "Do not edit. Section managed by Teleport."
+	ssoOwnershipComment = "Do not edit. Section managed by Teleport (AWS Identity Center integration)."
 )
 
 // AWSConfigFilePath returns the path to the AWS configuration file.
@@ -42,6 +43,86 @@ func AWSConfigFilePath() (string, error) {
 	}
 
 	return filepath.Join(homedir, ".aws", "config"), nil
+}
+
+// UpsertSSOSession sets the sso_start_url and sso_region for the sso-session with name sessionName.
+func UpsertSSOSession(configFilePath, sessionName, ssoStartURL, ssoRegion string) error {
+	return trace.Wrap(upsertManagedSSOSection(configFilePath, "sso-session "+sessionName, func(section *ini.Section) error {
+		if _, err := section.NewKey("sso_start_url", ssoStartURL); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := section.NewKey("sso_region", ssoRegion); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	}))
+}
+
+// SSOProfile represents an AWS Identity Center profile configuration.
+type SSOProfile struct {
+	// Name is the profile name.
+	Name string
+	// Session is the name of the SSO session.
+	Session string
+	// AccountID is the AWS account ID.
+	AccountID string
+	// RoleName is the name of the IAM role.
+	RoleName string
+}
+
+// UpsertSSOProfile sets the sso_session, sso_account_id and sso_role_name for the profile with name profileName.
+func UpsertSSOProfile(configFilePath string, p SSOProfile) error {
+	return trace.Wrap(upsertManagedSSOSection(configFilePath, "profile "+p.Name, func(section *ini.Section) error {
+		if section.HasKey("credential_process") {
+			return trace.BadParameter("%s: section %q contains 'credential_process' and cannot be converted to an SSO profile, remove the section and try again", configFilePath, section.Name())
+		}
+		if _, err := section.NewKey("sso_session", p.Session); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := section.NewKey("sso_account_id", p.AccountID); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := section.NewKey("sso_role_name", p.RoleName); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	}))
+}
+
+func upsertManagedSSOSection(configFilePath, sectionName string, updateFunc func(*ini.Section) error) error {
+	iniFile, err := ini.LoadSources(ini.LoadOptions{
+		AllowNestedValues: true,
+		Loose:             true,
+	}, configFilePath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var section *ini.Section
+	// If section exists, verify ownership and bail if not owned by Teleport.
+	if iniFile.HasSection(sectionName) {
+		section = iniFile.Section(sectionName)
+		if !strings.Contains(section.Comment, ssoOwnershipComment) {
+			return trace.BadParameter("%s: section %q is not managed by Teleport, remove the section and try again", configFilePath, sectionName)
+		}
+	} else {
+		section, err = iniFile.NewSection(sectionName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	section.Comment = ssoOwnershipComment
+	if err := updateFunc(section); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Create the directory if it does not exist.
+	if err := os.MkdirAll(filepath.Dir(configFilePath), 0o700); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(iniFile.SaveTo(configFilePath))
 }
 
 // SetDefaultProfileCredentialProcess sets the credential_process for the default profile.
@@ -95,7 +176,7 @@ func addCredentialProcessToSection(configFilePath, sectionName, credentialProces
 	}
 
 	// Create the directory if it does not exist, otherwise ini.SaveTo will fail.
-	if err := os.MkdirAll(filepath.Dir(configFilePath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(configFilePath), 0o700); err != nil {
 		return trace.Wrap(err)
 	}
 
