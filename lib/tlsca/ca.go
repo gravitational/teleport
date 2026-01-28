@@ -943,7 +943,7 @@ func (id *Identity) Subject() (pkix.Name, error) {
 	}
 
 	if id.ScopePin != nil {
-		pin, err := protojson.Marshal(id.ScopePin)
+		pin, err := pinning.Encode(id.ScopePin)
 		if err != nil {
 			return pkix.Name{}, trace.Errorf("failed to encode scope pin: %w", err)
 		}
@@ -951,7 +951,7 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
 				Type:  ScopePinASN1ExtensionOID,
-				Value: string(pin),
+				Value: pin,
 			})
 	}
 
@@ -1295,11 +1295,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		case attr.Type.Equal(ScopePinASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
-				var pin scopesv1.Pin
-				if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(val), &pin); err != nil {
-					return nil, trace.Errorf("failed to unmarshal scope pin: %w", err)
+				pin, err := pinning.Decode(val)
+				if err != nil {
+					return nil, trace.Errorf("failed to decode scope pin: %w", err)
 				}
-				id.ScopePin = &pin
+				id.ScopePin = pin
 			}
 		case attr.Type.Equal(AgentScopeASN1ExtensionOID):
 			id.AgentScope = attr.Value.(string)
