@@ -2113,7 +2113,7 @@ message ClientDisconnect {
   string Reason = 5 [(gogoproto.jsontag) = "reason"];
 }
 
-// AuthAttempt is emitted upon a failed or successfull authentication attempt.
+// AuthAttempt is emitted upon a failed authentication attempt.
 message AuthAttempt {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
@@ -2903,6 +2903,14 @@ message AppSessionStart {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // Error is an optional error message.
+  // Only present in failed start attempts.
+  string Error = 9 [(gogoproto.jsontag) = "error,omitempty"];
+
+  // UserMessage is an optional user-friendly error message.
+  // Only present in failed start attempts.
+  string UserMessage = 10 [(gogoproto.jsontag) = "message,omitempty"];
 }
 
 // AppSessionEnd is emitted when an application session ends.
