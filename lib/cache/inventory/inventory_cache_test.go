@@ -493,7 +493,7 @@ func TestInventoryCache(t *testing.T) {
 			Inventory:          mockInventory,
 			BotInstanceBackend: mockBotCache,
 			TargetVersion:      "18.2.0",
-		})
+					})
 		require.NoError(t, err)
 		defer inventoryCache.Close()
 
@@ -678,7 +678,7 @@ func TestInventoryCacheWatcher(t *testing.T) {
 			Events:             local.NewEventsService(p.Backend),
 			PrimaryCache:       p.Cache,
 			TargetVersion:      "18.2.0",
-		})
+					})
 		require.NoError(t, err)
 		defer inventoryCache.Close()
 
@@ -801,7 +801,7 @@ func TestInventoryCacheRateLimiting(t *testing.T) {
 			Inventory:          mockInventory,
 			BotInstanceBackend: mockBotCache,
 			TargetVersion:      "18.2.0",
-		})
+					})
 		require.NoError(t, err)
 		defer inventoryCache.Close()
 
@@ -967,7 +967,7 @@ func TestInventoryCacheFiltering(t *testing.T) {
 			Inventory:          mockInventory,
 			BotInstanceBackend: mockBotCache,
 			TargetVersion:      "19.0.0",
-		})
+					})
 		require.NoError(t, err)
 		defer inventoryCache.Close()
 
@@ -1322,7 +1322,7 @@ func TestInventoryCacheSorting(t *testing.T) {
 			Inventory:          mockInventory,
 			BotInstanceBackend: mockBotCache,
 			TargetVersion:      "19.0.0",
-		})
+					})
 		require.NoError(t, err)
 		defer inventoryCache.Close()
 
