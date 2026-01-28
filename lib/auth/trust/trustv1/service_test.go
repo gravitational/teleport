@@ -21,6 +21,7 @@ package trustv1
 import (
 	"context"
 	"crypto/x509/pkix"
+	"sync"
 	"testing"
 	"time"
 
@@ -133,11 +134,16 @@ func (f *fakeAuthServer) ListTrustedClusters(ctx context.Context, limit int, sta
 
 type fakeChecker struct {
 	services.AccessChecker
+
+	mu     sync.Mutex
 	allow  map[check]bool
 	checks []check
 }
 
 func (f *fakeChecker) CheckAccessToRule(context services.RuleContext, namespace string, rule string, verb string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	c := check{rule, verb}
 	f.checks = append(f.checks, c)
 	if f.allow[c] {
