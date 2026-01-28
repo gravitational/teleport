@@ -2799,3 +2799,15 @@ func (m *VnetConfigUpdate) TrimToMaxSize(int) AuditEvent {
 func (m *VnetConfigDelete) TrimToMaxSize(int) AuditEvent {
 	return m
 }
+
+func (m *WorkloadClusterCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *WorkloadClusterUpdate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *WorkloadClusterDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}

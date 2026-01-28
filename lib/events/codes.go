@@ -826,6 +826,13 @@ const (
 	// VnetConfigDeleteCode is the Vnet config delete event code.
 	VnetConfigDeleteCode = "TVNET003I"
 
+	// WorkloadClusterCreateCode is the workload cluster create event code.
+	WorkloadClusterCreateCode = "WC001I"
+	// WorkloadClusterUpdateCode is the workload cluster update event code.
+	WorkloadClusterUpdateCode = "WC002I"
+	// WorkloadClusterDeleteCode is the workload cluster delete event code.
+	WorkloadClusterDeleteCode = "WC003I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )
