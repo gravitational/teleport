@@ -745,6 +745,58 @@ func TestForwardingGitLocalOnly(t *testing.T) {
 	require.Contains(t, err.Error(), "cross-cluster git forwarding is not supported")
 }
 
+func TestCheckAgentForwardProxyingPermit(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		component      string
+		proxyingPermit *proxyingPermit
+		expectAllowed  bool
+	}{
+		{
+			name:           "forwarding node allows proxying permit",
+			component:      teleport.ComponentForwardingNode,
+			proxyingPermit: &proxyingPermit{},
+			expectAllowed:  true,
+		},
+		{
+			name:           "non-forwarding node denies proxying permit",
+			component:      teleport.ComponentNode,
+			proxyingPermit: &proxyingPermit{},
+			expectAllowed:  false,
+		},
+		{
+			name:           "forwarding node denies without proxying permit",
+			component:      teleport.ComponentForwardingNode,
+			proxyingPermit: nil,
+			expectAllowed:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ah := &AuthHandlers{c: &AuthHandlerConfig{
+				Component: tt.component,
+			}}
+			ctx := &ServerContext{
+				Identity: IdentityContext{
+					ProxyingPermit: tt.proxyingPermit,
+				},
+			}
+
+			err := ah.CheckAgentForward(ctx)
+			if tt.expectAllowed {
+				require.NoError(t, err)
+				return
+			}
+
+			var accessDenied *trace.AccessDeniedError
+			require.ErrorAs(t, err, &accessDenied)
+		})
+	}
+}
+
 // TestRBACJoinMFA tests that MFA is enforced correctly when joining
 // sessions depending on the cluster auth preference and roles presented.
 func TestRBACJoinMFA(t *testing.T) {
