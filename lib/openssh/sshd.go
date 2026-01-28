@@ -284,7 +284,7 @@ func defaultRestart() error {
 		}
 
 		const activeService = "ActiveState=active"
-		if !bytes.Equal([]byte(activeService), out) {
+		if !bytes.Equal([]byte(activeService), bytes.TrimSpace(out)) {
 			slog.DebugContext(context.Background(), "skipping inactive OpenSSH service", "service", service)
 			continue
 		}
