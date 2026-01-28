@@ -1,0 +1,41 @@
+suite: Updater RoleBinding
+templates:
+  - updater.yaml
+tests:
+  #
+  # Basic tests
+  #
+  - it: does not create a RoleBinding when updater.enabled is false (default)
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: creates a RoleBinding when updater.enabled is true
+    values:
+      - ../.lint/updater.yaml
+    asserts:
+      - containsDocument:
+          kind: RoleBinding
+          apiVersion: rbac.authorization.k8s.io/v1
+          name: RELEASE-NAME-updater
+          namespace: NAMESPACE
+
+  #
+  # Catch-all content test
+  #
+  - it: sets the correct rolebinding content
+    documentIndex: 2
+    values:
+      - ../.lint/updater.yaml
+    asserts:
+      - equal:
+          path: roleRef
+          value:
+            apiGroup: rbac.authorization.k8s.io
+            kind: Role
+            name: RELEASE-NAME-updater
+      - equal:
+          path: subjects
+          value:
+            - kind: ServiceAccount
+              name: RELEASE-NAME-tbot-updater
+              namespace: NAMESPACE

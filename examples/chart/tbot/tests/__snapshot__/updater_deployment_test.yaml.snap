@@ -24,8 +24,8 @@ sets the affinity:
     - args:
       - --agent-name=RELEASE-NAME
       - --agent-namespace=NAMESPACE
-      - --base-image=public.ecr.aws/gravitational/teleport-distroless
-      - --container=teleport
+      - --base-image=public.ecr.aws/gravitational/tbot-distroless
+      - --container=tbot
       - --version-server=https://my-custom-version-server/v1
       - --version-channel=custom/preview
       image: public.ecr.aws/gravitational/teleport-kube-agent-updater:19.0.0-dev
@@ -54,25 +54,15 @@ sets the affinity:
         initialDelaySeconds: 5
         periodSeconds: 5
         timeoutSeconds: 5
-      securityContext:
-        allowPrivilegeEscalation: false
-        capabilities:
-          drop:
-          - ALL
-        readOnlyRootFilesystem: true
-        runAsNonRoot: true
-        runAsUser: 9807
-        seccompProfile:
-          type: RuntimeDefault
-    serviceAccountName: RELEASE-NAME-updater
+    serviceAccountName: RELEASE-NAME-tbot-updater
 sets the tolerations:
   1: |
     containers:
     - args:
       - --agent-name=RELEASE-NAME
       - --agent-namespace=NAMESPACE
-      - --base-image=public.ecr.aws/gravitational/teleport-distroless
-      - --container=teleport
+      - --base-image=public.ecr.aws/gravitational/tbot-distroless
+      - --container=tbot
       - --version-server=https://my-custom-version-server/v1
       - --version-channel=custom/preview
       image: public.ecr.aws/gravitational/teleport-kube-agent-updater:19.0.0-dev
@@ -101,17 +91,7 @@ sets the tolerations:
         initialDelaySeconds: 5
         periodSeconds: 5
         timeoutSeconds: 5
-      securityContext:
-        allowPrivilegeEscalation: false
-        capabilities:
-          drop:
-          - ALL
-        readOnlyRootFilesystem: true
-        runAsNonRoot: true
-        runAsUser: 9807
-        seccompProfile:
-          type: RuntimeDefault
-    serviceAccountName: RELEASE-NAME-updater
+    serviceAccountName: RELEASE-NAME-tbot-updater
     tolerations:
     - effect: NoExecute
       key: dedicated

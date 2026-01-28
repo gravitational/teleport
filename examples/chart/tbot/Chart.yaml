@@ -8,3 +8,7 @@ description: This chart deploys an instance of the Machine ID agent, TBot, into 
 icon: https://goteleport.com/static/teleport-symbol-bimi.svg
 keywords:
   - Teleport
+
+dependencies:
+  - name: teleport-kube-updater
+    version: *version
