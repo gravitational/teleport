@@ -36,6 +36,7 @@ var joinMethodsSupportingScopes = map[string]struct{}{
 	string(types.JoinMethodEC2):   {},
 	string(types.JoinMethodIAM):   {},
 	string(types.JoinMethodGCP):   {},
+	string(types.JoinMethodAzure): {},
 }
 
 // TokenUsageMode represents the possible usage modes of a scoped token.
@@ -307,6 +308,21 @@ func (t *Token) GetGCP() *types.ProvisionTokenSpecV2GCP {
 	}
 
 	return &types.ProvisionTokenSpecV2GCP{
+		Allow: allow,
+	}
+}
+
+// GetAzure returns the Azure-specific configuration for this token.
+func (t *Token) GetAzure() *types.ProvisionTokenSpecV2Azure {
+	allow := make([]*types.ProvisionTokenSpecV2Azure_Rule, len(t.scoped.GetSpec().GetAzure().GetAllow()))
+	for i, rule := range t.scoped.GetSpec().GetAzure().GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2Azure_Rule{
+			Subscription:   rule.GetSubscription(),
+			ResourceGroups: rule.GetResourceGroups(),
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2Azure{
 		Allow: allow,
 	}
 }
