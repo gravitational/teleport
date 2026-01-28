@@ -71,4 +71,4 @@ jobs:
 
       - name: Run tests
         timeout-minutes: 20
-        run: make -j"$(nproc)" test-go test-sh test-api
+        run: make -j"$(nproc)" --debug=v test-go test-sh test-api
