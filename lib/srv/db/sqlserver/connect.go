@@ -57,8 +57,8 @@ type connector struct {
 	kerberos kerberos.ClientProvider
 
 	// Connector creation functions - can be mocked in tests
-	newAzureConnector         func(msdsn.Config) (*mssql.Connector, error)
-	newSecurityTokenConnector func(msdsn.Config, func(context.Context) (string, error)) (*mssql.Connector, error)
+	newAzureConnector         func(config msdsn.Config) (*mssql.Connector, error)
+	newSecurityTokenConnector func(config msdsn.Config, tokenProvider func(ctx context.Context) (token string, err error)) (*mssql.Connector, error)
 }
 
 // newConnector creates a new connector with default connector creation functions.
