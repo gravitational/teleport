@@ -4552,10 +4552,9 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 			inRecordLocation: types.RecordAtNode,
 		},
 		// Run tests when Teleport is recording sessions at the proxy
-		// (temporarily disabled, see https://github.com/gravitational/teleport/issues/16224)
-		// {
-		// 	inRecordLocation: types.RecordAtProxy,
-		// },
+		{
+			inRecordLocation: types.RecordAtProxy,
+		},
 	}
 
 	for _, tt := range tests {
@@ -4597,10 +4596,10 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 			defer helpers.CloseAgent(teleAgent, socketDirPath)
 
-			// Create and run an exec command twice with the passed in ControlPath. This
-			// will cause re-use of the connection and creation of two sessions within
-			// the connection.
-			for range 2 {
+			testConnection := func(t *testing.T) {
+				// Create and run an exec command twice with the passed in ControlPath. This
+				// will cause re-use of the connection and creation of two sessions within
+				// the connection.
 				execCmd, err := helpers.ExternalSSHCommand(helpers.CommandOptions{
 					ForcePTY:     true,
 					ForwardAgent: true,
@@ -4624,6 +4623,13 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 				require.NoError(t, err, "stderr=%q", stderr)
 				require.True(t, strings.HasSuffix(strings.TrimSpace(string(output)), "hello"))
 			}
+
+			t.Run("first connection", func(t *testing.T) {
+				testConnection(t)
+			})
+			t.Run("second connection", func(t *testing.T) {
+				testConnection(t)
+			})
 		})
 	}
 }
