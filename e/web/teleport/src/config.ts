@@ -207,6 +207,16 @@ const cfg = {
 
     sessionRecordingSummary:
       '/v1/webapi/sites/:clusterId/session-summaries/:sessionId',
+
+    inference: {
+      testModel: '/v1/webapi/sites/:clusterId/inference/models/test',
+      policies: '/v1/webapi/sites/:clusterId/inference/policies',
+      policy: '/v1/webapi/sites/:clusterId/inference/policies/:name',
+      secrets: '/v1/webapi/sites/:clusterId/inference/secrets',
+      secret: '/v1/webapi/sites/:clusterId/inference/secrets/:name',
+      models: '/v1/webapi/sites/:clusterId/inference/models',
+      model: '/v1/webapi/sites/:clusterId/inference/models/:name',
+    },
   },
 
   getNonExactRoutes() {
@@ -532,6 +542,67 @@ const cfg = {
     });
   },
 
+  getListInferencePoliciesUrl(
+    clusterId: string,
+    limit?: number,
+    startKey?: string
+  ) {
+    return (
+      generatePath(cfg.api.inference.policies, { clusterId }) +
+      createLimitStartKeyParams(limit, startKey)
+    );
+  },
+
+  getListInferenceModelsUrl(
+    clusterId: string,
+    limit?: number,
+    startKey?: string
+  ) {
+    return (
+      generatePath(cfg.api.inference.models, { clusterId }) +
+      createLimitStartKeyParams(limit, startKey)
+    );
+  },
+
+  getListInferenceSecretsUrl(
+    clusterId: string,
+    limit?: number,
+    startKey?: string
+  ) {
+    return (
+      generatePath(cfg.api.inference.secrets, { clusterId }) +
+      createLimitStartKeyParams(limit, startKey)
+    );
+  },
+
+  getTestInferenceModelUrl(clusterId: string) {
+    return generatePath(cfg.api.inference.testModel, { clusterId });
+  },
+
+  getInferenceSecretsUrl(clusterId: string) {
+    return generatePath(cfg.api.inference.secrets, { clusterId });
+  },
+
+  getInferenceSecretUrl(clusterId: string, name: string) {
+    return generatePath(cfg.api.inference.secret, { clusterId, name });
+  },
+
+  getInferenceModelsUrl(clusterId: string) {
+    return generatePath(cfg.api.inference.models, { clusterId });
+  },
+
+  getInferenceModelUrl(clusterId: string, name: string) {
+    return generatePath(cfg.api.inference.model, { clusterId, name });
+  },
+
+  getInferencePoliciesUrl(clusterId: string) {
+    return generatePath(cfg.api.inference.policies, { clusterId });
+  },
+
+  getInferencePolicyUrl(clusterId: string, name: string) {
+    return generatePath(cfg.api.inference.policy, { clusterId, name });
+  },
+
   init(json: object) {
     // this will apply server config by merging it with oss cfg
     ossCfg.init({
@@ -542,6 +613,24 @@ const cfg = {
     });
   },
 };
+
+function createLimitStartKeyParams(limit?: number, startKey?: string) {
+  const params = new URLSearchParams();
+
+  if (typeof limit !== 'undefined') {
+    params.append('limit', limit.toString());
+  }
+
+  if (startKey) {
+    params.append('startKey', startKey);
+  }
+
+  if (params.size === 0) {
+    return '';
+  }
+
+  return `?${params.toString()}`;
+}
 
 export interface UrlAzureOidcConfigureIdp {
   authConnectorName: string;
