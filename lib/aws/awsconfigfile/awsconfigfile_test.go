@@ -244,7 +244,12 @@ credential_process = credential_process
 		err := SetDefaultProfileCredentialProcess(configFilePath, "credential_process")
 		require.NoError(t, err)
 
-		require.DirExists(t, filepath.Join(tmpDir, "dir"))
+		dir := filepath.Join(tmpDir, "dir")
+		require.DirExists(t, dir)
+		info, err := os.Stat(dir)
+		require.NoError(t, err)
+		require.Equal(t, os.FileMode(0700), info.Mode().Perm())
+
 		bs, err := os.ReadFile(configFilePath)
 		require.NoError(t, err)
 		require.Equal(t, `; Do not edit. Section managed by Teleport.
@@ -503,10 +508,17 @@ func TestUpdateRemoveCycle(t *testing.T) {
 }
 func TestSSOConfig(t *testing.T) {
 	t.Run("UpsertSSOSession", func(t *testing.T) {
-		configFilePath := filepath.Join(t.TempDir(), "config")
+		tmpDir := t.TempDir()
+		configFilePath := filepath.Join(tmpDir, "dir", "config")
 
 		err := UpsertSSOSession(configFilePath, "my-session", "https://start.url", "us-east-1")
 		require.NoError(t, err)
+
+		dir := filepath.Join(tmpDir, "dir")
+		require.DirExists(t, dir)
+		info, err := os.Stat(dir)
+		require.NoError(t, err)
+		require.Equal(t, os.FileMode(0700), info.Mode().Perm())
 
 		bs, err := os.ReadFile(configFilePath)
 		require.NoError(t, err)

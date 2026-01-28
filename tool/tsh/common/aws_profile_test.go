@@ -43,6 +43,11 @@ func TestExtractAWSStartURL(t *testing.T) {
 			expected: "https://d-92670253d5.awsapps.com/start",
 		},
 		{
+			desc:     "URL with subpath but no anchor",
+			input:    "https://d-92670253d5.awsapps.com/start/console",
+			expected: "https://d-92670253d5.awsapps.com/start",
+		},
+		{
 			desc:     "URL without anchor",
 			input:    "https://test.awsapps.com/start",
 			expected: "https://test.awsapps.com/start",

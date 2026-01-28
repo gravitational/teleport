@@ -118,7 +118,7 @@ func upsertManagedSSOSection(configFilePath, sectionName string, updateFunc func
 	}
 
 	// Create the directory if it does not exist.
-	if err := os.MkdirAll(filepath.Dir(configFilePath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(configFilePath), 0o700); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -176,7 +176,7 @@ func addCredentialProcessToSection(configFilePath, sectionName, credentialProces
 	}
 
 	// Create the directory if it does not exist, otherwise ini.SaveTo will fail.
-	if err := os.MkdirAll(filepath.Dir(configFilePath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(configFilePath), 0o700); err != nil {
 		return trace.Wrap(err)
 	}
 

@@ -1,5 +1,5 @@
 /*
-* Teleport
+ * Teleport
  * Copyright (C) 2026  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -14,7 +14,7 @@
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 
 package common
 
@@ -172,16 +172,16 @@ func formatAWSProfileName(accountName, roleName string) string {
 }
 
 func extractAWSStartURL(rawURL string) string {
-	// asssume the rawURL is like https://example.awsapps.com/start/#/console?param=value
+	// Assume the rawURL is like https://example.awsapps.com/start/#/console?param=value
 	// the output would be https://example.awsapps.com/start
-	if start := strings.Index(rawURL, "/#/"); start != -1 {
-		return rawURL[:start]
+	if index := strings.Index(rawURL, "/start/"); index != -1 {
+		return rawURL[:index+len("/start")]
 	}
 	return rawURL
 }
 
 func extractAWSSessionName(startURL string) string {
-	// assume the startURL is like https://example.awsapps.com/start
+	// Assume the startURL is like https://example.awsapps.com/start
 	// the output would be "teleport-example"
 	raw := strings.TrimPrefix(startURL, "https://")
 	if dotIndex := strings.Index(raw, "."); dotIndex != -1 {
