@@ -7,7 +7,7 @@ state: draft
 
 ## Required Approvers
 
-* Engineering: (SME from server access) && (SME from scale)
+* Engineering: @eriktate && @okraport 
 * Security: @rob-picard-teleport
 
 ## What
