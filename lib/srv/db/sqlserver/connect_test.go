@@ -41,7 +41,6 @@ import (
 // selection logic.
 func TestConnectorSelection(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 
 	for i, tt := range []struct {
 		desc                 string
@@ -122,7 +121,7 @@ func TestConnectorSelection(t *testing.T) {
 			}, tt.databaseSpec)
 			require.NoError(t, err)
 
-			_, err = connector.selectConnector(ctx, &common.Session{Database: database}, &protocol.Login7Packet{})
+			_, err = connector.selectConnector(t.Context(), &common.Session{Database: database}, &protocol.Login7Packet{})
 			tt.errAssertion(t, err)
 
 			require.Equal(t, tt.expectAzureConnector, azureCalled, "Azure connector call mismatch")
