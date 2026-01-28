@@ -208,16 +208,12 @@ func TestPutHeadlessState(t *testing.T) {
 			resp, err := pack.clt.PutJSON(t.Context(), endpoint, request)
 
 			require.Equal(t, tt.expectedStatus, resp.Code(), "unexpected status code")
-			if tt.expectedStatus == 200 {
-				require.NoError(t, err)
-			} else {
-				require.Error(t, err)
-			}
 
 			if tt.expectedStatus != 200 {
 				require.ErrorContains(t, err, tt.expectedErrMsg, "unexpected error message")
 				return
 			}
+			require.NoError(t, err)
 
 			// Verify the state was updated correctly.
 			ha, err := env.server.Auth().GetHeadlessAuthentication(t.Context(), username, headlessID)
@@ -292,6 +288,7 @@ func TestGetHeadless(t *testing.T) {
 				require.ErrorContains(t, err, tt.expectedErrMsg, "unexpected error message")
 				return
 			}
+			require.NoError(t, err)
 
 			var ha types.HeadlessAuthentication
 			err = json.Unmarshal(resp.Bytes(), &ha)
