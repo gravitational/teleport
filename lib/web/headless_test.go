@@ -75,6 +75,7 @@ func TestPutHeadlessState(t *testing.T) {
 	require.NoError(t, err)
 
 	getMFAResponse := func() *client.MFAChallengeResponse {
+		t.Helper()
 		// Create an authentication challenge and solve it with the WebAuthn device.
 		chal, err := userClient.CreateAuthenticateChallenge(t.Context(), &authproto.CreateAuthenticateChallengeRequest{
 			Request: &authproto.CreateAuthenticateChallengeRequest_ContextUser{},
