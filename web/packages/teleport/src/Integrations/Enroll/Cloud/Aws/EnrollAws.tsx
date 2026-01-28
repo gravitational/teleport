@@ -331,7 +331,7 @@ export function IntegrationSection({
         <CircleNumber>1</CircleNumber>
         Integration Details
       </Flex>
-      <Text ml={4} mb={1}>
+      <Text ml={4} mb={3}>
         Provide a name to identify this AWS integration in Teleport.
       </Text>
       <FieldInput
@@ -354,7 +354,7 @@ export function IntegrationSection({
 export function ConfigurationScopeSection() {
   return (
     <>
-      <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={1}>
+      <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={3}>
         <CircleNumber>2</CircleNumber>
         Configuration Scope
       </Flex>
