@@ -31,17 +31,22 @@ import {
   ArrowLeft,
   ArrowRight,
   ChevronRight,
-  CircleCheck,
   CircleCross,
   Warning,
 } from 'design/Icon';
-import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
 import { TabBorder, useSlidingBottomBorderTabs } from 'design/Tabs';
 import { HoverTooltip } from 'design/Tooltip';
+import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
 import { pluralize } from 'shared/utils/text';
 
 import { FeatureBox } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
+import {
+  InfoGuideSwitch,
+  type InfoGuideTab,
+} from 'teleport/Integrations/Enroll/Cloud/Aws/EnrollAws';
+import { SummaryStatusLabel } from 'teleport/Integrations/shared/StatusLabel';
+import { useNoMinWidth } from 'teleport/Main';
 import {
   IntegrationKind,
   integrationService,
@@ -49,6 +54,7 @@ import {
 } from 'teleport/services/integrations';
 
 import { ActivityTab } from './ActivityTab';
+import { SettingsTab } from './SettingsTab';
 import { SmallTab, SmallTabsContainer } from './SmallTabs';
 
 export function formatRelativeDate(value?: string | Date): string {
@@ -67,11 +73,12 @@ export function formatRelativeDate(value?: string | Date): string {
     return displayDateTime(date);
   }
 }
-type TabId = 'overview' | 'activity';
+type TabId = 'overview' | 'activity' | 'settings';
 
 const TABS = [
   { id: 'overview', label: 'Overview' },
-  { id: 'activity', label: 'Activity' },
+  { id: 'activity', label: 'Issues' },
+  { id: 'settings', label: 'Settings' },
 ] as const;
 
 export function IaCIntegrationOverview() {
@@ -89,7 +96,11 @@ export function IaCIntegrationOverview() {
   });
 
   const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [activeInfoGuideTab, setActiveInfoGuideTab] =
+    useState<InfoGuideTab>('terraform');
+  const { infoGuideConfig } = useInfoGuide();
   const { borderRef, parentRef } = useSlidingBottomBorderTabs({ activeTab });
+  useNoMinWidth();
 
   if (isLoading) {
     return (
@@ -122,6 +133,13 @@ export function IaCIntegrationOverview() {
             {stats.name}
           </Text>
         </Flex>
+        {activeTab === 'settings' && (
+          <InfoGuideSwitch
+            currentConfig={infoGuideConfig}
+            activeTab={activeInfoGuideTab}
+            onSwitch={setActiveInfoGuideTab}
+          />
+        )}
       </Flex>
       <SmallTabsContainer ref={parentRef} mb={4}>
         {TABS.map(t => (
@@ -144,6 +162,13 @@ export function IaCIntegrationOverview() {
         />
       )}
       {activeTab === 'activity' && <ActivityTab stats={stats} />}
+      {activeTab === 'settings' && (
+        <SettingsTab
+          stats={stats}
+          activeInfoGuideTab={activeInfoGuideTab}
+          onInfoGuideTabChange={setActiveInfoGuideTab}
+        />
+      )}
     </FeatureBox>
   );
 }
@@ -186,12 +211,7 @@ function IntegrationHealthCard({
       <Flex flexDirection="column" gap={2}>
         <StatusRow label="Status:">
           <Flex alignItems="center" gap={2} flexWrap="wrap">
-            <LabelButtonWithIcon
-              IconLeft={hasIssues ? Warning : CircleCheck}
-              kind={hasIssues ? 'outline-warning' : 'outline-success'}
-            >
-              {hasIssues ? 'Issues' : 'Healthy'}
-            </LabelButtonWithIcon>
+            <SummaryStatusLabel summary={stats} />
             {hasIssues && (
               <>
                 <Text typography="body3">

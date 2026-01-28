@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 )
 
 type fakeConn struct {
@@ -53,9 +54,9 @@ func (f *fakeConn) AddMessage(message tdp.Message) error {
 
 func TestClientNew_EOF(t *testing.T) {
 	f := fakeConn{}
-	err := f.AddMessage(tdp.ClientUsername{Username: "user"})
+	err := f.AddMessage(legacy.ClientUsername{Username: "user"})
 	require.NoError(t, err)
-	conn := tdp.NewConn(&f)
+	conn := tdp.NewConn(&f, legacy.Decode)
 
 	_, err = New(createConfig(conn))
 	require.EqualError(t, err, "EOF")
@@ -63,20 +64,20 @@ func TestClientNew_EOF(t *testing.T) {
 
 func TestClientNew_NoKeyboardLayout(t *testing.T) {
 	f := fakeConn{}
-	err := f.AddMessage(tdp.ClientUsername{Username: "user"})
+	err := f.AddMessage(legacy.ClientUsername{Username: "user"})
 	require.NoError(t, err)
-	err = f.AddMessage(tdp.ClientScreenSpec{
+	err = f.AddMessage(legacy.ClientScreenSpec{
 		Width:  100,
 		Height: 100,
 	})
 	require.NoError(t, err)
-	err = f.AddMessage(tdp.ClientScreenSpec{
+	err = f.AddMessage(legacy.ClientScreenSpec{
 		Width:  100,
 		Height: 100,
 	})
 	require.NoError(t, err)
 
-	conn := tdp.NewConn(&f)
+	conn := tdp.NewConn(&f, legacy.Decode)
 
 	_, err = New(createConfig(conn))
 	require.NoError(t, err)
@@ -84,22 +85,22 @@ func TestClientNew_NoKeyboardLayout(t *testing.T) {
 
 func TestClientNew_KeyboardLayout(t *testing.T) {
 	f := fakeConn{}
-	err := f.AddMessage(tdp.ClientUsername{Username: "user"})
+	err := f.AddMessage(legacy.ClientUsername{Username: "user"})
 	require.NoError(t, err)
-	err = f.AddMessage(tdp.ClientScreenSpec{
+	err = f.AddMessage(legacy.ClientScreenSpec{
 		Width:  100,
 		Height: 100,
 	})
 	require.NoError(t, err)
-	err = f.AddMessage(tdp.ClientKeyboardLayout{})
+	err = f.AddMessage(legacy.ClientKeyboardLayout{})
 	require.NoError(t, err)
-	err = f.AddMessage(tdp.ClientScreenSpec{
+	err = f.AddMessage(legacy.ClientScreenSpec{
 		Width:  100,
 		Height: 100,
 	})
 	require.NoError(t, err)
 
-	conn := tdp.NewConn(&f)
+	conn := tdp.NewConn(&f, legacy.Decode)
 
 	_, err = New(createConfig(conn))
 	require.NoError(t, err)

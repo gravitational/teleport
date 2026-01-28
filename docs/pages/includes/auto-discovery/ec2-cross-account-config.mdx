@@ -16,9 +16,8 @@ spec:
   - types: ["ec2"]
     regions: ["us-east-1","us-west-1"]
     install:
-      join_params:
-        token_name: aws-discovery-iam-token
-        method: iam
+      join_method: iam
+      join_token: aws-discovery-iam-token
     ssm:
       document_name: "AWS-RunShellScript"
     tags:
@@ -53,9 +52,8 @@ discovery_service:
   - types: ["ec2"]
     regions: ["us-east-1","us-west-1"]
     install:
-      join_params:
-        token_name: aws-discovery-iam-token
-        method: iam
+      join_method: iam
+      join_token: aws-discovery-iam-token
     ssm:
       document_name: "AWS-RunShellScript"
     tags:

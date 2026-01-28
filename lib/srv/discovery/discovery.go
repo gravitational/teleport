@@ -1400,8 +1400,9 @@ func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.
 
 			break
 		}
-		log.WarnContext(s.ctx, "Failed to install on VM",
-			"vm_id", azure.StringVal(failure.Instance.ID),
+		log.WarnContext(s.ctx, "Failed to install Teleport on a virtual machine",
+			"vm_id", azure.StringVal(failure.Instance.Properties.VMID),
+			"resource_id", azure.StringVal(failure.Instance.ID),
 			"install_error", failure.Error,
 		)
 	}
@@ -1441,14 +1442,20 @@ func (s *Server) startAzureServerDiscovery() {
 	}
 
 	var sm *resourceStatusMap
+	var vmTasks *azureVMTasks
+	var runStart time.Time
 
 	azureWatcher = server.NewWatcher(
 		s.ctx,
 		server.WithPreFetchHookFn(func(fetchers []server.Fetcher[*server.AzureInstances]) {
+			s.Log.InfoContext(s.ctx, "Azure VM discovery iteration starting")
+			runStart = s.clock.Now()
+
 			if len(fetchers) > 0 {
 				s.submitFetchEvent(types.CloudAzure, types.AzureMatcherVM)
 			}
 			sm = newStatusMap(types.AzureMatcherVM)
+			vmTasks = &azureVMTasks{}
 
 			// Initialize the status map with an entry per fetcher (discoveryConfig + integration).
 			// The per-instance hook only receives the slice of instance groups; when a fetcher
@@ -1472,7 +1479,7 @@ func (s *Server) startAzureServerDiscovery() {
 					integration:         group.Integration,
 				}
 				s.Log.DebugContext(s.ctx, "Processing instance group", "group", fgKey, "instances", len(group.Instances))
-				results := s.installAzureServers(group)
+				results := s.installAzureServers(group, vmTasks)
 				sm.add(fgKey, results)
 			}
 		}),
@@ -1480,6 +1487,10 @@ func (s *Server) startAzureServerDiscovery() {
 			// update statuses of relevant discovery configs.
 			s.azureVMStatus.Store(sm)
 			s.updateDiscoveryConfigStatus(sm.discoveryConfigs()...)
+			// upsert user tasks for failed enrollments.
+			vmTasks.upsertAll(s.taskUpdater())
+
+			s.Log.InfoContext(s.ctx, "Azure VM discovery iteration completed", "elapsed", s.clock.Since(runStart))
 		}),
 		server.WithPollInterval[*server.AzureInstances](s.PollInterval),
 		server.WithTriggerFetchC[*server.AzureInstances](s.newDiscoveryConfigChangedSub()),
@@ -1494,7 +1505,7 @@ func (s *Server) startAzureServerDiscovery() {
 	go azureWatcher.Run()
 }
 
-func (s *Server) installAzureServers(instances *server.AzureInstances) (results map[statusType]int) {
+func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *azureVMTasks) (results map[statusType]int) {
 	results = make(map[statusType]int)
 
 	log := s.Log.With(
@@ -1529,17 +1540,60 @@ func (s *Server) installAzureServers(instances *server.AzureInstances) (results 
 		return
 	}
 
+	addFailedEnrollment := func(vm *armcompute.VirtualMachine, issueType string) {
+		// Static matchers don't have a discovery config resource, so skip creating user tasks
+		// because validation requires a discovery config name.
+		if instances.DiscoveryConfigName == noDiscoveryConfig {
+			return
+		}
+
+		tg := usertasks.TaskGroup{
+			Integration: instances.Integration,
+			IssueType:   issueType,
+		}
+		vmTasks.addFailedEnrollment(
+			tg,
+			azureVMTaskKey{
+				subscriptionID: instances.SubscriptionID,
+				resourceGroup:  instances.ResourceGroup,
+				region:         instances.Region,
+			},
+			&usertasksv1.DiscoverAzureVMInstance{
+				VmId:            azure.StringVal(vm.Properties.VMID),
+				ResourceId:      azure.StringVal(vm.ID),
+				Name:            azure.StringVal(vm.Name),
+				DiscoveryConfig: instances.DiscoveryConfigName,
+				DiscoveryGroup:  s.DiscoveryGroup,
+				SyncTime:        timestamppb.New(s.clock.Now()),
+			},
+		)
+	}
+
 	log.DebugContext(s.ctx, "Running Teleport installation on virtual machines", "vms", genAzureInstancesLogStr(instances.Instances))
 	failures, err := s.enrollAzureVirtualMachines(log, instances)
 	if err != nil {
-		// we don't expect err to be non-nil for individual enrollment failures.
-		// we will assume all of them failed e.g. due to API-level permission issue.
-		log.ErrorContext(s.ctx, "Failed to enroll discovered Azure VMs", "error", err)
-		results[statusFailed] = needInstall
+		// treat non-nil err as deployment failure affecting all machines.
+		log.WarnContext(s.ctx, "Failed to enroll discovered Azure VMs", "error", err, "count", len(instances.Instances))
+		results[statusFailed] = len(instances.Instances)
+
+		issueType := classifyAzureVMEnrollmentError(err)
+		for _, vm := range instances.Instances {
+			addFailedEnrollment(vm, issueType)
+		}
 		return
 	}
+
+	if len(failures) > 0 {
+		log.WarnContext(s.ctx, "Failed to enroll some discovered Azure VMs", "count", len(failures))
+	}
+
 	// count individual failed enrollments.
 	results[statusFailed] = len(failures)
+
+	// Record failures as user tasks.
+	for _, failure := range failures {
+		addFailedEnrollment(failure.Instance, classifyAzureVMEnrollmentError(failure.Error))
+	}
 
 	pendingCount := len(instances.Instances) - len(failures)
 	if pendingCount > 0 {

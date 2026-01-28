@@ -613,6 +613,14 @@ export const formatters: Formatters = {
       return `User [${user}] has connected to application [${app_name}]`;
     },
   },
+  [eventCodes.APP_SESSION_START_FAILURE]: {
+    type: 'app.session.start',
+    desc: 'App Session Start Failed',
+    format: event => {
+      const { user, app_name, message } = event;
+      return `User [${user}] failed to connect to application [${app_name}]: ${message}`;
+    },
+  },
   [eventCodes.APP_SESSION_END]: {
     type: 'app.session.end',
     desc: 'App Session Ended',
@@ -1211,7 +1219,7 @@ export const formatters: Formatters = {
     type: 'windows.desktop.session.start',
     desc: 'Windows Desktop Session Started',
     format: ({ user, windows_domain, desktop_name, sid, windows_user }) => {
-      let message = `User [${user}] started session ${sid} on Windows desktop [${windows_user}@${desktop_name}]`;
+      let message = `User [${user}] started session [${sid}] on Windows desktop [${windows_user}@${desktop_name}]`;
       if (windows_domain) {
         message += ` with domain [${windows_domain}]`;
       }
@@ -1237,7 +1245,7 @@ export const formatters: Formatters = {
       if (windows_domain) {
         desktopMessage += ` with domain [${windows_domain}]`;
       }
-      let message = `Session ${sid} for Windows desktop ${desktopMessage} has ended for user [${user}]`;
+      let message = `Session [${sid}] for Windows desktop ${desktopMessage} has ended for user [${user}]`;
       return message;
     },
   },
@@ -2476,6 +2484,24 @@ export const formatters: Formatters = {
     format: ({ user }) => {
       return `User [${user}] deleted the VNet config`;
     },
+  },
+  [eventCodes.WORKLOAD_CLUSTER_CREATE]: {
+    type: 'workload_cluster.create',
+    desc: 'Workload Cluster Created',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] was created by [${user}]`,
+  },
+  [eventCodes.WORKLOAD_CLUSTER_UPDATE]: {
+    type: 'workload_cluster.update',
+    desc: 'Workload Cluster Updated',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.WORKLOAD_CLUSTER_DELETE]: {
+    type: 'workload_cluster.delete',
+    desc: 'Workload Cluster Deleted',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] was deleted by [${user}]`,
   },
 };
 

@@ -66,7 +66,7 @@ type CertificateStoreConfig struct {
 
 // Update publishes an empty certificate revocation list to LDAP.
 func (c *CertificateStoreClient) Update(ctx context.Context, tc *tls.Config) error {
-	caType := types.UserCA
+	const caType = types.WindowsCA
 
 	// TODO(zmb3): check for the presence of Teleport's CA in the NTAuth store
 
@@ -83,18 +83,27 @@ func (c *CertificateStoreClient) Update(ctx context.Context, tc *tls.Config) err
 		return trace.Wrap(err)
 	}
 	for _, ca := range certAuthorities {
-		for _, keyPair := range ca.GetActiveKeys().TLS {
-			if len(keyPair.CRL) == 0 {
-				continue
-			}
+		for _, keySet := range [][]*types.TLSKeyPair{
+			ca.GetActiveKeys().TLS,
+			ca.GetAdditionalTrustedKeys().TLS,
+		} {
+			for _, keyPair := range keySet {
+				if len(keyPair.CRL) == 0 {
+					continue
+				}
 
-			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
-			if err != nil {
-				return trace.Wrap(err)
-			}
+				cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				c.cfg.Logger.DebugContext(ctx, "Processing CA key pair",
+					"issuer", cert.Issuer,
+					"subject", cert.Subject,
+				)
 
-			if err := c.updateCRL(ctx, c.cfg.ClusterName, cert.SubjectKeyId, keyPair.CRL, caType, tc); err != nil {
-				return trace.Wrap(err)
+				if err := c.updateCRL(ctx, c.cfg.ClusterName, cert.SubjectKeyId, keyPair.CRL, caType, tc); err != nil {
+					return trace.Wrap(err)
+				}
 			}
 		}
 	}
@@ -136,6 +145,11 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuerCN string,
 		return trace.Wrap(err, "creating CRL container")
 	}
 
+	logger := c.cfg.Logger.With(
+		"ca_type", caType,
+		"dn", crlDN,
+	)
+
 	// Create the CRL object itself.
 	if err := ldapClient.Create(
 		crlDN,
@@ -153,9 +167,9 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuerCN string,
 		); err != nil {
 			return trace.Wrap(err)
 		}
-		c.cfg.Logger.InfoContext(ctx, "Updated CRL for Windows logins via LDAP", "dn", crlDN)
+		logger.InfoContext(ctx, "Updated CRL for Windows logins via LDAP")
 	} else {
-		c.cfg.Logger.InfoContext(ctx, "Added CRL for Windows logins via LDAP", "dn", crlDN)
+		logger.InfoContext(ctx, "Added CRL for Windows logins via LDAP")
 	}
 	return nil
 }

@@ -53,6 +53,7 @@ const (
 	SummarizerService_ListInferencePolicies_FullMethodName = "/teleport.summarizer.v1.SummarizerService/ListInferencePolicies"
 	SummarizerService_GetSummary_FullMethodName            = "/teleport.summarizer.v1.SummarizerService/GetSummary"
 	SummarizerService_IsEnabled_FullMethodName             = "/teleport.summarizer.v1.SummarizerService/IsEnabled"
+	SummarizerService_TestInferenceModel_FullMethodName    = "/teleport.summarizer.v1.SummarizerService/TestInferenceModel"
 )
 
 // SummarizerServiceClient is the client API for SummarizerService service.
@@ -109,6 +110,9 @@ type SummarizerServiceClient interface {
 	// configured. (Note that this doesn't tell anything about actual correctness
 	// of the configuration or presence of recording summaries.)
 	IsEnabled(ctx context.Context, in *IsEnabledRequest, opts ...grpc.CallOption) (*IsEnabledResponse, error)
+	// TestInferenceModel tests an InferenceModel configuration by making a test
+	// request to the configured provider (AWS Bedrock or OpenAI).
+	TestInferenceModel(ctx context.Context, in *TestInferenceModelRequest, opts ...grpc.CallOption) (*TestInferenceModelResponse, error)
 }
 
 type summarizerServiceClient struct {
@@ -319,6 +323,16 @@ func (c *summarizerServiceClient) IsEnabled(ctx context.Context, in *IsEnabledRe
 	return out, nil
 }
 
+func (c *summarizerServiceClient) TestInferenceModel(ctx context.Context, in *TestInferenceModelRequest, opts ...grpc.CallOption) (*TestInferenceModelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TestInferenceModelResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_TestInferenceModel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SummarizerServiceServer is the server API for SummarizerService service.
 // All implementations must embed UnimplementedSummarizerServiceServer
 // for forward compatibility.
@@ -373,6 +387,9 @@ type SummarizerServiceServer interface {
 	// configured. (Note that this doesn't tell anything about actual correctness
 	// of the configuration or presence of recording summaries.)
 	IsEnabled(context.Context, *IsEnabledRequest) (*IsEnabledResponse, error)
+	// TestInferenceModel tests an InferenceModel configuration by making a test
+	// request to the configured provider (AWS Bedrock or OpenAI).
+	TestInferenceModel(context.Context, *TestInferenceModelRequest) (*TestInferenceModelResponse, error)
 	mustEmbedUnimplementedSummarizerServiceServer()
 }
 
@@ -442,6 +459,9 @@ func (UnimplementedSummarizerServiceServer) GetSummary(context.Context, *GetSumm
 }
 func (UnimplementedSummarizerServiceServer) IsEnabled(context.Context, *IsEnabledRequest) (*IsEnabledResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method IsEnabled not implemented")
+}
+func (UnimplementedSummarizerServiceServer) TestInferenceModel(context.Context, *TestInferenceModelRequest) (*TestInferenceModelResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TestInferenceModel not implemented")
 }
 func (UnimplementedSummarizerServiceServer) mustEmbedUnimplementedSummarizerServiceServer() {}
 func (UnimplementedSummarizerServiceServer) testEmbeddedByValue()                           {}
@@ -824,6 +844,24 @@ func _SummarizerService_IsEnabled_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SummarizerService_TestInferenceModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TestInferenceModelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SummarizerServiceServer).TestInferenceModel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SummarizerService_TestInferenceModel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SummarizerServiceServer).TestInferenceModel(ctx, req.(*TestInferenceModelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SummarizerService_ServiceDesc is the grpc.ServiceDesc for SummarizerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -910,6 +948,10 @@ var SummarizerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "IsEnabled",
 			Handler:    _SummarizerService_IsEnabled_Handler,
+		},
+		{
+			MethodName: "TestInferenceModel",
+			Handler:    _SummarizerService_TestInferenceModel_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

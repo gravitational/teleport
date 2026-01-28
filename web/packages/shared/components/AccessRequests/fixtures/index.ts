@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { SuggestedAccessList } from 'shared/components/AccessRequests/ReviewRequests';
 import { AccessRequest } from 'shared/services/accessRequests';
 
 export const dryRunResponse: AccessRequest = {
@@ -197,6 +198,90 @@ export const requestRolePending: AccessRequest = {
   reasonPrompts: [],
 };
 
+export const requestResourcePendingWithConstraints: AccessRequest = {
+  id: '72de9b90-04fd-5621-a55d-432d9fe56ef2',
+  state: 'PENDING',
+  user: 'Sam',
+  expires: new Date('12-6-2026'),
+  expiresDuration: '1 hour',
+  created: new Date('12-5-2026'),
+  createdDuration: '1 day ago',
+  maxDuration: new Date('12-6-2026'),
+  maxDurationText: '',
+  requestTTL: new Date('12-6-2026'),
+  requestTTLDuration: '1 hour',
+  sessionTTL: new Date('12-6-2026'),
+  sessionTTLDuration: '',
+  roles: ['aws-full-access'],
+  requestReason: 'Just need to view AWS Console setup',
+  resolveReason: '',
+  reviews: [],
+  reviewers: [
+    {
+      name: 'Alice',
+      state: 'PENDING',
+    },
+    {
+      name: 'Bob',
+      state: 'PENDING',
+    },
+  ],
+  thresholdNames: ['Default', 'Admin'],
+  resources: [
+    {
+      id: {
+        kind: 'app',
+        name: 'aws-console-prod',
+        clusterName: 'testing.com',
+      },
+      constraints: {
+        aws_console: {
+          role_arns: ['arn:aws:iam::123456789012:role/ReadAccess'],
+        },
+      },
+    },
+    {
+      id: {
+        kind: 'app',
+        name: 'aws-console-stage',
+        clusterName: 'testing.com',
+      },
+      constraints: {
+        aws_console: {
+          role_arns: [
+            'arn:aws:iam::123456789012:role/ReadAccess',
+            'arn:aws:iam::123456789012:role/AdminAccess',
+          ],
+        },
+      },
+    },
+  ],
+  assumeStartTime: new Date('12-5-2026'),
+  assumeStartTimeDuration: '24 hours from now',
+  reasonMode: 'required',
+  reasonPrompts: [],
+};
+
+export const requestResourceWithConstraintsSuggestedAccessLists: SuggestedAccessList[] =
+  [
+    {
+      id: '123456789010',
+      title: 'AWS Full Access',
+      grants: {
+        roles: ['aws-full-access'],
+        traits: {},
+      },
+    },
+    {
+      id: '123456789011',
+      title: 'AWS Console Admin',
+      grants: {
+        roles: ['aws-full-access', 'aws-admin'],
+        traits: {},
+      },
+    },
+  ];
+
 export const requestRoleDenied: AccessRequest = {
   id: '3ce23da9-6b85-5fce-9bf3-5fb826120cb2',
   state: 'DENIED',
@@ -330,6 +415,74 @@ export const requestRoleApprovedWithStartTime: AccessRequest = {
   assumeStartTime: new Date('12-6-9999'),
   assumeStartTimeDuration: '24 hours from now',
   reasonMode: 'optional',
+  reasonPrompts: [],
+};
+
+export const requestResourceApprovedWithConstraints: AccessRequest = {
+  id: '72de9b90-04fd-5621-a55d-432d9fe56ef2',
+  state: 'APPROVED',
+  user: 'Sam',
+  expires: new Date('12-6-2026'),
+  expiresDuration: '24 hours',
+  created: new Date('12-5-2026'),
+  createdDuration: '2 hours ago',
+  maxDuration: new Date('12-6-2026'),
+  maxDurationText: '',
+  requestTTL: new Date('12-5-2026'),
+  requestTTLDuration: '2 hours',
+  sessionTTL: new Date('12-5-2026'),
+  sessionTTLDuration: '',
+  roles: ['aws-full-access'],
+  requestReason: 'Just need to view AWS Console setup',
+  resolveReason: '',
+  reviews: [
+    {
+      author: 'Alice',
+      createdDuration: '1 minute ago',
+      reason: 'Sure',
+      state: 'APPROVED',
+      roles: ['aws-full-access'],
+    },
+  ],
+  reviewers: [
+    {
+      name: 'Alice',
+      state: 'APPROVED',
+    },
+  ],
+  thresholdNames: ['Default'],
+  resources: [
+    {
+      id: {
+        kind: 'app',
+        name: 'aws-console-prod',
+        clusterName: 'testing.com',
+      },
+      constraints: {
+        aws_console: {
+          role_arns: ['arn:aws:iam::123456789012:role/ReadAccess'],
+        },
+      },
+    },
+    {
+      id: {
+        kind: 'app',
+        name: 'aws-console-stage',
+        clusterName: 'testing.com',
+      },
+      constraints: {
+        aws_console: {
+          role_arns: [
+            'arn:aws:iam::123456789012:role/ReadAccess',
+            'arn:aws:iam::123456789012:role/AdminAccess',
+          ],
+        },
+      },
+    },
+  ],
+  assumeStartTime: new Date('12-5-2026'),
+  assumeStartTimeDuration: '24 hours from now',
+  reasonMode: 'required',
   reasonPrompts: [],
 };
 

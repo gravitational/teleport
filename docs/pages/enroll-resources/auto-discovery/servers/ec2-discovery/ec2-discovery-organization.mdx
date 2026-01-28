@@ -249,9 +249,8 @@ Static configuration while simpler at first, has less flexibility because enroll
       ssm:
         document_name: "AWS-RunShellScript"
       install:
-        join_params:
-          token_name: aws-discovery-iam-token
-          method: iam
+        join_method: iam
+        join_token: aws-discovery-iam-token
       assume_role:
         role_name: <Var name="DiscoverEC2AssumedRole" />
       organization:
@@ -297,9 +296,8 @@ Static configuration while simpler at first, has less flexibility because enroll
       ssm:
         document_name: "AWS-RunShellScript"
       install:
-          join_params:
-            token_name: aws-discovery-iam-token
-            method: iam
+        join_method: iam
+        join_token: aws-discovery-iam-token
       assume_role_name: <Var name="DiscoverEC2AssumedRole" />
       organization:
         organization_id: <Var name="o-organisation" />

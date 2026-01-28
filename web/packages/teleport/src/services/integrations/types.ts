@@ -72,7 +72,18 @@ export type IntegrationTemplate<
   statusCode: IntegrationStatusCode;
   status?: SD;
   credentials?: PluginCredentials;
+  summary?: BriefSummary;
 };
+
+type BriefSummary = {
+  unresolvedUserTasks?: UserTask[];
+  resourcesCount?: {
+    found: number;
+    enrolled: number;
+    failed: number;
+  };
+};
+
 // IntegrationKind string values should be in sync
 // with the backend value for defining the integration
 // resource's subKind field.
@@ -80,6 +91,7 @@ export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
   /* AWS Roles Anywhere */
   AwsRa = 'aws-ra',
+  AwsCloud = 'aws-cloud',
   AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',
   GitHub = 'github',

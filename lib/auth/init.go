@@ -196,7 +196,7 @@ type InitConfig struct {
 	DatabaseServices services.DatabaseServices
 
 	// Status is a service that manages cluster status info.
-	Status services.StatusInternal
+	Status services.Status
 
 	// UserPreferences is a service that manages user preferences.
 	UserPreferences services.UserPreferences
@@ -735,7 +735,7 @@ func initializeAuthorities(ctx context.Context, asrv *Server, cfg *InitConfig) e
 	)
 	usableKeysResults := make(map[types.CertAuthType]*keystore.UsableKeysResult)
 	g, gctx := errgroup.WithContext(ctx)
-	for _, caType := range types.CertAuthTypesExtended {
+	for _, caType := range types.CertAuthTypes {
 		g.Go(func() error {
 			tctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthority", oteltrace.WithAttributes(attribute.String("type", string(caType))))
 			defer span.End()
@@ -1340,18 +1340,7 @@ type PresetRoleManager interface {
 
 // GetPresetRoles returns a list of all preset roles expected to be available on
 // this cluster.
-func GetPresetRoles(buildTypes ...string) []types.Role {
-	// TODO(tross): make this take a single buildType after all uses are updated.
-	var buildType string
-	switch len(buildTypes) {
-	case 0:
-		buildType = modules.GetModules().BuildType()
-	case 1:
-		buildType = buildTypes[0]
-	default:
-		return nil
-	}
-
+func GetPresetRoles(buildType string) []types.Role {
 	presets := []types.Role{
 		services.NewPresetGroupAccessRole(buildType),
 		services.NewPresetEditorRole(),
@@ -1559,11 +1548,21 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			var hasKeys bool
 			var signerErr error
 			switch r.GetType() {
-			case types.HostCA, types.UserCA, types.OpenSSHCA:
+			case types.HostCA,
+				types.UserCA,
+				types.OpenSSHCA:
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
-			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
+			case types.DatabaseCA,
+				types.DatabaseClientCA,
+				types.SAMLIDPCA,
+				types.SPIFFECA,
+				types.AWSRACA,
+				types.WindowsCA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
-			case types.JWTSigner, types.OIDCIdPCA, types.OktaCA, types.BoundKeypairCA:
+			case types.JWTSigner,
+				types.OIDCIdPCA,
+				types.OktaCA,
+				types.BoundKeypairCA:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)
 			default:
 				return trace.BadParameter("unexpected cert_authority type %s for cluster %v", r.GetType(), clusterName)

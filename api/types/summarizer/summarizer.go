@@ -83,7 +83,7 @@ func ValidateInferenceModel(m *summarizerv1.InferenceModel) error {
 			// unsupported one once the object is parsed from YAML. There may be a
 			// way to do it if it was created from binary wire format, but it's not
 			// worth the effort.
-			"missing or unsupported inference provider in spec, supported providers: openai",
+			"missing or unsupported inference provider in spec, supported providers: openai, bedrock",
 		)
 	case *summarizerv1.InferenceModelSpec_Openai:
 		if p.Openai.GetOpenaiModelId() == "" {

@@ -1544,28 +1544,20 @@ func Test_CreateAccessListReview_FailForNonReviewable(t *testing.T) {
 	require.NoError(t, err)
 
 	service := newAccessListService(t, mem, modulestest.EnterpriseModules())
-	// Create a couple access lists.
+	// Create an access lists.
 	accessList1 := newAccessList(t, "accessList1", clock, withType(accesslist.Static))
-	accessList2 := newAccessList(t, "accessList2", clock, withType(accesslist.SCIM))
 
-	// Create both access lists.
 	_, err = service.UpsertAccessList(ctx, accessList1)
-	require.NoError(t, err)
-	_, err = service.UpsertAccessList(ctx, accessList2)
 	require.NoError(t, err)
 
 	accessList1Review := newAccessListReview(t, accessList1.GetName(), "al1-review")
-	accessList2Review := newAccessListReview(t, accessList2.GetName(), "al2-review")
 
 	// Add access list review.
 	_, _, err = service.CreateAccessListReview(ctx, accessList1Review)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "is not reviewable")
 	require.True(t, trace.IsBadParameter(err))
-	_, _, err = service.CreateAccessListReview(ctx, accessList2Review)
-	require.Error(t, err)
-	require.ErrorContains(t, err, "is not reviewable")
-	require.True(t, trace.IsBadParameter(err))
+
 }
 
 func TestAccessListRequiresEqual(t *testing.T) {
