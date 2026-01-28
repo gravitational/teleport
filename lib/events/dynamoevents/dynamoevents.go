@@ -42,7 +42,6 @@ import (
 	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/tracing/smithyoteltracing"
-	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -1644,31 +1643,25 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput) ([]even
 
 			if l.totalSize+len(trimmedData) <= events.MaxEventBytesInResponse {
 				events.MetricQueriedTrimmedEvents.Inc()
-				l.totalSize += len(trimmedData)
-				out = append(out, e)
-				l.left--
-
-				// Since we reach the response size limit, simply return the trimmed event.
-				if err := l.saveCheckpointAtEvent(out[len(out)-1]); err != nil {
-					return nil, false, trace.Wrap(err)
-				}
-				return out, true, nil
+			} else {
+				// Failed to trim the event to size.
+				// Even if we fail to trim the event, we still try to return the oversized event.
+				l.log.ErrorContext(context.Background(), "Failed to trim event exceeding maximum response size.",
+					"event_type", e.FieldsMap.GetType(),
+					"event_id", e.FieldsMap.GetID(),
+					"event_size", len(data),
+					"event_size after trim", len(trimmedData),
+				)
 			}
+			l.totalSize += len(trimmedData)
+			out = append(out, e)
+			l.left--
 
-			// Failed to trim the event to size.
-			// If this condition is reached it should be considered a bug, any
-			// event that can possibly exceed the maximum size should implement
-			// TrimToMaxSize (until we can one day implement an API for storing
-			// and retrieving large events).
-			l.log.ErrorContext(context.Background(), "Failed to query event exceeding maximum response size.",
-				"event_type", e.FieldsMap.GetType(),
-				"event_id", e.FieldsMap.GetID(),
-				"event_size", len(data),
-			)
-			return nil, false, trace.Errorf(
-				"%s event %s is %s and cannot be returned because it exceeds the maximum response size of %s",
-				e.FieldsMap.GetType(), e.FieldsMap.GetID(), humanize.IBytes(uint64(len(data))), humanize.IBytes(events.MaxEventBytesInResponse))
-
+			// Since we reached the response size limit, simply return the event.
+			if err := l.saveCheckpointAtEvent(out[len(out)-1]); err != nil {
+				return nil, false, trace.Wrap(err)
+			}
+			return out, true, nil
 		}
 		l.totalSize += len(data)
 		out = append(out, e)

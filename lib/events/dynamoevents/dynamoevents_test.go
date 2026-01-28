@@ -37,7 +37,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/dustin/go-humanize"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -1052,6 +1051,7 @@ func Test_eventsFetcher_QueryByDateIndex(t *testing.T) {
 	key1 := eventToKey(event1)
 	key3 := eventToKey(event3)
 	key4 := eventToKey(event4)
+	keyUntrimmable := eventToKey(bigUntrimmableEvent)
 	keyTrimmed := eventToKey(bigTrimmedEvent)
 
 	tests := []struct {
@@ -1060,7 +1060,6 @@ func Test_eventsFetcher_QueryByDateIndex(t *testing.T) {
 		mockResponses map[EventKey]mockResponse
 		wantEvents    []apievents.AuditEvent
 		wantKey       *EventKey
-		wantErrorMsg  string
 	}{
 		{
 			name:  "no data returned from query, return empty results",
@@ -1144,9 +1143,9 @@ func Test_eventsFetcher_QueryByDateIndex(t *testing.T) {
 					returnKey: nil,
 				},
 			},
-			wantErrorMsg: fmt.Sprintf(
-				"app.create event %s is 5.0 MiB and cannot be returned because it exceeds the maximum response size of %s",
-				bigUntrimmableEvent.Metadata.ID, humanize.IBytes(events.MaxEventBytesInResponse)),
+			// we still want to receive the untrimmable event
+			wantEvents: []apievents.AuditEvent{bigUntrimmableEvent},
+			wantKey:    &keyUntrimmable,
 		},
 		{
 			name:  "events with big trimmable event exceeding > MaxEventBytesInResponse",
@@ -1197,10 +1196,6 @@ func Test_eventsFetcher_QueryByDateIndex(t *testing.T) {
 			}
 
 			gotRawEvents, err := ef.QueryByDateIndex(t.Context(), getExprFilter(ef.filter))
-			if test.wantErrorMsg != "" {
-				require.ErrorContains(t, err, test.wantErrorMsg)
-				return
-			}
 			require.NoError(t, err)
 
 			if test.wantKey != nil {
