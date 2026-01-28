@@ -22,10 +22,11 @@ import { Status } from './types';
 
 const StatusRank: Record<Status, number> = {
   [Status.Draft]: 1,
-  [Status.Healthy]: 2,
-  [Status.Issues]: 3,
-  [Status.Failed]: 4,
-  [Status.Unknown]: 5,
+  [Status.Scanning]: 2,
+  [Status.Healthy]: 3,
+  [Status.Issues]: 4,
+  [Status.Failed]: 5,
+  [Status.Unknown]: 6,
 };
 
 export const sortByStatus = (a, b) => {
