@@ -93,7 +93,8 @@ func createScopedRole(ctx context.Context, client *authclient.Client, raw servic
 	}
 
 	fmt.Printf(
-		scopedaccess.KindScopedRole+" %q created\n",
+		"%v %q has been created\n",
+		scopedaccess.KindScopedRole,
 		r.GetMetadata().GetName(),
 	)
 
@@ -113,7 +114,8 @@ func updateScopedRole(ctx context.Context, client *authclient.Client, raw servic
 	}
 
 	fmt.Printf(
-		scopedaccess.KindScopedRole+" %q updated\n",
+		"%v %q has been updated\n",
+		scopedaccess.KindScopedRole,
 		r.GetMetadata().GetName(),
 	)
 
@@ -146,7 +148,7 @@ func deleteScopedRole(ctx context.Context, client *authclient.Client, ref servic
 		return trace.Wrap(err)
 	}
 	fmt.Printf(
-		"%q %q has been deleted\n",
+		"%v %q has been deleted\n",
 		scopedaccess.KindScopedRole,
 		ref.Name,
 	)

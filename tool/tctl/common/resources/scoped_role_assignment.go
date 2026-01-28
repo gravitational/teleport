@@ -57,8 +57,8 @@ func (c *scopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) er
 
 	for i, item := range c.roleAssignments {
 		assigns := make([]string, len(item.GetSpec().GetAssignments()))
-		for i, subAssignment := range item.GetSpec().GetAssignments() {
-			assigns[i] = fmt.Sprintf("%s -> %s", subAssignment.GetRole(), subAssignment.GetScope())
+		for j, subAssignment := range item.GetSpec().GetAssignments() {
+			assigns[j] = fmt.Sprintf("%s -> %s", subAssignment.GetRole(), subAssignment.GetScope())
 		}
 
 		rows[i] = []string{
@@ -102,7 +102,7 @@ func createScopedRoleAssignment(ctx context.Context, client *authclient.Client, 
 	}
 
 	fmt.Printf(
-		"%q %q creates\n",
+		"%v %q has been created\n",
 		scopedaccess.KindScopedRoleAssignment,
 		rsp.GetAssignment().GetMetadata().GetName(), // must extract from rsp since assignment names are generated server-side
 	)
@@ -136,7 +136,8 @@ func deleteScopedRoleAssignment(ctx context.Context, client *authclient.Client, 
 		return trace.Wrap(err)
 	}
 	fmt.Printf(
-		scopedaccess.KindScopedRoleAssignment+" %q has been deleted\n",
+		"%v %q has been deleted\n",
+		scopedaccess.KindScopedRoleAssignment,
 		ref.Name,
 	)
 	return nil
