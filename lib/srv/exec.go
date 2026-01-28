@@ -154,18 +154,34 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 		return nil, trace.Wrap(err)
 	}
 
-	// Create the command that will actually execute.
-	e.Cmd, err = ConfigureCommand(e.Ctx)
+	// Create pipes to capture stdio of the shell (grandchild) process, closing our
+	// side of each pipe after starting the command.
+	shellStdinr, shellStdinw, err := os.Pipe()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		ctxErr := e.Ctx.Close()
+		return nil, trace.NewAggregate(err, ctxErr)
 	}
+	defer shellStdinr.Close()
+	e.Ctx.AddCloser(shellStdinw)
 
-	// Connect stdout and stderr to the channel so the user can interact with the command.
-	e.Cmd.Stderr = channel.Stderr()
-	e.Cmd.Stdout = channel
+	shellStdoutr, shellStdoutw, err := os.Pipe()
+	if err != nil {
+		ctxErr := e.Ctx.Close()
+		return nil, trace.NewAggregate(err, ctxErr)
+	}
+	defer shellStdoutw.Close()
+	e.Ctx.AddCloser(shellStdoutr)
 
-	// Copy from the channel (client input) into stdin of the process.
-	inputWriter, err := e.Cmd.StdinPipe()
+	shellStderrr, shellStderrw, err := os.Pipe()
+	if err != nil {
+		ctxErr := e.Ctx.Close()
+		return nil, trace.NewAggregate(err, ctxErr)
+	}
+	defer shellStderrw.Close()
+	e.Ctx.AddCloser(shellStderrr)
+
+	// Create the command that will actually execute.
+	e.Cmd, err = ConfigureCommand(e.Ctx, shellStdinr, shellStdoutw, shellStderrw)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -190,11 +206,22 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	}
 	e.Ctx.readyw = nil
 
+	// copy stdio between the channel and shell process.
 	go func() {
-		if _, err := io.Copy(inputWriter, channel); err != nil {
+		if _, err := io.Copy(shellStdinw, channel); err != nil {
 			logger.WarnContext(ctx, "Failed to forward data from SSH channel to local command", "error", err)
 		}
-		inputWriter.Close()
+		shellStdinw.Close()
+	}()
+	go func() {
+		if _, err := io.Copy(channel, shellStdoutr); err != nil {
+			logger.WarnContext(ctx, "Failed to forward data from SSH channel to local command", "error", err)
+		}
+	}()
+	go func() {
+		if _, err := io.Copy(channel.Stderr(), shellStderrr); err != nil {
+			logger.WarnContext(ctx, "Failed to forward data from SSH channel to local command", "error", err)
+		}
 	}()
 
 	logger.InfoContext(ctx, "Started local command execution")

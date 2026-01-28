@@ -391,6 +391,7 @@ func onSFTP() error {
 	close(sftpEvents)
 	<-done
 
+	// TODO(Joerger): We are never reaching here, the process is being killed forcefully.
 	return trace.NewAggregate(serveErr, sftpSrv.Close())
 }
 
