@@ -90,7 +90,7 @@ func embedFileInit() {
 		_ = mf.Close()
 		return
 	}
-	if err := mf.Chmod(0o111); err != nil {
+	if err := mf.Chmod(0o555); err != nil {
 		slog.WarnContext(context.Background(), "failed to chmod memfd for embedded binary", "error", err)
 		_ = mf.Close()
 		return
