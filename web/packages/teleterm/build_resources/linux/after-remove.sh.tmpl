@@ -1,6 +1,12 @@
 #!/bin/bash
 set -eu
 
+###
+# Based on the default after-remove.tpl copied from electron-builder.
+# https://github.com/electron-userland/electron-builder/blob/e394e0c48be965bd8a02c593ecda7e57b84b4f15/packages/app-builder-lib/templates/linux/after-remove.tpl
+# Our copy has all the changes from upstream up to commit 88cc0b06dba22139721fd1e04f6a1cf2d447edbd.
+###
+
 # Do not touch symlinks if the package is being upgraded.
 #
 # Why?
@@ -23,10 +29,12 @@ set -eu
 #
 # Is the first argument "upgrade" or "1"?
 if [ "$1" = "upgrade" ] || [ "$1" = "1" ]; then
+  # shellcheck disable=SC2154 # This is custom electron-builder macro expansion, not Bash templating.
   echo "${executable}: Upgrade detected, skipping symlink operations"
   exit 0
 fi
 
+# shellcheck disable=SC2154 # This is custom electron-builder macro expansion, not Bash templating.
 APP="/opt/${sanitizedProductName}"
 BIN=/usr/local/bin
 TSH_SYMLINK_TARGET=$BIN/tsh
@@ -46,6 +54,7 @@ if [ -L "$TSH_SYMLINK_TARGET" ] && [ ! -e "$TSH_SYMLINK_TARGET" ]; then
   rm -f "$TSH_SYMLINK_TARGET"
 fi
 
+# shellcheck disable=SC2016 # This is custom electron-builder macro expansion, not Bash templating.
 APPARMOR_PROFILE_DEST='/etc/apparmor.d/${executable}'
 
 # Remove apparmor profile.
