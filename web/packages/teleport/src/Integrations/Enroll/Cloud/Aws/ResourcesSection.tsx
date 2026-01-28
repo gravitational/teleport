@@ -22,14 +22,27 @@ import { Box, ButtonText, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { IconTooltip } from 'design/Tooltip';
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
+import { requiredField } from 'shared/components/Validation/rules';
 
 import {
   LabelsInput,
   type Label,
+  type LabelsRule,
 } from 'teleport/components/LabelsInput/LabelsInput';
 
 import { CircleNumber } from './EnrollAws';
 import { AwsLabel, Ec2Config } from './types';
+
+const nonEmptyTags: LabelsRule = (labels: Label[]) => () => {
+  const results = labels.map(label => ({
+    name: requiredField('Please enter a tag key')(label.name)(),
+    value: requiredField('Please enter a tag value')(label.value)(),
+  }));
+  return {
+    valid: results.every(r => r.name.valid && r.value.valid),
+    results: results,
+  };
+};
 
 type ResourcesSectionProps = {
   ec2Config: Ec2Config;
@@ -46,7 +59,7 @@ export function ResourcesSection({
         <CircleNumber>3</CircleNumber>
         Resource Types
       </Flex>
-      <Text ml={4} mb={1}>
+      <Text ml={4} mb={3}>
         Select which AWS resource types to automatically discover and enroll.
       </Text>
       <AwsService
@@ -110,12 +123,15 @@ function AwsService({
               <LabelsInput
                 adjective="tag"
                 labels={config.tags as Label[]}
+                labelKey={{ fieldName: 'Key', placeholder: 'Environment' }}
+                labelVal={{ fieldName: 'Value', placeholder: 'production' }}
                 setLabels={(tags: Label[]) =>
                   onChange({
                     ...config,
                     tags: tags as AwsLabel[],
                   })
                 }
+                rule={nonEmptyTags}
               />
             </Box>
           </Box>
