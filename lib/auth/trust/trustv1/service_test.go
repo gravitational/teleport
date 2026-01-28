@@ -724,7 +724,7 @@ func TestGetCertAuthority_outdatedTctl(t *testing.T) {
 			name:    "nok: old tctl",
 			req:     requestForCA(userCA),
 			makeCtx: oldTlctContext,
-			wantErr: "outdated client",
+			wantErr: "tctl must be upgraded",
 		},
 	}
 	for _, test := range tests {

@@ -20,9 +20,7 @@ package trustv1
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
-	"strconv"
 	"strings"
 	"time"
 
@@ -31,7 +29,6 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
@@ -205,16 +202,8 @@ func failPreWindowsTctlUserCAQuery(ctx context.Context, caType string) error {
 		return nil
 	}
 
-	var minVer string
-	if api.VersionMajor == 18 {
-		minVer = fmt.Sprintf("18.%v", api.VersionMinor)
-	} else {
-		minVer = strconv.Itoa(api.VersionMajor)
-	}
 	return trace.BadParameter(
-		"outdated client is attempting to query the %q CA, please update your client to Teleport version %v",
-		caType, minVer,
-	)
+		"in order to query the User CA, tctl must be upgraded to version %v or newer", minGetUserCASemver)
 }
 
 // GetCertAuthorities retrieves the cert authorities with the specified type.
