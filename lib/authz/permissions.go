@@ -930,6 +930,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindWindowsDesktopService, services.RO()),
 				types.NewRule(types.KindDatabaseCertificate, []string{types.VerbCreate}),
 				types.NewRule(types.KindWindowsDesktop, services.RO()),
+				types.NewRule(types.KindLinuxDesktop, services.RO()),
 				types.NewRule(types.KindInstaller, services.RO()),
 				types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 				types.NewRule(types.KindDatabaseService, services.RO()),

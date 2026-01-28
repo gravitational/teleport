@@ -37,6 +37,7 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
@@ -821,6 +822,61 @@ type WindowsDesktopAccessPoint interface {
 	accessPoint
 }
 
+// ReadLinuxDesktopAccessPoint is an API interface implemented by a certificate authority (CA) to be
+// used by a teleport.ComponentLinuxDesktop.
+//
+// NOTE: This interface must match the resources replicated in cache.ForLinuxDesktop.
+type ReadLinuxDesktopAccessPoint interface {
+	// Closer closes all the resources
+	io.Closer
+
+	// NewWatcher returns a new event watcher.
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+
+	// GetCertAuthority returns cert authority by id
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+
+	// GetCertAuthorities returns a list of cert authorities
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
+
+	// GetClusterName gets the name of the cluster from the backend.
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
+
+	// GetClusterAuditConfig returns cluster audit configuration.
+	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
+
+	// GetClusterNetworkingConfig returns cluster networking configuration.
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
+
+	// GetAuthPreference returns the cluster authentication configuration.
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+
+	// GetSessionRecordingConfig returns session recording configuration.
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
+
+	// GetUser returns a services.User for this cluster.
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
+
+	// GetRole returns role by name
+	GetRole(ctx context.Context, name string) (types.Role, error)
+
+	// GetRoles returns a list of roles
+	GetRoles(ctx context.Context) ([]types.Role, error)
+
+	// ListLinuxDesktops returns Linux desktop hosts.
+	ListLinuxDesktops(ctx context.Context, pageSize int, pageToken string) ([]*linuxdesktopv1.LinuxDesktop, string, error)
+}
+
+// LinuxDesktopAccessPoint is an API interface implemented by a certificate authority (CA) to be
+// used by a teleport.ComponentLinuxDesktop.
+type LinuxDesktopAccessPoint interface {
+	// ReadLinuxDesktopAccessPoint provides methods to read data
+	ReadLinuxDesktopAccessPoint
+
+	// accessPoint provides common access point functionality
+	accessPoint
+}
+
 // ReadDiscoveryAccessPoint is a read only API interface to be
 // used by a teleport.ComponentDiscovery.
 //
@@ -1285,6 +1341,12 @@ type Cache interface {
 	// ListDynamicWindowsDesktops returns all registered dynamic Windows desktop.
 	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
 
+	// GetLinuxDesktop returns registered Linux desktop by name.
+	GetLinuxDesktop(ctx context.Context, name string) (*linuxdesktopv1.LinuxDesktop, error)
+
+	// ListLinuxDesktops returns all registered Linux desktop.
+	ListLinuxDesktops(ctx context.Context, pageSize int, nextToken string) ([]*linuxdesktopv1.LinuxDesktop, string, error)
+
 	// GetStaticTokens gets the list of static tokens used to provision nodes.
 	GetStaticTokens(ctx context.Context) (types.StaticTokens, error)
 
@@ -1685,6 +1747,27 @@ func NewWindowsDesktopWrapper(base WindowsDesktopAccessPoint, cache ReadWindowsD
 func (w *WindowsDesktopWrapper) Close() error {
 	err := w.NoCache.Close()
 	err2 := w.ReadWindowsDesktopAccessPoint.Close()
+	return trace.NewAggregate(err, err2)
+}
+
+type LinuxDesktopWrapper struct {
+	ReadLinuxDesktopAccessPoint
+	accessPoint
+	NoCache LinuxDesktopAccessPoint
+}
+
+func NewLinuxDesktopWrapper(base LinuxDesktopAccessPoint, cache ReadLinuxDesktopAccessPoint) LinuxDesktopAccessPoint {
+	return &LinuxDesktopWrapper{
+		NoCache:                     base,
+		accessPoint:                 base,
+		ReadLinuxDesktopAccessPoint: cache,
+	}
+}
+
+// Close closes all associated resources
+func (w *LinuxDesktopWrapper) Close() error {
+	err := w.NoCache.Close()
+	err2 := w.ReadLinuxDesktopAccessPoint.Close()
 	return trace.NewAggregate(err, err2)
 }
 

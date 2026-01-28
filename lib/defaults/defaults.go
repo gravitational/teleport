@@ -367,6 +367,9 @@ const (
 	// WindowsDesktopQueueSize is windows_desktop service watch queue size.
 	WindowsDesktopQueueSize = 128
 
+	// LinuxDesktopQueueSize is linux_desktop service watch queue size.
+	LinuxDesktopQueueSize = 128
+
 	// DiscoveryQueueSize is discovery service queue size.
 	DiscoveryQueueSize = 128
 )
