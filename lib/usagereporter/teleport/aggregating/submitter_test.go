@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/uuid"
@@ -53,12 +54,16 @@ func TestSubmitOnce(t *testing.T) {
 
 	var submitted []*prehogv1.UserActivityReport
 	var submittedPresence []*prehogv1.ResourcePresenceReport
+	var submittedBotInstanceActivity []*prehogv1.BotInstanceActivityReport
+	var submittedIdentitySecuritySummaries []*prehogv1.IdentitySecuritySummariesGeneratedReport
 	submitOk := func(ctx context.Context, req *prehogv1.SubmitUsageReportsRequest) (uuid.UUID, error) {
-		if l := len(req.UserActivity) + len(req.ResourcePresence); l > submitBatchSize {
+		if l := len(req.UserActivity) + len(req.ResourcePresence) + len(req.BotInstanceActivity) + len(req.IdentitySecuritySummariesReport); l > submitBatchSize {
 			return uuid.Nil, trace.LimitExceeded("got %v reports, expected at most %v", l, submitBatchSize)
 		}
 		submitted = append(submitted, req.UserActivity...)
 		submittedPresence = append(submittedPresence, req.ResourcePresence...)
+		submittedBotInstanceActivity = append(submittedBotInstanceActivity, req.BotInstanceActivity...)
+		submittedIdentitySecuritySummaries = append(submittedIdentitySecuritySummaries, req.IdentitySecuritySummariesReport...)
 		return uuid.New(), nil
 	}
 	submitErr := func(ctx context.Context, req *prehogv1.SubmitUsageReportsRequest) (uuid.UUID, error) {
@@ -186,4 +191,144 @@ func TestSubmitOnce(t *testing.T) {
 	submitOnce(ctx, scfg)
 	require.Len(t, submitted, 20)
 	require.Len(t, submittedPresence, 15)
+}
+
+func TestSubmitOnceIdentitySecuritySummaries(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		testSubmitOnceIdentitySecuritySummaries(t)
+	})
+}
+
+func testSubmitOnceIdentitySecuritySummaries(t *testing.T) {
+	ctx := t.Context()
+	clk := clockwork.NewRealClock()
+	bk, err := memory.New(memory.Config{
+		Clock:     clk,
+		EventsOff: true,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+	svc := reportService{bk}
+
+	var submittedUserActivity []*prehogv1.UserActivityReport
+	var submittedResourcePresence []*prehogv1.ResourcePresenceReport
+	var submittedBotInstanceActivity []*prehogv1.BotInstanceActivityReport
+	var submittedIdentitySecuritySummaries []*prehogv1.IdentitySecuritySummariesGeneratedReport
+
+	submitOk := func(ctx context.Context, req *prehogv1.SubmitUsageReportsRequest) (uuid.UUID, error) {
+		totalReports := len(req.UserActivity) + len(req.ResourcePresence) + len(req.BotInstanceActivity) + len(req.IdentitySecuritySummariesReport)
+		if totalReports > submitBatchSize {
+			return uuid.Nil, trace.LimitExceeded("got %v reports, expected at most %v", totalReports, submitBatchSize)
+		}
+		submittedUserActivity = append(submittedUserActivity, req.UserActivity...)
+		submittedResourcePresence = append(submittedResourcePresence, req.ResourcePresence...)
+		submittedBotInstanceActivity = append(submittedBotInstanceActivity, req.BotInstanceActivity...)
+		submittedIdentitySecuritySummaries = append(submittedIdentitySecuritySummaries, req.IdentitySecuritySummariesReport...)
+		return uuid.New(), nil
+	}
+
+	scfg := SubmitterConfig{
+		Backend:   bk,
+		Status:    local.NewStatusService(bk),
+		Submitter: submitOk,
+	}
+	require.NoError(t, scfg.CheckAndSetDefaults())
+
+	// Test 1: Submit identity security summaries report alone
+	identityReport1 := newIdentitySecuritySummariesGeneratedReport(time.Now().UTC())
+	require.NoError(t, svc.upsertIdentitySecuritySummariesGeneratedReport(ctx, identityReport1, reportTTL))
+
+	submitOnce(ctx, scfg)
+	require.Len(t, submittedIdentitySecuritySummaries, 1)
+	require.True(t, proto.Equal(identityReport1, submittedIdentitySecuritySummaries[0]))
+
+	// Verify report was deleted after submission
+	reports, err := svc.listIdentitySecuritySummariesGeneratedReports(ctx, 10)
+	require.NoError(t, err)
+	require.Empty(t, reports)
+
+	// Reset submitted slice
+	submittedUserActivity = nil
+	submittedResourcePresence = nil
+	submittedBotInstanceActivity = nil
+	submittedIdentitySecuritySummaries = nil
+
+	// Test 2: Submit mixed report types respecting batch size
+	// Add 5 user activity reports
+	for i := range 5 {
+		userReport := newReport(time.Now().UTC().Add(time.Duration(i) * time.Second))
+		require.NoError(t, svc.upsertUserActivityReport(ctx, userReport, reportTTL))
+	}
+	// Add 3 resource presence reports
+	for i := range 3 {
+		resourceReport := newResourcePresenceReport(time.Now().UTC().Add(time.Duration(i) * time.Second))
+		require.NoError(t, svc.upsertResourcePresenceReport(ctx, resourceReport, reportTTL))
+	}
+	// Add 2 identity security summaries reports
+	for i := range 2 {
+		identityReport := newIdentitySecuritySummariesGeneratedReport(time.Now().UTC().Add(time.Duration(i) * time.Second))
+		require.NoError(t, svc.upsertIdentitySecuritySummariesGeneratedReport(ctx, identityReport, reportTTL))
+	}
+
+	time.Sleep(submitLockDuration)
+	submitOnce(ctx, scfg)
+
+	// Should submit exactly 10 reports (5 user + 3 resource + 2 identity)
+	totalSubmitted := len(submittedUserActivity) + len(submittedResourcePresence) + len(submittedIdentitySecuritySummaries)
+	require.Equal(t, 10, totalSubmitted)
+	require.Len(t, submittedUserActivity, 5)
+	require.Len(t, submittedResourcePresence, 3)
+	require.Len(t, submittedIdentitySecuritySummaries, 2)
+
+	// All reports should be deleted
+	userReports, err := svc.listUserActivityReports(ctx, 10)
+	require.NoError(t, err)
+	require.Empty(t, userReports)
+
+	resourceReports, err := svc.listResourcePresenceReports(ctx, 10)
+	require.NoError(t, err)
+	require.Empty(t, resourceReports)
+
+	identityReports, err := svc.listIdentitySecuritySummariesGeneratedReports(ctx, 10)
+	require.NoError(t, err)
+	require.Empty(t, identityReports)
+
+	// Reset
+	submittedUserActivity = nil
+	submittedResourcePresence = nil
+	submittedBotInstanceActivity = nil
+	submittedIdentitySecuritySummaries = nil
+
+	// Test 3: Priority ordering - user activity fills batch first, then resource, then bot, then identity
+	// Add enough reports to test multiple batches
+	for i := range 12 {
+		userReport := newReport(time.Now().UTC().Add(time.Duration(i) * time.Second))
+		require.NoError(t, svc.upsertUserActivityReport(ctx, userReport, reportTTL))
+	}
+	for i := range 8 {
+		identityReport := newIdentitySecuritySummariesGeneratedReport(time.Now().UTC().Add(time.Duration(i) * time.Second))
+		require.NoError(t, svc.upsertIdentitySecuritySummariesGeneratedReport(ctx, identityReport, reportTTL))
+	}
+
+	// First batch: should get 10 user activity reports (prioritized)
+	time.Sleep(submitLockDuration)
+	submitOnce(ctx, scfg)
+	require.Len(t, submittedUserActivity, 10)
+	require.Empty(t, submittedIdentitySecuritySummaries)
+
+	// Second batch: remaining 2 user + 8 identity summaries (but only 8 more will fit)
+	time.Sleep(submitLockDuration)
+	submitOnce(ctx, scfg)
+	require.Len(t, submittedUserActivity, 12) // 10 from first + 2 from second
+	require.Len(t, submittedIdentitySecuritySummaries, 8)
+
+	// Verify all deleted
+	userReports, err = svc.listUserActivityReports(ctx, 20)
+	require.NoError(t, err)
+	require.Empty(t, userReports)
+
+	identityReports, err = svc.listIdentitySecuritySummariesGeneratedReports(ctx, 20)
+	require.NoError(t, err)
+	require.Empty(t, identityReports)
 }

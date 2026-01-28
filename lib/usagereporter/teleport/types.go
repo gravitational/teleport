@@ -2069,3 +2069,40 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())
 	}
 }
+
+// SessionSummaryAccessEvent is emitted when a user accesses a session summary.
+type SessionSummaryAccessEvent prehogv1a.SessionSummaryAccessEvent
+
+// Anonymize anonymizes the event.
+func (e *SessionSummaryAccessEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_SessionSummaryAccessEvent{
+			SessionSummaryAccessEvent: &prehogv1a.SessionSummaryAccessEvent{
+				UserName:     a.AnonymizeString(e.UserName),
+				SessionType:  e.SessionType,
+				ResourceName: a.AnonymizeString(e.ResourceName),
+				UserKind:     e.UserKind,
+			},
+		},
+	}
+}
+
+// SessionSummaryCreateEvent is emitted when the system creates a session summary.
+type SessionSummaryCreateEvent prehogv1a.SessionSummaryCreateEvent
+
+// Anonymize anonymizes the event.
+func (e *SessionSummaryCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_SessionSummaryCreateEvent{
+			SessionSummaryCreateEvent: &prehogv1a.SessionSummaryCreateEvent{
+				SessionType:         e.SessionType,
+				Provider:            e.Provider,
+				TotalInputTokens:    e.TotalInputTokens,
+				TotalOutputTokens:   e.TotalOutputTokens,
+				Success:             e.Success,
+				ResourceName:        a.AnonymizeString(e.ResourceName),
+				IsCloudDefaultModel: e.IsCloudDefaultModel,
+			},
+		},
+	}
+}
