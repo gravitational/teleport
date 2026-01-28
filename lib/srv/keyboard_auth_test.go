@@ -33,18 +33,15 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	sshpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
 )
 
-func TestHandleKeyboardInteractiveAuth_NoPreconds(t *testing.T) {
+func TestKeyboardInteractiveAuth_NoPreconds(t *testing.T) {
 	t.Parallel()
 
 	h, id := setupKeyboardInteractiveAuthTest(t)
-
-	preconds := []*decisionpb.Precondition{
-		// No preconditions.
-	}
 
 	inPerms := &ssh.Permissions{
 		Extensions: map[string]string{
@@ -52,28 +49,41 @@ func TestHandleKeyboardInteractiveAuth_NoPreconds(t *testing.T) {
 		},
 	}
 
-	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms)
-	require.NoError(t, err)
-	require.Empty(
-		t,
-		cmp.Diff(
-			inPerms,
-			outPerms,
-		),
-		"KeyboardInteractiveAuth() perms mismatch (-want +got)",
-	)
+	for _, tc := range []struct {
+		name     string
+		preconds *services.Preconditions
+	}{
+		{
+			name:     "nil preconditions",
+			preconds: nil,
+		},
+		{
+			name:     "empty preconditions",
+			preconds: services.NewPreconditions(),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			outPerms, err := h.KeyboardInteractiveAuth(t.Context(), tc.preconds, id, inPerms)
+			require.NoError(t, err)
+			require.Empty(
+				t,
+				cmp.Diff(
+					inPerms,
+					outPerms,
+				),
+				"KeyboardInteractiveAuth() perms mismatch (-want +got)",
+			)
+		})
+	}
 }
 
-func TestHandleKeyboardInteractiveAuth_PreCondInBandMFA(t *testing.T) {
+func TestKeyboardInteractiveAuth_PreCondInBandMFA_Success(t *testing.T) {
 	t.Parallel()
 
 	h, id := setupKeyboardInteractiveAuthTest(t)
 
-	preconds := []*decisionpb.Precondition{
-		{
-			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
-		},
-	}
+	preconds := services.NewPreconditions()
+	preconds.Add(&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA})
 
 	inPerms := &ssh.Permissions{
 		Extensions: map[string]string{
@@ -135,16 +145,45 @@ func TestHandleKeyboardInteractiveAuth_PreCondInBandMFA(t *testing.T) {
 }
 
 // TODO(cthach): Remove in v20.0 when PublicKeyCallback is removed.
-func TestHandleKeyboardInteractiveAuth_ForceInBandMFAEnv_DisablesLegacyPublicKeyCallback(t *testing.T) {
+func TestKeyboardInteractiveAuth_PreCondInBandMFA_LegacyPublicKeyCallback_RegularCertDenied(t *testing.T) {
+	t.Parallel()
+
+	h, id := setupKeyboardInteractiveAuthTest(t)
+
+	id.MFAVerified = "" // Simulate no MFA verification, indicating a regular SSH certificate.
+
+	preconds := services.NewPreconditions()
+	preconds.Add(&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA})
+
+	inPerms := &ssh.Permissions{}
+
+	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms)
+	require.Nil(t, outPerms)
+
+	var sshErr *ssh.PartialSuccessError
+	require.ErrorAs(t, err, &sshErr)
+	require.NotNil(t, sshErr.Next)
+	require.NotNil(t, sshErr.Next.PublicKeyCallback)
+	require.NotNil(t, sshErr.Next.KeyboardInteractiveCallback)
+
+	// Verify that the PublicKeyCallback denies authentication since MFA is required but a regular SSH certificate is used.
+	outPerms, err = sshErr.Next.PublicKeyCallback(nil, nil)
+	require.Nil(t, outPerms)
+	require.ErrorIs(
+		t,
+		err,
+		trace.AccessDenied("regular SSH certificates are forbidden when MFA is required and using legacy public key authentication"),
+	)
+}
+
+// TODO(cthach): Remove in v20.0 when PublicKeyCallback is removed.
+func TestKeyboardInteractiveAuth_ForceInBandMFAEnv_DisablesLegacyPublicKeyCallback(t *testing.T) {
 	t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
 
 	h, id := setupKeyboardInteractiveAuthTest(t)
 
-	preconds := []*decisionpb.Precondition{
-		{
-			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
-		},
-	}
+	preconds := services.NewPreconditions()
+	preconds.Add(&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA})
 
 	inPerms := &ssh.Permissions{}
 
@@ -166,16 +205,13 @@ func TestHandleKeyboardInteractiveAuth_ForceInBandMFAEnv_DisablesLegacyPublicKey
 	)
 }
 
-func TestHandleKeyboardInteractiveAuth_PreCondUnknownKind(t *testing.T) {
+func TestKeyboardInteractiveAuth_PreCondUnknownKind(t *testing.T) {
 	t.Parallel()
 
 	h, id := setupKeyboardInteractiveAuthTest(t)
 
-	preconds := []*decisionpb.Precondition{
-		{
-			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED,
-		},
-	}
+	preconds := services.NewPreconditions()
+	preconds.Add(&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED})
 
 	inPerms := &ssh.Permissions{}
 
@@ -202,6 +238,7 @@ func setupKeyboardInteractiveAuthTest(t *testing.T) (*srv.AuthHandlers, *sshca.I
 	id := &sshca.Identity{
 		Username:    "test-user",
 		ClusterName: "test-cluster",
+		MFAVerified: "simulated-mfa-verification",
 	}
 
 	return h, id

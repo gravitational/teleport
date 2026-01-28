@@ -4320,7 +4320,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.checkAccess(access.server, wrappers.Traits{}, tc.state,
+				_, err := tc.roles.checkConditionalAccess(access.server, wrappers.Traits{}, tc.state,
 					NewDatabaseUserMatcher(access.server, access.dbUser),
 					&DatabaseNameMatcher{Name: access.dbName})
 				if access.access {
@@ -4533,7 +4533,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.checkAccess(access.server, wrappers.Traits{}, AccessState{}, NewDatabaseUserMatcher(access.server, access.dbUser))
+				_, err := tc.roles.checkConditionalAccess(access.server, wrappers.Traits{}, AccessState{}, NewDatabaseUserMatcher(access.server, access.dbUser))
 				if access.access {
 					require.NoError(t, err, "access check shouldn't have failed for username %q", access.dbUser)
 				} else {
@@ -5533,7 +5533,7 @@ func TestCheckDatabaseNamesAndUsers(t *testing.T) {
 	}
 }
 
-func TestCheckAccessToDatabaseService(t *testing.T) {
+func TestConditionalCheckAccessToDatabaseService(t *testing.T) {
 	dbNoLabels, err := types.NewDatabaseV3(types.Metadata{
 		Name: "test",
 	}, types.DatabaseSpecV3{
@@ -5653,7 +5653,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.checkAccess(access.server, userTraits, AccessState{})
+				_, err := tc.roles.checkConditionalAccess(access.server, userTraits, AccessState{})
 				if access.access {
 					require.NoError(t, err)
 				} else {
@@ -5665,8 +5665,8 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 	}
 }
 
-// TestCheckAccessToAWSConsole verifies AWS role ARNs access checker.
-func TestCheckAccessToAWSConsole(t *testing.T) {
+// TestCheckConditionalAccessToAWSConsole verifies AWS role ARNs access checker.
+func TestCheckConditionalAccessToAWSConsole(t *testing.T) {
 	app, err := types.NewAppV3(types.Metadata{
 		Name: "awsconsole",
 	}, types.AppSpecV3{
@@ -5759,7 +5759,7 @@ func TestCheckAccessToAWSConsole(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for _, access := range test.access {
-				err := test.roles.checkAccess(
+				_, err := test.roles.checkConditionalAccess(
 					app,
 					wrappers.Traits{},
 					AccessState{},
@@ -5775,8 +5775,8 @@ func TestCheckAccessToAWSConsole(t *testing.T) {
 	}
 }
 
-// TestCheckAccessToAzureCloud verifies Azure identities access checker.
-func TestCheckAccessToAzureCloud(t *testing.T) {
+// TestCheckConditionalAccessToAzureCloud verifies Azure identities access checker.
+func TestCheckConditionalAccessToAzureCloud(t *testing.T) {
 	app, err := types.NewAppV3(types.Metadata{Name: "azureapp"}, types.AppSpecV3{Cloud: types.CloudAzure})
 	require.NoError(t, err)
 	readOnlyIdentity := "readonly"
@@ -5861,7 +5861,7 @@ func TestCheckAccessToAzureCloud(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for identity, hasAccess := range test.access {
-				err := test.roles.checkAccess(app, wrappers.Traits{}, AccessState{}, &AzureIdentityMatcher{Identity: identity})
+				_, err := test.roles.checkConditionalAccess(app, wrappers.Traits{}, AccessState{}, &AzureIdentityMatcher{Identity: identity})
 				if hasAccess {
 					require.NoError(t, err)
 				} else {
@@ -5873,8 +5873,8 @@ func TestCheckAccessToAzureCloud(t *testing.T) {
 	}
 }
 
-// TestCheckAccessToGCP verifies GCP account access checker.
-func TestCheckAccessToGCP(t *testing.T) {
+// TestCheckConditionalAccessToGCP verifies GCP account access checker.
+func TestCheckConditionalAccessToGCP(t *testing.T) {
 	app, err := types.NewAppV3(types.Metadata{Name: "azureapp"}, types.AppSpecV3{Cloud: types.CloudAzure})
 	require.NoError(t, err)
 	readOnlyAccount := "readonly@example-123456.iam.gserviceaccount.com"
@@ -5959,7 +5959,7 @@ func TestCheckAccessToGCP(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for account, hasAccess := range test.access {
-				err := test.roles.checkAccess(app, wrappers.Traits{}, AccessState{}, &GCPServiceAccountMatcher{ServiceAccount: account})
+				_, err := test.roles.checkConditionalAccess(app, wrappers.Traits{}, AccessState{}, &GCPServiceAccountMatcher{ServiceAccount: account})
 				if hasAccess {
 					require.NoError(t, err)
 				} else {
@@ -7163,7 +7163,7 @@ func TestDesktopDirectorySharing(t *testing.T) {
 	}
 }
 
-func TestCheckAccessToWindowsDesktop(t *testing.T) {
+func TestCheckConditionalAccessToWindowsDesktop(t *testing.T) {
 	desktopNoLabels := &types.WindowsDesktopV3{
 		ResourceHeader: types.ResourceHeader{
 			Kind:     types.KindWindowsDesktop,
@@ -7296,7 +7296,7 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 			for i, check := range test.checks {
 				msg := fmt.Sprintf("check=%d, user=%v, server=%v, should_have_access=%v",
 					i, check.login, check.desktop.GetName(), check.hasAccess)
-				err := test.roleSet.checkAccess(check.desktop, wrappers.Traits{}, AccessState{}, NewWindowsLoginMatcher(check.login))
+				_, err := test.roleSet.checkConditionalAccess(check.desktop, wrappers.Traits{}, AccessState{}, NewWindowsLoginMatcher(check.login))
 				if check.hasAccess {
 					require.NoError(t, err, msg)
 				} else {
@@ -7308,7 +7308,7 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 	}
 }
 
-func TestCheckAccessToUserGroups(t *testing.T) {
+func TestCheckConditionalAccessToUserGroups(t *testing.T) {
 	userGroupNoLabels := &types.UserGroupV1{
 		ResourceHeader: types.ResourceHeader{
 			Kind:     types.KindUserGroup,
@@ -7403,7 +7403,7 @@ func TestCheckAccessToUserGroups(t *testing.T) {
 			for i, check := range test.checks {
 				msg := fmt.Sprintf("check=%d, userGroup=%v, should_have_access=%v",
 					i, check.userGroup.GetName(), check.hasAccess)
-				err := test.roleSet.checkAccess(check.userGroup, wrappers.Traits{}, AccessState{})
+				_, err := test.roleSet.checkConditionalAccess(check.userGroup, wrappers.Traits{}, AccessState{})
 				if check.hasAccess {
 					require.NoError(t, err, msg)
 				} else {
@@ -7415,8 +7415,8 @@ func TestCheckAccessToUserGroups(t *testing.T) {
 	}
 }
 
-// BenchmarkCheckAccessToServer tests how long it takes to run
-// CheckAccess for servers across 4,000 nodes for 5 roles each with 5 logins each.
+// BenchmarkCheckConditionalAccessToServer tests how long it takes to run
+// CheckConditionalAccess for servers across 4,000 nodes for 5 roles each with 5 logins each.
 //
 // To run benchmark:
 //
@@ -7435,7 +7435,7 @@ func TestCheckAccessToUserGroups(t *testing.T) {
 //
 //	go tool pprof --pdf cpu.prof > cpu.pdf
 //	go tool pprof --pdf mem.prof > mem.pdf
-func BenchmarkCheckAccessToServer(b *testing.B) {
+func BenchmarkCheckConditionalAccessToServer(b *testing.B) {
 	servers := make([]*types.ServerV2, 0, 4000)
 
 	// Create 4,000 servers with random IDs.
@@ -7490,7 +7490,7 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 			for login := range allowLogins {
 				// note: we don't check the error here because this benchmark
 				// is testing the performance of failed RBAC checks
-				_ = set.checkAccess(
+				_, _ = set.checkConditionalAccess(
 					servers[i],
 					userTraits,
 					AccessState{},

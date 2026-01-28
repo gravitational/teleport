@@ -697,6 +697,88 @@ func TestAccessCheckerDesktopGroups(t *testing.T) {
 	}
 }
 
+func TestAccessChecker_CheckConditionalAccess_StateMFAAlwaysRequired_ReturnsPreconditions(t *testing.T) {
+	t.Parallel()
+
+	roleName := "allow-all-nodes"
+
+	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
+		r.SetName(roleName)
+	}))
+
+	accessInfo := &AccessInfo{
+		Roles: []string{roleName},
+	}
+
+	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, "cluster", roleSet)
+
+	srv, err := types.NewServer(
+		"test-server",
+		types.KindNode,
+		types.ServerSpecV2{},
+	)
+	require.NoError(t, err)
+
+	node := &serverStub{Server: srv}
+
+	preconds, err := accessChecker.CheckConditionalAccess(
+		node,
+		AccessState{
+			MFARequired:         MFARequiredAlways, // State requires MFA.
+			MFAVerified:         false,             // MFA has not been verified yet.
+			ReturnPreconditions: true,
+		},
+	)
+	require.NoError(t, err)
+	require.True(
+		t,
+		preconds.Contains(decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA),
+		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to be included", preconds,
+	)
+}
+
+func TestAccessChecker_CheckConditionalAccess_RoleRequiresMFA_ReturnsPreconditions(t *testing.T) {
+	t.Parallel()
+
+	roleName := "mfa-required"
+
+	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
+		r.SetName(roleName)
+
+		r.SetOptions(types.RoleOptions{
+			RequireMFAType: types.RequireMFAType_SESSION, // Role requires MFA.
+		})
+	}))
+
+	accessInfo := &AccessInfo{
+		Roles: []string{roleName},
+	}
+
+	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, "cluster", roleSet)
+
+	srv, err := types.NewServer(
+		"test-server",
+		types.KindNode,
+		types.ServerSpecV2{},
+	)
+	require.NoError(t, err)
+
+	node := &serverStub{Server: srv}
+
+	preconds, err := accessChecker.CheckConditionalAccess(
+		node,
+		AccessState{
+			ReturnPreconditions: true,
+		},
+	)
+	require.NoError(t, err)
+	require.True(
+		t,
+		preconds.Contains(decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA),
+		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to be included", preconds,
+	)
+}
+
 func TestSSHPortForwarding(t *testing.T) {
 	anyLabels := types.Labels{"*": {"*"}}
 	localCluster := "cluster"
