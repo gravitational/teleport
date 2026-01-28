@@ -126,7 +126,12 @@ type Identity struct {
 	// JoinToken is the name of the join token used by the bot to join, if any.
 	JoinToken string
 	// AllowedResourceIDs lists the resources the user should be able to access.
+	//
+	// Deprecated: Use [Identity.AllowedResourceAccessIDs].
 	AllowedResourceIDs []types.ResourceID
+	// AllowedResourceAccessIDs lists the resources the user should be able to access,
+	// paired with ResourceConstraints or additional information.
+	AllowedResourceAccessIDs []types.ResourceAccessID
 	// ConnectionDiagnosticID references the ConnectionDiagnostic that we should use to append traces when testing a Connection.
 	ConnectionDiagnosticID string
 	// PrivateKeyPolicy is the private key policy supported by this certificate.
@@ -242,12 +247,33 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	if i.JoinToken != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionJoinToken] = i.JoinToken
 	}
+	//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
 	if len(i.AllowedResourceIDs) != 0 {
+		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
 		requestedResourcesStr, err := types.ResourceIDsToString(i.AllowedResourceIDs)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		cert.Permissions.Extensions[teleport.CertExtensionAllowedResources] = requestedResourcesStr
+	} else if len(i.AllowedResourceAccessIDs) != 0 {
+		// If an identity is resource-constrained exclusively via AllowedResourceAccessIDs,
+		// we add a non-matching sentinel ResourceID into AllowedResourceIDs.
+		// This prevents authorization paths that only parse AllowedResourceIDs and ignore AllowedResourceAccessIDs
+		// (e.g., older Auths in mixed-version clusters) from interpreting an empty AllowedResourceIDs slice as
+		// "no resource-specific restrictions".
+		// TODO(kiosion): DELETE in 21.0.0
+		sentinelResourceIDStr, err := types.ResourceIDsToString([]types.ResourceID{types.CreateSentinelResourceID()})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cert.Permissions.Extensions[teleport.CertExtensionAllowedResources] = sentinelResourceIDStr
+	}
+	if len(i.AllowedResourceAccessIDs) != 0 {
+		allowedResourceAccessIDsStr, err := types.ResourceAccessIDsToString(i.AllowedResourceAccessIDs)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cert.Permissions.Extensions[teleport.CertExtensionAllowedResourceAccessIDs] = allowedResourceAccessIDsStr
 	}
 	if i.ConnectionDiagnosticID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionConnectionDiagnosticID] = i.ConnectionDiagnosticID
@@ -448,12 +474,39 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	ident.BotInstanceID = takeValue(teleport.CertExtensionBotInstanceID)
 	ident.JoinToken = takeValue(teleport.CertExtensionJoinToken)
 
+	var (
+		allowedResourceIDs       []types.ResourceID
+		allowedResourceAccessIDs []types.ResourceAccessID
+	)
+
 	if v, ok := takeExtension(teleport.CertExtensionAllowedResources); ok {
 		resourceIDs, err := types.ResourceIDsFromString(v)
 		if err != nil {
 			return nil, trace.BadParameter("failed to parse value %q for extension %q as resource IDs: %v", v, teleport.CertExtensionAllowedResources, err)
 		}
-		ident.AllowedResourceIDs = resourceIDs
+		filteredResourceIDs := make([]types.ResourceID, 0, len(resourceIDs))
+		for _, rid := range resourceIDs {
+			// AllowedResourceIDs may contain a non-matching sentinel whose sole purpose is to prevent
+			// authorization paths (e.g., older versions operating in mixed-version clusters) that ignore
+			// AllowedResourceAccessIDs from treating an otherwise resource-scoped identity as unconstrained.
+			//
+			// It should be filtered out at decoding here, as it's not a real "requested resource".
+			if types.IsSentinelResourceID(rid) {
+				continue
+			}
+			filteredResourceIDs = append(filteredResourceIDs, rid)
+		}
+		allowedResourceIDs = filteredResourceIDs
+	}
+	if v, ok := takeExtension(teleport.CertExtensionAllowedResourceAccessIDs); ok {
+		resourceAccessIDs, err := types.ResourceAccessIDsFromString(v)
+		if err != nil {
+			return nil, trace.BadParameter("failed to parse value %q for extension %q as resourceAccessIDs: %v", v, teleport.CertExtensionAllowedResourceAccessIDs, err)
+		}
+		allowedResourceAccessIDs = resourceAccessIDs
+	}
+	if len(allowedResourceIDs) > 0 || len(allowedResourceAccessIDs) > 0 {
+		ident.AllowedResourceAccessIDs = types.CombineAsResourceAccessIDs(allowedResourceIDs, allowedResourceAccessIDs)
 	}
 
 	ident.ConnectionDiagnosticID = takeValue(teleport.CertExtensionConnectionDiagnosticID)
