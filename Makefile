@@ -863,6 +863,10 @@ DIFF_TEST := $(TOOLINGDIR)/bin/difftest
 $(DIFF_TEST): $(wildcard $(TOOLINGDIR)/cmd/difftest/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/difftest
 
+BENCHFIND := $(TOOLINGDIR)/bin/benchfind
+$(BENCHFIND): $(wildcard $(TOOLINGDIR)/cmd/benchfind/*.go)
+	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/benchfind
+
 RERUN := $(TOOLINGDIR)/bin/rerun
 $(RERUN): $(wildcard $(TOOLINGDIR)/cmd/rerun/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/rerun
@@ -974,20 +978,27 @@ endif
 # Race detection is not enabled because it significantly slows down benchmarks.
 # todo: Use gotestsum when it is compatible with benchmark output. Currently will consider all benchmarks failed.
 .PHONY: test-go-bench
-test-go-bench: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr testing.B .  | xargs dirname | xargs go list | sort -u)
 test-go-bench: BENCHMARK_SKIP_PATTERN = "^BenchmarkRoot"
-test-go-bench: BENCH_OUTPUT ?= $(TEST_LOG_DIR)/bench.txt
-test-go-bench: | $(TEST_LOG_DIR)
-	go test -run ^$$ -bench . -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $(PACKAGES) \
-		| tee $(BENCH_OUTPUT)
+test-go-bench: $(BENCHFIND) | $(TEST_LOG_DIR)
+	@PKGS=$$($(BENCHFIND) --tags=$(BUILD_TAGS)) ; \
+	if [ -z "$$PKGS" ]; then \
+		echo "No benchmark packages found"; \
+		exit 1; \
+	fi ; \
+	go test -run ^$$ -bench . -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $$PKGS \
+		| tee $(TEST_LOG_DIR)/bench.txt
 
-test-go-bench-root: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr BenchmarkRoot .  | xargs dirname | xargs go list | sort -u)
+.PHONY: test-go-bench-root
 test-go-bench-root: BENCHMARK_PATTERN = "^BenchmarkRoot"
 test-go-bench-root: BENCHMARK_SKIP_PATTERN = ""
-test-go-bench-root: BENCH_OUTPUT ?= $(TEST_LOG_DIR)/bench.txt
-test-go-bench-root: | $(TEST_LOG_DIR)
-	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $(PACKAGES) \
-		| tee $(BENCH_OUTPUT)
+test-go-bench-root: $(BENCHFIND) | $(TEST_LOG_DIR)
+	@PKGS=$$($(BENCHFIND) --tags=$(BUILD_TAGS)) ; \
+	if [ -z "$$PKGS" ]; then \
+		echo "No benchmark packages found"; \
+		exit 1; \
+	fi ; \
+	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $$PKGS \
+		| tee $(TEST_LOG_DIR)/bench.txt
 
 # Make sure untagged vnetdaemon code build/tests.
 .PHONY: test-go-vnet-daemon
