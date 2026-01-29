@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/access/common/auth/oauth"
 	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
 )
@@ -184,8 +185,7 @@ func (r *RotatedAccessTokenProvider) RefreshLoop(ctx context.Context) {
 
 				interval := r.getRefreshInterval(creds)
 				timer.Reset(interval)
-				r.log.DebugContext(ctx, "Existing credentials don't need to be refreshed", "next_refresh", interval)
-				r.log.InfoContext(ctx, "Refreshed token", "next_refresh", interval)
+				r.log.InfoContext(ctx, "Reloaded token", "next_refresh", interval)
 				continue
 			}
 
@@ -203,25 +203,28 @@ func (r *RotatedAccessTokenProvider) RefreshLoop(ctx context.Context) {
 				)
 				timer.Reset(r.retryInterval)
 			} else {
-				err := r.store.PutCredentials(criticalCtx, creds)
+				retry, err := retryutils.NewLinear(retryutils.LinearConfig{
+					Step:   time.Second,
+					Max:    time.Minute,
+					Jitter: retryutils.DefaultJitter,
+				})
 				if err != nil {
-					r.log.ErrorContext(ctx, "Error while storing the refreshed credentials", "error", err)
-					// If we land here, we refreshed the Slack token but failed to store it back.
-					// This is the worst case scenario: the refresh token is single-use, and we burnt it.
-					// This Slack integration will very likely get locked out.
-					// The only thing we can do is log the new refresh token, if this happens to be a large-scale issue,
-					// this will allow us to perform manual recovery without having to ask every user.
-					// It is not ideal to send the token in the logs, but if the integration is still functional and we
-					// managed to refresh again in the grace window, the token will become useless in a few seconds.
-					r.lock.RLock()
-					r.log.ErrorContext(ctx, "Slack integration will get locked out, manual recovery is required",
-						"previous_refresh_token", r.creds.RefreshToken,
-						"new_refresh_token", creds.RefreshToken,
-					)
-					r.lock.RUnlock()
-					timer.Reset(r.retryInterval)
-					continue
+					r.log.ErrorContext(ctx, "Error while creating the token retry configuration, this is a bug", "error", err)
 				}
+
+				// We don't need to check the error because we keep retrying the context cannot be canceled.
+				_ = retry.For(criticalCtx, func() error {
+					err := r.store.PutCredentials(criticalCtx, creds)
+					if err != nil {
+						// If we land here, we refreshed the Slack token but failed to store it back.
+						// This is the worst case scenario: the refresh token is single-use, and we burnt it.
+						// This Slack integration will very likely get locked out.
+						// The only thing we can do is try again.
+						r.log.WarnContext(ctx, "Error while saving credentials to storage", "error", err)
+						return err
+					}
+					return nil
+				})
 
 				r.lock.Lock()
 				r.creds = creds
