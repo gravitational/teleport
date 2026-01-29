@@ -28,6 +28,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -44,6 +45,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -55,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
+	clientssh "github.com/gravitational/teleport/lib/client/ssh"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
@@ -108,6 +111,10 @@ type UserAuthClient interface {
 	GenerateUserCerts(ctx context.Context, req authproto.UserCertsRequest) (*authproto.Certs, error)
 	MaintainSessionPresence(ctx context.Context) (authproto.AuthService_MaintainSessionPresenceClient, error)
 	ListUnifiedResources(ctx context.Context, req *authproto.ListUnifiedResourcesRequest) (*authproto.ListUnifiedResourcesResponse, error)
+
+	MFAServiceClient() mfav1.MFAServiceClient
+	// CreateSessionChallenge(ctx context.Context, req *mfav1.CreateSessionChallengeRequest) (*mfav1.CreateSessionChallengeResponse, error)
+	// ValidateSessionChallenge(ctx context.Context, req *mfav1.ValidateSessionChallengeRequest) (*mfav1.ValidateSessionChallengeResponse, error)
 }
 
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
@@ -602,7 +609,7 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	result, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: t.userAuthClient,
 		RootAuthClient:    t.ctx.cfg.RootClient,
-		MFACeremony:       newMFACeremony(wsStream, t.ctx.cfg.RootClient.CreateAuthenticateChallenge, t.proxyPublicAddr),
+		MFACeremony:       newMFACeremony(wsStream, t.ctx.cfg.RootClient.CreateAuthenticateChallenge, nil, nil, t.proxyPublicAddr),
 		MFAAgainstRoot:    t.ctx.cfg.RootClusterName == tc.SiteName,
 		MFARequiredReq:    mfaRequiredReq,
 		CertsReq:          certsReq,
@@ -622,12 +629,20 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	return []ssh.AuthMethod{am}, nil
 }
 
-func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.CreateAuthenticateChallengeFunc, proxyAddr string) *mfa.Ceremony {
+func newMFACeremony(
+	stream *terminal.WSStream,
+	createAuthenticateChallenge mfa.CreateAuthenticateChallengeFunc,
+	createSessionChallenge mfa.CreateSessionChallengeFunc,
+	validateSessionChallenge mfa.ValidateSessionChallengeFunc,
+	proxyAddr string,
+) *mfa.Ceremony {
 	// channelID is used by the front end to differentiate between separate ongoing SSO challenges.
 	channelID := uuid.NewString()
 
 	return &mfa.Ceremony{
 		CreateAuthenticateChallenge: createAuthenticateChallenge,
+		CreateSessionChallenge:      createSessionChallenge,
+		ValidateSessionChallenge:    validateSessionChallenge,
 		SSOMFACeremonyConstructor: func(ctx context.Context) (mfa.SSOMFACeremony, error) {
 
 			u, err := url.Parse(sso.WebMFARedirect)
@@ -798,7 +813,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 	if t.participantMode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				baseCeremony := newMFACeremony(t.stream.WSStream, nil, t.proxyPublicAddr)
+				baseCeremony := newMFACeremony(t.stream.WSStream, nil, nil, nil, t.proxyPublicAddr)
 				if err := t.presenceChecker(ctx, out, t.userAuthClient, t.sessionData.ID.String(), baseCeremony); err != nil {
 					t.logger.WarnContext(ctx, "Unable to stream terminal - failure performing presence checks", "error", err)
 					return
@@ -927,11 +942,45 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, scopePin *scopesv1.P
 		return nil, trace.Wrap(err)
 	}
 
+	authCallback := func(m ssh.ConnMetadata, _ ssh.NegotiatedAlgorithms, supported, _, _ []string) (ssh.AuthMethod, error) {
+		t.logger.DebugContext(ctx, "connectToNode: Checking if keyboard-interactive auth is supported by server", "supported_methods", supported)
+
+		// Only continue with keyboard-interactive if it's supported by the server.
+		if !slices.Contains(supported, "keyboard-interactive") {
+			return nil, nil
+		}
+
+		t.logger.DebugContext(ctx, "connectToNode: keyboard-interactive auth is supported by server")
+
+		// Assert that the ws is of type terminal.Stream to access the WSStream.
+		stream, ok := ws.(*terminal.Stream)
+		if !ok {
+			return nil, trace.BadParameter("expected terminal.Stream type for ws connection")
+		}
+
+		t.logger.DebugContext(ctx, "connectToNode:Returning keyboard-interactive auth method")
+
+		mfaClient := t.userAuthClient.MFAServiceClient()
+
+		return clientssh.KeyboardInteractive(
+			ctx,
+			newMFACeremony(
+				stream.WSStream,
+				nil, // Only the session challenge methods are needed for keyboard-interactive auth.
+				mfaClient.CreateSessionChallenge,
+				mfaClient.ValidateSessionChallenge,
+				t.proxyPublicAddr,
+			),
+			m,
+		), nil
+	}
+
 	sshConfig := &ssh.ClientConfig{
 		User:            tc.HostLogin,
 		Auth:            tc.AuthMethods,
 		HostKeyCallback: tc.HostKeyCallback,
 		Timeout:         t.sshDialTimeout,
+		AuthCallback:    authCallback,
 	}
 
 	clt, err := client.NewNodeClient(ctx, sshConfig, conn,

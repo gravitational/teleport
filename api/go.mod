@@ -63,4 +63,8 @@ require (
 	gotest.tools/gotestsum v1.13.0 // indirect
 )
 
+// XXX: Temporary to use local copy of https://go-review.googlesource.com/c/crypto/+/717140 for in-band SSH MFA.
+// TODO(cthach): Remove when the change is merged and released in golang.org/x/crypto.
+replace golang.org/x/crypto => ../crypto
+
 tool gotest.tools/gotestsum

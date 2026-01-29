@@ -707,7 +707,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 	)
 
 	// Proceed to keyboard-interactive auth to ensure all preconditions are met.
-	return h.KeyboardInteractiveAuth(ctx, accessPermit.GetPreconditions(), ident, outputPermissions)
+	return h.KeyboardInteractiveAuth(ctx, accessPermit.GetPreconditions(), ident, outputPermissions, clusterName.GetClusterName())
 }
 
 func (h *AuthHandlers) maybeAppendDiagnosticTrace(ctx context.Context, connectionDiagnosticID string, traceType types.ConnectionDiagnosticTrace_TraceType, message string, traceError error) error {
@@ -1110,6 +1110,9 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 
 	// Collect preconditions that must be met before the session can start.
 	var preconds []*decisionpb.Precondition
+
+	// Ensure that preconditions are returned from the access check.
+	state.ReturnPreconditions = true
 
 	// Perform the primary node access check unless bypass is allowed.
 	if !bypassAccessCheck {

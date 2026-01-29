@@ -8258,6 +8258,10 @@ func (mock authProviderMock) CreateAuthenticateChallenge(ctx context.Context, re
 	return nil, nil
 }
 
+func (mock authProviderMock) MFAServiceClient() mfav1.MFAServiceClient {
+	return nil
+}
+
 func (mock authProviderMock) GenerateUserCerts(ctx context.Context, req authproto.UserCertsRequest) (*authproto.Certs, error) {
 	return nil, nil
 }
