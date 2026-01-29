@@ -55,6 +55,6 @@ This is done to avoid naming conflicts when including the chart in other charts.
 {{- include "tbot.fullname" . }}-out
 {{- end -}}
 
-{{- define "tbot.defaultTokenName" -}}
-{{- include "tbot.fullname" . }}
+{{- define "tbot.tokenName" -}}
+{{ default (include "tbot.fullname" .) .Values.token }}
 {{- end -}}

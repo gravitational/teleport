@@ -17,7 +17,7 @@ auth_server: {{ .Values.teleportAuthAddress }}
 {{- end }}
 onboarding:
   join_method: {{ .Values.joinMethod }}
-  token: {{ default (include "tbot.defaultTokenName" .) .Values.token }}
+  token: {{ include "tbot.tokenName" . }}
 {{- if eq .Values.persistence "disabled" }}
 storage:
   type: memory
