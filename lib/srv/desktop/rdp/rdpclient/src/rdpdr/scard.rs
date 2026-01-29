@@ -136,7 +136,7 @@ impl ScardBackend {
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
             ScardIoCtlCode::IsValidContext => match call {
-                ScardCall::ContextCall(_) => self.handle_is_valid_context(req),
+                ScardCall::ContextCall(ctx) => self.handle_is_valid_context(req, ctx),
                 _ => Self::unsupported_combo_error(req.io_control_code, call),
             },
             ScardIoCtlCode::GetDeviceTypeId => match call {
@@ -179,7 +179,7 @@ impl ScardBackend {
         req: DeviceControlRequest<ScardIoCtlCode>,
     ) -> PduResult<()> {
         let ctx = self.contexts.establish();
-
+        warn!("[SCARD] Established context {}", ctx.value);
         self.send_device_control_response(
             req,
             EstablishContextReturn::new(ReturnCode::Success, ctx),
@@ -210,10 +210,11 @@ impl ScardBackend {
             );
         }
 
-        let reader_states = Self::create_get_status_change_reader_states(call);
+        let reader_states = self.create_get_status_change_reader_states(call);
 
         // We have no status change to report.
         if Self::has_no_change(&reader_states) {
+            warn!("HAS NO CHANGE");
             if timeout != TIMEOUT_INFINITE {
                 // Since our status never changes, we just return immediately here
                 // as if the call timed out.
@@ -253,6 +254,7 @@ impl ScardBackend {
     }
 
     fn create_get_status_change_reader_states(
+        &mut self,
         call: GetStatusChangeCall,
     ) -> Vec<ReaderStateCommonCall> {
         let mut reader_states = vec![];
@@ -260,6 +262,7 @@ impl ScardBackend {
             match state.reader.as_str() {
                 // PnP is Plug-and-Play. This special reader "name" is used to monitor for
                 // new readers being plugged in.
+                // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpesc/3a235960-2fec-446b-8ed1-50bcc70e3c5f
                 "\\\\?PnP?\\Notification" => {
                     reader_states.push(ReaderStateCommonCall {
                         current_state: state.common.current_state,
@@ -268,14 +271,28 @@ impl ScardBackend {
                         atr: state.common.atr,
                     });
                 }
-                // This is our actual emulated smartcard reader. We always advertise its state as
-                // "present".
+                // This is our actual emulated smartcard reader..
                 TELEPORT_READER_NAME => {
                     let (atr_length, atr) = padded_atr::<36>();
+
+                    // Try to only set SCARD_STATE_CHANGED if something actually changed.
+                    // TODO(zmb3): the semantics of this API still aren't clear to me and we recieve a LOT
+                    // of get status calls. We may be reporting the wrong results here and causing excessive polling.
+                    let mut event_state = CardStateFlags::SCARD_STATE_PRESENT;
+                    if !state
+                        .common
+                        .current_state
+                        .contains(CardStateFlags::SCARD_STATE_PRESENT)
+                    {
+                        event_state.insert(CardStateFlags::SCARD_STATE_CHANGED);
+                    }
+
+                    warn!("[SCARD] GetStatusChange context={} in_current={:08x}  out_current={:08x} out_state={:08x}",
+                        call.context.value, state.common.current_state, state.common.current_state, event_state);
+
                     reader_states.push(ReaderStateCommonCall {
                         current_state: state.common.current_state,
-                        event_state: CardStateFlags::SCARD_STATE_CHANGED
-                            | CardStateFlags::SCARD_STATE_PRESENT,
+                        event_state: event_state,
                         atr_length,
                         atr,
                     });
@@ -301,9 +318,11 @@ impl ScardBackend {
     }
 
     fn has_no_change(reader_states: &[ReaderStateCommonCall]) -> bool {
-        reader_states
-            .iter()
-            .all(|state| state.current_state == state.event_state)
+        reader_states.iter().all(|state| {
+            !state
+                .event_state
+                .contains(CardStateFlags::SCARD_STATE_CHANGED)
+        })
     }
 
     fn handle_connect(
@@ -343,7 +362,7 @@ impl ScardBackend {
         match cmd {
             Ok(cmd) => {
                 let card = self.contexts.get_card(&call.handle)?;
-                let resp = card.handle(cmd)?;
+                let resp = card.handle(cmd, call.handle.value)?;
 
                 self.send_device_control_response(
                     req,
@@ -400,6 +419,7 @@ impl ScardBackend {
         req: DeviceControlRequest<ScardIoCtlCode>,
         call: ContextCall,
     ) -> PduResult<()> {
+        warn!("[SCARD] Releasing context {}", call.context.value);
         self.contexts.release(call.context.value);
         self.send_device_control_response(req, LongReturn::new(ReturnCode::Success))
     }
@@ -446,11 +466,15 @@ impl ScardBackend {
     fn handle_is_valid_context(
         &mut self,
         req: DeviceControlRequest<ScardIoCtlCode>,
+        ctx: ContextCall,
     ) -> PduResult<()> {
-        // TODO: Currently we're always just sending ReturnCode::Success (based on awly's pre-
-        // IronRDP code). Should we instead be checking if we have such a context in our cache
-        // and returning an SCARD_E_INVALID_HANDLE (or something else)?
-        self.send_device_control_response(req, LongReturn::new(ReturnCode::Success))
+        let code = if self.contexts.exists(ctx.context.value) {
+            ReturnCode::Success
+        } else {
+            ReturnCode::InvalidHandle
+        };
+
+        self.send_device_control_response(req, LongReturn::new(code))
     }
 
     fn handle_get_device_type_id(
@@ -463,7 +487,7 @@ impl ScardBackend {
             // USB/serial/TPM). Type "vendor" means a proprietary vendor bus.
             //
             // See "ReaderType" in
-            // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/smclib/ns-smclib-_scard_reader_capabilitiesconst SCARD_READER_TYPE_VENDOR: u32 = 0xF0;
+            // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/smclib/ns-smclib-_scard_reader_capabilities
             const SCARD_READER_TYPE_VENDOR: u32 = 0xF0;
             self.send_device_control_response(
                 req,
@@ -485,9 +509,16 @@ impl ScardBackend {
         req: DeviceControlRequest<ScardIoCtlCode>,
         call: ReadCacheCall,
     ) -> PduResult<()> {
+        let c2 = call.clone();
         let (data, return_code) = match self.contexts.read_cache(call)? {
             Some(data) => (data, ReturnCode::Success),
-            None => (vec![], ReturnCode::CacheItemNotFound),
+            None => {
+                warn!(
+                    "[SCARD] Read Cache context={} not found: {}",
+                    c2.common.context.value, c2.lookup_name,
+                );
+                (vec![], ReturnCode::CacheItemNotFound)
+            }
         };
         self.send_device_control_response(req, ReadCacheReturn::new(return_code, data))
     }
@@ -497,6 +528,10 @@ impl ScardBackend {
         req: DeviceControlRequest<ScardIoCtlCode>,
         call: WriteCacheCall,
     ) -> PduResult<()> {
+        warn!(
+            "[SCARD] Write Cache context={}: {}",
+            call.common.context.value, call.lookup_name
+        );
         self.contexts.write_cache(call)?;
         self.send_device_control_response(req, LongReturn::new(ReturnCode::Success))
     }
@@ -645,9 +680,9 @@ impl ContextInternal {
     }
 
     fn set_scard_cancel_response(&mut self, resp: DeviceControlResponse) -> PduResult<()> {
-        if self.scard_cancel_response.is_some() {
-            return Err(pdu_other_err!("SCARD_IOCTL_CANCEL already received",));
-        }
+        // Intentionally overwrite any existing pending response.
+        // We don't want repeated status checks to cause errors, as that could cause
+        // retries or stalls. Last update wins.
         self.scard_cancel_response = Some(resp);
         Ok(())
     }
