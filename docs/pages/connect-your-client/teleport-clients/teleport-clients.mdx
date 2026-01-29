@@ -24,28 +24,27 @@ includes a summary of the capabilities available in each client tool.
 
 Accessing infrastructure:
 
-| Resource                             | Teleport Connect | Web UI         | tsh |
-|--------------------------------------|------------------|----------------|-----|
-| Browser-based web applications       | ❌<sup>1</sup>   | ✅             | ❌  |
-| TCP apps and HTTP APIs               | ✅<sup>2</sup>   | ❌             | ✅  |
-| Databases with GUI client tools      | ✅<sup>2</sup>   | ❌             | ✅  |
-| Databases with command-line clients  | ✅               | ❌<sup>3</sup> | ✅  |
-| Remote desktops                      | ✅               | ✅             | ❌  |
-| Kubernetes clusters                  | ✅<sup>2</sup>   | ❌<sup>4</sup> | ✅  |
-| Linux servers (Teleport SSH Service) | ✅               | ✅             | ✅  |
-| MCP servers                          | ✅               | ❌<sup>3</sup> | ✅  |
+| Resource                             | Teleport Connect | Web UI        | tsh |
+|--------------------------------------|------------------|---------------|-----|
+| Browser-based web applications       | ⚠️<sup>1</sup>    | ✅            | ❌  |
+| TCP apps and HTTP APIs               | ✅               | ❌            | ✅  |
+| Databases with GUI client tools      | ✅               | ❌            | ✅  |
+| Databases with command-line clients  | ✅               | ⚠️<sup>2</sup> | ✅  |
+| Remote desktops                      | ✅               | ✅            | ❌  |
+| Kubernetes clusters                  | ✅               | ⚠️<sup>3</sup> | ✅  |
+| Linux servers (Teleport SSH Service) | ✅               | ✅            | ✅  |
+| MCP servers                          | ✅               | ⚠️<sup>2</sup> | ✅  |
 
-<sup>1</sup> Browser-based web applications in Teleport Connect open in a
-separate browser window.
+<sup>1</sup> Browser-based web applications in Teleport Connect open in the
+default web browser.
 
-<sup>2</sup> Teleport Connect starts a local proxy that you can use to connect
-to certain resources.
-
-<sup>3</sup> For resources that require a command-line tool to access, the
+<sup>2</sup> For resources that require a command-line tool to access, the
 Teleport Web UI shows you instructions for using a terminal to access the
-resource. 
+resource. You can establish sessions with certain databases in the Web UI. See
+[Starting a database session](web-ui.mdx#starting-a-database-session) for
+supported databases.
 
-<sup>4</sup> You can `exec` into a Kubernetes pod using a browser-based terminal
+<sup>3</sup> You can `exec` into a Kubernetes pod using a browser-based terminal
 in the Teleport Web UI. Full `kubectl` access is not supported.
 
 Other client operations:
