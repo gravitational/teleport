@@ -70,6 +70,7 @@ export enum NavTitle {
   NewAccessList = 'Access List',
   NewBot = 'Bot',
   NewBotShortcut = 'Enroll New Bot',
+  ManagedUpdates = 'Managed Updates',
 
   // Identity Governance & Security
   AccessLists = 'Access Lists',
@@ -218,6 +219,10 @@ export interface FeatureFlags {
   removeBots: boolean;
   gitServers: boolean;
   listWorkloadIdentities: boolean;
+  readAutoUpdateConfig: boolean;
+  readAutoUpdateVersion: boolean;
+  readAutoUpdateAgentRollout: boolean;
+  listAutoUpdateAgentReport: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.

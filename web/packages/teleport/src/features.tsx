@@ -19,6 +19,7 @@
 import {
   AddCircle,
   Bots as BotsIcon,
+  CheckCircleDotted,
   CirclePlay,
   ClipboardUser,
   Cluster,
@@ -66,6 +67,7 @@ import { Integrations } from './Integrations';
 import { JoinTokens } from './JoinTokens/JoinTokens';
 import { Locks } from './LocksV2/Locks';
 import { NewLockView } from './LocksV2/NewLock';
+import { ManagedUpdates } from './ManagedUpdates';
 import { RolesContainer as Roles } from './Roles';
 import { SessionsContainer as Sessions } from './Sessions';
 import { Support } from './Support';
@@ -644,6 +646,43 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
   }
 }
 
+export class FeatureManagedUpdates implements TeleportFeature {
+  category = NavigationCategory.ZeroTrustAccess;
+
+  route = {
+    title: 'Managed Updates',
+    path: cfg.routes.managedUpdates,
+    exact: true,
+    component: ManagedUpdates,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    const canViewPage =
+      flags.readAutoUpdateConfig ||
+      flags.readAutoUpdateVersion ||
+      flags.readAutoUpdateAgentRollout;
+
+    if (shouldHideFromNavigation(cfg)) {
+      return canViewPage;
+    }
+    return true;
+  }
+
+  navigationItem = {
+    title: NavTitle.ManagedUpdates,
+    icon: CheckCircleDotted,
+    exact: true,
+    getLink() {
+      return cfg.getManagedUpdatesRoute();
+    },
+    searchableTags: ['managed updates', 'updates', 'rollout', 'agents'],
+  };
+
+  getRoute() {
+    return this.route;
+  }
+}
+
 // - Activity
 
 export class FeatureRecordings implements TeleportFeature {
@@ -916,6 +955,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureRoles(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
+    new FeatureManagedUpdates(),
     new FeatureClusters(),
     new FeatureTrust(),
     new FeatureIntegrationStatus(),
