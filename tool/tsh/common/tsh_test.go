@@ -2092,7 +2092,6 @@ func TestSSHStderrorPropagation(t *testing.T) {
 	// Use a non-existent OS user to force reexec failures in the node.
 	missingLogin := "does-not-exist"
 	sshHostname := "test-ssh-server"
-
 	nodeAccess, err := types.NewRole("node-access-missing-login", types.RoleSpecV6{
 		Options: types.RoleOptions{
 			ForwardAgent:        types.NewBool(true),
@@ -2105,12 +2104,24 @@ func TestSSHStderrorPropagation(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// When the user has mixed host user creation modes the error should be given additional context.
+	hostUserAllow, err := types.NewRole("node-access-allow-host-user", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			CreateHostUserMode: types.CreateHostUserMode_HOST_USER_MODE_KEEP,
+		},
+		Allow: types.RoleConditions{
+			Logins:     []string{missingLogin},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+
 	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
-	alice.SetRoles([]string{nodeAccess.GetName()})
+	alice.SetRoles([]string{nodeAccess.GetName(), hostUserAllow.GetName()})
 
 	rootServerOpts := []testserver.TestServerOptFunc{
-		testserver.WithBootstrap(connector, nodeAccess, alice),
+		testserver.WithBootstrap(connector, nodeAccess, hostUserAllow, alice),
 		testserver.WithHostname(sshHostname),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SSH.Enabled = true
@@ -2204,9 +2215,17 @@ func TestSSHStderrorPropagation(t *testing.T) {
 							return nil
 						},
 					)
+					var exitCodeErr *common.ExitCodeError
+					require.ErrorAs(t, err, &exitCodeErr)
+					require.Equal(t, teleport.RemoteCommandFailure, exitCodeErr.Code)
 
-					expectErr := "Failed to launch: " + user.UnknownUserError(missingLogin).Error()
-					require.Error(t, err)
+					// We expect an unknown user error with additional context for host user creation denial.
+					expectErr := fmt.Sprintf(
+						"Failed to launch: %s: host user creation denied by the following resources: [%s: %q]",
+						user.UnknownUserError(missingLogin),
+						types.KindRole,
+						nodeAccess.GetName(),
+					)
 
 					require.Contains(t, stderr.String(), expectErr)
 					if ft.expectAgent {

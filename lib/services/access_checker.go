@@ -235,7 +235,7 @@ type AccessChecker interface {
 
 	// HostUsers returns host user information matching a server or nil if
 	// a role disallows host user creation
-	HostUsers(types.Server) (*decisionpb.HostUsersInfo, error)
+	HostUsers(types.Server) (*HostUsersDecision, error)
 
 	// HostSudoers returns host sudoers entries matching a server
 	HostSudoers(types.Server) ([]string, error)
@@ -1189,20 +1189,31 @@ func convertHostUserMode(mode types.CreateHostUserMode) decisionpb.HostUserMode 
 	}
 }
 
-// HostUsers returns host user information matching a server or nil if
-// a role disallows host user creation
-func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, error) {
+// HostUsersDecision is a decision to allow or disallow host user creation.
+type HostUsersDecision struct {
+	// Info is host users information. If host users creation is disallowed, this will be nil.
+	Info *decisionpb.HostUsersInfo
+	// AllowedBy is a list of determinants that allow host user creation.
+	AllowedBy []*decisionpb.Determinant
+	// DeniedBy is a list of determinants that disallow host user creation.
+	DeniedBy []*decisionpb.Determinant
+}
+
+// HostUsers returns host user decision matching a server.
+func (a *accessChecker) HostUsers(s types.Server) (*HostUsersDecision, error) {
 	groups := set.New[string]()
 	shellToRoles := make(map[string][]string)
 	var shell string
 	var mode types.CreateHostUserMode
+
+	decision := new(HostUsersDecision)
 
 	for _, role := range a.RoleSet {
 		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, s, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// skip nodes that dont have matching labels
+		// skip roles that don't have matching labels
 		if !result {
 			continue
 		}
@@ -1217,11 +1228,18 @@ func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, er
 			}
 		}
 
-		// if any of the matching roles do not enable create host
-		// user, the user should not be allowed on
 		if createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_OFF {
-			return nil, trace.AccessDenied("role %q prevents creating host users", role.GetName())
+			decision.DeniedBy = append(decision.DeniedBy, &decisionpb.Determinant{
+				Kind: role.GetKind(),
+				Name: role.GetName(),
+			})
+			continue
 		}
+
+		decision.AllowedBy = append(decision.AllowedBy, &decisionpb.Determinant{
+			Kind: role.GetKind(),
+			Name: role.GetName(),
+		})
 
 		if mode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
 			mode = createHostUserMode
@@ -1241,6 +1259,13 @@ func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, er
 		for _, group := range role.GetHostGroups(types.Allow) {
 			groups.Add(group)
 		}
+	}
+
+	// if any of the matching roles do not enable create host user, the user should not be allowed on
+	// Represent denial by returning the decision with a nil info field.
+	if len(decision.DeniedBy) > 0 {
+		decision.Info = nil
+		return decision, nil
 	}
 
 	if len(shellToRoles) > 1 {
@@ -1280,13 +1305,15 @@ func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, er
 		uid = uidL[0]
 	}
 
-	return &decisionpb.HostUsersInfo{
+	decision.Info = &decisionpb.HostUsersInfo{
 		Groups: groups.Elements(),
 		Mode:   convertHostUserMode(mode),
 		Uid:    uid,
 		Gid:    gid,
 		Shell:  shell,
-	}, nil
+	}
+
+	return decision, nil
 }
 
 // HostSudoers returns host sudoers entries matching a server

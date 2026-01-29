@@ -27,6 +27,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"os/user"
 	"slices"
 	"strconv"
 	"strings"
@@ -1429,7 +1430,7 @@ func (c *ServerContext) GetChildError() error {
 		c.stderrw = nil
 	}
 
-	// Read the error msg from stderr.
+	// Read the error msg from errMsg.
 	errMsg := new(strings.Builder)
 	if _, err := io.Copy(errMsg, c.stderrr); err != nil {
 		c.Logger.ErrorContext(c.CancelContext(), "Failed to read error message from child process", "err", err)
@@ -1445,9 +1446,38 @@ func (c *ServerContext) GetChildError() error {
 		return nil
 	}
 
-	// TODO(Joerger): Process the err msg from stderr to provide deeper insights into
-	// the cause of the session failure to add to the error message.
-	// e.g. user unknown because host user creation denied.
+	// If we don't have a decision context, we don't have any context to
+	// add to the error message. Return stderr as is.
+	decisionContext := c.Identity.AccessPermit.DecisionContext
+	if decisionContext == nil {
+		return errors.New(errMsg.String())
+	}
+
+	// If some roles allow host user creation while others deny it, this can be
+	// ambiguous to the end user and warrants clarification if it results in an
+	// unknown user error.
+	ambiguousHostUserDenial := len(decisionContext.HostUserCreationDeniedBy) > 0 && len(decisionContext.HostUserCreationAllowedBy) > 0
+	ambiguousHostUserError := func() error {
+		var deniedBy []string
+		for _, d := range decisionContext.HostUserCreationDeniedBy {
+			deniedBy = append(deniedBy, fmt.Sprintf("%v: %q", d.Kind, d.Name))
+		}
+		return fmt.Errorf("%s: host user creation denied by the following resources: [%s]", errMsg.String(), strings.Join(deniedBy, ", "))
+	}
+
+	unknownUserError := user.UnknownUserError(c.Identity.Login)
+	switch {
+	case strings.Contains(errMsg.String(), "Authentication failure."): // opaque PAM auth error.
+		if _, err := user.Lookup(c.Identity.Login); errors.Is(err, unknownUserError) {
+			if ambiguousHostUserDenial {
+				return ambiguousHostUserError()
+			}
+		}
+	case strings.Contains(errMsg.String(), unknownUserError.Error()):
+		if ambiguousHostUserDenial {
+			return ambiguousHostUserError()
+		}
+	}
 
 	return errors.New(errMsg.String())
 }

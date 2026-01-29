@@ -8346,9 +8346,9 @@ func TestHostUsers_getGroups(t *testing.T) {
 	} {
 		t.Run(tc.test, func(t *testing.T) {
 			accessChecker := makeAccessCheckerWithRoleSet(tc.roles)
-			info, err := accessChecker.HostUsers(tc.server)
+			hu, err := accessChecker.HostUsers(tc.server)
 			require.NoError(t, err)
-			require.ElementsMatch(t, tc.groups, info.Groups)
+			require.ElementsMatch(t, tc.groups, hu.Info.Groups)
 		})
 	}
 }
@@ -8776,6 +8776,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 				},
 			}),
 			server: &types.ServerV2{
+				Kind: types.KindNode,
 				Metadata: types.Metadata{
 					Labels: map[string]string{
 						"success": "abc",
@@ -8827,10 +8828,15 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 	} {
 		t.Run(tc.test, func(t *testing.T) {
 			accessChecker := makeAccessCheckerWithRoleSet(tc.roles)
-			info, err := accessChecker.HostUsers(tc.server)
-			require.Equal(t, tc.canCreate, err == nil && info != nil)
+			hu, err := accessChecker.HostUsers(tc.server)
+			require.NoError(t, err)
 			if tc.canCreate {
-				require.Equal(t, convertHostUserMode(tc.expectedMode), info.Mode)
+				require.NotEmpty(t, hu.AllowedBy)
+				require.Empty(t, hu.DeniedBy)
+				require.Equal(t, convertHostUserMode(tc.expectedMode), hu.Info.Mode)
+			} else {
+				require.NotEmpty(t, hu.DeniedBy)
+				require.Nil(t, hu.Info)
 			}
 		})
 	}
