@@ -13,9 +13,9 @@ should request certificates when certManager enabled:
       namespace: NAMESPACE
     spec:
       dnsNames:
-      - test.example.com test2.example.com
+      - test.example.com
+      - test2.example.com
       duration: 87600h
-      ipAddresses: []
       issuerRef:
         group: cert-manager.io
         kind: Issuer
@@ -24,7 +24,6 @@ should request certificates when certManager enabled:
         algorithm: ECDSA
         encoding: PKCS8
         size: 256
-      renewBefore: null
       secretName: RELEASE-NAME-teleport-plugin-event-handler-server-tls
       usages:
       - server auth
@@ -51,7 +50,6 @@ should request certificates when certManager enabled:
         algorithm: ECDSA
         encoding: PKCS8
         size: 256
-      renewBefore: null
       secretName: RELEASE-NAME-teleport-plugin-event-handler-client-tls
       usages:
       - client auth

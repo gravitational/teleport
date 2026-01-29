@@ -11,16 +11,24 @@ metadata:
     {{- include "event-handler.labels" . | nindent 4 }}
 spec:
   secretName: "{{ include "event-handler.certManager.serverCertSecretName" . }}"
-  duration: {{ .Values.certManager.ttl }}
+  duration: {{ required "certManager.ttl is required in chart values" .Values.certManager.ttl | quote }}
+  {{- if .Values.certManager.renewBefore }}
   renewBefore: {{ .Values.certManager.renewBefore }}
+  {{- end }}
   privateKey:
     algorithm: ECDSA
     encoding: PKCS8
     size: 256
   usages:
     - server auth
-  dnsNames: {{ .Values.certManager.dnsNames }}
-  ipAddresses: {{ .Values.certManager.ipAddresses }}
+  {{- if .Values.certManager.dnsNames }}
+  dnsNames:
+    {{- .Values.certManager.dnsNames | toYaml | nindent 4 }}
+  {{- end }}
+  {{- if .Values.certManager.ipAddresses }}
+  ipAddresses:
+    {{- .Values.certManager.ipAddresses | toYaml | nindent 4 }}
+  {{- end }}
   issuerRef:
     {{- include "event-handler.certManager.issuer" . | nindent 4 }}
   {{- if or .Values.annotations.certSecret .Values.extraLabels.certSecret }}
@@ -44,8 +52,10 @@ metadata:
     {{- include "event-handler.labels" . | nindent 4 }}
 spec:
   secretName: "{{ include "event-handler.certManager.clientCertSecretName" . }}"
-  duration: {{ .Values.certManager.ttl }}
+  duration: {{ required "certManager.ttl is required in chart values" .Values.certManager.ttl | quote }}
+  {{- if .Values.certManager.renewBefore }}
   renewBefore: {{ .Values.certManager.renewBefore }}
+  {{- end }}
   privateKey:
     algorithm: ECDSA
     encoding: PKCS8
