@@ -100,9 +100,6 @@ func (a *Authorizer) Refresh(ctx context.Context, refreshToken string) (*storage
 	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
 
-	a.log.DebugContext(ctx, "Refreshing access token",
-		"refresh_token", refreshToken,
-		"client_id", a.clientID)
 	_, err := a.client.R().
 		SetContext(ctx).
 		SetQueryParam("client_id", a.clientID).
