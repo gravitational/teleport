@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -89,6 +90,8 @@ func Handlers() map[string]Handler {
 		types.KindWorkloadIdentityX509IssuerOverride: workloadIdentityX509IssuerOverrideHandler(),
 		types.KindWorkloadIdentityX509Revocation:     workloadIdentityX509RevocationHandler(),
 		types.KindAppAuthConfig:                      appAuthConfigHandler(),
+		scopedaccess.KindScopedRole:                  scopedRoleHandler(),
+		scopedaccess.KindScopedRoleAssignment:        scopedRoleAssignmentHandler(),
 	}
 }
 
