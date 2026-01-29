@@ -45,7 +45,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
-	"google.golang.org/protobuf/types/known/durationpb"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -62,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
@@ -86,7 +86,9 @@ import (
 // and checks that all parameters are valid
 func TestReadIdentity(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	a := testauthority.NewWithClock(clock)
+	a, err := testauthority.NewKeygen(modules.BuildOSS, clock.Now)
+	require.NoError(t, err)
+
 	priv, pub, err := a.GenerateKeyPair()
 	require.NoError(t, err)
 	caSigner, err := ssh.ParsePrivateKey(priv)
@@ -133,7 +135,9 @@ func TestReadIdentity(t *testing.T) {
 }
 
 func TestBadIdentity(t *testing.T) {
-	a := testauthority.New()
+	a, err := testauthority.NewKeygen(modules.BuildOSS, time.Now)
+	require.NoError(t, err)
+
 	priv, pub, err := a.GenerateKeyPair()
 	require.NoError(t, err)
 	caSigner, err := ssh.ParsePrivateKey(priv)
@@ -141,7 +145,7 @@ func TestBadIdentity(t *testing.T) {
 
 	// bad cert type
 	_, err = state.ReadSSHIdentityFromKeyPair(priv, pub)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 	// missing authority domain
 	cert, err := a.GenerateHostCert(sshca.HostCertificateRequest{
@@ -158,7 +162,7 @@ func TestBadIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = state.ReadSSHIdentityFromKeyPair(priv, cert)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 	// missing host uuid
 	cert, err = a.GenerateHostCert(sshca.HostCertificateRequest{
@@ -175,7 +179,7 @@ func TestBadIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = state.ReadSSHIdentityFromKeyPair(priv, cert)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 	// unrecognized role
 	cert, err = a.GenerateHostCert(sshca.HostCertificateRequest{
@@ -192,7 +196,7 @@ func TestBadIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = state.ReadSSHIdentityFromKeyPair(priv, cert)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 }
 
 func TestSignatureAlgorithmSuite(t *testing.T) {
@@ -229,11 +233,14 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 		}
 		// Pre-generate all CAs to keep tests fast esp. with SoftHSM.
 		for _, caType := range types.CertAuthTypes {
-			cfg.BootstrapResources = append(cfg.BootstrapResources, authtest.NewTestCAWithConfig(authtest.TestCAConfig{
+			ca, err := authcatest.NewCAWithConfig(authcatest.CAConfig{
 				Type:        caType,
 				ClusterName: cfg.ClusterName.GetClusterName(),
 				Clock:       cfg.Clock,
-			}))
+			})
+			require.NoError(t, err)
+
+			cfg.BootstrapResources = append(cfg.BootstrapResources, ca)
 		}
 		return cfg
 	}
@@ -396,10 +403,15 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 				}
 				testAuthServer, err := authtest.NewAuthServer(cfg)
 				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
 				tlsServer, err := testAuthServer.NewTestTLSServer()
 				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+
 				clt, err := tlsServer.NewClient(authtest.TestAdmin())
 				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
 				for _, suiteValue := range types.SignatureAlgorithmSuite_value {
 					suite := types.SignatureAlgorithmSuite(suiteValue)
@@ -963,20 +975,12 @@ func TestPresets(t *testing.T) {
 
 	t.Run("EmptyCluster", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
 
-		err := auth.CreatePresetRoles(ctx, as)
-		require.NoError(t, err)
-
-		err = auth.CreatePresetHealthCheckConfig(ctx, as)
+		err := auth.CreatePresetRoles(ctx, modules.BuildOSS, as)
 		require.NoError(t, err)
 
 		// Second call should not fail
-		err = auth.CreatePresetRoles(ctx, as)
-		require.NoError(t, err)
-
-		err = auth.CreatePresetHealthCheckConfig(ctx, as)
+		err = auth.CreatePresetRoles(ctx, modules.BuildOSS, as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -984,24 +988,18 @@ func TestPresets(t *testing.T) {
 			_, err := as.GetRole(ctx, role)
 			require.NoError(t, err)
 		}
-
-		cfg, err := as.GetHealthCheckConfig(ctx, teleport.PresetDefaultHealthCheckConfigName)
-		require.NoError(t, err)
-		require.NotNil(t, cfg)
 	})
 
 	// Makes sure that existing role with the same name is not modified
 	t.Run("ExistingRole", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
 
 		access := services.NewPresetEditorRole()
 		access.SetLogins(types.Allow, []string{"root"})
 		access, err := as.CreateRole(ctx, access)
 		require.NoError(t, err)
 
-		err = auth.CreatePresetRoles(ctx, as)
+		err = auth.CreatePresetRoles(ctx, modules.BuildOSS, as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -1015,31 +1013,9 @@ func TestPresets(t *testing.T) {
 		require.Equal(t, access.GetLogins(types.Allow), out.GetLogins(types.Allow))
 	})
 
-	t.Run("ExistingHealthCheckConfig", func(t *testing.T) {
-		as := newTestAuthServer(ctx, t)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
-
-		// an existing health check config should not be modified by init
-		cfg := services.NewPresetHealthCheckConfig()
-		cfg.Spec.Interval = durationpb.New(42 * time.Second)
-		cfg, err := as.CreateHealthCheckConfig(ctx, cfg)
-		require.NoError(t, err)
-
-		err = auth.CreatePresetHealthCheckConfig(ctx, as)
-		require.NoError(t, err)
-
-		// Preset was created. Ensure it didn't overwrite the existing config
-		got, err := as.GetHealthCheckConfig(ctx, cfg.GetMetadata().GetName())
-		require.NoError(t, err)
-		require.Equal(t, cfg.Spec.Interval.AsDuration(), got.Spec.Interval.AsDuration())
-	})
-
 	// If a default allow condition is not present, ensure it gets added.
 	t.Run("AddDefaultAllowConditions", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
 
 		editorRole := services.NewPresetEditorRole()
 		rules := editorRole.GetRules(types.Allow)
@@ -1064,7 +1040,7 @@ func TestPresets(t *testing.T) {
 		accessRole, err = as.CreateRole(ctx, accessRole)
 		require.NoError(t, err)
 
-		err = auth.CreatePresetRoles(ctx, as)
+		err = auth.CreatePresetRoles(ctx, modules.BuildOSS, as)
 		require.NoError(t, err)
 
 		outEditor, err := as.GetRole(ctx, editorRole.GetName())
@@ -1090,8 +1066,6 @@ func TestPresets(t *testing.T) {
 	// Either as part of allowing or denying rules.
 	t.Run("DefaultAllowRulesNotAppliedIfExplicitlyDefined", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
 
 		// Set up a changed Editor Role
 		editorRole := services.NewPresetEditorRole()
@@ -1128,7 +1102,7 @@ func TestPresets(t *testing.T) {
 		require.NoError(t, err)
 
 		// Apply defaults.
-		err = auth.CreatePresetRoles(ctx, as)
+		err = auth.CreatePresetRoles(ctx, modules.BuildOSS, as)
 		require.NoError(t, err)
 
 		outEditor, err := as.GetRole(ctx, editorRole.GetName())
@@ -1152,7 +1126,7 @@ func TestPresets(t *testing.T) {
 		require.Equal(t, types.Labels{types.Wildcard: []string{types.Wildcard}}, deniedDatabaseServiceLabels, "keeps the deny label for DatabaseService")
 	})
 
-	upsertRoleTest := func(t *testing.T, expectedPresetRoles []string, expectedSystemRoles []string) {
+	upsertRoleTest := func(t *testing.T, buildType string, expectedPresetRoles []string, expectedSystemRoles []string) {
 		// test state
 		ctx := context.Background()
 		// mu protects created resource maps
@@ -1199,7 +1173,7 @@ func TestPresets(t *testing.T) {
 				return r, nil
 			})
 
-		err := auth.CreatePresetRoles(ctx, roleManager)
+		err := auth.CreatePresetRoles(ctx, buildType, roleManager)
 		require.NoError(t, err)
 		require.ElementsMatch(t, slices.Collect(maps.Keys(createdPresets)), expectedPresetRoles)
 		require.ElementsMatch(t, slices.Collect(maps.Keys(createdSystemRoles)), expectedSystemRoles)
@@ -1239,7 +1213,7 @@ func TestPresets(t *testing.T) {
 				Return(role, nil)
 		}
 
-		err = auth.CreatePresetRoles(ctx, roleManager)
+		err = auth.CreatePresetRoles(ctx, buildType, roleManager)
 		require.NoError(t, err)
 		roleManager.AssertExpectations(t)
 
@@ -1296,14 +1270,14 @@ func TestPresets(t *testing.T) {
 				return r, nil
 			})
 
-		err = auth.CreatePresetRoles(ctx, roleManager)
+		err = auth.CreatePresetRoles(ctx, buildType, roleManager)
 		require.NoError(t, err)
 		require.Empty(t, remainingPresets)
 		roleManager.AssertExpectations(t)
 	}
 
 	t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
-		upsertRoleTest(t, presetRoleNames, nil)
+		upsertRoleTest(t, modules.BuildOSS, presetRoleNames, nil)
 	})
 
 	t.Run("Enterprise", func(t *testing.T) {
@@ -1328,22 +1302,20 @@ func TestPresets(t *testing.T) {
 		}
 
 		enterpriseUsers := []types.User{
-			services.NewSystemAutomaticAccessBotUser(),
+			services.NewSystemAutomaticAccessBotUser(modules.BuildEnterprise),
 		}
 
 		t.Run("EmptyCluster", func(t *testing.T) {
 			as := newTestAuthServer(ctx, t)
-			clock := clockwork.NewFakeClock()
-			as.SetClock(clock)
 
 			// Run multiple times to simulate starting auth on an
 			// existing cluster and asserting that everything still
 			// returns success
 			for range 2 {
-				err := auth.CreatePresetRoles(ctx, as)
+				err := auth.CreatePresetRoles(ctx, modules.BuildEnterprise, as)
 				require.NoError(t, err)
 
-				err = auth.CreatePresetUsers(ctx, as)
+				err = auth.CreatePresetUsers(ctx, modules.BuildEnterprise, as)
 				require.NoError(t, err)
 			}
 
@@ -1361,12 +1333,12 @@ func TestPresets(t *testing.T) {
 		})
 
 		t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
-			upsertRoleTest(t, enterprisePresetRoleNames, enterpriseSystemRoleNames)
+			upsertRoleTest(t, modules.BuildEnterprise, enterprisePresetRoleNames, enterpriseSystemRoleNames)
 		})
 
 		t.Run("System users are always upserted", func(t *testing.T) {
 			ctx := context.Background()
-			sysUser := services.NewSystemAutomaticAccessBotUser().(*types.UserV2)
+			sysUser := services.NewSystemAutomaticAccessBotUser(modules.BuildEnterprise).(*types.UserV2)
 
 			// GIVEN a user database...
 			manager := newMockUserManager(t)
@@ -1388,7 +1360,7 @@ func TestPresets(t *testing.T) {
 				Return(sysUser, nil)
 
 			// WHEN I attempt to create the preset users...
-			err := auth.CreatePresetUsers(ctx, manager)
+			err := auth.CreatePresetUsers(ctx, modules.BuildEnterprise, manager)
 
 			// EXPECT that the process succeeds and the system user was upserted
 			require.NoError(t, err)
@@ -1398,20 +1370,57 @@ func TestPresets(t *testing.T) {
 	})
 }
 
+func TestDashboardMode(t *testing.T) {
+
+	testModules := modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Cloud:         false,
+			RecoveryCodes: true,
+		},
+	}
+
+	// dashboard mode is determined via cloud and recovery codes
+	modulestest.SetTestModules(t, testModules)
+
+	conf := setupConfig(t)
+	ctx := t.Context()
+	authServer, err := auth.Init(ctx, conf)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err = authServer.Close()
+		require.NoError(t, err)
+	})
+
+	// verify auth server is functional
+	_, err = authServer.GetClusterName(ctx)
+	require.NoError(t, err)
+
+	// verify that preset roles were NOT created in dashboard mode
+	presetRoles := auth.GetPresetRoles(testModules.BuildType())
+
+	for _, role := range presetRoles {
+		_, err := authServer.GetRole(ctx, role.GetName())
+		require.True(t, trace.IsNotFound(err), "expected preset role %q to not exist in dashboard mode", role.GetName())
+	}
+
+	// verify preset users were NOT created in dashboard mode
+	presetUsers := auth.GetPresetUsers(testModules.BuildType())
+
+	for _, user := range presetUsers {
+		_, err := authServer.GetUser(ctx, user.GetName(), false)
+		require.True(t, trace.IsNotFound(err), "expected preset user %q to not exist in dashboard mode", user.GetName())
+	}
+}
+
 func TestGetPresetUsers(t *testing.T) {
 	// no preset users for OSS
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildOSS,
-	})
-	require.Empty(t, auth.GetPresetUsers())
+	require.Empty(t, auth.GetPresetUsers(modules.BuildOSS))
 
 	// preset user @teleport-access-approval-bot on enterprise
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-	})
 	require.Equal(t, []types.User{
-		services.NewSystemAutomaticAccessBotUser(),
-	}, auth.GetPresetUsers())
+		services.NewSystemAutomaticAccessBotUser(modules.BuildEnterprise),
+	}, auth.GetPresetUsers(modules.BuildEnterprise))
 }
 
 type mockUserManager struct {
@@ -1529,13 +1538,16 @@ func setupConfig(t *testing.T) auth.InitConfig {
 		processStorage.Close()
 	})
 
+	authority, err := testauthority.NewKeygen(modules.BuildOSS, time.Now)
+	require.NoError(t, err)
+
 	return auth.InitConfig{
 		DataDir:                 tempDir,
 		HostUUID:                "00000000-0000-0000-0000-000000000000",
 		NodeName:                "foo",
 		Backend:                 bk,
 		VersionStorage:          processStorage,
-		Authority:               testauthority.New(),
+		Authority:               authority,
 		ClusterAuditConfig:      types.DefaultClusterAuditConfig(),
 		ClusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
 		SessionRecordingConfig:  types.DefaultSessionRecordingConfig(),

@@ -34,6 +34,9 @@ import (
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/trait"
+	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/accessmonitoring"
 )
 
@@ -149,7 +152,6 @@ func TestConflictingRules(t *testing.T) {
 	t.Cleanup(cancel)
 
 	testReqID := uuid.New().String()
-	withSecretsFalse := false
 	requesterUserName := "requester"
 	approvedRule := newApprovedRule("approved-rule", "true")
 	deniedRule := newDeniedRule("denied-rule", "true")
@@ -161,12 +163,15 @@ func TestConflictingRules(t *testing.T) {
 		deniedRule,
 	})
 
-	requester, err := types.NewUser(requesterUserName)
+	userLoginState, err := userloginstate.New(
+		header.Metadata{Name: requesterUserName},
+		userloginstate.Spec{},
+	)
 	require.NoError(t, err)
 
 	client := &mockClient{}
-	client.On("GetUser", mock.Anything, requesterUserName, withSecretsFalse).
-		Return(requester, nil)
+	client.On("GetUserLoginState", mock.Anything, requesterUserName).
+		Return(userLoginState, nil)
 
 	review, err := newAccessReview(
 		requesterUserName,
@@ -204,10 +209,12 @@ func TestScheduleRequest(t *testing.T) {
 
 	testReqID := uuid.New().String()
 	testRuleName := "test-rule"
-	withSecretsFalse := false
 	requesterUserName := "requester"
 
-	requester, err := types.NewUser(requesterUserName)
+	userLoginState, err := userloginstate.New(
+		header.Metadata{Name: requesterUserName},
+		userloginstate.Spec{},
+	)
 	require.NoError(t, err)
 
 	testRule := newApprovedRule(
@@ -240,8 +247,8 @@ func TestScheduleRequest(t *testing.T) {
 		{
 			description: "test within schedule",
 			setupMock: func(m *mockClient) {
-				m.On("GetUser", mock.Anything, requesterUserName, withSecretsFalse).
-					Return(requester, nil)
+				m.On("GetUserLoginState", mock.Anything, requesterUserName).
+					Return(userLoginState, nil)
 
 				review, err := newAccessReview(
 					requesterUserName,
@@ -262,8 +269,8 @@ func TestScheduleRequest(t *testing.T) {
 		{
 			description: "test outside schedule",
 			setupMock: func(m *mockClient) {
-				m.On("GetUser", mock.Anything, requesterUserName, withSecretsFalse).
-					Return(requester, nil)
+				m.On("GetUserLoginState", mock.Anything, requesterUserName).
+					Return(userLoginState, nil)
 
 				m.AssertNotCalled(t, "SubmitAccessReview")
 			},
@@ -311,10 +318,12 @@ func TestResourceRequest(t *testing.T) {
 
 	testReqID := uuid.New().String()
 	testRuleName := "test-rule"
-	withSecretsFalse := false
 	requesterUserName := "requester"
 
-	requester, err := types.NewUser(requesterUserName)
+	userLoginState, err := userloginstate.New(
+		header.Metadata{Name: requesterUserName},
+		userloginstate.Spec{},
+	)
 	require.NoError(t, err)
 
 	testRule := newApprovedRule(
@@ -332,8 +341,8 @@ func TestResourceRequest(t *testing.T) {
 		{
 			description: "test 0 requested resources",
 			setupMock: func(m *mockClient) {
-				m.On("GetUser", mock.Anything, requesterUserName, withSecretsFalse).
-					Return(requester, nil)
+				m.On("GetUserLoginState", mock.Anything, requesterUserName).
+					Return(userLoginState, nil)
 
 				m.On("ListResources", mock.Anything, mock.Anything).
 					Return(&types.ListResourcesResponse{
@@ -348,8 +357,8 @@ func TestResourceRequest(t *testing.T) {
 		{
 			description: "test !matching resource labels",
 			setupMock: func(m *mockClient) {
-				m.On("GetUser", mock.Anything, requesterUserName, withSecretsFalse).
-					Return(requester, nil)
+				m.On("GetUserLoginState", mock.Anything, requesterUserName).
+					Return(userLoginState, nil)
 
 				m.On("ListResources", mock.Anything, mock.Anything).
 					Return(&types.ListResourcesResponse{
@@ -370,8 +379,8 @@ func TestResourceRequest(t *testing.T) {
 		{
 			description: "test matching resource labels",
 			setupMock: func(m *mockClient) {
-				m.On("GetUser", mock.Anything, requesterUserName, withSecretsFalse).
-					Return(requester, nil)
+				m.On("GetUserLoginState", mock.Anything, requesterUserName).
+					Return(userLoginState, nil)
 
 				m.On("ListResources", mock.Anything, mock.Anything).
 					Return(&types.ListResourcesResponse{
@@ -422,12 +431,14 @@ func TestResourceRequest(t *testing.T) {
 				testReqID,
 				requesterUserName,
 				[]string{"role"},
-				[]types.ResourceID{
+				[]types.ResourceAccessID{
 					{
-						ClusterName:     "test-cluster",
-						Kind:            types.KindNode,
-						Name:            "test-node",
-						SubResourceName: types.SubKindTeleportNode,
+						Id: types.ResourceID{
+							ClusterName:     "test-cluster",
+							Kind:            types.KindNode,
+							Name:            "test-node",
+							SubResourceName: types.SubKindTeleportNode,
+						},
 					},
 				},
 			)
@@ -453,8 +464,6 @@ func TestHandleAccessRequest(t *testing.T) {
 		approvedUserTraitVal = "approved-trait-value"
 		approvedRole         = "approved-role"
 		testRuleName         = "test-rule"
-
-		withSecretsFalse = false
 	)
 
 	testReqID := uuid.New().String()
@@ -469,15 +478,22 @@ func TestHandleAccessRequest(t *testing.T) {
 			approvedRole, approvedUserTraitKey, approvedUserTraitVal))
 	cache.Put([]*accessmonitoringrulesv1.AccessMonitoringRule{rule})
 
-	// Setup approved user
-	approvedUser, err := types.NewUser(approvedUserName)
+	// Setup approved user login state
+	approvedUserLoginState, err := userloginstate.New(
+		header.Metadata{Name: approvedUserName},
+		userloginstate.Spec{
+			Traits: trait.Traits{
+				approvedUserTraitKey: {approvedUserTraitVal},
+			},
+		},
+	)
 	require.NoError(t, err)
-	approvedUser.SetTraits(map[string][]string{
-		approvedUserTraitKey: {approvedUserTraitVal},
-	})
 
-	// Setup unapproved user
-	unapprovedUser, err := types.NewUser(unapprovedUserName)
+	// Setup unapproved user login state
+	unapprovedUserLoginState, err := userloginstate.New(
+		header.Metadata{Name: unapprovedUserName},
+		userloginstate.Spec{},
+	)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -492,7 +508,9 @@ func TestHandleAccessRequest(t *testing.T) {
 			requester:     "non-existent-user",
 			requestedRole: "non-existent-role",
 			setupMock: func(m *mockClient) {
-				m.On("GetUser", mock.Anything, "non-existent-user", withSecretsFalse).
+				m.On("GetUserLoginState", mock.Anything, "non-existent-user").
+					Return(nil, trace.NotFound("user not found"))
+				m.On("GetUser", mock.Anything, "non-existent-user", false).
 					Return(nil, trace.NotFound("user not found"))
 			},
 			assertErr: func(t require.TestingT, err error, _ ...any) {
@@ -504,8 +522,8 @@ func TestHandleAccessRequest(t *testing.T) {
 			requester:     approvedUserName,
 			requestedRole: "unapproved-role",
 			setupMock: func(m *mockClient) {
-				m.On("GetUser", mock.Anything, approvedUserName, withSecretsFalse).
-					Return(approvedUser, nil)
+				m.On("GetUserLoginState", mock.Anything, approvedUserName).
+					Return(approvedUserLoginState, nil)
 
 				m.AssertNotCalled(t, "SubmitAccessReview",
 					"user is not automatically approved for this role")
@@ -517,8 +535,8 @@ func TestHandleAccessRequest(t *testing.T) {
 			requester:     unapprovedUserName,
 			requestedRole: approvedRole,
 			setupMock: func(m *mockClient) {
-				m.On("GetUser", mock.Anything, unapprovedUserName, withSecretsFalse).
-					Return(unapprovedUser, nil)
+				m.On("GetUserLoginState", mock.Anything, unapprovedUserName).
+					Return(unapprovedUserLoginState, nil)
 
 				m.AssertNotCalled(t, "SubmitAccessReview",
 					"user is not automatically approved for this role")
@@ -530,8 +548,8 @@ func TestHandleAccessRequest(t *testing.T) {
 			requester:     approvedUserName,
 			requestedRole: approvedRole,
 			setupMock: func(m *mockClient) {
-				m.On("GetUser", mock.Anything, approvedUserName, withSecretsFalse).
-					Return(approvedUser, nil)
+				m.On("GetUserLoginState", mock.Anything, approvedUserName).
+					Return(approvedUserLoginState, nil)
 
 				review, err := newAccessReview(
 					approvedUserName,
@@ -606,6 +624,7 @@ func newReviewRule(name, condition, decision string) *accessmonitoringrulesv1.Ac
 // mockClient is a mock implementation of the Teleport API client.
 type mockClient struct {
 	mock.Mock
+	Client
 }
 
 func (m *mockClient) SubmitAccessReview(ctx context.Context, review types.AccessReviewSubmission) (types.AccessRequest, error) {
@@ -637,6 +656,15 @@ func (m *mockClient) GetUser(ctx context.Context, name string, withSecrets bool)
 	user, ok := args.Get(0).(types.User)
 	if ok {
 		return user, args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *mockClient) GetUserLoginState(ctx context.Context, name string) (*userloginstate.UserLoginState, error) {
+	args := m.Called(ctx, name)
+	userLoginState, ok := args.Get(0).(*userloginstate.UserLoginState)
+	if ok {
+		return userLoginState, args.Error(1)
 	}
 	return nil, args.Error(1)
 }

@@ -516,8 +516,11 @@ func (m *databaseExecCommandMaker) makeCommand(ctx context.Context, dbInfo *data
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return dbcmd.NewCmdBuilder(m.tc, m.profile, dbInfo.RouteToDatabase, m.rootCluster, opts...).
-		GetExecCommand(ctx, command)
+	cb, err := dbcmd.NewCmdBuilder(m.tc, m.profile, dbInfo.RouteToDatabase, m.rootCluster, dbInfo.getDatabaseForDBCmd, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cb.GetExecCommand(ctx, command)
 }
 
 // ensureEachDatabase ensures one to one mapping between the provided database

@@ -47,9 +47,8 @@ import (
 )
 
 func TestAuth_RegisterUsingToken(t *testing.T) {
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
-	require.NoError(t, err)
+	ctx := t.Context()
+	p := newAuthSuite(t)
 
 	// create a static token
 	staticToken := types.ProvisionTokenV1{
@@ -81,7 +80,7 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 		p.a,
 	)
 
-	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
+	sshPrivateKey, sshPublicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)

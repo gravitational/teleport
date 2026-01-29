@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, type ComponentType } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 
 import { Danger } from 'design/Alert';
@@ -29,25 +29,37 @@ import { useLocation, useParams } from 'teleport/components/Router';
 import { UrlPlayerParams } from 'teleport/config';
 import { getUrlParameter } from 'teleport/services/history';
 import { RecordingType } from 'teleport/services/recordings';
-import { useSuspenseGetRecordingDuration } from 'teleport/services/recordings/hooks';
+import {
+  useSuspenseGetRecordingDuration,
+  useSuspenseGetRecordingMetadata,
+} from 'teleport/services/recordings/hooks';
 import {
   RECORDING_TYPES_WITH_METADATA,
   VALID_RECORDING_TYPES,
 } from 'teleport/services/recordings/recordings';
+import type { RecordingWithSummaryProps } from 'teleport/SessionRecordings/view/RecordingWithSummary';
+import { SessionRecordingDetails } from 'teleport/SessionRecordings/view/SessionRecordingDetails';
+import { RecordingTimeline } from 'teleport/SessionRecordings/view/Timeline/RecordingTimeline';
+import { useRecording } from 'teleport/SessionRecordings/view/useRecording';
 
 import { RecordingPlayer } from './RecordingPlayer';
 import {
-  RecordingWithMetadata,
-  type SummarySlot,
+  PlayerContainer,
+  SessionRecordingGrid,
+  SidebarContainer,
+  TimelineContainer,
+  type RecordingWithMetadataProps,
 } from './RecordingWithMetadata';
-import { RecordingWithSummary } from './RecordingWithSummary';
+import { SidebarResizeHandle } from './SidebarResizeHandle';
 
 interface ViewSessionRecordingRouteProps {
-  summarySlot?: SummarySlot;
+  withMetadataComponent?: ComponentType<RecordingWithMetadataProps>;
+  withSummaryComponent?: ComponentType<RecordingWithSummaryProps>;
 }
 
 export function ViewSessionRecordingRoute({
-  summarySlot,
+  withMetadataComponent: RecordingWithMetadataComponent = RecordingWithMetadata,
+  withSummaryComponent: RecordingWithSummaryComponent,
 }: ViewSessionRecordingRouteProps) {
   const { sid, clusterId } = useParams<UrlPlayerParams>();
   const { search } = useLocation();
@@ -101,29 +113,108 @@ export function ViewSessionRecordingRoute({
     return (
       <Suspense fallback={<RecordingPlayerLoading />}>
         <ErrorBoundary fallback={player}>
-          <RecordingWithMetadata
+          <RecordingWithMetadataComponent
             clusterId={clusterId}
+            recordingType={recordingType}
             sessionId={sid}
-            summarySlot={summarySlot}
           />
         </ErrorBoundary>
       </Suspense>
     );
   }
 
-  if (summarySlot) {
+  if (RecordingWithSummaryComponent) {
     return (
-      <RecordingWithSummary
+      <RecordingWithSummaryComponent
         clusterId={clusterId}
         sessionId={sid}
         durationMs={durationMs}
         recordingType={recordingType}
-        summarySlot={summarySlot}
       />
     );
   }
 
   return player;
+}
+
+function RecordingWithMetadata({
+  clusterId,
+  sessionId,
+}: RecordingWithMetadataProps) {
+  const { data } = useSuspenseGetRecordingMetadata({
+    clusterId,
+    sessionId,
+  });
+
+  const {
+    containerRef,
+    playerRef,
+    timelineRef,
+    fullscreen,
+    sidebarHidden,
+    sidebarWidth,
+    setSidebarWidth,
+    timelineHidden,
+    handleTimeChange,
+    handleTimelineTimeChange,
+    toggleSidebar,
+    toggleTimeline,
+    handleToggleFullscreen,
+  } = useRecording();
+
+  return (
+    <SessionRecordingGrid
+      sidebarHidden={sidebarHidden}
+      sidebarWidth={sidebarWidth}
+      ref={containerRef}
+    >
+      <PlayerContainer>
+        <RecordingPlayer
+          clusterId={clusterId}
+          sessionId={sessionId}
+          durationMs={data.metadata.duration}
+          recordingType={data.metadata.type}
+          onToggleFullscreen={handleToggleFullscreen}
+          fullscreen={fullscreen.active}
+          onToggleSidebar={toggleSidebar}
+          onToggleTimeline={toggleTimeline}
+          onTimeChange={handleTimeChange}
+          initialCols={data.metadata.startCols}
+          initialRows={data.metadata.startRows}
+          events={data.metadata.events}
+          ref={playerRef}
+        />
+      </PlayerContainer>
+
+      {!sidebarHidden && (
+        <SidebarContainer>
+          <SessionRecordingDetails
+            sessionId={sessionId}
+            recordingType={data.metadata.type}
+            metadata={data.metadata}
+          />
+          <SidebarResizeHandle
+            width={sidebarWidth}
+            onChange={setSidebarWidth}
+          />
+        </SidebarContainer>
+      )}
+
+      {data.frames.length > 0 && !timelineHidden && (
+        <TimelineContainer>
+          <RecordingTimeline
+            duration={data.metadata.duration}
+            events={data.metadata.events}
+            frames={data.frames}
+            startTime={data.metadata.startTime}
+            onTimeChange={handleTimelineTimeChange}
+            ref={timelineRef}
+            showAbsoluteTime={false} // TODO(ryan): add with the keyboard shortcuts PR
+          />
+        </TimelineContainer>
+      )}
+    </SessionRecordingGrid>
+  );
 }
 
 export function RecordingPlayerLoading() {

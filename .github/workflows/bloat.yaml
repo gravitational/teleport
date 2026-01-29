@@ -9,6 +9,8 @@ on:
       - '**.rs'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'Makefile'
+      - '*.mk'
     branches:
       - master
       - branch/**
@@ -16,7 +18,7 @@ on:
 jobs:
   bloat_check:
     name: Bloat Check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-4core
     outputs:
       base_stats_file: ${{ steps.build_base.outputs.base_stats_file }}
       current_build_dir: ${{ steps.build_branch.outputs.build_dir }}
@@ -29,7 +31,7 @@ jobs:
 
     steps:
       - name: Checkout base
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.before }}
 
@@ -37,7 +39,7 @@ jobs:
         uses: ./.github/actions/prepare-workspace
 
       - name: Checkout shared-workflow
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
@@ -83,13 +85,13 @@ jobs:
           echo "base_stats=$(cat ~/teleport_base_build_stats)" >> $GITHUB_ENV
 
       - name: Checkout branch
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           clean: false
           ref: ${{ github.event.after }}
 
       - name: Checkout shared-workflow
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows

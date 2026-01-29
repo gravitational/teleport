@@ -11,8 +11,11 @@
         "podSecurityContext",
         "securityContext",
         "nodeSelector",
+        "annotations",
         "tolerations",
         "affinity",
+        "extraArgs",
+        "extraEnv",
         "teleport",
         "fluentd"
     ],
@@ -131,6 +134,16 @@
             },
             "additionalProperties": true
         },
+        "extraArgs": {
+            "$id": "#/properties/extraArgs",
+            "type": "array",
+            "default": []
+        },
+        "extraEnv": {
+            "$id": "#/properties/extraEnv",
+            "type": "array",
+            "default": []
+        },
         "resources": {
             "$id": "#/properties/resources",
             "type": "object",
@@ -225,17 +238,70 @@
             "default": {},
             "additionalProperties": true
         },
+        "annotations": {
+            "$id": "#/properties/annotations",
+            "type": "object",
+            "required": [
+                "config",
+                "deployment",
+                "pod"
+            ],
+            "properties": {
+                "config": {
+                    "$id": "#/properties/annotations/properties/config",
+                    "type": "object",
+                    "default": {}
+                },
+                "deployment": {
+                    "$id": "#/properties/annotations/properties/deployment",
+                    "type": "object",
+                    "default": {}
+                },
+                "pod": {
+                    "$id": "#/properties/annotations/properties/pod",
+                    "type": "object",
+                    "default": {}
+                }
+            }
+        },
+        "extraLabels": {
+            "$id": "#/properties/extraLabels",
+            "type": "object",
+            "properties": {
+                "config": {
+                    "$id": "#/properties/extraLabels/properties/config",
+                    "type": "object",
+                    "default": {}
+                },
+                "deployment": {
+                    "$id": "#/properties/extraLabels/properties/deployment",
+                    "type": "object",
+                    "default": {}
+                },
+                "pod": {
+                    "$id": "#/properties/extraLabels/properties/pod",
+                    "type": "object",
+                    "default": {}
+                }
+            }
+        },
         "tls": {
             "$id": "#/properties/tls",
             "type": "object",
             "required": [
-                "existingCASecretName"
+                "existingCASecretName",
+                "existingCASecretKeyName"
             ],
             "properties": {
                 "existingCASecretName": {
                     "$id": "#/properties/tls/properties/existingCASecretName",
                     "type": "string",
                     "default": ""
+                },
+                "existingCASecretKeyName": {
+                    "$id": "#/properties/tls/properties/existingCASecretKeyName",
+                    "type": "string",
+                    "default": "ca.pem"
                 }
             }
         },
@@ -351,17 +417,26 @@
                 "timeout": {
                     "$id": "#/properties/eventHandler/properties/timeout",
                     "type": "string",
-                    "default": "10s"
+                    "default": "10s",
+                    "examples": [
+                        "10s"
+                    ]
                 },
                 "batch": {
                     "$id": "#/properties/eventHandler/properties/batch",
-                    "type": "number",
-                    "default": 20
+                    "type": "integer",
+                    "default": 20,
+                    "examples": [
+                        20
+                    ]
                 },
                 "window-size": {
                     "$id": "#/properties/eventHandler/properties/window-size",
                     "type": "string",
-                    "default": "24h"
+                    "default": "24h",
+                    "examples": [
+                        "24h"
+                    ]
                 },
                 "debug": {
                     "$id": "#/properties/eventHandler/properties/debug",
@@ -394,6 +469,82 @@
                     "examples": [
                         ["print", "desktop.recording"]
                     ]
+                },
+                "startTime": {
+                    "$id": "#/properties/eventHandler/properties/startTime",
+                    "type": "string",
+                    "default": "",
+                    "examples": [
+                        "2025-01-01T00:00:00.000Z"
+                    ]
+                },
+                "dryRun": {
+                    "$id": "#/properties/eventHandler/properties/dryRun",
+                    "type": "boolean",
+                    "default": false,
+                    "examples": [
+                        false
+                    ]
+                },
+                "concurrency": {
+                    "$id": "#/properties/eventHandler/properties/concurrency",
+                    "type": "integer",
+                    "default": 5,
+                    "examples": [
+                        5
+                    ]
+                },
+                "lock": {
+                    "$id": "#/properties/eventHandler/properties/lock",
+                    "type": "object",
+                    "default": {
+                        "enabled": false
+                    },
+                    "examples": [
+                        {
+                            "enabled": true,
+                            "failedAttemptsCount": 3,
+                            "period": "1m",
+                            "for": "5s"
+                        }
+                    ],
+                    "required": [
+                        "enabled"
+                    ],
+                    "properties": {
+                        "enabled": {
+                            "$id": "#/properties/eventHandler/properties/lock/enabled",
+                            "type": "boolean",
+                            "default": false,
+                            "examples": [
+                                true
+                            ]
+                        },
+                        "failedAttemptsCount": {
+                            "$id": "#/properties/eventHandler/properties/lock/failedAttemptsCount",
+                            "type": "integer",
+                            "default": 3,
+                            "examples": [
+                                3
+                            ]
+                        },
+                        "period": {
+                            "$id": "#/properties/eventHandler/properties/lock/period",
+                            "type": "string",
+                            "default": "1m",
+                            "examples": [
+                                "1m"
+                            ]
+                        },
+                        "for": {
+                            "$id": "#/properties/eventHandler/properties/lock/for",
+                            "type": "string",
+                            "default": "5s",
+                            "examples": [
+                                "5s"
+                            ]
+                        }
+                    }
                 }
             },
             "additionalProperties": true
@@ -481,6 +632,14 @@
                             "default": "client.key"
                         }
                     }
+                },
+                "maxConnections": {
+                    "$id": "#/properties/fluentd/properties/maxConnections",
+                    "type": "integer",
+                    "default": 0,
+                    "examples": [
+                        10
+                    ]
                 }
             },
             "additionalProperties": true

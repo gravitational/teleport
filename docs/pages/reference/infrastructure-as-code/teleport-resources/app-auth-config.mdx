@@ -1,0 +1,43 @@
+---
+title: App Auth Config Reference
+description: Provides a reference of fields within the App Auth Config resource, which you can manage with tctl.
+sidebar_label: App Auth Config
+---
+
+The app auth configuration enables cluster administrators to set up various
+authentication methods for app access.
+
+```yaml
+kind: app_auth_config
+version: v1
+spec:
+  # app_labels define the labels matcher for applications that can use this authentication config.
+  #
+  # In this example, it will match all MCP applications.
+  app_labels:
+    teleport.internal/app-sub-kind: mcp
+  # jwt contains the JWT spec.
+  jwt:
+    # issuer is the JWT token issuer name. This value is used to verify the
+    # token.
+    issuer: custom-realm
+    # audience is expected audience from the generated token.
+    # This value will usually be a client_id.
+    audience: teleport
+    # username_claim (optional) is the claim name used as username. Defaults to `email`.
+    username_claim: preferred_username
+    # authorization_header (optional) defines the header name that will contain
+    # the token. Defaults to `Authorization`.
+    authorization_header: JWT-Authorization
+    # jwks_url is the JWKS URL address used to fetch signing keys.
+    #
+    # Only required, when static_jwks is not set.
+    jwks_url: https://keycloak-addr/realms/custom-realm/.well-known/jwks
+    # static_jwks (optional) allows the JSON Web Key Set (JWKS) used to verify the
+    # token to be set, removing the necessity of Teleport to retrieve it from the
+    # issuer.
+    #
+    # When unspecified, the JWKS will be fetched automatically.
+    static_jwks: |
+     {"keys":[--snip--]}
+```

@@ -120,7 +120,9 @@ func (s *Storage) Remove(ctx context.Context, profileName string) error {
 // https://github.com/gravitational/teleport/issues/13278
 func (s *Storage) Add(ctx context.Context, webProxyAddress string) (*Cluster, *client.TeleportClient, error) {
 	profiles, err := s.ListProfileNames()
-	if err != nil {
+	// If the tsh directory does not exist, [client.ProfileStore.SaveProfile] will
+	// create it.
+	if err != nil && !trace.IsNotFound(err) {
 		return nil, nil, trace.Wrap(err)
 	}
 
@@ -168,6 +170,13 @@ func (s *Storage) addCluster(ctx context.Context, webProxyAddress string) (*Clus
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
+	// There's an incorrect default in api/profile.profileFromFile - an empty SiteName is replaced with the profile name.
+	// A profile name is not the same thing as a site name, and they differ when the proxy hostname is different
+	// from the cluster name.
+	// Using this incorrect site name causes login failures in `tsh`, so we proactively set SiteName to the root cluster
+	// name instead.
+	clusterClient.SiteName = pingResponse.ClusterName
 
 	clusterLog := s.Logger.With("cluster", clusterURI)
 
@@ -272,15 +281,38 @@ func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportC
 		clusterClient.SiteName = rootClusterName
 	}
 
-	if err == nil && clusterClient.Username != "" {
-		status, err = clusterClient.ProfileStatus()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	// TODO(gzdunek): If the key doesn't exist, we should still try to read
+	// the profile status.
+	// This creates an inconsistency in how the profile is interpreted after running
+	//`tsh logout --proxy=... --user=...`  by `tsh status` versus Connect.
+	//
+	// tsh will still show a profile that includes the username, while Connect
+	// receives an empty profile status and therefore has no username.
+	// Fixing this requires updating how ClusterLifecycleManager detects logouts.
+	// Right now it assumes that a logout results in an empty username.
+	// After the fix, the username would still be present, so we'll need to rely on
+	// a different field of LoggedInUser (or introduce a new one) to determine logout
+	// state reliably.
+	if err != nil || clusterClient.Username == "" {
+		return status, nil
+	}
 
-		if err := clusterClient.LoadKeyForCluster(context.Background(), status.Cluster); err != nil {
+	status, err = clusterClient.ProfileStatus()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Load SSH key for the cluster indicated in the profile.
+	// Skip if the profile is empty, the key cannot be found, or the key isn't supported as an agent key.
+	err = clusterClient.LoadKeyForCluster(context.Background(), status.Cluster)
+	if err != nil {
+		if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) && !trace.IsCompareFailed(err) {
 			return nil, trace.Wrap(err)
 		}
+		s.Logger.InfoContext(context.Background(), "Could not load key for cluster into the local agent",
+			"cluster", status.Cluster,
+			"error", err,
+		)
 	}
 
 	return status, nil

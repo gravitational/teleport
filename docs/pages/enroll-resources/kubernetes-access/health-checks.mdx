@@ -1,6 +1,7 @@
 ---
 title: Teleport Kubernetes Health Checks
 sidebar_label: Health Checks
+sidebar_position: 6
 description: How to configure Teleport Kubernetes health checks and view health.
 tags:
 - conceptual
@@ -177,14 +178,12 @@ spec:
     kubernetes_labels_expression: 'labels["owner"] == "platform-team"'
 ```
 
-A `default_kube` `health_check_config` is introduced in version (= kubernetes.health_check_min_version =), and enables all Kubernetes clusters to participate in health checks.
+A `default-kube` `health_check_config` is introduced in version (= kubernetes.health_check_min_version =), and enables all Kubernetes clusters to participate in health checks.
 ```yaml
 kind: health_check_config
 metadata:
   description: Enables all health checks by default
-  labels:
-    teleport.internal/resource-type: preset
-  name: default_kube
+  name: default-kube
 spec:
   match:
     kubernetes_labels:
@@ -194,6 +193,8 @@ spec:
 version: v1
 ```
 
+`default-kube` may be disabled, but not permanently deleted. Deleting with `tctl rm health_check_config/default-kube` has the effect of resetting the config to its default settings and matching all Kubernetes clusters.
+
 A different `default` `health_check_config` also exists, and focuses on matching databases for health checks.
 
 Multiple different `health_check_config` resources may be created for different groups of Kubernetes clusters. When multiple `health_check_config` match the same Kubernetes cluster, configs are sorted in ascending order by name, and only the first config applies (e.g., the name "00-my-config" has greater precedence than "10-my-config").
@@ -202,14 +203,12 @@ Multiple different `health_check_config` resources may be created for different 
 
 Set the `match.disabled` field to `true` on any `health_check_config`. 
 
-For example, use `tctl edit health_check_config/default_kube`
+For example, use `tctl edit health_check_config/default-kube`
 ```yaml
 kind: health_check_config
 metadata:
   description: Enables all health checks by default
-  labels:
-    teleport.internal/resource-type: preset
-  name: default_kube
+  name: default-kube
 spec:
   match:
     disable: true
@@ -226,7 +225,7 @@ Any defined labels, such as `kubernetes_labels`, are ignored when `disable: true
 
 Read the default health check config with `tctl get`:
 ```bash
-$ tctl get health_check_config/default_kube
+$ tctl get health_check_config/default-kube
 ```
 
 Create a new health check config with `tctl create`:
@@ -236,7 +235,7 @@ $ tctl create health_check_config.yaml
 
 Update an existing config interactively with `tctl edit`:
 ```bash
-$ tctl edit health_check_config/default_kube
+$ tctl edit health_check_config/default-kube
 ```
 
 Delete a health check config with `tctl rm`:

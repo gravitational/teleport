@@ -30,6 +30,25 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+const managedByStaticDeleteMsg = `This resource is managed by static configuration. In order to reset it to defaults, remove relevant configuration from teleport.yaml and restart the servers.`
+
+func checkCreateResourceWithOrigin(storedRes types.ResourceWithOrigin, resDesc string, force, confirm bool) error {
+	if exists := (storedRes.Origin() != types.OriginDefaults); exists && !force {
+		return trace.AlreadyExists("non-default %s already exists", resDesc)
+	}
+	return checkUpdateResourceWithOrigin(storedRes, resDesc, confirm)
+}
+
+func checkUpdateResourceWithOrigin(storedRes types.ResourceWithOrigin, resDesc string, confirm bool) error {
+	managedByStatic := storedRes.Origin() == types.OriginConfigFile
+	if managedByStatic && !confirm {
+		return trace.BadParameter(`The %s resource is managed by static configuration. We recommend removing configuration from teleport.yaml, restarting the servers and trying this command again.
+
+If you would still like to proceed, re-run the command with the --confirm flag.`, resDesc)
+	}
+	return nil
+}
+
 // AltResourceNameFunc is a func that returns an alternative name for a resource.
 type AltResourceNameFunc[T types.ResourceWithLabels] func(T) string
 

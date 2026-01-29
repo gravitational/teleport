@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -42,6 +43,14 @@ const (
 	IntegrationSubKindAWSRolesAnywhere = "aws-ra"
 )
 
+// integrationSubKindValues is a list of supported integration subkind values.
+var integrationSubKindValues = []string{
+	IntegrationSubKindAWSOIDC,
+	IntegrationSubKindAzureOIDC,
+	IntegrationSubKindAWSRolesAnywhere,
+	IntegrationSubKindGitHub,
+}
+
 const (
 	// IntegrationAWSOIDCAudienceUnspecified denotes an empty audience value. Empty audience value
 	// is used to maintain default OIDC integration behavior and backward compatibility.
@@ -49,6 +58,14 @@ const (
 	// IntegrationAWSOIDCAudienceAWSIdentityCenter is an audience name for the Teleport AWS Idenity Center plugin.
 	IntegrationAWSOIDCAudienceAWSIdentityCenter = "aws-identity-center"
 )
+
+// integrationAWSOIDCAudienceValues is a list of the supported AWS OIDC Audience
+// values. If this list is updated, be sure to also update the audience field's
+// godoc string in the [AWSOIDCIntegrationSpecV1] protobuf definition.
+var integrationAWSOIDCAudienceValues = []string{
+	IntegrationAWSOIDCAudienceUnspecified,
+	IntegrationAWSOIDCAudienceAWSIdentityCenter,
+}
 
 const (
 	// IntegrationAWSRolesAnywhereProfileSyncStatusSuccess indicates that the profile sync was successful.
@@ -64,6 +81,9 @@ type Integration interface {
 	// CanChangeStateTo checks if the current Integration can be updated for the provided integration.
 	CanChangeStateTo(Integration) error
 
+	// SupportsDiscoveryResources returns whether this integration can have associated DiscoverConfigs.
+	SupportsDiscoveryResources() bool
+
 	// GetAWSOIDCIntegrationSpec returns the `aws-oidc` spec fields.
 	GetAWSOIDCIntegrationSpec() *AWSOIDCIntegrationSpecV1
 	// SetAWSOIDCIntegrationSpec sets the `aws-oidc` spec fields.
@@ -76,6 +96,8 @@ type Integration interface {
 
 	// GetAzureOIDCIntegrationSpec returns the `azure-oidc` spec fields.
 	GetAzureOIDCIntegrationSpec() *AzureOIDCIntegrationSpecV1
+	// SetAzureOIDCIntegrationSpec sets the `azure-oidc` spec fields.
+	SetAzureOIDCIntegrationSpec(*AzureOIDCIntegrationSpecV1)
 
 	// GetGitHubIntegrationSpec returns the GitHub spec.
 	GetGitHubIntegrationSpec() *GitHubIntegrationSpecV1
@@ -189,6 +211,17 @@ func NewIntegrationAWSRA(md Metadata, spec *AWSRAIntegrationSpecV1) (*Integratio
 	return ig, nil
 }
 
+// SupportsDiscoveryResources specifies if this integration subkind may have associated discovery configs.
+func (ig *IntegrationV1) SupportsDiscoveryResources() bool {
+	switch ig.GetSubKind() {
+	case IntegrationSubKindAWSOIDC,
+		IntegrationSubKindAzureOIDC:
+		return true
+	default:
+		return false
+	}
+}
+
 // String returns the integration string representation.
 func (ig *IntegrationV1) String() string {
 	return fmt.Sprintf("IntegrationV1(Name=%v, SubKind=%s, Labels=%v)",
@@ -298,12 +331,13 @@ func (s *IntegrationSpecV1_AWSOIDC) CheckAndSetDefaults() error {
 // ValidateAudience validates if the audience field is configured with
 // a supported audience value.
 func (s *IntegrationSpecV1_AWSOIDC) ValidateAudience() error {
-	switch s.AWSOIDC.Audience {
-	case IntegrationAWSOIDCAudienceUnspecified, IntegrationAWSOIDCAudienceAWSIdentityCenter:
-		return nil
-	default:
-		return trace.BadParameter("unsupported audience value %q", s.AWSOIDC.Audience)
+	if !slices.Contains(integrationAWSOIDCAudienceValues, s.AWSOIDC.Audience) {
+		return trace.BadParameter("unsupported audience value %q, supported values are %q",
+			s.AWSOIDC.Audience,
+			integrationAWSOIDCAudienceValues,
+		)
 	}
+	return nil
 }
 
 // Validate validates the configuration for Azure OIDC integration subkind.
@@ -399,6 +433,13 @@ func (ig *IntegrationV1) SetAWSOIDCIssuerS3URI(issuerS3URI string) {
 // GetAzureOIDCIntegrationSpec returns the specific spec fields for `azure-oidc` subkind integrations.
 func (ig *IntegrationV1) GetAzureOIDCIntegrationSpec() *AzureOIDCIntegrationSpecV1 {
 	return ig.Spec.GetAzureOIDC()
+}
+
+// SetAzureOIDCIntegrationSpec sets the `azure-oidc` spec fields.
+func (ig *IntegrationV1) SetAzureOIDCIntegrationSpec(spec *AzureOIDCIntegrationSpecV1) {
+	ig.Spec.SubKindSpec = &IntegrationSpecV1_AzureOIDC{
+		AzureOIDC: spec,
+	}
 }
 
 // GetGitHubIntegrationSpec returns the GitHub spec.
@@ -606,7 +647,7 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 		}
 		d.Spec.AWSRA = *ig.GetAWSRolesAnywhereIntegrationSpec()
 	default:
-		return nil, trace.BadParameter("invalid subkind %q", ig.SubKind)
+		return nil, trace.BadParameter("invalid subkind %q, supported values are %q", ig.SubKind, integrationSubKindValues)
 	}
 
 	out, err := json.Marshal(d)

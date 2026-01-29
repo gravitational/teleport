@@ -1,10 +1,13 @@
 ---
 title: Okta User Sync
+sidebar_label: User Sync
 description: Explains how to set up Okta user sync with the guided integration flow.
+sidebar_position: 3
 tags:
  - how-to
  - identity-governance
  - privileged-access
+enterprise: Identity Governance
 ---
 
 {/* lint disable page-structure remark-lint */}
@@ -46,7 +49,7 @@ group assignments in Okta and can make changes within Okta based on your
 Teleport RBAC configuration. To limit the scope of the integration, ensure that:
 
 - In the Teleport roles you have assigned to users, no role contains an
-  [app_labels](../../../enroll-resources/application-access/controls.mdx) field
+  [app_labels](../../../enroll-resources/application-access/configuration/controls.mdx) field
   with a wildcard value. Since Teleport uses this field to govern access to Okta
   applications, wildcard values will grant Teleport users access to all Okta
   applications. 

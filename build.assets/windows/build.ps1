@@ -101,7 +101,11 @@ function Install-Rust {
         Invoke-WebRequest -Uri https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-gnu/rustup-init.exe -OutFile $RustupFile
         $Env:RUSTUP_HOME = "$ToolchainDir/rustup"
         $Env:CARGO_HOME = "$ToolchainDir/cargo"
-        & "$ToolchainDir\rustup-init.exe" --profile minimal -y --default-toolchain "$RustVersion-x86_64-pc-windows-gnu"
+        # we explicitly set the default host triple to the -windows-gnu
+        # toolchain because the default is the -windows-msvc triple and cross
+        # compilation with the -gnu target (which is all we use) fails with the
+        # e/windowsauth build
+        & "$ToolchainDir\rustup-init.exe" --profile minimal -y --default-host x86_64-pc-windows-gnu --default-toolchain "$RustVersion-x86_64-pc-windows-gnu"
         Enable-Rust -ToolchainDir $ToolchainDir
         Write-Host "::endgroup::"
     }
@@ -169,7 +173,7 @@ function Install-WasmDeps {
     .SYNOPSIS
         Builds and installs wasm-bindgen-cli, wasm-opt, and wasm32-unknown-unknown toolchain.
     #>
-    
+
     Write-Host "::group::Installing wasm-bindgen-cli, wasm-opt, and wasm32-unknown-unknown toolchain"
     make -C "$TeleportSourceDirectory" ensure-wasm-deps
     Write-Host "::endgroup::"
@@ -421,8 +425,9 @@ function Build-Tsh {
 
     $CommandDuration = Measure-Block {
         Write-Host "::group::Building tsh..."
+        cargo build -p rdp-decoder --release --locked
         $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
-        go build -tags piv -trimpath -ldflags "-s -w $BuildTypeLDFlags" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"
+        go build -tags "piv rust_rdp_decoder" -trimpath -ldflags "-s -w $BuildTypeLDFlags" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"
         if ($LastExitCode -ne 0) {
             exit $LastExitCode
         }

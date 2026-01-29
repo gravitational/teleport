@@ -27,7 +27,6 @@ jobs:
         TELEPORT_ETCD_TEST: yes
         TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
         TELEPORT_XAUTH_TEST: yes
-        TELEPORT_BPF_TEST: yes
         WEBASSETS_SKIP_BUILD: 1
       options: --cap-add=SYS_ADMIN --privileged
 
@@ -46,7 +45,7 @@ jobs:
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -67,7 +66,7 @@ jobs:
           private-key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
 
       - name: Checkout shared-workflows
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows

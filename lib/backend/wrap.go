@@ -113,6 +113,11 @@ func (s *Wrapper) CompareAndSwap(ctx context.Context, expected Item, replaceWith
 	return s.backend.CompareAndSwap(ctx, expected, replaceWith)
 }
 
+// PutBatch puts multiple values into backend.
+func (s *Wrapper) PutBatch(ctx context.Context, items []Item) ([]string, error) {
+	return PutBatch(ctx, s.backend, items)
+}
+
 // Delete deletes item by key
 func (s *Wrapper) Delete(ctx context.Context, key Key) error {
 	return s.backend.Delete(ctx, key)

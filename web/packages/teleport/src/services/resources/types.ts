@@ -40,7 +40,12 @@ export type Kind =
   | KindJoinToken;
 
 /** Teleport role in a resource format. */
-export type RoleResource = Resource<KindRole>;
+export type RoleResource = Resource<KindRole> & {
+  /**
+   * Only defined if querying roles were requested with "includeObject".
+   */
+  object?: Role;
+};
 
 /** Teleport role with only the role name and description, used for displaying requestable roles. */
 export type RequestableRole = {
@@ -62,11 +67,13 @@ export type Role = {
     expires?: string;
     revision?: string;
   };
-  spec: {
-    allow: RoleConditions;
-    deny: RoleConditions;
-    options: RoleOptions;
-  };
+  spec: RoleSpec;
+};
+
+export type RoleSpec = {
+  allow: RoleConditions;
+  deny: RoleConditions;
+  options: RoleOptions;
 };
 
 export enum RoleVersion {
@@ -94,37 +101,88 @@ export function isLegacySamlIdpRbac(roleVersion: RoleVersion): boolean {
 }
 
 /**
+ * Defines the identity to access an AWS IC application.
+ */
+export type AccountAssignment = {
+  /* the AWS Account ID */
+  account?: string;
+  /* the ARN that starts with "arn:aws:sso:::" */
+  permission_set?: string;
+};
+
+/**
+ * Fields related to application access.
+ */
+export type ApplicationResourceAccess = {
+  app_labels?: Labels;
+
+  aws_role_arns?: string[];
+  azure_identities?: string[];
+  gcp_service_accounts?: string[];
+  mcp?: MCPPermissions;
+  account_assignments?: AccountAssignment[];
+};
+
+/**
+ * Fields related to database access.
+ */
+export type DatabaseResourceAccess = {
+  db_labels?: Labels;
+  db_service_labels?: Labels;
+
+  db_names?: string[];
+  db_users?: string[];
+  db_roles?: string[];
+};
+
+/**
+ * Fields related to git server access.
+ */
+export type GitHubResourceAccess = {
+  github_permissions?: GitHubPermission[];
+};
+
+/**
+ * Fields related to kube cluster access.
+ */
+export type KubernetesResourceAccess = {
+  kubernetes_labels?: Labels;
+
+  kubernetes_groups?: string[];
+  kubernetes_resources?: KubernetesResource[];
+  kubernetes_users?: string[];
+};
+
+/**
+ * Fields related to server access.
+ */
+export type ServerResourceAccess = {
+  node_labels?: Labels;
+
+  logins?: string[];
+};
+
+/**
+ * Fields related to windows desktop access.
+ */
+export type WindowsDesktopResourceAccess = {
+  windows_desktop_labels?: Labels;
+
+  windows_desktop_logins?: string[];
+};
+
+/**
  * A set of conditions that must be matched to allow or deny access. Fields
  * follow the snake case convention to match the wire format.
  */
 export type RoleConditions = {
-  node_labels?: Labels;
-  logins?: string[];
-
-  kubernetes_groups?: string[];
-  kubernetes_labels?: Labels;
-  kubernetes_resources?: KubernetesResource[];
-  kubernetes_users?: string[];
-
-  app_labels?: Labels;
-  aws_role_arns?: string[];
-  azure_identities?: string[];
-  gcp_service_accounts?: string[];
-
-  db_labels?: Labels;
-  db_names?: string[];
-  db_users?: string[];
-  db_roles?: string[];
-  db_service_labels?: Labels;
-
-  windows_desktop_labels?: Labels;
-  windows_desktop_logins?: string[];
-
-  github_permissions?: GitHubPermission[];
-  mcp?: MCPPermissions;
-
   rules?: Rule[];
-};
+} & ApplicationResourceAccess &
+  DatabaseResourceAccess &
+  GitHubResourceAccess &
+  KubernetesResourceAccess &
+  ServerResourceAccess &
+  WindowsDesktopResourceAccess;
 
 export type Labels = Record<string, string | string[]>;
 
@@ -303,6 +361,7 @@ export enum ResourceKind {
   WebToken = 'web_token',
   WindowsDesktop = 'windows_desktop',
   WindowsDesktopService = 'windows_desktop_service',
+  WorkloadCluster = 'workload_cluster',
   WorkloadIdentity = 'workload_identity',
 
   // Resources that have no actual data representation, but serve for checking

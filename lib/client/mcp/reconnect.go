@@ -51,6 +51,8 @@ type ProxyStdioConnConfig struct {
 	// AutoReconnect attempts to re-establish new MCP sessions with the remote
 	// server when encounter connection issues.
 	AutoReconnect bool
+	// HTTPHeaders defines extra custom headers for HTTP transports.
+	HTTPHeaders map[string]string
 
 	// Logger is the slog logger.
 	Logger *slog.Logger
@@ -155,30 +157,41 @@ func ProxyStdioConn(ctx context.Context, cfg ProxyStdioConnConfig) error {
 
 type serverConnWithAutoReconnect struct {
 	ProxyStdioConnConfig
-	parentCtx context.Context
+	closeCtx       context.Context
+	closeCtxCancel context.CancelFunc
 
 	mu                  sync.Mutex
-	serverRequestWriter mcputils.MessageWriter
+	serverMessageWriter mcputils.MessageWriter
+	serverMessageReader *mcputils.MessageReader
 	firstConnectionDone bool
 	initRequest         *mcputils.JSONRPCRequest
 	initResponse        *mcp.InitializeResult
 	initNotification    *mcputils.JSONRPCNotification
-	closeServerConn     func()
 }
 
 func newServerConnWithAutoReconnect(parentCtx context.Context, cfg ProxyStdioConnConfig) (*serverConnWithAutoReconnect, error) {
+	closeCtx, closeCtxCancel := context.WithCancel(parentCtx)
 	return &serverConnWithAutoReconnect{
 		ProxyStdioConnConfig: cfg,
-		parentCtx:            parentCtx,
+		closeCtx:             closeCtx,
+		closeCtxCancel:       closeCtxCancel,
 	}, nil
 }
 
 func (r *serverConnWithAutoReconnect) Close() error {
+	r.Logger.InfoContext(r.closeCtx, "Closing server connection")
+
 	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.closeServerConn != nil {
-		r.closeServerConn()
+	r.closeCtxCancel()
+	if r.serverMessageReader == nil {
+		r.mu.Unlock()
+		return nil
 	}
+
+	// Wait without lock.
+	wait := r.serverMessageReader.Done()
+	r.mu.Unlock()
+	<-wait
 	return nil
 }
 
@@ -210,12 +223,13 @@ func (r *serverConnWithAutoReconnect) makeServerTransport(ctx context.Context) (
 			return r.DialServer(ctx)
 		}
 		httpReaderWriter, err := mcputils.NewHTTPReaderWriter(
-			r.parentCtx,
+			r.closeCtx,
 			"http://localhost", // does not matter with the custom transport.
 			mcpclienttransport.WithHTTPBasicClient(&http.Client{
 				Transport: transport,
 			}),
 			mcpclienttransport.WithContinuousListening(),
+			mcpclienttransport.WithHTTPHeaders(r.HTTPHeaders),
 		)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -234,6 +248,11 @@ func (r *serverConnWithAutoReconnect) makeServerTransport(ctx context.Context) (
 }
 
 func (r *serverConnWithAutoReconnect) canRetryLocked() bool {
+	// We are closed, no retry.
+	if r.closeCtx.Err() != nil {
+		return false
+	}
+
 	// When auto-reconnect is on, always retry without exiting.
 	// When auto-reconnect is off, see if we have made the first connection yet.
 	// If not, we could retry until the first connection is established.
@@ -249,8 +268,8 @@ func (r *serverConnWithAutoReconnect) shouldExitOnWriteError() bool {
 }
 
 func (r *serverConnWithAutoReconnect) getServerRequestWriterLocked(ctx context.Context) (mcputils.MessageWriter, error) {
-	if r.serverRequestWriter != nil {
-		return r.serverRequestWriter, nil
+	if r.serverMessageWriter != nil {
+		return r.serverMessageWriter, nil
 	}
 
 	if !r.canRetryLocked() {
@@ -269,9 +288,9 @@ func (r *serverConnWithAutoReconnect) getServerRequestWriterLocked(ctx context.C
 			serverTransportReader.Close()
 			return nil, trace.Wrap(err)
 		}
-		r.serverRequestWriter = serverWriter
+		r.serverMessageWriter = serverWriter
 	} else {
-		r.serverRequestWriter = mcputils.NewMultiMessageWriter(
+		r.serverMessageWriter = mcputils.NewMultiMessageWriter(
 			mcputils.MessageWriterFunc(func(ctx context.Context, msg mcp.JSONRPCMessage) error {
 				r.cacheMessageLocked(ctx, msg)
 				return nil
@@ -282,7 +301,7 @@ func (r *serverConnWithAutoReconnect) getServerRequestWriterLocked(ctx context.C
 	}
 
 	// This should never fail as long the correct config is passed in.
-	serverResponseReader, err := mcputils.NewMessageReader(mcputils.MessageReaderConfig{
+	r.serverMessageReader, err = mcputils.NewMessageReader(mcputils.MessageReaderConfig{
 		Transport: serverTransportReader,
 		// OnClose is called when server connection is dead or if any handler
 		// fails. Teleport Proxy automatically closes the connection when tsh
@@ -295,7 +314,7 @@ func (r *serverConnWithAutoReconnect) getServerRequestWriterLocked(ctx context.C
 				r.Logger.InfoContext(ctx, "Lost server session, closing...")
 				r.ClientStdio.Close()
 			}
-			r.serverRequestWriter = nil
+			r.serverMessageWriter = nil
 			if r.onServerConnClosed != nil {
 				r.onServerConnClosed()
 			}
@@ -316,12 +335,10 @@ func (r *serverConnWithAutoReconnect) getServerRequestWriterLocked(ctx context.C
 		return nil, trace.Wrap(err)
 	}
 
-	readerCtx, readerCancel := context.WithCancel(r.parentCtx)
-	r.closeServerConn = readerCancel
-	go serverResponseReader.Run(readerCtx)
+	go r.serverMessageReader.Run(r.closeCtx)
 
 	r.Logger.InfoContext(ctx, "Started a new MCP server connection")
-	return r.serverRequestWriter, nil
+	return r.serverMessageWriter, nil
 }
 
 func (r *serverConnWithAutoReconnect) initializedLocked() bool {
@@ -388,7 +405,7 @@ func (r *serverConnWithAutoReconnect) cacheMessageLocked(ctx context.Context, ms
 
 	switch m := msg.(type) {
 	case *mcputils.JSONRPCRequest:
-		if r.initRequest == nil && m.Method == mcp.MethodInitialize {
+		if r.initRequest == nil && m.Method == mcputils.MethodInitialize {
 			r.initRequest = m
 			r.Logger.DebugContext(ctx, "Cached initialize", "request", m)
 		}

@@ -1,5 +1,6 @@
 ---
 title: Teleport Architecture
+sidebar_label: Architecture
 description: Provides detailed information about how Teleport works.
 tags:
  - conceptual
@@ -56,7 +57,7 @@ Read more about [Teleport Proxy Service Architecture](proxy.mdx). You can also
 read about the architecture of Teleport Proxy Service features:
 
 - [TLS Routing](tls-routing.mdx)
-- [Proxy Peering](../../zero-trust-access/management/operations/proxy-peering.mdx)
+- [Proxy Peering](../../zero-trust-access/deploy-a-cluster/reliability/proxy-peering.mdx)
 
 ## Enrolling resources
 
@@ -66,8 +67,8 @@ infrastructure resources with a Teleport cluster:
 
 - **Teleport Agents** proxy traffic from users to and from
   Teleport-protected infrastructure resources.
-- **Machine ID Bots** receive short-lived credentials from the `tbot` binary so
-  service accounts can access infrastructure.
+- **Machine & Workload Identity Bots** receive short-lived credentials from the
+  `tbot` binary so service accounts can access infrastructure.
 - **Trusted clusters** allow a user of one Teleport cluster to access
   infrastructure that is enrolled with another Teleport cluster by federating
   trust across multiple Teleport clusters.
@@ -102,20 +103,21 @@ about the architecture of Teleport Agent features:
 - [Session recordings](session-recording.mdx): Teleport Agents record user
   sessions and send the data to the Auth Service for storage.
 
-### Machine ID
+### Machine & Workload Identity
 
-Machine ID is a Teleport system that enables automated services to access
-Teleport-protected infrastructure with regularly updated credentials.
-Administrators register a Bot user with Teleport that, like a human user, is
-assigned Teleport roles. 
+Machine & Workload Identity is a Teleport product that enables automated
+services to access Teleport-protected infrastructure with regularly updated
+credentials. Administrators register a Bot user with Teleport that, like a human
+user, is assigned Teleport roles.
 
 Instances of the `tbot` binary communicate with the Teleport Auth Service to
 continuously refresh credentials. As with Agents, administrators must deploy
 `tbot` instances on their own infrastructure, including on CI/CD platforms such
 as GitHub Actions, and [join
-them](../../machine-workload-identity/machine-id/deployment/deployment.mdx) to a cluster.
+them](../../machine-workload-identity/deployment/deployment.mdx) to a cluster.
 
-Read more about [Machine ID Architecture](machine-id-architecture.mdx).
+Read more about
+[Machine & Workload Identity Architecture](machine-id-architecture.mdx).
 
 ### Trusted clusters
 

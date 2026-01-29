@@ -64,6 +64,9 @@ const (
 	AccessListService_AccessRequestPromote_FullMethodName                    = "/teleport.accesslist.v1.AccessListService/AccessRequestPromote"
 	AccessListService_GetSuggestedAccessLists_FullMethodName                 = "/teleport.accesslist.v1.AccessListService/GetSuggestedAccessLists"
 	AccessListService_GetInheritedGrants_FullMethodName                      = "/teleport.accesslist.v1.AccessListService/GetInheritedGrants"
+	AccessListService_ListUserAccessLists_FullMethodName                     = "/teleport.accesslist.v1.AccessListService/ListUserAccessLists"
+	AccessListService_CreateAccessListWithPreset_FullMethodName              = "/teleport.accesslist.v1.AccessListService/CreateAccessListWithPreset"
+	AccessListService_UpdateAccessListWithPreset_FullMethodName              = "/teleport.accesslist.v1.AccessListService/UpdateAccessListWithPreset"
 )
 
 // AccessListServiceClient is the client API for AccessListService service.
@@ -152,6 +155,13 @@ type AccessListServiceClient interface {
 	GetSuggestedAccessLists(ctx context.Context, in *GetSuggestedAccessListsRequest, opts ...grpc.CallOption) (*GetSuggestedAccessListsResponse, error)
 	// GetInheritedGrants returns the inherited grants for an access list.
 	GetInheritedGrants(ctx context.Context, in *GetInheritedGrantsRequest, opts ...grpc.CallOption) (*GetInheritedGrantsResponse, error)
+	// ListUserAccessLists returns a paginated list of all access lists where the
+	// user is an owner or member.
+	ListUserAccessLists(ctx context.Context, in *ListUserAccessListsRequest, opts ...grpc.CallOption) (*ListUserAccessListsResponse, error)
+	// CreateAccessListWithPreset creates a new access list with preset configuration.
+	CreateAccessListWithPreset(ctx context.Context, in *CreateAccessListWithPresetRequest, opts ...grpc.CallOption) (*CreateAccessListWithPresetResponse, error)
+	// UpdateAccessListWithPreset updates an existing access list with preset configuration.
+	UpdateAccessListWithPreset(ctx context.Context, in *UpdateAccessListWithPresetRequest, opts ...grpc.CallOption) (*UpdateAccessListWithPresetResponse, error)
 }
 
 type accessListServiceClient struct {
@@ -463,6 +473,36 @@ func (c *accessListServiceClient) GetInheritedGrants(ctx context.Context, in *Ge
 	return out, nil
 }
 
+func (c *accessListServiceClient) ListUserAccessLists(ctx context.Context, in *ListUserAccessListsRequest, opts ...grpc.CallOption) (*ListUserAccessListsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListUserAccessListsResponse)
+	err := c.cc.Invoke(ctx, AccessListService_ListUserAccessLists_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accessListServiceClient) CreateAccessListWithPreset(ctx context.Context, in *CreateAccessListWithPresetRequest, opts ...grpc.CallOption) (*CreateAccessListWithPresetResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateAccessListWithPresetResponse)
+	err := c.cc.Invoke(ctx, AccessListService_CreateAccessListWithPreset_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accessListServiceClient) UpdateAccessListWithPreset(ctx context.Context, in *UpdateAccessListWithPresetRequest, opts ...grpc.CallOption) (*UpdateAccessListWithPresetResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateAccessListWithPresetResponse)
+	err := c.cc.Invoke(ctx, AccessListService_UpdateAccessListWithPreset_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AccessListServiceServer is the server API for AccessListService service.
 // All implementations must embed UnimplementedAccessListServiceServer
 // for forward compatibility.
@@ -549,6 +589,13 @@ type AccessListServiceServer interface {
 	GetSuggestedAccessLists(context.Context, *GetSuggestedAccessListsRequest) (*GetSuggestedAccessListsResponse, error)
 	// GetInheritedGrants returns the inherited grants for an access list.
 	GetInheritedGrants(context.Context, *GetInheritedGrantsRequest) (*GetInheritedGrantsResponse, error)
+	// ListUserAccessLists returns a paginated list of all access lists where the
+	// user is an owner or member.
+	ListUserAccessLists(context.Context, *ListUserAccessListsRequest) (*ListUserAccessListsResponse, error)
+	// CreateAccessListWithPreset creates a new access list with preset configuration.
+	CreateAccessListWithPreset(context.Context, *CreateAccessListWithPresetRequest) (*CreateAccessListWithPresetResponse, error)
+	// UpdateAccessListWithPreset updates an existing access list with preset configuration.
+	UpdateAccessListWithPreset(context.Context, *UpdateAccessListWithPresetRequest) (*UpdateAccessListWithPresetResponse, error)
 	mustEmbedUnimplementedAccessListServiceServer()
 }
 
@@ -648,6 +695,15 @@ func (UnimplementedAccessListServiceServer) GetSuggestedAccessLists(context.Cont
 }
 func (UnimplementedAccessListServiceServer) GetInheritedGrants(context.Context, *GetInheritedGrantsRequest) (*GetInheritedGrantsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetInheritedGrants not implemented")
+}
+func (UnimplementedAccessListServiceServer) ListUserAccessLists(context.Context, *ListUserAccessListsRequest) (*ListUserAccessListsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListUserAccessLists not implemented")
+}
+func (UnimplementedAccessListServiceServer) CreateAccessListWithPreset(context.Context, *CreateAccessListWithPresetRequest) (*CreateAccessListWithPresetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateAccessListWithPreset not implemented")
+}
+func (UnimplementedAccessListServiceServer) UpdateAccessListWithPreset(context.Context, *UpdateAccessListWithPresetRequest) (*UpdateAccessListWithPresetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateAccessListWithPreset not implemented")
 }
 func (UnimplementedAccessListServiceServer) mustEmbedUnimplementedAccessListServiceServer() {}
 func (UnimplementedAccessListServiceServer) testEmbeddedByValue()                           {}
@@ -1210,6 +1266,60 @@ func _AccessListService_GetInheritedGrants_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccessListService_ListUserAccessLists_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUserAccessListsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessListServiceServer).ListUserAccessLists(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessListService_ListUserAccessLists_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessListServiceServer).ListUserAccessLists(ctx, req.(*ListUserAccessListsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccessListService_CreateAccessListWithPreset_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAccessListWithPresetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessListServiceServer).CreateAccessListWithPreset(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessListService_CreateAccessListWithPreset_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessListServiceServer).CreateAccessListWithPreset(ctx, req.(*CreateAccessListWithPresetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccessListService_UpdateAccessListWithPreset_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAccessListWithPresetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessListServiceServer).UpdateAccessListWithPreset(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessListService_UpdateAccessListWithPreset_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessListServiceServer).UpdateAccessListWithPreset(ctx, req.(*UpdateAccessListWithPresetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AccessListService_ServiceDesc is the grpc.ServiceDesc for AccessListService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1336,6 +1446,18 @@ var AccessListService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetInheritedGrants",
 			Handler:    _AccessListService_GetInheritedGrants_Handler,
+		},
+		{
+			MethodName: "ListUserAccessLists",
+			Handler:    _AccessListService_ListUserAccessLists_Handler,
+		},
+		{
+			MethodName: "CreateAccessListWithPreset",
+			Handler:    _AccessListService_CreateAccessListWithPreset_Handler,
+		},
+		{
+			MethodName: "UpdateAccessListWithPreset",
+			Handler:    _AccessListService_UpdateAccessListWithPreset_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -16,59 +16,52 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { LabelKind } from 'design/Label';
+import { IntegrationLike } from './IntegrationList';
+import { getStatus } from './shared/StatusLabel';
+import { Status } from './types';
 
-import { IntegrationLike, Status } from 'teleport/Integrations/IntegrationList';
-import {
-  getStatusCodeTitle,
-  Integration,
-  IntegrationStatusCode,
-} from 'teleport/services/integrations';
+const StatusRank: Record<Status, number> = {
+  [Status.Draft]: 1,
+  [Status.Scanning]: 2,
+  [Status.Healthy]: 3,
+  [Status.Issues]: 4,
+  [Status.Failed]: 5,
+  [Status.Unknown]: 6,
+};
 
-export function getStatus(item: IntegrationLike): Status {
-  if (item.resourceType === 'integration') {
-    return Status.Success;
-  }
+export const sortByStatus = (a, b) => {
+  const { status: statusA } = getStatus(a);
+  const { status: statusB } = getStatus(b);
+  return StatusRank[statusA] - StatusRank[statusB];
+};
 
-  if (item.resourceType === 'external-audit-storage') {
-    switch (item.statusCode) {
-      case IntegrationStatusCode.Draft:
-        return Status.Warning;
-      default:
-        return Status.Success;
+export function filterByIntegrationStatus(
+  l: IntegrationLike[],
+  s: Status[]
+): IntegrationLike[] {
+  return l.filter(i => {
+    if (s.length) {
+      const { status } = getStatus(i);
+      if (!s.includes(status)) {
+        return false;
+      }
     }
-  }
-
-  switch (item.statusCode) {
-    case IntegrationStatusCode.Unknown:
-      return null;
-    case IntegrationStatusCode.Running:
-      return Status.Success;
-    case IntegrationStatusCode.SlackNotInChannel:
-      return Status.Warning;
-    case IntegrationStatusCode.Draft:
-      return Status.Warning;
-    default:
-      return Status.Error;
-  }
+    return true;
+  });
 }
 
-export function getStatusAndLabel(integration: Integration): {
-  labelKind: LabelKind;
-  status: string;
-} {
-  const modifiedStatus = getStatus(integration);
-  const statusCode = integration.statusCode;
-  const title = getStatusCodeTitle(statusCode);
+export function filterBySearch(
+  l: IntegrationLike[],
+  s: string
+): IntegrationLike[] {
+  const search = s.trim().toLocaleUpperCase();
+  if (!search) return l;
 
-  switch (modifiedStatus) {
-    case Status.Success:
-      return { labelKind: 'success', status: title };
-    case Status.Error:
-      return { labelKind: 'danger', status: title };
-    case Status.Warning:
-      return { labelKind: 'warning', status: title };
-    default:
-      return { labelKind: 'secondary', status: title };
-  }
+  return l.filter(i => {
+    return (
+      i.name.toLocaleUpperCase().includes(search) ||
+      i.kind.toLocaleUpperCase().includes(search) ||
+      (i.details && i.details.toLocaleUpperCase().includes(search))
+    );
+  });
 }

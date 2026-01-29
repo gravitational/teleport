@@ -60,11 +60,11 @@ func NewWorkloadIdentityAPICommand(parentCmd *kingpin.CmdClause, action MutatorA
 
 	cmd.Flag(
 		"name-selector",
-		"The name of the workload identity to issue",
+		"The name of the workload identity to issue. Mutually exclusive with --label-selector.",
 	).StringVar(&c.NameSelector)
 	cmd.Flag(
 		"label-selector",
-		"A label-based selector for which workload identities to issue. Multiple labels can be provided using ','.",
+		"A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.",
 	).StringVar(&c.LabelSelector)
 	cmd.Flag(
 		"listen",

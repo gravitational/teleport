@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -44,11 +46,26 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/join/azuredevops"
+	"github.com/gravitational/teleport/lib/join/azurejoin"
+	"github.com/gravitational/teleport/lib/join/bitbucket"
+	"github.com/gravitational/teleport/lib/join/circleci"
 	"github.com/gravitational/teleport/lib/join/ec2join"
+	"github.com/gravitational/teleport/lib/join/gcp"
+	"github.com/gravitational/teleport/lib/join/githubactions"
+	"github.com/gravitational/teleport/lib/join/gitlab"
+	"github.com/gravitational/teleport/lib/join/iamjoin"
 	joinauthz "github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinutils"
+	"github.com/gravitational/teleport/lib/join/oraclejoin"
+	"github.com/gravitational/teleport/lib/join/provision"
+	"github.com/gravitational/teleport/lib/join/spacelift"
+	"github.com/gravitational/teleport/lib/join/terraformcloud"
+	"github.com/gravitational/teleport/lib/join/tpmjoin"
+	kubetoken "github.com/gravitational/teleport/lib/kube/token"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
@@ -62,8 +79,8 @@ var log = logutils.NewPackageLogger(teleport.ComponentKey, "join")
 // JoinServer to implement joining.
 type AuthService interface {
 	ValidateToken(ctx context.Context, tokenName string) (types.ProvisionToken, error)
-	GenerateHostCertsForJoin(ctx context.Context, provisionToken types.ProvisionToken, req *HostCertsParams) (*proto.Certs, error)
-	GenerateBotCertsForJoin(ctx context.Context, provisionToken types.ProvisionToken, req *BotCertsParams) (*proto.Certs, string, error)
+	GenerateHostCertsForJoin(ctx context.Context, token provision.Token, req *HostCertsParams) (*proto.Certs, error)
+	GenerateBotCertsForJoin(ctx context.Context, token provision.Token, req *BotCertsParams) (*proto.Certs, string, error)
 	EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 	GetReadOnlyAuthPreference(context.Context) (readonly.AuthPreference, error)
@@ -75,27 +92,132 @@ type AuthService interface {
 	CheckLockInForce(constants.LockingMode, []types.LockTarget) error
 	GetClock() clockwork.Clock
 	GetHTTPClientForAWSSTS() utils.HTTPDoClient
+	GetAWSOrganizationsClientGetter() iamjoin.OrganizationsAPIGetter
+	GenerateAWSOIDCToken(ctx context.Context, integrationName string) (string, error)
+	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+	GetAzureDevopsIDTokenValidator() azuredevops.Validator
+	GetBitbucketIDTokenValidator() bitbucket.Validator
 	GetEC2ClientForEC2JoinMethod() ec2join.EC2Client
+	GetCircleCITokenValidator() circleci.Validator
+	GetEnv0IDTokenValidator() Env0TokenValidator
+	GetGCPIDTokenValidator() gcp.Validator
+	GetGHAIDTokenValidator() githubactions.GithubIDTokenValidator
+	GetGHAIDTokenJWKSValidator() githubactions.GithubIDTokenJWKSValidator
+	GetGitlabIDTokenValidator() gitlab.Validator
+	GetTPMValidator() tpmjoin.TPMValidator
+	GetK8sTokenReviewValidator() kubetoken.InClusterValidator
+	GetK8sJWKSValidator() kubetoken.JWKSValidator
+	GetK8sOIDCValidator() *kubetoken.KubernetesOIDCTokenValidator
+	GetSpaceliftIDTokenValidator() spacelift.Validator
+	GetTerraformIDTokenValidator() terraformcloud.Validator
+	GetAzureJoinConfig() *azurejoin.AzureJoinConfig
 	services.Presence
+	GetStaticScopedTokens(context.Context) (*joiningv1.StaticScopedTokens, error)
 }
 
 // ServerConfig holds configuration parameters for [Server].
 type ServerConfig struct {
-	AuthService AuthService
-	Authorizer  authz.Authorizer
-	FIPS        bool
+	AuthService        AuthService
+	Authorizer         authz.Authorizer
+	FIPS               bool
+	ScopedTokenService services.ScopedTokenService
+	OracleHTTPClient   utils.HTTPDoClient
+	Logger             *slog.Logger
 }
 
 // Server implements cluster joining for nodes and bots.
 type Server struct {
-	cfg *ServerConfig
+	cfg               *ServerConfig
+	oracleRootCACache *oraclejoin.RootCACache
 }
 
 // NewServer returns a new [Server] instance.
 func NewServer(cfg *ServerConfig) *Server {
-	return &Server{
-		cfg: cfg,
+	if cfg.Logger == nil {
+		cfg.Logger = slog.With(teleport.ComponentKey, "join")
 	}
+	return &Server{
+		cfg:               cfg,
+		oracleRootCACache: oraclejoin.NewRootCACache(),
+	}
+}
+
+// getProvisionToken attempts to resolve a name to a [provision.Token] by first attempting to
+// fetch a [joiningv1.ScopedToken] and then falling back to a [types.ProvisionTokenV2] if a
+// scoped token can not be found.
+func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.Token, error) {
+	var scoped provision.Token
+	var scopedErr error
+
+	var classic provision.Token
+	var classicErr error
+
+	wg := &sync.WaitGroup{}
+	wg.Go(func() {
+		staticTokens, err := s.cfg.AuthService.GetStaticScopedTokens(ctx)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				s.cfg.Logger.ErrorContext(ctx, "could not fetch static scoped tokens", "error", err)
+			}
+		}
+
+		// short circuit if a matching static scoped token is found
+		for _, tok := range staticTokens.GetSpec().GetTokens() {
+			if tok.GetMetadata().GetName() == name {
+				scoped, scopedErr = joining.NewToken(tok)
+				return
+			}
+		}
+
+		res, err := s.cfg.ScopedTokenService.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+			Name: name,
+		})
+		if err != nil {
+			scopedErr = err
+			return
+		}
+		if err := joining.ValidateTokenForUse(res.GetToken()); err != nil {
+			scopedErr = err
+			return
+		}
+
+		scoped, scopedErr = joining.NewToken(res.GetToken())
+	})
+	wg.Go(func() {
+		// Fetch the provision token and validate that it is not expired.
+		classic, classicErr = s.cfg.AuthService.ValidateToken(ctx, name)
+	})
+	wg.Wait()
+
+	// we explicitly disallow a join if the provided token name returns both a scoped and classic provision token
+	if scoped != nil && classic != nil {
+		return nil, trace.AccessDenied("joining with an ambiguous token name is not permitted")
+	}
+
+	if scoped != nil {
+		return scoped, nil
+	}
+
+	if classic != nil {
+		return classic, nil
+	}
+
+	// if both errors are [trace.NotFoundError], just return a single err
+	if trace.IsNotFound(scopedErr) && trace.IsNotFound(classicErr) {
+		return nil, trace.NotFound("token expired or not found")
+	}
+
+	// prefer reporting errors other than [trace.NotFoundError]
+	if trace.IsNotFound(scopedErr) {
+		return nil, trace.Wrap(classicErr)
+	}
+
+	if trace.IsNotFound(classicErr) {
+		return nil, trace.Wrap(scopedErr)
+	}
+
+	// return both errors as an aggregate if we couldn't reasonably return one
+	return nil, trace.NewAggregate(scopedErr, classicErr)
 }
 
 // Join implements cluster joining for nodes and bots.
@@ -110,7 +232,6 @@ func NewServer(cfg *ServerConfig) *Server {
 // token expires).
 //
 // Only secret tokens are currently supported.
-// TODO(nklaassen): support all join methods.
 func (s *Server) Join(stream messages.ServerStream) (err error) {
 	ctx := stream.Context()
 	diag := stream.Diagnostic()
@@ -144,30 +265,34 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		return trace.Wrap(err)
 	}
 
-	// Fetch the provision token and validate that it is not expired.
-	provisionToken, err := s.cfg.AuthService.ValidateToken(ctx, clientInit.TokenName)
+	token, err := s.getProvisionToken(ctx, clientInit.TokenName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	// Set any diagnostic info we can get from the token.
 	diag.Set(func(i *diagnostic.Info) {
-		i.SafeTokenName = provisionToken.GetSafeName()
-		i.TokenJoinMethod = string(configuredJoinMethod(provisionToken))
-		i.TokenExpires = provisionToken.Expiry()
-		i.BotName = provisionToken.GetBotName()
+		i.SafeTokenName = token.GetSafeName()
+		i.TokenJoinMethod = string(configuredJoinMethod(token))
+		i.TokenExpires = token.Expiry()
+		i.BotName = token.GetBotName()
 	})
 
 	// Validate that the requested join method matches the join method
 	// configured on the token, or that the client did not specify a specific
 	// join method and allow the server to choose it from the token.
-	joinMethod, err := checkJoinMethod(provisionToken, clientInit.JoinMethod)
+	joinMethod, err := checkJoinMethod(token, clientInit.JoinMethod)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Assert that the provision token allows the requested system role.
-	if err := ProvisionTokenAllowsRole(provisionToken, types.SystemRole(clientInit.SystemRole)); err != nil {
+	if err := TokenAllowsRole(token, types.SystemRole(clientInit.SystemRole)); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if authCtx.IsInstance && authCtx.Scope != token.GetAssignedScope() {
+		return trace.BadParameter("tried to re-join instance from scope %q into %q", authCtx.Scope, token.GetAssignedScope())
 	}
 
 	authPref, err := s.cfg.AuthService.GetAuthPreference(ctx)
@@ -186,7 +311,7 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 	}
 
 	// Call out to the handler for the specific join method.
-	result, err := s.handleJoinMethod(stream, authCtx, clientInit, provisionToken, joinMethod)
+	result, err := s.handleJoinMethod(stream, authCtx, clientInit, token, joinMethod)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -199,21 +324,46 @@ func (s *Server) handleJoinMethod(
 	stream messages.ServerStream,
 	authCtx *joinauthz.Context,
 	clientInit *messages.ClientInit,
-	provisionToken types.ProvisionToken,
+	token provision.Token,
 	joinMethod types.JoinMethod,
 ) (messages.Response, error) {
 	switch joinMethod {
-	case types.JoinMethodToken:
-		return s.handleTokenJoin(stream, authCtx, clientInit, provisionToken)
+	case types.JoinMethodAzure:
+		return s.handleAzureJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodAzureDevops:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateAzureDevopsToken)
+	case types.JoinMethodBitbucket:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateBitbucketToken)
 	case types.JoinMethodBoundKeypair:
-		return s.handleBoundKeypairJoin(stream, authCtx, clientInit, provisionToken)
-	case types.JoinMethodIAM:
-		return s.handleIAMJoin(stream, authCtx, clientInit, provisionToken)
+		return s.handleBoundKeypairJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodCircleCI:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateCircleCIToken)
 	case types.JoinMethodEC2:
-		return s.handleEC2Join(stream, authCtx, clientInit, provisionToken)
+		return s.handleEC2Join(stream, authCtx, clientInit, token)
+	case types.JoinMethodEnv0:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateEnv0Token)
+	case types.JoinMethodGCP:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGCPToken)
+	case types.JoinMethodGitHub:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGithubToken)
+	case types.JoinMethodGitLab:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGitlabToken)
+	case types.JoinMethodIAM:
+		return s.handleIAMJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodKubernetes:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateKubernetesToken)
+	case types.JoinMethodOracle:
+		return s.handleOracleJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodSpacelift:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateSpaceliftToken)
+	case types.JoinMethodTerraformCloud:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateTerraformCloudToken)
+	case types.JoinMethodToken:
+		return s.handleTokenJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodTPM:
+		return s.handleTPMJoin(stream, authCtx, clientInit, token)
 	default:
-		// TODO(nklaassen): implement checks for all join methods.
-		return nil, trace.NotImplemented("join method %s is not yet implemented by the new join service", joinMethod)
+		return nil, trace.NotImplemented("join method %s is not implemented", joinMethod)
 	}
 }
 
@@ -287,11 +437,12 @@ func (s *Server) authenticate(ctx context.Context, diag *diagnostic.Diagnostic, 
 		HostID:        hostID,
 		BotInstanceID: botInstanceID,
 		BotGeneration: botGeneration,
+		Scope:         id.AgentScope,
 	}, nil
 }
 
-func checkJoinMethod(provisionToken types.ProvisionToken, requestedJoinMethod *string) (types.JoinMethod, error) {
-	tokenJoinMethod := configuredJoinMethod(provisionToken)
+func checkJoinMethod(token provision.Token, requestedJoinMethod *string) (types.JoinMethod, error) {
+	tokenJoinMethod := configuredJoinMethod(token)
 	if requestedJoinMethod == nil {
 		// Auto join method mode, the client didn't specify so use whatever is on the token.
 		return tokenJoinMethod, nil
@@ -304,14 +455,14 @@ func checkJoinMethod(provisionToken types.ProvisionToken, requestedJoinMethod *s
 	return tokenJoinMethod, nil
 }
 
-// ProvisionTokenAllowsRole asserts that the given provision token allows the
+// TokenAllowsRole asserts that the given provision token allows the
 // requested role, or else it returns an error.
-func ProvisionTokenAllowsRole(provisionToken types.ProvisionToken, role types.SystemRole) error {
+func TokenAllowsRole(token provision.Token, role types.SystemRole) error {
 	// Instance certs can be requested if the provision token allows at least
 	// one local service role (e.g. proxy, node, etc).
 	if role == types.RoleInstance {
 		hasLocalServiceRole := false
-		for _, role := range provisionToken.GetRoles() {
+		for _, role := range token.GetRoles() {
 			if role.IsLocalService() {
 				hasLocalServiceRole = true
 				break
@@ -323,7 +474,7 @@ func ProvisionTokenAllowsRole(provisionToken types.ProvisionToken, role types.Sy
 	}
 
 	// Make sure the caller is requesting a role allowed by the token.
-	if !provisionToken.GetRoles().Include(role) && role != types.RoleInstance {
+	if !token.GetRoles().Include(role) && role != types.RoleInstance {
 		return trace.BadParameter("can not join the cluster, the token does not allow role %s", role)
 	}
 
@@ -336,15 +487,15 @@ func (s *Server) makeResult(
 	authCtx *joinauthz.Context,
 	clientInit *messages.ClientInit,
 	clientParams *messages.ClientParams,
-	provisionToken types.ProvisionToken,
+	token provision.Token,
 	rawClaims any,
 	attrs *workloadidentityv1pb.JoinAttrs,
 ) (messages.Response, error) {
 	switch types.SystemRole(clientInit.SystemRole) {
 	case types.RoleInstance:
-		return s.makeHostResult(ctx, diag, authCtx, clientParams.HostParams, provisionToken, rawClaims)
+		return s.makeHostResult(ctx, diag, authCtx, clientParams.HostParams, token, rawClaims)
 	case types.RoleBot:
-		result, _, err := s.makeBotResult(ctx, diag, authCtx, clientParams.BotParams, provisionToken, rawClaims, attrs)
+		result, _, err := s.makeBotResult(ctx, diag, authCtx, clientParams.BotParams, token, rawClaims, attrs)
 		return result, trace.Wrap(err)
 	default:
 		return nil, trace.NotImplemented("new join service only supports Instance and Bot system roles, client requested %s", clientInit.SystemRole)
@@ -356,14 +507,14 @@ func (s *Server) makeHostResult(
 	diag *diagnostic.Diagnostic,
 	authCtx *joinauthz.Context,
 	hostParams *messages.HostParams,
-	provisionToken types.ProvisionToken,
+	token provision.Token,
 	rawClaims any,
 ) (*messages.HostResult, error) {
-	certsParams, err := makeHostCertsParams(ctx, diag, authCtx, hostParams, configuredJoinMethod(provisionToken), rawClaims)
+	certsParams, err := makeHostCertsParams(ctx, diag, authCtx, hostParams, configuredJoinMethod(token), rawClaims)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, err := s.cfg.AuthService.GenerateHostCertsForJoin(ctx, provisionToken, certsParams)
+	certs, err := s.cfg.AuthService.GenerateHostCertsForJoin(ctx, token, certsParams)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -442,7 +593,7 @@ func (s *Server) makeBotResult(
 	diag *diagnostic.Diagnostic,
 	authCtx *joinauthz.Context,
 	botParams *messages.BotParams,
-	provisionToken types.ProvisionToken,
+	token provision.Token,
 	rawClaims any,
 	attrs *workloadidentityv1pb.JoinAttrs,
 ) (*messages.BotResult, string, error) {
@@ -450,7 +601,7 @@ func (s *Server) makeBotResult(
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	certs, botInstanceID, err := s.cfg.AuthService.GenerateBotCertsForJoin(ctx, provisionToken, certsParams)
+	certs, botInstanceID, err := s.cfg.AuthService.GenerateBotCertsForJoin(ctx, token, certsParams)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -636,7 +787,7 @@ func makeAuditEvent(info diagnostic.Info, attributesStruct *apievents.Struct) ap
 	}
 }
 
-func configuredJoinMethod(token types.ProvisionToken) types.JoinMethod {
+func configuredJoinMethod(token provision.Token) types.JoinMethod {
 	method := token.GetJoinMethod()
 	if method == types.JoinMethodUnspecified {
 		return types.JoinMethodToken

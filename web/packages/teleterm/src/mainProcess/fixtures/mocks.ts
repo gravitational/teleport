@@ -107,10 +107,6 @@ export class MockMainProcessClient implements MainProcessClient {
 
   fileStorage = createMockFileStorage();
 
-  removeKubeConfig(): Promise<void> {
-    return Promise.resolve(undefined);
-  }
-
   async forceFocusWindow() {}
 
   async symlinkTshMacOs() {
@@ -182,7 +178,6 @@ export class MockMainProcessClient implements MainProcessClient {
     return true;
   }
   async changeAppUpdatesManagingCluster() {}
-  async maybeRemoveAppUpdatesManagingCluster() {}
   async checkForAppUpdates() {}
   async downloadAppUpdate() {}
   async cancelAppUpdateDownload() {}
@@ -208,13 +203,23 @@ export class MockMainProcessClient implements MainProcessClient {
   } {
     return { cleanup: () => undefined };
   }
-  async logoutCluster(): Promise<void> {}
+  async logout(): Promise<void> {}
   async syncCluster(): Promise<void> {}
   async addCluster(): Promise<Cluster> {
     return makeRootCluster();
   }
   async syncRootClusters(): Promise<Cluster[]> {
     return [];
+  }
+  registerClusterLifecycleHandler(): {
+    cleanup: () => void;
+  } {
+    return { cleanup: () => undefined };
+  }
+  subscribeToProfileWatcherErrors(): {
+    cleanup: () => void;
+  } {
+    return { cleanup: () => undefined };
   }
 }
 
@@ -227,6 +232,7 @@ export const makeRuntimeSettings = (
   insecure: true,
   userDataDir: '',
   sessionDataDir: '',
+  homeDir: '',
   tempDataDir: '',
   agentBinaryPath: '',
   binDir: '',
@@ -240,7 +246,7 @@ export const makeRuntimeSettings = (
   tshd: {
     requestedNetworkAddress: '',
     binaryPath: '',
-    homeDir: '',
+    defaultHomeDir: '',
   },
   sharedProcess: {
     requestedNetworkAddress: '',

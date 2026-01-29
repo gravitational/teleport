@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/trait"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 )
 
 // RelationshipKind represents the type of relationship: member or owner.
@@ -47,6 +47,14 @@ type AccessListAndMembersGetter interface {
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	GetAccessList(ctx context.Context, accessListName string) (*accesslist.AccessList, error)
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+}
+
+// lockGetter is a service that gets locks.
+type lockGetter interface {
+	// GetLocks is here for compatibility with older Teleport versions.
+	// TODO(okraport): DELETE IN v21
+	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
+	ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error)
 }
 
 // GetMembersFor returns a flattened list of Members for an Access List, including inherited Members.
@@ -270,13 +278,27 @@ func IsAccessListOwner(
 	user types.User,
 	accessList *accesslist.AccessList,
 	g AccessListAndMembersGetter,
-	lockGetter services.LockGetter,
+	lockGetter lockGetter,
 	clock clockwork.Clock,
 ) (accesslistv1.AccessListUserAssignmentType, error) {
 	if lockGetter != nil {
-		locks, err := lockGetter.GetLocks(ctx, true, types.LockTarget{
-			User: user.GetName(),
-		})
+		locks, err := clientutils.CollectWithFallback(
+			ctx,
+			func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+				return lockGetter.ListLocks(ctx, limit, start, &types.LockFilter{
+					InForceOnly: true,
+					Targets:     []*types.LockTarget{{User: user.GetName()}},
+				})
+			},
+			func(ctx context.Context) ([]types.Lock, error) {
+				// TODO(okraport): DELETE IN v21
+				const inForceOnlyTrue = true
+				return lockGetter.GetLocks(ctx, inForceOnlyTrue, types.LockTarget{
+					User: user.GetName(),
+				})
+			},
+		)
+
 		if err != nil {
 			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
 		}
@@ -335,13 +357,26 @@ func IsAccessListMember(
 	user types.User,
 	accessList *accesslist.AccessList,
 	g AccessListAndMembersGetter,
-	lockGetter services.LockGetter,
+	lockGetter lockGetter,
 	clock clockwork.Clock,
 ) (accesslistv1.AccessListUserAssignmentType, error) {
 	if lockGetter != nil {
-		locks, err := lockGetter.GetLocks(ctx, true, types.LockTarget{
-			User: user.GetName(),
-		})
+		locks, err := clientutils.CollectWithFallback(
+			ctx,
+			func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+				return lockGetter.ListLocks(ctx, limit, start, &types.LockFilter{
+					InForceOnly: true,
+					Targets:     []*types.LockTarget{{User: user.GetName()}},
+				})
+			},
+			func(ctx context.Context) ([]types.Lock, error) {
+				// TODO(okraport): DELETE IN v21
+				const inForceOnlyTrue = true
+				return lockGetter.GetLocks(ctx, inForceOnlyTrue, types.LockTarget{
+					User: user.GetName(),
+				})
+			},
+		)
 		if err != nil {
 			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
 		}
@@ -350,65 +385,12 @@ func IsAccessListMember(
 		}
 	}
 
-	members, err := fetchMembers(ctx, accessList.GetName(), g)
-	if err != nil {
-		return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err, "fetching access list %q members", accessList.GetName())
+	cfg := walkConfig{
+		getter: g,
+		root:   accessList,
 	}
 
-	var membershipErr error
-
-	for _, member := range members {
-		// Is user an explicit member?
-		if member.Spec.MembershipKind != accesslist.MembershipKindList && member.GetName() == user.GetName() {
-			if !UserMeetsRequirements(user, accessList.Spec.MembershipRequires) {
-				// Avoid non-deterministic behavior in these checks. Rather than returning immediately, continue
-				// through all members to make sure there isn't a valid match later on.
-				membershipErr = trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
-				continue
-			}
-			if !member.Spec.Expires.IsZero() && !clock.Now().Before(member.Spec.Expires) {
-				membershipErr = trace.AccessDenied("User '%s's membership in Access List '%s' has expired", user.GetName(), accessList.Spec.Title)
-				continue
-			}
-			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT, nil
-		}
-		// Is user an inherited member through any potential member AccessLists?
-		if member.Spec.MembershipKind == accesslist.MembershipKindList {
-			memberAccessList, err := g.GetAccessList(ctx, member.GetName())
-			if err != nil {
-				if trace.IsNotFound(err) {
-					continue
-				}
-				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err, "getting access list %q", member.GetName())
-			}
-			// Since we already verified that the user is not locked, don't provide lockGetter here
-			membershipType, err := IsAccessListMember(ctx, user, memberAccessList, g, nil, clock)
-			if err != nil {
-				if trace.IsAccessDenied(err) {
-					membershipErr = err
-					continue
-				}
-				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
-			}
-			if membershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
-				if !UserMeetsRequirements(user, accessList.Spec.MembershipRequires) {
-					membershipErr = trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
-					continue
-				}
-				if !member.Spec.Expires.IsZero() && !clock.Now().Before(member.Spec.Expires) {
-					membershipErr = trace.AccessDenied("User '%s's membership in Access List '%s' has expired", user.GetName(), accessList.Spec.Title)
-					continue
-				}
-				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, nil
-			}
-		}
-	}
-
-	if membershipErr == nil {
-		membershipErr = trace.AccessDenied("no access path found")
-	}
-
-	return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(membershipErr)
+	return isAccessListMember(ctx, user, cfg, clock.Now())
 }
 
 // UserMeetsRequirements is a helper which will return whether the User meets the AccessList Ownership/MembershipRequires.
@@ -493,7 +475,7 @@ func withUserRequirementsCheck(user types.User, clock clockwork.Clock) ancestorO
 type HierarchyConfig struct {
 	// AccessListService is used to fetch Access Lists and their members.
 	AccessListsService AccessListAndMembersGetter
-	// Getter is used to fetch Access Lists and their members.
+	// Clock is used to check if memberships are expired.
 	Clock clockwork.Clock
 }
 
@@ -724,6 +706,7 @@ func collectAncestors(ctx context.Context, accessList *accesslist.AccessList, ki
 // inherited from any ancestor lists, and the Access List's own MembershipRequires.
 func GetInheritedMembershipRequires(ctx context.Context, accessList *accesslist.AccessList, g AccessListAndMembersGetter) (*accesslist.Requires, error) {
 	ownRequires := accessList.GetMembershipRequires()
+	ownRequires = ownRequires.Clone()
 	ancestors, err := GetAncestorsFor(ctx, accessList, RelationshipKindMember, g)
 	if err != nil {
 		return &ownRequires, trace.Wrap(err)
@@ -731,6 +714,9 @@ func GetInheritedMembershipRequires(ctx context.Context, accessList *accesslist.
 
 	roles := ownRequires.Roles
 	traits := ownRequires.Traits
+	if traits == nil {
+		traits = trait.Traits{}
+	}
 
 	for _, ancestor := range ancestors {
 		requires := ancestor.GetMembershipRequires()

@@ -22,6 +22,7 @@ import styled from 'styled-components';
 
 import 'ace-builds/src-noconflict/mode-json';
 import 'ace-builds/src-noconflict/mode-yaml';
+import 'ace-builds/src-noconflict/mode-terraform.js';
 import 'ace-builds/src-noconflict/ext-searchbox';
 
 import { ButtonSecondary } from 'design/Button';
@@ -35,6 +36,10 @@ import StyledTextEditor from './StyledTextEditor';
 const { UndoManager } = ace.require('ace/undomanager');
 
 class TextEditor extends Component {
+  handleEditorCopy = () => {
+    this.props.onCopy?.();
+  };
+
   onChange = () => {
     const isClean = this.editor.session.getUndoManager().isClean();
     if (this.props.onDirty) {
@@ -57,6 +62,17 @@ class TextEditor extends Component {
     }
     if (prevProps.readOnly !== this.props.readOnly) {
       this.editor.setReadOnly(this.props.readOnly);
+    }
+
+    // If the data changes, reset the value in each session so changes are
+    // rendered.
+    if (prevProps.data !== this.props.data) {
+      this.props.data.forEach((doc, i) => {
+        const session = this.sessions[i];
+        if (session.getValue() !== doc.content) {
+          session.setValue(doc.content); // Note: resets the cursor to 0:0
+        }
+      });
     }
 
     this.editor.resize();
@@ -103,6 +119,7 @@ class TextEditor extends Component {
     this.editor.renderer.setShowPrintMargin(false);
     this.editor.renderer.setShowGutter(true);
     this.editor.on('input', this.onChange);
+    this.editor.on('copy', this.handleEditorCopy);
     this.editor.setReadOnly(readOnly);
     this.editor.setTheme({ cssClass: 'ace-teleport' });
     this.initSessions(data);
@@ -118,19 +135,32 @@ class TextEditor extends Component {
     this.session = null;
   }
 
+  handleCopy() {
+    copyToClipboard(this.editor.session.getValue());
+    this.props.onCopy?.();
+  }
+
+  handleDownload() {
+    downloadObject(this.props.downloadFileName, this.editor.session.getValue());
+    this.props.onDownload?.();
+  }
+
   render() {
     const { bg = 'levels.sunken' } = this.props;
     const hasButton = this.props.copyButton || this.props.downloadButton;
 
     return (
       <StyledTextEditor bg={bg}>
-        <div ref={e => (this.ace_viewer = e)} />
+        <div
+          ref={e => (this.ace_viewer = e)}
+          data-testid={this.props.testId ?? 'text-editor'}
+        />
         {hasButton && (
           <ButtonSection>
             {this.props.copyButton && (
               <EditorButton
                 title="Copy to clipboard"
-                onClick={() => copyToClipboard(this.editor.session.getValue())}
+                onClick={() => this.handleCopy()}
               >
                 <Copy size="medium" />
               </EditorButton>
@@ -138,12 +168,7 @@ class TextEditor extends Component {
             {this.props.downloadButton && (
               <EditorButton
                 title="Download"
-                onClick={() =>
-                  downloadObject(
-                    this.props.downloadFileName,
-                    this.editor.session.getValue()
-                  )
-                }
+                onClick={() => this.handleDownload()}
               >
                 <Download size="medium" />
               </EditorButton>
@@ -160,6 +185,16 @@ function getMode(docType) {
     return 'ace/mode/json';
   }
 
+  if (docType === 'terraform') {
+    return 'ace/mode/terraform';
+  }
+
+  if (docType === 'yaml') {
+    return 'ace/mode/yaml';
+  }
+
+  // Makes more sense to default to `ace/mode/text`, but there are existing uses
+  // that don't provide a type.
   return 'ace/mode/yaml';
 }
 

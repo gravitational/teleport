@@ -101,6 +101,7 @@ func TestGenerateIAMTokenName(t *testing.T) {
 
 type tokenData struct {
 	name   string
+	labels map[string]string
 	expiry time.Time
 	spec   types.ProvisionTokenSpecV2
 }
@@ -148,6 +149,30 @@ func TestGetTokens(t *testing.T) {
 				staticUIToken,
 			},
 			includeUserToken: true,
+		},
+		{
+			name: "cloud managed",
+			tokenData: []tokenData{
+				{
+					name: "cloud-iam",
+					spec: types.ProvisionTokenSpecV2{
+						Roles: types.SystemRoles{types.RoleProxy},
+					},
+					labels: map[string]string{"teleport.internal/cloud/token": "iam"},
+					expiry: expiry,
+				},
+			},
+			expected: []ui.JoinToken{
+				staticUIToken,
+				{
+					ID:            "cloud-iam",
+					SafeName:      "*********",
+					Expiry:        expiry,
+					Roles:         types.SystemRoles{types.RoleProxy},
+					IsCloudSystem: true, // due to presence of the teleport.internal/cloud/token label
+					Method:        "token",
+				},
+			},
 		},
 		{
 			name: "all tokens",
@@ -242,7 +267,7 @@ func TestGetTokens(t *testing.T) {
 									Workflow:        "test-workflow",
 									Environment:     "test-environment",
 									Actor:           "octocat",
-									Ref:             "ref/heads/main",
+									Ref:             "refs/heads/main",
 									RefType:         "branch",
 								},
 							},
@@ -269,7 +294,7 @@ func TestGetTokens(t *testing.T) {
 								Workflow:        "test-workflow",
 								Environment:     "test-environment",
 								Actor:           "octocat",
-								Ref:             "ref/heads/main",
+								Ref:             "refs/heads/main",
 								RefType:         "branch",
 							},
 						},
@@ -320,6 +345,13 @@ func TestGetTokens(t *testing.T) {
 			for _, td := range tc.tokenData {
 				token, err := types.NewProvisionTokenFromSpec(td.name, td.expiry, td.spec)
 				require.NoError(t, err)
+
+				if len(td.labels) > 0 {
+					m := token.GetMetadata()
+					m.Labels = td.labels
+					token.SetMetadata(m)
+				}
+
 				err = env.server.Auth().CreateToken(ctx, token)
 				require.NoError(t, err)
 			}
@@ -624,7 +656,7 @@ func TestCreateTokenExpiry(t *testing.T) {
 
 			var expectedExpiry time.Time
 			switch method {
-			case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodOracle, types.JoinMethodGitHub:
+			case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodOracle, types.JoinMethodGitHub, types.JoinMethodGitLab:
 				expectedExpiry = time.Time{}
 			default:
 				expectedExpiry = time.Now().UTC().Add(4 * time.Hour)
@@ -759,6 +791,15 @@ func setMinimalConfigForMethod(spec *types.ProvisionTokenSpecV2, method types.Jo
 			},
 			Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
 				Mode: boundkeypair.RecoveryModeInsecure,
+			},
+		}
+	case types.JoinMethodEnv0:
+		spec.Env0 = &types.ProvisionTokenSpecV2Env0{
+			Allow: []*types.ProvisionTokenSpecV2Env0_Rule{
+				{
+					OrganizationID: "example-organization-id",
+					ProjectName:    "example-project-name",
+				},
 			},
 		}
 	}

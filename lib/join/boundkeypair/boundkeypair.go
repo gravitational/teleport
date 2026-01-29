@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
+	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	libsshutils "github.com/gravitational/teleport/lib/sshutils"
@@ -529,7 +530,7 @@ type JoinParams struct {
 	// Diag is the join attempt diagnostic.
 	Diag *diagnostic.Diagnostic
 	// ProvisionToken is the provision token used for the join attempt.
-	ProvisionToken types.ProvisionToken
+	ProvisionToken provision.Token
 	// ClientInit is the ClientInit message sent by the joining client.
 	ClientInit *messages.ClientInit
 	// BoundKeypairInit is the BoundKeypairInit message sent by the joining client.

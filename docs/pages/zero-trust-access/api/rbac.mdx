@@ -1,5 +1,6 @@
 ---
 title: Generate Teleport Roles from an External RBAC System
+sidebar_label: External RBAC Sync
 description: Use Teleport's API to automatically generate Teleport roles based on third-party RBAC policies
 tags:
  - how-to
@@ -963,7 +964,7 @@ resources:
 - [Databases](../../enroll-resources/database-access/rbac.mdx)
 - [Kubernetes clusters](../../enroll-resources/kubernetes-access/controls.mdx)
 - [Windows Desktops](../../enroll-resources/desktop-access/rbac.mdx)
-- [Applications](../../enroll-resources/application-access/controls.mdx)
+- [Applications](../../enroll-resources/application-access/configuration/controls.mdx)
 
 For general guidance, read our [Access Controls
 Reference](../../reference/access-controls/roles.mdx).
@@ -994,6 +995,6 @@ parsing, retries, and other tasks.
 
 In this example, we used the `tctl auth sign` command to fetch credentials for
 the program you wrote. For production usage, we recommend provisioning
-short-lived credentials via Machine ID, which reduces the risk of these
-credentials becoming stolen. View our [Machine ID
-documentation](../../machine-workload-identity/machine-id/introduction.mdx) to learn more.
+short-lived credentials via Machine & Workload Identity, which reduces the risk
+of these credentials becoming stolen. View our [Machine & Workload Identity
+documentation](../../machine-workload-identity/introduction.mdx) to learn more.

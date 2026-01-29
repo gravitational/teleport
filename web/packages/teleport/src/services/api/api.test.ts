@@ -19,6 +19,7 @@
 import { MfaChallengeResponse } from '../mfa';
 import websession from '../websession';
 import api, {
+  defaultHeaders,
   defaultRequestOptions,
   getAuthHeaders,
   isUserSessionRoleNotFoundError,
@@ -172,6 +173,91 @@ describe('api.fetch', () => {
         ...getAuthHeaders(),
       },
     });
+  });
+});
+
+describe('api.postWithOptions', () => {
+  let mockedFetch: jest.SpiedFunction<typeof fetch>;
+  beforeEach(() => {
+    mockedFetch = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue({ json: async () => ({}), ok: true } as Response); // we don't care about response
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  const authHeaders = {
+    'X-CSRF-Token': expect.any(String),
+    Authorization: expect.stringMatching(/^Bearer .+/),
+  };
+
+  // eslint-disable-next-line jest/expect-expect
+  it('accepts either data or formData', () => {
+    // @ts-expect-error Either formData or data should be accepted but not both.
+    api.postWithOptions('/foo', {
+      formData: new FormData(),
+      data: { foo: 'bar' },
+    });
+  });
+
+  it('stringifies data', () => {
+    api.postWithOptions('/foo', { data: { foo: 'bar' } });
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+    expect(mockedFetch).toHaveBeenCalledWith(
+      'http://localhost/foo',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ foo: 'bar' }),
+      })
+    );
+  });
+
+  it('keeps default headers when not passing headers through options and not using formData', () => {
+    api.postWithOptions('/foo');
+    expect(mockedFetch).toHaveBeenCalledWith(
+      'http://localhost/foo',
+      expect.objectContaining({
+        headers: { ...defaultHeaders, ...authHeaders },
+      })
+    );
+  });
+
+  it('overrides default headers with headers from options when not using formData', () => {
+    api.postWithOptions('/foo', { headers: { foo: 'bar' } });
+    expect(mockedFetch).toHaveBeenCalledWith(
+      'http://localhost/foo',
+      expect.objectContaining({
+        headers: {
+          foo: 'bar',
+          ...authHeaders,
+        },
+      })
+    );
+  });
+
+  it('overrides default headers when using formData and not passing headers through options', () => {
+    api.postWithOptions('/foo', { formData: new FormData() });
+    expect(mockedFetch).toHaveBeenCalledWith(
+      'http://localhost/foo',
+      expect.objectContaining({
+        headers: { Accept: 'application/json', ...authHeaders },
+      })
+    );
+  });
+
+  it('merges headers from options with overriden headers when using formData', () => {
+    api.postWithOptions('/foo', {
+      formData: new FormData(),
+      headers: { foo: 'bar', Accept: 'foo/bar' },
+    });
+    expect(mockedFetch).toHaveBeenCalledWith(
+      'http://localhost/foo',
+      expect.objectContaining({
+        headers: { foo: 'bar', Accept: 'application/json', ...authHeaders },
+      })
+    );
   });
 });
 

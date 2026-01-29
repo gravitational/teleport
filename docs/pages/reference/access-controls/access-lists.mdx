@@ -49,7 +49,12 @@ Provided owners meet requirements, owners are able to do the following:
 Owners are not able to add or remove owners from an Access List or control what roles
 and traits are granted by the Access List.
 
-## Access List Membership
+Access List owners are also automatically added as suggested reviewers to any
+resource-based Access Requests that include resource(-s) granted by this Access
+List. Learn more in the [Reviewing Access Requests](../../identity-governance/access-lists/reviewing-access-requests.mdx)
+guide.
+
+## Access List membership
 
 Access List members are Teleport users or nested Access Lists who are granted the roles
 and traits specified by the Access List. Upon login, users will be granted these
@@ -66,6 +71,23 @@ Access Lists can be nested within other Access Lists as members or owners. This 
 hierarchical permission structures where permissions can be inherited from multiple levels of
 parent Access Lists. Inheritance is recursive – members of a child Access List can
 themselves be Access Lists with their own members, and so on.
+
+### Finding parent Access Lists
+
+If you have both `tctl` and `jq` installed, you can use the following command sequence to find which Access Lists are parents of a given list.
+
+**Note, in the example below:**
+- The Access List title (spec.title) is a human-readable name.
+- The Access List name (metadata.name) is a UUID used internally by Teleport.
+
+```code
+# Change the CHILD_TITLE variable
+$ CHILD_TITLE="Human readable Access List title"
+
+# Two lines below don't need to be changed
+$ CHILD_NAME=$(tctl get access_list --format json | jq -r --arg CHILD_TITLE "$CHILD_TITLE" '.[] | select(.spec.title==$CHILD_TITLE) | .metadata.name')
+$ tctl get access_list --format json | jq -r --arg CHILD_NAME "$CHILD_NAME" '.[] | select(.spec.owners[].name==$CHILD_NAME) | .spec.title'
+```
 
 ### Membership Inheritance
 
@@ -190,3 +212,4 @@ above) and run `tctl create <filename>`. Access Lists can be updated by using `t
 Through these you can list Access Lists, get information about a particular Access Lists, and manage
 Access List users. To see more details, run `tctl acl --help`. More detail can be seen in the
 [CLI Reference](../cli/cli.mdx).
+

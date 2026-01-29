@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.scopes.access.v1;
 
 import "teleport/header/v1/metadata.proto";
+import "teleport/label/v1/label.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1";
 
@@ -48,5 +49,28 @@ message ScopedRoleSpec {
   // AssignableScopes is a list of scopes to which this role can be assigned.
   repeated string assignable_scopes = 1;
 
-  // TODO(fspmarshall): port relevant role features to scoped roles.
+  // Allow specifies the permissions granted by this role.
+  ScopedRoleConditions allow = 2;
+}
+
+// ScopedRoleConditions describes a role's allow block.
+message ScopedRoleConditions {
+  // Rules describe basic resource:verb permissions.
+  repeated ScopedRule rules = 1;
+
+  // Logins is the list of host logins this role allows.
+  repeated string logins = 2;
+
+  // NodeLabels is a map of node labels (used to dynamically grant access to
+  // nodes).
+  repeated teleport.label.v1.Label node_labels = 3;
+}
+
+// Rule maps resources to verbs. This is the underlying type used to describe
+// permissions like 'node:read' or 'role:create'.
+message ScopedRule {
+  // Resources is a list of resource kinds (e.g. 'scoped_token') that the below verbs apply to.
+  repeated string resources = 1;
+  // Verbs is the list of action verbs (e.g. 'read') that apply to the above resources.
+  repeated string verbs = 2;
 }

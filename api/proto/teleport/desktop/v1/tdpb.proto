@@ -1,0 +1,345 @@
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package teleport.desktop.v1;
+
+import "google/protobuf/descriptor.proto";
+import "teleport/mfa/v1/challenge.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1;tdpbv1";
+
+// Sent by client to begin a TDPB connection and advertise capabilities.
+message ClientHello {
+  string username = 1;
+  ClientScreenSpec screen_spec = 2;
+  uint32 keyboard_layout = 3;
+}
+
+// Sent by server in response to a 'Client Hello'. Advertises server capabilities.
+message ServerHello {
+  ConnectionActivated activation_spec = 1;
+  bool clipboard_enabled = 2;
+}
+
+// Defines the boundaries that PNG frame will update.
+// Used for composition on PNG frame messages only.
+message Rectangle {
+  uint32 left = 1;
+  uint32 top = 2;
+  uint32 right = 3;
+  uint32 bottom = 4;
+}
+
+// Contains updated image data to be displayed.
+message PNGFrame {
+  Rectangle coordinates = 1;
+  bytes data = 2;
+}
+
+// Contains a raw RDP FastPath message to by interpreted by the client.
+message FastPathPDU {
+  bytes pdu = 1;
+}
+
+// Contains a raw RDP response PDU to send to the server.
+message RDPResponsePDU {
+  bytes response = 1;
+}
+
+// Internal message sent by the server after establishing a connection
+// to the RDP host.
+message ConnectionActivated {
+  uint32 io_channel_id = 1;
+  uint32 user_channel_id = 2;
+  uint32 screen_width = 3;
+  uint32 screen_height = 4;
+}
+
+// Conveys the current state of keyboard buttons with persistent state.
+message SyncKeys {
+  bool scroll_lock_pressed = 1;
+  bool num_lock_state = 2;
+  bool caps_lock_state = 3;
+  bool kana_lock_state = 4;
+}
+
+// Represents the current position of the cursor on the client.
+message MouseMove {
+  uint32 x = 1;
+  uint32 y = 2;
+}
+
+// Specifies which mouse button was pressed.
+enum MouseButtonType {
+  MOUSE_BUTTON_TYPE_UNSPECIFIED = 0;
+  MOUSE_BUTTON_TYPE_LEFT = 1;
+  MOUSE_BUTTON_TYPE_MIDDLE = 2;
+  MOUSE_BUTTON_TYPE_RIGHT = 3;
+}
+
+// Informs the server of a mouse button press.
+message MouseButton {
+  MouseButtonType button = 1;
+  bool pressed = 2;
+}
+
+// Informs the server of a keyboard button press.
+message KeyboardButton {
+  uint32 key_code = 1;
+  bool pressed = 2;
+}
+
+// Composed in Client Hello to inform the server of the client's screen size.
+// May also be sent during a desktop session as the client resizes its display.
+// These mesasages are captured for session recordings in order to replay
+// resizing events.
+message ClientScreenSpec {
+  uint32 width = 1;
+  uint32 height = 2;
+}
+
+// Severity of an alert contained in an Alert message.
+enum AlertSeverity {
+  ALERT_SEVERITY_UNSPECIFIED = 0;
+  ALERT_SEVERITY_INFO = 1;
+  ALERT_SEVERITY_WARNING = 2;
+  ALERT_SEVERITY_ERROR = 3;
+}
+
+// Represents an Alert to be displayed by the client.
+message Alert {
+  string message = 1;
+  AlertSeverity severity = 2;
+}
+
+// Represents the axis on which a scroll wheel acts.
+enum MouseWheelAxis {
+  MOUSE_WHEEL_AXIS_UNSPECIFIED = 0;
+  MOUSE_WHEEL_AXIS_VERTICAL = 1;
+  MOUSE_WHEEL_AXIS_HORIZONTAL = 2;
+}
+
+// Mouse wheel event.
+message MouseWheel {
+  MouseWheelAxis axis = 1;
+  int32 delta = 2;
+}
+
+// Represents shared clipboard data.
+message ClipboardData {
+  bytes data = 1;
+}
+
+// MFA challenge type.
+enum MFAType {
+  MFA_TYPE_UNSPECIFIED = 0;
+  MFA_TYPE_WEBAUTHN = 1;
+  MFA_TYPE_U2F = 2;
+}
+
+// Contains an MFA challenge or response
+// The client implicitly expects a non-empty challenge while the server
+// expects a non-empty response.
+message MFA {
+  MFAType type = 1;
+  string channel_id = 2;
+  mfa.v1.AuthenticateChallenge challenge = 3;
+  mfa.v1.AuthenticateResponse authentication_response = 4;
+}
+
+// Sent by client to announce a new shared directory.
+message SharedDirectoryAnnounce {
+  uint32 directory_id = 1;
+  string name = 2;
+}
+
+// Sent by server to acknowledge a new shared directory.
+message SharedDirectoryAcknowledge {
+  uint32 directory_id = 1;
+  uint32 error_code = 2;
+}
+
+// Shared directory operation requests.
+message SharedDirectoryRequest {
+  // Common fields used for all request types.
+  uint32 directory_id = 1;
+  uint32 completion_id = 2;
+
+  // Info request.
+  message Info {
+    string path = 1;
+  }
+
+  // Create request.
+  message Create {
+    string path = 1;
+    uint32 file_type = 2;
+  }
+
+  // Delete request.
+  message Delete {
+    string path = 1;
+  }
+
+  // List request.
+  message List {
+    string path = 1;
+  }
+
+  // Read Request.
+  message Read {
+    string path = 1;
+    uint64 offset = 2;
+    uint32 length = 3;
+  }
+
+  // Write Request.
+  message Write {
+    string path = 1;
+    uint64 offset = 2;
+    bytes data = 3;
+  }
+
+  // Move Request.
+  message Move {
+    string original_path = 1;
+    string new_path = 2;
+  }
+
+  // Truncate Request.
+  message Truncate {
+    string path = 1;
+    uint32 end_of_file = 2;
+  }
+
+  // operation is the particular operation type being requested.
+  oneof operation {
+    Info info = 3;
+    Create create = 4;
+    Delete delete = 5;
+    List list = 6;
+    Read read = 7;
+    Write write = 8;
+    Move move = 9;
+    Truncate truncate = 10;
+  }
+}
+
+// Shared directory operation responses.
+message SharedDirectoryResponse {
+  // Common fields used for all response types.
+  uint32 completion_id = 1;
+  uint32 error_code = 2;
+
+  // Info response.
+  message Info {
+    FileSystemObject fso = 1;
+  }
+
+  // Create response.
+  message Create {
+    FileSystemObject fso = 1;
+  }
+
+  // Delete response.
+  message Delete {}
+
+  // List response.
+  message List {
+    repeated FileSystemObject fso_list = 1;
+  }
+
+  // Read response.
+  message Read {
+    bytes data = 1;
+  }
+
+  // Write response.
+  message Write {
+    uint32 bytes_written = 1;
+  }
+
+  // Move response.
+  message Move {}
+
+  // Truncate response.
+  message Truncate {}
+
+  // operation is the particular operation type that
+  // this response is intended for.
+  oneof operation {
+    Info info = 3;
+    Create create = 4;
+    Delete delete = 5;
+    List list = 6;
+    Read read = 7;
+    Write write = 8;
+    Move move = 9;
+    Truncate truncate = 10;
+  }
+}
+
+// Represents a file object in a shared directory.
+message FileSystemObject {
+  uint64 last_modified = 1;
+  uint64 size = 2;
+  uint32 file_type = 3;
+  bool is_empty = 4;
+  string path = 5;
+}
+
+// Contains latency metrics between the proxy and RDP host
+// as well as between the proxy and client.
+message LatencyStats {
+  uint32 client_latency_ms = 1;
+  uint32 server_latency_ms = 2;
+}
+
+// A ping message used to time latency between the web client and proxy.
+message Ping {
+  // UUID is used to correlate message sent by proxy and received from the Windows Desktop Service.
+  bytes uuid = 1;
+}
+
+// Envelope wraps all messages that are allowed to be sent on the wire.
+message Envelope {
+  oneof payload {
+    ClientHello client_hello = 1;
+    ServerHello server_hello = 2;
+    PNGFrame png_frame = 3;
+    FastPathPDU fast_path_pdu = 4;
+    RDPResponsePDU rdp_response_pdu = 5;
+    SyncKeys sync_keys = 6;
+    MouseMove mouse_move = 7;
+    MouseButton mouse_button = 8;
+    KeyboardButton keyboard_button = 9;
+    ClientScreenSpec client_screen_spec = 10;
+    Alert alert = 11;
+    MouseWheel mouse_wheel = 12;
+    ClipboardData clipboard_data = 13;
+    MFA mfa = 14;
+    SharedDirectoryAnnounce shared_directory_announce = 15;
+    SharedDirectoryAcknowledge shared_directory_acknowledge = 16;
+    SharedDirectoryRequest shared_directory_request = 17;
+    SharedDirectoryResponse shared_directory_response = 18;
+    LatencyStats latency_stats = 19;
+    Ping ping = 20;
+  }
+}

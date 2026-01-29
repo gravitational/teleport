@@ -20,6 +20,7 @@ package srv
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -29,6 +30,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -36,6 +38,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -46,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -73,6 +77,12 @@ var (
 
 var errRoleFileCopyingNotPermitted = trace.AccessDenied("file copying via SCP or SFTP is not permitted")
 
+// ValidatedMFAChallengeVerifier verifies that a validated MFA challenge exists in order to determine if the user has
+// completed MFA.
+type ValidatedMFAChallengeVerifier interface {
+	VerifyValidatedMFAChallenge(ctx context.Context, req *mfav1.VerifyValidatedMFAChallengeRequest, opts ...grpc.CallOption) (*mfav1.VerifyValidatedMFAChallengeResponse, error)
+}
+
 // AuthHandlerConfig is the configuration for an application handler.
 type AuthHandlerConfig struct {
 	// Server is the services.Server in the backend.
@@ -92,8 +102,7 @@ type AuthHandlerConfig struct {
 	// or an agentless server.
 	TargetServer types.Server
 
-	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
-	// configuration.
+	// FIPS mode means Teleport started in FedRAMP/FIPS mode.
 	FIPS bool
 
 	// Clock specifies the time provider. Will be used to override the time anchor
@@ -101,9 +110,12 @@ type AuthHandlerConfig struct {
 	// Defaults to real clock if unspecified
 	Clock clockwork.Clock
 
-	// OnRBACFailure is an opitonal callback used to hook in metrics/logs related to
+	// OnRBACFailure is an optional callback used to hook in metrics/logs related to
 	// RBAC failures.
 	OnRBACFailure func(conn ssh.ConnMetadata, ident *sshca.Identity, err error)
+
+	// ValidatedMFAChallengeVerifier is used to verify that a validated MFA challenge resource exists.
+	ValidatedMFAChallengeVerifier ValidatedMFAChallengeVerifier
 }
 
 func (c *AuthHandlerConfig) CheckAndSetDefaults() error {
@@ -123,6 +135,10 @@ func (c *AuthHandlerConfig) CheckAndSetDefaults() error {
 		c.Clock = clockwork.NewRealClock()
 	}
 
+	if c.ValidatedMFAChallengeVerifier == nil {
+		return trace.BadParameter("ValidatedMFAChallengeVerifier required")
+	}
+
 	return nil
 }
 
@@ -130,6 +146,7 @@ func (c *AuthHandlerConfig) CheckAndSetDefaults() error {
 // used by the regular and forwarding server.
 type AuthHandlers struct {
 	loginChecker
+	scopedLoginChecker
 	proxyingChecker
 	gitForwardingChecker
 
@@ -158,6 +175,7 @@ func NewAuthHandlers(config *AuthHandlerConfig) (*AuthHandlers, error) {
 	}
 
 	ah.loginChecker = lc
+	ah.scopedLoginChecker = lc
 	ah.proxyingChecker = lc
 	ah.gitForwardingChecker = lc
 
@@ -230,9 +248,24 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
-	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), h.c.AccessPoint)
-	if err != nil {
-		return IdentityContext{}, trace.Wrap(err)
+
+	var unstableAccessChecker services.AccessChecker
+	if accessInfo.ScopePin == nil {
+		// TODO(fspmarshall/scopes): rework session joining & cluster access checking logic to be compatible
+		// with scoped identities (or at least move the lack of support behind a better abstraction). for now, any codepath
+		// that would result in use of the unstable checker just returns empty joining policies.
+		unstableAccessChecker, err = services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), h.c.AccessPoint)
+		if err != nil {
+			return IdentityContext{}, trace.Wrap(err)
+		}
+	}
+
+	unstableClusterAccessChecker := func(cluster types.RemoteCluster) error {
+		if unstableAccessChecker == nil {
+			return trace.AccessDenied("scoped identities do not support cross-cluster operations")
+		}
+
+		return unstableAccessChecker.CheckAccessToRemoteCluster(cluster)
 	}
 
 	return IdentityContext{
@@ -242,8 +275,8 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		GitForwardingPermit:                 gitForwardingPermit,
 		Login:                               sconn.User(),
 		CertAuthority:                       certAuthority,
-		UnstableSessionJoiningAccessChecker: accessChecker,
-		UnstableClusterAccessChecker:        accessChecker.CheckAccessToRemoteCluster,
+		UnstableSessionJoiningAccessChecker: unstableAccessChecker,
+		UnstableClusterAccessChecker:        unstableClusterAccessChecker,
 		TeleportUser:                        unmappedIdentity.Username,
 		RouteToCluster:                      unmappedIdentity.RouteToCluster,
 		UnmappedRoles:                       unmappedIdentity.Roles,
@@ -439,6 +472,14 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 			h.log.WarnContext(ctx, "Failed to append Trace to ConnectionDiagnostic", "error", err)
 		}
 
+		// If the target of the auth attempt is a Teleport SSH server, we want
+		// to return node info in the audit event.
+		var hostID, hostName string
+		if h.c.TargetServer != nil {
+			hostID = h.c.TargetServer.GetName()
+			hostName = h.c.TargetServer.GetHostname()
+		}
+
 		if err := h.c.Emitter.EmitAuditEvent(h.c.Server.Context(), &apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,
@@ -452,6 +493,10 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  conn.LocalAddr().String(),
 				RemoteAddr: conn.RemoteAddr().String(),
+			},
+			ServerMetadata: apievents.ServerMetadata{
+				ServerID:       hostID,
+				ServerHostname: hostName,
 			},
 			Status: apievents.Status{
 				Success: false,
@@ -563,12 +608,18 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 		diagnosticTracing = true
 		if h.c.TargetServer != nil && h.c.TargetServer.IsOpenSSHNode() {
 			accessPermit, err = h.evaluateSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User())
+			if errors.Is(err, services.ErrScopedIdentity) {
+				accessPermit, err = h.evaluateScopedSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User())
+			}
 		} else {
 			proxyPermit, err = h.evaluateProxying(ident, ca, clusterName.GetClusterName())
 		}
 	case teleport.ComponentNode:
 		diagnosticTracing = true
 		accessPermit, err = h.evaluateSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), conn.User())
+		if errors.Is(err, services.ErrScopedIdentity) {
+			accessPermit, err = h.evaluateScopedSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), conn.User())
+		}
 	default:
 		return nil, trace.BadParameter("cannot determine appropriate authorization checks for unknown component %q (this is a bug)", h.c.Component)
 	}
@@ -644,7 +695,8 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 		}
 	}
 
-	return outputPermissions, nil
+	// Proceed to keyboard-interactive auth to ensure all preconditions are met.
+	return h.KeyboardInteractiveAuth(ctx, accessPermit.GetPreconditions(), ident, outputPermissions)
 }
 
 func (h *AuthHandlers) maybeAppendDiagnosticTrace(ctx context.Context, connectionDiagnosticID string, traceType types.ConnectionDiagnosticTrace_TraceType, message string, traceError error) error {
@@ -748,6 +800,10 @@ type loginChecker interface {
 	// client) to see if this certificate can be allowed to login as user:login
 	// pair to requested server and if RBAC rules allow login.
 	evaluateSSHAccess(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) (*decisionpb.SSHAccessPermit, error)
+}
+
+type scopedLoginChecker interface {
+	evaluateScopedSSHAccess(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) (*decisionpb.SSHAccessPermit, error)
 }
 
 type proxyingChecker interface {
@@ -874,6 +930,130 @@ func (a *ahLoginChecker) evaluateGitForwarding(ident *sshca.Identity, ca types.C
 		LockingMode:           accessChecker.LockingMode(authPref.GetLockingMode()),
 		LockTargets:           lockTargets,
 		DisconnectExpiredCert: getDisconnectExpiredCertFromSSHIdentity(accessChecker, authPref, ident),
+	}, nil
+}
+
+func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) (*decisionpb.SSHAccessPermit, error) {
+	// use the server's shutdown context.
+	ctx := a.c.Server.Context()
+
+	accessInfo, err := fetchAccessInfo(ident, ca, clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// build an access checker context based on the provided scoped identity.
+	scopedCheckerContext, err := services.NewScopedAccessCheckerContext(ctx, accessInfo, clusterName, a.c.AccessPoint.ScopedRoleReader())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// even though this function isn't currently polymorphic over scoped vs unscoped identities,
+	// we use the split context here so that in the future it will be easy to refactor this function to
+	// accept unscoped identities as well.
+	checkerContext := services.NewScopedSplitAccessCheckerContext(scopedCheckerContext)
+
+	state, err := checkerContext.AccessStateFromSSHIdentity(ctx, ident, a.c.AccessPoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if osUser == teleport.SSHSessionJoinPrincipal {
+		// TODO(fspmarshall/scopes): scoped session joining
+		// NOTE: getting session joining fully working with scoped access will be tricky. session joining permissions
+		// are complex, have yet to be ported to the more easily refactored PDP-style evaluation pattern, and do not
+		// slot easily into the current scoped access-checking model since they bypass standard node access checks. the
+		// majority of this function is written such that it should work for scoped and unscoped identities, but must be
+		// kept separate from the unscoped version until we decide how to handle session joining.
+		return nil, trace.NotImplemented("session joining for scoped identities is not implemented")
+	}
+
+	serverV2, ok := target.(*types.ServerV2)
+	if !ok {
+		return nil, trace.BadParameter("expected target to be of type *types.ServerV2, got %T", target)
+	}
+
+	agentScope := scopes.Root
+	if serverV2.Scope != "" {
+		agentScope = serverV2.Scope
+	}
+
+	// perform the primary node access check and exfiltrate the checker if successful
+	// for use in calculating the remaining fields of the permit.
+	var checker *services.SplitAccessChecker
+	if err := checkerContext.Decision(ctx, agentScope, func(c *services.SplitAccessChecker) error {
+		if err := c.Common().CheckAccessToSSHServer(
+			target,
+			state,
+			osUser,
+		); err != nil {
+			return trace.Wrap(err)
+		}
+
+		checker = c
+		return nil
+	}); err != nil {
+		return nil, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
+			ident.Username, ca.GetClusterName(), osUser, clusterName, err)
+	}
+
+	// load net config (used during calculation of client idle timeout)
+	netConfig, err := a.c.AccessPoint.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// load auth preference (used during calculation of locking mode)
+	authPref, err := a.c.AccessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	privateKeyPolicy, err := checker.Common().PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	lockTargets := services.SSHAccessLockTargets(clusterName, target.GetName(), osUser, accessInfo, ident)
+
+	hostSudoers, err := checker.Common().HostSudoers(target)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var bpfEvents []string
+	for event := range checker.Common().EnhancedRecordingSet() {
+		bpfEvents = append(bpfEvents, event)
+	}
+
+	hostUsersInfo, err := checker.Common().HostUsers(target)
+	if err != nil {
+		if !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		}
+		// the way host user creation permissions currently work, an "access denied" just indicates
+		// that host user creation is disabled, and does not indicate that access should be disallowed.
+		// for the purposes of the decision service, we represent this disabled state as nil.
+		hostUsersInfo = nil
+	}
+
+	return &decisionpb.SSHAccessPermit{
+		ForwardAgent:          checker.Common().CheckAgentForward(osUser) == nil,
+		X11Forwarding:         checker.Common().PermitX11Forwarding(),
+		MaxConnections:        checker.Common().MaxConnections(),
+		MaxSessions:           checker.Common().MaxSessions(),
+		SshFileCopy:           checker.Common().CanCopyFiles(),
+		PortForwardMode:       checker.Common().SSHPortForwardMode(),
+		ClientIdleTimeout:     durationpb.New(checker.Common().AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())),
+		DisconnectExpiredCert: timestampFromGoTime(getDisconnectExpiredCertFromSSHIdentityScoped(checker, authPref, ident)),
+		SessionRecordingMode:  string(checker.Common().SessionRecordingMode(constants.SessionRecordingServiceSSH)),
+		LockingMode:           string(checker.Common().LockingMode(authPref.GetLockingMode())),
+		PrivateKeyPolicy:      string(privateKeyPolicy),
+		LockTargets:           decision.LockTargetsToProto(lockTargets),
+		MappedRoles:           accessInfo.Roles,
+		HostSudoers:           hostSudoers,
+		BpfEvents:             bpfEvents,
+		HostUsersInfo:         hostUsersInfo,
 	}, nil
 }
 
@@ -1038,6 +1218,10 @@ func getDisconnectExpiredCertFromSSHIdentity(
 	authPref types.AuthPreference,
 	identity *sshca.Identity,
 ) time.Time {
+	return getDisconnectExpiredCertFromSSHIdentityScoped(services.NewUnscopedSplitAccessChecker(checker), authPref, identity)
+}
+
+func getDisconnectExpiredCertFromSSHIdentityScoped(checker *services.SplitAccessChecker, authPref types.AuthPreference, identity *sshca.Identity) time.Time {
 	// In the case where both disconnect_expired_cert and require_session_mfa are enabled,
 	// the PreviousIdentityExpires value of the certificate will be used, which is the
 	// expiry of the certificate used to issue the short lived MFA verified certificate.
@@ -1045,7 +1229,7 @@ func getDisconnectExpiredCertFromSSHIdentity(
 	// See https://github.com/gravitational/teleport/issues/18544
 
 	// If the session doesn't need to be disconnected on cert expiry just return the default value.
-	if !checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
+	if !checker.Common().AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
 		return time.Time{}
 	}
 

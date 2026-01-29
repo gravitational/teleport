@@ -17,6 +17,7 @@ limitations under the License.
 package events
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
@@ -24,8 +25,12 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/wrappers"
 )
 
+// TestTrimToMaxSize tests TrimToMaxSize implementation of several events.
+// It also tests trimEventToMaxSize used by these events.
 func TestTrimToMaxSize(t *testing.T) {
 	type messageSizeTrimmer interface {
 		TrimToMaxSize(int) AuditEvent
@@ -125,6 +130,110 @@ func TestTrimToMaxSize(t *testing.T) {
 				cmpopts.IgnoreFields(UserLogin{}, "IdentityAttributes"),
 			},
 		},
+		{
+			name:    "MCPSessionInvalidHTTPRequest trimmed",
+			maxSize: 200,
+			in: &MCPSessionInvalidHTTPRequest{
+				// Metadata not being trimmed.
+				Metadata: Metadata{
+					Code: "TMCP006E",
+					Type: "mcp.session.invalid_http_request",
+				},
+				Path: strings.Repeat("/path", 10),
+				Body: bytes.Repeat([]byte("body"), 10),
+				Headers: wrappers.Traits{
+					"A": {strings.Repeat("a", 20)},
+					"B": {strings.Repeat("b", 20)},
+				},
+			},
+			want: &MCPSessionInvalidHTTPRequest{
+				Metadata: Metadata{
+					Code: "TMCP006E",
+					Type: "mcp.session.invalid_http_request",
+				},
+				Path: "/path/path/path/",
+				Body: []byte("bodybodybodybody"),
+				Headers: wrappers.Traits{
+					"A": {strings.Repeat("a", 16)},
+					"B": {strings.Repeat("b", 16)},
+				},
+			},
+		},
+		{
+			name:    "SCIM Resource Event trimmed",
+			maxSize: 200,
+			in: &SCIMResourceEvent{
+				Metadata: Metadata{
+					Code: "TSCIM006I",
+					Type: "scim.patch",
+				},
+				Status: Status{
+					Success:     true,
+					Error:       "I am the very model of a modern Major General",
+					UserMessage: "I have information animal, vegetable and mineral",
+				},
+				SCIMCommonData: SCIMCommonData{
+					Integration:  "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii",
+					ResourceType: "ttttttttttttttttttttttttttttttttttttttttttt",
+					Request: &SCIMRequest{
+						ID:            "idididididididididididididididididididididid",
+						SourceAddress: "srcsrcsrcsrcsrcsrcsrcsrcsrcsrcsrcsrcsrc",
+						UserAgent:     "agentagentagentagentagentagentagentagentagent",
+						Method:        "PATCHPATCHPATCHPATCHPATCHPATCHPATCHPATCHPATCHPATCH",
+						Path:          "/Users/teleport-user-with-a-long-name",
+						Body: MustEncodeMap(map[string]any{
+							"Alpha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+						}),
+					},
+					Response: &SCIMResponse{
+						StatusCode: 404,
+						Body: MustEncodeMap(map[string]any{
+							"plain": "text",
+							"Gamma": "gggggggggggggggggggggggggggggggggggggggggg",
+						}),
+					},
+				},
+			},
+			want: &SCIMResourceEvent{
+				Metadata: Metadata{
+					Code: "TSCIM006I",
+					Type: "scim.patch",
+				},
+				Status: Status{
+					Success:     true,
+					Error:       "I am t",
+					UserMessage: "I have",
+				},
+				SCIMCommonData: SCIMCommonData{
+					Integration:  "iiiiii",
+					ResourceType: "tttttt",
+					Request: &SCIMRequest{
+						ID:            "ididid",
+						SourceAddress: "srcsrc",
+						UserAgent:     "agenta",
+						Method:        "PATCHP",
+						Path:          "/Users",
+						Body: MustEncodeMap(map[string]any{
+							"Alpha": "aaaaaa",
+						}),
+					},
+					Response: &SCIMResponse{
+						StatusCode: 404,
+						Body: MustEncodeMap(map[string]any{
+							"plain": "text",
+							"Gamma": "gggggg",
+						}),
+					},
+				},
+			},
+			cmpOpts: []cmp.Option{
+				cmp.Transformer("struct", func(s *Struct) map[string]any {
+					result, err := DecodeToMap(s)
+					require.NoError(t, err)
+					return result
+				}),
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -221,13 +330,13 @@ func TestTrimMCPJSONRPCMessage(t *testing.T) {
 
 	orgSize := m.Size()
 	t.Run("not trimmed", func(t *testing.T) {
-		notTrimmed := m.trimToMaxSize(10000)
+		notTrimmed := m.trimToMaxFieldSize(10000)
 		require.Equal(t, orgSize, m.Size())
 		require.Equal(t, notTrimmed, m)
 	})
 
 	t.Run("trimmed", func(t *testing.T) {
-		trimmed := m.trimToMaxSize(50)
+		trimmed := m.trimToMaxFieldSize(maxSizePerField(50, m.nonEmptyStrs()))
 		require.Equal(t, orgSize, m.Size())
 		require.Less(t, trimmed.Size(), 50)
 		require.Equal(t, MCPJSONRPCMessage{

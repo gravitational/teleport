@@ -4,22 +4,22 @@ run-name: Build on Mac OS
 on:
   merge_group:
     paths:
-      - '.github/workflows/build-macos.yaml'
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - '**.rs'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'build.assets/Makefile'
-      - 'build.assets/Dockerfile*'
-      - 'Makefile'
+      - ".github/workflows/build-macos.yaml"
+      - "**.go"
+      - "go.mod"
+      - "go.sum"
+      - "**.rs"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "build.assets/Makefile"
+      - "build.assets/Dockerfile*"
+      - "Makefile"
 
 jobs:
   build:
     name: Build on Mac OS
     if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
-    runs-on: macos-13-xlarge
+    runs-on: macos-15-xlarge
 
     permissions:
       contents: read
@@ -31,12 +31,11 @@ jobs:
         run: sudo chown -R $(id -u):$(id -g) $HOME/.cache $HOME/.config
 
       - name: Checkout Teleport
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Determine Toolchain Versions and cache paths
         run: |
           echo NODE_VERSION=$(make -s -C build.assets print-node-version) >> $GITHUB_ENV
-          echo GOLANG_VERSION=$(make -s -C build.assets print-go-version | sed 's/^go//') >> $GITHUB_ENV
           echo RUST_VERSION=$(make -s -C build.assets print-rust-version) >> $GITHUB_ENV
           echo PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)" >> $GITHUB_ENV
 
@@ -44,11 +43,10 @@ jobs:
         run: |
           echo "make: $(make --version)"
           echo "node: ${NODE_VERSION}"
-          echo "go: ${GOLANG_VERSION}"
           echo "rust: ${RUST_VERSION}"
 
       - name: Install Node Toolchain
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           package-manager-cache: false
@@ -58,10 +56,10 @@ jobs:
           corepack enable pnpm
 
       - name: Install Go Toolchain
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           cache: false
-          go-version: ${{ env.GOLANG_VERSION }}
+          go-version-file: go.mod
 
       - name: Install wasm-deps
         run: make ensure-wasm-deps

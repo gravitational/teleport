@@ -39,11 +39,13 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/term"
 
+	"github.com/gravitational/teleport/api"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
@@ -135,7 +137,7 @@ func (c *authRotateCommand) runInteractive(ctx context.Context, client *authclie
 	if err != nil {
 		return trace.Wrap(err, "failed to ping cluster")
 	}
-	m := newRotateModel(client, pingResp, types.CertAuthType(c.caType))
+	m := newRotateModel(ctx, client, pingResp, types.CertAuthType(c.caType))
 	p := tea.NewProgram(m, tea.WithContext(ctx))
 	_, err = p.Run()
 	return trace.Wrap(err)
@@ -159,6 +161,7 @@ var authRotateTheme = authRotateStyle{
 }
 
 type rotateModel struct {
+	ctx      context.Context
 	client   *authclient.Client
 	pingResp proto.PingResponse
 
@@ -178,8 +181,9 @@ type rotateModel struct {
 	help                          help.Model
 }
 
-func newRotateModel(client *authclient.Client, pingResp proto.PingResponse, caType types.CertAuthType) *rotateModel {
+func newRotateModel(ctx context.Context, client *authclient.Client, pingResp proto.PingResponse, caType types.CertAuthType) *rotateModel {
 	m := &rotateModel{
+		ctx:               ctx,
 		client:            client,
 		pingResp:          pingResp,
 		logsModel:         newWriterModel(authRotateTheme.normal),
@@ -248,7 +252,7 @@ func (m *rotateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Now that we've got the current phase, init the waitForCurrentPhaseReady
 	// model if we haven't yet and the current phase is not standby.
 	if m.waitForCurrentPhaseReadyModel == nil && m.currentPhaseModel.phase != "standby" {
-		m.waitForCurrentPhaseReadyModel = newWaitForReadyModel(m.client, m.currentPhaseModel.caID, m.currentPhaseModel.phase)
+		m.waitForCurrentPhaseReadyModel = newWaitForReadyModel(m.ctx, m.client, m.currentPhaseModel.caID, m.currentPhaseModel.phase)
 		cmds = append(cmds, m.waitForCurrentPhaseReadyModel.init())
 	}
 	if m.waitForCurrentPhaseReadyModel != nil {
@@ -277,7 +281,7 @@ func (m *rotateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "n", "N":
 				// Go back to the beginning.
-				m = newRotateModel(m.client, m.pingResp, "")
+				m = newRotateModel(m.ctx, m.client, m.pingResp, "")
 				return m, m.Init()
 			case "y", "Y":
 				m.confirmed = true
@@ -303,7 +307,7 @@ func (m *rotateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Now that we've sent the rotate request, init the waitForTargetPhaseReady model if we haven't yet.
 	if m.waitForTargetPhaseReadyModel == nil {
-		m.waitForTargetPhaseReadyModel = newWaitForReadyModel(m.client, m.currentPhaseModel.caID, m.targetPhaseModel.targetPhase)
+		m.waitForTargetPhaseReadyModel = newWaitForReadyModel(m.ctx, m.client, m.currentPhaseModel.caID, m.targetPhaseModel.targetPhase)
 		cmds = append(cmds, m.waitForTargetPhaseReadyModel.init())
 	}
 	cmds = append(cmds, m.waitForTargetPhaseReadyModel.update(msg))
@@ -313,11 +317,11 @@ func (m *rotateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.continueBinding):
-			newModel := newRotateModel(m.client, m.pingResp, m.caTypeModel.caType)
+			newModel := newRotateModel(m.ctx, m.client, m.pingResp, m.caTypeModel.caType)
 			newModel.waitForCurrentPhaseReadyModel = m.waitForTargetPhaseReadyModel
 			return newModel, newModel.Init()
 		case key.Matches(msg, m.newBinding):
-			newModel := newRotateModel(m.client, m.pingResp, "")
+			newModel := newRotateModel(m.ctx, m.client, m.pingResp, "")
 			return newModel, newModel.Init()
 		}
 	}
@@ -759,7 +763,7 @@ type waitForReadyModel struct {
 	help               help.Model
 }
 
-func newWaitForReadyModel(client *authclient.Client, caID types.CertAuthID, targetPhase string) *waitForReadyModel {
+func newWaitForReadyModel(ctx context.Context, client *authclient.Client, caID types.CertAuthID, targetPhase string) *waitForReadyModel {
 	m := &waitForReadyModel{
 		client:             client,
 		targetPhase:        targetPhase,
@@ -774,12 +778,31 @@ func newWaitForReadyModel(client *authclient.Client, caID types.CertAuthID, targ
 	}
 	m.kindReadyModels = []*waitForKindReadyModel{
 		newWaitForKindReadyModel(
-			targetPhase, "auth_servers", adaptServerGetter(client.GetAuthServers)).withMinReady(1),
+			targetPhase, "auth_servers", adaptServerGetter(func() ([]types.Server, error) {
+				return clientutils.CollectWithFallback(
+					ctx,
+					client.ListAuthServers,
+					func(context.Context) ([]types.Server, error) {
+						//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+						return client.GetAuthServers()
+					},
+				)
+			}),
+		).withMinReady(1),
 		newWaitForKindReadyModel(
-			targetPhase, "proxies", adaptServerGetter(client.GetProxies)),
+			targetPhase, "proxies", adaptServerGetter(func() ([]types.Server, error) {
+				return clientutils.CollectWithFallback(
+					ctx,
+					client.ListProxyServers,
+					func(context.Context) ([]types.Server, error) {
+						//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+						return client.GetProxies()
+					},
+				)
+			})),
 		newWaitForKindReadyModel(
 			targetPhase, "nodes", adaptServerGetter(func() ([]types.Server, error) {
-				return apiclient.GetAllResources[types.Server](context.TODO(), client, &proto.ListResourcesRequest{
+				return apiclient.GetAllResources[types.Server](ctx, client, &proto.ListResourcesRequest{
 					ResourceType:        types.KindNode,
 					Namespace:           apidefaults.Namespace,
 					PredicateExpression: `resource.sub_kind == ""`,
@@ -787,15 +810,11 @@ func newWaitForReadyModel(client *authclient.Client, caID types.CertAuthID, targ
 			})),
 		newWaitForKindReadyModel(
 			targetPhase, "app_servers", adaptServerGetter(func() ([]types.AppServer, error) {
-				return client.GetApplicationServers(context.TODO(), apidefaults.Namespace)
+				return client.GetApplicationServers(ctx, apidefaults.Namespace)
 			})),
 		newWaitForKindReadyModel(
 			targetPhase, "db_servers", adaptServerGetter(func() ([]types.DatabaseServer, error) {
-				return client.GetDatabaseServers(context.TODO(), apidefaults.Namespace)
-			})),
-		newWaitForKindReadyModel(
-			targetPhase, "kube_servers", adaptServerGetter(func() ([]types.KubeServer, error) {
-				return client.GetKubernetesServers(context.TODO())
+				return client.GetDatabaseServers(ctx, apidefaults.Namespace)
 			})),
 	}
 	return m
@@ -1084,10 +1103,10 @@ func updateClientsPhaseHelpText(sb *strings.Builder, caType types.CertAuthType) 
 		sb.WriteString("\nDuring this phase, all Teleport services will automatically retrieve new certificates issued by the new CA.")
 	case types.OpenSSHCA:
 		sb.WriteString("\nAll new connections to OpenSSH hosts will begin to use certificates issued by the new CA keys.")
-	case types.UserCA:
-		sb.WriteString("\nAll new connections to Windows desktops will begin to use certificates issued by the new CA certificate. ")
 	case types.DatabaseClientCA:
 		sb.WriteString("\nAll new database connections will begin to use certificates issued by the new CA certificate.")
+	case types.WindowsCA:
+		sb.WriteString("\nAll new connections to Windows desktops will begin to use certificates issued by the new CA certificate. ")
 	default:
 		sb.WriteString("\nAll client certificates issued by this CA must be re-issued before proceeding to the update_servers phase.")
 	}
@@ -1177,7 +1196,6 @@ func manualSteps(caType types.CertAuthType, phase string) []string {
 		switch phase {
 		case "init":
 			return []string{
-				"All Windows desktops must be updated to trust both the new and old CA certificates.",
 				trustedClusterStep,
 			}
 		case "update_clients":
@@ -1190,12 +1208,10 @@ func manualSteps(caType types.CertAuthType, phase string) []string {
 			}
 		case "rollback":
 			return []string{
-				"Any Windows desktops updated to trust the new CA certificate during the update_servers phase should be reverted to only trust the original CA certificate.",
 				trustedClusterStep,
 			}
 		case "standby":
 			return []string{
-				"All Windows desktops should be updated to stop trusting the CA certificates that have now been rotated out.",
 				trustedClusterStep,
 			}
 		}
@@ -1229,6 +1245,25 @@ func manualSteps(caType types.CertAuthType, phase string) []string {
 	case types.OIDCIdPCA:
 		// No manual steps required.
 		return nil
+	case types.WindowsCA:
+		switch phase {
+		case "init":
+			return []string{
+				// TODO(codingllama): DELETE IN 20. Obsolete by then.
+				fmt.Sprintf(""+
+					"All Windows Desktop Service instances must be updated to the current Teleport version (%s) prior to rotating WindowsCA. Outdated agents are unable to use the rotated CA.",
+					api.Version),
+				"All Windows desktops must be updated to trust both the new and old CA certificates.",
+			}
+		case "rollback":
+			return []string{
+				"Any Windows desktops updated to trust the new CA certificate during the update_servers phase should be reverted to only trust the original CA certificate.",
+			}
+		case "standby":
+			return []string{
+				"All Windows desktops should be updated to stop trusting the CA certificates that have now been rotated out.",
+			}
+		}
 	case types.SPIFFECA:
 		// TODO(strideynet): populate any known manual steps during SPIFFE CA rotation.
 		fallthrough

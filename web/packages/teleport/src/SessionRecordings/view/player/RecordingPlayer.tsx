@@ -27,9 +27,9 @@ import {
 } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { useEventListener } from 'usehooks-ts';
-import Box from 'web/packages/design/src/Box';
-import Flex from 'web/packages/design/src/Flex';
-import { Pause, Play } from 'web/packages/design/src/Icon';
+
+import { Box, Flex } from 'design';
+import { Pause, Play } from 'design/Icon';
 
 import type { SessionRecordingEvent } from 'teleport/services/recordings';
 import {
@@ -54,7 +54,7 @@ export interface RecordingPlayerProps<
   TEndEventType extends TEventType = TEventType,
 > {
   duration: number;
-  onTimeChange: (time: number) => void;
+  onTimeChange?: (time: number) => void;
   onToggleSidebar?: () => void;
   onToggleTimeline?: () => void;
   onToggleFullscreen?: () => void;
@@ -104,13 +104,13 @@ export function RecordingPlayer<
     });
 
     stream.on('time', time => {
-      if (!controlsRef.current || !eventInfoRef.current) {
-        return;
+      if (controlsRef.current) {
+        controlsRef.current.setTime(time);
       }
-
-      controlsRef.current.setTime(time);
-      onTimeChange(time);
-      eventInfoRef.current.setTime(time);
+      onTimeChange?.(time);
+      if (eventInfoRef.current) {
+        eventInfoRef.current.setTime(time);
+      }
     });
 
     stream.loadInitial();
@@ -177,11 +177,13 @@ export function RecordingPlayer<
         overflow="hidden"
         position="relative"
       >
-        <CurrentEventInfo
-          events={events}
-          onSeek={handleSeek}
-          ref={eventInfoRef}
-        />
+        {events && (
+          <CurrentEventInfo
+            events={events}
+            onSeek={handleSeek}
+            ref={eventInfoRef}
+          />
+        )}
 
         {showPlayButton && (
           <PlayButton onClick={handlePlay}>

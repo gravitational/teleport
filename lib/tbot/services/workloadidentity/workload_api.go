@@ -46,6 +46,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	grpcmetrics "github.com/gravitational/teleport/lib/observability/metrics/grpc"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/internal"
@@ -168,7 +169,7 @@ func (s *WorkloadAPIService) Run(ctx context.Context) error {
 	defer s.client.Close()
 	s.log.DebugContext(ctx, "Completed pre-run initialization")
 
-	srvMetrics := metrics.CreateGRPCServerMetrics(
+	srvMetrics := grpcmetrics.CreateGRPCServerMetrics(
 		true, prometheus.Labels{
 			teleport.TagServer: "tbot-workload-identity-api",
 		},
@@ -197,8 +198,10 @@ func (s *WorkloadAPIService) Run(ctx context.Context) error {
 	)
 	workloadpb.RegisterSpiffeWorkloadAPIServer(srv, s)
 	sdsHandler, err := sds.NewHandler(sds.HandlerConfig{
-		Logger:           s.log,
-		RenewalInterval:  s.defaultCredentialLifetime.RenewalInterval,
+		Logger: s.log,
+		RenewalInterval: cmp.Or(
+			s.cfg.CredentialLifetime, s.defaultCredentialLifetime,
+		).RenewalInterval,
 		TrustBundleCache: s.trustBundleCache,
 		ClientAuthenticator: func(ctx context.Context) (*slog.Logger, sds.SVIDFetcher, error) {
 			log, attrs, err := s.authenticateClient(ctx)

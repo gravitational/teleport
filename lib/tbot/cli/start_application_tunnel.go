@@ -48,7 +48,7 @@ func NewApplicationTunnelCommand(parentCmd *kingpin.CmdClause, action MutatorAct
 	c.sharedStartArgs = newSharedStartArgs(cmd)
 	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
 
-	cmd.Flag("listen", "A socket URI, such as tcp://0.0.0.0:8080").Required().StringVar(&c.Listen)
+	cmd.Flag("listen", "The socket URI on which the tunnel should listen, such as `tcp://0.0.0.0:8080`.").Required().StringVar(&c.Listen)
 	cmd.Flag("app", "The name of the app in Teleport").Required().StringVar(&c.AppName)
 
 	// Note: CLI will not support roles; all will be requested.

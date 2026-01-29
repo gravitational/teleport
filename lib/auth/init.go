@@ -45,6 +45,8 @@ import (
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -59,11 +61,13 @@ import (
 	"github.com/gravitational/teleport/lib/auth/migration"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption/recordingencryptionv1"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -193,7 +197,7 @@ type InitConfig struct {
 	DatabaseServices services.DatabaseServices
 
 	// Status is a service that manages cluster status info.
-	Status services.StatusInternal
+	Status services.Status
 
 	// UserPreferences is a service that manages user preferences.
 	UserPreferences services.UserPreferences
@@ -204,6 +208,10 @@ type InitConfig struct {
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
 	StaticTokens types.StaticTokens
+
+	// StaticTokens are pre-defined, scoped host provisioning tokens supplied via config file for
+	// environments where paranoid security is not needed
+	StaticScopedTokens *joiningv1.StaticScopedTokens
 
 	// AuthPreference defines the authentication type (local, oidc) and second
 	// factor passed in from a configuration file.
@@ -277,7 +285,7 @@ type InitConfig struct {
 	// AssertionReplayService is a service that mitigates SSO assertion replay.
 	*local.AssertionReplayService
 
-	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	// FIPS means FedRAMP/FIPS compliant configuration was requested.
 	FIPS bool
 
 	// UsageReporter is a service that forwards cluster usage events.
@@ -287,7 +295,7 @@ type InitConfig struct {
 	Okta services.Okta
 
 	// AccessLists is a service that manages access list resources.
-	AccessLists services.AccessLists
+	AccessLists services.AccessListsInternal
 
 	// DatabaseObjectImportRule is a service that manages database object import rules.
 	DatabaseObjectImportRules services.DatabaseObjectImportRules
@@ -311,6 +319,10 @@ type InitConfig struct {
 	// HTTPClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests. Used in test.
 	HTTPClientForAWSSTS utils.HTTPDoClient
+
+	// AWSOrganizationsClientGetter provides an AWS client that can call Organizations APIs.
+	// This is used to allow the IAM join method to validate that an AWS account belongs to a specific AWS Organization.
+	AWSOrganizationsClientGetter iamjoin.OrganizationsAPIGetter
 
 	// Tracer used to create spans.
 	Tracer oteltrace.Tracer
@@ -414,8 +426,21 @@ type InitConfig struct {
 	// plugin. The summarizer itself summarizes session recordings.
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 
+	// RecordingMetadataProvider provides recording metadata for session recordings.
+	RecordingMetadataProvider *recordingmetadata.Provider
+
 	// ScopedTokenService is a service that manages scoped join token resources.
 	ScopedTokenService services.ScopedTokenService
+
+	// AppAuthConfig is the service for storing and retrieving
+	// app auth config resources.
+	AppAuthConfig services.AppAuthConfig
+
+	// MFAService is the service that manages backend MFA resources.
+	MFAService MFAService
+
+	// WorkloadClusterService is the service that manages WorkloadClusters.
+	WorkloadClusterService services.WorkloadClusterService
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -585,6 +610,15 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		return trace.Wrap(asrv.SetStaticTokens(cfg.StaticTokens))
 	})
 
+	g.Go(func() error {
+		_, span := cfg.Tracer.Start(gctx, "auth/SetStaticScopedTokens")
+		defer span.End()
+		if cfg.StaticScopedTokens != nil {
+			return trace.Wrap(asrv.SetStaticScopedTokens(gctx, cfg.StaticScopedTokens))
+		}
+		return nil
+	})
+
 	var cn types.ClusterName
 	g.Go(func() error {
 		_, span := cfg.Tracer.Start(gctx, "auth/SetClusterName")
@@ -637,6 +671,21 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		return trace.Wrap(err, "applying migrations")
 	}
 
+	// Clone UserCA into WindowsCA. Must happen before initializeAuthorities() so
+	// it only affects upgraded clusters.
+	// Added on Teleport 18.x and 19.
+	clusterConfiguration, err := local.NewClusterConfigurationService(cfg.Backend)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := migrateWindowsCA(ctx, migrateWindowsCAParams{
+		Logger:               asrv.logger,
+		ClusterConfiguration: clusterConfiguration,
+		Trust:                local.NewCAService(cfg.Backend),
+	}); err != nil {
+		return trace.Wrap(err, "migrate WindowsCA")
+	}
+
 	// generate certificate authorities if they don't exist
 	if err := initializeAuthorities(ctx, asrv, &cfg); err != nil {
 		return trace.Wrap(err)
@@ -665,13 +714,13 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	// Create presets - convenience and example resources.
 	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
 		span.AddEvent("creating preset roles")
-		if err := createPresetRoles(ctx, asrv); err != nil {
+		if err := createPresetRoles(ctx, modules.GetModules().BuildType(), asrv); err != nil {
 			return trace.Wrap(err)
 		}
 		span.AddEvent("completed creating preset roles")
 
 		span.AddEvent("creating preset users")
-		if err := createPresetUsers(ctx, asrv); err != nil {
+		if err := createPresetUsers(ctx, modules.GetModules().BuildType(), asrv); err != nil {
 			return trace.Wrap(err)
 		}
 		span.AddEvent("completed creating preset users")
@@ -682,12 +731,6 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 			asrv.logger.WarnContext(ctx, "error creating preset database object import rules", "error", err)
 		}
 		span.AddEvent("completed creating database object import rules")
-
-		span.AddEvent("creating preset health check config")
-		if err := createPresetHealthCheckConfig(ctx, asrv); err != nil {
-			return trace.Wrap(err)
-		}
-		span.AddEvent("completed creating preset health check config")
 	} else {
 		asrv.logger.InfoContext(ctx, "skipping preset role and user creation")
 	}
@@ -1314,22 +1357,22 @@ type PresetRoleManager interface {
 
 // GetPresetRoles returns a list of all preset roles expected to be available on
 // this cluster.
-func GetPresetRoles() []types.Role {
+func GetPresetRoles(buildType string) []types.Role {
 	presets := []types.Role{
-		services.NewPresetGroupAccessRole(),
+		services.NewPresetGroupAccessRole(buildType),
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
 		services.NewPresetAuditorRole(),
-		services.NewPresetReviewerRole(),
-		services.NewPresetRequesterRole(),
-		services.NewSystemAutomaticAccessApproverRole(),
-		services.NewPresetDeviceAdminRole(),
-		services.NewPresetDeviceEnrollRole(),
-		services.NewPresetRequireTrustedDeviceRole(),
-		services.NewSystemOktaAccessRole(),
-		services.NewSystemOktaRequesterRole(),
+		services.NewPresetReviewerRole(buildType),
+		services.NewPresetRequesterRole(buildType),
+		services.NewSystemAutomaticAccessApproverRole(buildType),
+		services.NewPresetDeviceAdminRole(buildType),
+		services.NewPresetDeviceEnrollRole(buildType),
+		services.NewPresetRequireTrustedDeviceRole(buildType),
+		services.NewSystemOktaAccessRole(buildType),
+		services.NewSystemOktaRequesterRole(buildType),
 		services.NewPresetTerraformProviderRole(),
-		services.NewSystemIdentityCenterAccessRole(),
+		services.NewSystemIdentityCenterAccessRole(buildType),
 		services.NewPresetWildcardWorkloadIdentityIssuerRole(),
 		services.NewPresetAccessPluginRole(),
 		services.NewPresetListAccessRequestResourcesRole(),
@@ -1344,8 +1387,8 @@ func GetPresetRoles() []types.Role {
 }
 
 // createPresetRoles creates preset role resources
-func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
-	roles := GetPresetRoles()
+func createPresetRoles(ctx context.Context, buildType string, rm PresetRoleManager) error {
+	roles := GetPresetRoles(buildType)
 
 	g, gctx := errgroup.WithContext(ctx)
 	for _, role := range roles {
@@ -1377,7 +1420,7 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 					return trace.Wrap(err)
 				}
 
-				role, err := services.AddRoleDefaults(gctx, currentRole)
+				role, err := services.AddRoleDefaults(gctx, buildType, currentRole)
 				if trace.IsAlreadyExists(err) {
 					return nil
 				}
@@ -1410,9 +1453,9 @@ type PresetUsers interface {
 
 // getPresetUsers returns a list of all preset users expected to be available on
 // this cluster.
-func getPresetUsers() []types.User {
+func getPresetUsers(buildType string) []types.User {
 	presets := []types.User{
-		services.NewSystemAutomaticAccessBotUser(),
+		services.NewSystemAutomaticAccessBotUser(buildType),
 	}
 
 	// Certain `New$FooUser()` functions will return a nil role if the
@@ -1423,8 +1466,8 @@ func getPresetUsers() []types.User {
 
 // createPresetUsers creates all of the required user presets. No attempt is
 // made to migrate any existing users to the lastest preset.
-func createPresetUsers(ctx context.Context, um PresetUsers) error {
-	users := getPresetUsers()
+func createPresetUsers(ctx context.Context, buildType string, um PresetUsers) error {
+	users := getPresetUsers(buildType)
 	for _, user := range users {
 		// Some users are only valid for enterprise Teleport, and so will be
 		// nil for an OSS build and can be skipped
@@ -1490,27 +1533,6 @@ func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.Da
 	return nil
 }
 
-// createPresetHealthCheckConfig creates a default preset health check config
-// resource that enables health checks on all resources.
-func createPresetHealthCheckConfig(ctx context.Context, svc services.HealthCheckConfig) error {
-	page, _, err := svc.ListHealthCheckConfigs(ctx, 0, "")
-	if err != nil {
-		return trace.Wrap(err, "failed listing available health check configs")
-	}
-	if len(page) > 0 {
-		return nil
-	}
-	preset := services.NewPresetHealthCheckConfig()
-	_, err = svc.CreateHealthCheckConfig(ctx, preset)
-	if err != nil && !trace.IsAlreadyExists(err) {
-		return trace.Wrap(err,
-			"failed creating preset health_check_config %s",
-			preset.GetMetadata().GetName(),
-		)
-	}
-	return nil
-}
-
 // isFirstStart returns 'true' if the auth server is starting for the 1st time
 // on this server.
 func isFirstStart(ctx context.Context, authServer *Server, cfg InitConfig) (bool, error) {
@@ -1544,11 +1566,21 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			var hasKeys bool
 			var signerErr error
 			switch r.GetType() {
-			case types.HostCA, types.UserCA, types.OpenSSHCA:
+			case types.HostCA,
+				types.UserCA,
+				types.OpenSSHCA:
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
-			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
+			case types.DatabaseCA,
+				types.DatabaseClientCA,
+				types.SAMLIDPCA,
+				types.SPIFFECA,
+				types.AWSRACA,
+				types.WindowsCA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
-			case types.JWTSigner, types.OIDCIdPCA, types.OktaCA, types.BoundKeypairCA:
+			case types.JWTSigner,
+				types.OIDCIdPCA,
+				types.OktaCA,
+				types.BoundKeypairCA:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)
 			default:
 				return trace.BadParameter("unexpected cert_authority type %s for cluster %v", r.GetType(), clusterName)
@@ -1613,7 +1645,7 @@ func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsN
 			DNSNames:             dnsNames,
 			PublicSSHKey:         ssh.MarshalAuthorizedKey(sshPub),
 			PublicTLSKey:         tlsPub,
-		})
+		}, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1770,6 +1802,8 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r.UnwrapT())
 		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateVersion]:
 			_, err = autoupdatev1.UpsertAutoUpdateVersion(ctx, service, r.UnwrapT())
+		case types.Resource153UnwrapperT[*summarizerv1.InferenceModel]:
+			_, err = service.Summarizer.UpsertInferenceModel(ctx, r.UnwrapT())
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

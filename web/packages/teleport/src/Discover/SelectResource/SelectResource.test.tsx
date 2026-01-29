@@ -26,6 +26,7 @@ import {
   Resource,
 } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 
+import cfg from 'teleport/config';
 import { ContextProvider } from 'teleport/index';
 import {
   allAccessAcl,
@@ -1127,6 +1128,66 @@ test('does not display erorr banner if user has "some" permissions to add', asyn
   expect(
     screen.queryByText(/You cannot add new resources./i)
   ).not.toBeInTheDocument();
+});
+
+describe('Connect Cloud Account call-to-action', () => {
+  const originalIsCloud = cfg.isCloud;
+
+  afterEach(() => {
+    cfg.isCloud = originalIsCloud;
+  });
+
+  test('shows Connect Cloud Account call-to-action if user has permission to create integrations', () => {
+    jest.spyOn(userUserContext, 'useUser').mockReturnValue({
+      preferences: makeDefaultUserPreferences(),
+      updatePreferences: () => null,
+      updateClusterPinnedResources: () => null,
+      getClusterPinnedResources: () => null,
+      updateDiscoverResourcePreferences: () => null,
+    });
+
+    cfg.isCloud = true;
+
+    const ctx = createTeleportContext();
+    ctx.storeUser.setState({ acl: { ...allAccessAcl } });
+
+    render(
+      <MemoryRouter>
+        <ContextProvider ctx={ctx}>
+          <SelectResource onSelect={() => {}} />
+        </ContextProvider>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText(/Connect Cloud Account/)).toBeInTheDocument();
+  });
+
+  test("hides Connect Cloud Account cta when user doesn't have permission to create integrations", () => {
+    jest.spyOn(userUserContext, 'useUser').mockReturnValue({
+      preferences: makeDefaultUserPreferences(),
+      updatePreferences: () => null,
+      updateClusterPinnedResources: () => null,
+      getClusterPinnedResources: () => null,
+      updateDiscoverResourcePreferences: () => null,
+    });
+
+    cfg.isCloud = true;
+
+    const ctx = createTeleportContext();
+    ctx.storeUser.setState({
+      acl: { ...allAccessAcl, integrations: { ...noAccess, use: false } },
+    });
+
+    render(
+      <MemoryRouter>
+        <ContextProvider ctx={ctx}>
+          <SelectResource onSelect={() => {}} />
+        </ContextProvider>
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByText(/Connect Cloud Account/)).not.toBeInTheDocument();
+  });
 });
 
 describe('filterBySupportedPlatformsAndAuthTypes', () => {

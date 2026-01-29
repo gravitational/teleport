@@ -182,6 +182,40 @@ func (c *FnCache) Set(key, value any) {
 	c.SetWithTTL(key, value, c.cfg.TTL)
 }
 
+// GetIfExists retrieves a value from the cache without triggering a load operation.
+// It returns (value, true) if a valid, non-expired entry exists, or (nil, false)
+// otherwise. If an entry is currently being loaded by FnCacheGet, Get will
+// return false immediately without blocking. Get returns false for entries that
+// contain errors.
+// For most of the cases the FnCacheGet function should be used instead.
+func (c *FnCache) GetIfExists(key any) (any, bool) {
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return nil, false
+	}
+	entry := c.entries[key]
+	c.mu.Unlock()
+
+	if entry == nil {
+		return nil, false
+	}
+
+	select {
+	case <-entry.loaded:
+		if c.cfg.Clock.Now().After(entry.t.Add(entry.ttl)) {
+			return nil, false
+		}
+		if entry.e != nil {
+			return nil, false
+		}
+		return entry.v, true
+	default:
+		// Entry still loading - treat as cache miss
+		return nil, false
+	}
+}
+
 // SetWithTTL places an item in the cache with an explicit TTL.
 func (c *FnCache) SetWithTTL(key, value any, ttl time.Duration) {
 	c.mu.Lock()

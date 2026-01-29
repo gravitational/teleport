@@ -57,11 +57,13 @@ RUN yum groupinstall -y 'Development Tools' && \
       expat-devel  \
       gettext-devel \
       openssl-devel \
-      zlib-devel \
       perl-CPAN \
+      perl-Time-Piece \
       perl-devel \
       scl-utils \
-      wget && \
+      wget \
+      zlib-devel \
+      && \
     yum clean all && \
     /tmp/fix-yum-repo-list.sh
 
@@ -126,9 +128,9 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.11.0 && \
 # Specific install arguments used to skip docs.
 # Note that FIPS is enabled as part of this build, but it is unused without the
 # necessary configuration (which is included as part of the separate FIPS buildbox).
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.16 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.19 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = 'fa1e5dfb142bb1c26c3c38a10aafa7a095df52e5' ] && \
+    [ "$(git rev-parse HEAD)" = 'a22063cd69a077cc68bb4c10e9f351f75899b194' ] && \
     ./config enable-fips --release -fPIC --libdir=/usr/local/lib64 && \
     make -j"$(nproc)" && \
     make install_sw install_ssldirs install_fips
@@ -152,32 +154,6 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.15.0 && \
       make" && \
     make install && \
     make clean
-
-## LIBBPF #####################################################################
-
-FROM --platform=$BUILDPLATFORM base AS libbpf
-
-# Install additional required dependencies.
-RUN yum install -y \
-        elfutils-libelf-devel && \
-    yum clean all
-
-# Install custom package with -fPIC.
-COPY --from=teleport-buildbox-centos7-assets /opt/custom-packages /opt/custom-packages
-RUN if [ "${BUILDARCH}" = "arm64" ]; then export BUILDARCH="aarch64"; fi && \
-    rpm -ivh /opt/custom-packages/elfutils-libelf-devel-static-*.el*.${BUILDARCH}.rpm && \
-    rm -rf /opt/custom-packages
-
-# Install libbpf - compile with a newer GCC. The one installed by default is not able to compile it.
-# BUILD_STATIC_ONLY - builds only static libraries without shared ones
-# EXTRA_CFLAGS - additional CFLAGS to pass to the compiler. fPIC is required so the library code can be moved around in memory
-# DESTDIR - where to install the library
-# V=1 - verbose build
-ARG LIBBPF_VERSION
-RUN mkdir -p /opt && cd /opt && \
-    curl -fsSL https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
-    cd /opt/libbpf-${LIBBPF_VERSION}/src && \
-    scl enable ${DEVTOOLSET} "BUILD_STATIC_ONLY=y EXTRA_CFLAGS=-fPIC DESTDIR=/opt/libbpf V=1 make install install_uapi_headers"
 
 ## LIBPCSCLITE #####################################################################
 
@@ -245,7 +221,7 @@ COPY --from=git2 /opt/git /
 
 # Install Go.
 ARG GOLANG_VERSION
-RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang/${GOLANG_VERSION}.linux-${TARGETARCH}.tar.gz | tar xz && \
+RUN mkdir -p /opt && cd /opt && curl -fsSL https://go.dev/dl/${GOLANG_VERSION}.linux-${TARGETARCH}.tar.gz | tar xz && \
     mkdir -p /go/src/github.com/gravitational/teleport && \
     chmod a+w /go && \
     chmod a+w /var/lib && \
@@ -319,10 +295,6 @@ COPY --from=libpcsclite \
     /usr/local/lib/
 # Set LIBRARY_PATH so that libpcsclite can be found by the linker.
 ENV LIBRARY_PATH=/usr/local/lib:${LIBRARY_PATH}
-
-# Copy libbpf into the final image.
-ARG LIBBPF_VERSION
-COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
 
 # Copy the pre-built CentOS 7 assets with clang. Needed to build BoringSSL and BPF tools.
 COPY --from=teleport-buildbox-centos7-assets /opt/llvm /opt/llvm

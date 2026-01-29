@@ -6,8 +6,8 @@ metadata:
   # token, this name should be specified.
   name: github-token
 spec:
-  # For Machine ID and GitHub joining, roles will always be "Bot" and
-  # join_method will always be "github".
+  # For Machine & Workload Identity via GitHub joining, roles will always be
+  # "Bot" and  join_method will always be "github".
   roles: [Bot]
   join_method: github
 
@@ -72,7 +72,7 @@ spec:
         # whether by committing or by directly despatching the workflow.
         actor: octocat
         # ref is the git ref that triggered the action run.
-        ref: ref/heads/main
+        ref: refs/heads/main
         # ref_type is the type of the git ref that triggered the action run.
         ref_type: branch
         # sub is a concatenated string of various attributes of the workflow 

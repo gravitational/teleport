@@ -120,6 +120,16 @@ func runTokensCommand(t *testing.T, client *authclient.Client, args []string) (*
 	return &stdoutBuff, runCommand(t, client, command, args)
 }
 
+func runScopedCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
+	var stdoutBuff bytes.Buffer
+	command := &ScopedCommand{
+		Stdout: &stdoutBuff,
+	}
+
+	args = append([]string{"scoped"}, args...)
+	return &stdoutBuff, runCommand(t, client, command, args)
+}
+
 func runUserCommand(t *testing.T, client *authclient.Client, args []string) error {
 	command := &UserCommand{}
 	args = append([]string{"users"}, args...)
@@ -299,6 +309,7 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	if options.fakeClock != nil {
 		cfg.Clock = options.fakeClock
+		cfg.Auth.Clock = options.fakeClock
 	}
 	auth, err = service.NewTeleport(cfg)
 

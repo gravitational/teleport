@@ -13,98 +13,8 @@ in a cluster, including nodes, users, tokens, certificates, and devices.
 `tctl` can also be used to modify the dynamic configuration of the cluster, such as
 creating new user roles or connecting to trusted clusters.
 
-## Authentication
-
-Before running `tctl` commands, administrators must authenticate to a Teleport
-cluster. This section explains how `tctl` authenticates to the cluster.
-
-<Tabs>
-  <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
-
-### On a remote host with an identity file
-
-`tctl` can authenticate with a user-provided identity file. The Teleport Auth
-Service signs an identity file when a user runs `tctl auth sign` or
-`tsh login --out=<output-path>`, and the user can include the path to the
-identity file in the `--identity` flag when running `tctl` commands.
-
-When using the `--identity` flag, the user must provide the `--auth-server` flag
-with the address of an Auth Service or Proxy Service so `tctl` knows which
-cluster to authenticate to.
-
-### On the same host as the Teleport Auth Service
-
-If there is a Teleport configuration file on the host where `tctl` is run,
-`tctl` attempts to authenticate to the Auth Service named in the configuration
-file using an identity stored in its local backend.
-
-`tctl` authenticates using this method if a configuration file exists at
-`/etc/teleport.yaml` or `TELEPORT_CONFIG_FILE` points to a configuration file
-in another location. If the `auth_service` is disabled in the configuration
-file, then the configuration file is ignored.
-
-<Admonition type="note">
-
-  Note that when a `tctl` command is run locally on the Auth Service, the audit
-  logs will show that it was performed by the Auth Service itself.
-
-  To provide an accurate audit trail, it is important to limit direct SSH access
-  to the Auth Service with
-  [Access Controls](../../zero-trust-access/authentication/authentication.mdx) and ensure that
-  admins use `tctl` remotely instead.
-
-</Admonition>
-
-### On a remote host after running `tsh login`
-
-If `tctl` cannot find a local Teleport configuration file or a user-provided
-identity file, it attempts to load the user's `tsh` profile to authenticate to
-the cluster. The `tsh` profile is created when a user runs `tsh login`.
-
-`tctl` reads the `TELEPORT_CONFIG_FILE` environment variable to determine if
-a Teleport configuration file is present. If you are using your `tsh` profile to
-authenticate `tctl`, you must ensure that one of these conditions is true:
-
-- `TELEPORT_CONFIG_FILE` is blank
-- No file exists at `/etc/teleport.yaml`
-
-Otherwise `tctl` will attempt to connect to a Teleport cluster on the machine,
-which could result in the error,
-`ERROR: open /var/lib/teleport/host_uuid: permission denied`.
-
-  </TabItem>
-  <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
-
-### On a remote host with an identity file
-
-`tctl` can authenticate with a user-provided identity file. The Teleport Auth
-Service signs an identity file when a user runs `tctl auth sign` or
-`tsh login --out=<output-path>`, and the user can include the path to the
-identity file in the `--identity` flag when running `tctl` commands.
-
-When using the `--identity` flag, the user must alo provide the `--auth-server`
-flag with the address of an Auth Service or Proxy Service so `tctl` knows which
-cluster to authenticate to.
-
-### On a remote host after running `tsh login`
-
-If `tctl` cannot find a local Teleport configuration file or a user-provided
-identity file, it attempts to load the user's `tsh` profile to authenticate to
-the cluster. The `tsh` profile is created when a user runs `tsh login`.
-
-`tctl` reads the `TELEPORT_CONFIG_FILE` environment variable to determine if
-a Teleport configuration file is present. If you are using your `tsh` profile to
-authenticate `tctl`, you must ensure that one of these conditions is true:
-
-- `TELEPORT_CONFIG_FILE` is blank
-- No file exists at `/etc/teleport.yaml`
-
-Otherwise `tctl` will attempt to connect to a Teleport cluster on the machine,
-which could result in the error,
-`ERROR: open /var/lib/teleport/host_uuid: permission denied`.
-
-  </TabItem>
-</Tabs>
+For a conceptual overview of `tctl`, see [Getting Started with
+`tctl`](../../zero-trust-access/infrastructure-as-code/using-tctl.mdx).
 
 ## tctl global flags
 
@@ -445,7 +355,7 @@ $ tctl auth rotate --type=host --grace-period=8h
 <Admonition type="tip" title="Automation">
 `tctl auth sign` is commonly used to generate long-lived certificates for
 automation purposes. On supported platforms,
-[Machine ID](../../machine-workload-identity/machine-id/introduction.mdx) is a more secure alternative that
+[Machine & Workload Identity](../../machine-workload-identity/introduction.mdx) is a more secure alternative that
 generates short-lived certificates for automation workflows.
 </Admonition>
 
@@ -511,7 +421,7 @@ $ tctl auth sign --user=admin --out=identity.pem
 
 ## tctl bots add
 
-Create a new Machine ID Bot:
+Create a new Machine & Workload Identity Bot:
 
 ```code
 $ tctl bots add <name> [<flags>]
@@ -519,7 +429,7 @@ $ tctl bots add <name> [<flags>]
 
 ### Arguments
 
-- `<name>` - name of Machine ID Bot to create.
+- `<name>` - name of Machine & Workload Identity Bot to create.
 
 ### Flags
 
@@ -584,7 +494,7 @@ These flags are available for all commands: `--debug, --config`. Run
 
 ## tctl bots instances list
 
-List all current instances of a Machine ID bot:
+List all current instances of a Machine & Workload Identity bot:
 
 ```code
 $ tctl bots instances list [<name>]
@@ -595,6 +505,16 @@ $ tctl bots instances list [<name>]
 - `[<name>]` - an optional bot name. If provided, filters the result to show
   only instances for the named bot. Otherwise, shows all instances for all bots.
 
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--search` | none | A search term | Optional. Filters the returned bot instances using a fuzzy search based on the term provided. |
+| `--query` | none | Teleport predicate language query | Optional. Filters the returned bot instances based on the Teleport predicate language query provided. |
+| `--sort-index` | `bot_name` | `bot_name`, `active_at_latest`, `version_latest`, `host_name_latest` | Optional. Sorts the returned bot instances using the given field. |
+| `--sort-order` | `ascending` | `ascending`, `descending` | Optional. Sorts the returned bot instances in the given order. |
+| `--format` | `text` | `text`, `json` | If set to `json`, returns results as a machine-readable JSON string. |
+
 ### Examples
 
 This shows all known instances for the bot named "example":
@@ -602,6 +522,25 @@ This shows all known instances for the bot named "example":
 ```code
 $ tctl bots instance list example
 ```
+
+This shows all known instances which contain the term "github";
+
+```code
+$ tctl bots instance list --search github
+```
+
+Searchable fields include; bot name, instance id, hostname, join method, version
+
+This shows all known instances with a version older than "18.0.0";
+
+```code
+$ tctl bots instance list --query `older_than(status.latest_heartbeat.version, "18.0.0")`
+```
+Version-specific functions include;
+
+- `newer_than(version, comparison)`
+- `older_than(version, comparison)`
+- `between(version, lower (inclusive), upper (exclusive))`
 
 ### Global flags
 
@@ -635,7 +574,7 @@ These flags are available for all commands: `--debug, --config`. Run
 
 ## tctl bots ls
 
-Lists all Machine ID Bots:
+Lists all Machine & Workload Identity Bots:
 
 ```code
 $ tctl bots ls [<flags>]
@@ -648,7 +587,7 @@ These flags are available for all commands: `--debug, --config`. Run
 
 ## tctl bots rm
 
-Delete a Machine ID Bot:
+Delete a Machine & Workload Identity Bot:
 
 ```code
 $ tctl bots rm <name> [<flags>]
@@ -656,7 +595,7 @@ $ tctl bots rm <name> [<flags>]
 
 ### Arguments
 
-- `<name>` - name of Machine ID Bot to delete.
+- `<name>` - name of Machine & Workload Identity Bot to delete.
 
 ### Global flags
 
@@ -665,7 +604,7 @@ These flags are available for all commands: `--debug, --config`. Run
 
 ## tctl bots update
 
-Update a Machine ID bot:
+Update a Machine & Workload Identity Bot:
 
 ```code
 $ tctl bots update <bot> [<flags>]
@@ -711,7 +650,7 @@ These flags are available for all commands: `--debug, --config`. Run
 Create or update a Teleport resource from a YAML file.
 
 The supported resource types are: user, node, cluster, role, connector, and device.
-See the [Resources Reference](../infrastructure-as-code/resources.mdx) for complete docs on how to build these yaml files.
+See the [Resources Reference](../infrastructure-as-code/teleport-resources/teleport-resources.mdx) for complete docs on how to build these yaml files.
 
 ```code
 $ tctl create [<flags>] <filename>
@@ -913,14 +852,22 @@ $ TELEPORT_EDITOR=nano tctl edit user/alice
 Print a YAML declaration of various Teleport resources:
 
 ```code
-$ tctl get [<flags>] <resource-type/resource-name>,...
+$ tctl get [<flags>] <resource-type | resource-type/subkind-or-name | resource-type/subkind/name>...
 ```
 
 ### Arguments
 
-- `<resource-type/resource-name>` The resource to get
+- `<resource-type>` The resource to get (lists all)
+  - `resource type` The type of the resource \[for example: `user,cluster,token,device`]
+- `<resource-type/subkind-or-name>` The resource(s) to get
+  - `<resource type>`   The type of the resource \[for example: `user,cluster,token,device`]
+  - `<subkind-or-name>` The name or subkind of the resource
+- `<resource-type/subkind/name>` The resource to get
   - `<resource type>` The type of the resource \[for example: `user,cluster,token,device`]
-  - `<resource name>` The name of the resource
+  - `<subkind>`       The name or subkind of the resource
+  - `<name>`          The name of the resource
+- `tctl get` allows multiple resources to be read at once, as well as combining
+   any of the forms above.
 
 ### Flags
 
@@ -947,6 +894,10 @@ $ tctl get user/joe > joe.yaml
 $ tctl get cluster/east
 # Prints all trusted clusters and all users
 $ tctl get clusters,users
+# Prints all CAs with subkind "user"
+$ tctl get cert_authority/user
+# Prints CA with subkind "user" and cluster name "example.com"
+$ tctl get cert_authority/user/example.com
 # Dump all resources for backup into state.yaml
 $ tctl get all > state.yaml
 ```
@@ -962,6 +913,10 @@ $ tctl get user/joe > joe.yaml
 $ tctl get cluster/east
 # Prints all trusted clusters and all users
 $ tctl get clusters,users
+# Prints all CAs with subkind "user"
+$ tctl get cert_authority/user
+# Prints CA with subkind "user" and cluster name "example.com"
+$ tctl get cert_authority/user/example.com
 ```
 
 </TabItem>
@@ -1265,7 +1220,7 @@ $ tctl request approve request-id-1, request-id-2
 Create a pending Access Request.
 
 ```code
-$ tctl request create <username>
+$ tctl request create [<flags>] <username>
 ```
 
 ### Arguments
@@ -1276,10 +1231,10 @@ $ tctl request create <username>
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-|`roles`|none|Comma-separated list of strings|Roles to be requested|
-|`resource`|none|Comma-separated list of strings|Resource IDs to be requested|
-|`reason`|none|String|Optional reason message|
-|`dry-run`|none|Boolean|Don't actually generate the Access Request|
+|`--roles`|none|Comma-separated list of strings|Roles to be requested|
+|`--resource`|none|Comma-separated list of strings|Resource IDs to be requested|
+|`--reason`|none|String|Optional reason message|
+|`--dry-run`|none|Boolean|Don't actually generate the Access Request|
 
 Use the `dry-run` flag if you want to validate whether Teleport can create an
 Access Request for the user in the `username` argument, given the user's static
@@ -1511,7 +1466,7 @@ The following flags are specific to Google Workspace:
 | `--google-acc-uri` | URI of your service account credentials file. Example: `file:///var/lib/teleport/gworkspace-creds.json`.|
 | `--google-acc`      | String containing Google service account credentials.                                                  |
 | `--google-admin`   | Email of a Google admin to impersonate.                                                                |
-| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](../../zero-trust-access/sso/google-workspace.mdx) |
+| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](../../zero-trust-access/sso/integrate-idp/google-workspace.mdx) |
 | `--google-id`      | Shorthand for setting the `--id` flag to `<GOOGLE_WORKSPACE_CLIENT_ID>.apps.googleusercontent.com`     |
 
 ### Global flags
@@ -2132,6 +2087,83 @@ prod       Done  2025-01-15 18:00:12 outside_window
 backup     Done  2025-01-14 20:00:31 outside_window
 ```
 
+## tctl autoupdate agents report
+
+Aggregates the agent autoupdate reports and displays agent count per version and per update group.
+
+## tctl autoupdate agents start-update
+
+```code
+$ tctl autoupdate agents start-update [--force] [<groups>...]
+```
+
+Manually initiates an update for the specified groups.
+
+### Arguments
+
+- `<groups>` - Groups to update. If not specified, all groups will be started.
+- `--force` - Skips progressive deployment mechanism such as canaries or backpressure.
+
+### Examples
+
+Manually trigger staging and production updates:
+```code
+$ tctl autoupdate agents start-update stage prod
+Started updating agents groups: [stage prod].
+New agent rollout status:
+
+Group Name State     Start Time          State Reason
+---------- --------- ------------------- --------------
+dev        Unstarted                     cannot_start
+stage      Active    2025-03-10 15:04:16 manual_trigger
+prod       Active    2025-03-10 15:04:16 manual_trigger
+```
+## tctl autoupdate agents mark-done
+
+```code
+$ tctl autoupdate agents mark-done [<groups>...]
+```
+
+Manually marks an agent update group as successfully updated.
+
+### Arguments
+
+- `<groups>` - Groups to mark as updated. If not specified, all groups will be marked.
+
+### Examples
+
+Manually mark the staging group as updated:
+```code
+$ tctl autoupdate agents mark-done stage
+Successfully marked agent groups as completed: [stage].
+New agent rollout status:
+
+Group Name State     Start Time          State Reason
+---------- --------- ------------------- ------------------
+dev        Unstarted                     cannot_start
+stage      Done      2025-03-10 15:04:16 manual_forced_done
+prod       Active    2025-03-10 15:04:16 manual_trigger
+```
+
+## tctl autoupdate agents rollback
+
+```code
+$ tctl autoupdate agents rollback [<groups>...]
+```
+
+Initiates an immediate rollback of Teleport agents from the target version to the start version.
+
+### Arguments
+
+- `<groups>` - Groups to rollback. If not specified, all groups not in the `unstarted` state will be rolled back.
+
+### Examples
+
+Rollback all agents immediately:
+```code
+$ tctl autoupdate agents rollback
+```
+
 ## tctl plugins install awsic
 
 Install the AWS Identity Center integration.
@@ -2262,11 +2294,11 @@ $ tctl plugins install entraid \
     --group-id 25f9c527-2314-414c-a75d-ef7efabcc99b \
     --group-name "admin*" \
     --exclude-group-id 080b50c3-1c98-4d8e-a54e-20143dbd4f99 \
-    --exclude-group-name "fin*" 
+    --exclude-group-name "fin*"
 ```
 
-Multiple flags are collected together. In the given example, based on the 
-two `default-owner` flags, all the Access Lists imported by the integration will 
+Multiple flags are collected together. In the given example, based on the
+two `default-owner` flags, all the Access Lists imported by the integration will
 be created with owners `admin` and `root@example.com`.
 
 
@@ -2287,7 +2319,7 @@ $ tctl plugins rotate awsic [<flags>] <token>
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--plugin-name` | | string | Optionally override the name of the AWS IAM Identity Center integration to target | 
+| `--plugin-name` | | string | Optionally override the name of the AWS IAM Identity Center integration to target |
 | `--[no-]validate-token` | `--validate-token` | none | Enables or disables validating the supplied token against the configured SCIM server |
 
 ### Examples
@@ -2311,6 +2343,19 @@ Print the version of your `tctl` binary:
 
 ```code
 tctl version
+```
+
+## tctl recordings download
+
+Download session recordings from the cluster's recording storage to a local file.
+If you omit an output directory, recordings are saved to the current working directory.
+
+If session recording encryption is enabled in the cluster, recordings are decrypted during download.
+
+### Example
+
+```code
+$ tctl recordings download [--output-dir <output-dir>] <session_id>
 ```
 
 ## tctl recordings encryption rotate

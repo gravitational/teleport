@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	grpcmetrics "github.com/gravitational/teleport/lib/observability/metrics/grpc"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -52,11 +53,12 @@ import (
 	workloadidentitysvc "github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/process"
 )
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot")
 
-var clientMetrics = metrics.CreateGRPCClientMetrics(
+var clientMetrics = grpcmetrics.CreateGRPCClientMetrics(
 	false,
 	prometheus.Labels{},
 )
@@ -168,6 +170,26 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				PProfEnabled: b.cfg.Debug,
 			}),
 		)
+	}
+
+	if b.cfg.DiagSocketForUpdater != "" {
+		services = append(services,
+			diagnostics.ServiceBuilder(diagnostics.Config{
+				Address: b.cfg.DiagSocketForUpdater,
+				Network: "unix",
+				Logger: b.log.With(
+					teleport.ComponentKey,
+					teleport.Component(teleport.ComponentTBot, "diagnostics-updater"),
+				),
+			}),
+		)
+	}
+
+	// create the new pid file only after started successfully
+	if b.cfg.PIDFile != "" {
+		if err := process.CreateLockedPIDFile(b.cfg.PIDFile); err != nil {
+			return trace.Wrap(err, "creating pidfile")
+		}
 	}
 
 	// This faux service allows us to get the bot's internal identity and client

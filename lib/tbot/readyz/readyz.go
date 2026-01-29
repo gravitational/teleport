@@ -19,6 +19,7 @@
 package readyz
 
 import (
+	"os"
 	"sync"
 	"time"
 
@@ -66,13 +67,18 @@ func (r *Registry) AddService(serviceType, name string) Reporter {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	statusCh := make(chan struct{})
+
 	// TODO(boxofrad): If you add the same service multiple times, you could end
 	// up unblocking AllServicesReported prematurely. The impact is low, it just
 	// means we'd send a heartbeat sooner than is desirable, but we should panic
 	// or return an error from this method instead.
 	status, ok := r.services[name]
 	if !ok {
-		status = &ServiceStatus{ServiceType: serviceType}
+		status = &ServiceStatus{
+			ServiceType: serviceType,
+			statusCh:    statusCh,
+		}
 		r.services[name] = status
 	}
 
@@ -80,7 +86,10 @@ func (r *Registry) AddService(serviceType, name string) Reporter {
 		mu:     &r.mu,
 		clock:  r.clock,
 		status: status,
-		notify: sync.OnceFunc(r.maybeNotifyLocked),
+		notify: sync.OnceFunc(func() {
+			close(statusCh)
+			r.maybeNotifyLocked()
+		}),
 	}
 }
 
@@ -116,6 +125,7 @@ func (r *Registry) OverallStatus() *OverallStatus {
 
 	return &OverallStatus{
 		Status:   status,
+		PID:      os.Getpid(),
 		Services: services,
 	}
 }
@@ -158,6 +168,11 @@ type ServiceStatus struct {
 
 	// ServiceType is exposed in bot heartbeats, but not the `/readyz` endpoint.
 	ServiceType string `json:"-"`
+
+	// statusCh is a channel that closes when this service reports its first
+	// non-"Initializing" status. A new status should be requested once this
+	// channel closes as the clone will be out of date.
+	statusCh <-chan struct{} `json:"-"`
 }
 
 // Clone the status to avoid data races.
@@ -166,11 +181,20 @@ func (s *ServiceStatus) Clone() *ServiceStatus {
 	return &clone
 }
 
+// Wait returns a channel that closes when this service reports its first
+// status. A new status should be requested when this channel resolves.
+func (s *ServiceStatus) Wait() <-chan struct{} {
+	return s.statusCh
+}
+
 // OverallStatus is tbot's overall aggregate status.
 type OverallStatus struct {
 	// Status of tbot overall. If any service isn't Healthy, the overall status
 	// will be Unhealthy.
 	Status Status `json:"status"`
+
+	// PID is the process PID.
+	PID int `json:"pid"`
 
 	// Services contains the service-specific statuses.
 	Services map[string]*ServiceStatus `json:"services"`

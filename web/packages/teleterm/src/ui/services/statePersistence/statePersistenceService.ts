@@ -64,6 +64,8 @@ export interface StatePersistenceState {
      */
     hasEverStarted: boolean;
   };
+  /** Shows a banner above the cluster list to notify that a new tsh home dir is used. */
+  showTshHomeMigrationBanner: boolean;
 }
 
 // Before adding new methods to this service, consider using usePersistedState instead.
