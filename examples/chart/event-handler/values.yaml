@@ -242,22 +242,31 @@ certManager:
   # the Fluentd server and client certificates.
   issuer:
     # certManager.issuer.create(bool) -- controls if the chart should create
-    # a private CA issuer to issue the certificates.
-    # This is a CA issuer using a root certificate issued from a `SelfSigned` issuer.
+    # a private CA issuer to issue the Fluentd server and client certificates.
     #
-    # See the [cert-manager `SelfSigned` Issuer documentation
+    # See the [cert-manager Bootstrapping CA Issuers documentation
     # ](https://cert-manager.io/docs/configuration/selfsigned/#bootstrapping-ca-issuers) for more information.
     #
-    # <Admonition type="note" title="Configuring your own Issuer">
-    # If `certManager.issuer.create` is false, you must install and
-    # configure an appropriate issuer yourself.
-    # If using your own issuer, it should be in the same namespace as the plugin's release namespace.
+    # <Admonition type="warning" title="Creating the CA Issuer with the Chart">
+    # If `certManager.issuer.create` is true, the chart will create a new private CA issuer.
+    # This means existing Fluentd deployments may need to be restarted to load the new certificates.
+    # As such, it is recommended to use your own issuer in production.
     #
     # See the [cert-manager Issuers documentation
     # ](https://cert-manager.io/docs/configuration/issuers/) for more information.
     # </Admonition>
     create: true
     # certManager.issuer.name(string) -- is the `Name` of the issuer. Unused if `certManager.issuer.create` is true.
+    #
+    # <Admonition type="note" title="Configuring your own Issuer">
+    # If `certManager.issuer.create` is false, you must install and
+    # configure an appropriate issuer yourself.
+    # If configuring an `Issuer` resource, it should be in the same namespace as the plugin's release namespace.
+    # Alternatively, you can use `ClusterIssuer` for a cluster-wide issuer.
+    #
+    # See the [cert-manager Issuers documentation
+    # ](https://cert-manager.io/docs/configuration/issuers/) for more information.
+    # </Admonition>
     name: ""
     # certManager.issuer.kind(string) -- is the `Kind` of the issuer. Unused if `certManager.issuer.create` is true.
     # Defaults to 'Issuer' to keep permissions scoped to the plugin's release namespace.
