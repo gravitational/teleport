@@ -106,7 +106,7 @@ const cfg = {
   // terraform contains terraform related configuration
   terraform: {
     registry: 'terraform.releases.teleport.dev',
-    stagingRegistry: 'terraform-staging.releases.teleport.dev',
+    stagingRegistry: 'terraform-staging.releases.development.teleport.dev',
   },
 
   // enterprise non-exact routes will be merged into this
