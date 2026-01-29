@@ -547,7 +547,7 @@ func TestJoinEC2(t *testing.T) {
 				tc.expectError(t, err)
 			})
 			t.Run("scoped", func(t *testing.T) {
-				if tc.requestHostID == badInstanceID {
+				if tc.requestHostID == badInstanceId {
 					// New join method does not allow the client to request a
 					// specific host ID, so the join would pass and fail the
 					// error assertion.
