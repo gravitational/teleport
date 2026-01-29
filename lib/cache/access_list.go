@@ -407,10 +407,10 @@ func (c *Cache) ListAccessListReviews(ctx context.Context, accessList string, pa
 		},
 	}
 
-	start := accessList
-	end := sortcache.NextKey(accessList + "/")
+	start := accessList + "/"
+	end := sortcache.NextKey(start)
 	if pageToken != "" {
-		start += "/" + pageToken
+		start += pageToken
 	}
 
 	out, next, err := lister.listRange(ctx, pageSize, start, end)
