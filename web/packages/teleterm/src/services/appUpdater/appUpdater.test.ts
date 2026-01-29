@@ -100,7 +100,7 @@ class MockedMacUpdater extends MacUpdater {
 function setUpAppUpdater(options: {
   clusters: GetClusterVersionsResponse;
   storage?: AppUpdaterStorage;
-  processEnvVar?: string;
+  configToolsVersion?: string;
 }) {
   const nativeUpdater = new MockedMacUpdater();
 
@@ -111,13 +111,15 @@ function setUpAppUpdater(options: {
     options.storage || makeUpdaterStorage(),
     {
       getClusterVersions: async () => options.clusters,
-      getDownloadBaseUrl: async () => 'https://cdn.teleport.dev',
+      getConfig: async () => ({
+        cdnBaseUrl: 'https://cdn.teleport.dev',
+        toolsVersion: options.configToolsVersion,
+      }),
       getInstallationMetadata: async () => ({ isPerMachineInstall: false }),
     },
     event => {
       lastEvent.value = event;
     },
-    options.processEnvVar,
     nativeUpdater
   );
 
@@ -192,9 +194,9 @@ test('does not auto-download update when there are unreachable clusters', async 
   expect(setup.downloadUpdateSpy).toHaveBeenCalledTimes(0);
 });
 
-test('does not auto-download update when env var is set to off', async () => {
+test('does not auto-download update when local config tools version is set to off', async () => {
   const setup = setUpAppUpdater({
-    processEnvVar: 'off',
+    configToolsVersion: 'off',
     clusters: {
       reachableClusters: [
         {
@@ -213,7 +215,7 @@ test('does not auto-download update when env var is set to off', async () => {
     expect.objectContaining({
       kind: 'update-not-available',
       autoUpdatesStatus: expect.objectContaining({
-        reason: 'disabled-by-env-var',
+        reason: 'disabled-by-env-config',
       }),
     })
   );
