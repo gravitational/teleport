@@ -971,11 +971,6 @@
       "permanent": true
     },
     {
-      "source": "/admin-guides/infrastructure-as-code/managing-resources/access-list/",
-      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/access-list/",
-      "permanent": true
-    },
-    {
       "source": "/admin-guides/infrastructure-as-code/managing-resources/agentless-ssh-servers/",
       "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/agentless-ssh-servers/",
       "permanent": true
@@ -3475,6 +3470,11 @@
     {
       "source": "/enroll-resources/application-access/introduction/",
       "destination": "/enroll-resources/application-access/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-lists/terraform/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/access-list/",
       "permanent": true
     }
   ]

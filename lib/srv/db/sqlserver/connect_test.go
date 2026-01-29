@@ -23,10 +23,11 @@ import (
 	_ "embed"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jcmturner/gokrb5/v8/client"
+	mssql "github.com/microsoft/go-mssqldb"
+	"github.com/microsoft/go-mssqldb/msdsn"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -40,18 +41,13 @@ import (
 // selection logic.
 func TestConnectorSelection(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	connector := &connector{
-		DBAuth:   &mockDBAuth{},
-		kerberos: &mockKerberos{},
-	}
 
 	for i, tt := range []struct {
-		desc         string
-		databaseSpec types.DatabaseSpecV3
-		errAssertion require.ErrorAssertionFunc
+		desc                 string
+		databaseSpec         types.DatabaseSpecV3
+		expectAzureConnector bool
+		expectTokenConnector bool
+		errAssertion         require.ErrorAssertionFunc
 	}{
 		{
 			desc: "Non-Azure database",
@@ -61,9 +57,7 @@ func TestConnectorSelection(t *testing.T) {
 			},
 			// When using a non-Azure database, the connector should fail
 			// loading Kerberos credentials.
-			errAssertion: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, unimplementedMessage)
-			},
+			errAssertion: requireKerberosClientError,
 		},
 		{
 			desc: "Azure database with AD configured",
@@ -71,28 +65,23 @@ func TestConnectorSelection(t *testing.T) {
 				Protocol: defaults.ProtocolSQLServer,
 				URI:      "name.database.windows.net:1443",
 				AD: types.AD{
-					// Domain is required for AD authentication.
 					Domain: "EXAMPLE.COM",
 				},
 			},
-			// When using a Azure database with AD configuration, the connector
+			// When using an Azure database with AD configuration, the connector
 			// should fail loading Kerberos credentials.
-			errAssertion: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, unimplementedMessage)
-			},
+			errAssertion: requireKerberosClientError,
 		},
 		{
 			desc: "Azure database without AD configured",
 			databaseSpec: types.DatabaseSpecV3{
 				Protocol: defaults.ProtocolSQLServer,
-				URI:      "no-such-host-1234567890.database.windows.net:1443",
+				URI:      "azure-db.database.windows.net:1443",
 			},
 			// When using an Azure database without AD configuration, the
-			// connector should fail because it could not resolve the host.
-			errAssertion: func(t require.TestingT, err error, _ ...any) {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), "no such host")
-			},
+			// connector should succeed in selecting the Azure connector.
+			expectAzureConnector: true,
+			errAssertion:         require.NoError,
 		},
 		{
 			desc: "RDS Proxied database",
@@ -105,38 +94,38 @@ func TestConnectorSelection(t *testing.T) {
 					},
 				},
 			},
-			// RDS proxies cannot be accessed outside their VPC. So, this test
-			// case should not resolve their host.
-			errAssertion: func(t require.TestingT, err error, _ ...any) {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), "no such host")
-			},
+			// When using an RDS proxy database, the connector should succeed
+			// in selecting the access token connector.
+			expectTokenConnector: true,
+			errAssertion:         require.NoError,
 		},
 	} {
 		t.Run(tt.desc, func(t *testing.T) {
+			var azureCalled, tokenCalled bool
+
+			connector := &connector{
+				DBAuth:   &mockDBAuth{},
+				kerberos: &mockKerberos{},
+				newAzureConnector: func(msdsn.Config) (*mssql.Connector, error) {
+					azureCalled = true
+					return &mssql.Connector{}, nil
+				},
+				newSecurityTokenConnector: func(msdsn.Config, func(context.Context) (string, error)) (*mssql.Connector, error) {
+					tokenCalled = true
+					return &mssql.Connector{}, nil
+				},
+			}
+
 			database, err := types.NewDatabaseV3(types.Metadata{
 				Name: fmt.Sprintf("db-%v", i),
 			}, tt.databaseSpec)
 			require.NoError(t, err)
 
-			connectorCtx, cancel := context.WithCancel(ctx)
-			defer cancel()
+			_, err = connector.selectConnector(t.Context(), &common.Session{Database: database}, &protocol.Login7Packet{})
+			tt.errAssertion(t, err)
 
-			resChan := make(chan error, 1)
-			go func() {
-				_, _, err = connector.Connect(connectorCtx, &common.Session{Database: database}, &protocol.Login7Packet{})
-				resChan <- err
-			}()
-
-			// Cancel the context to avoid dialing databases.
-			cancel()
-
-			select {
-			case err := <-resChan:
-				tt.errAssertion(t, err)
-			case <-ctx.Done():
-				require.Fail(t, "timed out waiting for connector to return")
-			}
+			require.Equal(t, tt.expectAzureConnector, azureCalled, "Azure connector call mismatch")
+			require.Equal(t, tt.expectTokenConnector, tokenCalled, "Token connector call mismatch")
 		})
 	}
 }
@@ -147,4 +136,8 @@ const unimplementedMessage = "intentionally left unimplemented"
 
 func (m *mockKerberos) GetKerberosClient(ctx context.Context, ad types.AD, username string) (*client.Client, error) {
 	return nil, trace.BadParameter(unimplementedMessage)
+}
+
+func requireKerberosClientError(t require.TestingT, err error, msgAndArgs ...any) {
+	require.ErrorContains(t, err, unimplementedMessage, msgAndArgs...)
 }

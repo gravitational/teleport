@@ -286,6 +286,9 @@ export function AccessRequestCheckout() {
             updateNamespacesForKubeCluster={updateNamespacesForKubeCluster}
             requireReason={reasonMode === 'required'}
             reasonPrompts={reasonPrompts}
+            // TODO(kiosion): Support Resource Constraints in Connect's RequestCheckout
+            addedResourceConstraints={{}}
+            setResourceConstraints={() => null}
           />
         )}
       </Transition>

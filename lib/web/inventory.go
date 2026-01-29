@@ -89,11 +89,18 @@ func (h *Handler) clusterUnifiedInstancesGet(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
+	// We don't use splitQuery for parsing upgraders since it should be possible to filter for upgrader "" (none),
+	// and splitQuery would remove it.
+	var upgraders []string
+	if upgradersParam := values.Get("upgraders"); upgradersParam != "" {
+		upgraders = strings.Split(upgradersParam, ",")
+	}
+
 	filter := &inventoryv1.ListUnifiedInstancesFilter{
 		Search:              values.Get("search"),
 		PredicateExpression: values.Get("query"),
 		Services:            splitQuery(values.Get("services")),
-		Upgraders:           splitQuery(values.Get("upgraders")),
+		Upgraders:           upgraders,
 		UpdaterGroups:       splitQuery(values.Get("updaterGroups")),
 	}
 

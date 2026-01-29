@@ -52,10 +52,10 @@ export function Prerequisites() {
             <li>
               <Text fontWeight="medium">Teleport Terraform Provider:</Text>
               <Text>Authenticate to your Teleport cluster</Text>
-              <ExternalLink href="#">
-                {
-                  // TODO(alexhemard): add real URL
-                }
+              <ExternalLink
+                href="https://goteleport.com/docs/zero-trust-access/infrastructure-as-code/terraform-provider/"
+                target="_blank"
+              >
                 Teleport Provider Configuration
                 <ArrowSquareOut size="small" />
               </ExternalLink>
@@ -63,10 +63,10 @@ export function Prerequisites() {
             <li>
               <Text fontWeight="medium">AWS Terraform Provider:</Text>
               <Text>Configure AWS credentials for IAM management</Text>
-              <ExternalLink href="#">
-                {
-                  // TODO(alexhemard): add real URL
-                }
+              <ExternalLink
+                href="https://registry.terraform.io/providers/hashicorp/aws/latest/docs"
+                target="_blank"
+              >
                 AWS Provider Configuration <ArrowSquareOut size="small" />
               </ExternalLink>
             </li>

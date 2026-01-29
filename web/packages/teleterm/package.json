@@ -45,14 +45,13 @@
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "electron": "39.2.2",
-    "electron-builder": "^26.0.12",
+    "electron-builder": "^26.6.0",
     "electron-updater": "^6.7.0",
     "electron-vite": "^4.0.1",
     "events": "3.3.0",
     "react-dnd": "^14.0.4",
     "react-dnd-html5-backend": "^14.0.2",
-    "whatwg-url": "^15.1.0",
-    "zod": "^4.2.1"
+    "whatwg-url": "^15.1.0"
   },
   "productName": "Teleport Connect"
 }

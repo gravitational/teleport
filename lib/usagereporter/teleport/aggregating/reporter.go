@@ -42,6 +42,7 @@ const (
 	userActivityReportGranularity        = 15 * time.Minute
 	resourceReportGranularity            = time.Hour
 	botInstanceActivityReportGranularity = 15 * time.Minute
+	identitySecurityReportGranularity    = 15 * time.Minute
 	rollbackGrace                        = time.Minute
 	reportTTL                            = 60 * 24 * time.Hour
 
@@ -124,6 +125,12 @@ func NewReporter(ctx context.Context, cfg ReporterConfig) (*Reporter, error) {
 	return r, nil
 }
 
+// identitySecuritySummariesGeneratedKey uniquely identifies a session summary by session type and resource name
+type identitySecuritySummariesGeneratedKey struct {
+	sessionType  string
+	resourceName string
+}
+
 // Reporter aggregates and persists usage events to the backend.
 type Reporter struct {
 	anonymizer utils.Anonymizer
@@ -190,7 +197,9 @@ func (r *Reporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 			*usagereporter.AccessRequestCreateEvent,
 			*usagereporter.AccessRequestReviewEvent,
 			*usagereporter.AccessListReviewCreateEvent,
-			*usagereporter.AccessListGrantsToUserEvent:
+			*usagereporter.AccessListGrantsToUserEvent,
+			*usagereporter.SessionSummaryCreateEvent,
+			*usagereporter.SessionSummaryAccessEvent:
 			filtered = append(filtered, event)
 		}
 	}
@@ -299,6 +308,44 @@ func (r *Reporter) run(ctx context.Context) {
 		user[spiffeID]++
 	}
 
+	incrementUserSessionSummariesAccessed := func(userRecord *prehogv1.UserActivityRecord, sessionType string, resourceName string) {
+		for _, rec := range userRecord.SessionSummariesAccessed {
+			if rec.SessionType == sessionType && rec.ResourceName == resourceName {
+				rec.Count++
+				return
+			}
+		}
+		userRecord.SessionSummariesAccessed = append(userRecord.SessionSummariesAccessed, &prehogv1.SessionSummariesAccessedRecord{
+			SessionType:  sessionType,
+			ResourceName: resourceName,
+			Count:        1,
+		})
+	}
+
+	// sessionSummariesGenerated tracks AI-generated session summaries with token usage
+	// map[key]*SessionSummariesGeneratedRecord
+	sessionSummariesGenerated := make(map[identitySecuritySummariesGeneratedKey]*prehogv1.SessionSummariesGeneratedRecord)
+	identitySecurityStartTime := r.clock.Now().UTC().Truncate(userActivityReportGranularity)
+	identitySecurityWindowStart := identitySecurityStartTime.Add(-rollbackGrace)
+	identitySecurityWindowEnd := identitySecurityStartTime.Add(userActivityReportGranularity)
+
+	incrementSessionSummariesGenerated := func(sessionType string, resourceName string, inputTokens uint64, outputTokens uint64) {
+		key := identitySecuritySummariesGeneratedKey{
+			sessionType:  sessionType,
+			resourceName: resourceName,
+		}
+		record := sessionSummariesGenerated[key]
+		if record == nil {
+			record = &prehogv1.SessionSummariesGeneratedRecord{
+				SessionType:  sessionType,
+				ResourceName: resourceName,
+			}
+			sessionSummariesGenerated[key] = record
+		}
+		record.TotalInputTokens += inputTokens
+		record.TotalOutputTokens += outputTokens
+	}
+
 	botInstanceActivityStartTime := r.clock.Now().UTC().Truncate(botInstanceActivityReportGranularity)
 	botInstanceActivityWindowStart := botInstanceActivityStartTime.Add(-rollbackGrace)
 	botInstanceActivityWindowEnd := botInstanceActivityStartTime.Add(botInstanceActivityReportGranularity)
@@ -401,6 +448,25 @@ Ingest:
 			resourcePresences = make(map[prehogv1.ResourceKind]map[string]struct{}, len(resourcePresences))
 		}
 
+		if now := r.clock.Now().UTC(); now.Before(identitySecurityWindowStart) || !now.Before(identitySecurityWindowEnd) {
+			if len(sessionSummariesGenerated) > 0 {
+				wg.Add(1)
+				go func(
+					ctx context.Context,
+					startTime time.Time,
+					summaries map[identitySecuritySummariesGeneratedKey]*prehogv1.SessionSummariesGeneratedRecord,
+				) {
+					defer wg.Done()
+					r.persistIdentitySecuritySummariesGenerated(ctx, startTime, summaries)
+				}(ctx, identitySecurityStartTime, sessionSummariesGenerated)
+			}
+
+			identitySecurityStartTime = now.Truncate(identitySecurityReportGranularity)
+			identitySecurityWindowStart = identitySecurityStartTime.Add(-rollbackGrace)
+			identitySecurityWindowEnd = identitySecurityStartTime.Add(identitySecurityReportGranularity)
+			sessionSummariesGenerated = make(map[identitySecuritySummariesGeneratedKey]*prehogv1.SessionSummariesGeneratedRecord, len(sessionSummariesGenerated))
+		}
+
 		switch te := ae.(type) {
 		case *usagereporter.UserLoginEvent:
 			// Bots never generate tp.user.login events.
@@ -468,6 +534,13 @@ Ingest:
 			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessListsReviewed++
 		case *usagereporter.AccessListGrantsToUserEvent:
 			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessListsGrants++
+		case *usagereporter.SessionSummaryAccessEvent:
+			incrementUserSessionSummariesAccessed(userRecord(te.UserName, te.UserKind), te.SessionType, te.ResourceName)
+		case *usagereporter.SessionSummaryCreateEvent:
+			// Only track successful session summary creation
+			if te.Success {
+				incrementSessionSummariesGenerated(te.SessionType, te.ResourceName, te.TotalInputTokens, te.TotalOutputTokens)
+			}
 		}
 
 		if ae != nil && r.ingested != nil {
@@ -485,6 +558,10 @@ Ingest:
 
 	if len(resourcePresences) > 0 {
 		r.persistResourcePresence(ctx, resourceUsageStartTime, resourcePresences)
+	}
+
+	if len(sessionSummariesGenerated) > 0 {
+		r.persistIdentitySecuritySummariesGenerated(ctx, identitySecurityStartTime, sessionSummariesGenerated)
 	}
 
 	wg.Wait()
@@ -560,6 +637,11 @@ func (r *Reporter) persistUserActivity(
 		}
 		record.SpiffeIdsIssued = spiffeIDRecords
 
+		for _, sessionSummariesAccessedRecord := range record.SessionSummariesAccessed {
+			// Anonymize resource name in session summaries accessed records
+			sessionSummariesAccessedRecord.ResourceName = r.anonymizer.AnonymizeString(sessionSummariesAccessedRecord.ResourceName)
+		}
+
 		records = append(records, record)
 	}
 
@@ -627,5 +709,49 @@ func (r *Reporter) persistResourcePresence(ctx context.Context, startTime time.T
 
 		reportUUID, _ := uuid.FromBytes(report.ReportUuid)
 		r.logger.DebugContext(ctx, "Persisted resource presence report.", "report_uuid", reportUUID, "start_time", startTime)
+	}
+}
+
+func (r *Reporter) persistIdentitySecuritySummariesGenerated(
+	ctx context.Context,
+	startTime time.Time,
+	sessionSummariesGenerated map[identitySecuritySummariesGeneratedKey]*prehogv1.SessionSummariesGeneratedRecord,
+) {
+	records := make([]*prehogv1.SessionSummariesGeneratedRecord, 0, len(sessionSummariesGenerated))
+	for _, record := range sessionSummariesGenerated {
+		// Anonymize the resource name before adding to records
+		record.ResourceName = r.anonymizer.AnonymizeString(record.ResourceName)
+		records = append(records, record)
+	}
+
+	anonymizedClusterName := r.anonymizer.AnonymizeNonEmpty(r.clusterName)
+	anonymizedHostID := r.anonymizer.AnonymizeNonEmpty(r.hostID)
+
+	reports, err := prepareIdentitySecuritySummariesGeneratedReports(anonymizedClusterName, anonymizedHostID, startTime, records)
+	if err != nil {
+		r.logger.ErrorContext(ctx, "Failed to prepare identity security summaries generated report, dropping data.",
+			"start_time", startTime,
+			"lost_records", len(records),
+			"error", err,
+		)
+		return
+	}
+
+	for _, report := range reports {
+		if err := r.svc.upsertIdentitySecuritySummariesGeneratedReport(ctx, report, reportTTL); err != nil {
+			r.logger.ErrorContext(ctx, "Failed to persist identity security summaries generated report, dropping data.",
+				"start_time", startTime,
+				"lost_records", len(report.Records),
+				"error", err,
+			)
+			continue
+		}
+
+		reportUUID, _ := uuid.FromBytes(report.ReportUuid)
+		r.logger.DebugContext(ctx, "Persisted identity security summaries generated report.",
+			"report_uuid", reportUUID,
+			"start_time", startTime,
+			"records", len(report.Records),
+		)
 	}
 }
