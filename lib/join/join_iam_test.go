@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/join/jointest"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -805,53 +806,27 @@ func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 		assert.NoError(t, tc.authServer.Auth().DeleteToken(ctx, token.GetName()))
 	})
 
-	convertRules := func(rules []*types.TokenRule) []*joiningv1.AWS_Rule {
-		t.Helper()
-		out := make([]*joiningv1.AWS_Rule, len(rules))
-		for i, rule := range rules {
-			out[i] = &joiningv1.AWS_Rule{
-				AwsAccount:        rule.AWSAccount,
-				AwsRegions:        rule.AWSRegions,
-				AwsRole:           rule.AWSRole,
-				AwsArn:            rule.AWSARN,
-				AwsOrganizationId: rule.AWSOrganizationID,
-			}
-		}
-
-		return out
-	}
-
-	scopedToken := &joiningv1.ScopedToken{
-		Kind:    types.KindScopedToken,
-		Version: types.V1,
-		Scope:   "/test",
+	scopedToken, err := jointest.ScopedTokenFromProvisionToken(token, &joiningv1.ScopedToken{
+		Scope: "/test",
 		Metadata: &headerv1.Metadata{
 			Name: "scoped_" + token.GetName(),
 		},
 		Spec: &joiningv1.ScopedTokenSpec{
 			AssignedScope: "/test/one",
-			JoinMethod:    string(token.GetJoinMethod()),
-			Roles:         []string{types.RoleNode.String()},
 			UsageMode:     string(joining.TokenUsageModeUnlimited),
-			Aws: &joiningv1.AWS{
-				Integration: token.GetIntegration(),
-				Allow:       convertRules(token.GetAllowRules()),
-			},
 		},
-	}
+	})
+	require.NoError(t, err)
 
 	_, err = tc.authServer.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
 		Token: scopedToken,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_, err := tc.authServer.Auth().DeleteScopedToken(
-			t.Context(),
-			&joiningv1.DeleteScopedTokenRequest{
-				Name: scopedToken.GetMetadata().GetName(),
-			},
-		)
-		assert.NoError(t, err)
+		_, err := tc.authServer.Auth().DeleteScopedToken(t.Context(), &joiningv1.DeleteScopedTokenRequest{
+			Name: scopedToken.GetMetadata().GetName(),
+		})
+		require.NoError(t, err)
 	})
 
 	// Make an unauthenticated auth client that will be used for the join.

@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/join/ec2join"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/join/jointest"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
@@ -481,58 +482,28 @@ func TestJoinEC2(t *testing.T) {
 			err = testServer.Auth().UpsertToken(t.Context(), token)
 			require.NoError(t, err)
 
-			convertRules := func(rules []*types.TokenRule) []*joiningv1.AWS_Rule {
-				t.Helper()
-				out := make([]*joiningv1.AWS_Rule, len(rules))
-				for i, rule := range rules {
-					out[i] = &joiningv1.AWS_Rule{
-						AwsAccount:        rule.AWSAccount,
-						AwsRegions:        rule.AWSRegions,
-						AwsRole:           rule.AWSRole,
-						AwsArn:            rule.AWSARN,
-						AwsOrganizationId: rule.AWSOrganizationID,
-					}
-				}
-
-				return out
-			}
-
-			// scoped tokens don't support upserts natively, so we fake it
-			// by deleting and recreating the token
-			upsertScopedToken := func(token *joiningv1.ScopedToken) {
-				t.Helper()
-				_, err = testServer.Auth().DeleteScopedToken(t.Context(), &joiningv1.DeleteScopedTokenRequest{
-					Name: token.GetMetadata().GetName(),
-				})
-				if err != nil {
-					require.True(t, trace.IsNotFound(err))
-				}
-
-				_, err = testServer.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
-					Token: token,
-				})
-				require.NoError(t, err)
-			}
-
-			scopedToken := &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Version: types.V1,
-				Scope:   "/test",
+			scopedToken, err := jointest.ScopedTokenFromProvisionToken(token, &joiningv1.ScopedToken{
+				Scope: "/test",
 				Metadata: &headerv1.Metadata{
-					Name: "scoped_token",
+					Name: "scoped_" + token.GetName(),
 				},
 				Spec: &joiningv1.ScopedTokenSpec{
 					AssignedScope: "/test/one",
-					JoinMethod:    string(types.JoinMethodEC2),
-					Roles:         []string{types.RoleNode.String()},
 					UsageMode:     string(joining.TokenUsageModeUnlimited),
-					Aws: &joiningv1.AWS{
-						Allow:     convertRules(token.GetAllowRules()),
-						AwsIidTtl: int64(token.GetAWSIIDTTL()),
-					},
 				},
-			}
-			upsertScopedToken(scopedToken)
+			})
+			require.NoError(t, err)
+
+			_, err = testServer.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+				Token: scopedToken,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_, err := testServer.Auth().DeleteScopedToken(t.Context(), &joiningv1.DeleteScopedTokenRequest{
+					Name: scopedToken.GetMetadata().GetName(),
+				})
+				require.NoError(t, err)
+			})
 
 			testServer.Auth().SetEC2ClientForEC2JoinMethod(tc.ec2Client)
 
