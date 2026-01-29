@@ -644,7 +644,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 
 	// Ensure handshake is complete so that we can the read ALPN result.
 	if err := proxyConn.Handshake(); err != nil {
-		log.Error("Failed to complete TLS handshake")
+		log.ErrorContext(context.Background(), "Failed to complete TLS handshake")
 		return
 	}
 
@@ -658,7 +658,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 		clientProtocol = legacy.ProtocolName
 		decoder = legacy.Decode
 	default:
-		log.Error("unknown client protocol selection", "protocol", clientProtocol)
+		log.ErrorContext(context.Background(), "Unknown client protocol selection", "protocol", clientProtocol)
 		return
 	}
 
