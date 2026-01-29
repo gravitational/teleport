@@ -49,6 +49,8 @@ pub struct Card<const S: usize> {
     piv_auth_cert: Vec<u8>,
     piv_auth_key: RsaPrivateKey,
     pin: String,
+    pin_verified: bool,
+
     // Pending command and response to receive/send over multiple messages when
     // they don't fit into one.
     pending_command: Option<Command<S>>,
@@ -65,12 +67,13 @@ impl<const S: usize> Card<S> {
             piv_auth_cert: Self::build_piv_auth_cert(cert_der),
             piv_auth_key,
             pin,
+            pin_verified: false,
             pending_command: None,
             pending_response: None,
         })
     }
 
-    pub fn handle(&mut self, cmd: Command<S>) -> PduResult<Response> {
+    pub fn handle(&mut self, cmd: Command<S>, context: u32) -> PduResult<Response> {
         debug!("got command: {:?}", cmd);
         debug!("command data: {}", hex_data(&cmd));
 
@@ -97,7 +100,7 @@ impl<const S: usize> Card<S> {
         let resp = match cmd.instruction() {
             Instruction::Select => self.handle_select(cmd),
             Instruction::Verify => self.handle_verify(cmd),
-            Instruction::GetData => self.handle_get_data(cmd),
+            Instruction::GetData => self.handle_get_data(cmd, context),
             Instruction::GetResponse => self.handle_get_response(cmd),
             Instruction::GeneralAuthenticate => self.handle_general_authenticate(cmd),
             _ => {
@@ -115,7 +118,7 @@ impl<const S: usize> Card<S> {
         //
         // P1=04 and P2=00 means selection of DF (usually) application by name. Everything else not
         // supported.
-        if cmd.p1 != 0x04 && cmd.p2 != 0x00 {
+        if cmd.p1 != 0x04 || cmd.p2 != 0x00 {
             return Ok(Response::new(Status::NotFound));
         }
         if !PIV_AID.matches(cmd.data()) {
@@ -127,10 +130,7 @@ impl<const S: usize> Card<S> {
         let resp = tlv(
             TLV_TAG_PIV_APPLICATION_PROPERTY_TEMPLATE,
             Value::Constructed(vec![
-                tlv(
-                    TLV_TAG_AID,
-                    Value::Primitive(vec![0x00, 0x00, 0x10, 0x00, 0x01, 0x00]),
-                )?,
+                tlv(TLV_TAG_AID, Value::Primitive(PIV_AID.as_bytes().to_vec()))?,
                 tlv(
                     TLV_TAG_COEXISTENT_TAG_ALLOCATION_AUTHORITY,
                     Value::Constructed(vec![tlv(
@@ -145,17 +145,21 @@ impl<const S: usize> Card<S> {
 
     fn handle_verify(&mut self, cmd: Command<S>) -> PduResult<Response> {
         if cmd.data() == self.pin.as_bytes() {
+            self.pin_verified = true;
             Ok(Response::new(Status::Success))
         } else {
-            warn!("PIN mismatch, want {}, got {:?}", self.pin, cmd.data());
+            self.pin_verified = false;
             Ok(Response::new(Status::VerificationFailed))
         }
     }
 
-    fn handle_get_data(&mut self, cmd: Command<S>) -> PduResult<Response> {
-        // See https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf section
-        // 3.1.2.
-        if cmd.p1 != 0x3F && cmd.p2 != 0xFF {
+    fn handle_get_data(&mut self, cmd: Command<S>, context: u32) -> PduResult<Response> {
+        // See https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf section 3.1.2.
+        if cmd.p1 != 0x3F || cmd.p2 != 0xFF {
+            warn!(
+                "[SCARD] PIV: Invalid GET DATA command 0x{:02x}{:02x} (returning not found)",
+                cmd.p1, cmd.p2
+            );
             return Ok(Response::new(Status::NotFound));
         }
         let request_tlv = Tlv::from_bytes(cmd.data()).map_err(
@@ -173,8 +177,17 @@ impl<const S: usize> Card<S> {
                     self.pending_response = Some(Cursor::new(self.piv_auth_cert.clone()));
                     self.handle_get_response(cmd)
                 }
-                _ => {
+                other => {
                     // Some other unimplemented data object.
+                    warn!("[SCARD] PIV: context={} Unsupported primitive GET DATA request for {other} (returning not found)", context);
+
+                    // 5FC101: X.509 Certificate for Card Authentication
+                    //
+                    // 5FC10A: X.509 Certificate for Digital Signature
+                    // 5FC10B: X.509 Certificate for Key Management
+                    // 5FC10C: Key History Object
+                    // 5FC107: Card Capability Container
+
                     Ok(Response::new(Status::NotFound))
                 }
             },
@@ -182,14 +195,19 @@ impl<const S: usize> Card<S> {
         }
     }
 
-    fn handle_get_response(&mut self, _cmd: Command<S>) -> PduResult<Response> {
-        // CHUNK_SIZE is the max response data size in bytes, without resorting to "extended"
-        // messages.
+    fn handle_get_response(&mut self, cmd: Command<S>) -> PduResult<Response> {
         const CHUNK_SIZE: usize = 256;
+
+        let mut max_len = cmd.expected();
+        // Le=0 often means "max length" for short APDUs, so clamp to CHUNK_SIZE.
+        if max_len == 0 || max_len > CHUNK_SIZE {
+            max_len = CHUNK_SIZE;
+        }
+
         match &mut self.pending_response {
             None => Ok(Response::new(Status::NotFound)),
             Some(cursor) => {
-                let mut chunk = [0; CHUNK_SIZE];
+                let mut chunk = vec![0; max_len];
                 let n = cursor
                     .read(&mut chunk)
                     .map_err(|e| pdu_other_err!("", source:e))?;
@@ -197,8 +215,9 @@ impl<const S: usize> Card<S> {
                 chunk.truncate(n);
                 let remaining = cursor.get_ref().len() as u64 - cursor.position();
                 let status = if remaining == 0 {
+                    self.pending_response = None;
                     Status::Success
-                } else if remaining < CHUNK_SIZE as u64 {
+                } else if remaining < max_len as u64 {
                     Status::MoreAvailable(remaining as u8)
                 } else {
                     Status::MoreAvailable(0)
@@ -231,6 +250,11 @@ impl<const S: usize> Card<S> {
     }
 
     fn handle_general_authenticate(&mut self, cmd: Command<S>) -> PduResult<Response> {
+        // Ensure that handle_verify succeeded.
+        if !self.pin_verified {
+            return Ok(Response::new(Status::SecurityStatusNotSatisfied));
+        }
+
         // See section 3.2.4 and example in Appending A.3 from
         // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf
 
