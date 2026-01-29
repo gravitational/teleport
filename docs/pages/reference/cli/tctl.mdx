@@ -852,14 +852,22 @@ $ TELEPORT_EDITOR=nano tctl edit user/alice
 Print a YAML declaration of various Teleport resources:
 
 ```code
-$ tctl get [<flags>] <resource-type/resource-name>,...
+$ tctl get [<flags>] <resource-type | resource-type/subkind-or-name | resource-type/subkind/name>...
 ```
 
 ### Arguments
 
-- `<resource-type/resource-name>` The resource to get
+- `<resource-type>` The resource to get (lists all)
+  - `resource type` The type of the resource \[for example: `user,cluster,token,device`]
+- `<resource-type/subkind-or-name>` The resource(s) to get
+  - `<resource type>`   The type of the resource \[for example: `user,cluster,token,device`]
+  - `<subkind-or-name>` The name or subkind of the resource
+- `<resource-type/subkind/name>` The resource to get
   - `<resource type>` The type of the resource \[for example: `user,cluster,token,device`]
-  - `<resource name>` The name of the resource
+  - `<subkind>`       The name or subkind of the resource
+  - `<name>`          The name of the resource
+- `tctl get` allows multiple resources to be read at once, as well as combining
+   any of the forms above.
 
 ### Flags
 
@@ -886,6 +894,10 @@ $ tctl get user/joe > joe.yaml
 $ tctl get cluster/east
 # Prints all trusted clusters and all users
 $ tctl get clusters,users
+# Prints all CAs with subkind "user"
+$ tctl get cert_authority/user
+# Prints CA with subkind "user" and cluster name "example.com"
+$ tctl get cert_authority/user/example.com
 # Dump all resources for backup into state.yaml
 $ tctl get all > state.yaml
 ```
@@ -901,6 +913,10 @@ $ tctl get user/joe > joe.yaml
 $ tctl get cluster/east
 # Prints all trusted clusters and all users
 $ tctl get clusters,users
+# Prints all CAs with subkind "user"
+$ tctl get cert_authority/user
+# Prints CA with subkind "user" and cluster name "example.com"
+$ tctl get cert_authority/user/example.com
 ```
 
 </TabItem>
