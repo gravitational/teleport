@@ -1650,7 +1650,7 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput) ([]even
 					"event_type", e.FieldsMap.GetType(),
 					"event_id", e.FieldsMap.GetID(),
 					"event_size", len(data),
-					"event_size after trim", len(trimmedData),
+					"event_size_after_trim", len(trimmedData),
 				)
 			}
 			l.totalSize += len(trimmedData)

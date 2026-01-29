@@ -1160,7 +1160,7 @@ func Test_eventsFetcher_QueryByDateIndex(t *testing.T) {
 					returnKey: nil,
 				},
 			},
-			// we don't expect bigTrimmedEvent because it should go to next batch
+			// we don't expect bigTrimmableEvent because it should go to next batch
 			wantEvents: []apievents.AuditEvent{event1, event2, event3},
 			wantKey:    &key3,
 		},
