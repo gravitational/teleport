@@ -36,7 +36,7 @@ import (
 // the local file system
 type RemoteFS struct {
 	*sftp.Client
-	session io.Closer
+	session *tracessh.Session
 }
 
 // NewRemoteFilesystem creates a new FileSystem over SFTP.
@@ -157,9 +157,13 @@ func (r *RemoteFS) Readlink(name string) (string, error) {
 }
 
 func (r *RemoteFS) Close() error {
+	clientErr := r.Client.Close()
 	var sessionErr error
 	if r.session != nil {
-		sessionErr = r.session.Close()
+		// Wait for the session to end on the server side before closing the client side.
+		if sessionErr = r.session.Wait(); sessionErr == nil {
+			sessionErr = r.session.Close()
+		}
 	}
-	return trace.NewAggregate(sessionErr, r.Client.Close())
+	return trace.NewAggregate(clientErr, sessionErr)
 }
