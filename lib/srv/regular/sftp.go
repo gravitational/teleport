@@ -214,7 +214,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 				s.logger.WarnContext(ctx, "Unknown event type received from SFTP server process", "error", err, "event_type", event.GetType())
 			}
 
-			if err := serverCtx.GetServer().EmitAuditEvent(ctx, event); err != nil {
+			if err := serverCtx.GetServer().EmitAuditEvent(context.Background(), event); err != nil {
 				s.logger.WarnContext(ctx, "Failed to emit SFTP event", "error", err)
 			}
 		}

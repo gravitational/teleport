@@ -333,13 +333,12 @@ func RunCommand() (code int, err error) {
 		shellStdio.out = tty
 		shellStdio.err = tty
 	} else if c.Command == teleport.SFTPSubCommand {
-		// stdio is not needed by the sftp grandchild process and can be discarded instead.
-		// TODO(Joerger): This is currently the implementation, but is there really nothing,
-		// at least stderr, that we'd want to collect? Needs more investigation.
+		// std{in/out} is not used by the SFTP sub process, just collect stderr.
 		shellStdio = stdio{
 			in:  bytes.NewReader([]byte{}),
 			out: io.Discard,
-			err: io.Discard,
+			// Propagate sftp subprocess errors to the parent process.
+			err: os.Stderr,
 		}
 	} else {
 		// If this is a normal, non-interactive exec session, use the stdio pipes provided as extra files.
