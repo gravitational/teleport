@@ -115,6 +115,10 @@ export interface Acl {
   botInstances: Access;
   workloadIdentity: Access;
   clientIpRestriction: Access;
+  autoUpdateConfig: Access;
+  autoUpdateVersion: Access;
+  autoUpdateAgentRollout: Access;
+  autoUpdateAgentReport: Access;
 }
 
 // AllTraits represent all the traits defined for a user.

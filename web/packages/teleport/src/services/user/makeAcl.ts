@@ -90,6 +90,11 @@ export function makeAcl(json): Acl {
 
   const clientIpRestriction = json.clientIpRestriction || defaultAccess;
 
+  const autoUpdateConfig = json.autoUpdateConfig || defaultAccess;
+  const autoUpdateVersion = json.autoUpdateVersion || defaultAccess;
+  const autoUpdateAgentRollout = json.autoUpdateAgentRollout || defaultAccess;
+  const autoUpdateAgentReport = json.autoUpdateAgentReport || defaultAccess;
+
   return {
     accessList,
     authConnectors,
@@ -134,6 +139,10 @@ export function makeAcl(json): Acl {
     botInstances,
     workloadIdentity,
     clientIpRestriction,
+    autoUpdateConfig,
+    autoUpdateVersion,
+    autoUpdateAgentRollout,
+    autoUpdateAgentReport,
   };
 }
 

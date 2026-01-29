@@ -78,6 +78,10 @@ export type InfoGuideConfig = {
    * highlight the row where the guide was activated.
    */
   id?: string;
+  /**
+   * Optional callback to call on close.
+   */
+  onClose?: () => void;
 };
 
 const InfoGuidePanelContext = createContext<InfoGuidePanelContextState>(null);

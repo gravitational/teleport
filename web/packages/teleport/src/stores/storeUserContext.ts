@@ -278,4 +278,20 @@ export default class StoreUserContext extends Store<UserContext> {
   geClientIpRestrictionAccess() {
     return this.state.acl.clientIpRestriction;
   }
+
+  getAutoUpdateConfigAccess() {
+    return this.state.acl.autoUpdateConfig;
+  }
+
+  getAutoUpdateVersionAccess() {
+    return this.state.acl.autoUpdateVersion;
+  }
+
+  getAutoUpdateAgentRolloutAccess() {
+    return this.state.acl.autoUpdateAgentRollout;
+  }
+
+  getAutoUpdateAgentReportAccess() {
+    return this.state.acl.autoUpdateAgentReport;
+  }
 }

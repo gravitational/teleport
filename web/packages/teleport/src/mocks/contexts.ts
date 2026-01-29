@@ -81,6 +81,10 @@ export const allAccessAcl: Acl = {
   botInstances: fullAccess,
   workloadIdentity: fullAccess,
   clientIpRestriction: fullAccess,
+  autoUpdateConfig: fullAccess,
+  autoUpdateVersion: fullAccess,
+  autoUpdateAgentRollout: fullAccess,
+  autoUpdateAgentReport: fullAccess,
 };
 
 export function getAcl(cfg?: { noAccess: boolean }) {

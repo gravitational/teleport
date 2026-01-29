@@ -75,6 +75,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.ChatBubble} text="ChatBubble" />
     <IconBox IconCmpt={Icon.ChatCircleSparkle} text="ChatCircleSparkle" />
     <IconBox IconCmpt={Icon.Check} text="Check" />
+    <IconBox IconCmpt={Icon.CheckCircleDotted} text="CheckCircleDotted" />
     <IconBox IconCmpt={Icon.CheckThick} text="CheckThick" />
     <IconBox IconCmpt={Icon.Checks} text="Checks" />
     <IconBox IconCmpt={Icon.ChevronCircleDown} text="ChevronCircleDown" />
