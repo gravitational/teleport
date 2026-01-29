@@ -167,7 +167,7 @@ For most users, it is sufficient to disable updates entirely by setting the valu
 
 4. Staging the update file.
     - Ensure `%ProgramData%\TeleportConnect\Updates\` directory exists.
-        - First try to creat a directory with correct ACLs.
+        - First try to create a directory with correct ACLs.
         - If `ERROR_ALREADY_EXISTS` error is returned, open a handle and verify it is a directory and has correct ACLs.
         - If there is a mismatch, return an error.
         - Remove all contents (subdirectories and files) within `%ProgramData%\TeleportConnect\Updates\` to ensure an
