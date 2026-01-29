@@ -30,6 +30,10 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
 )
 
+const (
+	requestTimeout = 30 * time.Second
+)
+
 // Authorizer implements oauth2.Authorizer for Slack API.
 type Authorizer struct {
 	client *resty.Client
@@ -61,11 +65,15 @@ func NewAuthorizer(clientID string, clientSecret string, log *slog.Logger) *Auth
 func (a *Authorizer) Exchange(ctx context.Context, authorizationCode string, redirectURI string) (*storage.Credentials, error) {
 	var result AccessResponse
 
+	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+
 	a.log.DebugContext(ctx, "Exchanging access token",
 		"auth_code", authorizationCode,
 		"redirect_uri", redirectURI,
 		"client_id", a.clientID)
 	resp, err := a.client.R().
+		SetContext(ctx).
 		SetQueryParam("client_id", a.clientID).
 		SetQueryParam("client_secret", a.clientSecret).
 		SetQueryParam("code", authorizationCode).
@@ -97,10 +105,14 @@ func (a *Authorizer) Exchange(ctx context.Context, authorizationCode string, red
 func (a *Authorizer) Refresh(ctx context.Context, refreshToken string) (*storage.Credentials, error) {
 	var result AccessResponse
 
+	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+
 	a.log.DebugContext(ctx, "Refreshing access token",
 		"refresh_token", refreshToken,
 		"client_id", a.clientID)
 	resp, err := a.client.R().
+		SetContext(ctx).
 		SetQueryParam("client_id", a.clientID).
 		SetQueryParam("client_secret", a.clientSecret).
 		SetQueryParam("grant_type", "refresh_token").
