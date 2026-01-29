@@ -290,6 +290,7 @@ export default class MainProcess {
           ...process.env,
           TELEPORT_HOME: this.configService.get('tshHome').value,
           [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
+          FORWARDED_TELEPORT_TOOLS_VERSION: process.env[TSH_AUTOUPDATE_ENV_VAR],
         },
       }
     );
