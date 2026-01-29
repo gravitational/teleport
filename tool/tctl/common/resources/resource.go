@@ -64,6 +64,7 @@ func Handlers() map[string]Handler {
 		types.KindInferenceModel:                     inferenceModelHandler(),
 		types.KindInferenceSecret:                    inferenceSecretHandler(),
 		types.KindInstaller:                          installerHandler(),
+		types.KindLinuxDesktop:                       linuxDesktopHandler(),
 		types.KindLock:                               lockHandler(),
 		types.KindNode:                               serverHandler(),
 		types.KindOIDCConnector:                      oidcConnectorHandler(),
