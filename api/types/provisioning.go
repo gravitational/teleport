@@ -149,8 +149,8 @@ type ProvisionToken interface {
 	// GetIntegration returns the integration name that provides credentials to validate allow rules.
 	// Currently, this is only used to validate the AWS Organization.
 	GetIntegration() string
-	// GetGCPRules will return the GCP rules within this token.
-	GetGCPRules() *ProvisionTokenSpecV2GCP
+	// GetGCP will return the GCP rules within this token.
+	GetGCP() *ProvisionTokenSpecV2GCP
 	// GetGithubRules will return the GitHub rules within this token.
 	GetGithubRules() *ProvisionTokenSpecV2GitHub
 	// GetGitlabRules will return the GitLab rules within this token.
@@ -517,8 +517,8 @@ func (p *ProvisionTokenV2) SetAllowRules(rules []*TokenRule) {
 	p.Spec.Allow = rules
 }
 
-// GetGCPRules will return the GCP rules within this token.
-func (p *ProvisionTokenV2) GetGCPRules() *ProvisionTokenSpecV2GCP {
+// GetGCP will return the GCP-specific configuration for this token.
+func (p *ProvisionTokenV2) GetGCP() *ProvisionTokenSpecV2GCP {
 	return p.Spec.GCP
 }
 

@@ -54,6 +54,6 @@ type Token interface {
 	// GetIntegration returns the integration name that provides credentials to validate allow rules.
 	// Currently, this is only used to validate the AWS Organization.
 	GetIntegration() string
-	// GetGCPRules returns the GCP-specific configuration for this token.
-	GetGCPRules() *types.ProvisionTokenSpecV2GCP
+	// GetGCP returns the GCP-specific configuration for this token.
+	GetGCP() *types.ProvisionTokenSpecV2GCP
 }

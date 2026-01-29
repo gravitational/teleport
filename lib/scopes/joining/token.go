@@ -295,8 +295,8 @@ func (t *Token) GetIntegration() string {
 	return t.scoped.GetSpec().GetAws().GetIntegration()
 }
 
-// GetGCPRules returns the GCP-specific configuration for this token.
-func (t *Token) GetGCPRules() *types.ProvisionTokenSpecV2GCP {
+// GetGCP returns the GCP-specific configuration for this token.
+func (t *Token) GetGCP() *types.ProvisionTokenSpecV2GCP {
 	allow := make([]*types.ProvisionTokenSpecV2GCP_Rule, len(t.scoped.GetSpec().GetGcp().GetAllow()))
 	for i, rule := range t.scoped.GetSpec().GetGcp().GetAllow() {
 		allow[i] = &types.ProvisionTokenSpecV2GCP_Rule{

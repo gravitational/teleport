@@ -79,7 +79,7 @@ func MakeJoinToken(token types.ProvisionToken) (*JoinToken, error) {
 	}
 
 	if uiToken.Method == types.JoinMethodGCP {
-		uiToken.GCP = token.GetGCPRules()
+		uiToken.GCP = token.GetGCP()
 	}
 
 	if uiToken.Method == types.JoinMethodGitHub {

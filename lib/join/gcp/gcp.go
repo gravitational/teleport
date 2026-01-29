@@ -143,7 +143,7 @@ func checkGCPAllowRules(token provision.Token, claims *IDTokenClaims) error {
 	// claim is not present in the IDToken. This happens when the joining node is not a GCE VM.
 	unmatchedLocation := false
 	// If a single rule passes, accept the IDToken.
-	for _, rule := range token.GetGCPRules().Allow {
+	for _, rule := range token.GetGCP().Allow {
 		if !slices.Contains(rule.ProjectIDs, compute.ProjectID) {
 			continue
 		}

@@ -68,8 +68,8 @@ func ScopedTokenFromProvisionToken(base provision.Token, override *joiningv1.Sco
 			Integration: base.GetIntegration(),
 		}
 	case types.JoinMethodGCP:
-		allow := make([]*joiningv1.GCP_Rule, len(base.GetGCPRules().Allow))
-		for i, rule := range base.GetGCPRules().Allow {
+		allow := make([]*joiningv1.GCP_Rule, len(base.GetGCP().Allow))
+		for i, rule := range base.GetGCP().Allow {
 			allow[i] = &joiningv1.GCP_Rule{
 				ProjectIds:      rule.ProjectIDs,
 				Locations:       rule.Locations,
