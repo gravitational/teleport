@@ -21,12 +21,12 @@ package srv
 import (
 	"context"
 	"os"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
-	"github.com/gravitational/teleport/lib/services"
 	srvssh "github.com/gravitational/teleport/lib/srv/ssh"
 	"github.com/gravitational/teleport/lib/sshca"
 )
@@ -37,11 +37,11 @@ import (
 // authentication process.
 func (h *AuthHandlers) KeyboardInteractiveAuth(
 	ctx context.Context,
-	preconds *services.Preconditions,
+	preconds []*decisionpb.Precondition,
 	id *sshca.Identity,
 	perms *ssh.Permissions,
 ) (*ssh.Permissions, error) {
-	if preconds == nil || preconds.Len() == 0 {
+	if len(preconds) == 0 {
 		return perms, nil
 	}
 
@@ -79,7 +79,7 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 		var verifiers []srvssh.PromptVerifier
 
 		// Range over preconditions in a sorted order to ensure deterministic behavior and consistent error messages.
-		for p := range preconds.All() {
+		for _, p := range preconds {
 			switch p.GetKind() {
 			case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
 				// TODO(cthach): Use the source cluster name that the client will do the MFA ceremony with.
@@ -114,8 +114,8 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 	}
 }
 
-func ensureSupportedPreconditions(preconds *services.Preconditions) error {
-	for p := range preconds.All() {
+func ensureSupportedPreconditions(preconds []*decisionpb.Precondition) error {
+	for _, p := range preconds {
 		switch p.GetKind() {
 		case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
 			// OK
@@ -129,11 +129,16 @@ func ensureSupportedPreconditions(preconds *services.Preconditions) error {
 }
 
 func denyRegularSSHCertsIfMFARequired(
-	preconds *services.Preconditions,
+	preconds []*decisionpb.Precondition,
 	id *sshca.Identity,
 ) error {
 	// Determine if MFA is required based on the provided preconditions.
-	mfaRequired := preconds.Contains(decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA)
+	mfaRequired := slices.ContainsFunc(
+		preconds,
+		func(p *decisionpb.Precondition) bool {
+			return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
+		},
+	)
 
 	// A regular SSH certificate is one that does not have per-session MFA verification.
 	isRegularSSHCert := id.MFAVerified == "" && !id.PrivateKeyPolicy.MFAVerified()

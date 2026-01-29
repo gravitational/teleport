@@ -19,11 +19,13 @@
 package services
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
 	"path"
 	"regexp"
 	"slices"
@@ -2634,7 +2636,7 @@ func (set RoleSet) checkConditionalAccess(
 	traits wrappers.Traits,
 	state AccessState,
 	matchers ...RoleMatcher,
-) (*Preconditions, error) {
+) ([]*decisionpb.Precondition, error) {
 	// Note: logging in this function only happens in trace mode. This is because
 	// adding logging to this function (which is called on every resource returned
 	// by the backend) can slow down this function by 50x for large clusters!
@@ -2646,7 +2648,7 @@ func (set RoleSet) checkConditionalAccess(
 	}
 
 	// Collect preconditions to return to the caller.
-	preconds := NewPreconditions()
+	preconds := map[*decisionpb.Precondition]struct{}{}
 
 	// Based on the state, check if MFA is always required and just hasn't been verified yet.
 	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {
@@ -2657,7 +2659,7 @@ func (set RoleSet) checkConditionalAccess(
 		}
 
 		// Mark that MFA is required and continue evaluating access.
-		preconds.Add(&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA})
+		preconds[&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA}] = struct{}{}
 	}
 
 	requiresLabelMatching := resourceRequiresLabelMatching(r)
@@ -2718,7 +2720,15 @@ func (set RoleSet) checkConditionalAccess(
 		}
 	}
 
-	mfaAllowed := state.MFAVerified || state.MFARequired == MFARequiredNever
+	// MFA checks can be bypassed if either:
+	//  1. The cluster doesn't require per-session MFA (MFARequiredNever), OR
+	//  2. The legacy out-of-band MFA flow is allowed (see below) AND MFA has already been verified for the session.
+	//
+	// The legacy out-of-band MFA flow is allowed as long as TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is not set to "yes"
+	// and MFA has already been verified for this session.
+	//
+	// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
+	bypassMFAChecks := state.MFARequired == MFARequiredNever || (os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") != "yes" && state.MFAVerified)
 
 	// TODO(codingllama): Consider making EnableDeviceVerification opt-out instead
 	//  of opt-in.
@@ -2778,16 +2788,16 @@ func (set RoleSet) checkConditionalAccess(
 		// (and gets an early exit) or we need to check every applicable role to
 		// ensure the access is permitted.
 
-		if mfaAllowed && deviceTrusted {
+		if bypassMFAChecks && deviceTrusted {
 			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource granted, allow rule in role matched",
 
 				slog.String("role", role.GetName()),
 			)
-			return nil, nil
+			return precondsToSlice(preconds), nil
 		}
 
 		// Check if MFA is required at the role-level.
-		if !mfaAllowed && role.GetOptions().RequireMFAType.IsSessionMFARequired() {
+		if !bypassMFAChecks && role.GetOptions().RequireMFAType.IsSessionMFARequired() {
 			// If the caller doesn't want preconditions returned, deny access early to avoid unnecessary work.
 			if !state.ReturnPreconditions {
 				logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, role requires per-session MFA",
@@ -2797,7 +2807,7 @@ func (set RoleSet) checkConditionalAccess(
 			}
 
 			// Mark that MFA is required and continue evaluating access.
-			preconds.Add(&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA})
+			preconds[&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA}] = struct{}{}
 		}
 
 		// Device verification.
@@ -2824,7 +2834,7 @@ func (set RoleSet) checkConditionalAccess(
 	}
 
 	if allowed {
-		return preconds, nil
+		return precondsToSlice(preconds), nil
 	}
 
 	logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, no allow rule matched",
@@ -2832,6 +2842,24 @@ func (set RoleSet) checkConditionalAccess(
 	)
 	return nil, trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 		r.GetKind(), additionalDeniedMessage)
+}
+
+func precondsToSlice(set map[*decisionpb.Precondition]struct{}) []*decisionpb.Precondition {
+	slice := make([]*decisionpb.Precondition, 0, len(set))
+
+	for precond := range set {
+		slice = append(slice, precond)
+	}
+
+	// Sort by kind for deterministic ordering during enforcement.
+	slices.SortFunc(
+		slice,
+		func(a, b *decisionpb.Precondition) int {
+			return cmp.Compare(a.Kind, b.Kind)
+		},
+	)
+
+	return slice
 }
 
 // CheckDeviceAccess verifies if the device state satisfies the device trust

@@ -33,7 +33,6 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	sshpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
 )
@@ -51,7 +50,7 @@ func TestKeyboardInteractiveAuth_NoPreconds(t *testing.T) {
 
 	for _, tc := range []struct {
 		name     string
-		preconds *services.Preconditions
+		preconds []*decisionpb.Precondition
 	}{
 		{
 			name:     "nil preconditions",
@@ -59,7 +58,7 @@ func TestKeyboardInteractiveAuth_NoPreconds(t *testing.T) {
 		},
 		{
 			name:     "empty preconditions",
-			preconds: services.NewPreconditions(),
+			preconds: []*decisionpb.Precondition{},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -82,8 +81,9 @@ func TestKeyboardInteractiveAuth_PreCondInBandMFA_Success(t *testing.T) {
 
 	h, id := setupKeyboardInteractiveAuthTest(t)
 
-	preconds := services.NewPreconditions()
-	preconds.Add(&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA})
+	preconds := []*decisionpb.Precondition{
+		{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+	}
 
 	inPerms := &ssh.Permissions{
 		Extensions: map[string]string{
@@ -152,8 +152,9 @@ func TestKeyboardInteractiveAuth_PreCondInBandMFA_LegacyPublicKeyCallback_Regula
 
 	id.MFAVerified = "" // Simulate no MFA verification, indicating a regular SSH certificate.
 
-	preconds := services.NewPreconditions()
-	preconds.Add(&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA})
+	preconds := []*decisionpb.Precondition{
+		{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+	}
 
 	inPerms := &ssh.Permissions{}
 
@@ -182,8 +183,9 @@ func TestKeyboardInteractiveAuth_ForceInBandMFAEnv_DisablesLegacyPublicKeyCallba
 
 	h, id := setupKeyboardInteractiveAuthTest(t)
 
-	preconds := services.NewPreconditions()
-	preconds.Add(&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA})
+	preconds := []*decisionpb.Precondition{
+		{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+	}
 
 	inPerms := &ssh.Permissions{}
 
@@ -210,8 +212,9 @@ func TestKeyboardInteractiveAuth_PreCondUnknownKind(t *testing.T) {
 
 	h, id := setupKeyboardInteractiveAuthTest(t)
 
-	preconds := services.NewPreconditions()
-	preconds.Add(&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED})
+	preconds := []*decisionpb.Precondition{
+		{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
+	}
 
 	inPerms := &ssh.Permissions{}
 

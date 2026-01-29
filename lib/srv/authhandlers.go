@@ -25,7 +25,6 @@ import (
 	"log/slog"
 	"net"
 	"os"
-	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -598,7 +597,6 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 
 	var (
 		accessPermit        *decisionpb.SSHAccessPermit
-		preconds            *services.Preconditions
 		gitForwardingPermit *GitForwardingPermit
 		proxyPermit         *proxyingPermit
 		diagnosticTracing   bool
@@ -612,7 +610,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 	case teleport.ComponentForwardingNode:
 		diagnosticTracing = true
 		if h.c.TargetServer != nil && h.c.TargetServer.IsOpenSSHNode() {
-			accessPermit, preconds, err = h.evaluateSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User())
+			accessPermit, err = h.evaluateSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User())
 			if errors.Is(err, services.ErrScopedIdentity) {
 				accessPermit, err = h.evaluateScopedSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User())
 			}
@@ -621,7 +619,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 		}
 	case teleport.ComponentNode:
 		diagnosticTracing = true
-		accessPermit, preconds, err = h.evaluateSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), conn.User())
+		accessPermit, err = h.evaluateSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), conn.User())
 		if errors.Is(err, services.ErrScopedIdentity) {
 			accessPermit, err = h.evaluateScopedSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), conn.User())
 		}
@@ -701,7 +699,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 	}
 
 	// Proceed to keyboard-interactive auth to ensure all preconditions are met.
-	return h.KeyboardInteractiveAuth(ctx, preconds, ident, outputPermissions)
+	return h.KeyboardInteractiveAuth(ctx, accessPermit.GetPreconditions(), ident, outputPermissions)
 }
 
 func (h *AuthHandlers) maybeAppendDiagnosticTrace(ctx context.Context, connectionDiagnosticID string, traceType types.ConnectionDiagnosticTrace_TraceType, message string, traceError error) error {
@@ -804,7 +802,7 @@ type loginChecker interface {
 	// evaluateSSHAccess checks the given certificate (supplied by a connected
 	// client) to see if this certificate can be allowed to login as user:login
 	// pair to requested server and if RBAC rules allow login.
-	evaluateSSHAccess(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) (*decisionpb.SSHAccessPermit, *services.Preconditions, error)
+	evaluateSSHAccess(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) (*decisionpb.SSHAccessPermit, error)
 }
 
 type scopedLoginChecker interface {
@@ -1065,7 +1063,7 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 // evaluateSSHAccess checks the given certificate (supplied by a connected
 // client) to see if this certificate can be allowed to login as user:login
 // pair to requested server and if RBAC rules allow login.
-func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) (*decisionpb.SSHAccessPermit, *services.Preconditions, error) {
+func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) (*decisionpb.SSHAccessPermit, error) {
 	// Use the server's shutdown context.
 	ctx := a.c.Server.Context()
 
@@ -1074,22 +1072,22 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 	// get roles assigned to this user
 	accessInfo, err := fetchAccessInfo(ident, ca, clusterName)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName, a.c.AccessPoint)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	state, err := services.AccessStateFromSSHIdentity(ctx, ident, accessChecker, a.c.AccessPoint)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Determine if session join can bypass standard node access checks. This is only allowed if:
-	//   1. The requested OS user is the special session join principal (for moderated sessions).
-	//   2. The user's roles support moderated sessions.
-	//   3. MFA is NOT required for this session (MFARequiredNever),
+	//  1. The requested OS user is the special session join principal (for moderated sessions).
+	//  2. The user's roles support moderated sessions.
+	//  3. MFA is NOT required for this session (MFARequiredNever),
 	//      OR the legacy out-of-band MFA flow is allowed (see below) and MFA has already been verified for this session.
 	//
 	// The legacy out-of-band MFA flow is allowed as long as TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is not set to "yes"
@@ -1103,7 +1101,7 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 				(os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") != "yes" && state.MFAVerified))
 
 	// Collect preconditions that must be met before the session can start.
-	preconds := services.NewPreconditions()
+	var preconds []*decisionpb.Precondition
 
 	// Perform the primary node access check unless bypass is allowed.
 	if !bypassAccessCheck {
@@ -1112,7 +1110,7 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 			state,
 			services.NewLoginMatcher(osUser),
 		); err != nil {
-			return nil, nil, trace.AccessDenied(
+			return nil, trace.AccessDenied(
 				"user %s@%s is not authorized to login as %v@%s: %v",
 				ident.Username,
 				ca.GetClusterName(),
@@ -1126,25 +1124,25 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 	// load net config (used during calculation of client idle timeout)
 	netConfig, err := a.c.AccessPoint.GetClusterNetworkingConfig(ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// load auth preference (used during calculation of locking mode)
 	authPref, err := a.c.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	privateKeyPolicy, err := accessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	lockTargets := services.SSHAccessLockTargets(clusterName, target.GetName(), osUser, accessInfo, ident)
 
 	hostSudoers, err := accessChecker.HostSudoers(target)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	var bpfEvents []string
@@ -1155,7 +1153,7 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 	hostUsersInfo, err := accessChecker.HostUsers(target)
 	if err != nil {
 		if !trace.IsAccessDenied(err) {
-			return nil, nil, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		// the way host user creation permissions currently work, an "access denied" just indicates
 		// that host user creation is disabled, and does not indicate that access should be disallowed.
@@ -1164,26 +1162,24 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 	}
 
 	return &decisionpb.SSHAccessPermit{
-			ForwardAgent:          accessChecker.CheckAgentForward(osUser) == nil,
-			X11Forwarding:         accessChecker.PermitX11Forwarding(),
-			MaxConnections:        accessChecker.MaxConnections(),
-			MaxSessions:           accessChecker.MaxSessions(),
-			SshFileCopy:           accessChecker.CanCopyFiles(),
-			PortForwardMode:       accessChecker.SSHPortForwardMode(),
-			ClientIdleTimeout:     durationpb.New(accessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())),
-			DisconnectExpiredCert: timestampFromGoTime(getDisconnectExpiredCertFromSSHIdentity(accessChecker, authPref, ident)),
-			SessionRecordingMode:  string(accessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH)),
-			LockingMode:           string(accessChecker.LockingMode(authPref.GetLockingMode())),
-			PrivateKeyPolicy:      string(privateKeyPolicy),
-			LockTargets:           decision.LockTargetsToProto(lockTargets),
-			MappedRoles:           accessInfo.Roles,
-			HostSudoers:           hostSudoers,
-			BpfEvents:             bpfEvents,
-			HostUsersInfo:         hostUsersInfo,
-			Preconditions:         slices.Collect(preconds.All()),
-		},
-		preconds,
-		nil
+		ForwardAgent:          accessChecker.CheckAgentForward(osUser) == nil,
+		X11Forwarding:         accessChecker.PermitX11Forwarding(),
+		MaxConnections:        accessChecker.MaxConnections(),
+		MaxSessions:           accessChecker.MaxSessions(),
+		SshFileCopy:           accessChecker.CanCopyFiles(),
+		PortForwardMode:       accessChecker.SSHPortForwardMode(),
+		ClientIdleTimeout:     durationpb.New(accessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())),
+		DisconnectExpiredCert: timestampFromGoTime(getDisconnectExpiredCertFromSSHIdentity(accessChecker, authPref, ident)),
+		SessionRecordingMode:  string(accessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH)),
+		LockingMode:           string(accessChecker.LockingMode(authPref.GetLockingMode())),
+		PrivateKeyPolicy:      string(privateKeyPolicy),
+		LockTargets:           decision.LockTargetsToProto(lockTargets),
+		MappedRoles:           accessInfo.Roles,
+		HostSudoers:           hostSudoers,
+		BpfEvents:             bpfEvents,
+		HostUsersInfo:         hostUsersInfo,
+		Preconditions:         preconds,
+	}, nil
 }
 
 // fetchAccessInfo fetches the services.AccessChecker (after role mapping)
