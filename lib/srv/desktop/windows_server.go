@@ -650,13 +650,16 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 
 	// Figure out which protocol the client is using
 	clientProtocol := proxyConn.ConnectionState().NegotiatedProtocol
-	if clientProtocol == "" {
-		clientProtocol = legacy.ProtocolName
-	}
-	// Assume legacy tdp by default.
-	decoder := legacy.Decode
-	if clientProtocol == tdpb.ProtocolName {
+	var decoder tdp.Decoder
+	switch clientProtocol {
+	case tdpb.ProtocolName:
 		decoder = tdp.DecoderAdapter(tdpb.DecodePermissive)
+	case "":
+		clientProtocol = legacy.ProtocolName
+		decoder = legacy.Decode
+	default:
+		log.Error("unknown client protocol selection", "protocol", clientProtocol)
+		return
 	}
 
 	tdpConn := tdp.NewConn(proxyConn, decoder)
