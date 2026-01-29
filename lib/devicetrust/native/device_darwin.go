@@ -156,6 +156,7 @@ func collectDeviceData(_ CollectDataMode) (*devicepb.DeviceCollectedData, error)
 		OsVersion:               fmt.Sprintf("%v.%v.%v", dd.os_major, dd.os_minor, dd.os_patch),
 		OsBuild:                 osBuild,
 		OsUsername:              osUser.Username,
+		OsLoginUser:             osUser.Username,
 		JamfBinaryVersion:       jamfVersion,
 		MacosEnrollmentProfiles: macosEnrollmentProfiles,
 		SystemSerialNumber:      sn,

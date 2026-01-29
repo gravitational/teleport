@@ -220,6 +220,7 @@ func collectDeviceData(_ CollectDataMode) (*devicepb.DeviceCollectedData, error)
 		OsVersion:             fmt.Sprintf("%v.%v.%v", ver.MajorVersion, ver.MinorVersion, ver.BuildNumber),
 		OsBuild:               strconv.FormatInt(int64(ver.BuildNumber), 10),
 		OsUsername:            u.Username,
+		OsLoginUser:           u.Username,
 		SystemSerialNumber:    systemSerial,
 		BaseBoardSerialNumber: baseBoardSerial,
 		ReportedAssetTag:      reportedAssetTag,
