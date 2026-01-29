@@ -163,6 +163,8 @@ type ProvisionToken interface {
 	GetAzure() *ProvisionTokenSpecV2Azure
 	// GetAzureDevops will return the AzureDevops specific configuration for this token.
 	GetAzureDevops() *ProvisionTokenSpecV2AzureDevops
+	// GetOracle will return the Oracle specific configuration for this token.
+	GetOracle() *ProvisionTokenSpecV2Oracle
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
@@ -562,6 +564,11 @@ func (p *ProvisionTokenV2) GetAzure() *ProvisionTokenSpecV2Azure {
 // GetAzureDevops will return the AzureDevops specific configuration for this token.
 func (p *ProvisionTokenV2) GetAzureDevops() *ProvisionTokenSpecV2AzureDevops {
 	return p.Spec.AzureDevops
+}
+
+// GetOracle will return the Oracle specific configuration for this token.
+func (p *ProvisionTokenV2) GetOracle() *ProvisionTokenSpecV2Oracle {
+	return p.Spec.Oracle
 }
 
 // GetJoinMethod returns joining method that must be used with this token.

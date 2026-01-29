@@ -265,6 +265,14 @@ func TestValidateScopedToken(t *testing.T) {
 			expectedWeakErr:   "azure_devops configuration must be defined for a scoped token when using the azure_devops join method",
 		},
 		{
+			name: "oracle token without oracle configuration",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodOracle)
+			},
+			expectedStrongErr: "oracle configuration must be defined for a scoped token when using the oracle join method",
+			expectedWeakErr:   "oracle configuration must be defined for a scoped token when using the oracle join method",
+		},
+		{
 			name: "valid scoped token",
 		},
 		{
@@ -327,6 +335,19 @@ func TestValidateScopedToken(t *testing.T) {
 					Allow: []*joiningv1.AzureDevops_Rule{
 						{
 							Sub: "1234567890",
+						},
+					},
+				}
+			},
+		},
+		{
+			name: "valid oracle scoped token",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodOracle)
+				tok.Spec.Oracle = &joiningv1.Oracle{
+					Allow: []*joiningv1.Oracle_Rule{
+						{
+							Tenancy: "1234567890",
 						},
 					},
 				}

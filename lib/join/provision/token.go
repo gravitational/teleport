@@ -64,4 +64,6 @@ type Token interface {
 	GetAzure() *types.ProvisionTokenSpecV2Azure
 	// GetAzureDevops returns the AzureDevops-specific configuration for this token.
 	GetAzureDevops() *types.ProvisionTokenSpecV2AzureDevops
+	// GetOracle returns the Oracle-specific configuration for this token.
+	GetOracle() *types.ProvisionTokenSpecV2Oracle
 }

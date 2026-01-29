@@ -82,6 +82,9 @@ message ScopedTokenSpec {
 
   // The Azure Devops-specific configuration used with the "azure_devops" join method.
   AzureDevops azure_devops = 9;
+
+  // The Oracle-specific configuration used with the "oracle" join method.
+  Oracle oracle = 10;
 }
 
 // The host certificate parameters that should be cached and leveraged for
@@ -278,4 +281,26 @@ message AzureDevops {
   // This is used to identify the correct issuer verification of the ID token.
   // This is a required field.
   string organization_id = 2;
+}
+
+// The Oracle-specific configuration used with the "oracle" join method.
+message Oracle {
+  // A rule that a joining node must match in order to use the associated token
+  // with the "oracle" join method.
+  message Rule {
+    // The OCID of the instance's tenancy. Required.
+    string tenancy = 1;
+    // A list of the OCIDs of compartments an instance is allowed to join from. Only direct
+    // parents are allowed, i.e. no nested compartments. If empty, any compartment is allowed.
+    repeated string parent_compartments = 2;
+    // A list of regions an instance is allowed to join from. Both full region names ("us-phoenix-1")
+    // and abbreviations ("phx") are allowed. If empty, any region is allowed.
+    repeated string regions = 3;
+    // A list of the OCIDs of specific instances that are allowed to join. If empty, any instance
+    // matching the other fields in the rule is allowed. Limited to 100 instance OCIDs per rule.
+    repeated string instances = 4;
+  }
+  // A list of Rules for allowing use of this token. A node must match at least one
+  // allow rule in order to use this token.
+  repeated Rule allow = 1;
 }
