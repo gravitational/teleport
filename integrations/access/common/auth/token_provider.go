@@ -165,7 +165,7 @@ func (r *RotatedAccessTokenProvider) RefreshLoop(ctx context.Context) {
 			if err != nil {
 				r.lock.RLock()
 				credsExpiry := r.creds.ExpiresAt
-				r.log.RUnlock()
+				r.lock.RUnlock()
 				r.log.WarnContext(ctx, "Error getting credentials, not attempting to refresh credentials", "error", err, "creds_expiry", credsExpiry)
 				// We cannot get the credentials from the backend, something is going on.
 				// If we don't have backend access, or we are in an unknown state, we should not attempt to refresh
