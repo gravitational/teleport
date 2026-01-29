@@ -64,11 +64,34 @@ exclude_fields:
 # These fields will be marked as Computed: true
 computed_fields:
   - "InferenceModel.kind"
+  - "InferenceModel.metadata.expires"
+  - "InferenceModel.metadata.namespace"
+  - "InferenceModel.metadata.revision"
   - "InferenceSecret.kind"
+  - "InferenceSecret.metadata.expires"
+  - "InferenceSecret.metadata.namespace"
+  - "InferenceSecret.metadata.revision"
   - "InferencePolicy.kind"
+  - "InferencePolicy.metadata.expires"
+  - "InferencePolicy.metadata.namespace"
+  - "InferencePolicy.metadata.revision"
 
 # These fields will be marked as Required: true
-required_fields: []
+required_fields:
+  - "InferenceModel.metadata"  
+  - "InferenceModel.metadata.name"  
+  - "InferenceModel.spec"  
+  - "InferenceSecret.metadata"  
+  - "InferenceSecret.metadata.name"  
+  - "InferenceSecret.spec"  
+  - "InferenceSecret.spec.value"  
+  - "InferencePolicy.metadata"  
+  - "InferencePolicy.metadata.name"  
+  - "InferencePolicy.metadata"  
+  - "InferencePolicy.metadata.name"  
+  - "InferencePolicy.spec"  
+  - "InferencePolicy.spec.kinds"  
+  - "InferencePolicy.spec.model"  
 
 plan_modifiers:
   # Force to recreate resource if it's name changes
