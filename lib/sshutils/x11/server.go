@@ -51,9 +51,20 @@ func OpenNewXServerListener(displayOffset int, maxDisplay int, screen uint32) (n
 		return nil, Display{}, trace.BadParameter("maxDisplay (%d) cannot be larger than the max int32 (%d)", maxDisplay, math.MaxInt32)
 	}
 
-	// Create /tmp/.X11-unix if it doesn't exist (such as in CI)
-	if err := os.Mkdir(x11SockDir(), 0o777|os.ModeSticky); err != nil && !errors.Is(err, os.ErrExist) {
-		return nil, Display{}, trace.Wrap(err)
+	// Create /tmp/.X11-unix if it doesn't exist (such as in CI).
+	// Always ensure permissions are 1777 (world-writable + sticky) so X11 sockets are
+	// usable by non-root users while preventing users from deleting each other's sockets.
+	sockDir := x11SockDir()
+	sockPerm := 0o777 | os.ModeSticky
+	createErr := os.Mkdir(sockDir, sockPerm)
+	if createErr != nil && !errors.Is(createErr, os.ErrExist) {
+		return nil, Display{}, trace.Wrap(createErr)
+	}
+	if createErr == nil {
+		// Apply sockPerms without umask.
+		if err := os.Chmod(sockDir, sockPerm); err != nil {
+			return nil, Display{}, trace.Wrap(err)
+		}
 	}
 
 	for displayNumber := displayOffset; displayNumber <= maxDisplay; displayNumber++ {

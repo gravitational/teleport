@@ -31,6 +31,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -70,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshagent"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
@@ -1011,6 +1013,29 @@ func createAgent(t *testing.T) (agent.ExtendedAgent, string) {
 	t.Setenv(teleport.SSHAuthSock, agentServer.Path)
 
 	return keyring, agentServer.Path
+}
+
+func mockX11Display(t *testing.T) {
+	// Create a fake client XServer listener which echos
+	// back whatever it receives.
+	l, display, err := x11.OpenNewXServerListener(x11.DefaultDisplayOffset, x11.DefaultMaxDisplays, 0)
+	require.NoError(t, err)
+	go func() {
+		for {
+			conn, err := l.Accept()
+			if err != nil {
+				return
+			}
+			_, err = io.Copy(conn, conn)
+			assert.NoError(t, err)
+			conn.Close()
+		}
+	}()
+	t.Cleanup(func() {
+		l.Close()
+		os.Remove(l.Addr().String())
+	})
+	t.Setenv("DISPLAY", display.String())
 }
 
 func disableAgent(t *testing.T) {

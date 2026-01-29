@@ -4503,7 +4503,7 @@ func convertSSHExitCode(tc *client.TeleportClient, err error) error {
 			// Already have an exitCodeError, return that.
 			return trace.Wrap(err)
 		}
-		if err != nil {
+		if err != nil && status != teleport.RemoteCommandFailure {
 			// Print the error here so we don't lose it when returning the exitCodeError.
 			fmt.Fprintln(tc.Stderr, utils.UserMessageFromError(err))
 		}

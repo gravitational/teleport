@@ -121,8 +121,6 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.sftpCmd.Stdout = os.Stdout
-	s.sftpCmd.Stderr = os.Stderr
 
 	s.logger.DebugContext(ctx, "starting SFTP process")
 	err = s.sftpCmd.Start()
@@ -216,7 +214,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 				s.logger.WarnContext(ctx, "Unknown event type received from SFTP server process", "error", err, "event_type", event.GetType())
 			}
 
-			if err := serverCtx.GetServer().EmitAuditEvent(ctx, event); err != nil {
+			if err := serverCtx.GetServer().EmitAuditEvent(context.Background(), event); err != nil {
 				s.logger.WarnContext(ctx, "Failed to emit SFTP event", "error", err)
 			}
 		}
@@ -233,6 +231,7 @@ func (s *sftpSubsys) Wait() error {
 	s.serverCtx.SendExecResult(ctx, srv.ExecResult{
 		Command: s.sftpCmd.String(),
 		Code:    s.sftpCmd.ProcessState.ExitCode(),
+		Error:   s.serverCtx.GetChildError(),
 	})
 
 	errs := []error{waitErr}

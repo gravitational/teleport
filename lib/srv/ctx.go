@@ -410,6 +410,10 @@ type ServerContext struct {
 	// set this field directly, use (Get|Set)SSHRequest instead.
 	sshRequest *ssh.Request
 
+	// stderr{r,w} are used to capture stderr from the child process.
+	stderrr *os.File
+	stderrw *os.File
+
 	// cmd{r,w} are used to send the command from the parent process to the
 	// child process.
 	cmdr *os.File
@@ -568,6 +572,15 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		childErr := child.Close()
 		return nil, trace.NewAggregate(err, childErr)
 	}
+
+	// Create pipe used to capture stderr from the child process.
+	child.stderrr, child.stderrw, err = os.Pipe()
+	if err != nil {
+		childErr := child.Close()
+		return nil, trace.NewAggregate(err, childErr)
+	}
+	child.AddCloser(child.stderrr)
+	child.AddCloser(child.stderrw)
 
 	// Create pipe used to send command to child process.
 	child.cmdr, child.cmdw, err = os.Pipe()
@@ -1400,4 +1413,41 @@ func (c *ServerContext) WaitForChild(ctx context.Context) error {
 	// Set to nil so the close in the context doesn't attempt to re-close.
 	c.readyr = nil
 	return trace.NewAggregate(waitErr, closeErr)
+}
+
+// GetChildError reads the child process's stderr pipe for an error.
+// If stderr is empty, an empty string is returned. If stderr is non-empty and
+// looks like "Failed to launch: <internal-error-message>", the error message
+// is returned, potentially with additional error context gathered from the given
+// server context.
+//
+// This must only be called after the child process has exited.
+func (c *ServerContext) GetChildError() error {
+	// Close the writing side of the stderr pipe to signal EOF.
+	if c.stderrw != nil {
+		c.stderrw.Close()
+		c.stderrw = nil
+	}
+
+	// Read the error msg from stderr.
+	errMsg := new(strings.Builder)
+	if _, err := io.Copy(errMsg, c.stderrr); err != nil {
+		c.Logger.ErrorContext(c.CancelContext(), "Failed to read error message from child process", "err", err)
+	}
+
+	if errMsg.Len() == 0 {
+		return nil
+	}
+
+	// It should be empty or include an error message like "Failed to launch: ..."
+	if !strings.HasPrefix(errMsg.String(), "Failed to launch: ") {
+		c.Logger.ErrorContext(c.CancelContext(), "Unexpected error message from child process", "err_msg", errMsg.String())
+		return nil
+	}
+
+	// TODO(Joerger): Process the err msg from stderr to provide deeper insights into
+	// the cause of the session failure to add to the error message.
+	// e.g. user unknown because host user creation denied.
+
+	return errors.New(errMsg.String())
 }

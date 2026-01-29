@@ -21,7 +21,6 @@ package client
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"os"
 	"time"
@@ -63,8 +62,6 @@ func (ns *NodeSession) handleX11Forwarding(ctx context.Context, sess *tracessh.S
 	}
 
 	if err := x11.RequestForwarding(ctx, sess, ns.spoofedXAuthEntry); err != nil {
-		// Notify the user that x11 forwarding request failed regardless of debug level
-		fmt.Fprintln(os.Stderr, "X11 forwarding request failed")
 		slog.DebugContext(ctx, "X11 forwarding request error", "err", err)
 		// If the X11 forwarding request fails, we must reject all X11 channel requests.
 		return ns.rejectX11Channels(ctx)
