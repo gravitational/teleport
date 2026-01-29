@@ -38,6 +38,7 @@ var joinMethodsSupportingScopes = map[string]struct{}{
 	string(types.JoinMethodGCP):         {},
 	string(types.JoinMethodAzure):       {},
 	string(types.JoinMethodAzureDevops): {},
+	string(types.JoinMethodOracle):      {},
 }
 
 // TokenUsageMode represents the possible usage modes of a scoped token.
@@ -347,6 +348,23 @@ func (t *Token) GetAzureDevops() *types.ProvisionTokenSpecV2AzureDevops {
 	return &types.ProvisionTokenSpecV2AzureDevops{
 		Allow:          allow,
 		OrganizationID: t.scoped.GetSpec().GetAzureDevops().GetOrganizationId(),
+	}
+}
+
+// GetOracle returns the Oracle-specific configuration for this token.
+func (t *Token) GetOracle() *types.ProvisionTokenSpecV2Oracle {
+	allow := make([]*types.ProvisionTokenSpecV2Oracle_Rule, len(t.scoped.GetSpec().GetOracle().GetAllow()))
+	for i, rule := range t.scoped.GetSpec().GetOracle().GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2Oracle_Rule{
+			Tenancy:            rule.GetTenancy(),
+			ParentCompartments: rule.GetParentCompartments(),
+			Regions:            rule.GetRegions(),
+			Instances:          rule.GetInstances(),
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2Oracle{
+		Allow: allow,
 	}
 }
 
