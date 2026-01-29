@@ -73,6 +73,7 @@ export function DetailsView({
     <Stack gap={3} width="100%">
       {updateEvent.autoUpdatesStatus && (
         <AutoUpdatesManagement
+          platform={platform}
           status={updateEvent.autoUpdatesStatus}
           updateEventKind={updateEvent.kind}
           onCheckForUpdates={onCheckForUpdates}

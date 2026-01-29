@@ -52,11 +52,7 @@ import {
   TSH_AUTOUPDATE_ENV_VAR,
   TSH_AUTOUPDATE_OFF,
 } from 'teleterm/node/tshAutoupdate';
-import {
-  AppUpdater,
-  AppUpdaterStorage,
-  TELEPORT_TOOLS_VERSION_ENV_VAR,
-} from 'teleterm/services/appUpdater';
+import { AppUpdater, AppUpdaterStorage } from 'teleterm/services/appUpdater';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
 import * as grpcCreds from 'teleterm/services/grpcCredentials';
 import {
@@ -196,10 +192,10 @@ export default class MainProcess {
     this.appUpdater = new AppUpdater(
       makeAppUpdaterStorage(this.appStateFileStorage),
       {
-        getDownloadBaseUrl: async () => {
+        getConfig: async () => {
           const { autoUpdateService } = await this.tshdClients;
-          const { response } = await autoUpdateService.getDownloadBaseUrl({});
-          return response.baseUrl;
+          const { response } = await autoUpdateService.getConfig({});
+          return response;
         },
         getClusterVersions: async () => {
           const { autoUpdateService } = await this.tshdClients;
@@ -221,8 +217,7 @@ export default class MainProcess {
         this.windowsManager
           .getWindow()
           .webContents.send(RendererIpc.AppUpdateEvent, event);
-      },
-      process.env[TELEPORT_TOOLS_VERSION_ENV_VAR]
+      }
     );
     this.clusterStore = new ClusterStore(
       () => this.tshdClients.then(c => c.terminalService),

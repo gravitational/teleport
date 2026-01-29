@@ -148,7 +148,7 @@ export class MockAutoUpdateClient implements AutoUpdateClient {
       reachableClusters: [],
       unreachableClusters: [],
     });
-  getDownloadBaseUrl = () => new MockedUnaryCall({ baseUrl: '' });
+  getConfig = () => new MockedUnaryCall({ cdnBaseUrl: '', toolsVersion: '' });
   getInstallationMetadata = () =>
     new MockedUnaryCall({ isPerMachineInstall: false });
 }

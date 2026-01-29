@@ -35,6 +35,7 @@ import { ProviderRuntimeOptions } from 'electron-updater/out/providers/Provider'
 
 import type {
   GetClusterVersionsResponse,
+  GetConfigResponse,
   GetInstallationMetadataResponse,
 } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
 import { AbortError } from 'shared/utils/error';
@@ -56,8 +57,6 @@ import {
 } from './clientToolsUpdateProvider';
 import { NsisDualModeUpdater } from './nsisDualModeUpdater';
 
-export const TELEPORT_TOOLS_VERSION_ENV_VAR = 'TELEPORT_TOOLS_VERSION';
-
 export class AppUpdater {
   private readonly logger = new Logger('AppUpdater');
   private readonly unregisterEventHandlers: () => void;
@@ -71,33 +70,34 @@ export class AppUpdater {
   constructor(
     private readonly storage: AppUpdaterStorage,
     private readonly client: {
+      getConfig(): Promise<GetConfigResponse>;
       getClusterVersions(): Promise<GetClusterVersionsResponse>;
-      getDownloadBaseUrl(): Promise<string>;
       getInstallationMetadata(): Promise<GetInstallationMetadataResponse>;
     },
     private readonly emit: (event: AppUpdateEvent) => void,
-    private versionEnvVar: string,
     /** Allows overring autoUpdater in tests. */
     private nativeUpdater: NativeUpdater = autoUpdater
   ) {
     const getClientToolsVersion: ClientToolsVersionGetter = async () => {
-      await this.refreshAutoUpdatesStatus();
+      const config = await this.client.getConfig();
+      await this.refreshAutoUpdatesStatus(config);
 
       if (this.autoUpdatesStatus.enabled) {
-        const [baseUrl, installationMetadata] = await Promise.all([
-          client.getDownloadBaseUrl(),
-          client.getInstallationMetadata().catch(error => {
-            if (isTshdRpcError(error, 'UNIMPLEMENTED')) {
-              return { isPerMachineInstall: false };
-            }
+        let isPerMachineInstall: boolean;
+        try {
+          const installationMetadata = await client.getInstallationMetadata();
+          isPerMachineInstall = installationMetadata.isPerMachineInstall;
+        } catch (error) {
+          if (!isTshdRpcError(error, 'UNIMPLEMENTED')) {
             throw error;
-          }),
-        ]);
+          }
+          isPerMachineInstall = false;
+        }
 
         return {
           version: this.autoUpdatesStatus.version,
-          baseUrl,
-          isPerMachineInstall: installationMetadata.isPerMachineInstall,
+          baseUrl: config.cdnBaseUrl,
+          isPerMachineInstall,
         };
       }
     };
@@ -346,11 +346,14 @@ export class AppUpdater {
     );
   }
 
-  private async refreshAutoUpdatesStatus(): Promise<void> {
+  private async refreshAutoUpdatesStatus(
+    config: GetConfigResponse
+  ): Promise<void> {
     const { managingClusterUri } = this.storage.get();
 
     this.autoUpdatesStatus = await resolveAutoUpdatesStatus({
-      versionEnvVar: this.versionEnvVar,
+      cdnBaseUrl: config.cdnBaseUrl,
+      configToolsVersion: config.toolsVersion,
       managingClusterUri,
       getClusterVersions: this.client.getClusterVersions,
     });
