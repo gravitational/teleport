@@ -548,12 +548,19 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 	// with existing callers of CheckAccess which expect an error when access is denied.
 	state.ReturnPreconditions = false
 
-	_, err := a.CheckConditionalAccess(r, state, matchers...)
+	_, err := a.validateAccessConditions(r, state, matchers...)
 	return trace.Wrap(err)
 }
 
 // CheckConditionalAccess checks if the identity for this AccessChecker has conditional access to the given resource.
 func (a *accessChecker) CheckConditionalAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) (*Preconditions, error) {
+	// Indicate that we want preconditions to be returned if access is granted rather than an error.
+	state.ReturnPreconditions = true
+
+	return a.validateAccessConditions(r, state, matchers...)
+}
+
+func (a *accessChecker) validateAccessConditions(r AccessCheckable, state AccessState, matchers ...RoleMatcher) (*Preconditions, error) {
 	// Enforce AllowedResourceAccessIDs if present; capture match
 	res, err := a.checkAllowedResources(r)
 	if err != nil {
