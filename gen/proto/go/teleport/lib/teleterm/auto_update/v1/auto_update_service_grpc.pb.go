@@ -36,7 +36,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	AutoUpdateService_GetClusterVersions_FullMethodName      = "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/GetClusterVersions"
-	AutoUpdateService_GetDownloadBaseUrl_FullMethodName      = "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/GetDownloadBaseUrl"
+	AutoUpdateService_GetConfig_FullMethodName               = "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/GetConfig"
 	AutoUpdateService_GetInstallationMetadata_FullMethodName = "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/GetInstallationMetadata"
 )
 
@@ -48,10 +48,11 @@ const (
 type AutoUpdateServiceClient interface {
 	// GetClusterVersions returns client tools versions for all clusters.
 	GetClusterVersions(ctx context.Context, in *GetClusterVersionsRequest, opts ...grpc.CallOption) (*GetClusterVersionsResponse, error)
-	// GetDownloadBaseUrl returns a base URL (e.g. cdn.teleport.dev) for downloading packages.
-	// Can be overridden with TELEPORT_CDN_BASE_URL env var.
-	// OSS builds require this env var to be set, otherwise an error is returned.
-	GetDownloadBaseUrl(ctx context.Context, in *GetDownloadBaseUrlRequest, opts ...grpc.CallOption) (*GetDownloadBaseUrlResponse, error)
+	// GetConfigRequest retrieves the local auto updates configuration.
+	// It resolves settings using platform-specific mechanisms:
+	// * macOS/Linux: Environment variables.
+	// * Windows: System Registry policies (respecting per-machine vs. per-user installation scopes).
+	GetConfig(ctx context.Context, in *GetConfigRequest, opts ...grpc.CallOption) (*GetConfigResponse, error)
 	// GetInstallationMetadata returns installation metadata of the currently running app instance.
 	// Implemented only on Windows.
 	GetInstallationMetadata(ctx context.Context, in *GetInstallationMetadataRequest, opts ...grpc.CallOption) (*GetInstallationMetadataResponse, error)
@@ -75,10 +76,10 @@ func (c *autoUpdateServiceClient) GetClusterVersions(ctx context.Context, in *Ge
 	return out, nil
 }
 
-func (c *autoUpdateServiceClient) GetDownloadBaseUrl(ctx context.Context, in *GetDownloadBaseUrlRequest, opts ...grpc.CallOption) (*GetDownloadBaseUrlResponse, error) {
+func (c *autoUpdateServiceClient) GetConfig(ctx context.Context, in *GetConfigRequest, opts ...grpc.CallOption) (*GetConfigResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetDownloadBaseUrlResponse)
-	err := c.cc.Invoke(ctx, AutoUpdateService_GetDownloadBaseUrl_FullMethodName, in, out, cOpts...)
+	out := new(GetConfigResponse)
+	err := c.cc.Invoke(ctx, AutoUpdateService_GetConfig_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -103,10 +104,11 @@ func (c *autoUpdateServiceClient) GetInstallationMetadata(ctx context.Context, i
 type AutoUpdateServiceServer interface {
 	// GetClusterVersions returns client tools versions for all clusters.
 	GetClusterVersions(context.Context, *GetClusterVersionsRequest) (*GetClusterVersionsResponse, error)
-	// GetDownloadBaseUrl returns a base URL (e.g. cdn.teleport.dev) for downloading packages.
-	// Can be overridden with TELEPORT_CDN_BASE_URL env var.
-	// OSS builds require this env var to be set, otherwise an error is returned.
-	GetDownloadBaseUrl(context.Context, *GetDownloadBaseUrlRequest) (*GetDownloadBaseUrlResponse, error)
+	// GetConfigRequest retrieves the local auto updates configuration.
+	// It resolves settings using platform-specific mechanisms:
+	// * macOS/Linux: Environment variables.
+	// * Windows: System Registry policies (respecting per-machine vs. per-user installation scopes).
+	GetConfig(context.Context, *GetConfigRequest) (*GetConfigResponse, error)
 	// GetInstallationMetadata returns installation metadata of the currently running app instance.
 	// Implemented only on Windows.
 	GetInstallationMetadata(context.Context, *GetInstallationMetadataRequest) (*GetInstallationMetadataResponse, error)
@@ -123,8 +125,8 @@ type UnimplementedAutoUpdateServiceServer struct{}
 func (UnimplementedAutoUpdateServiceServer) GetClusterVersions(context.Context, *GetClusterVersionsRequest) (*GetClusterVersionsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetClusterVersions not implemented")
 }
-func (UnimplementedAutoUpdateServiceServer) GetDownloadBaseUrl(context.Context, *GetDownloadBaseUrlRequest) (*GetDownloadBaseUrlResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetDownloadBaseUrl not implemented")
+func (UnimplementedAutoUpdateServiceServer) GetConfig(context.Context, *GetConfigRequest) (*GetConfigResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetConfig not implemented")
 }
 func (UnimplementedAutoUpdateServiceServer) GetInstallationMetadata(context.Context, *GetInstallationMetadataRequest) (*GetInstallationMetadataResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetInstallationMetadata not implemented")
@@ -168,20 +170,20 @@ func _AutoUpdateService_GetClusterVersions_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AutoUpdateService_GetDownloadBaseUrl_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetDownloadBaseUrlRequest)
+func _AutoUpdateService_GetConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetConfigRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AutoUpdateServiceServer).GetDownloadBaseUrl(ctx, in)
+		return srv.(AutoUpdateServiceServer).GetConfig(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AutoUpdateService_GetDownloadBaseUrl_FullMethodName,
+		FullMethod: AutoUpdateService_GetConfig_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AutoUpdateServiceServer).GetDownloadBaseUrl(ctx, req.(*GetDownloadBaseUrlRequest))
+		return srv.(AutoUpdateServiceServer).GetConfig(ctx, req.(*GetConfigRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -216,8 +218,8 @@ var AutoUpdateService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AutoUpdateService_GetClusterVersions_Handler,
 		},
 		{
-			MethodName: "GetDownloadBaseUrl",
-			Handler:    _AutoUpdateService_GetDownloadBaseUrl_Handler,
+			MethodName: "GetConfig",
+			Handler:    _AutoUpdateService_GetConfig_Handler,
 		},
 		{
 			MethodName: "GetInstallationMetadata",

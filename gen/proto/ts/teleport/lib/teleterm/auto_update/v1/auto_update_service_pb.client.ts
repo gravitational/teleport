@@ -25,8 +25,8 @@ import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { AutoUpdateService } from "./auto_update_service_pb";
 import type { GetInstallationMetadataResponse } from "./auto_update_service_pb";
 import type { GetInstallationMetadataRequest } from "./auto_update_service_pb";
-import type { GetDownloadBaseUrlResponse } from "./auto_update_service_pb";
-import type { GetDownloadBaseUrlRequest } from "./auto_update_service_pb";
+import type { GetConfigResponse } from "./auto_update_service_pb";
+import type { GetConfigRequest } from "./auto_update_service_pb";
 import { stackIntercept } from "@protobuf-ts/runtime-rpc";
 import type { GetClusterVersionsResponse } from "./auto_update_service_pb";
 import type { GetClusterVersionsRequest } from "./auto_update_service_pb";
@@ -45,13 +45,14 @@ export interface IAutoUpdateServiceClient {
      */
     getClusterVersions(input: GetClusterVersionsRequest, options?: RpcOptions): UnaryCall<GetClusterVersionsRequest, GetClusterVersionsResponse>;
     /**
-     * GetDownloadBaseUrl returns a base URL (e.g. cdn.teleport.dev) for downloading packages.
-     * Can be overridden with TELEPORT_CDN_BASE_URL env var.
-     * OSS builds require this env var to be set, otherwise an error is returned.
+     * GetConfigRequest retrieves the local auto updates configuration.
+     * It resolves settings using platform-specific mechanisms:
+     * * macOS/Linux: Environment variables.
+     * * Windows: System Registry policies (respecting per-machine vs. per-user installation scopes).
      *
-     * @generated from protobuf rpc: GetDownloadBaseUrl(teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlRequest) returns (teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlResponse);
+     * @generated from protobuf rpc: GetConfig(teleport.lib.teleterm.auto_update.v1.GetConfigRequest) returns (teleport.lib.teleterm.auto_update.v1.GetConfigResponse);
      */
-    getDownloadBaseUrl(input: GetDownloadBaseUrlRequest, options?: RpcOptions): UnaryCall<GetDownloadBaseUrlRequest, GetDownloadBaseUrlResponse>;
+    getConfig(input: GetConfigRequest, options?: RpcOptions): UnaryCall<GetConfigRequest, GetConfigResponse>;
     /**
      * GetInstallationMetadata returns installation metadata of the currently running app instance.
      * Implemented only on Windows.
@@ -81,15 +82,16 @@ export class AutoUpdateServiceClient implements IAutoUpdateServiceClient, Servic
         return stackIntercept<GetClusterVersionsRequest, GetClusterVersionsResponse>("unary", this._transport, method, opt, input);
     }
     /**
-     * GetDownloadBaseUrl returns a base URL (e.g. cdn.teleport.dev) for downloading packages.
-     * Can be overridden with TELEPORT_CDN_BASE_URL env var.
-     * OSS builds require this env var to be set, otherwise an error is returned.
+     * GetConfigRequest retrieves the local auto updates configuration.
+     * It resolves settings using platform-specific mechanisms:
+     * * macOS/Linux: Environment variables.
+     * * Windows: System Registry policies (respecting per-machine vs. per-user installation scopes).
      *
-     * @generated from protobuf rpc: GetDownloadBaseUrl(teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlRequest) returns (teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlResponse);
+     * @generated from protobuf rpc: GetConfig(teleport.lib.teleterm.auto_update.v1.GetConfigRequest) returns (teleport.lib.teleterm.auto_update.v1.GetConfigResponse);
      */
-    getDownloadBaseUrl(input: GetDownloadBaseUrlRequest, options?: RpcOptions): UnaryCall<GetDownloadBaseUrlRequest, GetDownloadBaseUrlResponse> {
+    getConfig(input: GetConfigRequest, options?: RpcOptions): UnaryCall<GetConfigRequest, GetConfigResponse> {
         const method = this.methods[1], opt = this._transport.mergeOptions(options);
-        return stackIntercept<GetDownloadBaseUrlRequest, GetDownloadBaseUrlResponse>("unary", this._transport, method, opt, input);
+        return stackIntercept<GetConfigRequest, GetConfigResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * GetInstallationMetadata returns installation metadata of the currently running app instance.
