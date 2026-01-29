@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useState } from 'react';
 import { Link as InternalLink } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { Alert, Box, Button, ButtonText, Flex, Text } from 'design';
 import { Check, Copy, Notification, Spinner } from 'design/Icon';
 import { rotate360 } from 'design/keyframes';
-import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import { useValidation } from 'shared/components/Validation';
 
@@ -30,27 +30,48 @@ import cfg from 'teleport/config';
 
 import { CircleNumber } from './EnrollAws';
 
+export function CopyTerraformButton({
+  onClick,
+}: {
+  onClick: (e: React.SyntheticEvent) => void;
+}) {
+  const [configCopied, setConfigCopied] = useState(false);
+
+  const handleClick = (e: React.SyntheticEvent) => {
+    onClick(e);
+
+    if (!e.defaultPrevented) {
+      setConfigCopied(true);
+      setTimeout(() => setConfigCopied(false), 1000);
+    }
+  };
+
+  return (
+    <Button fill="border" intent="primary" onClick={handleClick} gap={2}>
+      {configCopied ? <Check size="small" /> : <Copy size="small" />}
+      Copy Terraform Module
+    </Button>
+  );
+}
+
 type DeploymentMethodSectionProps = {
   terraformConfig?: string;
-  copyConfigButtonRef?: React.RefObject<HTMLButtonElement>;
+  handleCopy: () => void;
   integrationExists?: boolean;
   integrationName?: string;
   onCheckIntegration?: () => void;
+  onCancelCheckIntegration?: () => void;
   isCheckingIntegration?: boolean;
-  configCopied: boolean;
-  onConfigCopy: () => void;
   showVerificationStep?: boolean;
 };
 
 export function DeploymentMethodSection({
-  terraformConfig,
-  copyConfigButtonRef,
+  handleCopy,
   integrationExists,
   integrationName,
   onCheckIntegration,
   isCheckingIntegration,
-  configCopied = false,
-  onConfigCopy,
+  onCancelCheckIntegration,
   showVerificationStep = true,
 }: DeploymentMethodSectionProps) {
   const validator = useValidation();
@@ -87,23 +108,17 @@ export function DeploymentMethodSection({
             configuration.
           </Text>
           <Box>
-            <Button
-              ref={copyConfigButtonRef}
-              fill="border"
-              intent="primary"
-              disabled={!terraformConfig}
-              onClick={() => {
-                if (validator.validate() && terraformConfig) {
-                  copyToClipboard(terraformConfig);
-                  onConfigCopy?.();
+            <CopyTerraformButton
+              onClick={e => {
+                const isValid = validator.validate();
+                if (!isValid) {
+                  e.preventDefault();
+                } else {
+                  handleCopy();
                 }
               }}
-              gap={2}
-            >
-              {configCopied ? <Check size="small" /> : <Copy size="small" />}
-              Copy Terraform Module
-            </Button>
-            {!validator.state.valid && (
+            />
+            {validator.state.validating && !validator.state.valid && (
               <Text color="error.main" mt={2} fontSize={1}>
                 Please complete the required fields
               </Text>
@@ -161,7 +176,15 @@ export function DeploymentMethodSection({
                   </Box>
                   <Box mb={3}>
                     {isCheckingIntegration ? (
-                      <Alert kind="info" icon={Notification} mb={0}>
+                      <Alert
+                        kind="info"
+                        icon={Notification}
+                        primaryAction={{
+                          content: 'Cancel',
+                          onClick: onCancelCheckIntegration,
+                        }}
+                        mb={0}
+                      >
                         Checking for integration '{integrationName}'...
                       </Alert>
                     ) : (
