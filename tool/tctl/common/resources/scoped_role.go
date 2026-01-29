@@ -72,7 +72,7 @@ func scopedRoleHandler() Handler {
 		createHandler: createScopedRole,
 		updateHandler: updateScopedRole,
 		deleteHandler: deleteScopedRole,
-		description:   "A scoped set of permissions and resources that can be granted to users",
+		description:   "A set of permissions that can be granted to users at a limited scope",
 	}
 }
 

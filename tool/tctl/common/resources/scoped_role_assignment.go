@@ -80,7 +80,7 @@ func scopedRoleAssignmentHandler() Handler {
 		getHandler:    getScopedRoleAssignment,
 		createHandler: createScopedRoleAssignment,
 		deleteHandler: deleteScopedRoleAssignment,
-		description:   "A scoped role assignment assigns scoped roles to users at scopes",
+		description:   "A scoped role assignment binds scoped role permissions to a user at a limited scope",
 	}
 }
 
