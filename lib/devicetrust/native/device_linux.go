@@ -190,6 +190,7 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 		OsVersion:             osRelease.VersionID,
 		OsBuild:               osRelease.Version,
 		OsUsername:            displayName, // Wrong, but kept for backwards compatibility.
+		OsLoginUser:           u.Username,
 		ReportedAssetTag:      reportedAssetTag,
 		SystemSerialNumber:    systemSerialNumber,
 		BaseBoardSerialNumber: baseBoardSerialNumber,
