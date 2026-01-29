@@ -37,7 +37,6 @@ import (
 	ossteleport "github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	controlgroup "github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
@@ -47,22 +46,22 @@ import (
 // events.
 const ArgsCacheSize = 1024
 
-type sessionEnder interface {
-	endSession(cgroupID uint64) error
+type sessionHandler interface {
+	startSession(auditSessionID uint32) error
+	sessionEnder
 }
 
-type cgroupRegister interface {
-	startSession(cgroupID uint64) error
-	endSession(cgroupID uint64) error
+type sessionEnder interface {
+	endSession(auditSessionID uint32) error
 }
 
 // Service manages BPF and control groups orchestration.
 type Service struct {
 	*servicecfg.BPFConfig
 
-	// watch is a map of cgroup IDs that the BPF service is watching and
-	// emitting events for.
-	watch utils.SyncMap[uint64, *SessionContext]
+	// sessions is a map of audit session IDs that the BPF service is
+	// watching and emitting events for.
+	sessions utils.SyncMap[uint32, *SessionContext]
 
 	// argsCache holds the arguments to execve because they come a different
 	// event than the result.
@@ -72,9 +71,6 @@ type Service struct {
 	// goroutines.
 	closeContext context.Context
 	closeFunc    context.CancelFunc
-
-	// cgroup is used to manage control groups.
-	cgroup *controlgroup.Service
 
 	// exec holds a BPF program that hooks execve.
 	exec *exec
@@ -108,22 +104,6 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 		closeFunc:    closeFunc,
 	}
 
-	// Create a cgroup controller to add/remote cgroups.
-	s.cgroup, err = controlgroup.New(&controlgroup.Config{
-		MountPath: config.CgroupPath,
-		RootPath:  config.RootPath,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer func() {
-		if err != nil {
-			if err := s.cgroup.Close(true); err != nil {
-				logger.WarnContext(closeContext, "Failed to close cgroup", "error", err)
-			}
-		}
-	}()
-
 	s.argsCache, err = utils.NewFnCache(utils.FnCacheConfig{
 		TTL: 24 * time.Hour,
 	})
@@ -152,7 +132,6 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 		"command_buffer_size", *s.CommandBufferSize,
 		"disk_buffer_size", *s.DiskBufferSize,
 		"network_buffer_size", *s.NetworkBufferSize,
-		"cgroup_mount_path", s.CgroupPath,
 		"elapsed", time.Since(start),
 	)
 
@@ -167,22 +146,12 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 
 // Close will stop any running BPF programs. Note this is only for a graceful
 // shutdown, from the man page for BPF: "Generally, eBPF programs are loaded by
-// the user process and automatically unloaded when the process exits". The
-// restarting parameter indicates that Teleport is shutting down because of a
-// restart, and thus we should skip any deinitialization that would interfere
-// with the new Teleport instance.
-func (s *Service) Close(restarting bool) error {
+// the user process and automatically unloaded when the process exits".
+func (s *Service) Close() error {
 	// Unload the BPF programs.
 	s.exec.close()
 	s.open.close()
 	s.conn.close()
-
-	// Close cgroup service. We should not unmount the cgroup filesystem if
-	// we're restarting.
-	skipCgroupUnmount := restarting
-	if err := s.cgroup.Close(skipCgroupUnmount); err != nil {
-		logger.WarnContext(s.closeContext, "Failed to close cgroup", "error", err)
-	}
 
 	// Signal to the processAccessEvents pulling events off the perf buffer to shutdown.
 	s.closeFunc()
@@ -190,24 +159,28 @@ func (s *Service) Close(restarting bool) error {
 	return nil
 }
 
-// OpenSession will place a process within a cgroup and being monitoring all
-// events from that cgroup and emitting the results to the audit log.
-func (s *Service) OpenSession(ctx *SessionContext) (uint64, error) {
-	err := s.cgroup.Create(ctx.SessionID)
-	if err != nil {
-		return 0, trace.Wrap(err)
+// OpenSession will begin monitoring all events from the given session
+// and emitting the results to the audit log.
+func (s *Service) OpenSession(ctx *SessionContext) error {
+	auditSessID := ctx.AuditSessionID
+
+	// Sanity check the audit session ID just in case.
+	if auditSessID == 0 {
+		return trace.NotFound("audit session ID not found")
+	}
+	sctx, found := s.sessions.Load(auditSessID)
+	if found {
+		logger.WarnContext(s.closeContext, "Audit session ID already in use", "session_id", sctx.SessionID, "current_session_id", ctx.SessionID, "audit_session_id", auditSessID)
+		return trace.BadParameter("audit session ID already in use")
 	}
 
-	cgroupID, err := s.cgroup.ID(ctx.SessionID)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
+	logger.DebugContext(s.closeContext, "Opening session", "session_id", ctx.SessionID, "audit_session_id", auditSessID)
 
 	// initializedModClosures holds all already opened modules closures.
 	initializedModClosures := make([]sessionEnder, 0)
 	for _, m := range []struct {
 		eventName string
-		module    cgroupRegister
+		module    sessionHandler
 	}{
 		{constants.EnhancedRecordingCommand, s.exec},
 		{constants.EnhancedRecordingDisk, s.open},
@@ -219,52 +192,35 @@ func (s *Service) OpenSession(ctx *SessionContext) (uint64, error) {
 			continue
 		}
 
-		// Register cgroup in the BPF module.
-		if err := m.module.startSession(cgroupID); err != nil {
+		// Register audit session ID in the BPF module.
+		if err := m.module.startSession(auditSessID); err != nil {
 			// Clean up all already opened modules.
 			for _, closer := range initializedModClosures {
-				if closeErr := closer.endSession(cgroupID); closeErr != nil {
+				if closeErr := closer.endSession(auditSessID); closeErr != nil {
 					logger.DebugContext(s.closeContext, "failed to close session", "error", closeErr)
 				}
 			}
-			return 0, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		initializedModClosures = append(initializedModClosures, m.module)
 	}
 
-	// Start watching for any events that come from this cgroup.
-	s.watch.Store(cgroupID, ctx)
+	// Start watching for any events that come from this audit session ID.
+	s.sessions.Store(auditSessID, ctx)
 
-	// Place requested PID into cgroup.
-	err = s.cgroup.Place(ctx.SessionID, ctx.PID)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-
-	return cgroupID, nil
+	return nil
 }
 
-// CloseSession will stop monitoring events from a particular cgroup and
-// remove the cgroup.
+// CloseSession will stop monitoring events from a particular session.
 func (s *Service) CloseSession(ctx *SessionContext) error {
-	cgroupID, err := s.cgroup.ID(ctx.SessionID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Stop watching for events from this PID.
-	s.watch.Delete(cgroupID)
+	// Stop watching for events for this session.
+	s.sessions.Delete(ctx.AuditSessionID)
 
 	var errs []error
-	// Move all PIDs to the root cgroup and remove the cgroup created for this
-	// session.
-	if err := s.cgroup.Remove(ctx.SessionID); err != nil {
-		errs = append(errs, trace.Wrap(err))
-	}
 
 	for _, m := range []struct {
 		eventName string
-		module    cgroupRegister
+		module    sessionEnder
 	}{
 		{constants.EnhancedRecordingCommand, s.exec},
 		{constants.EnhancedRecordingDisk, s.open},
@@ -276,8 +232,8 @@ func (s *Service) CloseSession(ctx *SessionContext) error {
 			continue
 		}
 
-		// Remove the cgroup from BPF module.
-		if err := m.module.endSession(cgroupID); err != nil {
+		// Remove the audit session ID from BPF module.
+		if err := m.module.endSession(ctx.AuditSessionID); err != nil {
 			errs = append(errs, trace.Wrap(err))
 		}
 	}
@@ -309,6 +265,7 @@ func sendEvents(bpfEvents chan []byte, eventBuf *ringbuf.Reader) {
 
 // processAccessEvents pulls events off the perf ring buffer, parses them, and emits them to
 // the audit log.
+// TODO(capnspacehook): combine processAccessEvents and processNetworkEvents
 func (s *Service) processAccessEvents() {
 	for {
 		select {
@@ -351,8 +308,9 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 		return
 	}
 
-	// If the event comes from a unmonitored process/cgroup, don't process it.
-	ctx, ok := s.watch.Load(event.Cgroup)
+	// If the event comes from a unmonitored process/audit session ID,
+	// don't process it.
+	ctx, ok := s.sessions.Load(event.AuditSessionId)
 	if !ok {
 		return
 	}
@@ -445,8 +403,9 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 		return
 	}
 
-	// If the event comes from a unmonitored process/cgroup, don't process it.
-	ctx, ok := s.watch.Load(event.Cgroup)
+	// If the event comes from a unmonitored process/audit session ID,
+	// don't process it.
+	ctx, ok := s.sessions.Load(event.AuditSessionId)
 	if !ok {
 		return
 	}
@@ -501,8 +460,9 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 		return
 	}
 
-	// If the event comes from an unmonitored process/cgroup, don't process it.
-	ctx, ok := s.watch.Load(event.Cgroup)
+	// If the event comes from a unmonitored process/audit session ID,
+	// don't process it.
+	ctx, ok := s.sessions.Load(event.AuditSessionId)
 	if !ok {
 		return
 	}
@@ -561,8 +521,9 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 		return
 	}
 
-	// If the event comes from an unmonitored process/cgroup, don't process it.
-	ctx, ok := s.watch.Load(event.Cgroup)
+	// If the event comes from a unmonitored process/audit session ID,
+	// don't process it.
+	ctx, ok := s.sessions.Load(event.AuditSessionId)
 	if !ok {
 		return
 	}

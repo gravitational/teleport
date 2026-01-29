@@ -555,9 +555,6 @@ const (
 	// OpenPerfBufferPageCount is the page count for the perf buffer. Open
 	// events generate many events so this buffer needs to be extra large.
 	OpenPerfBufferPageCount = 128
-
-	// CgroupPath is where the cgroupv2 hierarchy will be mounted.
-	CgroupPath = "/cgroup2"
 )
 
 const (
