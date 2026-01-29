@@ -2648,7 +2648,7 @@ func (set RoleSet) checkConditionalAccess(
 	}
 
 	// Collect preconditions to return to the caller.
-	preconds := map[*decisionpb.Precondition]struct{}{}
+	preconds := make(map[decisionpb.PreconditionKind]*decisionpb.Precondition)
 
 	// Based on the state, check if MFA is always required and just hasn't been verified yet.
 	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {
@@ -2659,7 +2659,9 @@ func (set RoleSet) checkConditionalAccess(
 		}
 
 		// Mark that MFA is required and continue evaluating access.
-		preconds[&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA}] = struct{}{}
+		preconds[decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA] = &decisionpb.Precondition{
+			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
+		}
 	}
 
 	requiresLabelMatching := resourceRequiresLabelMatching(r)
@@ -2807,7 +2809,9 @@ func (set RoleSet) checkConditionalAccess(
 			}
 
 			// Mark that MFA is required and continue evaluating access.
-			preconds[&decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA}] = struct{}{}
+			preconds[decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA] = &decisionpb.Precondition{
+				Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
+			}
 		}
 
 		// Device verification.
@@ -2844,10 +2848,10 @@ func (set RoleSet) checkConditionalAccess(
 		r.GetKind(), additionalDeniedMessage)
 }
 
-func precondsToSlice(set map[*decisionpb.Precondition]struct{}) []*decisionpb.Precondition {
+func precondsToSlice(set map[decisionpb.PreconditionKind]*decisionpb.Precondition) []*decisionpb.Precondition {
 	slice := make([]*decisionpb.Precondition, 0, len(set))
 
-	for precond := range set {
+	for _, precond := range set {
 		slice = append(slice, precond)
 	}
 

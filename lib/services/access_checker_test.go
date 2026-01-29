@@ -738,7 +738,7 @@ func TestAccessChecker_CheckConditionalAccess_StateMFANever_ReturnsNoMFAPrecondi
 				return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
 			},
 		),
-		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to be included", preconds,
+		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to NOT be included", preconds,
 	)
 }
 
