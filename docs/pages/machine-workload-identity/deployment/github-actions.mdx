@@ -418,11 +418,20 @@ Use `tctl edit role/example-bot` to add the following to the role:
 ```yaml
 spec:
   allow:
-    # TODO: database rules
+    db_labels:
+      '*': '*'
+    db_names: [demo-db]
+    db_users: [demo-user]
+    rules:
+      - resources: [db_server, db]
+        verbs: [read, list]
 ```
 
-With that privileges granted, you can now create the GitHub Actions workflow.
-Create `.github/workflows/example.yaml`:
+Make sure to adjust the labels, names, and users as necessary to match your
+desired databases.
+
+With database privileges granted, you can now create the GitHub Actions
+workflow. Create `.github/workflows/example.yaml`:
 
 ```yaml
 # This is a basic workflow to help you get started, modify it for your needs.
@@ -462,14 +471,14 @@ jobs:
         # shown in `tsh db ls`
         service: postgres
         # The name of the specific database to connect to.
-        database: demo
+        database: demo-db
         # The username of the database user to connect as.
-        username: demo
+        username: demo-user
         # Configure the port for tbot's diagnostics service, used to coordinate
         # with the bot in the background. If running multiple background bots
         # (app tunnel/proxy, database tunnel, etc), make sure to give each a
         # unique port. If unset, the default shown below is used.
-        diagPort: 57263
+        diag-port: 57263
         # Enable the submission of anonymous usage telemetry. This helps us
         # shape the future development of `tbot`. You can disable this by
         # omitting this.
@@ -477,16 +486,16 @@ jobs:
 
     - name: Run a database command
       run: |
-        psql postgres://demo@localhost:5432/demo -c 'select 1;'
+        psql postgres://demo-user@localhost:5432/demo-db -c 'select 1;'
 ```
 
 Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport Proxy Service.
 - `example-bot` with the name of the token you created in a previous step.
-- `service` with the name of your database server as configured in Teleport.
-- `database` with the database name to access.
-- `username` with the database username to connect as.
+- `postgres` with the name of your database server as configured in Teleport.
+- `demo-db` with the database name to access.
+- `demo-user` with the database username to connect as.
 
 Once the `teleport-actions/database-tunnel` action completes, a database tunnel
 will be running at the configured port (in this case, `localhost:5432`). You may
@@ -518,11 +527,17 @@ Use `tctl edit role/example-bot` to add the following to the role:
 ```yaml
 spec:
   allow:
-    # TODO: app rules
+    # Grants access to all applications.
+    app_labels:
+      '*': '*'
 ```
 
-With that privileges granted, you can now create the GitHub Actions workflow.
-Create `.github/workflows/example.yaml`:
+If desired, adjust the label selector in the role to restrict which applications
+the bot will be allowed to access. For more information, refer to our
+[dedicated application access guide](../../machine-workload-identity/access-guides/applications.mdx).
+
+Once privileges have been granted, you can now create the GitHub Actions
+workflow. Create `.github/workflows/example.yaml`:
 
 ```yaml
 # This is a basic workflow to help you get started, modify it for your needs.
@@ -559,6 +574,8 @@ jobs:
         token: example-bot
         # The name of the app to access.
         app: my-application
+        # Configure the listener address for the app tunnel.
+        listen: tcp://localhost:1234
         # Enable the submission of anonymous usage telemetry. This helps us
         # shape the future development of `tbot`. You can disable this by
         # omitting this.
@@ -584,8 +601,8 @@ Navigate to the **Actions** tab of your GitHub repository in your web browser.
 Select the **Workflow** that has now been created and triggered by the change,
 and select the `example` job.
 
-Expand the **List pods** step of the action, where you can then confirm that the
-output shows a list of all the pods within your Kubernetes cluster.
+Expand the **Access the app** step of the action and confirm that the output
+shows a valid response from your application.
 
 ### Example: `teleport-actions/application-proxy`
 
@@ -601,6 +618,23 @@ While this action only supports HTTP applications, you can access arbitrary apps
 so long as your bot has been granted appropriate RBAC permissions, so long as
 your client app can use HTTP proxies (e.g. the `$HTTP_PROXY` environment
 variable).
+
+Use `tctl edit role/example-bot` to add the following to the role:
+
+```yaml
+spec:
+  allow:
+    # Grants access to all applications.
+    app_labels:
+      '*': '*'
+```
+
+If desired, adjust the label selector in the role to restrict which applications
+the bot will be allowed to access. For more information, refer to our
+[dedicated application access guide](../../machine-workload-identity/access-guides/applications.mdx).
+
+Once privileges have been granted, you can now create the GitHub Actions
+workflow. Create `.github/workflows/example.yaml`:
 
 ```yaml
 # This is a basic workflow to help you get started, modify it for your needs.
@@ -639,7 +673,7 @@ jobs:
         # with the bot in the background. If running multiple background bots
         # (app tunnel/proxy, database tunnel, etc), make sure to give each a
         # unique port. If unset, the default shown below is used.
-        diagPort: 57263
+        diag-port: 57263
         # Enable the submission of anonymous usage telemetry. This helps us
         # shape the future development of `tbot`. You can disable this by
         # omitting this.
@@ -822,7 +856,7 @@ jobs:
         TELEPORT_ANONYMOUS_TELEMETRY: 1
       run: nohup tbot start -c ./tbot.yaml --diag-addr localhost:57264 > ./tbot.log 2>&1 &
     - name: Wait for tbot to become ready
-      run: tbot wait --diag-addr localhost:57264
+      run: tbot wait --timeout=30s --diag-addr localhost:57264
 
     # Insert other steps that use tbot credentials or services here.
 
