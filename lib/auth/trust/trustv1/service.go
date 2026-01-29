@@ -153,7 +153,7 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 		return nil, trace.Wrap(err)
 	}
 
-	if err := failPreWindowsTctlUserCAQuery(ctx, req.Type); err != nil {
+	if err := failPreWindowsCATctlUserCAQuery(ctx, req.Type); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	authority, ok := ca.(*types.CertAuthorityV2)
@@ -164,8 +164,16 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 	return authority, nil
 }
 
+// failPreWindowsCATctlUserCAQuery checks if the client requesting the UserCA is
+// a version of tctl that does not know about the WindowsCA. Older Auth servers
+// used the UserCA for Windows desktop sessions. Newer Auth servers use
+// WindowsCA. If an old tctl is requesting the UserCA, we do not know if it is
+// meant for Windows desktop purposes, so deny the request and require the user
+// upgrade the tctl client so that the intent is clear.
+// See RFD 0239 for details:
+// https://github.com/gravitational/teleport/blob/master/rfd/0239-windows-ca-split.md
 // TODO(codingllama): DELETE IN 20. All valid clients support WindowsCA by then.
-func failPreWindowsTctlUserCAQuery(ctx context.Context, caType string) error {
+func failPreWindowsCATctlUserCAQuery(ctx context.Context, caType string) error {
 	// Query for UserCA?
 	if caType != string(types.UserCA) {
 		return nil

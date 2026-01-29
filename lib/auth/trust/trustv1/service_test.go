@@ -681,10 +681,10 @@ func TestGetCertAuthority_outdatedTctl(t *testing.T) {
 	}
 
 	const oldVer, newVer = "18.6.4", "18.8.0"
-	oldTlctContext := func(ctx context.Context) context.Context {
+	oldTctlContext := func(ctx context.Context) context.Context {
 		return makeClientContext(ctx, teleport.ComponentTCTL, oldVer)
 	}
-	newTlctContext := func(ctx context.Context) context.Context {
+	newTctlContext := func(ctx context.Context) context.Context {
 		return makeClientContext(ctx, teleport.ComponentTCTL, newVer)
 	}
 
@@ -703,13 +703,13 @@ func TestGetCertAuthority_outdatedTctl(t *testing.T) {
 		{
 			name:    "ok: new tctl",
 			req:     requestForCA(userCA),
-			makeCtx: newTlctContext,
+			makeCtx: newTctlContext,
 			want:    userCA,
 		},
 		{
 			name:    "ok: old tctl queries otherCA",
 			req:     requestForCA(otherCA),
-			makeCtx: oldTlctContext,
+			makeCtx: oldTctlContext,
 			want:    otherCA,
 		},
 		{
@@ -723,7 +723,7 @@ func TestGetCertAuthority_outdatedTctl(t *testing.T) {
 		{
 			name:    "nok: old tctl",
 			req:     requestForCA(userCA),
-			makeCtx: oldTlctContext,
+			makeCtx: oldTctlContext,
 			wantErr: "tctl must be upgraded",
 		},
 	}
