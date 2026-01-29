@@ -12,8 +12,8 @@ state: draft
 
 ## What
 
-This RFD proposes a new method for users of `tsh` to be able to authenticate
-themselves using their browser-based MFA.
+This RFD proposes a new method for users of `tsh` to be able to solve MFA
+challenges via the browser.
 
 ## Why
 
@@ -47,8 +47,9 @@ tsh login --proxy teleport.example.com --user alice
 She is asked for her password, which is then sent to Teleport. Teleport verifies
 her username and password, and checks for valid methods of second factor
 authentication. Available methods of MFA are returned and `tsh` determines that
-no security keys are present, so `tsh` catches the error and prints a URL and
-attempts to open it in the default browser for her to complete the challenge.
+no security keys are present, so `tsh` catches the error and switches to browser
+MFA, which prints a URL and attempts to open it in the default browser for her
+to complete the challenge.
 
 The browser will open to a page that contains a modal prompting her to verify it
 is her by completing the MFA check. Once this is completed, `tsh` will receive
@@ -70,7 +71,7 @@ authentication from the start, skipping any checks for local hardware keys or
 TOTP. `tsh` prints the MFA URL and opens Alice's default browser. If Alice isn't
 already authenticated, she is prompted to login, she is then prompted to
 complete the MFA check with her passkey. After successful authentication, `tsh`
-will receive its certificates from the proxy.
+will receive its certificates through a callback from the proxy.
 
 **Alice connects to a resource that requires per-session MFA**
 
@@ -85,7 +86,267 @@ tsh ssh alice@node
 hardware keys and SSO config that can be used for MFA. If none are found, `tsh`
 falls back to browser-based MFA. The MFA URL is printed and `tsh` attempts to
 open her browser, to authenticate with her MFA. Upon successful MFA, `tsh`
-receives short-lived, MFA-verified certificates to connect to the resource.
+receives short-lived, MFA-verified certificates through a callback to connect to
+the resource.
+
+### Design
+
+#### Login MFA process
+
+sequenceDiagram
+    participant tsh
+    participant browser as Browser
+    participant proxy as Proxy
+    participant auth as Auth
+
+    Note over tsh: tsh login --proxy teleport.example.com<br/>--user alice --mfa-mode=browser
+    Note over tsh: prompt for password
+
+    tsh->>tsh: Start local HTTP server<br/>(127.0.0.1:random_port)<br/>Generate secret key
+
+    tsh->>proxy: POST /webapi/mfa/login/begin<br/>w/ redirect /callback?secret_key=xxx
+    proxy->>auth: Forward login request
+    auth->>auth: Generate request_id<br/>Upsert SSOMFASession
+    auth-->>proxy: MFA Challenge
+    proxy-->>tsh: Return MFA Challenge
+
+    tsh->>browser: Open browser to:<br/>https://teleport.example.com/web/mfa/:request_id
+    activate browser
+
+    browser->>proxy: GET /web/mfa/:request_id
+    proxy-->>browser: Display WebAuthn prompt
+
+    browser->>browser: User taps TouchID /<br/>Uses password manager passkey
+    browser->>proxy: PUT /webapi/mfa/:request_id
+
+    proxy->>auth: rpc ValidateBrowserMFAChallengeResponse
+    auth->>auth: ValidateMFAAuthResponse()
+    auth->>auth: Generate MFA token<br/>UpsertSSOMFASessionWithToken()
+    auth->>auth: Encrypt token with secret_key
+    auth-->>proxy: ValidateBrowserMFAChallengeResponse
+    proxy-->>browser: HTTP 200 with redirect URL
+
+    browser->>tsh: Redirect to callback URL<br/>http://127.0.0.1:port/callback?response={encrypted_token}
+    deactivate browser
+    tsh->>tsh: Decrypt response with secret_key<br/>Extract MFA token
+    tsh-->>browser: Display success page
+
+    tsh->>proxy: POST /webapi/mfa/login/finish
+    proxy->>auth: AuthenticateSSHUser
+    auth->>auth: VerifySSOMFASession()
+    auth->>auth: Generate SSH certificates
+    auth-->>proxy: SSH Login Response
+    proxy-->>tsh: Return certificates
+    
+    tsh->>tsh: Save credentials to keyring
+    Note over tsh: Login successful
+
+##### Login MFA Flow
+
+The flow can be broken down in to three sections:
+
+##### `tsh` initiating a login flow
+
+When the user performs a `tsh login` and enters their password, it will check
+for either an explicit `--mfa-mode=browser` flag or it will error if there are
+no other MFA methods available. The error informs the user of other mfa methods
+they can try.
+
+Upon choosing browser MFA, `tsh` will send a request to
+`POST /webapi/mfa/login/begin` with a redirect URL that contains a secret key.
+This request is forwarded to the auth server where `BeginSSOMFAChallenge` will
+genereate a request ID and a `SSOMFASession` object that is stored on the
+backend. An MFA challenge is returned back to `tsh` which contains a URL to
+`/web/mfa/:request_id`.
+
+##### The user verifying their MFA through the browser
+
+When `tsh` receives the MFA challenge from the auth server, it will open the
+user's default browser to the MFA URL that was returned.
+
+Once in the browser, their login session will be used to connect to the auth
+server. If the user is not already logged in, they will be prompted to do so.
+
+When authenticated, the user will be prompted to verify their MFA. Once they've
+done so, a request to `/webapi/mfa/:request_id` will take the challenge response
+and verify it through `rpc ValidateBrowserMFAChallengeResponse`. If the response
+is valid, the auth server will generate an MFA token and upsert it in to the
+backend `SSOMFASession` resource, encrypt it, and append it to the callback URL
+to be returned back to the browser.
+
+##### `tsh` receiving certificates
+
+The browser receives the redirect URL with encrypted secret and redirects to it.
+`tsh`'s callback server receives the request and extracts the encrypted
+response. It decrypts the MFA token with the secret key and calls
+`POST /webapi/mfa/login/finish` with the MFA token. The proxy calls
+`AuthenticateSSHUser` to exchange the MFA token for certificates, which `tsh`
+then saves to disk.
+
+#### Per-session MFA
+
+For per-session MFA, the MFA verification flow is the same (verify through
+browser and receive result to callback), but the initialization and certificate
+retrieval is different:
+
+1. Instead of initiating the flow by calling `POST /webapi/mfa/login/begin`,
+   `tsh` will call `rpc CreateAuthenticateChallenge` with `SCOPE_USER_SESSION`.
+1. Once the MFA token is receive through the callback server,
+   `rpc GenerateUserCerts` is called to exchange the token for certificates,
+   instead of `POST /webapi/mfa/login/finish`.
+
+#### In-band MFA
+
+For resources and clusters that support it, in-band per-session MFA will be
+used. As of the time of writing, this is only `ssh` resources. As above, this
+follows a similar flow to the login process, but with the following changes:
+
+1. The trigger to get a MFA Challenge from the server is started by dialing an
+   ssh target. If `tsh` gets an "MFA required" message, it will call
+   `rpc CreateSessionChallenge` which will return an MFA Challenge.
+1. Once the challenge is solved and the MFA token is sent back to `tsh`, instead
+   of verifying the SSO MFA session to get certificates, the MFA token is sent
+   to the MFA service using `rpc ValidateSessionChallenge`. After which, the ssh
+   session is allowed to continue its connection
+
+More context on the in-band flow can be found in
+[RFD 234](0234-in-band-mfa-ssh-sessions.md#local-cluster-flow).
+
+### Security
+
+### Scale
+
+### Backward Compatibility
+
+#### Newer `tsh` client, older server
+
+If a newer client sends a request to initiate an MFA challenge to an older
+server, it won't return a `BrowserChallenge` field. If we take the approach of
+enabling Browser MFA for every cluster, and the user has specifically requested
+`--mfa-mode=browser`, we can show an error saying the server version is too old.
+
+#### Older `tsh` client, newer server
+
+If an older `tsh` client sends a request to initiate an MFA challenge, the newer
+server will respond with a `BrowserChallenge` as an option for the user to MFA.
+The older client won't have knowledge of this field and won't consider it as an
+option for the user to MFA.
+
+### Test Plan
+
+Add steps to test that browser MFA works for logging in and for
+per-session MFA.
+
+### Audit Events
+
+Audit events do not need to be modified. It will be shown that a user used
+browser authentication in the `MFA Authentication Success` audit event:
+
+```json
+{
+    ...
+
+    "mfa_device": {
+        "mfa_device_name": "browser",
+        "mfa_device_type": "browser",
+        "mfa_device_uuid": "browser"
+    },
+}
+```
+
+### Protobuf Definitions
+
+```proto
+package proto;
+
+// MFAAuthenticateChallenge is a challenge for all MFA devices registered for a
+// user.
+message MFAAuthenticateChallenge {
+  ...
+
+  // Browser Challenge is MFA challenge that the user solves in the browser. On
+  // the backend this uses the SSO flow, which is why it shares the same type.
+  SSOChallenge BrowserChallenge = 6;
+}
+
+// ValidateBrowserMFAChallengeResponseRequest is used to validate an MFA response
+// during a browser-based MFA authentication flow.
+message ValidateBrowserMFAChallengeResponseRequest {
+  string RequestID = 1 [(gogoproto.jsontag) = "request_id,omitempty"];
+  MFAAuthenticateResponse MFAAuthenticateResponse = 2 [(gogoproto.jsontag) = "mfa_authenticate_response,omitempty"];
+}
+
+// ValidateBrowserMFAChallengeResponseResponse contains the redirect URL to send
+// the user back to after successfully completing browser-based MFA authentication.
+message ValidateBrowserMFAChallengeResponseResponse {
+  string ClientRedirectURL = 1 [(gogoproto.jsontag) = "client_redirect_url,omitempty"];
+}
+
+// AuthService is authentication/authorization service implementation
+service AuthService {
+  ...
+
+  // ValidateBrowserMFAChallengeResponse validates browser MFA challenge responses
+  rpc ValidateBrowserMFAChallengeResponse(ValidateBrowserMFAChallengeResponseRequest) returns (ValidateBrowserMFAChallengeResponseResponse);
+}
+```
+
+```proto
+package teleport.mfa.v1;
+
+// AuthenticateChallenge is a challenge for all MFA devices registered for a user.
+message AuthenticateChallenge {
+  ...
+
+  // Browser challenge is a SSO challenge under the hood that allows a user to MFA in the browser,
+  // to get an MFA token that is returned to the client to be used for verification.
+  SSOChallenge browser_challenge = 4;
+}
+
+// AuthenticateResponse is a response to AuthenticateChallenge using one of the MFA devices registered for a user.
+message AuthenticateResponse {
+  ...
+  oneof response {
+    ...
+
+    // Response to a browser challenge.
+    SSOChallengeResponse browser = 4;
+  }
+}
+```
+
+### Proxy changes
+
+#### `PUT /webapi/mfa/:request_id`
+
+This endpoint will be called by the browser to verify the user's MFA challenge
+response and, if successful, generates a callback URL with an encrypted response
+containing the MFA token.
+
+**Request Payload:**
+
+```json
+{
+  "SSO": {
+    "request_id": "abc123-def456-ghi789",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+}
+```
+
+**Response:**
+
+- `200 OK`: Returns redirect URL with encrypted MFA token
+- `400 Bad Request`: Invalid body | Empty MFA
+- `403 Forbidden`: Invalid/expired token
+
+## Future Work
+
+### `tsh` passwordless login
+
+The UX of a user logging in to their cluster via `tsh` could be simplified
+further by allowing them to use their browser-based passkey. The proposed flow
+is described in the following user story:
 
 **Alice uses a passwordless login**
 
@@ -95,416 +356,35 @@ verify the user using biometrics or PIN). She runs the following command to
 login.
 
 ```
-tsh login --proxy teleport.example.com --user alice --auth=passwordless
+tsh login --proxy teleport.example.com --user alice --auth=browser
 ```
 
 `tsh` detects that there are no TouchID keys, it then fallsback to FIDO2 keys
-and finds none are present. These errors are caught and Browser MFA is
-attempted. A URL is printed and her browser opens to Teleport's login page (if
-she isn't already logged in), she authenticates and is asked if she wants to
-approve this `tsh` login attempt. She approves, verifies using her
-non-user-verified MFA, and her `tsh` session is authenticated. If a user isn't
-specified, then an error will be shown prompting the user to try again with the
-user flag. 
+and finds none are present. These errors are caught and browser authentication
+is attempted. A URL is printed and her browser opens to Teleport's login page
+(if she isn't already logged in), she authenticates and is asked if she wants to
+approve this `tsh` login attempt. She approves, verifies using her MFA, and her
+`tsh` session is authenticated.
 
-### Design
+### Browser MFA without Re-authentication
 
-#### Login process
+When a user is already authenticated via `tsh` but needs to complete an MFA
+challenge (such as for per-session MFA), requiring them to also be logged in
+to the browser creates friction. This is especially problematic when
+the user may not have an active browser session or uses different browser
+profiles for different accounts.
 
-This flow will be followed when a user first logs in to their cluster using
-`tsh`. It uses some of the
-[headless authentication](0105-headless-authentication.md) flow to authenticate
-the user with some modifications:
-- There will be a new endpoint `/webapi/headless/browser` endpoint for `tsh` to
-  hit which will solely deal with login events.
-- A new gRPC UpdateHeadlessAuthenticationOnCreation on the auth server for the
-  proxy to call which will fill in details when the HA object is created.
-- The returned certificate is a typical user certificate with the standard TTL
-  and is returned to the web browser instead of directly to `tsh` to mitigate
-  phishing attacks.
+**Alice completes per-session MFA without browser login**
 
-```mermaid
-sequenceDiagram
-    participant Web Browser
-    participant tsh
-    participant Teleport Proxy
-    participant Teleport Auth
-    participant Backend
+Alice is already authenticated to her cluster via `tsh` and wants to access a
+resource that requires per-session MFA. She runs:
 
-    Note over tsh: tsh login --proxy proxy.example.com --user alice --auth=browser
-    Note over tsh: Start local callback server on http://localhost:port
-    Note over tsh: Print URL proxy.example.com/headless/<request_id>?callback=http://localhost:port
-    
-    par tsh request
-        tsh->>Teleport Proxy: POST /webapi/headless/browser<br/>{user, publicKey, authType=login, secret_key}
-        Teleport Proxy->>Teleport Auth: rpc UpdateHeadlessAuthenticationOnCreation
-        Teleport Auth ->>+ Backend: wait for backend insert /headless_authentication/<request_id>
-
-    and browser request
-        tsh-->>Web Browser: Open browser
-        Note over Web Browser: proxy.example.com/headless/<request_id>?callback=...
-        
-        opt user is not already logged in locally
-            Web Browser->>Teleport Proxy: user logs in normally e.g. password+MFA
-            Teleport Proxy->>Web Browser: session established
-        end
-        
-        Web Browser->>Teleport Proxy: rpc GetHeadlessAuthentication(request_id)
-        Teleport Proxy->>Teleport Auth: rpc GetHeadlessAuthentication(request_id)
-        Teleport Auth->>Backend: insert /headless_authentication/<request_id>
-
-        par tsh request
-            Backend ->>- Teleport Auth: unblock on insert
-            Teleport Auth ->>+ Backend: upsert /headless_authentication/<request_id><br/>{user, publicKey, authType=login, secret_key, ip}
-            Backend ->>- Teleport Auth: unblock on state change
-            Teleport Auth->>Teleport Proxy: resource created
-            Teleport Proxy->>tsh: 200 OK, resource created
-        end
-        
-        Teleport Auth->>Teleport Proxy: GetHeadlessAuthentication response
-        Teleport Proxy->>Web Browser: {publicKey, user, authType=login, ip}
-
-        Note over Web Browser: Share request details with user
-        
-        Web Browser->>Teleport Proxy: rpc CreateAuthenticateChallenge
-        Teleport Proxy->>Teleport Auth: rpc CreateAuthenticateChallenge
-        Teleport Auth->>Teleport Proxy: MFA Challenge
-        Teleport Proxy->>Web Browser: MFA Challenge
-        
-        Note over Web Browser: User completes MFA challenge
-        
-        Web Browser->>Teleport Proxy: rpc UpdateHeadlessAuthenticationState<br/>with signed MFA challenge response
-        Teleport Proxy->>Teleport Auth: rpc UpdateHeadlessAuthenticationState
-        Teleport Auth->>Backend: upsert /headless_authentication/<request_id><br/>{state=approved, mfaDevice}
-        Backend->>Teleport Auth: updated
-        Teleport Auth->>Teleport Proxy: OK
-        Teleport Proxy->>Web Browser: OK
-
-        Note over Web Browser: MFA approved, now fetch certificates
-
-        Web Browser->>Teleport Proxy: GET /webapi/headless/<request_id>/certs
-        Teleport Proxy->>Teleport Auth: POST /:version/users/:user/ssh/authenticate<br/>{HeadlessAuthenticationID: request_id}
-        Teleport Auth->>Backend: get /headless_authentication/<request_id>
-        Backend->>Teleport Auth: {publicKey, mfaDevice, state=approved}
-        Teleport Auth->>Teleport Proxy: user certificates
-        Teleport Proxy->>Web Browser: user certificates
-
-        Note over Web Browser: Redirect to callback URL with encrypted certificates
-        Web Browser->>tsh: GET http://localhost:port/callback?response=<encrypted_certs>
-        Note over tsh: Decrypt certificates using secret key
-        tsh->>Web Browser: OK
-        Note over tsh: Save certificates to disk<br/>User is authenticated
-    end
+```
+tsh ssh alice@node
 ```
 
-##### Login Flow
-
-The flow can be broken down in to three sections:
-1. `tsh` initiating a headless login flow
-1. The user verifying their MFA through the browser
-1. `tsh` receiving certificates 
-
-##### `tsh` initiating a headless login flow
-
-When the user performs a `tsh login`, it will check for either an explicit
-`--auth=browser` flag or it will error if there are no other MFA methods
-available. This error is caught and the user is prompted to try attempt
-authentication through the browser.
-
-`tsh` will send an unauthenticated request to `POST /webapi/headless/browser`
-that will remain open until the Headless Authentication object is created. It
-will send the client's SSH public key, proxy address, and the authentication
-type, secret key etc. The Proxy forwards these details to the Auth server using
-a new endpoint `rpc UpdateHeadlessAuthenticationOnCreation`. The security of
-this unauthenticated flow will be discussed in the
-[security section](#unauthenticated-webapiheadlessbrowser-endpoint).
-
-The auth service will store the Request ID on the backend under
-`/headless_authentication/<request_id>`. The record will have a short TTL of 5
-minutes. It will contain the authentication type, user, ip, and the
-current state (pending). The auth server waits for the Headless Authentication
-object to be created on the backend before it fills in the information it was
-passed by `tsh`.
-
-##### The user verifying their MFA through the browser
-
-When `tsh` generates the MFA URL, it will print the URL and attempt to open the
-user's default browser.
-
-Once in the browser, their login session will be used to connect to the auth
-server. If the user is not already logged in, they will be prompted to do so.
-
-When authenticated, the browser will make an
-`rpc GetHeadlessAuthentication(request_id)` call to obtain the details of the
-request. The user can view the details of the request and either
-approve or deny it. The request details are as follows:
-- user
-- ip
-- request_type (login or per-session MFA)
-- request_id
-
-The user will be reminded this request was generated from a `tsh login` attempt
-and that they should check the above details to ensure they match what they
-expect to see. If the user approves, they will verify using their MFA method. If
-the user denies the request, it will be marked as such on the backend. If the
-request is approved, the record is approved on the backend.
-
-##### `tsh` receiving certificates
-
-To receive certificates, `tsh` creates a callback server for the browser to
-communicate with.  If the browser authentication is successful, the
-`/headless_authentication/<request_id>` object will be upserted with an approved
-state and which MFA device was used. The browser will make a call to a new
-endpoint (`GET /webapi/headless/<request_id>/certs`), which will check the
-status of the Headless Authentication request, and generate certificates if it
-was approved. The certificates will be encrypted using the secret key provided
-by the initial `tsh` request and sent back to the browser. The browser will
-send the payload to the callback server. If verification fails, won't request
-certificates and will communicate that the callback server.
-
-Upon `tsh` receiving the encrypted certificates, it will decrypt them and store
-them on disk. These certificates will have the standard user TTL. If `tsh`
-receives a failure message instead, it will show the user and they will remain
-unauthenticated.
-
-#### Per-session MFA
-
-When a user connects to a resource that requires per-session MFA (e.g.,
-`tsh db connect example-db`), `tsh` follows the same headless authentication flow
-described in the [login process](#login-process) with the following differences:
-
-1. **Endpoint**: `tsh` makes an authenticated request to
-   `/webapi/headless/session`.
-1. **Authentication type**: The `HeadlessAuthentication` object is created with
-   `authType=session`.
-1. **Certificates**: Upon successful MFA verification, `tsh` receives
-   short-lived, MFA-verified certificates with a short TTL, which are kept
-   in-memory.
-
-The browser-based MFA ceremony proceeds identically to the login flow, with the
-user approving the request and completing the MFA challenge in their browser.
-The request details shown to the user will indicate this is a per-session MFA
-request rather than a login request.
-
-#### In-band per-session MFA
-
-For resources and clusters that support it, in-band per-session MFA will be
-used. As of the time of writing, this is only `ssh` resources. A similar flow
-will be followed as described in the [Per-session MFA](#per-session-mfa), but
-with the following differences:
-
-1. **Authentication type**: The `HeadlessAuthentication` object is created with
-   `authType=in-band`.
-1. **RPC Calls**: Instead of using the `CreateAuthenticateChallenge`,
-   `CreateSessionChallenge` and `ValidateSessionChallenge` will be used.
-1. **Authentication method**: Instead of the browser receiving certificates, it
-   will receive a challenge name from the In-band MFA Service. This will be sent
-   to `tsh` through the callback server, if the verification process is
-   successful.
-
-### Security
-
-#### Unauthenticated `/webapi/headless/browser` endpoint
-
-The initial unauthenticated call from `tsh` to the proxy uses a new endpoint
-similar to the existing headless
-[endpoint](0105-headless-authentication.md#unauthenticated-headless-login-endpoint)
-that was introduced by the headless authentication method. The security of this
-endpoint is explained in more detail in the linked documentation, but in short,
-it is a rate limited endpoint that will only write resources to the backend once
-a matching authenticated request is made from an authenticated user's browser.
-This new endpoint will only accept requests from the browser login flow and
-return certificates for a browser login request.
-
-### Scale
-
-This will increase load on auth servers with watchers that are waiting for
-the `HeadlessAuthentication` object on the backend to be created when an
-unauthenticated `tsh` client initiates a login request. To limit the impact of
-this, the watcher will be only be created once per client as described
-[above](0105-headless-authentication.md#unauthenticated-headless-login-endpoint).
-The watcher will also timeout after 5 minutes, the same TTL the user has to
-authenticate their request.
-
-When initiating a command that requires per-session MFA, a call to retrieve
-authentication settings will need to be made to determine if browser MFA is
-available. If this request hit the auth server every time, this would add a lot
-of load. TBD how this impact will be lessened. 
-
-### Backward Compatibility
-
-`tsh` will `GET /webapi/ping` to get the authentication settings supported by
-the cluster. If `AllowBrowser` is present and `true`, `tsh` will proceed with
-browser authentication. If the field isn't present or it is set to false, 
-browser authentication will not be attempted.
-
-### Test Plan
-
-Add steps to test that browser authentication works for logging in and for
-per-session MFA.
-
-### Audit Events
-
-Events will be logged when:
-
-1. `tsh` makes its initial unauthenticated request, which logs:
-    - **Remote IP address** - `addr.remote` (`string`)
-    - **Request type** - `method` (`string`)
-    - **Request ID** - `uid` (`string`)
-1. a user approves/denies an authentication event, which logs:
-    - **Remote IP address** - `addr.remote` (`string`)
-    - **Request type** - `method` (`string`)
-    - **Request ID** - `uid` (`string`)
-    - **Request outcome** - `success` (`boolean`)
-    - **User** - `user` (`string`)
-
-### Protobuf Definitions
-
-```proto
-package types;
-
-message AuthPreferencesV2 {
-    ...
-
-    // AllowBrowser enables/disables tsh authentication via browser.
-    // Browser authentication requires Webauthn to work.
-    // Defaults to true if the Webauthn is configured, defaults to false
-    // otherwise.
-    BoolValue AllowBrowser = 23 [
-        (gogoproto.nullable) = true,
-        (gogoproto.jsontag) = "allow_browser,omitempty",
-        (gogoproto.customtype) = "BoolOption"
-    ];
-}
-
-message HeadlessAuthentication {
-    ...
-
-    // Type is the type of request that was initiated
-    HeadlessAuthenticationType type = 9;
-
-    // SecretKey is the symmetric key used to encrypt callback responses to tsh
-    string secret_key = 10;
-}
-
-// HeadlessAuthenticationType is the type of authentication event
-enum HeadlessAuthenticationType {
-    HEADLESS_AUTHENTICATION_TYPE_UNSPECIFIED = 0;
-
-    // headless login attempt
-    HEADLESS_AUTHENTICATION_TYPE_HEADLESS_LOGIN = 1;
-
-    // browser login attempt
-    HEADLESS_AUTHENTICATION_TYPE_BROWSER_LOGIN = 2;
-
-    // per-session MFA attempt
-    HEADLESS_AUTHENTICATION_TYPE_BROWSER_SESSION = 3;
-
-    // in-band per-session MFA attempt
-    HEADLESS_AUTHENTICATION_TYPE_BROWSER_IN_BAND_SESSION = 4;
-}
-```
-
-```proto
-package events;
-
-message UserLogin {
-    ...
-
-    // RequestID is a UUID used to correlate events from a single login flow
-    // that spans multiple contexts
-    string RequestID = 11 [(gogoproto.jsontag) = "request_id,omitempty];
-}
-```
-
-```proto
-package proto;
-
-// UpdateHeadlessAuthenticationOnCreationRequest is the request messsage for
-// UpdateHeadlessAuthenticationOnCreation
-message UpdateHeadlessAuthenticationOnCreationRequest {
-    // User is the teleport user requesting authentication
-    string user = 1;
-    
-    // PublicKey is the client's SSH public key
-    bytes public_key = 2;
-    
-    // Type is the authentication type (login, session, or in-band session)
-    types.HeadlessAuthenticationType type = 3;
-    
-    // SecretKey is the symmetric key used to encrypt callback responses to tsh
-    string secret_key = 4;
-}
-
-service AuthService {
-    ...
-
-    // UpdateHeadlessAuthenticationOnCreation 
-    rpc UpdateHeadlessAuthenticationOnCreation(UpdateHeadlessAuthenticationOnCreationRequest) returns (google.protobuf.Empty);
-}
-```
-
-### Proxy changes
-
-#### `POST /webapi/headless/browser`
-
-This will be a new unauthenticated endpoint for `tsh` to initiate a browser
-login. The call that will hang until the Headless Authentication object is
-created or until a three-minute timeout is reached. The security of this
-endpoint is discussed in the
-[security section](#unauthenticated-webapiheadlessbrowser-endpoint).
-
-**Request Payload:**
-
-```json
-{
-  "user": "alice",
-  "public_key": "<base64-encoded SSH public key>",
-  "auth_type": "login",
-  "secret_key": "<symmetric encryption key>"
-}
-```
-
-**Response:**
-
-- `200 OK`: The `HeadlessAuthentication` resource has been created on the backend
-- `400 Bad Request`: Invalid request payload with error message
-- `429 Too Many Requests`: Rate limiting has been triggered
-
-#### `POST /webapi/headless/session`
-
-This will be a new authenticated endpoint for `tsh` to initiate a session or
-in-band session request. The call that will hang until the Headless
-Authentication object is created or until a three-minute timeout is reached.
-
-**Request Payload:**
-
-```json
-{
-  "user": "alice",
-  "public_key": "<base64-encoded SSH public key>", // Used for session only
-  "auth_type": "[session|in-band-session]",
-  "secret_key": "<symmetric encryption key>"
-}
-```
-
-**Response:**
-
-- `200 OK`: The `HeadlessAuthentication` resource has been created on the backend
-- `400 Bad Request`: Invalid request payload with error message
-- `429 Too Many Requests`: Rate limiting has been triggered
-
-#### `GET /webapi/headless/<request_id>/certs`
-
-This authenticated endpoint will be called from the browser once the headless
-request has been approved and MFA has been verified in order to create the
-certificates required for login and session requests. Upon successful
-certificate generation, the Headless Authentication object will be deleted to
-prevent subsequent requests generating more certificates.
-
-**Response:**
-
-- `200 OK`: The endpoint will return an encrypted `SSHLoginResponse` object for
-  a successful request.
-- `400 Bad Request`: Invalid request payload with error message
-- `429 Too Many Requests`: Rate limiting has been triggered
+`tsh` determines that browser MFA is needed and makes a request to generates a
+temporary, single-use MFA challenge URL. When Alice opens this URL in her
+browser, instead of being redirected to the login page, she is immediately
+presented with the MFA prompt. She completes the MFA challenge with her passkey,
+and `tsh` receives the MFA token to continue the connection.
