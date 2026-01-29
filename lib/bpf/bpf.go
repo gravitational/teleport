@@ -59,9 +59,9 @@ type sessionEnder interface {
 type Service struct {
 	*servicecfg.BPFConfig
 
-	// watch is a map of audit session IDs that the BPF service is
+	// sessions is a map of audit session IDs that the BPF service is
 	// watching and emitting events for.
-	watch utils.SyncMap[uint32, *SessionContext]
+	sessions utils.SyncMap[uint32, *SessionContext]
 
 	// argsCache holds the arguments to execve because they come a different
 	// event than the result.
@@ -168,7 +168,7 @@ func (s *Service) OpenSession(ctx *SessionContext) error {
 	if auditSessID == 0 {
 		return trace.NotFound("audit session ID not found")
 	}
-	sctx, found := s.watch.Load(auditSessID)
+	sctx, found := s.sessions.Load(auditSessID)
 	if found {
 		logger.WarnContext(s.closeContext, "Audit session ID already in use", "session_id", sctx.SessionID, "current_session_id", ctx.SessionID, "audit_session_id", auditSessID)
 		return trace.BadParameter("audit session ID already in use")
@@ -206,7 +206,7 @@ func (s *Service) OpenSession(ctx *SessionContext) error {
 	}
 
 	// Start watching for any events that come from this audit session ID.
-	s.watch.Store(auditSessID, ctx)
+	s.sessions.Store(auditSessID, ctx)
 
 	return nil
 }
@@ -214,7 +214,7 @@ func (s *Service) OpenSession(ctx *SessionContext) error {
 // CloseSession will stop monitoring events from a particular session.
 func (s *Service) CloseSession(ctx *SessionContext) error {
 	// Stop watching for events for this session.
-	s.watch.Delete(ctx.AuditSessionID)
+	s.sessions.Delete(ctx.AuditSessionID)
 
 	var errs []error
 
@@ -310,7 +310,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 
 	// If the event comes from a unmonitored process/audit session ID,
 	// don't process it.
-	ctx, ok := s.watch.Load(event.AuditSessionId)
+	ctx, ok := s.sessions.Load(event.AuditSessionId)
 	if !ok {
 		return
 	}
@@ -405,7 +405,7 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 
 	// If the event comes from a unmonitored process/audit session ID,
 	// don't process it.
-	ctx, ok := s.watch.Load(event.AuditSessionId)
+	ctx, ok := s.sessions.Load(event.AuditSessionId)
 	if !ok {
 		return
 	}
@@ -462,7 +462,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 
 	// If the event comes from a unmonitored process/audit session ID,
 	// don't process it.
-	ctx, ok := s.watch.Load(event.AuditSessionId)
+	ctx, ok := s.sessions.Load(event.AuditSessionId)
 	if !ok {
 		return
 	}
@@ -523,7 +523,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 
 	// If the event comes from a unmonitored process/audit session ID,
 	// don't process it.
-	ctx, ok := s.watch.Load(event.AuditSessionId)
+	ctx, ok := s.sessions.Load(event.AuditSessionId)
 	if !ok {
 		return
 	}

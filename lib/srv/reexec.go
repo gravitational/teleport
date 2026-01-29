@@ -455,11 +455,6 @@ func RunCommand() (code int, err error) {
 // setAuditSessionID ensures the audit login session ID is updated by
 // either PAM if PAM is configured or us otherwise.
 func setAuditSessionID(ctx context.Context, c ExecCommand, auditIDFile, tty *os.File) ([]string, error) {
-	localUser, err := user.Lookup(c.Login)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Depending of the PAM service, PAM may write to /proc/self/loginuid
 	// if the 'pam_loginuid.so' module is enabled. We always want to
 	// write to /proc/self/loginuid to ensure the kernel will update the
@@ -501,6 +496,11 @@ func setAuditSessionID(ctx context.Context, c ExecCommand, auditIDFile, tty *os.
 	}
 
 	if writeLoginuid {
+		localUser, err := user.Lookup(c.Login)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if err := loginuid.WriteLoginUID(localUser.Uid); err != nil {
 			return nil, trace.Errorf("failed to write to loginuid: %w", err)
 		}

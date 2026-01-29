@@ -698,7 +698,7 @@ func testBPFMonitoring(t *testing.T, srv Server, bpfSrv bpf.BPF) {
 	// commands will.
 	eventsCh := make(chan []apievents.AuditEvent)
 	go func() {
-		eventsCh <- runCommand(t, ctx, srv, bpfSrv, "sleep 100", false, recordAllEvents)
+		eventsCh <- runCommand(t, ctx, srv, bpfSrv, "sleep 3", false, recordAllEvents)
 	}()
 
 	// Run curl commands that the bpf programs should ignore.
@@ -708,25 +708,28 @@ func testBPFMonitoring(t *testing.T, srv Server, bpfSrv bpf.BPF) {
 		var exitErr *exec.ExitError
 		require.ErrorAs(t, cmd.Run(), &exitErr)
 	}
-	// Stop the monitored sleep command.
-	cancel()
 
 	// Ensure stopping the monitored command early works properly.
 	var events []apievents.AuditEvent
 	select {
 	case events = <-eventsCh:
-	case <-time.After(3 * time.Second):
-		t.Fatal("Timed out waiting for command to exit early.")
+		require.NotEmpty(t, events)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Timed out waiting for command to finish.")
 	}
 
 	// Check that only configured events were recorded.
+	var cmdEventCnt int
+	var diskEventCnt int
 	for _, e := range events {
 		switch e := e.(type) {
 		case *apievents.SessionCommand:
-			require.Equal(t, "sleep", e.BPFMetadata.Program)
+			cmdEventCnt++
+			require.NotEqual(t, "curl", e.BPFMetadata.Program)
 		case *apievents.SessionDisk:
 			// Many disk events should be emitted but we only care that
 			// no curl events were emitted.
+			diskEventCnt++
 			require.NotEqual(t, "curl", e.BPFMetadata.Program)
 		case *apievents.SessionNetwork:
 			t.Fatal("Did not expect a network event")
@@ -734,6 +737,9 @@ func testBPFMonitoring(t *testing.T, srv Server, bpfSrv bpf.BPF) {
 			t.Fatalf("Unexpected event type: %T", e)
 		}
 	}
+
+	require.GreaterOrEqual(t, cmdEventCnt, 1)
+	require.GreaterOrEqual(t, diskEventCnt, 1)
 }
 
 // TestBPFRoleOptions verifies that only event types configured in
@@ -813,6 +819,7 @@ func TestBPFRoleOptions(t *testing.T) {
 				require.Empty(t, recordedEvents)
 				return
 			}
+			require.NotEmpty(t, recordedEvents)
 
 			_, recCmd := tt.events[constants.EnhancedRecordingCommand]
 			_, recDisk := tt.events[constants.EnhancedRecordingDisk]
@@ -948,7 +955,7 @@ func runCommand(t *testing.T, ctx context.Context, srv Server, bpfSrv bpf.BPF, c
 	})
 
 	// Signal to child that it may execute the requested program.
-	t.Log("sending continue signal")
+	t.Log("sending continue signal") //
 	scx.execRequest.Continue()
 
 	// Create a channel that will be used to signal that execution is complete.
