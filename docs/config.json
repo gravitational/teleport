@@ -6,7 +6,7 @@
       "nodeIP": "ip-172-31-35-170"
     },
     "access_graph": {
-      "version": "1.29.5"
+      "version": "1.29.6"
     },
     "ansible": {
       "min_version": "2.9.6"
@@ -2896,8 +2896,6 @@
       "permanent": true
     },
     {
-      "source": "/enroll-resources/application-access/introduction/",
-      "destination": "/enroll-resources/application-access/",
       "source": "/zero-trust-access/sso/adfs/",
       "destination": "/zero-trust-access/sso/integrate-idp/adfs/",
       "permanent": true
