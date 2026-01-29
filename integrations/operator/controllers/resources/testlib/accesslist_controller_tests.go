@@ -26,9 +26,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
+	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
@@ -197,7 +197,7 @@ func AccessListUpdateTest(t *testing.T, clt *client.Client) {
 // from the existing access list to the new one it will upsert.
 func AccessListMutateExistingTest(t *testing.T, clt *client.Client) {
 	ctx := context.Background()
-	setup := SetupTestEnv(t, WithTeleportClient(clt), StepByStep)
+	setup := SetupFakeKubeTestEnv(t, WithTeleportClient(clt))
 
 	// Test setup: create a new AccessList in Teleport with an existing expiry
 	expiry := time.Now().Add(10 * time.Hour)
@@ -213,6 +213,12 @@ func AccessListMutateExistingTest(t *testing.T, clt *client.Client) {
 	_, err = clt.AccessListClient().UpsertAccessList(ctx, accessList)
 	require.NoError(t, err)
 
+	// We wait for the Teleport cache.
+	FastEventually(t, func() bool {
+		accessList, err = setup.TeleportClient.AccessListClient().GetAccessList(ctx, name)
+		return !trace.IsNotFound(err)
+	})
+
 	// Test setup create a new AccessList in Kube wihtout specifying the next audit
 	kubeAccessList := &resourcesv1.TeleportAccessList{
 		ObjectMeta: metav1.ObjectMeta{
@@ -221,7 +227,7 @@ func AccessListMutateExistingTest(t *testing.T, clt *client.Client) {
 		},
 		Spec: resourcesv1.TeleportAccessListSpec(newAccessListSpec(time.Time{})),
 	}
-	// We create and get the reosurce to mimick that it comes from kube
+	// We create and get the resource to mimick that it comes from kube
 	require.NoError(t, setup.K8sClient.Create(ctx, kubeAccessList))
 	key := kclient.ObjectKey{
 		Name:      name,
@@ -232,21 +238,21 @@ func AccessListMutateExistingTest(t *testing.T, clt *client.Client) {
 	reconciler, err := resources.NewAccessListReconciler(setup.K8sClient, clt)
 	require.NoError(t, err)
 
-	// TODO: remove this hack when the role controller uses the teleport reconciler
-	// and we can simplify Do, UpsertExternal, Upsert and Reconcile
-	r, ok := reconciler.(interface {
-		Upsert(context.Context, kclient.Object) error
-	})
-	require.True(t, ok)
-
-	// Also a hack: convert the structured object into an unstructured one
-	// to accommodate the teleport reconciler that casts first as an
-	// unstructured object before converting into the final struct.
-	content, err := runtime.DefaultUnstructuredConverter.ToUnstructured(kubeAccessList)
+	// Test execution: Kick off the reconciliation.
+	req := reconcile.Request{
+		NamespacedName: apimachinerytypes.NamespacedName{
+			Namespace: setup.Namespace.Name,
+			Name:      name,
+		},
+	}
+	// First reconciliation should set the finalizer and exit.
+	_, err = reconciler.Reconcile(ctx, req)
 	require.NoError(t, err)
-	obj := &unstructured.Unstructured{Object: content}
-	// Test execution: we trigger a single reconciliation
-	require.NoError(t, r.Upsert(ctx, obj))
+	// Second reconciliation should create the Teleport resource.
+	// In a real cluster we should receive the event of our own finalizer change
+	// and this wakes us for a second round.
+	_, err = reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
 
 	// Then we check if the AccessList audit date has been preserved in teleport
 	accessList, err = clt.AccessListClient().GetAccessList(ctx, name)

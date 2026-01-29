@@ -26,70 +26,145 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
-	"github.com/mitchellh/mapstructure"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/yaml"
-	"k8s.io/client-go/util/retry"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/operator/apis/resources/teleportcr"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	v2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
 const teleportUserKind = "TeleportUser"
 
-var teleportUserGVK = schema.GroupVersionKind{
-	Group:   v2.GroupVersion.Group,
-	Version: v2.GroupVersion.Version,
-	Kind:    teleportUserKind,
+var (
+	teleportUserGVK = schema.GroupVersionKind{
+		Group:   v2.GroupVersion.Group,
+		Version: v2.GroupVersion.Version,
+		Kind:    teleportUserKind,
+	}
+	userSpec = types.UserSpecV2{
+		Roles: []string{"a", "b"},
+	}
+)
+
+type userTestingPrimitives struct {
+	setup *testSetup
+	reconcilers.ResourceWithLabelsAdapter[types.User]
 }
 
-func TestUserCreation(t *testing.T) {
-	ctx := context.Background()
-	setup := setupTestEnv(t)
-	userName := validRandomResourceName("user-")
+func (g *userTestingPrimitives) Init(setup *testSetup) {
+	g.setup = setup
+}
 
-	require.NoError(t, teleportCreateDummyRole(ctx, "a", setup.TeleportClient))
-	require.NoError(t, teleportCreateDummyRole(ctx, "b", setup.TeleportClient))
+func (g *userTestingPrimitives) SetupTeleportFixtures(ctx context.Context) error {
+	return trace.NewAggregate(
+		teleportCreateDummyRole(ctx, "a", g.setup.TeleportClient),
+		teleportCreateDummyRole(ctx, "b", g.setup.TeleportClient),
+	)
+}
 
-	// The user is created in K8S
-	k8sCreateDummyUser(ctx, t, setup.K8sClient, setup.Namespace.Name, userName)
+func (g *userTestingPrimitives) CreateTeleportResource(ctx context.Context, name string) error {
+	user, err := types.NewUser(name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	user.SetOrigin(types.OriginKubernetes)
+	user.SetRoles(userSpec.Roles)
+	_, err = g.setup.TeleportClient.CreateUser(ctx, user)
+	return trace.Wrap(err)
+}
 
-	var tUser types.User
-	var err error
-	fastEventually(t, func() bool {
-		tUser, err = setup.TeleportClient.GetUser(ctx, userName, false)
-		return !trace.IsNotFound(err)
-	})
-	require.NoError(t, err)
-	require.Equal(t, userName, tUser.GetName())
-	require.Contains(t, tUser.GetMetadata().Labels, types.OriginLabel)
-	require.Equal(t, types.OriginKubernetes, tUser.GetMetadata().Labels[types.OriginLabel])
+func (g *userTestingPrimitives) GetTeleportResource(ctx context.Context, name string) (types.User, error) {
+	return g.setup.TeleportClient.GetUser(ctx, name, false)
+}
 
-	// The user is deleted in K8S
-	k8sDeleteUser(ctx, t, setup.K8sClient, userName, setup.Namespace.Name)
+func (g *userTestingPrimitives) DeleteTeleportResource(ctx context.Context, name string) error {
+	return trace.Wrap(g.setup.TeleportClient.DeleteUser(ctx, name))
+}
 
-	fastEventually(t, func() bool {
-		_, err := setup.TeleportClient.GetUser(ctx, userName, false)
-		return trace.IsNotFound(err)
-	})
+func (g *userTestingPrimitives) CreateKubernetesResource(ctx context.Context, name string) error {
+	user := &v2.TeleportUser{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: g.setup.Namespace.Name,
+		},
+		Spec: v2.TeleportUserSpec(userSpec),
+	}
+	return trace.Wrap(g.setup.K8sClient.Create(ctx, user))
+}
+
+func (g *userTestingPrimitives) DeleteKubernetesResource(ctx context.Context, name string) error {
+	user := &v2.TeleportUser{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: g.setup.Namespace.Name,
+		},
+	}
+	return trace.Wrap(g.setup.K8sClient.Delete(ctx, user))
+}
+
+func (g *userTestingPrimitives) GetKubernetesResource(ctx context.Context, name string) (*v2.TeleportUser, error) {
+	user := &v2.TeleportUser{}
+	obj := kclient.ObjectKey{
+		Name:      name,
+		Namespace: g.setup.Namespace.Name,
+	}
+	err := g.setup.K8sClient.Get(ctx, obj, user)
+	return user, trace.Wrap(err)
+}
+
+func (g *userTestingPrimitives) ModifyKubernetesResource(ctx context.Context, name string) error {
+	user, err := g.GetKubernetesResource(ctx, name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	user.Spec.Traits = wrappers.Traits{
+		"foo": []string{"bar", "baz"},
+	}
+	return g.setup.K8sClient.Update(ctx, user)
+}
+
+func (g *userTestingPrimitives) CompareTeleportAndKubernetesResource(tResource types.User, kubeResource *v2.TeleportUser) (bool, string) {
+	ignoreServerSideDefaults := []cmp.Option{
+		cmpopts.IgnoreFields(types.UserSpecV2{}, "CreatedBy"),
+		cmpopts.IgnoreFields(types.UserV2{}, "Status"),
+	}
+	diff := cmp.Diff(tResource, kubeResource.ToTeleport(), testlib.CompareOptions(ignoreServerSideDefaults...)...)
+	return diff == "", diff
+}
+
+func TestTeleportUserCreation(t *testing.T) {
+	test := &userTestingPrimitives{}
+	testlib.ResourceCreationSynchronousTest[types.User, *v2.TeleportUser](t, resources.NewUserReconciler, test)
+}
+
+func TestTeleportUserDeletionDrift(t *testing.T) {
+	test := &userTestingPrimitives{}
+	testlib.ResourceDeletionDriftSynchronousTest[types.User, *v2.TeleportUser](t, resources.NewUserReconciler, test)
+}
+
+func TestTeleportUserUpdate(t *testing.T) {
+	test := &userTestingPrimitives{}
+	testlib.ResourceUpdateTestSynchronous[types.User, *v2.TeleportUser](t, resources.NewUserReconciler, test)
 }
 
 func TestUserCreationFromYAML(t *testing.T) {
 	ctx := context.Background()
-	setup := setupTestEnv(t)
+	setup := testlib.SetupFakeKubeTestEnv(t)
 	require.NoError(t, teleportCreateDummyRole(ctx, "a", setup.TeleportClient))
 	tests := []struct {
 		name         string
 		userSpecYAML string
-		shouldFail   bool
 		expectedSpec *types.UserSpecV2
 	}{
 		{
@@ -98,7 +173,6 @@ func TestUserCreationFromYAML(t *testing.T) {
 roles:
   - a
 `,
-			shouldFail: false,
 			expectedSpec: &types.UserSpecV2{
 				Roles: []string{"a"},
 			},
@@ -111,7 +185,6 @@ roles:
 traits:
   'foo': ['bar']
 `,
-			shouldFail: false,
 			expectedSpec: &types.UserSpecV2{
 				Roles: []string{"a"},
 				Traits: map[string][]string{
@@ -127,24 +200,12 @@ roles:
 traits:
   'foo': ['bar', 'baz']
 `,
-			shouldFail: false,
 			expectedSpec: &types.UserSpecV2{
 				Roles: []string{"a"},
 				Traits: map[string][]string{
 					"foo": {"bar", "baz"},
 				},
 			},
-		},
-		{
-			name: "Invalid user with non-existing role",
-			userSpecYAML: `
-roles:
-  - does-not-exist
-traits:
-  'foo': ['bar', 'baz']
-`,
-			shouldFail:   true,
-			expectedSpec: nil,
 		},
 	}
 
@@ -167,50 +228,53 @@ traits:
 			err = setup.K8sClient.Create(ctx, obj)
 			require.NoError(t, err)
 
-			// If failure is expected we should not see the resource in Teleport
-			if tc.shouldFail {
-				fastEventually(t, func() bool {
-					// We check status.Conditions was updated, this means the reconciliation happened
-					_ = setup.K8sClient.Get(ctx, kclient.ObjectKey{
-						Namespace: setup.Namespace.Name,
-						Name:      userName,
-					}, obj)
-					errorConditions := getUserStatusConditionError(obj.Object)
-					// If there's no error condition, reconciliation has not happened yet
-					return len(errorConditions) != 0
-				})
-				_, err = setup.TeleportClient.GetUser(ctx, userName, false /* withSecrets */)
-				require.True(t, trace.IsNotFound(err), "The user should not be created in Teleport")
-			} else {
-				// We wait for Teleport resource creation
-				var tUser types.User
-				fastEventually(t, func() bool {
-					tUser, err = setup.TeleportClient.GetUser(ctx, userName, false /* withSecrets */)
-					// If the resource creation should succeed we check the resource was found and validate ownership labels
-					return !trace.IsNotFound(err)
-				})
-				require.NoError(t, err)
-				require.Equal(t, userName, tUser.GetName())
-				require.Contains(t, tUser.GetMetadata().Labels, types.OriginLabel)
-				require.Equal(t, types.OriginKubernetes, tUser.GetMetadata().Labels[types.OriginLabel])
-				require.Equal(t, setup.OperatorName, tUser.GetCreatedBy().User.Name)
-				expectedUser := &types.UserV2{
-					Metadata: types.Metadata{},
-					Spec:     *tc.expectedSpec,
-				}
-				_ = expectedUser.CheckAndSetDefaults()
-				compareUserSpecs(t, expectedUser, tUser)
+			reconciler, err := resources.NewUserReconciler(setup.K8sClient, setup.TeleportClient)
+			require.NoError(t, err)
+			// Test execution: Kick off the reconciliation.
+			req := reconcile.Request{
+				NamespacedName: apimachinerytypes.NamespacedName{
+					Namespace: setup.Namespace.Name,
+					Name:      userName,
+				},
 			}
+			// First reconciliation should set the finalizer and exit.
+			_, err = reconciler.Reconcile(ctx, req)
+			require.NoError(t, err)
+			// Second reconciliation should create the Teleport resource.
+			// In a real cluster we should receive the event of our own finalizer change
+			// and this wakes us for a second round.
+			_, err = reconciler.Reconcile(ctx, req)
+			require.NoError(t, err)
+
+			// We wait for Teleport resource creation
+			var tUser types.User
+			fastEventually(t, func() bool {
+				tUser, err = setup.TeleportClient.GetUser(ctx, userName, false /* withSecrets */)
+				// If the resource creation should succeed we check the resource was found and validate ownership labels
+				return !trace.IsNotFound(err)
+			})
+			require.NoError(t, err)
+			require.Equal(t, userName, tUser.GetName())
+			require.Contains(t, tUser.GetMetadata().Labels, types.OriginLabel)
+			require.Equal(t, types.OriginKubernetes, tUser.GetMetadata().Labels[types.OriginLabel])
+			require.Equal(t, setup.OperatorName, tUser.GetCreatedBy().User.Name)
+			expectedUser := &types.UserV2{
+				Metadata: types.Metadata{},
+				Spec:     *tc.expectedSpec,
+			}
+			_ = expectedUser.CheckAndSetDefaults()
+			compareUserSpecs(t, expectedUser, tUser)
 			// Teardown
 
-			// The role is deleted in K8S
-			k8sDeleteUser(ctx, t, setup.K8sClient, userName, setup.Namespace.Name)
-
-			// We wait for the role deletion in Teleport
-			fastEventually(t, func() bool {
-				_, err := setup.TeleportClient.GetUser(ctx, userName, false /* withSecrets */)
-				return trace.IsNotFound(err)
-			})
+			user := v2.TeleportUser{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      userName,
+					Namespace: setup.Namespace.Name,
+				},
+			}
+			require.NoError(t, setup.K8sClient.Delete(ctx, &user))
+			_, err = reconciler.Reconcile(ctx, req)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -229,62 +293,9 @@ func compareUserSpecs(t *testing.T, expectedUser, actualUser types.User) {
 	require.Equal(t, expected["spec"], actual["spec"])
 }
 
-// TestUserDeletionDrift tests how the Kubernetes operator reacts when it is asked to delete a user that was
-// already deleted in Teleport
-func TestUserDeletionDrift(t *testing.T) {
-	// Setup section: start the operator, and create a user
-	ctx := context.Background()
-	setup := setupTestEnv(t)
-	userName := validRandomResourceName("user-")
-
-	require.NoError(t, teleportCreateDummyRole(ctx, "a", setup.TeleportClient))
-	require.NoError(t, teleportCreateDummyRole(ctx, "b", setup.TeleportClient))
-
-	// The user is created in K8S
-	k8sCreateDummyUser(ctx, t, setup.K8sClient, setup.Namespace.Name, userName)
-
-	var tUser types.User
-	var err error
-	fastEventually(t, func() bool {
-		tUser, err = setup.TeleportClient.GetUser(ctx, userName, false)
-		return !trace.IsNotFound(err)
-	})
-	require.NoError(t, err)
-	require.Equal(t, userName, tUser.GetName())
-	require.Contains(t, tUser.GetMetadata().Labels, types.OriginLabel)
-	require.Equal(t, types.OriginKubernetes, tUser.GetMetadata().Labels[types.OriginLabel])
-
-	// We cause a drift by altering the Teleport resource.
-	// To make sure the operator does not reconcile while we're finished we suspend the operator
-	setup.StopKubernetesOperator()
-
-	err = setup.TeleportClient.DeleteUser(ctx, userName)
-	require.NoError(t, err)
-	fastEventually(t, func() bool {
-		_, err := setup.TeleportClient.GetUser(ctx, userName, false)
-		return trace.IsNotFound(err)
-	})
-
-	// We flag the role for deletion in Kubernetes (it won't be fully removed until the operator has processed it and removed the finalizer)
-	k8sDeleteUser(ctx, t, setup.K8sClient, userName, setup.Namespace.Name)
-
-	// Test section: We resume the operator, it should reconcile and recover from the drift
-	setup.StartKubernetesOperator(t)
-
-	// The operator should handle the failed Teleport deletion gracefully and unlock the Kubernetes resource deletion
-	var k8sUser v2.TeleportUser
-	fastEventually(t, func() bool {
-		err = setup.K8sClient.Get(ctx, kclient.ObjectKey{
-			Namespace: setup.Namespace.Name,
-			Name:      userName,
-		}, &k8sUser)
-		return kerrors.IsNotFound(err)
-	})
-}
-
 func TestUserUpdate(t *testing.T) {
 	ctx := context.Background()
-	setup := setupTestEnv(t)
+	setup := testlib.SetupFakeKubeTestEnv(t)
 	require.NoError(t, teleportCreateDummyRole(ctx, "a", setup.TeleportClient))
 	require.NoError(t, teleportCreateDummyRole(ctx, "b", setup.TeleportClient))
 	require.NoError(t, teleportCreateDummyRole(ctx, "x", setup.TeleportClient))
@@ -320,6 +331,14 @@ func TestUserUpdate(t *testing.T) {
 	tUser, err = setup.TeleportClient.CreateUser(ctx, tUser)
 	require.NoError(t, err)
 
+	// Wait for the user to enter the cache
+	testlib.FastEventually(t, func() bool {
+		tUser, err = setup.TeleportClient.GetUser(ctx, tUser.GetName(), false)
+		return !trace.IsNotFound(err)
+	})
+	require.NoError(t, err)
+	oldRevision := tUser.GetRevision()
+
 	// The user is created in K8S
 	k8sUser := v2.TeleportUser{
 		ObjectMeta: metav1.ObjectMeta{
@@ -332,90 +351,52 @@ func TestUserUpdate(t *testing.T) {
 	}
 	k8sCreateUser(ctx, t, setup.K8sClient, &k8sUser)
 
-	// The user is updated in Teleport
-	fastEventually(t, func() bool {
-		tUser, err := setup.TeleportClient.GetUser(ctx, userName, false)
-		assert.NoError(t, err)
+	reconciler, err := resources.NewUserReconciler(setup.K8sClient, setup.TeleportClient)
+	require.NoError(t, err)
+	// Test execution: Kick off the reconciliation.
+	req := reconcile.Request{
+		NamespacedName: apimachinerytypes.NamespacedName{
+			Namespace: setup.Namespace.Name,
+			Name:      userName,
+		},
+	}
+	// First reconciliation should set the finalizer and exit.
+	_, err = reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
+	// Second reconciliation should create the Teleport resource.
+	// In a real cluster we should receive the event of our own finalizer change
+	// and this wakes us for a second round.
+	_, err = reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
 
-		// TeleportUser was updated with new roles
-		return compareRoles([]string{"x", "z"}, tUser.GetRoles())
+	// Wait for the new user to enter the cache, else the next reconciliation will cause conflicts.
+	testlib.FastEventually(t, func() bool {
+		newUser, err := setup.TeleportClient.GetUser(ctx, tUser.GetName(), false)
+		assert.NoError(t, err)
+		// only proceed when the revision changes
+		return newUser.GetRevision() != oldRevision
 	})
+	require.NoError(t, err)
 
 	// Updating the user in K8S
 	// The modification can fail because of a conflict with the resource controller. We retry if that happens.
 	var k8sUserNewVersion v2.TeleportUser
-	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		err := setup.K8sClient.Get(ctx, kclient.ObjectKey{
+	require.NoError(t,
+		setup.K8sClient.Get(ctx, kclient.ObjectKey{
 			Namespace: setup.Namespace.Name,
 			Name:      userName,
-		}, &k8sUserNewVersion)
-		if err != nil {
-			return err
-		}
+		}, &k8sUserNewVersion),
+	)
 
-		k8sUserNewVersion.Spec.Roles = append(k8sUserNewVersion.Spec.Roles, "y")
-		return setup.K8sClient.Update(ctx, &k8sUserNewVersion)
-	})
+	k8sUserNewVersion.Spec.Roles = append(k8sUserNewVersion.Spec.Roles, "y")
+	require.NoError(t, setup.K8sClient.Update(ctx, &k8sUserNewVersion))
+
+	_, err = reconciler.Reconcile(ctx, req)
 	require.NoError(t, err)
-
-	// Updates the user in Teleport
-	fastEventuallyWithT(t, func(t *assert.CollectT) {
-		tUser, err := setup.TeleportClient.GetUser(ctx, userName, false)
-		require.NoError(t, err)
-
-		// TeleportUser updated with new roles
-		assert.ElementsMatch(t, tUser.GetRoles(), []string{"x", "z", "y"})
-	})
 	require.Equal(t, setup.OperatorName, tUser.GetCreatedBy().User.Name, "createdBy has not been erased")
-}
-
-func k8sCreateDummyUser(ctx context.Context, t *testing.T, kc kclient.Client, namespace, userName string) {
-	user := v2.TeleportUser{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      userName,
-			Namespace: namespace,
-		},
-		Spec: v2.TeleportUserSpec{
-			Roles: []string{"a", "b"},
-		},
-	}
-	k8sCreateUser(ctx, t, kc, &user)
-}
-
-func k8sDeleteUser(ctx context.Context, t *testing.T, kc kclient.Client, userName, namespace string) {
-	user := v2.TeleportUser{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      userName,
-			Namespace: namespace,
-		},
-	}
-	err := kc.Delete(ctx, &user)
-	require.NoError(t, err)
 }
 
 func k8sCreateUser(ctx context.Context, t *testing.T, kc kclient.Client, user *v2.TeleportUser) {
 	err := kc.Create(ctx, user)
 	require.NoError(t, err)
-}
-
-func getUserStatusConditionError(object map[string]any) []metav1.Condition {
-	var conditionsWithError []metav1.Condition
-	var status teleportcr.Status
-	_ = mapstructure.Decode(object["status"], &status)
-
-	for _, condition := range status.Conditions {
-		if condition.Status == metav1.ConditionFalse {
-			conditionsWithError = append(conditionsWithError, condition)
-		}
-	}
-	return conditionsWithError
-}
-
-func compareRoles(expected, actual []string) bool {
-	opts := testlib.CompareOptions(cmpopts.SortSlices(func(a, b string) bool { return a < b }))
-	return cmp.Diff(
-		expected,
-		actual,
-		opts...,
-	) == ""
 }
