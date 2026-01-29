@@ -23,7 +23,6 @@ import {
   app,
   autoUpdater,
   BrowserWindow,
-  dialog,
   ipcMain,
   Menu,
   nativeTheme,
@@ -43,10 +42,6 @@ import { FileStorage } from 'teleterm/services/fileStorage';
 import { darkTheme, lightTheme } from 'teleterm/ui/ThemeProvider/theme';
 
 type WindowState = Rectangle;
-
-interface RunInBackgroundState {
-  notified?: boolean;
-}
 
 export class WindowsManager {
   private storageKey = 'windowState';
@@ -161,7 +156,13 @@ export class WindowsManager {
     window.on('close', async e => {
       this.saveWindowState(window);
 
-      if (isAppQuitting || !this.configService.get('runInBackground').value) {
+      const shouldRunInBackground =
+        this.configService.get('runInBackground').value;
+
+      if (isAppQuitting || !shouldRunInBackground) {
+        // If frontendAppInit wasn't resolved yet, reject it with an error since the app is about to
+        // quit. Electron apps by default quit after the last window is closed.
+        // https://www.electronjs.org/docs/latest/api/app#event-window-all-closed
         this.frontendAppInit.reject(
           new Error('Window was closed before frontend app got initialized')
         );
@@ -169,14 +170,7 @@ export class WindowsManager {
       }
 
       e.preventDefault();
-
-      const shouldRun = await this.confirmIfShouldRunInBackgroundOnce();
-      if (shouldRun) {
-        this.enterBackgroundMode();
-        return;
-      }
-      // Retry closing.
-      window.close();
+      this.enterBackgroundMode();
     });
 
     // shows the window when the DOM is ready, so we don't have a brief flash of a blank screen
@@ -478,42 +472,6 @@ export class WindowsManager {
       ...getDefaults(),
       ...getPositionAndSize(),
     };
-  }
-
-  private async confirmIfShouldRunInBackgroundOnce(): Promise<boolean> {
-    const runInBackgroundState = this.fileStorage.get(
-      'runInBackground'
-    ) as RunInBackgroundState;
-    if (
-      runInBackgroundState?.notified ||
-      // If the value is set in the config file, do not notify too.
-      this.configService.get('runInBackground').metadata.isStored
-    ) {
-      return true;
-    }
-
-    const isMac = this.settings.platform === 'darwin';
-
-    const { response } = await dialog.showMessageBox(this.window, {
-      type: 'question',
-      message: isMac
-        ? 'Keep Teleport Connect running in the menu bar?'
-        : 'Keep Teleport Connect running in the system tray?',
-      detail:
-        'VNet and connections to databases, Kubernetes clusters, and apps will remain active.',
-      buttons: ['Keep Running', 'Quit'],
-      noLink: true,
-      defaultId: 0,
-    });
-
-    const state: RunInBackgroundState = { notified: true };
-    this.fileStorage.put('runInBackground', state);
-
-    const keepRunning = response === 0;
-    if (!keepRunning) {
-      this.configService.set('runInBackground', false);
-    }
-    return keepRunning;
   }
 
   private isWindowUsable(): boolean {
