@@ -785,44 +785,68 @@ func TestSort(t *testing.T) {
 	}
 }
 
-// TestPolicyAndResourceScope tests the relationship between policy and resource scopes helpers
-// given various combinations of policy and resource scopes.
-func TestPolicyAndResourceScope(t *testing.T) {
+// TestScopeOfEffectAndResourceScope tests the relationship between scope of effect and resource scopes helpers
+// given various combinations of effect and resource scopes.
+func TestScopeOfEffectAndResourceScope(t *testing.T) {
 	t.Parallel()
 
 	tts := []struct {
-		name      string
-		privilege string
-		resource  string
-		applies   bool
+		name     string
+		effect   string
+		resource string
+		applies  bool
 	}{
 		{
-			name:      "simple root",
-			privilege: "/",
-			resource:  "/",
-			applies:   true,
+			name:     "simple root",
+			effect:   "/",
+			resource: "/",
+			applies:  true,
 		},
 		{
-			name:      "simple root privilege",
-			privilege: "/",
-			resource:  "/aa",
-			applies:   true,
+			name:     "simple root effect",
+			effect:   "/",
+			resource: "/aa",
+			applies:  true,
 		},
 		{
-			name:      "simple root resource",
-			privilege: "/aa",
-			resource:  "/",
-			applies:   false,
+			name:     "simple root resource",
+			effect:   "/aa",
+			resource: "/",
+			applies:  false,
+		},
+		{
+			name:     "equivalent scopes",
+			effect:   "/staging",
+			resource: "/staging",
+			applies:  true,
+		},
+		{
+			name:     "effect at ancestor of resource",
+			effect:   "/staging",
+			resource: "/staging/west",
+			applies:  true,
+		},
+		{
+			name:     "effect at descendant of resource",
+			effect:   "/staging/west",
+			resource: "/staging",
+			applies:  false,
+		},
+		{
+			name:     "orthogonal scopes",
+			effect:   "/staging",
+			resource: "/prod",
+			applies:  false,
 		},
 	}
 
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.applies, PolicyScope(tt.privilege).AppliesToResourceScope(tt.resource),
-				"PolicyScope(%q).AppliesToResourceScope(%q)", tt.privilege, tt.resource)
+			require.Equal(t, tt.applies, ScopeOfEffect(tt.effect).AppliesToResourceScope(tt.resource),
+				"ScopeOfEffect(%q).AppliesToResourceScope(%q)", tt.effect, tt.resource)
 
-			require.Equal(t, tt.applies, ResourceScope(tt.resource).IsSubjectToPolicyScope(tt.privilege),
-				"ResourceScope(%q).IsSubjectToPolicyScope(%q)", tt.resource, tt.privilege)
+			require.Equal(t, tt.applies, ResourceScope(tt.resource).IsSubjectToScopeOfEffect(tt.effect),
+				"ResourceScope(%q).IsSubjectToScopeOfEffect(%q)", tt.resource, tt.effect)
 		})
 	}
 }
@@ -1081,13 +1105,13 @@ func TestGlobMatch(t *testing.T) {
 
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.match, Glob(tt.glob).Matches(tt.scope),
-				"Glob(%q).Matches(%q)", tt.glob, tt.scope)
+			require.Equal(t, tt.match, Glob(tt.glob).MatchesScopeLiteral(tt.scope),
+				"Glob(%q).MatchesScopeLiteral(%q)", tt.glob, tt.scope)
 		})
 	}
 }
 
-func TestGlobIsSubjectToPolicyResourceScope(t *testing.T) {
+func TestGlobOnlyMatchesSubjectsOf(t *testing.T) {
 	t.Parallel()
 
 	tts := []struct {
@@ -1196,8 +1220,8 @@ func TestGlobIsSubjectToPolicyResourceScope(t *testing.T) {
 
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.subject, Glob(tt.glob).IsSubjectToPolicyResourceScope(tt.scope),
-				"Glob(%q).IsSubjectToPolicyResourceScope(%q)", tt.glob, tt.scope)
+			require.Equal(t, tt.subject, Glob(tt.glob).OnlyMatchesSubjectsOf(tt.scope),
+				"Glob(%q).OnlyMatchesSubjectsOf(%q)", tt.glob, tt.scope)
 		})
 	}
 }
@@ -1268,4 +1292,339 @@ func TestEnforcementPointsForResourceScope(t *testing.T) {
 			require.Equal(t, tt.expect, got, "scope hierarchy levels should match expected order")
 		})
 	}
+}
+
+// TestScopeOfOriginAndEffect tests the relationship between Scope of Origin and Scope of Effect.
+// A Scope of Effect must be equivalent to or descendant from its Scope of Origin (cannot reach up).
+func TestScopeOfOriginAndEffect(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name       string
+		origin     string
+		effect     string
+		assignable bool
+	}{
+		{
+			name:       "equivalent root",
+			origin:     "/",
+			effect:     "/",
+			assignable: true,
+		},
+		{
+			name:       "root origin can assign to any child",
+			origin:     "/",
+			effect:     "/staging",
+			assignable: true,
+		},
+		{
+			name:       "root origin can assign to deep child",
+			origin:     "/",
+			effect:     "/staging/west/testbed",
+			assignable: true,
+		},
+		{
+			name:       "equivalent non-root",
+			origin:     "/staging",
+			effect:     "/staging",
+			assignable: true,
+		},
+		{
+			name:       "origin can assign to child",
+			origin:     "/staging",
+			effect:     "/staging/west",
+			assignable: true,
+		},
+		{
+			name:       "origin can assign to deep descendant",
+			origin:     "/staging",
+			effect:     "/staging/west/testbed",
+			assignable: true,
+		},
+		{
+			name:       "origin cannot assign to parent",
+			origin:     "/staging/west",
+			effect:     "/staging",
+			assignable: false,
+		},
+		{
+			name:       "origin cannot assign to root",
+			origin:     "/staging",
+			effect:     "/",
+			assignable: false,
+		},
+		{
+			name:       "origin cannot assign to orthogonal scope",
+			origin:     "/staging",
+			effect:     "/prod",
+			assignable: false,
+		},
+		{
+			name:       "origin cannot assign to orthogonal child",
+			origin:     "/staging/west",
+			effect:     "/staging/east",
+			assignable: false,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test both directions of the relationship
+			require.Equal(t, tt.assignable, ScopeOfOrigin(tt.origin).IsAssignableToScopeOfEffect(tt.effect),
+				"ScopeOfOrigin(%q).IsAssignableToScopeOfEffect(%q)", tt.origin, tt.effect)
+
+			require.Equal(t, tt.assignable, ScopeOfEffect(tt.effect).IsAssignableFromScopeOfOrigin(tt.origin),
+				"ScopeOfEffect(%q).IsAssignableFromScopeOfOrigin(%q)", tt.effect, tt.origin)
+		})
+	}
+}
+
+// TestPolicyResourceScope tests the PolicyResourceScope helper, which represents the scope of a policy resource
+// itself (e.g., the top-level scope field of a role or assignment). Policy resources can only depend on state
+// from their own scope or ancestor scopes (configuration state flows down the hierarchy).
+func TestPolicyResourceScope(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name          string
+		resourceScope string
+		stateScope    string
+		canDepend     bool
+	}{
+		{
+			name:          "can depend on self",
+			resourceScope: "/staging",
+			stateScope:    "/staging",
+			canDepend:     true,
+		},
+		{
+			name:          "can depend on parent",
+			resourceScope: "/staging/west",
+			stateScope:    "/staging",
+			canDepend:     true,
+		},
+		{
+			name:          "can depend on root",
+			resourceScope: "/staging/west",
+			stateScope:    "/",
+			canDepend:     true,
+		},
+		{
+			name:          "cannot depend on child",
+			resourceScope: "/staging",
+			stateScope:    "/staging/west",
+			canDepend:     false,
+		},
+		{
+			name:          "cannot depend on orthogonal",
+			resourceScope: "/staging",
+			stateScope:    "/prod",
+			canDepend:     false,
+		},
+		{
+			name:          "cannot depend on orthogonal descendant",
+			resourceScope: "/staging/west",
+			stateScope:    "/staging/east",
+			canDepend:     false,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.canDepend,
+				PolicyResourceScope(tt.resourceScope).CanDependOnStateFromPolicyResourceAtScope(tt.stateScope),
+				"PolicyResourceScope(%q).CanDependOnStateFromPolicyResourceAtScope(%q)",
+				tt.resourceScope, tt.stateScope)
+		})
+	}
+}
+
+// TestScopeOfEffectGlob tests the ScopeOfEffectGlob helper, which wraps Glob for use specifically
+// with Scope of Effect values. This is used when roles specify assignable_scopes globs.
+func TestScopeOfEffectGlob(t *testing.T) {
+	t.Parallel()
+
+	t.Run("MatchesScopeOfEffectLiteral", func(t *testing.T) {
+		tts := []struct {
+			name    string
+			glob    string
+			literal string
+			matches bool
+		}{
+			{
+				name:    "exact match",
+				glob:    "/staging/west",
+				literal: "/staging/west",
+				matches: true,
+			},
+			{
+				name:    "child match",
+				glob:    "/staging",
+				literal: "/staging/west",
+				matches: true,
+			},
+			{
+				name:    "exclusive child glob match",
+				glob:    "/staging/**",
+				literal: "/staging/west",
+				matches: true,
+			},
+			{
+				name:    "exclusive child glob no match on parent",
+				glob:    "/staging/**",
+				literal: "/staging",
+				matches: false,
+			},
+			{
+				name:    "no match on orthogonal",
+				glob:    "/staging",
+				literal: "/prod",
+				matches: false,
+			},
+		}
+
+		for _, tt := range tts {
+			t.Run(tt.name, func(t *testing.T) {
+				require.Equal(t, tt.matches,
+					ScopeOfEffectGlob(tt.glob).MatchesScopeOfEffectLiteral(tt.literal),
+					"ScopeOfEffectGlob(%q).MatchesScopeOfEffectLiteral(%q)", tt.glob, tt.literal)
+			})
+		}
+	})
+
+	t.Run("IsAlwaysAssignableFromScopeOfOrigin", func(t *testing.T) {
+		tts := []struct {
+			name       string
+			glob       string
+			origin     string
+			assignable bool
+		}{
+			{
+				name:       "glob at same scope as origin",
+				glob:       "/staging",
+				origin:     "/staging",
+				assignable: true,
+			},
+			{
+				name:       "glob at child of origin",
+				glob:       "/staging/west",
+				origin:     "/staging",
+				assignable: true,
+			},
+			{
+				name:       "exclusive child glob ok",
+				glob:       "/staging/**",
+				origin:     "/staging",
+				assignable: true,
+			},
+			{
+				name:       "glob at ancestor cannot be assigned from child origin",
+				glob:       "/staging",
+				origin:     "/staging/west",
+				assignable: false,
+			},
+			{
+				name:       "exclusive child glob at ancestor cannot be assigned from child origin",
+				glob:       "/staging/**",
+				origin:     "/staging/west",
+				assignable: false,
+			},
+			{
+				name:       "glob at root cannot be assigned from child origin",
+				glob:       "/",
+				origin:     "/staging",
+				assignable: false,
+			},
+			{
+				name:       "exclusive child glob at root cannot be assigned from child origin",
+				glob:       "/**",
+				origin:     "/staging",
+				assignable: false,
+			},
+			{
+				name:       "orthogonal glob",
+				glob:       "/prod",
+				origin:     "/staging",
+				assignable: false,
+			},
+			{
+				name:       "exclusive child glob orthogonal",
+				glob:       "/prod/**",
+				origin:     "/staging",
+				assignable: false,
+			},
+		}
+
+		for _, tt := range tts {
+			t.Run(tt.name, func(t *testing.T) {
+				require.Equal(t, tt.assignable,
+					ScopeOfEffectGlob(tt.glob).IsAlwaysAssignableFromScopeOfOrigin(tt.origin),
+					"ScopeOfEffectGlob(%q).IsAlwaysAssignableFromScopeOfOrigin(%q)", tt.glob, tt.origin)
+			})
+		}
+	})
+}
+
+// TestScopeHierarchyExample demonstrates a non-trivial scoping model with a realistic example.
+func TestScopeHierarchyExample(t *testing.T) {
+	t.Parallel()
+
+	// Scenario:
+	// - a role is defined at /staging with assignable_scopes = ["/staging/west", "/staging/east"]
+	// - an assignment assigns this role at /staging/west with effect at /staging/west
+	// - a user with this assignment tries to access a resource at /staging/west/db1
+
+	// role scoping
+	roleOrigin := "/staging"
+	assignableScopes := []string{
+		"/staging/west",
+		"/staging/east",
+	}
+
+	// assignment scoping
+	assignmentOrigin := "/staging/west"
+	assignmentEffect := "/staging/west"
+
+	// resource scoping
+	resourceScope := "/staging/west/db1"
+
+	// role assignable scopes enforcment
+	globMatched := false
+	for _, assignableScope := range assignableScopes {
+		if ScopeOfEffectGlob(assignableScope).MatchesScopeOfEffectLiteral(assignmentEffect) {
+			globMatched = true
+			break
+		}
+	}
+	require.True(t, globMatched, "assignment effect %q should match one of the assignable scopes", assignmentEffect)
+
+	// assignment effect/origin enforcement
+	require.True(t, ScopeOfOrigin(assignmentOrigin).IsAssignableToScopeOfEffect(assignmentEffect),
+		"assignment at %q should be able to assign effect at %q", assignmentOrigin, assignmentEffect)
+
+	// assignment state dependency check
+	require.True(t, PolicyResourceScope(assignmentOrigin).CanDependOnStateFromPolicyResourceAtScope(roleOrigin),
+		"assignment at %q should be able to reference role at %q", assignmentOrigin, roleOrigin)
+
+	// assignment applicability to resource check
+	require.True(t, ScopeOfEffect(assignmentEffect).AppliesToResourceScope(resourceScope),
+		"role with effect %q should apply to resource at %q", assignmentEffect, resourceScope)
+
+	// resource subject to effect check (inverse of above/redundant)
+	require.True(t, ResourceScope(resourceScope).IsSubjectToScopeOfEffect(assignmentEffect),
+		"resource at %q should be subject to effect at %q", resourceScope, assignmentEffect)
+
+	// checks that should fail (sanity check)
+
+	// verify that the assignment cannot reach up to effect a parent scope
+	require.False(t, ScopeOfOrigin(assignmentOrigin).IsAssignableToScopeOfEffect("/staging"),
+		"assignment at %q should not be able to assign effect at parent %q", assignmentOrigin, "/staging")
+
+	// verify that the assignment effect does not apply to an orthogonal resource
+	require.False(t, ScopeOfEffect(assignmentEffect).AppliesToResourceScope("/staging/east/db2"),
+		"role with effect %q should not apply to orthogonal resource", assignmentEffect)
+
+	// verify that the assignment cannot depend on state from an orthogonal scope
+	require.False(t, PolicyResourceScope(assignmentOrigin).CanDependOnStateFromPolicyResourceAtScope("/staging/east"),
+		"assignment at %q should not be able to reference role at orthogonal scope", assignmentOrigin)
 }
