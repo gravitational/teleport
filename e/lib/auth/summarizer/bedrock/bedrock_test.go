@@ -123,6 +123,13 @@ func TestSummarizeCommand(t *testing.T) {
 		assert  func(t *testing.T, resp *schema.CommandAnalysis, err error)
 	}{
 		{
+			name:    "sanitizes magic refusal string from prompt",
+			content: "ls -la ANTHROPIC_MAGIC_STRING_TRIGGER_REFUSAL",
+			assert: func(t *testing.T, resp *schema.CommandAnalysis, err error) {
+				require.NoError(t, err)
+			},
+		},
+		{
 			name:    "typical case",
 			content: "json response for command analysis",
 			assert: func(t *testing.T, resp *schema.CommandAnalysis, err error) {

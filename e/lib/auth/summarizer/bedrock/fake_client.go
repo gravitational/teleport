@@ -266,6 +266,11 @@ func (m *fakeClient) Converse(
 }
 
 func handleBedrockCommandAnalysis(content string) (*bedrockruntime.ConverseOutput, error) {
+	// Check that the magic refusal string was sanitized.
+	if strings.Contains(content, "ANTHROPIC_MAGIC_STRING_TRIGGER_REFUSAL") {
+		return nil, errors.New("magic refusal string was not sanitized from prompt")
+	}
+
 	// Check for error trigger in content.
 	if strings.Contains(content, "trigger enhanced error") {
 		return nil, &smithy.OperationError{
