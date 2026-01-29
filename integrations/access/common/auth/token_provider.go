@@ -146,10 +146,8 @@ func (r *RotatedAccessTokenProvider) GetAccessToken() (string, error) {
 // RefreshLoop runs the credential refresh process.
 func (r *RotatedAccessTokenProvider) RefreshLoop(ctx context.Context) {
 	r.lock.RLock()
-	creds := r.creds
+	interval := r.getRefreshInterval(r.creds)
 	r.lock.RUnlock()
-
-	interval := r.getRefreshInterval(creds)
 
 	timer := r.clock.NewTimer(interval)
 	defer timer.Stop()
@@ -161,7 +159,18 @@ func (r *RotatedAccessTokenProvider) RefreshLoop(ctx context.Context) {
 			r.log.InfoContext(ctx, "Shutting down")
 			return
 		case <-timer.Chan():
-			creds, _ := r.store.GetCredentials(ctx)
+			r.log.DebugContext(ctx, "Entering token refresh loop")
+			creds, err := r.store.GetCredentials(ctx)
+			if err != nil {
+				r.lock.RLock()
+				defer r.lock.RUnlock()
+				r.log.WarnContext(ctx, "Error getting credentials, not attempting to refresh credentials", "error", err, "creds_expiry", r.creds.ExpiresAt)
+				// We cannot get the credentials from the backend, something is going on.
+				// If we don't have backend access, or we are in an unknown state, we should not attempt to refresh
+				// credentials. This will lower the probability of ending up in an awkward state where we refreshed the
+				// token but cannot store it.
+				timer.Reset(r.retryInterval)
+			}
 
 			// Skip if the credentials are sufficiently fresh
 			// (in an HA setup another instance might have refreshed the credentials).
@@ -174,11 +183,19 @@ func (r *RotatedAccessTokenProvider) RefreshLoop(ctx context.Context) {
 
 				interval := r.getRefreshInterval(creds)
 				timer.Reset(interval)
+				r.log.DebugContext(ctx, "Existing credentials don't need to be refreshed", "next_refresh", interval)
 				r.log.InfoContext(ctx, "Refreshed token", "next_refresh", interval)
 				continue
 			}
 
-			creds, err := r.refresh(ctx)
+			// Important: we are entering the critical section here.
+			// Once we start refreshing the token, we must not stop until we are done writing it to the backend.
+			// Failure to do so results in a lost token and broken Slack integration until the user re-registers it.
+			// We use a different context here to make sure the refresh process finishes even during a shutdown.
+			criticalCtx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			creds, err = r.refresh(criticalCtx)
 			if err != nil {
 				r.log.ErrorContext(ctx, "Error while refreshing token",
 					"error", err,
@@ -186,9 +203,22 @@ func (r *RotatedAccessTokenProvider) RefreshLoop(ctx context.Context) {
 				)
 				timer.Reset(r.retryInterval)
 			} else {
-				err := r.store.PutCredentials(ctx, creds)
+				err := r.store.PutCredentials(criticalCtx, creds)
 				if err != nil {
 					r.log.ErrorContext(ctx, "Error while storing the refreshed credentials", "error", err)
+					// If we land here, we refreshed the Slack token but failed to store it back.
+					// This is the worst case scenario: the refresh token is single-use, and we burnt it.
+					// This Slack integration will very likely get locked out.
+					// The only thing we can do is log the new refresh token, if this happens to be a large-scale issue,
+					// this will allow us to perform manual recovery without having to ask every user.
+					// It is not ideal to send the token in the logs, but if the integration is still functional and we
+					// managed to refresh again in the grace window, the token will become useless in a few seconds.
+					r.lock.RLock()
+					r.log.ErrorContext(ctx, "Slack integration will get locked out, manual recovery is required",
+						"previous_refresh_token", r.creds.RefreshToken,
+						"new_refresh_token", creds.RefreshToken,
+					)
+					r.lock.RUnlock()
 					timer.Reset(r.retryInterval)
 					continue
 				}
