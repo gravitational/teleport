@@ -163,8 +163,9 @@ func (r *RotatedAccessTokenProvider) RefreshLoop(ctx context.Context) {
 			creds, err := r.store.GetCredentials(ctx)
 			if err != nil {
 				r.lock.RLock()
-				r.log.WarnContext(ctx, "Error getting credentials, not attempting to refresh credentials", "error", err, "creds_expiry", r.creds.ExpiresAt)
-				r.lock.RUnlock()
+				credsExpiry := r.creds.ExpiresAt
+				r.log.RUnlock()
+				r.log.WarnContext(ctx, "Error getting credentials, not attempting to refresh credentials", "error", err, "creds_expiry", credsExpiry)
 				// We cannot get the credentials from the backend, something is going on.
 				// If we don't have backend access, or we are in an unknown state, we should not attempt to refresh
 				// credentials. This will lower the probability of ending up in an awkward state where we refreshed the
@@ -191,9 +192,8 @@ func (r *RotatedAccessTokenProvider) RefreshLoop(ctx context.Context) {
 			// Important: we are entering the critical section here.
 			// Once we start refreshing the token, we must not stop until we are done writing it to the backend.
 			// Failure to do so results in a lost token and broken Slack integration until the user re-registers it.
-			// We use a different context here to make sure the refresh process finishes even during a shutdown.
-			criticalCtx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			// We ignore cancellation here to make sure the refresh process finishes even during a shutdown.
+			criticalCtx := context.WithoutCancel(ctx)
 
 			creds, err = r.refresh(criticalCtx)
 			if err != nil {
