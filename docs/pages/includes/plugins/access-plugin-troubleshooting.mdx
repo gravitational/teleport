@@ -1,0 +1,14 @@
+Access Request plugins need permissions to list and read any Teleport resource
+types included in a request. This is because, when the plugin receives a
+resource request, it queries the Teleport Auth Service API for data about the
+requested resources. 
+
+If you receive an error message similar to the following, make sure the Teleport
+roles for the Access Request plugin's identity include permissions to list
+requested resources:
+
+```
+ERRO   Failed to process request error:[
+ERROR REPORT:
+Original Error: *interceptors.RemoteError access denied to perform action "list" on "user_group", access denied to perform action "read" on "user_group"
+```
