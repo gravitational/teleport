@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "17.7.15"
+const Version = "17.7.15-dev.electron-builder-26-6-0.1"
 
 const VersionMajor = 17
 const VersionMinor = 7
 const VersionPatch = 15
-const VersionPreRelease = ""
+const VersionPreRelease = "dev.electron-builder-26-6-0.1"
 const VersionMetadata = ""

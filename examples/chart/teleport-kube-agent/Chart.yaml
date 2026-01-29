@@ -1,4 +1,4 @@
-.version: &version "17.7.15"
+.version: &version "17.7.15-dev.electron-builder-26-6-0.1"
 
 name: teleport-kube-agent
 apiVersion: v2
