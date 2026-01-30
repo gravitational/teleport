@@ -303,6 +303,7 @@ export function DefineAccess() {
         <NoAccessDefinedDialog
           onCancel={() => setActiveDialog('')}
           onNext={() => nextStep()}
+          isEditing={isEditing}
         />
       )}
       {activeDialog === 'remove-access' && (

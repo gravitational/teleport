@@ -69,8 +69,26 @@ export const Failed: StoryObj = {
   },
 };
 
-export const NoAccessDefinedDialogue: StoryObj = {
+export const NoAccessDefinedDialogueCreating: StoryObj = {
   render() {
-    return <NoAccessDefinedDialog onCancel={() => null} onNext={() => null} />;
+    return (
+      <NoAccessDefinedDialog
+        onCancel={() => null}
+        onNext={() => null}
+        isEditing={false}
+      />
+    );
+  },
+};
+
+export const NoAccessDefinedDialogueEditing: StoryObj = {
+  render() {
+    return (
+      <NoAccessDefinedDialog
+        onCancel={() => null}
+        onNext={() => null}
+        isEditing={true}
+      />
+    );
   },
 };

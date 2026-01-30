@@ -69,7 +69,7 @@ type AccessListMutation =
   | { mutationType: 'reviewed'; accessList: AccessList }
   | { mutationType: 'deleted'; accessListId: string };
 
-interface AccessListManagementContext {
+export interface AccessListManagementContextValue {
   isOktaPluginReadOnly: boolean;
   search: string;
   processAccessLists: (
@@ -117,44 +117,45 @@ const DEFAULT_SORT = {
   dir: 'ASC',
 } satisfies AccessListSort;
 
-const AccessListManagementContext = createContext<AccessListManagementContext>({
-  refetch: () => {},
-  isOktaPluginReadOnly: false,
-  accessLists: [],
-  backendCacheUnhealthy: false,
-  isFetching: false,
-  isFetchingNextPage: false,
-  hasNextPage: false,
-  search: '',
-  filters: {},
-  sort: DEFAULT_SORT,
-  view: ViewMode.CARD,
-  error: null,
-  isError: false,
-  setView: () => {},
-  processAccessLists: () => {},
-  updateSearchParams: () => {},
-  previousSearchParams: '',
-  filtersExist: false,
-  updateAccessListCache: () => {},
-  guideEditor: {
-    reset: () => {},
-    preset: '',
-    setPreset: () => {},
-    currentStep: 0,
-    setCurrentStep: () => {},
-    prevStep: () => {},
-    nextStep: () => {},
-    awsIcRoleState: undefined,
-    standardRoleState: undefined,
-    definedAccess: () => false,
-    definedAccessInAnyRoleCondition: () => false,
-    undoEditRoleChanges: () => {},
-    isEditing: false,
-    getRolesToSave: () => [],
-  },
-  oktaPluginAttempt: undefined,
-});
+export const AccessListManagementContext =
+  createContext<AccessListManagementContextValue>({
+    refetch: () => {},
+    isOktaPluginReadOnly: false,
+    accessLists: [],
+    backendCacheUnhealthy: false,
+    isFetching: false,
+    isFetchingNextPage: false,
+    hasNextPage: false,
+    search: '',
+    filters: {},
+    sort: DEFAULT_SORT,
+    view: ViewMode.CARD,
+    error: null,
+    isError: false,
+    setView: () => {},
+    processAccessLists: () => {},
+    updateSearchParams: () => {},
+    previousSearchParams: '',
+    filtersExist: false,
+    updateAccessListCache: () => {},
+    guideEditor: {
+      reset: () => {},
+      preset: '',
+      setPreset: () => {},
+      currentStep: 0,
+      setCurrentStep: () => {},
+      prevStep: () => {},
+      nextStep: () => {},
+      awsIcRoleState: undefined,
+      standardRoleState: undefined,
+      definedAccess: () => false,
+      definedAccessInAnyRoleCondition: () => false,
+      undoEditRoleChanges: () => {},
+      isEditing: false,
+      getRolesToSave: () => [],
+    },
+    oktaPluginAttempt: undefined,
+  });
 
 export const AccessListManagementContextProvider = (
   props: PropsWithChildren<unknown>

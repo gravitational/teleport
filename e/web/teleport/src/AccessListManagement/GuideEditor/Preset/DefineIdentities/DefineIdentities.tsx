@@ -8,6 +8,7 @@ import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/
 import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
 
+import { AccessRoleEditor } from '../../ViewAndEditAccessRoles/types';
 import { getPredicateExpression } from '../DefineAccess/unifiedResource';
 import { AppIdentities, appIdentityFieldNames } from '../role/resources/app';
 import { IdentityView } from './IdentityView';
@@ -24,7 +25,16 @@ import { IdentityView } from './IdentityView';
  * UX in that it does not render unnecessary application identities input
  * fields.
  */
-export function DefineIdentities() {
+export function DefineIdentities({
+  accessRoleEditor,
+}: {
+  /**
+   * Only defined if user is "updating" existing access roles
+   * when viewing an access list. Will be undefined if user is
+   * using this step as part of "creating" an access list.
+   */
+  accessRoleEditor?: AccessRoleEditor;
+}) {
   const { guideEditor } = useAccessListManagementContext();
   const { standardRoleState, definedAccess } = guideEditor;
 
@@ -151,7 +161,9 @@ export function DefineIdentities() {
           </Box>
         )}
 
-        {queryAppAttempt.status === 'success' && <IdentityView />}
+        {queryAppAttempt.status === 'success' && (
+          <IdentityView accessRoleEditor={accessRoleEditor} />
+        )}
       </Validation>
     </Box>
   );

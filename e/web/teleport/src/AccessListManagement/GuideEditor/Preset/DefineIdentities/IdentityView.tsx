@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 
-import { Box, Flex, Text } from 'design';
+import { Flex } from 'design';
 import { debounce } from 'shared/utils/highbar';
 
 import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
@@ -20,10 +20,14 @@ import { RoleDiffState } from 'teleport/Roles/Roles';
 import { Role } from 'teleport/services/resources';
 import { storageService } from 'teleport/services/storageService';
 
+import { AccessRoleEditor } from '../../ViewAndEditAccessRoles/types';
 import { IdentityTabsAndSection } from './IdentityTabsAndSection';
-import { IdentityStepButtons, IdentityTabContainer } from './Shared';
 
-export function IdentityView() {
+export function IdentityView({
+  accessRoleEditor,
+}: {
+  accessRoleEditor?: AccessRoleEditor;
+}) {
   const { guideEditor } = useAccessListManagementContext();
   const { standardRoleState } = guideEditor;
 
@@ -60,26 +64,16 @@ export function IdentityView() {
     return newRoleModel;
   }
 
-  const requiresIdentities = !standardRoleState.canSkipDefiningIdentities();
-
   return (
     <Flex height="75vh" gap={3}>
-      {requiresIdentities ? (
-        <IdentityTabsAndSection role={role} dispatchRole={dispatchRole} />
-      ) : (
-        <IdentityTabContainer>
-          <Box p={2} mt={1}>
-            <Text mb={3}>No identities are required.</Text>
-            {roleDiffProps && shouldShowRoleDiff(roleDiffProps) && (
-              <Text>
-                The access graph on the right shows how members access to
-                resources can look like. To make any changes, go back.
-              </Text>
-            )}
-          </Box>
-          <IdentityStepButtons />
-        </IdentityTabContainer>
-      )}
+      <IdentityTabsAndSection
+        role={role}
+        dispatchRole={dispatchRole}
+        accessRoleEditor={accessRoleEditor}
+        hasAccessGraphEnabled={
+          roleDiffProps && shouldShowRoleDiff(roleDiffProps)
+        }
+      />
       <Flex
         position="relative"
         flex="1"

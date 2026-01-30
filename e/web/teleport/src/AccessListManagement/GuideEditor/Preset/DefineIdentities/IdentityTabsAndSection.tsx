@@ -18,6 +18,7 @@ import {
   getResourceAccessTabSpecs,
   getRoleSectionInputFieldConfig,
 } from '../../tabs';
+import { AccessRoleEditor } from '../../ViewAndEditAccessRoles/types';
 import { labelBasedResourceAccessFields } from '../role/listaccess';
 import { AppIdentities, appIdentityFieldNames } from '../role/resources/app';
 import { DbIdentities, dbIdentities } from '../role/resources/db';
@@ -28,20 +29,28 @@ import {
 import { KubeIdentities, kubeIdentities } from '../role/resources/kube';
 import { ServerIdentities, serverIdentities } from '../role/resources/server';
 import { IdentityStepButtons, IdentityTabContainer } from './Shared';
+import { UpdateAccessRolesDialog } from './UpdateAccessRolesDialog';
 
 export function IdentityTabsAndSection({
   role,
   dispatchRole,
+  hasAccessGraphEnabled,
+  accessRoleEditor,
 }: {
   role: StandardEditorModel;
   dispatchRole: StandardModelDispatcher;
+  hasAccessGraphEnabled: boolean;
+  accessRoleEditor?: AccessRoleEditor;
 }) {
   const { guideEditor } = useAccessListManagementContext();
-  const { standardRoleState, nextStep, prevStep } = guideEditor;
+  const { standardRoleState, awsIcRoleState, nextStep, prevStep, isEditing } =
+    guideEditor;
 
   const idPrefix = useId();
 
   const [currentTab, setCurrentTab] = useState(0);
+
+  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
 
   function handleOnChange(roleModelVal: ResourceAccess) {
     dispatchRole({
@@ -210,11 +219,10 @@ export function IdentityTabsAndSection({
 
   const selectedTab = tabSpecs[currentTab];
 
-  const { component: Section } =
-    resourceAccessSections[tabSpecs[currentTab].kind];
+  const section = resourceAccessSections[tabSpecs[currentTab]?.kind];
 
   const currentResourceIndex = role.roleModel.resources.findIndex(
-    r => r.kind == selectedTab.kind
+    r => r.kind == selectedTab?.kind
   );
 
   const sectionValue = role.roleModel.resources[currentResourceIndex];
@@ -222,12 +230,25 @@ export function IdentityTabsAndSection({
     role.validationResult.resources[currentResourceIndex];
 
   const hasNextTabSection = tabSpecs[currentTab + 1];
-  const nextBtnTxt = hasNextTabSection
+
+  const modifiedOriginalRole =
+    isEditing &&
+    (standardRoleState.roleEditState.isDirty ||
+      awsIcRoleState.roleEditState.isDirty);
+
+  let nextBtnText = hasNextTabSection
     ? `Next: ${hasNextTabSection.btnTitle}`
     : 'Next';
+  if (!hasNextTabSection && isEditing) {
+    nextBtnText = 'Save Changes';
+  }
 
   function handleNext() {
     if (!hasNextTabSection) {
+      if (isEditing) {
+        setShowUpdateDialog(true);
+        return;
+      }
       nextStep();
     } else {
       setCurrentTab(currentTab + 1);
@@ -243,39 +264,67 @@ export function IdentityTabsAndSection({
     }
   }
 
+  const requiresIdentities = !standardRoleState.canSkipDefiningIdentities();
+
   return (
     <IdentityTabContainer>
-      <Box>
-        <SlideTabs
-          appearance="round"
-          size="medium"
-          hideStatusIconOnActiveTab
-          tabs={tabSpecs}
-          activeIndex={currentTab}
-          onChange={setCurrentTab}
-        />
-        <Box p={2} mt={1}>
-          <Text bold fontSize={3} mb={3}>
-            {selectedTab.sectionTitle}
-          </Text>
-          <Section
-            visibleInputFields={getRoleSectionInputFieldConfig({
-              kind: sectionValue.kind,
-              requiredAppIdentities: standardRoleState.requiredAppIdentities,
-              withLabels: false,
-            })}
-            value={sectionValue}
-            isProcessing={false}
-            validation={sectionValidation}
-            onChange={(val: ResourceAccess) => handleOnChange(val)}
+      {requiresIdentities ? (
+        <Box>
+          <SlideTabs
+            appearance="round"
+            size="medium"
+            hideStatusIconOnActiveTab
+            tabs={tabSpecs}
+            activeIndex={currentTab}
+            onChange={setCurrentTab}
           />
+          <Box p={2} mt={1}>
+            <Text bold fontSize={3} mb={3}>
+              {selectedTab.sectionTitle}
+            </Text>
+            <section.component
+              visibleInputFields={getRoleSectionInputFieldConfig({
+                kind: sectionValue.kind,
+                requiredAppIdentities: standardRoleState.requiredAppIdentities,
+                withLabels: false,
+              })}
+              value={sectionValue}
+              isProcessing={false}
+              validation={sectionValidation}
+              onChange={(val: ResourceAccess) => handleOnChange(val)}
+            />
+          </Box>
         </Box>
-      </Box>
+      ) : (
+        <Box p={2} mt={1}>
+          <Text mb={3}>No identities are required.</Text>
+          {hasAccessGraphEnabled && (
+            <Text>
+              The access graph on the right shows how members&apos; access to
+              resources can look like. To make any changes, go back.
+            </Text>
+          )}
+        </Box>
+      )}
       <IdentityStepButtons
-        nextBtnText={nextBtnTxt}
+        nextBtnText={nextBtnText}
         onNext={handleNext}
         onPrev={handlePrev}
+        nextBtnDisabled={
+          isEditing && !hasNextTabSection && !modifiedOriginalRole
+        }
+        nextBtnTooltipTxt={
+          isEditing && !hasNextTabSection && !modifiedOriginalRole
+            ? 'No changes made'
+            : undefined
+        }
       />
+      {showUpdateDialog && accessRoleEditor && (
+        <UpdateAccessRolesDialog
+          onCancelUpdate={() => setShowUpdateDialog(false)}
+          accessRoleEditor={accessRoleEditor}
+        />
+      )}
     </IdentityTabContainer>
   );
 }
