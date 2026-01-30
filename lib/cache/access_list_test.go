@@ -341,6 +341,11 @@ func TestAccessListReviews(t *testing.T) {
 		assert.Len(t, out, 10)
 	}, 15*time.Second, 100*time.Millisecond)
 
+	// access-list is a prefix of access-list-test, make sure no reviews are
+	// returned from the wrong list.
+	out, _, err := p.cache.ListAccessListReviews(context.Background(), "access-list", 100, "")
+	require.NoError(t, err)
+	assert.Empty(t, out)
 }
 
 func TestListAccessListsV2(t *testing.T) {
