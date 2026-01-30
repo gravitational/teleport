@@ -232,6 +232,7 @@ func UnmarshalJSONRPCMessage(data []byte, v any) error {
 // caseSensitiveJSONConfig is used to decode JSON RPC messages. The config is
 // based on jsoniter.ConfigCompatibleWithStandardLibrary with the addition of
 // CaseSensitive enabled.
+// TODO(greedy52): Migrate to encoding/json/v2 once it's out of experimentation.
 var caseSensitiveJSONConfig = jsoniter.Config{
 	EscapeHTML:             true,
 	SortMapKeys:            true,
