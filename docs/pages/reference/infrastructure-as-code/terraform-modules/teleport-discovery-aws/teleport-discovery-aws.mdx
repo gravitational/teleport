@@ -27,6 +27,7 @@ This Terraform module creates the AWS and Teleport cluster resources necessary f
 
 ## Prerequisites
 
+{/* lint ignore absolute-docs-links */}
 - [Configure Teleport Terraform Provider](https://goteleport.com/docs/zero-trust-access/infrastructure-as-code/terraform-provider/)
 - [Configure AWS Terraform provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
 
@@ -55,17 +56,13 @@ module "aws_discovery" {
 }
 ```
 
-## Examples
-
-- [Discover resources in a single AWS account](./examples/single-account)
-
 ## How to get help
 
 If you're having trouble, check out our [GitHub Discussions](https://github.com/gravitational/teleport/discussions).
 
 For bugs related to this code, please [open an issue](https://github.com/gravitational/teleport/issues/new/choose).
 
-<!-- BEGIN_TF_DOCS -->
+{/* BEGIN_TF_DOCS */}
 ## Requirements
 
 | Name | Version |
@@ -143,4 +140,4 @@ No modules.
 | teleport\_discovery\_service\_iam\_role\_arn | AWS resource name (ARN) of the AWS IAM role that Teleport Discovery Service will assume. |
 | teleport\_integration\_name | Name of the Teleport `integration` resource. The integration resource configures Teleport Discovery Service instances to assume an AWS IAM role for discovery using AWS OIDC federation. Integration details can be viewed with `tctl get integrations/<name>` or by visiting the Teleport web UI under 'Zero Trust Access' > 'Integrations'. |
 | teleport\_provision\_token\_name | Name of the Teleport provision `token` that allows Teleport nodes to join the Teleport cluster using AWS IAM credentials. Token details can be viewed with `tctl get token/<name>`. |
-<!-- END_TF_DOCS -->
+{/* END_TF_DOCS */}

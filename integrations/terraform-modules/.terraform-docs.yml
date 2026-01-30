@@ -32,4 +32,4 @@ settings:
 sort:
   enabled: true
   by: name
-version: ''
+version: '0.21.0'
