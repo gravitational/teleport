@@ -348,3 +348,28 @@ test('discards previous update if the latest check returns no update', async () 
   // Check if the app is set to discard the first downloaded update on close.
   expect(setup.nativeUpdater.autoInstallOnAppQuit).toBeFalsy();
 });
+
+test('downgrades are not allowed', async () => {
+  const clusters = {
+    reachableClusters: [
+      {
+        clusterUri: '/clusters/foo',
+        toolsAutoUpdate: true,
+        toolsVersion: '17.7.4',
+        minToolsVersion: '16.0.0-aa',
+      },
+    ],
+    unreachableClusters: [],
+  };
+
+  const setup = setUpAppUpdater({
+    clusters,
+  });
+
+  await setup.appUpdater.checkForUpdates();
+  expect(setup.lastEvent.value).toEqual(
+    expect.objectContaining({
+      kind: 'update-not-available',
+    })
+  );
+});
