@@ -93,6 +93,7 @@ the resource.
 
 #### Login MFA process
 
+```mermaid
 sequenceDiagram
     participant tsh
     participant browser as Browser
@@ -140,6 +141,7 @@ sequenceDiagram
     
     tsh->>tsh: Save credentials to keyring
     Note over tsh: Login successful
+```
 
 ##### Login MFA Flow
 
@@ -147,17 +149,32 @@ The flow can be broken down in to three sections:
 
 ##### `tsh` initiating a login flow
 
-When the user performs a `tsh login` and enters their password, it will check
-for either an explicit `--mfa-mode=browser` flag or it will error if there are
-no other MFA methods available. The error informs the user of other mfa methods
-they can try.
+When the user performs a `tsh login` and enters their password, `tsh` starts a
+local HTTP callback server and generates a client redirect URL containing a
+secret key. It then calls `CreateAuthenticateChallenge` with this redirect URL
+included in the request. The auth server processes the request and returns an
+MFA challenge containing all applicable authentication methods for the user. If
+the user has browser MFA available, the server calls `BeginSSOMFAChallenge` to
+generate a request ID, stores an `SSOMFASession` object in the backend, and
+includes a browser challenge in the response. This browser challenge contains
+the request ID and a redirect URL pointing to `/web/mfa/:request_id`.
 
-Upon choosing browser MFA, `tsh` will send a request to
-`POST /webapi/mfa/login/begin` with a redirect URL that contains a secret key.
-This request is forwarded to the auth server where `BeginSSOMFAChallenge` will
-genereate a request ID and a `SSOMFASession` object that is stored on the
-backend. An MFA challenge is returned back to `tsh` which contains a URL to
-`/web/mfa/:request_id`.
+Once `tsh` receives the challenge response with available MFA methods, it
+determines which method to use. If the user specified an explicit
+`--mfa-mode=browser` flag, browser-based MFA will be used. Otherwise, `tsh` will
+attempt to use available methods in order of preference. If no MFA mode is
+specified and no local hardware keys are available, the command will fail with
+an error message listing available MFA options, including `--mfa-mode=browser`
+e.g:
+
+```shell
+❯ ./tsh login --proxy teleport.example.com --user alice
+Enter password for Teleport user alice:
+Available MFA methods [WEBAUTHN, SSO, BROWSER]. Continuing with WEBAUTHN.
+If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,sso,browser> or environment variable TELEPORT_MFA_MODE=<webauthn,sso,browser>.
+
+ERROR: no security keys found
+```
 
 ##### The user verifying their MFA through the browser
 
@@ -286,8 +303,21 @@ message ValidateBrowserMFAChallengeResponseResponse {
 service AuthService {
   ...
 
-  // ValidateBrowserMFAChallengeResponse validates browser MFA challenge responses
+  // ValidateBrowserMFAChallengeResponse validates browser MFA challenge responses and
+  // generates a single-use MFA token. This endpoint is restricted to proxy service only via
+  // builtin role authorization. The MFA response is validated against the SSOMFASession
+  // identified by the request_id, ensuring it matches the expected user and hasn't been
+  // used previously. The generated MFA token can only be used once to prevent replay attacks.
   rpc ValidateBrowserMFAChallengeResponse(ValidateBrowserMFAChallengeResponseRequest) returns (ValidateBrowserMFAChallengeResponseResponse);
+}
+
+// CreateAuthenticateChallengeRequest is a request for creating MFA authentication challenges for a
+// users mfa devices.
+message CreateAuthenticateChallengeRequest {
+  ...
+
+  // BrowserMFAClientRedirectURL should be supplied if the client supports Browser MFA checks.
+  string BrowserMFAClientRedirectURL = 9 [(gogoproto.jsontag) = "browser_mfa_client_redirect_url,omitempty"];
 }
 ```
 
@@ -312,6 +342,15 @@ message AuthenticateResponse {
     // Response to a browser challenge.
     SSOChallengeResponse browser = 4;
   }
+}
+
+// CreateSessionChallengeRequest is the request message for CreateSessionChallenge.
+message CreateSessionChallengeRequest {
+  ...
+
+  // Used to construct the redirect URL for browser-based MFA flows. If the client supports browser MFA, this field
+  // should be set to the URL where the browser should redirect after completing the MFA challenge.
+  string browser_mfa_client_redirect_url = 5;
 }
 ```
 
