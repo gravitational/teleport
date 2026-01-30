@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -181,8 +182,8 @@ func (h *Handler) updateRoleHandle(w http.ResponseWriter, r *http.Request, param
 // this server. These are hard-coded for a given Teleport version, so this
 // should have the same security implications as the Teleport version exposed
 // via the public ping endpoint.
-func (h *Handler) getPresetRoles(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	presets := auth.GetPresetRoles()
+func (h *Handler) getPresetRoles(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	presets := auth.GetPresetRoles(modules.GetModules().BuildType())
 	return ui.NewRoles(presets, false /* without role object */)
 }
 
