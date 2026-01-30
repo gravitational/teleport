@@ -66,6 +66,8 @@ const cfg = {
 
     // billing
     usageSummarySummary: '/web/cluster/:clusterId/usage-summary',
+
+    integrationSessionSummaries: '/web/integrations/session-summaries',
   },
 
   api: {

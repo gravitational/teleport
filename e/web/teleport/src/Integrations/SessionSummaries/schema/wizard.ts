@@ -3,7 +3,7 @@ import { z } from 'zod';
 import {
   getAccessMethods,
   TELEPORT_CLOUD_MODEL,
-} from 'e-teleport/Integrations/Inference/schema/accessMethods';
+} from 'e-teleport/Integrations/SessionSummaries/schema/accessMethods';
 
 import { cloudCredentials, selfHostedCredentials } from './credentials';
 import { inferencePolicySchema } from './policy';
