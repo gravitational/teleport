@@ -947,6 +947,9 @@ const (
 	DiscoveryPathLabel = TeleportNamespace + "/path"
 	// DiscoveryAppInsecureSkipVerify specifies the TLS verification enforcement for a discovered app created from Kubernetes service.
 	DiscoveryAppInsecureSkipVerify = TeleportNamespace + "/insecure-skip-verify"
+	// DiscoveryAppSessionRecordingBots specifies the bot session recording setting for a discovered app created from Kubernetes service.
+	// Supported values are "on" and "off".
+	DiscoveryAppSessionRecordingBots = TeleportNamespace + "/session-recording-bots"
 	// DiscoveryAppIgnore specifies if a Kubernetes service should be ignored by discovery service.
 	DiscoveryAppIgnore = TeleportNamespace + "/ignore"
 	// DiscoveryPublicAddr specifies the public address for a discovered app created from a Kubernetes service.
