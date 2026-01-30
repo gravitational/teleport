@@ -2,15 +2,18 @@
 set -eu
 
 ###
-# Default after-install.tpl copied from electron-builder.
-# https://github.com/electron-userland/electron-builder/blob/v24.4.0/packages/app-builder-lib/templates/linux/after-install.tpl
+# Based on the default after-install.tpl copied from electron-builder.
+# https://github.com/electron-userland/electron-builder/blob/e394e0c48be965bd8a02c593ecda7e57b84b4f15/packages/app-builder-lib/templates/linux/after-install.tpl
+# Our copy has all the changes from upstream up to commit e1ea62b0029c4adca20196ef060948777caeac37.
 ###
 
 # Check if user namespaces are supported by the kernel and working with a quick test:
 if ! { [[ -L /proc/self/ns/user ]] && unshare --user true; }; then
     # Use SUID chrome-sandbox only on systems without user namespaces:
+    # shellcheck disable=SC2016 # This is custom electron-builder macro expansion, not Bash templating.
     chmod 4755 '/opt/${sanitizedProductName}/chrome-sandbox' || true
 else
+    # shellcheck disable=SC2016 # This is custom electron-builder macro expansion, not Bash templating.
     chmod 0755 '/opt/${sanitizedProductName}/chrome-sandbox' || true
 fi
 
@@ -35,7 +38,9 @@ fi
 # Unfortunately, at the moment AppArmor doesn't have a good story for backwards compatibility.
 # https://askubuntu.com/questions/1517272/writing-a-backwards-compatible-apparmor-profile
 if apparmor_status --enabled > /dev/null 2>&1; then
+  # shellcheck disable=SC2016 # This is custom electron-builder macro expansion, not Bash templating.
   APPARMOR_PROFILE_SOURCE='/opt/${sanitizedProductName}/resources/apparmor-profile'
+  # shellcheck disable=SC2016 # This is custom electron-builder macro expansion, not Bash templating.
   APPARMOR_PROFILE_TARGET='/etc/apparmor.d/${executable}'
   if apparmor_parser --skip-kernel-load --debug "$APPARMOR_PROFILE_SOURCE" > /dev/null 2>&1; then
     cp -f "$APPARMOR_PROFILE_SOURCE" "$APPARMOR_PROFILE_TARGET"
@@ -58,6 +63,7 @@ fi
 # Custom after-install.tpl script.
 ###
 
+# shellcheck disable=SC2154 # This is custom electron-builder macro expansion, not Bash templating.
 APP="/opt/${sanitizedProductName}"
 BIN=/usr/local/bin
 TSH_SYMLINK_SOURCE=$APP/resources/bin/tsh
@@ -69,7 +75,8 @@ TSH_SYMLINK_TARGET=$BIN/tsh
 # Link to the Electron app binary.
 if type update-alternatives 2>/dev/null >&1; then
   # Remove previous link if it doesn't use update-alternatives
-  if [ -L "$BIN/${executable}" -a -e "$BIN/${executable}" -a "`readlink "$BIN/${executable}"`" != "/etc/alternatives/${executable}" ]; then
+  # shellcheck disable=SC2154 # This is custom electron-builder macro expansion, not Bash templating.
+  if [ -L "$BIN/${executable}" ] && [ -e "$BIN/${executable}" ] && [ "$(readlink "$BIN/${executable}")" != "/etc/alternatives/${executable}" ]; then
     rm -f "$BIN/${executable}"
   fi
   update-alternatives --install "$BIN/${executable}" "${executable}" "$APP/${executable}" 100 || ln -sf "$APP/${executable}" "$BIN/${executable}"

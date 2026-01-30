@@ -35,11 +35,14 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	protobuf "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	"github.com/gravitational/teleport/api/utils"
@@ -49,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -1653,6 +1657,52 @@ func (s *ServicesTestSuite) StaticTokens(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = s.ConfigS.GetStaticTokens(ctx)
+	require.True(t, trace.IsNotFound(err))
+}
+
+func (s *ServicesTestSuite) StaticScopedTokens(t *testing.T) {
+	ctx := t.Context()
+	// set static tokens
+	staticTokens := &joiningv1.StaticScopedTokens{
+		Kind:  types.KindStaticScopedTokens,
+		Scope: "/",
+		Metadata: &headerv1.Metadata{
+			Name: types.MetaNameStaticScopedTokens,
+		},
+		Spec: &joiningv1.StaticScopedTokensSpec{
+			Tokens: []*joiningv1.ScopedToken{
+				{
+					Kind:  types.KindScopedToken,
+					Scope: "/",
+					Metadata: &headerv1.Metadata{
+						Name:    "tok1",
+						Expires: timestamppb.New(time.Now().UTC().Add(time.Hour)),
+					},
+					Spec: &joiningv1.ScopedTokenSpec{
+						Roles:         []string{types.RoleNode.String()},
+						JoinMethod:    string(types.JoinMethodToken),
+						UsageMode:     string(joining.TokenUsageModeUnlimited),
+						AssignedScope: "/local",
+					},
+				},
+			},
+		},
+	}
+
+	err := s.LocalConfigS.SetStaticScopedTokens(ctx, staticTokens)
+	require.NoError(t, err)
+
+	out, err := s.LocalConfigS.GetStaticScopedTokens(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(staticTokens, out,
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
+
+	err = s.LocalConfigS.DeleteStaticScopedTokens(ctx)
+	require.NoError(t, err)
+
+	_, err = s.LocalConfigS.GetStaticScopedTokens(ctx)
 	require.True(t, trace.IsNotFound(err))
 }
 

@@ -27,7 +27,6 @@ import (
 
 // Status defines an interface for managing cluster status info.
 type Status interface {
-
 	// CreateAlertAck marks a cluster alert as acknowledged.
 	CreateAlertAck(ctx context.Context, ack types.AlertAcknowledgement) error
 
@@ -36,13 +35,6 @@ type Status interface {
 
 	// ClearAlertAcks clears alert acknowledgments.
 	ClearAlertAcks(ctx context.Context, req proto.ClearAlertAcksRequest) error
-
-	StatusInternal
-}
-
-// TODO: william-tel delete this once e/lib/licensechecker uses just Status, since DeleteClusterAlert is no longer just internal.
-// Move GetClusterAlerts, UpsertCluster, and DeleteClusterAlert to Status interface once all usages of StatusInternal are removed in e/lib/licensechecker
-type StatusInternal interface {
 
 	// GetClusterAlerts loads all matching cluster alerts.
 	GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error)
