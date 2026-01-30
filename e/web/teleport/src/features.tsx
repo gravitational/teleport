@@ -180,7 +180,7 @@ export class FeatureUsageSummary implements TeleportFeature {
   }
 
   topMenuItem = {
-    title: NavTitle.BillingSummary,
+    title: NavTitle.UsageReporting,
     icon: Chart,
     exact: true,
     getLink(clusterId: string) {

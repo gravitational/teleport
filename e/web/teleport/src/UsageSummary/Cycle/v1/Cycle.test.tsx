@@ -49,7 +49,7 @@ describe('cycle', () => {
 
     render(<Cycle {...props} />);
 
-    expect(screen.getByText(/Current Billing Cycle:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Current Cycle:/i)).toBeInTheDocument();
     expect(
       screen.getByText(/Jan 06, 2023 - May 02, 2023/i)
     ).toBeInTheDocument();

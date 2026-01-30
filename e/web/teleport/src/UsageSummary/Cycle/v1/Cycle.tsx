@@ -169,7 +169,7 @@ export const Cycle = ({ usageResponse, customer, aggregate }: CycleProps) => {
   return (
     <Box>
       <H2>
-        Current Billing Cycle: {startFormatted} - {endFormatted}
+        Current Cycle: {startFormatted} - {endFormatted}
       </H2>
       <Subtitle2 color={theme.colors.text.slightlyMuted} mt="2">
         Monthly usage will reset at the end of this cycle

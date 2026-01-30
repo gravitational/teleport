@@ -11,7 +11,7 @@ export function Guide() {
       <InfoTitle>How Monthly Active Users (MAU) are Calculated</InfoTitle>
       <InfoParagraph>
         Monthly Active Users (MAU) is the aggregate number of unique active
-        users accessing Teleport during each monthly billing cycle.
+        users accessing Teleport during each monthly cycle.
       </InfoParagraph>
       <InfoTitle>
         How Teleport Protected Resources (TPR) are Calculated
@@ -31,7 +31,7 @@ export function Guide() {
         TPR is calculated by aggregating the total number of unique resources
         during the span of each hour in the day, and averaging the hourly count
         to create a daily TPR. The daily TPRs are then averaged across each
-        billing period.
+        cycle.
       </InfoParagraph>
       <InfoTitle>
         How Machine and Workload Identities (MWI) are Calculated
@@ -44,7 +44,7 @@ export function Guide() {
         MWIs are calculated by counting the total number of bots, bot instances,
         and unique SPIFFE IDs seen in an hour and averaging the hourly number to
         create a daily average. The daily MWI numbers are then averaged across
-        each billing period.
+        each cycle.
       </InfoParagraph>
       <ReferenceLinks
         links={[
