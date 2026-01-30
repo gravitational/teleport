@@ -24,3 +24,4 @@ export type AccessMethod = z.infer<typeof AccessMethod>;
 export type ApiKeyMode = z.infer<typeof ApiKeyMode>;
 export type BedrockMode = z.infer<typeof BedrockMode>;
 export type ModelProvider = z.infer<typeof ModelProvider>;
+export type ResourceKind = z.infer<typeof ResourceKind>;
