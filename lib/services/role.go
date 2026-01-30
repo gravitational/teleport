@@ -1697,7 +1697,7 @@ func (set RoleSet) CheckAccessToSAMLIdP(r AccessCheckable, traits wrappers.Trait
 		return nil
 	}
 
-	if _, err := v8RoleSet.checkConditionalAccess(r, traits, state, matchers...); err != nil {
+	if _, err := v8RoleSet.checkAccess(r, traits, state, matchers...); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2630,8 +2630,11 @@ func resourceRequiresLabelMatching(r AccessCheckable) bool {
 	return true
 }
 
-// checkConditionalAccess evaluates access based on the provided resource, traits, states, and matchers.
-func (set RoleSet) checkConditionalAccess(
+// checkAccess determines whether access should be granted to a resource based on the provided roles, resource
+// attributes, user traits, access state (MFA, device trust, etc.), and optional matchers. If state.ReturnPreconditions
+// is true, it returns a list of preconditions (e.g., MFA required) that must be satisfied for access. If
+// state.ReturnPreconditions is false, it returns an error immediately if access is denied.
+func (set RoleSet) checkAccess(
 	r AccessCheckable,
 	traits wrappers.Traits,
 	state AccessState,
@@ -2648,7 +2651,7 @@ func (set RoleSet) checkConditionalAccess(
 	}
 
 	// Collect preconditions to return to the caller.
-	preconds := make(map[decisionpb.PreconditionKind]*decisionpb.Precondition)
+	preconds := make([]*decisionpb.Precondition, 0)
 
 	// Based on the state, check if MFA is always required and just hasn't been verified yet.
 	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {
@@ -2659,9 +2662,7 @@ func (set RoleSet) checkConditionalAccess(
 		}
 
 		// Mark that MFA is required and continue evaluating access.
-		preconds[decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA] = &decisionpb.Precondition{
-			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
-		}
+		preconds = append(preconds, &decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA})
 	}
 
 	requiresLabelMatching := resourceRequiresLabelMatching(r)
@@ -2795,7 +2796,7 @@ func (set RoleSet) checkConditionalAccess(
 
 				slog.String("role", role.GetName()),
 			)
-			return precondsToSlice(preconds), nil
+			return deduplicateAndSortPreconditions(preconds), nil
 		}
 
 		// Check if MFA is required at the role-level.
@@ -2809,9 +2810,7 @@ func (set RoleSet) checkConditionalAccess(
 			}
 
 			// Mark that MFA is required and continue evaluating access.
-			preconds[decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA] = &decisionpb.Precondition{
-				Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
-			}
+			preconds = append(preconds, &decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA})
 		}
 
 		// Device verification.
@@ -2838,7 +2837,7 @@ func (set RoleSet) checkConditionalAccess(
 	}
 
 	if allowed {
-		return precondsToSlice(preconds), nil
+		return deduplicateAndSortPreconditions(preconds), nil
 	}
 
 	logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, no allow rule matched",
@@ -2848,22 +2847,23 @@ func (set RoleSet) checkConditionalAccess(
 		r.GetKind(), additionalDeniedMessage)
 }
 
-func precondsToSlice(set map[decisionpb.PreconditionKind]*decisionpb.Precondition) []*decisionpb.Precondition {
-	slice := make([]*decisionpb.Precondition, 0, len(set))
-
-	for _, precond := range set {
-		slice = append(slice, precond)
-	}
+func deduplicateAndSortPreconditions(preconds []*decisionpb.Precondition) []*decisionpb.Precondition {
+	// Deduplicate preconditions by kind.
+	preconds = slices.CompactFunc(
+		preconds, func(a, b *decisionpb.Precondition) bool {
+			return a.Kind == b.Kind
+		},
+	)
 
 	// Sort by kind for deterministic ordering during enforcement.
 	slices.SortFunc(
-		slice,
+		preconds,
 		func(a, b *decisionpb.Precondition) int {
 			return cmp.Compare(a.Kind, b.Kind)
 		},
 	)
 
-	return slice
+	return preconds
 }
 
 // CheckDeviceAccess verifies if the device state satisfies the device trust

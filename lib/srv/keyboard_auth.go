@@ -58,7 +58,7 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 
 	// legacyPublicKeyCallback allows a legacy client to proceed with just public key authentication for backwards
 	// compatibility, skipping keyboard-interactive authentication altogether. If MFA is required by the preconditions,
-	// only per-session MFA certificates are allowed since they indicate that MFA was already performed.
+	// only per-session MFA certificates are allowed since they indicate that MFA was already performed (see RFD 0234).
 	//
 	// TODO(cthach): Remove in v20.0 and only set KeyboardInteractiveCallback.
 	legacyPublicKeyCallback := func(_ ssh.ConnMetadata, _ ssh.PublicKey) (*ssh.Permissions, error) {
@@ -78,7 +78,6 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 	keyboardInteractiveCallback := func(metadata ssh.ConnMetadata, challenge ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
 		var verifiers []srvssh.PromptVerifier
 
-		// Range over preconditions in a sorted order to ensure deterministic behavior and consistent error messages.
 		for _, p := range preconds {
 			switch p.GetKind() {
 			case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
@@ -115,13 +114,13 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 }
 
 func ensureSupportedPreconditions(preconds []*decisionpb.Precondition) error {
-	for _, p := range preconds {
-		switch p.GetKind() {
+	for _, precond := range preconds {
+		switch precond.GetKind() {
 		case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
 			// OK
 
 		default:
-			return trace.BadParameter("unexpected precondition type %q found (this is a bug)", p.GetKind())
+			return trace.BadParameter("unexpected precondition type %q found (this is a bug)", precond.GetKind())
 		}
 	}
 

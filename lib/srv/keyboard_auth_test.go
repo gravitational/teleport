@@ -42,38 +42,26 @@ func TestKeyboardInteractiveAuth_NoPreconds(t *testing.T) {
 
 	h, id := setupKeyboardInteractiveAuthTest(t)
 
+	preconds := []*decisionpb.Precondition{
+		// No preconditions.
+	}
+
 	inPerms := &ssh.Permissions{
 		Extensions: map[string]string{
 			"foo": "bar",
 		},
 	}
 
-	for _, tc := range []struct {
-		name     string
-		preconds []*decisionpb.Precondition
-	}{
-		{
-			name:     "nil preconditions",
-			preconds: nil,
-		},
-		{
-			name:     "empty preconditions",
-			preconds: []*decisionpb.Precondition{},
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			outPerms, err := h.KeyboardInteractiveAuth(t.Context(), tc.preconds, id, inPerms)
-			require.NoError(t, err)
-			require.Empty(
-				t,
-				cmp.Diff(
-					inPerms,
-					outPerms,
-				),
-				"KeyboardInteractiveAuth() perms mismatch (-want +got)",
-			)
-		})
-	}
+	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms)
+	require.NoError(t, err)
+	require.Empty(
+		t,
+		cmp.Diff(
+			inPerms,
+			outPerms,
+		),
+		"KeyboardInteractiveAuth() perms mismatch (-want +got)",
+	)
 }
 
 func TestKeyboardInteractiveAuth_PreCondInBandMFA_Success(t *testing.T) {
@@ -82,7 +70,9 @@ func TestKeyboardInteractiveAuth_PreCondInBandMFA_Success(t *testing.T) {
 	h, id := setupKeyboardInteractiveAuthTest(t)
 
 	preconds := []*decisionpb.Precondition{
-		{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+		{
+			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
+		},
 	}
 
 	inPerms := &ssh.Permissions{
@@ -184,7 +174,9 @@ func TestKeyboardInteractiveAuth_ForceInBandMFAEnv_DisablesLegacyPublicKeyCallba
 	h, id := setupKeyboardInteractiveAuthTest(t)
 
 	preconds := []*decisionpb.Precondition{
-		{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+		{
+			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
+		},
 	}
 
 	inPerms := &ssh.Permissions{}
@@ -213,7 +205,9 @@ func TestKeyboardInteractiveAuth_PreCondUnknownKind(t *testing.T) {
 	h, id := setupKeyboardInteractiveAuthTest(t)
 
 	preconds := []*decisionpb.Precondition{
-		{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED},
+		{
+			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED,
+		},
 	}
 
 	inPerms := &ssh.Permissions{}
@@ -241,7 +235,7 @@ func setupKeyboardInteractiveAuthTest(t *testing.T) (*srv.AuthHandlers, *sshca.I
 	id := &sshca.Identity{
 		Username:    "test-user",
 		ClusterName: "test-cluster",
-		MFAVerified: "simulated-mfa-verification",
+		MFAVerified: "non-empty-means-mfa-was-verified",
 	}
 
 	return h, id

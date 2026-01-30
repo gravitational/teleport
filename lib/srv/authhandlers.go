@@ -595,12 +595,10 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 		return nil, err
 	}
 
-	var (
-		accessPermit        *decisionpb.SSHAccessPermit
-		gitForwardingPermit *GitForwardingPermit
-		proxyPermit         *proxyingPermit
-		diagnosticTracing   bool
-	)
+	var accessPermit *decisionpb.SSHAccessPermit
+	var gitForwardingPermit *GitForwardingPermit
+	var proxyPermit *proxyingPermit
+	var diagnosticTracing bool
 
 	switch h.c.Component {
 	case teleport.ComponentForwardingGit:
@@ -1084,7 +1082,7 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		return nil, trace.Wrap(err)
 	}
 
-	// Determine if session join can bypass standard node access checks. This is only allowed if:
+	// Determine if session join can bypass standard node access checks. This is allowed if all are true:
 	//  1. The requested OS user is the special session join principal (for moderated sessions).
 	//  2. The user's roles support moderated sessions.
 	//  3. MFA is NOT required for this session (MFARequiredNever),
@@ -1110,14 +1108,8 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 			state,
 			services.NewLoginMatcher(osUser),
 		); err != nil {
-			return nil, trace.AccessDenied(
-				"user %s@%s is not authorized to login as %v@%s: %v",
-				ident.Username,
-				ca.GetClusterName(),
-				osUser,
-				clusterName,
-				err,
-			)
+			return nil, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
+				ident.Username, ca.GetClusterName(), osUser, clusterName, err)
 		}
 	}
 

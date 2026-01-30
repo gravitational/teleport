@@ -582,7 +582,7 @@ func (a *accessChecker) validateAccessConditions(r AccessCheckable, state Access
 		}
 	}
 
-	preconds, err := a.checkConditionalAccess(r, a.info.Traits, state, matchers...)
+	preconds, err := a.checkAccess(r, a.info.Traits, state, matchers...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -965,7 +965,7 @@ func (a *accessChecker) EnumerateEntities(resource AccessCheckable, listFn roleE
 		// if the role allows the resource without any matcher confirms
 		// namespace and label matching has passed.
 		var resourceAllowedByRole bool
-		if _, err := NewRoleSet(role).checkConditionalAccess(resource, a.info.Traits, AccessState{MFAVerified: true}); err == nil {
+		if _, err := NewRoleSet(role).checkAccess(resource, a.info.Traits, AccessState{MFAVerified: true}); err == nil {
 			resourceAllowedByRole = true
 		}
 
