@@ -56,6 +56,7 @@ export const OpenAIBlossom = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-openaiblossom"
+      viewBox="0 0 512 512"
       {...otherProps}
       ref={ref}
     >
