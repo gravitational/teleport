@@ -571,7 +571,7 @@ func (a *authorizer) isAdminActionAuthorizationRequired(ctx context.Context, aut
 		// Check that the impersonator matches a host service FQDN - <host-id>.<clustername>
 		if trace.IsNotFound(err) {
 			hostFQDNParts := strings.SplitN(impersonator, ".", 2)
-			if hostFQDNParts[1] == a.clusterName {
+			if len(hostFQDNParts) > 1 && hostFQDNParts[1] == a.clusterName {
 				if _, err := uuid.Parse(hostFQDNParts[0]); err == nil {
 					a.logger.DebugContext(ctx, "Skipping admin action MFA check for admin-impersonated identity", "identity", ident)
 					return false, nil
