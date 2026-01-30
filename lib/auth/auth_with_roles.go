@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
-	"maps"
 	"net/url"
 	"os"
 	"slices"
@@ -74,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // ServerWithRoles is a wrapper around auth service
@@ -1343,18 +1343,19 @@ func (a *ServerWithRoles) checkAction(namespace, resourceKind string, verb strin
 var (
 	// supportedUnifiedResourceKinds is the set of kinds that
 	// may be requested via ListUnifiedResources.
-	supportedUnifiedResourceKinds = map[string]struct{}{
-		types.KindApp:                    {},
-		types.KindDatabase:               {},
-		types.KindGitServer:              {},
-		types.KindKubernetesCluster:      {},
-		types.KindNode:                   {},
-		types.KindSAMLIdPServiceProvider: {},
-		types.KindWindowsDesktop:         {},
-		types.KindMCP:                    {},
-	}
+	supportedUnifiedResourceKinds = set.New(
+		types.KindApp,
+		types.KindDatabase,
+		types.KindGitServer,
+		types.KindKubernetesCluster,
+		types.KindNode,
+		types.KindSAMLIdPServiceProvider,
+		types.KindWindowsDesktop,
+		types.KindMCP,
+		types.KindIdentityCenterResource,
+	)
 
-	defaultUnifiedResourceKinds = slices.Collect(maps.Keys(supportedUnifiedResourceKinds))
+	defaultUnifiedResourceKinds = supportedUnifiedResourceKinds.Elements()
 )
 
 func (a *ServerWithRoles) checkKindAccess(kind string) error {
@@ -1362,7 +1363,7 @@ func (a *ServerWithRoles) checkKindAccess(kind string) error {
 	if kind == types.KindMCP {
 		kind = types.KindApp
 	}
-	if _, ok := supportedUnifiedResourceKinds[kind]; !ok {
+	if !supportedUnifiedResourceKinds.Contains(kind) {
 		// Treat unknown kinds as an access denied error instead of a bad parameter
 		// to prevent rejecting the request if users have access to other kinds requested.
 		return trace.AccessDenied("unsupported kind %q requested", kind)
@@ -1491,12 +1492,26 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			}
 		}
 	} else {
-		unifiedResources, nextKey, err = a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
+		slog.Error(">>>> Listing unified resources")
+		for resource, err := range a.authServer.UnifiedResourceCache.Resources(ctx, req.StartKey, req.SortBy, req.Kinds...) {
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			slog.Error(">>>> Checking listing pemissions",
+				"resource_kind", resource.GetKind(),
+				"resource_name", resource.GetName(),
+				"resource_type", logutils.TypeAttr(resource),
+			)
+
 			match, err := resourceLister.canList(resource, userFilter)
-			return match, trace.Wrap(err)
-		}, req)
-		if err != nil {
-			return nil, trace.Wrap(err)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			if match {
+				unifiedResources = append(unifiedResources, resource)
+			}
 		}
 	}
 
@@ -1550,6 +1565,10 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 					continue
 				}
 				r.Logins = logins
+			} else if resource := r.GetIdentityCenterResource(); resource != nil {
+				// Identity Center managed Resources can have Access Profiles that
+				// a user can request.
+				//a.authServer.Cache.ListIdentityCenterManagedResources()
 			}
 		}
 	}
@@ -2014,7 +2033,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		types.KindSAMLIdPServiceProvider,
 		types.KindIdentityCenterAccount,
 		types.KindIdentityCenterAccountAssignment,
-		types.KindIdentityCenterManagedResource,
+		types.KindIdentityCenterResource,
 		types.KindGitServer:
 		if err := a.checkAction(req.Namespace, req.ResourceType, types.VerbList, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
@@ -2157,6 +2176,11 @@ func (r *resourceChecker) CanAccess(resource types.ResourceWithLabels) error {
 		if isCheckable {
 			return r.CheckAccess(checkable, state, services.NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
 		}
+	case types.Resource153UnwrapperT[*identitycenterv1.Resource]:
+		checkable, isCheckable := rr.(services.AccessCheckable)
+		if isCheckable {
+			return r.CheckAccess(checkable, state, services.NewIdentityCenterResourceMatcher(rr.UnwrapT()))
+		}
 	}
 
 	return trace.BadParameter("could not check access to resource type %T", resource)
@@ -2177,6 +2201,7 @@ func newResourceAccessChecker(authCtx authz.Context, resource string) (*resource
 		types.KindSAMLIdPServiceProvider,
 		types.KindIdentityCenterAccount,
 		types.KindIdentityCenterAccountAssignment,
+		types.KindIdentityCenterResource,
 		types.KindGitServer:
 		return &resourceChecker{AccessChecker: authCtx.Checker}, nil
 	default:

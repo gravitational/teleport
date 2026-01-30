@@ -19,6 +19,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 
@@ -235,14 +236,14 @@ type IdentityCenterCustomPermissionSets interface {
 }
 
 type IdentityCenterManagedResourceGetter interface {
-	GetIdentityCenterManagedResource(context.Context, string) (*identitycenterv1.ManagedResource, error)
-	CreateIdentityCenterManagedResource(context.Context, *identitycenterv1.ManagedResource) (*identitycenterv1.ManagedResource, error)
-	ListIdentityCenterManagedResources(context.Context, int, string) ([]*identitycenterv1.ManagedResource, string, error)
+	GetIdentityCenterManagedResource(context.Context, string) (*identitycenterv1.Resource, error)
+	CreateIdentityCenterManagedResource(context.Context, *identitycenterv1.Resource) (*identitycenterv1.Resource, error)
+	ListIdentityCenterManagedResources(context.Context, int, string) ([]*identitycenterv1.Resource, string, error)
 }
 
 type IdentityCenterManagedResources interface {
 	IdentityCenterManagedResourceGetter
-	CreateIdentityCenterManagedResource(context.Context, *identitycenterv1.ManagedResource) (*identitycenterv1.ManagedResource, error)
+	CreateIdentityCenterManagedResource(context.Context, *identitycenterv1.Resource) (*identitycenterv1.Resource, error)
 }
 
 type IdentityCenterAccessProfiles interface {
@@ -399,7 +400,7 @@ func (m *IdentityCenterAccountAssignmentMatcher) String() string {
 
 // NewIdentityCenterManagedResourceMatcher creates a new [IdentityCenterManagedResourceMatcher]
 // configured to match the supplied [ManagedResource].
-func NewIdentityCenterManagedResourceMatcher(resource *identitycenterv1.ManagedResource) *IdentityCenterManagedResourceMatcher {
+func NewIdentityCenterManagedResourceMatcher(resource *identitycenterv1.Resource) *IdentityCenterManagedResourceMatcher {
 	return &IdentityCenterManagedResourceMatcher{
 		arn:     resource.GetSpec().GetArn(),
 		subKind: resource.GetSubKind(),
@@ -433,4 +434,30 @@ func matchExpression(target, expression string) (bool, error) {
 		return false, trace.Wrap(err)
 	}
 	return matches, nil
+}
+
+func NewIdentityCenterResourceMatcher(src *identitycenterv1.Resource) *IdentityCenterResourceMatcher {
+	slog.Error(">>>> Creating ./matcher for AWS resource",
+		"resource_name", src.GetMetadata().GetName())
+	return &IdentityCenterResourceMatcher{
+		subkind: src.SubKind,
+		name:    src.GetMetadata().Name,
+		display: src.GetSpec().Name,
+	}
+}
+
+type IdentityCenterResourceMatcher struct {
+	subkind string
+	name    string
+	display string
+}
+
+func (m *IdentityCenterResourceMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	slog.Error(">>>> Checking matcher for AWS resource",
+		"role", role.GetName(),
+		"condition", condition,
+		"resource_kind", m.subkind,
+		"resource_name", m.name,
+		"resource_display", m.display)
+	return condition == types.Allow, nil
 }

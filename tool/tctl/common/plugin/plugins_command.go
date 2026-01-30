@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	"github.com/gravitational/teleport/tool/tctl/common/plugin/awsic"
 )
 
 func logErrorMessage(err error) slog.Attr {
@@ -89,6 +90,9 @@ type PluginsCommand struct {
 	edit        pluginEditArgs
 	rotateCreds pluginRotateCredsArgs
 
+	// plugin-specific commands
+	awsic awsic.Command
+
 	// optional input and output buffer
 	// for tests.
 	stdin  io.Reader
@@ -116,6 +120,8 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalC
 	p.initDelete(pluginsCommand)
 	p.initEdit(pluginsCommand)
 	p.initRotateCreds(pluginsCommand)
+
+	p.awsic.Init(pluginsCommand)
 }
 
 func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicecfg.Config) {
@@ -261,7 +267,8 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 	case p.rotateCreds.awsic.cmd.FullCommand():
 		commandFunc = p.RotateAWSICCreds
 	default:
-		return false, nil
+		matched, err := p.awsic.TryRun(ctx, cmd, clientFunc)
+		return matched, trace.Wrap(err)
 	}
 	client, closeFn, err := clientFunc(ctx)
 	if err != nil {

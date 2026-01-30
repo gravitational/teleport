@@ -634,9 +634,9 @@ const (
 	// pair that can be requested by a Teleport User.
 	KindIdentityCenterAccountAssignment = "aws_ic_account_assignment"
 
-	// KindIdentityCenterManagedResource indicates an AWS resource that has its
+	// KindIdentityCenterResource indicates an AWS resource that has its
 	// access within controlled by Teleport.
-	KindIdentityCenterManagedResource = "aws_ic_resource"
+	KindIdentityCenterResource = "aws_ic_resource"
 
 	// KindIdentityCenterCustomPermissionSet indicates a teleport-created and
 	// managed PermissionSet
@@ -1466,7 +1466,7 @@ var RequestableResourceKinds = []string{
 	KindSAMLIdPServiceProvider,
 	KindIdentityCenterAccount,
 	KindIdentityCenterAccountAssignment,
-	KindIdentityCenterManagedResource,
+	KindIdentityCenterResource,
 	KindGitServer,
 }
 

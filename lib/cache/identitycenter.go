@@ -346,30 +346,30 @@ func (c *Cache) GetCustomPermissionSet(ctx context.Context, id string) (*identit
 	return out, trace.Wrap(err)
 }
 
-type identityCenterManagedResourceIndex string
+type identityCenterResourceIndex string
 
-const identityCenterManagedResourceNameIndex identityCenterManagedResourceIndex = "name"
+const identityCenterResourceNameIndex identityCenterResourceIndex = "name"
 
-func newIdentityCenterManagedResourceCollection(ic services.IdentityCenter, w types.WatchKind) (*collection[*identitycenterv1.ManagedResource, identityCenterManagedResourceIndex], error) {
+func newIdentityCenterManagedResourceCollection(ic services.IdentityCenter, w types.WatchKind) (*collection[*identitycenterv1.Resource, identityCenterResourceIndex], error) {
 	if ic == nil {
 		return nil, trace.BadParameter("missing parameter IdentityCenter")
 	}
 
-	return &collection[*identitycenterv1.ManagedResource, identityCenterManagedResourceIndex]{
+	return &collection[*identitycenterv1.Resource, identityCenterResourceIndex]{
 		store: newStore(
-			types.KindIdentityCenterManagedResource,
-			proto.CloneOf[*identitycenterv1.ManagedResource],
-			map[identityCenterManagedResourceIndex]func(*identitycenterv1.ManagedResource) string{
-				identityCenterManagedResourceNameIndex: func(r *identitycenterv1.ManagedResource) string {
+			types.KindIdentityCenterResource,
+			proto.CloneOf[*identitycenterv1.Resource],
+			map[identityCenterResourceIndex]func(*identitycenterv1.Resource) string{
+				identityCenterResourceNameIndex: func(r *identitycenterv1.Resource) string {
 					return r.GetMetadata().GetName()
 				},
 			}),
-		fetcher: func(ctx context.Context, loadSecrets bool) ([]*identitycenterv1.ManagedResource, error) {
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]*identitycenterv1.Resource, error) {
 			out, err := stream.Collect(clientutils.Resources(ctx, ic.ListIdentityCenterManagedResources))
 			return out, trace.Wrap(err)
 		},
-		headerTransform: func(hdr *types.ResourceHeader) *identitycenterv1.ManagedResource {
-			return &identitycenterv1.ManagedResource{
+		headerTransform: func(hdr *types.ResourceHeader) *identitycenterv1.Resource {
+			return &identitycenterv1.Resource{
 				Kind:    hdr.Kind,
 				SubKind: hdr.SubKind,
 				Version: hdr.Version,
@@ -382,15 +382,15 @@ func newIdentityCenterManagedResourceCollection(ic services.IdentityCenter, w ty
 	}, nil
 }
 
-func (c *Cache) GetIdentityCenterManagedResource(ctx context.Context, name string) (*identitycenterv1.ManagedResource, error) {
+func (c *Cache) GetIdentityCenterManagedResource(ctx context.Context, name string) (*identitycenterv1.Resource, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetIdentityCenterManagedResource")
 	defer span.End()
 
-	getter := genericGetter[*identitycenterv1.ManagedResource, identityCenterManagedResourceIndex]{
+	getter := genericGetter[*identitycenterv1.Resource, identityCenterResourceIndex]{
 		cache:      c,
-		collection: c.collections.identityCenterManagedResources,
-		index:      identityCenterManagedResourceNameIndex,
-		upstreamGet: func(ctx context.Context, s string) (*identitycenterv1.ManagedResource, error) {
+		collection: c.collections.identityCenterResources,
+		index:      identityCenterResourceNameIndex,
+		upstreamGet: func(ctx context.Context, s string) (*identitycenterv1.Resource, error) {
 			out, err := c.Config.IdentityCenter.GetIdentityCenterManagedResource(ctx, s)
 			return out, trace.Wrap(err)
 		},
@@ -399,16 +399,16 @@ func (c *Cache) GetIdentityCenterManagedResource(ctx context.Context, name strin
 	return out, trace.Wrap(err)
 }
 
-func (c *Cache) ListIdentityCenterManagedResources(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.ManagedResource, string, error) {
+func (c *Cache) ListIdentityCenterManagedResources(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.Resource, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListIdentityCenterManagedResources")
 	defer span.End()
 
-	lister := genericLister[*identitycenterv1.ManagedResource, identityCenterManagedResourceIndex]{
+	lister := genericLister[*identitycenterv1.Resource, identityCenterResourceIndex]{
 		cache:        c,
-		collection:   c.collections.identityCenterManagedResources,
-		index:        identityCenterManagedResourceNameIndex,
+		collection:   c.collections.identityCenterResources,
+		index:        identityCenterResourceNameIndex,
 		upstreamList: c.Config.IdentityCenter.ListIdentityCenterManagedResources,
-		nextToken: func(t *identitycenterv1.ManagedResource) string {
+		nextToken: func(t *identitycenterv1.Resource) string {
 			return t.GetMetadata().GetName()
 		},
 	}

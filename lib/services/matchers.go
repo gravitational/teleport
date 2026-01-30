@@ -188,6 +188,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		types.KindUserGroup,
 		types.KindIdentityCenterAccount,
 		types.KindIdentityCenterAccountAssignment,
+		types.KindIdentityCenterResource,
 		types.KindGitServer:
 		specResource = resource
 	case types.KindKubeServer:

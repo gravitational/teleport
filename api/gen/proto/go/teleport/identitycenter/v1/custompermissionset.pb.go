@@ -186,33 +186,33 @@ func (x *CustomPermissionSetSpec) GetInlinePolicy() *structpb.Struct {
 	return nil
 }
 
-// ManagedResource represents a discovered AWS resource that Identity Center can
+// Resource represents a discovered AWS resource that Identity Center can
 // grant access to
-type ManagedResource struct {
+type Resource struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	SubKind       string                 `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
 	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
 	Metadata      *v1.Metadata           `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Spec          *ManagedResourceSpec   `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
+	Spec          *ResourceSpec          `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ManagedResource) Reset() {
-	*x = ManagedResource{}
+func (x *Resource) Reset() {
+	*x = Resource{}
 	mi := &file_teleport_identitycenter_v1_custompermissionset_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ManagedResource) String() string {
+func (x *Resource) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ManagedResource) ProtoMessage() {}
+func (*Resource) ProtoMessage() {}
 
-func (x *ManagedResource) ProtoReflect() protoreflect.Message {
+func (x *Resource) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_identitycenter_v1_custompermissionset_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -224,48 +224,48 @@ func (x *ManagedResource) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ManagedResource.ProtoReflect.Descriptor instead.
-func (*ManagedResource) Descriptor() ([]byte, []int) {
+// Deprecated: Use Resource.ProtoReflect.Descriptor instead.
+func (*Resource) Descriptor() ([]byte, []int) {
 	return file_teleport_identitycenter_v1_custompermissionset_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *ManagedResource) GetKind() string {
+func (x *Resource) GetKind() string {
 	if x != nil {
 		return x.Kind
 	}
 	return ""
 }
 
-func (x *ManagedResource) GetSubKind() string {
+func (x *Resource) GetSubKind() string {
 	if x != nil {
 		return x.SubKind
 	}
 	return ""
 }
 
-func (x *ManagedResource) GetVersion() string {
+func (x *Resource) GetVersion() string {
 	if x != nil {
 		return x.Version
 	}
 	return ""
 }
 
-func (x *ManagedResource) GetMetadata() *v1.Metadata {
+func (x *Resource) GetMetadata() *v1.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *ManagedResource) GetSpec() *ManagedResourceSpec {
+func (x *Resource) GetSpec() *ResourceSpec {
 	if x != nil {
 		return x.Spec
 	}
 	return nil
 }
 
-// AWSResourceSpec holds information about an AWS resource
-type ManagedResourceSpec struct {
+// ResourceSpec holds information about an AWS resource
+type ResourceSpec struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	Arn     string                 `protobuf:"bytes,1,opt,name=arn,proto3" json:"arn,omitempty"`
 	Name    string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
@@ -277,20 +277,20 @@ type ManagedResourceSpec struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ManagedResourceSpec) Reset() {
-	*x = ManagedResourceSpec{}
+func (x *ResourceSpec) Reset() {
+	*x = ResourceSpec{}
 	mi := &file_teleport_identitycenter_v1_custompermissionset_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ManagedResourceSpec) String() string {
+func (x *ResourceSpec) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ManagedResourceSpec) ProtoMessage() {}
+func (*ResourceSpec) ProtoMessage() {}
 
-func (x *ManagedResourceSpec) ProtoReflect() protoreflect.Message {
+func (x *ResourceSpec) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_identitycenter_v1_custompermissionset_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -302,33 +302,33 @@ func (x *ManagedResourceSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ManagedResourceSpec.ProtoReflect.Descriptor instead.
-func (*ManagedResourceSpec) Descriptor() ([]byte, []int) {
+// Deprecated: Use ResourceSpec.ProtoReflect.Descriptor instead.
+func (*ResourceSpec) Descriptor() ([]byte, []int) {
 	return file_teleport_identitycenter_v1_custompermissionset_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *ManagedResourceSpec) GetArn() string {
+func (x *ResourceSpec) GetArn() string {
 	if x != nil {
 		return x.Arn
 	}
 	return ""
 }
 
-func (x *ManagedResourceSpec) GetName() string {
+func (x *ResourceSpec) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
 }
 
-func (x *ManagedResourceSpec) GetAccount() string {
+func (x *ResourceSpec) GetAccount() string {
 	if x != nil {
 		return x.Account
 	}
 	return ""
 }
 
-func (x *ManagedResourceSpec) GetDependencies() []string {
+func (x *ResourceSpec) GetDependencies() []string {
 	if x != nil {
 		return x.Dependencies
 	}
@@ -488,14 +488,14 @@ const file_teleport_identitycenter_v1_custompermissionset_proto_rawDesc = "" +
 	"\x03arn\x18\x01 \x01(\tR\x03arn\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
 	"\vdescription\x18\x03 \x01(\tR\vdescription\x12<\n" +
-	"\rinline_policy\x18\x04 \x01(\v2\x17.google.protobuf.StructR\finlinePolicy\"\xd9\x01\n" +
-	"\x0fManagedResource\x12\x12\n" +
+	"\rinline_policy\x18\x04 \x01(\v2\x17.google.protobuf.StructR\finlinePolicy\"\xcb\x01\n" +
+	"\bResource\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
-	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12C\n" +
-	"\x04spec\x18\x05 \x01(\v2/.teleport.identitycenter.v1.ManagedResourceSpecR\x04spec\"y\n" +
-	"\x13ManagedResourceSpec\x12\x10\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12<\n" +
+	"\x04spec\x18\x05 \x01(\v2(.teleport.identitycenter.v1.ResourceSpecR\x04spec\"r\n" +
+	"\fResourceSpec\x12\x10\n" +
 	"\x03arn\x18\x01 \x01(\tR\x03arn\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
 	"\aaccount\x18\x03 \x01(\tR\aaccount\x12\"\n" +
@@ -527,8 +527,8 @@ var file_teleport_identitycenter_v1_custompermissionset_proto_msgTypes = make([]
 var file_teleport_identitycenter_v1_custompermissionset_proto_goTypes = []any{
 	(*CustomPermissionSet)(nil),     // 0: teleport.identitycenter.v1.CustomPermissionSet
 	(*CustomPermissionSetSpec)(nil), // 1: teleport.identitycenter.v1.CustomPermissionSetSpec
-	(*ManagedResource)(nil),         // 2: teleport.identitycenter.v1.ManagedResource
-	(*ManagedResourceSpec)(nil),     // 3: teleport.identitycenter.v1.ManagedResourceSpec
+	(*Resource)(nil),                // 2: teleport.identitycenter.v1.Resource
+	(*ResourceSpec)(nil),            // 3: teleport.identitycenter.v1.ResourceSpec
 	(*AccessProfile)(nil),           // 4: teleport.identitycenter.v1.AccessProfile
 	(*AccessProfileSpec)(nil),       // 5: teleport.identitycenter.v1.AccessProfileSpec
 	(*v1.Metadata)(nil),             // 6: teleport.header.v1.Metadata
@@ -538,8 +538,8 @@ var file_teleport_identitycenter_v1_custompermissionset_proto_depIdxs = []int32{
 	6, // 0: teleport.identitycenter.v1.CustomPermissionSet.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.identitycenter.v1.CustomPermissionSet.spec:type_name -> teleport.identitycenter.v1.CustomPermissionSetSpec
 	7, // 2: teleport.identitycenter.v1.CustomPermissionSetSpec.inline_policy:type_name -> google.protobuf.Struct
-	6, // 3: teleport.identitycenter.v1.ManagedResource.metadata:type_name -> teleport.header.v1.Metadata
-	3, // 4: teleport.identitycenter.v1.ManagedResource.spec:type_name -> teleport.identitycenter.v1.ManagedResourceSpec
+	6, // 3: teleport.identitycenter.v1.Resource.metadata:type_name -> teleport.header.v1.Metadata
+	3, // 4: teleport.identitycenter.v1.Resource.spec:type_name -> teleport.identitycenter.v1.ResourceSpec
 	6, // 5: teleport.identitycenter.v1.AccessProfile.metadata:type_name -> teleport.header.v1.Metadata
 	5, // 6: teleport.identitycenter.v1.AccessProfile.spec:type_name -> teleport.identitycenter.v1.AccessProfileSpec
 	7, // [7:7] is the sub-list for method output_type

@@ -2486,7 +2486,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			matchers = append(matchers, NewIdentityCenterAccountMatcher(rr.UnwrapT()))
 		case types.Resource153UnwrapperT[IdentityCenterAccountAssignment]:
 			matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
-		case types.Resource153UnwrapperT[*identitycenterv1.ManagedResource]:
+		case types.Resource153UnwrapperT[*identitycenterv1.Resource]:
 			matchers = append(matchers, NewIdentityCenterManagedResourceMatcher(rr.UnwrapT()))
 		}
 

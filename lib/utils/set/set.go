@@ -78,6 +78,16 @@ func (s Set[T]) Contains(element T) bool {
 	return present
 }
 
+// Contains implements a membership test for the Set.
+func (s Set[T]) ContainsAny(elements ...T) bool {
+	for _, elem := range elements {
+		if _, present := s[elem]; present {
+			return true
+		}
+	}
+	return false
+}
+
 // Clone creates a new, independent copy of the Set.
 func (s Set[T]) Clone() Set[T] {
 	return maps.Clone(s)

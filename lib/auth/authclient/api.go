@@ -1462,9 +1462,9 @@ type Cache interface {
 	ListProvisioningStatesForAllDownstreams(ctx context.Context, pageSize int, pageToken string) ([]*provisioningv1.PrincipalState, string, error)
 
 	// GetIdentityCenterManagedResource fetches a specific IdentityCenter ManagedResource.
-	GetIdentityCenterManagedResource(ctx context.Context, name string) (*identitycenterv1.ManagedResource, error)
+	GetIdentityCenterManagedResource(ctx context.Context, name string) (*identitycenterv1.Resource, error)
 	// ListIdentityCenterManagedResources fetches a paginated list of IdentityCenter ManagedResources.
-	ListIdentityCenterManagedResources(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.ManagedResource, string, error)
+	ListIdentityCenterManagedResources(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.Resource, string, error)
 
 	GetCustomPermissionSet(context.Context, string) (*identitycenterv1.CustomPermissionSet, error)
 

@@ -29,6 +29,7 @@ import (
 	"github.com/google/btree"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/protoadapt"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -43,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
@@ -200,10 +202,7 @@ type iteratedItem struct {
 // method.
 func (c *UnifiedResourceCache) iterateItems(ctx context.Context, start string, sortBy types.SortBy, kinds ...string) iter.Seq2[iteratedItem, error] {
 	return func(yield func(iteratedItem, error) bool) {
-		kindsMap := make(map[string]struct{})
-		for _, k := range kinds {
-			kindsMap[k] = struct{}{}
-		}
+		requestedKinds := set.New(kinds...)
 
 		var startKey backend.Key
 		if start != "" {
@@ -249,7 +248,7 @@ func (c *UnifiedResourceCache) iterateItems(ctx context.Context, start string, s
 						return true
 					}
 
-					if len(kinds) == 0 || c.itemKindMatches(collection.get(), kindsMap) {
+					if len(kinds) == 0 || c.itemKindMatches(collection.get(), requestedKinds) {
 						items = append(items, iteratedItem{key: item.Key, resource: collection.get()})
 					}
 
@@ -395,70 +394,54 @@ func (c *UnifiedResourceCache) IterateUnifiedResources(ctx context.Context, matc
 	return resources, "", nil
 }
 
-func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]struct{}) bool {
+func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds set.Set[string]) bool {
 	switch r.GetKind() {
 	case types.KindNode,
 		types.KindWindowsDesktop,
 		types.KindGitServer,
+		types.KindIdentityCenterResource,
 		types.KindDatabase,
 		types.KindKubernetesCluster:
-		_, ok := kinds[r.GetKind()]
-		return ok
+		return kinds.Contains(r.GetKind())
 	case types.KindIdentityCenterAccount:
-		if _, ok := kinds[types.KindApp]; ok {
-			return ok
+		if kinds.Contains(types.KindApp) {
+			return true
 		}
-
-		_, ok := kinds[types.KindIdentityCenterAccount]
-		return ok
+		return kinds.Contains(types.KindIdentityCenterAccount)
 	case types.KindApp:
-		if _, ok := kinds[types.KindApp]; ok {
-			return ok
-		}
-
-		if _, ok := kinds[types.KindAppServer]; ok {
-			return ok
-		}
-
-		if _, ok := kinds[types.KindMCP]; ok && r.GetSubKind() == types.KindMCP {
+		if kinds.Contains(types.KindApp) || kinds.Contains(types.KindAppServer) {
 			return true
 		}
 
-		_, ok := kinds[types.KindIdentityCenterAccount]
-		return ok
+		if kinds.Contains(types.KindMCP) && r.GetSubKind() == types.KindMCP {
+			return true
+		}
+		return kinds.Contains(types.KindIdentityCenterAccount)
+
 	case types.KindKubeServer:
-		if _, ok := kinds[types.KindKubernetesCluster]; ok {
-			return ok
+		if kinds.Contains(types.KindKubernetesCluster) {
+			return true
 		}
+		return kinds.Contains(types.KindKubeServer)
 
-		_, ok := kinds[types.KindKubeServer]
-		return ok
 	case types.KindDatabaseServer:
-		if _, ok := kinds[types.KindDatabase]; ok {
-			return ok
-		}
+		return kinds.Contains(types.KindDatabase) || kinds.Contains(types.KindDatabaseServer)
 
-		_, ok := kinds[types.KindDatabaseServer]
-		return ok
 	case types.KindSAMLIdPServiceProvider:
-		_, ok := kinds[types.KindSAMLIdPServiceProvider]
-		return ok
+		return kinds.Contains(types.KindSAMLIdPServiceProvider)
+
 	case types.KindAppServer:
 		if r.GetSubKind() == types.KindIdentityCenterAccount {
-			if _, ok := kinds[types.KindIdentityCenterAccount]; ok {
-				return ok
+			if kinds.Contains(types.KindIdentityCenterAccount) {
+				return true
 			}
 		}
 
-		if _, ok := kinds[types.KindApp]; ok {
-			return ok
+		if kinds.Contains(types.KindApp) || kinds.Contains(types.KindAppServer) {
+			return true
 		}
 
-		if _, ok := kinds[types.KindAppServer]; ok {
-			return ok
-		}
-
-		if _, ok := kinds[types.KindMCP]; ok {
+		if kinds.Contains(types.KindMCP) {
 			type appGetter interface {
 				GetApp() types.Application
 			}
@@ -467,6 +450,7 @@ func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]stru
 			}
 		}
 		return false
+
 	default:
 		return false
 	}
@@ -768,7 +752,7 @@ func (c *UnifiedResourceCache) getIdentityCenterAccounts(ctx context.Context) ([
 	return accounts, nil
 }
 
-// func repackManagedResource(src *identitycenterv1.ManagedResource) (resource, bool) {
+// func repackManagedResource(src *identitycenterv1.Resource) (resource, bool) {
 // 	spec := src.GetSpec()
 // 	return proto.IdentityCenterManagedResource{
 // 		Kind:        types.KindIdentityCenterManagedResource,
@@ -781,25 +765,34 @@ func (c *UnifiedResourceCache) getIdentityCenterAccounts(ctx context.Context) ([
 // 	}, true
 // }
 
-type ClonableResource struct {
+type clonableResource153 interface {
+	types.Resource153
+	protoadapt.MessageV1
+}
+
+type wrappedResource[T clonableResource153] struct {
 	types.ResourceWithLabels
-	inner *identitycenterv1.ManagedResource
+	inner T
 }
 
-func (r *ClonableResource) CloneResource() types.ResourceWithLabels {
-	clone := apiutils.CloneProtoMsg(r.inner)
-	return wrapResource(clone)
-}
-
-func wrapResource(r *identitycenterv1.ManagedResource) *ClonableResource {
-	return &ClonableResource{
-		ResourceWithLabels: types.Resource153ToResourceWithLabels(r),
-		inner:              r,
+func wrapResource[T clonableResource153](inner T) wrappedResource[T] {
+	return wrappedResource[T]{
+		ResourceWithLabels: types.Resource153ToResourceWithLabels(inner),
+		inner:              inner,
 	}
 }
 
+func (w wrappedResource[T]) CloneResource() types.ResourceWithLabels {
+	clone := apiutils.CloneProtoMsg(w.inner)
+	return wrapResource(clone)
+}
+
+func (w wrappedResource[T]) UnwrapT() T {
+	return w.inner
+}
+
 func (c *UnifiedResourceCache) getIdentityCenterManagedResources(ctx context.Context) ([]resource, error) {
-	wrap := func(r *identitycenterv1.ManagedResource) (resource, bool) {
+	wrap := func(r *identitycenterv1.Resource) (resource, bool) {
 		return wrapResource(r), true
 	}
 
@@ -1340,18 +1333,15 @@ func MakePaginatedResource(requestType string, r types.ResourceWithLabels, requi
 			RequiresRequest: requiresRequest,
 		}
 
-	case types.KindIdentityCenterManagedResource:
-		unwrapper, ok := resource.(types.Resource153UnwrapperT[*identitycenterv1.ManagedResource])
+	case types.KindIdentityCenterResource:
+		unwrapper, ok := resource.(types.Resource153UnwrapperT[*identitycenterv1.Resource])
 		if !ok {
 			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 		}
-
-		unwrapper.UnwrapT()
-
+		slog.Error(">>>> Repacking IC Resource as PaginatedResource",
+			"resource_name", unwrapper.UnwrapT().Metadata.GetName())
 		protoResource = &proto.PaginatedResource{
-			Resource: &proto.PaginatedResource_IdentityCenterManagedResource{
-				IdentityCenterManagedResource: nil,
-			},
+			Resource:        proto.PackICResource(unwrapper.UnwrapT()),
 			RequiresRequest: requiresRequest,
 		}
 
@@ -1364,6 +1354,7 @@ func MakePaginatedResource(requestType string, r types.ResourceWithLabels, requi
 			Resource:        proto.PackICAccountAssignment(unwrapper.UnwrapT().AccountAssignment),
 			RequiresRequest: requiresRequest,
 		}
+
 	case types.KindGitServer:
 		server, ok := resource.(*types.ServerV2)
 		if !ok {

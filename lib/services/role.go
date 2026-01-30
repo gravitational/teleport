@@ -2619,7 +2619,7 @@ func resourceRequiresLabelMatching(r AccessCheckable) bool {
 	// should be granted access. Enable it by default, but turn it off in the
 	// special cases.
 	switch r.GetKind() {
-	case types.KindIdentityCenterAccount, types.KindIdentityCenterAccountAssignment:
+	case types.KindIdentityCenterAccount, types.KindIdentityCenterAccountAssignment, types.KindIdentityCenterResource:
 		return false
 	case types.KindApp, types.KindAppServer:
 		return r.GetSubKind() != types.KindIdentityCenterAccount

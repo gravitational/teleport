@@ -2188,9 +2188,9 @@ message IdentityCenterAccessProfile {
   string Display = 2 [(gogoproto.jsontag) = "display"];
 }
 
-// IdentityCenterManagedResource holds information about an Identity Center
+// IdentityCenterResource holds information about an Identity Center
 // Managed AwS Resource
-message IdentityCenterManagedResource {
+message IdentityCenterResource {
   // Kind is the database server resource kind.
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource subkind.
@@ -2212,9 +2212,14 @@ message IdentityCenterManagedResource {
   // ARN is the AWS unique identifier for this resource
   string ARN = 7 [(gogoproto.jsontag) = "arn"];
 
+  // Dependencies holds the ARNs of resources related to the primary resource
+  // that a user might need access to to do meaningful work on the target
+  // resource.
+  repeated string Dependencies = 8 [(gogoproto.jsontag) = "dependencies"];
+
   // PermissionSet is the Identity Center Permission Set this assignment
   // references
-  repeated IdentityCenterAccessProfile AccessProfiles = 8 [(gogoproto.jsontag) = "access_profiles"];
+  repeated IdentityCenterAccessProfile AccessProfiles = 9 [(gogoproto.jsontag) = "access_profiles"];
 }
 
 message ListInstallersRequest {
@@ -2264,7 +2269,8 @@ message PaginatedResource {
     // Account Assignment
     IdentityCenterAccountAssignment IdentityCenterAccountAssignment = 16 [(gogoproto.jsontag) = "identity_center_account_assignment,omitempty"];
 
-    IdentityCenterManagedResource IdentityCenterManagedResource = 17 [(gogoproto.jsontag) = "identity_center_managed_resource,omitempty"];
+    // IdentityCenterResource ...
+    IdentityCenterResource IdentityCenterResource = 17 [(gogoproto.jsontag) = "identity_center_managed_resource,omitempty"];
   }
 
   // Logins allowed for the included resource. Only to be populated for SSH and Desktops.

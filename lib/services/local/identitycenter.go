@@ -77,7 +77,7 @@ type IdentityCenterService struct {
 	permissionSets       *generic.ServiceWrapper[*identitycenterv1.PermissionSet]
 	principalAssignments *generic.ServiceWrapper[*identitycenterv1.PrincipalAssignment]
 	accountAssignments   *generic.ServiceWrapper[*identitycenterv1.AccountAssignment]
-	managedResources     *generic.ServiceWrapper[*identitycenterv1.ManagedResource]
+	managedResources     *generic.ServiceWrapper[*identitycenterv1.Resource]
 	customPermissionSets *generic.ServiceWrapper[*identitycenterv1.CustomPermissionSet]
 	accessProfiles       *generic.ServiceWrapper[*identitycenterv1.AccessProfile]
 }
@@ -141,12 +141,12 @@ func NewIdentityCenterService(cfg IdentityCenterServiceConfig) (*IdentityCenterS
 		return nil, trace.Wrap(err, "creating account assignments service")
 	}
 
-	managedResourcesSvc, err := generic.NewServiceWrapper(generic.ServiceConfig[*identitycenterv1.ManagedResource]{
+	managedResourcesSvc, err := generic.NewServiceWrapper(generic.ServiceConfig[*identitycenterv1.Resource]{
 		Backend:       cfg.Backend,
-		ResourceKind:  types.KindIdentityCenterManagedResource,
+		ResourceKind:  types.KindIdentityCenterResource,
 		BackendPrefix: backend.NewKey(awsResourcePrefix, awsManagedResourcePrefix),
-		MarshalFunc:   services.MarshalProtoResource[*identitycenterv1.ManagedResource],
-		UnmarshalFunc: services.UnmarshalProtoResource[*identitycenterv1.ManagedResource],
+		MarshalFunc:   services.MarshalProtoResource[*identitycenterv1.Resource],
+		UnmarshalFunc: services.UnmarshalProtoResource[*identitycenterv1.Resource],
 		PageLimit:     identityCenterPageSize,
 	})
 	if err != nil {
@@ -448,18 +448,18 @@ func (svc *IdentityCenterService) ListCustomPermissionSets(ctx context.Context, 
 	return pss, nextPage, nil
 }
 
-func (svc *IdentityCenterService) CreateIdentityCenterManagedResource(ctx context.Context, r *identitycenterv1.ManagedResource) (*identitycenterv1.ManagedResource, error) {
+func (svc *IdentityCenterService) CreateIdentityCenterManagedResource(ctx context.Context, r *identitycenterv1.Resource) (*identitycenterv1.Resource, error) {
 	created, err := svc.managedResources.CreateResource(ctx, r)
 	return created, trace.Wrap(err)
 }
 
-func (svc *IdentityCenterService) GetIdentityCenterManagedResource(ctx context.Context, name string) (*identitycenterv1.ManagedResource, error) {
+func (svc *IdentityCenterService) GetIdentityCenterManagedResource(ctx context.Context, name string) (*identitycenterv1.Resource, error) {
 	r, err := svc.managedResources.GetResource(ctx, name)
 	return r, trace.Wrap(err)
 }
 
 // ListIdentityCenterManagedResources provides a paged list of managed resources
-func (svc *IdentityCenterService) ListIdentityCenterManagedResources(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.ManagedResource, string, error) {
+func (svc *IdentityCenterService) ListIdentityCenterManagedResources(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.Resource, string, error) {
 	resources, nextPage, err := svc.managedResources.ListResources(ctx, pageSize, pageToken)
 	if err != nil {
 		return nil, "", trace.Wrap(err, "listing identity center managed resources")

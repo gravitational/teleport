@@ -4438,7 +4438,7 @@ type ListUnifiedResourcesClient interface {
 }
 
 // ResourcePage holds a page of results from [GetResourcePage].
-type ResourcePage[T types.ResourceWithLabels] struct {
+type ResourcePage[T any] struct {
 	// Resources retrieved for a single [proto.ListResourcesRequest]. The length of
 	// the slice will be at most [proto.ListResourcesRequest.Limit].
 	Resources []T
@@ -4473,6 +4473,8 @@ func convertEnrichedResource(resource *proto.PaginatedResource) (*types.Enriched
 	} else if r := resource.GetSAMLIdPServiceProvider(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetGitServer(); r != nil {
+		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
+	} else if r := resource.GetIdentityCenterResource(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", resource.Resource)
@@ -4611,7 +4613,7 @@ func GetEnrichedResourcePage(ctx context.Context, clt GetResourcesClient, req *p
 }
 
 // GetResourcePage is a helper for getting a single page of resources that match the provide request.
-func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetResourcesClient, req *proto.ListResourcesRequest) (ResourcePage[T], error) {
+func GetResourcePage[T any](ctx context.Context, clt GetResourcesClient, req *proto.ListResourcesRequest) (ResourcePage[T], error) {
 	var out ResourcePage[T]
 
 	// Set the limit to the default size if one was not provided within
@@ -4638,7 +4640,7 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 		}
 
 		for _, respResource := range resp.Resources {
-			var resource types.ResourceWithLabels
+			var resource any
 			switch req.ResourceType {
 			case types.KindDatabaseServer:
 				resource = respResource.GetDatabaseServer()
@@ -4662,6 +4664,8 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 				resource = respResource.GetSAMLIdPServiceProvider()
 			case types.KindGitServer:
 				resource = respResource.GetGitServer()
+			case types.KindIdentityCenterResource:
+				resource = respResource.GetIdentityCenterResource()
 			default:
 				out.Resources = nil
 				return out, trace.NotImplemented("resource type %q does not support pagination", req.ResourceType)
@@ -4684,7 +4688,7 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 
 // GetAllResources is a helper for getting all existing resources that match the provided request. In addition to
 // iterating pages, it also correctly handles downsizing pages when LimitExceeded errors are encountered.
-func GetAllResources[T types.ResourceWithLabels](ctx context.Context, clt GetResourcesClient, req *proto.ListResourcesRequest) ([]T, error) {
+func GetAllResources[T any](ctx context.Context, clt GetResourcesClient, req *proto.ListResourcesRequest) ([]T, error) {
 	var out []T
 
 	// Set the limit to the default size.

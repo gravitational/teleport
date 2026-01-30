@@ -44,18 +44,18 @@ message CustomPermissionSetSpec {
   google.protobuf.Struct inline_policy = 4;
 }
 
-// ManagedResource represents a discovered AWS resource that Identity Center can
+// Resource represents a discovered AWS resource that Identity Center can
 // grant access to
-message ManagedResource {
+message Resource {
   string kind = 1;
   string sub_kind = 2;
   string version = 3;
   teleport.header.v1.Metadata metadata = 4;
-  ManagedResourceSpec spec = 5;
+  ResourceSpec spec = 5;
 }
 
-// AWSResourceSpec holds information about an AWS resource
-message ManagedResourceSpec {
+// ResourceSpec holds information about an AWS resource
+message ResourceSpec {
   string arn = 1;
   string name = 2;
   string account = 3;
