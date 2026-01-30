@@ -2707,22 +2707,17 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		}
 
 		// Device verification.
-		var deviceVerificationPassed bool
-		switch role.GetOptions().DeviceTrustMode {
-		case constants.DeviceTrustModeOff, constants.DeviceTrustModeOptional, "":
-			// OK, extensions not enforced.
-			deviceVerificationPassed = true
-		case constants.DeviceTrustModeRequiredForHumans:
-			// Humans must use trusted devices, bots can use untrusted devices.
-			deviceVerificationPassed = deviceTrusted || state.IsBot
-		case constants.DeviceTrustModeRequired:
-			// Only trusted devices allowed for bot human and bot users.
-			deviceVerificationPassed = deviceTrusted
-		}
-		if !deviceVerificationPassed {
+		if err := dtauthz.VerifyTrustedDeviceMode(
+			role.GetOptions().DeviceTrustMode,
+			dtauthz.VerifyTrustedDeviceModeParams{
+				IsTrustedDevice: deviceTrusted,
+				IsBot:           state.IsBot,
+				AllowEmptyMode:  true, // Empty mode on roles is equivalent to "off".
+			},
+		); err != nil {
 			debugf("Access to %v %q denied, role %q requires a trusted device",
 				r.GetKind(), r.GetName(), role.GetName())
-			return ErrTrustedDeviceRequired
+			return trace.Wrap(err)
 		}
 
 		// Current role allows access, but keep looking for a more restrictive
