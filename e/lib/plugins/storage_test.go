@@ -14,6 +14,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestPluginStorage(t *testing.T) {
@@ -27,7 +28,7 @@ func TestPluginStorage(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, mem.Close()) })
 
 	backendService := local.NewPluginsService(mem)
-	pluginStore := newPluginStore(backendService, pluginName)
+	pluginStore := newPluginStore(backendService, pluginName, logtest.NewLogger())
 	initialPlugin := createSlackPlugin(t, pluginName).(*types.PluginV1)
 	require.NoError(t, backendService.CreatePlugin(ctx, initialPlugin))
 

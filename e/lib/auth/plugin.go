@@ -754,7 +754,7 @@ func (p *Plugin) registerPluginsService() (*pluginsv1.Service, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	authorizers := plugins.NewAuthorizerSetFromConfig(p.HostedPlugins.OAuthProviders)
+	authorizers := plugins.NewAuthorizerSetFromConfig(p.HostedPlugins.OAuthProviders, p.Logger)
 	service, err := pluginsv1.NewService(pluginsv1.ServiceConfig{
 		Authorizer:                     p.authServer.Authorizer,
 		AuthServer:                     p.authServer.AuthServer,

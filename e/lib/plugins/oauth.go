@@ -1,6 +1,8 @@
 package plugins
 
 import (
+	"log/slog"
+
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -22,11 +24,11 @@ type AuthorizerSet struct {
 
 // NewAuthorizerSetFromConfig creates an AuthorizerSet,
 // and automatically adds Authorizers from the service config to it
-func NewAuthorizerSetFromConfig(cfg servicecfg.PluginOAuthProviders) *AuthorizerSet {
+func NewAuthorizerSetFromConfig(cfg servicecfg.PluginOAuthProviders, log *slog.Logger) *AuthorizerSet {
 	a := NewAuthorizerSet()
 	if cfg.SlackCredentials != nil {
 		a.Add(types.PluginTypeSlack, &Authorizer{
-			Authorizer: slack.NewAuthorizer(cfg.SlackCredentials.ClientID, cfg.SlackCredentials.ClientSecret),
+			Authorizer: slack.NewAuthorizer(cfg.SlackCredentials.ClientID, cfg.SlackCredentials.ClientSecret, log),
 			ClientID:   cfg.SlackCredentials.ClientID,
 		})
 	}

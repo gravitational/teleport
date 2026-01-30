@@ -2,6 +2,7 @@ package plugins
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -21,9 +22,10 @@ type pluginStore struct {
 	service     pluginsService
 	name        string
 	retryConfig retryutils.LinearConfig
+	log         *slog.Logger
 }
 
-func newPluginStore(service pluginsService, name string) *pluginStore {
+func newPluginStore(service pluginsService, name string, log *slog.Logger) *pluginStore {
 	retryConfig := retryutils.LinearConfig{
 		Step: 100 * time.Millisecond,
 		Max:  1 * time.Second,
@@ -32,6 +34,7 @@ func newPluginStore(service pluginsService, name string) *pluginStore {
 		service:     service,
 		name:        name,
 		retryConfig: retryConfig,
+		log:         log,
 	}
 }
 
@@ -77,10 +80,13 @@ func (p *pluginStore) PutCredentials(ctx context.Context, creds *storage.Credent
 	// but short enough to not interfere with plugin's responsiveness.
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
+	var attempt int
 	err = retry.For(ctx, func() error {
+		attempt++
 		return p.service.SetPluginCredentials(ctx, p.name, v1)
 	})
 	if err != nil {
+		p.log.WarnContext(ctx, "Failed to set plugin credentials", "name", p.name, "attempt", attempt)
 		return trace.Wrap(err, "setting credentials for plugin %q", p.name)
 	}
 	return nil

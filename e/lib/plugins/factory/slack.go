@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/auth"
 	"github.com/gravitational/teleport/integrations/access/slack"
+	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
 func Slack(ctx context.Context, plugin *types.PluginV1, deps Dependencies) (Delegate, error) {
@@ -20,6 +21,7 @@ func Slack(ctx context.Context, plugin *types.PluginV1, deps Dependencies) (Dele
 	tokenProvider, err := auth.NewRotatedTokenProvider(ctx, auth.RotatedAccessTokenProviderConfig{
 		Store:     deps.Store,
 		Refresher: deps.Authorizer,
+		Log:       deps.Logger,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -35,10 +37,12 @@ func Slack(ctx context.Context, plugin *types.PluginV1, deps Dependencies) (Dele
 		pluginType: types.PluginTypeSlack,
 	}
 
-	app := common.NewApp(pc, plugin.GetName())
+	// The Delegate function might get called several times, in case of leader election so we make sure to
+	// create the app inside, as the plugin's own process supervisor does not seem to support being restarted.
 	return func(ctx context.Context) error {
+		app := common.NewApp(pc, plugin.GetName())
+		ctx = logger.WithLogger(ctx, deps.Logger)
 		go tokenProvider.RefreshLoop(ctx)
-		err := app.Run(ctx)
-		return trace.Wrap(err)
+		return trace.Wrap(app.Run(ctx))
 	}, nil
 }

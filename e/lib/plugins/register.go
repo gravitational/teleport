@@ -15,7 +15,8 @@ import (
 // RegisterPluginManager starts and registers the plugin manager.
 func RegisterPluginManager(oauthProviders servicecfg.PluginOAuthProviders, process *service.TeleportProcess) error {
 	// Start plugin manager
-	authorizers := NewAuthorizerSetFromConfig(oauthProviders)
+	log := slog.With(teleport.ComponentKey, eteleport.ComponentPluginManager)
+	authorizers := NewAuthorizerSetFromConfig(oauthProviders, log)
 	pluginStaticCredentialsService, err := local.NewPluginStaticCredentialsService(process.GetBackend())
 	if err != nil {
 		return trace.Wrap(err)
@@ -27,7 +28,7 @@ func RegisterPluginManager(oauthProviders servicecfg.PluginOAuthProviders, proce
 		Events:                  process.GetAuthServer().Services,
 		TeleportClient:          process.GetAuthServer(),
 		ParentProcess:           process,
-		Logger:                  slog.With(teleport.ComponentKey, eteleport.ComponentPluginManager),
+		Logger:                  log,
 	})
 	if err != nil {
 		return trace.Wrap(err)

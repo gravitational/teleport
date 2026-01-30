@@ -432,7 +432,7 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 		}
 	}
 
-	store := newPluginStore(m.plugins, plugin.GetName())
+	store := newPluginStore(m.plugins, plugin.GetName(), log)
 	statusSink := newStatusSink(m.plugins, plugin.GetName(), string(plugin.GetType()))
 
 	staticCreds, err := m.getStaticCredentials(ctx, plugin)

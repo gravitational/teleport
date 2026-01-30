@@ -178,6 +178,8 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 	u, err := user.Current()
 	require.NoError(t, err)
 
+	log := logtest.NewLogger()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &webSuite{
 		clock:                     options.clock,
@@ -195,13 +197,15 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 			Addr:     accessGraphServer.Listener.Addr().String(),
 			Insecure: true,
 		},
-		Clock: s.clock,
+		Clock:  s.clock,
+		Logger: log,
 	})
 	s.webPlugin = webPlugin
 	require.NoError(t, err)
 	err = pluginRegistry.Add(webPlugin)
 	require.NoError(t, err)
 	authPlugin, err := eauth.NewPlugin(eauth.Config{
+		Logger:  log,
 		License: eauth.ValidLicense{},
 		AccessGraph: servicecfg.AccessGraphConfig{
 			Enabled:  true,
