@@ -437,8 +437,6 @@ type NewAppSessionRequest struct {
 	AppURI string
 	// AppTargetPort signifies that the session is made to a specific port of a multi-port TCP app.
 	AppTargetPort int
-	// Identity is the identity of the user.
-	Identity tlsca.Identity
 	// ClientAddr is a client (user's) address.
 	ClientAddr string
 
@@ -508,6 +506,8 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 		MFAVerified:       verifiedMFADeviceID,
 		AppName:           req.AppName,
 		AppURI:            req.URI,
+		BotName:           identity.BotName,
+		BotInstanceID:     identity.BotInstanceID,
 		DeviceExtensions:  DeviceExtensions(identity.DeviceExtensions),
 	})
 	if err != nil {
@@ -551,6 +551,72 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	sessionID, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Audit fields used for both success and failure
+	sessionStartEvent := &apievents.AppSessionStart{
+		Metadata: apievents.Metadata{
+			Type:        events.AppSessionStartEvent,
+			ClusterName: req.ClusterName,
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   teleport.Version,
+			ServerID:        a.ServerID,
+			ServerNamespace: apidefaults.Namespace,
+		},
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: req.ClientAddr,
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppURI:        req.AppURI,
+			AppPublicAddr: req.PublicAddr,
+			AppName:       req.AppName,
+			AppTargetPort: uint32(req.AppTargetPort),
+		},
+	}
+
+	// Enforce device trust early via the AccessChecker.
+	if err = checker.CheckDeviceAccess(services.AccessState{
+		DeviceVerified:           dtauthz.IsTLSDeviceVerified((*tlsca.DeviceExtensions)(&req.DeviceExtensions)),
+		EnableDeviceVerification: true,
+		IsBot:                    req.BotName != "",
+	}); err != nil {
+		userKind := apievents.UserKind_USER_KIND_HUMAN
+		if req.BotName != "" {
+			userKind = apievents.UserKind_USER_KIND_BOT
+		}
+
+		userMetadata := apievents.UserMetadata{
+			User:            req.User,
+			BotName:         req.BotName,
+			BotInstanceID:   req.BotInstanceID,
+			UserKind:        userKind,
+			UserRoles:       req.Roles,
+			UserClusterName: req.ClusterName,
+			UserTraits:      req.Traits,
+			AWSRoleARN:      req.AWSRoleARN,
+		}
+
+		if req.DeviceExtensions.DeviceID != "" {
+			userMetadata.TrustedDevice = &apievents.DeviceMetadata{
+				DeviceId:     req.DeviceExtensions.DeviceID,
+				AssetTag:     req.DeviceExtensions.AssetTag,
+				CredentialId: req.DeviceExtensions.CredentialID,
+			}
+		}
+		errMsg := "requires a trusted device"
+
+		sessionStartEvent.Metadata.SetCode(events.AppSessionStartFailureCode)
+		sessionStartEvent.UserMetadata = userMetadata
+		sessionStartEvent.SessionMetadata = apievents.SessionMetadata{
+			WithMFA: req.MFAVerified,
+		}
+		sessionStartEvent.Error = err.Error()
+		sessionStartEvent.UserMessage = errMsg
+
+		a.emitter.EmitAuditEvent(a.closeCtx, sessionStartEvent)
+		// err swallowed/obscured on purpose.
+		return nil, trace.AccessDenied("%s", errMsg)
 	}
 
 	// Create certificate for this session.
@@ -656,35 +722,15 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	userMetadata.User = session.GetUser()
 	userMetadata.AWSRoleARN = req.AWSRoleARN
 
-	err = a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AppSessionStart{
-		Metadata: apievents.Metadata{
-			Type:        events.AppSessionStartEvent,
-			Code:        events.AppSessionStartCode,
-			ClusterName: req.ClusterName,
-		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerVersion:   teleport.Version,
-			ServerID:        a.ServerID,
-			ServerNamespace: apidefaults.Namespace,
-		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID:        session.GetName(),
-			WithMFA:          req.MFAVerified,
-			PrivateKeyPolicy: string(req.Identity.PrivateKeyPolicy),
-		},
-		UserMetadata: userMetadata,
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: req.ClientAddr,
-		},
-		PublicAddr: req.PublicAddr,
-		AppMetadata: apievents.AppMetadata{
-			AppURI:        req.AppURI,
-			AppPublicAddr: req.PublicAddr,
-			AppName:       req.AppName,
-			AppTargetPort: uint32(req.AppTargetPort),
-		},
-	})
-	if err != nil {
+	sessionStartEvent.Metadata.SetCode(events.AppSessionStartCode)
+	sessionStartEvent.UserMetadata = userMetadata
+	sessionStartEvent.SessionMetadata = apievents.SessionMetadata{
+		SessionID:        session.GetName(),
+		WithMFA:          req.MFAVerified,
+		PrivateKeyPolicy: string(identity.PrivateKeyPolicy),
+	}
+
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, sessionStartEvent); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit app session start event", "error", err)
 	}
 
