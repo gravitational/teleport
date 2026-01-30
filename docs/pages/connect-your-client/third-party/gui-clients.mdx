@@ -280,7 +280,7 @@ DBeaver should connect to the remote MySQL server automatically.
   title="Troubleshoot MySQL DBeaver connection"
   description="DBeaver should connect automatically and display your database schema. If the connection fails, try these steps."
 >
-- If you see "Access denied for user", verify "No Authentication" is checked in Driver Settings and the username matches a permitted database user.
+- If you see "Access denied for user", verify "No authentication" is checked in Driver Settings and the username matches a permitted database user.
 - If you see "Connection refused", ensure `tsh proxy db --tunnel` is still running and try using `localhost` instead of `127.0.0.1`.
 - If you see SSL/TLS errors with the authenticated tunnel, don't configure additional SSL settings—the tunnel handles encryption.
 
@@ -531,8 +531,8 @@ Congratulations! You have just connected to your Redis instance.
   title="Troubleshoot Redis Insight connection"
   description="After adding the database, you should see your Redis instance and be able to browse keys. If the connection fails, try these steps."
 >
-- If you see "Certificate verify failed", ensure "Use TLS" and "Verify TLS Certificates" are checked and certificate contents include the `-----BEGIN` and `-----END` lines.
-- If you see "NOAUTH Authentication required", provide the Redis username and password (separate from Teleport authentication).
+- If you see `Certificate verify failed`, ensure "Use TLS" and "Verify TLS Certificates" are checked and certificate contents include the `-----BEGIN` and `-----END` lines.
+- If you see `NOAUTH` Authentication required", provide the Redis username and password (separate from Teleport authentication).
 - If the connection times out, verify `tsh proxy db` is running and use `127.0.0.1` (not `localhost`) with the correct port.
 
 </Checkpoint>
@@ -687,7 +687,7 @@ DataGrip does not need GCP credentials - those are already provided by Teleport.
 On the "General" tab of the new data source, select the "Authentication"
 dropdown setting and choose "No auth":
 
-![Choose No Auth For DataGrip Spanner Data Source](../../../img/database-access/spanner-gui/datagrip-choose-no-auth@2x.png)
+![Choose No auth For DataGrip Spanner Data Source](../../../img/database-access/spanner-gui/datagrip-choose-no-auth@2x.png)
 
 Click "Test connection" to ensure the connection is configured correctly, then
 click "Ok" to create the data source.
