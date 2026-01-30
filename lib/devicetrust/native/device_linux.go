@@ -170,6 +170,12 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 
 	osRelease := <-osReleaseC
 
+	displayName := u.Name
+	const maxUsernameLen = 40 // Matches server-side validation.
+	if len(displayName) > maxUsernameLen {
+		displayName = displayName[:maxUsernameLen]
+	}
+
 	return &devicepb.DeviceCollectedData{
 		CollectTime:           timestamppb.Now(),
 		OsType:                devicepb.OSType_OS_TYPE_LINUX,
@@ -178,7 +184,7 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 		OsId:                  osRelease.ID,
 		OsVersion:             osRelease.VersionID,
 		OsBuild:               osRelease.Version,
-		OsUsername:            u.Name,
+		OsUsername:            displayName, // Wrong, but kept for backwards compatibility.
 		ReportedAssetTag:      reportedAssetTag,
 		SystemSerialNumber:    systemSerialNumber,
 		BaseBoardSerialNumber: baseBoardSerialNumber,
