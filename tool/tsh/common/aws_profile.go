@@ -163,7 +163,7 @@ func writeAWSProfileSummary(w io.Writer, configPath string, profiles []awsProfil
 		fmt.Fprintf(w, "  export AWS_PROFILE=%s\n", profiles[0].Name)
 		fmt.Fprintln(w)
 	} else {
-		fmt.Fprintln(w, "No AWS Identity Center integrations found.")
+		fmt.Fprintln(w, "No AWS Identity Center accounts or roles available for the current user.")
 	}
 }
 
@@ -172,17 +172,25 @@ func formatAWSProfileName(accountName, roleName string) string {
 }
 
 func extractAWSStartURL(rawURL string) string {
-	// Assume the rawURL is like https://example.awsapps.com/start/#/console?param=value
-	// the output would be https://example.awsapps.com/start
-	if index := strings.Index(rawURL, "/start/"); index != -1 {
-		return rawURL[:index+len("/start")]
+	// Standard rawURL: https://<subdomain>.awsapps.com/start/#/console...
+	// GovCloud rawURL: https://start.us-gov-home.awsapps.com/directory/<idSource>#/console...
+	if index := strings.Index(rawURL, "#"); index != -1 {
+		return strings.TrimSuffix(rawURL[:index], "/")
 	}
 	return rawURL
 }
 
 func extractAWSSessionName(startURL string) string {
-	// Assume the startURL is like https://example.awsapps.com/start
-	// the output would be "teleport-example"
+	// For GovCloud, the unique identifier is at the end of the directory path.
+	// Pattern: https://start.us-gov-home.awsapps.com/directory/<idSource>
+	if index := strings.LastIndex(startURL, "/directory/"); index != -1 {
+		id := startURL[index+len("/directory/"):]
+		if id != "" {
+			return "teleport-" + id
+		}
+	}
+	// For standard partition, the unique identifier is the subdomain.
+	// Pattern: https://<idSource>.awsapps.com/start
 	raw := strings.TrimPrefix(startURL, "https://")
 	if dotIndex := strings.Index(raw, "."); dotIndex != -1 {
 		return "teleport-" + raw[:dotIndex]

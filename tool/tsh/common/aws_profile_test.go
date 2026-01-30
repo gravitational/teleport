@@ -48,6 +48,11 @@ func TestExtractAWSStartURL(t *testing.T) {
 			expected: "https://d-92670253d5.awsapps.com/start",
 		},
 		{
+			desc:     "GovCloud URL",
+			input:    "https://start.us-gov-home.awsapps.com/directory/d-92671f2def#/console?account_id=987654321098",
+			expected: "https://start.us-gov-home.awsapps.com/directory/d-92671f2def",
+		},
+		{
 			desc:     "URL without anchor",
 			input:    "https://test.awsapps.com/start",
 			expected: "https://test.awsapps.com/start",
@@ -81,6 +86,11 @@ func TestExtractAWSSessionName(t *testing.T) {
 			desc:     "URL with single subdomain",
 			input:    "https://mycompany.awsapps.com/start",
 			expected: "teleport-mycompany",
+		},
+		{
+			desc:     "GovCloud URL",
+			input:    "https://start.us-gov-home.awsapps.com/directory/d-92671f2def",
+			expected: "teleport-d-92671f2def",
 		},
 		{
 			desc:     "URL without subdomain subdomain (rare)",
