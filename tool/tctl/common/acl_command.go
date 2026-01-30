@@ -67,30 +67,30 @@ const (
 
 // Initialize allows ACLCommand to plug itself into the CLI parser
 func (c *ACLCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, _ *servicecfg.Config) {
-	acl := app.Command("acl", "Manage access lists.").Alias("access-lists")
+	acl := app.Command("acl", "Manage Access Lists.").Alias("access-lists")
 
-	c.ls = acl.Command("ls", "List cluster access lists.")
+	c.ls = acl.Command("ls", "List cluster Access Lists.")
 	c.ls.Flag("format", "Output format, 'yaml', 'json', or 'text'").Default(teleport.YAML).EnumVar(&c.format, teleport.YAML, teleport.JSON, teleport.Text)
 
-	c.get = acl.Command("get", "Get detailed information for an access list.")
-	c.get.Arg("access-list-name", "The access list name.").Required().StringVar(&c.accessListName)
+	c.get = acl.Command("get", "Get detailed information for an Access List.")
+	c.get.Arg("access-list-name", "The Access List name.").Required().StringVar(&c.accessListName)
 	c.get.Flag("format", "Output format, 'yaml', 'json', or 'text'").Default(teleport.YAML).EnumVar(&c.format, teleport.YAML, teleport.JSON, teleport.Text)
 
-	users := acl.Command("users", "Manage user membership to access lists.")
+	users := acl.Command("users", "Manage user membership to Access Lists.")
 
-	c.usersAdd = users.Command("add", "Add a user to an access list.")
+	c.usersAdd = users.Command("add", "Add a user to an Access List.")
 	c.usersAdd.Flag("kind", "Access list member kind, 'user' or 'list'").Default(memberKindUser).EnumVar(&c.memberKind, memberKindUser, memberKindList)
-	c.usersAdd.Arg("access-list-name", "The access list name.").Required().StringVar(&c.accessListName)
-	c.usersAdd.Arg("user", "The user to add to the access list.").Required().StringVar(&c.userName)
-	c.usersAdd.Arg("expires", "When the user's access expires (must be in RFC3339). Defaults to the expiration time of the access list.").StringVar(&c.expires)
-	c.usersAdd.Arg("reason", "The reason the user has been added to the access list. Defaults to empty.").StringVar(&c.reason)
+	c.usersAdd.Arg("access-list-name", "The Access List name.").Required().StringVar(&c.accessListName)
+	c.usersAdd.Arg("user", "The user to add to the Access List.").Required().StringVar(&c.userName)
+	c.usersAdd.Arg("expires", "When the user's access expires (must be in RFC3339). Defaults to the expiration time of the Access List.").StringVar(&c.expires)
+	c.usersAdd.Arg("reason", "The reason the user has been added to the Access List. Defaults to empty.").StringVar(&c.reason)
 
-	c.usersRemove = users.Command("rm", "Remove a user from an access list.")
-	c.usersRemove.Arg("access-list-name", "The access list name.").Required().StringVar(&c.accessListName)
-	c.usersRemove.Arg("user", "The user to remove from the access list.").Required().StringVar(&c.userName)
+	c.usersRemove = users.Command("rm", "Remove a user from an Access List.")
+	c.usersRemove.Arg("access-list-name", "The Access List name.").Required().StringVar(&c.accessListName)
+	c.usersRemove.Arg("user", "The user to remove from the Access List.").Required().StringVar(&c.userName)
 
-	c.usersList = users.Command("ls", "List users that are members of an access list.")
-	c.usersList.Arg("access-list-name", "The access list name.").Required().StringVar(&c.accessListName)
+	c.usersList = users.Command("ls", "List users that are members of an Access List.")
+	c.usersList.Arg("access-list-name", "The Access List name.").Required().StringVar(&c.accessListName)
 	c.usersList.Flag("format", "Output format 'json', or 'text'").Default(teleport.Text).EnumVar(&c.format, teleport.JSON, teleport.Text)
 }
 
