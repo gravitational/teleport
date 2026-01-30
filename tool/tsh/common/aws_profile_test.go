@@ -147,24 +147,20 @@ func TestFormatAWSProfileName(t *testing.T) {
 
 func TestWriteAWSProfileSummary(t *testing.T) {
 	configPath := "/home/user/.aws/config"
-	profiles := []awsProfileInfo{
+	profiles := []awsconfigfile.SSOProfile{
 		{
-			SSOProfile: awsconfigfile.SSOProfile{
-				Name:      "teleport-awsic-dev-admin",
-				AccountID: "123456789012",
-				RoleName:  "Admin",
-				Session:   "teleport-d-12345",
-			},
-			account: "dev",
+			Name:      "teleport-awsic-dev-admin",
+			AccountID: "123456789012",
+			RoleName:  "Admin",
+			Session:   "teleport-d-12345",
+			Account:   "dev",
 		},
 		{
-			SSOProfile: awsconfigfile.SSOProfile{
-				Name:      "teleport-awsic-prod-reader",
-				AccountID: "098765432109",
-				RoleName:  "Reader",
-				Session:   "teleport-d-12345",
-			},
-			account: "prod",
+			Name:      "teleport-awsic-prod-reader",
+			AccountID: "098765432109",
+			RoleName:  "Reader",
+			Session:   "teleport-d-12345",
+			Account:   "prod",
 		},
 	}
 
@@ -300,4 +296,63 @@ source_profile = default
 		golden.Set(t, content)
 	}
 	require.Equal(t, string(golden.Get(t)), string(content))
+}
+
+func TestWriteAWSConfig_Pruning(t *testing.T) {
+	configDir := t.TempDir()
+	configPath := filepath.Join(configDir, "config")
+
+	// Set up initial config with a stale Teleport profile.
+	initialContent := `; Do not edit. Section managed by Teleport (AWS Identity Center integration).
+[sso-session teleport-stale]
+sso_start_url = https://stale.awsapps.com/start
+sso_region = us-east-1
+
+; Do not edit. Section managed by Teleport (AWS Identity Center integration).
+[profile teleport-awsic-stale-admin]
+sso_session = teleport-stale
+sso_account_id = 111111111111
+sso_role_name = Admin
+
+[profile external]
+region = us-east-1
+`
+	err := os.WriteFile(configPath, []byte(initialContent), 0600)
+	require.NoError(t, err)
+
+	// Now write config for a set of apps that doesn't include the stale one.
+	app1, err := types.NewAppV3(types.Metadata{
+		Name:   "aws-ic-new",
+		Labels: map[string]string{"teleport.dev/account-name": "production"},
+	}, types.AppSpecV3{
+		URI: "https://production.awsapps.com/start/#/console",
+		IdentityCenter: &types.AppIdentityCenter{
+			AccountID: "222222222222",
+			PermissionSets: []*types.IdentityCenterPermissionSet{
+				{Name: "Admin"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	apps := []types.Application{app1}
+
+	written, err := writeAWSConfig(configPath, "us-east-1", apps)
+	require.NoError(t, err)
+	require.Len(t, written, 1)
+
+	content, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	contentStr := string(content)
+
+	// Verify new profile is there
+	require.Contains(t, contentStr, "[profile teleport-awsic-production-admin]")
+	require.Contains(t, contentStr, "[sso-session teleport-production]")
+
+	// Verify external profile is preserved
+	require.Contains(t, contentStr, "[profile external]")
+
+	// Verify stale profile is gone
+	require.NotContains(t, contentStr, "[profile teleport-awsic-stale-admin]")
+	require.NotContains(t, contentStr, "[sso-session teleport-stale]")
 }

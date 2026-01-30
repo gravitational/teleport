@@ -34,11 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 )
 
-type awsProfileInfo struct {
-	awsconfigfile.SSOProfile
-	account string
-}
-
 // onAWSProfile generates AWS configuration for AWS Identity Center integration.
 // It's a noop if there are no AWS Identity Center integrations.
 func onAWSProfile(cf *CLIConf) error {
@@ -100,20 +95,20 @@ func filterAWSIdentityCenterApps(resources types.EnrichedResources) []types.Appl
 	return apps
 }
 
-func writeAWSConfig(configPath, ssoRegion string, identityCenterApps []types.Application) ([]awsProfileInfo, error) {
-	writtenSessions := make(map[string]struct{})
-	var writtenProfiles []awsProfileInfo
+func writeAWSConfig(configPath, ssoRegion string, identityCenterApps []types.Application) ([]awsconfigfile.SSOProfile, error) {
+	sessionMap := make(map[string]awsconfigfile.SSOSession)
+	var profiles []awsconfigfile.SSOProfile
 
 	for _, app := range identityCenterApps {
 		startURL := extractAWSStartURL(app.GetURI())
 		sessionName := extractAWSSessionName(startURL)
 
-		// Write SSO session if not already written.
-		if _, ok := writtenSessions[sessionName]; !ok {
-			if err := awsconfigfile.UpsertSSOSession(configPath, sessionName, startURL, ssoRegion); err != nil {
-				return nil, trace.Wrap(err)
+		if _, ok := sessionMap[sessionName]; !ok {
+			sessionMap[sessionName] = awsconfigfile.SSOSession{
+				Name:     sessionName,
+				StartURL: startURL,
+				Region:   ssoRegion,
 			}
-			writtenSessions[sessionName] = struct{}{}
 		}
 
 		awsIC := app.GetIdentityCenter()
@@ -123,35 +118,39 @@ func writeAWSConfig(configPath, ssoRegion string, identityCenterApps []types.App
 			accountName = awsIC.AccountID
 		}
 
-		// Write AWS profile for the combination of each permission set and account.
+		// Prepare AWS profile for the combination of each permission set and account.
 		for _, ps := range awsIC.PermissionSets {
 			profileName := formatAWSProfileName(accountName, ps.Name)
-			profile := awsconfigfile.SSOProfile{
+			profiles = append(profiles, awsconfigfile.SSOProfile{
 				Name:      profileName,
 				Session:   sessionName,
 				AccountID: awsIC.AccountID,
 				RoleName:  ps.Name,
-			}
-			if err := awsconfigfile.UpsertSSOProfile(configPath, profile); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			writtenProfiles = append(writtenProfiles, awsProfileInfo{
-				SSOProfile: profile,
-				account:    accountName,
+				Account:   accountName,
 			})
 		}
 	}
-	return writtenProfiles, nil
+
+	sessions := make([]awsconfigfile.SSOSession, 0, len(sessionMap))
+	for _, s := range sessionMap {
+		sessions = append(sessions, s)
+	}
+
+	if err := awsconfigfile.WriteSSOConfig(configPath, profiles, sessions); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return profiles, nil
 }
 
-func writeAWSProfileSummary(w io.Writer, configPath string, profiles []awsProfileInfo) {
+func writeAWSProfileSummary(w io.Writer, configPath string, profiles []awsconfigfile.SSOProfile) {
 	if len(profiles) > 0 {
 		fmt.Fprintf(w, "AWS configuration updated at: %s\n", configPath)
 		fmt.Fprintln(w)
 
 		table := asciitable.MakeTable([]string{"Profile", "Account", "Account ID", "Role", "SSO Session"})
 		for _, p := range profiles {
-			table.AddRow([]string{p.Name, p.account, p.AccountID, p.RoleName, p.Session})
+			table.AddRow([]string{p.Name, p.Account, p.AccountID, p.RoleName, p.Session})
 		}
 		table.WriteTo(w)
 		fmt.Fprintln(w)
@@ -172,11 +171,18 @@ func formatAWSProfileName(accountName, roleName string) string {
 }
 
 func extractAWSStartURL(rawURL string) string {
-	// Standard rawURL: https://<subdomain>.awsapps.com/start/#/console...
-	// GovCloud rawURL: https://start.us-gov-home.awsapps.com/directory/<idSource>#/console...
+	// Identity Center Start URLs use '#' to separate the portal base URL from the specific console path.
+	// Standard: https://<subdomain>.awsapps.com/start/#/console...
+	// GovCloud: https://start.us-gov-home.awsapps.com/directory/<idSource>#/console...
 	if index := strings.Index(rawURL, "#"); index != -1 {
 		return strings.TrimSuffix(rawURL[:index], "/")
 	}
+
+	// Fallback to legacy behavior if anchor is missing but /start/ is present.
+	if index := strings.Index(rawURL, "/start/"); index != -1 {
+		return rawURL[:index+len("/start")]
+	}
+
 	return rawURL
 }
 

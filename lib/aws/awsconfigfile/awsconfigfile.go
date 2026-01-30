@@ -45,6 +45,123 @@ func AWSConfigFilePath() (string, error) {
 	return filepath.Join(homedir, ".aws", "config"), nil
 }
 
+// SSOSession represents an AWS SSO session configuration.
+type SSOSession struct {
+	// Name is the session name.
+	Name string
+	// StartURL is the SSO start URL.
+	StartURL string
+	// Region is the SSO region.
+	Region string
+}
+
+// WriteSSOConfig writes multiple SSO profiles and sessions to the AWS configuration file in a single pass,
+// and prunes any stale Teleport-managed SSO sections.
+func WriteSSOConfig(configFilePath string, profiles []SSOProfile, sessions []SSOSession) error {
+	iniFile, err := ini.LoadSources(ini.LoadOptions{
+		AllowNestedValues: true,
+		Loose:             true,
+	}, configFilePath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	keepProfiles := make(map[string]struct{})
+	keepSessions := make(map[string]struct{})
+
+	// Add/Update sessions.
+	for _, s := range sessions {
+		sectionName := "sso-session " + s.Name
+		keepSessions[sectionName] = struct{}{}
+
+		section, err := getOrCreateManagedSection(iniFile, sectionName, ssoOwnershipComment)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		section.Comment = ssoOwnershipComment
+		if _, err := section.NewKey("sso_start_url", s.StartURL); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := section.NewKey("sso_region", s.Region); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// Add/Update profiles.
+	for _, p := range profiles {
+		sectionName := "profile " + p.Name
+		keepProfiles[sectionName] = struct{}{}
+
+		section, err := getOrCreateManagedSection(iniFile, sectionName, ssoOwnershipComment)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if section.HasKey("credential_process") {
+			return trace.BadParameter("%s: section %q contains 'credential_process' and cannot be converted to an SSO profile, remove the section and try again", configFilePath, section.Name())
+		}
+
+		section.Comment = ssoOwnershipComment
+		if _, err := section.NewKey("sso_session", p.Session); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := section.NewKey("sso_account_id", p.AccountID); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := section.NewKey("sso_role_name", p.RoleName); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// Prune stale sections.
+	for _, section := range iniFile.Sections() {
+		if !strings.Contains(section.Comment, ssoOwnershipComment) {
+			continue
+		}
+
+		name := section.Name()
+		shouldDelete := false
+		switch {
+		case strings.HasPrefix(name, "profile "):
+			if _, ok := keepProfiles[name]; !ok {
+				shouldDelete = true
+			}
+		case strings.HasPrefix(name, "sso-session "):
+			if _, ok := keepSessions[name]; !ok {
+				shouldDelete = true
+			}
+		}
+
+		if shouldDelete {
+			iniFile.DeleteSection(name)
+		}
+	}
+
+	// Create the directory if it does not exist.
+	if err := os.MkdirAll(filepath.Dir(configFilePath), 0o700); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(iniFile.SaveTo(configFilePath))
+}
+
+func getOrCreateManagedSection(iniFile *ini.File, sectionName, expectedComment string) (*ini.Section, error) {
+	if iniFile.HasSection(sectionName) {
+		section := iniFile.Section(sectionName)
+		if !strings.Contains(section.Comment, expectedComment) {
+			return nil, trace.BadParameter("section %q is not managed by Teleport, remove the section and try again", sectionName)
+		}
+		return section, nil
+	}
+
+	section, err := iniFile.NewSection(sectionName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return section, nil
+}
+
 // UpsertSSOSession sets the sso_start_url and sso_region for the sso-session with name sessionName.
 func UpsertSSOSession(configFilePath, sessionName, ssoStartURL, ssoRegion string) error {
 	return trace.Wrap(upsertManagedSSOSection(configFilePath, "sso-session "+sessionName, func(section *ini.Section) error {
@@ -68,6 +185,8 @@ type SSOProfile struct {
 	AccountID string
 	// RoleName is the name of the IAM role.
 	RoleName string
+	// Account is the AWS account name or alias.
+	Account string
 }
 
 // UpsertSSOProfile sets the sso_session, sso_account_id and sso_role_name for the profile with name profileName.

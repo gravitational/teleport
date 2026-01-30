@@ -587,3 +587,57 @@ sso_region    = us-west-2
 `, string(bs))
 	})
 }
+
+func TestWriteSSOConfig(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config")
+
+	initialContent := `[profile external]
+region = us-west-2
+
+; Do not edit. Section managed by Teleport (AWS Identity Center integration).
+[sso-session teleport-stale]
+sso_start_url = https://stale.url
+sso_region = us-east-1
+
+; Do not edit. Section managed by Teleport (AWS Identity Center integration).
+[profile teleport-stale-profile]
+sso_session = teleport-stale
+`
+	err := os.WriteFile(configPath, []byte(initialContent), 0600)
+	require.NoError(t, err)
+
+	profiles := []SSOProfile{
+		{
+			Name:      "new-profile",
+			Session:   "new-session",
+			AccountID: "123",
+			RoleName:  "Admin",
+		},
+	}
+	sessions := []SSOSession{
+		{
+			Name:     "new-session",
+			StartURL: "https://new.url",
+			Region:   "us-east-1",
+		},
+	}
+
+	err = WriteSSOConfig(configPath, profiles, sessions)
+	require.NoError(t, err)
+
+	bs, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	content := string(bs)
+
+	// External preserved
+	require.Contains(t, content, "[profile external]")
+
+	// New sections added
+	require.Contains(t, content, "[sso-session new-session]")
+	require.Contains(t, content, "[profile new-profile]")
+	require.Contains(t, content, "sso_start_url = https://new.url")
+
+	// Stale sections pruned
+	require.NotContains(t, content, "[sso-session teleport-stale]")
+	require.NotContains(t, content, "[profile teleport-stale-profile]")
+}
