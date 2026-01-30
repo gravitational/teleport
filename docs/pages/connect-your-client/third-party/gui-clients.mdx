@@ -1,6 +1,6 @@
 ---
 title: Database GUI Clients
-description: How to configure graphical database clients for Teleport database access.
+description: Configure graphical database clients for Teleport database access.
 tags:
  - how-to
  - zero-trust
@@ -33,6 +33,16 @@ Connect](../teleport-clients/teleport-connect.mdx#connecting-to-a-database).
 - The Teleport Database Service configured to access a database. See one of our
   [guides](../../enroll-resources/database-access/guides/guides.mdx) for how to set up the Teleport
   Database Service for your database.
+
+<Checkpoint
+  title="Verify cluster connection"
+  description="Run tsh status to confirm your login succeeded. You should see your logged-in user, cluster name, and valid credentials."
+>
+- If you see "Access denied" or authentication errors, verify you're using the correct proxy address and username, and that your user account exists in the cluster.
+- If you see "Connection refused" or timeout errors, confirm the Teleport Proxy Service is running and your network allows connections on port `443`.
+- If you see certificate errors, verify the proxy's TLS certificate is valid. For self-signed certificates, you may need `--insecure` (not recommended for production).
+
+</Checkpoint>
 
 ## How GUI clients access Teleport-protected databases
 
@@ -77,6 +87,17 @@ $ tsh db ls
 Replace <Var name="database-name" /> with the name of the database you want to
 connect to.
 
+<Checkpoint
+  title="Verify database visibility"
+  description="The tsh db ls command should display at least one database. If you don't see the expected database, troubleshoot before continuing."
+>
+- If no databases are listed, verify the Teleport Database Service is running. Run `tsh db ls --all` to include databases from leaf clusters.
+- If no databases are listed, check that your Teleport role includes the database in `db_names` or uses wildcards.
+- If the database shows but access is denied, your role may restrict `db_users` or `db_names`. Run `tsh db login <database-name>` for details.
+- If you see "Not found" errors, verify the database name matches exactly (names are case-sensitive).
+
+</Checkpoint>
+
 ### Authenticated tunnel
 
 To start the local authenticated tunnel, run the following command, 
@@ -99,6 +120,16 @@ $ tsh proxy db --db-user=my-database-user --db-name=my-schema --tunnel <Var name
 Now, you can connect to the address the proxy command returns. In our example it
 is `127.0.0.1:62652`.
 
+<Checkpoint
+  title="Verify tunnel is running"
+  description="The tunnel command should display a message confirming the local address and port. Keep this terminal window open—closing it terminates the tunnel."
+>
+- If you see "Access denied", your role may not permit the specified `--db-user` or `--db-name`. Run `tsh db login <database-name>` to see permitted values.
+- If you see "Port already in use", run the command again for a different port, or specify one with `--port 54321`.
+- If the tunnel starts but the GUI client can't connect, verify you're using `127.0.0.1` or `localhost` with the exact port shown.
+- If you see "Certificate expired", run `tsh login` to refresh credentials, then restart the tunnel.
+
+</Checkpoint>
 
 ### Local proxy server
 
@@ -120,6 +151,17 @@ Use following credentials to connect to the <Var name="database-name" /> proxy:
 Use the displayed local proxy host/port and credentials paths when configuring
 your GUI client below. When entering the hostname, use `localhost` rather than
 `127.0.0.1`.
+
+<Checkpoint
+  title="Verify proxy and credentials"
+  description="The command output should display three file paths (ca_file, cert_file, key_file). Verify these files exist by running ls -la on each path."
+>
+- If credential files don't exist, run `tsh db login <database-name>` to generate them, then restart the proxy.
+- If the GUI client reports "Permission denied" reading files, copy them to a location the client can access (some macOS apps have sandbox restrictions).
+- If the GUI client reports "certificate verify failed", ensure you're using the correct `ca_file` path.
+- If the GUI client reports "private key mismatch", the cert and key must be from the same session—restart the proxy for fresh paths.
+
+</Checkpoint>
 
 ### Remote host and port
 
@@ -150,6 +192,16 @@ Key:       /Users/alice/.tsh/keys/teleport.example.com/alice
 The displayed `CA`, `Cert`, and `Key` files are used to connect through pgAdmin
 4, MySQL Workbench, and other graphical database clients that support mutual
 TLS authentication.
+
+<Checkpoint
+  title="Verify remote configuration"
+  description="The tsh db config command should display connection details including Host, Port, and file paths."
+>
+- If you see "Not logged into database", run `tsh db login <database-name>` first.
+- If Host shows as the proxy address instead of a database-specific port, this method only works with TLS routing disabled. Use the authenticated tunnel or local proxy instead.
+- If connections time out, verify your network allows direct connections to the Proxy Service on the database-specific port.
+
+</Checkpoint>
 
 ## MongoDB Compass
 
@@ -185,6 +237,17 @@ the `tsh proxy db` command you ran earlier:
 
 Click on the "Connect" button.
 
+<Checkpoint
+  title="Troubleshoot MongoDB Compass connection"
+  description="After clicking Connect, you should see your MongoDB databases and collections. If the connection fails, try these steps."
+>
+- If you see "Certificate verify failed" or SSL errors, ensure SSL is set to "Client and Server Validation" and all certificate paths are correct.
+- If using the authenticated tunnel (`--tunnel` flag), you don't need certificates—set SSL to disabled instead.
+- If you see "Authentication failed", leave Authentication as "None" when using the local proxy—certificates handle authentication.
+- If the connection hangs or times out, confirm `tsh proxy db` is still running and you're using the correct port.
+
+</Checkpoint>
+
 ## MySQL DBeaver
 
 Right-click in the "Database Navigator" menu in the main view and select Create > Connection:
@@ -212,6 +275,16 @@ Authentication" box, and click "Ok" to save:
 
 Once you are back in the "Connection Settings" window, click "Ok" to finish and
 DBeaver should connect to the remote MySQL server automatically.
+
+<Checkpoint
+  title="Troubleshoot MySQL DBeaver connection"
+  description="DBeaver should connect automatically and display your database schema. If the connection fails, try these steps."
+>
+- If you see "Access denied for user", verify "No Authentication" is checked in Driver Settings and the username matches a permitted database user.
+- If you see "Connection refused", ensure `tsh proxy db --tunnel` is still running and try using `localhost` instead of `127.0.0.1`.
+- If you see SSL/TLS errors with the authenticated tunnel, don't configure additional SSL settings—the tunnel handles encryption.
+
+</Checkpoint>
 
 ## MySQL Workbench
 
@@ -246,6 +319,17 @@ Optionally, click "Test Connection" to verify connectivity:
 
 Save the connection and connect to the database.
 
+<Checkpoint
+  title="Troubleshoot MySQL Workbench connection"
+  description="The Test Connection button should show a success message. If the connection fails, try these steps."
+>
+- If you see "SSL connection error", ensure "Use SSL" is set to "Require and Verify Identity" and all file paths are correct.
+- On macOS, MySQL Workbench may have sandbox restrictions—try copying certificates to `/tmp/`.
+- If you see "Authentication plugin" errors, ensure you're using certificate-based authentication, not password authentication.
+- If the connection succeeds but no databases are visible, check your role's `db_names` field or specify `--db-name` when starting the tunnel.
+
+</Checkpoint>
+
 ## NoSQL Workbench
 
 From the NoSQL Workbench launch screen, click **Launch** next to **Amazon DynamoDB**.
@@ -256,6 +340,15 @@ Choose the **DynamoDB local** tab, and point to your proxy's endpoint. This is
 more information.)
 
 ![DynamoDB local connection in NoSQL Workbench](../../../img/database-access/nosql-workbench-connection.png)
+
+<Checkpoint
+  title="Troubleshoot NoSQL Workbench connection"
+  description="After adding the connection, you should be able to browse tables and run operations. If the connection fails, try these steps."
+>
+- If you see "Unable to connect", ensure the proxy is running with `tsh proxy db --tunnel` and you're using the "DynamoDB local" connection type.
+- If you see credential or signature errors, don't provide AWS credentials—the authenticated tunnel handles authentication automatically.
+
+</Checkpoint>
 
 ## SQL Server with Azure Data Studio
 
@@ -279,10 +372,20 @@ Example:
 
 Click **Connect** to connect.
 
+<Checkpoint
+  title="Troubleshoot Azure Data Studio connection"
+  description="After clicking Connect, you should see your databases in the Object Explorer. If the connection fails, try these steps."
+>
+- If you see "Login failed", ensure Authentication Type is "SQL Login" with an empty password and Encrypt is "False".
+- On Windows, try `127.0.0.1,62652` instead of `localhost,62652`—Windows may resolve localhost to IPv6.
+- If you see certificate or trust errors, set Encrypt to "False"—the Teleport tunnel handles encryption.
+
+</Checkpoint>
+
 ## PostgreSQL DBeaver
 
 To connect to your PostgreSQL instance, use the authenticated proxy address.
-This is `127.0.0.1:62652` in the example above (see the “Authenticated Proxy”
+This is `127.0.0.1:62652` in the example above (see the "Authenticated Proxy"
 section on [Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases)
 for more information).
 
@@ -293,6 +396,16 @@ Server](../../../img/database-access/dbeaver-pg-configure-server.png)
 
 Clicking on "Test connection" should return a connection success message. Then,
 click on "Finish" to save the configuration.
+
+<Checkpoint
+  title="Troubleshoot PostgreSQL DBeaver connection"
+  description="The Test connection button should show a success message. If the connection fails, try these steps."
+>
+- If you see "FATAL: password authentication failed", ensure you're using "Database native" authentication with an empty password.
+- If you see "Connection refused", verify `tsh proxy db --tunnel` is running and the port matches.
+- "SSL off" warnings can be ignored when using the authenticated tunnel—Teleport handles encryption.
+
+</Checkpoint>
 
 ## PostgreSQL pgAdmin 4
 
@@ -330,6 +443,17 @@ proxy db` command you ran earlier:
 Click "Save", and pgAdmin should immediately connect. If pgAdmin prompts you
 for password, leave the password field empty and click OK.
 
+<Checkpoint
+  title="Troubleshoot pgAdmin 4 connection"
+  description="After saving, pgAdmin should connect and display your database under Servers. If the connection fails, try these steps."
+>
+- If you see "Certificate verify failed", ensure SSL Mode is "Verify-Full" and all certificate paths are correct.
+- On macOS, pgAdmin may have file access restrictions—check System Preferences > Security & Privacy > Files and Folders.
+- If a password prompt appears, click OK with the field empty—pgAdmin sometimes prompts even when not needed.
+- If you see "Connection refused", the `tsh proxy db` command may have terminated—restart it and update the port if changed.
+
+</Checkpoint>
+
 ## Microsoft SQL Server Management Studio
 
 In Microsoft SQL Server Management Studio connect to a database engine using
@@ -352,6 +476,16 @@ Example:
 ![Microsoft SQL Server Management Studio connection options](../../../img/database-access/msft-sql-server-management-studio-connection.png)
   
 Click Connect to connect.
+
+<Checkpoint
+  title="Troubleshoot SQL Server Management Studio connection"
+  description="After clicking Connect, the Object Explorer should display your server and databases. If the connection fails, try these steps."
+>
+- If you see "Login failed for user", ensure Authentication is "SQL Server Authentication" with an empty password.
+- If you see "A connection was successfully established...but then an error occurred", disable encryption—the Teleport tunnel handles it.
+- If you can't connect to localhost, try `127.0.0.1,62652` instead. Ensure the port uses a comma separator, not a colon.
+
+</Checkpoint>
 
 ## Redis Insight
 
@@ -393,6 +527,16 @@ Congratulations! You have just connected to your Redis instance.
 
 ![Redis Insight Connected](../../../img/database-access/guides/redis/redisinsight-connected.png)
 
+<Checkpoint
+  title="Troubleshoot Redis Insight connection"
+  description="After adding the database, you should see your Redis instance and be able to browse keys. If the connection fails, try these steps."
+>
+- If you see "Certificate verify failed", ensure "Use TLS" and "Verify TLS Certificates" are checked and certificate contents include the `-----BEGIN` and `-----END` lines.
+- If you see "NOAUTH Authentication required", provide the Redis username and password (separate from Teleport authentication).
+- If the connection times out, verify `tsh proxy db` is running and use `127.0.0.1` (not `localhost`) with the correct port.
+
+</Checkpoint>
+
 ## Snowflake: DBeaver
 
 The Snowflake integration works only in the authenticated proxy mode. Start a local proxy for connections to your Snowflake database by using the command below:
@@ -429,6 +573,16 @@ Now you can click on "Test Connection..." in the bottom-left corner:
 
 Congratulations! You have just connected to your Snowflake instance.
 
+<Checkpoint
+  title="Troubleshoot Snowflake DBeaver connection"
+  description="The Test Connection button should show a success message. If the connection fails, try these steps."
+>
+- If you see "Account must be specified", set the "account" driver property to any value (e.g., "teleport")—it's ignored but required.
+- If you see SSL/TLS errors, ensure "ssl" is set to `off` in driver properties—Teleport handles encryption.
+- If the Password field shows an error, enter any placeholder value—Teleport ignores it but DBeaver requires it.
+
+</Checkpoint>
+
 ## Snowflake: JetBrains (IntelliJ, Goland, DataGrip, PyCharm, etc.)
 
 The Snowflake integration works only in the authenticated proxy mode. Start a local proxy for connections to your Snowflake database by using the command below:
@@ -460,6 +614,16 @@ Now you can click "Test Connection" to check your configuration.
 
 Congratulations! You have just connected to your Snowflake instance.
 
+<Checkpoint
+  title="Troubleshoot Snowflake JetBrains connection"
+  description="The Test Connection button should show a success message. If the connection fails, try these steps."
+>
+- If prompted to download drivers, allow the IDE to download the Snowflake JDBC driver. Configure proxy settings if behind a firewall.
+- If you see "account" property errors, set "account" to any non-empty value in the Advanced tab.
+- If you see "SSL handshake" errors, add an `ssl` property with value `off` in the Advanced tab.
+
+</Checkpoint>
+
 ## SQL Server DataGrip
 
 In the DataGrip connection configuration menu, use your proxy's endpoint. This
@@ -474,6 +638,16 @@ empty:
 
 Click "OK" to connect.
 
+<Checkpoint
+  title="Troubleshoot SQL Server DataGrip connection"
+  description="After clicking OK, your database should appear in the Database Explorer. If the connection fails, try these steps."
+>
+- If you see "Login failed", ensure "User & Password" authentication is selected with an empty password.
+- If you see "TCP/IP connection to the host failed", verify `tsh proxy db --tunnel` is running and the port matches.
+- If you see SSL or encryption errors, disable SSL in driver properties—Teleport handles encryption.
+
+</Checkpoint>
+
 ## SQL Server DBeaver
 
 In the DBeaver connection configuration menu, use your proxy's endpoint. This is
@@ -486,6 +660,16 @@ Use the SQL Server Authentication option and keep the Password field empty:
 ![DBeaver connection options](../../../img/database-access/guides/sqlserver/dbeaver-connection@2x.png)
 
 Click OK to connect.
+
+<Checkpoint
+  title="Troubleshoot SQL Server DBeaver connection"
+  description="After clicking OK, your database should appear in the Database Navigator. If the connection fails, try these steps."
+>
+- If you see "Login failed for user", use SQL Server Authentication with an empty password.
+- If you see driver errors, allow DBeaver to download the SQL Server JDBC driver. Consider the Microsoft driver over jTDS.
+- If you see "Connection refused", ensure the tunnel is running and try `127.0.0.1` instead of `localhost`.
+
+</Checkpoint>
 
 ## Cloud Spanner DataGrip
 
@@ -509,6 +693,16 @@ Click "Test connection" to ensure the connection is configured correctly, then
 click "Ok" to create the data source.
 
 (!docs/pages/includes/database-access/gui-clients/spanner-reuse-port-note.mdx!)
+
+<Checkpoint
+  title="Troubleshoot Cloud Spanner DataGrip connection"
+  description="The Test connection button should show a success message. If the connection fails, try these steps."
+>
+- If "No auth" isn't available, ensure you selected the "Google Cloud Spanner" driver. Update DataGrip for full Spanner support.
+- If you see "PERMISSION_DENIED", verify the Database Service's service account has Spanner IAM permissions.
+- If the JDBC URL causes errors, copy it exactly from `tsh proxy db` output without modifications.
+
+</Checkpoint>
 
 ## Cloud Spanner DBeaver
 
@@ -543,6 +737,16 @@ Now copy the JDBC URL that was output by `tsh proxy db` and paste it:
 Click "Proceed", then click "Finish".
 
 (!docs/pages/includes/database-access/gui-clients/spanner-reuse-port-note.mdx!)
+
+<Checkpoint
+  title="Troubleshoot Cloud Spanner DBeaver connection"
+  description="After clicking Finish, your Spanner database should appear in the Database Navigator. If the connection fails, try these steps."
+>
+- If the custom driver doesn't appear, close and reopen the Driver Manager. Verify the URL Template includes `usePlainText=true`.
+- If you see "Driver class not found", allow DBeaver to download Spanner JDBC dependencies.
+- If you see "Invalid database" or project errors, ensure `tsh proxy db` specifies the correct database.
+
+</Checkpoint>
 
 ## Oracle graphical clients
 
@@ -587,6 +791,16 @@ set the "Custom JDBC URL" from the `tsh proxy db` command.
 Now you can click "Test" to check your configuration.
 
 ![Oracle SQL Developer Success](../../../img/database-access/guides/oracle/sql-developer-standalone-success.png)
+
+<Checkpoint
+  title="Troubleshoot Oracle SQL Developer connection"
+  description="The Test button should show Status: Success. If the connection fails, try these steps."
+>
+- If you see "Invalid username/password", leave the password field empty. The username should match `--db-user`.
+- If you see "IO Error: Unknown host specified", verify the JDBC URL was copied exactly from `tsh proxy db` output.
+- If you see "The Network Adapter could not establish the connection", check that the tunnel is running and the port matches.
+
+</Checkpoint>
 
 ### Oracle SQL Developer (VS Code extension)
 
@@ -654,6 +868,16 @@ The new connection should appear on the list.
 </TabItem>
 </Tabs>
 
+<Checkpoint
+  title="Troubleshoot Oracle SQL Developer (VS Code) connection"
+  description="The connection should appear with a green status indicator. If the connection fails, try these steps."
+>
+- For TCP mode: if you see "ORA-01017: invalid username/password", use `/` for both username and password fields and check "Save Password".
+- For TCPS mode: if "Custom JDBC" isn't available, update the SQL Developer extension and restart VS Code.
+- If you see service name errors, ensure the service name matches `--db-name` exactly (may be case-sensitive).
+
+</Checkpoint>
+
 ### Toad
 
 Add new login record in the logins dialog.
@@ -683,6 +907,15 @@ The newly added login should appear on the login list.
 You can also configure Toad to use an external Oracle client. Both native and external clients are supported.
 </Admonition>
 
+<Checkpoint
+  title="Troubleshoot Toad connection"
+  description="The test should show a success message. If the connection fails, try these steps."
+>
+- If you see "ORA-01017" or authentication errors, username must be exactly `EXTERNAL` (all caps) with an empty password.
+- If you see "TNS: could not resolve the connect identifier", use the "Direct" tab and verify the service name matches `--db-name`.
+
+</Checkpoint>
+
 ### DBeaver
 
 Click on the "New Database Connection" button.
@@ -697,3 +930,27 @@ Choose "Custom" connection type and paste the JDBC connection string printed by 
 
 Test the connection to verify the setup. Finalize by clicking "Finish".
 
+<Checkpoint
+  title="Troubleshoot Oracle DBeaver connection"
+  description="The Test Connection button should show a success message. If the connection fails, try these steps."
+>
+- If "Custom" connection type isn't available, ensure you selected the Oracle driver (not generic JDBC). Update DBeaver if needed.
+- If you see driver download errors, accept the Oracle license agreement when prompted. Configure proxy settings if behind a firewall.
+- If you see "ORA-12505: TNS: listener does not currently know of SID", verify DBeaver is using service name format, not SID.
+
+</Checkpoint>
+
+## General troubleshooting
+
+<Checkpoint
+  title="Troubleshoot common issues across all clients"
+  description="If you encounter issues not covered in the client-specific sections, try these steps."
+>
+- If the tunnel terminates unexpectedly, check if credentials expired with `tsh status` and refresh with `tsh login`. The tunnel also closes when the terminal closes—consider `tmux` or `screen`.
+- If you see "Connection refused" after sleep/wake, the tunnel may have terminated. Restart it with `tsh proxy db`.
+- If you see certificate errors after a Teleport upgrade, clear local state with `rm -rf ~/.tsh` and log in again.
+- If the GUI client works intermittently, the port may have changed. Use `--port` to specify a consistent port number.
+- To access multiple databases simultaneously, run multiple `tsh proxy db` commands with different `--port` values.
+- If you see "Access denied" despite a successful tunnel, your Teleport role may restrict specific database users or names—check with your administrator.
+
+</Checkpoint>
