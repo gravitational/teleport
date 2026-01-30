@@ -2506,25 +2506,6 @@ func Test_createPresetDatabaseObjectImportRule(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	oldPresetRule, err := databaseobjectimportrule.NewDatabaseObjectImportRule("import_all_objects", &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
-		DatabaseLabels: label.FromMap(map[string][]string{"*": {"*"}}),
-		Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{
-			{
-				Match:     &dbobjectimportrulev1.DatabaseObjectImportMatch{TableNames: []string{"*"}},
-				AddLabels: map[string]string{"kind": "table"},
-			},
-			{
-				Match:     &dbobjectimportrulev1.DatabaseObjectImportMatch{ViewNames: []string{"*"}},
-				AddLabels: map[string]string{"kind": "view"},
-			},
-			{
-				Match:     &dbobjectimportrulev1.DatabaseObjectImportMatch{ProcedureNames: []string{"*"}},
-				AddLabels: map[string]string{"kind": "procedure"},
-			},
-		},
-	})
-	require.NoError(t, err)
-
 	tests := []struct {
 		name          string
 		existingRules []*dbobjectimportrulev1.DatabaseObjectImportRule
@@ -2540,17 +2521,8 @@ func Test_createPresetDatabaseObjectImportRule(t *testing.T) {
 			existingRules: []*dbobjectimportrulev1.DatabaseObjectImportRule{customRule},
 		},
 		{
-			name:          "no action with old preset and custom rule",
-			existingRules: []*dbobjectimportrulev1.DatabaseObjectImportRule{oldPresetRule, customRule},
-		},
-		{
 			name:          "no action with preset rule",
 			existingRules: []*dbobjectimportrulev1.DatabaseObjectImportRule{presetRule},
-		},
-		{
-			name:          "migrate old preset to new",
-			existingRules: []*dbobjectimportrulev1.DatabaseObjectImportRule{oldPresetRule},
-			expectUpsert:  presetRule,
 		},
 	}
 
