@@ -218,6 +218,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindBotInstance},
 		{Kind: types.KindRecordingEncryption},
 		{Kind: types.KindAppAuthConfig},
+		{Kind: types.KindWorkloadCluster},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -794,6 +795,8 @@ type Config struct {
 	Plugin services.Plugins
 	// AppAuthConfig is a app auth config service.
 	AppAuthConfig services.AppAuthConfigReader
+	// WorkloadClusterService is a workload cluster service
+	WorkloadClusterService services.WorkloadClusterService
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
