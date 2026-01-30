@@ -22,7 +22,10 @@ import styled from 'styled-components';
 import { borderRadius, color, space, SpaceProps } from 'design/system';
 
 export const Icon = forwardRef<HTMLSpanElement, PropsWithChildren<Props>>(
-  ({ size = 'medium', children, ...otherProps }, ref) => {
+  (
+    { size = 'medium', children, viewBox = '0 0 24 24', ...otherProps },
+    ref
+  ) => {
     let iconSize = size;
     if (size === 'small') {
       iconSize = 16;
@@ -42,7 +45,7 @@ export const Icon = forwardRef<HTMLSpanElement, PropsWithChildren<Props>>(
           fill="currentColor"
           height={iconSize}
           width={iconSize}
-          viewBox="0 0 24 24"
+          viewBox={viewBox}
         >
           {children}
         </svg>
@@ -87,4 +90,5 @@ type Props = IconProps & {
   children?: React.SVGProps<SVGPathElement> | React.SVGProps<SVGPathElement>[];
   a?: any;
   ref?: ForwardedRef<HTMLSpanElement>;
+  viewBox?: string;
 };

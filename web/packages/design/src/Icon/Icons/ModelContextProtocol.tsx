@@ -56,6 +56,7 @@ export const ModelContextProtocol = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-modelcontextprotocol"
+      viewBox="0 0 24 25"
       {...otherProps}
       ref={ref}
     >

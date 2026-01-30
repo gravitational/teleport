@@ -56,6 +56,7 @@ export const TerraformLogo = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-terraformlogo"
+      viewBox="0 0 128 128"
       {...otherProps}
       ref={ref}
     >

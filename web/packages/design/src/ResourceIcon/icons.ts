@@ -87,6 +87,8 @@ export { default as cartaDark } from './assets/carta-dark.svg?no-inline';
 export { default as cartaLight } from './assets/carta-light.svg?no-inline';
 export { default as checkly } from './assets/checkly.svg?no-inline';
 export { default as checkr } from './assets/checkr.svg?no-inline';
+export { default as claudeDark } from './assets/claude-dark.svg?no-inline';
+export { default as claudeLight } from './assets/claude-light.svg?no-inline';
 export { default as ciliumDark } from './assets/cilium-dark.svg?no-inline';
 export { default as ciliumLight } from './assets/cilium-light.svg?no-inline';
 export { default as circleciDark } from './assets/circleci-dark.svg?no-inline';
@@ -250,6 +252,8 @@ export { default as oneloginLight } from './assets/onelogin-light.svg?no-inline'
 export { default as onepasswordDark } from './assets/onepassword-dark.svg?no-inline';
 export { default as onepasswordLight } from './assets/onepassword-light.svg?no-inline';
 export { default as opencomp } from './assets/opencomp.svg?no-inline';
+export { default as openAIDark } from './assets/openai-dark.svg?no-inline';
+export { default as openAILight } from './assets/openai-light.svg?no-inline';
 export { default as openid } from './assets/openid.svg?no-inline';
 export { default as opsgenie } from './assets/opsgenie.svg?no-inline';
 export { default as oracle } from './assets/oracle.svg?no-inline';
