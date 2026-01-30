@@ -216,6 +216,7 @@ export { SyncAlt } from './Icons/SyncAlt';
 export { Table } from './Icons/Table';
 export { Tablet } from './Icons/Tablet';
 export { Tags } from './Icons/Tags';
+export { TeleportLogo } from './Icons/TeleportLogo';
 export { Terminal } from './Icons/Terminal';
 export { TerraformLogo } from './Icons/TerraformLogo';
 export { Trash } from './Icons/Trash';

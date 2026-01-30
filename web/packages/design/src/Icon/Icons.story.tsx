@@ -227,6 +227,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Table} text="Table" />
     <IconBox IconCmpt={Icon.Tablet} text="Tablet" />
     <IconBox IconCmpt={Icon.Tags} text="Tags" />
+    <IconBox IconCmpt={Icon.TeleportLogo} text="TeleportLogo" />
     <IconBox IconCmpt={Icon.Terminal} text="Terminal" />
     <IconBox IconCmpt={Icon.TerraformLogo} text="TerraformLogo" />
     <IconBox IconCmpt={Icon.Trash} text="Trash" />
