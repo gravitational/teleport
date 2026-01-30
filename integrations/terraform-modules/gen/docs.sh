@@ -14,6 +14,10 @@ error() {
     printf "\e[1;31m%s\e[0m\n" "$1"
     exit 1
 }
+# convert_tf_docs_comment converts comments like <!-- BEGIN_TF_DOCS --> to an mdx comment like {/* BEGIN_TF_DOCS */}
+convert_tf_docs_comment() {
+  sed 's#<!-- \(.*\) -->#{/\* \1 \*/}#'
+}
 
 VERSION="$1"; shift
 
@@ -46,12 +50,12 @@ tags:
  - platform-wide
 ---
 
-<!--
+{/*
     Auto-generated file.
     Do not edit this directly in the docs/pages tree.
     Instead, edit ${MODULES_ROOT_DIR}/gen/docs.sh
     Then, regenerate the docs with \`make -C ${MODULES_ROOT_DIR} docs\`.
--->
+*/}
 
 Teleport publishes the following Terraform modules:
 
@@ -91,7 +95,7 @@ description: This page describes the Terraform module for discovering resources 
 
 Source Code: [${SOURCE_URI}/${module}](https://${SOURCE_URI}/${module})
 EOF
-    cat "${module}/README.md" >> "${module_index_doc}"
+    convert_tf_docs_comment < "${module}/README.md" >> "${module_index_doc}"
 
     # handle examples
     module_examples_docs_dir="${module_docs_dir}/examples"
@@ -137,7 +141,7 @@ description: Configure Teleport to discover resources in a ${remote_system} acco
 
 Source Code: [${SOURCE_URI}/${example}](https://${SOURCE_URI}/${example})
 EOF
-        cat "${example}/README.md" >> "${example_doc}"
+        convert_tf_docs_comment < "${example}/README.md" >> "${example_doc}"
     done
 done
 

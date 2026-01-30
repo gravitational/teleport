@@ -13,6 +13,7 @@ This Terraform module creates the AWS and Teleport cluster resources necessary f
 
 ## Prerequisites
 
+<!-- lint ignore absolute-docs-links -->
 - [Configure Teleport Terraform Provider](https://goteleport.com/docs/zero-trust-access/infrastructure-as-code/terraform-provider/)
 - [Configure AWS Terraform provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
 
@@ -40,10 +41,6 @@ module "aws_discovery" {
   }
 }
 ```
-
-## Examples
-
-- [Discover resources in a single AWS account](./examples/single-account)
 
 ## How to get help
 
