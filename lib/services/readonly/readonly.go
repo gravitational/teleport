@@ -244,6 +244,8 @@ type Application interface {
 	GetRequiredAppNames() []string
 	// GetCORS returns the CORS configuration for the app.
 	GetCORS() *types.CORSPolicy
+	// GetSessionRecording returns app-specific session recording settings.
+	GetSessionRecording() *types.AppSessionRecording
 }
 
 var _ Application = types.Application(nil)

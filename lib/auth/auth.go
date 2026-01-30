@@ -3056,7 +3056,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		login = uuid.New().String()
 	}
 
-	certs, err := a.generateUserCert(ctx, certRequest{
+	certReq := certRequest{
 		user:         userState,
 		tlsPublicKey: req.PublicKey,
 		checker:      services.NewUnscopedSplitAccessChecker(checker),
@@ -3079,7 +3079,13 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		gcpServiceAccount: req.GCPServiceAccount,
 		pinIP:             req.PinnedIP != "",
 		loginIP:           req.PinnedIP,
-	})
+	}
+	if botName, isBot := userState.GetLabel(types.BotLabel); isBot {
+		certReq.botName = botName
+		certReq.botInstanceID = uuid.NewString()
+	}
+
+	certs, err := a.generateUserCert(ctx, certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -2583,6 +2583,21 @@ app_service:
 			name:   "TCP app with port bigger than 65535",
 			outErr: require.Error,
 		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    -
+      name: foo
+      public_addr: "foo.example.com"
+      uri: "http://127.0.0.1:8080"
+      session_recording:
+        bots: "off"
+`,
+			name:   "app with session recording for bots disabled",
+			outErr: require.NoError,
+		},
 	}
 
 	for _, tt := range tests {
@@ -2596,6 +2611,28 @@ app_service:
 			tt.outErr(t, err)
 		})
 	}
+}
+
+func TestAppsSessionRecordingConfig(t *testing.T) {
+	fc := &FileConfig{
+		Apps: Apps{
+			Apps: []*App{
+				{
+					Name: "foo",
+					URI:  "http://127.0.0.1:8080",
+					SessionRecording: &AppSessionRecording{
+						Bots: "off",
+					},
+				},
+			},
+		},
+	}
+	cfg := servicecfg.MakeDefaultConfig()
+
+	require.NoError(t, applyAppsConfig(fc, cfg))
+	require.Len(t, cfg.Apps.Apps, 1)
+	require.NotNil(t, cfg.Apps.Apps[0].SessionRecording)
+	require.Equal(t, types.AppSessionRecordingBotsOff, cfg.Apps.Apps[0].SessionRecording.Bots)
 }
 
 // TestAppsCLF checks that validation runs on application configuration passed

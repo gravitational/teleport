@@ -108,9 +108,22 @@ type Application interface {
 	GetIdentityCenter() *AppIdentityCenter
 	// GetMCP fetches MCP specific configuration.
 	GetMCP() *MCP
+	// GetSessionRecording returns app-specific session recording settings.
+	GetSessionRecording() *AppSessionRecording
 	// IsEqual determines if two application resources are equivalent to one another.
 	IsEqual(Application) bool
 }
+
+// AppSessionRecordingBots controls whether app session recording is enabled for
+// bots.
+type AppSessionRecordingBots string
+
+const (
+	// AppSessionRecordingBotsOn enables app session recording for bots.
+	AppSessionRecordingBotsOn AppSessionRecordingBots = "on"
+	// AppSessionRecordingBotsOff disables app session recording for bots.
+	AppSessionRecordingBotsOff AppSessionRecordingBots = "off"
+)
 
 // NewAppV3 creates a new app resource.
 func NewAppV3(meta Metadata, spec AppSpecV3) (*AppV3, error) {
@@ -404,6 +417,11 @@ func (a *AppV3) GetCORS() *CORSPolicy {
 	return a.Spec.CORS
 }
 
+// GetSessionRecording returns app-specific session recording settings.
+func (a *AppV3) GetSessionRecording() *AppSessionRecording {
+	return a.Spec.SessionRecording
+}
+
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (a *AppV3) MatchSearch(values []string) bool {
@@ -489,6 +507,16 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		a.SetSubKind(SubKindMCP)
 		if err := a.checkMCP(); err != nil {
 			return trace.Wrap(err)
+		}
+	}
+
+	if sr := a.Spec.SessionRecording; sr != nil {
+		switch AppSessionRecordingBots(sr.Bots) {
+		case AppSessionRecordingBotsOn, AppSessionRecordingBotsOff:
+		case "":
+			sr.Bots = string(AppSessionRecordingBotsOn)
+		default:
+			return trace.BadParameter("app %q has unexpected session_recording.bots value %q", a.GetName(), sr.Bots)
 		}
 	}
 
@@ -589,6 +617,19 @@ func (a *AppV3) IsEqual(i Application) bool {
 // GetMCP returns MCP specific configuration.
 func (a *AppV3) GetMCP() *MCP {
 	return a.Spec.MCP
+}
+
+// GetAppSessionRecordingBots returns the bots session recording mode for the app.
+func GetAppSessionRecordingBots(app Application) AppSessionRecordingBots {
+	if app == nil {
+		return AppSessionRecordingBotsOn
+	}
+
+	recording := app.GetSessionRecording()
+	if recording == nil || recording.Bots == "" {
+		return AppSessionRecordingBotsOn
+	}
+	return AppSessionRecordingBots(recording.Bots)
 }
 
 // DeduplicateApps deduplicates apps by combination of app name and public address.
