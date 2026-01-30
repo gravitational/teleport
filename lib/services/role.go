@@ -2653,8 +2653,14 @@ func (set RoleSet) checkAccess(
 	// Collect preconditions to return to the caller.
 	preconds := make([]*decisionpb.Precondition, 0)
 
-	// Based on the state, check if MFA is always required and just hasn't been verified yet.
-	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {
+	// If the cluster requires per-session MFA and it hasn't been verified yet, add an MFA precondition or deny access early.
+	// If the legacy out-of-band MFA flow is allowed (see below) and MFA has already been verified for this session, skip this check.
+	//
+	// The legacy out-of-band MFA flow is allowed as long as TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is not set to "yes".
+	// When TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is set to "yes", only in-band MFA is allowed and enforced.
+	//
+	// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
+	if state.MFARequired == MFARequiredAlways && (os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") == "yes" || !state.MFAVerified) {
 		// If the caller doesn't want preconditions returned, deny access early to avoid unnecessary work.
 		if !state.ReturnPreconditions {
 			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, cluster requires per-session MFA")

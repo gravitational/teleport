@@ -696,6 +696,16 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 		}
 	}
 
+	h.log.DebugContext(ctx, "permission granted",
+		"local_addr", conn.LocalAddr(),
+		"remote_addr", conn.RemoteAddr(),
+		"user", conn.User(),
+		"fingerprint", fingerprint,
+		"access_permit", accessPermit,
+		"proxy_permit", proxyPermit,
+		"git_forwarding_permit", gitForwardingPermit,
+	)
+
 	// Proceed to keyboard-interactive auth to ensure all preconditions are met.
 	return h.KeyboardInteractiveAuth(ctx, accessPermit.GetPreconditions(), ident, outputPermissions)
 }
