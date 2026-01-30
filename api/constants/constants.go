@@ -489,17 +489,11 @@ const (
 	// WebAPIConnUpgradeHeader is the header used to indicate the requested
 	// connection upgrade types in the connection upgrade API.
 	WebAPIConnUpgradeHeader = "Upgrade"
-	// WebAPIConnUpgradeTeleportHeader is a Teleport-specific header used to
-	// indicate the requested connection upgrade types in the connection
-	// upgrade API. This header is sent in addition to "Upgrade" header in case
-	// a load balancer/reverse proxy removes "Upgrade".
-	WebAPIConnUpgradeTeleportHeader = "X-Teleport-Upgrade"
-	// WebAPIConnUpgradeTypeALPN is a connection upgrade type that specifies
-	// the upgraded connection should be handled by the ALPN handler.
+	// WebAPIConnUpgradeTypeALPN is a WebSocket subprotocol identifier for
+	// ALPN connection upgrades.
 	WebAPIConnUpgradeTypeALPN = "alpn"
-	// WebAPIConnUpgradeTypeALPNPing is a connection upgrade type that
-	// specifies the upgraded connection should be handled by the ALPN handler
-	// wrapped with the Ping protocol.
+	// WebAPIConnUpgradeTypeALPNPing is a WebSocket subprotocol identifier for
+	// ALPN connection upgrades with WebSocket ping frames enabled.
 	//
 	// This should be used when the tunneled TLS Routing protocol cannot keep
 	// long-lived connections alive as L7 LB usually ignores TCP keepalives and
