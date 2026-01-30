@@ -1,14 +1,10 @@
 import { StoryObj } from '@storybook/react-vite';
 import { http, HttpResponse } from 'msw';
-import { generatePath, MemoryRouter } from 'react-router';
+import { generatePath } from 'react-router';
 
 import { Alert } from 'design/Alert';
 
-import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import cfg from 'e-teleport/config';
-import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-import { ContextProvider } from 'teleport';
-import { Route, Switch } from 'teleport/components/Router';
 import { getAcl } from 'teleport/mocks/contexts';
 
 import {
@@ -22,10 +18,11 @@ import {
   rawNestedAccessList,
   rawReviewsResponse,
 } from './fixtures';
+import { Provider } from './TestHelper/Provider';
 import { ViewEditAccessList } from './ViewEditAccessList';
 
 export default {
-  title: 'TeleportE/AccessLists/View',
+  title: 'TeleportE/AccessLists/View/Default',
 };
 
 export const ViewingAsOwnerWithNoRbac: StoryObj = {
@@ -504,23 +501,4 @@ export const Failed: StoryObj = {
       </Provider>
     );
   },
-};
-
-const Provider = props => {
-  const ctx = createTeleportContextE({ customAcl: props.customAcl });
-
-  return (
-    <MemoryRouter initialEntries={props.initialEntries ?? []}>
-      <ContextProvider ctx={ctx}>
-        <Switch>
-          <AccessListManagementContextProvider>
-            <Route
-              path={cfg.routes.accessLists}
-              render={() => <>{props.children}</>}
-            />
-          </AccessListManagementContextProvider>
-        </Switch>
-      </ContextProvider>
-    </MemoryRouter>
-  );
 };

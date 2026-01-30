@@ -1,3 +1,5 @@
+import { Prompt } from 'react-router-dom';
+
 import { Box, Indicator } from 'design';
 import { UserList } from 'design/Icon';
 
@@ -5,10 +7,12 @@ import {
   AccessListManagementContextProvider,
   useAccessListManagementContext,
 } from 'e-teleport/AccessListManagement/AccessListManagementContext';
+import cfg from 'e-teleport/config';
 import { FeatureBox } from 'teleport/components/Layout';
 import { BaseView } from 'teleport/components/Wizard/flow';
 import { Navigation } from 'teleport/components/Wizard/Navigation';
 
+import { stepButtonContainerHeight } from '../GuideEditor/const';
 import { GuideContainer } from '../GuideEditor/Shared';
 import { CreateAccessListContextProvider } from './CreateAccessListContextProvider';
 import { customViews } from './Guides/Custom/Custom';
@@ -16,7 +20,7 @@ import { presetGuideViews } from './Guides/Preset/Presets';
 import { SelectGuide } from './SelectGuide/SelectGuide';
 import { NavView } from './types';
 
-export const CreateAccessListWithProvider = () => (
+export const CreateAccessListWithProviderV2 = () => (
   <AccessListManagementContextProvider>
     <CreateAccessListContextProvider>
       <CreateAccessList />
@@ -60,6 +64,9 @@ export function CreateAccessList() {
     case '':
       navTitle = 'Access List (custom)';
       views = customViews;
+      break;
+    default:
+      preset satisfies never;
   }
 
   return (
@@ -74,7 +81,21 @@ export function CreateAccessList() {
           }}
         />
       </Box>
-      {views[currentStep].Component}
+      <Box
+        css={`
+          margin-bottom: ${stepButtonContainerHeight};
+        `}
+      >
+        {views[currentStep].Component}
+      </Box>
+      {preset && currentStep < presetGuideViews.length - 1 && (
+        <Prompt
+          message={nextLocation => {
+            if (nextLocation.pathname === cfg.routes.accessListNew) return true;
+            return 'Are you sure you want to exit the "Create New Access List" workflow? You’ll have to start from the beginning next time.';
+          }}
+        />
+      )}
     </GuideContainer>
   );
 }

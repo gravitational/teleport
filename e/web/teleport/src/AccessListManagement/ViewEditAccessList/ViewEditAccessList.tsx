@@ -19,6 +19,7 @@ import {
   useSlidingBottomBorderTabs,
 } from 'design/Tabs';
 import { HoverTooltip } from 'design/Tooltip';
+import Validation from 'shared/components/Validation';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
@@ -34,6 +35,9 @@ import {
 import useTeleport from 'e-teleport/useTeleportE';
 import { FeatureBox } from 'teleport/components/Layout';
 
+import { getMissingRoleAccess } from '../GuideEditor/Preset/role/role';
+import { isGuideEditorSupported } from '../GuideEditor/useGuideEditor';
+import { ViewEditAccessRoles } from '../GuideEditor/ViewAndEditAccessRoles/ViewEditAccessRoles';
 import { TextEditKind } from '../Shared/Shared';
 import { TypeBadge } from '../Shared/TypeBadge';
 import { Action, getActionForbiddenInfo, isActionForbidden } from './access';
@@ -78,6 +82,11 @@ export function ViewEditAccessList() {
   const [editKind, setEditKind] = useState<TextEditKind>();
 
   const isOktaList = accessList?.origin === AccessListOrigin.Okta;
+
+  const missingRoleAccess = getMissingRoleAccess(
+    ctx.storeUser.getRoleAccess(),
+    'crud'
+  );
 
   // An Okta-synced Access List is read-only if bidirectional sync is 'false' or omitted.
   // In this case, updates to the members/owners must be made in Okta, and
@@ -176,7 +185,12 @@ export function ViewEditAccessList() {
   }
 
   return (
-    <FeatureBox>
+    <FeatureBox
+      css={`
+        position: relative;
+        height: auto;
+      `}
+    >
       <Flex
         alignItems="center"
         justifyContent="space-between"
@@ -217,6 +231,7 @@ export function ViewEditAccessList() {
               isReadOnlyOktaList: isReadOnlyOktaList,
               action: Action.Delete,
               perms: perms,
+              missingRolePerms: missingRoleAccess,
             })}
             placement="left"
           >
@@ -229,6 +244,7 @@ export function ViewEditAccessList() {
                   isReadOnlyOktaList,
                   action: Action.Delete,
                   perms,
+                  missingRolePerms: missingRoleAccess,
                 })
               }
             >
@@ -387,6 +403,10 @@ const MainContent = ({
   const memberCount = accessList.members.length;
   const ownerCount = accessList.owners.length;
 
+  const canReadAccess = perms.isOwner || perms.adminWhoCanRead;
+  const renderResourceAccessTab =
+    canReadAccess && isGuideEditorSupported(accessList.preset);
+
   return (
     <>
       <ReviewBanner
@@ -410,6 +430,15 @@ const MainContent = ({
         >
           Owners {ownerCount > 0 ? `(${ownerCount})` : ''}
         </TabContainer>
+        {renderResourceAccessTab && (
+          <TabContainer
+            data-tab-id={Tab.AccessDefinition}
+            selected={activeTab === Tab.AccessDefinition}
+            onClick={() => setActiveTab(Tab.AccessDefinition)}
+          >
+            Access Definition
+          </TabContainer>
+        )}
         {isReviewable(accessList.type) && (
           <TabContainer
             data-tab-id={Tab.Audits}
@@ -439,6 +468,15 @@ const MainContent = ({
           perms={perms}
           switchToAccessDefinitionTab={() => setActiveTab(Tab.AccessDefinition)}
         />
+      )}
+
+      {activeTab === Tab.AccessDefinition && (
+        <Validation>
+          <ViewEditAccessRoles
+            accessList={accessList}
+            updateAccessListCache={updateAccessList}
+          />
+        </Validation>
       )}
 
       {activeTab === Tab.Audits && (

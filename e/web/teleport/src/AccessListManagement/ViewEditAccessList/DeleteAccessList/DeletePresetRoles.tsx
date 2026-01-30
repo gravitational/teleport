@@ -8,7 +8,7 @@ import { DialogContent, DialogFooter } from 'design/DialogConfirmation';
 
 import ResourceService from 'teleport/services/resources';
 
-import { TableRole } from './types';
+import { RoleToDelete } from './types';
 
 export function DeletePresetRoles({
   onComplete,
@@ -16,7 +16,7 @@ export function DeletePresetRoles({
   statusText,
 }: {
   onComplete(): void;
-  roles: TableRole[];
+  roles: RoleToDelete[];
   statusText: string;
 }) {
   const [rolesToDelete, setRolesToDelete] = useState(roles);
