@@ -1,6 +1,7 @@
 package scimsdk
 
 import (
+	"cmp"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -36,6 +37,11 @@ func FormatErrorResponse(statusCode int, detail string) ([]byte, error) {
 }
 
 func decodeError(resp *http.Response) error {
+	var errResp ErrorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
+		errResp = ErrorResponse{} // ensure it's zero in case of error
+	}
+
 	switch resp.StatusCode {
 	case http.StatusPreconditionFailed:
 		return trace.CompareFailed("Resource version mismatch")
@@ -43,10 +49,11 @@ func decodeError(resp *http.Response) error {
 		return trace.LimitExceeded("Rate limit exceeded")
 	case http.StatusUnauthorized:
 		return trace.AccessDenied("Unauthorized")
+	case http.StatusConflict:
+		return trace.AlreadyExists("%s", cmp.Or(errResp.Detail, "Already exists"))
 	}
 
-	var errResp ErrorResponse
-	if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
+	if errResp.Detail == "" {
 		return trace.BadParameter("unexpected status code: %v", resp.StatusCode)
 	}
 	return trace.BadParameter("unexpected status code: %v, detail: %v", resp.StatusCode, errResp.Detail)

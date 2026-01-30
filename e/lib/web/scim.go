@@ -103,6 +103,9 @@ func (p *Plugin) wrapSCIMRequest(fn func(http.ResponseWriter, *http.Request, htt
 		case trace.IsNotFound(err):
 			statusCode = http.StatusNotFound
 
+		case trace.IsAlreadyExists(err):
+			statusCode = http.StatusConflict
+
 		case trace.IsAccessDenied(err):
 			statusCode = http.StatusUnauthorized
 

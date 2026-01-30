@@ -2,6 +2,7 @@ package okta
 
 import (
 	"context"
+	"net/http"
 	"testing"
 	"time"
 
@@ -40,9 +41,20 @@ func TestSCIMAuth(t *testing.T) {
 
 	scimUser := &scimsdk.User{ExternalID: "alice", UserName: "alice@example.com", Active: true}
 	t.Run("request should fail with invalid token", func(t *testing.T) {
+		// invalid token
 		scimClient := createSCIMClient(t, sut, "invalid-token")
 		_, err := scimClient.CreateUser(t.Context(), scimUser)
 		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "error type = %T", err)
+
+		// malformed token
+		req, err := http.NewRequest("GET", scimBaseURL(sut)+"/Users", nil)
+		require.NoError(t, err)
+		req.Header.Add("Authorization", "non-token")
+		resp, err := newInsecureHTTPClient().Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, 401, resp.StatusCode)
 	})
 	t.Run("request should succeed with valid token", func(t *testing.T) {
 		scimClient := createSCIMClient(t, sut, validToken)
@@ -90,14 +102,20 @@ func testSCIMCRUD(t *testing.T, fakeOkta *fakeOktaServer, client scimsdk.Client)
 		"arbitrary_attr_name":   []any{"value"},
 		"arbitrary_attr_number": float64(8),
 	}
+	scimUser := &scimsdk.User{ExternalID: scimUserExternalID, UserName: scimUserName, Active: true, Attributes: scimUserExtraAttrs}
 
 	t.Run("Create SCIM User", func(t *testing.T) {
-		scimUser := &scimsdk.User{ExternalID: scimUserExternalID, UserName: scimUserName, Active: true, Attributes: scimUserExtraAttrs}
 		createdUser, err := client.CreateUser(ctx, scimUser)
 		require.NoError(t, err)
 		require.NotNil(t, createdUser)
 		assertSCIMUserSchema(t, createdUser)
 		require.Equal(t, scimUserExtraAttrs, createdUser.Attributes)
+	})
+
+	t.Run("Create SCIM User that already exists is an error", func(t *testing.T) {
+		_, err := client.CreateUser(t.Context(), scimUser)
+		require.Error(t, err)
+		require.True(t, trace.IsAlreadyExists(err), "error type = %T, message = %q", err, err)
 	})
 
 	t.Run("Get SCIM User", func(t *testing.T) {

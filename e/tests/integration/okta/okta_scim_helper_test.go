@@ -21,22 +21,30 @@ import (
 	"github.com/gravitational/teleport/e/tests/common"
 )
 
-func createSCIMClient(t *testing.T, sut *common.SUT, scimToken string) scimsdk.Client {
-	t.Helper()
+func scimBaseURL(sut *common.SUT) string {
 	u := url.URL{
 		Scheme: "https",
 		Path:   "/v1/webapi/scim/okta",
 		Host:   sut.ProxyAddr,
 	}
+	return u.String()
+}
+
+func newInsecureHTTPClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+}
+
+func createSCIMClient(t *testing.T, sut *common.SUT, scimToken string) scimsdk.Client {
+	t.Helper()
 	scimClient, err := scimsdk.New(&scimsdk.Config{
-		Endpoint:        u.String(),
+		Endpoint:        scimBaseURL(sut),
 		Token:           scimToken,
 		IntegrationType: "okta",
-		HTTPClient: &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			},
-		},
+		HTTPClient:      newInsecureHTTPClient(),
 	})
 	require.NoError(t, err)
 	return scimClient

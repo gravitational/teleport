@@ -104,7 +104,7 @@ func extractBearerToken(authHeader string) (string, error) {
 	const prefix = "bearer"
 	parts := strings.Split(authHeader, " ")
 	if len(parts) != 2 || strings.ToLower(parts[0]) != prefix {
-		return "", trace.BadParameter("malformed bearer token")
+		return "", trace.AccessDenied("malformed bearer token")
 	}
 	return strings.TrimSpace(parts[1]), nil
 }
