@@ -25,11 +25,11 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/integrations/access/common/auth/oauth"
 	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type mockRefresher struct {
@@ -57,8 +57,7 @@ func (s *mockStore) PutCredentials(ctx context.Context, creds *storage.Credentia
 }
 
 func TestRotatedAccessTokenProvider(t *testing.T) {
-	log := logrus.New()
-	log.Level = logrus.DebugLevel
+	log := utils.NewSlogLoggerForTests()
 
 	newProvider := func(ctx context.Context, store storage.Store, refresher oauth.Refresher, clock clockwork.Clock, initialCreds *storage.Credentials) *RotatedAccessTokenProvider {
 		return &RotatedAccessTokenProvider{
