@@ -59,7 +59,7 @@ const cfg = {
   // TODO (avatus) this is a temporary escape hatch. Delete in v18
   // The role diff visualizer can be disabled by setting TELEPORT_UNSTABLE_DISABLE_ROLE_VISUALIZER=true
   // in the proxy service
-  isAccessGraphRoleVisualizerEnabled: true,
+  isPolicyRoleVisualizerEnabled: true,
   automaticUpgradesTargetVersion: '',
   // isDashboard is used generally when we want to hide features that can't be hidden by RBAC in
   // the case of a self-hosted license tenant dashboard.
