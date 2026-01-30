@@ -527,14 +527,14 @@ Use `tctl edit role/example-bot` to add the following to the role:
 ```yaml
 spec:
   allow:
-    # Grants access to all applications.
+    # Grants access to apps with the `env=dev` label.
     app_labels:
-      '*': '*'
+      env: dev
 ```
 
-If desired, adjust the label selector in the role to restrict which applications
-the bot will be allowed to access. For more information, refer to our
-[dedicated application access guide](../../machine-workload-identity/access-guides/applications.mdx).
+Make sure to adjust the label selector in the role to restrict which
+applications the bot will be allowed to access. For more information, refer to
+our [dedicated application access guide](../../machine-workload-identity/access-guides/applications.mdx).
 
 Once privileges have been granted, you can now create the GitHub Actions
 workflow. Create `.github/workflows/example.yaml`:
@@ -624,14 +624,14 @@ Use `tctl edit role/example-bot` to add the following to the role:
 ```yaml
 spec:
   allow:
-    # Grants access to all applications.
+    # Grants access to apps with the `env=dev` label.
     app_labels:
-      '*': '*'
+      env: dev
 ```
 
-If desired, adjust the label selector in the role to restrict which applications
-the bot will be allowed to access. For more information, refer to our
-[dedicated application access guide](../../machine-workload-identity/access-guides/applications.mdx).
+Make sure to adjust the label selector in the role to restrict which
+applications the bot will be allowed to access. For more information, refer to
+our [dedicated application access guide](../../machine-workload-identity/access-guides/applications.mdx).
 
 Once privileges have been granted, you can now create the GitHub Actions
 workflow. Create `.github/workflows/example.yaml`:
