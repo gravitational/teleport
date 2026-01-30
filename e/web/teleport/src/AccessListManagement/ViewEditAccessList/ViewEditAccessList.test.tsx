@@ -444,6 +444,11 @@ const reviews: AccessListReview[] = [
 
 const accessList: AccessList = {
   id: 'some-id-123',
+  metadata: {
+    name: 'some-id-123',
+    labels: {},
+    revision: '',
+  },
   type: AccessListType.Default,
   title: 'mocked title',
   description: 'some description',

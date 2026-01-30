@@ -56,8 +56,15 @@ export type AccessListReviewResponse = {
   startKey: string;
 };
 
+export type AccessListMetadata = {
+  labels: Record<string, string>;
+  name: string;
+  revision: string;
+};
+
 export type AccessList = {
   id: string;
+  metadata: AccessListMetadata;
   /**
    * friendly name of "id" field since id can be
    * just alphanumerics.
@@ -181,7 +188,7 @@ export type OwnerRequest = Omit<
 > & {
   membership_kind: AccessListMemberKind;
 };
-export type MemberRequest = Omit<
+export type MemberSpecRequest = Omit<
   AccessListMember,
   'addedBy' | 'ineligibleReason' | 'membershipKind'
 > & {
@@ -189,7 +196,7 @@ export type MemberRequest = Omit<
   membership_kind: AccessListMemberKind;
 };
 
-export type UpsertAccessListRequest = {
+export type AccessListSpecRequest = {
   type: string;
   title: string;
   description?: string;
@@ -198,7 +205,6 @@ export type UpsertAccessListRequest = {
   owner_grants: AccessListGrant;
   ownership_requires: AccessListRequires;
   membership_requires?: AccessListRequires;
-  members?: MemberRequest[];
   audit: {
     recurrence: {
       day_of_month: ReviewDayOfMonth;
@@ -208,8 +214,12 @@ export type UpsertAccessListRequest = {
   };
 };
 
+export type UpsertAccessListRequest = AccessListSpecRequest & {
+  members?: MemberSpecRequest[];
+};
+
 export type AddMembersToAccessListRequest = {
-  members: MemberRequest[];
+  members: MemberSpecRequest[];
 };
 
 export type ReviewAccessListRequest = {

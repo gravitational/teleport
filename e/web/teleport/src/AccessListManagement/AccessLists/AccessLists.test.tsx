@@ -165,6 +165,11 @@ function renderComponent(ctx: TeleportEContext) {
 
 const mockAccessListApple: AccessList = {
   id: 'id-apple',
+  metadata: {
+    name: 'id-apple',
+    labels: {},
+    revision: '',
+  },
   type: AccessListType.Default,
   title: 'apple',
   description: '',

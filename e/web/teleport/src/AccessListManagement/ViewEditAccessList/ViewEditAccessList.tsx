@@ -38,7 +38,7 @@ import { TextEditKind } from '../Shared/Shared';
 import { TypeBadge } from '../Shared/TypeBadge';
 import { Action, getActionForbiddenInfo, isActionForbidden } from './access';
 import { AuditAndReviews } from './AuditAndReviews/AuditAndReviews';
-import { DeleteAccessListConfirmDialog } from './DeleteAccessListConfirmDialog';
+import { DeleteAccessListConfirmDialog } from './DeleteAccessList/DeleteAccessListConfirmDialog';
 import { Members } from './Members/Members';
 import { Owners } from './Owners/Owners';
 import { ReviewAccessList } from './ReviewAccessList';
@@ -256,9 +256,7 @@ export function ViewEditAccessList() {
       )}
       {deleteConfirm && (
         <DeleteAccessListConfirmDialog
-          isOkta={accessList.origin === AccessListOrigin.Okta}
-          accessListId={accessList.id}
-          accessListName={accessList.title}
+          accessList={accessList}
           onClose={() => setDeleteConfirm(false)}
         />
       )}

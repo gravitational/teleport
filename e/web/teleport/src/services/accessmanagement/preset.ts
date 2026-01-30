@@ -1,6 +1,6 @@
-import { RoleSpec } from 'teleport/services/resources';
+import { Role } from 'teleport/services/resources';
 
-import { UpsertAccessListRequest } from './types';
+import { AccessList, AccessListSpecRequest, MemberSpecRequest } from './types';
 
 /**
  * Access lists created with a preset provides a web UI that guides admins on
@@ -17,27 +17,14 @@ import { UpsertAccessListRequest } from './types';
  */
 export type AccessListPreset = 'long-term' | 'short-term' | '';
 
-/**
- * Expected backend values when requesting to create
- * an access list with a preset.
- */
-export enum PresetType {
-  Unspecified = 0,
-  LongTerm = 1,
-  ShortTerm = 2,
-}
-
-/**
- * Describes the role that Teleport will create
- * for an access list.
- */
-export type AccessRole = {
-  name_prefix: string;
-  spec: RoleSpec;
+export type AccessListWithPresetRequest = {
+  presetType: AccessListPreset;
+  accessList: { spec: AccessListSpecRequest; metadata: { name: string } };
+  accessRoles: Role[];
+  members?: { spec: MemberSpecRequest; metadata: { name: string } }[];
 };
 
-export type UpsertAccessListWithPreset = UpsertAccessListRequest & {
-  accessListId: string;
-  presetType: PresetType;
-  accessRoles: AccessRole[];
+export type UpdateAccessListWithPresetResponse = {
+  accessList: AccessList;
+  rolesToBeDeleted: string[];
 };

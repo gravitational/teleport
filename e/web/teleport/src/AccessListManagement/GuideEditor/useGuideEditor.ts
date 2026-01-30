@@ -154,3 +154,16 @@ export function useGuideEditor(): GuideEditorState {
     definedAccessInAnyRoleCondition,
   };
 }
+
+export function isGuideEditorSupported(preset: AccessListPreset) {
+  switch (preset) {
+    case 'long-term':
+    case 'short-term':
+      return true;
+    case '':
+      return false;
+    default:
+      preset satisfies never;
+  }
+  return false;
+}

@@ -29,6 +29,7 @@ test('fetch access lists, empty responses does not throw error', async () => {
   expect(response).toStrictEqual([
     {
       id: '',
+      metadata: {},
       type: AccessListType.Default,
       origin: '',
       preset: '',
@@ -80,6 +81,7 @@ test('fetch an access list, empty response does not throw error', async () => {
       },
       nextDate: undefined,
     },
+    metadata: {},
     description: '',
     grants: { roles: [], traits: {} },
     ownerGrants: { roles: [], traits: {} },
@@ -120,6 +122,7 @@ test('fetch an access list', async () => {
           'okta/org': 'https://some-url',
           'teleport.internal/access-list-preset': 'short-term',
         },
+        revision: '123',
       },
       membersCount: 1234,
       memberListCount: 0,
@@ -180,6 +183,14 @@ test('fetch an access list', async () => {
     await accessManagementService.fetchAccessList('does-not-matter');
   expect(response).toStrictEqual({
     id: 'some-id',
+    metadata: {
+      name: 'some-id',
+      labels: {
+        'okta/org': 'https://some-url',
+        'teleport.internal/access-list-preset': 'short-term',
+      },
+      revision: '123',
+    },
     type: AccessListType.Default,
     origin: AccessListOrigin.Okta,
     preset: 'short-term',
@@ -249,6 +260,11 @@ describe('update an access list', () => {
     type: AccessListType.Default,
     title: 'some title',
     description: 'some description',
+    metadata: {
+      labels: {},
+      name: '',
+      revision: '',
+    },
     audit: {
       recurrence: {
         dayOfMonth: ReviewDayOfMonth.FifteenthDayOfMonth,

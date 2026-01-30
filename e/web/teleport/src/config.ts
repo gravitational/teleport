@@ -82,7 +82,11 @@ const cfg = {
     accessList: {
       reviews:
         '/v1/enterprise/accesslist/:accessListId/reviews?limit=:limit?&startKey=:startKey?',
-      upsertWithPreset: '/v1/enterprise/accesslistwithpreset',
+    },
+
+    accessListPreset: {
+      create: '/v1/enterprise/accesslistpreset',
+      update: '/v1/enterprise/accesslistpreset/:accessListId',
     },
 
     accessGraphSettingsPath: '/v1/enterprise/accessgraphsettings',
@@ -267,6 +271,23 @@ const cfg = {
 
   getAccessManagementListUrl(accessListId?: string) {
     return generatePath(cfg.api.accessListManagementPath, { accessListId });
+  },
+
+  getAccessListWithPresetUrl(
+    req: { action: 'create' } | { action: 'update'; accessListId: string }
+  ) {
+    const action = req.action;
+    switch (action) {
+      case 'create':
+        return generatePath(cfg.api.accessListPreset.create);
+      case 'update':
+        return generatePath(cfg.api.accessListPreset.update, {
+          accessListId: req.accessListId,
+        });
+      default:
+        action satisfies never;
+        return '';
+    }
   },
 
   getAccessManagementListUrlV2(params: {

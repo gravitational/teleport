@@ -1,6 +1,7 @@
 import {
   AccessListMember,
   AccessListMemberKind,
+  AccessListMetadata,
   AccessListOrigin,
   AccessListType,
   IneligibleStatus,
@@ -9,9 +10,16 @@ import { getIneligibleReason } from 'e-teleport/services/accessmanagement/access
 
 import { AccessListWithModifiedGrants } from '../AccessLists';
 
+const emptyMetadata: AccessListMetadata = {
+  name: '',
+  labels: {},
+  revision: '',
+};
+
 export const mockAccessLists: AccessListWithModifiedGrants[] = [
   {
     id: '1',
+    metadata: emptyMetadata,
     type: AccessListType.Default,
     title: 'All Employees',
     description: 'Adding new hires!',
@@ -31,6 +39,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
   },
   {
     id: '2',
+    metadata: emptyMetadata,
     type: AccessListType.Default,
     title: 'Design',
     description: 'Allocating PostHog so Design Team...',
@@ -53,6 +62,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
   },
   {
     id: '3',
+    metadata: emptyMetadata,
     type: AccessListType.Default,
     title: 'Engineering',
     description: 'Adding new engineers to eng team res...',
@@ -75,6 +85,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
   },
   {
     id: '4',
+    metadata: emptyMetadata,
     type: AccessListType.Default,
     title: 'Finance',
     description: 'Removed deprecated procurement platform...',
@@ -97,6 +108,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
   },
   {
     id: '5',
+    metadata: emptyMetadata,
     type: AccessListType.Default,
     title: 'HR',
     origin: AccessListOrigin.AwsIdentityCenter,
@@ -120,6 +132,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
   },
   {
     id: '6',
+    metadata: emptyMetadata,
     type: AccessListType.Default,
     title: 'Marketing',
     description: 'All things marketing...',

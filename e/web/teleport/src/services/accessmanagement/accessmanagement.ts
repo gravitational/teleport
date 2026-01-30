@@ -11,7 +11,11 @@ import {
   withGenericUnsupportedError,
 } from 'teleport/services/version/unsupported';
 
-import { AccessListPreset, UpsertAccessListWithPreset } from './preset';
+import {
+  AccessListPreset,
+  AccessListWithPresetRequest,
+  UpdateAccessListWithPresetResponse,
+} from './preset';
 import {
   AccessList,
   AccessListCurrentUserAssignments,
@@ -153,12 +157,28 @@ export const accessManagementService = {
       .post(cfg.getAccessManagementListUrl(), req)
       .then(resp => makeAccessList(resp.accessList));
   },
-  upsertAccessListWithPreset(
-    req: UpsertAccessListWithPreset
+  createAccessListWithPreset(
+    req: AccessListWithPresetRequest
   ): Promise<AccessList> {
     return api
-      .put(cfg.api.accessList.upsertWithPreset, req)
-      .then(resp => makeAccessList(resp.accessList));
+      .post(cfg.getAccessListWithPresetUrl({ action: 'create' }), req)
+      .then(resp => makeAccessListWithPreset(resp));
+  },
+  updateAccessListWithPreset(
+    req: AccessListWithPresetRequest
+  ): Promise<UpdateAccessListWithPresetResponse> {
+    return api
+      .put(
+        cfg.getAccessListWithPresetUrl({
+          action: 'update',
+          accessListId: req.accessList.metadata.name,
+        }),
+        req
+      )
+      .then(resp => ({
+        accessList: makeAccessListWithPreset(resp),
+        rolesToBeDeleted: resp.rolesToBeDeleted ?? [],
+      }));
   },
   reviewAccessList(req: ReviewAccessListRequest): Promise<Date> {
     const madeReq = {
@@ -325,12 +345,28 @@ function getPresetTypeFromMetadataLabel(labels: object): AccessListPreset {
   return labels['teleport.internal/access-list-preset'] ?? '';
 }
 
+export function getPresetRolesFromMetadataLabel(labels: object): string[] {
+  if (!labels) {
+    return [];
+  }
+  const roles = labels['teleport.internal/access-list-preset-roles'] ?? [];
+  return roles.split(',');
+}
+
+function makeAccessListWithPreset(resp: any): AccessList {
+  return {
+    ...makeAccessList({ ...resp.accessList }),
+    members: makeMembers(resp.members?.map(member => member.spec)),
+  };
+}
+
 export function makeAccessList(json: any): AccessList {
   const spec = json?.spec || { spec: {} };
-  const metadata = json?.metadata || { metadata: {} };
+  const metadata = json?.metadata || {};
 
   return {
     id: metadata?.name || '',
+    metadata,
     origin: originFromMetadataLabel(metadata?.labels || {}),
     preset: getPresetTypeFromMetadataLabel(metadata?.labels || {}),
     type: spec.type || AccessListType.Default,

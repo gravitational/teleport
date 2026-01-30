@@ -9,12 +9,14 @@ import { AccessListManagementContextProvider } from 'e-teleport/AccessListManage
 import cfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import {
+  AccessList,
   AccessListType,
   ReviewDayOfMonth,
   ReviewFrequency,
 } from 'e-teleport/services/accessmanagement';
 import { ContextProvider } from 'teleport';
 import { getAcl } from 'teleport/mocks/contexts';
+import { Acl } from 'teleport/services/user';
 
 import { CreateAccessList } from './CreateAccessList';
 import { CreateAccessListContextProvider } from './CreateAccessListContextProvider';
@@ -184,7 +186,32 @@ export function Finished() {
   );
 }
 
-const Provider = props => {
+export function FinishedLongTerm() {
+  return (
+    <Provider
+      createdAccessList={{
+        ...createdAccessList,
+        preset: 'long-term',
+        metadata: {
+          name: 'random-access-list-id-1234',
+          labels: {
+            'teleport.internal/access-list-preset-roles':
+              'requester-acl-preset-random-access-list-id-1234',
+          },
+          revision: '',
+        },
+      }}
+    >
+      <FinishedComp />
+    </Provider>
+  );
+}
+
+const Provider = (props: {
+  createdAccessList?: AccessList;
+  customAcl?: Acl;
+  children: React.ReactNode;
+}) => {
   const ctx = createTeleportContextE({ customAcl: props.customAcl });
 
   return (
@@ -192,26 +219,7 @@ const Provider = props => {
       <ContextProvider ctx={ctx}>
         <AccessListManagementContextProvider>
           <CreateAccessListContextProvider
-            mockCreatedAccessList={{
-              id: 'random-access-list-id-1234',
-              title: 'some access list title that is really long',
-              type: AccessListType.Default,
-              audit: {
-                recurrence: {
-                  frequency: ReviewFrequency.OneMonth,
-                  dayOfMonth: ReviewDayOfMonth.FifteenthDayOfMonth,
-                },
-                nextDate: new Date(),
-              },
-              grants: { roles: [], traits: {} },
-              inheritedMemberGrants: { roles: [], traits: {} },
-              ownerGrants: { roles: [], traits: {} },
-              ownershipRequires: {
-                roles: [],
-                traits: {},
-              },
-              owners: [],
-            }}
+            mockCreatedAccessList={props.createdAccessList ?? createdAccessList}
           >
             {props.children}
           </CreateAccessListContextProvider>
@@ -219,4 +227,30 @@ const Provider = props => {
       </ContextProvider>
     </MemoryRouter>
   );
+};
+
+const createdAccessList: AccessList = {
+  id: 'random-access-list-id-1234',
+  metadata: {
+    name: 'random-access-list-id-1234',
+    labels: {},
+    revision: '',
+  },
+  title: 'some access list title that is really long',
+  type: AccessListType.Default,
+  audit: {
+    recurrence: {
+      frequency: ReviewFrequency.OneMonth,
+      dayOfMonth: ReviewDayOfMonth.FifteenthDayOfMonth,
+    },
+    nextDate: new Date(),
+  },
+  grants: { roles: [], traits: {} },
+  inheritedMemberGrants: { roles: [], traits: {} },
+  ownerGrants: { roles: [], traits: {} },
+  ownershipRequires: {
+    roles: [],
+    traits: {},
+  },
+  owners: [],
 };

@@ -146,6 +146,11 @@ WithSparseAccessListOwner.parameters = {
 
 const mockAccessListFull: AccessListModified = {
   id: 'b59c9b50-b534-52ca-870e-9f7069b205dc',
+  metadata: {
+    name: 'b59c9b50-b534-52ca-870e-9f7069b205dc',
+    labels: {},
+    revision: '',
+  },
   type: AccessListType.Default,
   title: 'Interns',
   origin: AccessListOrigin.Okta,
@@ -227,6 +232,11 @@ const mockAccessListScim: AccessListModified = {
 
 const mockAccessListSparse: AccessListModified = {
   id: 'b59c9b50-b534-52ca-870e-9f7069b205dc',
+  metadata: {
+    name: 'b59c9b50-b534-52ca-870e-9f7069b205dc',
+    labels: {},
+    revision: '',
+  },
   type: AccessListType.Default,
   title: 'Interns',
   audit: {
