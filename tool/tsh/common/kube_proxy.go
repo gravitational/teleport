@@ -235,10 +235,11 @@ func (c *proxyKubeCommand) prepare(cf *CLIConf, tc *client.TeleportClient) (*cli
 
 	// Use kube clusters from arg.
 	if len(c.kubeClusters) > 0 || cf.Labels != "" || cf.PredicateExpression != "" {
-		_, kubeClusters, err := fetchKubeClusters(cf.Context, tc)
+		kubeClustersResult, err := fetchKubeClusters(cf.Context, tc)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
+		kubeClusters := kubeClustersResult.kubeClusters
 		switch len(c.kubeClusters) {
 		case 0:
 			// if no names are given, check just the labels/predicate selection.

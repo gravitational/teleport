@@ -219,6 +219,11 @@ type Client struct {
 	relayTransport *transportv1.Client
 }
 
+// Addr returns the address of the Proxy server this Client is connected to.
+func (c *Client) Addr() string {
+	return c.cfg.ProxyAddress
+}
+
 // protocolProxySSHGRPC is TLS ALPN protocol value used to indicate gRPC
 // traffic intended for the Teleport Proxy on the SSH port.
 const protocolProxySSHGRPC string = "teleport-proxy-ssh-grpc"

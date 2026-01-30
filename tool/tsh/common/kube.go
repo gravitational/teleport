@@ -965,15 +965,15 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	currentTeleportCluster, kubeClusters, err := fetchKubeClusters(cf.Context, tc)
+	kubeClusters, err := fetchKubeClusters(cf.Context, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Ignore errors from fetching the current cluster, since it's not
 	// mandatory to have a cluster selected or even to have a kubeconfig file.
-	selectedCluster, _ := kubeconfig.SelectedKubeCluster(getKubeConfigPath(cf, ""), currentTeleportCluster)
-	err = c.showKubeClusters(cf.Stdout(), kubeClusters, selectedCluster)
+	selectedCluster, _ := kubeconfig.SelectedKubeCluster(getKubeConfigPath(cf, ""), kubeClusters.teleportClusterName)
+	err = c.showKubeClusters(cf.Stdout(), kubeClusters.kubeClusters, selectedCluster)
 	return trace.Wrap(err)
 }
 
@@ -1303,10 +1303,10 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if tc.KubeProxyAddr != "" {
-		if err := probeKubeProxyAddr(cf.Context, tc.KubeProxyAddr); err != nil {
-			fmt.Fprintf(os.Stderr, kubeProxyUnreachableWarning, tc.KubeProxyAddr, err)
-		}
+	// In cases where client does not use TLS routing, we check if the k8s proxy is reachable before login.
+	// This doesn't break the login flow, but warns the user that their kubeconfig may not work as expected.
+	if err := checkKubeProxyConnectivity(cf.Context, kubeStatus); err != nil {
+		fmt.Fprintf(os.Stderr, kubeProxyUnreachableWarning, kubeStatus.clusterAddr, err)
 	}
 
 	// Update default kubeconfig file located at ~/.kube/config or the value of
@@ -1463,7 +1463,13 @@ Learn more at https://goteleport.com/docs/architecture/tls-routing/#working-with
 `)
 }
 
-func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleportCluster string, kubeClusters []types.KubeCluster, err error) {
+type fetchKubeClustersResult struct {
+	teleportProxyServiceAddr string
+	teleportClusterName      string
+	kubeClusters             []types.KubeCluster
+}
+
+func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (res fetchKubeClustersResult, err error) {
 	err = client.RetryWithRelogin(ctx, tc, func() error {
 		clusterClient, err := tc.ConnectToCluster(ctx)
 		if err != nil {
@@ -1471,8 +1477,9 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 		}
 		defer clusterClient.Close()
 
-		teleportCluster = clusterClient.ClusterName()
-		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, clusterClient.AuthClient, proto.ListResourcesRequest{
+		res.teleportProxyServiceAddr = clusterClient.ProxyClient.Addr()
+		res.teleportClusterName = clusterClient.ClusterName()
+		res.kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, clusterClient.AuthClient, proto.ListResourcesRequest{
 			SearchKeywords:      tc.SearchKeywords,
 			PredicateExpression: tc.PredicateExpression,
 			Labels:              tc.Labels,
@@ -1483,10 +1490,7 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 
 		return nil
 	})
-	if err != nil {
-		return "", nil, trace.Wrap(err)
-	}
-	return teleportCluster, kubeClusters, nil
+	return res, trace.Wrap(err)
 }
 
 func kubeClustersToStrings(kubeClusters []types.KubeCluster) []string {
@@ -1500,6 +1504,9 @@ func kubeClustersToStrings(kubeClusters []types.KubeCluster) []string {
 
 // kubernetesStatus holds teleport client information necessary to populate the user's kubeconfig.
 type kubernetesStatus struct {
+	// Address of the Teleport Proxy service.
+	proxyAddr string
+	// Address of the Teleport Kubernetes service endpoint (could be Teleport proxy or relay).
 	clusterAddr         string
 	teleportClusterName string
 	kubeClusters        []types.KubeCluster
@@ -1522,10 +1529,13 @@ func fetchKubeStatus(ctx context.Context, tc *client.TeleportClient, ignoreRelay
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	kubeStatus.teleportClusterName, kubeStatus.kubeClusters, err = fetchKubeClusters(ctx, tc)
+	kubeClusters, err := fetchKubeClusters(ctx, tc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	kubeStatus.proxyAddr = kubeClusters.teleportProxyServiceAddr
+	kubeStatus.kubeClusters = kubeClusters.kubeClusters
+	kubeStatus.teleportClusterName = kubeClusters.teleportClusterName
 
 	if !ignoreRelay && tc.RelayAddr != "" {
 		kubeStatus.clusterAddr = (&url.URL{
@@ -1653,9 +1663,20 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path, overrideCont
 	return trace.Wrap(kubeconfig.Update(path, *values, tc.LoadAllCAs))
 }
 
-// probeKubeProxyAddr attempts to establish a TCP connection to the Kubernetes proxy address
+// checkKubeProxyConnectivity attempts to establish a TCP connection to the Kubernetes proxy address
 // to verify it's reachable. Returns an error if the connection fails.
-func probeKubeProxyAddr(ctx context.Context, addr string) error {
+func checkKubeProxyConnectivity(ctx context.Context, status *kubernetesStatus) error {
+	kubeURL, err := url.Parse(status.clusterAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	kubeAddr := net.JoinHostPort(kubeURL.Hostname(), kubeURL.Port())
+	if kubeAddr == status.proxyAddr {
+		// Kubernetes proxy is the same as the Teleport proxy, no need to check separately.
+		// This can happen when TLS routing is used.
+		return nil
+	}
+
 	// Use a short timeout to avoid blocking the user for too long
 	const probeTimeout = 3 * time.Second
 
@@ -1663,7 +1684,7 @@ func probeKubeProxyAddr(ctx context.Context, addr string) error {
 	defer cancel()
 
 	dialer := &net.Dialer{}
-	conn, err := dialer.DialContext(ctx, "tcp", addr)
+	conn, err := dialer.DialContext(ctx, "tcp", kubeAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
