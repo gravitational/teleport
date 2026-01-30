@@ -11,8 +11,7 @@
 // Maximum monitored sessions.
 #define MAX_MONITORED_SESSIONS 1024
 
-// ARGSIZE specifies the max argument size read. This value must match the
-// `argvMax` Golang constant in lib/srv/bpf_test.go.
+// ARGSIZE specifies the max argument size read.
 #define ARGSIZE 1024
 #define MAXARGS 20
 

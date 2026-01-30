@@ -56,8 +56,7 @@ const (
 	// the maximum number of arguments that will be emitted in a event,
 	// including argv[0]
 	maxArgs = 20
-	// the maximum length of a single argument, anything longer will be truncated
-	maxArgLength = 1024
+
 	// the maximum length of a path, anything longer will be truncated
 	maxPathLength = 255
 
@@ -67,6 +66,9 @@ const (
 	// stress test test case
 	stressTestRunCount = 10
 )
+
+// the maximum length of a single argument, anything longer will be truncated
+var maxArgLength = bpf.ArgsCacheSize
 
 var (
 	longArg    = strings.Repeat(longArgBase, (maxArgLength/4)/len(longArgBase))
@@ -955,7 +957,7 @@ func runCommand(t *testing.T, ctx context.Context, srv Server, bpfSrv bpf.BPF, c
 	})
 
 	// Signal to child that it may execute the requested program.
-	t.Log("sending continue signal") //
+	t.Log("sending continue signal")
 	scx.execRequest.Continue()
 
 	// Create a channel that will be used to signal that execution is complete.

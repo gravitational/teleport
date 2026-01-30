@@ -37,6 +37,7 @@ import (
 	ossteleport "github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	controlgroup "github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
@@ -44,7 +45,7 @@ import (
 
 // ArgsCacheSize is the number of args events to store before dropping args
 // events.
-const ArgsCacheSize = 1024
+var ArgsCacheSize = len(new(commandDataT).Argv)
 
 type sessionHandler interface {
 	startSession(auditSessionID uint32) error
@@ -71,6 +72,9 @@ type Service struct {
 	// goroutines.
 	closeContext context.Context
 	closeFunc    context.CancelFunc
+
+	// cgroup is used to potentially unmount the cgroup filesystem after upgrades.
+	cgroup *controlgroup.Service
 
 	// exec holds a BPF program that hooks execve.
 	exec *exec
@@ -103,6 +107,22 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 		closeContext: closeContext,
 		closeFunc:    closeFunc,
 	}
+
+	// Create a cgroup controller to add/remote cgroups.
+	s.cgroup, err = controlgroup.New(&controlgroup.Config{
+		MountPath: config.CgroupPath,
+		RootPath:  config.RootPath,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer func() {
+		if err != nil {
+			if err := s.cgroup.Close(); err != nil {
+				logger.WarnContext(closeContext, "Failed to close cgroup", "error", err)
+			}
+		}
+	}()
 
 	s.argsCache, err = utils.NewFnCache(utils.FnCacheConfig{
 		TTL: 24 * time.Hour,
@@ -152,6 +172,11 @@ func (s *Service) Close() error {
 	s.exec.close()
 	s.open.close()
 	s.conn.close()
+
+	// Close cgroup service.
+	if err := s.cgroup.Close(); err != nil {
+		logger.WarnContext(s.closeContext, "Failed to close cgroup", "error", err)
+	}
 
 	// Signal to the processAccessEvents pulling events off the perf buffer to shutdown.
 	s.closeFunc()

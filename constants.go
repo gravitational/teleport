@@ -260,6 +260,9 @@ const (
 	// ComponentBPF is the eBPF packagae.
 	ComponentBPF = "bpf"
 
+	// ComponentCgroup is the cgroup package.
+	ComponentCgroup = "cgroups"
+
 	// ComponentKube is an Kubernetes API gateway.
 	ComponentKube = "kubernetes"
 
