@@ -613,6 +613,14 @@ export const formatters: Formatters = {
       return `User [${user}] has connected to application [${app_name}]`;
     },
   },
+  [eventCodes.APP_SESSION_START_FAILURE]: {
+    type: 'app.session.start',
+    desc: 'App Session Start Failed',
+    format: event => {
+      const { user, app_name, message } = event;
+      return `User [${user}] failed to connect to application [${app_name}]: ${message}`;
+    },
+  },
   [eventCodes.APP_SESSION_END]: {
     type: 'app.session.end',
     desc: 'App Session Ended',
