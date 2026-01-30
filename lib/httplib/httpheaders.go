@@ -195,7 +195,6 @@ var sshSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/console/node/[^/]+/[^
 var indexCSPStringCache *cspCache = newCSPCache()
 
 func getIndexContentSecurityPolicyString(cfg proto.Features, urlPath string) string {
-	// Check for result with this cfg and urlPath in cache
 	if cspString, ok := indexCSPStringCache.get(urlPath); ok {
 		return cspString
 	}
