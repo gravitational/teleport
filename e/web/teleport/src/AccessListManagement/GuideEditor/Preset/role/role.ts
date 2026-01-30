@@ -7,6 +7,7 @@ import {
   RoleConditions,
   RoleVersion,
 } from 'teleport/services/resources';
+import { Access } from 'teleport/services/user';
 
 import { MinimumRoleVersionSupported } from '../../useGuideEditor';
 import {
@@ -83,6 +84,53 @@ export type RoleEditState = {
    */
   isDirty: boolean;
 };
+
+type RoleAccess = {
+  hasAccess: boolean;
+  name: string;
+};
+
+/**
+ * Returns a list of missing role verbs depending on
+ * what type of role action is requested.
+ *
+ * Returning an empty list means user met all requirements
+ * for the given action (has access).
+ *
+ * Using the guide editor requires role access since
+ * Teleport will perform role operations under the hood.
+ */
+export function getMissingRoleAccess(
+  roleAccess: Access,
+  action: 'crud' | 'write' | 'read'
+): string[] {
+  const readAccess: RoleAccess[] = [
+    { hasAccess: roleAccess.list, name: 'role.list' },
+    { hasAccess: roleAccess.read, name: 'role.read' },
+  ];
+
+  const writeAccess: RoleAccess[] = [
+    { hasAccess: roleAccess.create, name: 'role.create' },
+    { hasAccess: roleAccess.edit, name: 'role.update' },
+    { hasAccess: roleAccess.remove, name: 'role.delete' },
+  ];
+
+  let access: RoleAccess[] = [];
+  switch (action) {
+    case 'crud':
+      access = [...readAccess, ...writeAccess];
+      break;
+    case 'read':
+      access = [...readAccess];
+      break;
+    case 'write':
+      access = [...writeAccess];
+      break;
+    default:
+      action satisfies never;
+  }
+  return access.filter(rule => !rule.hasAccess).map(rule => rule.name);
+}
 
 export function getRoleSuffix(accessListId: string) {
   return `-acl-preset-${accessListId}`;

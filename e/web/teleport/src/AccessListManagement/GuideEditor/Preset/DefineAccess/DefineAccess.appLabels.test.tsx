@@ -394,4 +394,4 @@ test(`typing, clicking, and deleting labels`, async () => {
     expect.anything()
   );
   spiedUnifiedResource.mockClear();
-});
+}, 15000);

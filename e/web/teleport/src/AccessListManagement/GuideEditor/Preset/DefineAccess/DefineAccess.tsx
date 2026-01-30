@@ -63,6 +63,7 @@ export function DefineAccess() {
     preset,
     standardRoleState,
     awsIcRoleState,
+    isEditing,
   } = guideEditor;
 
   // Defaults tab selection to the first access type.
@@ -291,6 +292,11 @@ export function DefineAccess() {
         <StepButtons
           onNext={handleNextStep}
           disableNext={fetchedResources.attempt.status === 'processing'}
+          // When entering a editing mode (versus creating mode), the editor
+          // opens up like a full screen dialog. Prev button is hidden
+          // since this "dialog" like editor can be exited with the classical
+          // upper left "x" button.
+          hidePrevBtn={isEditing}
         />
       </Validation>
       {activeDialog === 'no-access-defined' && (

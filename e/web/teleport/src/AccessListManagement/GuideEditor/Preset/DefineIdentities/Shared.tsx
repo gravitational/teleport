@@ -2,6 +2,7 @@ import styled from 'styled-components';
 
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
+import { HoverTooltip } from 'design/Tooltip';
 
 import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 
@@ -20,22 +21,29 @@ export const IdentityStepButtons = ({
   nextBtnText,
   onNext,
   onPrev,
+  nextBtnDisabled = false,
+  nextBtnTooltipTxt,
 }: {
   nextBtnText?: string;
   onNext?(): void;
   onPrev?(): void;
+  nextBtnDisabled?: boolean;
+  nextBtnTooltipTxt?: string;
 }) => {
-  const { guideEditor: presetEditor } = useAccessListManagementContext();
-  const { prevStep, nextStep } = presetEditor;
+  const { guideEditor } = useAccessListManagementContext();
+  const { prevStep, nextStep } = guideEditor;
 
   return (
     <Flex gap={3}>
-      <ButtonPrimary
-        width="100%"
-        onClick={() => (onNext ? onNext() : nextStep())}
-      >
-        {nextBtnText ?? 'Next'}
-      </ButtonPrimary>
+      <HoverTooltip tipContent={nextBtnTooltipTxt}>
+        <ButtonPrimary
+          width="100%"
+          onClick={() => (onNext ? onNext() : nextStep())}
+          disabled={nextBtnDisabled}
+        >
+          {nextBtnText ?? 'Next'}
+        </ButtonPrimary>
+      </HoverTooltip>
       <ButtonSecondary
         width="100%"
         onClick={() => (onPrev ? onPrev() : prevStep())}

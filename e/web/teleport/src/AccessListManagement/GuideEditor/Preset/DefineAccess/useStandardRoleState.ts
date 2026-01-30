@@ -3,15 +3,18 @@ import { useState } from 'react';
 import { AppSubKind } from 'shared/services';
 
 import { App, CloudInstance } from 'teleport/services/apps';
-import { Labels } from 'teleport/services/resources';
+import { Labels, Role } from 'teleport/services/resources';
 
 import {
   defaultStandardRoleConditions,
+  extractAllowRoleConditionsFromRole,
+  extractRequiredAppIdentitiesFromRole,
   StandardRoleConditions,
 } from '../role/conditions';
 import {
   labelBasedResourceAccessFields,
   LabelBasedResourceAccessFields,
+  listResourceAccessFields,
   ListResourceAccessFields,
 } from '../role/listaccess';
 import {
@@ -31,9 +34,40 @@ import {
   emptyServerIdentities,
   ServerIdentities,
 } from '../role/resources/server';
-import { wildcard } from '../role/role';
+import {
+  newAccessRole,
+  RoleEditState,
+  standardRoleAccessKind,
+  wildcard,
+} from '../role/role';
 
 export type StandardRoleState = {
+  /**
+   * Tracks the editing state when modifying an existing role. Contains the
+   * original role for comparison and an isDirty flag indicating unsaved changes.
+   * Null when creating a new role from scratch.
+   */
+  roleEditState: RoleEditState;
+  /**
+   * Initializes editing state. When a role is provided, extracts its
+   * conditions for editing. When omitted, resets to defaults for new
+   * role creation.
+   */
+  initRoleEditState(role?: Role): void;
+  /**
+   * Returns the role to be saved based on the current edit state.
+   *
+   * Behavior:
+   * - If unchanged (not dirty) with existing role: returns original role as-is
+   * - If modified (dirty) with existing role:
+   *   - Returns undefined if all access was removed (signals backend to remove
+   *     access from grants and requester roles)
+   *   - Returns modified role with updated conditions otherwise
+   * - If modified (dirty) without existing role: returns a new role
+   * - If unchanged without existing role: returns undefined (nothing to save)
+   */
+  getRoleToSave(): Role | undefined;
+
   /**
    * Defines access to standard (non-specialized) resources like apps, dbs,
    * servers, desktops, etc. Specialized resources like AWS IC applications
@@ -144,6 +178,10 @@ export type StandardRoleState = {
    * Returns true if the given resource field has any access defined.
    */
   definedAccess(field: ListResourceAccessFields): boolean;
+  /**
+   * Returns true if access is defined for any resource types
+   */
+  hasAnyAccessDefined(): boolean;
 
   /**
    * Merges the given identity fields into roleConditions. Use this to
@@ -163,6 +201,8 @@ export type StandardRoleState = {
  * Manages role condition state for standard resources.
  */
 export function useStandardRoleState(): StandardRoleState {
+  const [roleEditState, setRoleEditState] = useState<RoleEditState | null>();
+
   const [roleConditions, setRoleConditions] = useState(() =>
     defaultStandardRoleConditions()
   );
@@ -175,6 +215,65 @@ export function useStandardRoleState(): StandardRoleState {
   function reset() {
     setRoleConditions(defaultStandardRoleConditions());
     setRequiredAppIdentities(emptyRequiredAppIdentitiesWithFetchResult());
+    setRoleEditState(null);
+  }
+
+  function initRoleEditState(role?: Role) {
+    setRoleEditState({
+      original: role,
+      isDirty: false,
+    });
+    if (role) {
+      setRoleConditions(extractAllowRoleConditionsFromRole(role));
+      extractRequiredAppIdentitiesFromRole(role);
+    } else {
+      setRoleConditions(defaultStandardRoleConditions());
+      setRequiredAppIdentities(emptyRequiredAppIdentitiesWithFetchResult());
+    }
+  }
+
+  function getRoleToSave(): Role {
+    // Send unchanged role, otherwise backend will interpret
+    // missing role for an existing role as "remove access".
+    if (!roleEditState.isDirty && roleEditState.original) {
+      return roleEditState.original;
+    }
+
+    // Modifying existing role.
+    if (roleEditState.isDirty && roleEditState.original) {
+      // Not sending an existing role for update is interpreted
+      // as "remove access". Backend will remove this access
+      // from member grants and requester roles.
+      if (!hasAnyAccessDefined()) {
+        return undefined;
+      }
+
+      // Send modification.
+      return {
+        ...roleEditState.original,
+        spec: {
+          ...roleEditState.original.spec,
+          allow: { ...roleConditions },
+        },
+      };
+    }
+
+    // Creating a new role b/c:
+    // - user removed access but is adding it back
+    // - wasn't defined in the first place (users can skip defining access)
+    if (roleEditState.isDirty && !roleEditState.original) {
+      return newAccessRole({
+        kind: standardRoleAccessKind,
+        roleConditions,
+      });
+    }
+  }
+
+  function updateRoleConditions(newConditions: StandardRoleConditions) {
+    setRoleConditions(newConditions);
+    if (roleEditState) {
+      setRoleEditState({ ...roleEditState, isDirty: true });
+    }
   }
 
   function markRequiredAppIdentities(
@@ -274,7 +373,7 @@ export function useStandardRoleState(): StandardRoleState {
       | ServerIdentities
       | DesktopIdentities
   ) {
-    setRoleConditions({ ...roleConditions, ...identities });
+    updateRoleConditions({ ...roleConditions, ...identities });
   }
 
   function getEmptyIdentities(field: LabelBasedResourceAccessFields) {
@@ -297,7 +396,7 @@ export function useStandardRoleState(): StandardRoleState {
   function clearIdentities(field: LabelBasedResourceAccessFields) {
     const emptyIdentities = getEmptyIdentities(field);
     const updatedConditions = { ...roleConditions, ...emptyIdentities };
-    setRoleConditions(updatedConditions);
+    updateRoleConditions(updatedConditions);
 
     return updatedConditions;
   }
@@ -343,12 +442,12 @@ export function useStandardRoleState(): StandardRoleState {
       }
     }
 
-    setRoleConditions(updatedCondition);
+    updateRoleConditions(updatedCondition);
     return updatedCondition;
   }
 
   function updateGitHubPermissions(orgs: string[]) {
-    setRoleConditions({
+    updateRoleConditions({
       ...roleConditions,
       github_permissions: orgs.length ? [{ orgs }] : [],
     });
@@ -370,6 +469,12 @@ export function useStandardRoleState(): StandardRoleState {
       default:
         field satisfies never;
     }
+  }
+
+  function hasAnyAccessDefined() {
+    return listResourceAccessFields.some(resourceField =>
+      definedAccess(resourceField)
+    );
   }
 
   function canSkipDefiningIdentities() {
@@ -401,11 +506,16 @@ export function useStandardRoleState(): StandardRoleState {
   }
 
   return {
+    roleEditState,
+    initRoleEditState,
+    getRoleToSave,
+
     roleConditions,
     setRoleConditions,
     requiredAppIdentities,
     reset,
     definedAccess,
+    hasAnyAccessDefined,
 
     hasRequiredAppIdentities,
     clearRequiredAppIdentities,

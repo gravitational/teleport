@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { AccessListPreset } from 'e-teleport/services/accessmanagement/preset';
-import { RoleVersion } from 'teleport/services/resources';
+import { Role, RoleVersion } from 'teleport/services/resources';
 
 import {
   AwsIcRoleState,
@@ -72,6 +72,22 @@ export type GuideEditorState = {
    * Returns true if an access was defined in any role conditions.
    */
   definedAccessInAnyRoleCondition(): boolean;
+
+  /**
+   * Discards all unsaved role edits by re-initializing role states with
+   * their original values and resets the current step.
+   *
+   * Used when user "cancels/closes" the editor.
+   */
+  undoEditRoleChanges(): void;
+  /**
+   * True when editing existing roles, false when creating new ones.
+   */
+  isEditing: boolean;
+  /**
+   * Returns a list of roles to update.
+   */
+  getRolesToSave(): Role[];
 };
 
 /**
@@ -100,6 +116,20 @@ export function useGuideEditor(): GuideEditorState {
 
     awsIcRoleState.reset();
     standardRoleState.reset();
+  }
+
+  function undoEditRoleChanges() {
+    setCurrentStep(0);
+
+    if (standardRoleState.roleEditState) {
+      standardRoleState.initRoleEditState(
+        standardRoleState.roleEditState.original
+      );
+    }
+
+    if (awsIcRoleState.roleEditState) {
+      awsIcRoleState.initRoleEditState(awsIcRoleState.roleEditState.original);
+    }
   }
 
   function prevStep(numStepsBack = 1) {
@@ -138,6 +168,23 @@ export function useGuideEditor(): GuideEditorState {
     );
   }
 
+  function getRolesToSave() {
+    const accessRoles: Role[] = [];
+
+    const awsIcRole = awsIcRoleState.getRoleToSave();
+    const standardRole = standardRoleState.getRoleToSave();
+
+    if (awsIcRole) {
+      accessRoles.push(awsIcRole);
+    }
+
+    if (standardRole) {
+      accessRoles.push(standardRole);
+    }
+
+    return accessRoles;
+  }
+
   return {
     reset,
     preset,
@@ -152,6 +199,12 @@ export function useGuideEditor(): GuideEditorState {
 
     definedAccess,
     definedAccessInAnyRoleCondition,
+
+    getRolesToSave,
+
+    undoEditRoleChanges,
+    isEditing:
+      !!standardRoleState.roleEditState || !!awsIcRoleState.roleEditState,
   };
 }
 

@@ -56,6 +56,7 @@ enum Tab {
   ListMembers = 'tab-members',
   ListOwners = 'tab-owners',
   Audits = 'tab-audits',
+  AccessDefinition = 'tab-resource-access-definition',
 }
 
 export function ViewEditAccessList() {
@@ -436,6 +437,7 @@ const MainContent = ({
           updateAccessList={updateAccessList}
           isReadOnlyOktaList={isReadOnlyOktaList}
           perms={perms}
+          switchToAccessDefinitionTab={() => setActiveTab(Tab.AccessDefinition)}
         />
       )}
 

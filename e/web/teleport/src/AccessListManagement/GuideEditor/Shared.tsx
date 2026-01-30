@@ -34,6 +34,7 @@ export const StepButtons = ({
   nextBtnTxt,
   prevBtnTxt,
   cssStyle,
+  hidePrevBtn = false,
 }: {
   /**
    * If true, disables all buttons
@@ -48,6 +49,7 @@ export const StepButtons = ({
   nextBtnTxt?: string;
   prevBtnTxt?: string;
   cssStyle?: CSSProp;
+  hidePrevBtn?: boolean;
 }) => {
   const { guideEditor: presetEditor } = useAccessListManagementContext();
   const { prevStep, nextStep } = presetEditor;
@@ -87,13 +89,15 @@ export const StepButtons = ({
         >
           {nextBtnTxt ? nextBtnTxt : 'Next'}
         </ButtonPrimary>
-        <ButtonSecondary
-          width="100%"
-          onClick={onPrev ? () => onPrev() : () => prevStep()}
-          disabled={disabled}
-        >
-          {prevBtnTxt ? prevBtnTxt : 'Back'}
-        </ButtonSecondary>
+        {!hidePrevBtn && (
+          <ButtonSecondary
+            width="100%"
+            onClick={onPrev ? () => onPrev() : () => prevStep()}
+            disabled={disabled}
+          >
+            {prevBtnTxt ? prevBtnTxt : 'Back'}
+          </ButtonSecondary>
+        )}
       </Flex>
     </Box>
   );

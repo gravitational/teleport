@@ -20,6 +20,7 @@ import {
 } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
+import { getMissingRoleAccess } from 'e-teleport/AccessListManagement/GuideEditor/Preset/role/role';
 import cfg from 'e-teleport/config';
 import { AccessListPreset } from 'e-teleport/services/accessmanagement/preset';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
@@ -28,11 +29,6 @@ import useTeleport from 'teleport/useTeleport';
 import { NoAccessState } from '../../NoAccessState';
 import { FeatureLimitReached } from '../../Shared/FeatureLimitReached';
 import { useCreateAccessList } from '../CreateAccessListContextProvider';
-
-type RoleAccess = {
-  hasAccess: boolean;
-  name: string;
-};
 
 export function SelectGuide() {
   const ctx = useTeleport();
@@ -52,17 +48,10 @@ export function SelectGuide() {
     return <NoAccessState action="create" />;
   }
 
-  // Using a "preset" guide requires all CRUD access for roles
-  // since Teleport will perform these operations under the hood.
-  const roleAccess = ctx.storeUser.getRoleAccess();
-  const missingRoleAccess: RoleAccess[] = [
-    { hasAccess: roleAccess.create, name: 'role.create' },
-    { hasAccess: roleAccess.edit, name: 'role.update' },
-    { hasAccess: roleAccess.list, name: 'role.list' },
-    { hasAccess: roleAccess.read, name: 'role.read' },
-    { hasAccess: roleAccess.remove, name: 'role.delete' },
-  ].filter(rule => !rule.hasAccess);
-
+  const missingRoleAccess = getMissingRoleAccess(
+    ctx.storeUser.getRoleAccess(),
+    'crud'
+  );
   const hasRoleAccess = missingRoleAccess.length === 0;
 
   function onClickFlowKind(
@@ -198,15 +187,14 @@ export function SelectGuide() {
 export function MissingRoleAccess({
   missingRoleAccess,
 }: {
-  missingRoleAccess: RoleAccess[];
+  missingRoleAccess: string[];
 }) {
-  const missingAccessNames = missingRoleAccess.map(a => a.name);
   return (
     <Box zIndex={1} position="relative" css={{ cursor: 'default' }}>
       <ToolTipNoPermBadge>
         <Box>
           You cannot use this guide. Missing role permissions:{' '}
-          <code>{missingAccessNames.join(', ')}</code>
+          <code>{missingRoleAccess.join(', ')}</code>
         </Box>
       </ToolTipNoPermBadge>
     </Box>

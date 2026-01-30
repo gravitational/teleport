@@ -3,7 +3,7 @@ import {
   AccessListType,
 } from 'e-teleport/services/accessmanagement';
 
-import { Action, isActionForbidden } from './access';
+import { Action, getActionForbiddenInfo, isActionForbidden } from './access';
 
 describe('isEditDisabled', () => {
   // 'true' means the action is forbidden while 'false' means it is allowed
@@ -134,3 +134,108 @@ function valueOfAccessListType(key: string): AccessListType {
     throw new Error(`'${key}' is not a member of AccessListType`);
   return AccessListType[key];
 }
+
+describe('access list with preset', () => {
+  const adminPerms = {
+    adminWhoCanRead: true,
+    adminWhoCanDelete: true,
+    adminWhoCanEdit: true,
+    isOwner: false,
+  };
+
+  test.each(['long-term', 'short-term'] as const)(
+    'EditMembersGrants is forbidden for %s preset',
+    preset => {
+      const props = {
+        accessList: {
+          type: AccessListType.Default,
+          origin: undefined,
+          preset,
+        },
+        action: Action.EditMembersGrants,
+        isReadOnlyOktaList: false,
+        perms: adminPerms,
+      };
+
+      expect(isActionForbidden(props)).toBe(true);
+      expect(getActionForbiddenInfo(props)).toBe(
+        'Go to "Access Definition" tab to edit member access'
+      );
+    }
+  );
+
+  test('EditMembersGrants is allowed for access list without preset', () => {
+    const props = {
+      accessList: {
+        type: AccessListType.Default,
+        origin: undefined,
+        preset: undefined,
+      },
+      action: Action.EditMembersGrants,
+      isReadOnlyOktaList: false,
+      perms: adminPerms,
+    };
+
+    expect(isActionForbidden(props)).toBe(false);
+    expect(getActionForbiddenInfo(props)).toBeUndefined();
+  });
+
+  test.each(['long-term', 'short-term'] as const)(
+    'Delete is forbidden for %s preset if missing role perms',
+    preset => {
+      const props = {
+        accessList: {
+          type: AccessListType.Default,
+          origin: undefined,
+          preset,
+        },
+        action: Action.Delete,
+        isReadOnlyOktaList: false,
+        perms: adminPerms,
+        missingRolePerms: ['role.read'],
+      };
+
+      expect(isActionForbidden(props)).toBe(true);
+      expect(getActionForbiddenInfo(props)).toContain(
+        'Insufficient permissions to delete this access list created with a guide'
+      );
+    }
+  );
+
+  test.each(['long-term', 'short-term'] as const)(
+    'Delete is allowed for %s preset if no missing role perms',
+    preset => {
+      const props = {
+        accessList: {
+          type: AccessListType.Default,
+          origin: undefined,
+          preset,
+        },
+        action: Action.Delete,
+        isReadOnlyOktaList: false,
+        perms: adminPerms,
+        missingRolePerms: undefined,
+      };
+
+      expect(isActionForbidden(props)).toBe(false);
+      expect(getActionForbiddenInfo(props)).toBeUndefined();
+    }
+  );
+
+  test('Delete is allowed when no preset is used', () => {
+    const props = {
+      accessList: {
+        type: AccessListType.Default,
+        origin: undefined,
+        preset: undefined,
+      },
+      action: Action.Delete,
+      isReadOnlyOktaList: false,
+      perms: adminPerms,
+      missingRolePerms: ['role.read'], // no affect
+    };
+
+    expect(isActionForbidden(props)).toBe(false);
+    expect(getActionForbiddenInfo(props)).toBeUndefined();
+  });
+});

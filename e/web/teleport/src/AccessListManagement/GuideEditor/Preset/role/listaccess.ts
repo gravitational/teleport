@@ -31,12 +31,29 @@ type ListResourceConditions = Required<
     | 'kubernetes_users'
     | 'logins'
     | 'windows_desktop_logins'
-    // Irrelevant field
-    | 'roleVersion'
   >
 >;
 
 export type ListResourceAccessFields = keyof ListResourceConditions;
+
+/**
+ * Object to derive runtime array + type.
+ */
+const emptyListResourceAccessConditions = (): ListResourceConditions => ({
+  app_labels: {},
+  db_labels: {},
+  windows_desktop_labels: {},
+  kubernetes_labels: {},
+  node_labels: {},
+  github_permissions: [],
+});
+
+/**
+ * Array for iteration
+ */
+export const listResourceAccessFields = Object.keys(
+  emptyListResourceAccessConditions()
+) as ListResourceAccessFields[];
 
 /**
  * Resource "types" definable by the guide editor.

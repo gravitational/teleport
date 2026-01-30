@@ -149,6 +149,9 @@ const AccessListManagementContext = createContext<AccessListManagementContext>({
     standardRoleState: undefined,
     definedAccess: () => false,
     definedAccessInAnyRoleCondition: () => false,
+    undoEditRoleChanges: () => {},
+    isEditing: false,
+    getRolesToSave: () => [],
   },
   oktaPluginAttempt: undefined,
 });

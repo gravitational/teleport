@@ -9,16 +9,49 @@ import { UnifiedResourceApp } from 'shared/components/UnifiedResources';
 
 import cfg from 'teleport/config';
 import { PermissionSet } from 'teleport/services/apps';
-import ResourceService from 'teleport/services/resources';
+import ResourceService, { Role } from 'teleport/services/resources';
 
 import {
   AwsIcRoleConditions,
+  convertAwsAccountMapToRoleType,
   defaultAwsIcRoleConditions,
+  extractAwsIcRoleConditionsFromRole,
 } from '../../role/conditions';
-import { wildcard } from '../../role/role';
+import {
+  awsIcRoleAccessKind,
+  newAccessRole,
+  RoleEditState,
+  wildcard,
+} from '../../role/role';
 import { awsIcSubKindPredicate } from '../../role/unifiedResource';
 
 export type AwsIcRoleState = {
+  /**
+   * Tracks the editing state when modifying an existing role. Contains the
+   * original role for comparison and an isDirty flag indicating unsaved changes.
+   * Null when creating a new role from scratch.
+   */
+  roleEditState: RoleEditState;
+  /**
+   * Initializes editing state. When a role is provided, extracts its
+   * conditions for editing. When omitted, resets to defaults for new
+   * role creation.
+   */
+  initRoleEditState(role?: Role): void;
+  /**
+   * Returns the role to be saved based on the current edit state.
+   *
+   * Behavior:
+   * - If unchanged (not dirty) with existing role: returns original role as-is
+   * - If modified (dirty) with existing role:
+   *   - Returns undefined if all access was removed (signals backend to remove
+   *     access from grants and requester roles)
+   *   - Returns modified role with updated conditions otherwise
+   * - If modified (dirty) without existing role: returns a new role
+   * - If unchanged without existing role: returns undefined (nothing to save)
+   */
+  getRoleToSave(): Role | undefined;
+
   /**
    * Defines access specifically for AWS IC applications.
    */
@@ -74,6 +107,8 @@ export type AwsIcRoleState = {
  * AWS IC applications.
  */
 export function useAwsIcRoleState(): AwsIcRoleState {
+  const [roleEditState, setRoleEditState] = useState<RoleEditState | null>();
+
   const [roleConditions, setRoleConditions] = useState(() =>
     defaultAwsIcRoleConditions()
   );
@@ -85,6 +120,68 @@ export function useAwsIcRoleState(): AwsIcRoleState {
 
   function reset() {
     setRoleConditions(defaultAwsIcRoleConditions());
+    setRoleEditState(null);
+  }
+
+  function initRoleEditState(role?: Role) {
+    setRoleEditState({
+      original: role,
+      isDirty: false,
+    });
+    if (role) {
+      setRoleConditions(extractAwsIcRoleConditionsFromRole(role));
+    } else {
+      setRoleConditions(defaultAwsIcRoleConditions());
+    }
+  }
+
+  function getRoleToSave(): Role {
+    // Send unchanged role, otherwise backend will interpret
+    // missing role for an existing role as "remove access".
+    if (!roleEditState.isDirty && roleEditState.original) {
+      return roleEditState.original;
+    }
+
+    // Modifying existing role.
+    if (roleEditState.isDirty && roleEditState.original) {
+      // Not sending an existing role for update is interpreted
+      // as "remove access". Backend will remove this access
+      // from member grants and requester roles.
+      if (!definedAccess()) {
+        return undefined;
+      }
+
+      // Send modification.
+      return {
+        ...roleEditState.original,
+        spec: {
+          ...roleEditState.original.spec,
+          allow: {
+            app_labels: roleConditions.labels,
+            account_assignments: convertAwsAccountMapToRoleType(
+              roleConditions.account
+            ),
+          },
+        },
+      };
+    }
+
+    // Creating a new role b/c:
+    // - user removed access but is adding it back
+    // - wasn't defined in the first place (users can skip defining access)
+    if (roleEditState.isDirty && !roleEditState.original) {
+      return newAccessRole({
+        kind: awsIcRoleAccessKind,
+        roleConditions,
+      });
+    }
+  }
+
+  function updateRoleConditions(newConditions: AwsIcRoleConditions) {
+    setRoleConditions(newConditions);
+    if (roleEditState) {
+      setRoleEditState({ ...roleEditState, isDirty: true });
+    }
   }
 
   function removeArn(awsAccount: string, arn: string) {
@@ -99,7 +196,7 @@ export function useAwsIcRoleState(): AwsIcRoleState {
       newAccountMap.delete(awsAccount);
     }
 
-    setRoleConditions({
+    updateRoleConditions({
       ...roleConditions,
       account: newAccountMap,
     });
@@ -108,7 +205,7 @@ export function useAwsIcRoleState(): AwsIcRoleState {
   function removeAccount(awsAccount: string) {
     const newAccountMap = new Map(roleConditions.account);
     newAccountMap.delete(awsAccount);
-    setRoleConditions({
+    updateRoleConditions({
       ...roleConditions,
       account: newAccountMap,
     });
@@ -139,7 +236,7 @@ export function useAwsIcRoleState(): AwsIcRoleState {
       }
     });
 
-    setRoleConditions({
+    updateRoleConditions({
       ...roleConditions,
       account: newAccountMap,
     });
@@ -154,7 +251,7 @@ export function useAwsIcRoleState(): AwsIcRoleState {
     // Replace existing map with only wildcard.
     const newAccountMap = new Map();
     newAccountMap.set(wildcard, newArns);
-    setRoleConditions({ ...roleConditions, account: newAccountMap });
+    updateRoleConditions({ ...roleConditions, account: newAccountMap });
   }
 
   function definedAccess() {
@@ -162,6 +259,10 @@ export function useAwsIcRoleState(): AwsIcRoleState {
   }
 
   return {
+    roleEditState,
+    initRoleEditState,
+    getRoleToSave,
+
     roleConditions,
     fetchedApps,
     removeArn,

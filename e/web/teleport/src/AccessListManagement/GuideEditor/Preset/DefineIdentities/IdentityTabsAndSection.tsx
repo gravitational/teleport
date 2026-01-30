@@ -1,34 +1,23 @@
 import { useId, useState } from 'react';
 
 import { Box, Text } from 'design';
-import {
-  Application,
-  Database,
-  Kubernetes,
-  Server,
-  Windows,
-} from 'design/Icon';
 import { SlideTabs } from 'design/SlideTabs';
-import { TabSpec } from 'design/SlideTabs/SlideTabs';
 
 import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import { resourceAccessSections } from 'teleport/Roles/RoleEditor/StandardEditor/Resources';
 import {
-  AppAccessInputFields,
-  DatabaseAccessInputFields,
-  GitHubOrganizationAccessInputFields,
-  KubernetesAccessInputFields,
   ResourceAccess,
-  ResourceAccessKind,
-  ServerAccessInputFields,
   StandardEditorModel,
-  WindowsDesktopAccessInputFields,
 } from 'teleport/Roles/RoleEditor/StandardEditor/standardmodel';
 import {
   ActionType,
   StandardModelDispatcher,
 } from 'teleport/Roles/RoleEditor/StandardEditor/useStandardModel';
 
+import {
+  getResourceAccessTabSpecs,
+  getRoleSectionInputFieldConfig,
+} from '../../tabs';
 import { labelBasedResourceAccessFields } from '../role/listaccess';
 import { AppIdentities, appIdentityFieldNames } from '../role/resources/app';
 import { DbIdentities, dbIdentities } from '../role/resources/db';
@@ -207,156 +196,17 @@ export function IdentityTabsAndSection({
     }
   }
 
-  function makeRoleSectionTabs(): (TabSpec & {
-    kind: ResourceAccessKind;
-    btnTitle: string;
-    sectionTitle: string;
-  })[] {
-    const identityTxt = 'Identities';
-    return labelBasedResourceAccessFields
-      .filter(field => standardRoleState.definedAccess(field))
-      .map(field => {
-        switch (field) {
-          case 'app_labels': {
-            const sectionTitle = `Application ${identityTxt}`;
-            return {
-              key: 'app',
-              kind: 'app',
-              ariaLabel: 'Go to Application tab',
-              btnTitle: 'Application',
-              icon: Application,
-              controls: `${idPrefix}-app`,
-              sectionTitle,
-              tooltip: {
-                content: sectionTitle,
-              },
-            };
-          }
-          case 'db_labels': {
-            const sectionTitle = `Database ${identityTxt}`;
-            return {
-              key: 'db',
-              ariaLabel: 'Go to Database tab',
-              kind: 'db',
-              btnTitle: 'Database',
-              icon: Database,
-              controls: `${idPrefix}-db`,
-              sectionTitle,
-              tooltip: {
-                content: sectionTitle,
-              },
-            };
-          }
-          case 'kubernetes_labels': {
-            const sectionTitle = `Kubernetes ${identityTxt}`;
-            return {
-              key: 'kube_cluster',
-              ariaLabel: `"Go to Kubernetes Cluster tab"`,
-              kind: 'kube_cluster',
-              btnTitle: 'Kubernetes',
-              icon: Kubernetes,
-              controls: `${idPrefix}-kube_cluster`,
-              sectionTitle,
-              tooltip: {
-                content: sectionTitle,
-              },
-            };
-          }
-          case 'node_labels': {
-            const sectionTitle = `Server ${identityTxt}`;
-            return {
-              key: 'node',
-              ariaLabel: 'Go to Server tab',
-              kind: 'node',
-              icon: Server,
-              btnTitle: 'Server',
-              controls: `${idPrefix}-node`,
-              sectionTitle,
-              tooltip: {
-                content: sectionTitle,
-              },
-            };
-          }
-          case 'windows_desktop_labels': {
-            const sectionTitle = `Windows Desktop ${identityTxt}`;
-            return {
-              key: 'windows_desktop',
-              ariaLabel: 'Go to Windows Desktop tab',
-              kind: 'windows_desktop',
-              icon: Windows,
-              btnTitle: 'Desktops',
-              controls: `${idPrefix}-windows_desktop`,
-              sectionTitle,
-              tooltip: {
-                content: sectionTitle,
-              },
-            };
-          }
-          default:
-            field satisfies never;
-        }
-      });
-  }
-
-  function getRoleSectionInputFieldConfig(kind: ResourceAccessKind) {
-    const requiredAppIdentities = standardRoleState.requiredAppIdentities;
-    switch (kind) {
-      case 'app': {
-        const show: AppAccessInputFields = {
-          labels: false,
-          awsRoleARNs: !!requiredAppIdentities.aws_role_arns,
-          azureIdentities: !!requiredAppIdentities.azure_identities,
-          gcpServiceAccounts: !!requiredAppIdentities.gcp_service_accounts,
-          mcpTools: !!requiredAppIdentities.mcp?.tools,
-        };
-        return show;
+  const tabSpecs = getResourceAccessTabSpecs({
+    idPrefix,
+    accessKind: 'identities',
+    accessFields: labelBasedResourceAccessFields.filter(field => {
+      const definedAccess = standardRoleState.definedAccess(field);
+      if (definedAccess && field === 'app_labels') {
+        return standardRoleState.hasRequiredAppIdentities();
       }
-
-      case 'db': {
-        const show: DatabaseAccessInputFields = {
-          labels: false,
-          dbServiceLabels: false,
-          roles: false,
-          names: true,
-          users: true,
-        };
-        return show;
-      }
-
-      case 'kube_cluster': {
-        const show: KubernetesAccessInputFields = {
-          labels: false,
-          resources: true,
-          users: true,
-          groups: true,
-        };
-        return show;
-      }
-      case 'node': {
-        const show: ServerAccessInputFields = {
-          labels: false,
-          logins: true,
-        };
-        return show;
-      }
-      case 'windows_desktop': {
-        const show: WindowsDesktopAccessInputFields = {
-          labels: false,
-          logins: true,
-        };
-        return show;
-      }
-      case 'git_server':
-        const show: GitHubOrganizationAccessInputFields = {
-          organizations: true,
-        };
-        return show;
-      default:
-        kind satisfies never;
-    }
-  }
-
-  const tabSpecs = makeRoleSectionTabs();
+      return definedAccess;
+    }),
+  });
 
   const selectedTab = tabSpecs[currentTab];
 
@@ -409,9 +259,11 @@ export function IdentityTabsAndSection({
             {selectedTab.sectionTitle}
           </Text>
           <Section
-            visibleInputFields={getRoleSectionInputFieldConfig(
-              sectionValue.kind
-            )}
+            visibleInputFields={getRoleSectionInputFieldConfig({
+              kind: sectionValue.kind,
+              requiredAppIdentities: standardRoleState.requiredAppIdentities,
+              withLabels: false,
+            })}
             value={sectionValue}
             isProcessing={false}
             validation={sectionValidation}

@@ -5,13 +5,15 @@ import {
   type AccessList,
 } from 'e-teleport/services/accessmanagement';
 
+import { isGuideEditorSupported } from '../GuideEditor/useGuideEditor';
 import { Perms } from './Shared';
 
 type AccessProps = {
-  accessList: Pick<AccessList, 'origin' | 'type'>;
+  accessList: Pick<AccessList, 'origin' | 'type' | 'preset'>;
   isReadOnlyOktaList?: boolean;
   action: Action;
   perms: Perms;
+  missingRolePerms?: string[];
 };
 
 export enum Action {
@@ -62,6 +64,11 @@ export function getActionForbiddenInfo(props: AccessProps): string | undefined {
         accessKind: action,
         extraInfo: scimExtraInfo,
       });
+    case EditAccess.ForbiddenPreset:
+      return 'Go to "Access Definition" tab to edit member access';
+    case EditAccess.ForbiddenPresetDelete:
+      return `Insufficient permissions to delete this access list created with a guide. Missing role
+        permissions: ${props.missingRolePerms.join(', ')}`;
     default:
       access satisfies never;
   }
@@ -74,6 +81,8 @@ enum EditAccess {
   ForbiddenReadOnlyType,
   ForbiddenOktaReadOnly,
   ForbiddenScim,
+  ForbiddenPreset,
+  ForbiddenPresetDelete,
 }
 
 function getEditAccess({
@@ -81,6 +90,7 @@ function getEditAccess({
   isReadOnlyOktaList,
   action,
   perms,
+  missingRolePerms = [],
 }: AccessProps): EditAccess {
   const isReadOnlyTypeList = isReadOnly(accessList.type);
   const isOktaList = accessList.origin === AccessListOrigin.Okta;
@@ -98,6 +108,13 @@ function getEditAccess({
   // RBAC check should go first to avoid leaking info about access list properties.
   if (action === Action.Delete) {
     if (!perms.adminWhoCanDelete) return EditAccess.ForbiddenRbac;
+
+    if (
+      isGuideEditorSupported(accessList.preset) &&
+      missingRolePerms.length > 0
+    ) {
+      return EditAccess.ForbiddenPresetDelete;
+    }
   } else {
     if (!perms.adminWhoCanEdit) return EditAccess.ForbiddenRbac;
   }
@@ -114,6 +131,13 @@ function getEditAccess({
 
   if (isReadOnlyTypeList) return EditAccess.ForbiddenReadOnlyType;
   if (isReadOnlyOktaList) return EditAccess.ForbiddenOktaReadOnly;
+
+  if (
+    action === Action.EditMembersGrants &&
+    isGuideEditorSupported(accessList.preset)
+  ) {
+    return EditAccess.ForbiddenPreset;
+  }
 
   return EditAccess.Allowed;
 }
