@@ -153,6 +153,7 @@ tbot:
   joinMethod: "kubernetes"
   # tbot.token(string) -- is the name of the token used by tbot to join the Teleport cluster.
   # This value is not sensitive unless the `joinMethod` is set to `"token"`.
+  # If unset, defaults to `[release name]-tbot`.
   # If `crd.create` is set to true, then a TeleportProvisionToken will be created with the provided token name.
   token: ""
 
