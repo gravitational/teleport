@@ -7,22 +7,22 @@ Configuration in this directory creates AWS and Teleport resources necessary for
 
 | Name | Version |
 |------|---------|
-| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.0 |
-| <a name="requirement_teleport"></a> [teleport](#requirement\_teleport) | >= 18.5.1 |
-| <a name="requirement_tls"></a> [tls](#requirement\_tls) | >= 4.0 |
+| terraform | >= 1.0 |
+| aws | >= 5.0 |
+| teleport | >= 18.5.1 |
+| tls | >= 4.0 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 5.0 |
+| aws | >= 5.0 |
 
 ## Modules
 
 | Name | Source | Version |
 |------|--------|---------|
-| <a name="module_aws_discovery"></a> [aws\_discovery](#module\_aws\_discovery) | ../.. | n/a |
+| aws\_discovery | ../.. | n/a |
 
 ## Resources
 
@@ -38,5 +38,5 @@ No inputs.
 
 | Name | Description |
 |------|-------------|
-| <a name="output_aws_discovery"></a> [aws\_discovery](#output\_aws\_discovery) | n/a |
+| aws\_discovery | n/a |
 <!-- END_TF_DOCS -->
