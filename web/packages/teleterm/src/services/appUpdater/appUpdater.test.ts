@@ -21,6 +21,7 @@ import { createHash } from 'node:crypto';
 import { MacUpdater } from 'electron-updater';
 
 import type { GetClusterVersionsResponse } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
+import { compare } from 'shared/utils/semVer';
 import { wait } from 'shared/utils/wait';
 
 import Logger, { NullService } from 'teleterm/logger';
@@ -350,12 +351,13 @@ test('discards previous update if the latest check returns no update', async () 
 });
 
 test('downgrades are not allowed', async () => {
+  const toolsVersion = '17.7.4';
   const clusters = {
     reachableClusters: [
       {
         clusterUri: '/clusters/foo',
         toolsAutoUpdate: true,
-        toolsVersion: '17.7.4',
+        toolsVersion,
         minToolsVersion: '16.0.0-aa',
       },
     ],
@@ -366,6 +368,8 @@ test('downgrades are not allowed', async () => {
     clusters,
   });
 
+  // Ensure the app version is greater than the update version.
+  expect(compare(toolsVersion, mockedAppVersion)).toBe(-1);
   await setup.appUpdater.checkForUpdates();
   expect(setup.lastEvent.value).toEqual(
     expect.objectContaining({
