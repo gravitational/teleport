@@ -57,22 +57,6 @@ its certificates from the proxy.
 
 Alice is now authenticated and able to interact with resources on that cluster.
 
-**Alice explicitly uses browser authentication**
-
-Alice has multiple MFA methods configured (TOTP and a passkey), but prefers
-to use their passkey through the browser. They run the following command:
-
-```
-tsh login --proxy teleport.example.com --user alice --auth=browser
-```
-
-By explicitly specifying `--auth=browser`, Alice tells `tsh` to use browser-based
-authentication from the start, skipping any checks for local hardware keys or
-TOTP. `tsh` prints the MFA URL and opens Alice's default browser. If Alice isn't
-already authenticated, she is prompted to login, she is then prompted to
-complete the MFA check with her passkey. After successful authentication, `tsh`
-will receive its certificates through a callback from the proxy.
-
 **Alice connects to a resource that requires per-session MFA**
 
 Alice is already authenticated with her cluster, but wants to access a resource
