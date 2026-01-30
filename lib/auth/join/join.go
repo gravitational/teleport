@@ -216,11 +216,18 @@ type RegisterParams struct {
 	OracleIMDSClient utils.HTTPDoClient
 	// AttestTPM overrides the function used to attest the host TPM for the TPM join method.
 	AttestTPM func(context.Context, *slog.Logger) (*tpm.Attestation, func() error, error)
+	// Log is the logger to use for emitting log messages.
+	// If not specified, this defaults to the global logger.
+	Log *slog.Logger
 }
 
 func (r *RegisterParams) CheckAndSetDefaults() error {
 	if r.Clock == nil {
 		r.Clock = clockwork.NewRealClock()
+	}
+
+	if r.Log == nil {
+		r.Log = slog.Default()
 	}
 
 	if r.KubernetesReadFileFunc == nil {
