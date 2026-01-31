@@ -1232,13 +1232,7 @@ e2e-aws: $(TEST_LOG_DIR)
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-api lint-go lint-kube-agent-updater lint-tools lint-protos lint-no-actions
-
-#
-# Runs linters without dedicated GitHub Actions.
-#
-.PHONY: lint-no-actions
-lint-no-actions: lint-sh lint-license
+lint: lint-api lint-go lint-kube-agent-updater lint-tools lint-protos lint-sh lint-license
 
 .PHONY: lint-tools
 lint-tools: lint-build-tooling lint-backport
@@ -1314,10 +1308,34 @@ lint-kube-agent-updater: GO_LINT_API_FLAGS ?=
 lint-kube-agent-updater:
 	cd integrations/kube-agent-updater && golangci-lint run -c ../../.golangci.yml $(GO_LINT_API_FLAGS)
 
+SHELLCHECK_VERSION := 0.10.0
+
+.PHONY: print-shellcheck-version
+print-shellcheck-version:
+	@echo $(SHELLCHECK_VERSION)
+
+.PHONY: ensure-shellcheck
+ensure-shellcheck:
+	@if ! type shellcheck 2>&1 >/dev/null; then \
+		echo "'shellcheck' is not installed."; \
+		if [ "$${CI}" = "true" ]; then \
+			echo "This is a failure when running in CI."; \
+		fi; \
+		exit 1; \
+	fi; \
+	INSTALLED_VERSION=$$(shellcheck --version | awk '/version:/ {print $$2}'); \
+	if [ "$${INSTALLED_VERSION}" != "$(SHELLCHECK_VERSION)" ]; then \
+		echo "shellcheck version $${INSTALLED_VERSION} does not match required version $(SHELLCHECK_VERSION)"; \
+		if [ "$${CI}" = "true" ]; then \
+			echo "This is a failure when running in CI."; \
+		fi; \
+		exit 1; \
+	fi
+
 # TODO(awly): remove the `--exclude` flag after cleaning up existing scripts
 .PHONY: lint-sh
 lint-sh: SH_LINT_FLAGS ?=
-lint-sh:
+lint-sh: ensure-shellcheck
 	find . -type f \( -name '*.sh' -or -name '*.sh.tmpl' \) -not -path "*/node_modules/*" | xargs \
 		shellcheck \
 		--exclude=SC2086 \
