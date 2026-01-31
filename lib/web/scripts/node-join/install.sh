@@ -1089,7 +1089,7 @@ is_repo_available() {
     case "${ID}-${VERSION_ID}" in
         ubuntu-16.04* | ubuntu-18.04* | ubuntu-20.04* | ubuntu-22.04* | ubuntu-24.04* |\
         debian-9* | debian-10* | debian-11* | debian-12* | \
-        rhel-7* | rhel-8* | rhel-9* | rhel-10* \
+        rhel-7* | rhel-8* | rhel-9* | rhel-10* | \
         centos-7* | centos-8* | centos-9* | \
         amzn-2 | amzn-2023 | \
         opensuse-tumbleweed* | sles-12* | sles-15* | opensuse-leap-15*)
