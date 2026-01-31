@@ -1236,6 +1236,18 @@
               "update",
               "delete"
             ]
+          },
+          {
+            "resources": [
+              "workload_cluster"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
           }
         ]
       },

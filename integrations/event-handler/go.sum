@@ -757,8 +757,8 @@ github.com/opencontainers/go-digest v1.0.0 h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8
 github.com/opencontainers/go-digest v1.0.0/go.mod h1:0JzlMkj0TRzQZfJkVvzbP0HBR3IKzErnv2BNG4W4MAM=
 github.com/opencontainers/image-spec v1.1.1 h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJwooC2xJA040=
 github.com/opencontainers/image-spec v1.1.1/go.mod h1:qpqAh3Dmcf36wStyyWU+kCeDgrGnAve2nCC8+7h8Q0M=
-github.com/oracle/oci-go-sdk/v65 v65.104.1 h1:kGwTmvlg/dpsqk84+On93xw+ztOcS/jPU2MP/WesAvM=
-github.com/oracle/oci-go-sdk/v65 v65.104.1/go.mod h1:oB8jFGVc/7/zJ+DbleE8MzGHjhs2ioCz5stRTdZdIcY=
+github.com/oracle/oci-go-sdk/v65 v65.107.0 h1:ZBnDn495o4beF+bidJuIDYubwEVypiOhtVrmIQd0kWY=
+github.com/oracle/oci-go-sdk/v65 v65.107.0/go.mod h1:8ZzvzuEG/cFLFZhxg/Mg1w19KqyXBKO3c17QIc5PkGs=
 github.com/patrickmn/go-cache v2.1.1-0.20191004192108-46f407853014+incompatible h1:IWzUvJ72xMjmrjR9q3H1PF+jwdN0uNQiR2t1BLNalyo=
 github.com/patrickmn/go-cache v2.1.1-0.20191004192108-46f407853014+incompatible/go.mod h1:3Qf8kWWT7OJRJbdiICTKqZju1ZixQ/KpMGzzAfe6+WQ=
 github.com/pavlo-v-chernykh/keystore-go/v4 v4.5.0 h1:2nosf3P75OZv2/ZO/9Px5ZgZ5gbKrzA3joN1QMfOGMQ=
@@ -911,8 +911,8 @@ github.com/thales-e-security/pool v0.0.2 h1:RAPs4q2EbWsTit6tpzuvTFlgFRJ3S8Evf5gt
 github.com/thales-e-security/pool v0.0.2/go.mod h1:qtpMm2+thHtqhLzTwgDBj/OuNnMpupY8mv0Phz0gjhU=
 github.com/theupdateframework/go-tuf v0.7.0 h1:CqbQFrWo1ae3/I0UCblSbczevCCbS31Qvs5LdxRWqRI=
 github.com/theupdateframework/go-tuf v0.7.0/go.mod h1:uEB7WSY+7ZIugK6R1hiBMBjQftaFzn7ZCDJcp1tCUug=
-github.com/theupdateframework/go-tuf/v2 v2.3.1 h1:fReZUTLvPdqIL8Rd9xEKPmaxig8GIXe0kS4RSEaRfaM=
-github.com/theupdateframework/go-tuf/v2 v2.3.1/go.mod h1:9S0Srkf3c13FelsOyt5OyG3ZZDq9OJDA4IILavrt72Y=
+github.com/theupdateframework/go-tuf/v2 v2.4.1 h1:K6ewW064rKZCPkRo1W/CTbTtm/+IB4+coG1iNURAGCw=
+github.com/theupdateframework/go-tuf/v2 v2.4.1/go.mod h1:Nex2enPVYDFCklrnbTzl3OVwD7fgIAj0J5++z/rvCj8=
 github.com/tidwall/gjson v1.14.2/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=
 github.com/tidwall/gjson v1.14.4 h1:uo0p8EbA09J7RQaflQ1aBRffTR7xedD2bcIVSYxLnkM=
 github.com/tidwall/gjson v1.14.4/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=

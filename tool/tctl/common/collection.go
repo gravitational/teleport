@@ -34,7 +34,6 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
-	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
@@ -251,54 +250,6 @@ func (c *databaseServerCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, c.servers)
 }
 
-type kubeServerCollection struct {
-	servers []types.KubeServer
-}
-
-func (c *kubeServerCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.servers {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *kubeServerCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, server := range c.servers {
-		kube := server.GetCluster()
-		if kube == nil {
-			continue
-		}
-		labels := common.FormatLabels(kube.GetAllLabels(), verbose)
-		rows = append(rows, []string{
-			common.FormatResourceName(kube, verbose),
-			labels,
-			server.GetTeleportVersion(),
-		})
-
-	}
-	headers := []string{"Cluster", "Labels", "Version"}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-	// stable sort by cluster name.
-	t.SortRowsBy([]int{0}, true)
-
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-func (c *kubeServerCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, c.servers)
-}
-
-func (c *kubeServerCollection) writeJSON(w io.Writer) error {
-	return utils.WriteJSONArray(w, c.servers)
-}
-
 type crownJewelCollection struct {
 	items []*crownjewelv1.CrownJewel
 }
@@ -320,47 +271,6 @@ func (c *crownJewelCollection) WriteText(w io.Writer, verbose bool) error {
 		rows = append(rows, []string{item.Metadata.GetName(), item.GetSpec().String(), labels})
 	}
 	headers := []string{"Name", "Spec", "Labels"}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-	// stable sort by name.
-	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type kubeClusterCollection struct {
-	clusters []types.KubeCluster
-}
-
-func (c *kubeClusterCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.clusters {
-		r = append(r, resource)
-	}
-	return r
-}
-
-// writeText formats the dynamic kube clusters into a table and writes them into w.
-// Name          Labels
-// ------------- ----------------------------------------------------------------------------------------------------------
-// cluster1      region=eastus,resource-group=cluster1,subscription-id=subID
-// cluster2      region=westeurope,resource-group=cluster2,subscription-id=subID
-// cluster3      region=northcentralus,resource-group=cluster3,subscription-id=subID
-// cluster4      owner=cluster4,region=southcentralus,resource-group=cluster4,subscription-id=subID
-// If verbose is disabled, labels column can be truncated to fit into the console.
-func (c *kubeClusterCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, cluster := range c.clusters {
-		labels := common.FormatLabels(cluster.GetAllLabels(), verbose)
-		rows = append(rows, []string{
-			common.FormatResourceName(cluster, verbose),
-			labels,
-		})
-	}
-	headers := []string{"Name", "Labels"}
 	var t asciitable.Table
 	if verbose {
 		t = asciitable.MakeTable(headers, rows...)
@@ -845,70 +755,6 @@ func (c *healthCheckConfigCollection) WriteText(w io.Writer, verbose bool) error
 
 	// stable sort by name.
 	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type scopedRoleCollection struct {
-	items []*scopedaccessv1.ScopedRole
-}
-
-func (c *scopedRoleCollection) Resources() []types.Resource {
-	out := make([]types.Resource, 0, len(c.items))
-	for _, item := range c.items {
-		out = append(out, types.Resource153ToLegacy(item))
-	}
-	return out
-}
-
-func (c *scopedRoleCollection) WriteText(w io.Writer, verbose bool) error {
-	headers := []string{"Scope", "Name"}
-	var rows [][]string
-	for _, item := range c.items {
-		rows = append(rows, []string{
-			item.GetScope(),
-			item.GetMetadata().GetName(),
-		})
-	}
-
-	t := asciitable.MakeTable(headers, rows...)
-
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type scopedRoleAssignmentCollection struct {
-	items []*scopedaccessv1.ScopedRoleAssignment
-}
-
-func (c *scopedRoleAssignmentCollection) Resources() []types.Resource {
-	out := make([]types.Resource, 0, len(c.items))
-	for _, item := range c.items {
-		out = append(out, types.Resource153ToLegacy(item))
-	}
-	return out
-}
-
-func (c *scopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) error {
-	headers := []string{"Scope", "Name", "User", "Assigns"}
-	var rows [][]string
-
-	for _, item := range c.items {
-		var assigns []string
-		for _, subAssignment := range item.GetSpec().GetAssignments() {
-			assigns = append(assigns, fmt.Sprintf("%s -> %s", subAssignment.GetRole(), subAssignment.GetScope()))
-		}
-
-		rows = append(rows, []string{
-			item.GetScope(),
-			item.GetMetadata().GetName(),
-			item.GetSpec().GetUser(),
-			strings.Join(assigns, ", "),
-		})
-	}
-
-	t := asciitable.MakeTable(headers, rows...)
-
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

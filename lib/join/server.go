@@ -112,6 +112,7 @@ type AuthService interface {
 	GetTerraformIDTokenValidator() terraformcloud.Validator
 	GetAzureJoinConfig() *azurejoin.AzureJoinConfig
 	services.Presence
+	GetStaticScopedTokens(context.Context) (*joiningv1.StaticScopedTokens, error)
 }
 
 // ServerConfig holds configuration parameters for [Server].
@@ -121,6 +122,7 @@ type ServerConfig struct {
 	FIPS               bool
 	ScopedTokenService services.ScopedTokenService
 	OracleHTTPClient   utils.HTTPDoClient
+	Logger             *slog.Logger
 }
 
 // Server implements cluster joining for nodes and bots.
@@ -131,6 +133,9 @@ type Server struct {
 
 // NewServer returns a new [Server] instance.
 func NewServer(cfg *ServerConfig) *Server {
+	if cfg.Logger == nil {
+		cfg.Logger = slog.With(teleport.ComponentKey, "join")
+	}
 	return &Server{
 		cfg:               cfg,
 		oracleRootCACache: oraclejoin.NewRootCACache(),
@@ -149,6 +154,21 @@ func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.
 
 	wg := &sync.WaitGroup{}
 	wg.Go(func() {
+		staticTokens, err := s.cfg.AuthService.GetStaticScopedTokens(ctx)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				s.cfg.Logger.ErrorContext(ctx, "could not fetch static scoped tokens", "error", err)
+			}
+		}
+
+		// short circuit if a matching static scoped token is found
+		for _, tok := range staticTokens.GetSpec().GetTokens() {
+			if tok.GetMetadata().GetName() == name {
+				scoped, scopedErr = joining.NewToken(tok)
+				return
+			}
+		}
+
 		res, err := s.cfg.ScopedTokenService.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
 			Name: name,
 		})

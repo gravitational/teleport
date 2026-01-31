@@ -21,6 +21,7 @@ package proto;
 import "google/protobuf/timestamp.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/presence/v1/relay_server.proto";
+import "teleport/scopes/joining/v1/token.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
 
@@ -102,6 +103,9 @@ message UpstreamInventoryHello {
   // The advertized scope of the instance. An instance's scope can not change once assigned, so future
   // heartbeats must include a scope value matching the one declared in the hello message.
   string scope = 9;
+  // The immutable labels reported by the instance. The hash of these labels is expected to match
+  // the hash included in the instance's certificate.
+  teleport.scopes.joining.v1.ImmutableLabels immutable_labels = 10;
 }
 
 // UpstreamInventoryAgentMetadata is the message sent up the inventory control stream containing

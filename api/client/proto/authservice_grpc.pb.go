@@ -43,6 +43,7 @@ const (
 	AuthService_GetInstances_FullMethodName                        = "/proto.AuthService/GetInstances"
 	AuthService_GetClusterAlerts_FullMethodName                    = "/proto.AuthService/GetClusterAlerts"
 	AuthService_UpsertClusterAlert_FullMethodName                  = "/proto.AuthService/UpsertClusterAlert"
+	AuthService_DeleteClusterAlert_FullMethodName                  = "/proto.AuthService/DeleteClusterAlert"
 	AuthService_CreateAlertAck_FullMethodName                      = "/proto.AuthService/CreateAlertAck"
 	AuthService_GetAlertAcks_FullMethodName                        = "/proto.AuthService/GetAlertAcks"
 	AuthService_ClearAlertAcks_FullMethodName                      = "/proto.AuthService/ClearAlertAcks"
@@ -334,6 +335,8 @@ type AuthServiceClient interface {
 	GetClusterAlerts(ctx context.Context, in *types.GetClusterAlertsRequest, opts ...grpc.CallOption) (*GetClusterAlertsResponse, error)
 	// UpsertClusterAlert creates a cluster alert.
 	UpsertClusterAlert(ctx context.Context, in *UpsertClusterAlertRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// DeleteClusterAlert deletes a cluster alert.
+	DeleteClusterAlert(ctx context.Context, in *DeleteClusterAlertRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// CreateAlertAck marks a cluster alert as acknowledged.
 	CreateAlertAck(ctx context.Context, in *types.AlertAcknowledgement, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetAlertAcks gets active alert ackowledgements.
@@ -1160,6 +1163,16 @@ func (c *authServiceClient) UpsertClusterAlert(ctx context.Context, in *UpsertCl
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, AuthService_UpsertClusterAlert_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) DeleteClusterAlert(ctx context.Context, in *DeleteClusterAlertRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, AuthService_DeleteClusterAlert_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -4018,6 +4031,8 @@ type AuthServiceServer interface {
 	GetClusterAlerts(context.Context, *types.GetClusterAlertsRequest) (*GetClusterAlertsResponse, error)
 	// UpsertClusterAlert creates a cluster alert.
 	UpsertClusterAlert(context.Context, *UpsertClusterAlertRequest) (*emptypb.Empty, error)
+	// DeleteClusterAlert deletes a cluster alert.
+	DeleteClusterAlert(context.Context, *DeleteClusterAlertRequest) (*emptypb.Empty, error)
 	// CreateAlertAck marks a cluster alert as acknowledged.
 	CreateAlertAck(context.Context, *types.AlertAcknowledgement) (*emptypb.Empty, error)
 	// GetAlertAcks gets active alert ackowledgements.
@@ -4787,6 +4802,9 @@ func (UnimplementedAuthServiceServer) GetClusterAlerts(context.Context, *types.G
 }
 func (UnimplementedAuthServiceServer) UpsertClusterAlert(context.Context, *UpsertClusterAlertRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertClusterAlert not implemented")
+}
+func (UnimplementedAuthServiceServer) DeleteClusterAlert(context.Context, *DeleteClusterAlertRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteClusterAlert not implemented")
 }
 func (UnimplementedAuthServiceServer) CreateAlertAck(context.Context, *types.AlertAcknowledgement) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateAlertAck not implemented")
@@ -5716,6 +5734,24 @@ func _AuthService_UpsertClusterAlert_Handler(srv interface{}, ctx context.Contex
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).UpsertClusterAlert(ctx, req.(*UpsertClusterAlertRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_DeleteClusterAlert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteClusterAlertRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).DeleteClusterAlert(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_DeleteClusterAlert_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).DeleteClusterAlert(ctx, req.(*DeleteClusterAlertRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -10434,6 +10470,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpsertClusterAlert",
 			Handler:    _AuthService_UpsertClusterAlert_Handler,
+		},
+		{
+			MethodName: "DeleteClusterAlert",
+			Handler:    _AuthService_DeleteClusterAlert_Handler,
 		},
 		{
 			MethodName: "CreateAlertAck",

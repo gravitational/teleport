@@ -17,12 +17,8 @@
 package vnet
 
 import (
-	"cmp"
 	"context"
-	"errors"
 	"log/slog"
-	"os"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -33,7 +29,7 @@ import (
 	"golang.org/x/sys/windows/svc/mgr"
 
 	"github.com/gravitational/teleport"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/windowsservice"
 )
 
 const (
@@ -126,83 +122,23 @@ func startService(ctx context.Context, cfg *windowsAdminProcessConfig) (*mgr.Ser
 
 // ServiceMain runs the Windows VNet admin service.
 func ServiceMain() error {
-	closeFn, err := setupServiceLogger()
+	closeLogger, err := windowsservice.InitSlogEventLogger(eventSource)
 	if err != nil {
-		return trace.Wrap(err, "setting up logger for service")
+		return trace.Wrap(err)
 	}
-
-	if err := svc.Run(serviceName, &windowsService{}); err != nil {
-		closeFn()
-		return trace.Wrap(err, "running Windows service")
-	}
-
-	return trace.Wrap(closeFn(), "closing logger")
-}
-
-// windowsService implements [svc.Handler].
-type windowsService struct{}
-
-// Execute implements [svc.Handler.Execute], the GoDoc is copied below.
-//
-// Execute will be called by the package code at the start of the service, and
-// the service will exit once Execute completes.  Inside Execute you must read
-// service change requests from [requests] and act accordingly. You must keep
-// service control manager up to date about state of your service by writing
-// into [status] as required.  args contains service name followed by argument
-// strings passed to the service.
-// You can provide service exit code in exitCode return parameter, with 0 being
-// "no error". You can also indicate if exit code, if any, is service specific
-// or not by using svcSpecificEC parameter.
-func (s *windowsService) Execute(args []string, requests <-chan svc.ChangeRequest, status chan<- svc.Status) (svcSpecificEC bool, exitCode uint32) {
 	logger := slog.With(teleport.ComponentKey, teleport.Component("vnet", "windows-service"))
-	const cmdsAccepted = svc.AcceptStop // Interrogate is always accepted and there is no const for it.
-	status <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	errCh := make(chan error)
-	go func() { errCh <- s.run(ctx, args) }()
-
-	var terminateTimedOut <-chan time.Time
-loop:
-	for {
-		select {
-		case request := <-requests:
-			switch request.Cmd {
-			case svc.Interrogate:
-				state := svc.Running
-				if ctx.Err() != nil {
-					state = svc.StopPending
-				}
-				status <- svc.Status{State: state, Accepts: cmdsAccepted}
-			case svc.Stop:
-				logger.InfoContext(ctx, "Received stop command, shutting down service")
-				// Cancel the context passed to s.run to terminate the
-				// networking stack.
-				cancel()
-				terminateTimedOut = cmp.Or(terminateTimedOut, time.After(terminateTimeout))
-				status <- svc.Status{State: svc.StopPending}
-			}
-		case <-terminateTimedOut:
-			logger.ErrorContext(ctx, "Networking stack failed to terminate within timeout, exiting process",
-				slog.Duration("timeout", terminateTimeout))
-			exitCode = 1
-			break loop
-		case err := <-errCh:
-			if err == nil || errors.Is(err, context.Canceled) {
-				logger.InfoContext(ctx, "Service terminated")
-			} else {
-				logger.ErrorContext(ctx, "Service terminated", "error", err)
-				exitCode = 1
-			}
-			break loop
-		}
-	}
-	status <- svc.Status{State: svc.Stopped, Win32ExitCode: exitCode}
-	return false, exitCode
+	err = windowsservice.Run(&windowsservice.RunConfig{
+		Name:    serviceName,
+		Handler: &handler{},
+		Logger:  logger,
+	})
+	return trace.NewAggregate(err, closeLogger())
 }
 
-func (s *windowsService) run(ctx context.Context, args []string) error {
+type handler struct{}
+
+func (w *handler) Execute(ctx context.Context, args []string) error {
 	var cfg windowsAdminProcessConfig
 	app := kingpin.New(serviceName, "Teleport VNet Windows Service")
 	serviceCmd := app.Command("vnet-service", "Start the VNet service.")
@@ -220,24 +156,4 @@ func (s *windowsService) run(ctx context.Context, args []string) error {
 		return trace.Wrap(err, "running admin process")
 	}
 	return nil
-}
-
-func setupServiceLogger() (func() error, error) {
-	level := slog.LevelInfo
-	if envVar := os.Getenv(teleport.VerboseLogsEnvVar); envVar != "" {
-		isDebug, err := strconv.ParseBool(envVar)
-		if err != nil {
-			return nil, trace.Wrap(err, "parsing %s", teleport.VerboseLogsEnvVar)
-		}
-		if isDebug {
-			level = slog.LevelDebug
-		}
-	}
-
-	handler, close, err := logutils.NewSlogEventLogHandler("vnet", level)
-	if err != nil {
-		return nil, trace.Wrap(err, "initializing log handler")
-	}
-	slog.SetDefault(slog.New(handler))
-	return close, nil
 }

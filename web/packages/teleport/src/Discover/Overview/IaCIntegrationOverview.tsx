@@ -77,7 +77,7 @@ type TabId = 'overview' | 'activity' | 'settings';
 
 const TABS = [
   { id: 'overview', label: 'Overview' },
-  { id: 'activity', label: 'Activity' },
+  { id: 'activity', label: 'Issues' },
   { id: 'settings', label: 'Settings' },
 ] as const;
 
