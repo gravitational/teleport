@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "17.7.15"
+const Version = "17.7.6-hugoslack.1"
 
 const VersionMajor = 17
 const VersionMinor = 7
-const VersionPatch = 15
-const VersionPreRelease = ""
+const VersionPatch = 6
+const VersionPreRelease = "hugoslack.1"
 const VersionMetadata = ""

@@ -1,4 +1,4 @@
-.version: &version "17.7.15"
+.version: &version "17.7.6-hugoslack.1"
 
 apiVersion: v2
 name: teleport-plugin-discord
