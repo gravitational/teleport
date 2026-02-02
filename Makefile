@@ -1699,6 +1699,15 @@ terraform-resources-up-to-date: must-start-clean/host
 		exit 1; \
 	fi
 
+# terraform-module-docs-up-to-date checks if the generated Terraform module documentation is up to date.
+.PHONY: terraform-module-docs-up-to-date
+terraform-module-docs-up-to-date: must-start-clean/host
+	$(MAKE) -C integrations/terraform-modules docs
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "TF module docs" "make -C integrations/terraform-modules docs"; \
+		exit 1; \
+	fi
+
 # icons-up-to-date checks if icons were pre-processed before being added to the repo.
 .PHONY: icons-up-to-date
 icons-up-to-date: must-start-clean/host
