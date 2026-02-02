@@ -34,7 +34,7 @@ your Azure joining token.
   Virtual Machine must have a [Managed
   Identity](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
   assigned to it.
-- (!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/iac-clients.mdx!)
 
 ## Step 1/5. Set up a Managed Identity
 
@@ -90,18 +90,41 @@ $ az vmss update-instances --resource-group <resource-group> --name <vmss-name> 
 ## Step 2/5. Create the Azure joining token
 
 Create the following `token.yaml` with an `allow` rule specifying your Azure
-subscription and the resource group that your VM's identity must match.
-
-(!docs/pages/includes/provision-token/azure-spec.mdx!)
+subscription and the resource group that your VM's identity must match.  You can
+create the token with `tctl` as well as the Teleport Terraform provider or
+Kubernetes operator.
 
 The token name `azure-token` is just an example and can be any value you want to
 use, as long as you use the same value for `join_params.token_name` in Step 3.
+
+<Tabs>
+<TabItem label="tctl">
+
+(!docs/pages/includes/provision-token/azure-spec.mdx!)
 
 Run the following command to create the token:
 
 ```code
 $ tctl create -f token.yaml
 ```
+
+</TabItem>
+<TabItem label="Terraform">
+
+Add the following resource to your Terraform configuration, replacing values as
+indicated:
+
+(!docs/pages/includes/provision-token/azure-spec-hcl.mdx!)
+
+</TabItem>
+<TabItem label="Kubernetes">
+
+Add the following Kubernetes resource manifest, replacing values as indicated:
+
+(!docs/pages/includes/provision-token/azure-spec-kube.mdx!)
+
+</TabItem>
+</Tabs>
 
 ## Step 3/5 Install Teleport
 
