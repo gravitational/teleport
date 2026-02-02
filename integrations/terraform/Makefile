@@ -5,6 +5,7 @@ PROTOC_GEN_TERRAFORM:= $(shell command -v protoc-gen-terraform)
 
 BUILDDIR ?= build
 TFDIR ?= example
+TEST_LOG_DIR ?= ${abspath ./test-logs}
 
 ADDFLAGS ?=
 BUILDFLAGS ?= $(ADDFLAGS) -trimpath -ldflags '-w -s'
@@ -209,15 +210,19 @@ CURRENT_ULIMIT := $(shell ulimit -n)
 
 TEST_ARGS?=
 
+
+$(TEST_LOG_DIR):
+	mkdir $(TEST_LOG_DIR)
+
 .PHONY: test
-test: install
+test: install | $(TEST_LOG_DIR)
 ifndef TERRAFORM_EXISTS
 	@echo "Terraform v1.4+ is not installed (tfenv install 1.5.6 && tfenv use 1.5.6)."
 	terraform -version
 	@exit -1
 endif
 
-	gotestsum --junitfile unit-tests-terraform.xml --jsonfile unit-tests-terraform.json -- ./testlib -v $(TEST_ARGS)
+	gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-terraform.xml --jsonfile unit-tests-terraform.json -- ./testlib -v $(TEST_ARGS)
 
 .PHONY: test-full
 test-full: TEST_ARGS=--tags enterprisetests
