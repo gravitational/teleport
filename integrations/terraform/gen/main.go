@@ -905,6 +905,16 @@ var (
 		// We import the package containing kinds, then use ForceSetKind.
 		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
 		ForceSetKind: "apitypes.KindWorkloadCluster",
+		StatePoll: &statePoll{
+			StatePath: []string{
+				"Status",
+				"State",
+			},
+			PendingStates:            []string{"creating"},
+			TargetStates:             []string{"active"},
+			StatePollIntervalSeconds: 30,
+			StateTimeoutSeconds:      15 * 60,
+		},
 	}
 )
 
