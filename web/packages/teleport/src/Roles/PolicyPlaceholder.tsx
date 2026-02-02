@@ -99,22 +99,21 @@ export function PolicyPlaceholder({
                 {loading ? 'Creating graph…' : 'Preview Identity Security'}
               </ButtonPrimary>
             )}
-          {!cfg.isPolicyEnabled &&
-            !cfg.isCloud && ( // non-cloud must contact sales
-              <>
-                <ButtonLockedFeature noIcon py={0} width={undefined}>
-                  Contact Sales
-                </ButtonLockedFeature>
-                <ButtonSecondary
-                  as="a"
-                  href="https://goteleport.com/platform/policy/"
-                  target="_blank"
-                  ml={2}
-                >
-                  Learn More
-                </ButtonSecondary>
-              </>
-            )}
+          {((!cfg.isPolicyEnabled && !cfg.isCloud) || !roleDiffProps) && ( // non-cloud must contact sales
+            <>
+              <ButtonLockedFeature noIcon py={0} width={undefined}>
+                Contact Sales
+              </ButtonLockedFeature>
+              <ButtonSecondary
+                as="a"
+                href="https://goteleport.com/platform/policy/"
+                target="_blank"
+                ml={2}
+              >
+                Learn More
+              </ButtonSecondary>
+            </>
+          )}
         </Flex>
       </Flex>
       <Flex
