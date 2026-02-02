@@ -150,7 +150,17 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 		}
 	}
 
-	totalReportCount := len(userActivityReports) + len(resourcePresenceReports) + len(botInstanceActivityReports)
+	freeBatchSize = submitBatchSize - len(userActivityReports) - len(resourcePresenceReports) - len(botInstanceActivityReports)
+	var identitySecuritySummariesReports []*prehogv1.IdentitySecuritySummariesGeneratedReport
+	if freeBatchSize > 0 {
+		identitySecuritySummariesReports, err = svc.listIdentitySecuritySummariesGeneratedReports(ctx, freeBatchSize)
+		if err != nil {
+			c.Logger.ErrorContext(ctx, "Failed to load identity security summaries reports for submission.", "error", err)
+			return
+		}
+	}
+
+	totalReportCount := len(userActivityReports) + len(resourcePresenceReports) + len(botInstanceActivityReports) + len(identitySecuritySummariesReports)
 
 	if totalReportCount < 1 {
 		err := ClearAlert(ctx, c.Status)
@@ -188,6 +198,14 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 			newest = t
 		}
 	}
+	if len(identitySecuritySummariesReports) > 0 {
+		if t := identitySecuritySummariesReports[0].GetStartTime().AsTime(); t.Before(oldest) {
+			oldest = t
+		}
+		if t := identitySecuritySummariesReports[len(identitySecuritySummariesReports)-1].GetStartTime().AsTime(); t.After(newest) {
+			newest = t
+		}
+	}
 
 	debugPayload := fmt.Sprintf("%v %q", time.Now().Round(0), c.HostID)
 	if err := svc.createUsageReportingLock(ctx, submitLockDuration, []byte(debugPayload)); err != nil {
@@ -203,9 +221,10 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	defer cancel()
 
 	batchUUID, err := c.Submitter(lockCtx, &prehogv1.SubmitUsageReportsRequest{
-		UserActivity:        userActivityReports,
-		ResourcePresence:    resourcePresenceReports,
-		BotInstanceActivity: botInstanceActivityReports,
+		UserActivity:                    userActivityReports,
+		ResourcePresence:                resourcePresenceReports,
+		BotInstanceActivity:             botInstanceActivityReports,
+		IdentitySecuritySummariesReport: identitySecuritySummariesReports,
 	})
 	if err != nil {
 		c.Logger.ErrorContext(ctx, "Failed to send usage reports.",
@@ -260,6 +279,12 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 			lastErr = err
 		}
 	}
+	for _, report := range identitySecuritySummariesReports {
+		if err := svc.deleteIdentitySecuritySummariesGeneratedReport(ctx, report); err != nil {
+			lastErr = err
+		}
+	}
+
 	if lastErr != nil {
 		c.Logger.WarnContext(ctx, "Failed to delete some usage reports after successful send.", "last_error", lastErr)
 	}

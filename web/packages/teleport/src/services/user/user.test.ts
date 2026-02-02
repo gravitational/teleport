@@ -331,6 +331,34 @@ test('undefined values in context response gives proper default values', async (
       create: false,
       remove: false,
     },
+    autoUpdateConfig: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    autoUpdateVersion: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    autoUpdateAgentRollout: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    autoUpdateAgentReport: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
   };
 
   expect(response).toEqual({
