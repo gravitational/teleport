@@ -60,6 +60,9 @@ export const StatusLabel = ({
           <Text>{tooltip}</Text>
         </Box>
       }
+      css={`
+        display: inline-flex;
+      `}
     >
       <PointerFlex inline alignItems="center">
         {statusLabel(status, label)}

@@ -446,6 +446,9 @@ const IssuesCell = ({ integration }: { integration: IntegrationLike }) => {
               )}
             </Box>
           }
+          css={`
+            display: inline-flex;
+          `}
         >
           <PointerFlex inline alignItems="center" gap={1}>
             {issueCount.toLocaleString()}
@@ -530,6 +533,9 @@ const DetailsCell = ({ integration }: { integration: IntegrationLike }) => {
                 )}
               </Box>
             }
+            css={`
+              display: inline-flex;
+            `}
           >
             <PointerFlex inline gap={1}>
               {rc.enrolled.toLocaleString()} Resources enrolled ({enrolledPct})
