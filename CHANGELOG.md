@@ -9,7 +9,7 @@
 * Updated the OCI SDK to support new regions. [#63265](https://github.com/gravitational/teleport/pull/63265)
 * Ensure application session rejections for untrusted devices are consistently audited as AppSessionStart failures after MFA. [#63149](https://github.com/gravitational/teleport/pull/63149)
 * Added Helm chart support to the `teleport-event-handler configure` command. [#63147](https://github.com/gravitational/teleport/pull/63147)
-* Added `tctl` support for removing `okta_assingment` internal resource should it be needed. [#62698](https://github.com/gravitational/teleport/pull/62698)
+* Added `tctl` support for removing `okta_assignment` internal resource should it be needed. [#62698](https://github.com/gravitational/teleport/pull/62698)
 
 Enterprise:
 * Prevented manual membership changes to SCIM-type access lists while enabling support for their reviews.
