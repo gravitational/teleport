@@ -301,6 +301,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindInferencePolicy, nil
 	case types.KindRelayServer, types.KindRelayServer + "s":
 		return types.KindRelayServer, nil
+	case types.KindWorkloadCluster, types.KindWorkloadCluster + "s":
+		return types.KindWorkloadCluster, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
