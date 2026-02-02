@@ -140,7 +140,13 @@ func (l *Limiter) UnaryServerInterceptorWithCustomRate(customRate CustomRateFunc
 		// Limit requests per second and simultaneous connection by client IP.
 		clientIP, _, err := net.SplitHostPort(peerInfo.Addr.String())
 		if err != nil {
-			return nil, trace.BadParameter("missing client IP")
+			// bufconn peers don't include host:port, so use a stable synthetic key
+			// for request/connection limiting in tests.
+			if peerInfo.Addr.Network() == "bufconn" && peerInfo.Addr.String() == "bufconn" {
+				clientIP = "bufconn"
+			} else {
+				return nil, trace.BadParameter("missing client IP")
+			}
 		}
 		if err := l.RegisterRequestWithCustomRate(clientIP, customRate(info.FullMethod)); err != nil {
 			return nil, trace.LimitExceeded("rate limit exceeded")

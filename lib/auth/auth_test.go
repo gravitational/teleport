@@ -33,6 +33,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	gocmp "github.com/google/go-cmp/cmp"
@@ -4676,13 +4677,18 @@ func TestCleanupNotifications(t *testing.T) {
 }
 
 func TestCreateAccessListReminderNotifications(t *testing.T) {
+	synctest.Test(t, testCreateAccessListReminderNotifications)
+}
+
+func testCreateAccessListReminderNotifications(t *testing.T) {
 	ctx := context.Background()
 
 	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 
 	// Setup test auth server
-	testServer := newTestTLSServer(t)
+	testServer := newTestTLSServer(t, withBufconnListener())
 	authServer := testServer.Auth()
+	defer testServer.Close()
 
 	testRole, err := types.NewRole("test", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -4703,6 +4709,7 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 
 	client, err := testServer.NewClient(authtest.TestUser(testUsername))
 	require.NoError(t, err)
+	defer client.Close()
 
 	// Create access lists with different expiry times
 	accessLists := []struct {
@@ -4757,26 +4764,20 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	}
 
 	// Check notifications
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		resp, err := client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind))
-	}, 5*time.Minute, 500*time.Millisecond)
+	synctest.Wait()
+	resp, err := client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind))
 
 	// Run CreateAccessListReminderNotifications() again to verify no duplicates are created
 	authServer.CreateAccessListReminderNotifications(ctx, auth.WithCreateNotificationInterval(time.Nanosecond))
 
 	// Check notifications again, counts should remain the same.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		resp, err := client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind),
-			"notifications should not have changed after second reconciliation")
-	}, 5*time.Minute, 500*time.Millisecond)
+	synctest.Wait()
+	resp, err = client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind),
+		"notifications should not have changed after second reconciliation")
 }
 
 type createAccessListOptions struct {
