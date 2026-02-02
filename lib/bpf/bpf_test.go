@@ -42,6 +42,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/cgroup"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -157,6 +158,9 @@ func TestRootWatch(t *testing.T) {
 	// Create a fake audit log that can be used to capture the events emitted.
 	emitter := &eventstest.MockRecorderEmitter{}
 
+	// recordedEvents will capture all events emitted to the emitter.
+	recorder := &eventstest.MockRecorderEmitter{}
+
 	// Create and start a program that does nothing. Since sleep will run longer
 	// than we wait below, nothing should be emitted to the Audit Log.
 	cmd := osexec.Command("sleep", "10")
@@ -174,6 +178,7 @@ func TestRootWatch(t *testing.T) {
 		User:           "foo@example.com",
 		PID:            cmd.Process.Pid,
 		Emitter:        emitter,
+		Recorder:       events.WithNoOpPreparer(recorder),
 		Events: map[string]struct{}{
 			constants.EnhancedRecordingCommand: {},
 			constants.EnhancedRecordingDisk:    {},
@@ -211,6 +216,9 @@ func TestRootWatch(t *testing.T) {
 		}
 		require.Equal(t, int(pid), cmd.Process.Pid)
 	}
+
+	// Ensure we recorded the events into the recorder as well.
+	require.EqualValues(t, emitter.Events(), recorder.Events())
 }
 
 // TestRootScripts checks if execsnoop can capture commands executed

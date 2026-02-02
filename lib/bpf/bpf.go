@@ -426,9 +426,8 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			Path:       args[0],
 			Argv:       args[1:],
 		}
-		if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionCommandEvent); err != nil {
-			logger.WarnContext(ctx.Context, "Failed to emit command event", "error", err)
-		}
+
+		s.prepareAndEmitEvent(ctx, sessionCommandEvent, false)
 
 		// Now that the event has been processed, remove from cache.
 		s.argsCache.Remove(key)
@@ -488,7 +487,7 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 		ReturnCode: event.ReturnCode,
 	}
 	// Logs can be DoS by event failures here
-	_ = ctx.Emitter.EmitAuditEvent(ctx.Context, sessionDiskEvent)
+	s.prepareAndEmitEvent(ctx, sessionDiskEvent, true)
 }
 
 // emit4NetworkEvent will parse and emit IPv4 events to the Audit Log.
@@ -546,9 +545,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 		SrcAddr:    srcAddr.String(),
 		TCPVersion: 4,
 	}
-	if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionNetworkEvent); err != nil {
-		logger.WarnContext(ctx.Context, "Failed to emit network event", "error", err)
-	}
+	s.prepareAndEmitEvent(ctx, sessionNetworkEvent, false)
 }
 
 // emit6NetworkEvent will parse and emit IPv6 events to the Audit Log.
@@ -606,8 +603,30 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 		SrcAddr:    srcAddr.String(),
 		TCPVersion: 6,
 	}
-	if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionNetworkEvent); err != nil {
-		logger.WarnContext(ctx.Context, "Failed to emit network event", "error", err)
+
+	s.prepareAndEmitEvent(ctx, sessionNetworkEvent, false)
+}
+
+// prepareAndEmitEvent will prepare the event using the session recorder (if
+// configured) and emit it to the audit log. If ignoreErrs is true, any errors
+// during preparation or emission will be ignored.
+func (s *Service) prepareAndEmitEvent(ctx *SessionContext, event apievents.AuditEvent, ignoreErrs bool) {
+	// If a recorder is configured, prepare and record the event first.
+	if ctx.Recorder != nil {
+		if preparedEvent, err := ctx.Recorder.PrepareSessionEvent(event); err != nil && !ignoreErrs {
+			logger.WarnContext(ctx.Context, "Failed to prepare session event.", "error", err, "event_type", event.GetType())
+		} else {
+			// reassign event to emit the prepared event to ctx.Emitter instead of the original event.
+			event = preparedEvent.GetAuditEvent()
+			if err := ctx.Recorder.RecordEvent(ctx.Context, preparedEvent); err != nil && !ignoreErrs {
+				logger.WarnContext(ctx.Context, "Failed to record prepared session event.", "error", err, "event_type", event.GetType())
+			}
+		}
+	}
+
+	// emit the event to the audit log even if recording failed.
+	if err := ctx.Emitter.EmitAuditEvent(ctx.Context, event); err != nil && !ignoreErrs {
+		logger.WarnContext(ctx.Context, "Failed to emit bpf event", "error", err, "event_type", event.GetType())
 	}
 }
 
