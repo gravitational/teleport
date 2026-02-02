@@ -61,6 +61,7 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 
 	oidc := modules.GetProtoEntitlement(features, entitlements.OIDC)
 	saml := modules.GetProtoEntitlement(features, entitlements.SAML)
+	policy := modules.GetProtoEntitlement(features, entitlements.Policy)
 
 	if oidc.Enabled {
 		reconcilers = append(reconcilers, reconcilerFactory{"TeleportOIDCConnector", NewOIDCConnectorReconciler})
@@ -72,6 +73,12 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		reconcilers = append(reconcilers, reconcilerFactory{"TeleportSAMLConnector", NewSAMLConnectorReconciler})
 	} else {
 		log.Info("SAML connectors are only available in Teleport Enterprise edition. TeleportSAMLConnector resources won't be reconciled")
+	}
+
+	if policy.Enabled {
+		reconcilers = append(reconcilers, reconcilerFactory{"TeleportInferenceModel", NewInferenceModelReconciler})
+	} else {
+		log.Info("Inference Models are only available in Teleport Enterprise edition. TeleportInferenceModel resources won't be reconciled")
 	}
 
 	// Login Rules are enterprise-only but there is no specific feature flag for them.

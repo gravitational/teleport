@@ -90,7 +90,8 @@ PROTOS = \
 	teleport/legacy/types/types.proto \
 	teleport/machineid/v1/bot.proto \
 	teleport/workloadidentity/v1/resource.proto \
-	teleport/autoupdate/v1/autoupdate.proto
+	teleport/autoupdate/v1/autoupdate.proto \
+	teleport/summarizer/v1/summarizer.proto
 
 .PHONY: crd-manifests
 crd-manifests: crdgen ## Generates CRD manifests using crdgen.
@@ -139,12 +140,12 @@ crd-manifests-diff: crdgen
 		protoc \
 			-I=../../api/proto/ \
 			-I=$(PROTOBUF_MOD_PATH) \
-			--plugin=./build/protoc-gen-crd \
+			--plugin=./crdgen/build/protoc-gen-crd \
 			--crd_out=$(CRD_OUT_PATH) \
 			"$${proto}"; \
 	done
 
-	diff config/crd/bases $(CRD_OUT_PATH);\
+	diff -N config/crd/bases $(CRD_OUT_PATH);\
 	EXIT_CODE=$$?;\
 	rm -rf $(CRD_OUT_PATH) $(CUSTOM_IMPORTS_TMP_DIR);\
 	exit $$EXIT_CODE

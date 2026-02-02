@@ -196,6 +196,14 @@ data:
               - read
               - update
               - delete
+          - resources:
+              - inference_model
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
       deny: {}
     version: v7
     ---
