@@ -184,7 +184,7 @@ export function EnrollAws() {
   return (
     <Validation>
       {({ validator }) => (
-        <Flex pt={3}>
+        <Box pt={3}>
           <ContentWithSidePanel
             isPanelOpen={isPanelOpen}
             panelWidth={PANEL_WIDTH}
@@ -302,7 +302,7 @@ export function EnrollAws() {
               )}
             </InfoGuideContainer>
           </SlidingSidePanel>
-        </Flex>
+        </Box>
       )}
     </Validation>
   );
