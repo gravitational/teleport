@@ -50,8 +50,9 @@ type AutoUpdateServiceClient interface {
 	GetClusterVersions(ctx context.Context, in *GetClusterVersionsRequest, opts ...grpc.CallOption) (*GetClusterVersionsResponse, error)
 	// GetConfigRequest retrieves the local auto updates configuration.
 	// It resolves settings using platform-specific mechanisms:
-	// * macOS/Linux: Environment variables.
-	// * Windows: System Registry policies (respecting per-machine vs. per-user installation scopes).
+	//   - macOS/Linux: Environment variables.
+	//   - Windows: System Registry policies (respecting per-machine vs. per-user installation scopes),
+	//     with a fallback to the deprecated environment variables when policy values are not set.
 	GetConfig(ctx context.Context, in *GetConfigRequest, opts ...grpc.CallOption) (*GetConfigResponse, error)
 	// GetInstallationMetadata returns installation metadata of the currently running app instance.
 	// Implemented only on Windows.
@@ -106,8 +107,9 @@ type AutoUpdateServiceServer interface {
 	GetClusterVersions(context.Context, *GetClusterVersionsRequest) (*GetClusterVersionsResponse, error)
 	// GetConfigRequest retrieves the local auto updates configuration.
 	// It resolves settings using platform-specific mechanisms:
-	// * macOS/Linux: Environment variables.
-	// * Windows: System Registry policies (respecting per-machine vs. per-user installation scopes).
+	//   - macOS/Linux: Environment variables.
+	//   - Windows: System Registry policies (respecting per-machine vs. per-user installation scopes),
+	//     with a fallback to the deprecated environment variables when policy values are not set.
 	GetConfig(context.Context, *GetConfigRequest) (*GetConfigResponse, error)
 	// GetInstallationMetadata returns installation metadata of the currently running app instance.
 	// Implemented only on Windows.

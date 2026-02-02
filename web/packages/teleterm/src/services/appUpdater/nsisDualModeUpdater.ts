@@ -22,22 +22,34 @@ import { shell } from 'electron';
 import { NsisUpdater } from 'electron-updater';
 import { InstallOptions } from 'electron-updater/out/BaseUpdater';
 
+export interface NsisDualModeUpdaterOptions {
+  /**
+   * Deprecated per‑machine env‑var config forces UAC (no privileged updater).
+   * TODO(gzdunek): REMOVE IN 19.0.0
+   */
+  privilegedUpdaterCannotBeUsed: boolean;
+}
+
 /**
  * Extends the standard NSIS to ensure that a per-user installation won't attempt
  * to update the per-machine one.
  */
 export class NsisDualModeUpdater extends NsisUpdater {
-  constructor() {
+  constructor(private options: NsisDualModeUpdaterOptions) {
     super();
   }
 
   protected override doInstall(options: InstallOptions): boolean {
-    if (options.isAdminRightsRequired) {
-      // TODO(gzdunek): Call the privileged update service.
-      return super.doInstall(options);
-    } else {
-      return this.doInstallPerUser(options);
+    if (!options.isAdminRightsRequired) {
+      return this.doInstallPerScope(options, 'user');
     }
+
+    if (this.options.privilegedUpdaterCannotBeUsed) {
+      return this.doInstallPerScope(options, 'machine');
+    }
+
+    // TODO(gzdunek): Call the privileged update service.
+    return super.doInstall(options);
   }
 
   /**
@@ -45,10 +57,13 @@ export class NsisDualModeUpdater extends NsisUpdater {
    * https://github.com/electron-userland/electron-builder/blob/7b5901b77dfae417c29944656b80c583384de026/packages/electron-updater/src/NsisUpdater.ts#L126-L181
    * (commit 8ba9be481e3b777aa77884d265fd9b7f927a8a99).
    *
-   * The only change is the addition of the `/currentuser` flag to prevent attempts
-   * to update an existing per-machine installation.
+   * The only change is adding the `scope` parameter. It enforces that the currently
+   * used app instance is updated, when both of them are available in the system.
    */
-  protected doInstallPerUser(options: InstallOptions): boolean {
+  protected doInstallPerScope(
+    options: InstallOptions,
+    scope: 'user' | 'machine'
+  ): boolean {
     const installerPath = this.installerPath;
     if (installerPath == null) {
       this.dispatchError(
@@ -59,8 +74,14 @@ export class NsisDualModeUpdater extends NsisUpdater {
 
     const args = ['--updated'];
 
-    // Do not attempt to update the per-machine version if it exists.
-    args.push('/currentuser');
+    switch (scope) {
+      case 'user':
+        // Do not attempt to update the per-machine version if it exists.
+        args.push('/currentuser');
+        break;
+      case 'machine':
+        args.push('/allusers');
+    }
 
     if (options.isSilent) {
       args.push('/S');

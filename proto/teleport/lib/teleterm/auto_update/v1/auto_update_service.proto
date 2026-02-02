@@ -27,7 +27,8 @@ service AutoUpdateService {
   // GetConfigRequest retrieves the local auto updates configuration.
   // It resolves settings using platform-specific mechanisms:
   // * macOS/Linux: Environment variables.
-  // * Windows: System Registry policies (respecting per-machine vs. per-user installation scopes).
+  // * Windows: System Registry policies (respecting per-machine vs. per-user installation scopes),
+  //   with a fallback to the deprecated environment variables when policy values are not set.
   rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
   // GetInstallationMetadata returns installation metadata of the currently running app instance.
   // Implemented only on Windows.
@@ -74,9 +75,10 @@ message GetConfigResponse {
   // * Windows: The `CdnBaseUrl` value in the system registry (SOFTWARE\Policies\Teleport\TeleportConnect).
   //   - HKEY_LOCAL_MACHINE (Machine Policy): Takes precedence over user policies.
   //   - HKEY_CURRENT_USER (User Policy): Used only for per-user installations if no machine policy is defined.
+  //   - If policy values are missing, falls back to `TELEPORT_CDN_BASE_URL` (deprecated).
   //
   // Note: OSS builds require this to be set (via env var or registry), otherwise an empty value is returned.
-  string cdn_base_url = 1;
+  ConfigValue cdn_base_url = 1;
 
   // The specific client tools version to use. The 'off' value disables automatic updates.
   // Sources resolved by platform:
@@ -84,7 +86,26 @@ message GetConfigResponse {
   // * Windows: The `ToolsVersion` value in the system registry (SOFTWARE\Policies\Teleport\TeleportConnect).
   //   - HKEY_LOCAL_MACHINE (Machine Policy): Takes precedence over user policies.
   //   - HKEY_CURRENT_USER (User Policy): Used only for per-user installations if no machine policy is defined.
-  string tools_version = 2;
+  //   - If policy values are missing, falls back to `TELEPORT_TOOLS_VERSION` (deprecated).
+  ConfigValue tools_version = 2;
+}
+
+// Contains the config value and its source.
+message ConfigValue {
+  string value = 1;
+  // Source of the config.
+  ConfigSource source = 2;
+}
+
+// Source of the config.
+enum ConfigSource {
+  CONFIG_SOURCE_UNSPECIFIED = 0;
+  // Configuration comes from environment variable.
+  CONFIG_SOURCE_ENV_VAR = 2;
+  // Configuration comes from SOFTWARE\Policies\Teleport\TeleportConnect.
+  CONFIG_SOURCE_POLICY = 3;
+  // Configuration comes from hardcoded default.
+  CONFIG_SOURCE_DEFAULT = 4;
 }
 
 // Request for GetInstallationMetadata.

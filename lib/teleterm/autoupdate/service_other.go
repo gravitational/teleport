@@ -19,24 +19,13 @@
 package autoupdate
 
 import (
-	"os"
+	"github.com/gravitational/trace"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/auto_update/v1"
-	"github.com/gravitational/teleport/lib/autoupdate"
 )
-
-// When tsh runs as a daemon, auto-updates must be disabled. Connect enforces this by
-// launching tsh with TELEPORT_TOOLS_VERSION=off, and forwards the real value via
-// FORWARDED_TELEPORT_TOOLS_VERSION.
-const forwardedTeleportToolsEnvVar = "FORWARDED_TELEPORT_TOOLS_VERSION"
 
 // platformGetConfig retrieves the local auto updates configuration.
 func platformGetConfig() (*api.GetConfigResponse, error) {
-	envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar)
-	envTeleportToolsVersion := os.Getenv(forwardedTeleportToolsEnvVar)
-
-	return &api.GetConfigResponse{
-		CdnBaseUrl:   envBaseURL,
-		ToolsVersion: envTeleportToolsVersion,
-	}, nil
+	config, err := readConfigFromEnvVars()
+	return config, trace.Wrap(err)
 }

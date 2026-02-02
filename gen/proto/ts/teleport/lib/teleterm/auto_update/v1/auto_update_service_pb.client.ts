@@ -48,7 +48,8 @@ export interface IAutoUpdateServiceClient {
      * GetConfigRequest retrieves the local auto updates configuration.
      * It resolves settings using platform-specific mechanisms:
      * * macOS/Linux: Environment variables.
-     * * Windows: System Registry policies (respecting per-machine vs. per-user installation scopes).
+     * * Windows: System Registry policies (respecting per-machine vs. per-user installation scopes),
+     *   with a fallback to the deprecated environment variables when policy values are not set.
      *
      * @generated from protobuf rpc: GetConfig(teleport.lib.teleterm.auto_update.v1.GetConfigRequest) returns (teleport.lib.teleterm.auto_update.v1.GetConfigResponse);
      */
@@ -85,7 +86,8 @@ export class AutoUpdateServiceClient implements IAutoUpdateServiceClient, Servic
      * GetConfigRequest retrieves the local auto updates configuration.
      * It resolves settings using platform-specific mechanisms:
      * * macOS/Linux: Environment variables.
-     * * Windows: System Registry policies (respecting per-machine vs. per-user installation scopes).
+     * * Windows: System Registry policies (respecting per-machine vs. per-user installation scopes),
+     *   with a fallback to the deprecated environment variables when policy values are not set.
      *
      * @generated from protobuf rpc: GetConfig(teleport.lib.teleterm.auto_update.v1.GetConfigRequest) returns (teleport.lib.teleterm.auto_update.v1.GetConfigResponse);
      */
