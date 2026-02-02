@@ -284,7 +284,7 @@ KUBECONFIG ?=
 TEST_KUBE ?=
 export
 
-TEST_LOG_DIR = ${abspath ./test-logs}
+TEST_LOG_DIR ?= ${abspath ./test-logs}
 
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
 ifeq ("$(OS)","linux")
@@ -971,21 +971,21 @@ test-env-leakage:
 
 # Runs test prepare steps
 .PHONY: test-go-prepare
-test-go-prepare: ensure-webassets rdpclient $(TEST_LOG_DIR) $(VERSRC)
+test-go-prepare: ensure-webassets rdpclient $(VERSRC) | $(TEST_LOG_DIR)
 
 # Runs base unit tests
 .PHONY: test-go-unit
 test-go-unit: rdpclient
 test-go-unit: FLAGS ?= -race -shuffle on
 test-go-unit: SUBJECT ?= $(shell go list ./... | grep -vE 'teleport/(e2e|integration|tool/tsh|integrations/operator|integrations/access|integrations/lib)')
-test-go-unit: test-go-prepare
+test-go-unit: test-go-prepare | $(TEST_LOG_DIR)
 	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(RDPCLIENT_TAG) $(FIPS_TAG) $(BPF_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG) $(ADDTAGS)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests.xml --jsonfile $(TEST_LOG_DIR)/unit-tests.json --raw-command -- cat
 
 # Runs tbot unit tests
 .PHONY: test-go-unit-tbot
 test-go-unit-tbot: FLAGS ?= -race -shuffle on
-test-go-unit-tbot:
+test-go-unit-tbot: | $(TEST_LOG_DIR)
 	$(CGOFLAG) go test -json $(FLAGS) $(ADDFLAGS) ./tool/tbot/... ./lib/tbot/... \
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-tbot.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-tbot.json --raw-command -- cat
 
@@ -993,7 +993,7 @@ test-go-unit-tbot:
 .PHONY: test-go-touch-id
 test-go-touch-id: FLAGS ?= -race -shuffle on
 test-go-touch-id: SUBJECT ?= ./lib/auth/touchid/...
-test-go-touch-id: test-go-prepare
+test-go-touch-id: test-go-prepare | $(TEST_LOG_DIR)
 ifneq ("$(TOUCHID_TAG)", "")
 	$(CGOFLAG) go test -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-touchid.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-touchid.json --raw-command -- cat
@@ -1033,7 +1033,7 @@ test-go-bench-root: $(BENCHFIND) | $(TEST_LOG_DIR)
 .PHONY: test-go-vnet-daemon
 test-go-vnet-daemon: FLAGS ?= -race -shuffle on
 test-go-vnet-daemon: SUBJECT ?= ./lib/vnet/daemon/...
-test-go-vnet-daemon: test-go-prepare
+test-go-vnet-daemon: test-go-prepare | $(TEST_LOG_DIR)
 ifneq ("$(VNETDAEMON_TAG)", "")
 	$(CGOFLAG) go test -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-vnet.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-vnet.json --raw-command -- cat
@@ -1043,14 +1043,14 @@ endif
 .PHONY: test-go-tsh
 test-go-tsh: FLAGS ?= -race -shuffle on
 test-go-tsh: SUBJECT ?= github.com/gravitational/teleport/tool/tsh/...
-test-go-tsh: test-go-prepare
+test-go-tsh: test-go-prepare | $(TEST_LOG_DIR)
 	$(CGOFLAG_TSH) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-tsh.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-tsh.json --raw-command -- cat
 
 # Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
 .PHONY: test-go-chaos
 test-go-chaos: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
-test-go-chaos: test-go-prepare
+test-go-chaos: test-go-prepare | $(TEST_LOG_DIR)
 	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-chaos.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-chaos.json --raw-command -- cat
 
@@ -1059,7 +1059,7 @@ test-go-chaos: test-go-prepare
 #
 UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
-test-go-root: ensure-webassets rdpclient $(TEST_LOG_DIR)
+test-go-root: ensure-webassets rdpclient | $(TEST_LOG_DIR)
 test-go-root: FLAGS ?= -race -shuffle on
 test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v -e e2e -e integration -e integrations/operator)
 test-go-root: $(VERSRC)
@@ -1070,7 +1070,7 @@ test-go-root: $(VERSRC)
 # Runs Go tests on the api module. These have to be run separately as the package name is different.
 #
 .PHONY: test-api
-test-api: $(VERSRC) $(TEST_LOG_DIR)
+test-api: $(VERSRC) | $(TEST_LOG_DIR)
 test-api: FLAGS ?= -race -shuffle on
 test-api: SUBJECT ?= $(shell cd api && go list ./...)
 test-api:
@@ -1083,24 +1083,24 @@ test-api:
 #
 .PHONY: test-operator
 test-operator:
-	make -C integrations/operator test
+	make -C integrations/operator test TEST_LOG_DIR=$(TEST_LOG_DIR)
 #
 # Runs Teleport Terraform provider tests.
 #
 .PHONY: test-terraform-provider
 test-terraform-provider:
-	make -C integrations test-terraform-provider
+	make -C integrations test-terraform-provider TEST_LOG_DIR=$(TEST_LOG_DIR)
 #
 # Runs Teleport MWI Terraform provider tests.
 #
 .PHONY: test-terraform-provider-mwi
 test-terraform-provider-mwi:
-	make -C integrations test-terraform-provider-mwi
+	make -C integrations test-terraform-provider-mwi TEST_LOG_DIR=$(TEST_LOG_DIR)
 #
 # Runs Go tests on the integrations/kube-agent-updater module. These have to be run separately as the package name is different.
 #
 .PHONY: test-kube-agent-updater
-test-kube-agent-updater: $(VERSRC) $(TEST_LOG_DIR)
+test-kube-agent-updater: $(VERSRC) | $(TEST_LOG_DIR)
 test-kube-agent-updater: FLAGS ?= -race -shuffle on
 test-kube-agent-updater: SUBJECT ?= $(shell cd integrations/kube-agent-updater && go list ./...)
 test-kube-agent-updater:
@@ -1123,7 +1123,7 @@ test-integrations-lib:
 # Runs Go tests on the examples/teleport-usage module. These have to be run separately as the package name is different.
 #
 .PHONY: test-teleport-usage
-test-teleport-usage: $(VERSRC) $(TEST_LOG_DIR)
+test-teleport-usage: $(VERSRC) | $(TEST_LOG_DIR)
 test-teleport-usage: FLAGS ?= -race -shuffle on
 test-teleport-usage: SUBJECT ?= $(shell cd examples/teleport-usage && go list ./...)
 test-teleport-usage:
@@ -1187,7 +1187,7 @@ run-etcd:
 .PHONY: integration
 integration: FLAGS ?= -v -race
 integration: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration )
-integration:  $(TEST_LOG_DIR)
+integration: | $(TEST_LOG_DIR)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) \
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-integration.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-integration.json --raw-command -- cat
@@ -1200,7 +1200,7 @@ INTEGRATION_KUBE_REGEX := TestKube.*
 .PHONY: integration-kube
 integration-kube: FLAGS ?= -v -race
 integration-kube: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v 'integration/autoupdate')
-integration-kube: $(TEST_LOG_DIR)
+integration-kube: | $(TEST_LOG_DIR)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_KUBE_REGEX)" $(PACKAGES) $(FLAGS) \
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-integration-kube.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-integration-kube.json --raw-command -- cat
@@ -1213,7 +1213,7 @@ INTEGRATION_ROOT_REGEX := ^TestRoot
 .PHONY: integration-root
 integration-root: FLAGS ?= -v -race
 integration-root: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)')
-integration-root: $(TEST_LOG_DIR)
+integration-root: | $(TEST_LOG_DIR)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-integration-root.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-integration-root.json --raw-command -- cat
 
@@ -1221,7 +1221,7 @@ integration-root: $(TEST_LOG_DIR)
 .PHONY: e2e-aws
 e2e-aws: FLAGS ?= -v -race
 e2e-aws: PACKAGES = $(shell go list ./... | grep 'e2e/aws')
-e2e-aws: $(TEST_LOG_DIR)
+e2e-aws: | $(TEST_LOG_DIR)
 	@echo TEST_KUBE: $(TEST_KUBE) TEST_AWS_DB: $(TEST_AWS_DB)
 	$(CGOFLAG) go test -json $(PACKAGES) $(FLAGS) $(ADDFLAGS)\
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-e2e-aws.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-e2e-aws.json --raw-command -- cat
