@@ -146,9 +146,11 @@ the request ID and a redirect URL pointing to `/web/mfa/:request_id`.
 Once `tsh` receives the challenge response with available MFA methods, it
 determines which method to use. If the user specified an explicit
 `--mfa-mode=browser` flag, browser-based MFA will be used. Otherwise, `tsh` will
-attempt to use available methods in order of preference. If no MFA mode is
-specified and no local hardware keys are available, the command will fail with
-an error message listing available MFA options, including `--mfa-mode=browser`
+attempt to use available methods in the order:
+1. WebAuthn
+1. SSO
+1. Browser
+1. TOTP
 e.g:
 
 ```shell
@@ -158,6 +160,7 @@ Available MFA methods [WEBAUTHN, SSO, BROWSER]. Continuing with WEBAUTHN.
 If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,sso,browser> or environment variable TELEPORT_MFA_MODE=<webauthn,sso,browser>.
 
 ERROR: no security keys found
+Falling back to Browser
 ```
 
 ##### The user verifying their MFA through the browser
@@ -229,11 +232,9 @@ version: v2
 metadata:
   name: cluster-auth-preference
 spec:
-  # Browser MFA configuration
-  browser_mfa:
-    # Whether browser MFA is enabled for this cluster
-    # Default: true
-    enabled: true
+  # Whether browser MFA is enabled for this cluster
+  # Default: true
+  allow_browser_mfa: true
 ```
 
 When `enabled: false`, the auth server will not return a `BrowserChallenge` in
@@ -282,9 +283,9 @@ an acceptable trade-off for the improved UX.
 #### Newer `tsh` client, older server
 
 If a newer client sends a request to initiate an MFA challenge to an older
-server, it won't return a `BrowserChallenge` field. If we take the approach of
-enabling Browser MFA for every cluster, and the user has specifically requested
-`--mfa-mode=browser`, we can show an error saying the server version is too old.
+server, it won't return a `BrowserChallenge` field. If the user has specifically
+requested `--mfa-mode=browser`, we can show an error saying browser MFA isn't
+available. Which will also be done if the cluster has browser MFA disabled.
 
 #### Older `tsh` client, newer server
 
@@ -307,9 +308,11 @@ browser authentication in the `MFA Authentication Success` audit event:
     ...
 
     "mfa_device": {
-        "mfa_device_name": "browser",
+        // The name of the device used to MFA in the browser
+        "mfa_device_name": "1Password",
         "mfa_device_type": "browser",
-        "mfa_device_uuid": "browser"
+        // The UUID of the device used to MFA in the browser
+        "mfa_device_uuid": "aec27285-dcfd-4c19-92ad-9241624c264f",
     },
 }
 ```
@@ -445,8 +448,8 @@ tsh login --proxy teleport.example.com --user alice --auth=browser
 and finds none are present. These errors are caught and browser authentication
 is attempted. A URL is printed and her browser opens to Teleport's login page
 (if she isn't already logged in), she authenticates and is asked if she wants to
-approve this `tsh` login attempt. She approves, verifies using her MFA, and her
-`tsh` session is authenticated.
+approve this `tsh` login attempt. She approves, verifies using her Passkey
+(biometric or PIN), and her `tsh` session is authenticated.
 
 ### Browser MFA without Re-authentication
 
