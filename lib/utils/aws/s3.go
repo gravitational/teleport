@@ -29,6 +29,7 @@ import (
 	s3v2 "github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
+	awshttp "github.com/aws/smithy-go/transport/http"
 	"github.com/gravitational/trace"
 )
 
@@ -67,6 +68,11 @@ func ConvertS3Error(err error) error {
 	var opError *smithy.OperationError
 	if errors.As(err, &opError) && strings.Contains(opError.Err.Error(), "FIPS") {
 		return trace.BadParameter("%s", opError)
+	}
+
+	var httpError *awshttp.ResponseError
+	if errors.As(err, &httpError) {
+		return trace.ReadError(httpError.HTTPStatusCode(), []byte(err.Error()))
 	}
 
 	return err
