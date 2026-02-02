@@ -1635,6 +1635,12 @@ message AccessRequestCreate {
 
   // ResourceNames contains the names of the requested resources.
   repeated string ResourceNames = 17 [(gogoproto.jsontag) = "resource_names,omitempty"];
+
+  // RequestedResourceAccessIDs is the set of resources to which access is being requested,
+  // paired with additional information such as ResourceConstraints.
+  // Differs from RequestedResourceIDs, which only identifies resources and cannot be used
+  // to express additional information per-resource such as ResourceConstraints.
+  repeated ResourceAccessID RequestedResourceAccessIDs = 18 [(gogoproto.nullable) = false];
 }
 
 // AccessRequestExpire is emitted when access request has expired.
@@ -1680,6 +1686,41 @@ message ResourceID {
   // Currently it just supports resources of Kind=pod and the format is the following
   // "<kube_namespace>/<kube_pod>".
   string SubResourceName = 4 [(gogoproto.jsontag) = "sub_resource,omitempty"];
+}
+
+// ResourceAccessID is an audit-log–friendly representation of a ResourceAccessID.
+// This is derived and simplified from api/proto/teleport/legacy/types/resources.proto
+// to decouple the api and events types, and to keep the audit log event schema stable
+// for customers and integrations.
+// ResourceConstraints may be summarized/truncated to control event size; when truncated,
+// the audit log is not expected to be a lossless representation of the internal object.
+message ResourceAccessID {
+  // id identifies the resource.
+  ResourceID id = 1 [(gogoproto.nullable) = false];
+
+  oneof constraints {
+    // unknown_constraints represents that constraints were present on the internal ResourceAccessID,
+    // but are of an unknown type.
+    UnknownConstraints unknown_constraints = 10;
+    // aws_console captures audit-log–friendly data for AWS Console scoping constraints.
+    AWSConsoleConstraints aws_console = 11;
+  }
+}
+
+// UnknownConstraints represents constraints of an unknown type.
+message UnknownConstraints {
+  // Intentionally empty: presence is represented by the oneof branch being set.
+}
+
+// AWSConsoleConstraints is an audit-log–friendly view of AWS Console constraints.
+// The full list of role ARNs can be arbitrarily large; therefore this type supports a preview list,
+// a count, and a truncation flag.
+message AWSConsoleConstraints {
+  // role_arns_count is the total number of role ARNs requested.
+  uint32 role_arns_count = 1;
+
+  // role_arns_preview contains up to N role ARNs for inspection; it may be truncated.
+  repeated string role_arns_preview = 2;
 }
 
 // AccessRequestDelete is emitted when an access request has been deleted.
@@ -5076,6 +5117,11 @@ message Identity {
   string JoinToken = 30 [(gogoproto.jsontag) = "join_token,omitempty"];
   // ScopePin pins a certificate to a specific scope and set of scoped roles.
   ScopePin ScopePin = 31 [(gogoproto.jsontag) = "scope_pin,omitempty"];
+  // The set of resources which the identity will be allowed to access, paired with
+  // additional information such as ResourceConstraints.
+  // Differs from AllowedResourceIDs, which only identifies resources and cannot be used
+  // to express additional information per-resource such as ResourceConstraints.
+  repeated ResourceAccessID AllowedResourceAccessIDs = 32 [(gogoproto.nullable) = false];
 }
 
 // ScopePin is a marker that identifies a certificate/identity as being "pinned" to a target scope, and encodes relevant

@@ -68,6 +68,7 @@
     "@codemirror/view": "^6.39.8",
     "@floating-ui/react": "^0.27.16",
     "@grpc/grpc-js": "1.14.3",
+    "@hookform/resolvers": "^5.2.2",
     "@lezer/highlight": "^1.2.3",
     "@nivo/bar": "^0.99.0",
     "@protobuf-ts/runtime": "^2.11.1",
@@ -86,6 +87,7 @@
     "react-day-picker": "^9.13.0",
     "react-dom": "^19.2.3",
     "react-error-boundary": "^6.0.1",
+    "react-hook-form": "^7.71.1",
     "react-is": "^19.2.3",
     "react-router": "5.3.4",
     "react-router-dom": "5.3.4",
@@ -95,7 +97,8 @@
     "tslib": "^2.8.1",
     "use-immer": "^0.11.0",
     "usehooks-ts": "^3.1.1",
-    "whatwg-fetch": "^3.6.20"
+    "whatwg-fetch": "^3.6.20",
+    "zod": "^4.3.6"
   },
   "msw": {
     "workerDirectory": [

@@ -521,6 +521,9 @@ const (
 	// CertExtensionAllowedResources lists the resources which this certificate
 	// should be allowed to access
 	CertExtensionAllowedResources = "teleport-allowed-resources"
+	// CertExtensionAllowedResourceAccessIDs lists the resources which this
+	// certificate should be allowed to access, paired with additional access information.
+	CertExtensionAllowedResourceAccessIDs = "teleport-allowed-resource-access-ids"
 	// CertExtensionConnectionDiagnosticID contains the ID of the ConnectionDiagnostic.
 	// The Node/Agent will append connection traces to this diagnostic instance.
 	CertExtensionConnectionDiagnosticID = "teleport-connection-diagnostic-id"

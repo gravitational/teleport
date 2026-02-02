@@ -163,7 +163,7 @@ func (m *Status) nonEmptyStrs() int {
 }
 
 func (m *Status) trimToMaxFieldSize(maxFieldSize int) Status {
-	var out Status
+	out := *m
 	out.Error = trimStr(m.Error, maxFieldSize)
 	out.UserMessage = trimStr(m.UserMessage, maxFieldSize)
 	return out
@@ -2677,26 +2677,44 @@ func (m *BoundKeypairJoinStateVerificationFailed) TrimToMaxSize(maxSize int) Aud
 	return out
 }
 
+func placeholder[T any](p *T) *T {
+	if p == nil {
+		return nil
+	}
+	var empty T
+	return &empty
+}
+
 func (m *SCIMResourceEvent) TrimToMaxSize(maxSize int) AuditEvent {
 	if m.Size() <= maxSize {
 		return m
 	}
+
 	trimmed := utils.CloneProtoMsg(m)
+	trimmed.Status = Status{}
+	trimmed.SCIMCommonData = SCIMCommonData{
+		Request:  placeholder(m.Request),
+		Response: placeholder(m.Response),
+	}
+	trimmed.TeleportID = ""
+	trimmed.ExternalID = ""
+	trimmed.Display = ""
 
 	maxSize = adjustedMaxSize(trimmed, maxSize)
-	trimmableFieldCount := trimmed.Status.nonEmptyStrs() +
-		trimmed.SCIMCommonData.nonEmptyFields() +
+
+	trimmableFieldCount := m.Status.nonEmptyStrs() +
+		m.SCIMCommonData.nonEmptyFields() +
 		nonEmptyStrs(
-			trimmed.TeleportID,
-			trimmed.ExternalID,
-			trimmed.Display)
+			m.TeleportID,
+			m.ExternalID,
+			m.Display)
 	maxFieldsSize := maxSizePerField(maxSize, trimmableFieldCount)
 
 	trimmed.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
-	trimmed.SCIMCommonData = trimmed.SCIMCommonData.trimToMaxFieldSize(maxFieldsSize)
-	trimmed.TeleportID = trimStr(trimmed.TeleportID, maxFieldsSize)
-	trimmed.ExternalID = trimStr(trimmed.ExternalID, maxFieldsSize)
-	trimmed.Display = trimStr(trimmed.Display, maxFieldsSize)
+	trimmed.SCIMCommonData = m.SCIMCommonData.trimToMaxFieldSize(maxFieldsSize)
+	trimmed.TeleportID = trimStr(m.TeleportID, maxFieldsSize)
+	trimmed.ExternalID = trimStr(m.ExternalID, maxFieldsSize)
+	trimmed.Display = trimStr(m.Display, maxFieldsSize)
 
 	return trimmed
 }
@@ -2705,7 +2723,14 @@ func (m *SCIMListingEvent) TrimToMaxSize(maxSize int) AuditEvent {
 	if m.Size() <= maxSize {
 		return m
 	}
+
 	trimmed := utils.CloneProtoMsg(m)
+	trimmed.Status = Status{}
+	trimmed.SCIMCommonData = SCIMCommonData{
+		Request:  placeholder(m.Request),
+		Response: placeholder(m.Response),
+	}
+	trimmed.Filter = ""
 
 	maxSize = adjustedMaxSize(trimmed, maxSize)
 	trimmableFieldCount := m.Status.nonEmptyStrs() +
@@ -2714,8 +2739,8 @@ func (m *SCIMListingEvent) TrimToMaxSize(maxSize int) AuditEvent {
 	maxFieldsSize := maxSizePerField(maxSize, trimmableFieldCount)
 
 	trimmed.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
-	trimmed.SCIMCommonData = trimmed.SCIMCommonData.trimToMaxFieldSize(maxFieldsSize)
-	trimmed.Filter = trimStr(trimmed.Filter, maxFieldsSize)
+	trimmed.SCIMCommonData = m.SCIMCommonData.trimToMaxFieldSize(maxFieldsSize)
+	trimmed.Filter = trimStr(m.Filter, maxFieldsSize)
 
 	return trimmed
 }

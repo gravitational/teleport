@@ -13,7 +13,7 @@ permissions:
 jobs:
   amplify-preview:
     name: Prepare Amplify preview URL
-    runs-on: ubuntu-22.04-2core-arm64
+    runs-on: ubuntu-slim
     environment: docs-amplify
     steps:    
     - name: Configure AWS credentials
@@ -23,7 +23,7 @@ jobs:
         role-to-assume: ${{ vars.IAM_ROLE }}
 
     - name: Create Amplify preview environment
-      uses: gravitational/shared-workflows/tools/amplify-preview@664e788d45a7f56935cf63094b4fb52a41b12015 # tools/amplify-preview/v0.0.2
+      uses: gravitational/shared-workflows/tools/amplify-preview@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/amplify-preview/v0.0.3
       id: amplify_preview
       with:
         app_ids: ${{ vars.AMPLIFY_APP_IDS }}

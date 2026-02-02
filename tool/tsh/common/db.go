@@ -917,7 +917,7 @@ func makeAccessRequestForDatabase(tc *client.TeleportClient, db types.Database) 
 		Name:        db.GetName(),
 	}}
 
-	req, err := services.NewAccessRequestWithResources(tc.Username, nil /* roles */, requestResourceIDs)
+	req, err := services.NewAccessRequestWithResources(tc.Username, nil /* roles */, types.ResourceIDsToResourceAccessIDs(requestResourceIDs))
 	return req, trace.Wrap(err)
 }
 

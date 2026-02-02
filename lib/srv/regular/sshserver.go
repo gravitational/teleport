@@ -917,12 +917,13 @@ func New(
 
 	// add in common auth handlers
 	authHandlerConfig := srv.AuthHandlerConfig{
-		Server:      s,
-		Component:   component,
-		AccessPoint: s.authService,
-		FIPS:        s.fips,
-		Emitter:     s.StreamEmitter,
-		Clock:       s.clock,
+		Server:                        s,
+		Component:                     component,
+		AccessPoint:                   s.authService,
+		FIPS:                          s.fips,
+		Emitter:                       s.StreamEmitter,
+		Clock:                         s.clock,
+		ValidatedMFAChallengeVerifier: auth.MFAServiceClient(),
 	}
 
 	s.authHandlers, err = srv.NewAuthHandlers(&authHandlerConfig)

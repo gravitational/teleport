@@ -1381,11 +1381,13 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 				mustUpdateUserRoles(ctx, t, pack.Root.Cluster, rootUserName, []string{requesterRole.GetName()})
 			},
 			createAccessRequest: func(ctx context.Context, t *testing.T) string {
-				req, err := services.NewAccessRequestWithResources(rootUserName, []string{rootRoleName}, []types.ResourceID{
-					types.ResourceID{
-						ClusterName: pack.Leaf.Cluster.Secrets.SiteName,
-						Kind:        types.KindDatabase,
-						Name:        pack.Leaf.PostgresService.Name,
+				req, err := services.NewAccessRequestWithResources(rootUserName, []string{rootRoleName}, []types.ResourceAccessID{
+					{
+						Id: types.ResourceID{
+							ClusterName: pack.Leaf.Cluster.Secrets.SiteName,
+							Kind:        types.KindDatabase,
+							Name:        pack.Leaf.PostgresService.Name,
+						},
 					},
 				})
 				require.NoError(t, err)

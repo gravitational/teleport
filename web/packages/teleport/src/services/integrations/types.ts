@@ -91,9 +91,12 @@ export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
   /* AWS Roles Anywhere */
   AwsRa = 'aws-ra',
+  AwsCloud = 'aws-cloud',
   AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',
   GitHub = 'github',
+  AzureCloud = 'azure-cloud',
+  GoogleCloud = 'google-cloud',
 }
 
 export type IntegrationSpecGitHub = {

@@ -535,6 +535,13 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfEKSCmd.Flag("aws-account-id", "The AWS account ID.").StringVar(&ccf.IntegrationConfEKSIAMArguments.AccountID)
 	integrationConfEKSCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfEKSIAMArguments.AutoConfirm)
 
+	integrationConfSessionSummariesCmd := integrationConfigureCmd.Command("session-summaries", "Adds required IAM permissions for Session Summaries feature.")
+	integrationBedrockSessionSummariesCmd := integrationConfSessionSummariesCmd.Command("bedrock", "Adds required IAM permissions for Session Summaries feature using AWS Bedrock.")
+	integrationBedrockSessionSummariesCmd.Flag("role", "The AWS Role name used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfSessionSummariesBedrockArguments.Role)
+	integrationBedrockSessionSummariesCmd.Flag("resource", "The AWS Bedrock resource to grant access to. Can be a full ARN or a model ID (e.g., 'anthropic.claude-v2' or '*' for all models).").Default("*").StringVar(&ccf.IntegrationConfSessionSummariesBedrockArguments.Resource)
+	integrationBedrockSessionSummariesCmd.Flag("aws-account-id", "The AWS account ID.").StringVar(&ccf.IntegrationConfSessionSummariesBedrockArguments.AccountID)
+	integrationBedrockSessionSummariesCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfSessionSummariesBedrockArguments.AutoConfirm)
+
 	integrationConfAccessGraphCmd := integrationConfigureCmd.Command("access-graph", "Manages Access Graph configuration.")
 	integrationConfAccessGraphAWSSyncCmd := integrationConfAccessGraphCmd.Command("aws-iam", "Adds required AWS IAM permissions for syncing AWS resources into Access Graph service.")
 	integrationConfAccessGraphAWSSyncCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.Role)
@@ -797,6 +804,8 @@ Examples:
 		err = onIntegrationConfAccessGraphAWSSync(ctx, ccf.IntegrationConfAccessGraphAWSSyncArguments)
 	case integrationConfAccessGraphAzureSyncCmd.FullCommand():
 		err = onIntegrationConfAccessGraphAzureSync(ctx, ccf.IntegrationConfAccessGraphAzureSyncArguments)
+	case integrationBedrockSessionSummariesCmd.FullCommand():
+		err = onIntegrationConfSessionSummariesBedrock(ctx, ccf.IntegrationConfSessionSummariesBedrockArguments)
 	case integrationConfAzureOIDCCmd.FullCommand():
 		err = onIntegrationConfAzureOIDCCmd(ctx, ccf.IntegrationConfAzureOIDCArguments)
 	case integrationSAMLIdPGCPWorkforce.FullCommand():
