@@ -76,6 +76,11 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 					}
 					return StringTransform("strings.replaceall", input, f)
 				}),
+			"strings.hasprefix": typical.BinaryFunction[evaluationEnv](
+				func(input, prefix string) (bool, error) {
+					return strings.HasPrefix(input, prefix), nil
+				},
+			),
 			"choose": typical.UnaryVariadicFunction[evaluationEnv](
 				func(opts ...option) (any, error) {
 					return choose(opts...)
@@ -181,6 +186,10 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 			"contains": typical.BinaryFunction[evaluationEnv](
 				func(s Set, str string) (bool, error) {
 					return s.contains(str), nil
+				}),
+			"withprefix": typical.BinaryFunction[evaluationEnv](
+				func(s Set, prefix string) (Set, error) {
+					return s.withPrefix(prefix), nil
 				}),
 			"put": typical.TernaryFunction[evaluationEnv](
 				func(d Dict, key string, value Set) (Dict, error) {
