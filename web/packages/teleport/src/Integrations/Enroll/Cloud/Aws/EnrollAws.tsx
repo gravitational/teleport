@@ -229,15 +229,17 @@ export function EnrollAws() {
                 }}
                 integrationExists={integrationExists}
                 integrationName={integrationName}
-                onCheckIntegration={() => {
+                handleCheckIntegration={() => {
                   if (validator.validate()) {
                     checkIntegration();
                   }
                 }}
-                onCancelCheckIntegration={() => {
+                handleCancelCheckIntegration={() => {
                   queryClient.cancelQueries({ queryKey: integrationQueryKey });
+                  queryClient.resetQueries({ queryKey: integrationQueryKey });
                 }}
                 isCheckingIntegration={isFetching}
+                checkIntegrationError={isError}
               />
             </Container>
             <Box mb={2}>

@@ -27,6 +27,7 @@ import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import { useValidation } from 'shared/components/Validation';
 
 import cfg from 'teleport/config';
+import { IntegrationKind } from 'teleport/services/integrations';
 
 import { CircleNumber } from './EnrollAws';
 
@@ -59,8 +60,9 @@ type DeploymentMethodSectionProps = {
   handleCopy: () => void;
   integrationExists?: boolean;
   integrationName?: string;
-  onCheckIntegration?: () => void;
-  onCancelCheckIntegration?: () => void;
+  handleCheckIntegration?: () => void;
+  handleCancelCheckIntegration?: () => void;
+  checkIntegrationError?: boolean;
   isCheckingIntegration?: boolean;
   showVerificationStep?: boolean;
 };
@@ -69,9 +71,10 @@ export function DeploymentMethodSection({
   handleCopy,
   integrationExists,
   integrationName,
-  onCheckIntegration,
+  handleCheckIntegration,
   isCheckingIntegration,
-  onCancelCheckIntegration,
+  checkIntegrationError,
+  handleCancelCheckIntegration,
   showVerificationStep = true,
 }: DeploymentMethodSectionProps) {
   const validator = useValidation();
@@ -142,7 +145,17 @@ export function DeploymentMethodSection({
                 3. Verify the integration
               </Text>
               {integrationExists ? (
-                <Alert kind="success" mb={2}>
+                <Alert
+                  kind="success"
+                  mb={2}
+                  primaryAction={{
+                    content: 'View Integration',
+                    linkTo: cfg.getIaCIntegrationRoute(
+                      IntegrationKind.AwsOidc,
+                      integrationName
+                    ),
+                  }}
+                >
                   Integration Detected
                   <Text fontWeight="regular">
                     Amazon Web Services successfully added
@@ -152,43 +165,49 @@ export function DeploymentMethodSection({
                 <>
                   <Box mb={3}>
                     {isCheckingIntegration ? (
-                      <Button
-                        fill="filled"
-                        intent="primary"
-                        disabled={true}
-                        onClick={onCheckIntegration}
-                        gap={2}
-                      >
-                        <AnimatedSpinner size="small" />
-                        Checking...
-                      </Button>
-                    ) : (
-                      <Button
-                        fill="filled"
-                        intent="primary"
-                        disabled={false}
-                        onClick={onCheckIntegration}
-                        gap={2}
-                      >
-                        Check Integration
-                      </Button>
-                    )}
-                  </Box>
-                  <Box mb={3}>
-                    {isCheckingIntegration ? (
                       <Alert
                         kind="info"
-                        icon={Notification}
+                        icon={AnimatedSpinner}
                         primaryAction={{
                           content: 'Cancel',
-                          onClick: onCancelCheckIntegration,
+                          onClick: handleCancelCheckIntegration,
                         }}
                         mb={0}
                       >
-                        Checking for integration '{integrationName}'...
+                        <Text fontWeight="regular" color="text.slightlyMuted">
+                          Checking for integration{' '}
+                          <Text as="span" fontWeight="bold">
+                            {integrationName}
+                          </Text>
+                          ...
+                        </Text>
+                      </Alert>
+                    ) : checkIntegrationError ? (
+                      <Alert
+                        kind="danger"
+                        mb={0}
+                        primaryAction={{
+                          content: 'Check Integration',
+                          onClick: handleCheckIntegration,
+                        }}
+                      >
+                        Failed to detect integration
+                        <Text fontWeight="regular" color="text.slightlyMuted">
+                          Unable to detect the AWS integration "
+                          {integrationName}". Please check your Terraform
+                          configuration and try again.
+                        </Text>
                       </Alert>
                     ) : (
-                      <Alert kind="neutral" icon={Notification} mb={0}>
+                      <Alert
+                        kind="neutral"
+                        icon={Notification}
+                        mb={0}
+                        primaryAction={{
+                          content: 'Check Integration',
+                          onClick: handleCheckIntegration,
+                        }}
+                      >
                         <Text fontWeight="regular" color="text.slightlyMuted">
                           After applying your Terraform configuration, verify
                           your integration was created successfully.

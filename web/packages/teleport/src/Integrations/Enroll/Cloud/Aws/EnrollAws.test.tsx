@@ -181,9 +181,16 @@ describe('EnrollAws', () => {
       );
     });
 
-    expect(
-      screen.getByRole('link', { name: /view integration/i })
-    ).toHaveAttribute('href', expect.stringContaining('/test-integration'));
+    const viewIntegrationLinks = screen.getAllByRole('link', {
+      name: /^view integration$/i,
+    });
+
+    viewIntegrationLinks.forEach(link => {
+      expect(link).toHaveAttribute(
+        'href',
+        expect.stringContaining('/test-integration')
+      );
+    });
   });
 
   test('integration not found shows an error', async () => {
