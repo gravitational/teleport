@@ -232,6 +232,10 @@ type EC2IAMPermissionError struct {
 	Err                 error
 }
 
+// noopReportIAMPermissionError is a no-op default for ReportIAMPermissionError.
+// Used when no handler is provided, allowing callers to skip nil checks.
+func noopReportIAMPermissionError(context.Context, *EC2IAMPermissionError) {}
+
 type ec2FetcherConfig struct {
 	Matcher types.AWSMatcher
 	// ProxyPublicAddrGetter returns the public proxy address to use for installation scripts.
@@ -335,6 +339,10 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
+	}
+
+	if cfg.ReportIAMPermissionError == nil {
+		cfg.ReportIAMPermissionError = noopReportIAMPermissionError
 	}
 
 	return &ec2InstanceFetcher{
@@ -490,14 +498,19 @@ func (f *ec2InstanceFetcher) matcherRegions(ctx context.Context, awsOpts []awsco
 		if err != nil {
 			convertedErr := libcloudaws.ConvertRequestFailureError(err)
 			if trace.IsAccessDenied(convertedErr) {
-				if f.ReportIAMPermissionError != nil {
-					f.ReportIAMPermissionError(ctx, &EC2IAMPermissionError{
-						Integration:         f.Matcher.Integration,
-						IssueType:           usertasks.AutoDiscoverEC2IssuePermAccountListRegions,
-						DiscoveryConfigName: f.DiscoveryConfigName,
-						Err:                 convertedErr,
-					})
+				errInfo := &EC2IAMPermissionError{
+					Integration:         f.Matcher.Integration,
+					IssueType:           usertasks.AutoDiscoverEC2IssuePermAccountDenied,
+					DiscoveryConfigName: f.DiscoveryConfigName,
+					Err:                 convertedErr,
 				}
+				// Derive AccountID from assume role ARN when available.
+				if f.Matcher.AssumeRole != nil && f.Matcher.AssumeRole.RoleARN != "" {
+					if parsed, parseErr := arn.Parse(f.Matcher.AssumeRole.RoleARN); parseErr == nil {
+						errInfo.AccountID = parsed.AccountID
+					}
+				}
+				f.ReportIAMPermissionError(ctx, errInfo)
 				return nil, trace.BadParameter("Missing account:ListRegions permission in IAM Role, which is required to iterate over all regions. " +
 					"Add this permission to the IAM Role, or enumerate all the regions in the AWS matcher.")
 			}
@@ -539,14 +552,19 @@ func (f *ec2InstanceFetcher) fetchAccountIDsUnderOrganization(ctx context.Contex
 	if err != nil {
 		convertedErr := libcloudaws.ConvertRequestFailureError(err)
 		if trace.IsAccessDenied(convertedErr) {
-			if f.ReportIAMPermissionError != nil {
-				f.ReportIAMPermissionError(ctx, &EC2IAMPermissionError{
-					Integration:         f.Matcher.Integration,
-					IssueType:           usertasks.AutoDiscoverEC2IssuePermOrganizations,
-					DiscoveryConfigName: f.DiscoveryConfigName,
-					Err:                 convertedErr,
-				})
+			errInfo := &EC2IAMPermissionError{
+				Integration:         f.Matcher.Integration,
+				IssueType:           usertasks.AutoDiscoverEC2IssuePermOrgDenied,
+				DiscoveryConfigName: f.DiscoveryConfigName,
+				Err:                 convertedErr,
 			}
+			// Derive AccountID from assume role ARN when available.
+			if f.Matcher.AssumeRole != nil && f.Matcher.AssumeRole.RoleARN != "" {
+				if parsed, parseErr := arn.Parse(f.Matcher.AssumeRole.RoleARN); parseErr == nil {
+					errInfo.AccountID = parsed.AccountID
+				}
+			}
+			f.ReportIAMPermissionError(ctx, errInfo)
 			return nil, trace.BadParameter("discovering instances under an organization requires the following permissions: [%s], add those to the IAM Role used by the Discovery Service", strings.Join(organizations.RequiredAPIs(), ", "))
 		}
 
@@ -691,22 +709,20 @@ func (f *ec2InstanceFetcher) getInstancesInRegion(ctx context.Context, params ge
 		if err != nil {
 			convertedErr := libcloudaws.ConvertRequestFailureError(err)
 			if trace.IsAccessDenied(convertedErr) {
-				if f.ReportIAMPermissionError != nil {
-					errInfo := &EC2IAMPermissionError{
-						Integration:         f.Matcher.Integration,
-						Region:              params.region,
-						IssueType:           usertasks.AutoDiscoverEC2IssuePermDescribeInstances,
-						DiscoveryConfigName: f.DiscoveryConfigName,
-						Err:                 convertedErr,
-					}
-					// Derive AccountID from assume role ARN when available.
-					if params.assumeRole.RoleARN != "" {
-						if parsed, parseErr := arn.Parse(params.assumeRole.RoleARN); parseErr == nil {
-							errInfo.AccountID = parsed.AccountID
-						}
-					}
-					f.ReportIAMPermissionError(ctx, errInfo)
+				errInfo := &EC2IAMPermissionError{
+					Integration:         f.Matcher.Integration,
+					Region:              params.region,
+					IssueType:           usertasks.AutoDiscoverEC2IssuePermAccountDenied,
+					DiscoveryConfigName: f.DiscoveryConfigName,
+					Err:                 convertedErr,
 				}
+				// Derive AccountID from assume role ARN when available.
+				if params.assumeRole.RoleARN != "" {
+					if parsed, parseErr := arn.Parse(params.assumeRole.RoleARN); parseErr == nil {
+						errInfo.AccountID = parsed.AccountID
+					}
+				}
+				f.ReportIAMPermissionError(ctx, errInfo)
 			}
 			return nil, convertedErr
 		}
