@@ -182,6 +182,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	}
 	switch kind {
 	case types.KindNode,
+		types.KindDatabase,
 		types.KindDatabaseService,
 		types.KindKubernetesCluster,
 		types.KindWindowsDesktop, types.KindWindowsDesktopService,

@@ -192,7 +192,7 @@ func (c *databaseExecCommand) getDatabasesByNames() ([]types.Database, error) {
 	for page := range slices.Chunk(names, 100) {
 		var predicate string
 		for _, name := range page {
-			predicate = makePredicateDisjunction(predicate, makeDiscoveredNameOrNamePredicate(name))
+			predicate = common.MakePredicateDisjunction(predicate, makeDiscoveredNameOrNamePredicate(name))
 		}
 
 		logger.DebugContext(c.cf.Context, "Getting database by name", "databases", page)

@@ -206,7 +206,8 @@ func (c *netRestrictionsCollection) WriteText(w io.Writer, verbose bool) error {
 }
 
 type databaseServerCollection struct {
-	servers []types.DatabaseServer
+	servers             []types.DatabaseServer
+	allowStatusFootnote bool
 }
 
 func (c *databaseServerCollection) Resources() (r []types.Resource) {
@@ -218,18 +219,26 @@ func (c *databaseServerCollection) Resources() (r []types.Resource) {
 
 func (c *databaseServerCollection) WriteText(w io.Writer, verbose bool) error {
 	var rows [][]string
+	var showUnclaimedFootnote bool
 	for _, server := range c.servers {
 		labels := common.FormatLabels(server.GetDatabase().GetAllLabels(), verbose)
+		status := string(server.GetTargetHealthStatus())
+		if status == dbStatusUnclaimed && c.allowStatusFootnote {
+			showUnclaimedFootnote = true
+			status = status + " [*]"
+		}
+
 		rows = append(rows, []string{
 			server.GetHostname(),
 			common.FormatResourceName(server.GetDatabase(), verbose),
+			status,
 			server.GetDatabase().GetProtocol(),
 			server.GetDatabase().GetURI(),
 			labels,
 			server.GetTeleportVersion(),
 		})
 	}
-	headers := []string{"Host", "Name", "Protocol", "URI", "Labels", "Version"}
+	headers := []string{"Host", "Name", "Status", "Protocol", "URI", "Labels", "Version"}
 	var t asciitable.Table
 	if verbose {
 		t = asciitable.MakeTable(headers, rows...)
@@ -239,6 +248,12 @@ func (c *databaseServerCollection) WriteText(w io.Writer, verbose bool) error {
 	// stable sort by hostname then by name.
 	t.SortRowsBy([]int{0, 1}, true)
 	_, err := t.AsBuffer().WriteTo(w)
+
+	if showUnclaimedFootnote {
+		if _, err := w.Write([]byte("\n[*]: \"unclaimed\" are dynamic database resources (e.g. tctl get db) that are not claimed by any database service.\n")); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return trace.Wrap(err)
 }
 

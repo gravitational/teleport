@@ -665,6 +665,23 @@ func TestMatchResourceByFilters(t *testing.T) {
 				PredicateExpression: filterExpression,
 			},
 		},
+		{
+			name: "db",
+			resource: func() types.ResourceWithLabels {
+				db, err := types.NewDatabaseV3(types.Metadata{
+					Name: "foo",
+				}, types.DatabaseSpecV3{
+					URI:      "localhost:12345",
+					Protocol: "postgres",
+				})
+				require.NoError(t, err)
+				return db
+			},
+			filters: MatchResourceFilter{
+				ResourceKind:        types.KindDatabase,
+				PredicateExpression: filterExpression,
+			},
+		},
 
 		{
 			name: "kube cluster",
