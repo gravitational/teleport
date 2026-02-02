@@ -2651,7 +2651,7 @@ func (set RoleSet) checkAccess(
 	}
 
 	// Collect preconditions to return to the caller.
-	preconds := make([]*decisionpb.Precondition, 0)
+	var preconds []*decisionpb.Precondition
 
 	// If the cluster requires per-session MFA and it hasn't been verified yet, add an MFA precondition or deny access early.
 	// If the legacy out-of-band MFA flow is allowed (see below) and MFA has already been verified for this session, skip this check.

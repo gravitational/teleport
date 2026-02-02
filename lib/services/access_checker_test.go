@@ -701,7 +701,7 @@ func TestAccessCheckerDesktopGroups(t *testing.T) {
 func TestAccessChecker_CheckConditionalAccess_StateMFANever_ReturnsNoMFAPrecondition(t *testing.T) {
 	t.Parallel()
 
-	roleName := "allow-all-nodes"
+	const roleName = "allow-all-nodes"
 
 	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
 		r.SetName(roleName)
@@ -745,7 +745,7 @@ func TestAccessChecker_CheckConditionalAccess_StateMFANever_ReturnsNoMFAPrecondi
 func TestAccessChecker_CheckConditionalAccess_StateMFAAlways_ReturnsMFAPrecondition(t *testing.T) {
 	t.Parallel()
 
-	roleName := "allow-all-nodes"
+	const roleName = "allow-all-nodes"
 
 	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
 		r.SetName(roleName)
@@ -791,7 +791,7 @@ func TestAccessChecker_CheckConditionalAccess_StateMFAAlways_ReturnsMFAPrecondit
 func TestAccessChecker_CheckConditionalAccess_StateMFAAlways_EnforceInBandMFA_ReturnsMFAPrecondition(t *testing.T) {
 	t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
 
-	roleName := "allow-all-nodes"
+	const roleName = "allow-all-nodes"
 
 	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
 		r.SetName(roleName)
@@ -836,7 +836,7 @@ func TestAccessChecker_CheckConditionalAccess_StateMFAAlways_EnforceInBandMFA_Re
 func TestAccessChecker_CheckConditionalAccess_RoleRequiresMFA_ReturnsMFAPrecondition(t *testing.T) {
 	t.Parallel()
 
-	roleName := "mfa-required"
+	const roleName = "mfa-required"
 
 	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
 		r.SetName(roleName)
@@ -881,7 +881,7 @@ func TestAccessChecker_CheckConditionalAccess_RoleRequiresMFA_ReturnsMFAPrecondi
 func TestAccessChecker_CheckConditionalAccess_RoleRequiresMFA_ForceInBandMFAEnv_ReturnsMFAPrecondition(t *testing.T) {
 	t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
 
-	roleName := "mfa-required"
+	const roleName = "mfa-required"
 
 	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
 		r.SetName(roleName)
