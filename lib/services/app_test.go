@@ -568,6 +568,63 @@ func TestInsecureSkipVerify(t *testing.T) {
 	}
 }
 
+func TestKubeAppSessionRecordingBotsAnnotation(t *testing.T) {
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		expectBots  string
+	}{
+		{
+			name:        "bots off",
+			annotations: map[string]string{types.DiscoveryAppSessionRecordingBots: "off"},
+			expectBots:  "off",
+		},
+		{
+			name:        "bots on",
+			annotations: map[string]string{types.DiscoveryAppSessionRecordingBots: "on"},
+			expectBots:  "on",
+		},
+		{
+			name:        "bots unset",
+			annotations: map[string]string{},
+			expectBots:  "",
+		},
+		{
+			name:        "bots invalid",
+			annotations: map[string]string{types.DiscoveryAppSessionRecordingBots: "nope"},
+			expectBots:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "svc",
+					Namespace:   "ns",
+					Annotations: tt.annotations,
+					Labels:      map[string]string{},
+				},
+				Spec: v1.ServiceSpec{
+					Ports: []v1.ServicePort{{Port: 443}},
+				},
+			}
+			port := service.Spec.Ports[0]
+			app, err := NewApplicationFromKubeService(service, "cluster", "https", port)
+			require.NoError(t, err)
+			if err != nil {
+				return
+			}
+			if tt.expectBots == "" {
+				require.Nil(t, app.GetSessionRecording())
+				return
+			}
+			require.NotNil(t, app.GetSessionRecording())
+			require.Equal(t, tt.expectBots, app.GetSessionRecording().Bots)
+		})
+	}
+}
+
 func TestRewriteHeadersAndApplyValueTraits(t *testing.T) {
 	r := httptest.NewRequest("GET", "/foo", nil)
 	r.Header.Set("x-no-rewrite", "no-rewrite")

@@ -41,6 +41,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |public_addr|string|PublicAddr is the public address the application is accessible at.|
 |required_app_names|[]string|RequiredAppNames is a list of app names that are required for this app to function. Any app listed here will be part of the authentication redirect flow and authenticate alongside this app.|
 |rewrite|[object](#specrewrite)|Rewrite is a list of rewriting rules to apply to requests and responses.|
+|session_recording|[object](#specsession_recording)|SessionRecording contains per-app session recording configuration.|
 |tcp_ports|[][object](#spectcp_ports-items)|TCPPorts is a list of ports and port ranges that an app agent can forward connections to. Only applicable to TCP App Access. If this field is not empty, URI is expected to contain no port number and start with the tcp protocol.|
 |uri|string|URI is the web app endpoint.|
 |use_any_proxy_public_addr|boolean|UseAnyProxyPublicAddr will rebuild this app's fqdn based on the proxy public addr that the request originated from. This should be true if your proxy has multiple proxy public addrs and you want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec, setting this value to true will overwrite that public address in the web UI.|
@@ -122,6 +123,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |name|string|Name is the http header name.|
 |value|string|Value is the http header value.|
+
+### spec.session_recording
+
+|Field|Type|Description|
+|---|---|---|
+|bots|string|Bots controls whether app session recording is enabled for bots. Disabling session recording for bots provides a way to mitigate the load on the agent caused by service-to-service use-cases. Supported values are "on" and "off".|
 
 ### spec.tcp_ports items
 

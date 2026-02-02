@@ -744,6 +744,34 @@ func TestNewAppV3(t *testing.T) {
 	}
 }
 
+func TestAppSessionRecordingBotsValidation(t *testing.T) {
+	t.Run("empty bots defaults to on", func(t *testing.T) {
+		app, err := NewAppV3(Metadata{
+			Name: "TestApp",
+		}, AppSpecV3{
+			URI: "http://localhost:8080",
+			SessionRecording: &AppSessionRecording{
+				Bots: "",
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, app.Spec.SessionRecording)
+		require.Equal(t, AppSessionRecordingBotsOn, app.Spec.SessionRecording.Bots)
+	})
+
+	t.Run("invalid bots value", func(t *testing.T) {
+		_, err := NewAppV3(Metadata{
+			Name: "TestApp",
+		}, AppSpecV3{
+			URI: "http://localhost:8080",
+			SessionRecording: &AppSessionRecording{
+				Bots: "nope",
+			},
+		})
+		hasErrTypeBadParameter(t, err)
+	})
+}
+
 func TestPortRangesContains(t *testing.T) {
 	portRanges := PortRanges([]*PortRange{
 		&PortRange{Port: 10, EndPort: 20},

@@ -169,3 +169,15 @@ an application is served on a sub-path of an HTTP service.
 annotations:
   teleport.dev/path: "foo/bar"
 ```
+
+### `teleport.dev/session-recording-bots`
+
+Controls whether session recordings will be generated for non-human (bot) users
+of this application. Disabling session recording for bots provides a way to
+mitigate the load caused by service-to-service use-cases. Supported values are
+"on" and "off". Defaults to "on".
+
+```yaml
+annotations:
+  teleport.dev/session-recording-bots: "on"
+```

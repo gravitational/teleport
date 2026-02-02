@@ -228,6 +228,16 @@ func TestAWSSignerHandler(t *testing.T) {
 		Integration: awsOIDCIntegration.GetName(),
 	})
 	require.NoError(t, err)
+	consoleAppBotsRecordingOff, err := types.NewAppV3(types.Metadata{
+		Name: "awsconsole",
+	}, types.AppSpecV3{
+		URI:        constants.AWSConsoleURL,
+		PublicAddr: "test.local",
+		SessionRecording: &types.AppSessionRecording{
+			Bots: types.AppSessionRecordingBotsOff,
+		},
+	})
+	require.NoError(t, err)
 
 	tests := []struct {
 		name                   string
@@ -245,6 +255,7 @@ func TestAWSSignerHandler(t *testing.T) {
 		wantAssumedRole        string
 		skipVerifySignature    bool
 		verifySentRequest      func(*testing.T, *http.Request)
+		botName                string
 		errAssertionFns        []require.ErrorAssertionFunc
 	}{
 		{
@@ -444,6 +455,21 @@ func TestAWSSignerHandler(t *testing.T) {
 			},
 		},
 		{
+			name:                   "AssumeRole success (bot recording disabled)",
+			app:                    consoleAppBotsRecordingOff,
+			awsCredentialsProvider: staticAWSCredentialsForClient,
+			awsRegion:              "us-east-1",
+			request:                assumeRoleRequest(32 * time.Minute),
+			wantHost:               "sts.amazonaws.com",
+			wantAuthCredKeyID:      "FAKEACCESSKEYID",
+			wantAuthCredService:    "sts",
+			wantAuthCredRegion:     "us-east-1",
+			botName:                "bot-1",
+			errAssertionFns: []require.ErrorAssertionFunc{
+				require.NoError,
+			},
+		},
+		{
 			name:                   "AssumeRole denied",
 			app:                    consoleApp,
 			awsCredentialsProvider: staticAWSCredentialsForClient,
@@ -498,6 +524,9 @@ func TestAWSSignerHandler(t *testing.T) {
 
 			suite := createSuite(t, mockAwsHandler, tc.app, fakeClock, awsCfgProvider)
 			fakeClock.Advance(tc.advanceClock)
+			if tc.botName != "" {
+				suite.identity.BotName = tc.botName
+			}
 
 			err := tc.request(t.Context(), suite.URL, tc.awsRegion, tc.awsCredentialsProvider, tc.wantHost)
 			for _, assertFn := range tc.errAssertionFns {
@@ -506,6 +535,10 @@ func TestAWSSignerHandler(t *testing.T) {
 
 			// Validate audit event.
 			if err == nil {
+				if tc.wantEventType == nil {
+					require.Empty(t, suite.recorder.C())
+					return
+				}
 				require.Len(t, suite.recorder.C(), 1)
 
 				event := <-suite.recorder.C()

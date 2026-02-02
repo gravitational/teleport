@@ -2412,6 +2412,16 @@ type App struct {
 
 	// MCP contains MCP server-related configurations.
 	MCP *MCP `yaml:"mcp,omitempty"`
+
+	// SessionRecording contains per-app session recording configuration.
+	SessionRecording *AppSessionRecording `yaml:"session_recording,omitempty"`
+}
+
+// AppSessionRecording contains per-app session recording configuration.
+type AppSessionRecording struct {
+	// Bots controls whether app session recording is enabled for bots. Supported
+	// values are "on" and "off".
+	Bots string `yaml:"bots,omitempty"`
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)

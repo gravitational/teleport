@@ -2139,6 +2139,11 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				RunAsHostUser: application.MCP.RunAsHostUser,
 			}
 		}
+		if application.SessionRecording != nil {
+			app.SessionRecording = &types.AppSessionRecording{
+				Bots: types.AppSessionRecordingBots(application.SessionRecording.Bots),
+			}
+		}
 
 		if err := app.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)

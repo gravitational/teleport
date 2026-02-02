@@ -111,7 +111,7 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 	// Create the stream writer that will write this chunk to the audit log.
 	// Audit stream is using server context, not session context,
 	// to make sure that session is uploaded even after it is closed.
-	rec, err := c.newSessionRecorder(c.closeContext, startTime, sess.id)
+	rec, recordingEnabled, err := c.newSessionRecorder(c.closeContext, startTime, sess.id, identity, app)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -132,9 +132,11 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 		}
 	}
 
-	// only emit a session chunk if we didn't get an error making the new session chunk
-	if err := sess.audit.OnSessionChunk(ctx, c.cfg.HostID, sess.id, identity, app); err != nil {
-		return nil, trace.Wrap(err)
+	if recordingEnabled {
+		// only emit a session chunk if we didn't get an error making the new session chunk
+		if err := sess.audit.OnSessionChunk(ctx, c.cfg.HostID, sess.id, identity, app); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	sess.log.DebugContext(ctx, "Created app session chunk", "session_id", sess.id)
@@ -274,15 +276,19 @@ func (c *ConnectionsHandler) onSessionExpired(ctx context.Context, key, expired 
 // newSessionRecorder creates a session stream that will be used to record
 // requests that occur within this session chunk and upload the recording
 // to the Auth server.
-func (c *ConnectionsHandler) newSessionRecorder(ctx context.Context, startTime time.Time, chunkID string) (events.SessionPreparerRecorder, error) {
+func (c *ConnectionsHandler) newSessionRecorder(ctx context.Context, startTime time.Time, chunkID string, identity *tlsca.Identity, app types.Application) (events.SessionPreparerRecorder, bool, error) {
+	if identity.IsBot() && !types.RecordBotAppSessions(app) {
+		return events.WithNoOpPreparer(events.NewDiscardRecorder()), false, nil
+	}
+
 	recConfig, err := c.cfg.AccessPoint.GetSessionRecordingConfig(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, true, trace.Wrap(err)
 	}
 
 	clusterName, err := c.cfg.AccessPoint.GetClusterName(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, true, trace.Wrap(err)
 	}
 
 	rec, err := recorder.New(recorder.Config{
@@ -299,10 +305,10 @@ func (c *ConnectionsHandler) newSessionRecorder(ctx context.Context, startTime t
 		StartTime:    startTime,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, true, trace.Wrap(err)
 	}
 
-	return rec, nil
+	return rec, true, nil
 }
 
 // createTracker creates a new session tracker for the session chunk.

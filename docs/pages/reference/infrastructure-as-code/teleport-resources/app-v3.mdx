@@ -86,6 +86,26 @@ permission_sets:
 |account_id|Account ID is the AWS-assigned ID of the account|string|
 |permission_sets|Lists the available permission sets on the given account|[][Identity Center Permission Set](#identity-center-permission-set)|
 
+## App Session Recording
+
+Contains per-app session recording configuration.
+
+
+Example:
+
+```yaml
+bots: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|bots|Controls whether app session recording is enabled for bots. Disabling session recording for bots provides a way to mitigate the load on the agent caused by service-to-service use-cases. Supported values are "on" and "off".|[App Session Recording Bots](#app-session-recording-bots)|
+
+## App Session Recording Bots
+
+Controls whether app session recording is enabled for bots.
+
+
 ## App Spec V3
 
 The AppV3 resource spec.
@@ -121,6 +141,7 @@ tcp_ports:
   - # [...]
 use_any_proxy_public_addr: true
 mcp: # [...]
+session_recording: # [...]
 ```
 
 |Field Name|Description|Type|
@@ -137,6 +158,7 @@ mcp: # [...]
 |public_addr|The public address the application is accessible at.|string|
 |required_app_names|A list of app names that are required for this app to function. Any app listed here will be part of the authentication redirect flow and authenticate alongside this app.|[]string|
 |rewrite|A list of rewriting rules to apply to requests and responses.|[Rewrite](#rewrite)|
+|session_recording|Contains per-app session recording configuration.|[App Session Recording](#app-session-recording)|
 |tcp_ports|A list of ports and port ranges that an app agent can forward connections to. Only applicable to TCP App Access. If this field is not empty, URI is expected to contain no port number and start with the tcp protocol.|[][Port Range](#port-range)|
 |uri|The web app endpoint.|string|
 |use_any_proxy_public_addr|Will rebuild this app's fqdn based on the proxy public addr that the request originated from. This should be true if your proxy has multiple proxy public addrs and you want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec, setting this value to true will overwrite that public address in the web UI.|Boolean|

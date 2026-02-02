@@ -1163,6 +1163,19 @@ message AppSpecV3 {
   bool UseAnyProxyPublicAddr = 14 [(gogoproto.jsontag) = "use_any_proxy_public_addr,omitempty"];
   // MCP contains MCP server related configurations.
   MCP MCP = 15 [(gogoproto.jsontag) = "mcp,omitempty"];
+  // SessionRecording contains per-app session recording configuration.
+  AppSessionRecording SessionRecording = 16 [(gogoproto.jsontag) = "session_recording,omitempty"];
+}
+
+// AppSessionRecording contains per-app session recording configuration.
+message AppSessionRecording {
+  // Bots controls whether app session recording is enabled for bots. Disabling
+  // session recording for bots provides a way to mitigate the load on the agent
+  // caused by service-to-service use-cases. Supported values are "on" and "off".
+  string Bots = 1 [
+    (gogoproto.casttype) = "AppSessionRecordingBots",
+    (gogoproto.jsontag) = "bots,omitempty"
+  ];
 }
 
 // MCP contains MCP server-related configurations.

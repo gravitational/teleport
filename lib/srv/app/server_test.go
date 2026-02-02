@@ -1240,6 +1240,72 @@ func TestRequestAuditEvents(t *testing.T) {
 	))
 }
 
+func TestRequestAuditEventsBotsDisabled(t *testing.T) {
+	t.Parallel()
+
+	testhttp := httptest.NewUnstartedServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
+	testhttp.Config.TLSConfig = &tls.Config{Time: clockwork.NewFakeClock().Now}
+	testhttp.Start()
+
+	app, err := types.NewAppV3(types.Metadata{
+		Name:   "foo",
+		Labels: staticLabels,
+	}, types.AppSpecV3{
+		URI:           testhttp.URL,
+		PublicAddr:    "foo.example.com",
+		DynamicLabels: types.LabelsToV2(dynamicLabels),
+		SessionRecording: &types.AppSessionRecording{
+			Bots: types.AppSessionRecordingBotsOff,
+		},
+	})
+	require.NoError(t, err)
+
+	var eventsReceived atomic.Uint64
+	serverStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
+		Inner: events.NewDiscardStreamer(),
+		OnRecordEvent: func(_ context.Context, _ session.ID, pe apievents.PreparedSessionEvent) error {
+			switch pe.GetAuditEvent().GetType() {
+			case events.AppSessionChunkEvent, events.AppSessionRequestEvent:
+				eventsReceived.Add(1)
+			}
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	s := SetUpSuiteWithConfig(t, suiteConfig{
+		ServerStreamer: serverStreamer,
+		Apps:           types.Apps{app},
+	})
+
+	botUser, err := authtest.CreateUser(context.Background(), s.tlsServer.Auth(), "bot-user", s.role)
+	require.NoError(t, err)
+	botMeta := botUser.GetMetadata()
+	botMeta.Labels = map[string]string{types.BotLabel: "bot-1"}
+	botUser.SetMetadata(botMeta)
+	_, err = s.tlsServer.Auth().UpsertUser(context.Background(), botUser)
+	require.NoError(t, err)
+
+	botCert := s.generateCertificate(t, botUser, "foo.example.com", "")
+
+	s.checkHTTPResponse(t, botCert, func(_ *http.Response) {
+		require.Never(t, func() bool {
+			return eventsReceived.Load() != 0
+		}, 500*time.Millisecond, 50*time.Millisecond, "session event generated")
+	})
+
+	ctx := context.Background()
+	searchEvents, _, err := s.authServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
+		From:       time.Time{},
+		To:         time.Now().Add(time.Minute),
+		EventTypes: []string{events.AppSessionChunkEvent},
+		Limit:      10,
+		Order:      types.EventOrderDescending,
+	})
+	require.NoError(t, err)
+	require.Empty(t, searchEvents)
+}
+
 // checkHTTPResponse checks expected HTTP response.
 func (s *Suite) checkHTTPResponse(t *testing.T, clientCert tls.Certificate, checkResp func(*http.Response)) {
 	pr, pw := net.Pipe()

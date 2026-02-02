@@ -114,6 +114,9 @@ type App struct {
 
 	// MCP contains MCP server-related configurations.
 	MCP *types.MCP
+
+	// SessionRecording defines per-app session recording settings.
+	SessionRecording *types.AppSessionRecording
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)

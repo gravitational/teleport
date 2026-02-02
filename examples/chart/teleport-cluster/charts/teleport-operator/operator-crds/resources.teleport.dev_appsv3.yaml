@@ -240,6 +240,17 @@ spec:
                     nullable: true
                     type: array
                 type: object
+              session_recording:
+                description: SessionRecording contains per-app session recording configuration.
+                nullable: true
+                properties:
+                  bots:
+                    description: Bots controls whether app session recording is enabled
+                      for bots. Disabling session recording for bots provides a way
+                      to mitigate the load on the agent caused by service-to-service
+                      use-cases. Supported values are "on" and "off".
+                    type: string
+                type: object
               tcp_ports:
                 description: TCPPorts is a list of ports and port ranges that an app
                   agent can forward connections to. Only applicable to TCP App Access.

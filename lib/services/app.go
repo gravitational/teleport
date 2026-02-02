@@ -271,6 +271,7 @@ func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol
 		Rewrite:            rewriteConfig,
 		InsecureSkipVerify: getTLSInsecureSkipVerify(service.GetAnnotations()),
 		PublicAddr:         getPublicAddr(service.GetAnnotations()),
+		SessionRecording:   getSessionRecording(service.GetAnnotations()),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "could not create an app from Kubernetes service")
@@ -329,6 +330,21 @@ func getTLSInsecureSkipVerify(annotations map[string]string) bool {
 		return false
 	}
 	return val == "true"
+}
+
+func getSessionRecording(annotations map[string]string) *types.AppSessionRecording {
+	val := annotations[types.DiscoveryAppSessionRecordingBots]
+	if val == "" {
+		return nil
+	}
+
+	bots := types.AppSessionRecordingBots(val)
+	switch bots {
+	case types.AppSessionRecordingBotsOn, types.AppSessionRecordingBotsOff:
+		return &types.AppSessionRecording{Bots: bots}
+	default:
+		return nil
+	}
 }
 
 func getAppName(serviceName, namespace, clusterName, portName, nameAnnotation string) (string, error) {
