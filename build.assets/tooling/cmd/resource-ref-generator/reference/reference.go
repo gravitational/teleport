@@ -30,8 +30,15 @@ import (
 // pageContent represents a reference page for a single resource and its related
 // fields. Fields must be exported so we can use them in templates.
 type pageContent struct {
+	// Introduction is optional text to override the default introduction, taken
+	// from Resource.
+	Introduction string
+	// Resource represents the dynamic Teleport resource that is the subject
+	// of the page.
 	Resource resourceSection
-	Fields   map[resource.PackageInfo]resource.ReferenceEntry
+	// Fields are the top-level fields of the dynamic resource for this
+	// page.
+	Fields map[resource.PackageInfo]resource.ReferenceEntry
 }
 
 // resourceSection represents a top-level section of the resource reference
@@ -67,6 +74,9 @@ type ResourceConfig struct {
 	// The value of the "version" field within a YAML manifest for this
 	// resource, e.g., "v6".
 	VersionValue string `yaml:"yaml_version"`
+	// Introduction paragraph(s) to add to the template in place of the
+	// default, which is the GoDoc for the resource type.
+	Introduction string `yaml:"introduction"`
 }
 
 // GeneratorConfig is the user-facing configuration for the resource reference
@@ -119,6 +129,7 @@ func Generate(prefix string, conf GeneratorConfig, tmpl *template.Template) erro
 		}
 
 		pc := pageContent{}
+		pc.Introduction = r.Introduction
 
 		// decl is a dynamic resource type, so get data for the type and
 		// its dependencies.
