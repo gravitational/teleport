@@ -90,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/slices"
@@ -5290,4 +5291,165 @@ func TestCreateAuthPreference(t *testing.T) {
 			test.assertion(t, created, err)
 		})
 	}
+}
+
+type mockUsageReporter struct {
+	mu     sync.Mutex
+	events []usagereporter.Anonymizable
+}
+
+func (m *mockUsageReporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.events = append(m.events, events...)
+}
+
+func (m *mockUsageReporter) resourceCreateEvents() []*usagereporter.ResourceCreateEvent {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var result []*usagereporter.ResourceCreateEvent
+	for _, e := range m.events {
+		if rce, ok := e.(*usagereporter.ResourceCreateEvent); ok {
+			result = append(result, rce)
+		}
+	}
+	return result
+}
+
+func TestResourceCreateEventEmission(t *testing.T) {
+	t.Run("CreateDatabase", func(t *testing.T) {
+		ctx := context.Background()
+		reporter := &mockUsageReporter{}
+		p, err := newTestPack(ctx, testPackOptions{
+			MutateAuth: func(a *auth.Server) error {
+				a.SetUsageReporter(reporter)
+				return nil
+			},
+		})
+		require.NoError(t, err)
+
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: "test-db",
+		}, types.DatabaseSpecV3{
+			Protocol: "postgres",
+			URI:      "localhost:5432",
+		})
+		require.NoError(t, err)
+		database.SetOrigin(types.OriginCloud)
+
+		require.NoError(t, p.a.CreateDatabase(ctx, database))
+
+		events := reporter.resourceCreateEvents()
+		require.Len(t, events, 1)
+		require.Equal(t, types.ResourceDatabase, events[0].ResourceType)
+		require.Equal(t, types.OriginCloud, events[0].ResourceOrigin)
+		require.Equal(t, "postgres", events[0].Database.DbProtocol)
+		require.Equal(t, "self-hosted", events[0].Database.DbType)
+	})
+
+	t.Run("CreateKubernetesCluster", func(t *testing.T) {
+		ctx := context.Background()
+		reporter := &mockUsageReporter{}
+		p, err := newTestPack(ctx, testPackOptions{
+			MutateAuth: func(a *auth.Server) error {
+				a.SetUsageReporter(reporter)
+				return nil
+			},
+		})
+		require.NoError(t, err)
+
+		kubeCluster, err := types.NewKubernetesClusterV3(
+			types.Metadata{Name: "test-kube"},
+			types.KubernetesClusterSpecV3{},
+		)
+		require.NoError(t, err)
+		kubeCluster.SetOrigin(types.OriginCloud)
+
+		require.NoError(t, p.a.CreateKubernetesCluster(ctx, kubeCluster))
+
+		events := reporter.resourceCreateEvents()
+		require.Len(t, events, 1)
+		require.Equal(t, types.ResourceKubernetes, events[0].ResourceType)
+		require.Equal(t, types.OriginCloud, events[0].ResourceOrigin)
+	})
+
+	t.Run("CreateWindowsDesktop", func(t *testing.T) {
+		ctx := context.Background()
+		reporter := &mockUsageReporter{}
+		p, err := newTestPack(ctx, testPackOptions{
+			MutateAuth: func(a *auth.Server) error {
+				a.SetUsageReporter(reporter)
+				return nil
+			},
+		})
+		require.NoError(t, err)
+
+		desktop, err := types.NewWindowsDesktopV3("test-desktop", nil, types.WindowsDesktopSpecV3{
+			Addr:   "localhost",
+			HostID: "test-host",
+		})
+		require.NoError(t, err)
+
+		require.NoError(t, p.a.CreateWindowsDesktop(ctx, desktop))
+
+		events := reporter.resourceCreateEvents()
+		require.Len(t, events, 1)
+		require.Equal(t, types.KindWindowsDesktop, events[0].ResourceType)
+	})
+
+	t.Run("UpsertNode", func(t *testing.T) {
+		ctx := context.Background()
+		reporter := &mockUsageReporter{}
+		p, err := newTestPack(ctx, testPackOptions{
+			MutateAuth: func(a *auth.Server) error {
+				a.SetUsageReporter(reporter)
+				return nil
+			},
+		})
+		require.NoError(t, err)
+
+		node, err := types.NewServer("test-node", types.KindNode, types.ServerSpecV2{})
+		require.NoError(t, err)
+
+		// First Upsert should publish the event for the new node
+		_, err = p.a.UpsertNode(ctx, node)
+		require.NoError(t, err)
+		require.Len(t, reporter.resourceCreateEvents(), 1)
+		require.Equal(t, types.ResourceNode, reporter.resourceCreateEvents()[0].ResourceType)
+
+		// Second upsert should be an update that does not publish the create event
+		_, err = p.a.UpsertNode(ctx, node)
+		require.NoError(t, err)
+		require.Len(t, reporter.resourceCreateEvents(), 1)
+	})
+
+	t.Run("UpsertApplicationServer", func(t *testing.T) {
+		ctx := context.Background()
+		reporter := &mockUsageReporter{}
+		p, err := newTestPack(ctx, testPackOptions{
+			MutateAuth: func(a *auth.Server) error {
+				a.SetUsageReporter(reporter)
+				return nil
+			},
+		})
+		require.NoError(t, err)
+
+		app, err := types.NewAppV3(types.Metadata{Name: "test-app"}, types.AppSpecV3{
+			URI: "localhost",
+		})
+		require.NoError(t, err)
+		appServer, err := types.NewAppServerV3FromApp(app, "host", "host-id")
+		require.NoError(t, err)
+
+		// First Upsert should publish the event for the new server
+		_, err = p.a.UpsertApplicationServer(ctx, appServer)
+		require.NoError(t, err)
+		require.Len(t, reporter.resourceCreateEvents(), 1)
+		require.Equal(t, types.ResourceApp, reporter.resourceCreateEvents()[0].ResourceType)
+
+		// Second upsert should be an update that does not publish the create event
+		_, err = p.a.UpsertApplicationServer(ctx, appServer)
+		require.NoError(t, err)
+		require.Len(t, reporter.resourceCreateEvents(), 1)
+	})
 }

@@ -812,6 +812,22 @@ message DiscoveredDatabaseMetadata {
   string db_protocol = 2;
 }
 
+// ResourceDiscoveredEvent is emitted by the discovery service when it discovers
+// a resource from a cloud provider.
+message ResourceDiscoveredEvent {
+  // resource_type is the type of resource ("node", "node.openssh", "db", "k8s", "app").
+  string resource_type = 1;
+  // resource_name is the name of the discovered resource.
+  string resource_name = 2;
+  // cloud_provider is the cloud provider ("AWS", "Azure", "GCP").
+  string cloud_provider = 3;
+  // discovery_config_name is the name of the DiscoveryConfig that triggered
+  // discovery. Empty for static configuration matchers.
+  string discovery_config_name = 4;
+  // discovery_method is how the resource was discovered ("static", "guided", "iac")
+  string discovery_method = 5;
+}
+
 // FeatureRecommendationEvent captures event emitted when a feature is recommended to user or
 // when user completes the desired CTA for the feature.
 //
@@ -1015,6 +1031,7 @@ message UsageEventOneOf {
     UIIntegrationEnrollFieldCompleteEvent ui_integration_enroll_field_complete_event = 63;
     UIIntegrationEnrollCodeCopyEvent ui_integration_enroll_code_copy_event = 64;
     UIIntegrationEnrollLinkClickEvent ui_integration_enroll_link_click_event = 65;
+    ResourceDiscoveredEvent resource_discovered_event = 66;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

@@ -250,15 +250,12 @@ func (s *Server) onDatabaseCreate(ctx context.Context, database types.Database) 
 		}
 		return trace.Wrap(s.onDatabaseUpdate(ctx, database, nil))
 	}
-	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
+	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceDiscoveredEvent{
 		databaseEventPrefix + database.GetName(): {
-			ResourceType:   types.DiscoveredResourceDatabase,
-			ResourceOrigin: types.OriginCloud,
-			CloudProvider:  database.GetCloud(),
-			Database: &usageeventsv1.DiscoveredDatabaseMetadata{
-				DbType:     database.GetType(),
-				DbProtocol: database.GetProtocol(),
-			},
+			ResourceType:        types.ResourceDatabase,
+			ResourceName:        database.GetName(),
+			CloudProvider:       database.GetCloud(),
+			DiscoveryConfigName: database.GetStaticLabels()[types.TeleportInternalDiscoveryConfigName],
 		},
 	})
 	if err != nil {

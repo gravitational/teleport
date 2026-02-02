@@ -56,11 +56,11 @@ type AzureInstances struct {
 	Instances []*armcompute.VirtualMachine
 }
 
-// MakeEvents generates MakeEvents for these instances.
-func (instances *AzureInstances) MakeEvents(failures []AzureInstallFailure) map[string]*usageeventsv1.ResourceCreateEvent {
-	resourceType := types.DiscoveredResourceNode
+// MakeEvents generates ResourceDiscoveredEvents for these instances.
+func (instances *AzureInstances) MakeEvents(failures []AzureInstallFailure) map[string]*usageeventsv1.ResourceDiscoveredEvent {
+	resourceType := types.ResourceNode
 	if instances.InstallerParams != nil && instances.InstallerParams.ScriptName == installers.InstallerScriptNameAgentless {
-		resourceType = types.DiscoveredResourceAgentlessNode
+		resourceType = types.ResourceAgentlessNode
 	}
 
 	failed := map[string]struct{}{}
@@ -70,17 +70,18 @@ func (instances *AzureInstances) MakeEvents(failures []AzureInstallFailure) map[
 	}
 
 	expectedSize := len(instances.Instances) - len(failures)
-	events := make(map[string]*usageeventsv1.ResourceCreateEvent, expectedSize)
+	events := make(map[string]*usageeventsv1.ResourceDiscoveredEvent, expectedSize)
 	for _, inst := range instances.Instances {
 		id := azure.StringVal(inst.ID)
 		// skip failed
 		if _, found := failed[id]; found {
 			continue
 		}
-		events[azureEventPrefix+id] = &usageeventsv1.ResourceCreateEvent{
-			ResourceType:   resourceType,
-			ResourceOrigin: types.OriginCloud,
-			CloudProvider:  types.CloudAzure,
+		events[azureEventPrefix+id] = &usageeventsv1.ResourceDiscoveredEvent{
+			ResourceType:        resourceType,
+			ResourceName:        azure.StringVal(inst.Name),
+			CloudProvider:       types.CloudAzure,
+			DiscoveryConfigName: instances.DiscoveryConfigName,
 		}
 	}
 	return events

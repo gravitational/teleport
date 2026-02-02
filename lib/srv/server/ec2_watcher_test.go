@@ -576,7 +576,7 @@ func TestEC2WatcherWithMultipleAccounts(t *testing.T) {
 			organizationID: organizationID,
 			rootOUID:       "r-123",
 			ouItems: map[string]ouItem{
-				"r-123": ouItem{
+				"r-123": {
 					innerOUs: []string{},
 					innerAccounts: []string{
 						"000000000001",
@@ -686,7 +686,7 @@ func TestMakeEvents(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
 		insts    *EC2Instances
-		expected map[string]*usageeventsv1.ResourceCreateEvent
+		expected map[string]*usageeventsv1.ResourceDiscoveredEvent
 	}{
 		{
 			name: "script mode with teleport agents, returns node resource type",
@@ -697,11 +697,11 @@ func TestMakeEvents(t *testing.T) {
 				}},
 				DocumentName: "TeleportDiscoveryInstaller",
 			},
-			expected: map[string]*usageeventsv1.ResourceCreateEvent{
+			expected: map[string]*usageeventsv1.ResourceDiscoveredEvent{
 				"aws/i-123456789012": {
-					ResourceType:   "node",
-					ResourceOrigin: "cloud",
-					CloudProvider:  "AWS",
+					ResourceName:  "i-123456789012",
+					ResourceType:  "node",
+					CloudProvider: "AWS",
 				},
 			},
 		},
@@ -714,11 +714,11 @@ func TestMakeEvents(t *testing.T) {
 				}},
 				DocumentName: "TeleportAgentlessDiscoveryInstaller",
 			},
-			expected: map[string]*usageeventsv1.ResourceCreateEvent{
+			expected: map[string]*usageeventsv1.ResourceDiscoveredEvent{
 				"aws/i-123456789012": {
-					ResourceType:   "node.openssh",
-					ResourceOrigin: "cloud",
-					CloudProvider:  "AWS",
+					ResourceName:  "i-123456789012",
+					ResourceType:  "node.openssh",
+					CloudProvider: "AWS",
 				},
 			},
 		},
@@ -730,11 +730,11 @@ func TestMakeEvents(t *testing.T) {
 					InstanceID: "i-123456789012",
 				}},
 			},
-			expected: map[string]*usageeventsv1.ResourceCreateEvent{
+			expected: map[string]*usageeventsv1.ResourceDiscoveredEvent{
 				"aws/i-123456789012": {
-					ResourceType:   "node.openssh-eice",
-					ResourceOrigin: "cloud",
-					CloudProvider:  "AWS",
+					ResourceName:  "i-123456789012",
+					ResourceType:  "node.openssh-eice",
+					CloudProvider: "AWS",
 				},
 			},
 		},

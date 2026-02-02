@@ -989,18 +989,18 @@ const (
 	// MCPTransportHTTP indicates the MCP server uses SSE transport.
 	MCPTransportHTTP = "Streamable HTTP"
 
-	// DiscoveredResourceNode identifies a discovered SSH node.
-	DiscoveredResourceNode = "node"
-	// DiscoveredResourceDatabase identifies a discovered database.
-	DiscoveredResourceDatabase = "db"
-	// DiscoveredResourceKubernetes identifies a discovered kubernetes cluster.
-	DiscoveredResourceKubernetes = "k8s"
-	// DiscoveredResourceAgentlessNode identifies a discovered agentless SSH node.
-	DiscoveredResourceAgentlessNode = "node.openssh"
-	// DiscoveredResourceEICENode identifies a discovered AWS EC2 Instance using the EICE access method.
-	DiscoveredResourceEICENode = "node.openssh-eice"
-	// DiscoveredResourceApp identifies a discovered Kubernetes App.
-	DiscoveredResourceApp = "app"
+	// ResourceNode identifies a SSH node.
+	ResourceNode = "node"
+	// ResourceDatabase identifies a database.
+	ResourceDatabase = "db"
+	// ResourceKubernetes identifies a kubernetes cluster.
+	ResourceKubernetes = "k8s"
+	// ResourceAgentlessNode identifies a agentless SSH node.
+	ResourceAgentlessNode = "node.openssh"
+	// ResourceEICENode identifies a AWS EC2 Instance using the EICE access method.
+	ResourceEICENode = "node.openssh-eice"
+	// ResourceApp identifies a Kubernetes App.
+	ResourceApp = "app"
 
 	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
 	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace

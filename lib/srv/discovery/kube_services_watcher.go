@@ -131,11 +131,10 @@ func (s *Server) onAppCreate(ctx context.Context, app types.Application) error {
 		}
 		return trace.Wrap(s.onAppUpdate(ctx, app, nil))
 	}
-	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
+	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceDiscoveredEvent{
 		appEventPrefix + app.GetName(): {
-			ResourceType:   types.DiscoveredResourceApp,
-			ResourceOrigin: types.OriginKubernetes,
-			// CloudProvider is not set for apps created from Kubernetes services
+			ResourceType: types.ResourceApp,
+			ResourceName: app.GetName(),
 		},
 	})
 	if err != nil {

@@ -185,6 +185,58 @@ export interface DiscoveredDatabaseMetadata {
     dbProtocol: string;
 }
 /**
+ * ResourceDiscoveredEvent is emitted by the discovery service when it discovers
+ * a resource from a cloud provider.
+ *
+ * PostHog event: tp.resource.discovered
+ *
+ * @generated from protobuf message prehog.v1alpha.ResourceDiscoveredEvent
+ */
+export interface ResourceDiscoveredEvent {
+    /**
+     * resource_type is the type of resource ("node", "node.openssh", "db", "k8s", "app").
+     *
+     * PostHog property: tp.resource_type
+     *
+     * @generated from protobuf field: string resource_type = 1;
+     */
+    resourceType: string;
+    /**
+     * anonymized name of the discovered resource, 32 bytes (HMAC-SHA-256).
+     *
+     * PostHog property: tp.resource_name (in base64)
+     *
+     * @generated from protobuf field: bytes resource_name = 2;
+     */
+    resourceName: Uint8Array;
+    /**
+     * cloud_provider is the cloud provider ("AWS", "Azure", "GCP").
+     *
+     * PostHog property: tp.cloud_provider
+     *
+     * @generated from protobuf field: string cloud_provider = 3;
+     */
+    cloudProvider: string;
+    /**
+     * anonymized name of the DiscoveryConfig that triggered discovery,
+     * 32 bytes (HMAC-SHA-256). Empty for static configuration matchers.
+     *
+     * PostHog property: tp.discovery_config_name (in base64)
+     *
+     * @generated from protobuf field: bytes discovery_config_name = 4;
+     */
+    discoveryConfigName: Uint8Array;
+    /**
+     * discovery_method is how the resource was discovered:
+     * "static", "guided", or "iac".
+     *
+     * PostHog property: tp.discovery_method
+     *
+     * @generated from protobuf field: string discovery_method = 5;
+     */
+    discoveryMethod: string;
+}
+/**
  * a heartbeat for a resource served by a Teleport instance outside of the
  * control plane (i.e. not auth, not proxy)
  *
@@ -3804,6 +3856,12 @@ export interface SubmitEventRequest {
          */
         sessionSummaryAccessEvent: SessionSummaryAccessEvent;
     } | {
+        oneofKind: "resourceDiscovered";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.ResourceDiscoveredEvent resource_discovered = 107;
+         */
+        resourceDiscovered: ResourceDiscoveredEvent;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -5033,6 +5091,85 @@ class DiscoveredDatabaseMetadata$Type extends MessageType<DiscoveredDatabaseMeta
  * @generated MessageType for protobuf message prehog.v1alpha.DiscoveredDatabaseMetadata
  */
 export const DiscoveredDatabaseMetadata = new DiscoveredDatabaseMetadata$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ResourceDiscoveredEvent$Type extends MessageType<ResourceDiscoveredEvent> {
+    constructor() {
+        super("prehog.v1alpha.ResourceDiscoveredEvent", [
+            { no: 1, name: "resource_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "resource_name", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
+            { no: 3, name: "cloud_provider", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "discovery_config_name", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
+            { no: 5, name: "discovery_method", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ResourceDiscoveredEvent>): ResourceDiscoveredEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.resourceType = "";
+        message.resourceName = new Uint8Array(0);
+        message.cloudProvider = "";
+        message.discoveryConfigName = new Uint8Array(0);
+        message.discoveryMethod = "";
+        if (value !== undefined)
+            reflectionMergePartial<ResourceDiscoveredEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ResourceDiscoveredEvent): ResourceDiscoveredEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string resource_type */ 1:
+                    message.resourceType = reader.string();
+                    break;
+                case /* bytes resource_name */ 2:
+                    message.resourceName = reader.bytes();
+                    break;
+                case /* string cloud_provider */ 3:
+                    message.cloudProvider = reader.string();
+                    break;
+                case /* bytes discovery_config_name */ 4:
+                    message.discoveryConfigName = reader.bytes();
+                    break;
+                case /* string discovery_method */ 5:
+                    message.discoveryMethod = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ResourceDiscoveredEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string resource_type = 1; */
+        if (message.resourceType !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.resourceType);
+        /* bytes resource_name = 2; */
+        if (message.resourceName.length)
+            writer.tag(2, WireType.LengthDelimited).bytes(message.resourceName);
+        /* string cloud_provider = 3; */
+        if (message.cloudProvider !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.cloudProvider);
+        /* bytes discovery_config_name = 4; */
+        if (message.discoveryConfigName.length)
+            writer.tag(4, WireType.LengthDelimited).bytes(message.discoveryConfigName);
+        /* string discovery_method = 5; */
+        if (message.discoveryMethod !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.discoveryMethod);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.ResourceDiscoveredEvent
+ */
+export const ResourceDiscoveredEvent = new ResourceDiscoveredEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ResourceHeartbeatEvent$Type extends MessageType<ResourceHeartbeatEvent> {
     constructor() {
@@ -11858,7 +11995,8 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 103, name: "ui_integration_enroll_code_copy_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollCodeCopyEvent },
             { no: 104, name: "ui_integration_enroll_link_click_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollLinkClickEvent },
             { no: 105, name: "session_summary_create_event", kind: "message", oneof: "event", T: () => SessionSummaryCreateEvent },
-            { no: 106, name: "session_summary_access_event", kind: "message", oneof: "event", T: () => SessionSummaryAccessEvent }
+            { no: 106, name: "session_summary_access_event", kind: "message", oneof: "event", T: () => SessionSummaryAccessEvent },
+            { no: 107, name: "resource_discovered", kind: "message", oneof: "event", T: () => ResourceDiscoveredEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -12484,6 +12622,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         sessionSummaryAccessEvent: SessionSummaryAccessEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).sessionSummaryAccessEvent)
                     };
                     break;
+                case /* prehog.v1alpha.ResourceDiscoveredEvent resource_discovered */ 107:
+                    message.event = {
+                        oneofKind: "resourceDiscovered",
+                        resourceDiscovered: ResourceDiscoveredEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).resourceDiscovered)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -12805,6 +12949,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.SessionSummaryAccessEvent session_summary_access_event = 106; */
         if (message.event.oneofKind === "sessionSummaryAccessEvent")
             SessionSummaryAccessEvent.internalBinaryWrite(message.event.sessionSummaryAccessEvent, writer.tag(106, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.ResourceDiscoveredEvent resource_discovered = 107; */
+        if (message.event.oneofKind === "resourceDiscovered")
+            ResourceDiscoveredEvent.internalBinaryWrite(message.event.resourceDiscovered, writer.tag(107, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

@@ -75,7 +75,7 @@ const (
 type UsageReporter interface {
 	// AnonymizeAndSubmit submits a usage event. The payload will be
 	// anonymized by the reporter implementation.
-	AnonymizeAndSubmit(event ...Anonymizable)
+	AnonymizeAndSubmit(events ...Anonymizable)
 }
 
 // GracefulStopper is a UsageReporter that needs to do some work before

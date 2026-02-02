@@ -142,26 +142,27 @@ func (i *EC2Instances) ServerInfos() ([]types.ServerInfo, error) {
 	return serverInfos, nil
 }
 
-// MakeEvents generates ResourceCreateEvents for these instances.
-func (instances *EC2Instances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
-	resourceType := types.DiscoveredResourceNode
+// MakeEvents generates ResourceDiscoveredEvents for these instances.
+func (instances *EC2Instances) MakeEvents() map[string]*usageeventsv1.ResourceDiscoveredEvent {
+	resourceType := types.ResourceNode
 
 	switch instances.EnrollMode {
 	case types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE:
-		resourceType = types.DiscoveredResourceEICENode
+		resourceType = types.ResourceEICENode
 
 	case types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT:
 		if instances.DocumentName == types.AWSAgentlessInstallerDocument {
-			resourceType = types.DiscoveredResourceAgentlessNode
+			resourceType = types.ResourceAgentlessNode
 		}
 	}
 
-	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))
+	events := make(map[string]*usageeventsv1.ResourceDiscoveredEvent, len(instances.Instances))
 	for _, inst := range instances.Instances {
-		events[awsEventPrefix+inst.InstanceID] = &usageeventsv1.ResourceCreateEvent{
-			ResourceType:   resourceType,
-			ResourceOrigin: types.OriginCloud,
-			CloudProvider:  types.CloudAWS,
+		events[awsEventPrefix+inst.InstanceID] = &usageeventsv1.ResourceDiscoveredEvent{
+			ResourceType:        resourceType,
+			ResourceName:        inst.InstanceID,
+			CloudProvider:       types.CloudAWS,
+			DiscoveryConfigName: instances.DiscoveryConfigName,
 		}
 	}
 	return events
