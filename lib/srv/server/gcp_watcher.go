@@ -45,6 +45,8 @@ type GCPInstances struct {
 	InstallerParams *types.InstallerParams
 	// Instances is a list of discovered GCP virtual machines.
 	Instances []*gcpimds.Instance
+	// DiscoveryConfigName specifies the name of the discovery config used to watch instances.
+	DiscoveryConfigName string
 }
 
 // MakeEvents generates MakeEvents for these instances.
@@ -164,10 +166,11 @@ func (f *gcpInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*GCPIn
 		for zone, vms := range vmsByZone {
 			if len(vms) > 0 {
 				instances = append(instances, &GCPInstances{
-					InstallerParams: f.InstallerParams,
-					ProjectID:       projectID,
-					Zone:            zone,
-					Instances:       vms,
+					InstallerParams:     f.InstallerParams,
+					ProjectID:           projectID,
+					Zone:                zone,
+					Instances:           vms,
+					DiscoveryConfigName: f.DiscoveryConfigName,
 				})
 			}
 		}

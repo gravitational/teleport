@@ -2717,7 +2717,6 @@ func TestDiscoveryDatabase(t *testing.T) {
 
 					tc.discoveryConfigStatusCheck(t, dc.Status)
 				}, 10*time.Second, 100*time.Millisecond)
-
 			}
 			if tc.userTasksCheck != nil {
 				tc.userTasksCheck(t, tlsServer.Auth())
@@ -3350,7 +3349,6 @@ func TestAzureVMDiscovery(t *testing.T) {
 				require.NoError(t, err)
 			}
 		})
-
 	}
 }
 
