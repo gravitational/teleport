@@ -74,6 +74,9 @@ There should be a cluster dropdown for:
   - [ ] Verify that filtering types by Application includes applications in the page
   - [ ] Verify that the `Launch` button for applications correctly send to the app
   - [ ] Verify that the `Launch` button for AWS apps correctly renders an IAM role selection window
+  - [ ] Verify that the `Connect` button for AWS Console apps correctly renders a Role ARN selection dropdown, when:
+    - [ ] More than one ARN is granted to the current user, and/or
+    - [ ] One or more ARNs are requestable via inclusion in requestable roles
 - Type Database:
   - [ ] Verify that the database subtype icons are correctly displayed
   - [ ] Verify that filtering types by Databases includes databases in the page
@@ -558,6 +561,72 @@ version: v5
 - [ ] Verify there is list of reviewers you selected (empty list if none selected AND suggested_reviewers wasn't defined)
 - [ ] Verify you can't review own requests
 - [ ] Verify that you can't mix adding resources from different clusters (there should be a warning dialogue that clears the selected list)
+
+### Creating Access Requests (Resource Based with constraints)
+
+Create a role granting access to multiple AWS Role ARNs. The template `aws-access` is below.
+
+```
+kind: role
+metadata:
+  name: aws-access
+spec:
+  allow:
+    app_labels:
+      type: aws-console
+    aws_role_arns:
+    - 'arn:aws:iam::123456789012:role/ARN1'
+    - 'arn:aws:iam::123456789012:role/ARN2'
+    - 'arn:aws:iam::123456789012:role/ARN3'
+    - 'arn:aws:iam::123456789012:role/ARN4'
+version: v7
+```
+
+Add this role to the default "requester" and "reviewer" roles.
+
+```
+...
+spec:
+  allow:
+    request:
+      search_as_roles:
+      ...
+      - aws-access
+```
+
+```
+...
+spec:
+  allow:
+    review_requests:
+      preview_as_roles:
+      ...
+      - aws-access
+      roles:
+      ...
+      - aws-access
+```
+
+Add an AWS Console app resource to the Teleport Application Service.
+
+```
+app_service:
+  enabled: true
+  apps:
+    - name: "awsconsole"
+      uri: "https://console.aws.amazon.com/ec2/v2/home"
+      labels:
+        type: "aws-console"
+```
+
+- [ ] Verify a user with "requester" can see the AWS Console app resource.
+- [ ] Verify the "Connect" button on the AWS Console app resource opens a dropdown of the specified requestable AWS Role ARNs.
+- [ ] Verify one or more of these Role ARNs can be selected, opening the Access Request flow, and adding them to the request.
+- [ ] Verify the "permanent" duration option clears selected constraints, and that constraints are not addable while "permanent" is selected.
+- [ ] Verify the request can be submitted.
+- [ ] Verify a user with "reviewer" can review and approve the request, with the specified Role ARN(s) listed under the AWS Console app resource.
+- [ ] Verify the requested can assume the approved request.
+- [ ] Verify that on assumption, only the Role ARN(s) specified in the request are usable when clicking the AWS Console app's "Connect" button.
 
 ### Viewing & Approving/Denying Requests
 
