@@ -85,9 +85,8 @@ jobs:
           role-session-name: gha-ci-test-artifacts-${{ github.event.repository.name }}-${{ github.run_number }}
           role-duration-seconds: 900 # Minimum by policy, we don't need it to be that high.
 
-
       - name: Normalize test results and push to s3
-        uses: gravitational/shared-workflows/tools/ci-normalize@591611ab68647839aaa22d364b7eaf15c88e8372
+        uses: gravitational/shared-workflows/tools/ci-normalize@2428a7fa8c58249f39ad98517201efac9d01a7da # v0.0.1
         if: always() && steps.aws-setup.outcome == 'success'
         continue-on-error: true   # Do not fail the workflow
         with:
