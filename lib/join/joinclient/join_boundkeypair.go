@@ -103,7 +103,7 @@ func boundKeypairJoin(
 		case *messages.BoundKeypairRotationRequest:
 			newPubkey, err := handleBoundKeypairRotationRequest(
 				ctx, joinParams.Log, bkParams, kind,
-				)
+			)
 			if err != nil {
 				sendGivingUpErr := stream.Send(&messages.GivingUp{
 					Reason: messages.GivingUpReasonChallengeSolutionFailed,
