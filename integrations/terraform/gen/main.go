@@ -17,6 +17,7 @@ package main
 import (
 	"bytes"
 	_ "embed"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -130,6 +131,20 @@ type payload struct {
 	// WithoutImportState skips generating the ImportState function, which may be
 	// not supported for resources with write-only fields.
 	WithoutImportState bool
+	// StatePath is the object path to the current state to observe from the object returned from the provided GetMethod.
+	// StatePath should begin with a period. The value at the specified path must be a string.
+	// TODO(dustinspecker): this is only supported for Create methods. Consider adding for Update methods in the future.
+	StatePath string
+	// PendingStates is a list of states that are valid while polling the resource to reach a target state. Any state
+	// that is found that is not in PendingStates or TargetStates is considered a terminal error.
+	PendingStates []string
+	// TargetStates is a list of possible states that indicate a resource is ready for usage while polling. Any state
+	// that is found that is not in PendingStates or TargetStates is considered a terminal error.
+	TargetStates []string
+	// CreatePollIntervalSeconds is how long to wait before polling the pending resource again.
+	CreatePollIntervalSeconds int
+	// CreateTimeoutSeconds is the maximum amount of seconds to wait for a resource to reach a target state.
+	CreateTimeoutSeconds int
 }
 
 func (p *payload) CheckAndSetDefaults() error {
@@ -144,6 +159,23 @@ func (p *payload) CheckAndSetDefaults() error {
 	}
 	if p.SchemaPackagePath == "" {
 		p.SchemaPackagePath = "github.com/gravitational/teleport/integrations/terraform/tfschema"
+	}
+	if p.StatePath != "" {
+		if len(p.PendingStates) == 0 {
+			return errors.New("PendingStates must be provided when StatePath is set")
+		}
+
+		if len(p.TargetStates) == 0 {
+			return errors.New("TargetStates must be provided when StatePath is set")
+		}
+
+		if p.CreatePollIntervalSeconds == 0 {
+			return errors.New("CreatePollIntervalSeconds must be provided when StatePath is set")
+		}
+
+		if p.CreateTimeoutSeconds == 0 {
+			return errors.New("CreateTimeoutSeconds must be provided when StatePath is set")
+		}
 	}
 	return nil
 }

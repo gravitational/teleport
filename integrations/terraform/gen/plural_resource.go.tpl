@@ -24,6 +24,9 @@ import (
     "encoding/hex"
 {{- end }}
 	"fmt"
+{{- if .StatePath }}
+	"time"
+{{- end }}
 {{- range $i, $a := .ExtraImports }}
 	{{$a}}
 {{- end }}
@@ -40,6 +43,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+{{- if .StatePath }}
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+{{- end }}
 {{- if .Namespaced }}
 	"github.com/gravitational/teleport/api/defaults"
 {{- end }}
@@ -248,6 +254,32 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	if resp.Diagnostics.HasError() {
 		return
 	}
+{{- if .StatePath }}
+
+	stateConf := resource.StateChangeConf{
+		Pending: []string{
+		{{- range $state := .PendingStates }}
+			"{{ $state }}",
+		{{- end }}
+		},
+		Target:  []string{
+		{{- range $state := .TargetStates }}
+			"{{ $state }}",
+		{{- end }}
+		},
+		Timeout:      {{ .CreateTimeoutSeconds }} * time.Second,
+		PollInterval: {{ .CreatePollIntervalSeconds }} * time.Second,
+		Refresh: func() (any, string, error) {
+			{{ .VarName }}, err := r.p.Client.{{ .GetMethod }}(ctx, id)
+
+			return {{ .VarName }}, {{ .VarName }}{{ .StatePath }}, err
+		},
+	}
+
+	if _, err := stateConf.WaitForStateContext(ctx); err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error waiting for {{ .TypeName }}", trace.Wrap(err), "{{ .Kind }}"))
+	}
+{{- end }}
 }
 
 // Read reads teleport {{.Name}}
