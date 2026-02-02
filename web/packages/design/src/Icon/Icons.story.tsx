@@ -76,6 +76,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.ChatBubble} text="ChatBubble" />
     <IconBox IconCmpt={Icon.ChatCircleSparkle} text="ChatCircleSparkle" />
     <IconBox IconCmpt={Icon.Check} text="Check" />
+    <IconBox IconCmpt={Icon.CheckCircleDotted} text="CheckCircleDotted" />
     <IconBox IconCmpt={Icon.CheckThick} text="CheckThick" />
     <IconBox IconCmpt={Icon.Checks} text="Checks" />
     <IconBox IconCmpt={Icon.ChevronCircleDown} text="ChevronCircleDown" />
@@ -226,6 +227,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Table} text="Table" />
     <IconBox IconCmpt={Icon.Tablet} text="Tablet" />
     <IconBox IconCmpt={Icon.Tags} text="Tags" />
+    <IconBox IconCmpt={Icon.TeleportLogo} text="TeleportLogo" />
     <IconBox IconCmpt={Icon.Terminal} text="Terminal" />
     <IconBox IconCmpt={Icon.TerraformLogo} text="TerraformLogo" />
     <IconBox IconCmpt={Icon.Trash} text="Trash" />

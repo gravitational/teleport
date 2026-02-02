@@ -228,6 +228,12 @@ class TeleportContext implements types.Context {
       readInstances: userContext.getInstancesAccess().read,
       listInstances: userContext.getInstancesAccess().list,
       listWorkloadIdentities: userContext.getWorkloadIdentityAccess().list,
+      readAutoUpdateConfig: userContext.getAutoUpdateConfigAccess().read,
+      readAutoUpdateVersion: userContext.getAutoUpdateVersionAccess().read,
+      readAutoUpdateAgentRollout:
+        userContext.getAutoUpdateAgentRolloutAccess().read,
+      listAutoUpdateAgentReport:
+        userContext.getAutoUpdateAgentReportAccess().list,
     };
   }
 }
@@ -276,6 +282,10 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   readInstances: false,
   listInstances: false,
   listWorkloadIdentities: false,
+  readAutoUpdateConfig: false,
+  readAutoUpdateVersion: false,
+  readAutoUpdateAgentRollout: false,
+  listAutoUpdateAgentReport: false,
 };
 
 export default TeleportContext;

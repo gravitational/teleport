@@ -1496,26 +1496,8 @@ func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.Da
 	if err != nil {
 		return trace.Wrap(err, "failed listing available database object import rules")
 	}
+	// If there are existing rules, don't create a preset.
 	if len(importRules) > 0 {
-		// If the single rule is the old preset, we assume the user hasn't used
-		// DB DAC feature yet since the old preset alone is usually not enough
-		// to make things work. Replace it with the new preset.
-		//
-		// Creating and updating the database object import rule is handled on
-		// a best-effort basis, so it’s not included in backend migrations.
-		//
-		// TODO(greedy52) DELETE in 18.0
-		if len(importRules) == 1 && databaseobjectimportrule.IsOldImportAllObjectsRulePreset(importRules[0]) {
-			rule := databaseobjectimportrule.NewPresetImportAllObjectsRule()
-			if rule == nil {
-				return nil
-			}
-
-			_, err = rules.UpsertDatabaseObjectImportRule(ctx, rule)
-			if err != nil {
-				return trace.Wrap(err, "failed to update the default database object import rule")
-			}
-		}
 		return nil
 	}
 

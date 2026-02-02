@@ -2917,10 +2917,15 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 	lib.SetInsecureDevMode(clf.InsecureMode)
 
 	// Apply command line --debug flag to override logger severity.
+	level := slog.LevelError
 	if clf.Debug {
 		cfg.SetLogLevel(slog.LevelDebug)
+		level = slog.LevelDebug
 		cfg.Debug = clf.Debug
 	}
+
+	// Ensure that the logging level is respected by the logger.
+	utils.InitLogger(utils.LoggingForDaemon, level)
 
 	if clf.AuthToken != "" {
 		// store the value of the --token flag:
