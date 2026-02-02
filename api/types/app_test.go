@@ -756,7 +756,7 @@ func TestAppSessionRecordingBotsValidation(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NotNil(t, app.Spec.SessionRecording)
-		require.Equal(t, string(AppSessionRecordingBotsOn), app.Spec.SessionRecording.Bots)
+		require.Equal(t, AppSessionRecordingBotsOn, app.Spec.SessionRecording.Bots)
 	})
 
 	t.Run("invalid bots value", func(t *testing.T) {

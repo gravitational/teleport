@@ -234,7 +234,7 @@ func TestAWSSignerHandler(t *testing.T) {
 		URI:        constants.AWSConsoleURL,
 		PublicAddr: "test.local",
 		SessionRecording: &types.AppSessionRecording{
-			Bots: string(types.AppSessionRecordingBotsOff),
+			Bots: types.AppSessionRecordingBotsOff,
 		},
 	})
 	require.NoError(t, err)
