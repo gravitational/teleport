@@ -20,6 +20,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"time"
 	apitypes "github.com/gravitational/teleport/api/types"
 
 	workloadclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
@@ -30,6 +31,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/workloadcluster/v1"
 )
@@ -154,6 +156,36 @@ func (r resourceTeleportWorkloadCluster) Create(ctx context.Context, req tfsdk.C
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	stateConf := resource.StateChangeConf{
+		Pending: []string{
+			"creating",
+		},
+		Target:  []string{
+			"active",
+		},
+		Timeout:      900 * time.Second,
+		PollInterval: 30 * time.Second,
+		Refresh: func() (any, string, error) {
+			workloadcluster, err := r.p.Client.GetWorkloadCluster(ctx, id)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			if workloadcluster == nil {
+				return nil, "", trace.Errorf("response from GetWorkloadCluster was nil")
+			}
+			if workloadcluster.Status == nil {
+				return nil, "", trace.Errorf("response from GetWorkloadCluster at .Status was nil")
+			}
+
+			return workloadcluster, workloadcluster.Status.State, nil
+		},
+	}
+
+	if _, err := stateConf.WaitForStateContext(ctx); err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error waiting for WorkloadCluster", trace.Wrap(err), "workload_cluster"))
 	}
 }
 
@@ -282,6 +314,36 @@ func (r resourceTeleportWorkloadCluster) Update(ctx context.Context, req tfsdk.U
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	stateConf := resource.StateChangeConf{
+		Pending: []string{
+			"creating",
+		},
+		Target:  []string{
+			"active",
+		},
+		Timeout:      900 * time.Second,
+		PollInterval: 30 * time.Second,
+		Refresh: func() (any, string, error) {
+			workloadcluster, err := r.p.Client.GetWorkloadCluster(ctx, name)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			if workloadcluster == nil {
+				return nil, "", trace.Errorf("response from GetWorkloadCluster was nil")
+			}
+			if workloadcluster.Status == nil {
+				return nil, "", trace.Errorf("response from GetWorkloadCluster at .Status was nil")
+			}
+
+			return workloadcluster, workloadcluster.Status.State, nil
+		},
+	}
+
+	if _, err := stateConf.WaitForStateContext(ctx); err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error waiting for WorkloadCluster", trace.Wrap(err), "workload_cluster"))
 	}
 }
 
