@@ -304,7 +304,7 @@ func newPackForAuth(t *testing.T) *testPack {
 
 func newTestPack(t *testing.T, setupConfig SetupConfigFn, opts ...packOption) *testPack {
 	pack, err := newPack(t, setupConfig, opts...)
-	require.Error(t, err)
+	require.NoError(t, err)
 	return pack
 }
 
