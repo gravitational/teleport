@@ -70,6 +70,10 @@ export function PolicyPlaceholder({
     roleDiffProps?.roleDiffState === RoleDiffState.LoadingSettings ||
     waitingForSync;
 
+  // roleDiffProps can be undefined if not cloud and not role tester
+  // enabled.
+  const hideSalesButton = (cfg.isPolicyEnabled || cfg.isCloud) && roleDiffProps;
+
   return (
     <Box maxWidth={promoImageWidth + 2 * 2} minWidth={300}>
       {roleDiffProps?.roleDiffErrorMessage && !waitingForSync && (
@@ -99,7 +103,7 @@ export function PolicyPlaceholder({
                 {loading ? 'Creating graph…' : 'Preview Identity Security'}
               </ButtonPrimary>
             )}
-          {((!cfg.isPolicyEnabled && !cfg.isCloud) || !roleDiffProps) && ( // non-cloud must contact sales
+          {!hideSalesButton && ( // non-cloud must contact sales
             <>
               <ButtonLockedFeature noIcon py={0} width={undefined}>
                 Contact Sales
