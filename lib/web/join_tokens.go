@@ -82,7 +82,7 @@ type scriptSettings struct {
 
 // automaticUpgrades returns whether automaticUpgrades should be enabled.
 func automaticUpgrades(features proto.Features) bool {
-	return features.AutomaticUpgrades && features.Cloud
+	return features.AutomaticUpgrades
 }
 
 // Currently we aren't paginating this endpoint as we don't
