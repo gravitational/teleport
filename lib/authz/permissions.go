@@ -1307,6 +1307,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindLock, services.RW()),
 						types.NewRule(types.KindSAML, services.ReadNoSecrets()),
 						types.NewRule(types.KindAccessList, services.RO()),
+						types.NewRule(types.KindAccessListMember, services.RO()),
 						// Okta can read/write access lists and roles it creates.
 						{
 							Resources: []string{types.KindRole},
