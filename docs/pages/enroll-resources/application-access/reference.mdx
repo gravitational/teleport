@@ -61,6 +61,13 @@ app_service:
       headers:
       - "X-Custom-Header: example"
       - "X-External-Trait: {{external.env}}"
+    # Optional: customize the session recording configuration for this app.
+    session_recording:
+       # Controls whether session recordings will be generated for non-human
+       # (bot) users. Disabling session recording for bots provides a way to
+       # mitigate the load caused by service-to-service use-cases. Supported
+       # values are "on" and "off". Defaults to "on".
+       bots: "on"
     # Disable application certificate validation.
     insecure_skip_verify: true
     # Optional static labels to assign to the app. Used in RBAC.

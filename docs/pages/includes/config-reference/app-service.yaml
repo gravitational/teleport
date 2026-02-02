@@ -39,6 +39,13 @@ app_service:
       # to limit access to applications
       labels:
          env: "prod"
+      # Optional: customize the session recording configuration for this app.
+      session_recording:
+         # Controls whether session recordings will be generated for non-human
+         # (bot) users. Disabling session recording for bots provides a way to
+         # mitigate the load caused by service-to-service use-cases. Supported
+         # values are "on" and "off". Defaults to "on".
+         bots: "on"
 
       # # Optional list of Teleport application names that require a session for this app to function correctly.
       # # When launching this app, any app listed here will also be launched, and a session will be created.
