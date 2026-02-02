@@ -906,7 +906,7 @@ func TestDiscoveryServer(t *testing.T) {
 
 				require.Equal(t, "OPEN", existingTask.GetSpec().State)
 				require.Equal(t, "my-integration", existingTask.GetSpec().Integration)
-				require.Equal(t, "ec2-perm-describe-instances", existingTask.GetSpec().IssueType)
+				require.Equal(t, "ec2-perm-account-denied", existingTask.GetSpec().IssueType)
 				require.Equal(t, "us-west-2", existingTask.GetSpec().GetDiscoverEc2().GetRegion())
 			},
 		},
@@ -924,7 +924,7 @@ func TestDiscoveryServer(t *testing.T) {
 
 				require.Equal(t, "OPEN", existingTask.GetSpec().State)
 				require.Equal(t, "my-integration", existingTask.GetSpec().Integration)
-				require.Equal(t, "ec2-perm-account-list-regions", existingTask.GetSpec().IssueType)
+				require.Equal(t, "ec2-perm-account-denied", existingTask.GetSpec().IssueType)
 			},
 		},
 		{
@@ -941,7 +941,7 @@ func TestDiscoveryServer(t *testing.T) {
 
 				require.Equal(t, "OPEN", existingTask.GetSpec().State)
 				require.Equal(t, "my-integration", existingTask.GetSpec().Integration)
-				require.Equal(t, "ec2-perm-organizations", existingTask.GetSpec().IssueType)
+				require.Equal(t, "ec2-perm-org-denied", existingTask.GetSpec().IssueType)
 			},
 		},
 	}

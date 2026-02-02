@@ -62,10 +62,10 @@ func TestValidateUserTask(t *testing.T) {
 	// baseEC2PermissionIssueTask uses a permission issue type which does NOT
 	// require account_id and region (errors occur before these are known).
 	baseEC2PermissionIssueTask := func(t *testing.T) *usertasksv1.UserTask {
-		userTask, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
+		userTask, err := NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
 			Integration: "my-integration",
 			TaskType:    "discover-ec2",
-			IssueType:   "ec2-perm-describe-instances",
+			IssueType:   "ec2-perm-account-denied",
 			State:       "OPEN",
 			DiscoverEc2: &usertasksv1.DiscoverEC2{
 				AccountId: "123456789012",
@@ -207,18 +207,18 @@ func TestValidateUserTask(t *testing.T) {
 			wantErr: "invalid issue type state, allowed values",
 		},
 		{
-			name: "DiscoverEC2: ec2-perm-describe-instances is valid",
+			name: "DiscoverEC2: ec2-perm-account-denied is valid",
 			task: func(t *testing.T) *usertasksv1.UserTask {
 				return baseEC2PermissionIssueTask(t)
 			},
-			wantErr: require.NoError,
+			wantErr: noError,
 		},
 		{
-			name: "DiscoverEC2: ec2-perm-account-list-regions is valid",
+			name: "DiscoverEC2: ec2-perm-org-denied is valid",
 			task: func(t *testing.T) *usertasksv1.UserTask {
 				ut := baseEC2PermissionIssueTask(t)
-				ut.Spec.IssueType = "ec2-perm-account-list-regions"
-				ut.Metadata.Name = usertasks.TaskNameForDiscoverEC2(usertasks.TaskNameForDiscoverEC2Parts{
+				ut.Spec.IssueType = "ec2-perm-org-denied"
+				ut.Metadata.Name = TaskNameForDiscoverEC2(TaskNameForDiscoverEC2Parts{
 					Integration: ut.Spec.Integration,
 					IssueType:   ut.Spec.IssueType,
 					AccountID:   ut.Spec.DiscoverEc2.AccountId,
@@ -226,22 +226,7 @@ func TestValidateUserTask(t *testing.T) {
 				})
 				return ut
 			},
-			wantErr: require.NoError,
-		},
-		{
-			name: "DiscoverEC2: ec2-perm-organizations is valid",
-			task: func(t *testing.T) *usertasksv1.UserTask {
-				ut := baseEC2PermissionIssueTask(t)
-				ut.Spec.IssueType = "ec2-perm-organizations"
-				ut.Metadata.Name = usertasks.TaskNameForDiscoverEC2(usertasks.TaskNameForDiscoverEC2Parts{
-					Integration: ut.Spec.Integration,
-					IssueType:   ut.Spec.IssueType,
-					AccountID:   ut.Spec.DiscoverEc2.AccountId,
-					Region:      ut.Spec.DiscoverEc2.Region,
-				})
-				return ut
-			},
-			wantErr: require.NoError,
+			wantErr: noError,
 		},
 		{
 			name: "DiscoverEC2: missing integration",
@@ -289,48 +274,42 @@ func TestValidateUserTask(t *testing.T) {
 			wantErr: "discover-ec2 requires the discover_ec2.region field",
 		},
 		{
-			name: "DiscoverEC2: ec2-perm-describe-instances allows missing account id and region",
+			name: "DiscoverEC2: ec2-perm-account-denied allows missing account id and region",
 			task: func(t *testing.T) *usertasksv1.UserTask {
 				ut := baseEC2PermissionIssueTask(t)
 				ut.Spec.DiscoverEc2.AccountId = ""
 				ut.Spec.DiscoverEc2.Region = ""
-				ut.Metadata.Name = usertasks.TaskNameForDiscoverEC2(usertasks.TaskNameForDiscoverEC2Parts{
+				ut.Metadata.Name = TaskNameForDiscoverEC2(TaskNameForDiscoverEC2Parts{
 					Integration: ut.Spec.Integration,
 					IssueType:   ut.Spec.IssueType,
 				})
 				return ut
 			},
-			wantErr: require.NoError,
+			wantErr: noError,
 		},
 		{
-			name: "DiscoverEC2: ec2-perm-account-list-regions allows missing account id and region",
+			name: "DiscoverEC2: ec2-perm-org-denied allows missing account id and region",
 			task: func(t *testing.T) *usertasksv1.UserTask {
 				ut := baseEC2PermissionIssueTask(t)
-				ut.Spec.IssueType = "ec2-perm-account-list-regions"
+				ut.Spec.IssueType = "ec2-perm-org-denied"
 				ut.Spec.DiscoverEc2.AccountId = ""
 				ut.Spec.DiscoverEc2.Region = ""
-				ut.Metadata.Name = usertasks.TaskNameForDiscoverEC2(usertasks.TaskNameForDiscoverEC2Parts{
+				ut.Metadata.Name = TaskNameForDiscoverEC2(TaskNameForDiscoverEC2Parts{
 					Integration: ut.Spec.Integration,
 					IssueType:   ut.Spec.IssueType,
 				})
 				return ut
 			},
-			wantErr: require.NoError,
+			wantErr: noError,
 		},
 		{
-			name: "DiscoverEC2: ec2-perm-organizations allows missing account id and region",
+			name: "DiscoverEC2: permission issue requires at least one instance entry",
 			task: func(t *testing.T) *usertasksv1.UserTask {
 				ut := baseEC2PermissionIssueTask(t)
-				ut.Spec.IssueType = "ec2-perm-organizations"
-				ut.Spec.DiscoverEc2.AccountId = ""
-				ut.Spec.DiscoverEc2.Region = ""
-				ut.Metadata.Name = usertasks.TaskNameForDiscoverEC2(usertasks.TaskNameForDiscoverEC2Parts{
-					Integration: ut.Spec.Integration,
-					IssueType:   ut.Spec.IssueType,
-				})
+				ut.Spec.DiscoverEc2.Instances = nil
 				return ut
 			},
-			wantErr: require.NoError,
+			wantErr: "at least one instance entry is required",
 		},
 		{
 			name: "DiscoverEC2: instances - missing instance id in map key",
@@ -386,7 +365,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverEc2.Instances[""].DiscoveryConfig = ""
 				return ut
 			},
-			wantErr: require.NoError,
+			wantErr: noError,
 		},
 		{
 			name: "DiscoverEC2: instances - missing discovery group",
