@@ -263,7 +263,7 @@ func TestTrimStr(t *testing.T) {
 
 	const maxLen = 20
 	for _, test := range tests {
-		require.Equal(t, test.want, trimStr(test.have, maxLen))
+		require.Equal(t, test.want, TrimStr(test.have, maxLen))
 	}
 }
 

@@ -79,8 +79,8 @@ func computeEventID(evt AuditEvent, payload []byte) string {
 	return hex.EncodeToString(hash[:])
 }
 
-// trimStr trims a string to a given length.
-func trimStr[T string | []byte](s T, n int) T {
+// TrimStr trims a string to a given length.
+func TrimStr[T string | []byte](s T, n int) T {
 	// Starting at 2 to leave room for quotes at the begging and end.
 	charCount := 2
 	for i := range len(s) {
@@ -153,7 +153,7 @@ func trimStrSlice[T ~string](strs []T, maxSize int) []T {
 	}
 	trimmed := make([]T, len(strs))
 	for i, v := range strs {
-		trimmed[i] = T(trimStr(string(v), maxSize))
+		trimmed[i] = T(TrimStr(string(v), maxSize))
 	}
 	return trimmed
 }
@@ -164,8 +164,8 @@ func (m *Status) nonEmptyStrs() int {
 
 func (m *Status) trimToMaxFieldSize(maxFieldSize int) Status {
 	out := *m
-	out.Error = trimStr(m.Error, maxFieldSize)
-	out.UserMessage = trimStr(m.UserMessage, maxFieldSize)
+	out.Error = TrimStr(m.Error, maxFieldSize)
+	out.UserMessage = TrimStr(m.UserMessage, maxFieldSize)
 	return out
 }
 
@@ -203,11 +203,11 @@ func (m *Struct) trimToMaxFieldSize(maxFieldSize int) *Struct {
 		},
 	}
 	for k, v := range m.Fields {
-		trimmedKey := trimStr(k, maxFieldSize)
+		trimmedKey := TrimStr(k, maxFieldSize)
 
 		if v != nil {
 			if strVal := v.GetStringValue(); strVal != "" {
-				trimmedVal := trimStr(strVal, maxFieldSize)
+				trimmedVal := TrimStr(strVal, maxFieldSize)
 				out.Fields[trimmedKey] = &types.Value{
 					Kind: &types.Value_StringValue{
 						StringValue: trimmedVal,
@@ -216,7 +216,7 @@ func (m *Struct) trimToMaxFieldSize(maxFieldSize int) *Struct {
 			} else if l := v.GetListValue(); l != nil {
 				for i, lv := range l.Values {
 					if strVal := lv.GetStringValue(); strVal != "" {
-						trimmedVal := trimStr(strVal, maxFieldSize)
+						trimmedVal := TrimStr(strVal, maxFieldSize)
 						l.Values[i] = &types.Value{
 							Kind: &types.Value_StringValue{
 								StringValue: trimmedVal,
@@ -236,8 +236,8 @@ func (m *CommandMetadata) nonEmptyStrs() int {
 
 func (m *CommandMetadata) trimToMaxSize(maxSize int) CommandMetadata {
 	var out CommandMetadata
-	out.Command = trimStr(m.Command, maxSize)
-	out.Error = trimStr(m.Error, maxSize)
+	out.Command = TrimStr(m.Command, maxSize)
+	out.Error = TrimStr(m.Error, maxSize)
 	return out
 }
 
@@ -261,8 +261,8 @@ func nonEmptyStrsInMap(m map[string]string) int {
 func trimMap(m map[string]string, maxSize int) map[string]string {
 	for k, v := range m {
 		delete(m, k)
-		trimmedKey := trimStr(k, maxSize)
-		m[trimmedKey] = trimStr(v, maxSize)
+		trimmedKey := TrimStr(k, maxSize)
+		m[trimmedKey] = TrimStr(v, maxSize)
 	}
 	return m
 }
@@ -288,7 +288,7 @@ func nonEmptyTraits(traits wrappers.Traits) int {
 func trimTraits(traits wrappers.Traits, maxSize int) wrappers.Traits {
 	for k, vals := range traits {
 		delete(traits, k)
-		trimmedKey := trimStr(k, maxSize)
+		trimmedKey := TrimStr(k, maxSize)
 		traits[trimmedKey] = trimStrSlice(vals, maxSize)
 	}
 	return traits
@@ -377,7 +377,7 @@ func (m *ClientDisconnect) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.Reason)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Reason = trimStr(m.Reason, maxFieldsSize)
+	out.Reason = TrimStr(m.Reason, maxFieldsSize)
 
 	return out
 }
@@ -492,7 +492,7 @@ func (m *AccessRequestCreate) TrimToMaxSize(maxSize int) AuditEvent {
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
 	out.Roles = trimStrSlice(m.Roles, maxFieldsSize)
-	out.Reason = trimStr(m.Reason, maxFieldsSize)
+	out.Reason = TrimStr(m.Reason, maxFieldsSize)
 	out.Annotations = m.Annotations.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
@@ -523,7 +523,7 @@ func (m *AccessRequestResourceSearch) TrimToMaxSize(maxSize int) AuditEvent {
 
 	out.SearchAsRoles = trimStrSlice(m.SearchAsRoles, maxFieldsSize)
 	out.Labels = trimMap(m.Labels, maxFieldsSize)
-	out.PredicateExpression = trimStr(m.PredicateExpression, maxFieldsSize)
+	out.PredicateExpression = TrimStr(m.PredicateExpression, maxFieldsSize)
 	out.SearchKeywords = trimStrSlice(m.SearchKeywords, maxFieldsSize)
 
 	return out
@@ -560,8 +560,8 @@ func (m *Subsystem) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.Name, m.Error)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Name = trimStr(m.Name, maxFieldsSize)
-	out.Error = trimStr(m.Error, maxFieldsSize)
+	out.Name = TrimStr(m.Name, maxFieldsSize)
+	out.Error = TrimStr(m.Error, maxFieldsSize)
 
 	return out
 }
@@ -593,7 +593,7 @@ func (m *SCP) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.Path) + m.CommandMetadata.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Path = trimStr(m.Path, maxFieldsSize)
+	out.Path = TrimStr(m.Path, maxFieldsSize)
 	out.CommandMetadata = m.CommandMetadata.trimToMaxSize(maxFieldsSize)
 
 	return out
@@ -618,7 +618,7 @@ func (m *SessionCommand) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.Path) + nonEmptyStrsInSlice(m.Argv)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Path = trimStr(m.Path, maxFieldsSize)
+	out.Path = TrimStr(m.Path, maxFieldsSize)
 	out.Argv = trimStrSlice(m.Argv, maxFieldsSize)
 
 	return out
@@ -638,7 +638,7 @@ func (m *SessionDisk) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.Path)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Path = trimStr(m.Path, maxFieldsSize)
+	out.Path = TrimStr(m.Path, maxFieldsSize)
 
 	return out
 }
@@ -740,7 +740,7 @@ func (m *SessionReject) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.Reason)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Reason = trimStr(m.Reason, maxFieldsSize)
+	out.Reason = TrimStr(m.Reason, maxFieldsSize)
 
 	return out
 }
@@ -776,8 +776,8 @@ func (m *AppSessionRequest) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.Path, m.RawQuery)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Path = trimStr(m.Path, maxFieldsSize)
-	out.RawQuery = trimStr(m.RawQuery, maxFieldsSize)
+	out.Path = TrimStr(m.Path, maxFieldsSize)
+	out.RawQuery = TrimStr(m.RawQuery, maxFieldsSize)
 
 	return out
 }
@@ -799,9 +799,9 @@ func (m *AppSessionDynamoDBRequest) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.Path, m.RawQuery, m.Target) + m.Body.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Path = trimStr(m.Path, maxFieldsSize)
-	out.RawQuery = trimStr(m.RawQuery, maxFieldsSize)
-	out.Target = trimStr(m.Target, maxFieldsSize)
+	out.Path = TrimStr(m.Path, maxFieldsSize)
+	out.RawQuery = TrimStr(m.RawQuery, maxFieldsSize)
+	out.Target = TrimStr(m.Target, maxFieldsSize)
 	out.Body = m.Body.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
@@ -871,7 +871,7 @@ func (m *DatabaseSessionMalformedPacket) TrimToMaxSize(maxSize int) AuditEvent {
 	}
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Payload = []byte(trimStr(string(m.Payload), maxFieldsSize))
+	out.Payload = []byte(TrimStr(string(m.Payload), maxFieldsSize))
 
 	return out
 }
@@ -897,7 +897,7 @@ func (m *DatabaseUserCreate) TrimToMaxSize(maxSize int) AuditEvent {
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
 	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
-	out.Username = trimStr(m.Username, maxFieldsSize)
+	out.Username = TrimStr(m.Username, maxFieldsSize)
 	out.Roles = trimStrSlice(m.Roles, maxFieldsSize)
 
 	return out
@@ -919,7 +919,7 @@ func (m *DatabaseUserDeactivate) TrimToMaxSize(maxSize int) AuditEvent {
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
 	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
-	out.Username = trimStr(m.Username, maxFieldsSize)
+	out.Username = TrimStr(m.Username, maxFieldsSize)
 
 	return out
 }
@@ -939,8 +939,8 @@ func (m *PostgresParse) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.StatementName, m.Query)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.StatementName = trimStr(m.StatementName, maxFieldsSize)
-	out.Query = trimStr(m.Query, maxFieldsSize)
+	out.StatementName = TrimStr(m.StatementName, maxFieldsSize)
+	out.Query = TrimStr(m.Query, maxFieldsSize)
 
 	return out
 }
@@ -961,8 +961,8 @@ func (m *PostgresBind) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.StatementName, m.PortalName) + nonEmptyStrsInSlice(m.Parameters)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.StatementName = trimStr(m.StatementName, maxFieldsSize)
-	out.PortalName = trimStr(m.PortalName, maxFieldsSize)
+	out.StatementName = TrimStr(m.StatementName, maxFieldsSize)
+	out.PortalName = TrimStr(m.PortalName, maxFieldsSize)
 	out.Parameters = trimStrSlice(m.Parameters, maxFieldsSize)
 
 	return out
@@ -982,7 +982,7 @@ func (m *PostgresExecute) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.PortalName)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.PortalName = trimStr(m.PortalName, maxFieldsSize)
+	out.PortalName = TrimStr(m.PortalName, maxFieldsSize)
 
 	return out
 }
@@ -1002,8 +1002,8 @@ func (m *PostgresClose) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.StatementName, m.PortalName)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.StatementName = trimStr(m.StatementName, maxFieldsSize)
-	out.PortalName = trimStr(m.PortalName, maxFieldsSize)
+	out.StatementName = TrimStr(m.StatementName, maxFieldsSize)
+	out.PortalName = TrimStr(m.PortalName, maxFieldsSize)
 
 	return out
 }
@@ -1041,7 +1041,7 @@ func (m *MySQLStatementPrepare) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.Query)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Query = trimStr(m.Query, maxFieldsSize)
+	out.Query = TrimStr(m.Query, maxFieldsSize)
 
 	return out
 }
@@ -1114,7 +1114,7 @@ func (m *MySQLInitDB) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.SchemaName)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.SchemaName = trimStr(m.SchemaName, maxFieldsSize)
+	out.SchemaName = TrimStr(m.SchemaName, maxFieldsSize)
 
 	return out
 }
@@ -1133,7 +1133,7 @@ func (m *MySQLCreateDB) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.SchemaName)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.SchemaName = trimStr(m.SchemaName, maxFieldsSize)
+	out.SchemaName = TrimStr(m.SchemaName, maxFieldsSize)
 
 	return out
 }
@@ -1152,7 +1152,7 @@ func (m *MySQLDropDB) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.SchemaName)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.SchemaName = trimStr(m.SchemaName, maxFieldsSize)
+	out.SchemaName = TrimStr(m.SchemaName, maxFieldsSize)
 
 	return out
 }
@@ -1183,7 +1183,7 @@ func (m *MySQLRefresh) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.Subcommand)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Subcommand = trimStr(m.Subcommand, maxFieldsSize)
+	out.Subcommand = TrimStr(m.Subcommand, maxFieldsSize)
 
 	return out
 }
@@ -1203,7 +1203,7 @@ func (m *SQLServerRPCRequest) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.Procname) + nonEmptyStrsInSlice(m.Parameters)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Procname = trimStr(m.Procname, maxFieldsSize)
+	out.Procname = TrimStr(m.Procname, maxFieldsSize)
 	out.Parameters = trimStrSlice(m.Parameters, maxFieldsSize)
 
 	return out
@@ -1231,12 +1231,12 @@ func (m *ElasticsearchRequest) TrimToMaxSize(maxSize int) AuditEvent {
 	}
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Path = trimStr(m.Path, maxFieldsSize)
-	out.RawQuery = trimStr(m.RawQuery, maxFieldsSize)
-	out.Body = []byte(trimStr(string(m.Body), maxFieldsSize))
+	out.Path = TrimStr(m.Path, maxFieldsSize)
+	out.RawQuery = TrimStr(m.RawQuery, maxFieldsSize)
+	out.Body = []byte(TrimStr(string(m.Body), maxFieldsSize))
 	out.Headers = trimTraits(m.Headers, maxFieldsSize)
-	out.Target = trimStr(m.Target, maxFieldsSize)
-	out.Query = trimStr(m.Query, maxFieldsSize)
+	out.Target = TrimStr(m.Target, maxFieldsSize)
+	out.Query = TrimStr(m.Query, maxFieldsSize)
 
 	return out
 }
@@ -1263,12 +1263,12 @@ func (m *OpenSearchRequest) TrimToMaxSize(maxSize int) AuditEvent {
 	}
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Path = trimStr(m.Path, maxFieldsSize)
-	out.RawQuery = trimStr(m.RawQuery, maxFieldsSize)
-	out.Body = []byte(trimStr(string(m.Body), maxFieldsSize))
+	out.Path = TrimStr(m.Path, maxFieldsSize)
+	out.RawQuery = TrimStr(m.RawQuery, maxFieldsSize)
+	out.Body = []byte(TrimStr(string(m.Body), maxFieldsSize))
 	out.Headers = trimTraits(m.Headers, maxFieldsSize)
-	out.Target = trimStr(m.Target, maxFieldsSize)
-	out.Query = trimStr(m.Query, maxFieldsSize)
+	out.Target = TrimStr(m.Target, maxFieldsSize)
+	out.Query = TrimStr(m.Query, maxFieldsSize)
 
 	return out
 }
@@ -1290,10 +1290,10 @@ func (m *DynamoDBRequest) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.Path, m.RawQuery, m.Target) + m.Body.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Path = trimStr(m.Path, maxFieldsSize)
-	out.RawQuery = trimStr(m.RawQuery, maxFieldsSize)
+	out.Path = TrimStr(m.Path, maxFieldsSize)
+	out.RawQuery = TrimStr(m.RawQuery, maxFieldsSize)
 	out.Body = m.Body.trimToMaxFieldSize(maxFieldsSize)
-	out.Target = trimStr(m.Target, maxFieldsSize)
+	out.Target = TrimStr(m.Target, maxFieldsSize)
 
 	return out
 }
@@ -1315,10 +1315,10 @@ func (m *KubeRequest) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.RequestPath, m.ResourceAPIGroup, m.ResourceNamespace, m.ResourceName)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.RequestPath = trimStr(m.RequestPath, maxFieldsSize)
-	out.ResourceAPIGroup = trimStr(m.ResourceAPIGroup, maxFieldsSize)
-	out.ResourceNamespace = trimStr(m.ResourceNamespace, maxFieldsSize)
-	out.ResourceName = trimStr(m.ResourceName, maxFieldsSize)
+	out.RequestPath = TrimStr(m.RequestPath, maxFieldsSize)
+	out.ResourceAPIGroup = TrimStr(m.ResourceAPIGroup, maxFieldsSize)
+	out.ResourceNamespace = TrimStr(m.ResourceNamespace, maxFieldsSize)
+	out.ResourceName = TrimStr(m.ResourceName, maxFieldsSize)
 
 	return out
 }
@@ -1422,10 +1422,10 @@ func (m *WindowsDesktopSessionStart) TrimToMaxSize(maxSize int) AuditEvent {
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
 	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
-	out.Domain = trimStr(m.Domain, maxFieldsSize)
-	out.WindowsUser = trimStr(m.WindowsUser, maxFieldsSize)
+	out.Domain = TrimStr(m.Domain, maxFieldsSize)
+	out.WindowsUser = TrimStr(m.WindowsUser, maxFieldsSize)
 	out.DesktopLabels = trimMap(m.DesktopLabels, maxFieldsSize)
-	out.DesktopName = trimStr(m.DesktopName, maxFieldsSize)
+	out.DesktopName = TrimStr(m.DesktopName, maxFieldsSize)
 
 	return out
 }
@@ -1450,10 +1450,10 @@ func (m *WindowsDesktopSessionEnd) TrimToMaxSize(maxSize int) AuditEvent {
 		nonEmptyStrsInSlice(m.Participants)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Domain = trimStr(m.Domain, maxFieldsSize)
-	out.WindowsUser = trimStr(m.WindowsUser, maxFieldsSize)
+	out.Domain = TrimStr(m.Domain, maxFieldsSize)
+	out.WindowsUser = TrimStr(m.WindowsUser, maxFieldsSize)
 	out.DesktopLabels = trimMap(m.DesktopLabels, maxFieldsSize)
-	out.DesktopName = trimStr(m.DesktopName, maxFieldsSize)
+	out.DesktopName = TrimStr(m.DesktopName, maxFieldsSize)
 	out.Participants = trimStrSlice(m.Participants, maxFieldsSize)
 
 	return out
@@ -1496,7 +1496,7 @@ func (m *DesktopRecording) TrimToMaxSize(maxSize int) AuditEvent {
 	}
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Message = []byte(trimStr(string(m.Message), maxFieldsSize))
+	out.Message = []byte(TrimStr(string(m.Message), maxFieldsSize))
 
 	return out
 }
@@ -1522,10 +1522,10 @@ func (m *SFTP) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.WorkingDirectory, m.Path, m.TargetPath, m.Error)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.WorkingDirectory = trimStr(m.WorkingDirectory, maxFieldsSize)
-	out.Path = trimStr(m.Path, maxFieldsSize)
-	out.TargetPath = trimStr(m.TargetPath, maxFieldsSize)
-	out.Error = trimStr(m.Error, maxFieldsSize)
+	out.WorkingDirectory = TrimStr(m.WorkingDirectory, maxFieldsSize)
+	out.Path = TrimStr(m.Path, maxFieldsSize)
+	out.TargetPath = TrimStr(m.TargetPath, maxFieldsSize)
+	out.Error = TrimStr(m.Error, maxFieldsSize)
 
 	return out
 }
@@ -1555,10 +1555,10 @@ func (m *SSMRun) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.Status, m.StandardOutput, m.StandardError, m.InvocationURL)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Status = trimStr(m.Status, maxFieldsSize)
-	out.StandardOutput = trimStr(m.StandardOutput, maxFieldsSize)
-	out.StandardError = trimStr(m.StandardError, maxFieldsSize)
-	out.InvocationURL = trimStr(m.InvocationURL, maxFieldsSize)
+	out.Status = TrimStr(m.Status, maxFieldsSize)
+	out.StandardOutput = TrimStr(m.StandardOutput, maxFieldsSize)
+	out.StandardError = TrimStr(m.StandardError, maxFieldsSize)
+	out.InvocationURL = TrimStr(m.InvocationURL, maxFieldsSize)
 
 	return out
 }
@@ -1590,8 +1590,8 @@ func (m *DesktopSharedDirectoryStart) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.DirectoryName, m.DesktopName)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.DirectoryName = trimStr(m.DirectoryName, maxFieldsSize)
-	out.DesktopName = trimStr(m.DesktopName, maxFieldsSize)
+	out.DirectoryName = TrimStr(m.DirectoryName, maxFieldsSize)
+	out.DesktopName = TrimStr(m.DesktopName, maxFieldsSize)
 
 	return out
 }
@@ -1611,8 +1611,8 @@ func (m *DesktopSharedDirectoryRead) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.DirectoryName, m.Path)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.DirectoryName = trimStr(m.DirectoryName, maxFieldsSize)
-	out.Path = trimStr(m.Path, maxFieldsSize)
+	out.DirectoryName = TrimStr(m.DirectoryName, maxFieldsSize)
+	out.Path = TrimStr(m.Path, maxFieldsSize)
 
 	return out
 }
@@ -1632,8 +1632,8 @@ func (m *DesktopSharedDirectoryWrite) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.DirectoryName, m.Path)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.DirectoryName = trimStr(m.DirectoryName, maxFieldsSize)
-	out.Path = trimStr(m.Path, maxFieldsSize)
+	out.DirectoryName = TrimStr(m.DirectoryName, maxFieldsSize)
+	out.Path = TrimStr(m.Path, maxFieldsSize)
 
 	return out
 }
@@ -2003,8 +2003,8 @@ func (m *AuditQueryRun) TrimToMaxSize(maxSize int) AuditEvent {
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
 	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
-	out.Name = trimStr(m.Name, maxFieldsSize)
-	out.Query = trimStr(m.Query, maxFieldsSize)
+	out.Name = TrimStr(m.Name, maxFieldsSize)
+	out.Query = TrimStr(m.Query, maxFieldsSize)
 
 	return out
 }
@@ -2062,11 +2062,11 @@ func (m *SPIFFESVIDIssued) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.SPIFFEID, m.SVIDType, m.Hint) + nonEmptyStrsInSlice(m.DNSSANs, m.IPSANs)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.SPIFFEID = trimStr(m.SPIFFEID, maxFieldsSize)
+	out.SPIFFEID = TrimStr(m.SPIFFEID, maxFieldsSize)
 	out.DNSSANs = trimStrSlice(m.DNSSANs, maxFieldsSize)
 	out.IPSANs = trimStrSlice(m.IPSANs, maxFieldsSize)
-	out.SVIDType = trimStr(m.SVIDType, maxFieldsSize)
-	out.Hint = trimStr(m.Hint, maxFieldsSize)
+	out.SVIDType = TrimStr(m.SVIDType, maxFieldsSize)
+	out.Hint = TrimStr(m.Hint, maxFieldsSize)
 
 	return out
 }
@@ -2149,7 +2149,7 @@ func (m *SpannerRPC) TrimToMaxSize(maxSize int) AuditEvent {
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
 	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
-	out.Procedure = trimStr(m.Procedure, maxFieldsSize)
+	out.Procedure = TrimStr(m.Procedure, maxFieldsSize)
 	out.Args = m.Args.trimToMaxFieldSize(maxFieldsSize)
 
 	return out
@@ -2173,7 +2173,7 @@ func (m *Unknown) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.Data)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Data = trimStr(m.Data, maxFieldsSize)
+	out.Data = TrimStr(m.Data, maxFieldsSize)
 
 	return out
 }
@@ -2193,8 +2193,8 @@ func (m *CassandraBatch) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.Keyspace, m.BatchType)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Keyspace = trimStr(m.Keyspace, maxFieldsSize)
-	out.BatchType = trimStr(m.BatchType, maxFieldsSize)
+	out.Keyspace = TrimStr(m.Keyspace, maxFieldsSize)
+	out.BatchType = TrimStr(m.BatchType, maxFieldsSize)
 
 	return out
 }
@@ -2233,8 +2233,8 @@ func (m *CassandraPrepare) TrimToMaxSize(maxSize int) AuditEvent {
 	customFieldsCount := nonEmptyStrs(m.Query, m.Keyspace)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Query = trimStr(m.Query, maxFieldsSize)
-	out.Keyspace = trimStr(m.Keyspace, maxFieldsSize)
+	out.Query = TrimStr(m.Query, maxFieldsSize)
+	out.Keyspace = TrimStr(m.Keyspace, maxFieldsSize)
 
 	return out
 }
@@ -2347,7 +2347,7 @@ func (m *SFTPSummary) TrimToMaxSize(maxSize int) AuditEvent {
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
 	for i := range out.FileTransferStats {
-		out.FileTransferStats[i].Path = trimStr(out.FileTransferStats[i].Path, maxFieldsSize)
+		out.FileTransferStats[i].Path = TrimStr(out.FileTransferStats[i].Path, maxFieldsSize)
 	}
 
 	return out
@@ -2453,7 +2453,7 @@ func (m *WorkloadIdentityX509RevocationCreate) TrimToMaxSize(maxSize int) AuditE
 	customFieldsCount := nonEmptyStrs(m.Reason)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Reason = trimStr(m.Reason, maxFieldsSize)
+	out.Reason = TrimStr(m.Reason, maxFieldsSize)
 
 	return m
 }
@@ -2472,7 +2472,7 @@ func (m *WorkloadIdentityX509RevocationUpdate) TrimToMaxSize(maxSize int) AuditE
 	customFieldsCount := nonEmptyStrs(m.Reason)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
-	out.Reason = trimStr(m.Reason, maxFieldsSize)
+	out.Reason = TrimStr(m.Reason, maxFieldsSize)
 
 	return m
 }
@@ -2564,9 +2564,9 @@ func (m *MCPJSONRPCMessage) trimToMaxFieldSize(maxFieldsSize int) MCPJSONRPCMess
 	}
 
 	out := MCPJSONRPCMessage{}
-	out.JSONRPC = trimStr(m.JSONRPC, maxFieldsSize)
-	out.ID = trimStr(m.ID, maxFieldsSize)
-	out.Method = trimStr(m.Method, maxFieldsSize)
+	out.JSONRPC = TrimStr(m.JSONRPC, maxFieldsSize)
+	out.ID = TrimStr(m.ID, maxFieldsSize)
+	out.Method = TrimStr(m.Method, maxFieldsSize)
 	out.Params = m.Params.trimToMaxFieldSize(maxFieldsSize)
 	return out
 }
@@ -2627,9 +2627,9 @@ func (m *BoundKeypairRecovery) TrimToMaxSize(maxSize int) AuditEvent {
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
 	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
-	out.TokenName = trimStr(m.TokenName, maxFieldsSize)
-	out.BotName = trimStr(m.BotName, maxFieldsSize)
-	out.PublicKey = trimStr(m.PublicKey, maxFieldsSize)
+	out.TokenName = TrimStr(m.TokenName, maxFieldsSize)
+	out.BotName = TrimStr(m.BotName, maxFieldsSize)
+	out.PublicKey = TrimStr(m.PublicKey, maxFieldsSize)
 	return out
 }
 
@@ -2650,10 +2650,10 @@ func (m *BoundKeypairRotation) TrimToMaxSize(maxSize int) AuditEvent {
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
 	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
-	out.TokenName = trimStr(m.TokenName, maxFieldsSize)
-	out.BotName = trimStr(m.BotName, maxFieldsSize)
-	out.PreviousPublicKey = trimStr(m.PreviousPublicKey, maxFieldsSize)
-	out.NewPublicKey = trimStr(m.NewPublicKey, maxFieldsSize)
+	out.TokenName = TrimStr(m.TokenName, maxFieldsSize)
+	out.BotName = TrimStr(m.BotName, maxFieldsSize)
+	out.PreviousPublicKey = TrimStr(m.PreviousPublicKey, maxFieldsSize)
+	out.NewPublicKey = TrimStr(m.NewPublicKey, maxFieldsSize)
 	return out
 }
 
@@ -2672,8 +2672,8 @@ func (m *BoundKeypairJoinStateVerificationFailed) TrimToMaxSize(maxSize int) Aud
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
 	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
-	out.TokenName = trimStr(m.TokenName, maxFieldsSize)
-	out.BotName = trimStr(m.BotName, maxFieldsSize)
+	out.TokenName = TrimStr(m.TokenName, maxFieldsSize)
+	out.BotName = TrimStr(m.BotName, maxFieldsSize)
 	return out
 }
 
@@ -2712,9 +2712,9 @@ func (m *SCIMResourceEvent) TrimToMaxSize(maxSize int) AuditEvent {
 
 	trimmed.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 	trimmed.SCIMCommonData = m.SCIMCommonData.trimToMaxFieldSize(maxFieldsSize)
-	trimmed.TeleportID = trimStr(m.TeleportID, maxFieldsSize)
-	trimmed.ExternalID = trimStr(m.ExternalID, maxFieldsSize)
-	trimmed.Display = trimStr(m.Display, maxFieldsSize)
+	trimmed.TeleportID = TrimStr(m.TeleportID, maxFieldsSize)
+	trimmed.ExternalID = TrimStr(m.ExternalID, maxFieldsSize)
+	trimmed.Display = TrimStr(m.Display, maxFieldsSize)
 
 	return trimmed
 }
@@ -2740,7 +2740,7 @@ func (m *SCIMListingEvent) TrimToMaxSize(maxSize int) AuditEvent {
 
 	trimmed.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 	trimmed.SCIMCommonData = m.SCIMCommonData.trimToMaxFieldSize(maxFieldsSize)
-	trimmed.Filter = trimStr(m.Filter, maxFieldsSize)
+	trimmed.Filter = TrimStr(m.Filter, maxFieldsSize)
 
 	return trimmed
 }
@@ -2764,16 +2764,16 @@ func (c *SCIMCommonData) trimToMaxFieldSize(maxFieldSize int) SCIMCommonData {
 	}
 
 	trimmed := *utils.CloneProtoMsg(c)
-	trimmed.ResourceType = trimStr(c.ResourceType, maxFieldSize)
-	trimmed.Integration = trimStr(c.Integration, maxFieldSize)
+	trimmed.ResourceType = TrimStr(c.ResourceType, maxFieldSize)
+	trimmed.Integration = TrimStr(c.Integration, maxFieldSize)
 
 	if r := trimmed.Request; r != nil {
-		r.ID = trimStr(r.ID, maxFieldSize)
-		r.SourceAddress = trimStr(r.SourceAddress, maxFieldSize)
-		r.UserAgent = trimStr(r.UserAgent, maxFieldSize)
-		r.Method = trimStr(r.Method, maxFieldSize)
-		r.Path = trimStr(r.Path, maxFieldSize)
-		r.Query = trimStr(r.Query, maxFieldSize)
+		r.ID = TrimStr(r.ID, maxFieldSize)
+		r.SourceAddress = TrimStr(r.SourceAddress, maxFieldSize)
+		r.UserAgent = TrimStr(r.UserAgent, maxFieldSize)
+		r.Method = TrimStr(r.Method, maxFieldSize)
+		r.Path = TrimStr(r.Path, maxFieldSize)
+		r.Query = TrimStr(r.Query, maxFieldSize)
 		r.Body = r.Body.trimToMaxFieldSize(maxFieldSize)
 	}
 

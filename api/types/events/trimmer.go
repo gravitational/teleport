@@ -110,7 +110,7 @@ func (t *baseTrimmer) nonEmptyStrs() int                   { return t.nonEmptySt
 func (t *baseTrimmer) trimToMaxFieldSize(maxFieldSize int) { t.trimToMaxFieldSizeFunc(maxFieldSize) }
 
 func newStrTrimmer(source string, target *string) fieldTrimmer {
-	return newBaseTrimmer(source, target, nonEmptyStr, trimStr)
+	return newBaseTrimmer(source, target, nonEmptyStr, TrimStr)
 }
 
 func newStrSliceTrimmer(source []string, target *[]string) fieldTrimmer {
@@ -125,7 +125,7 @@ func newStrSliceTrimmer(source []string, target *[]string) fieldTrimmer {
 }
 
 func newBytesTrimmer(source []byte, target *[]byte) fieldTrimmer {
-	return newBaseTrimmer(source, target, nonEmptyStr, trimStr)
+	return newBaseTrimmer(source, target, nonEmptyStr, TrimStr)
 }
 
 func newTraitsTrimmer(source wrappers.Traits, target *wrappers.Traits) fieldTrimmer {
