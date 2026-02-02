@@ -7362,66 +7362,120 @@ func TestTraitsPropagation(t *testing.T) {
 // testSessionStreaming tests streaming events from session recordings.
 func testSessionStreaming(t *testing.T, suite *integrationTestSuite) {
 	ctx := t.Context()
-	sessionID := session.ID(uuid.New().String())
-	teleport := suite.newTeleport(t, nil, true)
-	defer teleport.StopAll()
+	inst := suite.newTeleport(t, nil, true)
+	defer inst.StopAll()
 
-	api := teleport.GetSiteAPI(helpers.Site)
-	uploadStream, err := api.CreateAuditStream(ctx, sessionID)
-	require.NoError(t, err)
+	api := inst.GetSiteAPI(helpers.Site)
 
-	generatedSession := eventstest.GenerateTestSession(eventstest.SessionParams{
-		PrintEvents: 100,
-		SessionID:   string(sessionID),
-		ServerID:    "00000000-0000-0000-0000-000000000000",
+	t.Run("successful stream", func(t *testing.T) {
+		sessionID := session.ID(uuid.New().String())
+		uploadStream, err := api.CreateAuditStream(ctx, sessionID)
+		require.NoError(t, err)
+
+		generatedSession := eventstest.GenerateTestSession(eventstest.SessionParams{
+			PrintEvents: 100,
+			SessionID:   string(sessionID),
+			ServerID:    "00000000-0000-0000-0000-000000000000",
+		})
+
+		for _, event := range generatedSession {
+			err := uploadStream.RecordEvent(ctx, eventstest.PrepareEvent(event))
+			require.NoError(t, err)
+		}
+
+		err = uploadStream.Complete(ctx)
+		require.NoError(t, err)
+		start := time.Now()
+
+		// retry in case of error
+	outer:
+		for time.Since(start) < time.Minute*5 {
+			time.Sleep(time.Second * 5)
+
+			receivedSession := make([]apievents.AuditEvent, 0)
+			sessionPlayback, e := api.StreamSessionEvents(ctx, sessionID, 0)
+
+		inner:
+			for {
+				select {
+				case event, more := <-sessionPlayback:
+					if !more {
+						break inner
+					}
+
+					receivedSession = append(receivedSession, event)
+				case <-ctx.Done():
+					require.NoError(t, ctx.Err())
+				case err := <-e:
+					require.NoError(t, err)
+				case <-time.After(time.Minute * 5):
+					t.FailNow()
+				}
+			}
+
+			for i := range generatedSession {
+				receivedSession[i].SetClusterName("")
+				if !reflect.DeepEqual(generatedSession[i], receivedSession[i]) {
+					continue outer
+				}
+			}
+
+			return
+		}
+
+		t.FailNow()
 	})
 
-	for _, event := range generatedSession {
-		err := uploadStream.RecordEvent(ctx, eventstest.PrepareEvent(event))
+	t.Run("retry upload", func(t *testing.T) {
+		sessionID := session.NewID()
+		uploadStream, err := api.CreateAuditStream(ctx, sessionID)
 		require.NoError(t, err)
-	}
-
-	err = uploadStream.Complete(ctx)
-	require.NoError(t, err)
-	start := time.Now()
-
-	// retry in case of error
-outer:
-	for time.Since(start) < time.Minute*5 {
-		time.Sleep(time.Second * 5)
-
-		receivedSession := make([]apievents.AuditEvent, 0)
-		sessionPlayback, e := api.StreamSessionEvents(ctx, sessionID, 0)
-
-	inner:
-		for {
-			select {
-			case event, more := <-sessionPlayback:
-				if !more {
-					break inner
-				}
-
-				receivedSession = append(receivedSession, event)
-			case <-ctx.Done():
-				require.NoError(t, ctx.Err())
-			case err := <-e:
-				require.NoError(t, err)
-			case <-time.After(time.Minute * 5):
-				t.FailNow()
-			}
+		var uploadID string
+		select {
+		case status := <-uploadStream.Status():
+			uploadID = status.UploadID
+		case <-t.Context().Done():
+			return
 		}
 
-		for i := range generatedSession {
-			receivedSession[i].SetClusterName("")
-			if !reflect.DeepEqual(generatedSession[i], receivedSession[i]) {
-				continue outer
-			}
+		generatedSession := eventstest.GenerateTestSession(eventstest.SessionParams{
+			PrintEvents: 100,
+			SessionID:   string(sessionID),
+			ServerID:    "00000000-0000-0000-0000-000000000000",
+		})
+		for _, event := range generatedSession[:50] {
+			require.NoError(t, uploadStream.RecordEvent(t.Context(), eventstest.PrepareEvent(event)))
 		}
+		require.NoError(t, uploadStream.Complete(t.Context()))
 
-		return
-	}
+		expectedSessionFile := filepath.Join(inst.Config.DataDir, teleport.LogsDir, events.RecordsDir, string(sessionID)+".tar")
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			rawSession, err := os.ReadFile(expectedSessionFile)
+			if !assert.NoError(collect, err) {
+				return
+			}
+			initialEvents, err := events.NewProtoReader(bytes.NewReader(rawSession), nil).ReadAll(t.Context())
+			if assert.NoError(collect, err) {
+				assert.Len(collect, initialEvents, 50)
+			}
+			assert.NoDirExists(t, filepath.Join(inst.Config.DataDir, teleport.LogsDir, events.RecordsDir, "multi", uploadID))
+		}, time.Minute, time.Second)
 
-	t.FailNow()
+		resumeStream, err := api.ResumeAuditStream(t.Context(), sessionID, uploadID)
+		require.NoError(t, err)
+		for _, event := range generatedSession[50:] {
+			require.NoError(t, resumeStream.RecordEvent(t.Context(), eventstest.PrepareEvent(event)))
+		}
+		require.NoError(t, resumeStream.Complete(t.Context()))
+
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			rawSession, err := os.ReadFile(expectedSessionFile)
+			assert.NoError(collect, err)
+			initialEvents, err := events.NewProtoReader(bytes.NewReader(rawSession), nil).ReadAll(t.Context())
+			assert.NoError(collect, err)
+			assert.Len(collect, initialEvents, len(generatedSession))
+		}, time.Minute, time.Second)
+	})
 }
 
 type serviceCfgOpt func(cfg *servicecfg.Config, isRoot bool)

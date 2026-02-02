@@ -193,12 +193,12 @@ func (l *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reade
 
 // UploadMetadata writes session metadata to a local directory.
 func (l *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return uploadFile(l.metadataPath(sessionID), reader)
+	return uploadFile(l.metadataPath(sessionID), reader, withOverwrite())
 }
 
 // UploadThumbnail writes a session thumbnail to a local directory.
 func (l *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return uploadFile(l.thumbnailPath(sessionID), reader)
+	return uploadFile(l.thumbnailPath(sessionID), reader, withOverwrite())
 }
 
 type fileUploadConfig struct {

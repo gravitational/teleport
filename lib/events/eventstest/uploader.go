@@ -256,7 +256,7 @@ func (m *MemoryUploader) ListParts(ctx context.Context, upload events.StreamUplo
 
 	up, ok := m.uploads[upload.ID]
 	if !ok {
-		return nil, trace.NotFound("upload %v is not found", upload.ID)
+		return []events.StreamPart{}, nil
 	}
 
 	partNumbers := make([]int64, 0, len(up.parts))

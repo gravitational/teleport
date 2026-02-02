@@ -149,9 +149,6 @@ func (cfg *ProtoStreamerConfig) CheckAndSetDefaults() error {
 	if cfg.Uploader == nil {
 		return trace.BadParameter("missing parameter Uploader")
 	}
-	if cfg.SessionStreamer == nil {
-		return trace.BadParameter("missing parameter SessionStreamer")
-	}
 	if cfg.MinUploadBytes == 0 {
 		cfg.MinUploadBytes = MinUploadPartSizeBytes
 	}
@@ -217,13 +214,13 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 	upload := StreamUpload{SessionID: sid, ID: uploadID}
 	parts, err := s.cfg.Uploader.ListParts(ctx, upload)
 	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
+	}
+	if len(parts) == 0 && s.cfg.SessionStreamer != nil {
+		if metaErr := s.cfg.Uploader.DownloadMetadata(ctx, sid, &MemBuffer{}); metaErr == nil {
+			slog.DebugContext(ctx, "Session reupload detected. Old and new recordings will be merged.", "session_id", sid, "old_upload_id", uploadID)
+			return s.MergeStreams(ctx, sid)
 		}
-		if metaErr := s.cfg.Uploader.DownloadMetadata(ctx, sid, &MemBuffer{}); metaErr != nil {
-			return nil, trace.Wrap(err)
-		}
-		return s.MergeStreams(ctx, sid)
 	}
 	return NewProtoStream(ProtoStreamConfig{
 		Upload:                    upload,
@@ -1462,8 +1459,8 @@ type mergeStream struct {
 	incoming chan apievents.PreparedSessionEvent
 	out      apievents.Stream
 
-	ctx    context.Context
-	cancel context.CancelFunc
+	innerCtx context.Context
+	cancel   context.CancelFunc
 }
 
 func (s *ProtoStreamer) MergeStreams(ctx context.Context, sid session.ID) (apievents.Stream, error) {
@@ -1471,36 +1468,38 @@ func (s *ProtoStreamer) MergeStreams(ctx context.Context, sid session.ID) (apiev
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// TODO get upload id for logging
 	currentStream, currentErr := s.cfg.SessionStreamer.StreamSessionEvents(ctx, sid, 0)
 	ctx, cancel := context.WithCancel(ctx)
 	merged := &mergeStream{
 		current:  currentStream,
 		incoming: make(chan apievents.PreparedSessionEvent),
 		out:      dest,
-		ctx:      ctx,
+		innerCtx: ctx,
 		cancel:   cancel,
 	}
 
 	go func() {
 		select {
-		case <-currentErr:
-			// todo log
+		case err := <-currentErr:
+			slog.ErrorContext(ctx, "Failed to stream session events.", "error", err)
 			merged.Close(ctx)
 		case <-ctx.Done():
 		}
 	}()
 
-	go merged.mergeStreams()
+	go merged.mergeStreams(ctx)
 	return merged, nil
 }
 
-func (s *mergeStream) mergeStreams() error {
+func (s *mergeStream) mergeStreams(ctx context.Context) {
+	defer s.cancel()
 	wg := &sync.WaitGroup{}
 	var nextCurrentEvent apievents.PreparedSessionEvent
 	nopPreparer := NoOpPreparer{}
 	getNextCurrent := func() {
 		select {
-		case <-s.ctx.Done():
+		case <-ctx.Done():
 		case event := <-s.current:
 			// Current events are coming from session recording storage, they were
 			// already prepared when they were first uploaded.
@@ -1514,7 +1513,7 @@ func (s *mergeStream) mergeStreams() error {
 	var nextIncomingEvent apievents.PreparedSessionEvent
 	getNextIncoming := func() {
 		select {
-		case <-s.ctx.Done():
+		case <-ctx.Done():
 		case nextIncomingEvent = <-s.incoming:
 		}
 	}
@@ -1525,12 +1524,12 @@ func (s *mergeStream) mergeStreams() error {
 	wg.Wait()
 
 	for {
-		if err := s.ctx.Err(); err != nil {
-			return trace.Wrap(err)
+		if err := ctx.Err(); err != nil {
+			return
 		}
 		// Both streams have run out of events, we are done.
 		if nextCurrentEvent == nil && nextIncomingEvent == nil {
-			return trace.Wrap(s.out.Complete(s.ctx))
+			return
 		}
 		var nextEvent apievents.PreparedSessionEvent
 		switch {
@@ -1560,8 +1559,9 @@ func (s *mergeStream) mergeStreams() error {
 		}
 
 		if nextEvent != nil {
-			if err := s.out.RecordEvent(s.ctx, nextEvent); err != nil {
-				return trace.NewAggregate(err, s.out.Close(s.ctx))
+			if err := s.out.RecordEvent(ctx, nextEvent); err != nil {
+				slog.ErrorContext(ctx, "Error recording event", "error", err)
+				return
 			}
 		}
 		wg.Wait()
@@ -1587,7 +1587,8 @@ func (s *mergeStream) Done() <-chan struct{} {
 
 func (s *mergeStream) Complete(ctx context.Context) error {
 	close(s.incoming)
-	return nil
+	<-s.innerCtx.Done()
+	return trace.Wrap(s.out.Complete(ctx))
 }
 
 func (s *mergeStream) Close(ctx context.Context) error {
