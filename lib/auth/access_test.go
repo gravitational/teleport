@@ -166,22 +166,24 @@ func TestUpsertDeleteDependentRoles(t *testing.T) {
 	_, err = p.a.UpsertAccessList(ctx, accessList)
 	require.NoError(t, err)
 
-	// Deletion should fail due to the grant.
-	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), auth.ErrDeleteRoleAccessList)
+	err = p.a.DeleteRole(ctx, role.GetName())
+	require.True(t, auth.IsRoleInUseError(err))
 
 	accessList.Spec.Grants.Roles = []string{"non-existent-role"}
 	_, err = p.a.UpsertAccessList(ctx, accessList)
 	require.NoError(t, err)
 
 	// Deletion should fail due to membership requires.
-	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), auth.ErrDeleteRoleAccessList)
+	err = p.a.DeleteRole(ctx, role.GetName())
+	require.True(t, auth.IsRoleInUseError(err))
 
 	accessList.Spec.MembershipRequires.Roles = []string{"non-existent-role"}
 	_, err = p.a.UpsertAccessList(ctx, accessList)
 	require.NoError(t, err)
 
 	// Deletion should fail due to ownership requires.
-	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), auth.ErrDeleteRoleAccessList)
+	err = p.a.DeleteRole(ctx, role.GetName())
+	require.True(t, auth.IsRoleInUseError(err))
 
 	accessList.Spec.OwnershipRequires.Roles = []string{"non-existent-role"}
 	_, err = p.a.UpsertAccessList(ctx, accessList)
