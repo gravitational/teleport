@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -59,7 +58,7 @@ func TestAccessListWithPreset(t *testing.T) {
 	})
 }
 
-func createValidAccessList(t *testing.T, name string) *accesslist.AccessList {
+func createValidAccessList(t *testing.T, name string) *ui.AccessList {
 	al, err := accesslist.NewAccessList(header.Metadata{
 		Name: name,
 	}, accesslist.Spec{
@@ -77,6 +76,9 @@ func createValidAccessList(t *testing.T, name string) *accesslist.AccessList {
 			},
 		},
 	})
-	assert.NoError(t, err)
-	return al
+	require.NoError(t, err)
+
+	return &ui.AccessList{
+		AccessList: al,
+	}
 }

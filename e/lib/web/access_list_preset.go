@@ -13,6 +13,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/accesslist/preset"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -31,7 +32,7 @@ func (p *Plugin) createAccessListWithPreset(_ http.ResponseWriter, r *http.Reque
 
 	resp, err := aclClient.CreateAccessListWithPreset(r.Context(), &accesslistv1.CreateAccessListWithPresetRequest{
 		PresetType: req.PresetType,
-		AccessList: conv.ToProto(req.AccessList),
+		AccessList: conv.ToProto(req.AccessList.AccessList),
 		Roles:      req.AccessRoles,
 	})
 	if err != nil {
@@ -42,14 +43,32 @@ func (p *Plugin) createAccessListWithPreset(_ http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	acl, members, err := upsertAccessListWithMembers(r.Context(), sctx, acl, req.Members)
+	members := make([]*accesslist.AccessListMember, 0, len(req.AccessList.Members))
+	for _, member := range req.AccessList.Members {
+		members = append(members, memberToAccessListMember(acl.GetName(), member))
+	}
+	acl, updatedMembers, err := upsertAccessListWithMembers(r.Context(), sctx, acl, members)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	clt, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, member := range updatedMembers {
+		enrichAccessListMemberTitle(r.Context(), clt.AccessListClient(), member)
+	}
+	for i := range acl.Spec.Owners {
+		enrichAccessListOwnerTitle(r.Context(), clt.AccessListClient(), &acl.Spec.Owners[i])
+	}
+
 	return &ui.AccessListWithPresetResponse{
-		AccessList:  acl,
-		Members:     members,
+		AccessList: &ui.AccessList{
+			AccessList: acl,
+			Members:    membersToMembersSpec(updatedMembers),
+		},
 		AccessRoles: resp.GetRoles(),
 	}, nil
 }
@@ -74,7 +93,7 @@ func (p *Plugin) updateAccessListWithPreset(_ http.ResponseWriter, r *http.Reque
 	}
 	aclClient := getAccessListServiceClient(sctx)
 	resp, err := aclClient.UpdateAccessListWithPreset(r.Context(), &accesslistv1.UpdateAccessListWithPresetRequest{
-		AccessList: conv.ToProto(req.AccessList),
+		AccessList: conv.ToProto(req.AccessList.AccessList),
 		Roles:      req.AccessRoles,
 	})
 	if err != nil {
@@ -84,15 +103,40 @@ func (p *Plugin) updateAccessListWithPreset(_ http.ResponseWriter, r *http.Reque
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	acl, members, err := upsertAccessListWithMembers(r.Context(), sctx, acl, req.Members)
+	members := make([]*accesslist.AccessListMember, 0, len(req.AccessList.Members))
+	for _, member := range req.AccessList.Members {
+		members = append(members, memberToAccessListMember(accessListID, member))
+	}
+	acl, updatedMembers, err := upsertAccessListWithMembers(r.Context(), sctx, acl, members)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clt, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, member := range updatedMembers {
+		enrichAccessListMemberTitle(r.Context(), clt.AccessListClient(), member)
+	}
+	for i := range acl.Spec.Owners {
+		enrichAccessListOwnerTitle(r.Context(), clt.AccessListClient(), &acl.Spec.Owners[i])
+	}
+
 	return &ui.AccessListWithPresetResponse{
-		AccessList:  acl,
-		Members:     members,
+		AccessList: &ui.AccessList{
+			AccessList: acl,
+			Members:    membersToMembersSpec(updatedMembers),
+		},
 		AccessRoles: resp.GetRoles(),
 	}, nil
+}
+
+func membersToMembersSpec(members []*accesslist.AccessListMember) []accesslist.AccessListMemberSpec {
+	specs := make([]accesslist.AccessListMemberSpec, 0, len(members))
+	for _, member := range members {
+		specs = append(specs, member.Spec)
+	}
+	return specs
 }
 
 // deleteAccessListWithPreset is the handler for DELETE /enterprise/accesslistpreset/:accessListId
@@ -140,4 +184,22 @@ func upsertAccessListWithMembers(ctx context.Context, sctx *web.SessionContext, 
 		return nil, nil, trace.Wrap(err)
 	}
 	return client.AccessListClient().UpsertAccessListWithMembers(ctx, acl, members)
+}
+
+// enrichAccessListMemberTitle enriches the member's title if the membership kind is MembershipKindList.
+func enrichAccessListMemberTitle(ctx context.Context, client services.AccessLists, member *accesslist.AccessListMember) {
+	if member.Spec.MembershipKind == accesslist.MembershipKindList {
+		if al, err := getAccessListNoMFACtx(ctx, client, member.GetName()); err == nil {
+			member.Spec.Title = al.Spec.Title
+		}
+	}
+}
+
+// enrichAccessListOwnerTitle enriches the owner's title if the membership kind is MembershipKindList.
+func enrichAccessListOwnerTitle(ctx context.Context, client services.AccessLists, owner *accesslist.Owner) {
+	if owner.MembershipKind == accesslist.MembershipKindList {
+		if al, err := getAccessListNoMFACtx(ctx, client, owner.Name); err == nil {
+			owner.Title = al.Spec.Title
+		}
+	}
 }

@@ -4,7 +4,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
 )
 
 // AccessListWithPresetRequest is a UI representation for creating or updating
@@ -29,9 +28,7 @@ type AccessListWithPresetRequest struct {
 	// AccessList contains the full access list configuration.
 	// During creation the accesslist.meta can be empty
 	// where during update operation FE needs to set the correcter acceslist.meta.revision
-	AccessList *accesslist.AccessList `json:"accessList,omitempty"`
-	// Members is a list of members to upsert.
-	Members []*accesslist.AccessListMember `json:"members,omitempty"`
+	AccessList *AccessList `json:"accessList,omitempty"`
 	// AccessRoles defines the roles that control access to resources.
 	// Teleport manages the full lifecycle of these roles (create, update, delete).
 	AccessRoles []*types.RoleV6 `json:"accessRoles,omitempty"`
@@ -43,13 +40,16 @@ type AccessListWithPresetRequest struct {
 type AccessListWithPresetResponse struct {
 	// AccessList is the created or updated access list with all fields populated,
 	// including grants that were automatically configured by the preset.
-	AccessList *accesslist.AccessList `json:"accessList,omitempty"`
+	AccessList *AccessList `json:"accessList,omitempty"`
 	// AccessRoles contains all the roles that provide direct access to resources.
 	// These roles are managed by Teleport and should not be modified directly.
 	// The number and content of roles matches what was specified in the request.
 	AccessRoles []*types.RoleV6 `json:"accessRoles,omitempty"`
-	// Members are access list members.
-	Members []*accesslist.AccessListMember `json:"members,omitempty"`
+	// RolesToBeDeleted contains role names that are no longer valid for this access list preset.
+	// These roles may still be in use, so instead of deleting them in the backend and relying on
+	// "roles in use" error handling, deletion is deferred to the UI. The user must confirm before
+	// the frontend triggers the actual role deletion flow.
+	RolesToBeDeleted []string `json:"rolesToBeDeleted,omitempty"`
 }
 
 // DeleteAccessListWithPresetResponse is a response returned the preset access role was deleted.
@@ -73,8 +73,8 @@ func (u *AccessListWithPresetRequest) CheckAndSetDefaults() error {
 	if u.AccessList.GetName() == "" {
 		return trace.BadParameter("access list name is required")
 	}
-	for _, m := range u.Members {
-		m.Spec.AccessList = u.AccessList.GetName()
+	for _, m := range u.AccessList.Members {
+		m.AccessList = u.AccessList.GetName()
 	}
 	return nil
 }
