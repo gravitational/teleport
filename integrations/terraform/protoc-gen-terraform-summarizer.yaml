@@ -119,3 +119,4 @@ custom_types:
 sensitive_fields:
   - "InferenceSecret.spec"
   - "InferenceSecret.spec.value"
+ 
