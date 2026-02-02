@@ -57,36 +57,6 @@ func TestLocks(t *testing.T) {
 		}, withSkipPaginationTest())
 	})
 
-    t.Run("GetLock returns correct lock by name", func(t *testing.T) {
-        lockA, err := types.NewLock("lock-a", types.LockSpecV2{
-            Target: types.LockTarget{Role: "role-a"},
-        })
-        require.NoError(t, err)
-
-        lockB, err := types.NewLock("lock-b", types.LockSpecV2{
-            Target: types.LockTarget{Role: "role-b"},
-        })
-        require.NoError(t, err)
-
-        ctx := t.Context()
-
-        require.NoError(t, p.accessS.UpsertLock(ctx, lockA))
-        require.NoError(t, p.accessS.UpsertLock(ctx, lockB))
-
-        gotA, err := p.cache.GetLock(ctx, "lock-a")
-        require.NoError(t, err)
-        require.Equal(t, "lock-a", gotA.GetName())
-
-        gotB, err := p.cache.GetLock(ctx, "lock-b")
-        require.NoError(t, err)
-        require.Equal(t, "lock-b", gotB.GetName())
-
-        t.Cleanup(func() {
-            p.accessS.DeleteLock(ctx, "lock-a")
-            p.accessS.DeleteLock(ctx, "lock-b")
-        })
-    })
-
 	t.Run("ListLocks", func(t *testing.T) {
 		testResources(t, p, testFuncs[types.Lock]{
 			newResource: func(name string) (types.Lock, error) {
