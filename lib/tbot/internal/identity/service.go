@@ -717,7 +717,7 @@ func botIdentityFromToken(
 		},
 		JoinMethod: cfg.Onboarding.JoinMethod,
 		Expires:    &expires,
-		Log: log,
+		Log:        log,
 
 		// Below options are effectively ignored if AuthClient is not-nil
 		Insecure:           cfg.Connection.Insecure,
