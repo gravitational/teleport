@@ -24,6 +24,10 @@ resources:
     package: types
     yaml_kind: oidc
     yaml_version: v3
+  - type: ProvisionTokenV2
+    package: types
+    yaml_kind: token
+    yaml_version: v2
   - type: SAMLConnectorV2
     package: types
     yaml_kind: saml
