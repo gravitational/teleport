@@ -211,4 +211,9 @@ type PresenceInternal interface {
 
 	// UpsertRelayServer creates or updates a relay server heartbeat, unconditionally.
 	UpsertRelayServer(ctx context.Context, relayServer *presencev1.RelayServer) (*presencev1.RelayServer, error)
+
+	// UnconditionalUpdateApplicationServer writes an app_server if one with the
+	// same host ID and name exists in storage, no matter its contents (i.e., it
+	// doesn't check the revision of the app_server in storage).
+	UnconditionalUpdateApplicationServer(ctx context.Context, server types.AppServer) (types.AppServer, error)
 }

@@ -6561,6 +6561,24 @@ func (a *Server) UpsertApplicationServer(ctx context.Context, server types.AppSe
 	return lease, nil
 }
 
+// UnconditionalUpdateApplicationServer implements [services.PresenceInternal]
+// by delegating to [Server.Services] and then potentially emitting a
+// [usagereporter] event.
+func (a *Server) UnconditionalUpdateApplicationServer(ctx context.Context, server types.AppServer) (types.AppServer, error) {
+	server, err := a.Services.UnconditionalUpdateApplicationServer(ctx, server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   server.GetName(),
+		Kind:   usagereporter.ResourceKindAppServer,
+		Static: server.Expiry().IsZero(),
+	})
+
+	return server, nil
+}
+
 // UpsertDatabaseServer implements [services.Presence] by delegating to
 // [Server.Services] and then potentially emitting a [usagereporter] event.
 func (a *Server) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {

@@ -18,6 +18,7 @@ package delay
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/jonboulle/clockwork"
@@ -126,6 +127,26 @@ func (h *Multi[T]) Remove(key T) {
 			return
 		}
 	}
+}
+
+// Reset resets the sub-interval associated to the given key by rolling a new
+// tick time including jitter as if the sub-interval had just fired.
+func (h *Multi[T]) Reset(key T) {
+	idx := slices.IndexFunc(h.heap.Slice, func(e entry[T]) bool {
+		return e.key == key
+	})
+	if idx < 0 {
+		return
+	}
+
+	now := h.clock.Now()
+
+	const firstFalse = false
+	h.heap.Slice[idx].tick = now.Add(h.interval(firstFalse))
+	h.heap.Fix(idx)
+
+	const firedFalse = false
+	h.reset(now, firedFalse)
 }
 
 // Tick *must* be called exactly once for each firing observed on the Elapsed channel, with the time
