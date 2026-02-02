@@ -3,7 +3,6 @@ package common
 import (
 	"context"
 	"fmt"
-	"maps"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -15,8 +14,6 @@ import (
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/utils/set"
 )
-
-type MembersMapType map[string]*accesslist.AccessListMember
 
 type ongoingAccessRequestAssignments struct {
 	accessRequestAssignments []types.OktaAssignment
@@ -34,9 +31,9 @@ func (c *ongoingAccessRequestAssignments) collect(in types.OktaAssignment) {
 	c.accessRequestAssignments = append(c.accessRequestAssignments, in)
 }
 
-func (c *ongoingAccessRequestAssignments) applyFilter(inOkta, inTeleport MembersMapType) (outOkta, outTeleport MembersMapType) {
-	outOkta = maps.Clone(inOkta)
-	outTeleport = maps.Clone(inTeleport)
+// applyFilter removes members from the input maps in place based on ongoing access request assignments.
+// The inOkta and inTeleport parameters are modified directly rather than creating filtered copies.
+func (c *ongoingAccessRequestAssignments) applyFilter(inOkta, inTeleport map[string]*accesslist.AccessListMember) {
 	// If an assignment is created between the call to collecting ongoing assignments
 	// and the len(ongoing) check, the affected membership may not appear in oktaMembers
 	// fetched from the Okta API.
@@ -45,19 +42,18 @@ func (c *ongoingAccessRequestAssignments) applyFilter(inOkta, inTeleport Members
 	// contains assignment fetch from Okta API before the ongoing assignment was listed.
 	// so if the assignment was created between the two calls, it will be excluded from the oktaMembers.
 	if len(c.accessRequestAssignments) == 0 {
-		return outOkta, outTeleport
+		return
 	}
 	for k := range toSet(c.accessRequestAssignments) {
-		if _, ok := outTeleport[k]; !ok {
+		if _, ok := inTeleport[k]; !ok {
 			// This Okta member was added as a result of a just-in-time short-term access request to an Okta resource.
 			// Since the assignment to the Okta group was temporary and initiated by an access request,
 			// it should not be synced back as a persistent Access List member.
 			// For that reason, we remove it from the Okta members
 			// till the corresponding access request assignment is removed.
-			delete(outOkta, k)
+			delete(inOkta, k)
 		}
 	}
-	return outOkta, outTeleport
 }
 
 type OngoingAssignmentsMembershipFilter struct {
@@ -82,20 +78,20 @@ type OngoingAssignmentsMembershipFilter struct {
 //
 // To prevent this, we filter out these temporary assignments from the Okta members list.
 // See: https://github.com/gravitational/teleport-private/issues/1944 For more details.
-func (a *OngoingAssignmentsMembershipFilter) Filter(ctx context.Context, inOktaMembers, inTeleportMembers map[string]*accesslist.AccessListMember) (outOktaMembers MembersMapType, outTeleportMembers MembersMapType, err error) {
-	cleanupAssignmentsColl := &ongoingAccessRequestAssignments{}
+//
+// Note: This function modifies the input parameters in place. Both inOktaMembers and inTeleportMembers
+// maps are filtered on the fly, removing entries that match filter.
+func (a *OngoingAssignmentsMembershipFilter) Filter(ctx context.Context, inOktaMembers, inTeleportMembers map[string]*accesslist.AccessListMember) error {
 	filter := []assignmentFilterStage{
-		cleanupAssignmentsColl,
+		&ongoingAccessRequestAssignments{},
 	}
 	if err := a.collectAssignments(ctx, filter); err != nil {
-		return nil, nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	outOktaMembers = inOktaMembers
-	outTeleportMembers = inTeleportMembers
 	for _, v := range filter {
-		outOktaMembers, outTeleportMembers = v.applyFilter(outOktaMembers, outTeleportMembers)
+		v.applyFilter(inOktaMembers, inTeleportMembers)
 	}
-	return outOktaMembers, outTeleportMembers, nil
+	return nil
 }
 
 type OktaAssignmentService interface {
@@ -105,7 +101,7 @@ type OktaAssignmentService interface {
 
 type assignmentFilterStage interface {
 	collect(types.OktaAssignment)
-	applyFilter(inOkta, inTeleport MembersMapType) (MembersMapType, MembersMapType)
+	applyFilter(inOkta, inTeleport map[string]*accesslist.AccessListMember)
 }
 
 func (a *OngoingAssignmentsMembershipFilter) collectAssignments(ctx context.Context, collectors []assignmentFilterStage) error {

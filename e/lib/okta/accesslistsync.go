@@ -345,13 +345,12 @@ func (a *accessListSync) reconcileAll(ctx context.Context) error {
 	ongoingAccessRequestFilter := common.OngoingAssignmentsMembershipFilter{
 		AssignmentsService: a.assignmentsService,
 	}
-	filtered, existingMembers, err := ongoingAccessRequestFilter.Filter(ctx, oktaMembers, existingMembers)
-	if err != nil {
+	if err := ongoingAccessRequestFilter.Filter(ctx, oktaMembers, existingMembers); err != nil {
 		return trace.Wrap(err)
 	}
 	a.logger.InfoContext(ctx, "Reconciling new memberships against existing memberships",
-		"new_member_count", len(filtered), "exiting_member_count", len(existingMembers))
-	memberErr := a.accessListMemberReconciler.Reconcile(ctx, filtered, existingMembers)
+		"new_member_count", len(oktaMembers), "exiting_member_count", len(existingMembers))
+	memberErr := a.accessListMemberReconciler.Reconcile(ctx, oktaMembers, existingMembers)
 
 	roleErr := a.roleReconciler.Reconcile(ctx)
 

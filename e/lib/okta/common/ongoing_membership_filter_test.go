@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"maps"
 	"testing"
 
 	"github.com/google/uuid"
@@ -91,13 +92,15 @@ func TestOngoingAccessRequestMembershipFilter_Filter(t *testing.T) {
 			}
 			ctx := context.Background()
 
-			filteredOktaMembers, filteredTeleportMembers, err := filter.Filter(ctx, tt.oktaMembers, tt.teleportMembers)
+			inOkta := maps.Clone(tt.oktaMembers)
+			inTeleport := maps.Clone(tt.teleportMembers)
+			err := filter.Filter(ctx, inOkta, inTeleport)
 			require.NoError(t, err)
 
-			_, oktaPresent := filteredOktaMembers["groupA/alice"]
+			_, oktaPresent := inOkta["groupA/alice"]
 			require.Equal(t, tt.expectedOktaPresent, oktaPresent, "unexpected presence in oktaMembers")
 
-			_, teleportPresent := filteredTeleportMembers["groupA/alice"]
+			_, teleportPresent := inTeleport["groupA/alice"]
 			require.Equal(t, tt.expectedTeleportPresent, teleportPresent, "unexpected presence in teleportMembers")
 		})
 	}
