@@ -23,8 +23,10 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -246,8 +248,13 @@ type IdentityCenterManagedResources interface {
 	CreateIdentityCenterManagedResource(context.Context, *identitycenterv1.Resource) (*identitycenterv1.Resource, error)
 }
 
-type IdentityCenterAccessProfiles interface {
+type IdentityCenterAccessProfileGetter interface {
 	GetIdentityCenterAccessProfile(context.Context, string) (*identitycenterv1.AccessProfile, error)
+}
+
+type IdentityCenterAccessProfiles interface {
+	IdentityCenterAccessProfileGetter
+	ListIdentityCenterAccessProfiles(context.Context, int, string) ([]*identitycenterv1.AccessProfile, string, error)
 	CreateIdentityCenterAccessProfile(context.Context, *identitycenterv1.AccessProfile) (*identitycenterv1.AccessProfile, error)
 }
 
@@ -437,27 +444,107 @@ func matchExpression(target, expression string) (bool, error) {
 }
 
 func NewIdentityCenterResourceMatcher(src *identitycenterv1.Resource) *IdentityCenterResourceMatcher {
-	slog.Error(">>>> Creating ./matcher for AWS resource",
-		"resource_name", src.GetMetadata().GetName())
 	return &IdentityCenterResourceMatcher{
-		subkind: src.SubKind,
-		name:    src.GetMetadata().Name,
-		display: src.GetSpec().Name,
+		resource: types.Resource153ToResourceWithLabels(src),
 	}
 }
 
 type IdentityCenterResourceMatcher struct {
-	subkind string
-	name    string
-	display string
+	resource types.ResourceWithLabels
 }
 
 func (m *IdentityCenterResourceMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
-	slog.Error(">>>> Checking matcher for AWS resource",
-		"role", role.GetName(),
-		"condition", condition,
-		"resource_kind", m.subkind,
-		"resource_name", m.name,
-		"resource_display", m.display)
-	return condition == types.Allow, nil
+	slog.Error(">>>> Checking for access to resources",
+		"resource", m.resource.GetName(),
+		"role", role.GetName())
+	for _, resourceCondition := range role.GetIdentityCenterResourceConditions(condition) {
+		resourceMatcher := types.LabelMatchers{
+			Labels: *resourceCondition.ResourceLabels,
+		}
+		resourceMatches, _, err := CheckLabelsMatch(condition, resourceMatcher, nil, m.resource, false)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if resourceMatches {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func NewIdentityCenterConstrainedResourceMatcher(cr *IdentityCenterConstrainedResource, traits wrappers.Traits) *IdentityCenterConstrainedResourceMatcher {
+	return &IdentityCenterConstrainedResourceMatcher{
+		resource: cr,
+		traits:   traits,
+	}
+}
+
+type IdentityCenterConstrainedResourceMatcher struct {
+	resource *IdentityCenterConstrainedResource
+	traits   wrappers.Traits
+}
+
+func (m *IdentityCenterConstrainedResourceMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	slog.Error(">>>> Checking for access to constrained resource",
+		"resource", m.resource.Resource.GetName(),
+		"access_profile", m.resource.AccessProfile.GetMetadata().Name,
+		"role", role.GetName())
+
+	// TODO(tcsc): Expand to cover role template expansion (e.g. {{external.account_assignments}})
+	for _, resourceCondition := range role.GetIdentityCenterResourceConditions(condition) {
+		resourceMatcher := types.LabelMatchers{
+			Labels: *resourceCondition.ResourceLabels,
+		}
+		resourceMatches, _, err := CheckLabelsMatch(condition, resourceMatcher, m.traits, m.resource.Resource, false)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if !resourceMatches {
+			continue
+		}
+
+		accessProfileMatcher := types.LabelMatchers{
+			Labels: *resourceCondition.AccessProfileLabels,
+		}
+		accessProfileMatches, _, err := CheckLabelsMatch(condition, accessProfileMatcher, m.traits, m.resource.AccessProfile, false)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		if accessProfileMatches {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// IdentityCenterConstrainedResource is a synthetic resource type representing
+// the union of an IdentityCenter Resource and AccessProfile. It only exists to
+// perform RBAC on an (ID Resource, AccessProfile) pair and is never serialized
+// to disk.
+type IdentityCenterConstrainedResource struct {
+	types.ResourceHeader
+
+	Resource      *proto.IdentityCenterResource
+	AccessProfile types.ResourceWithLabels
+}
+
+const KindIdentityCenterConstrainedResource = "aws_ic_constrained_resource"
+
+func NewIdentityCenterConstrainedResource(resource *proto.IdentityCenterResource, ap *identitycenterv1.AccessProfile) *IdentityCenterConstrainedResource {
+	return &IdentityCenterConstrainedResource{
+		ResourceHeader: types.ResourceHeader{
+			Kind:    KindIdentityCenterConstrainedResource,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name: resource.GetName() + "/" + ap.GetMetadata().GetName(),
+			},
+		},
+		Resource:      resource,
+		AccessProfile: types.Resource153ToResourceWithLabels(ap),
+	}
+}
+
+func (r *IdentityCenterConstrainedResource) MatchSearch(_ []string) bool {
+	return false
 }

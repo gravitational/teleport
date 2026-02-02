@@ -416,3 +416,74 @@ func (c *Cache) ListIdentityCenterManagedResources(ctx context.Context, pageSize
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)
 }
+
+type identityCenterAccessProfileIndex string
+
+const identityCenterAccessProfileNameIndex identityCenterAccessProfileIndex = "name"
+
+func newIdentityCenterAccessProfileCollection(ic services.IdentityCenter, w types.WatchKind) (*collection[*identitycenterv1.AccessProfile, identityCenterAccessProfileIndex], error) {
+	if ic == nil {
+		return nil, trace.BadParameter("missing parameter IdentityCenter")
+	}
+
+	return &collection[*identitycenterv1.AccessProfile, identityCenterAccessProfileIndex]{
+		store: newStore(
+			types.KindIdentityCenterAccessProfile,
+			proto.CloneOf[*identitycenterv1.AccessProfile],
+			map[identityCenterAccessProfileIndex]func(*identitycenterv1.AccessProfile) string{
+				identityCenterAccessProfileNameIndex: func(r *identitycenterv1.AccessProfile) string {
+					return r.GetMetadata().GetName()
+				},
+			}),
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]*identitycenterv1.AccessProfile, error) {
+			out, err := stream.Collect(clientutils.Resources(ctx, ic.ListIdentityCenterAccessProfiles))
+			return out, trace.Wrap(err)
+		},
+		headerTransform: func(hdr *types.ResourceHeader) *identitycenterv1.AccessProfile {
+			return &identitycenterv1.AccessProfile{
+				Kind:    hdr.Kind,
+				SubKind: hdr.SubKind,
+				Version: hdr.Version,
+				Metadata: &headerv1.Metadata{
+					Name: hdr.Metadata.Name,
+				},
+			}
+		},
+		watch: w,
+	}, nil
+}
+
+func (c *Cache) GetIdentityCenterAccessProfile(ctx context.Context, name string) (*identitycenterv1.AccessProfile, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetIdentityCenterAccessProfiles")
+	defer span.End()
+
+	getter := genericGetter[*identitycenterv1.AccessProfile, identityCenterAccessProfileIndex]{
+		cache:      c,
+		collection: c.collections.identityCenterAccessProfiles,
+		index:      identityCenterAccessProfileNameIndex,
+		upstreamGet: func(ctx context.Context, s string) (*identitycenterv1.AccessProfile, error) {
+			out, err := c.Config.IdentityCenter.GetIdentityCenterAccessProfile(ctx, s)
+			return out, trace.Wrap(err)
+		},
+	}
+	out, err := getter.get(ctx, name)
+	return out, trace.Wrap(err)
+}
+
+func (c *Cache) ListIdentityCenterAccessProfiles(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.AccessProfile, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListIdentityCenterAccessProfile")
+	defer span.End()
+
+	lister := genericLister[*identitycenterv1.AccessProfile, identityCenterAccessProfileIndex]{
+		cache:        c,
+		collection:   c.collections.identityCenterAccessProfiles,
+		index:        identityCenterAccessProfileNameIndex,
+		upstreamList: c.Config.IdentityCenter.ListIdentityCenterAccessProfiles,
+		nextToken: func(t *identitycenterv1.AccessProfile) string {
+			return t.GetMetadata().GetName()
+		},
+	}
+
+	out, next, err := lister.list(ctx, pageSize, pageToken)
+	return out, next, trace.Wrap(err)
+}

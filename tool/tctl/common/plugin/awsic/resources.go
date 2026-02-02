@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/teleport/api/client"
@@ -41,12 +42,22 @@ func (c *ResourcesCmd) TryRun(ctx context.Context, cmd string, deps *dependencie
 }
 
 type listResourcesCmd struct {
-	cmd *kingpin.CmdClause
+	cmd                   *kingpin.CmdClause
+	includeAccessProfiles bool
+	includeRequestable    bool
 }
 
 func (ls *listResourcesCmd) init(parent *kingpin.CmdClause) {
 	cmd := parent.Command("ls", "List managed AWS resources")
 	ls.cmd = cmd
+
+	cmd.Flag("include-access-profiles", "include the applicable access profiles for each resource").
+		Short('l').
+		BoolVar(&ls.includeAccessProfiles)
+
+	cmd.Flag("requestable", "include requestable resources").
+		Short('r').
+		BoolVar(&ls.includeRequestable)
 }
 
 func (ls *listResourcesCmd) Run(ctx context.Context, deps *dependencies) error {
@@ -57,7 +68,10 @@ func (ls *listResourcesCmd) Run(ctx context.Context, deps *dependencies) error {
 	defer closeClient(ctx)
 
 	ers, err := client.GetAllUnifiedResources(ctx, clt, &proto.ListUnifiedResourcesRequest{
-		Kinds: []string{types.KindIdentityCenterResource},
+		Kinds:              []string{types.KindIdentityCenterResource},
+		IncludeLogins:      ls.includeAccessProfiles,
+		IncludeRequestable: ls.includeRequestable,
+		UseSearchAsRoles:   ls.includeRequestable,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -76,20 +90,36 @@ func (ls *listResourcesCmd) Run(ctx context.Context, deps *dependencies) error {
 		}
 	}
 
-	renderResourceList(resources)
+	ls.renderResourceList(resources)
 
 	return nil
 }
 
-func renderResourceList(resources []*proto.IdentityCenterResource) error {
-	table := asciitable.MakeTable([]string{"Kind", "Name", "AWS Account", "Display"})
+func (ls *listResourcesCmd) renderResourceList(resources []*proto.IdentityCenterResource) error {
+	columns := []string{"Kind", "Name", "AWS Account", "Display"}
+	if ls.includeAccessProfiles {
+		columns = append(columns, "Access Profiles")
+	}
+
+	table := asciitable.MakeTable(columns)
 	for _, r := range resources {
-		table.AddRow([]string{
+		row := []string{
 			r.GetSubKind(),
 			r.GetName(),
 			r.GetAWSAccount(),
 			r.GetDisplayName(),
-		})
+		}
+
+		if ls.includeAccessProfiles {
+			var apNames []string
+			for _, ap := range r.AccessProfiles {
+				apNames = append(apNames, ap.Name)
+			}
+
+			row = append(row, strings.Join(apNames, ", "))
+		}
+
+		table.AddRow(row)
 	}
 	return trace.Wrap(table.WriteTo(os.Stdout))
 }

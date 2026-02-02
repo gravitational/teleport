@@ -4022,7 +4022,7 @@ message RoleConditions {
 
   // AccountAssignments holds the list of account assignments affected by this
   // condition.
-  repeated IdentityCenterResource IdentityCenterResources = 50 [
+  repeated IdentityCenterResourceCondition IdentityCenterResources = 50 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "identity_center_resources,omitempty"
   ];
@@ -4071,9 +4071,15 @@ message IdentityCenterAccountAssignment {
 }
 
 // IdentityCenterResource  ...
-message IdentityCenterResource {
-  wrappers.LabelValues ResourceLabels = 1 [(gogoproto.jsontag) = "resource_labels,omitempty"];
-  wrappers.LabelValues AccessProfileLabels = 2 [(gogoproto.jsontag) = "access_profile_labels,omitempty"];
+message IdentityCenterResourceCondition {
+  wrappers.LabelValues ResourceLabels = 1 [
+    (gogoproto.jsontag) = "resource_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+  wrappers.LabelValues AccessProfileLabels = 2 [
+    (gogoproto.jsontag) = "access_profile_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
 }
 
 // GitHubPermission defines GitHub integration related permissions.

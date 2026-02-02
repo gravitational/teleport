@@ -210,6 +210,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindIdentityCenterAccountAssignment},
 		{Kind: types.KindIdentityCenterCustomPermissionSet},
 		{Kind: types.KindIdentityCenterResource},
+		{Kind: types.KindIdentityCenterAccessProfile},
 		{Kind: types.KindPlugin, LoadSecrets: true},
 		{Kind: types.KindPluginStaticCredentials},
 		{Kind: types.KindGitServer},
@@ -1811,6 +1812,24 @@ func (c *Cache) listResources(ctx context.Context, req authproto.ListResourcesRe
 		resp, err := buildListResourcesResponse(
 			func(yield func(types.ResourceWithLabels) bool) {
 				for resource := range c.collections.identityCenterResources.store.resources(identityCenterResourceNameIndex, req.StartKey, "") {
+					if !yield(types.Resource153ToResourceWithLabels(resource)) {
+						return
+					}
+				}
+			},
+			limit,
+			filter,
+			func(r types.ResourceWithLabels) types.ResourceWithLabels {
+				unwrapper := r.(types.Resource153UnwrapperT[*identitycenterv1.Resource])
+				return types.Resource153ToResourceWithLabels(proto.CloneOf(unwrapper.UnwrapT()))
+			},
+		)
+		return resp, trace.Wrap(err)
+
+	case types.KindIdentityCenterAccessProfile:
+		resp, err := buildListResourcesResponse(
+			func(yield func(types.ResourceWithLabels) bool) {
+				for resource := range c.collections.identityCenterAccessProfiles.store.resources(identityCenterAccessProfileNameIndex, req.StartKey, "") {
 					if !yield(types.Resource153ToResourceWithLabels(resource)) {
 						return
 					}

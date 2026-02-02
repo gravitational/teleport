@@ -82,6 +82,7 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindSPIFFEFederation, RO()),
 	types.NewRule(types.KindSAMLIdPServiceProvider, RO()),
 	types.NewRule(types.KindIdentityCenter, RO()),
+	types.NewRule(types.KindIdentityCenterResource, RO()),
 	types.NewRule(types.KindGitServer, RO()),
 }
 
@@ -2619,7 +2620,9 @@ func resourceRequiresLabelMatching(r AccessCheckable) bool {
 	// should be granted access. Enable it by default, but turn it off in the
 	// special cases.
 	switch r.GetKind() {
-	case types.KindIdentityCenterAccount, types.KindIdentityCenterAccountAssignment, types.KindIdentityCenterResource:
+	case types.KindIdentityCenterAccount, types.KindIdentityCenterAccountAssignment:
+		return false
+	case types.KindIdentityCenterResource, KindIdentityCenterConstrainedResource:
 		return false
 	case types.KindApp, types.KindAppServer:
 		return r.GetSubKind() != types.KindIdentityCenterAccount

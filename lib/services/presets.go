@@ -764,7 +764,11 @@ func NewSystemIdentityCenterAccessRole(buildType string) types.Role {
 		},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
-				AccountAssignments: defaultAllowAccountAssignments(true)[teleport.SystemIdentityCenterAccessRoleName],
+				AccountAssignments:      defaultAllowAccountAssignments(true)[teleport.SystemIdentityCenterAccessRoleName],
+				IdentityCenterResources: defaultAllowIdentityCenterResourceAccess(true)[teleport.SystemIdentityCenterAccessRoleName],
+				Rules: []types.Rule{
+					types.NewRule(types.KindIdentityCenterResource, RO()),
+				},
 			},
 		},
 	}
@@ -1061,6 +1065,21 @@ func defaultAllowAccountAssignments(enterprise bool) map[string][]types.Identity
 	}
 
 	return map[string][]types.IdentityCenterAccountAssignment{}
+}
+
+func defaultAllowIdentityCenterResourceAccess(enterprise bool) map[string][]types.IdentityCenterResourceCondition {
+	if enterprise {
+		return map[string][]types.IdentityCenterResourceCondition{
+			teleport.SystemIdentityCenterAccessRoleName: {
+				{
+					ResourceLabels:      &types.Labels{types.Wildcard: []string{types.Wildcard}},
+					AccessProfileLabels: &types.Labels{types.Wildcard: []string{types.Wildcard}},
+				},
+			},
+		}
+	}
+
+	return map[string][]types.IdentityCenterResourceCondition{}
 }
 
 // AddRoleDefaults adds default role attributes to a preset role.

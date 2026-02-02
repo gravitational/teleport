@@ -476,3 +476,11 @@ func (svc *IdentityCenterService) GetIdentityCenterAccessProfile(ctx context.Con
 	r, err := svc.accessProfiles.GetResource(ctx, name)
 	return r, trace.Wrap(err)
 }
+
+func (svc *IdentityCenterService) ListIdentityCenterAccessProfiles(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.AccessProfile, string, error) {
+	resources, nextPage, err := svc.accessProfiles.ListResources(ctx, pageSize, pageToken)
+	if err != nil {
+		return nil, "", trace.Wrap(err, "listing identity center access profiles")
+	}
+	return resources, nextPage, nil
+}

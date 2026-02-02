@@ -301,6 +301,8 @@ type Role interface {
 	// Assignments for the role
 	SetIdentityCenterAccountAssignments(RoleConditionType, []IdentityCenterAccountAssignment)
 
+	GetIdentityCenterResourceConditions(RoleConditionType) []IdentityCenterResourceCondition
+
 	// GetMCPPermissions returns the allow or deny MCP permissions.
 	GetMCPPermissions(RoleConditionType) *MCPPermissions
 	// SetMCPPermissions sets the allow or deny MCP permissions.
@@ -2384,6 +2386,15 @@ func (r *RoleV6) SetIdentityCenterAccountAssignments(rct RoleConditionType, assi
 		cond = &r.Spec.Allow
 	}
 	cond.AccountAssignments = assignments
+}
+
+// GetIdentityCenterAccountAssignments fetches the allow or deny Identity Center
+// Account Assignments for the role
+func (r *RoleV6) GetIdentityCenterResourceConditions(rct RoleConditionType) []IdentityCenterResourceCondition {
+	if rct == Allow {
+		return r.Spec.Allow.IdentityCenterResources
+	}
+	return r.Spec.Deny.IdentityCenterResources
 }
 
 // GetMCPPermissions returns the allow or deny MCP permissions.

@@ -1465,6 +1465,7 @@ type Cache interface {
 	GetIdentityCenterManagedResource(ctx context.Context, name string) (*identitycenterv1.Resource, error)
 	// ListIdentityCenterManagedResources fetches a paginated list of IdentityCenter ManagedResources.
 	ListIdentityCenterManagedResources(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.Resource, string, error)
+	ListIdentityCenterAccessProfiles(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.AccessProfile, string, error)
 
 	GetCustomPermissionSet(context.Context, string) (*identitycenterv1.CustomPermissionSet, error)
 

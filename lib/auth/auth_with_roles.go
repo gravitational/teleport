@@ -1498,7 +1498,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 				return nil, trace.Wrap(err)
 			}
 
-			slog.Error(">>>> Checking listing pemissions",
+			slog.Error(">>>> Checking listing permissions",
 				"resource_kind", resource.GetKind(),
 				"resource_name", resource.GetName(),
 				"resource_type", logutils.TypeAttr(resource),
@@ -1566,9 +1566,22 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 				}
 				r.Logins = logins
 			} else if resource := r.GetIdentityCenterResource(); resource != nil {
+				log := slog.With(
+					"resource_kind", resource.GetKind(),
+					"resource_subkind", resource.GetSubKind(),
+					"resource_name", resource.GetName())
+
 				// Identity Center managed Resources can have Access Profiles that
 				// a user can request.
 				//a.authServer.Cache.ListIdentityCenterManagedResources()
+				log.ErrorContext(ctx, ">>>> Enriching resource",
+					"resource_type", logutils.TypeAttr(resource))
+
+				if err := a.addIdentityCenterResourceAccess(ctx, resource, resourceLister); err != nil {
+					log.WarnContext(ctx, "Unable to add identity center access profiles to resource",
+						"error", err)
+					continue
+				}
 			}
 		}
 	}
@@ -1577,6 +1590,51 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		NextKey:   nextKey,
 		Resources: paginatedResources,
 	}, nil
+}
+
+func (a *ServerWithRoles) addIdentityCenterResourceAccess(ctx context.Context, resource *proto.IdentityCenterResource, lister *unifiedResourceLister) error {
+	var profiles []*proto.IdentityCenterAccessProfile
+
+	log := slog.With(
+		"resource_kind", resource.GetKind(),
+		"resource_subkind", resource.GetSubKind(),
+		"resource_name", resource.GetName(),
+		"resource_display_name", resource.GetDisplayName())
+
+	for ap, err := range clientutils.Resources(ctx, a.authServer.Cache.ListIdentityCenterAccessProfiles) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		log = log.With(
+			"access_profile_subkind", ap.GetSubKind(),
+			"access_profile_name", ap.GetMetadata().GetName(),
+			"access_profile_name", ap.GetMetadata().GetName())
+
+		if ap.GetSubKind() != resource.GetSubKind() {
+			continue
+		}
+
+		cr := services.NewIdentityCenterConstrainedResource(resource, ap)
+
+		if err := lister.accessChecker.CanAccess(cr); err != nil {
+			if lister.requestableAccessChecker == nil {
+				continue
+			}
+			if err := lister.requestableAccessChecker.CanAccess(cr); err != nil {
+				continue
+			}
+		}
+
+		profiles = append(profiles, &proto.IdentityCenterAccessProfile{
+			Name:    ap.GetMetadata().GetName(),
+			Display: ap.GetSpec().GetDisplayName(),
+		})
+
+		// TODO(tcsc): Gate with RBAC as well
+	}
+	resource.AccessProfiles = profiles
+	return nil
 }
 
 func (a *ServerWithRoles) scopedListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
@@ -2181,6 +2239,9 @@ func (r *resourceChecker) CanAccess(resource types.ResourceWithLabels) error {
 		if isCheckable {
 			return r.CheckAccess(checkable, state, services.NewIdentityCenterResourceMatcher(rr.UnwrapT()))
 		}
+
+	case *services.IdentityCenterConstrainedResource:
+		return r.CheckAccess(rr, state, services.NewIdentityCenterConstrainedResourceMatcher(rr, r.Traits()))
 	}
 
 	return trace.BadParameter("could not check access to resource type %T", resource)

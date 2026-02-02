@@ -246,3 +246,46 @@ func (p *identityCenterResourceParser) parse(event backend.Event) (types.Resourc
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
 }
+
+type identityCenterAccessProfileParser struct {
+	baseParser
+	prefix backend.Key
+}
+
+func newIdentityCenterAccessProfileParser() *identityCenterAccessProfileParser {
+	prefix := backend.NewKey(awsResourcePrefix, awsAccessProfilePrefix)
+	return &identityCenterAccessProfileParser{
+		baseParser: newBaseParser(prefix),
+		prefix:     prefix,
+	}
+}
+
+func (p *identityCenterAccessProfileParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(p.prefix).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+		return &types.ResourceHeader{
+			Kind:    types.KindIdentityCenterAccessProfile,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		r, err := services.UnmarshalProtoResource[*identitycenterv1.AccessProfile](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(r), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
