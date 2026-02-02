@@ -32,7 +32,8 @@ We plan to release the following versions in the coming months:
 
 | Version | Date                       |
 |---------|----------------------------|
-| 18.7.0  | Week of January 26, 2026   |
+| 18.7.0  | Week of February 02, 2026  |
+| 18.8.0  | Week of March 02, 2026     |
 | 19.0.0  | August 2026                |
 
 ### 18.7.0
@@ -72,6 +73,11 @@ principal selection to access requests for other resource types as well.
 Teleport users will be able to see status of the configured Entra ID integration in the
 web UI.
 
+#### Inventory UI
+
+Teleport's web UI will include a new page showing the complete inventory of all instances
+and bots connected to the cluster.
+
 ### 18.8.0
 
 #### VNet for Linux
@@ -87,6 +93,19 @@ centered around granting users permissions to resources and permissions to reque
 access to resources.
 
 *Delayed from 18.7.0.*
+
+#### Managed Updates UI
+
+Teleport's web UI will include new functionality for working with managed updates.
+The UI will offer the ability to view and manage the updater configuration as well
+as monitor the progress of update rollouts.
+
+#### Split Windows CA
+
+Teleport will introduce a new Windows CA responsible for issuing user certificates for 
+Windows Desktop access. Currently the User CA issues those certificates, as they are end-user certs. 
+Splitting the CAs improves Teleport's security posture by introducing a more specialized CA
+and allows both CAs to be rotated independently.
 
 ## Teleport Cloud
 
