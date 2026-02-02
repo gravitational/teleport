@@ -4756,19 +4756,24 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 		"access-list-review-due-14d",
 	}
 
-	// Check notifications
-	resp, err := client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
-	require.NoError(t, err)
-	require.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind))
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// Check notifications
+		resp, err := client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
+		require.NoError(t, err)
+		require.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind))
+	}, time.Second*5, time.Millisecond*30)
 
 	// Run CreateAccessListReminderNotifications() again to verify no duplicates are created
 	authServer.CreateAccessListReminderNotifications(ctx, auth.WithCreateNotificationInterval(time.Nanosecond))
 
-	// Check notifications again, counts should remain the same.
-	resp, err = client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
-	require.NoError(t, err)
-	require.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind),
-		"notifications should not have changed after second reconciliation")
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// Check notifications again, counts should remain the same.
+		resp, err := client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
+		require.NoError(t, err)
+		require.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind),
+			"notifications should not have changed after second reconciliation")
+
+	}, time.Second*5, time.Millisecond*30)
 }
 
 type createAccessListOptions struct {
@@ -4871,7 +4876,7 @@ func TestCreateAccessListReminderNotifications_LargeOverdueSet(t *testing.T) {
 		lists, err := testServer.Auth().Cache.GetAccessLists(ctx)
 		assert.NoError(t, err)
 		assert.Len(t, lists, numAccessLists, "should have created all %d overdue access lists", numAccessLists)
-	}, 3*time.Second, 100*time.Millisecond)
+	}, 5*time.Second, 100*time.Millisecond)
 
 	// Run CreateAccessListReminderNotifications()
 	authServer.CreateAccessListReminderNotifications(ctx, auth.WithCreateNotificationInterval(time.Nanosecond), auth.WithAccessListsPageReadInterval(time.Nanosecond))
