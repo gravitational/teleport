@@ -1,5 +1,18 @@
 # Changelog
 
+## 17.7.16 (02/02/26)
+
+* Improved robustness of the Slack hosted plugin to reduce the likeliness of failed token refresh when experiencing external disruption. [#63347](https://github.com/gravitational/teleport/pull/63347)
+* Ensure application session rejections for untrusted devices are consistently audited as AppSessionStart failures after MFA. [#63260](https://github.com/gravitational/teleport/pull/63260)
+* Fixed a `CredentialContainer` error when attempting to log in to the Web UI with a hardware key using Firefox >=147.0.2. [#63246](https://github.com/gravitational/teleport/pull/63246)
+* Updated OpenSSL to 3.0.19. [#63203](https://github.com/gravitational/teleport/pull/63203)
+
+Enterprise:
+* Mitigated a race in the Slack token refresh logic.
+* Fixe the issue where Okta integration may not remove previously synced apps after plugin restart.
+* Added support for multi-arch lock file population for the terraform provider.
+
+
 ## 17.7.15 (01/26/26)
 
 * Updated indirect dependency go-chi/chi/v5 (addresses GO-2026-4316). [#63093](https://github.com/gravitational/teleport/pull/63093)
