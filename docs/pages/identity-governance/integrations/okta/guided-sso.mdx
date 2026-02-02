@@ -72,7 +72,7 @@ Okta Integration Network support is still in beta. If unsure please proceed with
 
   3. Search for and select **Teleport**, and then click **Add Integration**.
 
-  4. Complete the fields on the settings page and click **Done**.
+  4. In *Teleport cluster domain* filed type in your proxy domain, e.g. `example.teleport.sh` and click **Done**.
 
   5. Go to the **Sign On** tab and click **Edit** on the top-right corner of the tab.
 
@@ -159,6 +159,47 @@ Okta Integration Network support is still in beta. If unsure please proceed with
 
 At this point, you have completed the guided flow for the Okta SSO integration. All users assigned
 to the Okta app are now able to log in to Teleport.
+
+## Supported features
+
+By default Okta SSO integration supports SP-initiated flow. To enable IdP-initiated flow you will have to edit the Okta SAML connector with `tctl edit saml/<Var name="okta" />` and set `spec.allow_idp_initiated` to `true`.
+
+## Attribute mapping
+
+All attributes sent with the SAML assertion will be stored as user's traits which then can be used to build RBAC rules. It is also possible to map SAML attributes to Teleport roles. They can be set in the web UI by editing the Okta SAML connector yaml or using the CLI `tctl edit saml/<Var name="okta" />`.
+
+In the example below there are 2 mappings:
+
+- *groups* attribute containing value *Everyone* is mapped to Teleport *okta-requester* role.
+- *groups* attribute containing value *okta-admin* Okta group is mapped to Teleport *editor* role.
+
+At least 1 attribute to role mapping is required however we encourage to use [Access Lists](../../access-lists/access-lists.mdx) for access management instead.
+
+```yaml
+kind: saml
+metadata:
+  name: okta
+spec:
+  acs: https://teleport.example.com:443/v1/webapi/saml/acs/okta
+  attributes_to_roles:
+  - name: groups
+    roles:
+    - editor
+    value: okta-admin
+  - name: groups
+    roles:
+    - okta-requester
+    value: Everyone
+  audience: https://teleport.example.com:443/v1/webapi/saml/acs/okta
+  cert: ""
+  display: "Okta"
+  entity_descriptor: ""
+  entity_descriptor_url: https://example.okta.com/app/000000/sso/saml/metadata
+  issuer: ""
+  service_provider_issuer: https://teleport.example.com:443/v1/webapi/saml/acs/okta
+  sso: ""
+version: v2
+```
 
 ## Next steps
 
