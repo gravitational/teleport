@@ -62,28 +62,49 @@ func platformGetConfig() (*api.GetConfigResponse, error) {
 	}
 
 	config := &api.GetConfigResponse{
-		CdnBaseUrl:   machineValues.cdnBaseURL,
-		ToolsVersion: machineValues.version,
+		CdnBaseUrl: &api.ConfigValue{
+			Value:  machineValues.cdnBaseURL,
+			Source: api.ConfigSource_CONFIG_SOURCE_POLICY,
+		},
+		ToolsVersion: &api.ConfigValue{
+			Value:  machineValues.version,
+			Source: api.ConfigSource_CONFIG_SOURCE_POLICY,
+		},
 	}
 
-	// If per-machine config is fully set, there's no need to check if there are values in the per-user hive.
+	// If per-machine config is fully set, there's no need to check other sources.
 	perMachineConfigFullySet := machineValues.cdnBaseURL != "" && machineValues.version != ""
-
-	if perMachine || perMachineConfigFullySet {
+	if perMachineConfigFullySet {
 		return config, nil
 	}
 
-	userValues, err := readRegistryPolicyValues(registry.CURRENT_USER)
+	if !perMachine {
+		userValues, err := readRegistryPolicyValues(registry.CURRENT_USER)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if machineValues.cdnBaseURL == "" {
+			config.CdnBaseUrl.Value = userValues.cdnBaseURL
+		}
+
+		if machineValues.version == "" {
+			config.ToolsVersion.Value = userValues.version
+		}
+	}
+
+	// Read deprecated env vars. If they are set and the app is installed per-machine, updates must use
+	// the standard UAC installer (no privileged updater).
+	envVarConfig, err := readConfigFromEnvVars()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if machineValues.cdnBaseURL == "" {
-		config.CdnBaseUrl = userValues.cdnBaseURL
+	if config.CdnBaseUrl.Value == "" {
+		config.CdnBaseUrl = envVarConfig.GetCdnBaseUrl()
 	}
 
-	if machineValues.version == "" {
-		config.ToolsVersion = userValues.version
+	if config.ToolsVersion.Value == "" {
+		config.ToolsVersion = envVarConfig.GetToolsVersion()
 	}
 
 	return config, nil

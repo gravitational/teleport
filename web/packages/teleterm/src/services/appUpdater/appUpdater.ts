@@ -33,7 +33,8 @@ import {
 } from 'electron-updater';
 import { ProviderRuntimeOptions } from 'electron-updater/out/providers/Provider';
 
-import type {
+import {
+  ConfigSource,
   GetClusterVersionsResponse,
   GetConfigResponse,
   GetInstallationMetadataResponse,
@@ -55,7 +56,10 @@ import {
   ClientToolsUpdateProvider,
   ClientToolsVersionGetter,
 } from './clientToolsUpdateProvider';
-import { NsisDualModeUpdater } from './nsisDualModeUpdater';
+import {
+  NsisDualModeUpdater,
+  NsisDualModeUpdaterOptions,
+} from './nsisDualModeUpdater';
 
 export class AppUpdater {
   private readonly logger = new Logger('AppUpdater');
@@ -66,6 +70,9 @@ export class AppUpdater {
   private downloadPromise: Promise<string[]> | undefined;
   private isUpdateDownloaded = false;
   private forceNoAutoDownload = false;
+  private readonly nsisUpdaterSettings: NsisDualModeUpdaterOptions = {
+    privilegedUpdaterCannotBeUsed: false,
+  };
 
   constructor(
     private readonly storage: AppUpdaterStorage,
@@ -80,7 +87,11 @@ export class AppUpdater {
   ) {
     const getClientToolsVersion: ClientToolsVersionGetter = async () => {
       const config = await this.client.getConfig();
-      await this.refreshAutoUpdatesStatus(config);
+
+      await this.refreshAutoUpdatesStatus({
+        toolsVersion: config.toolsVersion.value,
+        cdnBaseUrl: config.cdnBaseUrl.value,
+      });
 
       if (this.autoUpdatesStatus.enabled) {
         let isPerMachineInstall: boolean;
@@ -94,16 +105,22 @@ export class AppUpdater {
           isPerMachineInstall = false;
         }
 
+        if (isPerMachineInstall) {
+          this.nsisUpdaterSettings.privilegedUpdaterCannotBeUsed =
+            config.toolsVersion.source === ConfigSource.ENV_VAR ||
+            config.cdnBaseUrl.source === ConfigSource.ENV_VAR;
+        }
+
         return {
           version: this.autoUpdatesStatus.version,
-          baseUrl: config.cdnBaseUrl,
+          baseUrl: config.cdnBaseUrl.value,
           isPerMachineInstall,
         };
       }
     };
 
     if (process.platform === 'win32') {
-      this.nativeUpdater = new NsisDualModeUpdater();
+      this.nativeUpdater = new NsisDualModeUpdater(this.nsisUpdaterSettings);
     }
 
     this.nativeUpdater.setFeedURL({
@@ -139,7 +156,8 @@ export class AppUpdater {
       this.nativeUpdater,
       this.emit,
       () => this.autoUpdatesStatus,
-      () => this.shouldAutoDownload()
+      () => this.shouldAutoDownload(),
+      () => this.nsisUpdaterSettings.privilegedUpdaterCannotBeUsed
     );
   }
 
@@ -346,9 +364,10 @@ export class AppUpdater {
     );
   }
 
-  private async refreshAutoUpdatesStatus(
-    config: GetConfigResponse
-  ): Promise<void> {
+  private async refreshAutoUpdatesStatus(config: {
+    cdnBaseUrl: string;
+    toolsVersion: string;
+  }): Promise<void> {
     const { managingClusterUri } = this.storage.get();
 
     this.autoUpdatesStatus = await resolveAutoUpdatesStatus({
@@ -406,6 +425,13 @@ export class AppUpdater {
 export interface UpdateInfo extends ElectronUpdateInfo {
   /** Indicates whether the update version is newer or older than the current app version. */
   updateKind: 'upgrade' | 'downgrade';
+  /**
+   * Deprecated per‑machine env‑var configuration requires a UAC prompt and prevents use of the privileged updater.
+   * Windows only.
+   *
+   * TODO(gzdunek): REMOVE IN 19.0.0
+   */
+  requiresUacPrompt: boolean;
 }
 
 export interface AppUpdaterStorage<
@@ -422,7 +448,8 @@ function registerEventHandlers(
   nativeUpdater: NativeUpdater,
   emit: (event: AppUpdateEvent) => void,
   getAutoUpdatesStatus: () => AutoUpdatesStatus,
-  getAutoDownload: () => boolean
+  getAutoDownload: () => boolean,
+  requiresUacPrompt: () => boolean
 ): () => void {
   // updateInfo becomes defined when an update is available (see onUpdateAvailable).
   // It is later attached to other events, like 'download-progress' or 'error'.
@@ -437,6 +464,7 @@ function registerEventHandlers(
   const onUpdateAvailable = (update: ElectronUpdateInfo) => {
     updateInfo = {
       ...update,
+      requiresUacPrompt: requiresUacPrompt(),
       updateKind:
         compare(update.version, app.getVersion()) === 1
           ? 'upgrade'

@@ -122,12 +122,13 @@ export interface GetConfigResponse {
      * * Windows: The `CdnBaseUrl` value in the system registry (SOFTWARE\Policies\Teleport\TeleportConnect).
      *   - HKEY_LOCAL_MACHINE (Machine Policy): Takes precedence over user policies.
      *   - HKEY_CURRENT_USER (User Policy): Used only for per-user installations if no machine policy is defined.
+     *   - If policy values are missing, falls back to `TELEPORT_CDN_BASE_URL` (deprecated).
      *
      * Note: OSS builds require this to be set (via env var or registry), otherwise an empty value is returned.
      *
-     * @generated from protobuf field: string cdn_base_url = 1;
+     * @generated from protobuf field: teleport.lib.teleterm.auto_update.v1.ConfigValue cdn_base_url = 1;
      */
-    cdnBaseUrl: string;
+    cdnBaseUrl?: ConfigValue;
     /**
      * The specific client tools version to use. The 'off' value disables automatic updates.
      * Sources resolved by platform:
@@ -135,10 +136,28 @@ export interface GetConfigResponse {
      * * Windows: The `ToolsVersion` value in the system registry (SOFTWARE\Policies\Teleport\TeleportConnect).
      *   - HKEY_LOCAL_MACHINE (Machine Policy): Takes precedence over user policies.
      *   - HKEY_CURRENT_USER (User Policy): Used only for per-user installations if no machine policy is defined.
+     *   - If policy values are missing, falls back to `TELEPORT_TOOLS_VERSION` (deprecated).
      *
-     * @generated from protobuf field: string tools_version = 2;
+     * @generated from protobuf field: teleport.lib.teleterm.auto_update.v1.ConfigValue tools_version = 2;
      */
-    toolsVersion: string;
+    toolsVersion?: ConfigValue;
+}
+/**
+ * Contains the config value and its source.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.auto_update.v1.ConfigValue
+ */
+export interface ConfigValue {
+    /**
+     * @generated from protobuf field: string value = 1;
+     */
+    value: string;
+    /**
+     * Source of the config.
+     *
+     * @generated from protobuf field: teleport.lib.teleterm.auto_update.v1.ConfigSource source = 2;
+     */
+    source: ConfigSource;
 }
 /**
  * Request for GetInstallationMetadata.
@@ -159,6 +178,35 @@ export interface GetInstallationMetadataResponse {
      * @generated from protobuf field: bool is_per_machine_install = 1;
      */
     isPerMachineInstall: boolean;
+}
+/**
+ * Source of the config.
+ *
+ * @generated from protobuf enum teleport.lib.teleterm.auto_update.v1.ConfigSource
+ */
+export enum ConfigSource {
+    /**
+     * @generated from protobuf enum value: CONFIG_SOURCE_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * Configuration comes from environment variable.
+     *
+     * @generated from protobuf enum value: CONFIG_SOURCE_ENV_VAR = 2;
+     */
+    ENV_VAR = 2,
+    /**
+     * Configuration comes from SOFTWARE\Policies\Teleport\TeleportConnect.
+     *
+     * @generated from protobuf enum value: CONFIG_SOURCE_POLICY = 3;
+     */
+    POLICY = 3,
+    /**
+     * Configuration comes from hardcoded default.
+     *
+     * @generated from protobuf enum value: CONFIG_SOURCE_DEFAULT = 4;
+     */
+    DEFAULT = 4
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class GetClusterVersionsRequest$Type extends MessageType<GetClusterVersionsRequest> {
@@ -395,14 +443,12 @@ export const GetConfigRequest = new GetConfigRequest$Type();
 class GetConfigResponse$Type extends MessageType<GetConfigResponse> {
     constructor() {
         super("teleport.lib.teleterm.auto_update.v1.GetConfigResponse", [
-            { no: 1, name: "cdn_base_url", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "tools_version", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 1, name: "cdn_base_url", kind: "message", T: () => ConfigValue },
+            { no: 2, name: "tools_version", kind: "message", T: () => ConfigValue }
         ]);
     }
     create(value?: PartialMessage<GetConfigResponse>): GetConfigResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.cdnBaseUrl = "";
-        message.toolsVersion = "";
         if (value !== undefined)
             reflectionMergePartial<GetConfigResponse>(this, message, value);
         return message;
@@ -412,11 +458,11 @@ class GetConfigResponse$Type extends MessageType<GetConfigResponse> {
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* string cdn_base_url */ 1:
-                    message.cdnBaseUrl = reader.string();
+                case /* teleport.lib.teleterm.auto_update.v1.ConfigValue cdn_base_url */ 1:
+                    message.cdnBaseUrl = ConfigValue.internalBinaryRead(reader, reader.uint32(), options, message.cdnBaseUrl);
                     break;
-                case /* string tools_version */ 2:
-                    message.toolsVersion = reader.string();
+                case /* teleport.lib.teleterm.auto_update.v1.ConfigValue tools_version */ 2:
+                    message.toolsVersion = ConfigValue.internalBinaryRead(reader, reader.uint32(), options, message.toolsVersion);
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -430,12 +476,12 @@ class GetConfigResponse$Type extends MessageType<GetConfigResponse> {
         return message;
     }
     internalBinaryWrite(message: GetConfigResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string cdn_base_url = 1; */
-        if (message.cdnBaseUrl !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.cdnBaseUrl);
-        /* string tools_version = 2; */
-        if (message.toolsVersion !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.toolsVersion);
+        /* teleport.lib.teleterm.auto_update.v1.ConfigValue cdn_base_url = 1; */
+        if (message.cdnBaseUrl)
+            ConfigValue.internalBinaryWrite(message.cdnBaseUrl, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.lib.teleterm.auto_update.v1.ConfigValue tools_version = 2; */
+        if (message.toolsVersion)
+            ConfigValue.internalBinaryWrite(message.toolsVersion, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -446,6 +492,61 @@ class GetConfigResponse$Type extends MessageType<GetConfigResponse> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.auto_update.v1.GetConfigResponse
  */
 export const GetConfigResponse = new GetConfigResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ConfigValue$Type extends MessageType<ConfigValue> {
+    constructor() {
+        super("teleport.lib.teleterm.auto_update.v1.ConfigValue", [
+            { no: 1, name: "value", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "source", kind: "enum", T: () => ["teleport.lib.teleterm.auto_update.v1.ConfigSource", ConfigSource, "CONFIG_SOURCE_"] }
+        ]);
+    }
+    create(value?: PartialMessage<ConfigValue>): ConfigValue {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.value = "";
+        message.source = 0;
+        if (value !== undefined)
+            reflectionMergePartial<ConfigValue>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ConfigValue): ConfigValue {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string value */ 1:
+                    message.value = reader.string();
+                    break;
+                case /* teleport.lib.teleterm.auto_update.v1.ConfigSource source */ 2:
+                    message.source = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ConfigValue, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string value = 1; */
+        if (message.value !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.value);
+        /* teleport.lib.teleterm.auto_update.v1.ConfigSource source = 2; */
+        if (message.source !== 0)
+            writer.tag(2, WireType.Varint).int32(message.source);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.auto_update.v1.ConfigValue
+ */
+export const ConfigValue = new ConfigValue$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class GetInstallationMetadataRequest$Type extends MessageType<GetInstallationMetadataRequest> {
     constructor() {

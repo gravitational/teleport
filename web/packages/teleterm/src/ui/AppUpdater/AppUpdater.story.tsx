@@ -69,6 +69,7 @@ export interface StoryProps {
   clusterBarSetToManageUpdates: boolean;
   updateKind: 'Upgrade' | 'Downgrade';
   cdnBaseUrl: 'Unset (OSS build)' | 'Official' | 'Non-official';
+  updateRequiresUacPrompt: boolean;
 }
 
 const meta: Meta<StoryProps> = {
@@ -135,6 +136,11 @@ const meta: Meta<StoryProps> = {
       description: 'CDN Base URL',
       options: ['Unset (OSS build)', 'Official', 'Non-official'],
     },
+    updateRequiresUacPrompt: {
+      control: { type: 'boolean' },
+      description:
+        'Deprecated per‑machine env‑var configuration requires a UAC prompt and prevents use of the privileged updater. Windows only.',
+    },
   },
   args: {
     configToolsVersion: 'Unset',
@@ -145,6 +151,7 @@ const meta: Meta<StoryProps> = {
     step: 'Update available',
     platform: 'darwin',
     cdnBaseUrl: 'Official',
+    updateRequiresUacPrompt: false,
   },
 };
 
@@ -253,8 +260,13 @@ async function resolveEvent(storyProps: StoryProps): Promise<AppUpdateEvent> {
   const updateInfo = makeUpdateInfo(
     nonTeleportCdn,
     status.enabled ? status.version : '',
-    storyProps.updateKind === 'Upgrade' ? 'upgrade' : 'downgrade'
+    storyProps.updateKind === 'Upgrade' ? 'upgrade' : 'downgrade',
+    storyProps.updateRequiresUacPrompt
   );
+
+  if (storyProps.platform !== 'win32' && storyProps.updateRequiresUacPrompt) {
+    return;
+  }
 
   switch (storyProps.step) {
     case 'Checking for update':

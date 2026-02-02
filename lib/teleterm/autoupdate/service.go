@@ -19,6 +19,7 @@ package autoupdate
 import (
 	"context"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -34,7 +35,14 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
-const pingTimeout = 5 * time.Second
+const (
+	pingTimeout = 5 * time.Second
+
+	// When tsh runs as a daemon, auto-updates must be disabled. Connect enforces this by
+	// launching tsh with TELEPORT_TOOLS_VERSION=off, and forwards the real value via
+	// FORWARDED_TELEPORT_TOOLS_VERSION.
+	forwardedTeleportToolsEnvVar = "FORWARDED_TELEPORT_TOOLS_VERSION"
+)
 
 // Service implements gRPC service for autoupdate.
 type Service struct {
@@ -140,30 +148,36 @@ func (s *Service) GetConfig(_ context.Context, _ *api.GetConfigRequest) (*api.Ge
 		return nil, trace.Wrap(err)
 	}
 
-	toolsVersion := strings.TrimSpace(config.ToolsVersion)
-	if config.ToolsVersion != "" {
-		_, err = semver.NewVersion(toolsVersion)
-		if err != nil {
-			return nil, trace.BadParameter("invalid version %v for tools version", toolsVersion)
+	toolsVersionValue := strings.TrimSpace(config.GetToolsVersion().Value)
+	toolsVersionSource := config.GetToolsVersion().Source
+	if toolsVersionValue == "" {
+		toolsVersionSource = api.ConfigSource_CONFIG_SOURCE_UNSPECIFIED
+	} else {
+		if _, err = semver.NewVersion(toolsVersionValue); err != nil {
+			return nil, trace.BadParameter("invalid version %v for tools version", toolsVersionValue)
 		}
 	}
-	cdnBaseUrl := strings.TrimSpace(config.CdnBaseUrl)
-	if config.CdnBaseUrl != "" {
-		err = validateURL(cdnBaseUrl)
-		if err != nil {
+
+	cdnBaseUrlValue := strings.TrimSpace(config.GetCdnBaseUrl().Value)
+	cdnBaseUrlSource := config.GetCdnBaseUrl().Source
+	if cdnBaseUrlValue == "" {
+		cdnBaseUrlSource = api.ConfigSource_CONFIG_SOURCE_UNSPECIFIED
+	} else {
+		if err = validateURL(cdnBaseUrlValue); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
 	m := modules.GetModules()
 	// Uses the same logic as the teleport/lib/autoupdate/tools package.
-	if cdnBaseUrl == "" && m.BuildType() != modules.BuildOSS {
-		cdnBaseUrl = autoupdate.DefaultBaseURL
+	if cdnBaseUrlValue == "" && m.BuildType() != modules.BuildOSS {
+		cdnBaseUrlValue = autoupdate.DefaultBaseURL
+		cdnBaseUrlSource = api.ConfigSource_CONFIG_SOURCE_DEFAULT
 	}
 
 	return &api.GetConfigResponse{
-		ToolsVersion: toolsVersion,
-		CdnBaseUrl:   cdnBaseUrl,
+		ToolsVersion: &api.ConfigValue{Value: toolsVersionValue, Source: toolsVersionSource},
+		CdnBaseUrl:   &api.ConfigValue{Value: cdnBaseUrlValue, Source: cdnBaseUrlSource},
 	}, nil
 }
 
@@ -179,4 +193,20 @@ func validateURL(raw string) error {
 		return trace.BadParameter("CDN base URL must include host")
 	}
 	return nil
+}
+
+func readConfigFromEnvVars() (*api.GetConfigResponse, error) {
+	envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar)
+	envTeleportToolsVersion := os.Getenv(forwardedTeleportToolsEnvVar)
+
+	return &api.GetConfigResponse{
+		CdnBaseUrl: &api.ConfigValue{
+			Value:  envBaseURL,
+			Source: api.ConfigSource_CONFIG_SOURCE_ENV_VAR,
+		},
+		ToolsVersion: &api.ConfigValue{
+			Value:  envTeleportToolsVersion,
+			Source: api.ConfigSource_CONFIG_SOURCE_ENV_VAR,
+		},
+	}, nil
 }
