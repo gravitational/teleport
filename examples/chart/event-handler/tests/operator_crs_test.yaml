@@ -37,7 +37,7 @@ tests:
       - containsDocument:
           kind: TeleportProvisionToken
           apiVersion: resources.teleport.dev/v2
-          name: test-token
+          name: RELEASE-NAME-tbot
   - it: creates custom resources in specified namespace
     values:
       - ../.lint/tbot-enabled.yaml
@@ -61,7 +61,7 @@ tests:
       - containsDocument:
           kind: TeleportProvisionToken
           apiVersion: resources.teleport.dev/v2
-          name: test-token
+          name: RELEASE-NAME-tbot
           namespace: test-namespace
   - it: creates no custom resources when crd.create is false
     values:
@@ -79,18 +79,6 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "Custom resources cannot be deployed without tbot enabled"
-  - it: should fail if token name is not provided
-    set:
-      tbot:
-        enabled: true
-        clusterName: "test.teleport.sh"
-        teleportProxyAddress: "test.teleport.sh:443"
-        token: ""
-      crd:
-        create: true
-    asserts:
-      - failedTemplate: 
-          errorMessage: "tbot.token cannot be empty in chart values"
   - it: should fail if tokenSpecOverride set and does not match tbot.joinMethod
     values:
       - ../.lint/tbot-enabled.yaml
@@ -111,7 +99,6 @@ tests:
         clusterName: "test.teleport.sh"
         teleportProxyAddress: "test.teleport.sh:443"
         joinMethod: "github"
-        token: "test-token"
       crd:
         create: true
     asserts:
@@ -124,7 +111,6 @@ tests:
         clusterName: "test.teleport.sh"
         teleportProxyAddress: "test.teleport.sh:443"
         joinMethod: "github"
-        token: "test-token"
       crd:
         create: true
         tokenSpecOverride:

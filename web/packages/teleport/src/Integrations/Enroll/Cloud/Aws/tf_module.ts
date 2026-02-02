@@ -31,7 +31,7 @@ export type AwsDiscoverTerraformModuleConfig = {
   version: string;
 };
 
-const TF_MODULE = '/teleport/discover/aws';
+const TF_MODULE = '/teleport/discovery/aws';
 
 const isStaging = (version: string): boolean => {
   const parsed = parseVersion(version);

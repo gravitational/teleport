@@ -2036,6 +2036,14 @@ cli-docs-teleport:
 	$(BUILDDIR)/teleportdocs help 2>docs/pages/reference/cli/teleport.mdx && \
 	rm $(BUILDDIR)/teleportdocs
 
+.PHONY: cli-docs-tctl
+cli-docs-tctl:
+# Executing go build instead of go run since we don't want to redirect
+# irrelevant output along with the docs page content.
+	go build -o $(BUILDDIR)/tctldocs -tags docs ./tool/tctl && \
+	$(BUILDDIR)/tctldocs help 2>docs/pages/reference/cli/tctl.mdx && \
+	rm $(BUILDDIR)/tctldocs
+
 # audit-event-reference generates audit event reference docs using the Web UI
 # source.
 .PHONY: audit-event-reference
