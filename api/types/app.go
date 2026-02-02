@@ -511,10 +511,10 @@ func (a *AppV3) CheckAndSetDefaults() error {
 	}
 
 	if sr := a.Spec.SessionRecording; sr != nil {
-		switch AppSessionRecordingBots(sr.Bots) {
+		switch sr.Bots {
 		case AppSessionRecordingBotsOn, AppSessionRecordingBotsOff:
 		case "":
-			sr.Bots = string(AppSessionRecordingBotsOn)
+			sr.Bots = AppSessionRecordingBotsOn
 		default:
 			return trace.BadParameter("app %q has unexpected session_recording.bots value %q", a.GetName(), sr.Bots)
 		}
@@ -619,17 +619,19 @@ func (a *AppV3) GetMCP() *MCP {
 	return a.Spec.MCP
 }
 
-// GetAppSessionRecordingBots returns the bots session recording mode for the app.
-func GetAppSessionRecordingBots(app Application) AppSessionRecordingBots {
+// RecordBotAppSessions returns whether application session recordings will be
+// created for bot users. Defaults to true.
+func RecordBotAppSessions(app Application) bool {
 	if app == nil {
-		return AppSessionRecordingBotsOn
+		return true
 	}
 
 	recording := app.GetSessionRecording()
 	if recording == nil || recording.Bots == "" {
-		return AppSessionRecordingBotsOn
+		return true
 	}
-	return AppSessionRecordingBots(recording.Bots)
+
+	return recording.Bots == AppSessionRecordingBotsOn
 }
 
 // DeduplicateApps deduplicates apps by combination of app name and public address.

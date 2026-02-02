@@ -1255,21 +1255,18 @@ func TestRequestAuditEventsBotsDisabled(t *testing.T) {
 		PublicAddr:    "foo.example.com",
 		DynamicLabels: types.LabelsToV2(dynamicLabels),
 		SessionRecording: &types.AppSessionRecording{
-			Bots: string(types.AppSessionRecordingBotsOff),
+			Bots: types.AppSessionRecordingBotsOff,
 		},
 	})
 	require.NoError(t, err)
 
-	var requestEventsReceived atomic.Uint64
-	var chunkEventsReceived atomic.Uint64
+	var eventsReceived atomic.Uint64
 	serverStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
 		Inner: events.NewDiscardStreamer(),
 		OnRecordEvent: func(_ context.Context, _ session.ID, pe apievents.PreparedSessionEvent) error {
 			switch pe.GetAuditEvent().GetType() {
-			case events.AppSessionChunkEvent:
-				chunkEventsReceived.Add(1)
-			case events.AppSessionRequestEvent:
-				requestEventsReceived.Add(1)
+			case events.AppSessionChunkEvent, events.AppSessionRequestEvent:
+				eventsReceived.Add(1)
 			}
 			return nil
 		},
@@ -1284,10 +1281,7 @@ func TestRequestAuditEventsBotsDisabled(t *testing.T) {
 	botUser, err := authtest.CreateUser(context.Background(), s.tlsServer.Auth(), "bot-user", s.role)
 	require.NoError(t, err)
 	botMeta := botUser.GetMetadata()
-	if botMeta.Labels == nil {
-		botMeta.Labels = make(map[string]string)
-	}
-	botMeta.Labels[types.BotLabel] = "bot-1"
+	botMeta.Labels = map[string]string{types.BotLabel: "bot-1"}
 	botUser.SetMetadata(botMeta)
 	_, err = s.tlsServer.Auth().UpsertUser(context.Background(), botUser)
 	require.NoError(t, err)
@@ -1296,11 +1290,8 @@ func TestRequestAuditEventsBotsDisabled(t *testing.T) {
 
 	s.checkHTTPResponse(t, botCert, func(_ *http.Response) {
 		require.Never(t, func() bool {
-			return chunkEventsReceived.Load() != 0
-		}, 500*time.Millisecond, 50*time.Millisecond, "app.session.chunk event generated")
-		require.Never(t, func() bool {
-			return requestEventsReceived.Load() != 0
-		}, 500*time.Millisecond, 50*time.Millisecond, "app.session.request event generated")
+			return eventsReceived.Load() != 0
+		}, 500*time.Millisecond, 50*time.Millisecond, "session event generated")
 	})
 
 	ctx := context.Background()

@@ -277,7 +277,7 @@ func (c *ConnectionsHandler) onSessionExpired(ctx context.Context, key, expired 
 // requests that occur within this session chunk and upload the recording
 // to the Auth server.
 func (c *ConnectionsHandler) newSessionRecorder(ctx context.Context, startTime time.Time, chunkID string, identity *tlsca.Identity, app types.Application) (events.SessionPreparerRecorder, bool, error) {
-	if identity.IsBot() && types.GetAppSessionRecordingBots(app) == types.AppSessionRecordingBotsOff {
+	if identity.IsBot() && !types.RecordBotAppSessions(app) {
 		return events.WithNoOpPreparer(events.NewDiscardRecorder()), false, nil
 	}
 

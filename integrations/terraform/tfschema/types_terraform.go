@@ -1104,6 +1104,15 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 					Description: "Rewrite is a list of rewriting rules to apply to requests and responses.",
 					Optional:    true,
 				},
+				"session_recording": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"bots": {
+						Description: "Bots controls whether app session recording is enabled for bots. Disabling session recording for bots provides a way to mitigate the load on the agent caused by service-to-service use-cases. Supported values are \"on\" and \"off\".",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					}}),
+					Description: "SessionRecording contains per-app session recording configuration.",
+					Optional:    true,
+				},
 				"tcp_ports": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"end_port": {
@@ -13177,6 +13186,41 @@ func CopyAppV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["session_recording"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"AppV3.Spec.SessionRecording"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.SessionRecording", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.SessionRecording = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.SessionRecording = &github_com_gravitational_teleport_api_types.AppSessionRecording{}
+									obj := obj.SessionRecording
+									{
+										a, ok := tf.Attrs["bots"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.SessionRecording.Bots"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.SessionRecording.Bots", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t github_com_gravitational_teleport_api_types.AppSessionRecordingBots
+												if !v.Null && !v.Unknown {
+													t = github_com_gravitational_teleport_api_types.AppSessionRecordingBots(v.Value)
+												}
+												obj.Bots = t
+											}
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -14898,6 +14942,60 @@ func CopyAppV3ToTerraform(ctx context.Context, obj *github_com_gravitational_tel
 								}
 								v.Unknown = false
 								tf.Attrs["mcp"] = v
+							}
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["session_recording"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"AppV3.Spec.SessionRecording"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.SessionRecording", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["session_recording"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.SessionRecording == nil {
+									v.Null = true
+								} else {
+									obj := obj.SessionRecording
+									tf := &v
+									{
+										t, ok := tf.AttrTypes["bots"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.SessionRecording.Bots"})
+										} else {
+											v, ok := tf.Attrs["bots"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AppV3.Spec.SessionRecording.Bots", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.SessionRecording.Bots", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.Bots) == ""
+											}
+											v.Value = string(obj.Bots)
+											v.Unknown = false
+											tf.Attrs["bots"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["session_recording"] = v
 							}
 						}
 					}

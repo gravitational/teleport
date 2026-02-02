@@ -1169,9 +1169,13 @@ message AppSpecV3 {
 
 // AppSessionRecording contains per-app session recording configuration.
 message AppSessionRecording {
-  // Bots controls whether app session recording is enabled for bots. Supported
-  // values are "on" and "off".
-  string Bots = 1 [(gogoproto.jsontag) = "bots,omitempty"];
+  // Bots controls whether app session recording is enabled for bots. Disabling
+  // session recording for bots provides a way to mitigate the load on the agent
+  // caused by service-to-service use-cases. Supported values are "on" and "off".
+  string Bots = 1 [
+    (gogoproto.casttype) = "AppSessionRecordingBots",
+    (gogoproto.jsontag) = "bots,omitempty"
+  ];
 }
 
 // MCP contains MCP server-related configurations.

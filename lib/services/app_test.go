@@ -573,30 +573,26 @@ func TestKubeAppSessionRecordingBotsAnnotation(t *testing.T) {
 		name        string
 		annotations map[string]string
 		expectBots  string
-		expectErr   require.ErrorAssertionFunc
 	}{
 		{
 			name:        "bots off",
 			annotations: map[string]string{types.DiscoveryAppSessionRecordingBots: "off"},
 			expectBots:  "off",
-			expectErr:   require.NoError,
 		},
 		{
 			name:        "bots on",
 			annotations: map[string]string{types.DiscoveryAppSessionRecordingBots: "on"},
 			expectBots:  "on",
-			expectErr:   require.NoError,
 		},
 		{
 			name:        "bots unset",
 			annotations: map[string]string{},
 			expectBots:  "",
-			expectErr:   require.NoError,
 		},
 		{
 			name:        "bots invalid",
 			annotations: map[string]string{types.DiscoveryAppSessionRecordingBots: "nope"},
-			expectErr:   require.Error,
+			expectBots:  "",
 		},
 	}
 
@@ -615,7 +611,7 @@ func TestKubeAppSessionRecordingBotsAnnotation(t *testing.T) {
 			}
 			port := service.Spec.Ports[0]
 			app, err := NewApplicationFromKubeService(service, "cluster", "https", port)
-			tt.expectErr(t, err)
+			require.NoError(t, err)
 			if err != nil {
 				return
 			}

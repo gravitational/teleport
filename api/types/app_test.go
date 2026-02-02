@@ -745,16 +745,6 @@ func TestNewAppV3(t *testing.T) {
 }
 
 func TestAppSessionRecordingBotsValidation(t *testing.T) {
-	t.Run("defaults to on when unset", func(t *testing.T) {
-		app, err := NewAppV3(Metadata{
-			Name: "TestApp",
-		}, AppSpecV3{
-			URI: "http://localhost:8080",
-		})
-		require.NoError(t, err)
-		require.Equal(t, AppSessionRecordingBotsOn, GetAppSessionRecordingBots(app))
-	})
-
 	t.Run("empty bots defaults to on", func(t *testing.T) {
 		app, err := NewAppV3(Metadata{
 			Name: "TestApp",

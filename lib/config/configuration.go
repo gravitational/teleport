@@ -2141,7 +2141,7 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 		if application.SessionRecording != nil {
 			app.SessionRecording = &types.AppSessionRecording{
-				Bots: application.SessionRecording.Bots,
+				Bots: types.AppSessionRecordingBots(application.SessionRecording.Bots),
 			}
 		}
 

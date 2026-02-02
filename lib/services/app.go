@@ -337,7 +337,14 @@ func getSessionRecording(annotations map[string]string) *types.AppSessionRecordi
 	if val == "" {
 		return nil
 	}
-	return &types.AppSessionRecording{Bots: val}
+
+	bots := types.AppSessionRecordingBots(val)
+	switch bots {
+	case types.AppSessionRecordingBotsOn, types.AppSessionRecordingBotsOff:
+		return &types.AppSessionRecording{Bots: bots}
+	default:
+		return nil
+	}
 }
 
 func getAppName(serviceName, namespace, clusterName, portName, nameAnnotation string) (string, error) {
