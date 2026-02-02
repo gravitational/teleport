@@ -5464,10 +5464,27 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
+		// Apply CSRF protections based on the Sec-Fetch-Site header.
+		// By default, errors are served in plain text, so we override the error
+		// handling in order to be consistent with other Teleport errors.
+		// Note that we don't use SetDenyHandler because it doesn't provide access
+		// to the underlying error.
+		csrf := http.NewCrossOriginProtection()
+		checkCSRF := func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if err := csrf.Check(r); err != nil {
+					trace.WriteError(w, err)
+					return
+				}
+				next.ServeHTTP(w, r)
+			})
+		}
+
 		webServer, err = web.NewServer(web.ServerConfig{
 			Server: &http.Server{
 				Handler: utils.ChainHTTPMiddlewares(
 					webHandler,
+					checkCSRF,
 					limiter.MakeMiddleware(proxyLimiter),
 					httplib.MakeTracingMiddleware(teleport.ComponentProxy),
 					makeXForwardedForMiddleware(cfg),
