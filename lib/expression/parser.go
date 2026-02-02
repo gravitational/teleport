@@ -76,11 +76,6 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 					}
 					return StringTransform("strings.replaceall", input, f)
 				}),
-			"strings.hasprefix": typical.BinaryFunction[evaluationEnv](
-				func(input, prefix string) (bool, error) {
-					return strings.HasPrefix(input, prefix), nil
-				},
-			),
 			"choose": typical.UnaryVariadicFunction[evaluationEnv](
 				func(opts ...option) (any, error) {
 					return choose(opts...)
