@@ -27,6 +27,7 @@ import {
   UnifiedResourcePreferences,
   ViewMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+import { ResourceConstraintsMap } from 'shared/services/accessRequests';
 import { arrayObjectIsEqual } from 'shared/utils/highbar';
 
 import Logger from 'teleterm/logger';
@@ -97,6 +98,7 @@ export interface Workspace {
   accessRequests: {
     isBarCollapsed: boolean;
     pending: PendingAccessRequest;
+    resourceConstraints: ResourceConstraintsMap;
   };
   connectMyComputer?: {
     autoStart: boolean;
@@ -752,6 +754,7 @@ function getWorkspaceDefaultState(
     accessRequests: {
       pending: getEmptyPendingAccessRequest(),
       isBarCollapsed: false,
+      resourceConstraints: {},
     },
     location: defaultDocument.uri,
     documents: [defaultDocument],

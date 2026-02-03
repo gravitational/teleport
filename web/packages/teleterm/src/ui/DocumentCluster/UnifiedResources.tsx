@@ -27,6 +27,10 @@ import {
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import {
+  AppAWSRoleMenu,
+  isAwsConsoleAppWithConstraintSupport,
+} from 'shared/components/AccessRequests/NewRequest';
+import {
   InfoGuidePanelProvider,
   useInfoGuide,
 } from 'shared/components/SlidingSidePanel/InfoGuide';
@@ -53,13 +57,20 @@ import {
 import { Attempt } from 'shared/hooks/useAsync';
 import { AppSubKind, NodeSubKind } from 'shared/services';
 import {
+  ResourceConstraints,
+  ResourceIDString,
+} from 'shared/services/accessRequests';
+import {
   DbProtocol,
   DbType,
   formatDatabaseInfo,
 } from 'shared/services/databases';
 import { waitForever } from 'shared/utils/wait';
 
-import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
+import {
+  getAppAddrWithProtocol,
+  getAwsAppLaunchUrl,
+} from 'teleterm/services/tshd/app';
 import { getWindowsDesktopAddrWithoutDefaultPort } from 'teleterm/services/tshd/windowsDesktop';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
@@ -205,6 +216,22 @@ export function UnifiedResources(props: {
     return accessRequestsService.getAddedItemsCount();
   }, [accessRequestsService]);
 
+  const setAddedResourceConstraints = useCallback(
+    (key: ResourceIDString, rc?: ResourceConstraints) =>
+      accessRequestsService.setResourceConstraints(key, rc),
+    [accessRequestsService]
+  );
+
+  const resourceConstraints = useStoreSelector(
+    'workspacesService',
+    useCallback(
+      state =>
+        state.workspaces[rootClusterUri]?.accessRequests.resourceConstraints ??
+        {},
+      [rootClusterUri]
+    )
+  );
+
   const getAccessRequestButton = useCallback(
     (resource: UnifiedResourceResponse) => {
       const isResourceAdded = addedResources?.has(resource.resource.uri);
@@ -216,6 +243,46 @@ export function UnifiedResources(props: {
           // If we are currently making an access request, all buttons change to
           // add to request.
           requestStarted);
+
+      // For AWS Console apps that support constraints, show the AppAWSRoleMenu
+      // to allow selecting specific AWS IAM roles.
+      if (
+        resource.kind === 'app' &&
+        isAwsConsoleAppWithConstraintSupport({
+          kind: 'app',
+          awsConsole: resource.resource.awsConsole,
+          awsRoles: resource.resource.awsRoles,
+          supportedFeatureIds: resource.resource.supportedFeatureIds,
+        })
+      ) {
+        const cluster = clustersService.findClusterByResource(
+          resource.resource.uri
+        );
+
+        return (
+          <AppAWSRoleMenu
+            awsRoles={resource.resource.awsRoles || []}
+            isAppInCart={isResourceAdded}
+            addedResourceConstraints={resourceConstraints}
+            clusterName={cluster.name}
+            kind="app"
+            appName={resource.resource.name}
+            addOrRemoveApp={() =>
+              accessRequestsService.addOrRemoveResource(resource)
+            }
+            getLaunchUrl={r =>
+              getAwsAppLaunchUrl({
+                app: resource.resource,
+                rootCluster,
+                cluster,
+                arn: r.arn,
+              })
+            }
+            setResourceConstraints={setAddedResourceConstraints}
+            requestStarted={requestStarted}
+          />
+        );
+      }
 
       if (showRequestButton) {
         return (
@@ -232,6 +299,8 @@ export function UnifiedResources(props: {
       addedResources,
       requestStarted,
       integratedAccessRequests,
+      resourceConstraints,
+      setAddedResourceConstraints,
     ]
   );
 
@@ -590,6 +659,16 @@ const mapToSharedResource = (
           requiresRequest: resource.requiresRequest,
           subKind: resource.resource.subKind as AppSubKind,
           permissionSets: resource.resource.permissionSets,
+          // AWS roles with requiresRequest field for constraint-based access requests.
+          awsRoles: app.awsRoles?.map(role => ({
+            name: role.name,
+            display: role.display,
+            arn: role.arn,
+            accountId: role.accountId,
+            requiresRequest: role.requiresRequest,
+          })),
+          // Feature IDs to detect if resource constraints are supported.
+          supportedFeatureIds: app.supportedFeatureIds,
         },
         ui: {
           ActionButton: <ConnectAppActionButton app={app} />,

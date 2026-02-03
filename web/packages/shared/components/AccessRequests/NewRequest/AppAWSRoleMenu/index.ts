@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024 Gravitational, Inc.
+ * Copyright (C) 2026 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,9 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export * from './RequestCheckout';
-export * from './Roles';
-export * from './AppAWSRoleMenu';
-export type { ResourceMap, RequestableResourceKind } from './resource';
-export { getEmptyResourceState } from './resource';
-export { isKubeClusterWithNamespaces } from './kube';
+export {
+  AppAWSRoleMenu,
+  awsRoleToLoginChoice,
+  isAwsConsoleApp,
+  isAwsConsoleAppWithConstraintSupport,
+  supportsResourceConstraints,
+  type AppAWSRoleMenuProps,
+  type AppWithAWSSupport,
+  type AWSLoginChoice,
+} from './AppAWSRoleMenu';

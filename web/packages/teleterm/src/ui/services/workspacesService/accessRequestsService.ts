@@ -1,3 +1,9 @@
+import {
+  ResourceConstraints,
+  ResourceConstraintsMap,
+  ResourceIDString,
+} from 'shared/services/accessRequests';
+
 /**
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -35,11 +41,13 @@ export class AccessRequestsService {
     private getState: () => {
       isBarCollapsed: boolean;
       pending: PendingAccessRequest;
+      resourceConstraints: ResourceConstraintsMap;
     },
     private setState: (
       draftState: (draft: {
         isBarCollapsed: boolean;
         pending: PendingAccessRequest;
+        resourceConstraints: ResourceConstraintsMap;
       }) => void
     ) => void
   ) {}
@@ -61,6 +69,21 @@ export class AccessRequestsService {
   clearPendingAccessRequest() {
     this.setState(draftState => {
       draftState.pending = getEmptyPendingAccessRequest();
+      draftState.resourceConstraints = {};
+    });
+  }
+
+  getResourceConstraints() {
+    return this.getState().resourceConstraints;
+  }
+
+  setResourceConstraints(key: ResourceIDString, rc?: ResourceConstraints) {
+    this.setState(draftState => {
+      draftState.resourceConstraints = updateResourceConstraints(
+        draftState.resourceConstraints,
+        key,
+        rc
+      );
     });
   }
 
@@ -94,6 +117,11 @@ export class AccessRequestsService {
 
       if (resources.has(request.resource.uri)) {
         resources.delete(request.resource.uri);
+        draftState.resourceConstraints = updateResourceConstraints(
+          draftState.resourceConstraints,
+          request.resource.uri as ResourceIDString,
+          undefined
+        );
       } else {
         resources.set(request.resource.uri, getRequiredProperties(request));
       }
@@ -151,6 +179,10 @@ export class AccessRequestsService {
       const allAdded = requestedResources.every(r =>
         resources.has(r.resource.uri)
       );
+
+      if (allAdded) {
+        draftState.resourceConstraints = {};
+      }
 
       requestedResources.forEach(request => {
         if (allAdded) {
@@ -228,6 +260,19 @@ export class AccessRequestsService {
     return shouldProceed;
   }
 }
+
+const updateResourceConstraints = (
+  prev: ResourceConstraintsMap,
+  key: ResourceIDString,
+  rc?: ResourceConstraints
+) => {
+  if (rc) {
+    return { ...prev, [key]: rc };
+  }
+  // eslint-disable-next-line unused-imports/no-unused-vars
+  const { [key]: _, ...rest } = prev;
+  return rest;
+};
 
 /** Returns only the properties required by the type. */
 function getRequiredProperties({
