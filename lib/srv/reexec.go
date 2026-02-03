@@ -78,7 +78,7 @@ const (
 	// it can continue after the parent process starts monitoring the
 	// child's audit login session ID.
 	ContinueFile
-	// Deprecated:ReadyFileDeprecated is a placeholder for the unused file that
+	// Deprecated: ReadyFileDeprecated is a placeholder for the unused file that
 	// was passed to the child process and used to communicate to the
 	// parent that the child is ready to be placed into its cgroup.
 	// This is unnecessary now that we don't use cgroups anymore.
@@ -89,12 +89,11 @@ const (
 	// to pid 1 and "live forever". Killing the shell should not prevent processes
 	// preventing SIGHUP to be reassigned (ex. processes running with nohup).
 	TerminateFile
-	// BPFPIDFile is used when Enhanced Session Recording is enabled
-	// and is used to tell the parent the PID of the grandchild
-	// that will have a unique audit session ID. The audit session ID
-	// will be used to correlate audit events to the SSH session.
+	// BPFSessionIDFile is used when Enhanced Session Recording is enabled
+	// and is used to tell the parent that the child has written to loginuid
+	// and that the parent should check the child's new audit login session ID.
 	BPFSessionIDFile
-	// PTYFileDeprecated is a placeholder for the unused PTY file that
+	// Depcrecated: PTYFileDeprecated is a placeholder for the unused PTY file that
 	// was passed to the child process. The PTY should only be used in the
 	// the parent process but was left here for compatibility purposes.
 	PTYFileDeprecated
@@ -291,6 +290,19 @@ func RunCommand() (code int, err error) {
 
 	initLogger("reexec", logfd, c.LogConfig)
 
+	// If BPF is enabled, ensure that the audit session ID file is closed
+	// if a failure causes execution to terminate prior to the audit session
+	// ID actually being changed to unblock the parent process.
+	if c.RecordWithBPF {
+		defer func() {
+			if sessionIDFile == nil {
+				return
+			}
+
+			_ = sessionIDFile.Close()
+		}()
+	}
+
 	// If a terminal was requested, file descriptor 10 always points to the
 	// TTY. Extract it and set the controlling TTY. Otherwise, connect
 	// std{in,out,err} directly.
@@ -395,6 +407,7 @@ func RunCommand() (code int, err error) {
 	if err != nil {
 		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
+	slog.DebugContext(ctx, "Received continue signal")
 
 	// If we're planning on changing credentials, we should first park an
 	// innocuous process with the same UID and then check the user database
@@ -444,6 +457,7 @@ func RunCommand() (code int, err error) {
 	if err := cmd.Start(); err != nil {
 		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
+	slog.DebugContext(ctx, "Started command")
 
 	parkerCancel()
 
@@ -501,7 +515,7 @@ func setAuditSessionID(ctx context.Context, c ExecCommand, auditIDFile, tty *os.
 			return nil, trace.Wrap(err)
 		}
 
-		if err := loginuid.WriteLoginUID(localUser.Uid); err != nil {
+		if err := loginuid.Write(localUser.Uid); err != nil {
 			return nil, trace.Errorf("failed to write to loginuid: %w", err)
 		}
 
@@ -519,10 +533,9 @@ func setAuditSessionID(ctx context.Context, c ExecCommand, auditIDFile, tty *os.
 		id = newID
 	}
 
-	// Send the new audit login session ID to the parent process.
-	_, err = auditIDFile.Write(id)
-	if err != nil {
-		return nil, trace.Errorf("failed to write audit login session ID: %w", err)
+	// Let the parent process know the audit login session ID has changed.
+	if err := auditIDFile.Close(); err != nil {
+		return nil, trace.Errorf("failed to close audit login session ID: %w", err)
 	}
 
 	return pamEnv, nil

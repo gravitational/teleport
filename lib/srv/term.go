@@ -221,6 +221,12 @@ func (t *terminal) Run(ctx context.Context) error {
 	if err := t.cmd.Start(); err != nil {
 		return trace.Wrap(err)
 	}
+	// Close our half of the write pipe since it is only to be used by the child process.
+	// Not closing prevents being signaled when the child closes its half.
+	if err := t.serverContext.auditSessionIDw.Close(); err != nil {
+		t.log.WarnContext(ctx, "Failed to close parent process audit session ID signal write fd", "error", err)
+	}
+	t.serverContext.auditSessionIDw = nil
 
 	// Save off the PID of the Teleport process under which the shell is executing.
 	t.pid = t.cmd.Process.Pid
@@ -251,19 +257,19 @@ func (t *terminal) Wait() (*ExecResult, error) {
 	}, nil
 }
 
+// ReadAuditSessionID reads the unique audit session ID of the process
+// that will be used to correlate audit events to the SSH session for
+// sessions with Enhanced Session Recording enabled.
 func (t *terminal) ReadAuditSessionID() (uint32, error) {
 	if !t.serverContext.recordWithBPF() {
 		return 0, nil
 	}
 
-	ctx, cancel := context.WithTimeout(t.serverContext.cancelContext, 20*time.Second)
-	defer cancel()
+	if err := t.serverContext.WaitForChild(t.serverContext.cancelContext); err != nil {
+		return 0, trace.Wrap(err)
+	}
 
-	auditSessionID, err := readAuditSessionID(ctx, t.serverContext.auditSessionIDr)
-	closeErr := t.serverContext.auditSessionIDr.Close()
-	// Set to nil so the close in the context doesn't attempt to re-close.
-	t.serverContext.auditSessionIDr = nil
-	return auditSessionID, trace.NewAggregate(err, closeErr)
+	return readAuditSessionID(t.pid)
 }
 
 // Continue will resume execution of the process after it completes its

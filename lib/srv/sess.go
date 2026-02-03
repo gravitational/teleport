@@ -1462,8 +1462,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		}
 
 		bpfService := scx.srv.GetBPF()
-		err = bpfService.OpenSession(sessionContext)
-		if err != nil {
+		if err := bpfService.OpenSession(sessionContext); err != nil {
 			s.logger.ErrorContext(ctx, "Failed to open enhanced recording (interactive) session.", "error", err)
 			return trace.Wrap(err)
 		}
@@ -1658,8 +1657,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		Events:                eventsMap,
 	}
 
-	err = scx.srv.GetBPF().OpenSession(sessionContext)
-	if err != nil {
+	if err := scx.srv.GetBPF().OpenSession(sessionContext); err != nil {
 		s.logger.ErrorContext(
 			ctx, "Failed to open enhanced recording (exec) session.",
 			"command", execRequest.GetCommand(),

@@ -90,7 +90,7 @@ type SessionContext struct {
 	// AuditSessionID is the audit session ID that should be the same
 	// for all processes in an SSH session. It is used to correlate
 	// audit events with the session. See
-	// https://github.com/torvalds/linux/blob/master/Documentation/ABI/stable/procfs-audit_loginuid
+	// https://github.com/torvalds/linux/blob/b75d8f38bcc9599af42635530c00268c71911f11/Documentation/ABI/stable/procfs-audit_loginuid
 	// for more details.
 	AuditSessionID uint32
 }

@@ -21,12 +21,12 @@
 package srv
 
 import (
-	"bytes"
 	"context"
 	"debug/elf"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -40,6 +40,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -67,10 +68,10 @@ const (
 	stressTestRunCount = 10
 )
 
-// the maximum length of a single argument, anything longer will be truncated
-var maxArgLength = bpf.ArgsCacheSize
-
 var (
+	// the maximum length of a single argument, anything longer will be truncated
+	maxArgLength = bpf.ArgsCacheSize
+
 	longArg    = strings.Repeat(longArgBase, (maxArgLength/4)/len(longArgBase))
 	overMaxArg = strings.Repeat(longArgBase, (maxArgLength)/len(longArgBase)+1)
 
@@ -550,7 +551,7 @@ eval $(echo %s | base64 --decode)`,
 			})
 
 			// Run the command and capture the events.
-			recordedEvents := runCommand(t, t.Context(), srv, bpfSrv, tt.command, expectedCmdFail, recordAllEvents)
+			recordedEvents := runCommand(t, srv, bpfSrv, tt.command, expectedCmdFail, recordAllEvents)
 
 			commandArgs := make(map[string]int)
 			programPaths := make(map[string]string)
@@ -693,14 +694,11 @@ func testBPFMonitoring(t *testing.T, srv Server, bpfSrv bpf.BPF) {
 		wg.Wait()
 	})
 
-	ctx, cancel := context.WithCancel(t.Context())
-	t.Cleanup(cancel)
-
 	// Run a command that will guarantee to run longer than our curl
 	// commands will.
 	eventsCh := make(chan []apievents.AuditEvent)
 	go func() {
-		eventsCh <- runCommand(t, ctx, srv, bpfSrv, "sleep 3", false, recordAllEvents)
+		eventsCh <- runCommand(t, srv, bpfSrv, "sleep 3", false, recordAllEvents)
 	}()
 
 	// Run curl commands that the bpf programs should ignore.
@@ -814,7 +812,7 @@ func TestBPFRoleOptions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Run the command and capture the events.
-			recordedEvents := runCommand(t, t.Context(), srv, bpfSrv, command, true, tt.events)
+			recordedEvents := runCommand(t, srv, bpfSrv, command, true, tt.events)
 
 			// Check that only configured events were recorded.
 			if len(tt.events) == 0 {
@@ -903,10 +901,19 @@ func handleConnections(l net.Listener) {
 	}
 }
 
+func readChannel(t *testing.T, channel ssh.Channel) []byte {
+	t.Helper()
+
+	output, err := io.ReadAll(channel)
+	require.NoError(t, err)
+
+	return output
+}
+
 // runCommand runs the given command with Enhanced Session Recording
 // enabled and returns the recorded events.
-func runCommand(t *testing.T, ctx context.Context, srv Server, bpfSrv bpf.BPF, command string, expectedCmdFail bool, recordEvents map[string]struct{}) []apievents.AuditEvent {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expectedCmdFail bool, recordEvents map[string]struct{}) []apievents.AuditEvent {
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	t.Cleanup(cancel)
 
 	scx := newExecServerContext(t, srv)
@@ -919,19 +926,14 @@ func runCommand(t *testing.T, ctx context.Context, srv Server, bpfSrv bpf.BPF, c
 	}
 	scx.execRequest.SetCommand(command)
 
-	cmd, err := ConfigureCommand(scx)
-	require.NoError(t, err)
-	execReq, ok := scx.execRequest.(*localExec)
-	require.True(t, ok)
-	execReq.Cmd = cmd
-
-	var output bytes.Buffer
-	cmd.Stdout = &output
-	cmd.Stderr = &output
+	channel := newMockSSHChannel()
 
 	t.Logf("running %q", command)
 
-	require.NoError(t, cmd.Start())
+	_, err := scx.execRequest.Start(ctx, channel)
+	require.NoError(t, err)
+
+	t.Log("reading audit session ID")
 
 	sessionID, err := scx.execRequest.ReadAuditSessionID()
 	require.NoError(t, err)
@@ -963,14 +965,18 @@ func runCommand(t *testing.T, ctx context.Context, srv Server, bpfSrv bpf.BPF, c
 	// Create a channel that will be used to signal that execution is complete.
 	cmdDone := make(chan error, 1)
 	go func() {
-		cmdDone <- cmd.Wait()
+		execReq, ok := scx.execRequest.(*localExec)
+		require.True(t, ok)
+		cmdDone <- execReq.Cmd.Wait()
 	}()
+
+	t.Log("waiting for command to finish")
 
 	// Program should have executed now. If the complete signal has not come
 	// over the context, something failed.
 	select {
 	case <-ctx.Done():
-		t.Logf("output:\n%s", output.String())
+		t.Logf("output:\n%s", string(readChannel(t, channel)))
 
 		// We're not interested in the error, we just want to clean up the
 		// process.
@@ -979,7 +985,7 @@ func runCommand(t *testing.T, ctx context.Context, srv Server, bpfSrv bpf.BPF, c
 			t.Fatal("Timed out waiting for process to finish.")
 		}
 	case err := <-cmdDone:
-		t.Logf("output:\n%s", output.String())
+		t.Logf("output:\n%s", string(readChannel(t, channel)))
 
 		if expectedCmdFail {
 			require.Error(t, err)

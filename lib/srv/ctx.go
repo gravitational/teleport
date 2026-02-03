@@ -1383,3 +1383,29 @@ func (c *ServerContext) ConsumeApprovedFileTransferRequest() *FileTransferReques
 
 	return req
 }
+
+// The child does not signal until it complets PAM setup, which can take an arbitrary
+// amount of time, so we use a reasonably long timeout to avoid dubious lockouts.
+const childReadyWaitTimeout = 3 * time.Minute
+
+// WaitForChild waits for the child process to signal ready through the named pipe.
+func (c *ServerContext) WaitForChild(ctx context.Context) error {
+	bpfService := c.srv.GetBPF()
+
+	// Only wait for the child to be "ready" if BPF is enabled. This is required
+	// because if BPF is enabled the child process will need to change its audit
+	// login session ID, and the we (the parent) need to wait for the session ID
+	// to change on the child so we can read it and use it to correlate Enhanced
+	// Session Recording events to the SSH session.
+	var waitErr error
+	if bpfService.Enabled() {
+		if waitErr = waitForSignal(ctx, c.auditSessionIDr, childReadyWaitTimeout); waitErr != nil {
+			c.Logger.ErrorContext(ctx, "Child process never became ready.", "error", waitErr)
+		}
+	}
+
+	closeErr := c.auditSessionIDr.Close()
+	// Set to nil so the close in the context doesn't attempt to re-close.
+	c.auditSessionIDr = nil
+	return trace.NewAggregate(waitErr, closeErr)
+}

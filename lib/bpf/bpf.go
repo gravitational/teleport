@@ -173,7 +173,9 @@ func (s *Service) Close() error {
 	s.open.close()
 	s.conn.close()
 
-	// Close cgroup service.
+	// If we are restarting we might have a parent that's from an older
+	// version that's still using cgroups, so attempt to cleanup cgroups
+	// just in case.
 	if err := s.cgroup.Close(); err != nil {
 		logger.WarnContext(s.closeContext, "Failed to close cgroup", "error", err)
 	}

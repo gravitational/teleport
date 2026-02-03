@@ -1866,11 +1866,12 @@ type BPF struct {
 	// NetworkBufferSize is the size of the perf buffer for network events.
 	NetworkBufferSize *int `yaml:"network_buffer_size,omitempty"`
 
-	// CgroupPath controls where cgroupv2 hierarchy is mounted.
+	// Deprecated: CgroupPath only exists for backwards compatibility
+	// with old config files.
 	CgroupPath string `yaml:"cgroup_path"`
 
-	// RootPath root directory for the Teleport cgroups.
-	// Optional, defaults to /teleport
+	// Deprecated: RootPath only exists for backwards compatibility
+	// with old config files.
 	RootPath string `yaml:"root_path"`
 }
 

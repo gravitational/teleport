@@ -29,7 +29,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -398,41 +397,36 @@ func (c *mockSSHConn) Wait() error {
 }
 
 type mockSSHChannel struct {
-	stdIn  io.ReadCloser
-	stdOut io.WriteCloser
-	stdErr io.ReadWriter
+	buf *bytes.Buffer
 }
 
 func newMockSSHChannel() ssh.Channel {
-	stdIn, stdOut := io.Pipe()
 	return &mockSSHChannel{
-		stdIn:  stdIn,
-		stdOut: stdOut,
-		stdErr: new(bytes.Buffer),
+		buf: new(bytes.Buffer),
 	}
 }
 
 // Read reads up to len(data) bytes from the channel.
 func (c *mockSSHChannel) Read(data []byte) (int, error) {
-	return c.stdIn.Read(data)
+	return c.buf.Read(data)
 }
 
 // Write writes len(data) bytes to the channel.
 func (c *mockSSHChannel) Write(data []byte) (int, error) {
-	return c.stdOut.Write(data)
+	return c.buf.Write(data)
 }
 
 // Close signals end of channel use. No data may be sent after this
 // call.
 func (c *mockSSHChannel) Close() error {
-	return trace.NewAggregate(c.stdIn.Close(), c.stdOut.Close())
+	return nil
 }
 
 // CloseWrite signals the end of sending in-band
 // data. Requests may still be sent, and the other side may
 // still send data
 func (c *mockSSHChannel) CloseWrite() error {
-	return trace.NewAggregate(c.stdOut.Close())
+	return nil
 }
 
 // SendRequest sends a channel request.  If wantReply is true,
@@ -451,7 +445,7 @@ func (c *mockSSHChannel) SendRequest(name string, wantReply bool, payload []byte
 // safely be read and written from a different goroutine than
 // Read and Write respectively.
 func (c *mockSSHChannel) Stderr() io.ReadWriter {
-	return c.stdErr
+	return c.buf
 }
 
 type fakeBPF struct {
