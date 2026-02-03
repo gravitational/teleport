@@ -22,8 +22,10 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/sso"
@@ -33,6 +35,8 @@ import (
 func (tc *TeleportClient) NewMFACeremony() *mfa.Ceremony {
 	return &mfa.Ceremony{
 		CreateAuthenticateChallenge: tc.createAuthenticateChallenge,
+		CreateSessionChallenge:      tc.CreateSessionChallenge,
+		ValidateSessionChallenge:    tc.ValidateSessionChallenge,
 		PromptConstructor:           tc.NewMFAPrompt,
 		SSOMFACeremonyConstructor:   tc.NewSSOMFACeremony,
 	}
@@ -49,6 +53,35 @@ func (tc *TeleportClient) createAuthenticateChallenge(ctx context.Context, req *
 		return nil, trace.Wrap(err)
 	}
 	return rootClient.CreateAuthenticateChallenge(ctx, req)
+}
+
+// CreateSessionChallenge creates a session-bound MFA challenge by connecting to the MFA service on the root cluster.
+func (tc *TeleportClient) CreateSessionChallenge(ctx context.Context, req *mfav1.CreateSessionChallengeRequest, opts ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error) {
+	clusterClient, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rootClient, err := clusterClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rootClient.MFAServiceClient().CreateSessionChallenge(ctx, req)
+}
+
+// ValidateSessionChallenge validates a session-bound MFA challenge by connecting to the MFA service on the root cluster.
+func (tc *TeleportClient) ValidateSessionChallenge(ctx context.Context, req *mfav1.ValidateSessionChallengeRequest, opts ...grpc.CallOption) (*mfav1.ValidateSessionChallengeResponse, error) {
+	clusterClient, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rootClient, err := clusterClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rootClient.MFAServiceClient().ValidateSessionChallenge(ctx, req, opts...)
 }
 
 // WebauthnLoginFunc is a function that performs WebAuthn login.

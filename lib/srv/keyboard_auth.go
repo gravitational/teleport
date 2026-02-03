@@ -40,6 +40,7 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 	preconds []*decisionpb.Precondition,
 	id *sshca.Identity,
 	perms *ssh.Permissions,
+	clusterName string,
 ) (*ssh.Permissions, error) {
 	if len(preconds) == 0 {
 		return perms, nil
@@ -82,7 +83,7 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 			switch p.GetKind() {
 			case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
 				// TODO(cthach): Use the source cluster name that the client will do the MFA ceremony with.
-				verifier, err := srvssh.NewMFAPromptVerifier(h.c.ValidatedMFAChallengeVerifier, id.ClusterName, id.Username, metadata.SessionID())
+				verifier, err := srvssh.NewMFAPromptVerifier(h.c.ValidatedMFAChallengeVerifier, clusterName, id.Username, metadata.SessionID())
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}

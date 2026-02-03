@@ -52,7 +52,7 @@ func TestKeyboardInteractiveAuth_NoPreconds(t *testing.T) {
 		},
 	}
 
-	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms)
+	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms, "test-cluster")
 	require.NoError(t, err)
 	require.Empty(
 		t,
@@ -81,7 +81,7 @@ func TestKeyboardInteractiveAuth_PreCondInBandMFA_Success(t *testing.T) {
 		},
 	}
 
-	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms)
+	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms, "test-cluster")
 	require.Nil(t, outPerms)
 
 	var sshErr *ssh.PartialSuccessError
@@ -148,7 +148,7 @@ func TestKeyboardInteractiveAuth_PreCondInBandMFA_LegacyPublicKeyCallback_Regula
 
 	inPerms := &ssh.Permissions{}
 
-	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms)
+	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms, "test-cluster")
 	require.Nil(t, outPerms)
 
 	var sshErr *ssh.PartialSuccessError
@@ -181,7 +181,7 @@ func TestKeyboardInteractiveAuth_ForceInBandMFAEnv_DisablesLegacyPublicKeyCallba
 
 	inPerms := &ssh.Permissions{}
 
-	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms)
+	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms, "test-cluster")
 	require.Nil(t, outPerms)
 
 	var sshErr *ssh.PartialSuccessError
@@ -212,7 +212,7 @@ func TestKeyboardInteractiveAuth_PreCondUnknownKind(t *testing.T) {
 
 	inPerms := &ssh.Permissions{}
 
-	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms)
+	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms, "test-cluster")
 	require.Nil(t, outPerms)
 	require.ErrorIs(t, err, trace.BadParameter(`unexpected precondition type "PRECONDITION_KIND_UNSPECIFIED" found (this is a bug)`))
 }

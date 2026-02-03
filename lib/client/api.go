@@ -80,6 +80,7 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	clientssh "github.com/gravitational/teleport/lib/client/ssh"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -3325,12 +3326,22 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 		return nil, trace.BadParameter("no SSH auth methods loaded, are you logged in?")
 	}
 
+	authCallback := func(m ssh.ConnMetadata, _ ssh.NegotiatedAlgorithms, supported, succeeded, failed []string) (ssh.AuthMethod, error) {
+		// Only continue with keyboard-interactive if it's supported by the server.
+		if !slices.Contains(supported, "keyboard-interactive") {
+			return nil, nil
+		}
+
+		return clientssh.KeyboardInteractive(ctx, tc.NewMFACeremony(), m), nil
+	}
+
 	return &clientConfig{
 		ClientConfig: &ssh.ClientConfig{
 			User:            tc.getProxySSHPrincipal(),
 			HostKeyCallback: hostKeyCallback,
 			Auth:            authMethods,
 			Timeout:         tc.SSHDialTimeout,
+			AuthCallback:    authCallback,
 		},
 		proxyAddress: proxyAddr,
 		clusterName:  clusterName,

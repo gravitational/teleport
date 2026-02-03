@@ -655,6 +655,10 @@ replace (
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.4
 )
 
+// XXX: Temporary to use local copy of https://go-review.googlesource.com/c/crypto/+/717140 for in-band SSH MFA.
+// TODO(cthach): Remove when the change is merged and released in golang.org/x/crypto.
+replace golang.org/x/crypto => ./crypto
+
 // this package was included in google.golang.org/grpc but because it's still
 // referenced by some dependencies we should exclude it here to avoid problems
 // when evaluating versions; "go get -u ./..." succeeding is a good sign that

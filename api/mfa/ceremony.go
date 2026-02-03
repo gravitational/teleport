@@ -20,8 +20,10 @@ import (
 	"context"
 	"log/slog"
 	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -31,6 +33,10 @@ import (
 type Ceremony struct {
 	// CreateAuthenticateChallenge creates an authentication challenge.
 	CreateAuthenticateChallenge CreateAuthenticateChallengeFunc
+	// CreateSessionChallenge creates a session-bound MFA challenge.
+	CreateSessionChallenge CreateSessionChallengeFunc
+	// ValidateSessionChallenge validates a session-bound MFA challenge.
+	ValidateSessionChallenge ValidateSessionChallengeFunc
 	// PromptConstructor creates a prompt to prompt the user to solve an authentication challenge.
 	PromptConstructor PromptConstructor
 	// SSOMFACeremonyConstructor is an optional SSO MFA ceremony constructor. If provided,
@@ -51,6 +57,12 @@ type SSOMFACeremonyConstructor func(ctx context.Context) (SSOMFACeremony, error)
 
 // CreateAuthenticateChallengeFunc is a function that creates an authentication challenge.
 type CreateAuthenticateChallengeFunc func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
+
+// CreateSessionChallengeFunc is a function that creates a session-bound MFA challenge.
+type CreateSessionChallengeFunc func(ctx context.Context, req *mfav1.CreateSessionChallengeRequest, opts ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error)
+
+// ValidateSessionChallengeFunc is a function that validates a session-bound MFA challenge.
+type ValidateSessionChallengeFunc func(ctx context.Context, req *mfav1.ValidateSessionChallengeRequest, opts ...grpc.CallOption) (*mfav1.ValidateSessionChallengeResponse, error)
 
 // Run the MFA ceremony.
 //
@@ -114,6 +126,92 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 
 	resp, err := c.PromptConstructor(promptOpts...).Run(ctx, chal)
 	return resp, trace.Wrap(err)
+}
+
+// PerformSessionMFACeremony performs a session-bound MFA ceremony with the user.
+// TODO(cthach): Add trusted cluster support.
+// TODO(cthach): Add SSO MFA support.
+func (c *Ceremony) PerformSessionMFACeremony(ctx context.Context, sessionID []byte) (string, error) {
+	if c.PromptConstructor == nil {
+		return "", trace.Wrap(&ErrMFANotSupported, "ceremony must have PromptConstructor set in order to proceed")
+	}
+
+	createResp, err := c.CreateSessionChallenge(
+		ctx,
+		&mfav1.CreateSessionChallengeRequest{
+			Payload: &mfav1.SessionIdentifyingPayload{
+				Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+					SshSessionId: sessionID,
+				},
+			},
+			// TargetCluster: "TODO",
+			// SsoClientRedirectUrl: "TODO",
+			// ProxyAddressForSso:   "TODO",
+		},
+	)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	protoChal := &proto.MFAAuthenticateChallenge{
+		WebauthnChallenge: createResp.GetMfaChallenge().GetWebauthnChallenge(),
+		SSOChallenge:      nil, // TODO(cthach): Add SSO challenge support.
+	}
+
+	// Prompt the user to solve the session-bound MFA challenge.
+	var (
+		mfaChalResp *proto.MFAAuthenticateResponse
+		attempts    int
+	)
+	const maxAttempts = 5
+
+	for {
+		mfaChalResp, err = c.PromptConstructor().Run(ctx, protoChal)
+		if err != nil {
+			// XXX: Retry on certain WebAuthn errors to allow users to recover from transient errors with their security
+			// keys.This is a temporary workaround until we have a more robust solution for handling WebAuthn errors.
+			if strings.Contains(err.Error(), "failed to open security keys") || strings.Contains(err.Error(), "failed to get assertion: rx error") && attempts < maxAttempts-1 {
+				attempts++
+				continue
+			}
+
+			return "", trace.Wrap(err)
+		}
+
+		break
+	}
+
+	// Convert from the legacy proto.MFAAuthenticateResponse to the mfav1.AuthenticateResponse.
+	// TODO(cthach): Move conversion logic into a helper.
+	mfaResp := &mfav1.AuthenticateResponse{
+		Name: createResp.GetMfaChallenge().Name,
+	}
+
+	switch mfaChalResp.GetResponse().(type) {
+	case *proto.MFAAuthenticateResponse_Webauthn:
+		mfaResp.Response = &mfav1.AuthenticateResponse_Webauthn{
+			Webauthn: mfaChalResp.GetWebauthn(),
+		}
+
+	case *proto.MFAAuthenticateResponse_SSO:
+		mfaResp.Response = &mfav1.AuthenticateResponse_Sso{
+			Sso: (*mfav1.SSOChallengeResponse)(mfaChalResp.GetSSO()),
+		}
+
+	default:
+		return "", trace.BadParameter("expected session-bound MFA response, got %T", mfaChalResp.GetResponse())
+	}
+
+	if _, err := c.ValidateSessionChallenge(
+		ctx,
+		&mfav1.ValidateSessionChallengeRequest{
+			MfaResponse: mfaResp,
+		},
+	); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return createResp.GetMfaChallenge().Name, nil
 }
 
 // CeremonyFn is a function that will carry out an MFA ceremony.
