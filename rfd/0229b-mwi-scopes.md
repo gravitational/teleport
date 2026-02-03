@@ -7,7 +7,7 @@ state: draft
 
 ## Required approvers
 
-- Engineering: @fspmarshall || @rosstimothy || @timothyb89
+- Engineering: (@fspmarshall || @rosstimothy) && @timothyb89
 - Product: ?
 
 ## What
@@ -52,11 +52,10 @@ resources isn't feasible due to the global, high-level of privilege this infers:
   types of resource like a Proxy). This again provides a significant opportunity
   for privilege escalation.
 
-Because of this, the management of the configuration of MWI falls on the team
-that owns the Teleport infrastructure itself. In smaller organizations this
-may be acceptable, but in large organizations, this becomes a significant
-bottleneck for teams that wish to onboard MWI and can even discourage its
-adoption.
+Because of this, the configuration of MWI falls on the team that owns the
+Teleport infrastructure itself. In smaller organizations this may be acceptable,
+but in large organizations, this becomes a significant bottleneck for teams that
+wish to onboard MWI and can even discourage its adoption.
 
 To resolve this problem, we need to create a safe way for to delegate the
 ability to onboard bots to teams that will leverage them.
