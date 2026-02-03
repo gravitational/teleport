@@ -111,7 +111,7 @@ func platformGetConfig() (*api.GetConfigResponse, error) {
 }
 
 func isPerMachineInstall() (bool, error) {
-	perMachineLocation, err := readyRegistryValue(registry.LOCAL_MACHINE, teleportConnectKeyPath, registryValueInstallLocation)
+	perMachineLocation, err := readRegistryValue(registry.LOCAL_MACHINE, teleportConnectKeyPath, registryValueInstallLocation)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return false, nil
@@ -125,9 +125,9 @@ func isPerMachineInstall() (bool, error) {
 	}
 
 	// tsh is placed in <installation directory>/resources/bin/tsh.exe.
-	exePathImperMachineLocation := filepath.Join(perMachineLocation, "resources", "bin", "tsh.exe")
+	exePathInPerMachineLocation := filepath.Join(perMachineLocation, "resources", "bin", "tsh.exe")
 
-	return exePath == exePathImperMachineLocation, nil
+	return exePath == exePathInPerMachineLocation, nil
 }
 
 type policyValue struct {
@@ -136,12 +136,12 @@ type policyValue struct {
 }
 
 func readRegistryPolicyValues(key registry.Key) (*policyValue, error) {
-	version, err := readyRegistryValue(key, teleportConnectPoliciesKeyPath, registryValueToolsVersion)
+	version, err := readRegistryValue(key, teleportConnectPoliciesKeyPath, registryValueToolsVersion)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
 
-	url, err := readyRegistryValue(key, teleportConnectPoliciesKeyPath, registryValueCDNBaseURL)
+	url, err := readRegistryValue(key, teleportConnectPoliciesKeyPath, registryValueCDNBaseURL)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -152,7 +152,7 @@ func readRegistryPolicyValues(key registry.Key) (*policyValue, error) {
 	}, nil
 }
 
-func readyRegistryValue(hive registry.Key, pathName string, valueName string) (path string, err error) {
+func readRegistryValue(hive registry.Key, pathName string, valueName string) (path string, err error) {
 	key, err := registry.OpenKey(hive, pathName, registry.READ)
 	if err != nil {
 		if errors.Is(err, registry.ErrNotExist) {
