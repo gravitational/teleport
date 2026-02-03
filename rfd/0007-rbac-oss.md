@@ -1,6 +1,6 @@
 ---
 authors: Alexander Klizhentas (sasha@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 2 - Open Source Roles

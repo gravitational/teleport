@@ -1,6 +1,6 @@
 ---
 authors: Gavin Frazar (gavin.frazar@goteleport.com)
-state: draft
+state: implemented (v18.0.0)
 ---
 
 # RFD 0203 - Database Health Checks

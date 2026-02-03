@@ -1,6 +1,6 @@
 ---
 authors: Andrew Burke (andrew.burke@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 102 - Azure join method

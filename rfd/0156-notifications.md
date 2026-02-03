@@ -1,6 +1,6 @@
 ---
 authors: Yassine Bounekhla (yassine@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0156 - Notifications

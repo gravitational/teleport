@@ -1,6 +1,6 @@
 ---
 authors: Edoardo Spadolini (edoardo.spadolini@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0140 - Azure Blob Storage session storage

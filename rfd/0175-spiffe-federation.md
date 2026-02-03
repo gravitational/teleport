@@ -1,6 +1,6 @@
 ---
 author: Noah Stride (noah@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 175 - SPIFFE Federation and SPIFFE Join Method

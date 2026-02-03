@@ -1,6 +1,6 @@
 ---
 authors: Nick Marais (nicholas.marais@goteleport.com), Dan Upton (dan.upton@goteleport.com)
-state: draft
+state: implemented (v18.4.0)
 ---
 
 # RFD 0222 - Bot Instances at Scale

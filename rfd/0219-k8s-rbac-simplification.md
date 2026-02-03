@@ -1,6 +1,6 @@
 ---
 authors: Guillaume Charmes (guillaume.charmes@goteleport.com), Tim Ross (tim.ross@goteleport.com)
-state: draft
+state: implemented (v18.0.0)
 ---
 
 # RFD 0219 - Kubernetes RBAC Simplification

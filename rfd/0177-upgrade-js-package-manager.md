@@ -1,6 +1,6 @@
 ---
 author: Grzegorz Zdunek (grzegorz.zdunek@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 177 - Upgrade JS package manager 

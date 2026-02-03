@@ -1,6 +1,6 @@
 ---
 authors: Michael Wilson (michael.wilson@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 124 - Plugin static credentials

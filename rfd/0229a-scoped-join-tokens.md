@@ -1,6 +1,6 @@
 ---
 authors: Erik Tate (erik.tate@goteleport.com)
-state: draft
+state: implemented (v18.4.1)
 ---
 
 # RFD 0229a - Scoped Join Tokens

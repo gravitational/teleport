@@ -1,6 +1,6 @@
 ---
 authors: Roman Tkachenko (roman@goteleport.com), Xin Ding (xin@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 73 - Teleport Discover "Day 1" and "Day 2" Experiences

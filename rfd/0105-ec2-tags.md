@@ -1,6 +1,6 @@
 ---
 authors: Roman Tkachenko (roman@goteleport.com), Scale Team, Andrew Burke (andrew.burke@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 105 - Importing EC2 tags via API
