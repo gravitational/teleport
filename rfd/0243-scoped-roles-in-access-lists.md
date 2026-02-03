@@ -330,14 +330,15 @@ Everything that already works with scoped role assignments today will not need
 to know or care about access lists, they will just handle the resulting
 assignments as usual.
 
-### Nested list membership
+### Inherited list membership
 
 Access list members can either be users or other access lists.
-When listA has member listB, it means that all members of listB are nested
+When listA has member listB, it means that all members of listB are inherited
 members of listA.
 In this case listA has delegated part of its membership definition to listB.
-In general, a user is a nested member of listA if they are a direct member of
-listA or they are a nested member of any list that is a direct member of listA.
+In general, a user is a member of listA if they are an explicit member of
+listA or they are a member of any list that is an explicit or inherited member
+of listA.
 
 For example, consider an access list named `west-access` that grants access to
 SSH servers in the `/ops/west` scope.
@@ -346,8 +347,8 @@ If an admin wanted to grant SSH access to all members of the `west-users` and
 the `west-access` list.
 In doing this, the `west-access` list would be delegating the definition of
 its user members to its member lists.
-All members of `west-users` and `west-admins` would become nested members of the
-`west-access` list.
+All members of `west-users` and `west-admins` would become inherited members of
+the `west-access` list.
 
 Nested list memberships effectively form a graph where nodes are access lists
 and edges are access list memberships.
@@ -397,8 +398,9 @@ relogin.
 Being able to efficiently discover scopes at which a user has privileges
 without requiring reauthentication is critical for a good user experience.
 
-Every (user, list) pair, where user is a nested member or owner of list and
-list grants scoped roles, will result in 1 materialized scoped role assignment.
+Every (user, list) pair, where user is an explicit or inherited member or owner
+of list and list grants scoped roles, will result in 1 materialized scoped role
+assignment.
 Each materialized assignment for (user, list) will grant exactly the scoped
 roles defined in the spec of that list (for members, owners, or both depending
 on the user's relationship with the list).
@@ -408,8 +410,8 @@ Since access lists currently don't have their own scope associated with the
 access list resource itself, the root scope is the only scope that makes sense
 for assignments derived from access lists.
 
-For example, if alice is a direct member of listA, and listA is a direct member
-of listB, then alice is a nested member of both listA and listB.
+For example, if alice is an explicit member of listA, and listA is an explicit
+member of listB, then alice is member of both listA and listB.
 2 scoped role assignments will be materialized, one for (alice, listA) and
 another for (alice, listB).
 
