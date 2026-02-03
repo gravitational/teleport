@@ -54,6 +54,7 @@ const (
 	LicenseAutoUpdate          EntitlementKind = "LicenseAutoUpdate"
 	AccessGraphDemoMode        EntitlementKind = "AccessGraphDemoMode"
 	ClientIPRestrictions       EntitlementKind = "ClientIPRestrictions"
+	WorkloadClusters           EntitlementKind = "WorkloadClusters"
 )
 
 // AllEntitlements returns all Entitlements; should be 1:1 with the const declared above.
@@ -61,7 +62,7 @@ var AllEntitlements = []EntitlementKind{
 	AccessLists, AccessMonitoring, AccessRequests, App, CloudAuditLogRetention, DB, Desktop, DeviceTrust,
 	ExternalAuditStorage, FeatureHiding, HSM, Identity, JoinActiveSessions, K8s, MobileDeviceManagement, OIDC, OktaSCIM,
 	OktaUserSync, Policy, SAML, SessionLocks, UnrestrictedManagedUpdates, UpsellAlert, UsageReporting, LicenseAutoUpdate, AccessGraphDemoMode,
-	ClientIPRestrictions,
+	ClientIPRestrictions, WorkloadClusters,
 }
 
 // BackfillFeatures ensures entitlements are backwards compatible.
