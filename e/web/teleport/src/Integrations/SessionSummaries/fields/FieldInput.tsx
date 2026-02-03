@@ -1,6 +1,7 @@
-import React, {
+import {
   HTMLInputAutoCompleteAttribute,
   useId,
+  type ReactNode,
   type RefAttributes,
 } from 'react';
 import {
@@ -10,6 +11,7 @@ import {
 } from 'react-hook-form';
 
 import Box, { BoxProps } from 'design/Box';
+import Flex from 'design/Flex';
 import Input, { InputSize, type InputType } from 'design/Input';
 import { LabelContent, LabelInput } from 'design/LabelInput/LabelInput';
 import { HelperTextLine } from 'shared/components/FieldInput/FieldInput';
@@ -27,8 +29,9 @@ interface FieldInputProps<
   autoComplete?: HTMLInputAutoCompleteAttribute;
   containerProps?: BoxProps;
   disabled?: boolean;
-  helperText?: React.ReactNode;
-  label?: React.ReactNode;
+  helperText?: ReactNode;
+  label?: ReactNode;
+  labelButton?: ReactNode;
   name: TName;
   placeholder?: string;
   required?: boolean;
@@ -46,6 +49,7 @@ export function FieldInput<
   disabled,
   helperText,
   label,
+  labelButton,
   name,
   placeholder,
   ref,
@@ -75,9 +79,11 @@ export function FieldInput<
       {...containerProps}
     >
       <LabelInput mb={0}>
-        <LabelContent required={required} mb={1}>
-          {label}
-        </LabelContent>
+        <Flex justifyContent="space-between" alignItems="center" mb={1}>
+          <LabelContent required={required}>{label}</LabelContent>
+
+          {labelButton}
+        </Flex>
 
         <Input
           aria-invalid={fieldState.invalid}

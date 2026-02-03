@@ -23,6 +23,7 @@ import {
 } from './inference';
 
 export const {
+  createQueryKey: listInferencePoliciesQueryKey,
   useInfiniteQuery: useInfiniteListInferencePolicies,
   useQuery: useListInferencePolicies,
 } = createQueryHook(

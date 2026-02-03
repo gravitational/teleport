@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 
+import { CreateInferencePolicy } from 'e-teleport/Integrations/SessionSummaries/create/CreateInferencePolicy';
 import { CreateInferenceSecret } from 'e-teleport/Integrations/SessionSummaries/create/CreateInferenceSecret';
+import { EditInferencePolicy } from 'e-teleport/Integrations/SessionSummaries/edit/EditInferencePolicy';
 import { EditInferenceSecret } from 'e-teleport/Integrations/SessionSummaries/edit/EditInferenceSecret';
 import {
   OverlayEntity,
@@ -21,7 +23,7 @@ export function SessionSummariesOverlays() {
               return null;
 
             case OverlayEntity.Policy:
-              return null;
+              return <EditInferencePolicy key={index} name={overlay.name} />;
 
             case OverlayEntity.Secret:
               return <EditInferenceSecret key={index} name={overlay.name} />;
@@ -33,7 +35,7 @@ export function SessionSummariesOverlays() {
             return null;
 
           case OverlayEntity.Policy:
-            return null;
+            return <CreateInferencePolicy key={index} />;
 
           case OverlayEntity.Secret:
             return <CreateInferenceSecret key={index} />;
