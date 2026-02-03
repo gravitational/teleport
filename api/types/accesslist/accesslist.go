@@ -462,6 +462,17 @@ func (a *AccessList) SetOwners(owners []Owner) {
 	a.Spec.Owners = owners
 }
 
+// HasOwnerList checks if the given access list name is configured as a list owner
+// (with MembershipKindList) of this access list.
+func (a *AccessList) HasOwnerList(name string) bool {
+	for _, owner := range a.Spec.Owners {
+		if owner.Name == name && owner.MembershipKind == MembershipKindList {
+			return true
+		}
+	}
+	return false
+}
+
 // GetMembershipRequires returns the membership requires configuration from the access list.
 func (a *AccessList) GetMembershipRequires() Requires {
 	return a.Spec.MembershipRequires
