@@ -92,6 +92,17 @@ Create the embedded tbot's service account name.
 {{- end -}}
 
 {{/*
+Create the embedded tbot's token name.
+*/}}
+{{- define "event-handler.tbot.tokenName" -}}
+{{- if .Values.tbot.token -}}
+{{- .Values.tbot.token -}}
+{{- else -}}
+{{- .Release.Name }}-{{ default .Values.tbot.nameOverride "tbot" }}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Create the namespace that Operator custom resources will be created in.
 */}}
 {{- define "event-handler.crd.namespace" -}}
@@ -100,13 +111,6 @@ Create the namespace that Operator custom resources will be created in.
 {{- else -}}
 {{- .Release.Namespace -}}
 {{- end -}}
-{{- end -}}
-
-{{/*
-Create the name for TeleportProvisionToken custom resource.
-*/}}
-{{- define "event-handler.crd.tokenName" -}}
-{{- required "tbot.token cannot be empty in chart values" .Values.tbot.token -}}
 {{- end -}}
 
 {{/*
