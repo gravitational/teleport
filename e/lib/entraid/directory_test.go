@@ -193,7 +193,7 @@ func TestDirectoryReconciler(t *testing.T) {
 	teamCTeleport.Spec.Grants.Roles = []string{"access"}
 	require.NoError(t, err)
 
-	carolTeamCTeleportMember, err := convertGroupMember(ctx, carolEntra, teamCTeleport, userMap(carolTeleport), nil)
+	carolTeamCTeleportMember, err := convertGroupMember(carolEntra, teamCTeleport, userMap(carolTeleport), nil)
 	require.NoError(t, err)
 	_, _, err = env.aclSvc.UpsertAccessListWithMembers(ctx, teamCTeleport, []*accesslist.AccessListMember{carolTeamCTeleportMember})
 	require.NoError(t, err)
@@ -250,7 +250,7 @@ func TestDirectoryReconciler(t *testing.T) {
 	require.NoError(t, err)
 
 	err = r.Reconcile(ctx)
-	require.NoError(t, err)
+	require.ErrorContains(t, err, "eve@example.com")
 
 	t.Run("alice created and assigned to team A", func(t *testing.T) {
 		aliceTeleport, err := env.identitySvc.GetUser(ctx, aliceUPN, false)
@@ -654,7 +654,8 @@ func TestUserSync(t *testing.T) {
 
 		r, err := NewDirectoryReconciler(env.cfg)
 		require.NoError(t, err)
-		require.NoError(t, r.Reconcile(ctx))
+		err = r.Reconcile(ctx)
+		require.ErrorContains(t, err, "al'ice@example.com")
 
 		users, err := listTeleportUsers(ctx, env.cfg.UserSvc, env.cfg.SSOConnectorID)
 		require.NoError(t, err)
@@ -704,7 +705,8 @@ func TestUserSync(t *testing.T) {
 
 		r, err := NewDirectoryReconciler(env.cfg)
 		require.NoError(t, err)
-		require.NoError(t, r.Reconcile(ctx))
+		err = r.Reconcile(ctx)
+		require.ErrorContains(t, err, "bob@example.com")
 
 		users, err := listTeleportUsers(ctx, env.cfg.UserSvc, env.cfg.SSOConnectorID)
 		require.NoError(t, err)
@@ -761,7 +763,9 @@ func TestUserSync(t *testing.T) {
 
 		r, err := NewDirectoryReconciler(env.cfg)
 		require.NoError(t, err)
-		require.NoError(t, r.Reconcile(ctx))
+		err = r.Reconcile(ctx)
+		require.ErrorContains(t, err, "bob@example.com")
+		require.ErrorContains(t, err, "Member IDs: u2")
 
 		users, err := listTeleportUsers(ctx, env.cfg.UserSvc, env.cfg.SSOConnectorID)
 		require.NoError(t, err)
@@ -1057,7 +1061,8 @@ func TestInvalidGroupIsSkipped(t *testing.T) {
 			r, err := NewDirectoryReconciler(env.cfg)
 			require.NoError(t, err)
 
-			require.NoError(t, r.Reconcile(ctx))
+			err = r.Reconcile(ctx)
+			require.ErrorContains(t, err, "have a non-empty")
 
 			requireAccessListCount(t, env.aclSvc, len(tc.expectedGroups))
 			for _, g := range tc.expectedGroups {

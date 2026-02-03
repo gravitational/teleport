@@ -158,7 +158,10 @@ func TestDirectoryReconcilerStatus(t *testing.T) {
 	}, time.Second, time.Second/100)
 
 	status = statusSink.Get()
-	require.Equal(t, directoryReconciler.err.Error(), status.GetErrorMessage())
+	require.Contains(t, status.GetErrorMessage(), "completed with partial success")
+	statusV1, ok := status.(*types.PluginStatusV1)
+	require.True(t, ok, "expected type PluginStatusV1 but got %T", statusV1)
+	require.Contains(t, statusV1.LastRawError, directoryReconciler.err.Error())
 	entraStatus = statusSink.Get().GetEntraId()
 	require.NotNil(t, entraStatus)
 	require.Equal(t, uint32(34), entraStatus.ImportedUsers)

@@ -2,6 +2,8 @@ package entraid
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"sort"
 	"strconv"
@@ -21,6 +23,8 @@ import (
 )
 
 type entraUniqueID string
+
+var errUnsupportedUsername = &trace.BadParameterError{Message: "username not supported"}
 
 func (r *DirectoryReconciler) reconcileUsers(ctx context.Context,
 	groupsMap map[string]*msgraph.Group,
@@ -67,7 +71,7 @@ func (r *DirectoryReconciler) reconcileUsers(ctx context.Context,
 		}
 		usersByEntraID[entraUniqueID(id)] = u
 	}
-
+	var conflictingUsers []string
 	backend, err := services.NewReconciler(services.ReconcilerConfig[types.User]{
 		Matcher:             matchByLabel[types.User],
 		GetCurrentResources: func() map[string]types.User { return teleportUsers },
@@ -76,7 +80,7 @@ func (r *DirectoryReconciler) reconcileUsers(ctx context.Context,
 			_, err := r.userSvc.CreateUser(ctx, u)
 			// if Entra user clashes with a local user, do not overwrite
 			if trace.IsAlreadyExists(err) {
-				slog.InfoContext(ctx, "user already exists in teleport as a non-entra user, not overwriting", "user", u)
+				conflictingUsers = append(conflictingUsers, u.GetName())
 
 				// Delete from the lookup map, since the Teleport user by this name is not an Entra user.
 				delete(usersByEntraID, entraUniqueID(u.GetMetadata().Labels[types.EntraUniqueIDLabel]))
@@ -104,6 +108,14 @@ func (r *DirectoryReconciler) reconcileUsers(ctx context.Context,
 	}
 
 	r.importedUsers = len(usersByEntraID)
+
+	var errConflict error
+	if len(conflictingUsers) != 0 {
+		errConflict = trace.AlreadyExists(`existing user account found which was not created by this Microsoft Entra ID `+
+			`integration, account and group sync will be skipped for these user(s): %s`, strings.Join(conflictingUsers, ", "))
+		r.errSkippedResources.users = append(r.errSkippedResources.users, errConflict)
+	}
+
 	return usersByEntraID, nil
 }
 
@@ -148,15 +160,27 @@ func listTeleportUsers(ctx context.Context, svc userAccessPoint, connectorID str
 
 func (r *DirectoryReconciler) listEntraUsers(ctx context.Context, usersMemberships groupMembershipMap, emitAsRoles bool) (map[string]types.User, error) {
 	result := map[string]types.User{}
+	var unsupportedUsers []string
 	err := r.graphClient.IterateUsers(ctx, func(u *msgraph.User) bool {
 		user, err := convertUser(u, r.tenantID, r.ssoConnectorID, usersMemberships, emitAsRoles)
-		if err == nil {
-			result[user.GetName()] = user
-		} else {
-			slog.ErrorContext(ctx, "failed to convert Entra ID user to Teleport user, user will be skipped", "error", err)
+		if err != nil {
+			if errors.Is(err, errUnsupportedUsername) {
+				unsupportedUsers = append(unsupportedUsers, unameForLog(u))
+			} else {
+				r.errSkippedResources.users = append(r.errSkippedResources.users, trace.Wrap(err))
+			}
+			return true
 		}
+		result[user.GetName()] = user
 		return true
 	})
+
+	if len(unsupportedUsers) > 0 {
+		names := utils.Deduplicate(unsupportedUsers)
+		r.errSkippedResources.users = append(r.errSkippedResources.users,
+			trace.BadParameter(`username contains unsupported character(s), it should only include alphanumerics, `+
+				`hyphens, dots, and plus sign. Unsupported usernames: %s`, strings.Join(names, ", ")))
+	}
 
 	return result, trace.Wrap(err)
 }
@@ -347,8 +371,24 @@ func isValidUsername(in string) error {
 	// reconciler to fail.
 	key := backend.NewKey(in)
 	if !backend.IsKeySafe(key) {
-		return trace.BadParameter("username %q contains unsupported character(s), it should only include alphanumerics, hyphens, dots, and plus signs", in)
+		return errUnsupportedUsername
 	}
 
 	return nil
+}
+
+func unameForLog(in *msgraph.User) string {
+	if in == nil {
+		return ""
+	}
+	if in.Mail != nil {
+		return fmt.Sprintf("(mail=%s)", *in.Mail)
+	}
+	if in.UserPrincipalName != nil {
+		return fmt.Sprintf("(upn=%s)", *in.UserPrincipalName)
+	}
+	if in.GetID() != nil {
+		return fmt.Sprintf("(id=%s)", *in.GetID())
+	}
+	return ""
 }

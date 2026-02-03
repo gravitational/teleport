@@ -82,6 +82,14 @@ type DirectoryReconciler struct {
 	// owners configured for the group, default owners will be used
 	// as Access List owners.
 	accessListOwnersSource types.EntraIDAccessListOwnersSource
+	// errSkippedResources holds collection of errors related to user,
+	// group or group member import. These errors should be reported
+	// after the reconciler returns.
+	errSkippedResources errSkippedResources
+}
+
+type errSkippedResources struct {
+	users, groups, groupMembers []error
 }
 
 // DirectoryReconcilerConfig specifies dependencies and parameters for instantiating DirectoryReconciler.
@@ -248,7 +256,7 @@ func (r *DirectoryReconciler) Reconcile(ctx context.Context) (err error) {
 	}
 
 	start = r.clock.Now()
-	groupsMap, err := listEntraGroups(ctx, r.graphClient, entraGroupMatcher, r.accessListOwnersSource)
+	groupsMap, err := r.listEntraGroups(ctx, r.graphClient, entraGroupMatcher, r.accessListOwnersSource)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -298,6 +306,13 @@ func (r *DirectoryReconciler) Reconcile(ctx context.Context) (err error) {
 	r.metrics.reconciliationDuration.With(prometheus.Labels{
 		metricLabelSection: "total",
 	}).Observe(r.clock.Since(reconciliationStart).Seconds())
+
+	if err := r.syncErrors(); err != nil {
+		// Clear errors as they do not have any
+		// purpose beyond this point.
+		r.errSkippedResources = errSkippedResources{}
+		return trace.Wrap(err)
+	}
 
 	return nil
 }
@@ -394,4 +409,11 @@ func groupLocalMatcher(
 		_, ok := inACLMap[aclName]
 		return ok
 	}
+}
+
+func (r *DirectoryReconciler) syncErrors() error {
+	errUsers := errors.Join(r.errSkippedResources.users...)
+	errG := errors.Join(r.errSkippedResources.groups...)
+	errGm := errors.Join(r.errSkippedResources.groupMembers...)
+	return errors.Join(errUsers, errG, errGm)
 }

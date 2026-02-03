@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/msgraph"
@@ -34,6 +36,7 @@ func TestResourceImport(t *testing.T) {
 	expectDefaultUserSync(t, env.authClient)
 	expectDefaultGroupSync(t, env.authClient)
 	expectDefaultGroupOwners(t, env.authClient)
+	expectDefaultPluginStatus(t, env.authClient, plugin.GetName())
 }
 
 func TestResourceImportWithUnsupportedUsers(t *testing.T) {
@@ -181,6 +184,29 @@ func expectDefaultGroupOwners(t *testing.T, authClt authclient.ClientI) {
 			requireDefaultEntraIDAccessListOwners(t, gotAccesslists)
 		},
 		time.Second*10, time.Millisecond*30)
+}
+
+func expectDefaultPluginStatus(t *testing.T, authClt authclient.ClientI, name string) {
+	t.Helper()
+
+	ctx := t.Context()
+	require.EventuallyWithT(t,
+		func(t *assert.CollectT) {
+			updatedPlugin, err := authClt.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+				Name: name,
+			})
+			require.NoError(t, err)
+
+			status := updatedPlugin.GetStatus()
+			require.Equal(t, types.PluginStatusCode_RUNNING, status.GetCode())
+			require.Empty(t, status.GetErrorMessage())
+			require.Empty(t, status.GetLastRawError())
+
+			entraStatus := status.GetEntraId()
+			require.Equal(t, uint32(3), entraStatus.ImportedUsers)
+			require.Equal(t, uint32(3), entraStatus.ImportedGroups)
+		},
+		time.Second*10, time.Millisecond*30, "expected successful plugins status")
 }
 
 func mustParseURL(t *testing.T, in string) *url.URL {

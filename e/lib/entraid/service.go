@@ -187,33 +187,70 @@ func (s *Service) runDirectoryReconciler(ctx context.Context) {
 	defer ticker.Stop()
 	for {
 		start := s.clock.Now()
-		s.log.InfoContext(ctx, "Starting Entra directory sync")
+		s.log.InfoContext(ctx, "Starting Entra ID directory sync")
 		err := s.directoryReconciler.Reconcile(ctx)
+		partialSuccess := s.directoryReconciler.ImportedUsers() > 0 || s.directoryReconciler.ImportedGroups() > 0
 		if err != nil {
-			s.log.ErrorContext(ctx, "Entra directory sync failed", "error", err)
+			s.logFailedSync(ctx, err, partialSuccess)
 		}
 		took := s.clock.Since(start)
-		s.log.InfoContext(ctx, "Entra directory sync finished", "took", took.String(), "imported_users", s.directoryReconciler.ImportedUsers(), "imported_groups", s.directoryReconciler.ImportedGroups())
+		s.log.InfoContext(ctx, "Entra ID directory sync finished", "took", took.String(), "imported_users", s.directoryReconciler.ImportedUsers(), "imported_groups", s.directoryReconciler.ImportedGroups())
 
-		code, msg := getErrorDetails(err)
-		if s.pluginStatusSink != nil {
-			s.pluginStatusSink.Emit(ctx, &types.PluginStatusV1{
-				Code:         code,
-				LastSyncTime: s.clock.Now(),
-				ErrorMessage: msg,
-				Details: &types.PluginStatusV1_EntraId{
-					EntraId: &types.PluginEntraIDStatusV1{
-						ImportedUsers:  uint32(s.directoryReconciler.ImportedUsers()),
-						ImportedGroups: uint32(s.directoryReconciler.ImportedGroups()),
-					},
-				},
-			})
-		}
+		s.emitStatus(ctx, err, partialSuccess)
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.Chan():
 		}
+	}
+}
+
+func (s *Service) logFailedSync(ctx context.Context, err error, partialSuccess bool) {
+	if partialSuccess {
+		s.log.ErrorContext(
+			ctx,
+			"Microsoft Entra ID directory sync completed with partial success",
+			"imported_users", s.directoryReconciler.ImportedUsers(),
+			"imported_groups", s.directoryReconciler.ImportedGroups(),
+			"error", err,
+		)
+		return
+	}
+
+	s.log.ErrorContext(ctx, "Entra ID directory sync failed", "error", err)
+}
+
+func (s *Service) emitStatus(ctx context.Context, err error, partialSuccess bool) {
+	if s.pluginStatusSink == nil {
+		s.log.DebugContext(ctx, "Failed to emit Entra ID plugin status, status sink is not available")
+		return
+	}
+
+	code := types.PluginStatusCode_RUNNING
+	friendlyErrMsg := ""
+	rawErr := ""
+	if err != nil {
+		friendlyErrMsg = "Entra directory sync failed"
+		if partialSuccess {
+			friendlyErrMsg = "Entra directory sync completed with partial success"
+		}
+		code, rawErr = getErrorDetails(err)
+	}
+
+	if err := s.pluginStatusSink.Emit(ctx, &types.PluginStatusV1{
+		Code:         code,
+		LastSyncTime: s.clock.Now(),
+		ErrorMessage: friendlyErrMsg,
+		LastRawError: rawErr,
+		Details: &types.PluginStatusV1_EntraId{
+			EntraId: &types.PluginEntraIDStatusV1{
+				ImportedUsers:  uint32(s.directoryReconciler.ImportedUsers()),
+				ImportedGroups: uint32(s.directoryReconciler.ImportedGroups()),
+			},
+		},
+	}); err != nil {
+		s.log.ErrorContext(ctx, "Failed to emit Entra ID plugin status", "error", err)
+		return
 	}
 }
 

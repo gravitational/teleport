@@ -2,6 +2,8 @@ package entraid
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"path"
 	"slices"
@@ -25,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/services"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 type accessListWithMembers struct {
@@ -69,7 +70,7 @@ func (r *DirectoryReconciler) reconcileAccessLists(ctx context.Context,
 		defaultOwners: r.defaultOwners,
 		source:        r.accessListOwnersSource,
 	}
-	entraAccessListWithMembersMap := convertEntraAccessListsWithMembers(ctx, usersByEntraID, groupsMap, groupMembersMap, r.tenantID, aclOwnersCfg)
+	entraAccessListWithMembersMap := r.convertEntraAccessListsWithMembers(ctx, usersByEntraID, groupsMap, groupMembersMap, aclOwnersCfg)
 
 	// It's crucial to sort the members for the CompareResources func in the Reconciler.
 	sortMembers(teleportAccessListsWithMembersMap)
@@ -228,34 +229,38 @@ func (cfg aclOwnersConfig) setupOwners(ctx context.Context, groupID string, entr
 	}
 }
 
-func convertEntraAccessListsWithMembers(
+func (r *DirectoryReconciler) convertEntraAccessListsWithMembers(
 	ctx context.Context,
 	usersByEntraID map[entraUniqueID]types.User,
 	groupsMap map[string]*msgraph.Group,
 	groupMembersMap map[string][]msgraph.GroupMember,
-	tenantID string,
 	aclOwnersCfg aclOwnersConfig,
 ) map[string]*accessListWithMembers {
 	aclsWithMembersMap := make(map[string]*accessListWithMembers)
 	accessListsById := make(map[entraUniqueID]*accesslist.AccessList)
+	var errGroups, errGroupMembers error
 
 	for _, g := range groupsMap {
-		entraUniqueID, al, err := convertGroup(ctx, g, tenantID, aclOwnersCfg)
+		entraUniqueID, al, err := convertGroup(ctx, g, r.tenantID, aclOwnersCfg)
 		if err != nil {
-			slog.ErrorContext(ctx, "failed to convert Entra ID group to Teleport access list", "error", err)
+			errGroups = errors.Join(errGroups, trace.Wrap(err))
 			continue
 		}
 		aclsWithMembersMap[al.GetName()] = &accessListWithMembers{AccessList: al}
 		accessListsById[entraUniqueID] = al
 	}
 
+	var notFoundMembers []string
 	for entraUniqueID, accessList := range accessListsById {
 		var members []*accesslist.AccessListMember
 		for _, member := range groupMembersMap[string(entraUniqueID)] {
-			m, err := convertGroupMember(ctx, member, accessList, usersByEntraID, accessListsById)
+			m, err := convertGroupMember(member, accessList, usersByEntraID, accessListsById)
 			if err != nil {
-				id := strval(member.GetID())
-				slog.WarnContext(ctx, "error while converting group member", "member", id, "error", err)
+				if trace.IsNotFound(err) {
+					notFoundMembers = append(notFoundMembers, strval(member.GetID()))
+				} else {
+					errGroupMembers = errors.Join(errGroupMembers, trace.Wrap(err))
+				}
 				continue
 			}
 			if m == nil {
@@ -267,20 +272,40 @@ func convertEntraAccessListsWithMembers(
 		aclsWithMembersMap[accessList.GetName()].Members = members
 	}
 
+	if errGroups != nil {
+		r.errSkippedResources.groups = append(r.errSkippedResources.groups, errGroups)
+	}
+	if errGroupMembers != nil {
+		r.errSkippedResources.groupMembers = append(r.errSkippedResources.groupMembers, errGroupMembers)
+	}
+	if len(notFoundMembers) > 0 {
+		members := utils.Deduplicate(notFoundMembers)
+		r.errSkippedResources.groupMembers = append(r.errSkippedResources.groupMembers,
+			trace.NotFound("member(s) not found and may have been filtered or skipped due to error. Member IDs: %s", strings.Join(members, ", ")))
+	}
+
 	return aclsWithMembersMap
 }
 
-func convertGroup(ctx context.Context, in *msgraph.Group, tenantID string, aclOwnersCfg aclOwnersConfig) (entraUniqueID, *accesslist.AccessList, error) {
+func validateGroup(in *msgraph.Group) error {
 	if in == nil {
-		return "", nil, trace.BadParameter("provided Entra ID group is nil")
+		return trace.BadParameter("expected Entra ID group to be non-nil")
 	}
 	if in.DisplayName == nil {
-		return "", nil, trace.BadParameter("expected Entra ID group to have a non-empty display name")
+		return trace.BadParameter("expected Entra ID group%s to have a non-empty display name", groupNameForLog(in))
+	}
+	if in.ID == nil {
+		return trace.BadParameter("expected Entra ID group%s to have a non-empty ID", groupNameForLog(in))
+	}
+
+	return nil
+}
+
+func convertGroup(ctx context.Context, in *msgraph.Group, tenantID string, aclOwnersCfg aclOwnersConfig) (entraUniqueID, *accesslist.AccessList, error) {
+	if err := validateGroup(in); err != nil {
+		return "", nil, trace.Wrap(err)
 	}
 	displayName := *in.DisplayName
-	if in.ID == nil {
-		return "", nil, trace.BadParameter("expected Entra ID group to have a non-empty ID")
-	}
 	id := *in.ID
 
 	owners := aclOwnersCfg.setupOwners(ctx, id, in.Owners)
@@ -314,23 +339,22 @@ func convertGroup(ctx context.Context, in *msgraph.Group, tenantID string, aclOw
 // convertGroupMember converts an Entra group member to an AccessListMember.
 // Error is returned on unexpected conditions, indicating programmer error (e.g. validation of AccessListMember fails).
 // On non fatal errors, e.g. an unsupported member type, a warning is logged and (nil, nil) is returned.
-func convertGroupMember(ctx context.Context,
+func convertGroupMember(
 	in msgraph.GroupMember,
 	al *accesslist.AccessList,
 	entraUsersByID map[entraUniqueID]types.User,
 	accesslistByEntraId map[entraUniqueID]*accesslist.AccessList,
 ) (*accesslist.AccessListMember, error) {
 	if in.GetID() == nil {
-		return nil, trace.BadParameter("expected Entra ID user to have a non-empty unique ID")
+		return nil, trace.BadParameter("expected Entra ID group member to have a non-empty unique ID")
 	}
 	id := *in.GetID()
 
-	switch in.(type) {
+	switch m := in.(type) {
 	case *msgraph.User:
 		teleportUser, ok := entraUsersByID[entraUniqueID(id)]
 		if !ok {
-			slog.WarnContext(ctx, "no teleport user found for Entra unique ID", "id", id)
-			return nil, nil
+			return nil, trace.NotFound("group member account found for Entra unique ID %q", id)
 		}
 		alm, err := accesslist.NewAccessListMember(
 			header.Metadata{
@@ -358,8 +382,7 @@ func convertGroupMember(ctx context.Context,
 	case *msgraph.Group:
 		accessList, ok := accesslistByEntraId[entraUniqueID(id)]
 		if !ok {
-			slog.WarnContext(ctx, "No access list found for Entra unique ID", "id", id)
-			return nil, nil
+			return nil, trace.NotFound("access list not found for Entra unique ID %q", id)
 		}
 		alm, err := accesslist.NewAccessListMember(
 			header.Metadata{
@@ -380,8 +403,7 @@ func convertGroupMember(ctx context.Context,
 		return alm, nil
 
 	default:
-		slog.WarnContext(ctx, "entra group member is not of a supported type: ", "directory_object", in, "type", logutils.TypeAttr(in))
-		return nil, nil
+		return nil, trace.BadParameter("entra group member(id=%s) expected to be of user or group type, got %T", id, m)
 	}
 }
 
@@ -414,15 +436,12 @@ func listEntraGroupOwners(
 	return owners, nil
 }
 
-func listEntraGroups(
+func (r *DirectoryReconciler) listEntraGroups(
 	ctx context.Context,
 	graphClient GraphClient,
 	filterMatches func(g *msgraph.Group) bool,
 	accessListOwnersSource types.EntraIDAccessListOwnersSource,
 ) (map[string]*msgraph.Group, error) {
-	isValidGroup := func(g *msgraph.Group) bool {
-		return g != nil && g.ID != nil && g.DisplayName != nil
-	}
 
 	setEntraOwners := func(g *msgraph.Group) {
 		if accessListOwnersSource == types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID ||
@@ -440,7 +459,11 @@ func listEntraGroups(
 
 	result := map[string]*msgraph.Group{}
 	err := graphClient.IterateGroups(ctx, func(g *msgraph.Group) bool {
-		if isValidGroup(g) && filterMatches(g) {
+		if err := validateGroup(g); err != nil {
+			r.errSkippedResources.groups = append(r.errSkippedResources.groups, trace.Wrap(err))
+			return true
+		}
+		if filterMatches(g) {
 			setEntraOwners(g)
 
 			result[*g.ID] = g
@@ -451,6 +474,7 @@ func listEntraGroups(
 	})
 	return result, trace.Wrap(err)
 }
+
 func listEntraGroupsMembers(ctx context.Context, graphClient GraphClient, groups map[string]*msgraph.Group) (map[string][]msgraph.GroupMember, error) {
 	// membersPageSize is the maximum number of members to fetch per page.
 	// https://learn.microsoft.com/en-us/graph/api/group-list-members?view=graph-rest-1.0&tabs=http#http-request
@@ -643,6 +667,19 @@ func toCollection(in map[string]*accessListWithMembers) (*accesslists.Collection
 	}
 
 	return &c, nil
+}
+
+func groupNameForLog(in *msgraph.Group) string {
+	if in == nil {
+		return ""
+	}
+	if in.GetID() != nil {
+		return fmt.Sprintf("(id=%s)", *in.GetID())
+	}
+	if in.DisplayName != nil {
+		return fmt.Sprintf("(displayName=%s)", *in.DisplayName)
+	}
+	return ""
 }
 
 // ToAclOwner converts msgraph.User to accesslist.Owner.

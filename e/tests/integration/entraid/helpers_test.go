@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/gravitational/trace"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
@@ -18,6 +19,7 @@ import (
 	"github.com/gravitational/teleport/e/tests/common/idp"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/msgraph/msgraphtest"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -154,4 +156,26 @@ func listEntraIDMembers(ctx context.Context, accessListName string, aclClient se
 
 	slices.Sort(out)
 	return out, nil
+}
+
+func entraGroup(t *testing.T, name string) *msgraph.Group {
+	t.Helper()
+	return &msgraph.Group{
+		DirectoryObject: msgraph.DirectoryObject{
+			ID:          to.Ptr(name),
+			DisplayName: to.Ptr(name),
+		},
+		GroupTypes: []string{types.EntraIDSecurityGroups},
+	}
+}
+
+func entraUser(t *testing.T, name string) *msgraph.User {
+	t.Helper()
+	return &msgraph.User{
+		DirectoryObject: msgraph.DirectoryObject{
+			ID: to.Ptr(name),
+		},
+		UserPrincipalName: to.Ptr(name),
+		Mail:              to.Ptr(name),
+	}
 }
