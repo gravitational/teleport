@@ -238,8 +238,191 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	if cfg.Trust == nil {
 		cfg.Trust = local.NewCAService(cfg.Backend)
 	}
+
+	names := []string{
+		"watermelon", "banana", "butter", "apple", "strawberry",
+		"pear", "orange", "lime", "fig", "blueberry",
+		"snowman", "coffee", "momo", "popo", "bebe",
+		"bee", "foo", "bar", "baz", "qux",
+		"ice", "snow", "autumn", "winter", "summer",
+		"spring", "mountain", "bans", "nike", "cherry",
+		"pikachu", "pokemon", "caterpillar", "butterfly", "game",
+		"matcha", "tea", "greentea", "green", "red",
+		"purple", "blue", "orange", "magenta", "pink",
+		"january", "feb", "mar", "april", "may",
+		"june", "july", "august", "sept", "november",
+		"december", "christmas", "fireworks", "puppy", "chia",
+		"treetree", "sparkles", "unicorns", "glitter", "cider",
+		"sunflower", "lily", "roses", "lavendar", "poppy",
+		"teemo", "lux", "leblanc", "caitlyn", "lucian",
+		"washington", "seattle", "belle", "lynnwood", "fredmeyers",
+		"petals", "ball", "basketball", "baseball", "appletini",
+		"vodka", "beer", "whiskey", "liquor", "something",
+		"phone", "iphone", "applephone", "galaxy", "stars",
+		"twinkles", "twinky", "sun", "moon", "lunar", "kingdom", "sailormoon",
+	}
+
+	os := []string{"os", "linux", "windows"}
+
 	if cfg.Presence == nil {
 		cfg.Presence = local.NewPresenceService(cfg.Backend)
+
+		fmt.Println("------ lib/auth/auth New Presence Service")
+
+		apps, err := cfg.Presence.GetApplicationServers(context.TODO(), "default")
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("apps found: ", len(apps))
+		if len(apps) < 10 {
+			// mass produce app shells.
+			for i := 0; i < len(names); i++ {
+				name := names[i%len(names)]
+				os := os[i%len(os)]
+				id := uuid.New().String()
+				app, err := types.NewAppV3(types.Metadata{
+					Name:        fmt.Sprintf("app-name-%v", name),
+					Labels:      map[string]string{"env": "test", "app": name, "unique-id": id, "os": os},
+					Description: fmt.Sprintf("This is %v", name),
+				}, types.AppSpecV3{
+					URI:        fmt.Sprintf("localhost.%v", name),
+					PublicAddr: fmt.Sprintf("localhost.%v", name),
+				})
+				if err != nil {
+					panic(err)
+				}
+
+				server, err := types.NewAppServerV3(types.Metadata{
+					Name:   fmt.Sprintf("app-svc-name-%v", id),
+					Labels: map[string]string{"app-service": "some-label"},
+				}, types.AppServerSpecV3{
+					Hostname: "localhost",
+					HostID:   uuid.New().String(),
+					App:      app,
+				})
+				if err != nil {
+					panic(err)
+				}
+
+				// Upsert server.
+				_, err = cfg.Presence.UpsertApplicationServer(context.TODO(), server)
+				if err != nil {
+					panic(err)
+				}
+			}
+		}
+
+		dbs, err := cfg.Presence.GetDatabaseServers(context.TODO(), "default")
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("dbs found: ", len(dbs))
+		if len(dbs) < 10 {
+			dbSpecs := []types.DatabaseSpecV3{
+				// type redshift
+				{
+					Protocol: "_",
+					AWS: types.AWS{
+						Redshift: types.Redshift{
+							ClusterID: "_",
+						},
+					},
+				},
+				// type azure
+				{
+					Protocol: "postgres",
+					Azure: types.Azure{
+						Name: "_",
+					},
+				},
+				// type rds
+				{
+					Protocol: "postgres",
+					AWS: types.AWS{
+						Region: "_",
+					},
+				},
+				// type gcp
+				{
+					Protocol: "postgres",
+					GCP: types.GCPCloudSQL{
+						ProjectID:  "_",
+						InstanceID: "_",
+					},
+				},
+			}
+			// mass produce database shells.
+			for i := 0; i < len(names); i++ {
+				name := names[i%len(names)]
+				os := os[i%len(os)]
+				id := uuid.New().String()
+				dbSpec := dbSpecs[i%len(dbSpecs)]
+				dbSpec.URI = "localhost"
+
+				db, err := types.NewDatabaseV3(types.Metadata{
+					Name:        fmt.Sprintf("db-name-%v", id),
+					Labels:      map[string]string{"env": "test", "db": name, "unique-id": id, "os": os},
+					Description: fmt.Sprintf("Some description %v", name),
+				}, dbSpec)
+				if err != nil {
+					panic(err)
+				}
+
+				server, err := types.NewDatabaseServerV3(types.Metadata{
+					Name:   fmt.Sprintf("db-svc-name-%v", id),
+					Labels: map[string]string{"db-service": "label"},
+				}, types.DatabaseServerSpecV3{
+					Hostname: "localhost",
+					HostID:   uuid.New().String(),
+					Database: db,
+				})
+				if err != nil {
+					panic(err)
+				}
+
+				// Upsert database
+				_, err = cfg.Presence.UpsertDatabaseServer(context.TODO(), server)
+				if err != nil {
+					panic(err)
+				}
+			}
+		}
+
+		/*
+		   NODES
+		*/
+		nodes, err := cfg.Presence.GetNodes(context.TODO(), "default")
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("nodes found: ", len(nodes))
+		if len(nodes) < 10 {
+
+			bools := []bool{false, true, false, true, false, false, false, true}
+
+			// mass produce node shells.
+			for i := 0; i < len(names); i++ {
+				name := names[i%len(names)]
+				os := os[i%len(os)]
+				id := uuid.New().String()
+				tunnel := bools[i%len(bools)]
+
+				node, err := types.NewServerWithLabels(name, types.KindNode, types.ServerSpecV2{
+					UseTunnel: tunnel,
+					Hostname:  fmt.Sprintf("hostname-%v", name),
+					Addr:      fmt.Sprintf("address.%v", name),
+				}, map[string]string{"env": "test", "node": name, "unique-id": id, "os": os})
+				if err != nil {
+					panic(err)
+				}
+
+				// Upsert server.
+				_, err = cfg.Presence.UpsertNode(context.TODO(), node)
+				if err != nil {
+					panic(err)
+				}
+			}
+		}
 	}
 	if cfg.Provisioner == nil {
 		cfg.Provisioner = local.NewProvisioningService(cfg.Backend)
@@ -337,6 +520,34 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 	if cfg.Kubernetes == nil {
 		cfg.Kubernetes = local.NewKubernetesService(cfg.Backend)
+
+		kubes, err := cfg.Kubernetes.GetKubernetesClusters(context.TODO())
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("kubes found: ", len(kubes))
+		if len(kubes) < 10 {
+			// mass produce node shells.
+			for i := 0; i < len(names); i++ {
+				name := names[i%len(names)]
+				os := os[i%len(os)]
+				id := uuid.New().String()
+
+				kube, err := types.NewKubernetesClusterV3(types.Metadata{
+					Labels: map[string]string{"env": "test", "kubernetes": name, "unique-id": id, "os": os},
+				},
+					types.KubernetesClusterSpecV3{})
+				if err != nil {
+					panic(err)
+				}
+
+				// Upsert server.
+				err = cfg.Kubernetes.CreateKubernetesCluster(context.TODO(), kube)
+				if err != nil {
+					panic(err)
+				}
+			}
+		}
 	}
 	if cfg.Status == nil {
 		cfg.Status = local.NewStatusService(cfg.Backend)
@@ -355,6 +566,36 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 	if cfg.WindowsDesktops == nil {
 		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
+
+		windowsdesktops, err := cfg.WindowsDesktops.GetWindowsDesktops(context.TODO(), types.WindowsDesktopFilter{})
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("windowsdesktops found: ", len(windowsdesktops))
+		if len(windowsdesktops) < 10 {
+			// mass produce node shells.
+			for i := 0; i < len(names); i++ {
+				name := names[i%len(names)]
+				os := os[i%len(os)]
+				id := uuid.New().String()
+
+				desktop, err := types.NewWindowsDesktopV3(name,
+					map[string]string{"env": "test", "windows-desktops": name, "unique-id": id, "os": os},
+					types.WindowsDesktopSpecV3{
+						Addr:   fmt.Sprintf("localhost.%v", name),
+						HostID: id,
+					})
+				if err != nil {
+					panic(err)
+				}
+
+				// Upsert server.
+				err = cfg.WindowsDesktops.UpsertWindowsDesktop(context.TODO(), desktop)
+				if err != nil {
+					panic(err)
+				}
+			}
+		}
 	}
 	if cfg.DynamicWindowsDesktops == nil {
 		cfg.DynamicWindowsDesktops, err = local.NewDynamicWindowsDesktopService(cfg.Backend)
