@@ -48,6 +48,7 @@ func TestBPFConfig_CheckAndSetDefaults(t *testing.T) {
 				CommandBufferSize: &perfBufferPageCount,
 				DiskBufferSize:    &openPerfBufferPageCount,
 				NetworkBufferSize: &perfBufferPageCount,
+				CgroupPath:        defaults.CgroupPath,
 			},
 		},
 		{
@@ -56,11 +57,13 @@ func TestBPFConfig_CheckAndSetDefaults(t *testing.T) {
 				CommandBufferSize: &zeroPageCount,
 				DiskBufferSize:    &zeroPageCount,
 				NetworkBufferSize: &perfBufferPageCount,
+				CgroupPath:        "/my/cgroup/",
 			},
 			want: &servicecfg.BPFConfig{
 				CommandBufferSize: &perfBufferPageCount,
 				DiskBufferSize:    &openPerfBufferPageCount,
 				NetworkBufferSize: &perfBufferPageCount,
+				CgroupPath:        "/my/cgroup/",
 			},
 		},
 	}
