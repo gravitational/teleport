@@ -55,7 +55,6 @@ func TestRootCleanup(t *testing.T) {
 		MountPath: dir,
 	})
 	require.NoError(t, err)
-	const skipUnmount = false
 	defer service.Close()
 
 	// Create fake session ID and cgroup.
