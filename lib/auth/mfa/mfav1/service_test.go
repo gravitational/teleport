@@ -774,7 +774,7 @@ func TestReplicateValidatedMFAChallenge_Success(t *testing.T) {
 				cmp.Ignore(),
 			),
 		),
-		"ReplicatedValidatedMFAChallenge mismatch (-want +got)",
+		"ReplicateValidatedMFAChallenge(%s) mismatch (-want +got)", chalName,
 	)
 }
 
