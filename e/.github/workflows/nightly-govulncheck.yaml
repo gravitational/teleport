@@ -115,12 +115,24 @@ jobs:
             # - GO-2025-4192: https://github.com/gravitational/teleport/issues/62441
             # TODO(codingllama): Remove ignores once sigstore/cosign is updated.
             # - GO-2026-4309: https://github.com/gravitational/teleport/issues/62806
+            # TODO(codingllama): Remove ignores once we can remove the TUF "v1" indirect.
+            # - GO-2026-4348: https://github.com/gravitational/teleport/issues/63451
+            # - GO-2026-4349: https://github.com/gravitational/teleport/issues/63451
+            # - GO-2026-4377: https://github.com/gravitational/teleport/issues/63451
+            # TODO(codingllama): Remove ignores once sigstore/rekor is updated.
+            # - GO-2026-4354: https://github.com/gravitational/teleport/issues/63450
+            # - GO-2026-4355: https://github.com/gravitational/teleport/issues/63450
             GOOS=${MOD_GOOS[${MODULE_DIRECTORY_PATH}]:-${DEFAULT_GOOS}} \
             govulncheck-report \
                 --ignore=GO-2022-0635 \
                 --ignore=GO-2022-0646 \
                 --ignore=GO-2025-4192 \
                 --ignore=GO-2026-4309 \
+                --ignore=GO-2026-4348 \
+                --ignore=GO-2026-4349 \
+                --ignore=GO-2026-4354 \
+                --ignore=GO-2026-4355 \
+                --ignore=GO-2026-4377 \
                 -- \
                 -C "${MODULE_DIRECTORY_PATH}" -show traces,verbose -test ./... 2>&1; \
               EXIT_CODE=$?
