@@ -55,6 +55,7 @@ export default function Select<
     closeMenuOnSelect = true,
     components,
     customProps,
+    ref,
     readOnly,
     ...restOfProps
   } = props;
@@ -63,6 +64,7 @@ export default function Select<
       selectSize={size}
       hasError={hasError}
       elevated={elevated}
+      ref={ref}
       readOnly={readOnly}
     >
       <ReactSelect<Opt, IsMulti, Group>
@@ -95,11 +97,17 @@ export function SelectAsync<
     hasError = false,
     components,
     customProps,
+    ref,
     readOnly,
     ...restOfProps
   } = props;
   return (
-    <StyledSelect selectSize={size} hasError={hasError} readOnly={readOnly}>
+    <StyledSelect
+      selectSize={size}
+      hasError={hasError}
+      ref={ref}
+      readOnly={readOnly}
+    >
       <ReactSelectAsync<Opt, IsMulti, Group>
         components={{
           ...defaultComponents,
@@ -133,11 +141,17 @@ export function SelectCreatable<
     stylesConfig,
     components,
     customProps,
+    ref,
     readOnly,
     ...restOfProps
   } = props;
   return (
-    <StyledSelect selectSize={size} hasError={hasError} readOnly={readOnly}>
+    <StyledSelect
+      selectSize={size}
+      hasError={hasError}
+      ref={ref}
+      readOnly={readOnly}
+    >
       <CreatableSelect<Opt, IsMulti, Group>
         components={{
           ...defaultComponents,
@@ -166,11 +180,17 @@ export function SelectCreatableAsync<
     stylesConfig,
     components,
     customProps,
+    ref,
     readOnly,
     ...restOfProps
   } = props;
   return (
-    <StyledSelect selectSize={size} hasError={hasError} readOnly={readOnly}>
+    <StyledSelect
+      selectSize={size}
+      hasError={hasError}
+      ref={ref}
+      readOnly={readOnly}
+    >
       <ReactSelectCreatableAsync<Opt, IsMulti, Group>
         components={{
           ...defaultComponents,
