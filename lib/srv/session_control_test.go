@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
@@ -92,6 +93,7 @@ type mockAccessChecker struct {
 	maxConnections int64
 	keyPolicy      keys.PrivateKeyPolicy
 	roleNames      []string
+	pinSourceIP    bool
 }
 
 func (m mockAccessChecker) LockingMode(defaultMode constants.LockingMode) constants.LockingMode {
@@ -108,6 +110,10 @@ func (m mockAccessChecker) PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy)
 
 func (m mockAccessChecker) RoleNames() []string {
 	return m.roleNames
+}
+
+func (m mockAccessChecker) PinSourceIP() bool {
+	return m.pinSourceIP
 }
 
 func TestSessionController_AcquireSessionContext(t *testing.T) {
@@ -479,6 +485,41 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 			identity:  botIdentity(),
 			assertion: func(t *testing.T, _ context.Context, err error, _ *eventstest.MockRecorderEmitter) {
 				assert.NoError(t, err, "AcquireSessionContext returned an unexpected error")
+			},
+		},
+		{
+			name: "session rejected due to pinned ip mismatch",
+			cfg: SessionControllerConfig{
+				Clock:      clock,
+				Semaphores: mockSemaphores{},
+				AccessPoint: mockAccessPoint{
+					authPreference: &types.AuthPreferenceV2{
+						Spec: types.AuthPreferenceSpecV2{
+							LockingMode: constants.LockingModeStrict,
+						},
+					},
+					clusterName: &types.ClusterNameV2{Spec: types.ClusterNameSpecV2{ClusterName: "llama"}},
+				},
+				LockEnforcer: mockLockEnforcer{},
+				Emitter:      emitter,
+				Component:    teleport.ComponentNode,
+				ServerID:     "1234",
+			},
+			identity: IdentityContext{
+				UnmappedIdentity: &sshca.Identity{
+					Username: "alpaca",
+					PinnedIP: "1.2.3.4",
+				},
+				TeleportUser: "alpaca",
+				Login:        "alpaca",
+				AccessChecker: mockAccessChecker{
+					keyPolicy:      keys.PrivateKeyPolicyNone,
+					maxConnections: 1,
+					pinSourceIP:    true,
+				},
+			},
+			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockRecorderEmitter) {
+				require.ErrorIs(t, err, authz.ErrIPPinningMismatch)
 			},
 		},
 	}

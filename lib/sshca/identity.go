@@ -95,7 +95,8 @@ type Identity struct {
 	PreviousIdentityExpires time.Time
 	// LoginIP is an observed IP of the client on the moment of certificate creation.
 	LoginIP string
-	// PinnedIP is an IP from which client must communicate with Teleport.
+	// PinnedIP is an IP from which client must communicate with Teleport. If set,
+	// this implies that IP Pinning was required at the time of certificate creation.
 	PinnedIP string
 	// DisallowReissue flags that any attempt to request new certificates while
 	// authenticated with this cert should be denied.

@@ -416,7 +416,12 @@ func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error
 		return nil, trace.Wrap(err)
 	}
 
-	if err := CheckIPPinning(ctx, authContext.Identity.GetIdentity(), authContext.Checker.PinSourceIP(), a.logger); err != nil {
+	var clientAddr string
+	if clientSrcAddr, err := ClientSrcAddrFromContext(ctx); err == nil {
+		clientAddr = clientSrcAddr.String()
+	}
+
+	if err := CheckIPPinning(ctx, clientAddr, authContext.Identity.GetIdentity().PinnedIP, authContext.Checker.PinSourceIP(), a.logger); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -631,31 +636,40 @@ var ErrIPPinningNotAllowed = &trace.AccessDeniedError{Message: "IP pinning is no
 	"downgraded or are behind a L4 load balancers with PROXY protocol enabled without explicitly setting 'proxy_protocol: on'" +
 	"in the proxy_service and/or auth_service config."}
 
-// CheckIPPinning verifies IP pinning for the identity, using the client IP taken from context.
+// CheckIPPinning verifies IP pinning for the identity, using the provided client addr.
 // Check is considered successful if no error is returned.
-func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bool, log logrus.FieldLogger) error {
-	if identity.PinnedIP == "" {
+func CheckIPPinning(ctx context.Context, clientAddr string, pinnedIP string, pinSourceIP bool, log logrus.FieldLogger) error {
+	if pinnedIP == "" {
 		if pinSourceIP {
 			return trace.Wrap(ErrIPPinningMissing)
 		}
 		return nil
 	}
 
-	clientSrcAddr, err := ClientSrcAddrFromContext(ctx)
+	if clientAddr == "" {
+		return trace.BadParameter("pinned IP is required for the user, but the client IP was not provided")
+	}
+
+	clientHost, clientPort, err := net.SplitHostPort(clientAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	clientIP, clientPort, err := net.SplitHostPort(clientSrcAddr.String())
-	if err != nil {
-		return trace.Wrap(err)
+	parsedClientIP := net.ParseIP(clientHost)
+	if parsedClientIP == nil {
+		return trace.BadParameter("client IP address %q is not a valid IP address", clientHost)
 	}
 
-	if clientIP != identity.PinnedIP {
+	parsedPinnedIP := net.ParseIP(pinnedIP)
+	if parsedPinnedIP == nil {
+		return trace.BadParameter("pinned IP address %q is not a valid IP address", pinnedIP)
+	}
+
+	if !parsedClientIP.Equal(net.ParseIP(pinnedIP)) {
 		if log != nil {
 			log.WithFields(logrus.Fields{
-				"client_ip": clientIP,
-				"pinned_ip": identity.PinnedIP,
+				"client_ip": parsedClientIP,
+				"pinned_ip": parsedPinnedIP,
 			}).Debug("Pinned IP and client IP mismatch")
 		}
 		return trace.Wrap(ErrIPPinningMismatch)
@@ -665,10 +679,10 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 	if clientPort == "0" {
 		if log != nil {
 			log.WithFields(logrus.Fields{
-				"client_ip": clientIP,
-				"pinned_ip": identity.PinnedIP,
+				"client_ip": parsedClientIP,
+				"pinned_ip": pinnedIP,
 				"error":     ErrIPPinningNotAllowed.Message,
-			}).Debug("client address is not allowed ot use IP pinning")
+			}).Debug("client address is not allowed to use IP pinning")
 		}
 		return trace.Wrap(ErrIPPinningNotAllowed)
 	}
