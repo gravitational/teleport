@@ -207,7 +207,7 @@ const (
 // This value is used to populate the UserTasks.Spec.IssueType for Discover EC2 tasks.
 // The Web UI will then use those identifiers to show detailed instructions on how to fix the issue.
 //
-// PERM-related issues occur during the discovery phase when the integration's IAM role
+// Permissions-related issues occur during the discovery phase when the integration's IAM role
 // lacks permissions to call AWS APIs, preventing Teleport from discovering EC2 instances.
 const (
 	// AutoDiscoverEC2IssuePermAccountDenied indicates the integration lacks
