@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"maps"
 	"net/http"
 	"net/url"
@@ -32,6 +33,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -4353,4 +4355,68 @@ func TestGenInstancesLogStr(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+// countingHandler is a slog.Handler that counts how many times Handle is called.
+type countingHandler struct {
+	count atomic.Int32
+}
+
+func (h *countingHandler) Enabled(context.Context, slog.Level) bool { return true }
+func (h *countingHandler) Handle(context.Context, slog.Record) error {
+	h.count.Add(1)
+	return nil
+}
+func (h *countingHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h *countingHandler) WithGroup(string) slog.Handler      { return h }
+
+func TestReportEC2IAMPermissionError_LogDeduplication(t *testing.T) {
+	t.Parallel()
+
+	handler := &countingHandler{}
+	logger := slog.New(handler)
+
+	s := &Server{
+		Config: &Config{
+			DiscoveryGroup: "test-group",
+			Log:            logger,
+			clock:          clockwork.NewFakeClock(),
+		},
+		awsEC2Tasks: awsEC2Tasks{
+			instancesIssues: make(map[awsEC2TaskKey]*usertasksv1.DiscoverEC2),
+			issuesSyncQueue: make(map[awsEC2TaskKey]struct{}),
+		},
+	}
+
+	ctx := context.Background()
+	testErr := &server.EC2IAMPermissionError{
+		IssueType:           usertasks.AutoDiscoverEC2IssuePermAccountDenied,
+		Integration:         "my-integration",
+		AccountID:           "123456789012",
+		Region:              "us-east-1",
+		DiscoveryConfigName: "test-config",
+		Err:                 errors.New("AccessDenied"),
+	}
+
+	// Call multiple times with the same error - simulates multiple discovery cycles
+	for range 5 {
+		s.reportEC2IAMPermissionError(ctx, testErr)
+	}
+
+	// Should only log once despite 5 calls
+	assert.Equal(t, int32(1), handler.count.Load(), "expected only 1 log entry for repeated identical errors")
+
+	// Different error should log again
+	differentErr := &server.EC2IAMPermissionError{
+		IssueType:           usertasks.AutoDiscoverEC2IssuePermAccountDenied,
+		Integration:         "my-integration",
+		AccountID:           "123456789012",
+		Region:              "us-west-2", // Different region
+		DiscoveryConfigName: "test-config",
+		Err:                 errors.New("AccessDenied"),
+	}
+	s.reportEC2IAMPermissionError(ctx, differentErr)
+
+	// Now should have 2 log entries (one per unique error key)
+	assert.Equal(t, int32(2), handler.count.Load(), "expected 2 log entries for different errors")
 }

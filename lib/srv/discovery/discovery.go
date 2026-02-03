@@ -446,7 +446,11 @@ type Server struct {
 	awsRDSResourcesStatus awsResourcesStatus
 	awsEKSResourcesStatus awsResourcesStatus
 	awsEC2Tasks           awsEC2Tasks
-	awsEKSTasks           awsEKSTasks
+	// loggedEC2IAMErrors tracks which IAM permission errors have been logged
+	// to prevent log spam on each discovery iteration. Key format:
+	// "integration:issueType:accountID:region"
+	loggedEC2IAMErrors sync.Map
+	awsEKSTasks        awsEKSTasks
 	awsRDSTasks           awsRDSTasks
 	azureVMStatus         atomic.Pointer[resourceStatusMap]
 
@@ -1265,14 +1269,19 @@ func (s *Server) logHandleInstancesErr(err error) {
 // by creating a UserTask to alert users about the missing permission.
 // The actual upsert happens via the postFetchHookFn after the fetch cycle completes.
 func (s *Server) reportEC2IAMPermissionError(ctx context.Context, err *server.EC2IAMPermissionError) {
-	s.Log.ErrorContext(ctx, "IAM permission error during EC2 discovery",
-		"issue_type", err.IssueType,
-		"integration", err.Integration,
-		"account_id", err.AccountID,
-		"region", err.Region,
-		"discovery_config", err.DiscoveryConfigName,
-		"error", err.Err,
-	)
+	// Only log once per unique error to prevent log spam on each discovery iteration.
+	// The UserTask will still be created/updated on each iteration.
+	logKey := err.Integration + ":" + err.IssueType + ":" + err.AccountID + ":" + err.Region
+	if _, alreadyLogged := s.loggedEC2IAMErrors.LoadOrStore(logKey, struct{}{}); !alreadyLogged {
+		s.Log.ErrorContext(ctx, "IAM permission error during EC2 discovery",
+			"issue_type", err.IssueType,
+			"integration", err.Integration,
+			"account_id", err.AccountID,
+			"region", err.Region,
+			"discovery_config", err.DiscoveryConfigName,
+			"error", err.Err,
+		)
+	}
 	s.awsEC2Tasks.addFailedEnrollment(
 		awsEC2TaskKey{
 			accountID:   err.AccountID,
