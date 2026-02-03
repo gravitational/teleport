@@ -265,7 +265,7 @@ func onDatabaseLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := databaseLogin(cf, tc, dbInfo); err != nil {
+	if err := databaseLogin(cf, tc, profile, dbInfo); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -297,16 +297,11 @@ func protocolSupportsInteractiveMode(dbProtocol string) bool {
 	return true
 }
 
-func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo) error {
+func databaseLogin(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, dbInfo *databaseInfo) error {
 	logger.DebugContext(cf.Context, "Fetching database access certificate",
 		"database", dbInfo.RouteToDatabase,
 		"cluster", tc.SiteName,
 	)
-
-	profile, err := tc.ProfileStatus()
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	var keyRing *client.KeyRing
 	// Identity files themselves act as the database credentials (if any), so
@@ -314,7 +309,8 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 	if profile.IsVirtual {
 		logger.InfoContext(cf.Context, "Note: already logged in due to an identity file (`-i ...`); will only update database config files")
 	} else {
-		if err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+			var err error
 			keyRing, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
 				RouteToCluster:  tc.SiteName,
 				RouteToDatabase: client.RouteToDatabaseToProto(dbInfo.RouteToDatabase),
@@ -325,7 +321,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 			return trace.Wrap(err)
 		}
 
-		if err = tc.LocalAgent().AddDatabaseKeyRing(keyRing); err != nil {
+		if err := tc.LocalAgent().AddDatabaseKeyRing(keyRing); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -334,14 +330,14 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 		if err := generateDBLocalProxyCert(keyRing.TLSPrivateKey, profile); err != nil {
 			return trace.Wrap(err)
 		}
-		err = oracle.GenerateClientConfiguration(keyRing.TLSPrivateKey, dbInfo.RouteToDatabase, profile, tc.SiteName)
+		err := oracle.GenerateClientConfiguration(keyRing.TLSPrivateKey, dbInfo.RouteToDatabase, profile, tc.SiteName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
 	// Refresh the profile.
-	profile, err = tc.ProfileStatus()
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1423,7 +1419,7 @@ func maybeDatabaseLogin(cf *CLIConf, tc *client.TeleportClient, profile *client.
 	}
 
 	if reloginNeeded {
-		return trace.Wrap(databaseLogin(cf, tc, dbInfo))
+		return trace.Wrap(databaseLogin(cf, tc, profile, dbInfo))
 	}
 	return nil
 }
