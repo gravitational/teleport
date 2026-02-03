@@ -62,6 +62,52 @@ ability to onboard bots to teams that will leverage them.
 
 ## UX
 
+This section explores the behavior and user experience of Scoped MWI without
+delving into implementation specifics. It expects some familiarity with the 
+existing constructs that exist for Scoped RBAC and MWI.
+
+### User Stories
+
+Personas:
+
+- Cluster Admin: A global administrator of the Teleport cluster. Typically, a
+  member of the team that owns and operates the Teleport installation.
+- Scope Admin: An administrator of a specific scope within the Teleport
+  cluster. Typically, someone who owns infrastructure that belongs to a group
+  or team within the organization.
+
+wipwipwip.
+
+### Behaviour
+
+A Cluster Admin grants the Scope Admin the ability to create, read, update and 
+delete Scoped Bots and Scoped Join Tokens within their scope through a Scoped
+Role and Scoped Role Assignment.
+
+The Scope Admin can then create the Scoped Bot. To do so, they must specify:
+
+- A name for the Scoped Bot. This name must be unique globally within the
+  cluster, across both scoped and unscoped bots.
+- The scope that the Scoped Bot should exist within. This must be a scope, or a 
+  subscope of a scope, that they have permission to create Scoped Bots within.
+
+Notably, at this stage, they do not specify roles as they would do with an
+unscoped Bot. It is not possible to create a Scoped Bot with unscoped Roles.
+
+The Scope Admin then assigns Scoped Roles to the Scoped Bot through Scoped Role
+Assignments or via Scoped Access Lists. They cannot assign unscoped Roles to the
+Scoped Bot.
+
+TODO: Do the Scoped Roles assigned to the Scoped Bot need to be within the same 
+scope or a sub-scope of the scope in which the Scoped Bot exists? Or do we
+permit a Scoped Bot existing in `/foo` to be assigned Scoped Roles/privileges in
+`/bar`? I think there's some merit in this - e.g allowing a scope admin to grant
+an NHI owned/operated by another team to access resources within their scope.
+
+The Scope Admin then creates a Scoped Join Token to allow `tbot` to join as 
+the Scoped Bot. The Scoped Join Token MUST be created within the same scope as 
+the Scoped Bot.
+
 ## Implementation Details
 
 ## Security Considerations
@@ -69,3 +115,7 @@ ability to onboard bots to teams that will leverage them.
 ## Future Improvements
 
 ### Sub-scoping of generated credentials
+
+## Appendix A: Decisions
+
+### A.1: The mechanism of Bot scoping
