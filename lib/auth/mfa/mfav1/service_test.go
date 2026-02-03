@@ -729,7 +729,8 @@ func TestReplicateValidatedMFAChallenge_Success(t *testing.T) {
 	t.Parallel()
 
 	_, service, _, user := setupAuthServer(t, nil)
-	ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleNode).I)
+
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestRemoteBuiltin(types.RoleProxy, targetCluster).I)
 
 	payload := &mfav1.SessionIdentifyingPayload{
 		Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
@@ -777,7 +778,7 @@ func TestReplicateValidatedMFAChallenge_Success(t *testing.T) {
 	)
 }
 
-func TestReplicateValidatedMFAChallenge_NonServerDenied(t *testing.T) {
+func TestReplicateValidatedMFAChallenge_NonRemoteProxyDenied(t *testing.T) {
 	t.Parallel()
 
 	_, service, _, user := setupAuthServer(t, nil)
@@ -798,7 +799,7 @@ func TestReplicateValidatedMFAChallenge_NonServerDenied(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
-	require.ErrorContains(t, err, "only server identities can replicate validated MFA challenge")
+	require.ErrorContains(t, err, "only remote proxy identities can replicate validated MFA challenges")
 	require.Nil(t, resp)
 }
 
@@ -807,7 +808,7 @@ func TestReplicateValidatedMFAChallenge_TargetClusterMismatch(t *testing.T) {
 
 	_, service, _, _ := setupAuthServer(t, nil)
 
-	ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleNode).I)
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestRemoteBuiltin(types.RoleProxy, targetCluster).I)
 
 	resp, err := service.ReplicateValidatedMFAChallenge(ctx, &mfav1.ReplicateValidatedMFAChallengeRequest{
 		Name: chalName,
@@ -830,7 +831,7 @@ func TestReplicateValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 
 	_, service, _, _ := setupAuthServer(t, nil)
 
-	ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleNode).I)
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestRemoteBuiltin(types.RoleProxy, targetCluster).I)
 
 	validReq := &mfav1.ReplicateValidatedMFAChallengeRequest{
 		Name: chalName,

@@ -395,8 +395,8 @@ func (s *Service) ReplicateValidatedMFAChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	if b, ok := authCtx.Identity.(authz.BuiltinRole); !ok || (ok && !b.IsServer()) {
-		return nil, trace.AccessDenied("only server identities can replicate validated MFA challenges")
+	if !hasRemoteBuiltinRole(*authCtx, string(types.RoleRemoteProxy)) {
+		return nil, trace.AccessDenied("only remote proxy identities can replicate validated MFA challenges")
 	}
 
 	if err := checkReplicateValidatedMFAChallengeRequest(req); err != nil {
@@ -760,4 +760,16 @@ func checkPayload(sip *mfav1.SessionIdentifyingPayload) error {
 	}
 
 	return nil
+}
+
+func hasRemoteBuiltinRole(authContext authz.Context, name string) bool {
+	if _, ok := authContext.UnmappedIdentity.(authz.RemoteBuiltinRole); !ok {
+		return false
+	}
+
+	if !authContext.Checker.HasRole(name) {
+		return false
+	}
+
+	return true
 }
