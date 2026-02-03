@@ -1,10 +1,19 @@
+import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
+
+import { ButtonSecondary } from 'design/Button';
+import Flex from 'design/Flex';
 import Text, { H2 } from 'design/Text';
 
 import { IntegrationSessionSummariesHeader } from 'e-teleport/Integrations/SessionSummaries/Header';
 import { InferenceModelsList } from 'e-teleport/Integrations/SessionSummaries/list/InferenceModelsList';
 import { InferencePoliciesList } from 'e-teleport/Integrations/SessionSummaries/list/InferencePoliciesList';
 import { InferenceSecretsList } from 'e-teleport/Integrations/SessionSummaries/list/InferenceSecretsList';
-import { SessionSummariesManagementProvider } from 'e-teleport/Integrations/SessionSummaries/SessionSummariesManagement';
+import {
+  OverlayEntity,
+  SessionSummariesManagementProvider,
+  useSessionSummariesManagement,
+} from 'e-teleport/Integrations/SessionSummaries/SessionSummariesManagement';
 import { FeatureBox } from 'teleport/components/Layout';
 
 export function IntegrationSessionSummaries() {
@@ -13,7 +22,7 @@ export function IntegrationSessionSummaries() {
       <IntegrationSessionSummariesHeader />
 
       <FeatureBox maxWidth={1440} mx="auto" gap={2} py={4} unsetHeight>
-        <H2>Inference Policies</H2>
+        <SectionHeader entity={OverlayEntity.Policy} />
 
         <Text color="text.slightlyMuted">
           Inference policies allow you to define rules for what kinds of
@@ -23,7 +32,7 @@ export function IntegrationSessionSummaries() {
 
         <InferencePoliciesList />
 
-        <H2 mt={4}>Inference Models</H2>
+        <SectionHeader entity={OverlayEntity.Model} mt={4} />
 
         <Text color="text.slightlyMuted">
           Inference models are the large language models (LLMs) that are used to
@@ -33,7 +42,7 @@ export function IntegrationSessionSummaries() {
 
         <InferenceModelsList />
 
-        <H2 mt={4}>Inference Secrets</H2>
+        <SectionHeader entity={OverlayEntity.Secret} mt={4} />
 
         <Text color="text.slightlyMuted">
           For OpenAI and OpenAI-compatible models, you may need to provide an
@@ -44,4 +53,42 @@ export function IntegrationSessionSummaries() {
       </FeatureBox>
     </SessionSummariesManagementProvider>
   );
+}
+
+interface SectionHeaderProps {
+  entity: OverlayEntity;
+  mt?: number;
+}
+
+function SectionHeader({ entity, mt }: SectionHeaderProps) {
+  const { singular, plural } = entityToWords(entity);
+  const { createNewOverlayLink } = useSessionSummariesManagement();
+
+  const link = useMemo(
+    () => createNewOverlayLink(entity),
+    [createNewOverlayLink, entity]
+  );
+
+  return (
+    <Flex alignItems="center" justifyContent="space-between" mt={mt}>
+      <H2>{plural}</H2>
+
+      <ButtonSecondary as={Link} to={link} px={3}>
+        Add {singular}
+      </ButtonSecondary>
+    </Flex>
+  );
+}
+
+function entityToWords(entity: OverlayEntity) {
+  switch (entity) {
+    case OverlayEntity.Policy:
+      return { singular: 'Inference Policy', plural: 'Inference Policies' };
+    case OverlayEntity.Model:
+      return { singular: 'Inference Model', plural: 'Inference Models' };
+    case OverlayEntity.Secret:
+      return { singular: 'Inference Secret', plural: 'Inference Secrets' };
+    default:
+      return { singular: '', plural: '' };
+  }
 }

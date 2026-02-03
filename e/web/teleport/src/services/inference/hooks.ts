@@ -47,6 +47,7 @@ export const {
 );
 
 export const {
+  createQueryKey: listInferenceSecretsQueryKey,
   useInfiniteQuery: useInfiniteListInferenceSecrets,
   useQuery: useListInferenceSecrets,
 } = createQueryHook(

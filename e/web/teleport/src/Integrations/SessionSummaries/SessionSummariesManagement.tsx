@@ -6,7 +6,9 @@ import {
   useState,
   type PropsWithChildren,
 } from 'react';
-import { useHistory } from 'react-router';
+import { useHistory, useLocation } from 'react-router';
+
+import { SessionSummariesOverlays } from 'e-teleport/Integrations/SessionSummaries/Overlays';
 
 /**
  * In the session summaries management UI, multiple modals can be open (you can add or
@@ -64,20 +66,21 @@ export function SessionSummariesManagementProvider({
   children,
 }: PropsWithChildren) {
   const history = useHistory();
+  const location = useLocation();
 
   const [pendingSelection, setPendingSelection] =
     useState<null | PendingSelection>(null);
 
   const overlays = useMemo(
-    () => createOverlaysFromHash(history.location.hash),
-    [history.location.hash]
+    () => createOverlaysFromHash(location.hash),
+    [location.hash]
   );
 
   const closeCurrentOverlay = useCallback(() => {
     const newOverlays = overlays.slice(0, -1);
 
     if (newOverlays.length === 0) {
-      history.push(history.location.pathname + history.location.search);
+      history.push(location.pathname + location.search);
 
       return;
     }
@@ -85,10 +88,8 @@ export function SessionSummariesManagementProvider({
     const serialized = newOverlays.map(serializeOverlay).join(SEPARATOR);
 
     // if there are still overlays open, replace the current history entry instead of pushing a new one
-    history.replace(
-      history.location.pathname + history.location.search + `#${serialized}`
-    );
-  }, [history, overlays]);
+    history.replace(location.pathname + location.search + `#${serialized}`);
+  }, [history, location, overlays]);
 
   const createEditOverlayLink = useCallback(
     (entity: OverlayEntity, name: string) => {
@@ -101,11 +102,9 @@ export function SessionSummariesManagementProvider({
       const newOverlays = [...overlays, overlay];
       const serialized = newOverlays.map(serializeOverlay).join(SEPARATOR);
 
-      return (
-        history.location.pathname + history.location.search + `#${serialized}`
-      );
+      return location.pathname + location.search + `#${serialized}`;
     },
-    [history, overlays]
+    [location, overlays]
   );
 
   const createNewOverlayLink = useCallback(
@@ -118,11 +117,9 @@ export function SessionSummariesManagementProvider({
       const newOverlays = [...overlays, overlay];
       const serialized = newOverlays.map(serializeOverlay).join(SEPARATOR);
 
-      return (
-        history.location.pathname + history.location.search + `#${serialized}`
-      );
+      return location.pathname + location.search + `#${serialized}`;
     },
-    [history, overlays]
+    [location, overlays]
   );
 
   const openEditOverlay = useCallback(
@@ -170,6 +167,8 @@ export function SessionSummariesManagementProvider({
   return (
     <SessionSummariesContext.Provider value={value}>
       {children}
+
+      <SessionSummariesOverlays />
     </SessionSummariesContext.Provider>
   );
 }

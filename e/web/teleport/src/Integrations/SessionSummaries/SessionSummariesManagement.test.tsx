@@ -1,6 +1,15 @@
+import { QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
 import type { PropsWithChildren } from 'react';
 import { MemoryRouter } from 'react-router';
+
+import { darkTheme } from 'design/theme';
+import { ConfiguredThemeProvider } from 'design/ThemeProvider';
+import { testQueryClient } from 'design/utils/testing';
+
+import cfg from 'e-teleport/config';
 
 import {
   OverlayEntity,
@@ -62,6 +71,15 @@ test('parses new-policy overlay', () => {
 });
 
 test('parses multiple overlays', () => {
+  const server = setupServer();
+
+  server.listen();
+  server.use(
+    http.get(cfg.api.inference.secret, () => {
+      return HttpResponse.json({ items: [] });
+    })
+  );
+
   const { result } = renderHook(() => useSessionSummariesManagement(), {
     wrapper: wrapper({
       initialEntries: ['/#new-model;edit-secret:api-key'],
@@ -72,6 +90,9 @@ test('parses multiple overlays', () => {
     { entity: OverlayEntity.Model, type: OverlayType.New },
     { entity: OverlayEntity.Secret, name: 'api-key', type: OverlayType.Edit },
   ]);
+
+  server.close();
+  testQueryClient.clear();
 });
 
 test('ignores invalid hash entries', () => {
@@ -183,9 +204,13 @@ function wrapper({
   return function Wrapper({ children }: PropsWithChildren) {
     return (
       <MemoryRouter initialEntries={initialEntries}>
-        <SessionSummariesManagementProvider>
-          {children}
-        </SessionSummariesManagementProvider>
+        <QueryClientProvider client={testQueryClient}>
+          <ConfiguredThemeProvider theme={darkTheme}>
+            <SessionSummariesManagementProvider>
+              {children}
+            </SessionSummariesManagementProvider>
+          </ConfiguredThemeProvider>
+        </QueryClientProvider>
       </MemoryRouter>
     );
   };
