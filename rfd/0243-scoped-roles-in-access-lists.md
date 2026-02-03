@@ -508,23 +508,33 @@ the IdP imported access lists as members of those lists.
 #### Invariants
 
 * Access lists can only assign scoped roles that exist
-* Access lists can only assign roles to an assignable_scope of the role.
+* Access lists can only assign roles defined in the root scope
+* Access lists can only assign roles to an assignable_scope of the role
 
-Backend key `/scoped_role/role_lock/<role-name>` is already randomized every
-time a scoped role assignment is created or deleted, and scoped role
-Create/Update/Delete assert that it isn't concurrently modified.
-Since access lists will become essentially a way of automating scoped role
-assignments, they can use the same strategy.
+The scoped access backend already has an AtomicWrite strategy for handling
+writes to scoped_roles and/or scoped_role_assignments while enforcing this kind
+of invariant.
+As access lists act similarly to scoped_role_assignments, they can use the same
+strategy.
+Namely, a value at backend key `/scoped_role/role_lock/<role-name>` is used to
+synchronize writes to the named scoped role and all assignments referencing the
+role.
+Create and Delete on scoped_role_assignments atomically assert the revision
+of each referenced scoped_role, and modify the lock value for each role so that
+writes to scoped_roles can efficiently detect concurrent modification to assignments.
+Create/Update/Delete on scoped_roles atomically assert that the revision of
+this lock has not been modified between the time the invariants are checked and
+the time the role is written.
 
 AccessList Create and Update will check that all referenced scoped roles
-exist, are defined in their own scope or an ancestor scope, and are assignable
-at the assigned scope.
+exist, are defined in the root scope, and are assignable at the assigned scope.
 They will use AtomicWrite to assert the checked revision of each referenced
 scoped role, and modify `/scoped_role/role_lock/<role-name>` for each referenced
 role to make sure it isn't modified immediately after an access list create/update.
 This requires 2 conditions per referenced role, which will limit the number of
 roles a single access list can reference.
-This same limitation applies to scoped role assignments already, the current limit is 16.
+This same limitation applies to scoped role assignments already, the current
+limit is 16.
 
 UpdateScopedRole may modify a role's assignable scopes.
 In this case it will check that the change doesn't invalidate any assignments
@@ -536,11 +546,12 @@ DeleteScopedRole will continue to use AtomicWrite to verify that
 no new access lists reference it.
 
 * Access lists that assign scoped roles cannot contain `membership_requires` or `ownership_requires`
-* Member lists of lists that assign scoped roles cannot contain
-  `membership_requires` or `ownership_requires`
 
 UpsertAccessList and UpdateAccessList will statically verify that the list
 cannot contain both scoped role grants and requirement blocks.
+
+* Member lists of lists that assign scoped roles cannot contain
+  `membership_requires` or `ownership_requires`
 
 UpdateAccessList (if it adds a scoped role assignment or requirement block),
 and access list member creation methods, will have to traverse the access list
@@ -555,9 +566,9 @@ result in scoped role assignments being materialized (they will be dropped by
 the assignment materializer and the invalid list or membership will be logged).
 
 * Materialized scoped role assignments will be created for each extant (user, list)
-  where user is a member of list.
+  where user is a member and/or an owner of list.
 * Materialized scoped role assignments will be deleted when user ceases to be a
-  member of a list.
+  member or owner of a list.
 
 These are not being written to the backend and thus cannot use AtomicWrite.
 These invariants will be enforced when the scoped access cache is initialized,
