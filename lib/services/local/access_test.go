@@ -588,3 +588,133 @@ func Test_matchLock(t *testing.T) {
 		})
 	}
 }
+
+func TestAtomicRoleOperations(t *testing.T) {
+	t.Run("test atomic operations", func(t *testing.T) {
+		ctx := t.Context()
+		backend, err := memory.New(memory.Config{
+			Context: ctx,
+			Clock:   clockwork.NewFakeClock(),
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = backend.Close() })
+
+		svc := NewAccessService(backend)
+
+		rA := mkRole("roleA")
+		rB := mkRole("roleB")
+
+		err = svc.AtomicRoleOperations(ctx, AtomicRoleOperationParam{
+			RolesToCreateUpdate: []types.Role{
+				rA,
+			},
+			RoleNamesToDelete: []string{
+				rB.GetName(),
+			},
+		})
+		require.True(t, trace.IsCompareFailed(err))
+
+		var want []string
+		assertBackendState(t, svc, want)
+
+		_, err = svc.CreateRole(t.Context(), rB)
+		require.NoError(t, err)
+
+		want = []string{
+			rB.GetName(),
+		}
+		assertBackendState(t, svc, want)
+
+		err = svc.AtomicRoleOperations(ctx, AtomicRoleOperationParam{
+			RolesToCreateUpdate: []types.Role{
+				rA,
+			},
+			RoleNamesToDelete: []string{
+				rB.GetName(),
+			},
+		})
+		require.NoError(t, err)
+
+		want = []string{
+			rA.GetName(),
+		}
+		assertBackendState(t, svc, want)
+
+		rC := mkRole("roleC")
+
+		rACpy := rA.Clone()
+		_, err = svc.UpsertRole(ctx, rACpy)
+		require.NoError(t, err)
+
+		err = svc.AtomicRoleOperations(ctx, AtomicRoleOperationParam{
+			RolesToCreateUpdate: []types.Role{
+				rA, rC,
+			},
+		})
+		require.True(t, trace.IsCompareFailed(err))
+
+		want = []string{
+			rA.GetName(),
+		}
+		assertBackendState(t, svc, want)
+
+		rA.SetRevision(rACpy.GetRevision())
+
+		err = svc.AtomicRoleOperations(ctx, AtomicRoleOperationParam{
+			RolesToCreateUpdate: []types.Role{
+				rA, rC,
+			},
+		})
+		require.NoError(t, err)
+
+		want = []string{
+			rA.GetName(),
+			rC.GetName(),
+		}
+		assertBackendState(t, svc, want)
+	})
+
+	t.Run("creation of role that don't exists with revision should fail", func(t *testing.T) {
+		ctx := t.Context()
+		backend, err := memory.New(memory.Config{
+			Context: ctx,
+			Clock:   clockwork.NewFakeClock(),
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = backend.Close() })
+
+		svc := NewAccessService(backend)
+
+		rA := mkRole("roleA")
+
+		rA.SetRevision("some unknown revision")
+
+		err = svc.AtomicRoleOperations(ctx, AtomicRoleOperationParam{
+			RolesToCreateUpdate: []types.Role{
+				rA,
+			},
+		})
+		require.True(t, trace.IsCompareFailed(err))
+	})
+}
+
+func mkRole(name string) types.Role {
+	role, err := types.NewRole(name, types.RoleSpecV6{})
+	if err != nil {
+		panic(err)
+	}
+	return role
+}
+
+func assertBackendState(t *testing.T, svc *AccessService, want []string) {
+	t.Helper()
+	roles, err := svc.GetRoles(t.Context())
+	require.NoError(t, err)
+	require.Len(t, roles, len(want))
+
+	var got []string
+	for _, r := range roles {
+		got = append(got, r.GetName())
+	}
+	require.ElementsMatch(t, got, want)
+}
