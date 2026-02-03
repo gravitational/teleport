@@ -88,9 +88,10 @@ export class AppUpdater {
     const getClientToolsVersion: ClientToolsVersionGetter = async () => {
       const config = await this.client.getConfig();
 
+      const cdnBaseUrl = config.cdnBaseUrl?.value || '';
       await this.refreshAutoUpdatesStatus({
-        toolsVersion: config.toolsVersion.value,
-        cdnBaseUrl: config.cdnBaseUrl.value,
+        toolsVersion: config.toolsVersion?.value || '',
+        cdnBaseUrl,
       });
 
       if (this.autoUpdatesStatus.enabled) {
@@ -107,13 +108,13 @@ export class AppUpdater {
 
         if (isPerMachineInstall) {
           this.nsisUpdaterSettings.privilegedUpdaterCannotBeUsed =
-            config.toolsVersion.source === ConfigSource.ENV_VAR ||
-            config.cdnBaseUrl.source === ConfigSource.ENV_VAR;
+            config.toolsVersion?.source === ConfigSource.ENV_VAR ||
+            config.cdnBaseUrl?.source === ConfigSource.ENV_VAR;
         }
 
         return {
           version: this.autoUpdatesStatus.version,
-          baseUrl: config.cdnBaseUrl.value,
+          baseUrl: cdnBaseUrl,
           isPerMachineInstall,
         };
       }
