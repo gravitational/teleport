@@ -557,14 +557,6 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		return nil, trace.Wrap(err)
 	}
 
-	deviceVerified := dtauthz.IsTLSDeviceVerified((*tlsca.DeviceExtensions)(&req.DeviceExtensions))
-	a.logger.DebugContext(ctx, "DEBUG: App Session Request Context",
-		"user", req.User,
-		"roles", req.Roles,
-		"device_verified", deviceVerified,
-		"mfa_present", req.MFAVerified != "",
-	)
-
 	// Audit fields used for both success and failure
 	sessionStartEvent := &apievents.AppSessionStart{
 		Metadata: apievents.Metadata{
@@ -587,83 +579,62 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		},
 	}
 
+	app, err := a.GetApp(ctx, req.AppName)
+	if err != nil {
+		return nil, trace.AccessDenied("application metadata not found")
+	}
+
 	// Enforce device trust early via the AccessChecker.
-	deviceErr := checker.CheckDeviceAccess(services.AccessState{
-		DeviceVerified:           deviceVerified,
-		EnableDeviceVerification: true,
-		IsBot:                    req.BotName != "",
-	})
+	deviceErr := checker.CheckDeviceAccess(
+		app,
+		services.AccessState{
+			DeviceVerified:           dtauthz.IsTLSDeviceVerified((*tlsca.DeviceExtensions)(&req.DeviceExtensions)),
+			EnableDeviceVerification: true,
+			IsBot:                    req.BotName != "",
+		},
+		req.Traits,
+	)
 
 	if deviceErr != nil {
-		a.logger.DebugContext(ctx, "DEBUG: Primary device trust check failed", "error", deviceErr)
 
-		isExplicitlyIDAllowed := false
-		for _, resID := range req.RequestedResourceIDs {
-			if resID.Kind == types.KindApp && resID.Name == req.AppName {
-				isExplicitlyIDAllowed = true
-				break
-			}
-		}
-		a.logger.DebugContext(ctx, "Resource ID allow-list check", "app", req.AppName, "found", isExplicitlyIDAllowed)
-
-		appResource, _ := types.NewAppV3(
-			types.Metadata{Name: req.AppName},
-			types.AppSpecV3{URI: req.AppURI},
-		)
-
-		accessErr := checker.CheckAccess(appResource, services.AccessState{
-			MFAVerified:    req.MFAVerified != "",
-			DeviceVerified: deviceVerified,
-		})
-
-		if accessErr != nil {
-			a.logger.DebugContext(ctx, "CheckAccess REJECTED", "error", accessErr)
-		} else {
-			a.logger.DebugContext(ctx, "CheckAccess ALLOWED")
+		userKind := apievents.UserKind_USER_KIND_HUMAN
+		if req.BotName != "" {
+			userKind = apievents.UserKind_USER_KIND_BOT
 		}
 
-		if accessErr != nil && !isExplicitlyIDAllowed {
-			a.logger.DebugContext(ctx, "DEBUG: Emitting failure audit.", "error", accessErr)
-
-			userKind := apievents.UserKind_USER_KIND_HUMAN
-			if req.BotName != "" {
-				userKind = apievents.UserKind_USER_KIND_BOT
-			}
-
-			userMetadata := apievents.UserMetadata{
-				User:            req.User,
-				BotName:         req.BotName,
-				BotInstanceID:   req.BotInstanceID,
-				UserKind:        userKind,
-				UserRoles:       req.Roles,
-				UserClusterName: req.ClusterName,
-				UserTraits:      req.Traits,
-				AWSRoleARN:      req.AWSRoleARN,
-			}
-
-			if req.DeviceExtensions.DeviceID != "" {
-				userMetadata.TrustedDevice = &apievents.DeviceMetadata{
-					DeviceId:     req.DeviceExtensions.DeviceID,
-					AssetTag:     req.DeviceExtensions.AssetTag,
-					CredentialId: req.DeviceExtensions.CredentialID,
-				}
-			}
-			errMsg := "requires a trusted device"
-
-			sessionStartEvent.Metadata.SetCode(events.AppSessionStartFailureCode)
-			sessionStartEvent.UserMetadata = userMetadata
-			sessionStartEvent.SessionMetadata = apievents.SessionMetadata{
-				WithMFA: req.MFAVerified,
-			}
-			sessionStartEvent.Error = err.Error()
-			sessionStartEvent.UserMessage = errMsg
-
-			a.emitter.EmitAuditEvent(a.closeCtx, sessionStartEvent)
-			// err swallowed/obscured on purpose.
-			return nil, trace.AccessDenied("%s", errMsg)
-		} else {
-			a.logger.DebugContext(ctx, "DEBUG: not rejected.", "app", req.AppName)
+		userMetadata := apievents.UserMetadata{
+			User:            req.User,
+			BotName:         req.BotName,
+			BotInstanceID:   req.BotInstanceID,
+			UserKind:        userKind,
+			UserRoles:       req.Roles,
+			UserClusterName: req.ClusterName,
+			UserTraits:      req.Traits,
+			AWSRoleARN:      req.AWSRoleARN,
 		}
+
+		if req.DeviceExtensions.DeviceID != "" {
+			userMetadata.TrustedDevice = &apievents.DeviceMetadata{
+				DeviceId:     req.DeviceExtensions.DeviceID,
+				AssetTag:     req.DeviceExtensions.AssetTag,
+				CredentialId: req.DeviceExtensions.CredentialID,
+			}
+		}
+		errMsg := "requires a trusted device"
+
+		sessionStartEvent.Metadata.SetCode(events.AppSessionStartFailureCode)
+		sessionStartEvent.UserMetadata = userMetadata
+		sessionStartEvent.SessionMetadata = apievents.SessionMetadata{
+			WithMFA: req.MFAVerified,
+		}
+		sessionStartEvent.Error = deviceErr.Error()
+		sessionStartEvent.UserMessage = errMsg
+
+		a.emitter.EmitAuditEvent(a.closeCtx, sessionStartEvent)
+		// err swallowed/obscured on purpose.
+		return nil, trace.AccessDenied("%s", errMsg)
+	} else {
+		a.logger.DebugContext(ctx, "DEBUG: not rejected.", "app", req.AppName)
 	}
 
 	sessionID := req.SuggestedSessionID
