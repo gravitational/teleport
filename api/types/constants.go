@@ -505,6 +505,9 @@ const (
 	// KindInstance represents a teleport instance independent of any specific service.
 	KindInstance = "instance"
 
+	// KindDebugService represents remote access to a Teleport instance's debug service.
+	KindDebugService = "debug_service"
+
 	// KindLoginRule is a login rule resource.
 	KindLoginRule = "login_rule"
 
@@ -1415,6 +1418,9 @@ const (
 
 	// OktaTunnel is a tunnel where the Okta service dials back to the proxy.
 	OktaTunnel TunnelType = "okta"
+
+	// DebugTunnel is a tunnel used for remote debug access to an instance's debug service.
+	DebugTunnel TunnelType = "debug"
 )
 
 type TunnelStrategyType string

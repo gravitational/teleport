@@ -71,9 +71,11 @@ lint:
       - api/proto/teleport/legacy/types/resources.proto
       - api/proto/teleport/legacy/types/webauthn/webauthn.proto
     RPC_REQUEST_STANDARD_NAME:
+      - api/proto/teleport/debug/v1/debug_service.proto
       - proto/teleport/lib/teleterm/v1/service.proto
     UNARY_RPC:
       - api/proto/teleport/auditlog/v1/auditlog.proto
+      - api/proto/teleport/debug/v1/debug_service.proto
       - api/proto/teleport/devicetrust/v1/devicetrust_service.proto
       - api/proto/teleport/legacy/client/proto/joinservice.proto
       - api/proto/teleport/transport/v1/transport_service.proto

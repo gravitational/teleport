@@ -120,6 +120,10 @@ type AgentPoolConfig struct {
 	// Server is either an SSH or application server. It can handle a connection
 	// (perform handshake and handle request).
 	Server ServerHandler
+	// DebugHandler is an optional handler for DebugTunnel connections.
+	// When set, connections with ConnType DebugTunnel are routed to this
+	// handler instead of the default Server.
+	DebugHandler ServerHandler
 	// Component is the Teleport component this agent pool is running in. It can
 	// either be proxy (trusted clusters) or node (dial back).
 	Component string
@@ -631,6 +635,12 @@ func (p *AgentPool) handleLocalTransport(ctx context.Context, channel ssh.Channe
 	}
 	if src, err := utils.ParseAddr(dialReq.ClientSrcAddr); err == nil {
 		conn = utils.NewConnWithSrcAddr(conn, getTCPAddr(src))
+	}
+
+	// Route DebugTunnel connections to the dedicated handler.
+	if dialReq.ConnType == types.DebugTunnel && p.DebugHandler != nil {
+		p.DebugHandler.HandleConnection(conn)
+		return
 	}
 
 	p.Server.HandleConnection(conn)

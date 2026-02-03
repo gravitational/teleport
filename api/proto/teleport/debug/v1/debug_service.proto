@@ -1,0 +1,62 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.debug.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/debug/v1;debugv1";
+
+// DebugService provides remote debugging capabilities for connected Teleport
+// instances. It tunnels HTTP traffic to a target instance's local debug
+// service, identified by server_id.
+service DebugService {
+  // Connect establishes a tunneled connection to the target instance's HTTP
+  // debug service. The first frame must contain the server_id. Subsequent
+  // frames carry raw HTTP request and response data bidirectionally.
+  rpc Connect(stream Frame) returns (stream Frame);
+}
+
+// Frame carries data for the Connect tunnel.
+message Frame {
+  oneof payload {
+    // server_id identifies the target instance (first frame only).
+    string server_id = 1;
+    // data carries raw HTTP bytes.
+    bytes data = 2;
+  }
+}
+
+// LogEntry represents a single structured log entry from a Teleport instance.
+// Used internally by the log broadcasting infrastructure.
+message LogEntry {
+  // timestamp is when the log entry was produced.
+  google.protobuf.Timestamp timestamp = 1;
+  // level is the log level (e.g. "DEBUG", "INFO", "WARN", "ERROR").
+  string level = 2;
+  // message is the human-readable log message.
+  string message = 3;
+  // caller is the source location that produced the log entry (e.g. "file.go:42").
+  string caller = 4;
+  // component is the Teleport component that produced the log entry.
+  string component = 5;
+  // trace_id is the OpenTelemetry trace ID, if present.
+  string trace_id = 6;
+  // span_id is the OpenTelemetry span ID, if present.
+  string span_id = 7;
+  // attributes contains additional structured key-value pairs from the log entry.
+  map<string, string> attributes = 8;
+}

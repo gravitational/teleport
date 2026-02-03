@@ -56,7 +56,8 @@ type Client struct {
 	socketPath string
 }
 
-// NewClient generates a new debug service client.
+// NewClient generates a new debug service client that connects via the
+// local Unix debug socket.
 func NewClient(dataDir string) *Client {
 	socketPath := filepath.Join(dataDir, teleport.DebugServiceSocketName)
 	return &Client{
@@ -75,6 +76,13 @@ func NewClient(dataDir string) *Client {
 		},
 		socketPath: socketPath,
 	}
+}
+
+// NewClientWithHTTPClient creates a debug client using the provided
+// http.Client. This allows callers to inject a custom transport (e.g.
+// one that tunnels HTTP over a gRPC stream).
+func NewClientWithHTTPClient(httpClient *http.Client) *Client {
+	return &Client{clt: httpClient}
 }
 
 // SocketPath returns the absolute path to the UNIX socket that the debug service is exposed on.
@@ -207,6 +215,28 @@ func (c *Client) GetRawMetrics(ctx context.Context) (io.ReadCloser, error) {
 	resp, err := c.do(ctx, http.MethodGet, url.URL{Path: "/metrics"}, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	return resp.Body, nil
+}
+
+// GetLogStream connects to the log stream endpoint and returns the response
+// body as an io.ReadCloser. If level is non-empty, it is sent as a query
+// parameter for server-side filtering. The caller is responsible for closing.
+func (c *Client) GetLogStream(ctx context.Context, level string) (io.ReadCloser, error) {
+	u := url.URL{Path: "/log-stream"}
+	if level != "" {
+		qs := url.Values{}
+		qs.Set("level", level)
+		u.RawQuery = qs.Encode()
+	}
+	resp, err := c.do(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		resp.Body.Close()
+		return nil, trace.BadParameter("log stream failed: %s", body)
 	}
 	return resp.Body, nil
 }

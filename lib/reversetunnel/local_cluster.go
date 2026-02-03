@@ -552,7 +552,7 @@ func (s *localCluster) skipDirectDial(params reversetunnelclient.DialParams) (bo
 	// over a direct dial.
 	switch params.ConnType {
 	case types.KubeTunnel, types.NodeTunnel, types.ProxyTunnel, types.WindowsDesktopTunnel:
-	case types.AppTunnel, types.DatabaseTunnel, types.OktaTunnel:
+	case types.AppTunnel, types.DatabaseTunnel, types.OktaTunnel, types.DebugTunnel:
 		return true, nil
 	default:
 		return true, trace.BadParameter("unknown tunnel type: %s", params.ConnType)
@@ -924,6 +924,14 @@ func (s *localCluster) getRemoteConn(dreq *sshutils.DialReq) (*remoteConn, error
 	}
 
 	conns := s.remoteConns[key]
+	// Debug connections are served by the SSH node agent, which registers as
+	// NodeTunnel. Fall back to looking up the NodeTunnel connection when a
+	// DebugTunnel is requested.
+	if len(conns) == 0 && dreq.ConnType == types.DebugTunnel {
+		nodeKey := key
+		nodeKey.connType = types.NodeTunnel
+		conns = s.remoteConns[nodeKey]
+	}
 	if len(conns) == 0 {
 		return nil, trace.NotFound("no %v reverse tunnel for %v found", dreq.ConnType, dreq.ServerID)
 	}

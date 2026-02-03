@@ -411,6 +411,8 @@ func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, e
 			return nil, false, trace.ConnectionProblem(err, reversetunnelclient.NoOktaTunnel)
 		case types.DatabaseTunnel:
 			return nil, false, trace.ConnectionProblem(err, reversetunnelclient.NoDatabaseTunnel)
+		case types.DebugTunnel:
+			return nil, false, trace.ConnectionProblem(err, reversetunnelclient.NoDebugTunnel)
 		}
 
 		errTun := err

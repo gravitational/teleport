@@ -92,6 +92,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/debug/debugv1"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/keystore/health"
@@ -176,6 +177,7 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/srv/db"
+	"github.com/gravitational/teleport/lib/srv/debug"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/srv/mcp"
@@ -724,6 +726,15 @@ type TeleportProcess struct {
 	// resolver is used to identify the reverse tunnel address when connecting via
 	// the proxy.
 	resolver reversetunnelclient.Resolver
+
+	// debugClusterDialer is a lazy cluster dialer for routing debug RPCs
+	// through the reverse tunnel. Created during auth init and set when the
+	// proxy's reverse tunnel server becomes available.
+	debugClusterDialer *debugv1.LazyClusterDialer
+	// localDebugDialer provides a local connection path for the auth debug
+	// service to reach the node's gRPC debug service in combined processes
+	// where no reverse tunnel is used.
+	localDebugDialer *debugv1.LazyLocalDebugDialer
 
 	// metricRegistry is the prometheus metric registry for the process.
 	// Every teleport service that wants to register metrics should use this
@@ -2660,6 +2671,12 @@ func (process *TeleportProcess) initAuthService() error {
 			return trace.Wrap(err)
 		}
 	}
+	// Create a lazy cluster dialer for the debug service. The actual reverse
+	// tunnel server is not available yet (it's created during proxy init), so
+	// we use a lazy wrapper that will be set later.
+	process.debugClusterDialer = &debugv1.LazyClusterDialer{}
+	process.localDebugDialer = &debugv1.LazyLocalDebugDialer{}
+
 	apiConf := &auth.APIConfig{
 		AuthServer:       authServer,
 		Authorizer:       authorizer,
@@ -2674,6 +2691,9 @@ func (process *TeleportProcess) initAuthService() error {
 			CA:       accessGraphCAData,
 			Insecure: cfg.AccessGraph.Insecure,
 		},
+		ClusterDialer:    process.debugClusterDialer,
+		ClusterName:      clusterName,
+		LocalDebugDialer: process.localDebugDialer,
 	}
 
 	// Auth initialization is done (including creation/updating of all singleton
@@ -3684,6 +3704,42 @@ func (process *TeleportProcess) initSSH() error {
 			}
 		}
 
+		// Create the HTTP debug server for tunnel connections. This is
+		// outside the tunnel-mode block so that combined auth+proxy+node
+		// processes can reach it via a local in-process connection.
+		var debugConnListener *debug.ConnListener
+		if cfg.DebugService.Enabled {
+			debugConnListener = debug.NewConnListener()
+			debugSvc := debug.NewService(debug.ServiceConfig{
+				Logger:      logger,
+				Leveler:     process.Config,
+				Broadcaster: process.Config.LogBroadcaster,
+			})
+			debugMux := http.NewServeMux()
+			debug.RegisterProfilingHandlers(debugMux, logger)
+			debug.RegisterLogLevelHandlers(debugMux, debugSvc)
+			if process.Config.LogBroadcaster != nil {
+				debug.RegisterLogStreamHandler(debugMux, debugSvc)
+			}
+			debugMux.HandleFunc("/readyz", process.HandleReadiness)
+			debugMux.Handle("/metrics", process.newMetricsHandler())
+			debugHTTPServer := &http.Server{Handler: debugMux}
+			go func() {
+				if err := debugHTTPServer.Serve(debugConnListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+					logger.ErrorContext(process.ExitContext(), "Debug HTTP server exited with error", "error", err)
+				}
+			}()
+			process.OnExit("node.debug.http.shutdown", func(payload any) {
+				debugHTTPServer.Close()
+				debugConnListener.Close()
+			})
+			// Store the listener so the auth debug service can use it for
+			// local connections in combined processes.
+			if process.localDebugDialer != nil {
+				process.localDebugDialer.Set(debugConnListener, conn.HostID())
+			}
+		}
+
 		if conn.UseTunnel() {
 			var serverHandler reversetunnel.ServerHandler = s
 			if resumableServer != nil {
@@ -3702,6 +3758,7 @@ func (process *TeleportProcess) initSSH() error {
 					AuthMethods:              conn.ClientAuthMethods(),
 					Cluster:                  conn.ClusterName(),
 					Server:                   serverHandler,
+					DebugHandler:             debugConnListener,
 					FIPS:                     process.Config.FIPS,
 					ConnectedProxyGetter:     proxyGetter,
 					StaleConnTimeoutDisabled: reversetunnel.IsAgentStaleConnTimeoutDisabledByEnv(),
@@ -4200,11 +4257,16 @@ func (process *TeleportProcess) initDebugService(exposeDebugRoutes bool) error {
 
 	// Users can disable the debug service for compliance reasons but not the health
 	// routes because the updater relies on them.
+	var logBroadcaster *logutils.LogBroadcaster
+	if exposeDebugRoutes {
+		logBroadcaster = process.Config.LogBroadcaster
+	}
 	config := diagnosticHandlerConfig{
 		enableMetrics:    exposeDebugRoutes,
 		enableProfiling:  exposeDebugRoutes,
 		enableHealth:     true,
 		enableLogLeveler: exposeDebugRoutes,
+		logBroadcaster:   logBroadcaster,
 	}
 	mux, err := process.newDiagnosticHandler(config, logger)
 	if err != nil {
@@ -5258,6 +5320,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 		process.tsrv = tsrv
+		// Set the reverse tunnel server on the lazy cluster dialer so the
+		// auth debug service can route typed RPCs through the tunnel.
+		if process.debugClusterDialer != nil {
+			process.debugClusterDialer.Set(tsrv)
+		}
 		process.RegisterCriticalFunc("proxy.reversetunnel.server", func() error {
 			logger.InfoContext(process.ExitContext(), "Starting reverse tunnel server", "version", teleport.Version, "git_ref", teleport.Gitref, "listen_address", cfg.Proxy.ReverseTunnelListenAddr.Addr, "cache_policy", process.Config.CachePolicy)
 			if err := tsrv.Start(); err != nil {

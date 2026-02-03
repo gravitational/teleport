@@ -18,6 +18,7 @@ package debug
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	debugpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/debug/v1"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -65,22 +67,21 @@ func RegisterProfilingHandlers(mux *http.ServeMux, logger *slog.Logger) {
 
 // RegisterLogLevelHandlers registers log level handlers to a given multiplexer.
 // This allows to dynamically change the process' log level.
-func RegisterLogLevelHandlers(mux *http.ServeMux, logger *slog.Logger, leveler LogLeveler) {
-	mux.Handle("GET /log-level", handleGetLog(logger, leveler))
-	mux.Handle("PUT /log-level", handleSetLog(logger, leveler))
+func RegisterLogLevelHandlers(mux *http.ServeMux, svc *Service) {
+	mux.Handle("GET /log-level", handleGetLog(svc))
+	mux.Handle("PUT /log-level", handleSetLog(svc))
 }
 
 // handleGetLog returns the http get log level handler.
-func handleGetLog(logger *slog.Logger, leveler LogLeveler) http.HandlerFunc {
+func handleGetLog(svc *Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		level := leveler.GetLogLevel()
-		logger.InfoContext(r.Context(), "Log level requested", "log_level", level)
-		w.Write([]byte(marshalLogLevel(level)))
+		svc.logger.InfoContext(r.Context(), "Log level requested")
+		w.Write([]byte(svc.GetLogLevel()))
 	}
 }
 
 // handleSetLog returns the http set log level handler.
-func handleSetLog(logger *slog.Logger, leveler LogLeveler) http.HandlerFunc {
+func handleSetLog(svc *Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		rawLevel, err := io.ReadAll(io.LimitReader(r.Body, 1024))
 		defer r.Body.Close()
@@ -90,23 +91,15 @@ func handleSetLog(logger *slog.Logger, leveler LogLeveler) http.HandlerFunc {
 			return
 		}
 
-		level, err := unmarshalLogLevel(rawLevel)
+		msg, err := svc.SetLogLevel(string(rawLevel))
 		if err != nil {
-			logger.WarnContext(r.Context(), "Failed to parse log level", "error", err)
+			svc.logger.WarnContext(r.Context(), "Failed to parse log level", "error", err)
 			w.WriteHeader(http.StatusUnprocessableEntity)
 			w.Write([]byte("Invalid log level."))
 			return
 		}
 
-		currLevel := leveler.GetLogLevel()
-		message := fmt.Sprintf("Log level already set to %q.", level)
-		if level != currLevel {
-			message = fmt.Sprintf("Changed log level from %q to %q.", marshalLogLevel(currLevel), marshalLogLevel(level))
-			leveler.SetLogLevel(level)
-			logger.InfoContext(r.Context(), "Changed log level.", "old", marshalLogLevel(currLevel), "new", marshalLogLevel(level))
-		}
-
-		w.Write([]byte(message))
+		w.Write([]byte(msg))
 	}
 }
 
@@ -145,6 +138,90 @@ func unmarshalLogLevel(data []byte) (slog.Level, error) {
 	}
 
 	return level, nil
+}
+
+// RegisterLogStreamHandler registers the log streaming endpoint.
+// Clients can connect to GET /log-stream and receive live log output
+// as a chunked HTTP response.
+func RegisterLogStreamHandler(mux *http.ServeMux, svc *Service) {
+	mux.Handle("GET /log-stream", handleLogStream(svc))
+}
+
+func handleLogStream(svc *Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "streaming not supported", http.StatusInternalServerError)
+			return
+		}
+
+		levelStr := r.URL.Query().Get("level")
+		ch, cleanup, err := svc.SubscribeLogs(levelStr)
+		if err != nil {
+			if trace.IsLimitExceeded(err) {
+				http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			} else {
+				http.Error(w, fmt.Sprintf("invalid level %q", levelStr), http.StatusBadRequest)
+			}
+			return
+		}
+		defer cleanup()
+
+		svc.logger.InfoContext(r.Context(), "Log stream subscriber connected")
+		defer svc.logger.InfoContext(r.Context(), "Log stream subscriber disconnected")
+
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		w.Header().Set("Transfer-Encoding", "chunked")
+		w.WriteHeader(http.StatusOK)
+		flusher.Flush()
+
+		for {
+			select {
+			case entry, ok := <-ch:
+				if !ok {
+					return
+				}
+				data, err := json.Marshal(logEntryToMap(entry))
+				if err != nil {
+					return
+				}
+				data = append(data, '\n')
+				if _, err := w.Write(data); err != nil {
+					return
+				}
+				flusher.Flush()
+			case <-r.Context().Done():
+				return
+			}
+		}
+	}
+}
+
+// logEntryToMap converts a *debugpb.LogEntry to a map for JSON serialization
+// in the HTTP log-stream endpoint.
+func logEntryToMap(entry *debugpb.LogEntry) map[string]any {
+	m := make(map[string]any, 8)
+	if entry.Timestamp != nil {
+		m["timestamp"] = entry.Timestamp.AsTime().UTC().Format(time.RFC3339Nano)
+	}
+	m["level"] = entry.Level
+	m["message"] = entry.Message
+	if entry.Caller != "" {
+		m["caller"] = entry.Caller
+	}
+	if entry.Component != "" {
+		m["component"] = entry.Component
+	}
+	if entry.TraceId != "" {
+		m["trace_id"] = entry.TraceId
+	}
+	if entry.SpanId != "" {
+		m["span_id"] = entry.SpanId
+	}
+	for k, v := range entry.Attributes {
+		m[k] = v
+	}
+	return m
 }
 
 // marshalLogLevel marshals log level to its text representation.

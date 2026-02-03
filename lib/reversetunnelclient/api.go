@@ -193,4 +193,10 @@ const (
 	// It usually happens when an Okta service has shut down (or crashed) but
 	// hasn't expired from the backend yet.
 	NoOktaTunnel = "could not find reverse tunnel, check that Okta Service agent proxying this application is up and running"
+	// NoDebugTunnel is the error message returned when a debug
+	// reverse tunnel cannot be found.
+	//
+	// It usually happens when the target instance has shut down (or crashed) but
+	// hasn't expired from the backend yet.
+	NoDebugTunnel = "could not find reverse tunnel, check that the target Teleport instance is up and running"
 )

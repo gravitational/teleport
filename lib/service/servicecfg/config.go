@@ -242,6 +242,10 @@ type Config struct {
 	// LoggerLevel defines the Logger log level.
 	LoggerLevel *slog.LevelVar
 
+	// LogBroadcaster receives a copy of all formatted log output for live
+	// streaming via the debug service. May be nil if not configured.
+	LogBroadcaster *logutils.LogBroadcaster
+
 	// PluginRegistry allows adding enterprise logic to Teleport services
 	PluginRegistry plugin.Registry
 
