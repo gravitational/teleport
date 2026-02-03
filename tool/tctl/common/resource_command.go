@@ -58,6 +58,7 @@ import (
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
+	workloadclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	apistream "github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/mfa"
@@ -199,6 +200,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindInferencePolicy:                    rc.createInferencePolicy,
 		scopedaccess.KindScopedRole:                  rc.createScopedRole,
 		scopedaccess.KindScopedRoleAssignment:        rc.createScopedRoleAssignment,
+		types.KindWorkloadCluster:                    rc.createWorkloadCluster,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                               rc.updateUser,
@@ -229,6 +231,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindInferencePolicy:                    rc.updateInferencePolicy,
 		scopedaccess.KindScopedRole:                  rc.updateScopedRole,
 		scopedaccess.KindScopedRoleAssignment:        rc.updateScopedRoleAssignment,
+		types.KindWorkloadCluster:                    rc.updateWorkloadCluster,
 	}
 	rc.config = config
 
@@ -2388,6 +2391,13 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("relay_server %+q has been deleted\n", rc.ref.Name)
+	case types.KindWorkloadCluster:
+		if _, err := client.WorkloadClustersClient().DeleteWorkloadCluster(ctx, &workloadclusterv1.DeleteWorkloadClusterRequest{
+			Name: rc.ref.Name,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("workload_cluster %q has been deleted\n", rc.ref.Name)
 	case types.KindInferenceModel:
 		return trace.Wrap(rc.deleteInferenceModel(ctx, client))
 	case types.KindInferenceSecret:
@@ -3792,6 +3802,24 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &scopedRoleAssignmentCollection{items: items}, nil
+	case types.KindWorkloadCluster:
+		if rc.ref.Name != "" {
+			cluster, err := client.GetWorkloadCluster(ctx, rc.ref.Name)
+			if err != nil {
+				if trace.IsNotFound(err) {
+					return nil, trace.NotFound("workload_cluster %q not found", rc.ref.Name)
+				}
+				return nil, trace.Wrap(err)
+			}
+
+			return &workloadClusterCollection{workloadClusters: []*workloadclusterv1.WorkloadCluster{cluster}}, nil
+		}
+
+		clusters, err := stream.Collect(clientutils.Resources(ctx, client.ListWorkloadClusters))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &workloadClusterCollection{workloadClusters: clusters}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
@@ -4348,5 +4376,37 @@ func (rc *ResourceCommand) updateGitServer(ctx context.Context, client *authclie
 		return trace.Wrap(err)
 	}
 	fmt.Printf("git server %q has been updated\n", server.GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) createWorkloadCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	cc, err := services.UnmarshalProtoResource[*workloadclusterv1.WorkloadCluster](raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if rc.force {
+		_, err = client.UpsertWorkloadCluster(ctx, cc)
+	} else {
+		_, err = client.CreateWorkloadCluster(ctx, cc)
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("workload cluster %q has been created\n", cc.Metadata.GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) updateWorkloadCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	cc, err := services.UnmarshalProtoResource[*workloadclusterv1.WorkloadCluster](raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = client.UpdateWorkloadCluster(ctx, cc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("workload cluster %q has been updated\n", cc.Metadata.GetName())
 	return nil
 }
