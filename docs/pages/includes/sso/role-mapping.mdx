@@ -14,15 +14,15 @@ mapping takes the following format:
 ```
 
 For example, the following role mapping means that any user with the {{fieldType}}
-`group` with the value `admin` receives the Teleport roles `editor` and
+`groups` with the value `admin` receives the Teleport roles `editor` and
 `auditor`:
 
 ```text
-group,admin,editor,auditor
+groups,admin,editor,auditor
 ```
 
 For the purpose of this guide, assign two separate role mappings:
 
-- A more permissive role mapping: <Var name="mapping_1" initial="group,admins,auditor,editor" />
-- A more restrictive role mapping: <Var name="mapping_2" initial="group,users,access" />
+- A more permissive role mapping: <Var name="mapping_1" initial="groups,admins,auditor,editor" />
+- A more restrictive role mapping: <Var name="mapping_2" initial="groups,users,access" />
 
