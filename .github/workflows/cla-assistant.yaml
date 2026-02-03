@@ -14,7 +14,7 @@ on:
   merge_group:
 # explicitly configure permissions, in case your GITHUB_TOKEN workflow permissions are set to read-only in repository settings
 permissions:
-  actions: read
+  actions: write # needed so that issue comments can rerun status check
   contents: read # this can be 'read' if the signatures are in remote repository
   pull-requests: write
 jobs:
