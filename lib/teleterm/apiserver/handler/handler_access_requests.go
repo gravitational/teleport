@@ -175,21 +175,23 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 		}
 	}
 
-	requestedResourceIDs := req.GetRequestedResourceIDs()
-	resources := make([]*api.Resource, len(requestedResourceIDs))
-	for i, r := range requestedResourceIDs {
-		details := req.ResourceDetails[resourceIDToString(r)]
+	// GetAllRequestedResourceIDs returns all resources as ResourceAccessID, including constraints.
+	requestedResourceAccessIDs := req.GetAllRequestedResourceIDs()
+	resources := make([]*api.Resource, len(requestedResourceAccessIDs))
+	for i, r := range requestedResourceAccessIDs {
+		details := req.ResourceDetails[resourceIDToString(r.Id)]
 
 		resources[i] = &api.Resource{
 			Id: &api.ResourceID{
-				ClusterName:     r.ClusterName,
-				Kind:            r.Kind,
-				Name:            r.Name,
-				SubResourceName: r.SubResourceName,
+				ClusterName:     r.Id.ClusterName,
+				Kind:            r.Id.Kind,
+				Name:            r.Id.Name,
+				SubResourceName: r.Id.SubResourceName,
 			},
 			// If there are no details for this resource, the map lookup returns
 			// the default value which is empty details
-			Details: newAPIResourceDetails(details),
+			Details:     newAPIResourceDetails(details),
+			Constraints: r.Constraints,
 		}
 	}
 

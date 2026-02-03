@@ -64,10 +64,11 @@ func newAPIApp(clusterApp clusters.App) *api.App {
 	awsRoles := []*api.AWSRole{}
 	for _, role := range clusterApp.AWSRoles {
 		awsRoles = append(awsRoles, &api.AWSRole{
-			Name:      role.Name,
-			Display:   role.Display,
-			Arn:       role.ARN,
-			AccountId: role.AccountID,
+			Name:            role.Name,
+			Display:         role.Display,
+			Arn:             role.ARN,
+			AccountId:       role.AccountID,
+			RequiresRequest: role.RequiresRequest,
 		})
 	}
 
@@ -79,21 +80,27 @@ func newAPIApp(clusterApp clusters.App) *api.App {
 		tcpPorts = append(tcpPorts, &api.PortRange{Port: portRange.Port, EndPort: portRange.EndPort})
 	}
 
+	supportedFeatureIDs := make([]int32, len(clusterApp.SupportedFeatureIDs))
+	for i, id := range clusterApp.SupportedFeatureIDs {
+		supportedFeatureIDs[i] = int32(id)
+	}
+
 	return &api.App{
-		Uri:            clusterApp.URI.String(),
-		EndpointUri:    app.GetURI(),
-		Name:           app.GetName(),
-		Desc:           app.GetDescription(),
-		AwsConsole:     app.IsAWSConsole(),
-		PublicAddr:     app.GetPublicAddr(),
-		Fqdn:           clusterApp.FQDN,
-		AwsRoles:       awsRoles,
-		FriendlyName:   types.FriendlyName(app),
-		SamlApp:        false,
-		Labels:         apiLabels,
-		TcpPorts:       tcpPorts,
-		SubKind:        app.GetSubKind(),
-		PermissionSets: permissionSets,
+		Uri:                 clusterApp.URI.String(),
+		EndpointUri:         app.GetURI(),
+		Name:                app.GetName(),
+		Desc:                app.GetDescription(),
+		AwsConsole:          app.IsAWSConsole(),
+		PublicAddr:          app.GetPublicAddr(),
+		Fqdn:                clusterApp.FQDN,
+		AwsRoles:            awsRoles,
+		FriendlyName:        types.FriendlyName(app),
+		SamlApp:             false,
+		Labels:              apiLabels,
+		TcpPorts:            tcpPorts,
+		SubKind:             app.GetSubKind(),
+		PermissionSets:      permissionSets,
+		SupportedFeatureIds: supportedFeatureIDs,
 	}
 }
 
