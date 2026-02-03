@@ -403,9 +403,10 @@ Each materialized assignment for (user, list) will grant exactly the scoped
 roles defined in the spec of that list (for members, owners, or both depending
 on the user's relationship with the list).
 
-The scope of the materialized assignment will be the same as the scope of the
-access list defining the assignment.
-Since access lists are currently unscoped this will always be the root scope `/`.
+The scope of the materialized assignment will be the root scope `/`.
+Since access lists currently don't have their own scope associated with the
+access list resource itself, the root scope is the only scope that makes sense
+for assignments derived from access lists.
 
 For example, if alice is a direct member of listA, and listA is a direct member
 of listB, then alice is a nested member of both listA and listB.
