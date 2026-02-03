@@ -730,6 +730,39 @@ var (
 		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
 		ForceSetKind: "apitypes.KindAppAuthConfig",
 	}
+
+	/*
+		//
+		// Example payload, copy this and replace every "example", "v1", and "TypeA" reference with your resource.
+		//
+			typeA = payload{
+				Name:                  "TypeA",
+				TypeName:              "TypeA",
+				VarName:               "typeA",
+				GetMethod:             "GetTypeA",
+				CreateMethod:          "CreateTypeA",
+				UpsertMethodArity:     2,
+				UpdateMethod:          "UpsertTypeA",
+				DeleteMethod:          "DeleteTypeA",
+				ID:                    "typeA.Metadata.Name",
+				Kind:                  "type_a",
+				HasStaticID:           false,
+				ProtoPackage:          "examplev1",
+				ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/example/v1",
+				SchemaPackage:         "schemav1",
+				SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/example/v1",
+				TerraformResourceType: "teleport_type_a",
+				// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+				// resources are plain structs
+				IsPlainStruct: true,
+				// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+				// We import the package containing kinds, then use ForceSetKind.
+				ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+				ForceSetKind: "apitypes.KindTypeA",
+				// Only set default name if the resource is a singleton
+				// DefaultName:  "apitypes.MetaNameTypeA",
+			}
+	*/
 )
 
 func main() {
@@ -797,6 +830,7 @@ func genTFSchema() {
 	generateDataSource(integration, pluralDataSource)
 	generateResource(appAuthConfig, pluralResource)
 	generateDataSource(appAuthConfig, pluralDataSource)
+	// Add resources here, use the singular resource for singletons and the plural resource for regular resources.
 }
 
 func generateResource(p payload, tpl string) {
