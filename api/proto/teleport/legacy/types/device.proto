@@ -91,6 +91,7 @@ message DeviceCollectedData {
   string os_version = 6 [(gogoproto.jsontag) = "os_version,omitempty"];
   string os_build = 7 [(gogoproto.jsontag) = "os_build,omitempty"];
   string os_username = 8 [(gogoproto.jsontag) = "os_username,omitempty"];
+  string os_login_user = 16 [(gogoproto.jsontag) = "os_login_user,omitempty"];
   string jamf_binary_version = 9 [(gogoproto.jsontag) = "jamf_binary_version,omitempty"];
   string macos_enrollment_profiles = 10 [(gogoproto.jsontag) = "macos_enrollment_profiles,omitempty"];
   string reported_asset_tag = 11 [(gogoproto.jsontag) = "reported_asset_tag,omitempty"];
