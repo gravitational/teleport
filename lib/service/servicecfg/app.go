@@ -114,6 +114,9 @@ type App struct {
 
 	// MCP contains MCP server-related configurations.
 	MCP *types.MCP
+
+	// LLM contains LLM inference endpoint related configurations.
+	LLM *types.LLM
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -167,6 +170,8 @@ func (a *App) CheckAndSetDefaults() error {
 			a.URI = fmt.Sprintf("cloud://%v", a.Cloud)
 		case a.MCP != nil && a.MCP.Command != "":
 			a.URI = types.SchemeMCPStdio + "://"
+		case a.LLM != nil && a.LLM.Format != types.LLM_FORMAT_UNSPECIFIED:
+			a.URI = types.SchemeLLMEndpoint + "://"
 		default:
 			return trace.BadParameter("missing application %q URI", a.Name)
 		}

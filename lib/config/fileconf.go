@@ -2436,6 +2436,9 @@ type App struct {
 
 	// MCP contains MCP server-related configurations.
 	MCP *MCP `yaml:"mcp,omitempty"`
+
+	// MCP contains MCP server-related configurations.
+	LLM *LLM `yaml:"inference,omitempty"`
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -2503,6 +2506,28 @@ type MCP struct {
 	// RunAsHostUser is the host user account under which the command will be
 	// executed. Required for stdio-based MCP servers.
 	RunAsHostUser string `yaml:"run_as_host_user,omitempty"`
+}
+
+// LLM contains LLM inference endpoint related configurations.
+type LLM struct {
+	// Format defines the LLM inference enpoint format.
+	Format types.LLM_Format `yaml:"format"`
+	// Provider defines the service that will serve the inference endpoint.
+	Provider types.LLM_Provider `yaml:"provider"`
+	// DefaultModel defines the default model used. If no model mapping is done,
+	// it defaults to this value.
+	DefaultModel string `yaml:"default_model"`
+	// ModelMappings defines the model name conversion from requested model to
+	// the models in the provider.
+	ModelMappings []LLMModelMap `yaml:"model_mappings"`
+}
+
+// LLMModelMap is a model name conversion rule.
+type LLMModelMap struct {
+	// From defines the model name sent.
+	From string `yaml:"from"`
+	// To defines the converted model name.
+	To string `yaml:"to"`
 }
 
 // Proxy is a `proxy_service` section of the config file:

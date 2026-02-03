@@ -1163,6 +1163,55 @@ message AppSpecV3 {
   bool UseAnyProxyPublicAddr = 14 [(gogoproto.jsontag) = "use_any_proxy_public_addr,omitempty"];
   // MCP contains MCP server related configurations.
   MCP MCP = 15 [(gogoproto.jsontag) = "mcp,omitempty"];
+  // LLM contains LLM inference endpoint related configurations.
+  LLM LLM = 16 [(gogoproto.jsontag) = "inference,omitempty"];
+}
+
+// LLM contains LLM inference endpoint related configurations.
+message LLM {
+  enum Format {
+    // FORMAT_UNSPECIFIED is the default non-specified format.
+    FORMAT_UNSPECIFIED = 0;
+    // FORMAT_OPENAI is the OpenAI API format.
+    FORMAT_OPENAI = 1;
+    // FORMAT_ANTHROPIC is the Anthropic API format.
+    FORMAT_ANTHROPIC = 2;
+    // FORMAT_AWS_BEDROCK is the AWS Bedrock API format.
+    FORMAT_AWS_BEDROCK = 3;
+  }
+
+  // Provider determines which service serves the LLM inference endpoint.
+  enum Provider {
+    // PROVIDER_UNSPECIFIED is the default non-specified provider.
+    PROVIDER_UNSPECIFIED = 0;
+    // PROVIDER_OPENAI indicates the inference is served by OpenAI.
+    PROVIDER_OPENAI = 1;
+    // PROVIDER_ANTHROPIC indicates the inference is served by Anthropic.
+    PROVIDER_ANTHROPIC = 2;
+    // PROVIDER_ANTHROPIC indicates the inference is served by Azure.
+    PROVIDER_AZURE = 3;
+    // PROVIDER_AWS_BEDROCK indicates the inference is served by AWS Bedrock.
+    PROVIDER_AWS_BEDROCK = 4;
+  }
+
+  // ModelMap is a model name conversion rule.
+  message ModelMap {
+    // From defines the model name sent.
+    string from = 1;
+    // To defines the converted model name.
+    string to = 2;
+  }
+
+  // Format defines the LLM inference API format.
+  Format format = 1;
+  // Provider defines which service provide serves the LLM inference API.
+  Provider provider = 2;
+  // DefaultModel defines the default model used. If no model mapping is done,
+  // it defaults to this value.
+  string default_model = 3;
+  // ModelMappings defines the model name conversion from requested model to the
+  // models in the provider.
+  repeated ModelMap model_mappings = 4;
 }
 
 // MCP contains MCP server-related configurations.

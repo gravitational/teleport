@@ -2148,6 +2148,21 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			}
 		}
 
+		if application.LLM != nil {
+			app.LLM = &types.LLM{
+				Format:        application.LLM.Format,
+				Provider:      application.LLM.Provider,
+				DefaultModel:  application.LLM.DefaultModel,
+				ModelMappings: make([]*types.LLM_ModelMap, 0, len(application.LLM.ModelMappings)),
+			}
+			for _, m := range application.LLM.ModelMappings {
+				app.LLM.ModelMappings = append(app.LLM.ModelMappings, &types.LLM_ModelMap{
+					From: m.From,
+					To:   m.To,
+				})
+			}
+		}
+
 		if err := app.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
