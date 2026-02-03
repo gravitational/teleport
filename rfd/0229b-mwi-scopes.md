@@ -116,6 +116,38 @@ the Scoped Bot.
 
 ### Sub-scoping of generated credentials
 
-## Appendix A: Decisions
+## Appendix A: Decisions & Thinking
+
+This section exists as a record of my thinking whilst researching and writing 
+this RFD. It should not be considered a canonical part of the design, but, may
+help provide context around my thought process and decisions for future readers.
 
 ### A.1: The mechanism of Bot scoping
+
+### A.2: The Wrong Implementations
+
+When trying to determine the path for a complex implementation, it can be
+helpful to consider first what *not* to do. This section explores several
+"wrong" implementations of Scoped MWI and why they are not suitable.
+
+#### A.2.1: The Lazy Way
+
+The laziest or most naive implementation of Scoped MWI would be to:
+
+- Not scope Bots or their join tokens at all. Leave these parts of the
+  implementation as is.
+- Allow Bots to be assigned Scoped Roles via Scoped Role Assignments or Scoped
+  Access Lists.
+- Build new RPCs for `tbot`'s certificate issuance flow that can calculate the
+  roles that `tbot` can access based on Scoped Roles/Scoped Access Lists.
+
+This implementation falls short in a number of ways:
+
+- It doesn't solve the problem of allowing the creation of Bots and Join Tokens 
+  to be safely delegated to teams who will consume them. Bots and Join Tokens
+  would still need to be created by Cluster Admins, even if then the Scope Admin
+  would be able to assign the Bot privileges themselves.
+- Whilst appearing simple, it actually introduces significant complexity in the
+  cognitive model of MWI. Bots would be able to hold scoped and unscoped
+  privileges, and, the implementation of `tbot` and the Auth Server would need
+  to account for this duality. There would be no clear "mode" to operate in.
