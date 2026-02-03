@@ -1,5 +1,20 @@
 # Changelog
 
+## 18.6.6 (02/02/26)
+
+* Fixed tsh/Linux sending a too-large username for device trust. [#63387](https://github.com/gravitational/teleport/pull/63387)
+* Fixed an issue where MCP JSON-RPC messages with mixed-case field names could be parsed inconsistently and re-serialized to lower cases. Teleport now enforces canonical lowercase JSON-RPC fields. [#63364](https://github.com/gravitational/teleport/pull/63364)
+* Improved robustness of the Slack hosted plugin to reduce the likeliness of failed token refresh when experiencing external disruption. [#63344](https://github.com/gravitational/teleport/pull/63344)
+* Fixed a bug affecting access list review queries for lists where the name is a prefix of another list name. [#63337](https://github.com/gravitational/teleport/pull/63337)
+* Updated the OCI SDK to support new regions. [#63265](https://github.com/gravitational/teleport/pull/63265)
+* Ensure application session rejections for untrusted devices are consistently audited as AppSessionStart failures after MFA. [#63149](https://github.com/gravitational/teleport/pull/63149)
+* Added Helm chart support to the `teleport-event-handler configure` command. [#63147](https://github.com/gravitational/teleport/pull/63147)
+* Added `tctl` support for removing `okta_assignment` internal resource should it be needed. [#62698](https://github.com/gravitational/teleport/pull/62698)
+
+Enterprise:
+* Prevented manual membership changes to SCIM-type access lists while enabling support for their reviews.
+* Fixed the issue where Okta integration may not remove previously synced apps after plugin restart.
+
 ## 18.6.5 (01/29/26)
 
 * Fixed a `CredentialContainer` error when attempting to log in to the Web UI with a hardware key using Firefox >=147.0.2. [#63245](https://github.com/gravitational/teleport/pull/63245)
