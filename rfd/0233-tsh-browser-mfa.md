@@ -232,14 +232,15 @@ version: v2
 metadata:
   name: cluster-auth-preference
 spec:
-  # Whether browser MFA is enabled for this cluster
+  # Whether browser authentication is enabled for this cluster
   # Default: true
-  allow_browser_mfa: true
+  allow_browser_authentication: true
 ```
 
-When `enabled: false`, the auth server will not return a `BrowserChallenge` in
-MFA challenge responses, and users attempting to use `--mfa-mode=browser` will
-receive an error indicating the feature isn't available.
+When `allow_browser_authentication: false`, the auth server will not return a
+`BrowserChallenge` in MFA challenge responses, and users attempting to use
+`--mfa-mode=browser` will receive an error indicating the feature isn't
+available.
 
 ### Security
 
