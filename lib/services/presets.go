@@ -892,6 +892,29 @@ func VirtualDefaultHealthCheckConfigDB() *healthcheckconfigv1.HealthCheckConfig 
 	}
 }
 
+// NewPresetIdentitySecurityViewRole returns a new pre-defined role that
+// allows viewing Teleport Identity Security - access graph resources.
+func NewPresetIdentitySecurityViewRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetAccessGraphViewRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Default Teleport Identity Security viewer role",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindAccessGraph, RO()),
+				},
+			},
+		},
+	}
+	return role
 // VirtualDefaultHealthCheckConfigKube returns a health_check_config enabling
 // health checks for all Kubernetes resources. It's intended to be used as a
 // virtual default resource.
@@ -953,6 +976,7 @@ var defaultAllowRulesMap = map[string][]types.Rule{
 	teleport.PresetTerraformProviderRoleName:          NewPresetTerraformProviderRole().GetRules(types.Allow),
 	teleport.PresetAccessPluginRoleName:               NewPresetAccessPluginRole().GetRules(types.Allow),
 	teleport.PresetListAccessRequestResourcesRoleName: NewPresetListAccessRequestResourcesRole().GetRules(types.Allow),
+	teleport.PresetAccessGraphViewRoleName:            NewPresetIdentitySecurityViewRole().GetRules(types.Allow),
 }
 
 // defaultAllowRules has the Allow rules that should be set as default when
