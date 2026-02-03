@@ -17,7 +17,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
-	oktaplugin "github.com/gravitational/teleport/e/lib/okta/plugin"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/e/tests/common"
@@ -90,11 +89,7 @@ func TestBasicAssignmentFlow(t *testing.T) {
 
 	// Set time between imports to 1s
 	authServer := sut.Teleport.Process.GetAuthServer()
-	plugin, err := oktaplugin.Get(ctx, authServer.Plugins, true)
-	require.NoError(t, err)
-	plugin.Spec.GetOkta().SyncSettings.TimeBetweenImports = "1s"
-	_, err = authServer.Plugins.UpdatePlugin(ctx, plugin)
-	require.NoError(t, err)
+	setOktaTimeBetweenImports(t, authServer, time.Second)
 
 	waitForOktaSync(t, sut, withTimeout(time.Second*30), withStep(time.Millisecond*100), withTimePoint(beforeInstall))
 	waitForOktaFirstOktaAssignment(t, sut)
@@ -173,13 +168,7 @@ func TestNestedAclAssignment(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Set time between imports to 1s
-	plugin, err := oktaplugin.Get(ctx, authServer.Plugins, true)
-	require.NoError(t, err)
-	plugin.Spec.GetOkta().SyncSettings.TimeBetweenImports = "1s"
-	_, err = authServer.Plugins.UpdatePlugin(ctx, plugin)
-	require.NoError(t, err)
-
+	setOktaTimeBetweenImports(t, authServer, time.Second)
 	waitForOktaSync(t, sut, withTimeout(time.Second*30), withStep(time.Millisecond*100), withTimePoint(beforeInstall))
 	waitForOktaFirstOktaAssignment(t, sut)
 	userExistInTeleportAndIsNotLocked(t, ctx, sut.Teleport.Process.GetAuthServer(), ownerLogin)
@@ -277,11 +266,7 @@ func TestAccessRequest(t *testing.T) {
 
 	// Set time between imports to 1s
 	authServer := sut.Teleport.Process.GetAuthServer()
-	plugin, err := oktaplugin.Get(ctx, authServer.Plugins, true)
-	require.NoError(t, err)
-	plugin.Spec.GetOkta().SyncSettings.TimeBetweenImports = "1s"
-	_, err = authServer.Plugins.UpdatePlugin(ctx, plugin)
-	require.NoError(t, err)
+	setOktaTimeBetweenImports(t, authServer.Plugins, time.Second)
 
 	waitForOktaSync(t, sut, withTimeout(time.Second*30), withStep(time.Millisecond*100), withTimePoint(beforeInstall))
 

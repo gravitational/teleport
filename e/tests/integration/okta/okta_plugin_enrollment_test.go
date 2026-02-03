@@ -783,8 +783,10 @@ func TestEnrollmentPartialStepsFromLegacyConnector(t *testing.T) {
 		require.NoError(t, err)
 		oktaPlugin.Spec.GetOkta().GetSyncSettings().UserSyncSource = ""
 		oktaPlugin.Spec.GetOkta().GetSyncSettings().AppId = ""
-		oktaPlugin, err = pluginClient.UpdatePlugin(ctx, &pluginsv1.UpdatePluginRequest{Plugin: oktaPlugin})
-		require.NoError(t, err)
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			oktaPlugin, err = pluginClient.UpdatePlugin(ctx, &pluginsv1.UpdatePluginRequest{Plugin: oktaPlugin})
+			require.NoError(t, err)
+		}, time.Second*5, time.Millisecond*60)
 		require.Equal(t, "unknown", oktaPlugin.Spec.GetOkta().GetSyncSettings().UserSyncSource)
 		require.Empty(t, oktaPlugin.Spec.GetOkta().GetSyncSettings().AppId)
 

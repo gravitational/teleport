@@ -23,11 +23,13 @@ import (
 
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
+	oktaplugin "github.com/gravitational/teleport/e/lib/okta/plugin"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
 	"github.com/gravitational/teleport/e/tests/common/tctl"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func sortByName[T interface{ GetName() string }](slice []T) {
@@ -301,4 +303,25 @@ func mustUpdateOktaIntegration(ctx context.Context, t *testing.T, client oktav1.
 		_, err := client.UpdateIntegration(ctx, req)
 		require.NoError(t, err)
 	}, time.Second*6, time.Millisecond*30)
+}
+
+func setOktaTimeBetweenImports(t *testing.T, plugins services.Plugins, d time.Duration) {
+	updateOktaPlugin(t, plugins, func(p *types.PluginV1) {
+		p.Spec.GetOkta().SyncSettings.TimeBetweenImports = d.String()
+	})
+}
+
+func updateOktaPlugin(t *testing.T, plugins services.Plugins, updateFn func(p *types.PluginV1)) {
+	t.Helper()
+	ctx := t.Context()
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		plugin, err := oktaplugin.Get(ctx, plugins, true)
+		require.NoError(t, err)
+		if plugin.Metadata.Labels == nil {
+			plugin.Metadata.Labels = map[string]string{}
+		}
+		updateFn(plugin)
+		_, err = plugins.UpdatePlugin(ctx, plugin)
+		require.NoError(t, err)
+	}, time.Second*10, time.Millisecond*50)
 }
