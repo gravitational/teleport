@@ -226,7 +226,26 @@ func (t *tdpHandshaker) forwardTDPB(w io.Writer, username string, _ bool) error 
 		hello.KeyboardLayout = t.keyboardLayout.KeyboardLayout
 	}
 
-	return trace.Wrap(sendAll(w, append([]tdp.Message{hello}, t.withheld...)))
+	withheld, err := translateAll(t.withheld, tdpb.TranslateToModern)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(sendAll(w, append([]tdp.Message{hello}, withheld...)))
+}
+
+func translateAll(messages []tdp.Message, translate func(tdp.Message) ([]tdp.Message, error)) ([]tdp.Message, error) {
+	translated := make([]tdp.Message, 0, len(messages))
+	for _, msg := range messages {
+		out, err := translate(msg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if len(out) > 0 {
+			translated = append(translated, out...)
+		}
+	}
+	return translated, nil
 }
 
 // implements handshaker for TDPB clients
@@ -292,7 +311,11 @@ func (t *tdpbHandshaker) forwardTDP(w io.Writer, username string, forwardKeyboar
 		messages = append(messages, legacy.ClientKeyboardLayout{KeyboardLayout: t.hello.KeyboardLayout})
 	}
 
-	return sendAll(w, append(messages, t.withheld...))
+	withheld, err := translateAll(t.withheld, tdpb.TranslateToLegacy)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return sendAll(w, append(messages, withheld...))
 }
 
 func (t *tdpbHandshaker) forwardTDPB(w io.Writer, username string, _ bool) error {
@@ -792,7 +815,7 @@ func (p desktopWebsocketProxy) run(ctx context.Context) error {
 		// Translation is needed
 		if p.serverProtocol == tdpb.ProtocolName {
 			p.log.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", tdpb.ProtocolName, "client_dialect", protocolTDP)
-			// Server speaks TDPB
+			// Agent speaks TDPB
 			// Translate to TDPB when writing to the server. Intercept pings when reading from the server.
 			serverConn = tdp.NewReadWriteInterceptor(serverConn, nil, tdpb.TranslateToModern)
 			// Client speaks TDP
