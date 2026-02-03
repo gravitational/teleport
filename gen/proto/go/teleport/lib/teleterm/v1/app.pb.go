@@ -106,8 +106,12 @@ type App struct {
 	// Defines a permission set that is available on an IdentityCenter account app.
 	// Such apps can be recognized by sub_kind == 'aws_ic_account'.
 	PermissionSets []*IdentityCenterPermissionSet `protobuf:"bytes,14,rep,name=permission_sets,json=permissionSets,proto3" json:"permission_sets,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// supported_feature_ids contains component feature IDs supported by this app and all
+	// other involved components (Auth, Proxy). Used to determine if features like resource
+	// constraints are available.
+	SupportedFeatureIds []int32 `protobuf:"varint,15,rep,packed,name=supported_feature_ids,json=supportedFeatureIds,proto3" json:"supported_feature_ids,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *App) Reset() {
@@ -238,6 +242,13 @@ func (x *App) GetPermissionSets() []*IdentityCenterPermissionSet {
 	return nil
 }
 
+func (x *App) GetSupportedFeatureIds() []int32 {
+	if x != nil {
+		return x.SupportedFeatureIds
+	}
+	return nil
+}
+
 // AwsRole describes AWS IAM role.
 type AWSRole struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -248,9 +259,11 @@ type AWSRole struct {
 	// ARN is the full role ARN.
 	Arn string `protobuf:"bytes,3,opt,name=arn,proto3" json:"arn,omitempty"`
 	// AccountID is the AWS Account ID this role refers to.
-	AccountId     string `protobuf:"bytes,4,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	AccountId string `protobuf:"bytes,4,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	// RequiresRequest indicates whether this role requires an access request to be used.
+	RequiresRequest bool `protobuf:"varint,5,opt,name=requires_request,json=requiresRequest,proto3" json:"requires_request,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *AWSRole) Reset() {
@@ -309,6 +322,13 @@ func (x *AWSRole) GetAccountId() string {
 		return x.AccountId
 	}
 	return ""
+}
+
+func (x *AWSRole) GetRequiresRequest() bool {
+	if x != nil {
+		return x.RequiresRequest
+	}
+	return false
 }
 
 // PortRange describes a port range for TCP apps. The range starts with Port and ends with EndPort.
@@ -527,7 +547,7 @@ var File_teleport_lib_teleterm_v1_app_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_app_proto_rawDesc = "" +
 	"\n" +
-	"\"teleport/lib/teleterm/v1/app.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\"\xae\x04\n" +
+	"\"teleport/lib/teleterm/v1/app.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\"\xe2\x04\n" +
 	"\x03App\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12!\n" +
@@ -545,13 +565,15 @@ const file_teleport_lib_teleterm_v1_app_proto_rawDesc = "" +
 	"\taws_roles\x18\v \x03(\v2!.teleport.lib.teleterm.v1.AWSRoleR\bawsRoles\x12@\n" +
 	"\ttcp_ports\x18\f \x03(\v2#.teleport.lib.teleterm.v1.PortRangeR\btcpPorts\x12\x19\n" +
 	"\bsub_kind\x18\r \x01(\tR\asubKind\x12^\n" +
-	"\x0fpermission_sets\x18\x0e \x03(\v25.teleport.lib.teleterm.v1.IdentityCenterPermissionSetR\x0epermissionSets\"h\n" +
+	"\x0fpermission_sets\x18\x0e \x03(\v25.teleport.lib.teleterm.v1.IdentityCenterPermissionSetR\x0epermissionSets\x122\n" +
+	"\x15supported_feature_ids\x18\x0f \x03(\x05R\x13supportedFeatureIds\"\x93\x01\n" +
 	"\aAWSRole\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\adisplay\x18\x02 \x01(\tR\adisplay\x12\x10\n" +
 	"\x03arn\x18\x03 \x01(\tR\x03arn\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x04 \x01(\tR\taccountId\":\n" +
+	"account_id\x18\x04 \x01(\tR\taccountId\x12)\n" +
+	"\x10requires_request\x18\x05 \x01(\bR\x0frequiresRequest\":\n" +
 	"\tPortRange\x12\x12\n" +
 	"\x04port\x18\x01 \x01(\rR\x04port\x12\x19\n" +
 	"\bend_port\x18\x02 \x01(\rR\aendPort\"\x97\x01\n" +
