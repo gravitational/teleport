@@ -616,6 +616,9 @@ This is discussed in [Materialization of scoped role assignments](#materializati
 ### Backward Compatibility
 
 This is a new feature with limited backward compatibility considerations.
+In case of cluster downgrade, the new `scoped_roles` field, if present in any
+access list grants, will not be seen by older auth server versions and should
+not cause any problems.
 
 ### Audit Events
 
