@@ -288,8 +288,9 @@ the following scoped role assignments:
 
 ```yaml
 kind: scoped_role_assignment
+sub_kind: materialized
 metadata:
-  name: uuid1
+  name: acl-west-admins-alice@example.com
 scope: /
 spec:
   user: alice@example.com
@@ -306,8 +307,9 @@ status:
 version: v1
 ---
 kind: scoped_role_assignment
+sub_kind: materialized
 metadata:
-  name: uuid2
+  name: acl-west-admins-bob@example.com
 scope: /
 spec:
   user: bob@example.com
@@ -329,6 +331,13 @@ role assignment cache.
 Everything that already works with scoped role assignments today will not need
 to know or care about access lists, they will just handle the resulting
 assignments as usual.
+
+We will introduce `sub_kind: materialized` to distinguish materialized
+scoped_role_assignments from user-created ones and prevent name collisions.
+Materialized assignments will be named `acl-<list-name>-<user-name>`, but this
+will not be guaranteed to be stable into the future.
+Access lists with a sub_kind will use `<name>/<sub_kind>` as a primary key in
+the backend and the cache.
 
 ### Inherited list membership
 
@@ -433,14 +442,16 @@ materialized assignments.
 For example, if 20k users are all members of 1k lists all of which grant scoped
 roles, this would result in 20 million materialized scoped role assignments.
 In general the number of assignments will be approx `(num users) x (avg lists per user)`.
-If scale is a concern here we could consider aggregating scoped role
+If scale becomes a concern here we could consider aggregating scoped role
 assignments for each user, so there would be approximately 1 materialized
-scoped role assignment for each (user, scope) pair.
+scoped role assignment for each user, more if they are assigned too many unique
+roles to fit in a single gRPC message and the assignments need to be batched.
 In this case if 20k users were members of any number of lists across 20 scopes,
-there would be approximately 400k materialized assignments.
+there would be approximately 20k materialized assignments.
 The downsides here would be that the source of the materialized assignment would
-be more difficult to reason about, and the cache would be more difficult to
-maintain as access lists and memberships change.
+be more difficult to reason about, the cache would be more difficult to
+maintain as access lists and memberships change, and batching large assignments
+would introduce additional complexity.
 The current plan is not to aggregate scoped role assignments.
 
 Earlier in a design for scoped access lists there was discussion of writing
@@ -643,10 +654,14 @@ This is discussed in [Materialization of scoped role assignments](#materializati
 
 ### Backward Compatibility
 
-This is a new feature with limited backward compatibility considerations.
 In case of cluster downgrade, the new `scoped_roles` field, if present in any
 access list grants, will not be seen by older auth server versions and should
-not cause any problems.
+not cause any validation problems.
+
+In case we decide to persist materialized scoped_role_assignments to the
+backend in a future version, all backend reads will filter out assignments with
+`sub_kind: materialized` so that they don't conflict with auth servers on an
+older version still materializing in memory only.
 
 ### Audit Events
 
