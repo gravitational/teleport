@@ -1641,18 +1641,18 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput) ([]even
 				return nil, false, trace.Wrap(err)
 			}
 
-			if l.totalSize+len(trimmedData) <= events.MaxEventBytesInResponse {
-				events.MetricQueriedTrimmedEvents.Inc()
-			} else {
+			if l.totalSize+len(trimmedData) > events.MaxEventBytesInResponse {
 				// Failed to trim the event to size.
 				// Even if we fail to trim the event, we still try to return the oversized event.
-				l.log.ErrorContext(context.Background(), "Failed to trim event exceeding maximum response size.",
+				l.log.WarnContext(context.Background(), "Failed to trim event exceeding maximum response size.",
 					"event_type", e.FieldsMap.GetType(),
 					"event_id", e.FieldsMap.GetID(),
 					"event_size", len(data),
 					"event_size_after_trim", len(trimmedData),
 				)
 			}
+			events.MetricQueriedTrimmedEvents.Inc()
+
 			l.totalSize += len(trimmedData)
 			out = append(out, e)
 			l.left--
