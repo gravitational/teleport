@@ -202,6 +202,22 @@ tctl acl users add --kind=list east-users-scoped east-users
 These access lists and memberships could also be managed with Terraform instead
 of `tctl`.
 
+#### Access list UX
+
+Initially, users will be able to add scoped role grants to access lists via
+tctl, terraform, and the k8s operator.
+Scoped role grants in access lists will be viewable with `tctl get access_list/name`.
+
+We will need to add the ability to view and edit scoped role assignments in the
+web UI.
+The name and assigned scoped of granted scoped_roles will be viewable on the
+access list page.
+When editing granted permissions, a scoped role input will be presented if the
+cluster contains any scoped roles defined in the root scope.
+The editor will not allow adding required permissions if the role contains any
+scoped_role grants, and will not allow adding scope_role grants if the role has
+any required permissions (see [invariants](#invariants)).
+
 ### Overview
 
 Scoped roles are currently assigned to users via `scoped_role_assignment`
