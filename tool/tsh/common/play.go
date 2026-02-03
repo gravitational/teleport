@@ -19,6 +19,7 @@
 package common
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -36,7 +37,9 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // onPlay is used to interact with recorded sessions.
@@ -110,7 +113,7 @@ func sessionIDFromPath(path string) string {
 // exportSession implements `tsh play` for formats other than PTY
 func exportSession(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
-	isLocalFile := path.Ext(cf.SessionID) == ".tar"
+	isLocalFile := path.Ext(cf.SessionID) == ".tar" || path.Ext(cf.SessionID) == ".json"
 	if isLocalFile {
 		return trace.Wrap(exportFile(cf.Context, cf.SessionID, format))
 	}
@@ -257,6 +260,9 @@ func (textSessionExporter) WriteEvent(evt apievents.AuditEvent) error {
 // identified by path to text (JSON/YAML) and writes the converted
 // events to standard out.
 func exportFile(ctx context.Context, path string, format string) error {
+	if format == "tar" {
+		return trace.Wrap(exportTar(ctx, path))
+	}
 	f, err := os.Open(path)
 	if err != nil {
 		return trace.ConvertSystemError(err)
@@ -267,4 +273,49 @@ func exportFile(ctx context.Context, path string, format string) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func exportTar(ctx context.Context, path string) error {
+	filesessions.SetOpenFileFunc(func(name string, flag int, perm os.FileMode) (*os.File, error) {
+		return os.Stdout, nil
+	})
+	defer filesessions.SetOpenFileFunc(os.OpenFile)
+	fileHandler, err := filesessions.NewHandler(filesessions.Config{
+		Directory: os.TempDir(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+		Uploader: fileHandler,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	stream, err := streamer.CreateAuditStream(ctx, session.NewID())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	preparer := events.NoOpPreparer{}
+	for scanner.Scan() {
+		var rawEvent events.EventFields
+		if err := utils.FastUnmarshal(scanner.Bytes(), &rawEvent); err != nil {
+			return trace.Wrap(err)
+		}
+		event, err := events.FromEventFields(rawEvent)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		preparedEvent, _ := preparer.PrepareSessionEvent(event)
+		if err := stream.RecordEvent(ctx, preparedEvent); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return trace.Wrap(stream.Complete(ctx))
 }
