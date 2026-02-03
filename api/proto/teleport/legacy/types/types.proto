@@ -9108,6 +9108,9 @@ message InstallerParams {
   // HTTPProxySettings defines HTTP proxy settings for making HTTP requests.
   // When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation.
   HTTPProxySettings HTTPProxySettings = 11 [(gogoproto.jsontag) = "http_proxy_settings,omitempty"];
+  // InstallConcurrencyLimit overrides the default limit for concurrent Teleport agent
+  // installations on discovered cloud VMs. Zero means use the default.
+  uint32 InstallConcurrencyLimit = 12 [(gogoproto.jsontag) = "install_concurrency_limit,omitempty"];
 }
 
 // HTTPProxySettings defines HTTP proxy settings for making HTTP and HTTPS requests.
