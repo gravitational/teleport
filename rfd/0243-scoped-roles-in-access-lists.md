@@ -510,6 +510,15 @@ The plan is to implement a model for handling invalid or dangling assignments
 where all assignments will be checked when they are loaded, and invalid
 assignments will be dropped.
 
+Also, in order for the scoping model to be fully consistent, access lists must
+only be able to assign roles defined in the root scope '/'.
+This is necessary to prevent admins of only specific scopes from modifying a
+role assigned by an access list defined in the root scope, and follows from the
+current limitation that scoped_role_assignments must have the same scope of
+definition as each role that they assign.
+Defining scoped_roles in the root scope is currently not allowed, we will need
+to update/allow this.
+
 ### Identity provider sync
 
 Teleport already has multiple integrations with third party identity providers
