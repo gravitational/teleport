@@ -762,14 +762,23 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := tc.ProfileStatus()
+
+	tc.AllowHeadless = true
+
+	var profile *client.ProfileStatus
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		profile, err = tc.ProfileStatus()
+		return trace.Wrap(err)
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	routes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	dbInfo, err := getDatabaseInfo(cf, tc, routes)
 	if err != nil {
 		return trace.Wrap(err)
