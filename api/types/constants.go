@@ -687,6 +687,9 @@ const (
 	// KindClientIPRestriction is the resource kind for Client IP Restriction allowlist.
 	KindClientIPRestriction = "client_ip_restriction"
 
+	// KindWorkloadCluster is the resource kind for workload clusters.
+	KindWorkloadCluster = "workload_cluster"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 
