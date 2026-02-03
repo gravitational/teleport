@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2025  Gravitational, Inc.
+ * Copyright (C) 2026  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -21,79 +21,11 @@ package config
 import (
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
+	"github.com/gravitational/teleport/lib/tbot/config/joinuri"
+	"github.com/stretchr/testify/require"
 )
-
-func TestParseJoinURI(t *testing.T) {
-	tests := []struct {
-		uri         string
-		expect      *JoinURIParams
-		expectError require.ErrorAssertionFunc
-	}{
-		{
-			uri: "tbot+proxy+token://asdf@example.com:1234",
-			expect: &JoinURIParams{
-				AddressKind:         connection.AddressKindProxy,
-				Token:               "asdf",
-				JoinMethod:          types.JoinMethodToken,
-				Address:             "example.com:1234",
-				JoinMethodParameter: "",
-			},
-		},
-		{
-			uri: "tbot+auth+bound-keypair://token:param@example.com",
-			expect: &JoinURIParams{
-				AddressKind:         connection.AddressKindAuth,
-				Token:               "token",
-				JoinMethod:          types.JoinMethodBoundKeypair,
-				Address:             "example.com",
-				JoinMethodParameter: "param",
-			},
-		},
-		{
-			uri: "",
-			expectError: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorContains(tt, err, "unsupported joining URI scheme")
-			},
-		},
-		{
-			uri: "tbot+foo+token://example.com",
-			expectError: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorContains(tt, err, "address kind must be one of")
-			},
-		},
-		{
-			uri: "tbot+proxy+bar://example.com",
-			expectError: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorContains(tt, err, "unsupported join method")
-			},
-		},
-		{
-			uri: "https://example.com",
-			expectError: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorContains(tt, err, "unsupported joining URI scheme")
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.uri, func(t *testing.T) {
-			parsed, err := ParseJoinURI(tt.uri)
-			if tt.expectError == nil {
-				require.NoError(t, err)
-			} else {
-				tt.expectError(t, err)
-			}
-
-			require.Empty(t, cmp.Diff(parsed, tt.expect))
-		})
-	}
-}
 
 func TestJoinURIApplyToConfig(t *testing.T) {
 	tests := []struct {
@@ -224,10 +156,10 @@ func TestJoinURIApplyToConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.uri, func(t *testing.T) {
-			parsed, err := ParseJoinURI(tt.uri)
+			parsed, err := joinuri.Parse(tt.uri)
 			require.NoError(t, err)
 
-			err = parsed.ApplyToConfig(tt.inputConfig)
+			err = ApplyJoinURIToConfig(parsed, tt.inputConfig)
 			if tt.expectError != nil {
 				tt.expectError(t, err)
 			} else {
