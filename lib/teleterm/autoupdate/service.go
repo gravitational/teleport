@@ -42,6 +42,7 @@ const (
 	// launching tsh with TELEPORT_TOOLS_VERSION=off, and forwards the real value via
 	// FORWARDED_TELEPORT_TOOLS_VERSION.
 	forwardedTeleportToolsEnvVar = "FORWARDED_TELEPORT_TOOLS_VERSION"
+	teleportToolsVersionOff      = "off"
 )
 
 // Service implements gRPC service for autoupdate.
@@ -152,7 +153,7 @@ func (s *Service) GetConfig(_ context.Context, _ *api.GetConfigRequest) (*api.Ge
 	toolsVersionSource := config.GetToolsVersion().Source
 	if toolsVersionValue == "" {
 		toolsVersionSource = api.ConfigSource_CONFIG_SOURCE_UNSPECIFIED
-	} else {
+	} else if toolsVersionValue != teleportToolsVersionOff {
 		if _, err = semver.NewVersion(toolsVersionValue); err != nil {
 			return nil, trace.BadParameter("invalid version %v for tools version", toolsVersionValue)
 		}
