@@ -552,6 +552,18 @@ func (v rfd153OnlyValidator) Validate(ctx context.Context, req tfsdk.ValidateAtt
 		return
 	}
 
+	// Treat empty values as "not configured" to avoid false positives.
+	//
+	// Some Terraform SDK wrappers (like Pulumi's Terraform bridge) may send
+	// empty values instead of null for unset optional fields. We treat these
+	// as equivalent to null since:
+	// 1. Empty strings/lists/maps have no functional meaning for these fields
+	// 2. The API would reject empty values anyway (e.g., empty bot name)
+	// 3. This allows the new metadata+spec schema to work correctly
+	if !attrHasValue(req.AttributeConfig) {
+		return
+	}
+
 	var meta, spec types.Object
 	req.Config.GetAttribute(ctx, path.Root("metadata"), &meta)
 	req.Config.GetAttribute(ctx, path.Root("spec"), &spec)
@@ -806,4 +818,31 @@ func (b Bot) GetMaxSessionTTL() *durationpb.Duration {
 
 func attrPresent(v attr.Value) bool {
 	return !v.IsNull() && !v.IsUnknown()
+}
+
+// attrHasValue checks if an attribute has a meaningful (non-empty) value.
+// This is stricter than attrPresent - it also treats empty strings, lists,
+// and maps as "not having a value" for validation purposes.
+func attrHasValue(v attr.Value) bool {
+	if !attrPresent(v) {
+		return false
+	}
+
+	// Empty string = no value
+	if str, ok := v.(types.String); ok {
+		return str.Value != ""
+	}
+
+	// Empty list = no value
+	if list, ok := v.(types.List); ok {
+		return len(list.Elems) > 0
+	}
+
+	// Empty map = no value
+	if mp, ok := v.(types.Map); ok {
+		return len(mp.Elems) > 0
+	}
+
+	// For other types (objects, etc.), presence = has value
+	return true
 }
