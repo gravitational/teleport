@@ -37,13 +37,14 @@ type entitlement =
   | 'OIDC'
   | 'OktaSCIM'
   | 'OktaUserSync'
-  | 'Policy'
+  | 'Policy' // TODO(emargetis) DELETE IN 20.0.0
   | 'SAML'
   | 'SessionLocks'
   | 'UnrestrictedManagedUpdates'
   | 'UpsellAlert'
   | 'UsageReporting'
-  | 'ClientIPRestrictions';
+  | 'ClientIPRestrictions'
+  | 'AccessGraph';
 
 export const defaultEntitlements: Record<
   entitlement,
@@ -75,4 +76,5 @@ export const defaultEntitlements: Record<
   UpsellAlert: { enabled: false, limit: 0 },
   UsageReporting: { enabled: false, limit: 0 },
   ClientIPRestrictions: { enabled: false, limit: 0 },
+  AccessGraph: { enabled: false, limit: 0 },
 };

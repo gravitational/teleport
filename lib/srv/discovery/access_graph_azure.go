@@ -216,8 +216,8 @@ func (s *Server) getAllTAGSyncAzureFetchers() []*azuresync.Fetcher {
 func (s *Server) initializeAndWatchAzureAccessGraph(ctx context.Context, reloadCh chan struct{}) error {
 	// Check if the access graph is enabled
 	clusterFeatures := s.Config.ClusterFeatures()
-	policy := modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy)
-	if !clusterFeatures.AccessGraph && !policy.Enabled {
+	accessGraph := modules.GetProtoEntitlement(&clusterFeatures, entitlements.AccessGraph)
+	if !clusterFeatures.AccessGraph && !accessGraph.Enabled {
 		return trace.Wrap(errTAGFeatureNotEnabled)
 	}
 

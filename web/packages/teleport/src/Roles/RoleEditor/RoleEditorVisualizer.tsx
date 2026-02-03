@@ -107,6 +107,6 @@ export function RoleEditorVisualizer({
 export function shouldShowRoleDiff(rdp: RoleDiffProps) {
   return (
     rdp.roleDiffState === RoleDiffState.DemoReady ||
-    rdp.roleDiffState === RoleDiffState.PolicyEnabled
+    rdp.roleDiffState === RoleDiffState.AccessGraphEnabled
   );
 }
