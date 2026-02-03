@@ -111,20 +111,10 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		return trace.Wrap(err)
 	}
 
-	// If the session has been already created, move to cleanup
 	bucket := h.gcsClient.Bucket(h.Config.Bucket)
-	sessionObject := bucket.Object(h.recordingPath(upload.SessionID))
-	_, err := sessionObject.Attrs(ctx)
-	if !errors.Is(err, storage.ErrObjectNotExist) {
-		if err != nil {
-			return convertGCSError(err)
-		}
-		return h.cleanupUpload(ctx, upload)
-	}
-
 	// Makes sure that upload has been properly initiated,
 	// checks the .upload file
-	_, err = bucket.Object(h.uploadPath(upload)).Attrs(ctx)
+	_, err := bucket.Object(h.uploadPath(upload)).Attrs(ctx)
 	if err != nil {
 		return convertGCSError(err)
 	}
@@ -148,7 +138,17 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		}
 		objects = append([]*storage.ObjectHandle{mergeObject}, objects[maxParts:]...)
 	}
-	composer := sessionObject.If(storage.Conditions{DoesNotExist: true}).ComposerFrom(objects...)
+	sessionObject := bucket.Object(h.recordingPath(upload.SessionID))
+	var cond storage.Conditions
+	attrs, err := sessionObject.Attrs(ctx)
+	if errors.Is(err, storage.ErrObjectNotExist) {
+		cond.DoesNotExist = true
+	} else if err != nil {
+		return convertGCSError(err)
+	} else {
+		cond.GenerationMatch = attrs.Generation
+	}
+	composer := sessionObject.If(cond).ComposerFrom(objects...)
 	_, err = h.OnComposerRun(ctx, composer)
 	if err != nil {
 		return convertGCSError(err)

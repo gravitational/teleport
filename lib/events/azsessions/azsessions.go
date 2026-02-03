@@ -36,6 +36,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/google/uuid"
@@ -514,8 +515,21 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	}
 
 	log.DebugContext(ctx, "Committing part list.")
+	var conds *blob.AccessConditions
+	props, err := cErr(sessionBlob.GetProperties(ctx, &blob.GetPropertiesOptions{}))
+	if trace.IsNotFound(err) {
+		conds = &blobDoesNotExist
+	} else if err != nil {
+		return trace.Wrap(err)
+	} else {
+		conds = &blob.AccessConditions{
+			ModifiedAccessConditions: &blob.ModifiedAccessConditions{
+				IfMatch: props.ETag,
+			},
+		}
+	}
 	if _, err := cErr(sessionBlob.CommitBlockList(ctx, blockNames, &blockblob.CommitBlockListOptions{
-		AccessConditions: &blobDoesNotExist,
+		AccessConditions: conds,
 	})); err != nil {
 		if !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err)
