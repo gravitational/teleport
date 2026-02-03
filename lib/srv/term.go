@@ -204,6 +204,7 @@ func (t *terminal) Run(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	t.cmd.Stderr = t.serverContext.Stderrw
 
 	// Close the TTY before returning to ensure that our half of the pipe is
 	// closed. This ensures that reading from the PTY will unblock when the
@@ -214,6 +215,10 @@ func (t *terminal) Run(ctx context.Context) error {
 	if err := t.cmd.Start(); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Close our half of the stderr pipe.
+	t.serverContext.Stderrw.Close()
+	t.serverContext.Stderrw = nil
 
 	// Close our half of the write pipe since it is only to be used by the child process.
 	// Not closing prevents being signaled when the child closes its half.

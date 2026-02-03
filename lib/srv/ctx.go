@@ -412,7 +412,7 @@ type ServerContext struct {
 
 	// stderr{r,w} are used to capture stderr from the child process.
 	stderrr *os.File
-	stderrw *os.File
+	Stderrw *os.File
 
 	// cmd{r,w} are used to send the command from the parent process to the
 	// child process.
@@ -574,13 +574,13 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	}
 
 	// Create pipe used to capture stderr from the child process.
-	child.stderrr, child.stderrw, err = os.Pipe()
+	child.stderrr, child.Stderrw, err = os.Pipe()
 	if err != nil {
 		childErr := child.Close()
 		return nil, trace.NewAggregate(err, childErr)
 	}
 	child.AddCloser(child.stderrr)
-	child.AddCloser(child.stderrw)
+	child.AddCloser(child.Stderrw)
 
 	// Create pipe used to send command to child process.
 	child.cmdr, child.cmdw, err = os.Pipe()
@@ -1423,12 +1423,6 @@ func (c *ServerContext) WaitForChild(ctx context.Context) error {
 //
 // This must only be called after the child process has exited.
 func (c *ServerContext) GetChildError() error {
-	// Close the writing side of the stderr pipe to signal EOF.
-	if c.stderrw != nil {
-		c.stderrw.Close()
-		c.stderrw = nil
-	}
-
 	// Read the error msg from stderr.
 	errMsg := new(strings.Builder)
 	if _, err := io.Copy(errMsg, c.stderrr); err != nil {

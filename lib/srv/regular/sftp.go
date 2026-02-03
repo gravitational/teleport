@@ -121,6 +121,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	s.sftpCmd.Stderr = serverCtx.Stderrw
 
 	s.logger.DebugContext(ctx, "starting SFTP process")
 	err = s.sftpCmd.Start()
@@ -128,6 +129,10 @@ func (s *sftpSubsys) Start(ctx context.Context,
 		return trace.Wrap(err)
 	}
 	execRequest.Continue()
+
+	// Close our half of the stderr pipe.
+	serverCtx.Stderrw.Close()
+	serverCtx.Stderrw = nil
 
 	// Send the file transfer request if applicable. The SFTP process
 	// expects the file transfer request data will end with a null byte,
@@ -214,7 +219,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 				s.logger.WarnContext(ctx, "Unknown event type received from SFTP server process", "error", err, "event_type", event.GetType())
 			}
 
-			if err := serverCtx.GetServer().EmitAuditEvent(context.Background(), event); err != nil {
+			if err := serverCtx.GetServer().EmitAuditEvent(context.WithoutCancel(ctx), event); err != nil {
 				s.logger.WarnContext(ctx, "Failed to emit SFTP event", "error", err)
 			}
 		}

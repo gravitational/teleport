@@ -83,9 +83,6 @@ type Request struct {
 type Operation string
 
 const (
-	// NetworkingReadyCheck is used by the parent process to check if the networking
-	// process is ready and listening.
-	NetworkingReadyCheck Operation = "ready"
 	// NetworkingOperationDial is used to connect to a network address.
 	NetworkingOperationDial Operation = "dial"
 	// NetworkingOperationListen is used to create a local network listener.
@@ -179,15 +176,6 @@ func (p *Process) Close() error {
 		}
 	}
 	return nil
-}
-
-// WaitReady sends a ready check signal to wait until the process is ready. If the process
-// exits before replying to the ready check, an error is returned.
-func (p *Process) WaitReady(ctx context.Context) error {
-	_, err := p.sendRequest(ctx, Request{
-		Operation: NetworkingReadyCheck,
-	})
-	return trace.Wrap(err)
 }
 
 // Dial requests a network connection from the networking subprocess.
@@ -296,7 +284,7 @@ func (p *Process) sendRequest(ctx context.Context, req Request) (*os.File, error
 		return nil, trace.Wrap(err)
 	}
 
-	file, err := readResponse(requestConn, req.Operation == NetworkingReadyCheck)
+	file, err := readResponse(requestConn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -304,7 +292,7 @@ func (p *Process) sendRequest(ctx context.Context, req Request) (*os.File, error
 }
 
 // readResponse attempts to read a file descriptor from the given connection until it is closed.
-func readResponse(conn *net.UnixConn, isReadyCheck bool) (*os.File, error) {
+func readResponse(conn *net.UnixConn) (*os.File, error) {
 	buf := make([]byte, RequestBufferSize)
 	fbuf := make([]*os.File, 1)
 	n, fn, err := uds.ReadWithFDs(conn, buf, fbuf)
@@ -312,10 +300,6 @@ func readResponse(conn *net.UnixConn, isReadyCheck bool) (*os.File, error) {
 		return nil, trace.Wrap(err)
 	} else if fn == 0 {
 		if n > 0 {
-			if isReadyCheck {
-				return nil, nil
-			}
-
 			// The networking process only ever writes to the request conn if an error occurs.
 			// Read the rest of the connection to ensure we don't return just a partial stream.
 			errMsg, err := io.ReadAll(io.LimitReader(conn, int64(cap(buf)-len(buf))))

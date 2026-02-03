@@ -636,6 +636,20 @@ func RunNetworking() (code int, err error) {
 	if cmdfd == nil {
 		return teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
 	}
+	readyfd := os.NewFile(ReadyFile, fdName(ReadyFile))
+	if readyfd == nil {
+		return teleport.RemoteCommandFailure, trace.BadParameter("ready pipe not found")
+	}
+
+	// Ensure that the ready signal is sent if a failure causes execution
+	// to terminate prior to actually becoming ready to unblock the parent process.
+	defer func() {
+		if readyfd == nil {
+			return
+		}
+
+		_ = readyfd.Close()
+	}()
 
 	terminatefd := os.NewFile(TerminateFile, fdName(TerminateFile))
 	if terminatefd == nil {
@@ -766,6 +780,14 @@ func RunNetworking() (code int, err error) {
 		parentConn.Close()
 	}()
 
+	// Alert the parent process that the child process has completed any setup operations,
+	// and that we are now waiting for the continue signal before proceeding. This is needed
+	// to ensure that PAM changing the cgroup doesn't bypass enhanced recording.
+	if err := readyfd.Close(); err != nil {
+		return teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+	readyfd = nil
+
 	for {
 		buf := make([]byte, 1024)
 		fbuf := make([]*os.File, 1)
@@ -802,10 +824,6 @@ func RunNetworking() (code int, err error) {
 		// Therefore we favor handling requests and cleanup on the main PAM thread for requests that
 		// are expected to be impacted (unix socket listeners).
 		switch req.Operation {
-		case networking.NetworkingReadyCheck:
-			// Signal ready by responding to the connection.
-			requestConn.Write([]byte{0})
-			requestConn.Close()
 		case networking.NetworkingOperationDial, networking.NetworkingOperationListen:
 			switch req.Network {
 			case "tcp":
@@ -1314,10 +1332,9 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 
 	// Build the "teleport exec" command.
 	cmd := &exec.Cmd{
-		Path:   executable,
-		Args:   args,
-		Env:    *env,
-		Stderr: ctx.stderrw,
+		Path: executable,
+		Args: args,
+		Env:  *env,
 		ExtraFiles: []*os.File{
 			ctx.cmdr,
 			ctx.logw,

@@ -1279,8 +1279,10 @@ func (s *Server) getNetworkingProcess(scx *srv.ServerContext) (*networking.Proce
 // startNetworkingProcess launches a new networking process. It should be closed once
 // the server connection is closed.
 func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Process, error) {
+	ctx := scx.CancelContext()
+
 	// Create context for the networking process.
-	nsctx, err := srv.NewServerContext(context.Background(), scx.ConnectionContext, s, scx.Identity, nil)
+	nsctx, err := srv.NewServerContext(ctx, scx.ConnectionContext, s, scx.Identity, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1295,16 +1297,24 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	cmd.Stderr = nsctx.Stderrw
 
-	proc, err := networking.NewProcess(nsctx.CancelContext(), cmd)
+	proc, err := networking.NewProcess(ctx, cmd)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := proc.WaitReady(nsctx.CancelContext()); err != nil {
-		if err := nsctx.GetChildError(); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	// Close our half of the stderr pipe.
+	nsctx.Stderrw.Close()
+	nsctx.Stderrw = nil
+
+	if err := nsctx.WaitForChild(ctx); err != nil {
+		slog.DebugContext(ctx, "Unexpected error waiting for signal from child process.", "error", err)
+	}
+
+	// If the child process signaled ready, it is either ready or closed due to an error.
+	if err := nsctx.GetChildError(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return proc, nil
