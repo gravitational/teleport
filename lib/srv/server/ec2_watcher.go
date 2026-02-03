@@ -236,6 +236,18 @@ type EC2IAMPermissionError struct {
 // Used when no handler is provided, allowing callers to skip nil checks.
 func noopReportIAMPermissionError(context.Context, *EC2IAMPermissionError) {}
 
+// accountIDFromRoleARN extracts the AWS account ID from a role ARN.
+// Returns an empty string if the ARN is empty or invalid.
+func accountIDFromRoleARN(roleARN string) string {
+	if roleARN == "" {
+		return ""
+	}
+	if parsed, err := arn.Parse(roleARN); err == nil {
+		return parsed.AccountID
+	}
+	return ""
+}
+
 type ec2FetcherConfig struct {
 	Matcher types.AWSMatcher
 	// ProxyPublicAddrGetter returns the public proxy address to use for installation scripts.
@@ -498,19 +510,13 @@ func (f *ec2InstanceFetcher) matcherRegions(ctx context.Context, awsOpts []awsco
 		if err != nil {
 			convertedErr := libcloudaws.ConvertRequestFailureError(err)
 			if trace.IsAccessDenied(convertedErr) {
-				errInfo := &EC2IAMPermissionError{
+				f.ReportIAMPermissionError(ctx, &EC2IAMPermissionError{
 					Integration:         f.Matcher.Integration,
 					IssueType:           usertasks.AutoDiscoverEC2IssuePermAccountDenied,
 					DiscoveryConfigName: f.DiscoveryConfigName,
+					AccountID:           accountIDFromRoleARN(f.Matcher.AssumeRole.RoleARN),
 					Err:                 convertedErr,
-				}
-				// Derive AccountID from assume role ARN when available.
-				if f.Matcher.AssumeRole != nil && f.Matcher.AssumeRole.RoleARN != "" {
-					if parsed, parseErr := arn.Parse(f.Matcher.AssumeRole.RoleARN); parseErr == nil {
-						errInfo.AccountID = parsed.AccountID
-					}
-				}
-				f.ReportIAMPermissionError(ctx, errInfo)
+				})
 				return nil, trace.BadParameter("Missing account:ListRegions permission in IAM Role, which is required to iterate over all regions. " +
 					"Add this permission to the IAM Role, or enumerate all the regions in the AWS matcher.")
 			}
@@ -552,19 +558,13 @@ func (f *ec2InstanceFetcher) fetchAccountIDsUnderOrganization(ctx context.Contex
 	if err != nil {
 		convertedErr := libcloudaws.ConvertRequestFailureError(err)
 		if trace.IsAccessDenied(convertedErr) {
-			errInfo := &EC2IAMPermissionError{
+			f.ReportIAMPermissionError(ctx, &EC2IAMPermissionError{
 				Integration:         f.Matcher.Integration,
 				IssueType:           usertasks.AutoDiscoverEC2IssuePermOrgDenied,
 				DiscoveryConfigName: f.DiscoveryConfigName,
+				AccountID:           accountIDFromRoleARN(f.Matcher.AssumeRole.RoleARN),
 				Err:                 convertedErr,
-			}
-			// Derive AccountID from assume role ARN when available.
-			if f.Matcher.AssumeRole != nil && f.Matcher.AssumeRole.RoleARN != "" {
-				if parsed, parseErr := arn.Parse(f.Matcher.AssumeRole.RoleARN); parseErr == nil {
-					errInfo.AccountID = parsed.AccountID
-				}
-			}
-			f.ReportIAMPermissionError(ctx, errInfo)
+			})
 			return nil, trace.BadParameter("discovering instances under an organization requires the following permissions: [%s], add those to the IAM Role used by the Discovery Service", strings.Join(organizations.RequiredAPIs(), ", "))
 		}
 
@@ -709,20 +709,14 @@ func (f *ec2InstanceFetcher) getInstancesInRegion(ctx context.Context, params ge
 		if err != nil {
 			convertedErr := libcloudaws.ConvertRequestFailureError(err)
 			if trace.IsAccessDenied(convertedErr) {
-				errInfo := &EC2IAMPermissionError{
+				f.ReportIAMPermissionError(ctx, &EC2IAMPermissionError{
 					Integration:         f.Matcher.Integration,
 					Region:              params.region,
 					IssueType:           usertasks.AutoDiscoverEC2IssuePermAccountDenied,
 					DiscoveryConfigName: f.DiscoveryConfigName,
+					AccountID:           accountIDFromRoleARN(params.assumeRole.RoleARN),
 					Err:                 convertedErr,
-				}
-				// Derive AccountID from assume role ARN when available.
-				if params.assumeRole.RoleARN != "" {
-					if parsed, parseErr := arn.Parse(params.assumeRole.RoleARN); parseErr == nil {
-						errInfo.AccountID = parsed.AccountID
-					}
-				}
-				f.ReportIAMPermissionError(ctx, errInfo)
+				})
 			}
 			return nil, convertedErr
 		}
