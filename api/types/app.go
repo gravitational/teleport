@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"encoding/json"
 	"fmt"
 	"iter"
 	"net/url"
@@ -77,7 +78,7 @@ type Application interface {
 	IsMCP() bool
 	// IsHTTP returns true if this app represents an HTTP server.
 	IsHTTP() bool
-	// IsLLM returns true if this app represents an LLM proxy.
+	// IsLLM returns true if this app represents a LLM inference endpoint.
 	IsLLM() bool
 	// GetProtocol returns the application protocol.
 	GetProtocol() string
@@ -114,6 +115,12 @@ type Application interface {
 	GetMCP() *MCP
 	// IsEqual determines if two application resources are equivalent to one another.
 	IsEqual(Application) bool
+	// GetLLM fetches LLM specific configuration.
+	GetLLM() *LLM
+	// GetLLMFormat fetches LLM inference endpoint API format.
+	GetLLMFormat() LLM_Format
+	// GetLLMProvider fetches service that will serve the LLM inference endpoint.
+	GetLLMProvider() LLM_Provider
 }
 
 // NewAppV3 creates a new app resource.
@@ -315,9 +322,9 @@ func (a *AppV3) IsHTTP() bool {
 	return strings.HasPrefix(a.Spec.URI, "http://") || strings.HasPrefix(a.Spec.URI, "https://")
 }
 
-// IsLLM returns true if this app represents an LLM proxy.
+// IsLLM returns true if provided app is an LLM inference endpoint.
 func (a *AppV3) IsLLM() bool {
-	return strings.HasPrefix(a.Spec.URI, "llm://")
+	return a.Spec.LLM != nil && a.Spec.LLM.Format != LLM_FORMAT_UNSPECIFIED
 }
 
 func IsAppTCP(uri string) bool {
@@ -336,6 +343,9 @@ func (a *AppV3) GetProtocol() string {
 	}
 	if a.IsMCP() {
 		return "MCP"
+	}
+	if a.IsLLM() {
+		return "LLM"
 	}
 	return "HTTP"
 }
@@ -449,6 +459,8 @@ func (a *AppV3) CheckAndSetDefaults() error {
 			a.Spec.URI = fmt.Sprintf("cloud://%v", a.Spec.Cloud)
 		case a.Spec.MCP != nil && a.Spec.MCP.Command != "":
 			a.Spec.URI = SchemeMCPStdio + "://"
+		case a.IsLLM():
+			a.Spec.URI = SchemeLLMEndpoint + "://"
 		default:
 			return trace.BadParameter("app %q URI is empty", a.GetName())
 		}
@@ -506,6 +518,13 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		}
 	}
 
+	if a.IsLLM() {
+		a.SetSubKind(SubKindLLM)
+		if err := a.checkLLM(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// Set an "app-sub-kind" label can be used for RBAC.
 	if a.SubKind != "" {
 		if a.Metadata.Labels == nil {
@@ -558,6 +577,40 @@ func (a *AppV3) checkMCP() error {
 	}
 }
 
+func (a *AppV3) checkLLM() error {
+	// AWS Bedrock model names always differ from regular API. Here we must
+	// ensure that default model is set.
+	if a.Spec.LLM.Provider == LLM_PROVIDER_AWS_BEDROCK && a.Spec.LLM.DefaultModel == "" {
+		return trace.BadParameter("AWS Bedrock provider set different model names from regular APIs. You must specify at least default_model.")
+	}
+
+	switch a.Spec.LLM.Format {
+	case LLM_FORMAT_ANTHROPIC:
+		switch a.Spec.LLM.Provider {
+		case LLM_PROVIDER_OPENAI:
+			return trace.BadParameter("Anthropic format cannot be service by OpenAI")
+		default:
+			return nil
+		}
+	case LLM_FORMAT_AWS_BEDROCK:
+		switch a.Spec.LLM.Provider {
+		case LLM_PROVIDER_ANTHROPIC, LLM_PROVIDER_AWS_BEDROCK, LLM_PROVIDER_UNSPECIFIED:
+			return nil
+		default:
+			return trace.BadParameter("AWS Bedrock format cannot be served by %q provider", a.Spec.LLM.Provider.DisplayName())
+		}
+	case LLM_FORMAT_OPENAI:
+		switch a.Spec.LLM.Provider {
+		case LLM_PROVIDER_OPENAI, LLM_PROVIDER_AZURE, LLM_PROVIDER_UNSPECIFIED:
+			return nil
+		default:
+			return trace.BadParameter("OpenAI format cannot be served by %q provider", a.Spec.LLM.Provider.DisplayName())
+		}
+	default:
+		return trace.BadParameter("unsupported llm inference endpoint")
+	}
+}
+
 func (a *AppV3) checkMCPStdio() error {
 	// Skip validation for internal demo resource.
 	if resourceType, _ := a.GetLabel(TeleportInternalResourceType); resourceType == DemoResource {
@@ -603,6 +656,42 @@ func (a *AppV3) IsEqual(i Application) bool {
 // GetMCP returns MCP specific configuration.
 func (a *AppV3) GetMCP() *MCP {
 	return a.Spec.MCP
+}
+
+// GetLLM returns LLM specific configuration.
+func (a *AppV3) GetLLM() *LLM {
+	return a.Spec.LLM
+}
+
+// GetLLMFormat fetches LLM inference endpoint API format.
+func (a *AppV3) GetLLMFormat() LLM_Format {
+	if a.Spec.LLM == nil {
+		return LLM_FORMAT_UNSPECIFIED
+	}
+
+	return a.Spec.LLM.Format
+}
+
+// GetLLMProvider fetches service that will serve the LLM inference endpoint.
+func (a *AppV3) GetLLMProvider() LLM_Provider {
+	if a.Spec.LLM == nil {
+		return LLM_PROVIDER_UNSPECIFIED
+	}
+
+	if a.Spec.LLM.Provider != LLM_PROVIDER_UNSPECIFIED {
+		return a.Spec.LLM.Provider
+	}
+
+	switch a.Spec.LLM.Format {
+	case LLM_FORMAT_ANTHROPIC:
+		return LLM_PROVIDER_ANTHROPIC
+	case LLM_FORMAT_AWS_BEDROCK:
+		return LLM_PROVIDER_AWS_BEDROCK
+	case LLM_FORMAT_OPENAI:
+		return LLM_PROVIDER_OPENAI
+	default:
+		return LLM_PROVIDER_UNSPECIFIED
+	}
 }
 
 // DeduplicateApps deduplicates apps by combination of app name and public address.
@@ -719,4 +808,249 @@ func GetMCPServerTransportType(uri string) string {
 	default:
 		return ""
 	}
+}
+
+const (
+	llmFormatOpenAIString     = "openai"
+	llmFormatAnthropicString  = "anthropic"
+	llmFormatAWSBedrockString = "bedrock"
+
+	llmProviderOpenAIString     = "openai"
+	llmProviderAnthropicString  = "anthropic"
+	llmProviderAWSBedrockString = "bedrock"
+	llmProviderAzureString      = "azure"
+)
+
+func (h LLM_Format) DisplayName() string {
+	enc, err := h.encode()
+	if err != nil {
+		return ""
+	}
+	return enc
+}
+
+func (h LLM_Format) encode() (string, error) {
+	switch h {
+	case LLM_FORMAT_UNSPECIFIED:
+		return "", nil
+	case LLM_FORMAT_OPENAI:
+		return llmFormatOpenAIString, nil
+	case LLM_FORMAT_ANTHROPIC:
+		return llmFormatAnthropicString, nil
+	case LLM_FORMAT_AWS_BEDROCK:
+		return llmFormatAWSBedrockString, nil
+	}
+
+	return "", trace.BadParameter("invalid llm api format %v", h)
+}
+
+func (h *LLM_Format) decode(val any) error {
+	var str string
+	switch val := val.(type) {
+	case int32:
+		return trace.Wrap(h.setFromEnum(val))
+	case int64:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case int:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case float64:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case float32:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case string:
+		str = val
+	case bool:
+		if val {
+			return trace.BadParameter("format cannot be true, got %v", val)
+		}
+		str = ""
+	default:
+		return trace.BadParameter("bad value type %T, expected string", val)
+	}
+
+	switch str {
+	case "":
+		*h = LLM_FORMAT_UNSPECIFIED
+	case llmFormatOpenAIString:
+		*h = LLM_FORMAT_OPENAI
+	case llmFormatAnthropicString:
+		*h = LLM_FORMAT_ANTHROPIC
+	case llmFormatAWSBedrockString:
+		*h = LLM_FORMAT_AWS_BEDROCK
+	default:
+		return trace.BadParameter("invalid llm api format %v", val)
+	}
+
+	return nil
+}
+
+// setFromEnum sets the value from enum value as int32.
+func (h *LLM_Format) setFromEnum(val int32) error {
+	if _, ok := LLM_Format_name[val]; !ok {
+		return trace.BadParameter("invalid llm api format %v", val)
+	}
+	*h = LLM_Format(val)
+	return nil
+}
+
+// UnmarshalYAML supports parsing CreateDatabaseUserMode from string.
+func (h *LLM_Format) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var val any
+	err := unmarshal(&val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = h.decode(val)
+	return trace.Wrap(err)
+}
+
+// MarshalYAML marshals CreateDatabaseUserMode to yaml.
+func (h *LLM_Format) MarshalYAML() (interface{}, error) {
+	val, err := h.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return val, nil
+}
+
+// MarshalJSON marshals CreateDatabaseUserMode to json bytes.
+func (h *LLM_Format) MarshalJSON() ([]byte, error) {
+	val, err := h.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := json.Marshal(val)
+	return out, trace.Wrap(err)
+}
+
+// UnmarshalJSON supports parsing CreateDatabaseUserMode from string.
+func (h *LLM_Format) UnmarshalJSON(data []byte) error {
+	var val any
+	err := json.Unmarshal(data, &val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = h.decode(val)
+	return trace.Wrap(err)
+}
+
+func (h LLM_Provider) DisplayName() string {
+	enc, err := h.encode()
+	if err != nil {
+		return ""
+	}
+	return enc
+}
+
+func (h LLM_Provider) encode() (string, error) {
+	switch h {
+	case LLM_PROVIDER_UNSPECIFIED:
+		return "", nil
+	case LLM_PROVIDER_OPENAI:
+		return llmProviderOpenAIString, nil
+	case LLM_PROVIDER_ANTHROPIC:
+		return llmProviderAnthropicString, nil
+	case LLM_PROVIDER_AZURE:
+		return llmProviderAzureString, nil
+	case LLM_PROVIDER_AWS_BEDROCK:
+		return llmProviderAWSBedrockString, nil
+	}
+
+	return "", trace.BadParameter("invalid llm provider %v", h)
+}
+
+func (h *LLM_Provider) decode(val any) error {
+	var str string
+	switch val := val.(type) {
+	case int32:
+		return trace.Wrap(h.setFromEnum(val))
+	case int64:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case int:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case float64:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case float32:
+		return trace.Wrap(h.setFromEnum(int32(val)))
+	case string:
+		str = val
+	case bool:
+		if val {
+			return trace.BadParameter("format cannot be true, got %v", val)
+		}
+		str = ""
+	default:
+		return trace.BadParameter("bad value type %T, expected string", val)
+	}
+
+	switch str {
+	case "":
+		*h = LLM_PROVIDER_UNSPECIFIED
+	case llmProviderOpenAIString:
+		*h = LLM_PROVIDER_OPENAI
+	case llmProviderAnthropicString:
+		*h = LLM_PROVIDER_ANTHROPIC
+	case llmProviderAzureString:
+		*h = LLM_PROVIDER_AZURE
+	case llmProviderAWSBedrockString:
+		*h = LLM_PROVIDER_AWS_BEDROCK
+	default:
+		return trace.BadParameter("invalid llm provider %v", val)
+	}
+
+	return nil
+}
+
+// setFromEnum sets the value from enum value as int32.
+func (h *LLM_Provider) setFromEnum(val int32) error {
+	if _, ok := LLM_Provider_name[val]; !ok {
+		return trace.BadParameter("invalid llm provider %v", val)
+	}
+	*h = LLM_Provider(val)
+	return nil
+}
+
+// UnmarshalYAML supports parsing CreateDatabaseUserMode from string.
+func (h *LLM_Provider) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var val any
+	err := unmarshal(&val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = h.decode(val)
+	return trace.Wrap(err)
+}
+
+// MarshalYAML marshals CreateDatabaseUserMode to yaml.
+func (h *LLM_Provider) MarshalYAML() (interface{}, error) {
+	val, err := h.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return val, nil
+}
+
+// MarshalJSON marshals CreateDatabaseUserMode to json bytes.
+func (h *LLM_Provider) MarshalJSON() ([]byte, error) {
+	val, err := h.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := json.Marshal(val)
+	return out, trace.Wrap(err)
+}
+
+// UnmarshalJSON supports parsing CreateDatabaseUserMode from string.
+func (h *LLM_Provider) UnmarshalJSON(data []byte) error {
+	var val any
+	err := json.Unmarshal(data, &val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = h.decode(val)
+	return trace.Wrap(err)
 }

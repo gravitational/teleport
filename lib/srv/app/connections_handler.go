@@ -54,6 +54,7 @@ import (
 	appazure "github.com/gravitational/teleport/lib/srv/app/azure"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	appgcp "github.com/gravitational/teleport/lib/srv/app/gcp"
+	"github.com/gravitational/teleport/lib/srv/llm"
 	"github.com/gravitational/teleport/lib/srv/mcp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -195,6 +196,7 @@ type ConnectionsHandler struct {
 	awsHandler   http.Handler
 	azureHandler http.Handler
 	gcpHandler   http.Handler
+	llmHandler   http.Handler
 
 	// authMiddleware allows wrapping connections with identity information.
 	authMiddleware *authz.Middleware
@@ -291,6 +293,9 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Handler LLM endpoints.
+	c.llmHandler, err = llm.NewHandler(closeContext, llm.HandlerConfig{})
 
 	// Make copy of server's TLS configuration and update it with the specific
 	// functionality this server needs, like requiring client certificates.
@@ -430,6 +435,12 @@ func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) e
 	}
 
 	identity := authCtx.Identity.GetIdentity()
+	c.log.DebugContext(
+		r.Context(), "handling app request",
+		"is_azure_cloud", app.IsAzureCloud(),
+		"is_aws_console", app.IsAWSConsole(),
+		"is_llm", app.IsLLM(),
+	)
 	switch {
 	case app.IsAWSConsole():
 		// Requests from AWS applications are signed by AWS Signature Version 4
@@ -452,6 +463,9 @@ func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) e
 
 	case app.IsGCP():
 		return c.serveSession(w, r, &identity, app, c.withGCPHandler)
+
+	case app.IsLLM():
+		return c.serveSession(w, r, &identity, app, c.withLLMHandler)
 
 	default:
 		return c.serveSession(w, r, &identity, app, c.withJWTTokenForwarder)

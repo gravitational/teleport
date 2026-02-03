@@ -196,6 +196,11 @@ func (c *ConnectionsHandler) withGCPHandler(ctx context.Context, sess *sessionCh
 	return nil
 }
 
+func (c *ConnectionsHandler) withLLMHandler(_ context.Context, sess *sessionChunk, _ *tlsca.Identity, app types.Application) error {
+	sess.handler = c.llmHandler
+	return nil
+}
+
 // acquire() increments in-flight request count by 1.
 // It is supposed to be paired with a `release()` call,
 // after the chunk is done with for the individual request

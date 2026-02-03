@@ -1076,6 +1076,8 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindApp, services.RO()),
 						types.NewRule(types.KindJWT, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindInferenceModel, services.RO()),
+						types.NewRule(types.KindInferenceSecret, services.RO()),
 					},
 				},
 			})
