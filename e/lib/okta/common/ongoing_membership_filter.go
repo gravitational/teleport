@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"iter"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -12,7 +13,6 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
-	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 type ongoingAccessRequestAssignments struct {
@@ -44,7 +44,7 @@ func (c *ongoingAccessRequestAssignments) applyFilter(inOkta, inTeleport map[str
 	if len(c.accessRequestAssignments) == 0 {
 		return
 	}
-	for k := range toSet(c.accessRequestAssignments) {
+	for k := range assignmentMapKeys(c.accessRequestAssignments) {
 		if _, ok := inTeleport[k]; !ok {
 			// This Okta member was added as a result of a just-in-time short-term access request to an Okta resource.
 			// Since the assignment to the Okta group was temporary and initiated by an access request,
@@ -84,6 +84,7 @@ type OngoingAssignmentsMembershipFilter struct {
 func (a *OngoingAssignmentsMembershipFilter) Filter(ctx context.Context, inOktaMembers, inTeleportMembers map[string]*accesslist.AccessListMember) error {
 	filter := []assignmentFilterStage{
 		&ongoingAccessRequestAssignments{},
+		&pendingAssignmentFilter{},
 	}
 	if err := a.collectAssignments(ctx, filter); err != nil {
 		return trace.Wrap(err)
@@ -118,14 +119,16 @@ func (a *OngoingAssignmentsMembershipFilter) collectAssignments(ctx context.Cont
 	return nil
 }
 
-func toSet(assignments []types.OktaAssignment) set.Set[string] {
-	out := set.NewWithCapacity[string](len(assignments))
-	for _, assignment := range assignments {
-		for _, target := range assignment.GetTargets() {
-			out.Add(assigmentMapKey(target.GetID(), assignment.GetUser()))
+func assignmentMapKeys(assignments []types.OktaAssignment) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		for _, assignment := range assignments {
+			for _, target := range assignment.GetTargets() {
+				if !yield(assigmentMapKey(target.GetID(), assignment.GetUser())) {
+					return
+				}
+			}
 		}
 	}
-	return out
 }
 
 func isAccessRequestAssignment(assignment types.OktaAssignment) bool {
@@ -141,4 +144,60 @@ func assigmentMapKey(prefix, suffix string) string {
 // MemberKey returns unique key for the AccessListMember.
 func MemberKey(m *accesslist.AccessListMember) string {
 	return assigmentMapKey(m.Spec.AccessList, m.GetName())
+}
+
+// pendingAssignmentFilter is a filter stage that prevents the access list sync from processing
+// members with pending Okta assignments.
+//
+// Background:
+// When an access list membership is added or updated in Teleport, an OktaAssignment resource
+// is created with a "pending" status. The assignment processor then picks up this assignment
+// and provisions it to Okta (e.g., adds the user to an Okta group).
+//
+// Problem:
+// A race condition can occur between the assignment processor and the access list sync:
+// 1. Access list membership is added in Teleport
+// 2. OktaAssignment is created with status "pending"
+// 3. Access list sync runs before the assignment processor completes
+// 4. Sync queries Okta and doesn't find the user in the group yet
+// 5. Sync incorrectly treats this as a membership to remove from Teleport
+// 6. This conflicts with the assignment processor trying to add the same membership
+//
+// Solution:
+// This filter collects all pending assignments and removes their corresponding members
+// from both the Okta and Teleport member maps. By excluding these members from the sync,
+// we prevent the race condition and allow the assignment processor to complete its work
+// without interference.
+type pendingAssignmentFilter struct {
+	assignments []types.OktaAssignment
+}
+
+// collect gathers Okta assignments that are in pending status.
+// Pending assignments indicate that the assignment processor has not yet completed
+// provisioning the membership to Okta. Only non-access-request assignments are collected,
+// as access request assignments are handled by a separate filter stage.
+func (c *pendingAssignmentFilter) collect(in types.OktaAssignment) {
+	if in.GetStatus() == constants.OktaAssignmentStatusPending {
+		c.assignments = append(c.assignments, in)
+	}
+}
+
+// applyFilter removes members with pending assignments from both input maps.
+// This prevents the access list sync from processing these members while their assignments
+// are still being evaluated by the assignment processor, thereby eliminating the race condition
+// between the sync and provisioning operations.
+//
+// The function modifies both inOkta and inTeleport in place, removing entries that correspond
+// to pending assignments. This causes the sync operation to skip these members entirely until
+// their assignment status changes from pending to successful or failed.
+func (c *pendingAssignmentFilter) applyFilter(inOkta, inTeleport map[string]*accesslist.AccessListMember) {
+	// Remove pending assignments from both maps to prevent the access list sync from processing them.
+	// Pending assignments are those scheduled for evaluation.
+	// By removing them from both inOkta and inTeleport, we ensure that the sync operation
+	// skips these members entirely, That helps for reducing the race between assigment processor evaluation
+	// and from Okta to Teleport sync. The excluded members change will be picked in next access list sync cycle.
+	for k := range assignmentMapKeys(c.assignments) {
+		delete(inOkta, k)
+		delete(inTeleport, k)
+	}
 }

@@ -83,6 +83,20 @@ func TestOngoingAccessRequestMembershipFilter_Filter(t *testing.T) {
 			expectedOktaPresent:     true,
 			expectedTeleportPresent: false,
 		},
+		{
+			name: "pending assignment",
+			oktaMembers: map[string]*accesslist.AccessListMember{
+				"groupA/alice": newMember("groupA", "alice"),
+			},
+			teleportMembers: map[string]*accesslist.AccessListMember{
+				"groupA/alice": newMember("groupA", "alice"),
+			},
+			assignments: []types.OktaAssignment{
+				newAssignment("alice", "groupA", "assignment-processor", types.OktaAssignmentSpecV1_PENDING),
+			},
+			expectedOktaPresent:     false,
+			expectedTeleportPresent: false,
+		},
 	}
 
 	for _, tt := range tests {
