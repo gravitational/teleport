@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 
 	"github.com/gravitational/teleport/api/types"
@@ -262,17 +261,11 @@ func (s *Server) initializeAndWatchAzureAccessGraph(ctx context.Context, reloadC
 	}()
 
 	// Create the access graph client
-	accessGraphConn, err := newAccessGraphClient(
-		ctx,
-		s.GetClientCert,
-		s.Config.AccessGraphConfig,
-		grpc.WithDefaultServiceConfig(serviceConfig),
-	)
+	accessGraphConn, err := s.Config.AccessGraphConfig.GetAccessGraphClient(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Close the connection when the function returns.
-	defer accessGraphConn.Close()
+
 	client := accessgraphv1alpha.NewAccessGraphServiceClient(accessGraphConn)
 
 	// Create the event stream
@@ -388,7 +381,8 @@ func (s *Server) initTAGAzureWatchers(ctx context.Context, cfg *Config) error {
 
 // accessGraphAzureFetchersFromMatchers converts matcher configuration to fetchers for Azure resource synchronization
 func (s *Server) accessGraphAzureFetchersFromMatchers(
-	matchers Matchers, discoveryConfigName string) ([]*azuresync.Fetcher, error) {
+	matchers Matchers, discoveryConfigName string,
+) ([]*azuresync.Fetcher, error) {
 	var fetchers []*azuresync.Fetcher
 	var errs []error
 	if matchers.AccessGraph == nil {

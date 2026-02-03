@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	accessgraphclient "github.com/gravitational/teleport/lib/accessgraph"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authcatest"
@@ -912,6 +913,8 @@ type TLSServerConfig struct {
 	Listener net.Listener
 	// AcceptedUsage is a list of accepted usage restrictions
 	AcceptedUsage []string
+	// AccessGraphClientGetter is a function to get access graph client
+	AccessGraphClientGetter accessgraphclient.AccessGraphClientGetter
 }
 
 // Auth returns auth server used by this TLS server
@@ -977,21 +980,25 @@ func NewTestTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	tlsConfig.Time = cfg.AuthServer.Clock().Now
-	tlsCert := tlsConfig.Certificates[0]
 
 	srv.Listener, err = net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	accessGraphClientGetter := cfg.AccessGraphClientGetter
+	if accessGraphClientGetter == nil {
+		accessGraphClientGetter = func(context.Context) (accessgraphclient.GRPCClientConnInterface, error) {
+			return nil, trace.NotImplemented("access graph client getter is not implemented")
+		}
+	}
 	srv.TLSServer, err = auth.NewTLSServer(context.Background(), auth.TLSServerConfig{
-		Listener:             srv.Listener,
-		AccessPoint:          srv.AuthServer.AuthServer.Cache,
-		TLS:                  tlsConfig,
-		GetClientCertificate: func() (*tls.Certificate, error) { return &tlsCert, nil },
-		APIConfig:            *srv.APIConfig,
-		LimiterConfig:        *srv.Limiter,
-		AcceptedUsage:        cfg.AcceptedUsage,
+		Listener:                srv.Listener,
+		AccessPoint:             srv.AuthServer.AuthServer.Cache,
+		TLS:                     tlsConfig,
+		AccessGraphClientGetter: accessGraphClientGetter,
+		APIConfig:               *srv.APIConfig,
+		LimiterConfig:           *srv.Limiter,
+		AcceptedUsage:           cfg.AcceptedUsage,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

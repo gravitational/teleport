@@ -77,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
+	accessgraphclient "github.com/gravitational/teleport/lib/accessgraph"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/moderation"
@@ -188,6 +189,13 @@ type Handler struct {
 	findEndpointCache *utils.FnCache
 
 	autoUpdateResolver *autoupdatelookup.Resolver
+}
+
+func (h *Handler) GetAccessGraphConfig() (accessgraphclient.AccessGraphConfig, error) {
+	if h.cfg.AccessGraphConfigGetter == nil {
+		return accessgraphclient.AccessGraphConfig{}, nil
+	}
+	return h.cfg.AccessGraphConfigGetter()
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -334,6 +342,9 @@ type Config struct {
 
 	// DatabaseREPLRegistry is used for retrieving database REPL.
 	DatabaseREPLRegistry dbrepl.REPLRegistry
+
+	// AccessGraphConfigGetter is a function that returns the Access Graph configuration.
+	AccessGraphConfigGetter func() (accessgraphclient.AccessGraphConfig, error)
 }
 
 // SetDefaults ensures proper default values are set if
@@ -2080,7 +2091,8 @@ func globMatch(pattern, str string) (bool, error) {
 // userMatchesConnector is a helper function to check if a user matches any of a connector's user matchers.
 func userMatchesConnector(username string, connector interface {
 	GetUserMatchers() []string
-}) (isMatch bool, isFallback bool, err error) {
+},
+) (isMatch bool, isFallback bool, err error) {
 	matchers := connector.GetUserMatchers()
 	for _, pattern := range matchers {
 		matched, err := globMatch(pattern, username)

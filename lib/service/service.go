@@ -71,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
+	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
@@ -84,6 +85,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/accessgraph"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
@@ -738,6 +740,11 @@ type TeleportProcess struct {
 	*metrics.SyncGatherers
 
 	tsrv reversetunnelclient.Server
+
+	// accessGraphGRPCConns holds gRPC connections to access graph service
+	// for each system role a process has.
+	accessGraphGRPCConns   map[types.SystemRole]*grpc.ClientConn
+	accessGraphGRPCConnsMu sync.Mutex
 }
 
 // processIndex is an internal process index
@@ -1314,6 +1321,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 			metricsRegistry,
 			prometheus.DefaultGatherer,
 		),
+		accessGraphGRPCConns: make(map[types.SystemRole]*grpc.ClientConn),
 	}
 
 	process.registerExpectedServices(cfg)
@@ -2731,16 +2739,15 @@ func (process *TeleportProcess) initAuthService() error {
 	authMetrics := &auth.Metrics{GRPCServerLatency: cfg.Metrics.GRPCServerLatency}
 
 	tlsServer, err := auth.NewTLSServer(process.ExitContext(), auth.TLSServerConfig{
-		TLS:                  tlsConfig,
-		GetClientCertificate: connector.ClientGetCertificate,
-
-		APIConfig:     *apiConf,
-		LimiterConfig: cfg.Auth.Limiter,
-		AccessPoint:   authServer.Cache,
-		Component:     teleport.Component(teleport.ComponentAuth, process.id),
-		ID:            process.id,
-		Listener:      mux.TLS(),
-		Metrics:       authMetrics,
+		TLS:                     tlsConfig,
+		AccessGraphClientGetter: process.GetAccessGraphConnectionForConnector(connector),
+		APIConfig:               *apiConf,
+		LimiterConfig:           cfg.Auth.Limiter,
+		AccessPoint:             authServer.Cache,
+		Component:               teleport.Component(teleport.ComponentAuth, process.id),
+		ID:                      process.id,
+		Listener:                mux.TLS(),
+		Metrics:                 authMetrics,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -5458,6 +5465,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			IntegrationAppHandler:     connectionsHandler,
 			FeatureWatchInterval:      retryutils.HalfJitter(web.DefaultFeatureWatchInterval * 2),
 			DatabaseREPLRegistry:      cfg.DatabaseREPLRegistry,
+			AccessGraphConfigGetter:   process.GetAccessGraphSettings,
 		}
 		webHandler, err := web.NewHandler(webConfig, web.SetClock(process.Clock))
 		if err != nil {
@@ -6994,6 +7002,7 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 			process.inventoryHandle.Close()
 		}
 	}()
+
 	go process.printShutdownStatus(localCtx)
 	return localCtx
 }
@@ -7015,6 +7024,10 @@ func (process *TeleportProcess) Close() error {
 	process.BroadcastEvent(Event{Name: TeleportExitEvent})
 
 	var errors []error
+
+	if err := process.closeAccessGraphConnection(); err != nil {
+		errors = append(errors, err)
+	}
 
 	if localAuth := process.getLocalAuth(); localAuth != nil {
 		errors = append(errors, localAuth.Close())
@@ -7445,4 +7458,108 @@ func (process *TeleportProcess) newExternalAuditStorageConfigurator() (*external
 	}
 	statusService := local.NewStatusService(process.backend)
 	return externalauditstorage.NewConfigurator(process.ExitContext(), easSvc, integrationSvc, statusService)
+}
+
+// GetAccessGraphConnectionForConnector returns a cached gRPC connection to the Access Graph service,
+// or creates a new one if it doesn't exist. This method is safe for concurrent use.
+func (process *TeleportProcess) GetAccessGraphConnectionForConnector(connector accessgraph.Connector) accessgraph.AccessGraphClientGetter {
+	return func(ctx context.Context) (accessgraph.GRPCClientConnInterface, error) {
+		process.accessGraphGRPCConnsMu.Lock()
+		defer process.accessGraphGRPCConnsMu.Unlock()
+
+		if connector == nil {
+			if process.ExitContext().Err() != nil {
+				return nil, trace.ConnectionProblem(process.ExitContext().Err(), "process is shutting down")
+			}
+			return nil, trace.ConnectionProblem(nil, "no connector available")
+		}
+
+		// Return cached connection if it exists.
+		if conn, ok := process.accessGraphGRPCConns[connector.Role()]; ok {
+			return conn, nil
+		}
+
+		settings, err := process.GetAccessGraphSettings()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		conn, err := process.createAccessGraphConnection(ctx, settings, connector)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		process.accessGraphGRPCConns[connector.Role()] = conn
+		return conn, nil
+	}
+}
+
+// GetAccessGraphSettings retrieves Access Graph configuration from either local config
+// or the cluster configuration via the auth server.
+func (process *TeleportProcess) GetAccessGraphSettings() (accessgraph.AccessGraphConfig, error) {
+	cfg, err := accessgraph.GetAccessGraphSettings(process.ExitContext(), accessgraph.GetAccessGraphSettingsConfig{
+		LocallyEnabled: process.Config.AccessGraph.Enabled,
+		Addr:           process.Config.AccessGraph.Addr,
+		CA:             process.Config.AccessGraph.CA,
+		Insecure:       process.Config.AccessGraph.Insecure,
+		IsAuthServer:   process.Config.Auth.Enabled,
+		CipherSuites:   process.Config.CipherSuites,
+		ClusterClientGetter: func(ctx context.Context) (clusterconfigv1.ClusterConfigServiceClient, error) {
+			conn := process.waitForInstanceConnector(ctx)
+			if conn == nil {
+				return nil, trace.ConnectionProblem(nil, "no connection to auth server")
+			}
+			return conn.Client.ClusterConfigClient(), nil
+		},
+	})
+
+	return cfg, trace.Wrap(err)
+}
+
+// createAccessGraphConnection establishes a new gRPC connection to the Access Graph service
+// with health checking and load balancing configured.
+func (process *TeleportProcess) createAccessGraphConnection(ctx context.Context, settings accessgraph.AccessGraphConfig, connector accessgraph.Connector) (*grpc.ClientConn, error) {
+	// grpcServiceConfig configures health checking and load balancing for gRPC connections.
+	// The health check monitors the service and automatically reconnects if the connection is lost
+	// without relying on new events from the auth server.
+	const grpcServiceConfig = `{
+	"loadBalancingConfig": [{"round_robin": {}}],
+	"healthCheckConfig": {
+		"serviceName": ""
+	}
+}`
+
+	if settings.Insecure {
+		process.logger.WarnContext(ctx, "Access Graph connection using insecure mode, do not use in production", "addr", settings.Addr)
+	}
+
+	conn, err := accessgraph.NewAccessGraphClient(ctx,
+		accessgraph.AccessGraphClientConfig{
+			Addr:              settings.Addr,
+			CA:                settings.CA,
+			Insecure:          settings.Insecure,
+			CipherSuites:      settings.CipherSuites,
+			ClientCredentials: connector.ClientGetCertificate,
+		},
+		grpc.WithDefaultServiceConfig(grpcServiceConfig),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to create access graph gRPC client")
+	}
+
+	return conn, nil
+}
+
+func (process *TeleportProcess) closeAccessGraphConnection() error {
+	process.accessGraphGRPCConnsMu.Lock()
+	defer process.accessGraphGRPCConnsMu.Unlock()
+
+	var errs []error
+	for _, conn := range process.accessGraphGRPCConns {
+		if err := conn.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	clear(process.accessGraphGRPCConns)
+	return trace.NewAggregate(errs...)
 }
