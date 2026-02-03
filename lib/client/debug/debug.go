@@ -215,6 +215,8 @@ func (c *Client) GetRawMetrics(ctx context.Context) (io.ReadCloser, error) {
 type ProcessInfo struct {
 	// PID is the process PID.
 	PID int `json:"pid"`
+	// ServiceDebugInfo is service specific debug info, if available.
+	ServiceDebugInfo map[string]bool
 }
 
 // GetProcessInfo returns internal process info for debugging.

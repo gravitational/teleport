@@ -240,6 +240,9 @@ func onProcessInfo(ctx context.Context, configPath string) error {
 
 func printProcessInfo(info debugclient.ProcessInfo) {
 	fmt.Printf("PID: %d\n", info.PID)
+	for serviceName, info := range info.ServiceDebugInfo {
+		fmt.Printf("Service %s has info: %v\n", serviceName, info)
+	}
 }
 
 // newDebugClient initializes the debug client based on the Teleport

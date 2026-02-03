@@ -50,12 +50,12 @@ type Supervisor interface {
 
 	// RegisterFunc creates a service from function spec and registers
 	// it within the system
-	RegisterFunc(name string, fn Func)
+	RegisterFunc(name string, fn Func, opts ...ServiceOpt)
 
 	// RegisterCriticalFunc creates a critical service from function spec and registers
 	// it within the system, if this service exits with error,
 	// the process shuts down.
-	RegisterCriticalFunc(name string, fn Func)
+	RegisterCriticalFunc(name string, fn Func, opts ...ServiceOpt)
 
 	// ServiceCount returns the number of registered and actively running
 	// services
@@ -263,15 +263,16 @@ func (s *LocalSupervisor) ServiceCount() int {
 
 // RegisterFunc creates a service from function spec and registers
 // it within the system
-func (s *LocalSupervisor) RegisterFunc(name string, fn Func) {
-	s.Register(&LocalService{Function: fn, ServiceName: name})
+func (s *LocalSupervisor) RegisterFunc(name string, fn Func, opts ...ServiceOpt) {
+	s.Register(NewLocalService(name, fn, opts...))
 }
 
 // RegisterCriticalFunc creates a critical service from function spec and registers
 // it within the system, if this service exits with error,
 // the process shuts down.
-func (s *LocalSupervisor) RegisterCriticalFunc(name string, fn Func) {
-	s.Register(&LocalService{Function: fn, ServiceName: name, Critical: true})
+func (s *LocalSupervisor) RegisterCriticalFunc(name string, fn Func, opts ...ServiceOpt) {
+	opts = append(opts, WithCritical())
+	s.RegisterFunc(name, fn, opts...)
 }
 
 // RemoveService removes service from supervisor tracking list
@@ -440,8 +441,17 @@ func (s *LocalSupervisor) HandleReadiness(w http.ResponseWriter, r *http.Request
 
 // HandleProcessInfo implements [Supervisor]
 func (s *LocalSupervisor) HandleProcessInfo(w http.ResponseWriter, r *http.Request) {
+	s.Lock()
+	defer s.Unlock()
+
+	serviceDebugInfo := make(map[string]bool)
+	for _, service := range s.services {
+		serviceDebugInfo[service.Name()] = service.DebugInfo()
+	}
+
 	info := debug.ProcessInfo{
-		PID: os.Getpid(),
+		PID:              os.Getpid(),
+		ServiceDebugInfo: serviceDebugInfo,
 	}
 	roundtrip.ReplyJSON(w, http.StatusOK, info)
 }
@@ -647,24 +657,63 @@ type Service interface {
 	// IsCritical returns true if the service is critical
 	// and program can't continue without it
 	IsCritical() bool
+	// DebugInfo returns service debug info if available
+	DebugInfo() bool
 }
 
-// LocalService is a locally defined service
-type LocalService struct {
-	// Function is a function to call
-	Function Func
-	// ServiceName is a service name
-	ServiceName string
+// ServiceConfig provides optional configuration for a service
+type ServiceConfig struct {
 	// Critical is set to true
 	// when the service is critical and program can't continue
 	// without it
 	Critical bool
+	// DebugInfo returns service debug info if available
+	GetDebugInfo func()
+}
+
+// ServiceOpt sets an optional configuration for a service
+type ServiceOpt func(o *ServiceConfig)
+
+// WithCritical marks the service as critical. if this service exits with error,
+// the process shuts down
+func WithCritical() ServiceOpt {
+	return func(o *ServiceConfig) {
+		o.Critical = true
+	}
+}
+
+// WithDebugInfo sets a function to get service debug info
+func WithDebugInfo(getDebugInfo func()) ServiceOpt {
+	return func(o *ServiceConfig) {
+		o.GetDebugInfo = getDebugInfo
+	}
+}
+
+// LocalService is a locally defined service
+type LocalService struct {
+	Config ServiceConfig
+	// Function is a function to call
+	Function Func
+	// ServiceName is a service name
+	ServiceName string
+}
+
+func NewLocalService(name string, fn Func, opts ...ServiceOpt) *LocalService {
+	config := ServiceConfig{}
+	for _, opt := range opts {
+		opt(&config)
+	}
+	return &LocalService{
+		Config:      config,
+		ServiceName: name,
+		Function:    fn,
+	}
 }
 
 // IsCritical returns true if the service is critical
 // and program can't continue without it
 func (l *LocalService) IsCritical() bool {
-	return l.Critical
+	return l.Config.Critical
 }
 
 // Serve starts the function
@@ -680,6 +729,14 @@ func (l *LocalService) String() string {
 // Name returns unique service name
 func (l *LocalService) Name() string {
 	return l.ServiceName
+}
+
+// DebugInfo returns service debug info if available
+func (l *LocalService) DebugInfo() bool {
+	if l.Config.GetDebugInfo != nil {
+		return true
+	}
+	return false
 }
 
 // Func is a service function
