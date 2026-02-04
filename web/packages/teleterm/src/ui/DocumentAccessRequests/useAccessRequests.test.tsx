@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AccessRequestKind } from 'gen-proto-ts/teleport/legacy/types/access_requests_pb';
 import { AccessRequest as TshdAccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 import { AccessRequest, RequestKind } from 'shared/services/accessRequests';
 
@@ -90,6 +91,7 @@ test('makeUiAccessRequest', async () => {
     },
     reasonMode: 'optional',
     reasonPrompts: [],
+    requestKind: AccessRequestKind.SHORT_TERM,
   };
 
   const processedRequest: AccessRequest = {
@@ -158,7 +160,7 @@ test('makeUiAccessRequest', async () => {
     assumeStartTimeDuration: 'now',
     reasonMode: 'optional',
     reasonPrompts: [],
-    requestKind: RequestKind.Undefined,
+    requestKind: RequestKind.ShortTerm,
     longTermResourceGrouping: undefined,
   };
 
