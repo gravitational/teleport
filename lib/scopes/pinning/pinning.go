@@ -124,7 +124,7 @@ func PinCompatibleWithPolicyScope(pin *scopesv1.Pin, scope string) bool {
 // a pin at a given scope. A pin at scope /foo/bar might still yield an allow decision at resource scope /foo, but only if
 // the target resource is assigned to /foo/bar or one of its descendants.
 func PinAppliesToResourceScope(pin *scopesv1.Pin, resourceScope string) bool {
-	return scopes.PolicyScope(pin.GetScope()).AppliesToResourceScope(resourceScope)
+	return scopes.ScopeOfEffect(pin.GetScope()).AppliesToResourceScope(resourceScope)
 }
 
 // AssignmentTreeFromMap builds an assignment tree from a nested mapping of the form scopeOfOrigin -> scopeOfEffect -> roles. This is useful

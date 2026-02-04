@@ -526,14 +526,42 @@ func Sort(lhs, rhs string) int {
 // PolicyScope is a helper for constructing unambiguous checks in access control logic. Prefer helpers like
 // this over using the Compare function directly, as it improves readability and reduces the risk of misuse. Ex:
 //
-//	if scopes.PolicyScope(roleAssignmentScope).AppliesToResourceScope(nodeScope) { ... }
+//	if scopes.ScopeOfOrigin(roleScope).IsAssignableToScopeOfEffect(assignmentScope) { ... }
 //
 // Note that this helper does not perform validation, and may produce unexpected results when used against
 // invalid scope values.
-type PolicyScope string
+type ScopeOfOrigin string
 
-// AppliesToResourceScope checks if a resource in the specified scope would be subject to this policy scope.
-func (s PolicyScope) AppliesToResourceScope(scope string) bool {
+// IsAssignableToScopeOfEffect checks if the Scope of Origin is compatible with the specified Scope of Effect. More
+// specifically, this method returns true if a policy originating from this Scope of Origin is able to be assigned
+// to the provided Scope of Effect. Policies may only have Scopes of Effect that are equivalent or descendant. A policy
+// originating from a child scope being effectual in a parent scope would violate scope isolation principles.
+func (s ScopeOfOrigin) IsAssignableToScopeOfEffect(scope string) bool {
+	rel := Compare(string(s), scope)
+	return rel == Equivalent || rel == Descendant
+}
+
+// ScopeOfEffect is a helper for constructing unambiguous checks in access control logic. Prefer helpers like
+// this over using the Compare function directly, as it improves readability and reduces the risk of misuse. Ex:
+//
+//	if scopes.ScopeOfEffect(assignment.ScopeOfEffect).IsAssignableFromScopeOfOrigin(assignment.ScopeOfOrigin) { ... }
+//
+//	if scopes.ScopeOfEffect(assignment.ScopeOfEffect).AppliesToResourceScope(node.Scope) { ... }
+//
+// Note that this helper does not perform validation, and may produce unexpected results when used against
+// invalid scope values.
+type ScopeOfEffect string
+
+// IsAssignableFromScopeOfOrigin checks if the Scope of Effect is compatible with the specified Scope of Origin. See
+// [ScopeOfOrigin.IsAssignableToScopeOfEffect] for discussion of the importance of this check.
+func (s ScopeOfEffect) IsAssignableFromScopeOfOrigin(scope string) bool {
+	rel := Compare(string(s), scope)
+	return rel == Equivalent || rel == Ancestor
+}
+
+// AppliesToResourceScope checks if this scope of effect applies to the specified resource scope. See [ResourceScope.IsSubjectToScopeOfEffect]
+// for discussion of the importance of this check.
+func (s ScopeOfEffect) AppliesToResourceScope(scope string) bool {
 	rel := Compare(string(s), scope)
 	return rel == Equivalent || rel == Descendant
 }
@@ -541,33 +569,60 @@ func (s PolicyScope) AppliesToResourceScope(scope string) bool {
 // ResourceScope is a helper for constructing unambiguous checks in access control logic. Prefer helpers like
 // this over using the Compare function directly, as it improves readability and reduces the risk of misuse. Ex:
 //
-//	if scopes.ResourceScope(nodeScope).IsSubjectToPolicyScope(roleAssignmentScope) { ... }
+//	if scopes.ResourceScope(nodeScope).IsSubjectToScopeOfEffect(roleAssignmentScope) { ... }
 //
 // Note that this helper does not perform validation, and may produce unexpected results when used against
 // invalid scope values.
 type ResourceScope string
 
-// IsSubjectToPolicyScope checks if this resource scope is subject to the specified policy scope.
-func (s ResourceScope) IsSubjectToPolicyScope(scope string) bool {
+// IsSubjectToScopeOfEffect checks if this resource scope is subject to the specified policy Scope of Effect. Scoped
+// policies always apply only to a given scope and its descendants. This method tells us if the resource scope in
+// question falls under the perview of the specified Scope of Effect. Policies whose Scope of Effect does not apply
+// to a resource must have no effect on that resource in order to preserve scope isolation.
+func (s ResourceScope) IsSubjectToScopeOfEffect(scope string) bool {
 	rel := Compare(string(s), scope)
 	return rel == Equivalent || rel == Ancestor
 }
 
-// PolicyAssignmentScope is a helper for constructing unambiguous checks in access control logic. Prefer helpers like
+// PolicyResourceScope is a helper for constructing unambiguous checks in access control logic. Prefer helpers like
 // this over using the Compare function directly, as it improves readability and reduces the risk of misuse. Ex:
 //
-//	if scopes.PolicyAssignmentScope(subAssignment.Scope).IsSubjectToPolicyResourceScope(assignment.Scope) { ... }
+//	if scopes.PolicyResourceScope(assignment.Scope).CanDependOnStateFromPolicyResourceAtScope(role.Scope) { ... }
 //
 // Note that this helper does not perform validation, and may produce unexpected results when used against
 // invalid scope values.
-type PolicyAssignmentScope string
+type PolicyResourceScope string
 
-// IsSubjectToPolicyResourceScope checks if this policy assignment scope is subject to the specified policy resource
-// scope. This is used to validate that the individual assignments within a resource conform to the scoping of the
-// overall assignment resource.
-func (s PolicyAssignmentScope) IsSubjectToPolicyResourceScope(scope string) bool {
+// CanDependOnStateFromPolicyResourceAtScope checks if this policy resource scope can depend on state from a policy
+// resource at the specified scope. Policy state must alows flow from ancestor/equivalent scopes to descendant/equivalent
+// scopes (e.g. a role assignment can only reference roles in its scope or its ancestor scopes).
+func (s PolicyResourceScope) CanDependOnStateFromPolicyResourceAtScope(scope string) bool {
 	rel := Compare(string(s), scope)
 	return rel == Equivalent || rel == Ancestor
+}
+
+// ScopeOfEffectGlob is a helper for constructing unambiguous checks in access control logic. Prefer helpers like
+// this over using the Glob type directly, as it improves readability and reduces the risk of misuse. Ex:
+//
+//	if scopes.ScopeOfEffectGlob(role.Spec.AssignableScopes[0]).MatchesScopeOfEffect(assignment.ScopeOfEffect) { ... }
+//
+// Note that this helper does not perform validation, and may produce unexpected results when used against
+// invalid glob values.
+type ScopeOfEffectGlob string
+
+// MatcheScopeOfEffectLiteral checks if the Scope of Effect glob matches the specified Scope of Effect literal. If the assignability
+// of a policy is constrained by a ScopeOfEffectGlob, this function can be used to determine if a given Scope of Effect will
+// be compatible with that constraint.
+func (s ScopeOfEffectGlob) MatchesScopeOfEffectLiteral(scope string) bool {
+	return Glob(s).MatchesScopeLiteral(scope)
+}
+
+// IsAlwaysAssignableFromScopeOfOrigin checks if the Scope of Effect glob will exclusively match Scope of Effect literals
+// that are considered assignable from the specified Scope of Origin. Policy resources such as scoped roles sometimes constrain
+// the scopes they are assignable to using globs. This function ensures that a glob being used in this manner will never match a
+// Scope of Effect that would be invalid given the Scope of Origin of the policy.
+func (s ScopeOfEffectGlob) IsAlwaysAssignableFromScopeOfOrigin(scope string) bool {
+	return Glob(s).OnlyMatchesSubjectsOf(scope)
 }
 
 // Glob is a helper for matching scope globs against scopes. This is currently used to support exactly
@@ -580,16 +635,15 @@ func (s PolicyAssignmentScope) IsSubjectToPolicyResourceScope(scope string) bool
 // invalid scope or glob values.
 type Glob string
 
-// Matches checks if the given scope matches this scope glob.
-func (s Glob) Matches(scope string) bool {
+// MatchesScopeLiteral checks if the given scope literal matches this scope glob.
+func (s Glob) MatchesScopeLiteral(scope string) bool {
 	return matchGlob(string(s), scope)
 }
 
-// IsSubjectToPolicyResourceScope checks if this glob exclusively matches scopes that would be subject to the
-// specified policy resource scope. This is used to validate that the assignable scope globs of a role only
-// permit assignment of that role to scopes that could permissibly be subject to the policies defined by that role.
-func (s Glob) IsSubjectToPolicyResourceScope(scope string) bool {
-	return globIsSubjectToPolicyResourceScope(string(s), scope)
+// OnlyMatchesSubjectsOf checks if this scope glob only matches scopes that are subjects of the specified scope literal. In this
+// case "subjects of" means "descendants of or equivalent to".
+func (s Glob) OnlyMatchesSubjectsOf(scope string) bool {
+	return globOnlyMatchesSubjectsOfScope(string(s), scope)
 }
 
 // matchGlob implements glob matching. note that this function technically supports some limited
@@ -637,8 +691,9 @@ func matchGlob(glob string, scope string) bool {
 	}
 }
 
-// globIsSubjectToPolicyResourceScope checks if the glob is subject to the specified policy resource scope.
-func globIsSubjectToPolicyResourceScope(glob string, scope string) bool {
+// globOnlyMatchesSubjectsOfScope checks if the given glob only matches scopes that are subjects of the specified scope
+// literal. In this case "subjects of" means "descendants of or equivalent to".
+func globOnlyMatchesSubjectsOfScope(glob string, scope string) bool {
 	if glob == "" || scope == "" {
 		return false
 	}
@@ -729,10 +784,10 @@ func EnforcementPointsForResourceScope(resourceScope string) iter.Seq[Enforcemen
 			// policies are evaluated before more general ones within each origin level.
 			// We use AscendingScopes to go from most specific (resourceScope) to least specific (scopeOfOrigin).
 			for scopeOfEffect := range AscendingScopes(resourceScope) {
-				// Only yield if the Scope of Effect is subject to the Scope of Origin.
+				// Only yield if the Scope of Origin permits assignment to this Scope of Effect.
 				// A scope of effect cannot be more ancestral than its origin (that would violate
 				// the rule that policies cannot reach up to affect parent scopes).
-				if !ResourceScope(scopeOfEffect).IsSubjectToPolicyScope(scopeOfOrigin) {
+				if !ScopeOfOrigin(scopeOfOrigin).IsAssignableToScopeOfEffect(scopeOfEffect) {
 					// we've reached scopes of effect that are too ancestral for this origin
 					break
 				}

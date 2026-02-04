@@ -278,7 +278,7 @@ func TestValidateScopedToken(t *testing.T) {
 					Secret: "secret",
 				},
 			},
-			expectedStrongErr: "scoped token assigned scope must be descendant of its resource scope",
+			expectedStrongErr: "scoped token assigned scope must be descendant of or equivalent to the token's resource scope",
 		},
 		{
 			name: "invalid join method",

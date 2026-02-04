@@ -204,9 +204,9 @@ func evalScopeFilter(filter *scopesv1.Filter, scope string) bool {
 
 	switch filter.Mode {
 	case scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE:
-		return scopes.ResourceScope(scope).IsSubjectToPolicyScope(filter.Scope)
+		return scopes.ResourceScope(scope).IsSubjectToScopeOfEffect(filter.Scope)
 	case scopesv1.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE:
-		return scopes.PolicyScope(scope).AppliesToResourceScope(filter.Scope)
+		return scopes.ScopeOfEffect(scope).AppliesToResourceScope(filter.Scope)
 	}
 
 	return true
