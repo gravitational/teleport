@@ -260,7 +260,7 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 			},
 		},
 	}
-	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withEnableProxy(true))
 	ctx := context.Background()
 	client, err := testenv.NewDefaultAuthClient(process)
 	require.NoError(t, err)
