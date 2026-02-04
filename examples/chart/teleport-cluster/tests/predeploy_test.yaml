@@ -56,20 +56,103 @@ tests:
       - hasDocuments:
           count: 0
 
-  - it: should not set resources on auth predeploy job when set in values
+  - it: should not set resources on auth predeploy job when no resources are specified
+    template: auth/predeploy_job.yaml
+    set:
+      clusterName: helm-lint
+    asserts:
+      - isEmpty:
+          path: spec.template.spec.containers[0].resources
+
+  - it: should not set resources on proxy predeploy job when no resources are specified
+    template: proxy/predeploy_job.yaml
+    set:
+      clusterName: helm-lint
+    asserts:
+      - isEmpty:
+          path: spec.template.spec.containers[0].resources
+
+  # changes in v18, is here to ensure v17 stability
+  - it: should set resources on auth predeploy job when resources set in values
     template: auth/predeploy_job.yaml
     values:
       - ../.lint/resources.yaml
     asserts:
-      - isEmpty:
-          path: spec.template.spec.containers[0].resources
-  - it: should not set resources on proxy predeploy job when set in values
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 2Gi
+
+  # changes in v18, is here to ensure v17 stability
+  - it: should not set resources on proxy predeploy job when resources set in values
     template: proxy/predeploy_job.yaml
     values:
       - ../.lint/resources.yaml
     asserts:
-      - isEmpty:
-          path: spec.template.spec.containers[0].resources
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 2Gi
+
+  - it: should set resources on auth predeploy job when jobResources set in values
+    template: auth/predeploy_job.yaml
+    values:
+      - ../.lint/resources.yaml
+    set:
+      jobResources:
+        limits:
+          memory: 512Mi
+        requests:
+          memory: 512Mi
+          cpu: 1
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 512Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 512Mi
+
+  - it: should set resources on proxy predeploy job when jobResources set in values
+    template: proxy/predeploy_job.yaml
+    values:
+      - ../.lint/resources.yaml
+    set:
+      jobResources:
+        limits:
+          memory: 512Mi
+        requests:
+          memory: 512Mi
+          cpu: 1
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 512Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 512Mi
 
   - it: should set imagePullSecrets on proxy predeploy job when set in values
     template: proxy/predeploy_job.yaml

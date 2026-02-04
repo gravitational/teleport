@@ -165,7 +165,34 @@ export function mapToAction(
               {
                 origin: 'search_bar',
               },
-              { arnForAwsApp: parameter.value }
+              { arnForAwsAppOrRoleForAwsIc: parameter.value }
+            ),
+        };
+      }
+
+      if (result.resource.subKind === 'aws_ic_account') {
+        return {
+          type: 'parametrized-action',
+          searchResult: result,
+          parameter: {
+            getSuggestions: async () =>
+              result.resource.permissionSets.map(p => ({
+                value: p.name,
+                displayText: p.name,
+              })),
+            allowOnlySuggestions: true,
+            noSuggestionsAvailableMessage: 'No permission sets found.',
+            placeholder: 'Select Permission Set',
+          },
+          perform: parameter =>
+            connectToApp(
+              ctx,
+              launchVnet,
+              result.resource,
+              {
+                origin: 'search_bar',
+              },
+              { arnForAwsAppOrRoleForAwsIc: parameter.value }
             ),
         };
       }

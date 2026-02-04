@@ -75,6 +75,22 @@ func TestInstallSystemdCmd(t *testing.T) {
 			wantUnitName: "my-farm-bot",
 		},
 		{
+			name: "success - override only pid file",
+			params: []string{
+				"--write",
+				"--pid-file", "/tmp/tbot-fake.pid",
+			},
+		},
+		{
+			name: "success - override pid and unit name",
+			params: []string{
+				"--write",
+				"--pid-file", "/tmp/tbot-fake.pid",
+				"--name", "my-special-bot",
+			},
+			wantUnitName: "my-special-bot",
+		},
+		{
 			name: "fails prexisting",
 			params: []string{
 				"--write",

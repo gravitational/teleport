@@ -63,6 +63,21 @@ export function getAwsAppLaunchUrl({
   }/${publicAddr}/${encodeURIComponent(arn)}`;
 }
 
+/** Returns a URL that opens the AWS IAM IC app in the browser. */
+export function getAwsIcLaunchUrl({
+  app,
+  roleName,
+}: {
+  app: App;
+  roleName: string;
+}) {
+  const { publicAddr, subKind } = app;
+  if (subKind !== 'aws_ic_account') {
+    return '';
+  }
+  return `${publicAddr}&role_name=${roleName}`;
+}
+
 /** Returns a URL that triggers IdP-initiated SSO for SAML Application. */
 export function getSamlAppSsoUrl({
   app,

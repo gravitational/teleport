@@ -464,9 +464,19 @@ func TestListUsers(t *testing.T) {
 
 	ctx := context.Background()
 
+	// Create a role to assign to users for search testing.
+	accessSvc := env.backend.(interface {
+		UpsertRole(context.Context, types.Role) (types.Role, error)
+	})
+	role, err := types.NewRole("test-role", types.RoleSpecV6{})
+	require.NoError(t, err, "creating role")
+	_, err = accessSvc.UpsertRole(ctx, role)
+	require.NoError(t, err, "upserting role")
+
 	llama, err := types.NewUser("llama")
 	require.NoError(t, err, "creating new user llama")
 	require.NoError(t, generateUserSecrets(llama), "generating user secrets")
+	llama.SetRoles([]string{"test-role"})
 
 	// Validate that the user does not exist.
 	resp, err := env.ListUsers(ctx, &userspb.ListUsersRequest{PageSize: 10})
@@ -493,6 +503,15 @@ func TestListUsers(t *testing.T) {
 	assert.Empty(t, resp.NextPageToken, "expected next page token to be empty")
 	assert.Empty(t, cmp.Diff(created.User, resp.Users[0], cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 	assert.Empty(t, cmp.Diff(llama.GetLocalAuth(), resp.Users[0].GetLocalAuth()), "user secrets do not match")
+
+	// Validate that searching by role returns matching users.
+	resp, err = env.ListUsers(ctx, &userspb.ListUsersRequest{
+		PageSize: 10,
+		Filter:   &types.UserFilter{SearchKeywords: []string{"test-role"}},
+	})
+	require.NoError(t, err, "listing users with role filter")
+	require.Len(t, resp.Users, 1, "expected one user with test-role")
+	assert.Equal(t, "llama", resp.Users[0].GetName(), "expected llama to match role search")
 
 	// Create addition users to test pagination
 	createdUsers := []*types.UserV2{llama.(*types.UserV2)}

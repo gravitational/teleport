@@ -4876,6 +4876,8 @@ message KubernetesClusterV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // Status is the resource status.
+  KubernetesClusterStatus status = 6;
 }
 
 // KubernetesClusterSpecV3 is a specification for a Kubernetes cluster.
@@ -4935,6 +4937,36 @@ message KubeGCP {
   string ProjectID = 2 [(gogoproto.jsontag) = "project_id,omitempty"];
   // Name is a GCP GKE cluster name.
   string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
+}
+
+// KubernetesClusterStatus contains information about the Kubernetes Cluster.
+message KubernetesClusterStatus {
+  KubernetesClusterDiscoveryStatus discovery = 1;
+}
+
+// KubernetesClusterDiscoveryStatus contains cloud provider-specific discovery
+// information for Kubernetes clusters.
+message KubernetesClusterDiscoveryStatus {
+  // AWS holds AWS-specific information about the Kubernetes cluster, including
+  // configuration for automatic discovery and access setup.
+  KubernetesClusterAWSStatus aws = 1;
+}
+
+// KubernetesClusterAWSStatus contains AWS-specific configuration and state
+// information for Kubernetes clusters discovered or managed through AWS integrations.
+message KubernetesClusterAWSStatus {
+  // The ARN of the AWS IAM role or user for which Teleport should configure access
+  // to this Kubernetes cluster. This is typically used during automatic discovery to
+  // grant the specified principal access to the cluster.
+  string setup_access_for_arn = 1;
+  // The name of the AWS integration resource used to discover or manage this
+  // Kubernetes cluster. This references the Teleport integration that provides
+  // credentials and permissions for AWS API operations.
+  string integration = 2;
+  // The ARN of the AWS IAM role that Teleport's discovery service assumed
+  // when discovering this Kubernetes cluster. This role is used to access AWS
+  // APIs for cluster information and configuration.
+  AssumeRole discovery_assumed_role = 3;
 }
 
 // KubernetesClusterV3List represents a list of kubernetes clusters.

@@ -19,7 +19,9 @@ package entitlements
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -286,13 +288,28 @@ func TestBackfillFeatures(t *testing.T) {
 				string(OktaUserSync): {Enabled: false},
 			},
 		},
+		{
+			name:     "no entitlements",
+			features: &proto.Features{},
+			expected: func() map[string]*proto.EntitlementInfo {
+				out := map[string]*proto.EntitlementInfo{
+					string(AccessLists): {Enabled: true},
+				}
+				for _, e := range AllEntitlements {
+					if _, ok := out[string(e)]; !ok {
+						out[string(e)] = &proto.EntitlementInfo{}
+					}
+				}
+				return out
+			}(),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cloned := apiutils.CloneProtoMsg(tt.features)
 
 			BackfillFeatures(cloned)
-			require.Equal(t, tt.expected, cloned.Entitlements)
+			require.Empty(t, cmp.Diff(tt.expected, cloned.Entitlements, protocmp.Transform()))
 		})
 	}
 }

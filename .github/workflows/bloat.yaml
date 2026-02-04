@@ -9,6 +9,8 @@ on:
       - '**.rs'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'Makefile'
+      - '*.mk'
     branches:
       - master
       - branch/**

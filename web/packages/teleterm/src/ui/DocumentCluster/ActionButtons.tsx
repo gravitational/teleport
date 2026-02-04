@@ -47,6 +47,7 @@ import { MenuLoginWithActionMenu } from 'shared/components/MenuLoginWithActionMe
 import {
   formatPortRange,
   getAwsAppLaunchUrl,
+  getAwsIcLaunchUrl,
   getSamlAppSsoUrl,
   getWebAppLaunchUrl,
   isMcp,
@@ -300,6 +301,30 @@ function AppButton(props: {
           })
         }
         onLaunchUrl={props.onLaunchUrl}
+      />
+    );
+  }
+
+  if (props.app.subKind === 'aws_ic_account') {
+    const icRoles = props.app.permissionSets.map(ps => ({
+      name: ps.name,
+      arn: ps.name,
+      display: ps.name,
+      accountId: props.app.name,
+    }));
+
+    return (
+      <AwsLaunchButton
+        width={buttonWidth}
+        awsRoles={icRoles}
+        getLaunchUrl={arn =>
+          getAwsIcLaunchUrl({
+            app: props.app,
+            roleName: arn,
+          })
+        }
+        onLaunchUrl={props.onLaunchUrl}
+        isAwsIdentityCenterApp
       />
     );
   }

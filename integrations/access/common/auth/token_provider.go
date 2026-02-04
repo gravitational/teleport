@@ -20,13 +20,14 @@ package auth
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/access/common/auth/oauth"
 	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
 )
@@ -65,7 +66,7 @@ type RotatedAccessTokenProviderConfig struct {
 	Refresher oauth.Refresher
 	Clock     clockwork.Clock
 
-	Log *logrus.Entry
+	Log *slog.Logger
 }
 
 // CheckAndSetDefaults validates a configuration and sets default values
@@ -87,7 +88,7 @@ func (c *RotatedAccessTokenProviderConfig) CheckAndSetDefaults() error {
 		c.Clock = clockwork.NewRealClock()
 	}
 	if c.Log == nil {
-		c.Log = logrus.NewEntry(logrus.StandardLogger())
+		c.Log = slog.Default()
 	}
 	return nil
 }
@@ -104,7 +105,7 @@ type RotatedAccessTokenProvider struct {
 	refresher           oauth.Refresher
 	clock               clockwork.Clock
 
-	log logrus.FieldLogger
+	log *slog.Logger
 
 	lock  sync.RWMutex // protects the below fields
 	creds *storage.Credentials
@@ -146,22 +147,32 @@ func (r *RotatedAccessTokenProvider) GetAccessToken() (string, error) {
 // RefreshLoop runs the credential refresh process.
 func (r *RotatedAccessTokenProvider) RefreshLoop(ctx context.Context) {
 	r.lock.RLock()
-	creds := r.creds
+	interval := r.getRefreshInterval(r.creds)
 	r.lock.RUnlock()
-
-	interval := r.getRefreshInterval(creds)
 
 	timer := r.clock.NewTimer(interval)
 	defer timer.Stop()
-	r.log.Infof("Will attempt token refresh in: %s", interval)
+	r.log.InfoContext(ctx, "Starting token refresh loop", "next_refresh", interval)
 
 	for {
 		select {
 		case <-ctx.Done():
-			r.log.Info("Shutting down")
+			r.log.InfoContext(ctx, "Shutting down")
 			return
 		case <-timer.Chan():
-			creds, _ := r.store.GetCredentials(ctx)
+			r.log.DebugContext(ctx, "Entering token refresh loop")
+			creds, err := r.store.GetCredentials(ctx)
+			if err != nil {
+				r.lock.RLock()
+				credsExpiry := r.creds.ExpiresAt
+				r.lock.RUnlock()
+				r.log.WarnContext(ctx, "Error getting credentials, not attempting to refresh credentials", "error", err, "creds_expiry", credsExpiry)
+				// We cannot get the credentials from the backend, something is going on.
+				// If we don't have backend access, or we are in an unknown state, we should not attempt to refresh
+				// credentials. This will lower the probability of ending up in an awkward state where we refreshed the
+				// token but cannot store it.
+				timer.Reset(r.retryInterval)
+			}
 
 			// Skip if the credentials are sufficiently fresh
 			// (in an HA setup another instance might have refreshed the credentials).
@@ -174,21 +185,46 @@ func (r *RotatedAccessTokenProvider) RefreshLoop(ctx context.Context) {
 
 				interval := r.getRefreshInterval(creds)
 				timer.Reset(interval)
-				r.log.Infof("Next refresh in: %s", interval)
+				r.log.InfoContext(ctx, "Reloaded token", "next_refresh", interval)
 				continue
 			}
 
-			creds, err := r.refresh(ctx)
+			// Important: we are entering the critical section here.
+			// Once we start refreshing the token, we must not stop until we are done writing it to the backend.
+			// Failure to do so results in a lost token and broken Slack integration until the user re-registers it.
+			// We ignore cancellation here to make sure the refresh process finishes even during a shutdown.
+			criticalCtx := context.WithoutCancel(ctx)
+
+			creds, err = r.refresh(criticalCtx)
 			if err != nil {
-				r.log.Errorf("Error while refreshing: %s. Will retry after: %s", err, r.retryInterval)
+				r.log.ErrorContext(ctx, "Error while refreshing token",
+					"error", err,
+					"retry_interval", r.retryInterval,
+				)
 				timer.Reset(r.retryInterval)
 			} else {
-				err := r.store.PutCredentials(ctx, creds)
+				retry, err := retryutils.NewLinear(retryutils.LinearConfig{
+					Step:   time.Second,
+					Max:    time.Minute,
+					Jitter: retryutils.DefaultJitter,
+				})
 				if err != nil {
-					r.log.Errorf("Error while storing the refreshed credentials: %s", err)
-					timer.Reset(r.retryInterval)
-					continue
+					r.log.ErrorContext(ctx, "Error while creating the token retry configuration, this is a bug", "error", err)
 				}
+
+				// We don't need to check the error because we keep retrying the context cannot be canceled.
+				_ = retry.For(criticalCtx, func() error {
+					err := r.store.PutCredentials(criticalCtx, creds)
+					if err != nil {
+						// If we land here, we refreshed the Slack token but failed to store it back.
+						// This is the worst case scenario: the refresh token is single-use, and we burnt it.
+						// This Slack integration will very likely get locked out.
+						// The only thing we can do is try again.
+						r.log.WarnContext(ctx, "Error while saving credentials to storage", "error", err)
+						return err
+					}
+					return nil
+				})
 
 				r.lock.Lock()
 				r.creds = creds
@@ -196,7 +232,7 @@ func (r *RotatedAccessTokenProvider) RefreshLoop(ctx context.Context) {
 
 				interval := r.getRefreshInterval(creds)
 				timer.Reset(interval)
-				r.log.Infof("Successfully refreshed credentials. Next refresh in: %s", interval)
+				r.log.InfoContext(ctx, "Successfully refreshed credentials", "next_refresh", interval)
 			}
 		}
 	}

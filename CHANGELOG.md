@@ -1,5 +1,57 @@
 # Changelog
 
+## 17.7.16 (02/02/26)
+
+* Improved robustness of the Slack hosted plugin to reduce the likeliness of failed token refresh when experiencing external disruption. [#63347](https://github.com/gravitational/teleport/pull/63347)
+* Ensure application session rejections for untrusted devices are consistently audited as AppSessionStart failures after MFA. [#63260](https://github.com/gravitational/teleport/pull/63260)
+* Fixed a `CredentialContainer` error when attempting to log in to the Web UI with a hardware key using Firefox >=147.0.2. [#63246](https://github.com/gravitational/teleport/pull/63246)
+* Updated OpenSSL to 3.0.19. [#63203](https://github.com/gravitational/teleport/pull/63203)
+
+Enterprise:
+* Mitigated a race in the Slack token refresh logic.
+* Fixe the issue where Okta integration may not remove previously synced apps after plugin restart.
+* Added support for multi-arch lock file population for the terraform provider.
+
+
+## 17.7.15 (01/26/26)
+
+* Updated indirect dependency go-chi/chi/v5 (addresses GO-2026-4316). [#63093](https://github.com/gravitational/teleport/pull/63093)
+* The `tbot systemd install` command now supports a `--pid-file` flag for setting the path to the PID file. [#63038](https://github.com/gravitational/teleport/pull/63038)
+* Fixed GCS session recording backend not respecting rate limits. [#62987](https://github.com/gravitational/teleport/pull/62987)
+* Made the teleport-cluster Helm chart job resources configurable again via the `jobResources` value. [#62924](https://github.com/gravitational/teleport/pull/62924)
+* Reverted a disruptive change from v17.7.11: `teleport-cluster` Helm chart uses `resources` for Jobs again. If set `jobResources` takes precedence. This will change in v18, only `jobResources` will be used. [#62924](https://github.com/gravitational/teleport/pull/62924)
+
+
+## 17.7.14 (01/06/26)
+
+* Updated Go to 1.24.12. [#62886](https://github.com/gravitational/teleport/pull/62886)
+* Fixed launching AWS Identity Center from Teleport Connect. [#62870](https://github.com/gravitational/teleport/pull/62870)
+* Fixed renewed X509-SVIDs not being proactively sent to Envoy instances. [#62829](https://github.com/gravitational/teleport/pull/62829)
+* Updated rustcrypto/rsa dependency to fix potential panic (CVE-2026-21895). [#62769](https://github.com/gravitational/teleport/pull/62769)
+* Fixed an issue that would prevent tsh from working when the 1password SSH agent is running. [#62737](https://github.com/gravitational/teleport/pull/62737)
+
+Enterprise:
+* Fixed an issue in the Entra ID integration where a user account with an unsupported username character `/` could prevent other valid users and groups to be synced to Teleport. Such user accounts are now filtered.
+
+## 17.7.13 (01/08/26)
+
+* Fixed an issue where logging in to the Web UI with Device Trust would lose query params of the redirect URL. [#62678](https://github.com/gravitational/teleport/pull/62678)
+* Fixed an issue where Teleport Connect could generate a flurry of notifications about not being able to connect to a resource. [#62672](https://github.com/gravitational/teleport/pull/62672)
+* Fixed issuance of wildcard DNS SANs with Workload Identity. [#62669](https://github.com/gravitational/teleport/pull/62669)
+* Added IAM joining support from new AWS regions in asia. [#62628](https://github.com/gravitational/teleport/pull/62628)
+* Added cleanup of access entries for EKS auto-discovered clusters when they no longer match the filtering criteria and are removed. [#62599](https://github.com/gravitational/teleport/pull/62599)
+* Fixed some auto update audit events showing up as unknown in the web UI. [#62548](https://github.com/gravitational/teleport/pull/62548)
+* The join tokens UI now indicates which tokens are managed by the Teleport Cloud platform. [#62543](https://github.com/gravitational/teleport/pull/62543)
+* Audit log and session uploader now respect region field of external_audit_storage resource when present. [#62519](https://github.com/gravitational/teleport/pull/62519)
+* Fixed an issue that prevented searching for users by role in the web UI. [#62475](https://github.com/gravitational/teleport/pull/62475)
+* Acknowledging a cluster alert no longer requires the create permission. [#62469](https://github.com/gravitational/teleport/pull/62469)
+* Fixed tilde expansion for moderated SFTP. [#62454](https://github.com/gravitational/teleport/pull/62454)
+* Fixed a potential SSRF vulnerability in the Azure join method implementation. [#62420](https://github.com/gravitational/teleport/pull/62420)
+* Updated github.com/quic-go/quic-go to 0.57.0 to mitigate CVE-2025-64702. [#62294](https://github.com/gravitational/teleport/pull/62294)
+* Fixed issue where AltGr key combinations did not work correctly in remote desktop sessions. [#62197](https://github.com/gravitational/teleport/pull/62197)
+* Fixed a memory leak in access list reminder notifications affecting clusters with more than 1000 pending Access List reviews. [#62664](https://github.com/gravitational/teleport/pull/62664)
+
+
 ## 17.7.12 (12/15/25)
 
 * Fixed an Auth Service bug causing the event handler to miss up to 1 event every 5 minutes when storing audit events in S3. [#62149](https://github.com/gravitational/teleport/pull/62149)
@@ -1184,4 +1236,3 @@ per-session MFA. Starting with Teleport 18, `tsh` will require a strong webauthn
 credential for per-session MFA.
 
 TOTP will continue to be accepted for the initial login.
-

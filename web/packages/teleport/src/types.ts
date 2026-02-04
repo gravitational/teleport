@@ -93,7 +93,11 @@ export enum NavTitle {
   AuditLog = 'Audit Log',
 
   // Billing
+  // Deprecated, safe to remove after https://github.com/gravitational/teleport.e/pull/7952 merges
   BillingSummary = 'Billing Summary',
+
+  // Usage
+  UsageReporting = 'Usage Reporting',
 
   // Clusters
   ManageClusters = 'Manage Clusters',

@@ -1,5 +1,7 @@
 {{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
 {{- if $auth.validateConfigOnDeploy }}
+{{/* Replicating a v17 bug for stability: we were granting the Teleport resources to the job. */}}
+{{- $resources := coalesce $auth.jobResources $auth.resources }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -39,6 +41,9 @@ spec:
       - name: "teleport-config-check"
         image: '{{ if $auth.enterprise }}{{ $auth.enterpriseImage }}{{ else }}{{ $auth.image }}{{ end }}:{{ include "teleport-cluster.version" . }}'
         imagePullPolicy: {{ $auth.imagePullPolicy }}
+{{- if $resources }}
+        resources: {{- toYaml $resources | nindent 10 }}
+{{- end }}
 {{- if or $auth.extraEnv $auth.tls.existingCASecretName }}
         env:
   {{- if (gt (len $auth.extraEnv) 0) }}

@@ -2316,6 +2316,29 @@ See [the GitHub PR](https://github.com/gravitational/teleport/pull/36251) for te
       memory: 2Gi
   ```
 
+## `jobResources`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+
+Resource requests/limits which should be configured for pre-deploy jobs.
+
+Jobs currently include config validation and potentially migration hooks.
+The resource requirements are typically lower than for the main teleport deployment.
+In most cases, you should leave these limits unset.
+
+`values.yaml` example:
+
+```yaml
+jobResources:
+  requests:
+    cpu: 1
+    memory: 2Gi
+```
+
 ## `podSecurityContext`
 
 | Type     | Default value |

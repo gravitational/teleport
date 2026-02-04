@@ -36,6 +36,7 @@ import {
   P3,
   Subtitle2,
   Text,
+  TextArea,
 } from 'design';
 import { Danger } from 'design/Alert';
 import Table, { Cell } from 'design/DataTable';
@@ -460,6 +461,7 @@ export function RequestCheckout<T extends PendingListItem>({
                     )}
                     <Flex
                       py={4}
+                      mt={1}
                       gap={2}
                       css={`
                         position: sticky;
@@ -738,37 +740,17 @@ function TextBox({
 
   const placeholderText =
     reasonPrompts?.filter(s => s.length > 0).join('\n') ||
-    'Describe your request...';
+    'Describe your request…';
 
   return (
     <LabelInput hasError={hasError}>
       {labelText}
-      <Box
-        as="textarea"
-        height="80px"
-        width="100%"
-        borderRadius={2}
-        p={2}
-        color="text.main"
-        border={hasError ? '2px solid' : '1px solid'}
-        borderColor={hasError ? 'error.main' : 'text.muted'}
+      <TextArea
+        resizable
+        hasError={hasError}
         placeholder={placeholderText.replaceAll(/\\n/g, '\n')}
         value={reason}
         onChange={e => updateReason(e.target.value)}
-        css={`
-          outline: none;
-          background: transparent;
-
-          &::placeholder {
-            color: ${({ theme }) => theme.colors.text.muted};
-          }
-
-          &:hover,
-          &:focus,
-          &:active {
-            border: 1px solid ${props => props.theme.colors.text.slightlyMuted};
-          }
-        `}
       />
     </LabelInput>
   );
