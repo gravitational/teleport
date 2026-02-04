@@ -2,114 +2,132 @@ package autoupdate
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"syscall"
 	"unsafe"
 
-	"github.com/gravitational/trace"
 	"golang.org/x/sys/windows"
 )
 
-func verifySignature(updatePath string) error {
+const (
+	// CMSG_SIGNER_CERT_INFO_PARAM retrieves a CERT_INFO structure directly.
+	// This avoids defining cmsgSignerInfo, certInfo, and all their substructs.
+	cmsgSignerCertInfoParam = 7
+)
+
+var (
+	crypt32              = windows.NewLazySystemDLL("crypt32.dll")
+	procCryptMsgGetParam = crypt32.NewProc("CryptMsgGetParam")
+	procCryptMsgClose    = crypt32.NewProc("CryptMsgClose")
+)
+
+// VerifySignature checks if the update is signed by the same entity as the running service.
+func VerifySignature(updatePath string) error {
 	servicePath, err := os.Executable()
 	if err != nil {
-		return trace.Wrap(err)
+		return fmt.Errorf("failed to get executable path: %w", err)
 	}
-	serviceSigned, serviceSubject, err := signerSubject(servicePath)
+
+	// 1. Who signed the currently running service?
+	serviceSubject, err := getSignerSubject(servicePath)
 	if err != nil {
-		return trace.Wrap(err)
+		return fmt.Errorf("checking service signature: %w", err)
 	}
-	if !serviceSigned || serviceSubject == "" {
-		log.Info("Service binary not signed; skipping installer signature verification")
+
+	// If current service isn't signed, we skip verification (dev mode/unsigned builds)
+	if serviceSubject == "" {
 		return nil
 	}
 
-	updateSigned, updateSubject, err := signerSubject(updatePath)
+	// 2. Who signed the new update?
+	updateSubject, err := getSignerSubject(updatePath)
 	if err != nil {
-		return trace.Wrap(err)
+		return fmt.Errorf("checking update signature: %w", err)
 	}
-	if !updateSigned {
-		return trace.BadParameter("installer signature is not valid")
-	}
+
+	// 3. Do they match?
 	if updateSubject == "" {
-		return trace.BadParameter("installer signature subject is empty")
+		return errors.New("update is not signed, but service is")
 	}
 	if updateSubject != serviceSubject {
-		return trace.BadParameter("installer signature subject does not match service signature")
+		return fmt.Errorf("signer mismatch: expected %q, got %q", serviceSubject, updateSubject)
 	}
+
 	return nil
 }
 
-func signerSubject(path string) (bool, string, error) {
-	signed, err := verifyAuthenticode(path)
-	if err != nil {
-		return false, "", trace.Wrap(err)
-	}
-	if !signed {
-		return false, "", nil
-	}
-
-	path16, err := windows.UTF16PtrFromString(path)
-	if err != nil {
-		return false, "", trace.Wrap(err)
+func getSignerSubject(path string) (string, error) {
+	// Step 1: Verify the file is trusted by the OS (Integrity Check)
+	if err := verifyAuthenticode(path); err != nil {
+		if isNoSignature(err) {
+			return "", nil // Not signed
+		}
+		return "", err
 	}
 
-	var encoding, contentType, format uint32
-	var msgHandle windows.Handle
-	var certStore windows.Handle
+	// Step 2: Open the file as a Crypto Object
+	path16, _ := windows.UTF16PtrFromString(path)
+	var (
+		msgHandle, storeHandle windows.Handle
+		encoding               uint32
+	)
 
-	if err := windows.CryptQueryObject(
+	err := windows.CryptQueryObject(
 		windows.CERT_QUERY_OBJECT_FILE,
 		unsafe.Pointer(path16),
 		windows.CERT_QUERY_CONTENT_FLAG_PKCS7_SIGNED_EMBED,
 		windows.CERT_QUERY_FORMAT_FLAG_BINARY,
 		0,
 		&encoding,
-		&contentType,
-		&format,
-		&certStore,
+		nil, nil,
+		&storeHandle,
 		&msgHandle,
-		nil,
-	); err != nil {
-		return false, "", trace.Wrap(err)
-	}
-	defer windows.CertCloseStore(certStore, 0)
-	defer cryptMsgClose(msgHandle)
-
-	signerInfo, err := signerInfoFromMessage(msgHandle)
-	if err != nil {
-		return false, "", trace.Wrap(err)
-	}
-
-	certInfo := certInfo{
-		Issuer:       signerInfo.Issuer,
-		SerialNumber: signerInfo.SerialNumber,
-	}
-	certCtx, err := windows.CertFindCertificateInStore(
-		certStore,
-		encoding,
-		0,
-		windows.CERT_FIND_SUBJECT_CERT,
-		unsafe.Pointer(&certInfo),
 		nil,
 	)
 	if err != nil {
-		return false, "", trace.Wrap(err)
+		return "", fmt.Errorf("CryptQueryObject: %w", err)
+	}
+	defer windows.CertCloseStore(storeHandle, 0)
+	defer cryptMsgClose(msgHandle)
+
+	// Step 3: Get the CERT_INFO blob directly (The Magic Trick)
+	// We use param 7 (CMSG_SIGNER_CERT_INFO_PARAM) instead of 6.
+	// This gives us a blob we can pass directly to CertFindCertificateInStore.
+	certInfoBlob, err := getCryptMsgParam(msgHandle, cmsgSignerCertInfoParam)
+	if err != nil {
+		return "", fmt.Errorf("failed to get signer cert info: %w", err)
+	}
+
+	// Step 4: Find the matching certificate in the store
+	certCtx, err := windows.CertFindCertificateInStore(
+		storeHandle,
+		encoding,
+		0,
+		windows.CERT_FIND_SUBJECT_CERT,
+		unsafe.Pointer(&certInfoBlob[0]), // Pass the opaque blob
+		nil,
+	)
+	if err != nil {
+		return "", fmt.Errorf("signer certificate not found in store: %w", err)
 	}
 	defer windows.CertFreeCertificateContext(certCtx)
 
-	subject, err := certSubject(certCtx)
-	if err != nil {
-		return false, "", trace.Wrap(err)
+	// Step 5: Read the Subject Name (CN/O)
+	// 0 = CERT_NAME_SIMPLE_DISPLAY_TYPE (Common Name or Email)
+	// You can change 0 to windows.CERT_NAME_RDN_TYPE to get the full DN.
+	lenName := windows.CertGetNameString(certCtx, windows.CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, nil, nil, 0)
+	if lenName <= 1 {
+		return "", nil
 	}
-	return true, subject, nil
+	buf := make([]uint16, lenName)
+	windows.CertGetNameString(certCtx, windows.CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, nil, &buf[0], lenName)
+
+	return windows.UTF16ToString(buf), nil
 }
 
-func verifyAuthenticode(path string) (bool, error) {
-	path16, err := windows.UTF16PtrFromString(path)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
+func verifyAuthenticode(path string) error {
+	path16, _ := windows.UTF16PtrFromString(path)
 	fileInfo := windows.WinTrustFileInfo{
 		Size:     uint32(unsafe.Sizeof(windows.WinTrustFileInfo{})),
 		FilePath: path16,
@@ -122,141 +140,49 @@ func verifyAuthenticode(path string) (bool, error) {
 		StateAction:                     windows.WTD_STATEACTION_VERIFY,
 		FileOrCatalogOrBlobOrSgnrOrCert: unsafe.Pointer(&fileInfo),
 	}
-	err = windows.WinVerifyTrustEx(windows.InvalidHWND, &windows.WINTRUST_ACTION_GENERIC_VERIFY_V2, &data)
+
+	// Verify
+	guid := windows.WINTRUST_ACTION_GENERIC_VERIFY_V2
+	err := windows.WinVerifyTrustEx(windows.InvalidHWND, &guid, &data)
+
+	// Close State (Crucial!)
 	data.StateAction = windows.WTD_STATEACTION_CLOSE
-	_ = windows.WinVerifyTrustEx(windows.InvalidHWND, &windows.WINTRUST_ACTION_GENERIC_VERIFY_V2, &data)
-	if err == nil {
-		return true, nil
+	_ = windows.WinVerifyTrustEx(windows.InvalidHWND, &guid, &data)
+
+	return err
+}
+
+// Helper to handle the C-style size-then-data pattern
+func getCryptMsgParam(handle windows.Handle, paramType uint32) ([]byte, error) {
+	var size uint32
+	// First call to get size
+	r1, _, _ := syscall.SyscallN(procCryptMsgGetParam.Addr(), uintptr(handle), uintptr(paramType), 0, 0, uintptr(unsafe.Pointer(&size)))
+	if r1 == 0 {
+		return nil, fmt.Errorf("failed to get param size")
 	}
-	if isNoSignature(err) {
-		return false, nil
+
+	buf := make([]byte, size)
+	// Second call to get data
+	r1, _, _ = syscall.SyscallN(procCryptMsgGetParam.Addr(), uintptr(handle), uintptr(paramType), 0, uintptr(unsafe.Pointer(&buf[0])), uintptr(unsafe.Pointer(&size)))
+	if r1 == 0 {
+		return nil, fmt.Errorf("failed to get param data")
 	}
-	return false, err
+	return buf, nil
+}
+
+func cryptMsgClose(handle windows.Handle) {
+	syscall.SyscallN(procCryptMsgClose.Addr(), uintptr(handle))
 }
 
 func isNoSignature(err error) bool {
-	var errno syscall.Errno
-	if !errors.As(err, &errno) {
+	if err == nil {
 		return false
 	}
-	return errors.Is(errno, syscall.Errno(windows.TRUST_E_NOSIGNATURE)) ||
-		errors.Is(errno, syscall.Errno(windows.TRUST_E_SUBJECT_FORM_UNKNOWN))
-}
-
-func signerInfoFromMessage(msgHandle windows.Handle) (*cmsgSignerInfo, error) {
-	var size uint32
-	if err := cryptMsgGetParam(msgHandle, cmsgSignerInfoParam, 0, nil, &size); err != nil {
-		return nil, trace.Wrap(err)
+	var errno syscall.Errno
+	if errors.As(err, &errno) {
+		return errno == syscall.Errno(windows.TRUST_E_NOSIGNATURE) ||
+			errno == syscall.Errno(windows.TRUST_E_SUBJECT_FORM_UNKNOWN) ||
+			errno == syscall.Errno(windows.TRUST_E_PROVIDER_UNKNOWN)
 	}
-	buf := make([]byte, size)
-	if err := cryptMsgGetParam(msgHandle, cmsgSignerInfoParam, 0, &buf[0], &size); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return (*cmsgSignerInfo)(unsafe.Pointer(&buf[0])), nil
-}
-
-func certSubject(certCtx *windows.CertContext) (string, error) {
-	nameLen := windows.CertGetNameString(certCtx, windows.CERT_NAME_RDN_TYPE, 0, nil, nil, 0)
-	if nameLen <= 1 {
-		return "", nil
-	}
-	name := make([]uint16, nameLen)
-	windows.CertGetNameString(certCtx, windows.CERT_NAME_RDN_TYPE, 0, nil, &name[0], nameLen)
-	return windows.UTF16ToString(name), nil
-}
-
-const cmsgSignerInfoParam = 6
-
-var crypt32 = windows.NewLazySystemDLL("crypt32.dll")
-var procCryptMsgGetParam = crypt32.NewProc("CryptMsgGetParam")
-var procCryptMsgClose = crypt32.NewProc("CryptMsgClose")
-
-func cryptMsgGetParam(msgHandle windows.Handle, paramType uint32, index uint32, data *byte, dataLen *uint32) error {
-	r1, _, e1 := syscall.SyscallN(
-		procCryptMsgGetParam.Addr(),
-		uintptr(msgHandle),
-		uintptr(paramType),
-		uintptr(index),
-		uintptr(unsafe.Pointer(data)),
-		uintptr(unsafe.Pointer(dataLen)),
-	)
-	if r1 != 0 {
-		return nil
-	}
-	if e1 != 0 {
-		return error(e1)
-	}
-	return syscall.EINVAL
-}
-
-func cryptMsgClose(msgHandle windows.Handle) {
-	_, _, _ = syscall.SyscallN(procCryptMsgClose.Addr(), uintptr(msgHandle))
-}
-
-type cryptDataBlob struct {
-	cbData uint32
-	pbData *byte
-}
-
-type cryptObjIDBlob = cryptDataBlob
-type certNameBlob = cryptDataBlob
-type cryptIntegerBlob = cryptDataBlob
-
-type cryptAlgorithmIdentifier struct {
-	pszObjId *byte
-	Params   cryptObjIDBlob
-}
-
-type cryptAttribute struct {
-	pszObjId *byte
-	cValue   uint32
-	rgValue  *cryptDataBlob
-}
-
-type cryptAttributes struct {
-	cAttr  uint32
-	rgAttr *cryptAttribute
-}
-
-type cmsgSignerInfo struct {
-	dwVersion         uint32
-	Issuer            certNameBlob
-	SerialNumber      cryptIntegerBlob
-	HashAlgorithm     cryptAlgorithmIdentifier
-	HashEncryptionAlg cryptAlgorithmIdentifier
-	EncryptedHash     cryptDataBlob
-	AuthAttrs         cryptAttributes
-	UnauthAttrs       cryptAttributes
-}
-
-type cryptBitBlob struct {
-	cbData      uint32
-	pbData      *byte
-	cUnusedBits uint32
-}
-
-type certPublicKeyInfo struct {
-	Algorithm cryptAlgorithmIdentifier
-	PublicKey cryptBitBlob
-}
-
-type certExtension struct {
-	pszObjId  *byte
-	fCritical int32
-	Value     cryptObjIDBlob
-}
-
-type certInfo struct {
-	dwVersion            uint32
-	SerialNumber         cryptIntegerBlob
-	SignatureAlgorithm   cryptAlgorithmIdentifier
-	Issuer               certNameBlob
-	NotBefore            windows.Filetime
-	NotAfter             windows.Filetime
-	Subject              certNameBlob
-	SubjectPublicKeyInfo certPublicKeyInfo
-	IssuerUniqueId       cryptBitBlob
-	SubjectUniqueId      cryptBitBlob
-	cExtension           uint32
-	rgExtension          *certExtension
+	return false
 }

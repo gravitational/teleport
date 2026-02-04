@@ -126,7 +126,7 @@ func (h *handler) Execute(ctx context.Context, _ []string) error {
 		return trace.BadParameter("update version %q does not match policy version %q", updateMetadata.Version, enforcedVersion)
 	}
 
-	if err = verifySignature(updatePath); err != nil {
+	if err = VerifySignature(updatePath); err != nil {
 		return trace.Wrap(err, "invalid update signature")
 	}
 
