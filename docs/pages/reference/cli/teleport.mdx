@@ -823,7 +823,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--advertise-ip`|none|IP to advertise to clients if running behind NAT|
-|`--apply-on-startup`|none|Path to a non-empty YAML file containing resources to apply on startup. Works on initialized clusters, unlike --bootstrap. Only supports the following kinds: \[token cluster_networking_config cluster_auth_preference bot role user\].|
+|`--apply-on-startup`|none|Path to a non-empty YAML file containing resources to apply on startup. Works on initialized clusters, unlike --bootstrap. Only supports the following kinds: \[bot cluster_auth_preference cluster_networking_config role token user\].|
 |`--auth-server`|none|Address of the auth server \[127.0.0.1:3025\]|
 |`--bootstrap`|none|Path to a non-empty YAML file containing bootstrap resources (ignored if already initialized)|
 |`--ca-pin`|none|CA pin to validate the Auth Server (can be repeated for multiple pins)|
