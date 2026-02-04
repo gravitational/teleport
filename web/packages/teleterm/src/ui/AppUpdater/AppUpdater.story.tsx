@@ -68,7 +68,7 @@ export interface StoryProps {
     | 'Disabled client updates - v17 cluster';
   clusterBarSetToManageUpdates: boolean;
   updateKind: 'Upgrade' | 'Downgrade';
-  cdnBaseUrl: 'Unset (OSS build)' | 'Official' | 'Non-official';
+  cdnBaseUrl: 'Unset (OSS build)' | 'Official' | 'Unofficial';
   updateRequiresUacPrompt: boolean;
 }
 
@@ -134,7 +134,7 @@ const meta: Meta<StoryProps> = {
     cdnBaseUrl: {
       control: { type: 'radio' },
       description: 'CDN Base URL',
-      options: ['Unset (OSS build)', 'Official', 'Non-official'],
+      options: ['Unset (OSS build)', 'Official', 'Unofficial'],
     },
     updateRequiresUacPrompt: {
       control: { type: 'boolean' },
@@ -256,7 +256,7 @@ async function resolveEvent(storyProps: StoryProps): Promise<AppUpdateEvent> {
     },
   });
 
-  const nonTeleportCdn = storyProps.cdnBaseUrl === 'Non-official';
+  const nonTeleportCdn = storyProps.cdnBaseUrl === 'Unofficial';
   const updateInfo = makeUpdateInfo(
     nonTeleportCdn,
     status.enabled ? status.version : '',
