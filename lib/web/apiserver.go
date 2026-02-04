@@ -1988,6 +1988,11 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		sessionSummarizerEnabled = isEnabledRes.Enabled
 	}
 
+	rsp, err := h.cfg.ProxyClient.GetClusterAccessGraphConfig(r.Context())
+	if err != nil && !trace.IsNotImplemented(err) {
+		h.logger.ErrorContext(r.Context(), "Cannot retrieve Access Graph config from auth server", "error", err)
+	}
+
 	webCfg := webclient.WebConfig{
 		Edition:                        modules.GetModules().BuildType(),
 		Auth:                           authSettings,
@@ -2010,6 +2015,11 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		SessionSummarizerEnabled:       sessionSummarizerEnabled,
 		// Entitlements are reset/overridden in setEntitlementsWithLegacyLogic until setEntitlementsWithLegacyLogic is removed in v18
 		Entitlements: GetWebCfgEntitlements(clusterFeatures.GetEntitlements()),
+		IdentitySecurity: webclient.IdentitySecurity{
+			IsClusterLicensed:           modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy).Enabled,
+			AccessGraphConfigSet:        rsp.GetEnabled() && rsp.GetAddress() != "",
+			SessionSummarizationEnabled: sessionSummarizerEnabled,
+		},
 	}
 
 	// Set entitlements with backwards field compatibility
@@ -2054,7 +2064,8 @@ func globMatch(pattern, str string) (bool, error) {
 // userMatchesConnector is a helper function to check if a user matches any of a connector's user matchers.
 func userMatchesConnector(username string, connector interface {
 	GetUserMatchers() []string
-}) (isMatch bool, isFallback bool, err error) {
+},
+) (isMatch bool, isFallback bool, err error) {
 	matchers := connector.GetUserMatchers()
 	for _, pattern := range matchers {
 		matched, err := globMatch(pattern, username)
