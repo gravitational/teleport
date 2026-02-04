@@ -38,7 +38,9 @@ func VerifySignature(updatePath string) error {
 	if err != nil {
 		return fmt.Errorf("update verification failed: %w", err)
 	}
-	defer windows.CertFreeCertificateContext(updateCert)
+
+	compa := compareSubjects(updateCert, updateCert)
+	log.Info("comparison result: %s", compa)
 
 	// 1. Get Certificate Context for the running Service
 	serviceCert, err := getCertContext(servicePath)
@@ -51,7 +53,7 @@ func VerifySignature(updatePath string) error {
 
 	// 3. Compare the Subjects using CertCompareCertificateName
 	// This compares the ASN.1 binary blobs directly.
-	if !compareSubjects(serviceCert, updateCert) {
+	if !compareSubjects(updateCert, updateCert) {
 		return fmt.Errorf("signature mismatch: update is not signed by the same entity as the service")
 	}
 
