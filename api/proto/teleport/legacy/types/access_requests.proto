@@ -1,0 +1,55 @@
+// Copyright 2026 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package types;
+
+import "gogoproto/gogo.proto";
+import "teleport/legacy/types/resources.proto";
+
+option go_package = "github.com/gravitational/teleport/api/types";
+option (gogoproto.goproto_getters_all) = false;
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+
+// AccessRequestKind represents the kind of Access Request being made (short/long-term).
+enum AccessRequestKind {
+  // UNDEFINED is the default value, and represents an undefined request kind.
+  UNDEFINED = 0;
+  // SHORT_TERM represents a short-term request, either role-based or resource-based.
+  SHORT_TERM = 1;
+  // LONG_TERM represents a long-term resource-based request.
+  LONG_TERM = 2;
+}
+
+// LongTermResourceGrouping contains information about how resources can be grouped
+// based on Access List promotions for long-term Access Requests.
+message LongTermResourceGrouping {
+  // AccessListToResources maps applicable Access List names to the resources they can grant,
+  // including the optimal grouping.
+  map<string, ResourceIDList> AccessListToResources = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "grouped_by_access_list"
+  ];
+  // RecommendedAccessList is the name of the Access List that would provide
+  // access to the most resources. If multiple Access Lists provide the same
+  // number of resources, the first one found will be used.
+  string RecommendedAccessList = 2 [(gogoproto.jsontag) = "recommended_access_list"];
+  // ValidationMessage is a user-friendly message explaining any grouping error, if CanProceed is false.
+  string ValidationMessage = 3 [(gogoproto.jsontag) = "validation_message,omitempty"];
+  // CanProceed represents the validity of the long-term grouping. If all requested
+  // resources cannot be grouped together, this will be false.
+  bool CanProceed = 4 [(gogoproto.jsontag) = "can_proceed"];
+}

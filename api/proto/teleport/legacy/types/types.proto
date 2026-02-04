@@ -21,6 +21,7 @@ import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/attestation/v1/attestation.proto";
 import "teleport/componentfeatures/v1/component_features.proto";
+import "teleport/legacy/types/access_requests.proto";
 import "teleport/legacy/types/metadata.proto";
 import "teleport/legacy/types/mfa_device.proto";
 import "teleport/legacy/types/resources.proto";
@@ -3293,16 +3294,6 @@ message AccessRequestSpecV3 {
   ];
 }
 
-// AccessRequestKind represents the kind of Access Request being made (short/long-term).
-enum AccessRequestKind {
-  // UNDEFINED is the default value, and represents an undefined request kind.
-  UNDEFINED = 0;
-  // SHORT_TERM represents a short-term request, either role-based or resource-based.
-  SHORT_TERM = 1;
-  // LONG_TERM represents a long-term resource-based request.
-  LONG_TERM = 2;
-}
-
 enum AccessRequestScope {
   // DEFAULT allows all requests to be viewed
   DEFAULT = 0;
@@ -4299,31 +4290,6 @@ message AccessRequestAllowedPromotion {
 message AccessRequestAllowedPromotions {
   // suggestions is a list of allowed access lists promotions.
   repeated AccessRequestAllowedPromotion promotions = 1;
-}
-
-// ResourceIDList represents a list of ResourceID objects.
-message ResourceIDList {
-  repeated ResourceID resource_ids = 1 [(gogoproto.nullable) = false];
-}
-
-// LongTermResourceGrouping contains information about how resources can be grouped
-// based on Access List promotions for long-term Access Requests.
-message LongTermResourceGrouping {
-  // AccessListToResources maps applicable Access List names to the resources they can grant,
-  // including the optimal grouping.
-  map<string, ResourceIDList> AccessListToResources = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "grouped_by_access_list"
-  ];
-  // RecommendedAccessList is the name of the Access List that would provide
-  // access to the most resources. If multiple Access Lists provide the same
-  // number of resources, the first one found will be used.
-  string RecommendedAccessList = 2 [(gogoproto.jsontag) = "recommended_access_list"];
-  // ValidationMessage is a user-friendly message explaining any grouping error, if CanProceed is false.
-  string ValidationMessage = 3 [(gogoproto.jsontag) = "validation_message,omitempty"];
-  // CanProceed represents the validity of the long-term grouping. If all requested
-  // resources cannot be grouped together, this will be false.
-  bool CanProceed = 4 [(gogoproto.jsontag) = "can_proceed"];
 }
 
 // ClaimMapping maps a claim to teleport roles.
