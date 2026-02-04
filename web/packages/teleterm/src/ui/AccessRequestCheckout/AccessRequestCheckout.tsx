@@ -76,7 +76,7 @@ export function AccessRequestCheckout() {
     collapseBar,
     setHasExited,
     createRequestAttempt,
-    toggleResource,
+    toggleResources,
     selectedResourceRequestRoles,
     createRequest,
     reset,
@@ -104,6 +104,8 @@ export function AccessRequestCheckout() {
     updateNamespacesForKubeCluster,
     reasonMode,
     reasonPrompts,
+    requestKind,
+    setRequestKind,
   } = useAccessRequestCheckout();
 
   const isRoleRequest = pendingAccessRequests[0]?.kind === 'role';
@@ -249,7 +251,7 @@ export function AccessRequestCheckout() {
         {transitionState => (
           <RequestCheckoutWithSlider
             ref={transitionRef}
-            toggleResource={toggleResource}
+            toggleResources={toggleResources}
             onClose={closeCheckout}
             transitionState={transitionState}
             SuccessComponent={() =>
@@ -286,6 +288,8 @@ export function AccessRequestCheckout() {
             updateNamespacesForKubeCluster={updateNamespacesForKubeCluster}
             requireReason={reasonMode === 'required'}
             reasonPrompts={reasonPrompts}
+            requestKind={requestKind}
+            setRequestKind={setRequestKind}
             // TODO(kiosion): Support Resource Constraints in Connect's RequestCheckout
             addedResourceConstraints={{}}
             setResourceConstraints={() => null}

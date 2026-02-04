@@ -136,6 +136,7 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, rootAuthClient authcl
 	request.SetRequestReason(req.Reason)
 	request.SetSuggestedReviewers(req.SuggestedReviewers)
 	request.SetDryRun(req.DryRun)
+	request.SetRequestKind(req.RequestKind)
 
 	if req.MaxDuration != nil {
 		request.SetMaxDuration(req.MaxDuration.AsTime())

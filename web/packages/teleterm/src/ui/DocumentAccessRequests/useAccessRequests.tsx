@@ -25,6 +25,7 @@ import { RequestFlags } from 'shared/components/AccessRequests/ReviewRequests';
 import { mapAttempt } from 'shared/hooks/useAsync';
 import {
   AccessRequest,
+  LongTermResourceGrouping,
   makeAccessRequest,
 } from 'shared/services/accessRequests';
 
@@ -105,7 +106,32 @@ export function makeUiAccessRequest(request: TshdAccessRequest) {
     resources: request.resources,
     reasonMode: request.reasonMode || 'optional',
     reasonPrompts: request.reasonPrompts,
+    longTermResourceGrouping: makeUiLongTermResourceGrouping(
+      request.longTermResourceGrouping
+    ),
   });
+}
+
+// transform gRPC LongTermResourceGrouping, flattening ResourceIDLists onto access list name keys
+function makeUiLongTermResourceGrouping(
+  grouping: TshdAccessRequest['longTermResourceGrouping']
+): LongTermResourceGrouping | undefined {
+  if (!grouping) {
+    return undefined;
+  }
+
+  return {
+    canProceed: grouping.canProceed,
+    validationMessage: grouping.validationMessage,
+    recommendedAccessList: grouping.recommendedAccessList,
+    accessListToResources: Object.entries(
+      grouping.accessListToResources
+    ).reduce(
+      // flatten 'resourceIds' onto access list name key
+      (acc, [k, v]) => ({ ...acc, [k]: v.resourceIds }),
+      {}
+    ),
+  };
 }
 
 // transform tsdh Access Request type into the web's Access Request

@@ -71,7 +71,8 @@ export default function RequestReview({
   );
 
   const [suggestedAccessListOptions] = useState<SuggestedAcessListOption[]>(
-    () => makeSuggestedAccessListOptions(fetchSuggestedAccessListsAttempt)
+    () =>
+      makeSuggestedAccessListOptions(fetchSuggestedAccessListsAttempt, request)
   );
 
   const [state, setState] = useState<RequestState>(reviewStateOptions[0].value);
@@ -247,11 +248,16 @@ export default function RequestReview({
 }
 
 function makeSuggestedAccessListOptions(
-  fetchSuggestedAccessListsAttempt: Attempt<SuggestedAccessList[]>
+  fetchSuggestedAccessListsAttempt: Attempt<SuggestedAccessList[]>,
+  request: Pick<AccessRequest, 'longTermResourceGrouping'>
 ): SuggestedAcessListOption[] {
   if (fetchSuggestedAccessListsAttempt.status !== 'success') {
     return [];
   }
+
+  // TODO(kiosion): For now, this will always be undefined.ListAccessRequests doesn't calculate LongTermResourceGroupings.
+  const recommendedList =
+    request?.longTermResourceGrouping?.recommendedAccessList;
 
   return fetchSuggestedAccessListsAttempt.data.map(a => {
     const traitsMap = a.grants.traits;
@@ -273,14 +279,26 @@ function makeSuggestedAccessListOptions(
     return {
       value: a,
       label: (
-        <Box>
-          <Text>{a.title}</Text>
-          <TextWithSmallerLineHeight>{a.description}</TextWithSmallerLineHeight>
-          <Flex alignItems="center">
-            <TextMutedNoEllipsis>Grants:</TextMutedNoEllipsis>
-            <Flex flexWrap="wrap">{$labels}</Flex>
+        <Flex
+          flexDirection="row"
+          alignItems="center"
+          justifyContent="space-between"
+          width="100%"
+        >
+          <Flex flexDirection="column" flexShrink={0}>
+            <Text>{a.title}</Text>
+            <TextWithSmallerLineHeight>
+              {a.description}
+            </TextWithSmallerLineHeight>
+            <Flex alignItems="center">
+              <TextMutedNoEllipsis>Grants:</TextMutedNoEllipsis>
+              <Flex flexWrap="wrap">{$labels}</Flex>
+            </Flex>
           </Flex>
-        </Box>
+          {recommendedList === a.id && (
+            <Label kind="success">Recommended</Label>
+          )}
+        </Flex>
       ),
     };
   });
