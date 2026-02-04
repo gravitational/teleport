@@ -1,3 +1,5 @@
+{/* this comment is here to make the includes below render */}
+
 <Tabs>
 <TabItem label="Executable">
 
@@ -31,14 +33,14 @@ skip-event-types = []
 skip-session-types = []
 
 [forward.fluentd]
-ca = "/home/bob/event-handler/ca.crt"
-cert = "/home/bob/event-handler/client.crt"
-key = "/home/bob/event-handler/client.key"
+ca = <Var name="/home/bob/event-handler" />/ca.crt
+cert = <Var name="/home/bob/event-handler" />/client.crt
+key = <Var name="/home/bob/event-handler" />/client.key
 url = "https://fluentd.example.com:8888/test.log"
 session-url = "https://fluentd.example.com:8888/session"
 
 [teleport]
-addr = "teleport.example.com:443"
+addr = <Var name="teleport.example.com:443" />
 identity = "identity"
 ```
 
@@ -75,7 +77,7 @@ eventHandler:
   skipSessionTypes: []
 
 teleport:
-  address: "teleport.example.com:443"
+  address: <Var name="teleport.example.com:443" />
   identitySecretName: teleport-event-handler-identity
   identitySecretPath: identity
 
@@ -98,53 +100,7 @@ persistentVolumeClaim:
 Your helm configuration file `teleport-plugin-event-handler-values.yaml` should
 contain settings similar to the following:
 
-```yaml
-eventHandler:
-  storagePath: "./storage"
-  timeout: "10s"
-  batch: 20
-  # The window size configures the duration of the time window for the event handler
-  # to request events from Teleport. By default, this is set to 24 hours.
-  # Reduce the window size if the events backend cannot manage the event volume
-  # for the default window size.
-  # The window size should be specified as a duration string, parsed by Go's time.ParseDuration.
-  windowSize: "24h"
-  # types is a list of event types to search when forwarding audit
-  # events. For example, to limit forwarded events to user logins
-  # and new Access Requests, you can assign this field to:
-  # ["user.login", "access_request.create"]
-  types: []
-  # skipEventTypes lists types of audit events to skip. For example, to forward all
-  # audit events except for new app deletion events, you can assign this to:
-  # ["app.delete"]
-  skipEventTypes: []
-  # skipSessionTypes lists types of session recording events to skip. For example,
-  # to forward all session events except for malformed SQL packet events,
-  # you can assign this to:
-  # ["db.session.malformed_packet"]
-  skipSessionTypes: []
-
-crd:
-  create: true
-  namespace: # The namespace where Teleport Kubernetes Operator is running
-
-tbot:
-  enabled: true
-  clusterName: "teleport.example.com"
-  teleportProxyAddress: "teleport.example.com:443"
-
-fluentd:
-  url: "https://fluentd.fluentd.svc.cluster.local/events.log"
-  sessionUrl: "https://fluentd.fluentd.svc.cluster.local/session.log"
-  certificate:
-    secretName: "teleport-event-handler-client-tls"
-    caPath: "ca.crt"
-    certPath: "client.crt"
-    keyPath: "client.key"
-
-persistentVolumeClaim:
-  enabled: true
-```
+(!docs/pages/includes/plugins/helm-operator-config.mdx!)
 
 </TabItem>
 </Tabs>

@@ -2,56 +2,41 @@
 
 ### Generate credentials for the Event Handler plugin
 
-Add the `crd` and `tbot` sections to the generated configuration file `{{ plugin }}-values.yaml`,
-according to your Teleport cluster. The `teleport` section should be removed.
+In the generated configuration file `{{ plugin }}-values.yaml`,
+replace the `teleport` section with the `crd` and `tbot` sections.
+Assign <Var name="operator-namespace" /> to the namespace where the
+Teleport Kubernetes Operator is running in.
+Assign <Var name="teleport.example.com:443" /> to the DNS name and
+port of your Teleport Proxy Service:
 
 ```yaml
 # values.yaml
 crd:
   create: true
-  namespace: # The namespace where Teleport Kubernetes Operator is running
+  namespace: <Var name="operator-namespace" />
   tokenSpecOverride: {}
 
 tbot:
   enabled: true
-  clusterName: "teleport.example.com"
-  teleportProxyAddress: "teleport.example.com:443"
+  clusterName: <Var name="teleport.example.com" />
+  teleportProxyAddress: <Var name="teleport.example.com:443" />
 ```
-
-**`crd`**
-
-The `crd.create` field will tell the chart to create `TeleportRoleV8`, `TeleportBotV1`,
-and `TeleportProvisionToken` custom resources. The Kubernetes Operator will watch
-for these resources and update the corresponding resources in the Teleport cluster.
-This will set up the Event Handler role and bot user for the Machine & Workload Identity bot, `tbot`,
-to authenticate as when connecting to the Teleport cluster.
-
-Ensure `crd.namespace` is set to the namespace the Kubernetes Operator is running in.
-
-**`tbot`**
-
-The `tbot` section configures the `tbot` deployment that will authenticate to Teleport on
-behalf of the Teleport Event Handler plugin. By default, `tbot` will write an `identity` file
-to a Kubernetes secret called `{{ plugin }}-tbot-out`.
 
 <Admonition type="warning">
 Ensure the `teleport` section is removed, since `tbot` is performing the authentication to the cluster.
 </Admonition>
 
+This will generate the Event Handler role and bot user for the Machine & Workload Identity bot, `tbot`,
+to authenticate as when connecting to your Teleport cluster.
+
 ### Specifying a join method for tbot
 
-The `TeleportProvisionToken` is used by `tbot` to authenticate as the newly created Event Handler bot user.
+The `tbot` deployment authenticates to the Teleport cluster using a `TeleportProvisionToken` custom resource.
 By default, the chart configures the `TeleportProvisionToken` custom resource to the `kubernetes`
 in_cluster join method.
 
 Optionally, you can override the token specification for other join methods
-using the `crd.tokenSpecOverride` field. For `kubernetes` join types,
-the chart automatically sets the allow rule to the `tbot` deployment's service account.
-For other join methods, you must specify `tokenSpecOverride.join_method` and the corresponding
-join method configuration.
-
-See [the join method reference
-](../../reference/deployment/join-methods.mdx) for a list of supported values and detailed explanations.
+using the `crd.tokenSpecOverride` field.
 
 <details>
 <summary>Example (Kubernetes JWKS join method)</summary>
@@ -86,3 +71,15 @@ tokenSpecOverride:
       issuer: https://oidc.eks.us-west-2.amazonaws.com/id/my-cluster
 ```
 </details>
+
+Consult the [Helm chart reference
+guide](../../reference/helm-reference/teleport-plugin-event-handler.mdx)
+for more information on the `crd` and `tbot` sections.
+
+### Example configuration file
+
+Your helm configuration file `teleport-plugin-event-handler-values.yaml` should now
+contain settings similar to the following. We will configure the `fluentd` section
+to your log management solution of choice in the following guide.
+
+(!docs/pages/includes/plugins/helm-operator-config.mdx!)

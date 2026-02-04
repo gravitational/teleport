@@ -1,7 +1,7 @@
 ---
 title: Export Teleport Audit Events to Panther 
 sidebar_label: Panther
-description: How to configure the Teleport Event Handler plugin and Fluentd to send audit logs to Panther
+description: How to configure the Teleport Event Handler plugin and Fluentd to send audit event logs to Panther
 tags:
  - how-to
  - zero-trust
@@ -33,10 +33,10 @@ to establish a secure channel. In this setup, the Event Handler sends events to 
 - A server, virtual machine, Kubernetes cluster, or Docker environment to run the
   Teleport Event Handler plugin.
 
-This guide requires you to have completed the Event Handler setup guides:
+This guide requires you to have completed one of the Event Handler setup guides:
 
-- [Set up Event Handler with tctl](event-handler-setup.mdx)
-- [Set up Event Handler with Teleport Kubernetes Operator](event-handler-setup-operator.mdx)
+- [Set up the Event Handler with tctl](event-handler-setup.mdx)
+- [Set up the Event Handler with the Teleport Kubernetes Operator](event-handler-setup-operator.mdx)
 
 The instructions below demonstrate a local test of the Event Handler plugin on
 VM. You will need to adjust paths, ports, and domains for other environments.
@@ -168,6 +168,8 @@ In this section, you will modify the Event Handler configuration you generated
 and run the Event Handler to test your configuration.
 
 ### Configure the Event Handler
+
+Edit the configuration for the Event Handler, depending on your installation method.
 
 (!docs/pages/includes/plugins/finish-event-handler-config.mdx!)
 

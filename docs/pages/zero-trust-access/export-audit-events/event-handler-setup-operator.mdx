@@ -1,8 +1,8 @@
 ---
-title: Set up the Teleport Event Handler Plugin with Teleport Kubernetes Operator
+title: Set up the Teleport Event Handler Plugin with the Teleport Kubernetes Operator
 sidebar_label: Event Handler Setup (Kubernetes Operator)
 sidebar_position: 2
-description: Set up Teleport Event Handler plugin with credentials to access events API, using Teleport Kubernetes Operator.
+description: Set up Teleport Event Handler plugin with credentials to access events API, using the Teleport Kubernetes Operator.
 tags:
  - how-to
  - zero-trust
@@ -18,11 +18,11 @@ to authenticate to the Teleport cluster and access the events API.
 We will deploy the Teleport Event Handler plugin using the `teleport-plugin-event-handler` Helm chart
 and configure it to use the Teleport Kubernetes Operator to generate the credentials.
 
-If your Teleport cluster does not have the Teleport Kubernetes Operator deployed, follow
-[the guide to set up Teleport Kubernetes Operator
+If your Teleport cluster does not have the Teleport Kubernetes Operator deployed, follow the
+[guide to set up the Teleport Kubernetes Operator
 ](../../zero-trust-access/infrastructure-as-code/teleport-operator/teleport-operator.mdx).
 If you wish to deploy the Teleport Event Handler Plugin in Kubernetes without the Teleport Kubernetes
-Operator, see [Set up Event Handler with tctl](event-handler-setup.mdx).
+Operator, see [Set up the Event Handler with tctl](event-handler-setup.mdx).
 
 ## How it works
 
@@ -92,7 +92,7 @@ key from the same certificate authority for the Teleport Event Handler to use.
 
 (!docs/pages/includes/plugins/rbac-operator-event-handler.mdx plugin="teleport-plugin-event-handler"!)
 
-## Next Steps
+## Next steps
 
 You have now configured the Teleport Event Handler plugin with credentials to access the Teleport events API.
 

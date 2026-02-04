@@ -6,8 +6,7 @@
 **`[teleport]`**
 
 `addr`: Include the hostname and HTTPS port of your Teleport Proxy Service
-or Teleport Enterprise Cloud account (e.g., `teleport.example.com:443` or
-`mytenant.teleport.sh:443`).
+or Teleport Enterprise Cloud account: <Var name="teleport.example.com:443" />
 
 `identity`: Fill this in with the path to the identity file you exported
 earlier.
@@ -16,11 +15,11 @@ earlier.
 
 **`[forward.fluentd]`**
 
-`ca`: Include the path to the CA certificate.
+`ca`: Include the path to the CA certificate: <Var name="/home/bob/event-handler" />/ca.crt
 
-`cert`: Include the path to the Fluentd client certificate.
+`cert`: Include the path to the Fluentd client certificate. <Var name="/home/bob/event-handler" />/client.crt
 
-`key`: Include the path to the Fluentd client key.
+`key`: Include the path to the Fluentd client key. <Var name="/home/bob/event-handler" />/client.key
 
 `url`: Include the Fluentd URL where the audit event logs will be sent.
 
@@ -32,8 +31,7 @@ earlier.
 **`teleport`**
 
 `address`: Include the hostname and HTTPS port of your Teleport Proxy Service
-or Teleport Enterprise Cloud tenant (e.g., `teleport.example.com:443` or
-`mytenant.teleport.sh:443`).
+or Teleport Enterprise Cloud account: <Var name="teleport.example.com:443" />
 
 `identitySecretName`: Fill in the `identitySecretName` field with the name
 of the Kubernetes secret you created earlier.
@@ -60,6 +58,20 @@ this will be `teleport-event-handler-client-tls`.
 
 </TabItem>
 <TabItem label="Helm Chart with Kubernetes Operator">
+
+**`crd`**
+
+**`namespace`**: Include the namespace that the Teleport Kubernetes Operator is running in: <Var name="operator-namespace" />
+
+**`tokenSpecOverride`**: Optionally include a specific join token specification for the bot user
+that `tbot` will authenticate as.
+
+**`tbot`**
+
+**`clusterName`**: Include the name of your Teleport cluster: <Var name="teleport.example.com" />
+
+**`teleportProxyAddress`**: Include the hostname and HTTPS port of your Teleport Proxy Service
+or Teleport Enterprise Cloud account: <Var name="teleport.example.com:443" />
 
 **`fluentd`**
 

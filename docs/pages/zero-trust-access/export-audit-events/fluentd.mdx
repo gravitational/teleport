@@ -1,7 +1,7 @@
 ---
 title: Export Events with Fluentd
 sidebar_label: Fluentd
-description: Forwarding events with Fluentd and Teleport Event Handler
+description: Forwarding audit event logs with Fluentd and Teleport Event Handler
 videoBanner: HAqxs4rBv2c
 tags:
  - how-to
@@ -42,10 +42,10 @@ to integrate with your infrastructure.
 - A server, virtual machine, Kubernetes cluster, or Docker environment to run the
   Teleport Event Handler plugin.
 
-This guide requires you to have completed the Event Handler setup guides:
+This guide requires you to have completed one of the Event Handler setup guides:
 
-- [Set up Event Handler with tctl](event-handler-setup.mdx)
-- [Set up Event Handler with Teleport Kubernetes Operator](event-handler-setup-operator.mdx)
+- [Set up the Event Handler with tctl](event-handler-setup.mdx)
+- [Set up the Event Handler with the Teleport Kubernetes Operator](event-handler-setup-operator.mdx)
 
 The instructions below demonstrate a local test of the Event Handler plugin on
 your workstation. You will need to adjust paths, ports, and domains for other
@@ -121,6 +121,8 @@ and run the Event Handler to test your configuration.
 
 ### Configure the Event Handler
 
+Edit the configuration for the Event Handler, depending on your installation method.
+
 (!docs/pages/includes/plugins/finish-event-handler-config.mdx!)
 
 Update the following fields.
@@ -144,7 +146,7 @@ Teleport Cluster, ensure that:
 - Start the Fluentd container prior to starting the Teleport Event Handler. The 
   Event Handler will attempt to connect to Fluentd immediately upon startup.
 
-## Next Steps
+## Next steps
 
 - See instructions to configure dedicated integrations in the navigation sidebar
 under [Audit Event Export](./export-audit-events.mdx).
