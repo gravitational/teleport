@@ -18,13 +18,14 @@ package local_test
 
 import (
 	"cmp"
+	"fmt"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
 	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -35,19 +36,13 @@ import (
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
 func TestScopedTokenService(t *testing.T) {
-	clock := clockwork.NewFakeClock()
-	clock.Advance(-30 * time.Hour)
-	bk, err := memory.New(memory.Config{
-		Clock: clock,
-	})
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	// service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
 	service, err := local.NewScopedTokenService(bk)
 	require.NoError(t, err)
 
@@ -64,6 +59,9 @@ func TestScopedTokenService(t *testing.T) {
 			AssignedScope: "/test/one",
 			JoinMethod:    "token",
 			Roles:         []string{types.RoleNode.String()},
+		},
+		Status: &joiningv1.ScopedTokenStatus{
+			Secret: "secret",
 		},
 	}
 
@@ -112,7 +110,9 @@ func TestScopedTokenService(t *testing.T) {
 
 	// expired tokens should error and delete the token
 	expiredToken, err = service.UseScopedToken(ctx, expiredRes.Token.Metadata.Name)
-	require.True(t, trace.IsLimitExceeded(err))
+	// If for some reason the expired token is not automatically deleted by the backend, a
+	// LimitExceededError will be returned. Otherwise, we should expect the token not to be found.
+	require.True(t, trace.IsLimitExceeded(err) || trace.IsNotFound(err))
 	require.Nil(t, expiredToken)
 
 	_, err = service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
@@ -135,7 +135,7 @@ func TestScopedTokenService(t *testing.T) {
 func TestScopedTokenList(t *testing.T) {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
+	service, err := local.NewScopedTokenService(bk)
 	require.NoError(t, err)
 
 	ctx := t.Context()
@@ -153,6 +153,9 @@ func TestScopedTokenList(t *testing.T) {
 			Roles: []string{
 				types.RoleNode.String(),
 			},
+		},
+		Status: &joiningv1.ScopedTokenStatus{
+			Secret: "secret",
 		},
 	}
 
@@ -347,4 +350,112 @@ func TestScopedTokenList(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestScopedTokenNameCollisions(t *testing.T) {
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	service, err := local.NewScopedTokenService(bk)
+	require.NoError(t, err)
+
+	provisioningService := local.NewProvisioningService(bk)
+
+	ctx := t.Context()
+
+	token := &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "testtoken",
+		},
+		Scope: "/test",
+		Spec: &joiningv1.ScopedTokenSpec{
+			AssignedScope: "/test/one",
+			JoinMethod:    "token",
+			Roles:         []string{types.RoleNode.String()},
+		},
+		Status: &joiningv1.ScopedTokenStatus{
+			Secret: "secret",
+		},
+	}
+
+	t.Run("basic", func(t *testing.T) {
+		// create initial scoped token
+		_, err = service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+			Token: token,
+		})
+		require.NoError(t, err)
+
+		// assert that creating another scoped token with the same name fails
+		_, err = service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+			Token: token,
+		})
+		require.True(t, trace.IsAlreadyExists(err))
+
+		// create a 'classic' token
+		classicToken := &types.ProvisionTokenV2{
+			Metadata: types.Metadata{
+				Name: "testtoken2",
+			},
+			Spec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{
+					types.RoleAdmin,
+				},
+			},
+		}
+		err = provisioningService.CreateToken(ctx, classicToken)
+		require.NoError(t, err)
+
+		// assert that creating a scoped token with a name that conflicts with
+		// a classic token fails
+		conflictWithClassic := proto.CloneOf(token)
+		conflictWithClassic.Metadata.Name = classicToken.GetName()
+		_, err = service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+			Token: conflictWithClassic,
+		})
+		require.True(t, trace.IsAlreadyExists(err))
+	})
+
+	t.Run("concurrent", func(t *testing.T) {
+		for i := range 50 {
+			name := fmt.Sprintf("testtoken-%d", i)
+			var classicErr error
+			var scopedErr error
+			wg := sync.WaitGroup{}
+			wg.Add(2)
+			go func() {
+				classicErr = provisioningService.CreateToken(ctx, &types.ProvisionTokenV2{
+					Metadata: types.Metadata{
+						Name: name,
+					},
+					Spec: types.ProvisionTokenSpecV2{
+						Roles: []types.SystemRole{
+							types.RoleAdmin,
+						},
+					},
+				})
+				wg.Done()
+			}()
+
+			go func() {
+				token := proto.CloneOf(token)
+				token.Metadata.Name = name
+				_, scopedErr = service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+					Token: token,
+				})
+				wg.Done()
+			}()
+			wg.Wait()
+
+			// One token type should always succeed and the other should always fail. When one succeeds,
+			// the other should always be a [trace.AlreadyExistsError] due to the name conflict.
+			if classicErr == nil {
+				require.True(t, trace.IsAlreadyExists(scopedErr))
+			} else if scopedErr == nil {
+				require.True(t, trace.IsAlreadyExists(classicErr))
+			} else {
+				require.Fail(t, "unexpected failure to create either a scoped or classic token", name)
+			}
+		}
+	})
 }

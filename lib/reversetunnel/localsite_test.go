@@ -92,7 +92,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 	// add a connection
 	rconn := &mockRemoteConnConn{}
 	sconn := &mockedSSHConn{}
-	conn1, err := site.addConn(uuid.NewString(), types.NodeTunnel, rconn, sconn)
+	conn1, err := site.addConn(uuid.NewString(), "", types.NodeTunnel, rconn, sconn)
 	require.NoError(t, err)
 
 	// create a fake session
@@ -167,13 +167,13 @@ func TestLocalSiteOverlap(t *testing.T) {
 	}
 
 	// add a few connections for the same node id
-	conn1, err := site.addConn(nodeID, connType, &mockRemoteConnConn{}, nil)
+	conn1, err := site.addConn(nodeID, "", connType, &mockRemoteConnConn{}, nil)
 	require.NoError(t, err)
 
-	conn2, err := site.addConn(nodeID, connType, &mockRemoteConnConn{}, nil)
+	conn2, err := site.addConn(nodeID, "", connType, &mockRemoteConnConn{}, nil)
 	require.NoError(t, err)
 
-	conn3, err := site.addConn(nodeID, connType, &mockRemoteConnConn{}, nil)
+	conn3, err := site.addConn(nodeID, "", connType, &mockRemoteConnConn{}, nil)
 	require.NoError(t, err)
 
 	// no heartbeats from any of them shouldn't return a connection
@@ -306,7 +306,7 @@ func TestProxyResync(t *testing.T) {
 	}
 
 	// add a connection
-	conn1, err := site.addConn(uuid.NewString(), types.NodeTunnel, rconn, sconn)
+	conn1, err := site.addConn(uuid.NewString(), "", types.NodeTunnel, rconn, sconn)
 	require.NoError(t, err)
 
 	reqs := make(chan *ssh.Request)

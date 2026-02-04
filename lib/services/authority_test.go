@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/modules"
 	. "github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -147,7 +148,7 @@ func TestCertAuthorityEquivalence(t *testing.T) {
 func TestCertAuthorityUTCUnmarshal(t *testing.T) {
 	t.Parallel()
 
-	_, pub, err := testauthority.New().GenerateKeyPair()
+	_, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 	_, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "clustername"}, nil, time.Hour)
 	require.NoError(t, err)
@@ -278,7 +279,8 @@ func TestCheckSAMLIDPCA(t *testing.T) {
 }
 
 func TestCheckOIDCIdP(t *testing.T) {
-	ta := testauthority.New()
+	ta, err := testauthority.NewKeygen(modules.BuildOSS, time.Now)
+	require.NoError(t, err)
 
 	pub, priv, err := ta.GenerateJWT()
 	require.NoError(t, err)

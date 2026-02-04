@@ -88,6 +88,8 @@ export const makeApp = (props: Partial<App> = {}): App => ({
   uri: appUri,
   awsRoles: [],
   tcpPorts: [],
+  permissionSets: [],
+  subKind: '',
   ...props,
 });
 

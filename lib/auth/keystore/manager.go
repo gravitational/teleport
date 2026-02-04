@@ -475,6 +475,13 @@ func (m *Manager) GetTLSCertAndSigner(ctx context.Context, ca types.CertAuthorit
 	return cert, signer, trace.Wrap(err)
 }
 
+// GetTLSSigner selects a usable TLS keypair from the given CA and returns a
+// [crypto.Signer].
+func (m *Manager) GetTLSSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error) {
+	_, signer, err := m.getTLSCertAndSigner(ctx, ca.GetActiveKeys())
+	return signer, trace.Wrap(err)
+}
+
 // GetAdditionalTrustedTLSCertAndSigner selects a usable TLS keypair from the given CA
 // and returns the PEM-encoded TLS certificate and a [crypto.Signer].
 func (m *Manager) GetAdditionalTrustedTLSCertAndSigner(ctx context.Context, ca types.CertAuthority) ([]byte, crypto.Signer, error) {

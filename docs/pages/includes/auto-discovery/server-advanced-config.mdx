@@ -7,7 +7,20 @@ This section covers configuration options for discovering and enrolling servers.
 When using blue-green deployments or other multiple clusters setups, you might want to access your instances from different clusters.
 
 Teleport supports installing and running multiple agents on the same instance, using a suffixed installation which allows you to isolate each installation.
+<Tabs>
+<TabItem label="Dynamic configuration (recommended)">
+To configure the Discovery Service to use a suffixed installation, edit the Discovery Config and set the `spec.aws.install.suffix` key:
 
+```yaml
+kind: discovery_config
+# ...
+spec:
+  {{ matcher }}:
+   - install:
+       suffix: "blue-cluster"
+``` 
+</TabItem>
+<TabItem label="Static configuration">
 To configure the Discovery Service to use a suffixed installation, specify the `install.suffix` key in your Discovery Service configuration:
 
 ```yaml
@@ -20,6 +33,8 @@ discovery_service:
    - install:
        suffix: "blue-cluster"
 ``` 
+</TabItem>
+</Tabs>
 
 Requires [agent managed updates](../../upgrading/agent-managed-updates/agent-managed-updates.mdx) to be enabled.
 
@@ -27,6 +42,21 @@ Requires [agent managed updates](../../upgrading/agent-managed-updates/agent-man
 
 If you are using Teleport [Agent managed updates](../../upgrading/agent-managed-updates/agent-managed-updates.mdx), you can configure the update group so that you can control which instances get updated together.
 
+<Tabs>
+<TabItem label="Dynamic configuration (recommended)">
+To set the update group, edit the Discovery Config and set the `spec.aws.install.update_group` key:
+
+```yaml
+kind: discovery_config
+# ...
+spec:
+  {{ matcher }}:
+   - install:
+       update_group: "update-group-1"
+```
+
+</TabItem>
+<TabItem label="Static configuration">
 To set the update group, specify the `install.update_group` key in your Discovery Service configuration:
 
 ```yaml
@@ -40,10 +70,31 @@ discovery_service:
        update_group: "update-group-1"
 ```
 
+</TabItem>
+</Tabs>
+
 ### Configure HTTP Proxy during installation
 
 For instances which require a proxy to access the installation files, you can configure HTTP Proxy settings in the Discovery Service.
 
+<Tabs>
+<TabItem label="Dynamic configuration (recommended)">
+To set the HTTP proxy settings, edit the Discovery Config and set the `spec.aws.install.http_proxy_settings` key:
+
+```yaml
+kind: discovery_config
+# ...
+spec:
+  {{ matcher }}:
+   - install:
+       http_proxy_settings:
+         https_proxy: http://172.31.5.130:3128
+         http_proxy: http://172.31.5.130:3128
+         no_proxy: my-local-domain
+```
+
+</TabItem>
+<TabItem label="Static configuration">
 You must set the `install.http_proxy_settings` key in your configuration:
 
 ```yaml
@@ -58,4 +109,6 @@ discovery_service:
          https_proxy: http://172.31.5.130:3128
          http_proxy: http://172.31.5.130:3128
          no_proxy: my-local-domain
-``` 
+```
+</TabItem>
+</Tabs>

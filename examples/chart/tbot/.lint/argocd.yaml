@@ -16,6 +16,8 @@ argocd:
       {{index .Labels "region"}}
   secretAnnotations:
     chunky: bacon
+    cluster-region: |-
+      {{index .Labels "region"}}
   project: my-argo-project
   namespaces:
     - dev

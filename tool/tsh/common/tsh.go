@@ -3319,7 +3319,11 @@ func printNodesAsText[T types.Server](output io.Writer, nodes []T, verbose bool)
 	// In verbose mode, print everything on a single line and include the Node
 	// ID (UUID). Useful for machines that need to parse the output of "tsh ls".
 	case true:
-		t = asciitable.MakeTable([]string{"Scope", "Node Name", "Node ID", "Address", "Labels"}, rows...)
+		if withScope {
+			t = asciitable.MakeTable([]string{"Scope", "Node Name", "Node ID", "Address", "Labels"}, rows...)
+		} else {
+			t = asciitable.MakeTable([]string{"Node Name", "Node ID", "Address", "Labels"}, rows...)
+		}
 	// In normal mode chunk the labels and print two per line and allow multiple
 	// lines per node.
 	case false:

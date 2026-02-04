@@ -22,9 +22,11 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"os"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -294,9 +296,9 @@ func checkToolsListResponse(t *testing.T, response mcp.JSONRPCMessage, wantID mc
 	require.NoError(t, json.Unmarshal(data, &mcpResponse))
 	require.Equal(t, wantID.String(), mcpResponse.ID.String())
 
-	var result mcp.ListToolsResult
-	require.NoError(t, json.Unmarshal(mcpResponse.Result, &result))
-	checkToolsListResult(t, &result, wantTools)
+	result, err := mcpResponse.GetListToolResult()
+	require.NoError(t, err)
+	checkToolsListResult(t, result, wantTools)
 }
 
 func checkToolsListResult(t *testing.T, result *mcp.ListToolsResult, wantTools []string) {
@@ -349,10 +351,21 @@ func forceRemoveContainer(t *testing.T, dockerClient *docker.Client, containerNa
 }
 
 type mockAuthClient struct {
+	mu               sync.Mutex
+	appTokenRequests []types.GenerateAppTokenRequest
 }
 
-func (m mockAuthClient) GenerateAppToken(_ context.Context, req types.GenerateAppTokenRequest) (string, error) {
-	return "app-token-for-" + req.Username, nil
+func (m *mockAuthClient) GenerateAppToken(_ context.Context, req types.GenerateAppTokenRequest) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.appTokenRequests = append(m.appTokenRequests, req)
+	return fmt.Sprintf("app-token-for-%s-by-%s", req.Username, cmp.Or(req.AuthorityType, types.JWTSigner)), nil
+}
+
+func (m *mockAuthClient) getAppTokenRequests() []types.GenerateAppTokenRequest {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return slices.Clone(m.appTokenRequests)
 }
 
 func checkSessionStartAndInitializeEvents(t *testing.T, events []apievents.AuditEvent, extraChecks ...func(*testing.T, *apievents.MCPSessionStart)) {

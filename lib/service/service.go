@@ -90,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/keystore/health"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
@@ -1493,7 +1494,11 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	// Create a process wide key generator that will be shared. This is so the
 	// key generator can pre-generate keys and share these across services.
 	if cfg.Keygen == nil {
-		cfg.Keygen = keygen.New(process.ExitContext())
+		// TODO(tross): replace modules.GetModules with cfg.Modules
+		cfg.Keygen, err = keygen.New(keygen.Config{Now: cfg.Clock.Now, BuildType: modules.GetModules().BuildType()})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Produce global TeleportReadyEvent
@@ -2804,6 +2809,38 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	process.RegisterFunc("auth.heartbeat", heartbeat.Run)
 
+	if cfg.Auth.KeyStore.HealthCheck != nil &&
+		cfg.Auth.KeyStore.HealthCheck.Active != nil &&
+		cfg.Auth.KeyStore.HealthCheck.Active.Enabled {
+
+		cawatcher, err := services.NewCertAuthorityWatcher(process.ExitContext(), services.CertAuthorityWatcherConfig{
+			ResourceWatcherConfig: services.ResourceWatcherConfig{
+				Component: teleport.ComponentAuth,
+				Logger:    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id)),
+				Client:    authServer.Services,
+			},
+			AuthorityGetter: authServer.Services,
+			Types:           types.CertAuthTypes,
+			LoadKeys:        true,
+			ResourceC:       make(chan []types.CertAuthority, 64),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		keystoreHealth, err := health.NewActiveHealthChecker(health.ActiveHealthCheckConfig{
+			Callback:   process.OnHeartbeat(teleport.ComponentKeyStore),
+			KeyManager: authServer.GetKeyStore(),
+			Logger:     logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKeyStore, "health")),
+			ResourceC:  cawatcher.ResourcesC,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		process.RegisterFunc("auth.keystore_health", func() error {
+			return trace.Wrap(keystoreHealth.Run(process.ExitContext()))
+		})
+	}
+
 	spiffeFedSyncer, err := machineidv1.NewSPIFFEFederationSyncer(machineidv1.SPIFFEFederationSyncerConfig{
 		Backend:       b,
 		Store:         authServer.Services.SPIFFEFederations,
@@ -3815,7 +3852,6 @@ func (process *TeleportProcess) initUploaderService() error {
 		InitialScanDelay:                15 * time.Second,
 		EncryptedRecordingUploader:      uploaderClient,
 		EncryptedRecordingUploadMaxSize: encryptedRecordingMaxUploadSize,
-		ConcurrentUploads:               2,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -4826,7 +4862,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	caWatcher, err := services.NewCertAuthorityWatcher(process.ExitContext(), services.CertAuthorityWatcherConfig{
+	//nolint:staticcheck // SA1019 This should be updated to use [services.NewCertAuthorityWatcher]
+	caWatcher, err := services.DeprecatedNewCertAuthorityWatcher(process.ExitContext(), services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
 			Logger:    process.logger.With(teleport.ComponentKey, teleport.ComponentProxy),

@@ -72,7 +72,18 @@ export type IntegrationTemplate<
   statusCode: IntegrationStatusCode;
   status?: SD;
   credentials?: PluginCredentials;
+  summary?: BriefSummary;
 };
+
+type BriefSummary = {
+  unresolvedUserTasks?: UserTask[];
+  resourcesCount?: {
+    found: number;
+    enrolled: number;
+    failed: number;
+  };
+};
+
 // IntegrationKind string values should be in sync
 // with the backend value for defining the integration
 // resource's subKind field.
@@ -80,6 +91,7 @@ export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
   /* AWS Roles Anywhere */
   AwsRa = 'aws-ra',
+  AwsCloud = 'aws-cloud',
   AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',
   GitHub = 'github',
@@ -497,6 +509,8 @@ export type IntegrationWithSummary = {
   subKind: string;
   // unresolvedUserTasks contains the count of unresolved user tasks related to this integration.
   unresolvedUserTasks: number;
+  // userTasks contains the list of unresolved user tasks related to this integration.
+  userTasks?: UserTask[];
   // awsra contains the fields for `aws-ra` subkind integration.
   awsra: IntegrationSpecAwsRa;
   // awsoidc contains the fields for `aws-oidc` subkind integration.
@@ -509,6 +523,7 @@ export type IntegrationWithSummary = {
   awseks: ResourceTypeSummary;
   // rolesAnywhereProfileSync contains the summary for the AWS Roles Anywhere Profile Sync.
   rolesAnywhereProfileSync: RolesAnywhereProfileSync;
+  isManagedByTerraform?: boolean;
 };
 
 // IntegrationDiscoveryRules contains the list of discovery rules for a given Integration.

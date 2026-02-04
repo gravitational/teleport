@@ -22,6 +22,7 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "teleport/attestation/v1/attestation.proto";
 import "teleport/componentfeatures/v1/component_features.proto";
+import "teleport/legacy/types/resources.proto";
 import "teleport/legacy/types/trusted_device_requirement.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
@@ -471,7 +472,8 @@ message AWS {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "rdsproxy,omitempty"
   ];
-  // RedshiftServerless contains Amazon Redshift Serverless-specific metadata.
+  // RedshiftServerless contains metatada specific to Amazon Redshift
+  // Serverless.
   RedshiftServerless RedshiftServerless = 9 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "redshift_serverless,omitempty"
@@ -518,7 +520,7 @@ message SecretStore {
   string KMSKeyID = 2 [(gogoproto.jsontag) = "kms_key_id,omitempty"];
 }
 
-// Redshift contains AWS Redshift specific database metadata.
+// Redshift contains metadata specific to Amazon Redshift.
 message Redshift {
   // ClusterID is the Redshift cluster identifier.
   string ClusterID = 1 [(gogoproto.jsontag) = "cluster_id,omitempty"];
@@ -1165,12 +1167,12 @@ message AppSpecV3 {
   // If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
   string Integration = 9 [(gogoproto.jsontag) = "integration,omitempty"];
   // RequiredAppNames is a list of app names that are required for this app to function. Any app listed here will
-  // be part of the authentication redirect flow and authenticate along side this app.
+  // be part of the authentication redirect flow and authenticate alongside this app.
   repeated string RequiredAppNames = 10 [(gogoproto.jsontag) = "required_app_names,omitempty"];
   // CORSPolicy defines the Cross-Origin Resource Sharing settings for the app.
   CORSPolicy CORS = 11 [(gogoproto.jsontag) = "cors,omitempty"];
-  // IdentityCenter encasulates AWS identity-center specific information. Only
-  // valid for Identity Center account apps.
+  // IdentityCenter encapsulates information specific to AWS IAM Identity
+  // Center. Only valid for Identity Center account apps.
   AppIdentityCenter IdentityCenter = 12 [(gogoproto.jsontag) = "identity_center,omitempty"];
   // TCPPorts is a list of ports and port ranges that an app agent can forward connections to.
   // Only applicable to TCP App Access.
@@ -1209,7 +1211,7 @@ message Rewrite {
   string JWTClaims = 3 [(gogoproto.jsontag) = "jwt_claims,omitempty"];
 }
 
-// Header represents a single http header passed over to the proxied application.
+// Header represents a single HTTP header passed over to the proxied application.
 message Header {
   // Name is the http header name.
   string Name = 1 [(gogoproto.jsontag) = "name"];
@@ -1262,7 +1264,7 @@ message AppAWSRolesAnywhereProfile {
   // Whether this Roles Anywhere Profile accepts a custom role session name.
   // When not supported, the AWS Session Name will be the X.509 certificate's serial number.
   // When supported, the AWS Session Name will be the identity's username.
-  // This values comes from:
+  // This value comes from:
   // https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ProfileDetail.html / acceptRoleSessionName
   bool AcceptRoleSessionName = 2 [(gogoproto.jsontag) = "accept_role_session_name"];
 }
@@ -3236,7 +3238,7 @@ message AccessRequestSpecV3 {
   // that is not a requirement.
   repeated string SuggestedReviewers = 13 [(gogoproto.jsontag) = "suggested_reviewers,omitempty"];
 
-  // RequestedResourceIDs is a set of resources to which access is being requested.
+  // RequestedResourceIDs is the set of resources to which access is being requested.
   repeated ResourceID RequestedResourceIDs = 14 [
     (gogoproto.jsontag) = "resource_ids,omitempty",
     (gogoproto.nullable) = false
@@ -3295,6 +3297,17 @@ message AccessRequestSpecV3 {
   // LongTermResourceGrouping contains information about how resources can be grouped
   // based on Access List promotions for long-term Access Requests.
   LongTermResourceGrouping LongTermGrouping = 25 [(gogoproto.jsontag) = "long_term_grouping,omitempty"];
+
+  // The set of resources to which access is being requested,
+  // paired with additional information such as ResourceConstraints.
+  // Differs from RequestedResourceIDs, which only identifies resources and cannot be used
+  // to express additional information per-resource such as ResourceConstraints.
+  // When present, RequestedResourceAccessIDs should be treated as authoritative
+  // (ResourceIDs can be derived by mapping to ResourceAccessID.id).
+  repeated ResourceAccessID RequestedResourceAccessIDs = 26 [
+    (gogoproto.jsontag) = "resource_access_ids,omitempty",
+    (gogoproto.nullable) = false
+  ];
 }
 
 // AccessRequestKind represents the kind of Access Request being made (short/long-term).
@@ -3423,23 +3436,6 @@ message RequestKubernetesResource {
   string kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
   // APIGroup specifies the Kubernetes Resource API group.
   string APIGroup = 2 [(gogoproto.jsontag) = "api_group,omitempty"];
-}
-
-// ResourceID is a unique identifier for a teleport resource.
-// Must be kept in sync with teleport.decision.v1alpha1.ResourceId.
-message ResourceID {
-  // ClusterName is the name of the cluster the resource is in.
-  string ClusterName = 1 [(gogoproto.jsontag) = "cluster"];
-  // Kind is the resource kind.
-  string Kind = 2 [(gogoproto.jsontag) = "kind"];
-  // Name is the name of the specific resource.
-  string Name = 3 [(gogoproto.jsontag) = "name"];
-  // SubResourceName is the resource belonging to resource identified by "Name"
-  // that the user is allowed to access to.
-  // When granting access to a subresource, access to other resources is limited.
-  // Currently it just supports resources of Kind=pod and the format is the following
-  // "<kube_namespace>/<kube_pod>".
-  string SubResourceName = 4 [(gogoproto.jsontag) = "sub_resource,omitempty"];
 }
 
 // PluginData stores a collection of values associated with a specific resource.
@@ -5163,6 +5159,8 @@ message KubernetesClusterV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // Status is the resource status.
+  KubernetesClusterStatus status = 6;
 }
 
 // KubernetesClusterSpecV3 is a specification for a Kubernetes cluster.
@@ -5222,6 +5220,36 @@ message KubeGCP {
   string ProjectID = 2 [(gogoproto.jsontag) = "project_id,omitempty"];
   // Name is a GCP GKE cluster name.
   string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
+}
+
+// KubernetesClusterStatus contains information about the Kubernetes Cluster.
+message KubernetesClusterStatus {
+  KubernetesClusterDiscoveryStatus discovery = 1;
+}
+
+// KubernetesClusterDiscoveryStatus contains cloud provider-specific discovery
+// information for Kubernetes clusters.
+message KubernetesClusterDiscoveryStatus {
+  // AWS holds AWS-specific information about the Kubernetes cluster, including
+  // configuration for automatic discovery and access setup.
+  KubernetesClusterAWSStatus aws = 1;
+}
+
+// KubernetesClusterAWSStatus contains AWS-specific configuration and state
+// information for Kubernetes clusters discovered or managed through AWS integrations.
+message KubernetesClusterAWSStatus {
+  // The ARN of the AWS IAM role or user for which Teleport should configure access
+  // to this Kubernetes cluster. This is typically used during automatic discovery to
+  // grant the specified principal access to the cluster.
+  string setup_access_for_arn = 1;
+  // The name of the AWS integration resource used to discover or manage this
+  // Kubernetes cluster. This references the Teleport integration that provides
+  // credentials and permissions for AWS API operations.
+  string integration = 2;
+  // The ARN of the AWS IAM role that Teleport's discovery service assumed
+  // when discovering this Kubernetes cluster. This role is used to access AWS
+  // APIs for cluster information and configuration.
+  AssumeRole discovery_assumed_role = 3;
 }
 
 // KubernetesClusterV3List represents a list of kubernetes clusters.
@@ -5652,6 +5680,10 @@ message OIDCAuthRequest {
   // LoginHint is an optional username/email provided by the client that will be passed
   // to the IdP via the 'login_hint' query parameter.
   string login_hint = 25 [(gogoproto.jsontag) = "login_hint,omitempty"];
+  // Scope, if non-empty, makes the authentication scoped. Scoping does not change core authentication
+  // behavior, but results in a more limited (scoped) set of credentials being issued upon successful
+  // authentication and some differences in locking behavior.
+  string scope = 26;
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -5868,6 +5900,10 @@ message SAMLAuthRequest {
   // SubjectIdentifier is an optional username/email provided by the client that will be
   // passed to prepopulate the IdP's login form
   string SubjectIdentifier = 25 [(gogoproto.jsontag) = "subject_identifier,omitempty"];
+  // Scope, if non-empty, makes the authentication scoped. Scoping does not change core authentication
+  // behavior, but results in a more limited (scoped) set of credentials being issued upon successful
+  // authentication and some differences in locking behavior.
+  string scope = 26;
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -6013,6 +6049,10 @@ message GithubAuthRequest {
   // OAuth flow is used to retrieve GitHub identity info which will be added to
   // the existing user.
   string authenticated_user = 23 [(gogoproto.jsontag) = "authenticated_user,omitempty"];
+  // Scope, if non-empty, makes the authentication scoped. Scoping does not change core authentication
+  // behavior, but results in a more limited (scoped) set of credentials being issued upon successful
+  // authentication and some differences in locking behavior.
+  string scope = 24;
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.
@@ -7547,6 +7587,9 @@ message PluginEntraIDSyncSettings {
 
   // GroupFilters configures which groups should be included or exlcuded.
   repeated PluginSyncFilter group_filters = 6;
+
+  // Source of the Access List owners.
+  EntraIDAccessListOwnersSource access_list_owners_source = 7;
 }
 
 // PluginSyncFilter can specify inclusion or exclusion of a resource.
@@ -7582,6 +7625,20 @@ enum EntraIDCredentialsSource {
   // ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS means the plugin will rely on system-provided credentials
   // for authentication with Azure Entra ID, especially for clusters with no internet access.
   ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS = 2;
+}
+
+// EntraIDAccessListOwnersSource defines the source of Access List owners
+// for the Access Lists created by importing Microsoft Entra ID groups.
+enum EntraIDAccessListOwnersSource {
+  // Source is unspecified.
+  ENTRAID_ACCESS_LIST_OWNERS_SOURCE_UNSPECIFIED = 0;
+  // Use default owners configured in this plugin spec as the Access List owners.
+  ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN = 1;
+  // Use Microsoft Entra ID group owners as Access List owners.
+  ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID = 2;
+  // Merge plugin default owners and Microsoft Entra ID group
+  // owners as Access List owners.
+  ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN_AND_ENTRAID = 3;
 }
 
 // AccessGraphSettings controls settings for syncing access graph specific data.

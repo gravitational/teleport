@@ -1,0 +1,15 @@
+default_install_hook_types:
+  - "pre-push"
+default_stages:
+  - "pre-push"
+  - "manual"
+repos:
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.103.0
+    hooks:
+      - id: terraform_fmt
+      - id: terraform_docs
+        args:
+          - '--args=--config=integrations/terraform-modules/.terraform-docs.yml'
+      - id: terraform_tflint
+      - id: terraform_validate

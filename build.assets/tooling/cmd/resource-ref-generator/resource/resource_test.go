@@ -35,6 +35,10 @@ func replaceBackticks(source string) string {
 }
 
 func TestReferenceDataFromDeclaration(t *testing.T) {
+	camelCaseExceptions := []string{
+		"IdP",
+	}
+
 	cases := []struct {
 		description string
 		source      string
@@ -1628,7 +1632,7 @@ type Metadata struct {
 				t.Fatalf("expected data for %v.%v not found in the source", tc.declInfo.PackageName, tc.declInfo.DeclName)
 			}
 
-			r, err := ReferenceDataFromDeclaration(di, sourceData.TypeDecls)
+			r, err := ReferenceDataFromDeclaration(di, sourceData.TypeDecls, camelCaseExceptions)
 			if tc.errorSubstring == "" {
 				assert.NoError(t, err)
 			} else {
@@ -1694,6 +1698,10 @@ import alias "my/multi/segment/package"
 }
 
 func TestMakeFieldTableInfo(t *testing.T) {
+	camelCaseExceptions := []string{
+		"IdP",
+	}
+
 	cases := []struct {
 		description string
 		input       []rawField
@@ -1741,14 +1749,14 @@ func TestMakeFieldTableInfo(t *testing.T) {
 				{
 					Name:        "locking_mode",
 					Description: `Specifies the locking mode (strict\|best_effort) to be applied with the role.`,
-					Type:        "[LockingMode](#lockingmode)",
+					Type:        "[Locking Mode](#locking-mode)",
 				},
 			},
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.description, func(t *testing.T) {
-			f, err := makeFieldTableInfo(c.input)
+			f, err := makeFieldTableInfo(c.input, camelCaseExceptions)
 			assert.NoError(t, err)
 			assert.Equal(t, c.expected, f)
 		})
@@ -2058,7 +2066,14 @@ my_string: "string"
 	}
 }
 
-func TestMakeSectionName(t *testing.T) {
+func TestSplitCamelCase(t *testing.T) {
+	camelCaseExceptions := []string{
+		"ElastiCache",
+		"IdP",
+		"MySQL",
+		"SAML",
+	}
+
 	cases := []struct {
 		description string
 		original    string
@@ -2068,6 +2083,11 @@ func TestMakeSectionName(t *testing.T) {
 			description: "camel-case name",
 			original:    "ServerSpec",
 			expected:    "Server Spec",
+		},
+		{
+			description: "entire camel-case name excepted",
+			original:    "ElastiCache",
+			expected:    "ElastiCache",
 		},
 		{
 			description: "camel-case name with three words",
@@ -2085,15 +2105,25 @@ func TestMakeSectionName(t *testing.T) {
 			expected:    "SAML Connector",
 		},
 		{
-			description: "IdP",
+			description: "idp",
 			original:    "IdPSAMLOptions",
 			expected:    "IdP SAML Options",
+		},
+		{
+			description: "excepted word with abbreviation",
+			original:    "MySQLOptions",
+			expected:    "MySQL Options",
+		},
+		{
+			description: "one abbreviation",
+			original:    "AWS",
+			expected:    "AWS",
 		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.description, func(t *testing.T) {
-			assert.Equal(t, c.expected, makeSectionName(c.original))
+			assert.Equal(t, c.expected, splitCamelCase(c.original, camelCaseExceptions))
 		})
 	}
 }

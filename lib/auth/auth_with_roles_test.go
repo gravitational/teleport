@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -7160,7 +7161,7 @@ func TestGenerateHostCert(t *testing.T) {
 
 	clusterName := srv.ClusterName()
 
-	_, pub, err := testauthority.New().GenerateKeyPair()
+	_, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	noError := func(err error) bool {
@@ -7330,7 +7331,7 @@ func TestGenerateHostCertsScoped(t *testing.T) {
 
 	s := newScopedTestServerForHost(t, srv.AuthServer, hostID, scope, types.RoleNode)
 
-	_, sshPub, err := testauthority.New().GenerateKeyPair()
+	_, sshPub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 	tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
@@ -10248,6 +10249,63 @@ func TestScopedRoleEvents(t *testing.T) {
 	}, event.Resource.(*types.ResourceHeader), protocmp.Transform()))
 }
 
+// TestWatchAllCacheKinds ensures the system builtin roles can watch every
+// kind used by the proxy cache config. The only exception (and not included in
+// this test) is auth role which has access to all cache kinds and will fail
+// early if there is a mismatch.
+func TestWatchAllCacheKinds(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+
+	for role, watchKinds := range map[types.SystemRole][]types.WatchKind{
+		types.RoleProxy:          cache.ForProxy(cache.Config{}).Watches,
+		types.RoleNode:           cache.ForNode(cache.Config{}).Watches,
+		types.RoleApp:            cache.ForApps(cache.Config{}).Watches,
+		types.RoleDatabase:       cache.ForDatabases(cache.Config{}).Watches,
+		types.RoleOkta:           cache.ForOkta(cache.Config{}).Watches,
+		types.RoleRelay:          cache.ForRelay(cache.Config{}).Watches,
+		types.RoleDiscovery:      cache.ForDiscovery(cache.Config{}).Watches,
+		types.RoleKube:           cache.ForKubernetes(cache.Config{}).Watches,
+		types.RoleWindowsDesktop: cache.ForWindowsDesktop(cache.Config{}).Watches,
+	} {
+		t.Run(string(role), func(t *testing.T) {
+			client, err := srv.NewClient(authtest.TestBuiltin(role))
+			require.NoError(t, err)
+
+			watcher, err := client.NewWatcher(ctx, types.Watch{
+				Kinds:               watchKinds,
+				AllowPartialSuccess: true,
+			})
+			require.NoError(t, err)
+			defer watcher.Close()
+
+			select {
+			case event := <-watcher.Events():
+				require.Equal(t, types.OpInit, event.Type, "expected watch init event")
+				status, ok := event.Resource.(types.WatchStatus)
+				require.True(t, ok, "expected watch status, got %T", event.Resource)
+				require.ElementsMatch(t, collectWatchKind(watchKinds), collectWatchKind(status.GetKinds()),
+					"watch kind confirmation mismatch. check system role permissions",
+				)
+			case <-watcher.Done():
+				require.FailNow(t, "watcher closed unexpectedly", watcher.Error())
+			case <-time.After(5 * time.Second):
+				require.FailNow(t, "timeout waiting for watcher init")
+			}
+		})
+	}
+}
+
+func collectWatchKind(kinds []types.WatchKind) []string {
+	res := make([]string, 0, len(kinds))
+	for _, kind := range kinds {
+		res = append(res, kind.Kind+"_"+kind.SubKind)
+	}
+	return res
+}
+
 func TestKubeKeepAliveServer(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
@@ -10486,7 +10544,7 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 
 			// the test server doesn't create the preset users, so we call createPresetUsers manually
 			if tc.withPresetUsers {
-				auth.CreatePresetUsers(ctx, srv.Auth())
+				auth.CreatePresetUsers(ctx, modules.BuildEnterprise, srv.Auth())
 			}
 
 			// create preexisting users
@@ -11065,4 +11123,128 @@ func TestSAMLIdPRoleOptionCreateUpdateValidation(t *testing.T) {
 			tt.errAssertion(t, err)
 		})
 	}
+}
+
+func TestClusterAlertOperations(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+
+	t.Run("perform alert operations with admin role", func(t *testing.T) {
+		client, err := srv.NewClient(authtest.TestAdmin())
+		require.NoError(t, err)
+		defer client.Close()
+		const testAlertId = "test-alert"
+		t.Run("create ClusterAlert succeeds and can retrieve and delete it", func(t *testing.T) {
+			alert, err := types.NewClusterAlert(testAlertId, "testmessage", types.WithAlertSeverity(types.AlertSeverity_LOW))
+			require.NoError(t, err)
+			require.NoError(t, client.UpsertClusterAlert(ctx, alert))
+
+			retrieved, err := client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+				WithUntargeted: true,
+			})
+			require.NoError(t, err)
+			require.Len(t, retrieved, 1)
+			require.Equal(t, alert.Spec.Message, retrieved[0].Spec.Message)
+			require.Equal(t, alert.Spec.Severity, retrieved[0].Spec.Severity)
+
+			require.NoError(t, client.DeleteClusterAlert(ctx, testAlertId))
+
+			retrieved, err = client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+				WithUntargeted: true,
+			})
+			require.NoError(t, err)
+			require.Empty(t, retrieved)
+		})
+
+		t.Run("acknowledge cluster alert operations", func(t *testing.T) {
+			testAlertAck := "testAlertAck"
+			testAlert, err := types.NewClusterAlert(testAlertAck, "testmessage", types.WithAlertSeverity(types.AlertSeverity_LOW))
+			require.NoError(t, err)
+
+			require.NoError(t, client.UpsertClusterAlert(ctx, testAlert))
+
+			t.Run("create AlertAcknowledgement succeeds and can retrieve and delete it", func(t *testing.T) {
+				require.NoError(t, client.CreateAlertAck(ctx, types.AlertAcknowledgement{
+					AlertID: testAlertAck,
+					Reason:  "test",
+					Expires: time.Now().Add(24 * time.Hour),
+				}))
+
+				retrievedAcks, err := client.GetAlertAcks(ctx)
+				require.NoError(t, err)
+				require.Len(t, retrievedAcks, 1)
+				require.Equal(t, testAlertAck, retrievedAcks[0].AlertID)
+
+				//cluster alert is filtered out since it's acknowledged
+				retrieved, err := client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+					WithUntargeted: true,
+					AlertID:        testAlertAck,
+				})
+				require.NoError(t, err)
+				require.Empty(t, retrieved)
+
+				require.NoError(t, client.ClearAlertAcks(ctx, proto.ClearAlertAcksRequest{
+					AlertID: testAlertAck,
+				}))
+				retrievedAcks, err = client.GetAlertAcks(ctx)
+				require.NoError(t, err)
+				require.Empty(t, retrievedAcks)
+
+				//cluster alert is back since its acknowledgement is cleared
+				retrieved, err = client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+					WithUntargeted: true,
+					AlertID:        testAlertAck,
+				})
+				require.NoError(t, err)
+				require.Len(t, retrieved, 1)
+				require.Equal(t, testAlertAck, retrieved[0].GetMetadata().Name)
+			})
+		})
+	})
+
+	t.Run("perform alert operations with non read and write role fails", func(t *testing.T) {
+		user, _, err := authtest.CreateUserAndRole(srv.Auth(), "someuser", []string{"role"}, nil)
+		require.NoError(t, err)
+		badUser, err := srv.NewClient(authtest.TestUser(user.GetName()))
+		require.NoError(t, err)
+		defer badUser.Close()
+
+		t.Run("create ClusterAlert fails", func(t *testing.T) {
+			testAlertId := "test-alert-non-admin"
+			alert, err := types.NewClusterAlert(testAlertId, "testmessage", types.WithAlertSeverity(types.AlertSeverity_LOW))
+			require.NoError(t, err)
+			err = badUser.UpsertClusterAlert(ctx, alert)
+			require.ErrorContains(t, err, "access denied")
+		})
+		t.Run("get ClusterAlert succeeds but returns nothing", func(t *testing.T) {
+			alerts, err := badUser.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+				WithUntargeted: true,
+			})
+			require.NoError(t, err)
+			require.Empty(t, alerts)
+		})
+		t.Run("delete ClusterAlert fails", func(t *testing.T) {
+			err := badUser.DeleteClusterAlert(ctx, "some-alert-id")
+			require.ErrorContains(t, err, "access denied")
+		})
+		t.Run("create AlertAcknowledgement fails", func(t *testing.T) {
+			err := badUser.CreateAlertAck(ctx, types.AlertAcknowledgement{
+				AlertID: "test-alert-ack-non-admin",
+				Reason:  "test",
+				Expires: time.Now().Add(24 * time.Hour),
+			})
+			require.ErrorContains(t, err, "access denied")
+		})
+		t.Run("get AlertAcknowledgement fails", func(t *testing.T) {
+			_, err := badUser.GetAlertAcks(ctx)
+			require.ErrorContains(t, err, "access denied")
+		})
+		t.Run("clear AlertAcknowledgement fails", func(t *testing.T) {
+			err := badUser.ClearAlertAcks(ctx, proto.ClearAlertAcksRequest{
+				AlertID: "test-alert-ack-non-admin",
+			})
+			require.ErrorContains(t, err, "access denied")
+		})
+	})
 }

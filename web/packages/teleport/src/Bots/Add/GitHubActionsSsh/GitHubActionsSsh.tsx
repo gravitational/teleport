@@ -47,7 +47,7 @@ export function GitHubActionsSsh() {
   return (
     <GitHubSshFlowProvider>
       <GuidedFlow
-        title="GitHub Actions and Machine ID Integration"
+        title="GitHub Actions and Machine & Workload Identity Integration"
         icon={<ResourceIcon name="github" width="20px" />}
         views={views}
         name="GitHub Actions + SSH"

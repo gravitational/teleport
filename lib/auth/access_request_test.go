@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -1552,14 +1551,8 @@ func TestPromotedRequest(t *testing.T) {
 
 func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-	})
+	testModules := modulestest.EnterpriseModules()
+	modulestest.SetTestModules(t, *testModules)
 
 	mustRequest := func(suggestedReviewers ...string) types.AccessRequest {
 		req, err := services.NewAccessRequest("test-user", "admins")
@@ -1746,7 +1739,11 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 			t.Parallel()
 			mem, err := memory.New(memory.Config{})
 			require.NoError(t, err)
-			accessLists, err := local.NewAccessListService(mem, clock)
+
+			accessLists, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+				Backend: mem,
+				Modules: testModules,
+			})
 			require.NoError(t, err)
 
 			ctx := context.Background()

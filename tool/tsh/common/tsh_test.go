@@ -100,6 +100,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 	"github.com/gravitational/teleport/tool/common"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -945,6 +946,113 @@ func TestSwitchingProxies(t *testing.T) {
 	require.Error(t, err)
 
 	cancel()
+}
+
+// TestPrintNodesAsText verifies the expected behavior of printNodesAsText.
+func TestPrintNodesAsText(t *testing.T) {
+	t.Parallel()
+
+	unscopedDirect := &types.ServerV2{
+		Kind: types.KindNode,
+		Metadata: types.Metadata{
+			Name: "unscoped-direct-uuid",
+			Labels: map[string]string{
+				"key": "val",
+			},
+		},
+		Spec: types.ServerSpecV2{
+			Addr:     "1.2.3.4:22",
+			Hostname: "unscoped-direct-name",
+		},
+		Version: types.V2,
+	}
+
+	unscopedTunnel := &types.ServerV2{
+		Kind: types.KindNode,
+		Metadata: types.Metadata{
+			Name: "unscoped-tunnel-uuid",
+		},
+		Spec: types.ServerSpecV2{
+			UseTunnel: true,
+			Hostname:  "unscoped-tunnel-name",
+		},
+		Version: types.V2,
+	}
+
+	scopedDirect := &types.ServerV2{
+		Kind: types.KindNode,
+		Metadata: types.Metadata{
+			Name: "scoped-direct-uuid",
+			Labels: map[string]string{
+				"key1": "val1",
+				"key2": "val2",
+			},
+		},
+		Scope: "/staging/west",
+		Spec: types.ServerSpecV2{
+			Addr:     "1.2.3.4:44",
+			Hostname: "scoped-direct-name",
+		},
+		Version: types.V2,
+	}
+
+	scopedTunnel := &types.ServerV2{
+		Kind: types.KindNode,
+		Metadata: types.Metadata{
+			Name: "scoped-tunnel-uuid",
+		},
+		Scope: "/staging/west",
+		Spec: types.ServerSpecV2{
+			UseTunnel: true,
+			Hostname:  "scoped-tunnel-name",
+		},
+		Version: types.V2,
+	}
+
+	tts := []struct {
+		name    string
+		nodes   []types.Server
+		verbose bool
+	}{
+		{
+			name:    "non-verbose unscoped",
+			nodes:   []types.Server{unscopedDirect, unscopedTunnel},
+			verbose: false,
+		},
+		{
+			name:    "verbose unscoped",
+			nodes:   []types.Server{unscopedDirect, unscopedTunnel},
+			verbose: true,
+		},
+		{
+			name:    "non-verbose scoped",
+			nodes:   []types.Server{scopedDirect, scopedTunnel},
+			verbose: false,
+		},
+		{
+			name:    "verbose scoped",
+			nodes:   []types.Server{scopedDirect, scopedTunnel},
+			verbose: true,
+		},
+		{
+			name:    "mixed scoped and unscoped verbose",
+			nodes:   []types.Server{unscopedDirect, scopedDirect, unscopedTunnel, scopedTunnel},
+			verbose: true,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			printNodesAsText(&buf, tt.nodes, tt.verbose)
+
+			if golden.ShouldSet() {
+				golden.Set(t, buf.Bytes())
+			}
+
+			require.Equal(t, string(golden.Get(t)), buf.String())
+		})
+	}
 }
 
 func TestMakeClient(t *testing.T) {

@@ -26,7 +26,11 @@ import {
   SshOptions,
   TshLoginCommand,
 } from '../types';
-import { buildPtyOptions, getPtyProcessOptions } from './buildPtyOptions';
+import {
+  buildPtyOptions,
+  getPtyProcessOptions,
+  PtyConfigOptions,
+} from './buildPtyOptions';
 
 beforeAll(() => {
   Logger.init(new NullService());
@@ -39,6 +43,17 @@ jest.mock('./resolveShellEnv', () => ({
 const makeSshOptions = (options: Partial<SshOptions> = {}): SshOptions => ({
   noResume: false,
   forwardAgent: false,
+  ...options,
+});
+
+const makeConfigOptions = (
+  options: Partial<PtyConfigOptions> = {}
+): PtyConfigOptions => ({
+  customShellPath: '',
+  ssh: makeSshOptions(),
+  windowsPty: { useConpty: true },
+  tshHome: '',
+  setTeleportAuthServerEnvVar: true,
   ...options,
 });
 
@@ -63,12 +78,7 @@ describe('getPtyProcessOptions', () => {
 
       const { env } = getPtyProcessOptions({
         settings: makeRuntimeSettings(),
-        options: {
-          customShellPath: '',
-          ssh: makeSshOptions(),
-          windowsPty: { useConpty: true },
-          tshHome: '',
-        },
+        options: makeConfigOptions(),
         cmd: cmd,
         env: processEnv,
         shellBinPath: '/bin/zsh',
@@ -99,12 +109,7 @@ describe('getPtyProcessOptions', () => {
 
       const { env } = getPtyProcessOptions({
         settings: makeRuntimeSettings(),
-        options: {
-          customShellPath: '',
-          ssh: makeSshOptions(),
-          windowsPty: { useConpty: true },
-          tshHome: '',
-        },
+        options: makeConfigOptions(),
         cmd: cmd,
         env: processEnv,
         shellBinPath: '/bin/zsh',
@@ -114,7 +119,9 @@ describe('getPtyProcessOptions', () => {
       expect(env.cmdExclusive).toBe('cmd');
       expect(env.shared).toBe('fromCmd');
     });
+  });
 
+  describe('pty.tsh-login', () => {
     it('disables SSH connection resumption on tsh ssh invocations if the option is set', () => {
       const processEnv = {
         processExclusive: 'process',
@@ -132,12 +139,9 @@ describe('getPtyProcessOptions', () => {
 
       const { args } = getPtyProcessOptions({
         settings: makeRuntimeSettings(),
-        options: {
-          customShellPath: '',
+        options: makeConfigOptions({
           ssh: makeSshOptions({ noResume: true }),
-          windowsPty: { useConpty: true },
-          tshHome: '',
-        },
+        }),
         cmd: cmd,
         env: processEnv,
         shellBinPath: '/bin/zsh',
@@ -163,12 +167,9 @@ describe('getPtyProcessOptions', () => {
 
       const { args } = getPtyProcessOptions({
         settings: makeRuntimeSettings(),
-        options: {
-          customShellPath: '',
+        options: makeConfigOptions({
           ssh: makeSshOptions({ forwardAgent: true }),
-          windowsPty: { useConpty: true },
-          tshHome: '',
-        },
+        }),
         cmd: cmd,
         env: processEnv,
         shellBinPath: '/bin/zsh',
@@ -194,12 +195,9 @@ describe('getPtyProcessOptions', () => {
 
       const { args } = getPtyProcessOptions({
         settings: makeRuntimeSettings(),
-        options: {
-          customShellPath: '',
+        options: makeConfigOptions({
           ssh: makeSshOptions({ forwardAgent: false }),
-          windowsPty: { useConpty: true },
-          tshHome: '',
-        },
+        }),
         cmd: cmd,
         env: processEnv,
         shellBinPath: '/bin/zsh',
@@ -230,12 +228,7 @@ describe('buildPtyOptions', () => {
           },
         ],
       }),
-      options: {
-        customShellPath: '',
-        ssh: makeSshOptions(),
-        windowsPty: { useConpty: true },
-        tshHome: '',
-      },
+      options: makeConfigOptions(),
       cmd,
     });
 
@@ -258,12 +251,9 @@ describe('buildPtyOptions', () => {
 
     const { shell, creationStatus } = await buildPtyOptions({
       settings: makeRuntimeSettings(),
-      options: {
+      options: makeConfigOptions({
         customShellPath: '/custom/shell/path/better-shell',
-        ssh: makeSshOptions(),
-        windowsPty: { useConpty: true },
-        tshHome: '',
-      },
+      }),
       cmd,
     });
 
@@ -286,12 +276,7 @@ describe('buildPtyOptions', () => {
 
     const { shell, creationStatus } = await buildPtyOptions({
       settings: makeRuntimeSettings(),
-      options: {
-        customShellPath: '',
-        ssh: makeSshOptions(),
-        windowsPty: { useConpty: true },
-        tshHome: '',
-      },
+      options: makeConfigOptions(),
       cmd,
     });
 
@@ -324,12 +309,7 @@ describe('buildPtyOptions', () => {
           },
         ],
       }),
-      options: {
-        customShellPath: '',
-        ssh: makeSshOptions(),
-        windowsPty: { useConpty: true },
-        tshHome: '',
-      },
+      options: makeConfigOptions(),
       cmd,
       processEnv: {
         // Simulate the user defined WSLENV var.
@@ -338,7 +318,52 @@ describe('buildPtyOptions', () => {
     });
 
     expect(processOptions.env.WSLENV).toBe(
-      'CUSTOM_VAR:KUBECONFIG/p:TERM_PROGRAM:TERM_PROGRAM_VERSION:TELEPORT_CLUSTER:TELEPORT_PROXY:TELEPORT_HOME/p:TELEPORT_TOOLS_VERSION'
+      'CUSTOM_VAR:KUBECONFIG/p:TERM_PROGRAM:TERM_PROGRAM_VERSION:TELEPORT_CLUSTER:TELEPORT_PROXY:TELEPORT_HOME/p:TELEPORT_TOOLS_VERSION:TELEPORT_AUTH_SERVER'
     );
+  });
+
+  it('sets TELEPORT_AUTH_SERVER if setTeleportAuthServerEnvVar is true', async () => {
+    const cmd: ShellCommand = {
+      kind: 'pty.shell',
+      clusterName: 'bar',
+      proxyHost: 'baz',
+      shellId: 'zsh',
+    };
+
+    const {
+      processOptions: { env },
+    } = await buildPtyOptions({
+      settings: makeRuntimeSettings(),
+      options: makeConfigOptions({
+        setTeleportAuthServerEnvVar: true,
+      }),
+      cmd,
+      processEnv: {},
+    });
+
+    expect(env).toHaveProperty('TELEPORT_AUTH_SERVER');
+    expect(env['TELEPORT_AUTH_SERVER']).toEqual(cmd.proxyHost);
+  });
+
+  it('does not set TELEPORT_AUTH_SERVER if setTeleportAuthServerEnvVar is false', async () => {
+    const cmd: ShellCommand = {
+      kind: 'pty.shell',
+      clusterName: 'bar',
+      proxyHost: 'baz',
+      shellId: 'zsh',
+    };
+
+    const {
+      processOptions: { env },
+    } = await buildPtyOptions({
+      settings: makeRuntimeSettings(),
+      options: makeConfigOptions({
+        setTeleportAuthServerEnvVar: false,
+      }),
+      cmd,
+      processEnv: {},
+    });
+
+    expect(env).not.toHaveProperty('TELEPORT_AUTH_SERVER');
   });
 });

@@ -963,8 +963,25 @@ const (
 	// SCIMDeleteEvent is emitted when a resource is deleted via SCIM.
 	SCIMDeleteEvent = "scim.delete"
 
+	// SCIMPatchEvent is emitted when a resource is patched via SCIM.
+	SCIMPatchEvent = "scim.patch"
+
 	// ClientIPRestrictionsUpdateEvent is emitted when a Client IP Restriction list is updated.
 	ClientIPRestrictionsUpdateEvent = "cir.update"
+
+	// VnetConfigCreateEvent is emitted when a Vnet config resource is created.
+	VnetConfigCreateEvent = "vnet.config.create"
+	// VnetConfigUpdateEvent is emitted when a Vnet config resource is updated.
+	VnetConfigUpdateEvent = "vnet.config.update"
+	// VnetConfigDeleteEvent is emitted when a Vnet config resource is deleted.
+	VnetConfigDeleteEvent = "vnet.config.delete"
+
+	// WorkloadClusterCreateEvent is emitted when a WorkloadCluster resource is created.
+	WorkloadClusterCreateEvent = "workload_cluster.create"
+	// WorkloadClusterUpdateEvent is emitted when a WorkloadCluster resource is updated.
+	WorkloadClusterUpdateEvent = "workload_cluster.update"
+	// WorkloadClusterDeleteEvent is emitted when a WorkloadCluster resource is deleted.
+	WorkloadClusterDeleteEvent = "workload_cluster.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

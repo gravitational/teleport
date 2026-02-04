@@ -133,7 +133,8 @@ Run this on the new node to join the cluster:
 
 > teleport start \
    --roles={{.roles}} \
-   --token={{.token}} \{{range .ca_pins}}
+   --token={{.token}} \{{with .secret}}
+   --token-secret={{.}} \{{end}}{{range .ca_pins}}
    --ca-pin={{.}} \{{end}}
    --auth-server={{.auth_server}}
 

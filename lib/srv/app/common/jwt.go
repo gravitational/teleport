@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -42,22 +43,9 @@ func GenerateJWTAndTraits(
 	identity *tlsca.Identity,
 	app types.Application,
 	generator AppTokenGenerator,
+	expires time.Time,
 ) (string, wrappers.Traits, error) {
-	rewrite := app.GetRewrite()
-	traits := identity.Traits
-	roles := identity.Groups
-	if rewrite != nil {
-		switch rewrite.JWTClaims {
-		case types.JWTClaimsRewriteNone:
-			traits = nil
-			roles = nil
-		case types.JWTClaimsRewriteRoles:
-			traits = nil
-		case types.JWTClaimsRewriteTraits:
-			roles = nil
-		case "", types.JWTClaimsRewriteRolesAndTraits:
-		}
-	}
+	roles, traits := RolesAndTraitsForAppToken(identity, app)
 
 	// Request a JWT token that will be attached to all requests.
 	jwt, err := generator.GenerateAppToken(ctx, types.GenerateAppTokenRequest{
@@ -65,7 +53,7 @@ func GenerateJWTAndTraits(
 		Roles:    roles,
 		Traits:   traits,
 		URI:      app.GetURI(),
-		Expires:  identity.Expires,
+		Expires:  expires,
 	})
 	if err != nil {
 		return "", nil, trace.Wrap(err)
@@ -75,4 +63,21 @@ func GenerateJWTAndTraits(
 	}
 	traits[constants.TraitJWT] = []string{jwt}
 	return jwt, traits, trace.Wrap(err)
+}
+
+// RolesAndTraitsForAppToken is a helper to populate roles and traits that are
+// used to generate the app token.
+func RolesAndTraitsForAppToken(identity *tlsca.Identity, app types.Application) ([]string, wrappers.Traits) {
+	rewrite := app.GetRewrite()
+	if rewrite != nil {
+		switch rewrite.JWTClaims {
+		case types.JWTClaimsRewriteNone:
+			return nil, nil
+		case types.JWTClaimsRewriteRoles:
+			return identity.Groups, nil
+		case types.JWTClaimsRewriteTraits:
+			return nil, identity.Traits
+		}
+	}
+	return identity.Groups, identity.Traits
 }

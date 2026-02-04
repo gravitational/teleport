@@ -21,7 +21,7 @@ import { useHistory, useParams } from 'react-router';
 import { Link as InternalLink } from 'react-router-dom';
 import { useTheme } from 'styled-components';
 
-import { ButtonIcon, Flex, Label, Link, MenuItem, Text } from 'design';
+import { ButtonIcon, Flex, Link, MenuItem, Text } from 'design';
 import * as Alerts from 'design/Alert';
 import * as Icons from 'design/Icon';
 import { ArrowLeft } from 'design/Icon';
@@ -33,12 +33,12 @@ import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 import { FeatureBox } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
 import { Guide } from 'teleport/Integrations/Enroll/AwsConsole/Guide';
-import { getStatusAndLabel } from 'teleport/Integrations/helpers';
 import {
   IntegrationOperations,
   useIntegrationOperation,
 } from 'teleport/Integrations/Operations';
 import type { EditableIntegrationFields } from 'teleport/Integrations/Operations/useIntegrationOperation';
+import { StatusLabel } from 'teleport/Integrations/shared/StatusLabel';
 import { AwsOidcHeader } from 'teleport/Integrations/status/AwsOidc/AwsOidcHeader';
 import { ConsoleCardEnrolled } from 'teleport/Integrations/status/AwsOidc/Cards/ConsoleCard';
 import {
@@ -117,7 +117,6 @@ function AwsRaTitle({ integration }: { integration: IntegrationAwsRa }) {
   const theme = useTheme();
   const history = useHistory();
   const integrationOps = useIntegrationOperation();
-  const { status, labelKind } = getStatusAndLabel(integration);
 
   const anchorIdReg = new RegExp('[^\\/]+$');
   const trustAnchorId = integration?.spec?.trustAnchorARN?.match(anchorIdReg);
@@ -150,9 +149,7 @@ function AwsRaTitle({ integration }: { integration: IntegrationAwsRa }) {
             <Text bold fontSize={6}>
               {integration.name}
             </Text>
-            <Label kind={labelKind} aria-label="status" px={3}>
-              {status}
-            </Label>
+            <StatusLabel integration={integration} />
           </Flex>
           <Flex gap={1}>
             Trust Anchor ARN:{' '}

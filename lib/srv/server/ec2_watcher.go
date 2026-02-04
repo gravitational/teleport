@@ -23,7 +23,6 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/account"
@@ -31,7 +30,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -142,17 +140,6 @@ func (i *EC2Instances) ServerInfos() ([]types.ServerInfo, error) {
 	return serverInfos, nil
 }
 
-// Option is a functional option for the Watcher.
-type Option func(*Watcher)
-
-// WithPollInterval sets the interval at which the watcher will fetch
-// instances from AWS.
-func WithPollInterval(interval time.Duration) Option {
-	return func(w *Watcher) {
-		w.pollInterval = interval
-	}
-}
-
 // MakeEvents generates ResourceCreateEvents for these instances.
 func (instances *EC2Instances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
 	resourceType := types.DiscoveredResourceNode
@@ -176,25 +163,6 @@ func (instances *EC2Instances) MakeEvents() map[string]*usageeventsv1.ResourceCr
 		}
 	}
 	return events
-}
-
-// NewEC2Watcher creates a new EC2 watcher instance.
-func NewEC2Watcher(ctx context.Context, fetchersFn func() []Fetcher, missedRotation <-chan []types.Server, opts ...Option) (*Watcher, error) {
-	cancelCtx, cancelFn := context.WithCancel(ctx)
-	watcher := Watcher{
-		fetchersFn:     fetchersFn,
-		ctx:            cancelCtx,
-		cancel:         cancelFn,
-		clock:          clockwork.NewRealClock(),
-		pollInterval:   time.Minute,
-		triggerFetchC:  make(<-chan struct{}),
-		InstancesC:     make(chan Instances),
-		missedRotation: missedRotation,
-	}
-	for _, opt := range opts {
-		opt(&watcher)
-	}
-	return &watcher, nil
 }
 
 // EC2ClientGetter gets an AWS EC2 client for the given region.
@@ -222,8 +190,8 @@ type MatcherToEC2FetcherParams struct {
 }
 
 // MatchersToEC2InstanceFetchers converts a list of AWS EC2 Matchers into a list of AWS EC2 Fetchers.
-func MatchersToEC2InstanceFetchers(ctx context.Context, matcherParams MatcherToEC2FetcherParams) ([]Fetcher, error) {
-	ret := []Fetcher{}
+func MatchersToEC2InstanceFetchers(ctx context.Context, matcherParams MatcherToEC2FetcherParams) ([]Fetcher[*EC2Instances], error) {
+	var ret []Fetcher[*EC2Instances]
 	for _, matcher := range matcherParams.Matchers {
 		fetcher := newEC2InstanceFetcher(ec2FetcherConfig{
 			Matcher:               matcher,
@@ -383,7 +351,7 @@ func ssmRunCommandParameters(ctx context.Context, cfg ec2FetcherConfig) (map[str
 }
 
 // GetMatchingInstances returns a list of EC2 instances from a list of matching Teleport nodes
-func (f *ec2InstanceFetcher) GetMatchingInstances(ctx context.Context, nodes []types.Server, rotation bool) ([]Instances, error) {
+func (f *ec2InstanceFetcher) GetMatchingInstances(ctx context.Context, nodes []types.Server, rotation bool) ([]*EC2Instances, error) {
 	ssmRunParams, err := ssmRunCommandParameters(ctx, f.ec2FetcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -442,15 +410,12 @@ func (f *ec2InstanceFetcher) GetMatchingInstances(ctx context.Context, nodes []t
 
 // chunkInstances splits instances into chunks of 50.
 // This is required because SSM SendCommand API calls only accept up to 50 instance IDs at a time.
-func chunkInstances(instancesByRegion map[string]EC2Instances) []Instances {
-	var instColl []Instances
+func chunkInstances(instancesByRegion map[string]EC2Instances) []*EC2Instances {
+	var instColl []*EC2Instances
 	for _, insts := range instancesByRegion {
 		for i := 0; i < len(insts.Instances); i += awsEC2APIChunkSize {
-			end := i + awsEC2APIChunkSize
-			if end > len(insts.Instances) {
-				end = len(insts.Instances)
-			}
-			inst := EC2Instances{
+			end := min(i+awsEC2APIChunkSize, len(insts.Instances))
+			inst := &EC2Instances{
 				AccountID:           insts.AccountID,
 				Region:              insts.Region,
 				DocumentName:        insts.DocumentName,
@@ -460,7 +425,7 @@ func chunkInstances(instancesByRegion map[string]EC2Instances) []Instances {
 				Integration:         insts.Integration,
 				DiscoveryConfigName: insts.DiscoveryConfigName,
 			}
-			instColl = append(instColl, Instances{EC2: &inst})
+			instColl = append(instColl, inst)
 		}
 	}
 	return instColl
@@ -504,14 +469,14 @@ func (f *ec2InstanceFetcher) matcherRegions(ctx context.Context, awsOpts []awsco
 }
 
 // GetInstances fetches all EC2 instances matching configured filters.
-func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([]Instances, error) {
+func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([]*EC2Instances, error) {
 	ssmRunParams, err := ssmRunCommandParameters(ctx, f.ec2FetcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	f.cachedInstances.clear()
-	var allInstances []Instances
+	var allInstances []*EC2Instances
 
 	awsOpts := []awsconfig.OptionsFn{
 		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: f.Matcher.Integration}),
@@ -543,13 +508,13 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 }
 
 // getInstancesInRegion fetches all EC2 instances in a given region.
-func (f *ec2InstanceFetcher) getInstancesInRegion(ctx context.Context, rotation bool, region string, awsOpts []awsconfig.OptionsFn, ssmRunParams map[string]string) ([]Instances, error) {
+func (f *ec2InstanceFetcher) getInstancesInRegion(ctx context.Context, rotation bool, region string, awsOpts []awsconfig.OptionsFn, ssmRunParams map[string]string) ([]*EC2Instances, error) {
 	ec2Client, err := f.EC2ClientGetter(ctx, region, awsOpts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var instances []Instances
+	var instances []*EC2Instances
 
 	paginator := ec2.NewDescribeInstancesPaginator(ec2Client, &ec2.DescribeInstancesInput{
 		Filters: f.Filters,
@@ -568,7 +533,7 @@ func (f *ec2InstanceFetcher) getInstancesInRegion(ctx context.Context, rotation 
 					end = len(res.Instances)
 				}
 				ownerID := aws.ToString(res.OwnerId)
-				inst := EC2Instances{
+				inst := &EC2Instances{
 					AccountID:           ownerID,
 					Region:              region,
 					DocumentName:        f.Matcher.SSM.DocumentName,
@@ -584,7 +549,7 @@ func (f *ec2InstanceFetcher) getInstancesInRegion(ctx context.Context, rotation 
 				for _, ec2inst := range res.Instances[i:end] {
 					f.cachedInstances.add(ownerID, aws.ToString(ec2inst.InstanceId))
 				}
-				instances = append(instances, Instances{EC2: &inst})
+				instances = append(instances, inst)
 			}
 		}
 	}

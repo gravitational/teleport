@@ -62,7 +62,7 @@ spec:
                           a custom role session name. When not supported, the AWS
                           Session Name will be the X.509 certificate''s serial number.
                           When supported, the AWS Session Name will be the identity''s
-                          username. This values comes from: https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ProfileDetail.html
+                          username. This value comes from: https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ProfileDetail.html
                           / acceptRoleSessionName'
                         type: boolean
                       profile_arn:
@@ -141,8 +141,8 @@ spec:
                     type: object
                 type: object
               identity_center:
-                description: IdentityCenter encasulates AWS identity-center specific
-                  information. Only valid for Identity Center account apps.
+                description: IdentityCenter encapsulates information specific to AWS
+                  IAM Identity Center. Only valid for Identity Center account apps.
                 nullable: true
                 properties:
                   account_id:
@@ -204,7 +204,7 @@ spec:
               required_app_names:
                 description: RequiredAppNames is a list of app names that are required
                   for this app to function. Any app listed here will be part of the
-                  authentication redirect flow and authenticate along side this app.
+                  authentication redirect flow and authenticate alongside this app.
                 items:
                   type: string
                 nullable: true

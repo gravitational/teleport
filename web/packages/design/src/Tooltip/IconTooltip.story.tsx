@@ -18,7 +18,7 @@
 
 import styled, { useTheme } from 'styled-components';
 
-import { ButtonPrimary, Flex, Text } from 'design';
+import { Box, ButtonPrimary, Flex, Link, Text } from 'design';
 import AGPLLogoDark from 'design/assets/images/agpl-dark.svg';
 import AGPLLogoLight from 'design/assets/images/agpl-light.svg';
 import { P } from 'design/Text/Text';
@@ -36,25 +36,33 @@ export const ShortContent = () => (
       <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
         Hover the icon
       </span>
-      <IconTooltip position="bottom">"some popover content"</IconTooltip>
+      <IconTooltip position="bottom">
+        <TooltipContent />
+      </IconTooltip>
     </div>
     <div style={{ gridColumn: '1/2' }}>
       <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
         Hover the icon
       </span>
-      <IconTooltip position="right">"some popover content"</IconTooltip>
+      <IconTooltip position="right">
+        <TooltipContent />
+      </IconTooltip>
     </div>
     <div style={{ gridColumn: '3/4' }}>
       <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
         Hover the icon
       </span>
-      <IconTooltip position="left">"some popover content"</IconTooltip>
+      <IconTooltip position="left">
+        <TooltipContent />
+      </IconTooltip>
     </div>
     <div style={{ gridColumn: '2/3' }}>
       <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
         Hover the icon
       </span>
-      <IconTooltip position="top">"some popover content"</IconTooltip>
+      <IconTooltip position="top">
+        <TooltipContent />
+      </IconTooltip>
     </div>
   </Grid>
 );
@@ -118,7 +126,9 @@ export const WithMutedIconColor = () => (
     <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
       Hover the icon
     </span>
-    <IconTooltip muteIconColor>"some popover content"</IconTooltip>
+    <IconTooltip muteIconColor>
+      <TooltipContent />
+    </IconTooltip>
   </>
 );
 
@@ -127,7 +137,9 @@ export const WithKindWarning = () => (
     <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
       Hover the icon
     </span>
-    <IconTooltip kind="warning">"some popover content"</IconTooltip>
+    <IconTooltip kind="warning">
+      <TooltipContent />
+    </IconTooltip>
   </>
 );
 
@@ -136,15 +148,23 @@ export const WithKindError = () => (
     <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
       Hover the icon
     </span>
-    <IconTooltip kind="error">"some popover content"</IconTooltip>
+    <IconTooltip kind="error">
+      <TooltipContent />
+    </IconTooltip>
   </>
 );
 
 export const HoverToolTip = () => (
   <Flex alignItems="baseline" gap={2}>
     <span>Hover the</span>
-    <HoverTooltip placement="bottom" tipContent="some popover content">
+    <HoverTooltip placement="bottom" tipContent={<TooltipContent />}>
       <ButtonPrimary>button</ButtonPrimary>
     </HoverTooltip>
   </Flex>
+);
+
+const TooltipContent = () => (
+  <Box>
+    some popover content with <Link>link color testing</Link>
+  </Box>
 );

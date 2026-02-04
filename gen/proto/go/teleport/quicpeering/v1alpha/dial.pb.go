@@ -66,7 +66,9 @@ type DialRequest struct {
 	// and authentication check. If set, all other fields are functionally
 	// ignored, although nonce and timestamp should still be set so they can be
 	// logged.
-	Ping          bool `protobuf:"varint,7,opt,name=ping,proto3" json:"ping,omitempty"`
+	Ping bool `protobuf:"varint,7,opt,name=ping,proto3" json:"ping,omitempty"`
+	// The scope the target must belong to.
+	TargetScope   string `protobuf:"bytes,8,opt,name=target_scope,json=targetScope,proto3" json:"target_scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -148,6 +150,13 @@ func (x *DialRequest) GetPing() bool {
 		return x.Ping
 	}
 	return false
+}
+
+func (x *DialRequest) GetTargetScope() string {
+	if x != nil {
+		return x.TargetScope
+	}
+	return ""
 }
 
 // A stringy Go net.Addr. Can be converted to and from a lib/utils.NetAddr.
@@ -258,7 +267,7 @@ var File_teleport_quicpeering_v1alpha_dial_proto protoreflect.FileDescriptor
 
 const file_teleport_quicpeering_v1alpha_dial_proto_rawDesc = "" +
 	"\n" +
-	"'teleport/quicpeering/v1alpha/dial.proto\x12\x1cteleport.quicpeering.v1alpha\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x17google/rpc/status.proto\"\xc2\x02\n" +
+	"'teleport/quicpeering/v1alpha/dial.proto\x12\x1cteleport.quicpeering.v1alpha\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x17google/rpc/status.proto\"\xe5\x02\n" +
 	"\vDialRequest\x12$\n" +
 	"\x0etarget_host_id\x18\x01 \x01(\tR\ftargetHostId\x12'\n" +
 	"\x0fconnection_type\x18\x02 \x01(\tR\x0econnectionType\x12:\n" +
@@ -266,7 +275,8 @@ const file_teleport_quicpeering_v1alpha_dial_proto_rawDesc = "" +
 	"\vdestination\x18\x04 \x01(\v2\".teleport.quicpeering.v1alpha.AddrR\vdestination\x128\n" +
 	"\ttimestamp\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x14\n" +
 	"\x05nonce\x18\x06 \x01(\x06R\x05nonce\x12\x12\n" +
-	"\x04ping\x18\a \x01(\bR\x04ping\"4\n" +
+	"\x04ping\x18\a \x01(\bR\x04ping\x12!\n" +
+	"\ftarget_scope\x18\b \x01(\tR\vtargetScope\"4\n" +
 	"\x04Addr\x12\x18\n" +
 	"\anetwork\x18\x01 \x01(\tR\anetwork\x12\x12\n" +
 	"\x04addr\x18\x02 \x01(\tR\x04addr\":\n" +

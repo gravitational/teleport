@@ -412,7 +412,6 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 	}
 
 	certDER, _, err := winpki.GenerateWindowsDesktopCredentials(ctx, clusterAPI, &winpki.GenerateCredentialsRequest{
-		CAType:             types.UserCA,
 		Username:           a.windowsUser,
 		Domain:             a.windowsDomain,
 		PKIDomain:          a.windowsPKIDomain,
@@ -1147,7 +1146,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 	// someone is programatically parsing stdout.
 	_, _ = fmt.Fprintln(
 		os.Stderr,
-		"\nGenerating credentials to allow a machine access to Teleport? We recommend Teleport's Machine ID! Find out more at https://goteleport.com/r/machineid-tip",
+		"\nGenerating credentials to allow a machine access to Teleport? We recommend Teleport's Machine & Workload Identity! Find out more at https://goteleport.com/r/machineid-tip",
 	)
 
 	fmt.Fprintf(a.helperMsgDst(), "The credentials have been written to %s\n", strings.Join(filesWritten, ", "))

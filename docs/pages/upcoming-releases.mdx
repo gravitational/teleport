@@ -32,25 +32,24 @@ We plan to release the following versions in the coming months:
 
 | Version | Date                       |
 |---------|----------------------------|
-| 18.7.0  | Week of January 26, 2026   |
+| 18.7.0  | Week of February 02, 2026  |
+| 18.8.0  | Week of March 02, 2026     |
 | 19.0.0  | August 2026                |
 
 ### 18.7.0
-
-#### VNet for Linux
-
-Teleport VNet support will be extended to Linux workstations.
 
 #### Session timeline view for Identity Security
 
 Session player for Identity Security users will receive an enhanced timeline view with
 per-command session breakdown.
 
-#### Improvements to access list creation UX
+#### Organization-level auto-discovery for AWS EC2 instances
 
-Teleport will provide guided in-product UX for creating common types of access lists
-centered around granting users permissions to resources and permissions to request
-access to resources.
+AWS auto-discovery will support EC2 instance enrollment from all or a subset of accounts
+of an AWS organization without having to configure per-account discovery.
+
+Organization-level discovery for other resources within AWS (RDS, EKS) as well as other
+for cloud providers will follow in future releases.
 
 #### Terraform-native flow for configuration of AWS EC2 auto-discovery
 
@@ -69,14 +68,44 @@ Teleport users will be able to see specific IAM roles available to them when req
 elevated access to AWS CLI/console. Future releases will extend support for specific
 principal selection to access requests for other resource types as well.
 
-#### RoleV8 support in terraform provider
-
-Teleport terraform provider will support RoleV8 out of the box.
-
 #### Entra ID integration status page
 
 Teleport users will be able to see status of the configured Entra ID integration in the
 web UI.
+
+#### Inventory UI
+
+Teleport's web UI will include a new page showing the complete inventory of all instances
+and bots connected to the cluster.
+
+### 18.8.0
+
+#### VNet for Linux
+
+Teleport VNet support will be extended to Linux workstations.
+
+*Delayed from 18.7.0.*
+
+#### Improvements to access list creation UX
+
+Teleport will provide guided in-product UX for creating common types of access lists
+centered around granting users permissions to resources and permissions to request
+access to resources.
+
+*Delayed from 18.7.0.*
+
+#### Managed Updates UI
+
+Teleport's web UI will include new functionality for working with managed updates.
+The UI will offer the ability to view and manage the updater configuration as well
+as monitor the progress of update rollouts.
+
+#### Split Windows CA
+
+Teleport will introduce a new Windows CA responsible for issuing user certificates for 
+Windows Desktop access. Currently the User CA issues those certificates, as they are end-user certs. 
+Splitting the CAs improves Teleport's security posture by introducing a more specialized CA
+and allows both CAs to be rotated independently.
 
 ## Teleport Cloud
 
@@ -84,8 +113,8 @@ The key deliverables for Teleport Cloud in the next quarter:
 
 | Week of            | Description                                                  |
 |--------------------|--------------------------------------------------------------|
-| December 29, 2025   | Teleport 18.6 will begin rollout on Cloud.                   |
-| December 29, 2025   | Teleport 18.6 agents will begin rollout to eligible tenants. |
+| February 2, 2026   | Teleport 18.7 will begin rollout on Cloud.                   |
+| February 2, 2026   | Teleport 18.7 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 

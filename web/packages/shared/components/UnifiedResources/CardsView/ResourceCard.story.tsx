@@ -92,7 +92,10 @@ const additionalResources = [
 type StoryProps = {
   withCheckbox: boolean;
   withPin: boolean;
+  withCopy: boolean;
+  withHoverState: boolean;
   withLabelIcon: boolean;
+  showResourceSelectedIcon: boolean;
   labelIconPlacement: 'left' | 'right';
   labelKind: LabelKind;
 };
@@ -106,7 +109,16 @@ const meta: Meta<StoryProps> = {
     withPin: {
       control: { type: 'boolean' },
     },
+    withCopy: {
+      control: { type: 'boolean' },
+    },
+    withHoverState: {
+      control: { type: 'boolean' },
+    },
     withLabelIcon: {
+      control: { type: 'boolean' },
+    },
+    showResourceSelectedIcon: {
       control: { type: 'boolean' },
     },
     labelIconPlacement: {
@@ -123,6 +135,9 @@ const meta: Meta<StoryProps> = {
     withCheckbox: true,
     withPin: true,
     withLabelIcon: false,
+    withCopy: true,
+    withHoverState: true,
+    showResourceSelectedIcon: false,
   },
 };
 export default meta;
@@ -176,9 +191,12 @@ export function Cards(props: StoryProps) {
               onShowStatusInfo={() => null}
               showingStatusInfo={false}
               viewItem={res}
+              showResourceSelectedIcon={props.showResourceSelectedIcon}
               visibleInputFields={{
                 checkbox: props.withCheckbox,
                 pin: props.withPin,
+                copy: props.withCopy,
+                hoverState: props.withHoverState,
               }}
               {...((props.withLabelIcon || props.labelKind) && {
                 resourceLabelConfig: {

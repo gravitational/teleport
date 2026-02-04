@@ -97,7 +97,7 @@ export const ButtonWithMenu = <Element extends ElementType = 'button'>(
         {text}
       </ButtonBorder>
       <ButtonBorder
-        setRef={moreButtonRef}
+        ref={moreButtonRef}
         px={1}
         size={size}
         onClick={() => setIsOpen(true)}

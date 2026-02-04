@@ -105,6 +105,8 @@ message ClientParams {
 message TokenInit {
   // ClientParams holds parameters for the specific type of client trying to join.
   ClientParams client_params = 1;
+  // The secret value that must be provided when using the token join method.
+  string secret = 2;
 }
 
 // OIDCInit holds the OIDC identity token used for all OIDC-based join methods.

@@ -5073,10 +5073,16 @@ readLoop:
 	require.True(t, hasLeave, "session leave event not found")
 	require.True(t, hasEnd, "session end event not found")
 
-	// ensure session upload directory is empty
+	// ensure session upload directory is empty, apart from the pending directory
 	fi, err := os.ReadDir(sessionsDir)
 	require.NoError(t, err)
-	require.Empty(t, fi)
+	require.Len(t, fi, 1)
+	assert.Equal(t, "pending", fi[0].Name())
+	assert.True(t, fi[0].IsDir())
+
+	fi, err = os.ReadDir(filepath.Join(sessionsDir, "pending"))
+	require.NoError(t, err)
+	assert.Empty(t, fi)
 }
 
 // testPAM checks that Teleport PAM integration works correctly. In this case
@@ -7249,7 +7255,7 @@ func dumpGoroutineProfile() {
 
 // TestWebProxyInsecure makes sure that proxy endpoint works when TLS is disabled.
 func TestWebProxyInsecure(t *testing.T) {
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	privateKey, publicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	rc := helpers.NewInstance(t, helpers.InstanceConfig{
@@ -7294,7 +7300,7 @@ func TestTraitsPropagation(t *testing.T) {
 	ctx := t.Context()
 	log := logtest.NewLogger()
 
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	privateKey, publicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	// Create root cluster.
@@ -8575,7 +8581,7 @@ func TestProxySSHPortMultiplexing(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+			privateKey, publicKey, err := testauthority.GenerateKeyPair()
 			require.NoError(t, err)
 
 			rc := helpers.NewInstance(t, helpers.InstanceConfig{
@@ -8718,7 +8724,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 			authCfg.Proxy.Enabled = false
 			authCfg.SSH.Enabled = false
 
-			privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+			privateKey, publicKey, err := testauthority.GenerateKeyPair()
 			require.NoError(t, err)
 
 			auth := helpers.NewInstance(t, helpers.InstanceConfig{
@@ -8753,7 +8759,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 			})
 
 			// create a proxy/node instance
-			privateKey, publicKey, err = testauthority.New().GenerateKeyPair()
+			privateKey, publicKey, err = testauthority.GenerateKeyPair()
 			require.NoError(t, err)
 
 			node := helpers.NewInstance(t, helpers.InstanceConfig{
@@ -8861,7 +8867,7 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 	authCfg.Proxy.Enabled = false
 	authCfg.SSH.Enabled = false
 
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	privateKey, publicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	auth := helpers.NewInstance(t, helpers.InstanceConfig{
@@ -8893,7 +8899,7 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 	})
 
 	// create a proxy/node instance
-	privateKey, publicKey, err = testauthority.New().GenerateKeyPair()
+	privateKey, publicKey, err = testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	node := helpers.NewInstance(t, helpers.InstanceConfig{

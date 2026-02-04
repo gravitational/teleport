@@ -3208,15 +3208,19 @@ func TestAzureVMDiscovery(t *testing.T) {
 			emitter.t = t
 
 			if tc.discoveryConfig != nil {
+				sub := server.newDiscoveryConfigChangedSub()
+
 				_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, tc.discoveryConfig)
 				require.NoError(t, err)
 
-				// Wait for the DiscoveryConfig to be added to the dynamic matchers
-				require.Eventually(t, func() bool {
-					server.muDynamicServerAzureFetchers.RLock()
-					defer server.muDynamicServerAzureFetchers.RUnlock()
-					return len(server.dynamicServerAzureFetchers) > 0
-				}, 1*time.Second, 50*time.Millisecond)
+				// wait for discovery config update
+				select {
+				case <-sub:
+				case <-time.After(3 * time.Second):
+					require.Fail(t, "timed out waiting for an update")
+				case <-t.Context().Done():
+					require.Fail(t, "test context done while waiting for an update")
+				}
 			}
 
 			require.NoError(t, server.Start())
@@ -3522,18 +3526,22 @@ func TestGCPVMDiscovery(t *testing.T) {
 			emitter.t = t
 
 			if tc.discoveryConfig != nil {
+				sub := server.newDiscoveryConfigChangedSub()
+
 				_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, tc.discoveryConfig)
 				require.NoError(t, err)
 
-				// Wait for the DiscoveryConfig to be added to the dynamic matchers
-				require.Eventually(t, func() bool {
-					server.muDynamicServerGCPFetchers.RLock()
-					defer server.muDynamicServerGCPFetchers.RUnlock()
-					return len(server.dynamicServerGCPFetchers) > 0
-				}, 1*time.Second, 100*time.Millisecond)
+				// wait for discovery config update
+				select {
+				case <-sub:
+				case <-time.After(3 * time.Second):
+					t.Fatal("timed out waiting for channel update")
+				case <-t.Context().Done():
+					require.Fail(t, "test context done while waiting for an update")
+				}
 			}
 
-			go server.Start()
+			require.NoError(t, server.Start())
 			t.Cleanup(server.Stop)
 
 			if len(tc.wantInstalledInstances) > 0 {

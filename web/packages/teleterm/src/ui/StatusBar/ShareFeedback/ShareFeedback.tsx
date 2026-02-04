@@ -44,7 +44,7 @@ export function ShareFeedback() {
         css={`
           position: relative;
         `}
-        setRef={buttonRef}
+        ref={buttonRef}
         title="Share feedback"
         size="small"
         onClick={openShareFeedback}

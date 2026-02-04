@@ -22,6 +22,7 @@ import { AwsRolesAnywhereSetup } from 'teleport/Integrations/Enroll/AwsConsole/A
 import { IntegrationKind } from 'teleport/services/integrations';
 
 import { AwsOidc } from './AwsOidc';
+import { EnrollAws } from './Cloud/Aws';
 
 export function getRoutesToEnrollIntegrations() {
   return [
@@ -35,6 +36,12 @@ export function getRoutesToEnrollIntegrations() {
       exact
       path={cfg.getIntegrationEnrollRoute(IntegrationKind.AwsOidc)}
       component={AwsOidc}
+    />,
+    <Route
+      key={IntegrationKind.AwsCloud}
+      exact
+      path={cfg.getIntegrationEnrollRoute(IntegrationKind.AwsCloud)}
+      component={EnrollAws}
     />,
   ];
 }

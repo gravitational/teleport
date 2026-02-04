@@ -17,6 +17,7 @@
 package resource
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -190,13 +191,21 @@ type rawType struct {
 	fields []rawField
 }
 
+// kindTableFormatOptions configures the way the generator formats YAML kinds
+// for the field table in a reference page.
+type kindTableFormatOptions struct {
+	// camelCaseExceptions is a list of strings to exempt when splitting
+	// camel-case words.
+	camelCaseExceptions []string
+}
+
 // yamlKindNode represents a node in a potentially recursive YAML type, such as
 // an integer, a map of integers to strings, a sequence of maps of strings to
 // strings, etc. Used for printing example YAML documents and tables of fields.
 // This is not intended to be a comprehensive YAML AST.
 type yamlKindNode interface {
 	// Generate a string representation to include in a table of fields.
-	formatForTable() string
+	formatForTable(kindTableFormatOptions) string
 	// Generate an example YAML value for the type with the provided number
 	// of indendations.
 	formatForExampleYAML(indents int) string
@@ -210,7 +219,7 @@ type yamlKindNode interface {
 // for this kind.
 type nonYAMLKind struct{}
 
-func (n nonYAMLKind) formatForTable() string {
+func (n nonYAMLKind) formatForTable(opts kindTableFormatOptions) string {
 	return ""
 }
 
@@ -227,8 +236,8 @@ type yamlSequence struct {
 	elementKind yamlKindNode
 }
 
-func (y yamlSequence) formatForTable() string {
-	return `[]` + y.elementKind.formatForTable()
+func (y yamlSequence) formatForTable(opts kindTableFormatOptions) string {
+	return `[]` + y.elementKind.formatForTable(opts)
 }
 
 func (y yamlSequence) formatForExampleYAML(indents int) string {
@@ -279,8 +288,8 @@ func (y yamlMapping) formatForExampleYAML(indents int) string {
 	return fmt.Sprintf("\n%v\n%v\n%v", kv, kv, kv)
 }
 
-func (y yamlMapping) formatForTable() string {
-	return fmt.Sprintf("map[%v]%v", y.keyKind.formatForTable(), y.valueKind.formatForTable())
+func (y yamlMapping) formatForTable(opts kindTableFormatOptions) string {
+	return fmt.Sprintf("map[%v]%v", y.keyKind.formatForTable(opts), y.valueKind.formatForTable(opts))
 }
 
 func (y yamlMapping) customFieldData() []PackageInfo {
@@ -291,7 +300,7 @@ func (y yamlMapping) customFieldData() []PackageInfo {
 
 type yamlString struct{}
 
-func (y yamlString) formatForTable() string {
+func (y yamlString) formatForTable(opts kindTableFormatOptions) string {
 	return "string"
 }
 
@@ -305,7 +314,7 @@ func (y yamlString) customFieldData() []PackageInfo {
 
 type yamlBase64 struct{}
 
-func (y yamlBase64) formatForTable() string {
+func (y yamlBase64) formatForTable(opts kindTableFormatOptions) string {
 	return "base64-encoded string"
 }
 
@@ -319,7 +328,7 @@ func (y yamlBase64) customFieldData() []PackageInfo {
 
 type yamlNumber struct{}
 
-func (y yamlNumber) formatForTable() string {
+func (y yamlNumber) formatForTable(opts kindTableFormatOptions) string {
 	return "number"
 }
 
@@ -333,7 +342,7 @@ func (y yamlNumber) customFieldData() []PackageInfo {
 
 type yamlBool struct{}
 
-func (y yamlBool) formatForTable() string {
+func (y yamlBool) formatForTable(opts kindTableFormatOptions) string {
 	return "Boolean"
 }
 
@@ -368,11 +377,12 @@ func (y yamlCustomType) formatForExampleYAML(indents int) string {
 	return leading + "# [...]"
 }
 
-func (y yamlCustomType) formatForTable() string {
+func (y yamlCustomType) formatForTable(opts kindTableFormatOptions) string {
+	name := splitCamelCase(y.name, opts.camelCaseExceptions)
 	return fmt.Sprintf(
 		"[%v](#%v)",
-		y.name,
-		strings.ReplaceAll(strings.ToLower(y.name), " ", "-"),
+		name,
+		strings.ReplaceAll(strings.ToLower(name), " ", "-"),
 	)
 }
 
@@ -490,20 +500,39 @@ func getJSONTag(tags string) string {
 	return strings.TrimSuffix(kv[1], ",omitempty")
 }
 
-var camelCaseExceptions = []string{
-	"IdP",
-}
-var abbreviationWordBoundary *regexp.Regexp = regexp.MustCompile(`([A-Z]{2,})([A-Z][a-z0-9])`)
-var camelCaseWordBoundary *regexp.Regexp = regexp.MustCompile(
-	fmt.Sprintf(`(%v|[a-z]+)([A-Z])`, strings.Join(camelCaseExceptions, "|")),
-)
+var camelCaseWordBoundary = regexp.MustCompile(`([a-z0-9])([A-Z][a-z0-9])`)
 
-// makeSectionName edits the original name of a declaration to make it more
+// splitCamelCase edits the original name of a declaration to make it more
 // suitable as a section within the resource reference.
-func makeSectionName(original string) string {
-	s := abbreviationWordBoundary.ReplaceAllString(original, "$1 $2")
-	s = camelCaseWordBoundary.ReplaceAllString(s, "$1 $2")
-	return s
+func splitCamelCase(original string, camelCaseExceptions []string) string {
+	exceptionMap := make(map[string]struct{})
+	for _, e := range camelCaseExceptions {
+		exceptionMap[e] = struct{}{}
+	}
+
+	// Ensure that each exception occupies its own word. This way, we can
+	// feed each exception-only word to the result and split the remaining
+	// camel case boundaries.
+	exceptions := regexp.MustCompile(
+		fmt.Sprintf("(%v)", strings.Join(camelCaseExceptions, "|")),
+	)
+	split := exceptions.ReplaceAllString(original, " $1 ")
+	words := bufio.NewScanner(strings.NewReader(split))
+
+	// Iterate through the words we have so far, preserving exceptions and
+	// splitting the remaining camel-cased words.
+	var result bytes.Buffer
+	words.Split(bufio.ScanWords)
+	for words.Scan() {
+		word := words.Text()
+		if _, ok := exceptionMap[word]; ok {
+			result.WriteString(word + " ")
+			continue
+		}
+		result.WriteString(camelCaseWordBoundary.ReplaceAllString(word, "$1 $2") + " ")
+	}
+
+	return strings.Trim(result.String(), " ")
 }
 
 // isByteSlice returns whether t is a []byte.
@@ -542,7 +571,7 @@ func getYAMLTypeForExpr(exp ast.Expr, pkg string, allDecls map[PackageInfo]Decla
 			}
 
 			return yamlCustomType{
-				name:            makeSectionName(t.Name),
+				name:            t.Name,
 				declarationInfo: info,
 			}, nil
 		}
@@ -590,7 +619,7 @@ func getYAMLTypeForExpr(exp ast.Expr, pkg string, allDecls map[PackageInfo]Decla
 		}
 
 		return yamlCustomType{
-			name:            makeSectionName(t.Sel.Name),
+			name:            t.Sel.Name,
 			declarationInfo: info,
 		}, nil
 	default:
@@ -652,14 +681,16 @@ func makeRawField(field *ast.Field, packageName string, allDecls map[PackageInfo
 
 // makeFieldTableInfo assembles a slice of human-readable information about
 // fields within a Go struct to include within the resource reference.
-func makeFieldTableInfo(fields []rawField) ([]Field, error) {
+func makeFieldTableInfo(fields []rawField, camelCaseExceptions []string) ([]Field, error) {
 	var result []Field
 	for _, field := range fields {
 		var desc string
 		var typ string
 
 		desc = field.doc
-		typ = field.kind.formatForTable()
+		typ = field.kind.formatForTable(kindTableFormatOptions{
+			camelCaseExceptions: camelCaseExceptions,
+		})
 		// Escape pipes so they do not affect table rendering.
 		desc = strings.ReplaceAll(desc, "|", `\|`)
 		// Remove surrounding spaces and inner line breaks.
@@ -818,7 +849,11 @@ func NamedImports(file *ast.File) map[string]string {
 
 // ReferenceDataFromDeclaration gets data for the reference by examining decl.
 // Looks up decl's fields in allDecls and methods in allMethods.
-func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo) (map[PackageInfo]ReferenceEntry, error) {
+func ReferenceDataFromDeclaration(
+	decl DeclarationInfo,
+	allDecls map[PackageInfo]DeclarationInfo,
+	camelCaseExceptions []string,
+) (map[PackageInfo]ReferenceEntry, error) {
 	rs, err := typeForDecl(decl, allDecls)
 	if err != nil {
 		return nil, err
@@ -842,7 +877,7 @@ func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo
 	refs := make(map[PackageInfo]ReferenceEntry)
 	description = strings.Trim(strings.ReplaceAll(description, "\n", " "), " ")
 	entry := ReferenceEntry{
-		SectionName: makeSectionName(rs.name),
+		SectionName: splitCamelCase(rs.name, camelCaseExceptions),
 		Description: printableDescription(description, rs.name),
 		SourcePath:  decl.FilePath,
 		YAMLExample: example,
@@ -853,7 +888,7 @@ func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo
 		PackageName: decl.PackageName,
 	}
 
-	fld, err := makeFieldTableInfo(fieldsToProcess)
+	fld, err := makeFieldTableInfo(fieldsToProcess, camelCaseExceptions)
 	if err != nil {
 		return nil, err
 	}
@@ -895,7 +930,7 @@ func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo
 			if !ok {
 				continue
 			}
-			r, err := ReferenceDataFromDeclaration(gd, allDecls)
+			r, err := ReferenceDataFromDeclaration(gd, allDecls, camelCaseExceptions)
 			if errors.As(err, &NotAGenDeclError{}) {
 				continue
 			}

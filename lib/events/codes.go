@@ -120,6 +120,8 @@ const (
 	SessionDataCode = "T2006I"
 	// AppSessionStartCode is the application session start code.
 	AppSessionStartCode = "T2007I"
+	// AppSessionStartFailureCode is the application session start failure code.
+	AppSessionStartFailureCode = "T2007E"
 	// AppSessionChunkCode is the application session chunk create code.
 	AppSessionChunkCode = "T2008I"
 	// AppSessionRequestCode is the application request/response code.
@@ -794,11 +796,11 @@ const (
 	// SCIMResourceDeleteSuccessCode indicates a resource was successfully
 	// deleted via SCIM
 	SCIMResourceDeleteSuccessCode = "TSCIM003I"
-	// SCIMResourceDeleteFailureCode indicates a indicates a failed attempt to
-	// update a resource via SCIM
+	// SCIMResourceDeleteFailureCode indicates a failed attempt to
+	// delete a resource via SCIM
 	SCIMResourceDeleteFailureCode = "TSCIM003E"
 	// SCIMGetResourceSuccessCode indicates a resource was successfully fetched
-	// fron Teleport via SCIM
+	// from Teleport via SCIM
 	SCIMGetResourceSuccessCode = "TSCIM004I"
 	// SCIMGetResourceFailureCode indicates a failed attempt to fetch a
 	// resource via SCIM
@@ -809,8 +811,29 @@ const (
 	// SCIMListResourcesFailureCode indicates a failed attempt to list resources
 	// via SCIM
 	SCIMListResourcesFailureCode = "TSCIM005E"
+	// SCIMResourcePatchSuccessCode indicates a resource was successfully patched
+	// via SCIM
+	SCIMResourcePatchSuccessCode = "TSCIM006I"
+	// SCIMResourcePatchFailureCode indicates a failed attempt to patch a resource
+	// via SCIM
+	SCIMResourcePatchFailureCode = "TSCIM006E"
+
 	// ClientIPRestrictionsUpdateCode is the Client IP Restriction update event code.
 	ClientIPRestrictionsUpdateCode = "CIR001I"
+
+	// VnetConfigCreateCode is the Vnet config create event code.
+	VnetConfigCreateCode = "TVNET001I"
+	// VnetConfigUpdateCode is the Vnet config update event code.
+	VnetConfigUpdateCode = "TVNET002I"
+	// VnetConfigDeleteCode is the Vnet config delete event code.
+	VnetConfigDeleteCode = "TVNET003I"
+
+	// WorkloadClusterCreateCode is the workload cluster create event code.
+	WorkloadClusterCreateCode = "WC001I"
+	// WorkloadClusterUpdateCode is the workload cluster update event code.
+	WorkloadClusterUpdateCode = "WC002I"
+	// WorkloadClusterDeleteCode is the workload cluster delete event code.
+	WorkloadClusterDeleteCode = "WC003I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

@@ -49,7 +49,7 @@ func (s *Server) handleStdioToSSE(ctx context.Context, sessionCtx *SessionCtx) e
 		return trace.Wrap(err, "parsing SSE URI")
 	}
 
-	session, err := s.makeSessionHandlerWithJWT(ctx, sessionCtx)
+	session, err := s.makeSessionHandler(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err, "setting up session handler")
 	}
@@ -146,7 +146,9 @@ type sseHTTPTransport struct {
 }
 
 func (t *sseHTTPTransport) RoundTrip(r *http.Request) (resp *http.Response, err error) {
-	t.session.rewriteHTTPRequestHeaders(r)
+	if err := t.session.rewriteHTTPRequestHeaders(r); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return t.targetTransport.RoundTrip(r)
 }
 

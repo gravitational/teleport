@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/forward"
@@ -664,11 +665,23 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 		return newMetricConn(eiceTunnelConn.Tunnel, dialTypeDirect, dialStart, s.srv.Clock), false, nil
 	}
 
+	if params.TargetScope != "" && params.TargetServer != nil {
+		if scopes.Compare(params.TargetScope, params.TargetServer.GetScope()) != scopes.Equivalent {
+			return nil, false, trace.BadParameter("conflicting scopes provided in dial request - requested scope %q, matched target scope %q", params.TargetScope, params.TargetServer.GetScope())
+		}
+	}
+
+	targetScope := params.TargetScope
+	if params.TargetServer != nil {
+		targetScope = params.TargetServer.GetScope()
+	}
+
 	dreq := &sshutils.DialReq{
 		ServerID:      params.ServerID,
 		ConnType:      params.ConnType,
 		ClientSrcAddr: stringOrEmpty(params.From),
 		ClientDstAddr: stringOrEmpty(params.OriginalClientDstAddr),
+		TargetScope:   targetScope,
 	}
 	if params.To != nil {
 		dreq.Address = params.To.String()
@@ -696,7 +709,7 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 	if peeringEnabled {
 		s.logger.InfoContext(s.srv.ctx, "Dialing over peer proxy")
 		conn, peerErr = s.peerClient.DialNode(
-			params.ProxyIDs, params.ServerID, params.From, params.To, params.ConnType,
+			params.ProxyIDs, params.ServerID, targetScope, params.From, params.To, params.ConnType,
 		)
 		if peerErr == nil {
 			return newMetricConn(conn, dialTypePeer, dialStart, s.srv.Clock), true, nil
@@ -745,7 +758,7 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 	return newMetricConn(conn, dialTypeDirect, dialStart, s.srv.Clock), false, nil
 }
 
-func (s *localSite) addConn(nodeID string, connType types.TunnelType, conn net.Conn, sconn ssh.Conn) (*remoteConn, error) {
+func (s *localSite) addConn(nodeID, scope string, connType types.TunnelType, conn net.Conn, sconn ssh.Conn) (*remoteConn, error) {
 	s.remoteConnsMtx.Lock()
 	defer s.remoteConnsMtx.Unlock()
 
@@ -756,11 +769,13 @@ func (s *localSite) addConn(nodeID string, connType types.TunnelType, conn net.C
 		proxyName:        s.srv.ID,
 		clusterName:      s.domainName,
 		nodeID:           nodeID,
+		scope:            scope,
 		offlineThreshold: s.offlineThreshold,
 	})
 	key := connKey{
 		uuid:     nodeID,
 		connType: connType,
+		scope:    scopes.NormalizeForEquality(scope),
 	}
 	s.remoteConns[key] = append(s.remoteConns[key], rconn)
 
@@ -926,6 +941,7 @@ func (s *localSite) getRemoteConn(dreq *sshutils.DialReq) (*remoteConn, error) {
 	key := connKey{
 		uuid:     dreq.ServerID,
 		connType: dreq.ConnType,
+		scope:    dreq.TargetScope,
 	}
 
 	conns := s.remoteConns[key]

@@ -671,6 +671,10 @@ Example:
 
 ## app.session.start
 
+There are multiple events with the `app.session.start` type.
+
+### T2007I
+
 App Session Started
 
 Example:
@@ -689,6 +693,21 @@ Example:
   "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
   "user": "kimlisa",
   "app_name": "test"
+}
+```
+
+### T2007E
+
+App Session Start Failed
+
+Example:
+
+```json
+{
+  "code": "T2007E",
+  "event": "app.session.start",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
 }
 ```
 
@@ -4913,14 +4932,11 @@ Example:
   "event": "scim.list",
   "success": true,
   "integration": "okta",
-  "resource_type": "user",
-  "teleport_id": "root@localhost",
-  "external_id": "external-id-0987654321",
-  "display": "local admin"
+  "resource_type": "user"
 }
 ```
 
-### TSCIM005IE
+### TSCIM005E
 
 SCIM Resource Listing Failed
 
@@ -4928,10 +4944,82 @@ Example:
 
 ```json
 {
-  "code": "TSCIM005IE",
+  "ei": 163,
+  "time": "2023-05-08T19:21:36.144Z",
+  "cluster": "dev",
+  "code": "TSCIM005E",
   "event": "scim.list",
-  "time": "2020-06-05T16:24:05Z",
-  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+  "success": false,
+  "integration": "okta",
+  "resource_type": "vegetable",
+  "display": "no such resource type"
+}
+```
+
+## scim.patch
+
+There are multiple events with the `scim.patch` type.
+
+### TSCIM006I
+
+SCIM Patch Succeeded
+
+Example:
+
+```json
+{
+  "ei": 163,
+  "time": "2023-05-08T19:21:36.144Z",
+  "cluster": "dev",
+  "code": "TSCIM006I",
+  "event": "scim.patch",
+  "success": true,
+  "integration": "okta",
+  "resource_type": "user",
+  "teleport_id": "test@example.com",
+  "external_id": "externa-id-00123456789",
+  "display": "test@example.com",
+  "body": {
+    "Operations": [
+      {
+        "op": "replace",
+        "path": "name.givenName",
+        "value": "Dave"
+      }
+    ]
+  }
+}
+```
+
+### TSCIM006E
+
+SCIM Patch Failed
+
+Example:
+
+```json
+{
+  "ei": 163,
+  "time": "2023-05-08T19:21:37.000Z",
+  "cluster": "dev",
+  "code": "TSCIM006E",
+  "event": "scim.patch",
+  "resource_type": "user",
+  "success": false,
+  "error": "no such user",
+  "integration": "okta",
+  "teleport_id": "test@example.com",
+  "external_id": "external-id-000123456789",
+  "display": "test@example.com",
+  "body": {
+    "Operations": [
+      {
+        "op": "replace",
+        "path": "name.givenName",
+        "value": "Dave"
+      }
+    ]
+  }
 }
 ```
 
@@ -6571,7 +6659,7 @@ Example:
   "event": "user.login",
   "method": "headless",
   "ei": 0,
-  "success": true,
+  "success": false,
   "time": "2019-04-22T00:49:03Z",
   "uid": "173d6b6e-d613-44be-8ff6-f9f893791ef5",
   "user": "admin@example.com",
@@ -6762,6 +6850,81 @@ Example:
 }
 ```
 
+## vnet.config.create
+
+VNet config created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "TVNET001I",
+  "ei": 0,
+  "event": "vnet.config.create",
+  "success": true,
+  "time": "2025-03-04T15:49:21.869Z",
+  "uid": "e1973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## vnet.config.delete
+
+VNet config deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "TVNET003I",
+  "ei": 0,
+  "event": "vnet.config.delete",
+  "success": true,
+  "time": "2025-03-04T15:49:21.869Z",
+  "uid": "e1973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## vnet.config.update
+
+VNet config updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "TVNET002I",
+  "ei": 0,
+  "event": "vnet.config.update",
+  "success": true,
+  "time": "2025-03-04T15:49:21.869Z",
+  "uid": "e1973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
 ## windows.desktop.session.end
 
 Windows Desktop Session Ended
@@ -6850,6 +7013,51 @@ Example:
   "windows_desktop_service": "ba17ae92-5519-476a-954e-c225cf751de1",
   "windows_domain": "desktopaccess.com",
   "windows_user": "Administrator"
+}
+```
+
+## workload_cluster.create
+
+Workload Cluster Created
+
+Example:
+
+```json
+{
+  "code": "WC001I",
+  "event": "workload_cluster.create",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## workload_cluster.delete
+
+Workload Cluster Deleted
+
+Example:
+
+```json
+{
+  "code": "WC003I",
+  "event": "workload_cluster.delete",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## workload_cluster.update
+
+Workload Cluster Updated
+
+Example:
+
+```json
+{
+  "code": "WC002I",
+  "event": "workload_cluster.update",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
 }
 ```
 

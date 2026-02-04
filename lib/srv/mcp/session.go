@@ -20,7 +20,6 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"net"
 	"net/http"
@@ -32,7 +31,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/authz"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/services"
@@ -60,14 +58,10 @@ type SessionCtx struct {
 	// connection instead of using the web session ID from the app route.
 	sessionID session.ID
 
-	// jwt is the jwt token signed for this identity by Auth server.
-	jwt string
-
-	// traitsForRewriteHeaders are user traits used for rewriting headers.
-	traitsForRewriteHeaders wrappers.Traits
-
 	// transport is the transport type of the MCP server.
 	transport string
+
+	rewriteAuthDetails rewriteAuthDetails
 }
 
 func (c *SessionCtx) checkAndSetDefaults() error {
@@ -96,6 +90,7 @@ func (c *SessionCtx) checkAndSetDefaults() error {
 			c.sessionID = session.NewID()
 		}
 	}
+	c.rewriteAuthDetails = newRewriteAuthDetails(c.App.GetRewrite())
 	return nil
 }
 
@@ -108,14 +103,10 @@ func (c *SessionCtx) getAccessState(authPref types.AuthPreference) services.Acce
 	return state
 }
 
-func (c *SessionCtx) generateJWTAndTraits(ctx context.Context, auth AuthClient) (err error) {
-	c.jwt, c.traitsForRewriteHeaders, err = appcommon.GenerateJWTAndTraits(ctx, &c.Identity, c.App, auth)
-	return trace.Wrap(err)
-}
-
 type sessionHandlerConfig struct {
 	*SessionCtx
 	*sessionAuditor
+	*sessionAuth
 	accessPoint AccessPoint
 	logger      *slog.Logger
 	clock       clockwork.Clock
@@ -128,6 +119,9 @@ func (c *sessionHandlerConfig) checkAndSetDefaults() error {
 	}
 	if c.sessionAuditor == nil {
 		return trace.BadParameter("missing auditor")
+	}
+	if c.sessionAuth == nil {
+		return trace.BadParameter("missing session auth")
 	}
 	if c.accessPoint == nil {
 		return trace.BadParameter("missing accessPoint")
@@ -296,8 +290,8 @@ func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *mcputi
 		return resp
 	}
 
-	var listResult mcp.ListToolsResult
-	if err := json.Unmarshal(resp.Result, &listResult); err != nil {
+	listResult, err := resp.GetListToolResult()
+	if err != nil {
 		return mcp.NewJSONRPCError(resp.ID, mcp.INTERNAL_ERROR, "failed to unmarshal tools/list response", err)
 	}
 
@@ -318,17 +312,23 @@ func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *mcputi
 	}
 }
 
-func (s *sessionHandler) rewriteHTTPRequestHeaders(r *http.Request) {
+func (s *sessionHandler) rewriteHTTPRequestHeaders(r *http.Request) error {
+	jwt, traits, err := s.generateJWTAndTraits(r.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Add in JWT headers. By default, JWT is not put into "Authorization"
 	// headers since the auth token can also come from the client and Teleport
 	// just pass it through. If the remote MCP server does verify the auth token
 	// signed by Teleport, the server can take the token from the
 	// "teleport-jwt-assertion" header or use a rewrite setting to set the JWT
 	// as "Bearer" in "Authorization".
-	r.Header.Set(teleport.AppJWTHeader, s.jwt)
+	r.Header.Set(teleport.AppJWTHeader, jwt)
 	// Add headers from rewrite configuration.
 	rewriteHeaders := appcommon.AppRewriteHeaders(r.Context(), s.App.GetRewrite(), s.logger)
-	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, s.traitsForRewriteHeaders, s.logger)
+	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, traits, s.logger)
+	return nil
 }
 
 func makeToolAccessDeniedResponse(msg *mcputils.JSONRPCRequest, authErr error) mcp.JSONRPCMessage {

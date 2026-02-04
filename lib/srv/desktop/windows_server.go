@@ -1285,7 +1285,6 @@ type generateCredentialsRequest struct {
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
 func (s *WindowsService) generateCredentials(ctx context.Context, request generateCredentialsRequest) (certDER, keyDER []byte, err error) {
 	return winpki.GenerateWindowsDesktopCredentials(ctx, s.cfg.AuthClient, &winpki.GenerateCredentialsRequest{
-		CAType:             types.UserCA,
 		Username:           request.username,
 		Domain:             request.domain,
 		PKIDomain:          s.cfg.PKIDomain,

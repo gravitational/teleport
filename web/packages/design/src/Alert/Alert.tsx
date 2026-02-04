@@ -193,7 +193,7 @@ export const Alert = ({
   wrapContents = false,
   ...otherProps
 }: AlertProps) => {
-  const alertIconSize = kind === 'neutral' ? 'large' : 'small';
+  const alertIconSize = 'small';
   const [dismissed, setDismissed] = useState(false);
 
   const onDismissClick = () => {
@@ -324,7 +324,8 @@ const iconContainerStyles = ({
     case 'neutral':
       return {
         color: theme.colors.text.main,
-        background: 'none',
+        background: theme.colors.interactive.tonal.neutral[0],
+        padding: `${theme.space[2]}px`,
       };
   }
 };
@@ -387,7 +388,7 @@ const ActionButtons = ({
       )}
       {secondaryAction && (
         <ActionButton
-          fill="minimal"
+          fill={kind === 'neutral' ? 'filled' : 'minimal'}
           intent="neutral"
           action={secondaryAction}
         />

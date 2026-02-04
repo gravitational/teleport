@@ -404,7 +404,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 	if cfg.AccessLists == nil {
-		cfg.AccessLists, err = local.NewAccessListService(cfg.Backend, cfg.Clock)
+		cfg.AccessLists, err = local.NewAccessListServiceV2(local.AccessListServiceConfig{
+			Backend: cfg.Backend,
+			// TODO(tross): replace modules.GetModules with cfg.Modules
+			Modules:                     modules.GetModules(),
+			RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -506,9 +511,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 	if cfg.Summarizer == nil {
 		summarizer, err := local.NewSummarizerService(local.SummarizerServiceConfig{
-			Backend: cfg.Backend,
-			// TODO(bl-nero): Relax this condition once we implement spend controls.
-			EnableBedrock: !modules.GetModules().Features().Cloud,
+			Backend:                          cfg.Backend,
+			EnableBedrockWithoutRestrictions: !modules.GetModules().Features().Cloud,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "creating Summarizer service")
@@ -600,6 +604,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	if cfg.WorkloadClusterService == nil {
+		cfg.WorkloadClusterService, err = local.NewWorkloadClusterService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating WorkloadClusterService")
+		}
+	}
+
 	scopedAccessCache, err := scopedaccesscache.NewCache(scopedaccesscache.CacheConfig{
 		Events: cfg.Events,
 		Reader: cfg.ScopedAccess,
@@ -639,7 +650,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		DatabaseObjects:                 cfg.DatabaseObjects,
 		SecReports:                      cfg.SecReports,
 		UserLoginStates:                 cfg.UserLoginState,
-		StatusInternal:                  cfg.Status,
+		Status:                          cfg.Status,
 		UsageReporter:                   cfg.UsageReporter,
 		UserPreferences:                 cfg.UserPreferences,
 		PluginData:                      cfg.PluginData,
@@ -667,6 +678,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Summarizer:                      cfg.Summarizer,
 		RecordingEncryptionManager:      cfg.RecordingEncryption,
 		ScopedTokenService:              cfg.ScopedTokenService,
+		WorkloadClusterService:          cfg.WorkloadClusterService,
 	}
 
 	as = &Server{
@@ -896,7 +908,7 @@ type Services struct {
 	services.UserGroups
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
-	services.StatusInternal
+	services.Status
 	services.Integrations
 	services.IntegrationsTokenGenerator
 	services.UserTasks
@@ -940,6 +952,7 @@ type Services struct {
 	services.Summarizer
 	RecordingEncryptionManager
 	services.ScopedTokenService
+	services.WorkloadClusterService
 }
 
 // GetWebSession returns existing web session described by req.
@@ -4250,7 +4263,7 @@ func (a *Server) CreateAuthPreference(ctx context.Context, p types.AuthPreferenc
 		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 	}
 
-	if err := dtconfig.ValidateConfigAgainstModules(p.GetDeviceTrust()); err != nil {
+	if err := dtconfig.ValidateConfigAgainstModules(p.GetDeviceTrust(), modules.GetModules()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -6866,8 +6879,40 @@ const (
 	accessListReminderSemaphoreMaxLeases = 1
 )
 
+// createAccessListReminderNotificationsOptions defines the optional parameters for CreateAccessListReminderNotifications.
+type createAccessListReminderNotificationsOptions struct {
+	createNotificationInterval  time.Duration
+	accessListsPageReadInterval time.Duration
+}
+
+// CreateAccessListReminderNotificationsOptions is a functional option for CreateAccessListReminderNotifications.
+type CreateAccessListReminderNotificationsOptions func(*createAccessListReminderNotificationsOptions)
+
+// WithCreateNotificationInterval sets the interval between creating notifications.
+func WithCreateNotificationInterval(d time.Duration) CreateAccessListReminderNotificationsOptions {
+	return func(o *createAccessListReminderNotificationsOptions) {
+		o.createNotificationInterval = d
+	}
+}
+
+// WithAccessListsPageReadInterval sets the interval between reading pages of access lists.
+func WithAccessListsPageReadInterval(d time.Duration) CreateAccessListReminderNotificationsOptions {
+	return func(o *createAccessListReminderNotificationsOptions) {
+		o.accessListsPageReadInterval = d
+	}
+}
+
 // CreateAccessListReminderNotifications checks if there are any access lists expiring soon and creates notifications to remind their owners if so.
-func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
+func (a *Server) CreateAccessListReminderNotifications(ctx context.Context, opts ...CreateAccessListReminderNotificationsOptions) {
+	opt := &createAccessListReminderNotificationsOptions{
+		// defaults to notificationsWriteInterval aka 40ms
+		createNotificationInterval:  notificationsWriteInterval,
+		accessListsPageReadInterval: accessListsPageReadInterval,
+	}
+	for _, o := range opts {
+		o(opt)
+	}
+
 	// Ensure only one auth server is running this check at a time.
 	lease, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
 		Service: a,
@@ -6901,7 +6946,7 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 	// Fetch all access lists
 	var accessLists []*accesslist.AccessList
 	var accessListsPageKey string
-	accessListsReadLimiter := time.NewTicker(accessListsPageReadInterval)
+	accessListsReadLimiter := time.NewTicker(opt.accessListsPageReadInterval)
 	defer accessListsReadLimiter.Stop()
 	for {
 		select {
@@ -6909,6 +6954,7 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		}
+
 		response, nextKey, err := a.Cache.ListAccessLists(ctx, accessListsPageSize, accessListsPageKey)
 		if err != nil {
 			a.logger.WarnContext(ctx, "failed to list access lists for periodic reminder notification check", "error", err)
@@ -6966,17 +7012,16 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 
 		// Fetch all identifiers for this treshold prefix.
 		var identifiers []*notificationsv1.UniqueNotificationIdentifier
-		var nextKey string
-		for {
-			identifiersResp, nextKey, err := a.ListUniqueNotificationIdentifiersForPrefix(ctx, threshold.prefix, 0, nextKey)
+		iterator := clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]*notificationsv1.UniqueNotificationIdentifier, string, error) {
+			return a.ListUniqueNotificationIdentifiersForPrefix(ctx, threshold.prefix, pageSize, pageKey)
+		})
+
+		for identifiersResp, err := range iterator {
 			if err != nil {
 				a.logger.WarnContext(ctx, "failed to list notification identifiers", "error", err, "prefix", threshold.prefix)
-				continue
-			}
-			identifiers = append(identifiers, identifiersResp...)
-			if nextKey == "" {
 				break
 			}
+			identifiers = append(identifiers, identifiersResp)
 		}
 
 		// Create a map of identifiers for quick lookup
@@ -6992,7 +7037,7 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 		// Check for access lists which haven't already been accounted for in a notification
 		var needsNotification bool
 
-		writeLimiter := time.NewTicker(notificationsWriteInterval)
+		writeLimiter := time.NewTicker(opt.createNotificationInterval)
 		for _, accessList := range relevantLists {
 			select {
 			case <-writeLimiter.C:

@@ -42,6 +42,7 @@ export const KeysEnum = {
   RECENT_HISTORY: 'grv_teleport_sidenav_recent_history',
   LOGIN_TIME: 'grv_teleport_login_time',
   REMEMBERED_SSO_USERNAME: 'grv_teleport_remembered_sso_username',
+  ENABLE_TELEMETRY: 'grv_teleport_enable_telemetry',
   SESSION_RECORDINGS_VIEW_MODE: 'grv_teleport_session_recordings_view_mode',
   SESSION_RECORDINGS_DENSITY: 'grv_teleport_session_recordings_density',
   SESSION_RECORDINGS_DISMISSED_CTA:

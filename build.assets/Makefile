@@ -75,20 +75,26 @@ build: buildbox-centos7 webassets
 		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) release-unix-preserving-webassets
 
 #
-# Build 'teleport' release inside a docker container
+# Build 'teleport' binaries inside a docker container
 #
 .PHONY:build-binaries
 build-binaries: buildbox-centos7 webassets
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
-		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) full
+	$(call LOG_GROUP_START)
+	$(REQUIRE_HOST_ARCH)
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7) \
+		/usr/bin/scl enable $(DEVTOOLSET) 'make clean-build full -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no'
+	$(call LOG_GROUP_END)
 
 #
-# Build 'teleport' Enterprise release inside a docker container
+# Build 'teleport' Enterprise binaries inside a docker container
 #
 .PHONY:build-enterprise-binaries
 build-enterprise-binaries: buildbox-centos7 webassets
+	$(call LOG_GROUP_START)
+	$(REQUIRE_HOST_ARCH)
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
-		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) PIV=$(PIV) clean full
+		/usr/bin/scl enable $(DEVTOOLSET) 'make clean-build full-ent -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no'
+	$(call LOG_GROUP_END)
 
 #
 # Build 'teleport' FIPS release inside a docker container
@@ -664,11 +670,11 @@ release-fips: buildbox-centos7-fips webassets
 #
 .PHONY:release-centos7
 release-centos7: buildbox-centos7 webassets
-	$(LOG_GROUP_START)
+	$(call LOG_GROUP_START)
 	$(REQUIRE_HOST_ARCH)
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7) \
 		/usr/bin/scl enable $(DEVTOOLSET) 'make release-unix-preserving-webassets -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no'
-	$(LOG_GROUP_END)
+	$(call LOG_GROUP_END)
 
 #
 # Create a Teleport FIPS package for CentOS 7 using the build container.
@@ -680,10 +686,10 @@ release-centos7: buildbox-centos7 webassets
 #
 .PHONY:release-centos7-fips
 release-centos7-fips: buildbox-centos7-fips webassets
-	$(LOG_GROUP_START)
+	$(call LOG_GROUP_START)
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
 		/usr/bin/scl enable $(DEVTOOLSET) '/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=no'
-	$(LOG_GROUP_END)
+	$(call LOG_GROUP_END)
 
 #
 # Create a Windows Teleport package using the build container.

@@ -281,6 +281,11 @@ type Config struct {
 	// using Token()
 	token string
 
+	// tokenSecret is either the secret needed to join with the token defined for the config, or
+	// a path that contains the secret. This is private to avoid external packages reading the
+	// value - the value should be obtained using TokenSecret()
+	tokenSecret string
+
 	// v1, v2 -
 	// AuthServers is a list of auth servers, proxies and peer auth servers to
 	// connect to. Yes, this is not just auth servers, the field name is
@@ -526,11 +531,34 @@ func (cfg *Config) Token() (string, error) {
 	return token, nil
 }
 
+// TokenSecret returns token secret needed to join the auth server with the configured token
+//
+// If the value stored points to a file, it will attempt to read the token secret from the file
+// and return an error if it wasn't successful.
+// If the value stored doesn't point to a file, it'll return the value stored.
+// If the secret hasn't been set, an empty string will be returned
+func (cfg *Config) TokenSecret() (string, error) {
+	secret, err := utils.TryReadValueAsFile(cfg.tokenSecret)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return secret, nil
+}
+
 // SetToken stores the value for --token or auth_token in the config
 //
 // This can be either the token or an absolute path to a file containing the token.
 func (cfg *Config) SetToken(token string) {
 	cfg.token = token
+}
+
+// SetTokenSecret stores the value for --token-secret or join_params.token_secret in the
+// config.
+//
+// This can be either the secret or an absolute path to a file containing the secret.
+func (cfg *Config) SetTokenSecret(secret string) {
+	cfg.tokenSecret = secret
 }
 
 // HasToken gives the ability to check if there has been a token value stored

@@ -127,7 +127,7 @@ func TestJoinKubernetes(t *testing.T) {
 	require.NoError(t, auth.CreateToken(ctx, staticJWKSPT))
 
 	// Building a joinRequest builder
-	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
+	sshPrivateKey, sshPublicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)

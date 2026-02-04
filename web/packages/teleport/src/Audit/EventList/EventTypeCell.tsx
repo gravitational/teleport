@@ -71,6 +71,7 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.SFTP_DISALLOWED]: Icons.FolderPlus,
   [eventCodes.APP_SESSION_CHUNK]: Icons.Info,
   [eventCodes.APP_SESSION_START]: Icons.Info,
+  [eventCodes.APP_SESSION_START_FAILURE]: Icons.Warning,
   [eventCodes.APP_SESSION_END]: Icons.Info,
   [eventCodes.APP_SESSION_DYNAMODB_REQUEST]: Icons.Database,
   [eventCodes.APP_CREATED]: Icons.Code,
@@ -337,7 +338,15 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.SCIM_RESOURCE_GET_FAILURE]: Icons.Warning,
   [eventCodes.SCIM_RESOURCE_LIST]: Icons.Info,
   [eventCodes.SCIM_RESOURCE_LIST_FAILURE]: Icons.Warning,
+  [eventCodes.SCIM_RESOURCE_PATCH]: Icons.Info,
+  [eventCodes.SCIM_RESOURCE_PATCH_FAILURE]: Icons.Warning,
   [eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE]: Icons.Info,
+  [eventCodes.VNET_CONFIG_CREATE]: Icons.Info,
+  [eventCodes.VNET_CONFIG_UPDATE]: Icons.Info,
+  [eventCodes.VNET_CONFIG_DELETE]: Icons.Info,
+  [eventCodes.WORKLOAD_CLUSTER_CREATE]: Icons.Info,
+  [eventCodes.WORKLOAD_CLUSTER_UPDATE]: Icons.Info,
+  [eventCodes.WORKLOAD_CLUSTER_DELETE]: Icons.Info,
 };
 
 export default function renderTypeCell(event: Event) {

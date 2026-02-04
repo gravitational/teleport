@@ -2,28 +2,77 @@
 title: "Securing Access to Cloud APIs"
 sidebar_position: 2
 sidebar_label: Cloud APIs
-description: "How to use Teleport to achieve secure access while managing your cloud-based infrastructure."
+template: doc-page
+description: "Use Teleport to achieve secure access to your your cloud-based APIs."
 tags:
  - zero-trust
  - infrastructure-identity
 ---
+import EnrollmentMethods, { Method } from "@site/src/components/Pages/Landing/EnrollmentMethods/EnrollmentMethods";
 
-You can use Teleport to provide secure access to your cloud provider's APIs.
-This means that you can prevent unauthorized usage of management consoles and
-CLI tools with the same RBAC system you use to protect your infrastructure.
+import awsSvg from "@site/src/components/Icon/svg/aws.svg";
+import azureSvg from "@site/src/components/Icon/svg/azure.svg";
+import googleCloudSvg from "@site/src/components/Icon/svg/googleCloud.svg";
 
-Teleport's granular audit logging allows you to easily correlate access to
-your cloud providers with changes in your infrastructure. And with Just-in-Time
-Access Requests, your teams can get the access they need to modify cloud
-resources for only as long as they need it, leaving attackers with no
-longstanding admin accounts to target.
+Secure your cloud APIs with Teleport. Control access to management consoles and CLI tools using the Teleport RBAC system.
+Track every change with granular audit logs and enable Just-in-Time access so teams get permissions only when they need them.
+<br/>
 
-Learn how to protect your cloud provider APIs with Teleport:
+{/* lint ignore page-structure remark-lint */}
 
-- [AWS Console and CLI access](aws-console-roles-anywhere.mdx)
-- [AWS Console and CLI access via Teleport Agent](aws-console.mdx)
-- [Azure CLI applications](azure.mdx)
-- [Azure CLI applications (AKS with Workload ID deployment)](azure-aks-workload-id.mdx)
-- [Google Cloud CLI applications](google-cloud.mdx)
-- [GCP Web Console Access with Workforce Identity Federation and Teleport SAML IdP](../../../identity-governance/idps/usage/saml-gcp-workforce-identity-federation.mdx)
-
+<EnrollmentMethods title="" variant="rows">
+  <Method
+  title="Amazon Web Services (AWS)"
+  description="Centralize AWS access for the console, APIs, CLI, and SDKs. Authenticated users can be mapped directly to AWS roles."
+  icon={awsSvg}
+  >
+    <Method title="AWS Console and CLI access with IAM Roles Anywhere" href="./aws-console-roles-anywhere/">
+      **Recommended when:**
+        - Full compatibility with AWS CLI, SDKs, or Terraform is required. 
+        - You want to manage access without additional infrastructure.
+    </Method>
+    <Method title="AWS Console and CLI access via Teleport Application Service" href="./aws-console/">
+      **Recommended when:**
+        - Full API audit for all requests is required. 
+    </Method>
+    <Method title="AWS Console and CLI with OIDC integration" href="./awsoidc-integration-console/">
+      **Recommended when:**
+        - Full API audit for all requests is required.
+        - Your Teleport cluster is publicly accessible.
+    </Method>
+  </Method>
+  <Method
+  title="Microsoft Azure"
+  icon={azureSvg}
+  >
+    <Method title="Azure CLI access via Teleport Application Service" href="./azure/">
+      **Recommended when:**
+        - Full API audit for all requests is required.
+        - Teleport Application Service is deployed on Azure Virtual Machines.
+    </Method>
+      <Method title="Azure CLI access via Teleport Application Service on AKS" href="./azure-aks-workload-id/">
+      **Recommended when:**
+        - Full API audit for all requests is required.
+        - Teleport Application Service is deployed on Azure Kubernetes Service (AKS).
+    </Method>
+    <Method title="Azure Portal and CLI access with Teleport as IdP" href="../../../identity-governance/idps/usage/saml-microsoft-entra-external-id/">
+      **Recommended when:**
+        - Azure Portal is required.
+        - Full compatibility with Azure client tools is required.
+    </Method>
+  </Method>
+  <Method
+  title="Google Cloud"
+  icon={googleCloudSvg}
+  >
+    <Method title="Google Cloud API access via Teleport Application Service" href="./google-cloud/">
+      **Recommended when:**
+        - Full API audit for all requests is required.
+    </Method>
+    <Method title="Google Cloud Web Console and API access with Teleport as IdP" href="../../../identity-governance/idps/usage/saml-gcp-workforce-identity-federation/">
+      **Recommended when:**
+        - Google Cloud Web Console is required.
+        - Full compatibility with Google Cloud tools is required.
+    </Method>
+  </Method>
+</EnrollmentMethods>

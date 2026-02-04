@@ -567,11 +567,25 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 
 	case SCIMListingEvent:
 		e = &events.SCIMListingEvent{}
-	case SCIMGetEvent, SCIMCreateEvent, SCIMUpdateEvent, SCIMDeleteEvent:
+	case SCIMGetEvent, SCIMCreateEvent, SCIMUpdateEvent, SCIMDeleteEvent, SCIMPatchEvent:
 		e = &events.SCIMResourceEvent{}
 
 	case ClientIPRestrictionsUpdateEvent:
 		e = &events.ClientIPRestrictionsUpdate{}
+
+	case VnetConfigCreateEvent:
+		e = &events.VnetConfigCreate{}
+	case VnetConfigUpdateEvent:
+		e = &events.VnetConfigUpdate{}
+	case VnetConfigDeleteEvent:
+		e = &events.VnetConfigDelete{}
+
+	case WorkloadClusterCreateEvent:
+		e = &events.WorkloadClusterCreate{}
+	case WorkloadClusterUpdateEvent:
+		e = &events.WorkloadClusterUpdate{}
+	case WorkloadClusterDeleteEvent:
+		e = &events.WorkloadClusterDelete{}
 
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)

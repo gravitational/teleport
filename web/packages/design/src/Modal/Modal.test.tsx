@@ -138,7 +138,7 @@ test('respects backdropProps prop invisible', () => {
   });
 
   expect(screen.getByTestId('backdrop')).toHaveStyle({
-    'background-color': 'transparent',
+    'background-color': 'rgba(0, 0, 0, 0)',
   });
 });
 

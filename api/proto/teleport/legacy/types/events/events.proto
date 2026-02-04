@@ -1613,6 +1613,12 @@ message AccessRequestCreate {
 
   // ResourceNames contains the names of the requested resources.
   repeated string ResourceNames = 17 [(gogoproto.jsontag) = "resource_names,omitempty"];
+
+  // RequestedResourceAccessIDs is the set of resources to which access is being requested,
+  // paired with additional information such as ResourceConstraints.
+  // Differs from RequestedResourceIDs, which only identifies resources and cannot be used
+  // to express additional information per-resource such as ResourceConstraints.
+  repeated ResourceAccessID RequestedResourceAccessIDs = 18 [(gogoproto.nullable) = false];
 }
 
 // AccessRequestExpire is emitted when access request has expired.
@@ -1658,6 +1664,41 @@ message ResourceID {
   // Currently it just supports resources of Kind=pod and the format is the following
   // "<kube_namespace>/<kube_pod>".
   string SubResourceName = 4 [(gogoproto.jsontag) = "sub_resource,omitempty"];
+}
+
+// ResourceAccessID is an audit-log–friendly representation of a ResourceAccessID.
+// This is derived and simplified from api/proto/teleport/legacy/types/resources.proto
+// to decouple the api and events types, and to keep the audit log event schema stable
+// for customers and integrations.
+// ResourceConstraints may be summarized/truncated to control event size; when truncated,
+// the audit log is not expected to be a lossless representation of the internal object.
+message ResourceAccessID {
+  // id identifies the resource.
+  ResourceID id = 1 [(gogoproto.nullable) = false];
+
+  oneof constraints {
+    // unknown_constraints represents that constraints were present on the internal ResourceAccessID,
+    // but are of an unknown type.
+    UnknownConstraints unknown_constraints = 10;
+    // aws_console captures audit-log–friendly data for AWS Console scoping constraints.
+    AWSConsoleConstraints aws_console = 11;
+  }
+}
+
+// UnknownConstraints represents constraints of an unknown type.
+message UnknownConstraints {
+  // Intentionally empty: presence is represented by the oneof branch being set.
+}
+
+// AWSConsoleConstraints is an audit-log–friendly view of AWS Console constraints.
+// The full list of role ARNs can be arbitrarily large; therefore this type supports a preview list,
+// a count, and a truncation flag.
+message AWSConsoleConstraints {
+  // role_arns_count is the total number of role ARNs requested.
+  uint32 role_arns_count = 1;
+
+  // role_arns_preview contains up to N role ARNs for inspection; it may be truncated.
+  repeated string role_arns_preview = 2;
 }
 
 // AccessRequestDelete is emitted when an access request has been deleted.
@@ -2129,7 +2170,7 @@ message ClientDisconnect {
   string Reason = 5 [(gogoproto.jsontag) = "reason"];
 }
 
-// AuthAttempt is emitted upon a failed or successfull authentication attempt.
+// AuthAttempt is emitted upon a failed authentication attempt.
 message AuthAttempt {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
@@ -2926,6 +2967,14 @@ message AppSessionStart {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // Error is an optional error message.
+  // Only present in failed start attempts.
+  string Error = 9 [(gogoproto.jsontag) = "error,omitempty"];
+
+  // UserMessage is an optional user-friendly error message.
+  // Only present in failed start attempts.
+  string UserMessage = 10 [(gogoproto.jsontag) = "message,omitempty"];
 }
 
 // AppSessionEnd is emitted when an application session ends.
@@ -4898,6 +4947,12 @@ message OneOf {
     events.SCIMListingEvent SCIMListingEvent = 225;
     events.SCIMResourceEvent SCIMResourceEvent = 226;
     events.ClientIPRestrictionsUpdate ClientIPRestrictionsUpdate = 227;
+    events.VnetConfigCreate VnetConfigCreate = 232;
+    events.VnetConfigUpdate VnetConfigUpdate = 233;
+    events.VnetConfigDelete VnetConfigDelete = 234;
+    events.WorkloadClusterCreate WorkloadClusterCreate = 235;
+    events.WorkloadClusterUpdate WorkloadClusterUpdate = 236;
+    events.WorkloadClusterDelete WorkloadClusterDelete = 237;
   }
 }
 
@@ -5036,6 +5091,11 @@ message Identity {
   string JoinToken = 30 [(gogoproto.jsontag) = "join_token,omitempty"];
   // ScopePin pins a certificate to a specific scope and set of scoped roles.
   ScopePin ScopePin = 31 [(gogoproto.jsontag) = "scope_pin,omitempty"];
+  // The set of resources which the identity will be allowed to access, paired with
+  // additional information such as ResourceConstraints.
+  // Differs from AllowedResourceIDs, which only identifies resources and cannot be used
+  // to express additional information per-resource such as ResourceConstraints.
+  repeated ResourceAccessID AllowedResourceAccessIDs = 32 [(gogoproto.nullable) = false];
 }
 
 // ScopePin is a marker that identifies a certificate/identity as being "pinned" to a target scope, and encodes relevant
@@ -9071,6 +9131,22 @@ message SCIMRequest {
     (gogoproto.jsontag) = "body,omitempty",
     (gogoproto.casttype) = "Struct"
   ];
+
+  // Query holds the raw query string from the request URL
+  string Query = 7;
+}
+
+// SCIMResponse describes the HTTP response from the SCIM service.
+message SCIMResponse {
+  // StatusCode is the HTTP response status code returned by the SCIM server.
+  uint32 StatusCode = 1;
+
+  // Body holds a representation of the arbitrary JSON body of response from the
+  // SCIM server. May be empty.
+  google.protobuf.Struct Body = 2 [
+    (gogoproto.jsontag) = "body,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
 }
 
 message SCIMCommonData {
@@ -9086,6 +9162,9 @@ message SCIMCommonData {
   // this event. Valid values include, but are not limited to, "user" and
   // "group".
   string ResourceType = 5 [(gogoproto.jsontag) = "resource_type,omitempty"];
+
+  // Response holds data about the SCIM server's response to the request.
+  SCIMResponse Response = 6 [(gogoproto.jsontag) = "response,omitempty"];
 }
 
 // SCIMListingEvent records an attempt to list SCIM resources
@@ -9202,4 +9281,211 @@ message ClientIPRestrictionsUpdate {
 
   // ClientIPRestrictions is the new Client IP Restrictions allowlist.
   repeated string ClientIPRestrictions = 6 [(gogoproto.jsontag) = "client_ip_restrictions"];
+}
+
+// VnetConfigCreate is emitted when a VnetConfig is created.
+message VnetConfigCreate {
+  // Metadata is a common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the creation was successful.
+  Status status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Connection holds information about the connection.
+  ConnectionMetadata connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// VnetConfigUpdate is emitted when a VnetConfig is updated.
+message VnetConfigUpdate {
+  // Metadata is a common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Connection holds information about the connection.
+  ConnectionMetadata connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// VnetConfigDelete is emitted when a VnetConfig is deleted.
+message VnetConfigDelete {
+  // Metadata is a common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the deletion was successful.
+  Status status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Connection holds information about the connection.
+  ConnectionMetadata connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// WorkloadClusterCreate is emitted when a workload cluster is created.
+message WorkloadClusterCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the creation was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// WorkloadClusterUpdate is emitted when a workload cluster is updated.
+message WorkloadClusterUpdate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// WorkloadClusterDelete is emitted when a workload cluster is deleted.
+message WorkloadClusterDelete {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the deletion was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }

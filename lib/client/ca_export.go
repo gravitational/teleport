@@ -337,14 +337,22 @@ func exportTLSAuthority(ctx context.Context, client authclient.ClientI, req expo
 		return nil, trace.Wrap(err)
 	}
 
-	activeKeys := certAuthority.GetActiveKeys().TLS
-	// TODO(codingllama): Export AdditionalTrustedKeys as well?
+	keyPairs := append(
+		certAuthority.GetActiveKeys().TLS,
+		certAuthority.GetAdditionalTrustedKeys().TLS...,
+	)
 
-	authorities := make([]*ExportedAuthority, len(activeKeys))
-	for i, activeKey := range activeKeys {
+	authorities := make([]*ExportedAuthority, 0, len(keyPairs))
+	for _, activeKey := range keyPairs {
 		bytesToExport := activeKey.Cert
 		if req.ExportPrivateKeys {
 			bytesToExport = activeKey.Key
+		}
+
+		// Skip empty keys (may happen with keys, unexpected with certs but it's
+		// fine to skip either way).
+		if len(bytesToExport) == 0 {
+			continue
 		}
 
 		if req.UnpackPEM {
@@ -355,9 +363,9 @@ func exportTLSAuthority(ctx context.Context, client authclient.ClientI, req expo
 			bytesToExport = block.Bytes
 		}
 
-		authorities[i] = &ExportedAuthority{
+		authorities = append(authorities, &ExportedAuthority{
 			Data: bytesToExport,
-		}
+		})
 	}
 
 	return authorities, nil

@@ -17,8 +17,8 @@
  */
 
 import { Meta, StoryFn, StoryObj } from '@storybook/react-vite';
-import { action } from 'storybook/internal/actions';
-import { useArgs } from 'storybook/internal/preview-api';
+import { action } from 'storybook/actions';
+import { useArgs } from 'storybook/preview-api';
 
 import Flex from 'design/Flex/Flex';
 

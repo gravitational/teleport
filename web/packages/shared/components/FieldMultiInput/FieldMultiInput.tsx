@@ -179,7 +179,7 @@ export function FieldMultiInput({
               </Box>
               {!readOnly && (
                 <ButtonIcon
-                  size="0"
+                  size={0}
                   title="Remove Item"
                   onClick={() => removeItem(i)}
                   disabled={disabled}

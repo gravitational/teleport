@@ -87,16 +87,17 @@ func TestScopedJoiningService(t *testing.T) {
 		token, err := createToken(ctx, service, baseToken)
 		require.NoError(t, err)
 
-		withoutNameOpts := []gocmp.Option{
+		createOpts := []gocmp.Option{
 			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 			protocmp.IgnoreFields(&headerv1.Metadata{}, "name"),
+			protocmp.IgnoreFields(&joiningv1.ScopedToken{}, "status"),
 			protocmp.Transform(),
 		}
 		cmpOpts := []gocmp.Option{
 			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 			protocmp.Transform(),
 		}
-		assert.Empty(t, gocmp.Diff(baseToken, token, withoutNameOpts...))
+		assert.Empty(t, gocmp.Diff(baseToken, token, createOpts...))
 
 		// make sure update is no-op
 		_, err = service.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{})
@@ -233,6 +234,7 @@ func TestScopedJoiningService(t *testing.T) {
 		cmpOpts := []gocmp.Option{
 			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 			protocmp.IgnoreFields(&headerv1.Metadata{}, "name"),
+			protocmp.IgnoreFields(&joiningv1.ScopedToken{}, "status"),
 			protocmp.Transform(),
 		}
 		assert.Empty(t, gocmp.Diff(baseToken, stageTokenAA, cmpOpts...))

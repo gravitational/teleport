@@ -687,6 +687,9 @@ const (
 	// KindClientIPRestriction is the resource kind for Client IP Restriction allowlist.
 	KindClientIPRestriction = "client_ip_restriction"
 
+	// KindWorkloadCluster is the resource kind for workload clusters.
+	KindWorkloadCluster = "workload_cluster"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 
@@ -776,6 +779,8 @@ const (
 	// ADLabel is a resource metadata label name used to identify if resource is part of Active Directory
 	ADLabel = TeleportNamespace + "/ad"
 
+	// CreatedByIaCLabel is a resource metadata label name used to identify if resource was created by IaC tooling.
+	CreatedByIaCLabel = TeleportNamespace + "/iac-tool"
 	// OriginDefaults is an origin value indicating that the resource was
 	// constructed as a default value.
 	OriginDefaults = common.OriginDefaults

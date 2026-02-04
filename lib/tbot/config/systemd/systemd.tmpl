@@ -10,9 +10,9 @@ Group={{ .Group }}
 Restart=always
 RestartSec=5
 Environment="TELEPORT_ANONYMOUS_TELEMETRY={{ if .AnonymousTelemetry }}1{{ else }}0{{ end }}"
-ExecStart={{ .TBotPath }} start -c {{ .ConfigPath }}{{ with .DiagSocketForUpdater }} --diag-socket-for-updater={{ . }}{{ end }} --pid-file=/run/{{ .UnitName }}.pid
+ExecStart={{ .TBotPath }} start -c {{ .ConfigPath }}{{ with .DiagSocketForUpdater }} --diag-socket-for-updater={{ . }}{{ end }} --pid-file={{ if .PIDFile }}{{ .PIDFile }}{{ else }}/run/{{ .UnitName }}.pid{{ end }}
 ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/run/{{ .UnitName }}.pid
+PIDFile={{ if .PIDFile }}{{ .PIDFile }}{{ else }}/run/{{ .UnitName }}.pid{{ end }}
 LimitNOFILE=524288
 
 [Install]

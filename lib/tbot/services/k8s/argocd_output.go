@@ -77,7 +77,7 @@ func ArgoCDServiceBuilder(cfg *ArgoCDOutputConfig, opts ...ArgoCDServiceOption) 
 		// environment.
 		if svc.k8s == nil {
 			var err error
-			if svc.k8s, err = newKubernetesClient(); err != nil {
+			if svc.k8s, err = newKubernetesClient("", ""); err != nil {
 				return nil, trace.Wrap(err, "creating Kubernetes client")
 			}
 		}
@@ -344,7 +344,14 @@ func (s *ArgoCDOutput) renderSecret(cluster *argoClusterCredentials) (*corev1.Se
 	}
 	for k, v := range s.cfg.SecretAnnotations {
 		// Do not overwrite any of "our" annotations.
-		if _, ok := annotations[k]; !ok {
+		if _, ok := annotations[k]; ok {
+			continue
+		}
+		v, err := renderTemplate(v, cluster)
+		if err != nil {
+			return nil, trace.Wrap(err, "templating secret annotation %q", k)
+		}
+		if v != "" {
 			annotations[k] = v
 		}
 	}
