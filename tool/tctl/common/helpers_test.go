@@ -290,9 +290,9 @@ func withEnableCache(enableCache bool) testServerOptionFunc {
 	}
 }
 
-func withEnableProxy(enableProxy bool) testServerOptionFunc {
+func withEnableProxy() testServerOptionFunc {
 	return func(options *testServerOptions) {
-		options.enableProxy = enableProxy
+		options.enableProxy = true
 	}
 }
 
@@ -312,7 +312,9 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	}
 
 	cfg.CachePolicy.Enabled = options.enableCache
-	cfg.Proxy.Enabled = options.enableProxy
+	if options.enableProxy {
+		cfg.Proxy.Enabled = true
+	}
 	cfg.Proxy.DisableWebInterface = true
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	if options.fakeClock != nil {
