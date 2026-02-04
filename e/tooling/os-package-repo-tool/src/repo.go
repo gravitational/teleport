@@ -76,7 +76,7 @@ func (r *Repo) PublishedRepoAbsolutePath() (string, error) {
 	}
 
 	if !wasCreatedFromPublishedSource {
-		return "", trace.Errorf("repo %q was not created from a publish source and therefor has no published source path", r.Name())
+		return "", trace.Errorf("repo %q was not created from a publish source and therefore has no published source path", r.Name())
 	}
 
 	// `/<publishedSourcePath>/<os>/dists/<os version>/<release channel>/<major version>/`
