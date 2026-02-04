@@ -20,6 +20,8 @@ package server
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -82,6 +84,17 @@ type EC2Instances struct {
 
 	// EnrollMode is the mode used to enroll the instance into Teleport.
 	EnrollMode types.InstallParamEnrollMode
+}
+
+// EC2DiscoveryResult contains the results of EC2 instance discovery,
+// including both successfully discovered instances and any permission errors.
+type EC2DiscoveryResult struct {
+	// Instances contains the discovered EC2 instances grouped by region/account.
+	Instances []*EC2Instances
+	// PermissionErrors contains IAM permission errors encountered during discovery.
+	// These are returned as data rather than causing the discovery to fail,
+	// allowing partial results when some regions/accounts are inaccessible.
+	PermissionErrors []*EC2IAMPermissionError
 }
 
 // EC2Instance represents an AWS EC2 instance that has been
@@ -197,24 +210,20 @@ type MatcherToEC2FetcherParams struct {
 	PublicProxyAddrGetter func(context.Context) (string, error)
 	// Logger is the logger to use for the fetchers.
 	Logger *slog.Logger
-	// ReportIAMPermissionError is called when an AccessDenied error occurs
-	// during EC2 discovery, allowing the caller to create a UserTask.
-	ReportIAMPermissionError func(context.Context, *EC2IAMPermissionError)
 }
 
 // MatchersToEC2InstanceFetchers converts a list of AWS EC2 Matchers into a list of AWS EC2 Fetchers.
-func MatchersToEC2InstanceFetchers(ctx context.Context, matcherParams MatcherToEC2FetcherParams) ([]Fetcher[*EC2Instances], error) {
-	var ret []Fetcher[*EC2Instances]
+func MatchersToEC2InstanceFetchers(ctx context.Context, matcherParams MatcherToEC2FetcherParams) ([]Fetcher[*EC2DiscoveryResult], error) {
+	var ret []Fetcher[*EC2DiscoveryResult]
 	for _, matcher := range matcherParams.Matchers {
 		fetcher := newEC2InstanceFetcher(ec2FetcherConfig{
-			Matcher:                  matcher,
-			ProxyPublicAddrGetter:    matcherParams.PublicProxyAddrGetter,
-			EC2ClientGetter:          matcherParams.EC2ClientGetter,
-			RegionsListerGetter:      matcherParams.RegionsListerGetter,
-			AWSOrganizationsGetter:   matcherParams.AWSOrganizationsGetter,
-			DiscoveryConfigName:      matcherParams.DiscoveryConfigName,
-			Logger:                   matcherParams.Logger,
-			ReportIAMPermissionError: matcherParams.ReportIAMPermissionError,
+			Matcher:                matcher,
+			ProxyPublicAddrGetter:  matcherParams.PublicProxyAddrGetter,
+			EC2ClientGetter:        matcherParams.EC2ClientGetter,
+			RegionsListerGetter:    matcherParams.RegionsListerGetter,
+			AWSOrganizationsGetter: matcherParams.AWSOrganizationsGetter,
+			DiscoveryConfigName:    matcherParams.DiscoveryConfigName,
+			Logger:                 matcherParams.Logger,
 		})
 		ret = append(ret, fetcher)
 	}
@@ -223,6 +232,7 @@ func MatchersToEC2InstanceFetchers(ctx context.Context, matcherParams MatcherToE
 
 // EC2IAMPermissionError represents an IAM permission error during EC2 discovery.
 // This is used to report missing permissions so that UserTasks can be created.
+// It implements the error interface so it can be returned and checked with errors.As.
 type EC2IAMPermissionError struct {
 	Integration         string
 	AccountID           string
@@ -232,9 +242,47 @@ type EC2IAMPermissionError struct {
 	Err                 error
 }
 
-// noopReportIAMPermissionError is a no-op default for ReportIAMPermissionError.
-// Used when no handler is provided, allowing callers to skip nil checks.
-func noopReportIAMPermissionError(context.Context, *EC2IAMPermissionError) {}
+// Error implements the error interface with full context.
+func (e *EC2IAMPermissionError) Error() string {
+	if e.Region != "" {
+		return fmt.Sprintf("IAM permission error (%s) for account %s in region %s: %v",
+			e.IssueType, e.AccountID, e.Region, e.Err)
+	}
+	return fmt.Sprintf("IAM permission error (%s) for account %s: %v",
+		e.IssueType, e.AccountID, e.Err)
+}
+
+// Unwrap returns the underlying error for use with errors.Is/As.
+func (e *EC2IAMPermissionError) Unwrap() error {
+	return e.Err
+}
+
+// collectError checks if the error is an EC2IAMPermissionError and if so,
+// appends it to the PermissionErrors slice and returns true.
+// Returns false if the error is not a permission error.
+func (r *EC2DiscoveryResult) collectError(err error) bool {
+	var iamErr *EC2IAMPermissionError
+	if errors.As(err, &iamErr) {
+		r.PermissionErrors = append(r.PermissionErrors, iamErr)
+		return true
+	}
+	return false
+}
+
+// HasInstances returns true if any instances were discovered.
+func (r *EC2DiscoveryResult) HasInstances() bool {
+	return len(r.Instances) > 0
+}
+
+// HasErrors returns true if any permission errors were encountered.
+func (r *EC2DiscoveryResult) HasErrors() bool {
+	return len(r.PermissionErrors) > 0
+}
+
+// IsEmpty returns true if no instances were discovered and no errors occurred.
+func (r *EC2DiscoveryResult) IsEmpty() bool {
+	return !r.HasInstances() && !r.HasErrors()
+}
 
 // accountIDFromRoleARN extracts the AWS account ID from a role ARN.
 // Returns an empty string if the ARN is empty or invalid.
@@ -259,9 +307,6 @@ type ec2FetcherConfig struct {
 	AWSOrganizationsGetter AWSOrganizationsGetter
 	DiscoveryConfigName    string
 	Logger                 *slog.Logger
-	// ReportIAMPermissionError is called when an AccessDenied error occurs
-	// during EC2 discovery, allowing the caller to create a UserTask.
-	ReportIAMPermissionError func(context.Context, *EC2IAMPermissionError)
 }
 
 type ec2InstanceFetcher struct {
@@ -353,10 +398,6 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 		cfg.Logger = slog.Default()
 	}
 
-	if cfg.ReportIAMPermissionError == nil {
-		cfg.ReportIAMPermissionError = noopReportIAMPermissionError
-	}
-
 	return &ec2InstanceFetcher{
 		ec2FetcherConfig: cfg,
 		Filters:          tagFilters,
@@ -406,8 +447,10 @@ func ssmRunCommandParameters(ctx context.Context, cfg ec2FetcherConfig) (map[str
 	return ssmRunCommandParametersForCustomDocuments(cfg), nil
 }
 
-// GetMatchingInstances returns a list of EC2 instances from a list of matching Teleport nodes
-func (f *ec2InstanceFetcher) GetMatchingInstances(ctx context.Context, nodes []types.Server, rotation bool) ([]*EC2Instances, error) {
+// GetMatchingInstances returns a list of EC2 instances from a list of matching Teleport nodes.
+// This method filters existing nodes based on cached instances from the last GetInstances call.
+// It does not make AWS API calls, so no permission errors can occur.
+func (f *ec2InstanceFetcher) GetMatchingInstances(ctx context.Context, nodes []types.Server, rotation bool) ([]*EC2DiscoveryResult, error) {
 	ssmRunParams, err := ssmRunCommandParameters(ctx, f.ec2FetcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -461,7 +504,7 @@ func (f *ec2InstanceFetcher) GetMatchingInstances(ctx context.Context, nodes []t
 		return nil, trace.NotFound("no ec2 instances found")
 	}
 
-	return chunkInstances(instancesByRegion), nil
+	return []*EC2DiscoveryResult{{Instances: chunkInstances(instancesByRegion)}}, nil
 }
 
 // chunkInstances splits instances into chunks of 50.
@@ -510,15 +553,13 @@ func (f *ec2InstanceFetcher) matcherRegions(ctx context.Context, awsOpts []awsco
 		if err != nil {
 			convertedErr := libcloudaws.ConvertRequestFailureError(err)
 			if trace.IsAccessDenied(convertedErr) {
-				f.ReportIAMPermissionError(ctx, &EC2IAMPermissionError{
+				return nil, &EC2IAMPermissionError{
 					Integration:         f.Matcher.Integration,
 					IssueType:           usertasks.AutoDiscoverEC2IssuePermAccountDenied,
 					DiscoveryConfigName: f.DiscoveryConfigName,
 					AccountID:           accountIDFromRoleARN(f.Matcher.AssumeRole.RoleARN),
 					Err:                 convertedErr,
-				})
-				return nil, trace.BadParameter("Missing account:ListRegions permission in IAM Role, which is required to iterate over all regions. " +
-					"Add this permission to the IAM Role, or enumerate all the regions in the AWS matcher.")
+				}
 			}
 			return nil, convertedErr
 		}
@@ -558,14 +599,13 @@ func (f *ec2InstanceFetcher) fetchAccountIDsUnderOrganization(ctx context.Contex
 	if err != nil {
 		convertedErr := libcloudaws.ConvertRequestFailureError(err)
 		if trace.IsAccessDenied(convertedErr) {
-			f.ReportIAMPermissionError(ctx, &EC2IAMPermissionError{
+			return nil, &EC2IAMPermissionError{
 				Integration:         f.Matcher.Integration,
 				IssueType:           usertasks.AutoDiscoverEC2IssuePermOrgDenied,
 				DiscoveryConfigName: f.DiscoveryConfigName,
 				AccountID:           accountIDFromRoleARN(f.Matcher.AssumeRole.RoleARN),
 				Err:                 convertedErr,
-			})
-			return nil, trace.BadParameter("discovering instances under an organization requires the following permissions: [%s], add those to the IAM Role used by the Discovery Service", strings.Join(organizations.RequiredAPIs(), ", "))
+			}
 		}
 
 		return nil, trace.Wrap(convertedErr)
@@ -626,19 +666,31 @@ func (f *ec2InstanceFetcher) allAssumeRoles(ctx context.Context) ([]assumeRoleWi
 }
 
 // GetInstances fetches all EC2 instances matching configured filters.
-func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([]*EC2Instances, error) {
+// Returns an EC2DiscoveryResult containing discovered instances and any permission errors.
+// Org-level permission errors (from allAssumeRoles) cause immediate failure since no discovery
+// is possible without org access. Account/region-level errors are collected and returned
+// alongside any successfully discovered instances.
+func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([]*EC2DiscoveryResult, error) {
 	ssmRunParams, err := ssmRunCommandParameters(ctx, f.ec2FetcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	f.cachedInstances.clear()
-	var allInstances []*EC2Instances
+	result := &EC2DiscoveryResult{}
 
 	accountRolesToAssume, err := f.allAssumeRoles(ctx)
 	if err != nil {
+		// Org-level permission errors are blocking - we can't discover anything
+		// without access to list accounts in the organization.
+		if result.collectError(err) {
+			return []*EC2DiscoveryResult{result}, nil
+		}
 		return nil, trace.Wrap(err)
 	}
+
+	// Preallocate slices based on expected number of accounts.
+	result.Instances = make([]*EC2Instances, 0, len(accountRolesToAssume))
 
 	for _, assumeRole := range accountRolesToAssume {
 		awsOpts := []awsconfig.OptionsFn{
@@ -648,6 +700,10 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 
 		regions, err := f.matcherRegions(ctx, awsOpts)
 		if err != nil {
+			// Account-level permission errors are collected - we continue with other accounts.
+			if result.collectError(err) {
+				continue
+			}
 			f.Logger.WarnContext(ctx, "Failed to get regions for EC2 discovery",
 				"assume_role_arn", assumeRole.RoleARN,
 				"error", err,
@@ -664,6 +720,10 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 				ssmRunParams: ssmRunParams,
 			})
 			if err != nil {
+				// Region-level permission errors are collected - we continue with other regions.
+				if result.collectError(err) {
+					continue
+				}
 				f.Logger.WarnContext(ctx, "Failed to get instances for EC2 discovery",
 					"region", region,
 					"assume_role_arn", assumeRole.RoleARN,
@@ -672,15 +732,17 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 				continue
 			}
 
-			allInstances = append(allInstances, regionInstances...)
+			result.Instances = append(result.Instances, regionInstances...)
 		}
 	}
 
-	if len(allInstances) == 0 {
+	// Return NotFound only if we have no instances AND no permission errors.
+	// Permission errors are valuable information even without instances.
+	if len(result.Instances) == 0 && len(result.PermissionErrors) == 0 {
 		return nil, trace.NotFound("no ec2 instances found")
 	}
 
-	return allInstances, nil
+	return []*EC2DiscoveryResult{result}, nil
 }
 
 type getInstancesInRegionParams struct {
@@ -709,14 +771,14 @@ func (f *ec2InstanceFetcher) getInstancesInRegion(ctx context.Context, params ge
 		if err != nil {
 			convertedErr := libcloudaws.ConvertRequestFailureError(err)
 			if trace.IsAccessDenied(convertedErr) {
-				f.ReportIAMPermissionError(ctx, &EC2IAMPermissionError{
+				return nil, &EC2IAMPermissionError{
 					Integration:         f.Matcher.Integration,
 					Region:              params.region,
 					IssueType:           usertasks.AutoDiscoverEC2IssuePermAccountDenied,
 					DiscoveryConfigName: f.DiscoveryConfigName,
 					AccountID:           accountIDFromRoleARN(params.assumeRole.RoleARN),
 					Err:                 convertedErr,
-				})
+				}
 			}
 			return nil, convertedErr
 		}
