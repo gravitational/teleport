@@ -40,6 +40,11 @@ message ResourceID {
   string SubResourceName = 4 [(gogoproto.jsontag) = "sub_resource,omitempty"];
 }
 
+// ResourceIDList represents a list of ResourceID objects.
+message ResourceIDList {
+  repeated ResourceID resource_ids = 1 [(gogoproto.nullable) = false];
+}
+
 // ResourceConstraints is a domain-specific payload that narrows what principals
 // or options are allowed on the associated ResourceID. Exactly one detail is set.
 message ResourceConstraints {

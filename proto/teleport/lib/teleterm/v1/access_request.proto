@@ -21,6 +21,7 @@ syntax = "proto3";
 package teleport.lib.teleterm.v1;
 
 import "google/protobuf/timestamp.proto";
+import "teleport/legacy/types/access_requests.proto";
 import "teleport/legacy/types/resources.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
@@ -63,6 +64,11 @@ message AccessRequest {
   // reason_prompts is a sorted and deduplicated list of reason prompts for this Access Request.
   // It's only added in response to a dry run request.
   repeated string reason_prompts = 20;
+  // request_kind is the kind (long-term/short-term) of the request.
+  types.AccessRequestKind request_kind = 21;
+  // long_term_resource_grouping contains information about how requested resources
+  // can be grouped for long-term access.
+  types.LongTermResourceGrouping long_term_resource_grouping = 22;
 }
 
 message AccessRequestReview {
