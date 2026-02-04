@@ -1,0 +1,36 @@
+---
+title: Managing Join Tokens with Infrastructure as Code
+sidebar_label: Join Token
+---
+
+This guide shows you how to manage join tokens with infrastructure as code (IaC)
+tools, including The Teleport `tctl` CLI, Terraform, and Kubernetes resources.
+
+This guide is a conceptual overview of using IaC tools to managing join tokens.
+Once you understand the overall flow, we recommend reading one of the guides to
+[Teleport join methods](../../../enroll-resources/agents/agents.mdx) to pick the
+join method that is best for your use case and implement it with an IaC
+solution.
+
+## How it works
+
+Teleport processes use join tokens to establish trust with the Teleport Auth
+Service. Once this is done, the Teleport Auth Service issues certificates to the
+process. Join tokens include one or more **roles**, which in this context,
+indicate the services the process is allowed to run, such as Teleport Agent
+services, the Proxy Service, and the Auth Service.
+
+Join tokens are dynamic resources stored on the Auth Service backend. On a
+Teleport process joining the cluster, the Teleport configuration file includes a
+reference to a token, allowing the Auth Service to authenticate the joining
+process against the token.
+
+Infrastructure as code tools can act as Auth Service API clients to manage join
+tokens. If you are managing Teleport processes as part of the same Terraform
+module or Helm chart, you must establish a dependency relationship between the
+token and the Teleport process that uses it to join a cluster.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
