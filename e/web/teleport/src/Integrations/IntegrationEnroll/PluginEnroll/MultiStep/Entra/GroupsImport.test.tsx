@@ -19,7 +19,7 @@ import {
   filterCollection,
   hasZeroFilters,
 } from './GroupsImport';
-import { Filters } from './types';
+import { AccessListOwnersSource, Filters } from './types';
 
 beforeEach(() => {
   jest.spyOn(userService, 'fetchUsersV2').mockResolvedValue({
@@ -65,7 +65,11 @@ test('edit page default', async () => {
 
   await userEvent.click(screen.getByRole('button', { name: /save/i }));
 
-  expect(onSave).toHaveBeenCalledWith(filters, ['alice']);
+  expect(onSave).toHaveBeenCalledWith(
+    filters,
+    ['alice'],
+    AccessListOwnersSource.Plugin
+  );
 });
 
 test('import all toogle on', async () => {
@@ -101,7 +105,8 @@ test('import all toogle on', async () => {
 
   expect(onSave).toHaveBeenCalledWith(
     plugin.spec.groupFilters,
-    plugin.spec.defaultOwners
+    plugin.spec.defaultOwners,
+    AccessListOwnersSource.Plugin
   );
 
   onSave.mockReset();
@@ -111,7 +116,11 @@ test('import all toogle on', async () => {
 
   await userEvent.click(screen.getByRole('button', { name: /save/i }));
 
-  expect(onSave).toHaveBeenCalledWith(emptyFilter, plugin.spec.defaultOwners);
+  expect(onSave).toHaveBeenCalledWith(
+    emptyFilter,
+    plugin.spec.defaultOwners,
+    AccessListOwnersSource.Plugin
+  );
 });
 
 test('default owner validation', async () => {
@@ -158,18 +167,19 @@ test('prefill values from plugin spec', async () => {
 
   expect(screen.getByText('Group Filters')).toBeInTheDocument();
   expect(screen.getByTestId('toggle')).not.toBeChecked();
-  expect(screen.getByText(`Default Access Lists owner(s)`)).toBeInTheDocument();
+  expect(screen.getByText(`Access Lists owner(s)`)).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: /save/i }));
 
   expect(onSave).toHaveBeenCalledWith(
     plugin.spec.groupFilters,
-    plugin.spec.defaultOwners
+    plugin.spec.defaultOwners,
+    AccessListOwnersSource.Plugin
   );
 });
 
 function renderGroupsImport(
   plugin?: Plugin,
-  onSave?: (filters: Filters, owners: string[]) => void
+  onSave?: (filters: Filters, owners: string[], ownersSource: string) => void
 ) {
   render(
     <MemoryRouter>

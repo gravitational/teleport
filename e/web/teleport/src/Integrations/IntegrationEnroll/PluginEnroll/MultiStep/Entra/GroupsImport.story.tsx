@@ -43,6 +43,8 @@ export const PrefillFromPluginSpec = () => {
     spec: {
       defaultOwners: ['alice', 'bob'],
       groupFilters: { id: ['abc123', 'abc456'], excludeNameRegex: ['admin*'] },
+      accessListOwnersSource:
+        'ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN_AND_ENTRAID',
     },
   };
   return (

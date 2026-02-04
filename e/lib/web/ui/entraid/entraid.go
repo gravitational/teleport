@@ -9,6 +9,8 @@ import (
 type EntraPluginSpec struct {
 	// DefaultOwners are the default owners for all the imported access lists.
 	DefaultOwners []string `json:"defaultOwners,omitempty"`
+	// AccessListOwnersSource is the source of the Access List owners.
+	AccessListOwnersSource string `json:"accessListOwnersSource,omitempty"`
 	// SSOConnectorID is the name of the Teleport SSO connector created and
 	// used by the Entra ID plugin.
 	SSOConnectorID string `json:"ssoConnectorId,omitempty"`

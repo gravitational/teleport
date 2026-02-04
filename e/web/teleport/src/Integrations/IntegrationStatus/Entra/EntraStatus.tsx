@@ -97,11 +97,16 @@ function GroupsImport({
     );
   }
 
-  function onSave(filters: Filters, owners: string[]) {
+  function onSave(
+    filters: Filters,
+    owners: string[],
+    accessListOwnersSource: string
+  ) {
     const req: entraPluginUpdate = {
       name: existingPlugin.name,
       defaultOwners: owners,
       groupFilters: filters,
+      accessListOwnersSource,
     };
     memoizedUpdatePlugin(req);
   }

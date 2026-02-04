@@ -299,6 +299,7 @@ export type entraPluginUpdate = {
   name: string;
   defaultOwners: string[];
   groupFilters: Filters;
+  accessListOwnersSource: string;
 };
 
 export type PluginUpdateRequest<T extends string = ''> = {

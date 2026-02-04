@@ -45,6 +45,12 @@ func TestEntraIDCreatePlugin(t *testing.T) {
 			respContains: "default owners must be specified",
 		},
 		{
+			name:         "invalid accessListOwnersSource",
+			form:         entraInstallRequestURLValues(t, withFieldOverride("accessListOwnersSource", "unknown")),
+			statusCode:   http.StatusBadRequest,
+			respContains: "unexpected Access List owners source",
+		},
+		{
 			name:         "missing tenantID",
 			form:         entraInstallRequestURLValues(t, withFieldRemoved("tenantId")),
 			statusCode:   http.StatusBadRequest,
@@ -296,6 +302,21 @@ func TestEntraIDUpdatePlugin(t *testing.T) {
 			statusCode: http.StatusBadRequest,
 		},
 		{
+			name: "invalid owner source",
+			req: &ui.PluginUpdateRequest{
+				Plugin: types.PluginTypeEntraID,
+				EntraID: &ui.EntraIDPluginUpdate{
+					Name:                   types.PluginTypeEntraID,
+					DefaultOwners:          []string{"user3"},
+					AccessListOwnersSource: types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_UNSPECIFIED.String(),
+				},
+			},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unexpected Access List owners source")
+			},
+			statusCode: http.StatusBadRequest,
+		},
+		{
 			name: "valid",
 			req: &ui.PluginUpdateRequest{
 				Plugin: types.PluginTypeEntraID,
@@ -305,6 +326,7 @@ func TestEntraIDUpdatePlugin(t *testing.T) {
 					GroupFilters: filter.Inputs{
 						ID: []string{"abc-id"},
 					},
+					AccessListOwnersSource: types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN_AND_ENTRAID.String(),
 				},
 			},
 			errAssertion: require.NoError,
@@ -355,9 +377,10 @@ func TestEntraIDPluginUpdatePreservesStatus(t *testing.T) {
 	resp, err = env.pack.clt.PutJSON(t.Context(), updateluginEndPoint, &ui.PluginUpdateRequest{
 		Plugin: types.PluginTypeEntraID,
 		EntraID: &ui.EntraIDPluginUpdate{
-			Name:          types.PluginTypeEntraID,
-			DefaultOwners: []string{"user3"}, // new owner
-			GroupFilters:  filter.Inputs{},   // empty filters
+			Name:                   types.PluginTypeEntraID,
+			DefaultOwners:          []string{"user3"}, // new owner
+			AccessListOwnersSource: types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID.String(),
+			GroupFilters:           filter.Inputs{}, // empty filters
 		},
 	})
 	require.NoError(t, err)
@@ -442,13 +465,14 @@ func entraInstallRequestURLValues(t *testing.T, opts ...reqOpts) url.Values {
 func entraInstallRequestValidURLValues(t *testing.T) url.Values {
 	t.Helper()
 	return url.Values{
-		"name":              {types.PluginTypeEntraID},
-		"type":              {types.PluginTypeEntraID},
-		"authConnectorName": {types.PluginTypeEntraID},
-		"defaultOwners":     {`["user1", "user2"]`},
-		"tenantId":          {"eae3bfbd-3246-47fe-8a37-c20b9eb433a2"},
-		"clientId":          {"e1b69fdf-8e18-47f0-864c-94ca7f8d0e1f"},
-		"groupFilters":      {`{"id":["c8d8f374-1072-4adf-aa5e-75036e8ccc41"],"nameRegex":[],"excludeId":[],"excludeNameRegex":["finance-*"]}`},
+		"name":                   {types.PluginTypeEntraID},
+		"type":                   {types.PluginTypeEntraID},
+		"authConnectorName":      {types.PluginTypeEntraID},
+		"defaultOwners":          {`["user1", "user2"]`},
+		"tenantId":               {"eae3bfbd-3246-47fe-8a37-c20b9eb433a2"},
+		"clientId":               {"e1b69fdf-8e18-47f0-864c-94ca7f8d0e1f"},
+		"groupFilters":           {`{"id":["c8d8f374-1072-4adf-aa5e-75036e8ccc41"],"nameRegex":[],"excludeId":[],"excludeNameRegex":["finance-*"]}`},
+		"accessListOwnersSource": {types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN.String()},
 	}
 }
 

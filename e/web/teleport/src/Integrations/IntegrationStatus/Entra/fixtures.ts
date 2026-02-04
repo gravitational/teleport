@@ -6,11 +6,12 @@ export const entraPlugin: Plugin = {
   name: 'entra-id-default',
   statusCode: 2,
   spec: {
-    defaultOwners: ['emaster'],
+    defaultOwners: ['emaster', 'user@example.com'],
     ssoConnectorId: 'entra-id',
     credentialSource: 'ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS',
     tenantId: '71cbeb2a-1b5b-44bd-909f-511a904a25b0',
     entraAppId: '9a5b7068-bb3c-4f76-9183-c0fbb6483b15',
+    accessListOwnersSource: 'ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN',
     groupFilters: {
       id: [
         'd7055898-f95a-4432-9a95-574826c31543',

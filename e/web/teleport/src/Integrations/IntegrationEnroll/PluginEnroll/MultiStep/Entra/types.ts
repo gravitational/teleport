@@ -8,6 +8,7 @@ export enum FormDataField {
   AccessGraph = 'accessGraph',
   AccessGraphCache = 'accessGraphCache',
   GroupFilters = 'groupFilters',
+  AccessListOwnersSource = 'accessListOwnersSource',
 }
 
 /**
@@ -27,4 +28,32 @@ export type Filters = {
  */
 export enum SettingsType {
   GroupImport = 'groups-import',
+}
+
+/**
+ * AccessListOwnersSource defines friendly source
+ * names of the Access List owner. Value matches with
+ * proto EntraIDAccessListOwnersSource type.
+ */
+export enum AccessListOwnersSource {
+  Plugin = 'ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN',
+  EntraId = 'ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID',
+  PluginAndEntraId = 'ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN_AND_ENTRAID',
+}
+
+export function toFrienldyAccessListOwnersSource(source: string) {
+  switch (source) {
+    case AccessListOwnersSource.Plugin:
+      return 'Plugin';
+    case AccessListOwnersSource.EntraId:
+      return 'Microsoft Entra ID';
+    case AccessListOwnersSource.PluginAndEntraId:
+      return 'Plugin and Microsoft Entra ID';
+    default:
+      /**
+       * Backend may have introduced a new source type which is
+       * unknown to the UI.
+       */
+      return 'Unknown';
+  }
 }

@@ -24,7 +24,10 @@ import { Edit, SyncAlt, UserList, Users } from 'design/Icon';
 import { IconTooltip } from 'design/Tooltip';
 
 import cfg from 'e-teleport/config';
-import { SettingsType } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Entra/types';
+import {
+  SettingsType,
+  toFrienldyAccessListOwnersSource,
+} from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Entra/types';
 import { StatusAndOptions } from 'e-teleport/Integrations/IntegrationStatus/Shared';
 import {
   IntegrationStatusCode,
@@ -149,17 +152,30 @@ export function DirectorySyncDetails({
         <Text bold>Group Import Settings</Text>
 
         <SettingContainer>
-          <Text>Default Owners:</Text>
+          <SettingKey>Owners Source:</SettingKey>
+          <Text color="text.slightlyMuted" pl={1}>
+            <b>
+              {toFrienldyAccessListOwnersSource(spec.accessListOwnersSource)}
+            </b>
+          </Text>
+        </SettingContainer>
+        <SettingContainer>
+          <SettingKey>Default Owners:</SettingKey>
           {spec.defaultOwners?.length ? (
-            <Box>
+            <Flex
+              flexDirection="row"
+              flexWrap={'wrap'}
+              rowGap={1}
+              columnGap={2}
+            >
               {spec.defaultOwners.map((label, index) => (
                 <Label key={`${label}${index}`} kind="secondary">
                   {label}
                 </Label>
               ))}
-            </Box>
+            </Flex>
           ) : (
-            <Text color={'text.slightlyMuted'}>No default owners.</Text>
+            <Text>No default owners.</Text>
           )}
         </SettingContainer>
 
@@ -217,7 +233,7 @@ function ImportSummary({
       </Text>
       <Text bold>{title}</Text>
       <Flex flexDirection="row" alignItems={'center'} gap={2}>
-        <Text color="text.slightlyMuted">{desc}</Text>
+        <SettingKey>{desc}</SettingKey>
         <IconTooltip kind="info">
           <Text>
             Total count is the sum of resources synced during the latest sync
@@ -233,7 +249,7 @@ function FilterDetails({ filters }: { filters: Filters }) {
   if (!hasIncludeFilters(filters) && !hasExcludeFilters(filters)) {
     return (
       <SettingContainer>
-        <Text>Group Filters:</Text>
+        <SettingKey>Group Filters:</SettingKey>
         <Text color={'text.slightlyMuted'}>
           No filters configured, all groups are being synced.
         </Text>
@@ -245,7 +261,7 @@ function FilterDetails({ filters }: { filters: Filters }) {
     <>
       {hasIncludeFilters(filters) && (
         <SettingContainer>
-          <Text>Include group filters: </Text>
+          <SettingKey>Include group filters: </SettingKey>
           <Flex flexDirection="row" flexWrap={'wrap'} rowGap={1} columnGap={2}>
             {filters.nameRegex?.map((label, index) => (
               <Label key={`${label}${index}`} kind="secondary">
@@ -263,7 +279,7 @@ function FilterDetails({ filters }: { filters: Filters }) {
 
       {hasExcludeFilters(filters) && (
         <SettingContainer>
-          <Text>Exclude group filters:</Text>
+          <SettingKey>Exclude group filters:</SettingKey>
           <Flex flexDirection="row" flexWrap={'wrap'} rowGap={1} columnGap={2}>
             {filters.excludeNameRegex?.map((label, index) => (
               <Label key={`${label}${index}`} kind="secondary">
@@ -334,6 +350,10 @@ function hasExcludeFilters(filters: Filters): boolean {
   }
   return filters.excludeId?.length > 0 || filters.excludeNameRegex?.length > 0;
 }
+
+const SettingKey = styled(Text)`
+  color: ${({ theme }) => theme.colors.text.slightlyMuted};
+`;
 
 const SettingContainer = styled(Flex)`
   display: grid;

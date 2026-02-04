@@ -21,7 +21,7 @@ import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 import { PluginEnroll } from '../../PluginEnroll';
 import { emptyFilter, filterCollection } from './GroupsImport';
-import { Filters } from './types';
+import { AccessListOwnersSource, Filters } from './types';
 
 jest.mock('shared/libs/logger', () => {
   const mockLogger = {
@@ -112,6 +112,9 @@ test('entra onboard with policy disabled', async () => {
   );
   expect(calledWithFormData.get('defaultOwners')).toEqual('["alice"]');
   expect(calledWithFormData.get('accessGraph')).toBeNull();
+  expect(calledWithFormData.get('accessListOwnersSource')).toEqual(
+    AccessListOwnersSource.Plugin
+  );
 
   // Finish onboard
   setStep2Inputs();
@@ -158,6 +161,9 @@ test('entra onboard with policy enabled', async () => {
   );
   expect(calledWithFormData.get('defaultOwners')).toEqual('["alice"]');
   expect(calledWithFormData.get('accessGraph')).toEqual('on');
+  expect(calledWithFormData.get('accessListOwnersSource')).toEqual(
+    AccessListOwnersSource.Plugin
+  );
 
   // Set step 2 inputs (except for TAG cache file).
   // Expect form submission to fail, because the mandatory file field is not set.
@@ -316,6 +322,56 @@ test('group filter toggle on should wipe configured filters', async () => {
   expect(calledWithFormData.get('groupFilters')).toEqual(
     JSON.stringify(emptyFilter)
   );
+});
+
+test('entra id group source', async () => {
+  cfg.edition = 'ent';
+  cfg.isPolicyEnabled = false;
+  cfg.entitlements.Policy = { enabled: false, limit: 0 };
+  cfg.entitlements.Identity = { enabled: true, limit: 0 };
+
+  renderPluginEnroll('entra-id');
+
+  // Test init screen render.
+  await expectInitRender(true);
+
+  // Fill initial fields
+  setStep1Inputs();
+  // Select Entra ID as source of Access List owners.
+  await userEvent.click(screen.getByText('Microsoft Entra ID'));
+
+  await userEvent.click(screen.getByRole('button', { name: /next/i }));
+  expect(pluginsService.checkPluginRequiresCleanup).toHaveBeenCalledTimes(1);
+
+  expect(pluginsService.validatePlugin).toHaveBeenCalledTimes(1);
+  let calledWithFormData = mockedValidatePlugin.mock.calls[0][0];
+  expect(calledWithFormData.get('authConnectorName')).toEqual(
+    authConnectorValue
+  );
+  expect(calledWithFormData.get('defaultOwners')).toEqual('["alice"]');
+  expect(calledWithFormData.get('accessGraph')).toBeNull();
+  await waitFor(() => {
+    expect(calledWithFormData.get('accessListOwnersSource')).toEqual(
+      AccessListOwnersSource.EntraId
+    );
+  });
+
+  // Finish onboard
+  setStep2Inputs();
+
+  await userEvent.click(screen.getByRole('button', { name: /finish/i }));
+  expect(screen.getByText(/integrated successfully/i)).toBeInTheDocument();
+
+  expect(pluginsService.createStaticAuthPlugin).toHaveBeenCalledTimes(1);
+
+  calledWithFormData = mockedCreatePlugin.mock.calls[0][0];
+  expect(calledWithFormData.get('tenantId')).toEqual(tenantIdValue);
+  expect(calledWithFormData.get('clientId')).toEqual(clientIdValue);
+  expect(calledWithFormData.get('accessGraphCache')).toBeNull();
+
+  expect(
+    screen.getByText(/microsoft entra id is integrated successfully/i)
+  ).toBeInTheDocument();
 });
 
 async function expectInitRender(accessGraphLocked: boolean) {

@@ -147,11 +147,12 @@ func TestEntraPluginProtoToUI(t *testing.T) {
 					Settings: &types.PluginSpecV1_EntraId{
 						EntraId: &types.PluginEntraIDSettings{
 							SyncSettings: &types.PluginEntraIDSyncSettings{
-								CredentialsSource: types.EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS,
-								DefaultOwners:     []string{"admin"},
-								EntraAppId:        "ea66927a-fdb0-4e1a-b869-bf0dd494a27e",
-								SsoConnectorId:    "entra-id",
-								TenantId:          "e0fe9234-0d2e-45bb-b06e-0bd635e11487",
+								CredentialsSource:      types.EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS,
+								DefaultOwners:          []string{"admin"},
+								AccessListOwnersSource: types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID,
+								EntraAppId:             "ea66927a-fdb0-4e1a-b869-bf0dd494a27e",
+								SsoConnectorId:         "entra-id",
+								TenantId:               "e0fe9234-0d2e-45bb-b06e-0bd635e11487",
 								GroupFilters: []*types.PluginSyncFilter{
 									{Include: &types.PluginSyncFilter_Id{Id: "2"}},
 									{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "a*"}},
@@ -161,7 +162,6 @@ func TestEntraPluginProtoToUI(t *testing.T) {
 									{Exclude: &types.PluginSyncFilter_ExcludeNameRegex{ExcludeNameRegex: "admin*"}},
 								},
 							},
-
 							AccessGraphSettings: &types.PluginEntraIDAccessGraphSettings{
 								AppSsoSettingsCache: []*types.PluginEntraIDAppSSOSettings{
 									{
@@ -192,11 +192,12 @@ func TestEntraPluginProtoToUI(t *testing.T) {
 				Details:    "Users and groups will be synchronized from the Entra ID directory",
 				StatusCode: 2,
 				Spec: &entraidui.EntraPluginSpec{
-					DefaultOwners:     []string{"admin"},
-					SSOConnectorID:    "entra-id",
-					CredentialsSource: "ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS",
-					TenantID:          "e0fe9234-0d2e-45bb-b06e-0bd635e11487",
-					EntraAppID:        "ea66927a-fdb0-4e1a-b869-bf0dd494a27e",
+					DefaultOwners:          []string{"admin"},
+					AccessListOwnersSource: types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID.String(),
+					SSOConnectorID:         "entra-id",
+					CredentialsSource:      "ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS",
+					TenantID:               "e0fe9234-0d2e-45bb-b06e-0bd635e11487",
+					EntraAppID:             "ea66927a-fdb0-4e1a-b869-bf0dd494a27e",
 					GroupFilters: filter.Inputs{
 						ID:               []string{"2", "4"},
 						NameRegex:        []string{"a*"},
@@ -220,7 +221,7 @@ func TestEntraPluginProtoToUI(t *testing.T) {
 			},
 		},
 		{
-			name: "access graph deisabled",
+			name: "access graph disabled",
 			plugin: &types.PluginV1{
 				Kind:    "plugin",
 				Version: "v1",
@@ -235,11 +236,12 @@ func TestEntraPluginProtoToUI(t *testing.T) {
 					Settings: &types.PluginSpecV1_EntraId{
 						EntraId: &types.PluginEntraIDSettings{
 							SyncSettings: &types.PluginEntraIDSyncSettings{
-								CredentialsSource: types.EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS,
-								DefaultOwners:     []string{"admin"},
-								EntraAppId:        "ea66927a-fdb0-4e1a-b869-bf0dd494a27e",
-								SsoConnectorId:    "entra-id",
-								TenantId:          "e0fe9234-0d2e-45bb-b06e-0bd635e11487",
+								CredentialsSource:      types.EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS,
+								DefaultOwners:          []string{"admin"},
+								AccessListOwnersSource: types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN,
+								EntraAppId:             "ea66927a-fdb0-4e1a-b869-bf0dd494a27e",
+								SsoConnectorId:         "entra-id",
+								TenantId:               "e0fe9234-0d2e-45bb-b06e-0bd635e11487",
 								GroupFilters: []*types.PluginSyncFilter{
 									{Include: &types.PluginSyncFilter_Id{Id: "2"}},
 								},
@@ -260,11 +262,12 @@ func TestEntraPluginProtoToUI(t *testing.T) {
 				Details:    "Users and groups will be synchronized from the Entra ID directory",
 				StatusCode: 2,
 				Spec: &entraidui.EntraPluginSpec{
-					DefaultOwners:     []string{"admin"},
-					SSOConnectorID:    "entra-id",
-					CredentialsSource: "ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS",
-					TenantID:          "e0fe9234-0d2e-45bb-b06e-0bd635e11487",
-					EntraAppID:        "ea66927a-fdb0-4e1a-b869-bf0dd494a27e",
+					DefaultOwners:          []string{"admin"},
+					AccessListOwnersSource: types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN.String(),
+					SSOConnectorID:         "entra-id",
+					CredentialsSource:      "ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS",
+					TenantID:               "e0fe9234-0d2e-45bb-b06e-0bd635e11487",
+					EntraAppID:             "ea66927a-fdb0-4e1a-b869-bf0dd494a27e",
 					GroupFilters: filter.Inputs{
 						ID: []string{"2"},
 					},

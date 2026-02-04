@@ -23,7 +23,13 @@ export const EntraID: StoryObj = {
             name: 'entra-id-default',
             statusCode: 1,
             spec: {
-              defaultOwners: ['emaster'],
+              defaultOwners: [
+                'emaster',
+                'user@example.com',
+                'admin@example.com',
+              ],
+              accessListOwnersSource:
+                'ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN',
               ssoConnectorId: 'entra-id',
               credentialSource: 'ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS',
               tenantId: '71cbeb2a-1b5b-44bd-909f-511a904a25b0',

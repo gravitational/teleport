@@ -117,6 +117,7 @@ func (e entraIDPluginDescriptor) HandleInstallRequest(ctx context.Context, sessC
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	req := &pluginsv1.CreatePluginRequest{
 		Plugin: &types.PluginV1{
 			Metadata: types.Metadata{
@@ -129,12 +130,13 @@ func (e entraIDPluginDescriptor) HandleInstallRequest(ctx context.Context, sessC
 				Settings: &types.PluginSpecV1_EntraId{
 					EntraId: &types.PluginEntraIDSettings{
 						SyncSettings: &types.PluginEntraIDSyncSettings{
-							DefaultOwners:     owners,
-							SsoConnectorId:    inputs.authConnectorName,
-							TenantId:          inputs.tenantID,
-							CredentialsSource: types.EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_OIDC,
-							EntraAppId:        inputs.clientID,
-							GroupFilters:      filters,
+							DefaultOwners:          owners,
+							SsoConnectorId:         inputs.authConnectorName,
+							TenantId:               inputs.tenantID,
+							CredentialsSource:      types.EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_OIDC,
+							EntraAppId:             inputs.clientID,
+							GroupFilters:           filters,
+							AccessListOwnersSource: inputs.accessListOwnersSource,
 						},
 						AccessGraphSettings: tagSyncSettings,
 					},
@@ -220,6 +222,10 @@ func (entraIDPluginDescriptor) HandleUpdateRequest(ctx context.Context, sessCtx 
 	if err != nil {
 		return nil, trace.Wrap(err, "invalid group filter")
 	}
+	ownersSource, err := parseOwnersSource(req.EntraID.AccessListOwnersSource)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	client, err := sessCtx.GetClient()
 	if err != nil {
@@ -241,6 +247,7 @@ func (entraIDPluginDescriptor) HandleUpdateRequest(ctx context.Context, sessCtx 
 	settings := newPlugin.Spec.GetEntraId()
 	settings.SyncSettings.DefaultOwners = req.EntraID.DefaultOwners
 	settings.SyncSettings.GroupFilters = filters
+	settings.SyncSettings.AccessListOwnersSource = ownersSource
 	newPlugin.Spec.Settings = &types.PluginSpecV1_EntraId{
 		EntraId: settings,
 	}
@@ -269,12 +276,13 @@ func (entraIDPluginDescriptor) HandleOAuthStart(ctx context.Context, sessCtx *we
 }
 
 type entraIDPluginInputs struct {
-	name              string
-	authConnectorName string
-	defaultOwners     string
-	tenantID          string
-	clientID          string
-	groupFilters      filter.Inputs
+	name                   string
+	authConnectorName      string
+	defaultOwners          string
+	tenantID               string
+	clientID               string
+	groupFilters           filter.Inputs
+	accessListOwnersSource types.EntraIDAccessListOwnersSource
 }
 
 // parseEntraIDPluginInputs parses Entra ID plugin inputs.
@@ -316,6 +324,12 @@ func parseEntraIDPluginInputs(form url.Values, includeEntraConfig bool) (entraID
 			return inputs, trace.BadParameter("client ID must be specified")
 		}
 	}
+
+	ownersSource, err := parseOwnersSource(form.Get("accessListOwnersSource"))
+	if err != nil {
+		return inputs, trace.Wrap(err)
+	}
+	inputs.accessListOwnersSource = ownersSource
 
 	return inputs, nil
 }
@@ -360,4 +374,14 @@ func readTAGCache(r *http.Request) (*azureoidc.TAGInfoCache, error) {
 	}
 
 	return &result, nil
+}
+
+func parseOwnersSource(in string) (types.EntraIDAccessListOwnersSource, error) {
+	enumVal, ok := types.EntraIDAccessListOwnersSource_value[in]
+	if !ok || enumVal == 0 {
+		return types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_UNSPECIFIED,
+			trace.BadParameter("unexpected Access List owners source %q", in)
+	}
+
+	return types.EntraIDAccessListOwnersSource(enumVal), nil
 }

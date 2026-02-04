@@ -5,10 +5,12 @@ import {
   Box,
   ButtonPrimary,
   ButtonSecondary,
+  Flex,
   Link,
   Text,
   Toggle,
 } from 'design';
+import { RadioGroup } from 'design/RadioGroup';
 import { FieldSelectCreatableAsync } from 'shared/components/FieldSelect/FieldSelectCreatable';
 import { Option } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -22,10 +24,14 @@ import {
 } from 'e-teleport/Integrations/shared/CreateFilters';
 import cfg from 'teleport/config';
 import { StyledBox } from 'teleport/Discover/Shared';
-import { Plugin } from 'teleport/services/integrations';
+import type { Plugin, PluginEntraIdSpec } from 'teleport/services/integrations';
 import { type User } from 'teleport/services/user';
 
-import { Filters } from './types';
+import {
+  AccessListOwnersSource,
+  Filters,
+  toFrienldyAccessListOwnersSource,
+} from './types';
 
 export function EditGroupsImport({
   plugin,
@@ -33,7 +39,7 @@ export function EditGroupsImport({
   disabled,
 }: {
   plugin?: Plugin;
-  onSave: (filters: Filters, owners: string[]) => void;
+  onSave: (filters: Filters, owners: string[], ownersSource: string) => void;
   disabled: boolean;
 }) {
   const history = useHistory();
@@ -45,6 +51,8 @@ export function EditGroupsImport({
     selectedOwners,
     setSelectedOwners,
     loadOptions,
+    accessListOwnersSource,
+    setAccessListOwnersSource,
   } = useGroupImportsSettings(plugin);
 
   const [importAll, setImportAll] = useState(
@@ -66,7 +74,8 @@ export function EditGroupsImport({
 
     onSave(
       filterValue,
-      selectedOwners.map(o => o.label)
+      selectedOwners.map(o => o.label),
+      accessListOwnersSource
     );
   }
 
@@ -105,10 +114,12 @@ export function EditGroupsImport({
             </StyledBox>
 
             <StyledBox mt={4}>
-              <DefaultOwners
+              <AccessListOwners
                 loadOptions={loadOptions}
                 selectedOptions={selectedOwners}
                 onOptionChange={setSelectedOwners}
+                accessListOwnersSource={accessListOwnersSource}
+                onOwnersSourceChange={setAccessListOwnersSource}
                 disabled={disabled}
               />
             </StyledBox>
@@ -125,6 +136,53 @@ export function EditGroupsImport({
   );
 }
 
+function AccessListOwners({
+  loadOptions,
+  selectedOptions,
+  onOptionChange,
+  accessListOwnersSource,
+  onOwnersSourceChange,
+  disabled,
+}: {
+  loadOptions: (input: string) => Promise<UserOption[]>;
+  selectedOptions: UserOption[];
+  onOptionChange: (UserOption) => void;
+  accessListOwnersSource: string;
+  onOwnersSourceChange: (string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <>
+      <Text bold typography="subtitle1" mb={1}>
+        Access Lists owner(s)
+      </Text>
+      <Text>
+        Access List owners are responsible for periodically reviewing membership
+        to each Access List.
+      </Text>
+      <Flex gap={4} flexDirection="column" mt={4}>
+        <DefaultOwners
+          loadOptions={loadOptions}
+          selectedOptions={selectedOptions}
+          onOptionChange={onOptionChange}
+          disabled={disabled}
+        />
+        <Box>
+          <Text typography="subtitle2" mb={1}>
+            Owners source
+          </Text>
+          <Text mb={3}>Configure source of the Access List owners.</Text>
+          <ConfigureSource
+            source={accessListOwnersSource}
+            onSourceChange={onOwnersSourceChange}
+            disabled={disabled}
+          />
+        </Box>
+      </Flex>
+    </>
+  );
+}
+
 function DefaultOwners({
   loadOptions,
   selectedOptions,
@@ -137,16 +195,18 @@ function DefaultOwners({
   disabled: boolean;
 }) {
   return (
-    <Box>
-      <Text bold mb={1}>
-        Default Access Lists owner(s)
+    <Box maxWidth="600px">
+      <Text typography="subtitle2" mb={1}>
+        Default owners
       </Text>
       <Text mb={3}>
-        Access List owners are responsible for periodically reviewing membership
-        to each Access List. At least one owner is required.
+        Default owners will be used as Access List owners if Teleport is not
+        configured to source group owners from Microsoft Entra ID or if
+        Microsoft Entra ID group has zero supported owners.
       </Text>
       <FieldSelectCreatableAsync
         width="540px"
+        required={true}
         autoFocus={true}
         placeholder="Type a username and press enter"
         isMulti
@@ -157,9 +217,59 @@ function DefaultOwners({
         value={selectedOptions}
         onChange={(opts: UserOption[]) => onOptionChange(opts)}
         noOptionsMessage={() => 'Type a username and press enter'}
-        label="Add Default List Owner(s)"
+        label="Add Default Owners"
         rule={requiredField('At least 1 default owner is required')}
         isDisabled={disabled}
+      />
+    </Box>
+  );
+}
+
+export function ConfigureSource({
+  source,
+  onSourceChange,
+  disabled,
+}: {
+  source: string;
+  onSourceChange: (source: `${AccessListOwnersSource}`) => void;
+  disabled: boolean;
+}) {
+  return (
+    <Box maxWidth="600px">
+      <RadioGroup
+        size="small"
+        name="accessListOwnersSource"
+        onChange={(v: `${AccessListOwnersSource}`) => onSourceChange(v)}
+        value={source}
+        options={[
+          {
+            value: AccessListOwnersSource.Plugin,
+            label: toFrienldyAccessListOwnersSource(
+              AccessListOwnersSource.Plugin
+            ),
+            helperText: 'Use default owners as Access List owners.',
+            disabled: disabled,
+          },
+          {
+            value: AccessListOwnersSource.EntraId,
+            label: toFrienldyAccessListOwnersSource(
+              AccessListOwnersSource.EntraId
+            ),
+            helperText: `Use Microsoft Entra ID group owners as Access List owners. Only the
+            group owner of User type is supported. If the Microsoft Entra ID group has zero owners, Teleport will
+            fallback to using plugin source.`,
+            disabled: disabled,
+          },
+          {
+            value: AccessListOwnersSource.PluginAndEntraId,
+            label: toFrienldyAccessListOwnersSource(
+              AccessListOwnersSource.PluginAndEntraId
+            ),
+            helperText:
+              'Use both plugin source and Microsoft Entra ID source to configure Access List owners.',
+            disabled: disabled,
+          },
+        ]}
       />
     </Box>
   );
@@ -182,7 +292,7 @@ function ConfigureFilters({
 }) {
   return (
     <Box>
-      <Text bold mb={1}>
+      <Text bold typography="subtitle1" mb={1}>
         Group Filters
       </Text>
       <Text mb={2}>
@@ -296,7 +406,7 @@ export function hasZeroFilters(filters: Filters): boolean {
 
 type UserOption = Option<string, string>;
 
-function useGroupImportsSettings(plugin?: Plugin) {
+function useGroupImportsSettings(plugin?: Plugin<PluginEntraIdSpec>) {
   function toUserOption(owners: string[]): UserOption[] {
     if (!owners) {
       return [];
@@ -312,6 +422,10 @@ function useGroupImportsSettings(plugin?: Plugin) {
     plugin?.spec?.groupFilters ? plugin?.spec?.groupFilters : emptyFilter
   );
 
+  const [accessListOwnersSource, setAccessListOwnersSource] = useState(
+    plugin?.spec?.accessListOwnersSource ?? AccessListOwnersSource.Plugin
+  );
+
   const { loadOptions } = useUserOptions<UserOption>((user: User[]) => {
     return user.map(user => ({
       label: user.name,
@@ -325,6 +439,8 @@ function useGroupImportsSettings(plugin?: Plugin) {
     setSelectedOwners,
     filters,
     setFilters,
+    accessListOwnersSource,
+    setAccessListOwnersSource,
   };
 }
 

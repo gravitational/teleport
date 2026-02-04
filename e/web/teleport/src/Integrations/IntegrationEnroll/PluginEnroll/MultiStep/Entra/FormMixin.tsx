@@ -15,8 +15,13 @@ import { StyledBox } from 'teleport/Discover/Shared';
 import { useTeleport } from 'teleport/index';
 import userService, { User } from 'teleport/services/user';
 
-import { emptyFilter, filterCollection, toFilterOption } from './GroupsImport';
-import { Filters, FormDataField } from './types';
+import {
+  ConfigureSource,
+  emptyFilter,
+  filterCollection,
+  toFilterOption,
+} from './GroupsImport';
+import { AccessListOwnersSource, Filters, FormDataField } from './types';
 
 type UserOption = Option<User>;
 
@@ -60,6 +65,9 @@ export function FormMixin({ attempt }) {
   // plugin spec.
   const [hideFilters, setHideFilters] = useState(true);
   const [filters, setFilters] = useState<Filters>(emptyFilter);
+  const [ownersSource, setOwnersSrouce] = useState<string>(
+    AccessListOwnersSource.Plugin
+  );
 
   return (
     <Box width="800px">
@@ -175,6 +183,18 @@ export function FormMixin({ attempt }) {
                 label="Add Default List Owner(s)"
                 rule={requiredField('At least 1 default owner is required')}
                 isDisabled={attempt.status === 'processing'}
+              />
+            </Box>
+
+            <Box mt={5}>
+              <Text bold mb={1}>
+                Access Lists owner(s) source
+              </Text>
+              <Text mb={3}>Configure source of the Access List owners.</Text>
+              <ConfigureSource
+                source={ownersSource}
+                onSourceChange={setOwnersSrouce}
+                disabled={attempt.status === 'processing'}
               />
             </Box>
           </StyledBox>

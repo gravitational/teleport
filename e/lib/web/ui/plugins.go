@@ -365,13 +365,14 @@ func pluginSpec(p types.Plugin) PluginSpec {
 		}
 	case *types.PluginSpecV1_EntraId:
 		return &entraidui.EntraPluginSpec{
-			DefaultOwners:      settings.EntraId.SyncSettings.DefaultOwners,
-			SSOConnectorID:     settings.EntraId.SyncSettings.SsoConnectorId,
-			TenantID:           settings.EntraId.SyncSettings.TenantId,
-			EntraAppID:         settings.EntraId.SyncSettings.EntraAppId,
-			CredentialsSource:  settings.EntraId.SyncSettings.CredentialsSource.String(),
-			GroupFilters:       filter.ToInputs(settings.EntraId.SyncSettings.GroupFilters),
-			AccessGraphEnabled: entraidui.AccessGraphSyncEnabled(settings.EntraId.AccessGraphSettings),
+			DefaultOwners:          settings.EntraId.SyncSettings.DefaultOwners,
+			SSOConnectorID:         settings.EntraId.SyncSettings.SsoConnectorId,
+			TenantID:               settings.EntraId.SyncSettings.TenantId,
+			EntraAppID:             settings.EntraId.SyncSettings.EntraAppId,
+			CredentialsSource:      settings.EntraId.SyncSettings.CredentialsSource.String(),
+			GroupFilters:           filter.ToInputs(settings.EntraId.SyncSettings.GroupFilters),
+			AccessGraphEnabled:     entraidui.AccessGraphSyncEnabled(settings.EntraId.AccessGraphSettings),
+			AccessListOwnersSource: settings.EntraId.SyncSettings.AccessListOwnersSource.String(),
 		}
 	default:
 		return nil
@@ -451,6 +452,8 @@ type EntraIDPluginUpdate struct {
 	Name string `json:"name,omitempty"`
 	// DefaultOwners is the list of default owners for synced Access Lists.
 	DefaultOwners []string `json:"defaultOwners,omitempty"`
+	// AccessListOwnersSource is the source of the Access List owners.
+	AccessListOwnersSource string `json:"accessListOwnersSource,omitempty"`
 	// GroupFilters is the group filter inputs.
 	GroupFilters filter.Inputs `json:"groupFilters"`
 }
