@@ -927,6 +927,9 @@ func TestDiscoveryServer(t *testing.T) {
 				require.Equal(t, "OPEN", existingTask.GetSpec().State)
 				require.Equal(t, "my-integration", existingTask.GetSpec().Integration)
 				require.Equal(t, "ec2-perm-account-denied", existingTask.GetSpec().IssueType)
+				// ListRegions errors occur at the account level, before we know which regions
+				// are available, so the region should be empty.
+				require.Empty(t, existingTask.GetSpec().GetDiscoverEc2().GetRegion())
 			},
 		},
 		{
@@ -944,6 +947,9 @@ func TestDiscoveryServer(t *testing.T) {
 				require.Equal(t, "OPEN", existingTask.GetSpec().State)
 				require.Equal(t, "my-integration", existingTask.GetSpec().Integration)
 				require.Equal(t, "ec2-perm-org-denied", existingTask.GetSpec().IssueType)
+				// Organization-level errors occur before we know which regions to discover,
+				// so the region should be empty.
+				require.Empty(t, existingTask.GetSpec().GetDiscoverEc2().GetRegion())
 			},
 		},
 	}
@@ -4419,4 +4425,20 @@ func TestReportEC2IAMPermissionError_LogDeduplication(t *testing.T) {
 
 	// Now should have 2 log entries (one per unique error key)
 	assert.Equal(t, int32(2), handler.count.Load(), "expected 2 log entries for different errors")
+
+	// Org-level errors have empty region - verify they still deduplicate correctly
+	orgErr := &server.EC2IAMPermissionError{
+		IssueType:           usertasks.AutoDiscoverEC2IssuePermOrgDenied,
+		Integration:         "my-integration",
+		AccountID:           "", // Empty for org-level errors
+		Region:              "", // Empty for org-level errors
+		DiscoveryConfigName: "test-config",
+		Err:                 errors.New("AccessDenied"),
+	}
+	for range 3 {
+		s.reportEC2IAMPermissionError(ctx, orgErr)
+	}
+
+	// Should have 3 total: original, different region, and org error (only once despite 3 calls)
+	assert.Equal(t, int32(3), handler.count.Load(), "expected 3 log entries total with org-level dedup")
 }
