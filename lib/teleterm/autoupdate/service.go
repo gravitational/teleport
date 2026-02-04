@@ -151,9 +151,12 @@ func (s *Service) GetConfig(_ context.Context, _ *api.GetConfigRequest) (*api.Ge
 
 	toolsVersionValue := strings.TrimSpace(config.GetToolsVersion().Value)
 	toolsVersionSource := config.GetToolsVersion().Source
-	if toolsVersionValue == "" {
+	switch toolsVersionValue {
+	case "":
 		toolsVersionSource = api.ConfigSource_CONFIG_SOURCE_UNSPECIFIED
-	} else if toolsVersionValue != teleportToolsVersionOff {
+	case teleportToolsVersionOff:
+		break
+	default:
 		if _, err = semver.NewVersion(toolsVersionValue); err != nil {
 			return nil, trace.BadParameter("invalid version %v for tools version", toolsVersionValue)
 		}
@@ -161,9 +164,10 @@ func (s *Service) GetConfig(_ context.Context, _ *api.GetConfigRequest) (*api.Ge
 
 	cdnBaseUrlValue := strings.TrimSpace(config.GetCdnBaseUrl().Value)
 	cdnBaseUrlSource := config.GetCdnBaseUrl().Source
-	if cdnBaseUrlValue == "" {
+	switch cdnBaseUrlValue {
+	case "":
 		cdnBaseUrlSource = api.ConfigSource_CONFIG_SOURCE_UNSPECIFIED
-	} else {
+	default:
 		if err = validateURL(cdnBaseUrlValue); err != nil {
 			return nil, trace.Wrap(err)
 		}
