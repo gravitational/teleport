@@ -37,6 +37,7 @@ func VerifySignature(updatePath string) error {
 
 	// If current service isn't signed, we skip verification (dev mode/unsigned builds)
 	if serviceSubject == "" {
+		log.Info("service not signed, skipping verification")
 		return nil
 	}
 

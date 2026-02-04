@@ -33,7 +33,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 	"unsafe"
 
@@ -209,15 +208,16 @@ func downloadChecksum(ctx context.Context, baseUrl string, version string) ([]by
 		return nil, trace.BadParameter("update hash request failed with status %s", resp.Status)
 	}
 
-	checksumBytes, err := io.ReadAll(utils.LimitReader(resp.Body, sha256.Size*2)) // SHA bytes to hex
+	var buf bytes.Buffer
+	_, err = io.CopyN(&buf, resp.Body, sha256.Size*2) // SHA bytes to hex
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	expected, err := hex.DecodeString(strings.TrimSpace(string(checksumBytes)))
+	hexBytes, err := hex.DecodeString(buf.String())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return expected, trace.Wrap(err)
+	return hexBytes, trace.Wrap(err)
 }
 
 func runInstaller(updatePath string, meta *UpdateMetadata, logger *slog.Logger) error {
