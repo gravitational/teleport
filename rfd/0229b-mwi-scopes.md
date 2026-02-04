@@ -197,13 +197,23 @@ Introduce a new resource type - ScopedBot:
     consider all places individually rather than it "automatically" working with
     ScopedBots. Whilst it increases the amount of work, it decreases the
     likelihood of a mistake.
+  - However, solving all of these problems again for ScopedBots significantly
+    increases the amount of work required to implement and maintain into the 
+    future.
 - Requires us to introduce and maintain wholly separate RPCs, `tctl` commands
   and IaC resources for ScopedBots.
 
 
 Introduce a subkind of the existing Bot resource:
 
--
+- Potential to abstract over Bot (normal) and Bot (scoped subkind) with a single
+  interface in places where we want to treat both the same way. Although this
+  may be fairly contrived.
+- Not particularly feasible to re-use existing RPCs that we have today. We'd 
+  either need to introduce V2 RPCs that can return normal or scoped - or
+  introduce standalone RPCs for scoped Bots.
+- Introduces some fairly awkward complexity to listing and fetching since the
+  schema for the subkind will be "incompatible" with the normal Bot schema.
 
 ### A.2: The Wrong Implementations
 
