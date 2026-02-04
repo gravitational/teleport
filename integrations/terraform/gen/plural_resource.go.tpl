@@ -82,6 +82,14 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 		return
 	}
 
+	{{- if .SaveSpecStateFromPlan}}
+	specFromPlan, ok := plan.Attrs["spec"]
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(trace.Errorf("spec not found in the plan")), "{{.Kind}}"))
+		return
+	}
+	{{end}}
+
 	{{.VarName}} := &{{.ProtoPackage}}.{{.TypeName}}{}
 	diags = {{.SchemaPackage}}.Copy{{.TypeName}}FromTerraform(ctx, plan, {{.VarName}})
 	resp.Diagnostics.Append(diags...)
@@ -222,6 +230,9 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	{{- else -}}
 	plan.Attrs["id"] = types.String{Value: {{.ID}}}
 	{{- end }}
+	{{- if .SaveSpecStateFromPlan}}
+	plan.Attrs["spec"] = specFromPlan
+	{{end}}
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -442,6 +453,7 @@ func (r resourceTeleport{{.Name}}) Delete(ctx context.Context, req tfsdk.DeleteR
 	resp.State.RemoveResource(ctx)
 }
 
+{{if not .WithoutImportState -}}
 // ImportState imports {{.Name}} state
 func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
 	{{if .IDPrefix -}}
@@ -497,3 +509,4 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.Im
 		return
 	}
 }
+{{- end}}
