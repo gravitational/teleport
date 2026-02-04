@@ -95,20 +95,20 @@ sequenceDiagram
     auth-->>proxy: MFA Challenge
     proxy-->>tsh: Return MFA Challenge
 
-    tsh->>browser: Open browser to:<br/>https://teleport.example.com/web/mfa/:request_id
+    tsh->>browser: Open browser to:<br/>https://teleport.example.com/web/mfa/browser/:request_id
     activate browser
 
-    browser->>proxy: GET /web/mfa/:request_id
+    browser->>proxy: GET /web/mfa/browser/:request_id
     proxy-->>browser: Display WebAuthn prompt
 
     browser->>browser: User taps TouchID /<br/>Uses password manager passkey
-    browser->>proxy: PUT /webapi/mfa/:request_id
+    browser->>proxy: PUT /webapi/mfa/browser/:request_id
 
-    proxy->>auth: rpc ValidateBrowserMFAChallengeResponse
+    proxy->>auth: rpc ValidateBrowserMFAChallenge
     auth->>auth: ValidateMFAAuthResponse()
     auth->>auth: Generate MFA token<br/>UpsertSSOMFASessionWithToken()
     auth->>auth: Encrypt token with secret_key
-    auth-->>proxy: ValidateBrowserMFAChallengeResponse
+    auth-->>proxy: ValidateBrowserMFAChallenge
     proxy-->>browser: HTTP 200 with redirect URL
 
     browser->>tsh: Redirect to callback URL<br/>http://127.0.0.1:port/callback?response={encrypted_token}
@@ -141,12 +141,13 @@ MFA challenge containing all applicable authentication methods for the user. If
 the user has browser MFA available, the server calls `BeginSSOMFAChallenge` to
 generate a request ID, stores an `SSOMFASession` object in the backend, and
 includes a browser challenge in the response. This browser challenge contains
-the request ID and a redirect URL pointing to `/web/mfa/:request_id`.
+the request ID and a redirect URL pointing to `/web/mfa/browser/:request_id`.
 
 Once `tsh` receives the challenge response with available MFA methods, it
 determines which method to use. If the user specified an explicit
 `--mfa-mode=browser` flag, browser-based MFA will be used. Otherwise, `tsh` will
 attempt to use available methods in the order:
+1. WebAuthn+TOTP (if both available)
 1. WebAuthn
 1. SSO
 1. Browser
@@ -172,8 +173,8 @@ Once in the browser, their login session will be used to connect to the auth
 server. If the user is not already logged in, they will be prompted to do so.
 
 When authenticated, the user will be prompted to verify their MFA. Once they've
-done so, a request to `/webapi/mfa/:request_id` will take the challenge response
-and verify it through `rpc ValidateBrowserMFAChallengeResponse`. If the response
+done so, a request to `/webapi/mfa/browser/:request_id` will take the challenge response
+and verify it through `rpc ValidateBrowserMFAChallenge`. If the response
 is valid, the auth server will generate an MFA token and upsert it in to the
 backend `SSOMFASession` resource, encrypt it, and append it to the callback URL
 to be returned back to the browser.
@@ -195,6 +196,8 @@ retrieval is different:
 
 1. Instead of initiating the flow by calling `POST /webapi/mfa/login/begin`,
    `tsh` will call `rpc CreateAuthenticateChallenge` with `SCOPE_USER_SESSION`.
+   Which will then open the browser to `/web/mfa/browser/:request_id` and
+   continue as per the login flow.
 1. Once the MFA token is received through the callback server,
    `rpc GenerateUserCerts` is called to exchange the token for certificates,
    instead of `POST /webapi/mfa/login/finish`.
@@ -208,6 +211,8 @@ follows a similar flow to the login process, but with the following changes:
 1. The trigger to get a MFA Challenge from the server is started by dialing an
    ssh target. If `tsh` gets an "MFA required" message, it will call
    `rpc CreateSessionChallenge` which will return an MFA Challenge.
+   Which will then open the browser to `/web/mfa/browser/:request_id` and
+   continue as per the login flow.
 1. Once the challenge is solved and the MFA token is sent back to `tsh`, instead
    of verifying the SSO MFA session to get certificates, the MFA token is sent
    to the MFA service using `rpc ValidateSessionChallenge`. After which, the ssh
@@ -244,7 +249,7 @@ available.
 
 ### Security
 
-#### `rpc ValidateBrowserMFAChallengeResponse`
+#### `rpc ValidateBrowserMFAChallenge`
 
 The RPC endpoint is restricted to the proxy service only via builtin role
 authorization, verifying the caller has the `RoleProxy` builtin role before
@@ -264,7 +269,7 @@ generated using cryptographically secure random number generation to prevent
 enumeration attacks. `SSOMFASession` resources have a short time-to-live
 (5 minutes) to limit the window during which an MFA challenge can be completed.
 
-#### `PUT /webapi/mfa/:request_id`
+#### `PUT /webapi/mfa/browser/:request_id`
 
 The HTTP endpoint requires authentication via the proxy's session context. The
 endpoint validates that the request ID in the URL matches an existing
@@ -328,34 +333,53 @@ package proto;
 message MFAAuthenticateChallenge {
   ...
 
-  // Browser Challenge is MFA challenge that the user solves in the browser. On
-  // the backend this uses the SSO flow, which is why it shares the same type.
-  SSOChallenge BrowserChallenge = 6;
+  // Browser Challenge is MFA challenge that the user solves in the browser.
+  BrowserChallenge BrowserChallenge = 6;
 }
 
-// ValidateBrowserMFAChallengeResponseRequest is used to validate an MFA response
+// BrowserChallenge contains browser auth request details to perform a browser MFA check.
+message BrowserChallenge {
+  // request_id is the ID of a browser auth request.
+  string request_id = 1;
+  // redirect_url is a redirect URL to initiate the browser MFA flow.
+  string redirect_url = 2;
+  // Device is the SSO device corresponding to the challenge.
+  types.SSOMFADevice device = 3;
+}
+
+// BrowserResponse is a response to BrowserChallenge.
+message BrowserResponse {
+  // request_id is the ID of a browser auth request.
+  string request_id = 1;
+  // Token is a secret token used to verify the user's browser MFA session.
+  string token = 2;
+}
+
+// ValidateBrowserMFAChallengeRequest is used to validate an MFA response
 // during a browser-based MFA authentication flow.
-message ValidateBrowserMFAChallengeResponseRequest {
-  string RequestID = 1 [(gogoproto.jsontag) = "request_id,omitempty"];
-  MFAAuthenticateResponse MFAAuthenticateResponse = 2 [(gogoproto.jsontag) = "mfa_authenticate_response,omitempty"];
+message ValidateBrowserMFAChallengeRequest {
+  string request_id = 1 [(gogoproto.jsontag) = "request_id,omitempty"];
+  MFAAuthenticateResponse mfa_authenticate_response = 2 [(gogoproto.jsontag) = "mfa_authenticate_response,omitempty"];
 }
 
-// ValidateBrowserMFAChallengeResponseResponse contains the redirect URL to send
+// ValidateBrowserMFAChallengeResponse contains the redirect URL to send
 // the user back to after successfully completing browser-based MFA authentication.
-message ValidateBrowserMFAChallengeResponseResponse {
-  string ClientRedirectURL = 1 [(gogoproto.jsontag) = "client_redirect_url,omitempty"];
+message ValidateBrowserMFAChallengeResponse {
+  // client_redirect_url is the callback URL to tsh's local HTTP server with the encrypted MFA token.
+  // Format: http://127.0.0.1:[random_port]/callback?response={encrypted_token}
+  string client_redirect_url = 1 [(gogoproto.jsontag) = "client_redirect_url,omitempty"];
 }
 
 // AuthService is authentication/authorization service implementation
 service AuthService {
   ...
 
-  // ValidateBrowserMFAChallengeResponse validates browser MFA challenge responses and
+  // ValidateBrowserMFAChallenge validates browser MFA challenge responses and
   // generates a single-use MFA token. This endpoint is restricted to proxy service only via
   // builtin role authorization. The MFA response is validated against the SSOMFASession
   // identified by the request_id, ensuring it matches the expected user and hasn't been
   // used previously. The generated MFA token can only be used once to prevent replay attacks.
-  rpc ValidateBrowserMFAChallengeResponse(ValidateBrowserMFAChallengeResponseRequest) returns (ValidateBrowserMFAChallengeResponseResponse);
+  rpc ValidateBrowserMFAChallenge(ValidateBrowserMFAChallengeRequest) returns (ValidateBrowserMFAChallengeResponse);
 }
 
 // CreateAuthenticateChallengeRequest is a request for creating MFA authentication challenges for a
@@ -363,8 +387,8 @@ service AuthService {
 message CreateAuthenticateChallengeRequest {
   ...
 
-  // BrowserMFAClientRedirectURL should be supplied if the client supports Browser MFA checks.
-  string BrowserMFAClientRedirectURL = 9 [(gogoproto.jsontag) = "browser_mfa_client_redirect_url,omitempty"];
+  // browser_mfa_client_redirect_url should be supplied if the client supports Browser MFA checks.
+  string browser_mfa_client_redirect_url = 9 [(gogoproto.jsontag) = "browser_mfa_client_redirect_url,omitempty"];
 }
 ```
 
@@ -375,9 +399,9 @@ package teleport.mfa.v1;
 message AuthenticateChallenge {
   ...
 
-  // Browser challenge is a SSO challenge under the hood that allows a user to MFA in the browser,
+  // Browser challenge allows a user to MFA in the browser,
   // to get an MFA token that is returned to the client to be used for verification.
-  SSOChallenge browser_challenge = 4;
+  BrowserChallenge browser_challenge = 4;
 }
 
 // AuthenticateResponse is a response to AuthenticateChallenge using one of the MFA devices registered for a user.
@@ -387,7 +411,7 @@ message AuthenticateResponse {
     ...
 
     // Response to a browser challenge.
-    SSOChallengeResponse browser = 4;
+    BrowserResponse browser = 4;
   }
 }
 
@@ -399,11 +423,45 @@ message CreateSessionChallengeRequest {
   // should be set to the URL where the browser should redirect after completing the MFA challenge.
   string browser_mfa_client_redirect_url = 5;
 }
+
+// BrowserChallenge contains browser auth request details to perform a browser MFA check.
+message BrowserChallenge {
+  // ID of a browser auth request.
+  string request_id = 1;
+  // Redirect URL to initiate the browser MFA flow.
+  string redirect_url = 2;
+  // SSO device corresponding to the challenge.
+  types.SSOMFADevice device = 3;
+}
+
+// BrowserResponse is a response to BrowserChallenge.
+message BrowserResponse {
+  // ID of a browser auth request.
+  string request_id = 1;
+  // Secret token used to verify the user's browser MFA session.
+  string token = 2;
+}
+```
+
+```proto
+package teleport.lib.teleterm.v1;
+
+// Request for PromptMFA.
+message PromptMFARequest {
+  ...
+
+  BrowserChallenge browser = 8;
+}
+
+// BrowserChallenge contains browser challenge details.
+message BrowserChallenge {
+  string redirect_url = 1;
+}
 ```
 
 ### Proxy changes
 
-#### `PUT /webapi/mfa/:request_id`
+#### `PUT /webapi/mfa/browser/:request_id`
 
 This endpoint will be called by the browser to verify the user's MFA challenge
 response and, if successful, generates a callback URL with an encrypted response
