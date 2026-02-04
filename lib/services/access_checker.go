@@ -65,6 +65,11 @@ type AccessChecker interface {
 	// CheckAccess checks access to the specified resource.
 	CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error
 
+	// CheckConditionalAccess checks conditional access to the specified resource. If access is granted, it returns
+	// preconditions that must be satisfied. If access is denied, it returns an error. An empty list of preconditions
+	// and a nil error indicates that no additional preconditions are required for access.
+	CheckConditionalAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) ([]*decisionpb.Precondition, error)
+
 	// CheckDeviceAccess verifies if the current device state satisfies the
 	// device trust requirements of the user's RoleSet.
 	CheckDeviceAccess(state AccessState) error
@@ -537,13 +542,29 @@ func (a *accessChecker) AccessInfo() *AccessInfo {
 	return a.info
 }
 
-// CheckAccess checks if the identity for this AccessChecker has access to the
-// given resource.
+// CheckAccess checks if the identity for this AccessChecker has access to the given resource.
 func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error {
+	// Immediately return an error regardless of potential preconditions. This is to maintain backwards compatibility
+	// with existing callers of CheckAccess which expect an error when access is denied.
+	state.ReturnPreconditions = false
+
+	_, err := a.validateAccessConditions(r, state, matchers...)
+	return trace.Wrap(err)
+}
+
+// CheckConditionalAccess checks if the identity for this AccessChecker has conditional access to the given resource.
+func (a *accessChecker) CheckConditionalAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) ([]*decisionpb.Precondition, error) {
+	// Indicate that we want preconditions to be returned if access is granted rather than an error.
+	state.ReturnPreconditions = true
+
+	return a.validateAccessConditions(r, state, matchers...)
+}
+
+func (a *accessChecker) validateAccessConditions(r AccessCheckable, state AccessState, matchers ...RoleMatcher) ([]*decisionpb.Precondition, error) {
 	// Enforce AllowedResourceAccessIDs if present; capture match
 	res, err := a.checkAllowedResources(r)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	switch rr := r.(type) {
@@ -561,7 +582,12 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 		}
 	}
 
-	return trace.Wrap(a.RoleSet.checkAccess(r, a.info.Traits, state, matchers...))
+	preconds, err := a.checkAccess(r, a.info.Traits, state, matchers...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return preconds, nil
 }
 
 // CheckAccessToSAMLIdP checks access to SAML IdP service provider resource.
@@ -939,7 +965,7 @@ func (a *accessChecker) EnumerateEntities(resource AccessCheckable, listFn roleE
 		// if the role allows the resource without any matcher confirms
 		// namespace and label matching has passed.
 		var resourceAllowedByRole bool
-		if err := NewRoleSet(role).checkAccess(resource, a.info.Traits, AccessState{MFAVerified: true}); err == nil {
+		if _, err := NewRoleSet(role).checkAccess(resource, a.info.Traits, AccessState{MFAVerified: true}); err == nil {
 			resourceAllowedByRole = true
 		}
 

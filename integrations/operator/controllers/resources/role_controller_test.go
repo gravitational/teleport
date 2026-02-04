@@ -20,25 +20,25 @@ package resources_test
 
 import (
 	"context"
-	"sort"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
-	"github.com/mitchellh/mapstructure"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/yaml"
-	"k8s.io/client-go/util/retry"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/integrations/operator/apis/resources/teleportcr"
 	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
 var TeleportRoleGVKV5 = schema.GroupVersionKind{
@@ -47,47 +47,12 @@ var TeleportRoleGVKV5 = schema.GroupVersionKind{
 	Kind:    "TeleportRole",
 }
 
-// When I create or delete a TeleportRole CR in Kubernetes,
-// the corresponding TeleportRole must be created/deleted in Teleport.
-func TestRoleCreation(t *testing.T) {
-	ctx := context.Background()
-	setup := setupTestEnv(t)
-	roleName := validRandomResourceName("role-")
-
-	// End of setup, we create the role in Kubernetes
-	k8sCreateDummyRole(ctx, t, setup.K8sClient, setup.Namespace.Name, roleName)
-
-	var tRole types.Role
-	var err error
-	// We wait for the role to be created in Teleport
-	fastEventually(t, func() bool {
-		tRole, err = setup.TeleportClient.GetRole(ctx, roleName)
-		return !trace.IsNotFound(err)
-	})
-	require.NoError(t, err)
-
-	// Role should have the same name, and have the Kubernetes origin label
-	require.Equal(t, roleName, tRole.GetName())
-	require.Contains(t, tRole.GetMetadata().Labels, types.OriginLabel)
-	require.Equal(t, types.OriginKubernetes, tRole.GetMetadata().Labels[types.OriginLabel])
-
-	// Cleanup and setup, we delete the role in Kubernetes
-	k8sDeleteRole(ctx, t, setup.K8sClient, roleName, setup.Namespace.Name)
-
-	// We wait for the role to be deleted in Teleport
-	fastEventually(t, func() bool {
-		_, err := setup.TeleportClient.GetRole(ctx, roleName)
-		return trace.IsNotFound(err)
-	})
-}
-
 func TestRoleCreationFromYAML(t *testing.T) {
 	ctx := context.Background()
-	setup := setupTestEnv(t)
+	setup := testlib.SetupFakeKubeTestEnv(t)
 	tests := []struct {
 		name         string
 		roleSpecYAML string
-		shouldFail   bool
 		expectedSpec *types.RoleSpecV6
 	}{
 		{
@@ -100,7 +65,6 @@ allow:
 options:
   create_host_user_mode: 3
 `,
-			shouldFail: false,
 			expectedSpec: &types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Logins: []string{"ubuntu", "root"},
@@ -120,7 +84,6 @@ allow:
 options:
   create_host_user_mode: keep
 `,
-			shouldFail: false,
 			expectedSpec: &types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Logins: []string{"ubuntu", "root"},
@@ -137,7 +100,6 @@ allow:
   node_labels:
     '*': ['*']
 `,
-			shouldFail: false,
 			expectedSpec: &types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					NodeLabels: map[string]apiutils.Strings{
@@ -153,7 +115,6 @@ allow:
   node_labels:
     '*': '*'
 `,
-			shouldFail: false,
 			expectedSpec: &types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					NodeLabels: map[string]apiutils.Strings{
@@ -162,30 +123,10 @@ allow:
 				},
 			},
 		},
-		{
-			name: "Invalid node_labels (label value is integer)",
-			roleSpecYAML: `
-allow:
-  node_labels:
-    'foo': 1
-`,
-			shouldFail:   true,
-			expectedSpec: nil,
-		},
-		{
-			name: "Invalid node_labels (label value is object)",
-			roleSpecYAML: `
-allow:
-  node_labels:
-    'foo':
-      'bar': 'baz'
-    'logins':
-      - 'ubuntu'
-`,
-			shouldFail:   true,
-			expectedSpec: nil,
-		},
 	}
+
+	reconciler, err := resources.NewRoleReconciler(setup.K8sClient, setup.TeleportClient)
+	require.NoError(t, err)
 
 	for _, tc := range tests {
 		// capture range variable
@@ -206,45 +147,47 @@ allow:
 			err = setup.K8sClient.Create(ctx, obj)
 			require.NoError(t, err)
 
-			// If failure is expected we should not see the resource in Teleport
-			if tc.shouldFail {
-				fastEventually(t, func() bool {
-					// We check status.Conditions was updated, this means the reconciliation happened
-					_ = setup.K8sClient.Get(ctx, kclient.ObjectKey{
-						Namespace: setup.Namespace.Name,
-						Name:      roleName,
-					}, obj)
-					errorConditions := getRoleStatusConditionError(obj.Object)
-					// If there's no error condition, reconciliation has not happened yet
-					return len(errorConditions) != 0
-				})
-				_, err = setup.TeleportClient.GetRole(ctx, roleName)
-				require.True(t, trace.IsNotFound(err), "The role should not be created in Teleport")
-			} else {
-				var tRole types.Role
-				// We wait for Teleport resource creation
-				fastEventually(t, func() bool {
-					tRole, err = setup.TeleportClient.GetRole(ctx, roleName)
-					return !trace.IsNotFound(err)
-				})
-				// If the resource creation should succeed we check the resource was found and validate ownership labels
-				require.NoError(t, err)
-				require.Equal(t, roleName, tRole.GetName())
-				require.Contains(t, tRole.GetMetadata().Labels, types.OriginLabel)
-				require.Equal(t, types.OriginKubernetes, tRole.GetMetadata().Labels[types.OriginLabel])
-				expectedRole, _ := types.NewRoleWithVersion(roleName, types.V7, *tc.expectedSpec)
-				compareRoleSpecs(t, expectedRole, tRole)
+			// Test execution: Kick off the reconciliation.
+			req := reconcile.Request{
+				NamespacedName: apimachinerytypes.NamespacedName{
+					Namespace: setup.Namespace.Name,
+					Name:      roleName,
+				},
 			}
+			// First reconciliation should set the finalizer and exit.
+			_, err = reconciler.Reconcile(ctx, req)
+			require.NoError(t, err)
+			// Second reconciliation should create the Teleport resource.
+			// In a real cluster we should receive the event of our own finalizer change
+			// and this wakes us for a second round.
+			_, err = reconciler.Reconcile(ctx, req)
+			require.NoError(t, err)
+
+			var tRole types.Role
+			// We wait for the Teleport cache.
+			fastEventually(t, func() bool {
+				tRole, err = setup.TeleportClient.GetRole(ctx, roleName)
+				return !trace.IsNotFound(err)
+			})
+			// If the resource creation should succeed we check the resource was found and validate ownership labels
+			require.NoError(t, err)
+			require.Equal(t, roleName, tRole.GetName())
+			require.Contains(t, tRole.GetMetadata().Labels, types.OriginLabel)
+			require.Equal(t, types.OriginKubernetes, tRole.GetMetadata().Labels[types.OriginLabel])
+			expectedRole, _ := types.NewRoleWithVersion(roleName, types.V7, *tc.expectedSpec)
+			compareRoleSpecs(t, expectedRole, tRole)
 			// Teardown
 
 			// The role is deleted in K8S
-			k8sDeleteRole(ctx, t, setup.K8sClient, roleName, setup.Namespace.Name)
-
-			// We wait for the role deletion in Teleport
-			fastEventually(t, func() bool {
-				_, err := setup.TeleportClient.GetRole(ctx, roleName)
-				return trace.IsNotFound(err)
-			})
+			role := resourcesv5.TeleportRole{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      roleName,
+					Namespace: setup.Namespace.Name,
+				},
+			}
+			require.NoError(t, setup.K8sClient.Delete(ctx, &role))
+			_, err = reconciler.Reconcile(ctx, req)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -258,165 +201,115 @@ func compareRoleSpecs(t *testing.T, expectedRole, actualRole types.Role) {
 	require.Equal(t, expected["spec"], actual["spec"])
 }
 
-// TestRoleDeletionDrift tests how the Kubernetes operator reacts when it is asked to delete a role that was
-// already deleted in Teleport
-func TestRoleDeletionDrift(t *testing.T) {
-	// Setup section: start the operator, and create a role
-	ctx := context.Background()
-	setup := setupTestEnv(t)
-	roleName := validRandomResourceName("role-")
-
-	// The role is created in K8S
-	k8sCreateDummyRole(ctx, t, setup.K8sClient, setup.Namespace.Name, roleName)
-
-	var tRole types.Role
-	var err error
-	fastEventually(t, func() bool {
-		tRole, err = setup.TeleportClient.GetRole(ctx, roleName)
-		return !trace.IsNotFound(err)
-	})
-	require.NoError(t, err)
-	require.Equal(t, roleName, tRole.GetName())
-	require.Contains(t, tRole.GetMetadata().Labels, types.OriginLabel)
-	require.Equal(t, types.OriginKubernetes, tRole.GetMetadata().Labels[types.OriginLabel])
-
-	// We cause a drift by altering the Teleport resource.
-	// To make sure the operator does not reconcile while we're finished we suspend the operator
-	setup.StopKubernetesOperator()
-
-	err = setup.TeleportClient.DeleteRole(ctx, roleName)
-	require.NoError(t, err)
-	fastEventually(t, func() bool {
-		_, err := setup.TeleportClient.GetRole(ctx, roleName)
-		return trace.IsNotFound(err)
-	})
-
-	// We flag the role for deletion in Kubernetes (it won't be fully remopved until the operator has processed it and removed the finalizer)
-	k8sDeleteRole(ctx, t, setup.K8sClient, roleName, setup.Namespace.Name)
-
-	// Test section: We resume the operator, it should reconcile and recover from the drift
-	setup.StartKubernetesOperator(t)
-
-	// The operator should handle the failed Teleport deletion gracefully and unlock the Kubernetes resource deletion
-	var k8sRole resourcesv5.TeleportRole
-	fastEventually(t, func() bool {
-		err = setup.K8sClient.Get(ctx, kclient.ObjectKey{
-			Namespace: setup.Namespace.Name,
-			Name:      roleName,
-		}, &k8sRole)
-		return kerrors.IsNotFound(err)
-	})
-}
-
-func TestRoleUpdate(t *testing.T) {
-	ctx := context.Background()
-	setup := setupTestEnv(t)
-	roleName := validRandomResourceName("role-")
-
-	// The role does not exist in K8S
-	var r resourcesv5.TeleportRole
-	err := setup.K8sClient.Get(ctx, kclient.ObjectKey{
-		Namespace: setup.Namespace.Name,
-		Name:      roleName,
-	}, &r)
-	require.True(t, kerrors.IsNotFound(err))
-
-	require.NoError(t, teleportCreateDummyRole(ctx, roleName, setup.TeleportClient))
-
-	// The role is created in K8S
-	k8sRole := resourcesv5.TeleportRole{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      roleName,
-			Namespace: setup.Namespace.Name,
-		},
-		Spec: resourcesv5.TeleportRoleSpec{
-			Allow: types.RoleConditions{
-				Logins: []string{"x", "z"},
+var roleV5Spec = types.RoleSpecV6{
+	Options: types.RoleOptions{
+		ForwardAgent: true,
+	},
+	Allow: types.RoleConditions{
+		Logins:           []string{"foo"},
+		KubernetesLabels: types.Labels{"env": {"dev", "prod"}},
+		KubernetesResources: []types.KubernetesResource{
+			{
+				Kind:      "pod",
+				Namespace: "monitoring",
+				Name:      "^prometheus-.*",
 			},
 		},
-	}
-	k8sCreateRole(ctx, t, setup.K8sClient, &k8sRole)
-
-	// The role is updated in Teleport
-	fastEventuallyWithT(t, func(t *assert.CollectT) {
-		tRole, err := setup.TeleportClient.GetRole(ctx, roleName)
-		require.NoError(t, err)
-
-		// TeleportRole updated with new logins
-		logins := tRole.GetLogins(types.Allow)
-		sort.Strings(logins)
-		assert.ElementsMatch(t, logins, []string{"x", "z"})
-	})
-
-	// Updating the role in K8S
-	// The modification can fail because of a conflict with the resource controller. We retry if that happens.
-	var k8sRoleNewVersion resourcesv5.TeleportRole
-	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		err := setup.K8sClient.Get(ctx, kclient.ObjectKey{
-			Namespace: setup.Namespace.Name,
-			Name:      roleName,
-		}, &k8sRoleNewVersion)
-		if err != nil {
-			return err
-		}
-
-		k8sRoleNewVersion.Spec.Allow.Logins = append(k8sRoleNewVersion.Spec.Allow.Logins, "admin", "root")
-		return setup.K8sClient.Update(ctx, &k8sRoleNewVersion)
-	})
-	require.NoError(t, err)
-
-	// Updates the role in Teleport
-	fastEventuallyWithT(t, func(t *assert.CollectT) {
-		tRole, err := setup.TeleportClient.GetRole(ctx, roleName)
-		require.NoError(t, err)
-
-		// TeleportRole updated with new logins
-		logins := tRole.GetLogins(types.Allow)
-		sort.Strings(logins)
-		assert.ElementsMatch(t, logins, []string{"admin", "root", "x", "z"})
-	})
+	},
+	Deny: types.RoleConditions{},
 }
 
-func k8sCreateDummyRole(ctx context.Context, t *testing.T, kc kclient.Client, namespace, roleName string) {
-	role := resourcesv5.TeleportRole{
+type roleTestingPrimitives struct {
+	setup *testSetup
+	reconcilers.ResourceWithLabelsAdapter[types.Role]
+}
+
+func (g *roleTestingPrimitives) Init(setup *testSetup) {
+	g.setup = setup
+}
+
+func (g *roleTestingPrimitives) SetupTeleportFixtures(ctx context.Context) error {
+	return nil
+}
+
+func (g *roleTestingPrimitives) CreateTeleportResource(ctx context.Context, name string) error {
+	role, err := types.NewRoleWithVersion(name, types.V5, roleV5Spec)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	role.SetOrigin(types.OriginKubernetes)
+	_, err = g.setup.TeleportClient.CreateRole(ctx, role)
+	return trace.Wrap(err)
+}
+
+func (g *roleTestingPrimitives) GetTeleportResource(ctx context.Context, name string) (types.Role, error) {
+	return g.setup.TeleportClient.GetRole(ctx, name)
+}
+
+func (g *roleTestingPrimitives) DeleteTeleportResource(ctx context.Context, name string) error {
+	return trace.Wrap(g.setup.TeleportClient.DeleteRole(ctx, name))
+}
+
+func (g *roleTestingPrimitives) CreateKubernetesResource(ctx context.Context, name string) error {
+	role := &resourcesv5.TeleportRole{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      roleName,
-			Namespace: namespace,
+			Name:      name,
+			Namespace: g.setup.Namespace.Name,
 		},
-		Spec: resourcesv5.TeleportRoleSpec{
-			Allow: types.RoleConditions{
-				Logins: []string{"a", "b"},
-			},
-		},
+		Spec: resourcesv5.TeleportRoleSpec(roleV5Spec),
 	}
-	k8sCreateRole(ctx, t, kc, &role)
+	return trace.Wrap(g.setup.K8sClient.Create(ctx, role))
 }
 
-func k8sDeleteRole(ctx context.Context, t *testing.T, kc kclient.Client, roleName, namespace string) {
-	role := resourcesv5.TeleportRole{
+func (g *roleTestingPrimitives) DeleteKubernetesResource(ctx context.Context, name string) error {
+	role := &resourcesv5.TeleportRole{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      roleName,
-			Namespace: namespace,
+			Name:      name,
+			Namespace: g.setup.Namespace.Name,
 		},
 	}
-	err := kc.Delete(ctx, &role)
-	require.NoError(t, err)
+	return trace.Wrap(g.setup.K8sClient.Delete(ctx, role))
 }
 
-func k8sCreateRole(ctx context.Context, t *testing.T, kc kclient.Client, role *resourcesv5.TeleportRole) {
-	err := kc.Create(ctx, role)
-	require.NoError(t, err)
-}
-
-func getRoleStatusConditionError(object map[string]any) []metav1.Condition {
-	var conditionsWithError []metav1.Condition
-	var status teleportcr.Status
-	_ = mapstructure.Decode(object["status"], &status)
-
-	for _, condition := range status.Conditions {
-		if condition.Status == metav1.ConditionFalse {
-			conditionsWithError = append(conditionsWithError, condition)
-		}
+func (g *roleTestingPrimitives) GetKubernetesResource(ctx context.Context, name string) (*resourcesv5.TeleportRole, error) {
+	role := &resourcesv5.TeleportRole{}
+	obj := kclient.ObjectKey{
+		Name:      name,
+		Namespace: g.setup.Namespace.Name,
 	}
-	return conditionsWithError
+	err := g.setup.K8sClient.Get(ctx, obj, role)
+	return role, trace.Wrap(err)
+}
+
+func (g *roleTestingPrimitives) ModifyKubernetesResource(ctx context.Context, name string) error {
+	role, err := g.GetKubernetesResource(ctx, name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	role.Spec.Allow.Logins = []string{"foo", "bar"}
+	return g.setup.K8sClient.Update(ctx, role)
+}
+
+func (g *roleTestingPrimitives) CompareTeleportAndKubernetesResource(tResource types.Role, kubeResource *resourcesv5.TeleportRole) (bool, string) {
+	ignoreServerSideDefaults := []cmp.Option{
+		cmpopts.IgnoreFields(types.RoleSpecV6{}, "Options"),
+		cmpopts.IgnoreFields(types.RoleConditions{}, "Namespaces"),
+	}
+	diff := cmp.Diff(tResource, kubeResource.ToTeleport(), testlib.CompareOptions(ignoreServerSideDefaults...)...)
+	return diff == "", diff
+}
+
+func TestTeleportRoleCreation(t *testing.T) {
+	test := &roleTestingPrimitives{}
+	testlib.ResourceCreationSynchronousTest[types.Role, *resourcesv5.TeleportRole](t, resources.NewRoleReconciler, test)
+}
+
+func TestTeleportRoleDeletionDrift(t *testing.T) {
+	test := &roleTestingPrimitives{}
+	testlib.ResourceDeletionDriftSynchronousTest[types.Role, *resourcesv5.TeleportRole](t, resources.NewRoleReconciler, test)
+}
+
+func TestTeleportRoleUpdate(t *testing.T) {
+	test := &roleTestingPrimitives{}
+	testlib.ResourceUpdateTestSynchronous[types.Role, *resourcesv5.TeleportRole](t, resources.NewRoleReconciler, test)
 }

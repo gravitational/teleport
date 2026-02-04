@@ -60,73 +60,87 @@ export default function Empty(props: Props) {
     );
   }
 
-  const dividerHeight = '54px';
+  const showCloud = cfg.isCloud;
 
   return (
-    <Box
-      p={8}
-      pt={5}
-      as={Flex}
-      width="100%"
-      mx="auto"
-      alignItems="center"
-      justifyContent="center"
-    >
-      <Card p={4} width="780px">
-        <Box mb={4} textAlign="center">
+    <Box p={8} pt={5} width="100%">
+      <Card
+        p={4}
+        maxWidth={showCloud ? '780px' : '390px'}
+        minWidth={showCloud ? '593px' : '390px'}
+        mx="auto"
+      >
+        <Box mb={showCloud ? 4 : 2} textAlign="center">
           <ResourceIcon name="server" mx="auto" mb={4} height="150px" />
           <H1>{title}</H1>
         </Box>
         <Flex>
-          <Box p={4} flex="1" textAlign="left">
-            <H2>Automatically Discover</H2>
-            <Text mb={2}>
-              Connect your AWS, Azure, or GCP accounts to automatically scan and
-              import all resources.
-            </Text>
-            <ButtonPrimary
-              as={Link}
-              to={cfg.getIntegrationsEnrollRoute({ tags: ['cloud'] })}
-              width="100%"
-            >
-              Connect Cloud Account
-            </ButtonPrimary>
-          </Box>
+          {showCloud && (
+            <Pane
+              title="Automatically Discover"
+              text="Connect your AWS, Azure, or GCP accounts to automatically scan and import all resources."
+              button={
+                <ButtonPrimary
+                  as={Link}
+                  to={cfg.getIntegrationsEnrollRoute({ tags: ['cloud'] })}
+                  width="100%"
+                >
+                  Connect Cloud Account
+                </ButtonPrimary>
+              }
+            />
+          )}
 
-          <Flex
-            width="48px"
-            flexDirection="column"
-            alignItems="center"
-            justifyContent="center"
-            flexShrink={0}
-          >
-            <Box width="1px" height={dividerHeight} bg="text.muted" />
-            <Text my={2} color="text.muted">
-              or
-            </Text>
-            <Box width="1px" height={dividerHeight} bg="text.muted" />
-          </Flex>
+          {showCloud && <Divider />}
 
-          <Box p={4} flex="1" textAlign="left">
-            <H2>Manually Enter</H2>
-            <Text mb={2}>
-              Browse and add individual servers, databases, or apps one at a
-              time.
-            </Text>
-            <ButtonPrimaryBorder
-              as={Link}
-              to={{
-                pathname: cfg.routes.discover,
-                state: { entity: 'unified_resource' },
-              }}
-              width="100%"
-            >
-              Add New Resource
-            </ButtonPrimaryBorder>
-          </Box>
+          <Pane
+            title={showCloud ? 'Manually Enter' : undefined}
+            text="Browse and add individual servers, databases, or apps one at a time."
+            button={
+              <ButtonPrimaryBorder
+                as={Link}
+                to={{
+                  pathname: cfg.routes.discover,
+                  state: { entity: 'unified_resource' },
+                }}
+                width="100%"
+              >
+                Enroll New Resource
+              </ButtonPrimaryBorder>
+            }
+          />
         </Flex>
       </Card>
     </Box>
+  );
+}
+
+function Pane({ title, text, button }) {
+  return (
+    <Flex p={4} flex={1} textAlign="left" flexDirection="column">
+      {title && <H2>{title}</H2>}
+      <Text mb={2}>{text}</Text>
+      <Box mt="auto">{button}</Box>
+    </Flex>
+  );
+}
+
+function Divider() {
+  const height = '54px';
+  return (
+    <Flex
+      width="48px"
+      flexDirection="column"
+      alignItems="center"
+      justifyContent="center"
+      flexShrink={0}
+    >
+      <Box width="1px" height={height} bg="text.muted" />
+      <Text my={2} color="text.muted">
+        or
+      </Text>
+      <Box width="1px" height={height} bg="text.muted" />
+    </Flex>
   );
 }
 

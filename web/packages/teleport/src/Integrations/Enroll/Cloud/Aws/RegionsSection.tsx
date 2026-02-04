@@ -61,7 +61,7 @@ export function RegionsSection({ regions, onChange }: RegionsSectionProps) {
         <CircleNumber>4</CircleNumber>
         Regions
       </Flex>
-      <Text mb={1} ml={4}>
+      <Text mb={3} ml={4}>
         Select the AWS regions where your resources are located.
       </Text>
       <Box ml={4}>
@@ -69,7 +69,7 @@ export function RegionsSection({ regions, onChange }: RegionsSectionProps) {
           name="regions"
           label={
             <Flex alignItems="center">
-              <RadioLabel selected={false}>All Regions</RadioLabel>
+              <RadioLabel selected={false}>All regions</RadioLabel>
             </Flex>
           }
           size="small"
@@ -81,7 +81,7 @@ export function RegionsSection({ regions, onChange }: RegionsSectionProps) {
           name="regions"
           label={
             <Flex alignItems="center">
-              <RadioLabel selected={false}>Select specific Regions</RadioLabel>
+              <RadioLabel selected={false}>Select specific regions</RadioLabel>
             </Flex>
           }
           size="small"

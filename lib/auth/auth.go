@@ -637,6 +637,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	if cfg.WorkloadClusterService == nil {
+		cfg.WorkloadClusterService, err = local.NewWorkloadClusterService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating WorkloadClusterService")
+		}
+	}
+
 	scopedAccessCache, err := scopedaccesscache.NewCache(scopedaccesscache.CacheConfig{
 		Events: cfg.Events,
 		Reader: cfg.ScopedAccess,
@@ -706,6 +713,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		ScopedTokenService:              cfg.ScopedTokenService,
 		AppAuthConfig:                   cfg.AppAuthConfig,
 		MFAService:                      cfg.MFAService,
+		WorkloadClusterService:          cfg.WorkloadClusterService,
 	}
 
 	as = &Server{
