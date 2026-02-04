@@ -197,13 +197,11 @@ const AWSConsoleConstraintsList = <T extends PendingListItem>({
   createAttempt,
   clearAttempt,
   setResourceConstraints,
-  addedResourceConstraints,
 }: {
   item: WithResourceConstraints<'aws_console', DisplayRow<T>>;
   createAttempt: RequestCheckoutProps<T>['createAttempt'];
   clearAttempt: RequestCheckoutProps<T>['clearAttempt'];
   setResourceConstraints: RequestCheckoutProps<T>['setResourceConstraints'];
-  addedResourceConstraints: RequestCheckoutProps<T>['addedResourceConstraints'];
 }) => (
   <Flex flexDirection="column" gap={1} mt={1} width="100%">
     <Text bold>Role ARNs</Text>
@@ -222,17 +220,6 @@ const AWSConsoleConstraintsList = <T extends PendingListItem>({
             title="Remove Role ARN"
             onClick={() => {
               clearAttempt();
-              const ridStr = getResourceIDString({
-                cluster: item.clusterName,
-                kind: item.kind,
-                name: item.id,
-              });
-              console.log('toggling role arn', {
-                ridStr,
-                curConstraints: item.constraints,
-                addedResourceConstraints,
-                setResourceConstraints,
-              });
               toggleAWSConsoleConstraint(item, arn, setResourceConstraints);
             }}
             disabled={createAttempt.status === 'processing'}
@@ -249,7 +236,6 @@ const AWSConsoleConstraintsList = <T extends PendingListItem>({
 );
 
 export function RequestCheckout<T extends PendingListItem>({
-  toggleResource,
   toggleResources,
   onClose,
   reset,
@@ -291,9 +277,6 @@ export function RequestCheckout<T extends PendingListItem>({
 }: RequestCheckoutProps<T>) {
   const theme = useTheme();
   const [reason, setReason] = useState('');
-  // TODO(kiosion): Remove once Teleterm's RequestCheckout supports LongTerm requests.
-  const supportsLongTerm =
-    setRequestKind !== undefined && toggleResources !== undefined;
   const isLongTerm = requestKind === RequestKind.LongTerm;
 
   const displayRows = useMemo<DisplayRow<T>[]>(() => {
@@ -442,7 +425,6 @@ export function RequestCheckout<T extends PendingListItem>({
                 setResourceConstraints={setResourceConstraints}
                 clearAttempt={clearAttempt}
                 createAttempt={createAttempt}
-                addedResourceConstraints={addedResourceConstraints}
               />
             </Flex>
           </td>
@@ -485,7 +467,7 @@ export function RequestCheckout<T extends PendingListItem>({
                 <CrossIcon
                   clearAttempt={clearAttempt}
                   item={item}
-                  toggleResource={toggleResource}
+                  toggleResource={i => toggleResources([i])}
                   createAttempt={createAttempt}
                 />
               </Flex>
@@ -674,7 +656,7 @@ export function RequestCheckout<T extends PendingListItem>({
                             <CrossIcon
                               clearAttempt={clearAttempt}
                               item={resource}
-                              toggleResource={toggleResource}
+                              toggleResource={i => toggleResources([i])}
                               createAttempt={createAttempt}
                             />
                           </Cell>
@@ -695,35 +677,31 @@ export function RequestCheckout<T extends PendingListItem>({
                     appsGrantedByUserGroup.length > 0 && (
                       <AppsGrantedAccess apps={appsGrantedByUserGroup} />
                     )}
-                  {supportsLongTerm && (
-                    <>
-                      <Flex flexDirection="column" gap={2} mt={4}>
-                        <Text bold>Request Type</Text>
-                        <ButtonSelect
-                          options={[
-                            {
-                              value: RequestKind.ShortTerm,
-                              label: 'Temporary',
-                            },
-                            {
-                              value: RequestKind.LongTerm,
-                              label: 'Permanent',
-                              disabled: longTermDisabled,
-                              tooltip: longTermButtonTooltipText,
-                            },
-                          ]}
-                          activeValue={
-                            isLongTerm
-                              ? RequestKind.LongTerm
-                              : RequestKind.ShortTerm
-                          }
-                          onChange={setRequestKind}
-                          fullWidth
-                        />
-                      </Flex>
-                      <Divider />
-                    </>
-                  )}
+                  <Flex flexDirection="column" gap={2} mt={4}>
+                    <Text bold>Request Type</Text>
+                    <ButtonSelect
+                      options={[
+                        {
+                          value: RequestKind.ShortTerm,
+                          label: 'Temporary',
+                        },
+                        {
+                          value: RequestKind.LongTerm,
+                          label: 'Permanent',
+                          disabled: longTermDisabled,
+                          tooltip: longTermButtonTooltipText,
+                        },
+                      ]}
+                      activeValue={
+                        isLongTerm
+                          ? RequestKind.LongTerm
+                          : RequestKind.ShortTerm
+                      }
+                      onChange={setRequestKind}
+                      fullWidth
+                    />
+                  </Flex>
+                  <Divider />
                   {!isLongTerm && isResourceRequest && (
                     <ResourceRequestRoles
                       roles={resourceRequestRoles}
@@ -1238,15 +1216,7 @@ export type PendingKubeResourceItem = Omit<PendingListItem, 'kind'> & {
 export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
   {
     onClose(): void;
-    toggleResource: (resource: T) => void;
-    toggleResources?: (
-      resources: {
-        kind: T['kind'];
-        resourceId: T['id'];
-        resourceName: T['name'];
-      }[],
-      action?: 'add' | 'remove'
-    ) => void;
+    toggleResources: (resources: T[]) => void;
     appsGrantedByUserGroup?: string[];
     userGroupFetchAttempt?: Attempt;
     reset: () => void;
@@ -1276,8 +1246,8 @@ export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
     dryRunResponse: AccessRequest;
     Header?: () => JSX.Element;
     startTime: Date;
-    requestKind?: RequestKind;
-    setRequestKind?: React.Dispatch<React.SetStateAction<RequestKind>>;
+    requestKind: RequestKind;
+    setRequestKind: React.Dispatch<React.SetStateAction<RequestKind>>;
     addedResourceConstraints: ResourceConstraintsMap;
     setResourceConstraints: (
       key: ResourceIDString,
