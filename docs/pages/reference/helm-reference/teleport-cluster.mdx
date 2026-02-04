@@ -2059,6 +2059,23 @@ Allows to specify the service type.
     type: LoadBalancer
   ```
 
+## `service.skipPorts`
+
+| Type      | Default value  | Required? |
+|-----------|----------------|-----------|
+| `boolean` | `false`        | No        |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/services-networking/service/)
+
+Boolean value that specifies whether to generate default Teleport proxy ports.
+
+`values.yaml` example:
+
+  ```yaml
+  service:
+    skipPorts: true
+  ```
+
 ## `service.spec.loadBalancerIP`
 
 | Type     | Default value | Required? |
