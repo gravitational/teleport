@@ -165,7 +165,28 @@ This section exists as a record of my thinking whilst researching and writing
 this RFD. It should not be considered a canonical part of the design, but, may
 help provide context around my thought process and decisions for future readers.
 
-### A.1: The mechanism of Bot scoping
+### A.1: The form of Scoped Bots
+
+When it comes to introducing the concept of a Bot that is scoped, we have a
+number of options as to what form this actually takes. Broadly, there are three
+options.
+
+Add a scope field to the existing Bot resource:
+
+- Perhaps the most "straight-forward" implementation. No need to introduce new
+  `tctl` commands, IaC resources or RPCs. This results in the least
+  "maintenance" burden for the team going forward.
+- Introduces more complexity to the existing Bot resource - both in terms of 
+  implementation and UX. For example, certain fields (e.g `roles`) will not be
+  permitted when `scope` is specified.
+
+Introduce a new resource type - ScopedBot:
+
+- This provides a clear, new, separate schema for the user to interact with.
+
+Introduce a subkind of the existing Bot resource:
+
+-
 
 ### A.2: The Wrong Implementations
 
