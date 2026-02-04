@@ -1297,23 +1297,9 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cmd.Stderr = nsctx.Stderrw
 
 	proc, err := networking.NewProcess(ctx, cmd)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Close our half of the stderr pipe.
-	nsctx.Stderrw.Close()
-	nsctx.Stderrw = nil
-
-	if err := nsctx.WaitForChild(ctx); err != nil {
-		slog.DebugContext(ctx, "Unexpected error waiting for signal from child process.", "error", err)
-	}
-
-	// If the child process signaled ready, it is either ready or closed due to an error.
-	if err := nsctx.GetChildError(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

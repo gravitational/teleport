@@ -23,6 +23,8 @@
 //   - Start: The parent teleport process creates a unix socket pair and passes one side to the
 //     networking subprocess on start. This is used as a unidirectional pipe for the parent
 //     to make networking requests.
+//   - Ready: The child process signals that it is ready and listening on the unix socket by sending
+//     a single byte message.
 //   - Request: The parent creates a new request-level socket pair and sends one side through the
 //     main pipe, along with the request payload (e.g. dial tcp 8080).
 //   - Handle: The subprocess watches for new requests on the main pipe. When a request is received,
@@ -46,6 +48,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils/uds"
 )
@@ -63,8 +66,13 @@ type Process struct {
 	conn *net.UnixConn
 	// done signals when the process completes.
 	done chan struct{}
+	// ready signals when the child process is ready and listening.
+	// A receive on ready should be accompanied by a received on done to catch process failures.
+	ready chan struct{}
 	// killed is set to true when the process was killed forcibly.
 	killed atomic.Bool
+	// childErr is an error sent by the child process over stderr.
+	childErr error
 }
 
 // Request is a networking request.
@@ -108,46 +116,79 @@ type X11Request struct {
 // NewProcess starts a new networking process with the given command, which should
 // be pre-configured from a ssh server context with Teleport reexec settings.
 func NewProcess(ctx context.Context, cmd *exec.Cmd) (*Process, error) {
-	// Create the socket to communicate over.
-	remoteConn, localConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer remoteConn.Close()
-	remoteFD, err := remoteConn.File()
-	if err != nil {
-		localConn.Close()
-		return nil, trace.Wrap(err)
-	}
-	defer remoteFD.Close()
-	cmd.ExtraFiles = append(cmd.ExtraFiles, remoteFD)
-
 	proc := &Process{
-		cmd:  cmd,
-		conn: localConn,
-		done: make(chan struct{}),
+		cmd:   cmd,
+		done:  make(chan struct{}),
+		ready: make(chan struct{}),
 	}
 
 	if err := proc.start(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return proc, nil
+	// Wait for the child process to be ready and listening, or fail.
+	select {
+	case <-proc.ready:
+		return proc, nil
+	case <-proc.done:
+		return nil, proc.childErr
+	}
 }
 
 // start the the networking process.
 func (p *Process) start(ctx context.Context) error {
+	// Create the socket to communicate over.
+	remoteConn, localConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer remoteConn.Close()
+	p.conn = localConn
+
+	remoteFD, err := remoteConn.File()
+	if err != nil {
+		localConn.Close()
+		return trace.Wrap(err)
+	}
+	defer remoteFD.Close()
+	p.cmd.ExtraFiles = append(p.cmd.ExtraFiles, remoteFD)
+
+	stderrr, stderrw, err := os.Pipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer stderrw.Close()
+	p.cmd.Stderr = stderrw
+
 	if err := p.cmd.Start(); err != nil {
-		p.conn.Close()
+		localConn.Close()
 		return trace.Wrap(err)
 	}
 
 	go func() {
+		// Wait for the child process to signal ready. A read error indicate a process
+		// failure and can be ignored here.
+		if n, _ := p.conn.Read(make([]byte, 1)); n == 1 {
+			close(p.ready)
+		}
+	}()
+
+	go func() {
 		defer close(p.done)
 		defer p.conn.Close()
-		// Ensure unexpected cmd failures get logged.
-		if err := p.cmd.Wait(); err != nil && !p.killed.Load() {
-			slog.WarnContext(ctx, "Networking process exited early with unexpected error.", "error", err)
+
+		waitErr := p.cmd.Wait()
+		if waitErr == nil || p.killed.Load() {
+			return
+		}
+
+		childErr, err := reexec.ReadChildError(ctx, stderrr)
+		if err != nil || childErr == nil {
+			slog.WarnContext(ctx, "Networking process exited early with unexpected error (this is a bug).", "wait_error", waitErr, "child_error", err)
+		} else {
+			// Capture errors intentionally written by the child process as these can be shared with the
+			// end user to explain the failure - e.g. host user creation error due to lack of permissions.
+			p.childErr = childErr
 		}
 	}()
 

@@ -56,6 +56,7 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1420,28 +1421,10 @@ func (c *ServerContext) WaitForChild(ctx context.Context) error {
 // looks like "Failed to launch: <internal-error-message>", the error message
 // is returned, potentially with additional error context gathered from the given
 // server context.
-//
-// This must only be called after the child process has exited.
 func (c *ServerContext) GetChildError() error {
-	// Read the error msg from stderr.
-	errMsg := new(strings.Builder)
-	if _, err := io.Copy(errMsg, c.stderrr); err != nil {
-		c.Logger.ErrorContext(c.CancelContext(), "Failed to read error message from child process", "err", err)
+	childErr, err := reexec.ReadChildError(c.CancelContext(), c.stderrr)
+	if err != nil {
+		c.Logger.DebugContext(c.cancelContext, "Failed to get child process err", "error", err)
 	}
-
-	if errMsg.Len() == 0 {
-		return nil
-	}
-
-	// It should be empty or include an error message like "Failed to launch: ..."
-	if !strings.HasPrefix(errMsg.String(), "Failed to launch: ") {
-		c.Logger.ErrorContext(c.CancelContext(), "Unexpected error message from child process", "err_msg", errMsg.String())
-		return nil
-	}
-
-	// TODO(Joerger): Process the err msg from stderr to provide deeper insights into
-	// the cause of the session failure to add to the error message.
-	// e.g. user unknown because host user creation denied.
-
-	return errors.New(errMsg.String())
+	return childErr
 }
