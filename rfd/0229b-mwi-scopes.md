@@ -124,8 +124,8 @@ using the Scoped Join Token. To do so, they must configure:
 - The address of the Auth or Proxy Service.
 - A type of service they would like `tbot` to run (e.g `identity`).
 
-TODO: Should they configure a scope to pin globally for `tbot`, or on a
-per-service basis? Or do we just infer this from the scope of the bot.
+TODO: The question of Pinning. Are the Bots credentials pinned to the scope
+it exists in? This poses challenges for cross-scope privilege down the line.
 
 ## Implementation Details
 
@@ -134,6 +134,17 @@ per-service basis? Or do we just infer this from the scope of the bot.
 ## Future Improvements
 
 ### Sub-scoping of generated credentials
+
+### Cross-scope privileges
+
+Challenges:
+
+- We propose making tbot credentials are pinned to the scope the Scoped Bot
+  exists in - so whilst the Bot could be assigned cross-scope privileges, it
+  won't actually be able to use them?
+- How do we bind the Scoped Role Assignment to the Bot & Scope so the deletion
+  of the Bot doesn't allow someone to "swoop" in and steal the sra from another
+  scope?
 
 ## Appendix A: Decisions & Thinking
 
