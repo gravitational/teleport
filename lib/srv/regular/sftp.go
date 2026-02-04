@@ -38,6 +38,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -50,6 +51,7 @@ type sftpSubsys struct {
 
 	fileTransferReq *srv.FileTransferRequest
 	sftpCmd         *exec.Cmd
+	sftpCmdStderr   io.Reader
 	serverCtx       *srv.ServerContext
 	errCh           chan error
 }
@@ -121,7 +123,17 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.sftpCmd.Stderr = serverCtx.Stderrw
+
+	stderrr, stderrw, err := os.Pipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer stderrw.Close()
+	s.sftpCmd.Stderr = stderrw
+	s.sftpCmdStderr = stderrr
+
+	// Ensure stderrr pipe is closed.
+	serverCtx.AddCloser(stderrr)
 
 	s.logger.DebugContext(ctx, "starting SFTP process")
 	err = s.sftpCmd.Start()
@@ -129,10 +141,6 @@ func (s *sftpSubsys) Start(ctx context.Context,
 		return trace.Wrap(err)
 	}
 	execRequest.Continue()
-
-	// Close our half of the stderr pipe.
-	serverCtx.Stderrw.Close()
-	serverCtx.Stderrw = nil
 
 	// Send the file transfer request if applicable. The SFTP process
 	// expects the file transfer request data will end with a null byte,
@@ -233,10 +241,15 @@ func (s *sftpSubsys) Wait() error {
 	waitErr := s.sftpCmd.Wait()
 	s.logger.DebugContext(ctx, "SFTP process finished")
 
+	childErr, err := reexec.ReadChildError(s.sftpCmdStderr)
+	if err != nil {
+		s.logger.WarnContext(ctx, "Failed to get child process err", "error", err)
+	}
+
 	s.serverCtx.SendExecResult(ctx, srv.ExecResult{
 		Command: s.sftpCmd.String(),
 		Code:    s.sftpCmd.ProcessState.ExitCode(),
-		Error:   s.serverCtx.GetChildError(),
+		Error:   childErr,
 	})
 
 	errs := []error{waitErr}

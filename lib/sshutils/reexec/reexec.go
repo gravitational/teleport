@@ -20,7 +20,6 @@
 package reexec
 
 import (
-	"context"
 	"errors"
 	"io"
 	"strings"
@@ -36,7 +35,7 @@ import (
 // looks like "Failed to launch: <internal-error-message>", it is returned as childErr,
 // potentially with additional error context gathered from the given
 // server context. Otherwise, err is returned.
-func ReadChildError(ctx context.Context, stderr io.Reader) (childErr error, err error) {
+func ReadChildError(stderr io.Reader) (childErr error, err error) {
 	// Read the error msg from stderr.
 	errMsg := new(strings.Builder)
 	if _, err := io.Copy(errMsg, stderr); err != nil {

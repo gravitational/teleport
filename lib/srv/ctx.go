@@ -56,7 +56,6 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
@@ -411,10 +410,6 @@ type ServerContext struct {
 	// set this field directly, use (Get|Set)SSHRequest instead.
 	sshRequest *ssh.Request
 
-	// stderr{r,w} are used to capture stderr from the child process.
-	stderrr *os.File
-	Stderrw *os.File
-
 	// cmd{r,w} are used to send the command from the parent process to the
 	// child process.
 	cmdr *os.File
@@ -573,15 +568,6 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		childErr := child.Close()
 		return nil, trace.NewAggregate(err, childErr)
 	}
-
-	// Create pipe used to capture stderr from the child process.
-	child.stderrr, child.Stderrw, err = os.Pipe()
-	if err != nil {
-		childErr := child.Close()
-		return nil, trace.NewAggregate(err, childErr)
-	}
-	child.AddCloser(child.stderrr)
-	child.AddCloser(child.Stderrw)
 
 	// Create pipe used to send command to child process.
 	child.cmdr, child.cmdw, err = os.Pipe()
@@ -1414,17 +1400,4 @@ func (c *ServerContext) WaitForChild(ctx context.Context) error {
 	// Set to nil so the close in the context doesn't attempt to re-close.
 	c.readyr = nil
 	return trace.NewAggregate(waitErr, closeErr)
-}
-
-// GetChildError reads the child process's stderr pipe for an error.
-// If stderr is empty, an empty string is returned. If stderr is non-empty and
-// looks like "Failed to launch: <internal-error-message>", the error message
-// is returned, potentially with additional error context gathered from the given
-// server context.
-func (c *ServerContext) GetChildError() error {
-	childErr, err := reexec.ReadChildError(c.CancelContext(), c.stderrr)
-	if err != nil {
-		c.Logger.DebugContext(c.cancelContext, "Failed to get child process err", "error", err)
-	}
-	return childErr
 }

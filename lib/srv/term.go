@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 )
 
 // LookupUser is used to mock the value returned by user.Lookup(string).
@@ -132,6 +133,7 @@ type terminal struct {
 	log *slog.Logger
 
 	cmd           *exec.Cmd
+	cmdStderr     io.ReadCloser
 	serverContext *ServerContext
 
 	pty     *os.File
@@ -204,7 +206,17 @@ func (t *terminal) Run(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	t.cmd.Stderr = t.serverContext.Stderrw
+
+	stderrr, stderrw, err := os.Pipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer stderrw.Close()
+	t.cmd.Stderr = stderrw
+	t.cmdStderr = stderrr
+
+	// Ensure stderrr pipe is closed.
+	t.serverContext.AddCloser(stderrr)
 
 	// Close the TTY before returning to ensure that our half of the pipe is
 	// closed. This ensures that reading from the PTY will unblock when the
@@ -215,10 +227,6 @@ func (t *terminal) Run(ctx context.Context) error {
 	if err := t.cmd.Start(); err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Close our half of the stderr pipe.
-	t.serverContext.Stderrw.Close()
-	t.serverContext.Stderrw = nil
 
 	// Close our half of the write pipe since it is only to be used by the child process.
 	// Not closing prevents being signaled when the child closes its half.
@@ -247,10 +255,15 @@ func (t *terminal) Wait() (*ExecResult, error) {
 		code = status.ExitStatus()
 	}
 
+	childErr, err := reexec.ReadChildError(t.cmdStderr)
+	if err != nil {
+		t.log.WarnContext(t.serverContext.cancelContext, "Failed to get child process err", "error", err)
+	}
+
 	return &ExecResult{
 		Code:    code,
 		Command: t.cmd.Path,
-		Error:   t.serverContext.GetChildError(),
+		Error:   childErr,
 	}, nil
 }
 

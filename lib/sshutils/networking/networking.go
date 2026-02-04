@@ -162,6 +162,7 @@ func (p *Process) start(ctx context.Context) error {
 
 	if err := p.cmd.Start(); err != nil {
 		localConn.Close()
+		stderrr.Close()
 		return trace.Wrap(err)
 	}
 
@@ -176,15 +177,16 @@ func (p *Process) start(ctx context.Context) error {
 	go func() {
 		defer close(p.done)
 		defer p.conn.Close()
+		defer stderrr.Close()
 
 		waitErr := p.cmd.Wait()
 		if waitErr == nil || p.killed.Load() {
 			return
 		}
 
-		childErr, err := reexec.ReadChildError(ctx, stderrr)
+		childErr, err := reexec.ReadChildError(stderrr)
 		if err != nil || childErr == nil {
-			slog.WarnContext(ctx, "Networking process exited early with unexpected error (this is a bug).", "wait_error", waitErr, "child_error", err)
+			slog.WarnContext(ctx, "Networking process exited early with unexpected error.", "wait_error", waitErr, "child_error", err)
 		} else {
 			// Capture errors intentionally written by the child process as these can be shared with the
 			// end user to explain the failure - e.g. host user creation error due to lack of permissions.

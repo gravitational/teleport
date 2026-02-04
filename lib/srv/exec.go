@@ -41,6 +41,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -127,7 +128,8 @@ type localExec struct {
 	Command string
 
 	// Cmd holds an *exec.Cmd which will be used for local execution.
-	Cmd *exec.Cmd
+	Cmd       *exec.Cmd
+	cmdStderr io.Reader
 
 	// Ctx holds the *ServerContext.
 	Ctx *ServerContext
@@ -185,7 +187,17 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	e.Cmd.Stderr = e.Ctx.Stderrw
+
+	stderrr, stderrw, err := os.Pipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer stderrw.Close()
+	e.Cmd.Stderr = stderrw
+	e.cmdStderr = stderrr
+
+	// Ensure stderrr pipe is closed.
+	e.Ctx.AddCloser(stderrr)
 
 	// Start the command.
 	err = e.Cmd.Start()
@@ -200,10 +212,6 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 			Code:    exitCode(err),
 		}, trace.ConvertSystemError(err)
 	}
-
-	// Close our half of the stderr pipe.
-	e.Ctx.Stderrw.Close()
-	e.Ctx.Stderrw = nil
 
 	// Close our half of the write pipe since it is only to be used by the child process.
 	// Not closing prevents being signaled when the child closes its half.
@@ -242,20 +250,25 @@ func (e *localExec) Wait() *ExecResult {
 	}
 
 	// Block until the command is finished executing.
-	err := e.Cmd.Wait()
-	if err != nil {
-		e.Ctx.Logger.DebugContext(e.Ctx.CancelContext(), "Local command failed", "error", err)
+	cmdErr := e.Cmd.Wait()
+	if cmdErr != nil {
+		e.Ctx.Logger.DebugContext(e.Ctx.CancelContext(), "Local command failed", "error", cmdErr)
 	} else {
 		e.Ctx.Logger.DebugContext(e.Ctx.CancelContext(), "Local command successfully executed")
 	}
 
 	// Emit the result of execution to the Audit Log.
-	emitExecAuditEvent(e.Ctx, e.GetCommand(), err)
+	emitExecAuditEvent(e.Ctx, e.GetCommand(), cmdErr)
+
+	childErr, err := reexec.ReadChildError(e.cmdStderr)
+	if err != nil {
+		e.Ctx.Logger.WarnContext(e.Ctx.CancelContext(), "Failed to get child process err", "error", err)
+	}
 
 	execResult := &ExecResult{
 		Command: e.GetCommand(),
-		Code:    exitCode(err),
-		Error:   e.Ctx.GetChildError(),
+		Code:    exitCode(cmdErr),
+		Error:   childErr,
 	}
 
 	return execResult
