@@ -114,17 +114,17 @@ func TestTerminal_KillUnderlyingShell(t *testing.T) {
 	errors := make(chan error)
 	go func() {
 		// Call wait to avoid creating zombie process.
-		// Ignore exit code as we're checking term.cmd.ProcessState already
+		// Ignore exit code as we're checking term.reexecCmd.Cmd.ProcessState already
 		_, err := term.Wait()
 
 		errors <- err
 	}()
 
 	// Wait for the child process to indicate its completed initialization.
-	require.NoError(t, scx.execRequest.WaitForChild(ctx))
+	require.NoError(t, term.WaitForChild(ctx))
 
 	// Continue execution
-	scx.execRequest.Continue()
+	term.Continue()
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	t.Cleanup(cancel)
@@ -136,8 +136,8 @@ func TestTerminal_KillUnderlyingShell(t *testing.T) {
 	require.NoError(t, <-errors)
 
 	// ProcessState should be not nil after the process exits.
-	require.NotNil(t, term.cmd.ProcessState)
-	require.NotZero(t, term.cmd.ProcessState.Pid())
+	require.NotNil(t, term.reexecCmd.Cmd.ProcessState)
+	require.NotZero(t, term.reexecCmd.Cmd.ProcessState.Pid())
 	// 255 is returned on subprocess kill.
-	require.Equal(t, 255, term.cmd.ProcessState.ExitCode())
+	require.Equal(t, 255, term.reexecCmd.Cmd.ProcessState.ExitCode())
 }

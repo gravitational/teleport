@@ -26,7 +26,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -38,6 +37,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -49,7 +49,7 @@ type sftpSubsys struct {
 	logger *slog.Logger
 
 	fileTransferReq *srv.FileTransferRequest
-	sftpCmd         *exec.Cmd
+	reexecCmd       *reexec.Command
 	serverCtx       *srv.ServerContext
 	errCh           chan error
 }
@@ -65,7 +65,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	serverConn *ssh.ServerConn,
 	ch ssh.Channel, req *ssh.Request,
 	serverCtx *srv.ServerContext,
-) error {
+) (err error) {
 	// Check that file copying is allowed Node-wide again here in case
 	// this connection was proxied, the proxy doesn't know if file copying
 	// is allowed for certain Nodes.
@@ -85,26 +85,6 @@ func (s *sftpSubsys) Start(ctx context.Context,
 
 	s.serverCtx = serverCtx
 
-	// Create two sets of anonymous pipes to give the child process
-	// access to the SSH channel
-	chReadPipeOut, chReadPipeIn, err := os.Pipe()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer chReadPipeOut.Close()
-	chWritePipeOut, chWritePipeIn, err := os.Pipe()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer chWritePipeIn.Close()
-	// Create anonymous pipe that the child will send audit information
-	// over
-	auditPipeOut, auditPipeIn, err := os.Pipe()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer auditPipeIn.Close()
-
 	// Create child process to handle SFTP connection
 	execRequest, err := srv.NewExecRequest(serverCtx, teleport.SFTPSubCommand)
 	if err != nil {
@@ -117,19 +97,44 @@ func (s *sftpSubsys) Start(ctx context.Context,
 		return trace.Wrap(err)
 	}
 
-	s.sftpCmd, err = srv.ConfigureCommand(serverCtx, chReadPipeOut, chWritePipeIn, auditPipeIn)
+	s.reexecCmd, err = serverCtx.ConfigureCommand()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.sftpCmd.Stdout = os.Stdout
-	s.sftpCmd.Stderr = os.Stderr
+	s.reexecCmd.Cmd.Stdout = os.Stdout
+	s.reexecCmd.Cmd.Stderr = os.Stderr
+
+	// Create two sets of anonymous pipes to give the child process
+	// access to the SSH channel
+	chReadPipeIn, err := s.reexecCmd.AddParentToChildPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Ensure the pipe is closed if we hit an error before reaching the chReadPipeIn goroutine.
+	defer func() {
+		if err != nil {
+			chReadPipeIn.Close()
+		}
+	}()
+
+	chWritePipeOut, err := s.reexecCmd.AddChildToParentPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Create anonymous pipe that the child will send audit information
+	// over
+	auditPipeOut, err := s.reexecCmd.AddChildToParentPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	s.logger.DebugContext(ctx, "starting SFTP process")
-	err = s.sftpCmd.Start()
+	err = s.reexecCmd.Start(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	execRequest.Continue()
+	s.reexecCmd.Continue(ctx)
 
 	// Send the file transfer request if applicable. The SFTP process
 	// expects the file transfer request data will end with a null byte,
@@ -152,21 +157,16 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	s.errCh = make(chan error, copyingGoroutines)
 	go func() {
 		defer chReadPipeIn.Close()
-
 		_, err := io.Copy(chReadPipeIn, ch)
 		s.errCh <- err
 	}()
 	go func() {
-		defer chWritePipeOut.Close()
-
 		_, err := io.Copy(ch, chWritePipeOut)
 		s.errCh <- err
 	}()
 
 	// Read and emit audit events from the child process
 	go func() {
-		defer auditPipeOut.Close()
-
 		// Create common fields for events
 		serverMeta := serverCtx.GetServer().EventMetadata()
 		sessionMeta := serverCtx.GetSessionMetadata()
@@ -227,12 +227,12 @@ func (s *sftpSubsys) Start(ctx context.Context,
 
 func (s *sftpSubsys) Wait() error {
 	ctx := context.Background()
-	waitErr := s.sftpCmd.Wait()
+	waitErr := s.reexecCmd.Wait(ctx)
 	s.logger.DebugContext(ctx, "SFTP process finished")
 
 	s.serverCtx.SendExecResult(ctx, srv.ExecResult{
-		Command: s.sftpCmd.String(),
-		Code:    s.sftpCmd.ProcessState.ExitCode(),
+		Command: s.reexecCmd.Cmd.String(),
+		Code:    s.reexecCmd.Cmd.ProcessState.ExitCode(),
 	})
 
 	errs := []error{waitErr}

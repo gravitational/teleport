@@ -81,6 +81,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -190,7 +191,7 @@ func setChildLogConfigForTest() ServerOption {
 		level := new(slog.LevelVar)
 		level.Set(slog.LevelDebug)
 		s.childLogConfig = &srv.ChildLogConfig{
-			ExecLogConfig: srv.ExecLogConfig{
+			LogConfig: reexec.LogConfig{
 				Level: level,
 			},
 			Writer: os.Stderr,

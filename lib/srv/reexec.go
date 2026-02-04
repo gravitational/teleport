@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/networking"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/envutils"
@@ -66,9 +67,9 @@ import (
 type FileFD = uintptr
 
 const (
-	// CommandFile is used to pass the command and arguments that the
-	// child process should execute from the parent process.
-	CommandFile FileFD = 3 + iota
+	// ConfigFile is used to pass the reexec configuration payload
+	// (including the command, logging, and session settings) from the parent process.
+	ConfigFile FileFD = 3 + iota
 	// LogFile is used to emit logs from the child process to the parent
 	// process.
 	LogFile
@@ -86,139 +87,49 @@ const (
 	// to pid 1 and "live forever". Killing the shell should not prevent processes
 	// preventing SIGHUP to be reassigned (ex. processes running with nohup).
 	TerminateFile
-	// PTYFileDeprecated is a placeholder for the unused PTY file that
-	// was passed to the child process. The PTY should only be used in the
-	// the parent process but was left here for compatibility purposes.
-	PTYFileDeprecated
-	// TTYFile is a TTY the parent process passes to the child process.
-	TTYFile
-
 	// FirstExtraFile is the first file descriptor that will be valid when
 	// extra files are passed to child processes without a terminal.
 	FirstExtraFile FileFD = TerminateFile + 1
 )
 
+// FileFDs for terminal based exec sessions.
+const (
+	// PTYFileDeprecated is a placeholder for the unused PTY file that
+	// was passed to the child process. The PTY should only be used in the
+	// the parent process but was left here for compatibility purposes.
+	PTYFileDeprecated = FirstExtraFile + iota
+	// TTYFile is a TTY the parent process passes to the child process.
+	TTYFile
+)
+
+// FileFDs for non-terminal based exec sessions.
+const (
+	// StdinFile is used to capture the stdin stream of the shell (grandchild) process.
+	StdinFile = FirstExtraFile + iota
+	// StdoutFile is used to capture the stdout stream of the shell (grandchild) process.
+	StdoutFile
+	// StderrFile is used to capture the stderr stream of the shell (grandchild) process.
+	StderrFile
+)
+
+// FileFDs for SFTP sessions.
+const (
+	// FileTransferOutFile is used to pass write transfer data to the sftp (grandchild) process.
+	FileTransferOutFile = FirstExtraFile + iota
+	// FileTransferInFile is used to pass read transfer data from the sftp (grandchild) process.
+	FileTransferInFile
+	// AuditInFile is used to pass audit events from the sftp (grandchild) process.
+	AuditInFile
+)
+
+// FileFDs for networking sessions.
+const (
+	// ListenerFile is a unix datagram socket listener.
+	ListenerFile = FirstExtraFile + iota
+)
+
 func fdName(f FileFD) string {
 	return fmt.Sprintf("/proc/self/fd/%d", f)
-}
-
-// ExecCommand contains the payload to "teleport exec" which will be used to
-// construct and execute a shell.
-type ExecCommand struct {
-	// LogConfig is the log configuration for the child process.
-	LogConfig ExecLogConfig `json:"log_config"`
-
-	// Command is the command to execute. If an interactive session is being
-	// requested, will be empty. If a subsystem is requested, it will contain
-	// the subsystem name.
-	Command string `json:"command"`
-
-	// DestinationAddress is the target address to dial to.
-	DestinationAddress string `json:"dst_addr"`
-
-	// Username is the username associated with the Teleport identity.
-	Username string `json:"username"`
-
-	// Login is the local *nix account.
-	Login string `json:"login"`
-
-	// Roles is the list of Teleport roles assigned to the Teleport identity.
-	Roles []string `json:"roles"`
-
-	// ClusterName is the name of the Teleport cluster.
-	ClusterName string `json:"cluster_name"`
-
-	// Terminal indicates if a TTY has been allocated for the session. This is
-	// typically set if either a shell was requested or a TTY was explicitly
-	// allocated for an exec request.
-	Terminal bool `json:"term"`
-
-	// TerminalName is the name of TTY terminal, ex: /dev/tty1.
-	// Currently, this field is used by auditd.
-	TerminalName string `json:"terminal_name"`
-
-	// ClientAddress contains IP address of the connected client.
-	// Currently, this field is used by auditd.
-	ClientAddress string `json:"client_address"`
-
-	// RequestType is the type of request: either "exec" or "shell". This will
-	// be used to control where to connect std{out,err} based on the request
-	// type: "exec", "shell" or "subsystem".
-	RequestType string `json:"request_type"`
-
-	// PAMConfig is the configuration data that needs to be passed to the child and then to PAM modules.
-	PAMConfig *PAMConfig `json:"pam_config,omitempty"`
-
-	// Environment is a list of environment variables to add to the defaults.
-	Environment []string `json:"environment"`
-
-	// PermitUserEnvironment is set to allow reading in ~/.tsh/environment
-	// upon login.
-	PermitUserEnvironment bool `json:"permit_user_environment"`
-
-	// IsTestStub is used by tests to mock the shell.
-	IsTestStub bool `json:"is_test_stub"`
-
-	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
-	UserCreatedByTeleport bool
-
-	// UaccMetadata contains metadata needed for user accounting.
-	UaccMetadata UaccMetadata `json:"uacc_meta"`
-
-	// ExtraFilesLen is the number of extra files that are inherited from
-	// the parent process. These files start at file descriptor 3 of the
-	// child process, and are only valid for processes without a terminal.
-	ExtraFilesLen int `json:"extra_files_len"`
-
-	// SetSELinuxContext is true when the SELinux context should be set
-	// for the child.
-	SetSELinuxContext bool `json:"set_selinux_context"`
-}
-
-// ExecLogConfig represents all the logging configuration data that
-// needs to be passed to the child.
-type ExecLogConfig struct {
-	// Level is the log level to use.
-	Level *slog.LevelVar
-	// Format defines the output format. Possible values are 'text' and 'json'.
-	Format string
-	// ExtraFields lists the output fields from KnownFormatFields. Example format: [timestamp, component, caller].
-	ExtraFields []string
-	// EnableColors dictates if output should be colored when Format is set to "text".
-	EnableColors bool
-	// Padding to use for various components when Format is set to "text".
-	Padding int
-}
-
-// PAMConfig represents all the configuration data that needs to be passed to the child.
-type PAMConfig struct {
-	// UsePAMAuth specifies whether to trigger the "auth" PAM modules from the
-	// policy.
-	UsePAMAuth bool `json:"use_pam_auth"`
-
-	// ServiceName is the name of the PAM service requested if PAM is enabled.
-	ServiceName string `json:"service_name"`
-
-	// Environment represents env variables to pass to PAM.
-	Environment map[string]string `json:"environment"`
-}
-
-// UaccMetadata contains information the child needs from the parent for user accounting.
-type UaccMetadata struct {
-	// RemoteAddr is the address of the remote host.
-	RemoteAddr utils.NetAddr `json:"remote_addr"`
-
-	// UtmpPath is the path of the system utmp database.
-	UtmpPath string `json:"utmp_path,omitempty"`
-
-	// WtmpPath is the path of the system wtmp log.
-	WtmpPath string `json:"wtmp_path,omitempty"`
-
-	// BtmpPath is the path of the system btmp log.
-	BtmpPath string `json:"btmp_path,omitempty"`
-
-	// WtmpdbPath is the path of the system wtmpdb database.
-	WtmpdbPath string `json:"wtmpdb_path,omitempty"`
 }
 
 // RunCommand reads in the command to run from the parent process (over a
@@ -249,9 +160,9 @@ func RunCommand() (code int, err error) {
 		}
 	}()
 
-	// Parent sends the command payload in the third file descriptor.
-	cmdfd := os.NewFile(CommandFile, fdName(CommandFile))
-	if cmdfd == nil {
+	// Parent sends the reexec configuration payload in the third file descriptor.
+	cfgfd := os.NewFile(ConfigFile, fdName(ConfigFile))
+	if cfgfd == nil {
 		return teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
 	}
 	contfd := os.NewFile(ContinueFile, fdName(ContinueFile))
@@ -278,9 +189,9 @@ func RunCommand() (code int, err error) {
 		return teleport.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
 	}
 
-	// Read in the command payload.
-	var c ExecCommand
-	if err := json.NewDecoder(cmdfd).Decode(&c); err != nil {
+	// Read in the reexec configuration payload.
+	var c reexec.Config
+	if err := json.NewDecoder(cfgfd).Decode(&c); err != nil {
 		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
@@ -412,7 +323,7 @@ func RunCommand() (code int, err error) {
 
 	// Wait until the continue signal is received from Teleport signaling that
 	// the child process has been placed in a cgroup.
-	err = waitForSignal(ctx, contfd, 10*time.Second)
+	err = reexec.WaitForSignal(ctx, contfd, 10*time.Second)
 	if err != nil {
 		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -604,9 +515,9 @@ func RunNetworking() (code int, err error) {
 	// ignore SIGQUIT signals.
 	signal.Ignore(syscall.SIGQUIT)
 
-	// Parent sends the command payload in the third file descriptor.
-	cmdfd := os.NewFile(CommandFile, fdName(CommandFile))
-	if cmdfd == nil {
+	// Parent sends the reexec configuration payload in the third file descriptor.
+	cfgfd := os.NewFile(ConfigFile, fdName(ConfigFile))
+	if cfgfd == nil {
 		return teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
 	}
 
@@ -615,9 +526,9 @@ func RunNetworking() (code int, err error) {
 		return teleport.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
 	}
 
-	// Read in the command payload.
-	var c ExecCommand
-	if err := json.NewDecoder(cmdfd).Decode(&c); err != nil {
+	// Read in the reexec configuration payload.
+	var c reexec.Config
+	if err := json.NewDecoder(cfgfd).Decode(&c); err != nil {
 		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
@@ -707,7 +618,7 @@ func RunNetworking() (code int, err error) {
 	}
 
 	// Build request listener from first extra file that was passed to command.
-	ffd := os.NewFile(FirstExtraFile, "listener")
+	ffd := os.NewFile(ListenerFile, "listener")
 	if ffd == nil {
 		return teleport.RemoteCommandFailure, trace.BadParameter("missing socket fd")
 	}
@@ -1060,7 +971,7 @@ func readUserEnv(localUser *user.User, path string) ([]string, error) {
 
 // buildCommand constructs a command that will execute the users shell. This
 // function is run by Teleport while it's re-executing.
-func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
+func buildCommand(c *reexec.Config, localUser *user.User, tty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
 	var cmd exec.Cmd
 	isReexec := false
 
@@ -1162,21 +1073,23 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Setsid: true,
 		}
+	}
 
-		// If a terminal was not requested, and extra files were specified
-		// to be passed to the child, open them so that they can be passed
-		// to the grandchild.
-		if c.ExtraFilesLen > 0 {
-			cmd.ExtraFiles = make([]*os.File, c.ExtraFilesLen)
-			for i := range c.ExtraFilesLen {
-				fd := FirstExtraFile + uintptr(i)
-				f := os.NewFile(fd, strconv.Itoa(int(fd)))
-				if f == nil {
-					return nil, trace.NotFound("extra file %d not found", fd)
-				}
-				cmd.ExtraFiles[i] = f
-			}
+	// Pass extra files for SFTP to grandchild.
+	if c.Command == teleport.SFTPSubCommand {
+		out := os.NewFile(FileTransferOutFile, strconv.Itoa(int(FileTransferOutFile)))
+		if out == nil {
+			return nil, trace.NotFound("read pipe out file not found")
 		}
+		in := os.NewFile(FileTransferInFile, strconv.Itoa(int(FileTransferInFile)))
+		if in == nil {
+			return nil, trace.NotFound("read pipe in file not found")
+		}
+		audit := os.NewFile(AuditInFile, strconv.Itoa(int(AuditInFile)))
+		if audit == nil {
+			return nil, trace.NotFound("read pipe audit file not found")
+		}
+		cmd.ExtraFiles = []*os.File{out, in, audit}
 	}
 
 	// Set the command's cwd to the user's $HOME, or "/" if
@@ -1221,101 +1134,6 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 	}
 
 	return &cmd, nil
-}
-
-// ConfigureCommand creates a command fully configured to execute. This
-// function is used by Teleport to re-execute itself and pass whatever data
-// is need to the child to actually execute the shell.
-func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, error) {
-	// Create a os.Pipe and start copying over the payload to execute. While the
-	// pipe buffer is quite large (64k) some users have run into the pipe
-	// blocking writes on much smaller buffers (7k) leading to Teleport being
-	// unable to run some exec commands.
-	//
-	// To not depend on the OS implementation of a pipe, instead the copy should
-	// be non-blocking. The io.Copy will be closed when either when the child
-	// process has fully read in the payload or the process exits with an error
-	// (and closes all child file descriptors).
-	//
-	// See the below for details.
-	//
-	//   https://man7.org/linux/man-pages/man7/pipe.7.html
-	cmdmsg, err := ctx.ExecCommand()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if !cmdmsg.Terminal {
-		cmdmsg.ExtraFilesLen = len(extraFiles)
-	}
-
-	go copyCommand(ctx, cmdmsg)
-
-	// Find the Teleport executable and its directory on disk.
-	executable, err := os.Executable()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// The channel/request type determines the subcommand to execute.
-	var subCommand string
-	switch ctx.ExecType {
-	case teleport.NetworkingSubCommand:
-		subCommand = teleport.NetworkingSubCommand
-	default:
-		subCommand = teleport.ExecSubCommand
-	}
-
-	// Build the list of arguments to have Teleport re-exec itself. The "-d" flag
-	// is appended if Teleport is running in debug mode.
-	args := []string{executable, subCommand}
-
-	// build env for `teleport exec`
-	env := &envutils.SafeEnv{}
-	env.AddExecEnvironment()
-
-	// Build the "teleport exec" command.
-	cmd := &exec.Cmd{
-		Path: executable,
-		Args: args,
-		Env:  *env,
-		ExtraFiles: []*os.File{
-			ctx.cmdr,
-			ctx.logw,
-			ctx.contr,
-			ctx.readyw,
-			ctx.killShellr,
-		},
-	}
-	// Add extra files if applicable.
-	if len(extraFiles) > 0 {
-		cmd.ExtraFiles = append(cmd.ExtraFiles, extraFiles...)
-	}
-
-	// Perform OS-specific tweaks to the command.
-	reexecCommandOSTweaks(cmd)
-
-	return cmd, nil
-}
-
-// copyCommand will copy the provided command to the child process over the
-// pipe attached to the context.
-func copyCommand(ctx *ServerContext, cmdmsg *ExecCommand) {
-	defer func() {
-		err := ctx.cmdw.Close()
-		if err != nil {
-			slog.ErrorContext(ctx.CancelContext(), "Failed to close command pipe", "error", err)
-		}
-
-		// Set to nil so the close in the context doesn't attempt to re-close.
-		ctx.cmdw = nil
-	}()
-
-	// Write command bytes to pipe. The child process will read the command
-	// to execute from this pipe.
-	if err := json.NewEncoder(ctx.cmdw).Encode(cmdmsg); err != nil {
-		slog.ErrorContext(ctx.CancelContext(), "Failed to copy command over pipe", "error", err)
-		return
-	}
 }
 
 func coerceHomeDirError(usr *user.User, err error) error {
@@ -1462,34 +1280,8 @@ func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential
 	return nil
 }
 
-// waitForSignal will wait for the other side of the pipe to signal, if not
-// received, it will stop waiting and exit.
-func waitForSignal(ctx context.Context, fd *os.File, timeout time.Duration) error {
-	waitCh := make(chan error, 1)
-	go func() {
-		// Reading from the file descriptor will block until it's closed.
-		_, err := fd.Read(make([]byte, 1))
-		if errors.Is(err, io.EOF) {
-			err = nil
-		}
-		waitCh <- err
-	}()
-
-	// Timeout if no signal has been sent within the provided duration.
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
-	select {
-	case <-ctx.Done():
-		return trace.Wrap(ctx.Err(), "got context error while waiting for continue signal")
-	case <-timer.C:
-		return trace.LimitExceeded("timed out waiting for continue signal")
-	case err := <-waitCh:
-		return trace.Wrap(err)
-	}
-}
-
-func initLogger(name string, cfg ExecLogConfig) {
+// initLogger initializes slog using log pipe configuration from the parent.
+func initLogger(name string, cfg reexec.LogConfig) {
 	logWriter := os.NewFile(LogFile, fdName(LogFile))
 	if logWriter == nil {
 		return

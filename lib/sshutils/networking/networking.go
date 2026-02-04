@@ -39,13 +39,13 @@ import (
 	"log/slog"
 	"net"
 	"os"
-	"os/exec"
 	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils/uds"
 )
@@ -58,7 +58,7 @@ const RequestBufferSize = 1024
 // Process represents an instance of a networking process.
 type Process struct {
 	// cmd is the running process command.
-	cmd *exec.Cmd
+	cmd *reexec.Command
 	// conn is the socket used to request a dialer or listener in the process.
 	conn *net.UnixConn
 	// done signals when the process completes.
@@ -107,20 +107,20 @@ type X11Request struct {
 
 // NewProcess starts a new networking process with the given command, which should
 // be pre-configured from a ssh server context with Teleport reexec settings.
-func NewProcess(ctx context.Context, cmd *exec.Cmd) (*Process, error) {
+func NewProcess(ctx context.Context, cmd *reexec.Command) (*Process, error) {
 	// Create the socket to communicate over.
 	remoteConn, localConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer remoteConn.Close()
+
 	remoteFD, err := remoteConn.File()
 	if err != nil {
 		localConn.Close()
 		return nil, trace.Wrap(err)
 	}
-	defer remoteFD.Close()
-	cmd.ExtraFiles = append(cmd.ExtraFiles, remoteFD)
+	cmd.AddChildPipe(remoteFD)
 
 	proc := &Process{
 		cmd:  cmd,
@@ -129,6 +129,7 @@ func NewProcess(ctx context.Context, cmd *exec.Cmd) (*Process, error) {
 	}
 
 	if err := proc.start(ctx); err != nil {
+		localConn.Close()
 		return nil, trace.Wrap(err)
 	}
 
@@ -137,8 +138,7 @@ func NewProcess(ctx context.Context, cmd *exec.Cmd) (*Process, error) {
 
 // start the the networking process.
 func (p *Process) start(ctx context.Context) error {
-	if err := p.cmd.Start(); err != nil {
-		p.conn.Close()
+	if err := p.cmd.Start(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -146,7 +146,7 @@ func (p *Process) start(ctx context.Context) error {
 		defer close(p.done)
 		defer p.conn.Close()
 		// Ensure unexpected cmd failures get logged.
-		if err := p.cmd.Wait(); err != nil && !p.killed.Load() {
+		if err := p.cmd.Wait(ctx); err != nil && !p.killed.Load() {
 			slog.WarnContext(ctx, "Networking process exited early with unexpected error.", "error", err)
 		}
 	}()
@@ -157,6 +157,7 @@ func (p *Process) start(ctx context.Context) error {
 // Close stops the process and frees up its related resources.
 func (p *Process) Close() error {
 	p.conn.Close()
+	p.cmd.Close()
 	select {
 	case <-p.done:
 		return nil
@@ -165,7 +166,7 @@ func (p *Process) Close() error {
 
 		// Kill the process and wait for it to successfully terminate.
 		p.killed.Store(true)
-		p.cmd.Process.Kill()
+		p.cmd.Cmd.Process.Kill()
 		select {
 		case <-p.done:
 		case <-time.After(5 * time.Second):
