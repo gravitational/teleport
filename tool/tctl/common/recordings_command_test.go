@@ -19,17 +19,79 @@
 package common
 
 import (
+	"bytes"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
+
+func TestRecordingsSummaryFlags(t *testing.T) {
+	t.Parallel()
+
+	var c RecordingsCommand
+	app := utils.InitCLIParser("tctl", GlobalHelpString)
+	c.Initialize(app, &tctlcfg.GlobalCLIFlags{}, servicecfg.MakeDefaultConfig())
+
+	selectedCmd, err := app.Parse([]string{
+		"recordings", "summary", "session-123",
+		"--format=yaml",
+		"--output=summary.yaml",
+	})
+	require.NoError(t, err)
+	require.Equal(t, c.summary.FullCommand(), selectedCmd)
+	require.Equal(t, "session-123", c.summarySessionID)
+	require.Equal(t, "yaml", c.summaryFormat)
+	require.Equal(t, "summary.yaml", c.summaryOutputFile)
+}
+
+func TestWriteSummary(t *testing.T) {
+	t.Parallel()
+
+	summary := &summarizerv1pb.Summary{
+		SessionId: "session-123",
+		Content:   "Session content",
+	}
+
+	t.Run("stdout by default", func(t *testing.T) {
+		var stdout bytes.Buffer
+		c := RecordingsCommand{
+			summaryFormat: teleport.JSON,
+			stdout:        &stdout,
+		}
+
+		require.NoError(t, c.writeSummary(summary))
+		require.Contains(t, stdout.String(), `"session_id": "session-123"`)
+	})
+
+	t.Run("optional output file", func(t *testing.T) {
+		var stdout bytes.Buffer
+		outputPath := filepath.Join(t.TempDir(), "summary.yaml")
+		c := RecordingsCommand{
+			summaryFormat:     teleport.YAML,
+			summaryOutputFile: outputPath,
+			stdout:            &stdout,
+		}
+
+		require.NoError(t, c.writeSummary(summary))
+		contents, err := os.ReadFile(outputPath)
+		require.NoError(t, err)
+		require.Contains(t, string(contents), "session_id: session-123")
+		require.Empty(t, stdout.String())
+
+		info, err := os.Stat(outputPath)
+		require.NoError(t, err)
+		require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+	})
+}
 
 func TestRecordingsSearchResourcePropertyFlags(t *testing.T) {
 	var c RecordingsCommand
