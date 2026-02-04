@@ -60,12 +60,24 @@ func (ls *listResourcesCmd) init(parent *kingpin.CmdClause) {
 		BoolVar(&ls.includeRequestable)
 }
 
+type unpackedResource[T any] struct {
+	src      *types.EnrichedResource
+	id       types.ResourceID
+	resource T
+}
+
 func (ls *listResourcesCmd) Run(ctx context.Context, deps *dependencies) error {
 	clt, closeClient, err := deps.clientProvider(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer closeClient(ctx)
+
+	clusterInfo, err := clt.GetClusterName(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cname := clusterInfo.GetClusterName()
 
 	ers, err := client.GetAllUnifiedResources(ctx, clt, &proto.ListUnifiedResourcesRequest{
 		Kinds:              []string{types.KindIdentityCenterResource},
@@ -77,12 +89,20 @@ func (ls *listResourcesCmd) Run(ctx context.Context, deps *dependencies) error {
 		return trace.Wrap(err)
 	}
 
-	var resources []*proto.IdentityCenterResource
+	var resources []unpackedResource[*proto.IdentityCenterResource]
 
 	for _, er := range ers {
 		switch r := er.ResourceWithLabels.(type) {
 		case *proto.IdentityCenterResource:
-			resources = append(resources, r)
+			resources = append(resources, unpackedResource[*proto.IdentityCenterResource]{
+				src: er,
+				id: types.ResourceID{
+					ClusterName: cname,
+					Kind:        r.GetKind(),
+					Name:        r.GetName(),
+				},
+				resource: r,
+			})
 
 		default:
 			fmt.Printf("Unexpected resource type %T\n", er.ResourceWithLabels)
@@ -95,20 +115,38 @@ func (ls *listResourcesCmd) Run(ctx context.Context, deps *dependencies) error {
 	return nil
 }
 
-func (ls *listResourcesCmd) renderResourceList(resources []*proto.IdentityCenterResource) error {
-	columns := []string{"Kind", "Name", "AWS Account", "Display"}
+func (ls *listResourcesCmd) renderResourceList(resources []unpackedResource[*proto.IdentityCenterResource]) error {
+	var columns []string
+
+	if ls.includeRequestable {
+		columns = append(columns, "R")
+	}
+
+	columns = append(columns, "ID", "Kind", "AWS Account", "Display")
+
 	if ls.includeAccessProfiles {
 		columns = append(columns, "Access Profiles")
 	}
 
 	table := asciitable.MakeTable(columns)
-	for _, r := range resources {
-		row := []string{
+	for _, res := range resources {
+		r := res.resource
+
+		var row []string
+		if ls.includeRequestable {
+			value := ""
+			if res.src.RequiresRequest {
+				value = "*"
+			}
+			row = append(row, value)
+		}
+
+		row = append(row,
+			types.ResourceIDToString(res.id),
 			r.GetSubKind(),
-			r.GetName(),
 			r.GetAWSAccount(),
 			r.GetDisplayName(),
-		}
+		)
 
 		if ls.includeAccessProfiles {
 			var apNames []string

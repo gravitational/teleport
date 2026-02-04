@@ -54,6 +54,7 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/parse"
 	setutils "github.com/gravitational/teleport/lib/utils/set"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // DefaultImplicitRules provides access to the default set of implicit rules
@@ -2249,14 +2250,20 @@ type RoleMatchers []RoleMatcher
 // MatchAll returns true if all matchers in the set match.
 func (m RoleMatchers) MatchAll(role types.Role, condition types.RoleConditionType) (bool, error) {
 	for _, matcher := range m {
+		slog.Warn(">>>> Checking matcher", "matcher", logutils.TypeAttr(matcher))
+
 		match, err := matcher.Match(role, condition)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
 		if !match {
+			slog.Warn(">>>> Access denied by matcher", "matcher", logutils.TypeAttr(matcher))
 			return false, nil
 		}
+
+		slog.Warn(">>>> Access allowed by matcher", "matcher", logutils.TypeAttr(matcher))
 	}
+
 	return true, nil
 }
 
@@ -2632,6 +2639,11 @@ func resourceRequiresLabelMatching(r AccessCheckable) bool {
 }
 
 func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state AccessState, matchers ...RoleMatcher) error {
+	slog.Warn(">>>> Entering RoleSet.checkAccess()",
+		"resource_type", logutils.TypeAttr(r),
+		"roles", sliceutils.Map(set, types.Role.GetName))
+	slog.Warn("<<<< Leaving RoleSet.checkAccess()")
+
 	// Note: logging in this function only happens in trace mode. This is because
 	// adding logging to this function (which is called on every resource returned
 	// by the backend) can slow down this function by 50x for large clusters!
@@ -2743,6 +2755,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 
 		// Allow rules are not greedy. They will match only if all of the
 		// matchers return true.
+		slog.Warn(">>>> Checking role matchers", "role", role.GetName())
 		matchMatchers, err := RoleMatchers(matchers).MatchAll(role, types.Allow)
 		if err != nil {
 			return trace.Wrap(err)

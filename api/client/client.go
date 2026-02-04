@@ -4384,6 +4384,10 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			src := respResource.GetIdentityCenterAccountAssignment()
 			dst := proto.UnpackICAccountAssignment(src)
 			resources[i] = dst
+		case types.KindIdentityCenterResource:
+			src := respResource.GetIdentityCenterResource()
+			dst := proto.UnpackICResource(src)
+			resources[i] = dst
 		case types.KindGitServer:
 			resources[i] = respResource.GetGitServer()
 		default:

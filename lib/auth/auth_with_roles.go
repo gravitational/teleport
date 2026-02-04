@@ -1572,10 +1572,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 					"resource_name", resource.GetName())
 
 				// Identity Center managed Resources can have Access Profiles that
-				// a user can request.
-				//a.authServer.Cache.ListIdentityCenterManagedResources()
-				log.ErrorContext(ctx, ">>>> Enriching resource",
-					"resource_type", logutils.TypeAttr(resource))
+				// a user can request. Add those to the resource record.
 
 				if err := a.addIdentityCenterResourceAccess(ctx, resource, resourceLister); err != nil {
 					log.WarnContext(ctx, "Unable to add identity center access profiles to resource",
@@ -1630,8 +1627,6 @@ func (a *ServerWithRoles) addIdentityCenterResourceAccess(ctx context.Context, r
 			Name:    ap.GetMetadata().GetName(),
 			Display: ap.GetSpec().GetDisplayName(),
 		})
-
-		// TODO(tcsc): Gate with RBAC as well
 	}
 	resource.AccessProfiles = profiles
 	return nil

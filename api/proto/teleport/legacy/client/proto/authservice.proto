@@ -2186,6 +2186,7 @@ message IdentityCenterAccountAssignment {
 message IdentityCenterAccessProfile {
   string Name = 1 [(gogoproto.jsontag) = "name"];
   string Display = 2 [(gogoproto.jsontag) = "display"];
+  bool RequiresRequest = 3 [(gogoproto.jsontag) = "requires_request"];
 }
 
 // IdentityCenterResource holds information about an Identity Center
@@ -2270,7 +2271,7 @@ message PaginatedResource {
     IdentityCenterAccountAssignment IdentityCenterAccountAssignment = 16 [(gogoproto.jsontag) = "identity_center_account_assignment,omitempty"];
 
     // IdentityCenterResource ...
-    IdentityCenterResource IdentityCenterResource = 17 [(gogoproto.jsontag) = "identity_center_managed_resource,omitempty"];
+    IdentityCenterResource IdentityCenterResource = 17 [(gogoproto.jsontag) = "identity_center_resource,omitempty"];
   }
 
   // Logins allowed for the included resource. Only to be populated for SSH and Desktops.

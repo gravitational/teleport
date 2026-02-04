@@ -50,6 +50,10 @@ message ResourceConstraints {
     // aws_console scopes an AWS Console app to a subset of role ARNs
     // the requester is allowed to use.
     AWSConsoleResourceConstraints aws_console = 10;
+
+    // awsic_resource constrains which access profiles a user may assume for the
+    // target Identity Center Resource
+    IdentityCenterResourceConstraints identity_center_resource = 11;
   }
 }
 
@@ -69,4 +73,12 @@ message ResourceAccessID {
 // ResourceAccessIDList represents a list of ResourceAccessIDs
 message ResourceAccessIDList {
   repeated ResourceAccessID resources = 1 [(gogoproto.nullable) = false];
+}
+
+// IdentityCenterResourceConstraints constrains the users access to an
+// Identity Center resource to the specified access profiles
+message IdentityCenterResourceConstraints {
+  string version = 1;
+
+  repeated string access_profiles = 2;
 }

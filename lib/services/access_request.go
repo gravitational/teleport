@@ -47,6 +47,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/typical"
+
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 const (
@@ -107,6 +109,8 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 		// For now, only AWS Console apps are supported, but without fetching the backing resource, the most specific we
 		// can do is check for KindApp.
 		case types.KindApp:
+			continue
+		case types.KindIdentityCenterResource:
 			continue
 		default:
 			return trace.BadParameter("resource kind %q does not support resource constraints", r.GetResourceID().Kind)
@@ -824,6 +828,7 @@ type RequestValidatorGetter interface {
 	client.ListResourcesClient
 	GetRoles(ctx context.Context) ([]types.Role, error)
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetIdentityCenterAccessProfile(context.Context, string) (*identitycenterv1.AccessProfile, error)
 }
 
 // AppendRoleMatchers constructs all role matchers for a given
@@ -1215,6 +1220,9 @@ func NewRequestValidatorForUser(ctx context.Context, clock clockwork.Clock, gett
 // When requestValidator.opts.expandVars is true and req.GetDryRun() is true, it adds expanded
 // dry-run enrichment data to the request.
 func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) error {
+	m.logger.Warn(">>>> Entering RequestValidator.validate")
+	defer m.logger.Warn("<<<< LeavingRequestValidator.validate")
+
 	if m.userState.GetName() != req.GetUser() {
 		return trace.BadParameter("request validator configured for different user (this is a bug)")
 	}
@@ -1714,13 +1722,15 @@ func (m *RequestValidator) getResourceViewingRoles() []string {
 // are provided, roles will be filtered to only include those that would
 // allow access to the given resource with the given login.
 func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tlsca.Identity, resourceAccessIDs []types.ResourceAccessID, loginHint string) ([]string, error) {
+	m.logger.Warn(">>>> Entering RequestValidator.getRequestableRoles")
+	defer m.logger.Warn("<<<< LeavingRequestValidator.getRequestableRoles")
+
 	allRoles, err := m.getter.GetRoles(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// For fetching the underling resources, we can safely discard additional info carried on the ResourceAccessID.
-	underlyingResources, err := m.getUnderlyingResourcesByResourceIDs(ctx, types.RiskyExtractResourceIDs(resourceAccessIDs))
+	underlyingResources, err := m.getUnderlyingResourcesByResourceAccessIDs(ctx, resourceAccessIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2416,6 +2426,9 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 	loginHint string,
 	roles []string,
 ) ([]string, error) {
+	m.logger.Warn(">>>> Entering RequestValidator.pruneResourceRequestRoles")
+	defer m.logger.Warn("<<<< LeavingRequestValidator.pruneResourceRequestRoles")
+
 	if len(requestedResourceAccessIDs) == 0 {
 		// This is not a resource request, nothing to do
 		return roles, nil
@@ -2433,6 +2446,8 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 	localClusterName := clusterNameResource.GetClusterName()
 
 	for _, resource := range requestedResourceAccessIDs {
+		m.logger.Warn(">>>> Checking for remote resources", "resource_id", resource.Id.String())
+
 		resourceID := resource.GetResourceID()
 		if resourceID.ClusterName != localClusterName {
 			rbacLogger.LogAttrs(ctx, logutils.TraceLevel, `Requested resource is in a foreign cluster, unable to prune roles - All available "search_as_roles" will be requested`,
@@ -2449,12 +2464,15 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 
 	// For fetching the underling resources, we can safely discard additional info carried on the ResourceAccessID.
 	requestedResourceIDs := types.RiskyExtractResourceIDs(requestedResourceAccessIDs)
-	underlyingResources, err := m.getUnderlyingResourcesByResourceIDs(ctx, requestedResourceIDs)
+	underlyingResources, err := m.getUnderlyingResourcesByResourceAccessIDs(ctx, requestedResourceAccessIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	necessaryRoles := make(map[string]struct{})
+	m.logger.Warn(">>>> Checking access to underlying resources",
+		"resource_count", len(underlyingResources))
+
+	necessaryRoles := set.New[string]()
 	for _, resource := range underlyingResources {
 		var constraints *types.ResourceConstraints
 		for _, r := range requestedResourceAccessIDs {
@@ -2467,6 +2485,9 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			}
 		}
 
+		m.logger.Warn(">>>> Checking access to resource",
+			"resource_type", logutils.TypeAttr(resource))
+
 		var (
 			rolesForResource    []types.Role
 			matchers            []RoleMatcher
@@ -2477,18 +2498,12 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			return nil, trace.Wrap(err)
 		}
 		if len(kubernetesResources) > 0 {
+			m.logger.Warn(">>>> Validator thinks we have kube resources")
 			kubeResourceMatcher = NewKubeResourcesMatcher(kubernetesResources)
 			matchers = append(matchers, kubeResourceMatcher)
 		}
 
-		switch rr := resource.(type) {
-		case types.Resource153UnwrapperT[IdentityCenterAccount]:
-			matchers = append(matchers, NewIdentityCenterAccountMatcher(rr.UnwrapT()))
-		case types.Resource153UnwrapperT[IdentityCenterAccountAssignment]:
-			matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
-		case types.Resource153UnwrapperT[*identitycenterv1.Resource]:
-			matchers = append(matchers, NewIdentityCenterManagedResourceMatcher(rr.UnwrapT()))
-		}
+		matchers = appendIdentityCenterMatchers(matchers, resource, m.userState.GetTraits())
 
 		// If ResourceConstraints were provided for this Resource, wrap existing matchers.
 		if constraints != nil {
@@ -2498,16 +2513,24 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			}
 		}
 
+		m.logger.Warn(">>>> Checking access for available roles", "roles", roles)
+
 		for _, role := range allRoles {
+			m.logger.Warn(">>>> Checking access for role", "role", role.GetName())
+
 			roleAllowsAccess, err := m.roleAllowsResource(role, resource, loginHint, matchers...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			if !roleAllowsAccess {
+				m.logger.Warn(">>>> Role does not allow access", "role", role.GetName())
+
 				// Role does not allow access to this resource. We will prune it
 				// unless it allows access to another resource.
 				continue
 			}
+
+			m.logger.Warn(">>>> Role allows access", "role", role.GetName())
 			rolesForResource = append(rolesForResource, role)
 		}
 		// If any of the requested resources didn't match with the provided roles,
@@ -2518,6 +2541,9 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+
+			m.logger.Warn(">>>> kube matcher says no")
+
 			return nil, trace.BadParameter(
 				`no roles configured in the "search_as_roles" for this user allow `+
 					`access to at least one requested resources. `+
@@ -2530,12 +2556,17 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			// requested login and will include it.
 			rolesForResource = fewestLogins(rolesForResource)
 		}
+
+		m.logger.Warn(">>>> Role access check done", "roles_for_resource",
+			sliceutils.Map(rolesForResource, types.Role.GetName))
 		for _, role := range rolesForResource {
-			necessaryRoles[role.GetName()] = struct{}{}
+			necessaryRoles.Add(role.GetName())
 		}
 	}
 
-	if len(necessaryRoles) == 0 {
+	m.logger.Warn(">>>> Overall role check done")
+
+	if necessaryRoles.Len() == 0 {
 		resourcesStr, err := types.ResourceIDsToString(requestedResourceIDs)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2602,6 +2633,29 @@ func (m *RequestValidator) roleAllowsResource(
 	return true, nil
 }
 
+func (m *RequestValidator) getUnderlyingResourcesByResourceAccessIDs(ctx context.Context, resourceAccessIDs []types.ResourceAccessID) ([]types.ResourceWithLabels, error) {
+	if len(resourceAccessIDs) == 0 {
+		return []types.ResourceWithLabels{}, nil
+	}
+
+	resourceIDs := make([]types.ResourceID, len(resourceAccessIDs))
+	for i, rad := range resourceAccessIDs {
+		resourceIDs[i] = rad.Id
+	}
+
+	resources, err := m.getUnderlyingResourcesByResourceIDs(ctx, resourceIDs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resources, err = m.expandIdentityCenterResources(ctx, resourceAccessIDs, resources)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resources, nil
+}
+
 // getUnderlyingResourcesByResourceIDs gets the underlying resources the user
 // requested access. Except for resource Kinds present in types.KubernetesResourcesKinds,
 // the underlying resources are the same as requested. If the resource requested
@@ -2623,6 +2677,79 @@ func (m *RequestValidator) getUnderlyingResourcesByResourceIDs(ctx context.Conte
 	// load the underlying resources.
 	resources, err := accessrequest.GetResourcesByResourceIDs(ctx, m.getter, searchableResourcesIDs)
 	return resources, trace.Wrap(err)
+}
+
+func getResourceConstraints(resourceAccessIDs []types.ResourceAccessID, kind, name string) (*types.ResourceConstraints, error) {
+	idx := slices.IndexFunc(resourceAccessIDs,
+		func(raid types.ResourceAccessID) bool {
+			return raid.Id.Kind == kind && raid.Id.Name == name
+		})
+	if idx == -1 {
+		return nil, trace.NotFound("no such constraint")
+	}
+	return resourceAccessIDs[idx].Constraints, nil
+}
+
+func (m *RequestValidator) expandIdentityCenterResources(ctx context.Context, resourceAccessIDs []types.ResourceAccessID, src []types.ResourceWithLabels) ([]types.ResourceWithLabels, error) {
+	m.logger.Warn(">>>> Entering RequestValidator.expandIdentityCenterResources")
+	defer m.logger.Warn("<<<< LeavingRequestValidator.expandIdentityCenterResources")
+
+	dst := make([]types.ResourceWithLabels, 0, len(src))
+	for _, r := range src {
+		if r.GetKind() != types.KindIdentityCenterResource {
+			dst = append(dst, r)
+			continue
+		}
+
+		log := m.logger.With(
+			"resource", r.GetName(),
+			"resource_subkind", r.GetSubKind())
+
+		log.ErrorContext(ctx, ">>>> Expanding identity center resource")
+
+		constraints, err := getResourceConstraints(resourceAccessIDs, types.KindIdentityCenterResource, r.GetName())
+		if err != nil {
+			// No constraints on an Identity Center resource request is invalid.
+			// Drop the resource and carry on.
+			if trace.IsNotFound(err) {
+				log.ErrorContext(ctx, ">>>> No constraints found. Invalid Access Request.")
+				continue
+			}
+			log.ErrorContext(ctx, ">>>> Error finding constraints.")
+			return nil, trace.Wrap(err)
+		}
+
+		details := constraints.GetIdentityCenterResource()
+		if details == nil {
+			log.ErrorContext(ctx, ">>>> Malformed or missing constraint.")
+			// Malformed constraints on an Identity Center resource. Drop the
+			// resource and carry on.
+			continue
+		}
+
+		for _, apName := range details.AccessProfiles {
+			log = log.With("access_profile", apName)
+			log.ErrorContext(ctx, ">>>> Expanding resource with Access Profile")
+
+			ap, err := m.getter.GetIdentityCenterAccessProfile(ctx, apName)
+			if trace.IsNotFound(err) {
+				log.ErrorContext(ctx, ">>>> No such Access profile")
+
+				// No such access profile is not an error, just drop it and move
+				// on
+				continue
+			}
+			if err != nil {
+				log.ErrorContext(ctx, ">>>> No such Access profile", "error", err)
+				return nil, trace.Wrap(err)
+			}
+
+			log.ErrorContext(ctx, ">>>> Identity center resource expanded")
+
+			dst = append(dst, NewIdentityCenterConstrainedResource(r, ap))
+		}
+	}
+	return dst, nil
 }
 
 // getKubeResourcesFromResourceIDs returns the Kubernetes Resources requested for

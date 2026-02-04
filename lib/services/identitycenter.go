@@ -23,11 +23,11 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // IdentityCenterAccount wraps a raw identity center record in a new type to
@@ -405,33 +405,6 @@ func (m *IdentityCenterAccountAssignmentMatcher) String() string {
 		m.accountID, m.permissionSetARN)
 }
 
-// NewIdentityCenterManagedResourceMatcher creates a new [IdentityCenterManagedResourceMatcher]
-// configured to match the supplied [ManagedResource].
-func NewIdentityCenterManagedResourceMatcher(resource *identitycenterv1.Resource) *IdentityCenterManagedResourceMatcher {
-	return &IdentityCenterManagedResourceMatcher{
-		arn:     resource.GetSpec().GetArn(),
-		subKind: resource.GetSubKind(),
-	}
-}
-
-// IdentityCenterManagedResourceMatcher implements a [RoleMatcher] for comparing
-// Identity Center ManagedResource resources against role conditions.
-type IdentityCenterManagedResourceMatcher struct {
-	arn     string
-	subKind string
-}
-
-// Match implements Role Matching for Identity Center ManagedResource resources.
-func (m *IdentityCenterManagedResourceMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
-	// For initial implementation, allow all managed resources.
-	// TODO: Add specific role condition matching logic for AWS IC resources
-	return true, nil
-}
-
-func (m *IdentityCenterManagedResourceMatcher) String() string {
-	return fmt.Sprintf("IdentityCenterManagedResourceMatcher(arn=%v, subKind=%v)", m.arn, m.subKind)
-}
-
 func matchExpression(target, expression string) (bool, error) {
 	if expression == types.Wildcard {
 		return true, nil
@@ -454,7 +427,7 @@ type IdentityCenterResourceMatcher struct {
 }
 
 func (m *IdentityCenterResourceMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
-	slog.Error(">>>> Checking for access to resources",
+	slog.Error(">>>> Checking for access to unconstrained resources",
 		"resource", m.resource.GetName(),
 		"role", role.GetName())
 	for _, resourceCondition := range role.GetIdentityCenterResourceConditions(condition) {
@@ -472,7 +445,15 @@ func (m *IdentityCenterResourceMatcher) Match(role types.Role, condition types.R
 	return false, nil
 }
 
+func (m *IdentityCenterResourceMatcher) String() string {
+	return fmt.Sprintf("IdentityCenterResourceMatcher(%s/%s/%s)", m.resource.GetKind(), m.resource.GetSubKind(), m.resource.GetName())
+}
+
 func NewIdentityCenterConstrainedResourceMatcher(cr *IdentityCenterConstrainedResource, traits wrappers.Traits) *IdentityCenterConstrainedResourceMatcher {
+	slog.Error(">>>> Creating constrained matcher for IC Resource & AccessProfile",
+		"resource", cr.Resource.GetName(),
+		"access_profile", cr.AccessProfile.GetName(),
+	)
 	return &IdentityCenterConstrainedResourceMatcher{
 		resource: cr,
 		traits:   traits,
@@ -485,9 +466,8 @@ type IdentityCenterConstrainedResourceMatcher struct {
 }
 
 func (m *IdentityCenterConstrainedResourceMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
-	slog.Error(">>>> Checking for access to constrained resource",
-		"resource", m.resource.Resource.GetName(),
-		"access_profile", m.resource.AccessProfile.GetMetadata().Name,
+	slog.Error(">>>> Checking for access to a constrained resources",
+		"resource", m.resource.GetName(),
 		"role", role.GetName())
 
 	// TODO(tcsc): Expand to cover role template expansion (e.g. {{external.account_assignments}})
@@ -525,13 +505,13 @@ func (m *IdentityCenterConstrainedResourceMatcher) Match(role types.Role, condit
 type IdentityCenterConstrainedResource struct {
 	types.ResourceHeader
 
-	Resource      *proto.IdentityCenterResource
+	Resource      types.ResourceWithLabels
 	AccessProfile types.ResourceWithLabels
 }
 
 const KindIdentityCenterConstrainedResource = "aws_ic_constrained_resource"
 
-func NewIdentityCenterConstrainedResource(resource *proto.IdentityCenterResource, ap *identitycenterv1.AccessProfile) *IdentityCenterConstrainedResource {
+func NewIdentityCenterConstrainedResource(resource types.ResourceWithLabels, ap *identitycenterv1.AccessProfile) *IdentityCenterConstrainedResource {
 	return &IdentityCenterConstrainedResource{
 		ResourceHeader: types.ResourceHeader{
 			Kind:    KindIdentityCenterConstrainedResource,
@@ -547,4 +527,27 @@ func NewIdentityCenterConstrainedResource(resource *proto.IdentityCenterResource
 
 func (r *IdentityCenterConstrainedResource) MatchSearch(_ []string) bool {
 	return false
+}
+
+func appendIdentityCenterMatchers(matchers []RoleMatcher, r AccessCheckable, traits wrappers.Traits) []RoleMatcher {
+	switch rr := r.(type) {
+	case types.Resource153UnwrapperT[IdentityCenterAccount]:
+		matchers = append(matchers, NewIdentityCenterAccountMatcher(rr.UnwrapT()))
+
+	case types.Resource153UnwrapperT[IdentityCenterAccountAssignment]:
+		matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
+
+	case *IdentityCenterConstrainedResource:
+		slog.Error(">>>> Setting up to check constrained resource",
+			"resource_name", rr.GetName(),
+			"resource_subkind", rr.GetSubKind())
+		matchers = append(matchers, NewIdentityCenterConstrainedResourceMatcher(rr, traits))
+
+	default:
+		slog.Warn(">>>> resource needs no special handling",
+			"resource_name", rr.GetName(),
+			"resource_subkind", rr.GetSubKind(),
+			"resource_type", logutils.TypeAttr(rr))
+	}
+	return matchers
 }

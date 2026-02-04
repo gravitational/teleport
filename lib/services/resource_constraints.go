@@ -71,6 +71,12 @@ func WithConstraints(rc *types.ResourceConstraints) MatcherTransform {
 				return m.Match(role, cond)
 			})
 		}
+
+	case *types.ResourceConstraints_IdentityCenterResource:
+		return func(m RoleMatcher) RoleMatcher {
+			return m
+		}
+
 	// TODO(kiosion): Future support for AWS Identity Center.
 	// Need to decide on best way to handle; whether to continue using IdentityCenterAccountAssignments, or just Account, with PermissionSets carried in constraints.
 	default:
@@ -105,6 +111,18 @@ func MatcherFromConstraints(rc *types.ResourceConstraints) (RoleMatcher, error) 
 			matchers = append(matchers, &AWSRoleARNMatcher{RoleARN: arn})
 		}
 		return RoleMatchers(matchers).AnyOf(), nil
+
+	case *types.ResourceConstraints_IdentityCenterResource:
+		matchers := make([]RoleMatcher, 0, len(d.IdentityCenterResource.AccessProfiles))
+		for _, _ = range d.IdentityCenterResource.AccessProfiles {
+			matchers = append(matchers, NewIdentityCenterConstrainedResourceMatcher(
+				&IdentityCenterConstrainedResource{
+					// how !?
+				},
+				nil))
+		}
+		return RoleMatchers(matchers).AnyOf(), nil // TODO(tcsc): decide any or all?
+
 	default:
 		return nil, trace.BadParameter("unsupported constraint details type %T", d)
 	}

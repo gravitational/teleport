@@ -1462,12 +1462,16 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindIdentityCenterAccount:
 		keyPrefix = []string{awsResourcePrefix, awsAccountPrefix}
 		unmarshalItemFunc = backendItemToIdentityCenterAccount
+	case types.KindIdentityCenterResource:
+		keyPrefix = []string{awsResourcePrefix, awsAccountPrefix}
+		unmarshalItemFunc = backendItemToIdentityCenterResource
 	case types.KindIdentityCenterAccountAssignment:
 		keyPrefix = []string{awsResourcePrefix, awsAccountAssignmentPrefix}
 		unmarshalItemFunc = backendItemToIdentityCenterAccountAssignment
 	case types.KindGitServer:
 		keyPrefix = []string{gitServerPrefix}
 		unmarshalItemFunc = backendItemToServer(types.KindGitServer)
+
 	default:
 		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
 	}
@@ -1873,6 +1877,19 @@ func backendItemToIdentityCenterAccountAssignment(item backend.Item) (types.Reso
 	return types.Resource153ToResourceWithLabels(
 		services.IdentityCenterAccountAssignment{AccountAssignment: assignment},
 	), nil
+}
+
+func backendItemToIdentityCenterResource(item backend.Item) (types.ResourceWithLabels, error) {
+	resource, err := services.UnmarshalProtoResource[*identitycenterv1.Resource](
+		item.Value,
+		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return types.Resource153ToResourceWithLabels(resource), nil
 }
 
 func newRelayServerParser() resourceParser {

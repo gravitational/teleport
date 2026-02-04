@@ -65,6 +65,7 @@ type Backend interface {
 	services.UserLoginStatesGetter
 	services.UserGetter
 	services.RoleGetter
+	services.IdentityCenterAccessProfileGetter
 	client.ListResourcesClient
 	GetRoles(ctx context.Context) ([]types.Role, error)
 	GetClusterName(ctx context.Context) (types.ClusterName, error)

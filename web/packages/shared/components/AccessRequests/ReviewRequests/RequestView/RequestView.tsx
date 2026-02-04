@@ -54,6 +54,7 @@ import {
   RequestKind,
   RequestState,
   Resource,
+  ResourceConstraints,
   WithResourceConstraints,
 } from 'shared/services/accessRequests';
 
@@ -491,6 +492,13 @@ const AwsConsoleConstraintsList = <R extends object>({
   );
 };
 
+function formattedConstraints(constraints: ResourceConstraints): string {
+  if (constraints.identity_center_resource) {
+    return constraints.identity_center_resource.access_profiles.join(",")
+  }
+  return ""
+}
+
 function Comment({
   author,
   comment,
@@ -506,13 +514,19 @@ function Comment({
     ...resource.id,
     ...resource.details,
     name: resource.details?.friendlyName || formattedName(resource),
-    constraints: resource.constraints,
+    constraints: resource.constraints ? formattedConstraints(resource.constraints) : ""
   }));
 
-  const renderConstraints = (r: NonNullable<typeof data>[number]) =>
-    hasResourceConstraints(r, 'aws_console') ? (
-      <AwsConsoleConstraintsList resource={r} />
-    ) : null;
+  const showConstraints = resources?.some(
+    r => !!r.constraints
+  );
+
+  const renderConstraints = (r: NonNullable<typeof data>[number]) => {
+    if (hasResourceConstraints(r, 'aws_console')) {
+      return <AwsConsoleConstraintsList resource={r} />
+    };
+    return null
+  };
 
   const renderAfter = (r: NonNullable<typeof data>[number]) =>
     r.constraints ? (
@@ -525,6 +539,20 @@ function Comment({
       </tr>
     ) : null;
 
+  let columns = [
+              {
+                key: 'clusterName',
+                headerText: 'Cluster Name',
+              },
+              {
+                key: 'kind',
+                headerText: 'Requested Resource Kind',
+              },
+              {
+                key: 'name',
+                headerText: 'Requested Resource Name',
+              }]
+              
   return (
     <Box
       border="1px solid"
@@ -568,6 +596,10 @@ function Comment({
                 key: 'name',
                 headerText: 'Requested Resource Name',
               },
+              ...showConstraints ? [{
+                key: 'constraints',
+                headerText: 'Constraints',
+              }] : []
             ]}
             emptyText=""
           />

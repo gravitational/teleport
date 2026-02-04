@@ -546,12 +546,7 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 		return trace.Wrap(err)
 	}
 
-	switch rr := r.(type) {
-	case types.Resource153UnwrapperT[IdentityCenterAccount]:
-		matchers = append(matchers, NewIdentityCenterAccountMatcher(rr.UnwrapT()))
-	case types.Resource153UnwrapperT[IdentityCenterAccountAssignment]:
-		matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
-	}
+	matchers = appendIdentityCenterMatchers(matchers, r, a.Traits())
 
 	// If matched RID has ResourceConstraints, guard any principal-bearing matcher(s)
 	if res.Match != nil && res.Match.GetConstraints() != nil {

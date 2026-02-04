@@ -19,6 +19,7 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -52,6 +53,7 @@ type AccessRequestCommand struct {
 	user                 string
 	roles                string
 	requestedResourceIDs []string
+	constraintMap        map[string][]string
 	delegator            string
 	reason               string
 	annotations          string
@@ -75,6 +77,35 @@ type AccessRequestCommand struct {
 	requestDelete  *kingpin.CmdClause
 	requestCaps    *kingpin.CmdClause
 	requestReview  *kingpin.CmdClause
+}
+
+type constraints struct {
+	resourceIDs *[]string
+	constraints *map[string][]string
+}
+
+func (cs *constraints) Set(value string) error {
+	if len(*cs.resourceIDs) == 0 {
+		return trace.Errorf("No resource to constrain")
+	}
+	targetResource := (*cs.resourceIDs)[len(*cs.resourceIDs)-1]
+
+	if (*cs.constraints) == nil {
+		*cs.constraints = make(map[string][]string)
+	}
+
+	(*cs.constraints)[targetResource] = append((*cs.constraints)[targetResource], value)
+	return nil
+}
+
+func (cs *constraints) String() string {
+	var b strings.Builder
+	for k, v := range *cs.constraints {
+		fmt.Fprintf(&b, "%s : %s,", k, v)
+	}
+	result := b.String()
+	result = result[:len(result)-1] // delete trailing comma
+	return result
 }
 
 // Initialize allows AccessRequestCommand to plug itself into the CLI parser
@@ -109,6 +140,11 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, _ *tctlcfg.G
 	c.requestCreate.Arg("username", "Name of target user").Required().StringVar(&c.user)
 	c.requestCreate.Flag("roles", "Roles to be requested").StringVar(&c.roles)
 	c.requestCreate.Flag("resource", "Resource ID to be requested").StringsVar(&c.requestedResourceIDs)
+	c.requestCreate.Flag("constraint", "Add a constraint to the most recently specified resource").
+		SetValue(&constraints{
+			resourceIDs: &c.requestedResourceIDs,
+			constraints: &c.constraintMap,
+		})
 	c.requestCreate.Flag("reason", "Optional reason message").StringVar(&c.reason)
 	c.requestCreate.Flag("dry-run", "Don't actually generate the Access Request").BoolVar(&c.dryRun)
 
@@ -124,6 +160,11 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, _ *tctlcfg.G
 	c.requestReview.Flag("author", "Username of reviewer").Required().StringVar(&c.user)
 	c.requestReview.Flag("approve", "Review proposes approval").BoolVar(&c.approve)
 	c.requestReview.Flag("deny", "Review proposes denial").BoolVar(&c.deny)
+}
+
+func (c *AccessRequestCommand) onConstraint(ctx *kingpin.ParseContext) error {
+	fmt.Println("Resources are: ", c.requestedResourceIDs, "ctx", ctx)
+	return nil
 }
 
 // TryRun takes the CLI command as an argument (like "access-request list") and executes it.
@@ -314,23 +355,67 @@ func (c *AccessRequestCommand) Create(ctx context.Context, client *authclient.Cl
 	if len(c.roles) == 0 && len(c.requestedResourceIDs) == 0 {
 		c.roles = "*"
 	}
-	requestedResourceIDs, err := types.ResourceIDsFromStrings(c.requestedResourceIDs)
+
+	var unconstrainedResourceIDs []string
+	for _, r := range c.requestedResourceIDs {
+		if _, present := c.constraintMap[r]; present {
+			continue
+		}
+		unconstrainedResourceIDs = append(unconstrainedResourceIDs, r)
+	}
+
+	requestedResourceIDs, err := types.ResourceIDsFromStrings(unconstrainedResourceIDs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	req, err := services.NewAccessRequestWithResources(c.user, c.splitRoles(), types.ResourceIDsToResourceAccessIDs(requestedResourceIDs))
+
+	requestedResourceAccessIDs := types.ResourceIDsToResourceAccessIDs(requestedResourceIDs)
+
+	if len(c.constraintMap) > 0 {
+		for id, constraints := range c.constraintMap {
+			resourceID, err := types.ResourceIDFromString(id)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			accessID := &types.ResourceAccessID{
+				Id: resourceID,
+				Constraints: &types.ResourceConstraints{
+					Version: types.V1,
+					Details: &types.ResourceConstraints_IdentityCenterResource{
+						IdentityCenterResource: &types.IdentityCenterResourceConstraints{
+							AccessProfiles: constraints,
+						},
+					},
+				},
+			}
+			requestedResourceAccessIDs = append(requestedResourceAccessIDs, *accessID)
+		}
+	}
+
+	req, err := services.NewAccessRequestWithResources(c.user, c.splitRoles(), requestedResourceAccessIDs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	req.SetRequestReason(c.reason)
 
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(req); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Println(buf.String())
+
 	if c.dryRun {
 		users := &struct {
 			*authclient.Client
 			services.UserLoginStatesGetter
+			services.IdentityCenterAccessProfileGetter
 		}{
-			Client:                client,
-			UserLoginStatesGetter: client.UserLoginStateClient(),
+			Client:                            client,
+			UserLoginStatesGetter:             client.UserLoginStateClient(),
+			IdentityCenterAccessProfileGetter: nil, // TODO(tcsc): work out how to pipe this back
 		}
 		err = services.ValidateAccessRequestForUser(ctx, clockwork.NewRealClock(), users, req, tlsca.Identity{}, services.WithExpandVars(true))
 		if err != nil {

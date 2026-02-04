@@ -38,6 +38,10 @@ func (rc *ResourceConstraints) CheckAndSetDefaults() error {
 		if err := d.Validate(); err != nil {
 			return trace.Wrap(err)
 		}
+	case *ResourceConstraints_IdentityCenterResource:
+		if len(d.IdentityCenterResource.AccessProfiles) == 0 {
+			return trace.BadParameter("must supply at east one access profile")
+		}
 	default:
 		return trace.BadParameter("unsupported Details type %T", d)
 	}

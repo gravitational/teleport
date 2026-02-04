@@ -149,6 +149,10 @@ type AwsConsoleConstraints = {
   role_arns: string[];
 };
 
+type IdentityCenterResourceConstraints = {
+  access_profiles: string[]
+};
+
 type BaseResourceConstraints = {
   version?: 'v1';
 };
@@ -161,9 +165,11 @@ export type ResourceConstraints = BaseResourceConstraints &
   (
     | {
         aws_console: AwsConsoleConstraints;
+        identity_center_resource?: never;
       }
-    | {
+    | {      
         aws_console?: never;
+        identity_center_resource: IdentityCenterResourceConstraints;
       }
   );
 
