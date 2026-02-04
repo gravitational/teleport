@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/e/lib/accesslist/preset"
 	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
@@ -63,6 +64,10 @@ type AuthServer interface {
 
 	GetUser(ctx context.Context, userName string, withSecrets bool) (types.User, error)
 	GetRole(ctx context.Context, name string) (types.Role, error)
+	UpsertRole(ctx context.Context, r types.Role) (types.Role, error)
+	UpdateRole(ctx context.Context, r types.Role) (types.Role, error)
+	CreateRole(ctx context.Context, r types.Role) (types.Role, error)
+
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
@@ -2831,4 +2836,184 @@ type memberMetaGetter interface {
 type memberGetter interface {
 	// GetMember returns the access_list_member.
 	GetMember() *accesslistv1.Member
+}
+
+func (s *Service) checkCreateAccessListPresetPermissions(authCtx *authz.Context) error {
+	if err := authCtx.CheckAccessToKind(types.KindAccessList, types.VerbCreate, types.VerbRead); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindRole, types.VerbCreate, types.VerbRead); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *Service) checkUpdateAccessListPresetPermissions(authCtx *authz.Context) error {
+	if err := authCtx.CheckAccessToKind(types.KindAccessList, types.VerbUpdate, types.VerbRead); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindRole, types.VerbCreate, types.VerbUpdate, types.VerbRead); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// CreateAccessListWithPreset creates access list preset.
+func (s *Service) CreateAccessListWithPreset(ctx context.Context, req *accesslistv1.CreateAccessListWithPresetRequest) (*accesslistv1.CreateAccessListWithPresetResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.checkCreateAccessListPresetPermissions(authCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessList, err := conv.FromProto(req.GetAccessList())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessRoles := make([]types.Role, 0, len(req.GetRoles()))
+	for _, role := range req.GetRoles() {
+		accessRoles = append(accessRoles, role)
+	}
+
+	roleBuilder, err := preset.NewPresetAccessListRolesBuilder(preset.AccessListRolesBuilderConfig{
+		PresetName:     accessList.GetName(),
+		AccessListSpec: *accessList,
+		PresetType:     preset.PresetType(req.GetPresetType()),
+		AccessRoles:    accessRoles,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roleBuildResult, err := roleBuilder.Build()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// TODO(smallinsky) implement proper access list creation flow instead of abusing Upsert calls
+	// when the CreateAccessList method will be available.
+	_, err = s.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{Name: roleBuildResult.AccessList.GetName()})
+	switch {
+	case err == nil:
+		return nil, trace.AlreadyExists("access list %v already exists", roleBuildResult.AccessList.GetName())
+	case !trace.IsNotFound(err):
+		return nil, trace.Wrap(err)
+	default:
+		// expect that access list not exists.
+	}
+	acl, err := s.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{
+		AccessList: conv.ToProto(roleBuildResult.AccessList),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.createBuildResultRoles(ctx, roleBuildResult); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	outRoles, err := castToRoleV6(roleBuildResult.AccessRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &accesslistv1.CreateAccessListWithPresetResponse{
+		AccessList: acl,
+		Roles:      outRoles,
+	}, nil
+}
+
+// UpdateAccessListWithPreset updates existing access list preset.
+func (s *Service) UpdateAccessListWithPreset(ctx context.Context, req *accesslistv1.UpdateAccessListWithPresetRequest) (*accesslistv1.UpdateAccessListWithPresetResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.checkUpdateAccessListPresetPermissions(authCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessList, err := conv.FromProto(req.GetAccessList())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	accessRoles := make([]types.Role, 0, len(req.GetRoles()))
+	for _, role := range req.GetRoles() {
+		accessRoles = append(accessRoles, role)
+	}
+
+	builder, err := preset.NewPresetAccessListRolesBuilder(preset.AccessListRolesBuilderConfig{
+		PresetName:     accessList.GetName(),
+		AccessListSpec: *accessList,
+		PresetType:     preset.PresetType(accessList.GetAllLabels()[preset.TeleportAccessListPreset]),
+		AccessRoles:    accessRoles,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	buildResult, err := builder.Build()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp, err := s.UpdateAccessList(ctx, &accesslistv1.UpdateAccessListRequest{
+		AccessList: conv.ToProto(buildResult.AccessList),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.upsertBuildResultRoles(ctx, buildResult); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	outRoles, err := castToRoleV6(buildResult.AccessRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &accesslistv1.UpdateAccessListWithPresetResponse{
+		AccessList:       resp,
+		Roles:            outRoles,
+		RolesToBeDeleted: buildResult.RolesToBeDeleted,
+	}, nil
+}
+
+func (s *Service) upsertBuildResultRoles(ctx context.Context, in *preset.BuildResult) error {
+	for _, r := range in.GetAllRoles() {
+		// TODO(smallinsky): Ideally, this should be handled in  transactions
+		// that also includes access list creation. Currently, this flow mirrors
+		// the Terraform approach, where access lists and roles are updated directly
+		// via Upsert calls without an translation steps.
+		if r.GetRevision() == "" {
+			if _, err := s.authServer.UpsertRole(ctx, r); err != nil {
+				return trace.Wrap(err)
+			}
+			continue
+		}
+		if _, err := s.authServer.UpdateRole(ctx, r); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (s *Service) createBuildResultRoles(ctx context.Context, in *preset.BuildResult) error {
+	for _, r := range in.GetAllRoles() {
+		// TODO(smallinsky): Ideally, this should be handled in a transactions
+		// that also includes access list creation. Currently, this flow mirrors
+		// the Terraform approach, where access lists and roles are created directly
+		// via Upsert calls without translation steps.
+		if _, err := s.authServer.CreateRole(ctx, r); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func castToRoleV6(in []types.Role) ([]*types.RoleV6, error) {
+	out := make([]*types.RoleV6, 0, len(in))
+	for _, v := range in {
+		v6, ok := v.(*types.RoleV6)
+		if !ok {
+			return nil, trace.BadParameter("expected RoleV6")
+		}
+		out = append(out, v6)
+	}
+	return out, nil
 }

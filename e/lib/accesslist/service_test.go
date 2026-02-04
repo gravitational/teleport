@@ -778,6 +778,18 @@ func (u *usageReporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable)
 
 type fakeAuth struct{}
 
+func (a *fakeAuth) UpdateRole(ctx context.Context, r types.Role) (types.Role, error) {
+	return &types.RoleV6{}, nil
+}
+
+func (a *fakeAuth) CreateRole(ctx context.Context, r types.Role) (types.Role, error) {
+	return &types.RoleV6{}, nil
+}
+
+func (a *fakeAuth) UpsertRole(ctx context.Context, r types.Role) (types.Role, error) {
+	return &types.RoleV6{}, nil
+}
+
 func (a *fakeAuth) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	return &types.ListResourcesResponse{}, nil
 }
@@ -2454,6 +2466,97 @@ func TestBatchAccessListMemberMetadata(t *testing.T) {
 	}
 }
 
+func TestService_CreateAccessListWithPreset_Permissions(t *testing.T) {
+	c := initSvc(t)
+
+	// Create a role with full permissions for preset operations
+	roleWithAllPerms, err := types.NewRole("preset-full-perms", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindAccessList, types.KindUser, types.KindRole},
+					Verbs:     services.RW(),
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = c.testEnv.access.UpsertRole(context.Background(), roleWithAllPerms)
+	require.NoError(t, err)
+
+	// Create a user with full permissions
+	userWithAllPerms, err := types.NewUser("preset-full-perms-user")
+	require.NoError(t, err)
+	userWithAllPerms.SetRoles([]string{"preset-full-perms"})
+	_, err = c.testEnv.identity.CreateUser(context.Background(), userWithAllPerms)
+	require.NoError(t, err)
+
+	// Create a context for user with full permissions
+	ctxWithAllPerms := genUserContext(context.Background(), "preset-full-perms-user", []string{"preset-full-perms"}, nil)
+
+	devRole, err := types.NewRole("dev-app", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{"env": []string{"dev"}},
+		},
+	})
+	require.NoError(t, err)
+
+	req := &accesslistv1.CreateAccessListWithPresetRequest{
+		AccessList: conv.ToProto(&accesslist.AccessList{
+			ResourceHeader: header.ResourceHeader{
+				Metadata: header.Metadata{
+					Name: "test-permissions",
+				},
+			},
+			Spec: accesslist.Spec{
+				Title:       "Test Permissions",
+				Description: "Test access list for permissions",
+				Owners: []accesslist.Owner{
+					{Name: ownerUser},
+				},
+			},
+		}),
+		PresetType: "short-term",
+		Roles:      []*types.RoleV6{devRole.(*types.RoleV6)},
+	}
+
+	tests := []struct {
+		name    string
+		ctx     context.Context
+		require require.ErrorAssertionFunc
+	}{
+		{
+			name:    "success - user with proper permissions",
+			ctx:     ctxWithAllPerms,
+			require: require.NoError,
+		},
+		{
+			name: "error - user without role permissions",
+			ctx:  c.userCtx, // has access list permissions but not role permissions
+			require: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create unique access list name for each test by creating a new request
+			acl, err := conv.FromProto(req.AccessList)
+			require.NoError(t, err)
+
+			uniqueReq := &accesslistv1.CreateAccessListWithPresetRequest{
+				AccessList: conv.ToProto(acl),
+				PresetType: req.PresetType,
+				Roles:      req.Roles,
+			}
+
+			_, err = c.svc.CreateAccessListWithPreset(tt.ctx, uniqueReq)
+			tt.require(t, err)
+		})
+	}
+}
+
 func TestService_CreateAccessListReview(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	c := initSvc(t, withClock(clock))
@@ -3294,6 +3397,10 @@ func Test_userTryingToAddThemselves(t *testing.T) {
 type fakeAuthWithUsers struct {
 	*fakeAuth
 	svc *Service
+}
+
+func (a *fakeAuthWithUsers) UpsertRole(ctx context.Context, r types.Role) (types.Role, error) {
+	return &types.RoleV6{}, nil
 }
 
 func (a *fakeAuthWithUsers) GetUser(ctx context.Context, userName string, withSecrets bool) (types.User, error) {

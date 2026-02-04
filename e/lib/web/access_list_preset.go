@@ -127,7 +127,8 @@ func (p *Plugin) updateAccessListWithPreset(_ http.ResponseWriter, r *http.Reque
 			AccessList: acl,
 			Members:    membersToMembersSpec(updatedMembers),
 		},
-		AccessRoles: resp.GetRoles(),
+		AccessRoles:      resp.GetRoles(),
+		RolesToBeDeleted: resp.RolesToBeDeleted,
 	}, nil
 }
 
