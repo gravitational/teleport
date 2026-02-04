@@ -18,6 +18,9 @@
 
 import { act, renderHook, waitFor } from '@testing-library/react';
 
+import { AccessRequestKind } from 'gen-proto-ts/teleport/legacy/types/access_requests_pb';
+import { RequestKind } from 'shared/services/accessRequests';
+
 import {
   makeKube,
   makeRootCluster,
@@ -247,6 +250,7 @@ test('after creating an access request, pending requests and specifiable fields 
   await act(() =>
     result.current.createRequest({
       suggestedReviewers: result.current.selectedReviewers.map(r => r.value),
+      requestKind: RequestKind.LongTerm,
     })
   );
 
@@ -268,6 +272,8 @@ test('after creating an access request, pending requests and specifiable fields 
     ],
     roles: ['apple', 'banana'],
     suggestedReviewers: ['bob'],
+    requestKind: AccessRequestKind.LONG_TERM,
+    resourceAccessIds: [],
   });
   expect(result.current.requestedCount).toBe(2);
 
@@ -305,6 +311,8 @@ test('after creating an access request, pending requests and specifiable fields 
     // These fields gotten cleared after the first create.
     roles: [],
     suggestedReviewers: [],
+    requestKind: AccessRequestKind.SHORT_TERM,
+    resourceAccessIds: [],
   });
 });
 

@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AccessRequestKind } from 'gen-proto-ts/teleport/legacy/types/access_requests_pb';
 import { AccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
@@ -73,6 +74,7 @@ const mockedAccessRequest: AccessRequest = {
   sessionTtl: { seconds: 1729026573n, nanos: 0 },
   reasonMode: 'optional',
   reasonPrompts: [],
+  requestKind: AccessRequestKind.SHORT_TERM,
 };
 
 export function Browsing() {

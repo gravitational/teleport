@@ -17,6 +17,7 @@
  */
 
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { AccessRequestKind } from 'gen-proto-ts/teleport/legacy/types/access_requests_pb';
 import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import {
@@ -367,6 +368,7 @@ export const makeAccessRequest = (
   sessionTtl: { seconds: 1729026573n, nanos: 0 },
   reasonMode: 'optional',
   reasonPrompts: [],
+  requestKind: AccessRequestKind.SHORT_TERM,
   ...props,
 });
 
