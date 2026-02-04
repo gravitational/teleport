@@ -3,7 +3,7 @@ import Validation, { Validator } from 'shared/components/Validation';
 
 import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import {
-  MaxWidthBox,
+  GuideContent,
   StepButtons,
 } from 'e-teleport/AccessListManagement/GuideEditor/Shared';
 
@@ -33,14 +33,14 @@ export function BasicInformation() {
     <Validation>
       {({ validator }) => (
         <>
-          <MaxWidthBox>
+          <GuideContent withMaxWidth>
             <H1>Step {currentStep + 1}: Basic Information</H1>
             <Text mb={4}>
               Describe this access list and how frequently this access list
               should be audited.
             </Text>
             <SpecSection />
-          </MaxWidthBox>
+          </GuideContent>
           <StepButtons
             onNext={() => handleNext(validator)}
             onPrev={handlePrev}

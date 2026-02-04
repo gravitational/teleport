@@ -11,7 +11,6 @@ import type { PagedTableProps } from 'design/DataTable/types';
 import { Add, ArrowRight } from 'design/Icon';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 
-import { isGuideEditorSupported } from 'e-teleport/AccessListManagement/GuideEditor/useGuideEditor';
 import { getFormattedDate } from 'e-teleport/AccessListManagement/Shared/date';
 import { useOnClickNestedList } from 'e-teleport/AccessListManagement/Shared/nav';
 import { convertToTraitConvenience } from 'e-teleport/AccessListManagement/Traits';
@@ -60,32 +59,8 @@ export function Members(props: MembersProps) {
 
   const canReadMembers = perms.isOwner || perms.adminWhoCanRead;
 
-  let info;
-  if (isGuideEditorSupported(accessList.preset)) {
-    info = (
-      <Text>
-        Go to{' '}
-        {/* TODO (kimlisa): change this to Link when support
-        for #<tab> in URL is supported */}
-        <Text
-          onClick={props.switchToAccessDefinitionTab}
-          as="span"
-          css={`
-            text-decoration: underline;
-            cursor: pointer;
-          `}
-        >
-          Access Definition
-        </Text>{' '}
-        tab to edit what resources members have access to.
-      </Text>
-    );
-  }
-
   return (
     <Box data-testid="members-content">
-      {info && <Text mb={2}>{info}</Text>}
-
       <Flex justifyContent="space-between" gap={1} alignItems="flex-start">
         <Flex flexDirection="column" gap={3}>
           <Flex mb={4} flexDirection="column" gap={1}>

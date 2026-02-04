@@ -3,14 +3,7 @@ import styled, { CSSProp, useTheme } from 'styled-components';
 import { Box, ButtonPrimary, ButtonSecondary, Flex, Text } from 'design';
 import { Magnifier } from 'design/Icon';
 
-import { FeatureBox } from 'teleport/components/Layout';
-
 import { useAccessListManagementContext } from '../AccessListManagementContext';
-import { stepButtonContainerHeight } from './const';
-
-export const MaxWidthBox = styled(Box)`
-  width: 710px;
-`;
 
 export const StyledUl = styled.ul`
   margin: 0;
@@ -57,14 +50,15 @@ export const StepButtons = ({
 
   return (
     <Box
+      px={6}
+      py={3}
       css={`
-        position: fixed;
+        position: sticky;
         bottom: 0;
         background-color: ${props => props.theme.colors.levels.sunken};
         border-top: 1px solid
           ${p => p.theme.colors.interactive.tonal.neutral[0]};
-
-        left: 0px;
+        left: 0;
         right: 0;
       `}
     >
@@ -75,8 +69,6 @@ export const StepButtons = ({
           cssStyle
             ? cssStyle
             : `
-      height: ${stepButtonContainerHeight};
-      margin-left: calc(var(--sidenav-width) + var(--guide-left-space));
       gap: ${theme.space[3]}px;
       width: 200px;
     `
@@ -103,8 +95,16 @@ export const StepButtons = ({
   );
 };
 
-export const GuideContainer = styled(FeatureBox)`
-  min-height: 100vh;
-  --guide-left-space: ${props => props.theme.space[6]}px;
-  padding-left: var(--guide-left-space);
+export const GuideContainer = styled(Flex)`
+  height: 100%;
+  flex-direction: column;
+  justify-content: space-between;
+`;
+
+export const GuideContent = styled(Box)<{ withMaxWidth?: boolean }>`
+  padding-left: ${props => props.theme.space[6]}px;
+  padding-right: ${props => props.theme.space[6]}px;
+  padding-top: ${props => props.theme.space[3]}px;
+
+  width: ${p => (p.withMaxWidth ? '710px' : 'auto')};
 `;

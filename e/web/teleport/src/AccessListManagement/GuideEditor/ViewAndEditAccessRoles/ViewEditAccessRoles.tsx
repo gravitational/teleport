@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { Alert, Box, Indicator } from 'design';
+import { Alert, Box, Indicator, Text } from 'design';
 import { Info } from 'design/Alert';
 
 import { AccessListModified } from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
@@ -9,9 +9,9 @@ import { AccessList } from 'e-teleport/services/accessmanagement';
 import {
   accessManagementService,
   makeAccessListForUpdate,
+  makeAccessListMembersForUpdate,
 } from 'e-teleport/services/accessmanagement/accessmanagement';
 import { AccessListWithPresetRequest } from 'e-teleport/services/accessmanagement/preset';
-import cfg from 'teleport/config';
 import { Role } from 'teleport/services/resources';
 import ResourceService from 'teleport/services/resources/resource';
 import useTeleport from 'teleport/useTeleport';
@@ -24,6 +24,8 @@ import {
   validateQueriedRoles,
 } from '../Preset/role/role';
 import { AccessRoleEditor } from './AccessRoleEditor';
+import { ManuallyEditAccess } from './ManuallyEditAccess';
+import { PresetDescription } from './PresetDescription';
 import { ReadRoleAccess } from './ReadAccessSection';
 
 /**
@@ -76,21 +78,25 @@ export function ViewEditAccessRoles({
   });
 
   async function handleOnUpdate(accessRoles: Role[]) {
-    const accessListReq = makeAccessListForUpdate({
+    const baseReq = {
       req: {},
       original: accessList,
+    };
+
+    const spec = makeAccessListForUpdate({
+      ...baseReq,
+      withoutMembers: true,
     });
+
+    const members = makeAccessListMembersForUpdate(baseReq);
 
     const req: AccessListWithPresetRequest = {
       presetType: preset,
       accessList: {
-        spec: { ...accessListReq },
-        metadata: accessList.metadata,
+        metadata: { ...accessList.metadata },
+        members,
+        spec,
       },
-      members: accessListReq.members.map(member => ({
-        spec: member,
-        metadata: { name: member.name },
-      })),
       accessRoles,
     };
 
@@ -111,31 +117,40 @@ export function ViewEditAccessRoles({
 
   if (fetchRoles.isFetching) {
     return (
-      <Box textAlign="center" m={10}>
-        <Indicator />
-      </Box>
+      <>
+        <PresetDescription preset={preset} />
+        <Box textAlign="center" m={10}>
+          <Indicator />
+        </Box>
+      </>
     );
   }
 
   if (!hasReadRoleAccess) {
     return (
-      <Info>
-        You do not have permission to read resource access. Missing role
-        permissions: <code>{missingReadRoleAccess.join(', ')}</code>
-      </Info>
+      <>
+        <PresetDescription preset={preset} />
+        <Info>
+          You do not have permission to read resource access. Missing role
+          permissions: <code>{missingReadRoleAccess.join(', ')}</code>
+        </Info>
+      </>
     );
   }
 
   if (fetchRoles.isError) {
     return (
-      <Alert
-        primaryAction={{
-          content: 'Retry',
-          onClick: () => fetchRoles.refetch(),
-        }}
-      >
-        {fetchRoles.error.message}
-      </Alert>
+      <>
+        <PresetDescription preset={preset} />
+        <Alert
+          primaryAction={{
+            content: 'Retry',
+            onClick: () => fetchRoles.refetch(),
+          }}
+        >
+          {fetchRoles.error.message}
+        </Alert>
+      </>
     );
   }
 
@@ -150,15 +165,18 @@ export function ViewEditAccessRoles({
 
   if (roleState?.status == 'no-access-defined') {
     return (
-      <Alert
-        kind="neutral"
-        primaryAction={{
-          content: 'Define Resource Access',
-          onClick: () => setShowGuideEditor(true),
-        }}
-      >
-        No resource access are defined.
-      </Alert>
+      <>
+        <PresetDescription preset={preset} />
+        <Alert
+          kind="neutral"
+          primaryAction={{
+            content: 'Define Resource Access',
+            onClick: () => setShowGuideEditor(true),
+          }}
+        >
+          No resource access are defined.
+        </Alert>
+      </>
     );
   }
 
@@ -167,21 +185,19 @@ export function ViewEditAccessRoles({
     roleState?.status === 'unsupported-role-fields'
   ) {
     return (
-      <Alert
-        primaryAction={{
-          content: 'Redefine Access',
-          onClick: () => setShowGuideEditor(true),
-        }}
-        secondaryAction={{
-          content: 'Manually Edit Roles',
-          linkTo: `${cfg.routes.roles}?search=${accessList.id}`,
-        }}
-      >
-        The roles assigned to this access list cannot be parsed. The roles or
-        member grants may have been manually edited. You can redefine access
-        that will reset member and owners grants or use the role editor to
-        manually edit access.
-      </Alert>
+      <>
+        <Alert
+          kind="warning"
+          details={
+            <Text>
+              The member grants or its roles may have been manually edited.
+            </Text>
+          }
+        >
+          The member roles assigned to this access list cannot be parsed.
+        </Alert>
+        <ManuallyEditAccess roles={accessList.grants.roles} />
+      </>
     );
   }
 

@@ -22,8 +22,14 @@ import {
   ReviewFrequency,
   UpsertAccessListRequest,
 } from 'e-teleport/services/accessmanagement';
+import { AccessListWithPresetRequest } from 'e-teleport/services/accessmanagement/preset';
 import useTeleport from 'teleport/useTeleport';
 
+import {
+  awsIcRoleAccessKind,
+  newAccessRole,
+  standardRoleAccessKind,
+} from '../GuideEditor/Preset/role/role';
 import { reviewDayOfMonthOpts, reviewFrequencyOpts } from '../Shared/Audit';
 import { HybridUserOption } from '../Shared/Shared';
 import { convertTraitLabelsToAllUserTraits } from '../Traits';
@@ -72,7 +78,10 @@ export const CreateAccessListContextProvider: FC<
     setAttempt: setCreateAttempt,
     run: runAttempt,
   } = useAttempt('');
-  const { updateAccessListCache } = useAccessListManagementContext();
+  const { updateAccessListCache, guideEditor } =
+    useAccessListManagementContext();
+
+  const { preset, standardRoleState, awsIcRoleState } = guideEditor;
 
   const perms = ctx.storeUser.getAccessListAccess();
   const canCreateAccessList = perms.create && perms.list && perms.read;
@@ -124,43 +133,112 @@ export const CreateAccessListContextProvider: FC<
     checkFeatureLimit();
   }, []);
 
+  function updateCache(
+    createdList: AccessList,
+    listCreated: AccessListSpecForRequest & {
+      members: AccessListMembersForRequest;
+    }
+  ) {
+    // Add member counts to the created list in case they don't exist.
+    if (!createdList.membersCount || !createdList.memberListCount) {
+      const [membersCount, memberListsCount] = getMemberCounts(listCreated);
+      createdList.membersCount = membersCount;
+      createdList.memberListCount = memberListsCount;
+    }
+
+    setCreatedAccessList(createdList);
+
+    updateAccessListCache({
+      mutationType: 'created',
+      accessList: createdList,
+    });
+  }
+
+  function createDefaultAccessList(
+    reqSpec: AccessListSpecForRequest,
+    reqMembers: AccessListMembersForRequest
+  ) {
+    const listToCreate = { ...reqSpec, members: reqMembers };
+
+    return runAttempt(() =>
+      accessManagementService
+        .createAccessList(listToCreate)
+        .then(createdList => {
+          updateCache(createdList, listToCreate);
+        })
+    );
+  }
+
+  function createAccessListWithPreset(
+    reqSpec: AccessListSpecForRequest,
+    reqMembers: AccessListMembersForRequest
+  ) {
+    const accessRoles = [];
+
+    if (standardRoleState.hasAnyAccessDefined()) {
+      accessRoles.push(
+        newAccessRole({
+          kind: standardRoleAccessKind,
+          roleConditions: standardRoleState.roleConditions,
+        })
+      );
+    }
+
+    if (awsIcRoleState.definedAccess()) {
+      accessRoles.push(
+        newAccessRole({
+          kind: awsIcRoleAccessKind,
+          roleConditions: awsIcRoleState.roleConditions,
+        })
+      );
+    }
+
+    const req: AccessListWithPresetRequest = {
+      presetType: preset,
+      accessList: {
+        spec: reqSpec,
+        members: reqMembers,
+        metadata: { name: crypto.randomUUID(), labels: {}, revision: '' },
+      },
+      accessRoles,
+    };
+
+    return runAttempt(() =>
+      accessManagementService
+        .createAccessListWithPreset(req)
+        .then(createdList => {
+          updateCache(createdList, { ...reqSpec, members: reqMembers });
+        })
+    );
+  }
+
   function onCreate(validator: Validator) {
     if (!validator.validate()) {
       return;
     }
 
-    const listToCreate = makeAccessListForRequest({
+    const reqSpec = makeAccessListSpecForRequest({
       spec,
       ownerGrant,
       owners,
       memberGrant,
       members,
+    });
+
+    const reqMembers = makeAccessListMembersForRequest({
+      members,
       accessListCreator,
     });
 
-    return runAttempt(() =>
-      accessManagementService
-        .createAccessList(listToCreate)
-        // After creating, go back to access list listing.
-        // Because of backend caching, we send the created list
-        // as router state to be used to update the listing.
-        .then(createdList => {
-          // Add member counts to the created list in case they don't exist.
-          if (!createdList.membersCount || !createdList.memberListCount) {
-            const [membersCount, memberListCount] =
-              getMemberCounts(listToCreate);
-            createdList.membersCount = membersCount;
-            createdList.memberListCount = memberListCount;
-          }
-
-          setCreatedAccessList(createdList);
-
-          updateAccessListCache({
-            mutationType: 'created',
-            accessList: createdList,
-          });
-        })
-    );
+    switch (preset) {
+      case 'long-term':
+      case 'short-term':
+        return createAccessListWithPreset(reqSpec, reqMembers);
+      case '':
+        return createDefaultAccessList(reqSpec, reqMembers);
+      default:
+        preset satisfies never;
+    }
   }
 
   return (
@@ -235,20 +313,18 @@ function getNameAndMembershipKind(o: HybridUserOption) {
   };
 }
 
-function makeAccessListForRequest({
+function makeAccessListSpecForRequest({
   spec,
   ownerGrant,
   owners,
   memberGrant,
   members,
-  accessListCreator,
 }: {
   spec: Spec;
   ownerGrant: Grant;
   owners: Owners;
   memberGrant: Grant;
   members: Members;
-  accessListCreator: string;
 }) {
   return {
     // specs
@@ -283,17 +359,32 @@ function makeAccessListForRequest({
       roles: members.selectedRolesRequired.map(r => r.value),
       traits: convertTraitLabelsToAllUserTraits(members.traitLabels),
     },
-    members: members.selectedMembers.map(m => {
-      const { name, membership_kind } = getNameAndMembershipKind(m);
-      return {
-        name,
-        joined: new Date(),
-        added_by: accessListCreator,
-        membership_kind,
-      };
-    }),
   };
 }
+
+function makeAccessListMembersForRequest({
+  members,
+  accessListCreator,
+}: {
+  members: Members;
+  accessListCreator: string;
+}) {
+  return members.selectedMembers.map(m => {
+    const { name, membership_kind } = getNameAndMembershipKind(m);
+    return {
+      name,
+      joined: new Date(),
+      added_by: accessListCreator,
+      membership_kind,
+    };
+  });
+}
+
+type AccessListSpecForRequest = ReturnType<typeof makeAccessListSpecForRequest>;
+
+type AccessListMembersForRequest = ReturnType<
+  typeof makeAccessListMembersForRequest
+>;
 
 const defaultOwners: Owners = {
   selectedRolesRequired: [],

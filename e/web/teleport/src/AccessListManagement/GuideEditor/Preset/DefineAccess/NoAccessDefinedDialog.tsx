@@ -25,7 +25,9 @@ export function NoAccessDefinedDialog({
     >
       <DialogContent>
         {isEditing ? (
-          <Text textAlign="center">Access to resources will be removed.</Text>
+          <Text textAlign="center">
+            Members access to resources will be removed.
+          </Text>
         ) : (
           <Text>
             No resource access is defined. You can still create an access list

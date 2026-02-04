@@ -177,11 +177,7 @@ function isAwsIcRoleKnownFieldUnsupported(
     // Supported fields - these are handled by the guide editor
     case 'app_labels':
       const labels = allow[fieldName] ?? {};
-      const labelKeys = Object.keys(labels);
-      if (!labels || !labelKeys) {
-        return false;
-      }
-      return labelKeys.length > 1 || !hasAwsIcAppLabel(labels);
+      return Object.keys(labels).length > 1 || !hasAwsIcAppLabel(labels);
 
     case 'account_assignments':
       return false;
@@ -237,6 +233,10 @@ function isStandardRoleKnownFieldUnsupported(
   fieldName: keyof RoleConditions,
   allow: RoleConditions
 ): boolean {
+  // Interpolation can be used to refer to user traits.
+  const hasInterpolation = labelVal =>
+    labelVal.startsWith('{{') && labelVal.endsWith('}}');
+
   switch (fieldName) {
     // Supported fields - these are handled by the guide editor
     case 'app_labels':
@@ -244,6 +244,33 @@ function isStandardRoleKnownFieldUnsupported(
     case 'kubernetes_labels':
     case 'node_labels':
     case 'windows_desktop_labels':
+      // Check for interpolation which is not supported.
+      const labels = allow[fieldName] ?? {};
+      const labelKeys = Object.keys(labels);
+      if (!labelKeys.length) {
+        return false;
+      }
+
+      for (const key in labels) {
+        let labelVals = labels[key];
+        if (!Array.isArray(labelVals)) {
+          labelVals = [labelVals];
+        }
+        for (const index in labelVals) {
+          if (hasInterpolation(labelVals[index])) {
+            return true;
+          }
+        }
+      }
+
+      // AWS IC support has it's own role and should not
+      // be defined in the standard role (it won't get parsed by the editor)
+      if (fieldName === 'app_labels') {
+        return hasAwsIcAppLabel(labels);
+      }
+
+      return false;
+
     case 'windows_desktop_logins':
     case 'db_names':
     case 'db_users':
@@ -285,6 +312,41 @@ export function roleHasDenyFields(role: Role) {
   return Object.keys(denyConditions).length > 0;
 }
 
+/**
+ * Valiates requester role only has field "allow.request.search_as_roles"
+ * defined.
+ *
+ * Returns true if an unsupported field has a value.
+ */
+export function roleHasUnsupportedRequesterFields(role: Role) {
+  const allow = role.spec?.allow ?? {};
+  const allowFieldNames = Object.keys(allow);
+  if (!allowFieldNames.length) {
+    return false;
+  }
+
+  const requestFieldName = 'request';
+
+  return allowFieldNames.some(allowFieldName => {
+    if (allowFieldName !== requestFieldName) {
+      return unknownFieldHasValue(allow[allowFieldName]);
+    }
+
+    const requestField = allow[requestFieldName] ?? {};
+    const requestFieldNames = Object.keys(requestField);
+
+    if (!requestFieldNames.length) {
+      return false;
+    }
+
+    for (const requestFieldName of requestFieldNames) {
+      if (requestFieldName !== 'search_as_roles') {
+        return unknownFieldHasValue(allow[allowFieldName]);
+      }
+    }
+  });
+}
+
 export function roleHasUnsupportedAllowFieldsDefined(
   role: Role,
   accessKind: AccessRoleKind
@@ -293,6 +355,22 @@ export function roleHasUnsupportedAllowFieldsDefined(
   const allowFieldNames = Object.keys(allow);
   if (!allowFieldNames.length) {
     return false;
+  }
+
+  switch (accessKind) {
+    case 'awsic':
+      if (!hasAwsIcAppLabel(allow['app_labels'] ?? {})) {
+        return true;
+      }
+      const accountAssignments = allow['account_assignments'];
+      if (!accountAssignments || accountAssignments.length === 0) {
+        return true;
+      }
+      break;
+    case 'standard':
+      break;
+    default:
+      accessKind satisfies never;
   }
 
   return allowFieldNames.some(allowFieldName => {
@@ -492,7 +570,21 @@ export function validateQueriedRoles({
         return { status: 'unknown-roles' };
       }
 
-      const request = gotRequesterRoles[0].spec.allow['request'];
+      const requesterRole = gotRequesterRoles[0];
+
+      // If a user manually edited this role like adding "resource access",
+      // those fields won't be parsed, which will produce inaccurate previewing
+      // of what resources members have access to.
+      if (
+        !roleVersionSupported(requesterRole) ||
+        roleHasDenyFields(requesterRole) ||
+        roleHasUnsupportedRequesterFields(requesterRole)
+      ) {
+        return { status: 'unsupported-role-fields' };
+      }
+
+      const allow = requesterRole.spec?.allow ?? {};
+      const request = allow['request'];
       const searchAsRoles: string[] =
         request && request['search_as_roles'] ? request['search_as_roles'] : [];
 

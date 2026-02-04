@@ -14,8 +14,7 @@ import cfg from 'teleport/config';
 import { App } from 'teleport/services/apps';
 import ResourceService from 'teleport/services/resources';
 
-import { stepButtonContainerHeight } from '../../const';
-import { StepButtons } from '../../Shared';
+import { GuideContent, StepButtons } from '../../Shared';
 import { StandardRoleConditions } from '../role/conditions';
 import {
   definableResourceAccessFields,
@@ -267,27 +266,29 @@ export function DefineAccess() {
   return (
     <Box>
       <Validation>
-        <H1 mb={1}>
-          Step {currentStep + 1}:{' '}
-          {preset === 'long-term'
-            ? 'What resources will the members have long-term access to?'
-            : 'What resources can members request access to?'}
-        </H1>
+        <GuideContent>
+          <H1 mb={1}>
+            Step {currentStep + 1}:{' '}
+            {preset === 'long-term'
+              ? 'What resources will the members have long-term access to?'
+              : 'What resources can members request access to?'}
+          </H1>
 
-        <PreviewingResourceAlert />
+          <PreviewingResourceAlert />
 
-        <Flex
-          mb={stepButtonContainerHeight}
-          css={`
-            --guide-section-height: 70vh;
-          `}
-        >
-          <ResourceTabs
-            selectedTab={selectedResourceTab}
-            onTabSelect={handleSelectTab}
-          />
-          <DefineAccessContainer>{defineAccessContent}</DefineAccessContainer>
-        </Flex>
+          <Flex
+            mb={4}
+            css={`
+              --guide-section-height: 70vh;
+            `}
+          >
+            <ResourceTabs
+              selectedTab={selectedResourceTab}
+              onTabSelect={handleSelectTab}
+            />
+            <DefineAccessContainer>{defineAccessContent}</DefineAccessContainer>
+          </Flex>
+        </GuideContent>
 
         <StepButtons
           onNext={handleNextStep}
@@ -352,7 +353,6 @@ const DefineAccessContainer = styled(Box)`
   padding: ${p => p.theme.space[3]}px;
   padding-left: ${p => p.theme.space[4]}px;
   padding-top: ${p => p.theme.space[2]}px;
-  padding-bottom: ${p => p.theme.space[2]}px;
   border: 1px solid ${p => p.theme.colors.interactive.tonal.neutral[0]};
   border-top-right-radius: ${p => p.theme.radii[2]}px;
   border-bottom-right-radius: ${p => p.theme.radii[2]}px;

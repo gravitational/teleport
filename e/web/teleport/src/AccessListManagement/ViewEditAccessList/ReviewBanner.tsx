@@ -40,6 +40,7 @@ export const ReviewBanner = ({
   if (requiresReview && canReview) {
     return (
       <Alert
+        mb={0}
         kind="outline-info"
         icon={ListMagnifyingGlass}
         primaryAction={{

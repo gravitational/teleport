@@ -10,7 +10,7 @@ import {
   userEvent,
 } from 'design/utils/testing';
 
-import { CreateAccessList } from 'e-teleport/AccessListManagement/CreateAccessList/CreateAccessListV2';
+import { CreateAccessList } from 'e-teleport/AccessListManagement/CreateAccessList/CreateAccessList';
 import { AccessGraphDemoProvider } from 'e-teleport/Roles/AccessGraphDemoContext';
 import cfg from 'teleport/config';
 import ResourceService from 'teleport/services/resources';

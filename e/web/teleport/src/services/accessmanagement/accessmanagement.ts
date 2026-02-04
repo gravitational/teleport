@@ -4,7 +4,7 @@ import { AccessListUserAssignmentType } from 'gen-proto-ts/teleport/accesslist/v
 import cfg from 'e-teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
 import api from 'teleport/services/api';
-import auth from 'teleport/services/auth/auth';
+import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import { makeTraits } from 'teleport/services/user/makeUser';
 import {
   isPathNotFoundError,
@@ -157,26 +157,57 @@ export const accessManagementService = {
       .post(cfg.getAccessManagementListUrl(), req)
       .then(resp => makeAccessList(resp.accessList));
   },
-  createAccessListWithPreset(
+  async createAccessListWithPreset(
     req: AccessListWithPresetRequest
   ): Promise<AccessList> {
+    // Reusable token is required b/c endpoint makes
+    // 2x grpc calls that both require re-authn.
+    const challenge = await auth.getMfaChallenge({
+      scope: MfaChallengeScope.ADMIN_ACTION,
+      allowReuse: true,
+      isMfaRequiredRequest: {
+        admin_action: {},
+      },
+    });
+
+    const challengeResponse = await auth.getMfaChallengeResponse(challenge);
+
     return api
-      .post(cfg.getAccessListWithPresetUrl({ action: 'create' }), req)
-      .then(resp => makeAccessListWithPreset(resp));
+      .post(
+        cfg.getAccessListWithPresetUrl({ action: 'create' }),
+        req,
+        undefined,
+        challengeResponse
+      )
+      .then(resp => makeAccessList(resp.accessList));
   },
-  updateAccessListWithPreset(
+  async updateAccessListWithPreset(
     req: AccessListWithPresetRequest
   ): Promise<UpdateAccessListWithPresetResponse> {
+    // Reusable token is required b/c endpoint makes
+    // 2x grpc calls that both require re-authn.
+    const challenge = await auth.getMfaChallenge({
+      scope: MfaChallengeScope.ADMIN_ACTION,
+      allowReuse: true,
+      isMfaRequiredRequest: {
+        admin_action: {},
+      },
+    });
+
+    const challengeResponse = await auth.getMfaChallengeResponse(challenge);
+
     return api
       .put(
         cfg.getAccessListWithPresetUrl({
           action: 'update',
           accessListId: req.accessList.metadata.name,
         }),
-        req
+        req,
+        undefined,
+        challengeResponse
       )
       .then(resp => ({
-        accessList: makeAccessListWithPreset(resp),
+        accessList: makeAccessList(resp.accessList),
         rolesToBeDeleted: resp.rolesToBeDeleted ?? [],
       }));
   },
@@ -225,12 +256,17 @@ export const accessManagementService = {
   },
 };
 
+type UpdateRequest = {
+  req: Partial<AccessList>;
+  original: AccessList;
+};
+
 export function makeAccessListForUpdate({
   req,
   original,
-}: {
-  req: Partial<AccessList>;
-  original: AccessList;
+  withoutMembers = false,
+}: UpdateRequest & {
+  withoutMembers?: boolean;
 }): UpsertAccessListRequest {
   return {
     type: req.type || original.type,
@@ -268,25 +304,9 @@ export function makeAccessListForUpdate({
           traits: req.ownerGrants.traits,
         }
       : original.ownerGrants,
-    members: req.members
-      ? req.members.map(m => ({
-          name: m.name,
-          title: m.title,
-          joined: m.joined,
-          expires: m.expires,
-          reason: m.reason,
-          added_by: m.addedBy,
-          membership_kind: m.membershipKind,
-        }))
-      : original.members.map(m => ({
-          name: m.name,
-          joined: m.joined,
-          title: m.title,
-          expires: m.expires,
-          reason: m.reason,
-          added_by: m.addedBy,
-          membership_kind: m.membershipKind,
-        })),
+    ...(!withoutMembers && {
+      members: makeAccessListMembersForUpdate({ req, original }),
+    }),
     owners: req.owners
       ? req.owners.map(o => ({
           name: o.name,
@@ -311,6 +331,31 @@ export function makeAccessListForUpdate({
         }
       : original.ownershipRequires,
   };
+}
+
+export function makeAccessListMembersForUpdate({
+  req,
+  original,
+}: UpdateRequest) {
+  return req.members
+    ? req.members.map(m => ({
+        name: m.name,
+        title: m.title,
+        joined: m.joined,
+        expires: m.expires,
+        reason: m.reason,
+        added_by: m.addedBy,
+        membership_kind: m.membershipKind,
+      }))
+    : original.members.map(m => ({
+        name: m.name,
+        joined: m.joined,
+        title: m.title,
+        expires: m.expires,
+        reason: m.reason,
+        added_by: m.addedBy,
+        membership_kind: m.membershipKind,
+      }));
 }
 
 export function makeAccessLists(json: any): AccessList[] {
@@ -351,13 +396,6 @@ export function getPresetRolesFromMetadataLabel(labels: object): string[] {
   }
   const roles = labels['teleport.internal/access-list-preset-roles'] ?? [];
   return roles.split(',');
-}
-
-function makeAccessListWithPreset(resp: any): AccessList {
-  return {
-    ...makeAccessList({ ...resp.accessList }),
-    members: makeMembers(resp.members?.map(member => member.spec)),
-  };
 }
 
 export function makeAccessList(json: any): AccessList {

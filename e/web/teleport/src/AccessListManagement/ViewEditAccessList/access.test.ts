@@ -159,7 +159,7 @@ describe('access list with preset', () => {
 
       expect(isActionForbidden(props)).toBe(true);
       expect(getActionForbiddenInfo(props)).toBe(
-        'Go to "Access Definition" tab to edit member access'
+        'Go to "Access Definition" tab to edit members access to resources.'
       );
     }
   );
@@ -197,7 +197,7 @@ describe('access list with preset', () => {
 
       expect(isActionForbidden(props)).toBe(true);
       expect(getActionForbiddenInfo(props)).toContain(
-        'Insufficient permissions to delete this access list created with a guide'
+        'Unable to delete this access list'
       );
     }
   );

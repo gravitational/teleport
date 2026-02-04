@@ -64,10 +64,16 @@ export function getActionForbiddenInfo(props: AccessProps): string | undefined {
         accessKind: action,
         extraInfo: scimExtraInfo,
       });
-    case EditAccess.ForbiddenPreset:
-      return 'Go to "Access Definition" tab to edit member access';
+    case EditAccess.ForbiddenPresetEditingGrants:
+      if (props.action === Action.EditMembersGrants) {
+        return 'Go to "Access Definition" tab to edit members access to resources.';
+      }
+      if (props.action === Action.EditOwnersGrants) {
+        return 'This access list was created using a guide. Owner grants cannot be modified.';
+      }
+      return '';
     case EditAccess.ForbiddenPresetDelete:
-      return `Insufficient permissions to delete this access list created with a guide. Missing role
+      return `Unable to delete this access list. Missing role
         permissions: ${props.missingRolePerms.join(', ')}`;
     default:
       access satisfies never;
@@ -81,7 +87,7 @@ enum EditAccess {
   ForbiddenReadOnlyType,
   ForbiddenOktaReadOnly,
   ForbiddenScim,
-  ForbiddenPreset,
+  ForbiddenPresetEditingGrants,
   ForbiddenPresetDelete,
 }
 
@@ -133,10 +139,11 @@ function getEditAccess({
   if (isReadOnlyOktaList) return EditAccess.ForbiddenOktaReadOnly;
 
   if (
-    action === Action.EditMembersGrants &&
+    (action === Action.EditMembersGrants ||
+      action === Action.EditOwnersGrants) &&
     isGuideEditorSupported(accessList.preset)
   ) {
-    return EditAccess.ForbiddenPreset;
+    return EditAccess.ForbiddenPresetEditingGrants;
   }
 
   return EditAccess.Allowed;

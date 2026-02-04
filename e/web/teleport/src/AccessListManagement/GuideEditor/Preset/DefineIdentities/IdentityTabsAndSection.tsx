@@ -1,4 +1,5 @@
 import { useId, useState } from 'react';
+import styled from 'styled-components';
 
 import { Box, Text } from 'design';
 import { SlideTabs } from 'design/SlideTabs';
@@ -270,15 +271,17 @@ export function IdentityTabsAndSection({
     <IdentityTabContainer>
       {requiresIdentities ? (
         <Box>
-          <SlideTabs
-            appearance="round"
-            size="medium"
-            hideStatusIconOnActiveTab
-            tabs={tabSpecs}
-            activeIndex={currentTab}
-            onChange={setCurrentTab}
-          />
-          <Box p={2} mt={1}>
+          <StickyTabs px={2} pt={2}>
+            <SlideTabs
+              appearance="round"
+              size="medium"
+              hideStatusIconOnActiveTab
+              tabs={tabSpecs}
+              activeIndex={currentTab}
+              onChange={setCurrentTab}
+            />
+          </StickyTabs>
+          <Box p={3} mt={1}>
             <Text bold fontSize={3} mb={3}>
               {selectedTab.sectionTitle}
             </Text>
@@ -296,7 +299,7 @@ export function IdentityTabsAndSection({
           </Box>
         </Box>
       ) : (
-        <Box p={2} mt={1}>
+        <Box p={3} mt={1}>
           <Text mb={3}>No identities are required.</Text>
           {hasAccessGraphEnabled && (
             <Text>
@@ -328,3 +331,10 @@ export function IdentityTabsAndSection({
     </IdentityTabContainer>
   );
 }
+
+const StickyTabs = styled(Box)`
+  position: sticky;
+  top: 0;
+  background-color: ${props => props.theme.colors.levels.elevated};
+  z-index: 1;
+`;

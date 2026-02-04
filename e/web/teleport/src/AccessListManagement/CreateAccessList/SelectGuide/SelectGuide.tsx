@@ -92,6 +92,7 @@ export function SelectGuide() {
               <MissingRoleAccess missingRoleAccess={missingRoleAccess} />
             )}
             <HoverTooltip
+              placement="bottom"
               tipContent={
                 <Box>
                   <Text mb={2}>
@@ -137,6 +138,7 @@ export function SelectGuide() {
               <MissingRoleAccess missingRoleAccess={missingRoleAccess} />
             )}
             <HoverTooltip
+              placement="bottom"
               tipContent={
                 <Box>
                   <Text>

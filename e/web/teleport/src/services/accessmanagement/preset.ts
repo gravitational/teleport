@@ -1,6 +1,11 @@
 import { Role } from 'teleport/services/resources';
 
-import { AccessList, AccessListSpecRequest, MemberSpecRequest } from './types';
+import {
+  AccessList,
+  AccessListMetadata,
+  AccessListSpecRequest,
+  MemberSpecRequest,
+} from './types';
 
 /**
  * Access lists created with a preset provides a web UI that guides admins on
@@ -19,9 +24,12 @@ export type AccessListPreset = 'long-term' | 'short-term' | '';
 
 export type AccessListWithPresetRequest = {
   presetType: AccessListPreset;
-  accessList: { spec: AccessListSpecRequest; metadata: { name: string } };
+  accessList: {
+    spec: AccessListSpecRequest;
+    metadata: AccessListMetadata;
+    members: MemberSpecRequest[];
+  };
   accessRoles: Role[];
-  members?: { spec: MemberSpecRequest; metadata: { name: string } }[];
 };
 
 export type UpdateAccessListWithPresetResponse = {

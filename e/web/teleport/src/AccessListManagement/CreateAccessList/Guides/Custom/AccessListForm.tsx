@@ -3,7 +3,7 @@ import Validation, { Validator } from 'shared/components/Validation';
 
 import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import {
-  MaxWidthBox,
+  GuideContent,
   StepButtons,
 } from 'e-teleport/AccessListManagement/GuideEditor/Shared';
 
@@ -40,10 +40,10 @@ export function AccessListForm() {
   }
 
   return (
-    <MaxWidthBox>
-      <Validation>
-        {({ validator }) => (
-          <>
+    <Validation>
+      {({ validator }) => (
+        <>
+          <GuideContent withMaxWidth mb={5}>
             <H2 mb={3}>Basic Information</H2>
             <Flex flexDirection="column" gap={4}>
               <Box mb={6}>
@@ -59,13 +59,14 @@ export function AccessListForm() {
             {createAttempt.status === 'failed' && (
               <Alert>{createAttempt.statusText}</Alert>
             )}
-            <StepButtons
-              onNext={() => handleFinish(validator)}
-              onPrev={handlePrev}
-            />
-          </>
-        )}
-      </Validation>
-    </MaxWidthBox>
+          </GuideContent>
+          <StepButtons
+            onNext={() => handleFinish(validator)}
+            onPrev={handlePrev}
+            disabled={createAttempt.status === 'processing'}
+          />
+        </>
+      )}
+    </Validation>
   );
 }

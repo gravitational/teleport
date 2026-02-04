@@ -7,14 +7,17 @@ import { AwsIcAppLabel, RequiredRoleConditions } from '../role/conditions';
 
 export const testAccessListId = 'ABCD';
 
+export const internalAccessListPresetLabelKey =
+  'teleport.internal/access-list-preset';
+
 const awsIcMetadata = {
   name: `access-awsic-acl-preset-${testAccessListId}`,
-  labels: { 'teleport.internal/access-list-preset': testAccessListId },
+  labels: { [internalAccessListPresetLabelKey]: testAccessListId },
 };
 
 const standardMetadata = {
   name: `access-standard-acl-preset-${testAccessListId}`,
-  labels: { 'teleport.internal/access-list-preset': testAccessListId },
+  labels: { [internalAccessListPresetLabelKey]: testAccessListId },
 };
 
 export const awsIcRole: Role = {

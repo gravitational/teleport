@@ -8,7 +8,7 @@ import Validation, { Validator } from 'shared/components/Validation';
 
 import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import {
-  MaxWidthBox,
+  GuideContent,
   StepButtons,
 } from 'e-teleport/AccessListManagement/GuideEditor/Shared';
 import { MemberSelection } from 'e-teleport/AccessListManagement/Shared/Shared';
@@ -254,7 +254,7 @@ export function DefineUserTemplate({
     <Validation>
       {({ validator }) => (
         <>
-          <MaxWidthBox>
+          <GuideContent withMaxWidth>
             <H1>
               Step {currentStep + 1}: {headerText}
             </H1>
@@ -335,7 +335,7 @@ export function DefineUserTemplate({
                 </Box>
               )}
             </Box>
-          </MaxWidthBox>
+          </GuideContent>
           <StepButtons
             onNext={() => handleNext(validator)}
             disabled={createAttempt.status === 'processing'}

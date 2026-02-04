@@ -53,6 +53,7 @@ export function AccessRoleEditor({
   switch (preset) {
     case 'long-term':
       navTitle = `Editing Resource Access (standing access)`;
+      views = editViews;
       break;
     case 'short-term':
       navTitle = `Editing Resource Access (JIT access)`;

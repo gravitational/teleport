@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react';
 
-import { Box, Button, Flex, Mark, Text } from 'design';
+import { Box, Button, Flex, Text } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
 import { debounce } from 'shared/utils/highbar';
 
@@ -13,6 +13,7 @@ import useTeleport from 'teleport/useTeleport';
 
 import { useAccessListManagementContext } from '../../AccessListManagementContext';
 import { getMissingRoleAccess } from '../Preset/role/role';
+import { PresetDescription } from './PresetDescription';
 import { ReadRoleAccessTabsAndSection } from './ReadResourceAccessTabsAndSection/ReadRoleAccessTabsAndSection';
 
 export function ReadRoleAccess({
@@ -28,7 +29,7 @@ export function ReadRoleAccess({
   const hasWriteRoleAccess = missingWriteRoleAccess.length === 0;
 
   const { guideEditor } = useAccessListManagementContext();
-  const { awsIcRoleState, standardRoleState } = guideEditor;
+  const { awsIcRoleState, standardRoleState, preset } = guideEditor;
 
   // Access graph does not support processing more than one role.
   // Prioritize standard role over others.
@@ -55,9 +56,7 @@ export function ReadRoleAccess({
 
   return (
     <Box>
-      <Text mb={3}>
-        Defines what resources <Mark>members</Mark> have access to.
-      </Text>
+      <PresetDescription preset={preset} />
       <Flex height="60vh" gap={3}>
         <ReadRoleAccessTabsAndSection />
         <Flex

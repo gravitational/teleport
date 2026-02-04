@@ -2,7 +2,7 @@ import { AccessListModified } from 'e-teleport/AccessListManagement/ViewEditAcce
 import { AccessListPreset } from 'e-teleport/services/accessmanagement/preset';
 import { defaultRoleVersion } from 'teleport/Roles/RoleEditor/StandardEditor/standardmodel';
 import { optionsWithDefaults } from 'teleport/Roles/RoleEditor/StandardEditor/withDefaults';
-import { Role } from 'teleport/services/resources';
+import { Role, RoleConditions } from 'teleport/services/resources';
 
 import {
   awsIcRole,
@@ -13,6 +13,7 @@ import {
   awsIcRoleWithoutLabels,
   awsIcRoleWithUnknownFields,
   awsIcRoleWithUnsupportedVersion,
+  internalAccessListPresetLabelKey,
   standardRole,
   standardRoleEmptyAccess,
   standardRoleFullyFleshedOut,
@@ -57,7 +58,7 @@ function makeRequesterRole(searchAsRoles: string[]): Role {
     version: defaultRoleVersion,
     metadata: {
       name: requesterRoleName,
-      labels: { 'teleport.internal/access-list-preset': testAccessListId },
+      labels: { [internalAccessListPresetLabelKey]: testAccessListId },
     },
     spec: {
       allow: {
@@ -71,13 +72,12 @@ function makeRequesterRole(searchAsRoles: string[]): Role {
 
 describe('no-access-defined regardless of preset', () => {
   test.each`
-    desc                                      | gotRoles                                           | memberRolesGranted                                                             | expectedResult
-    ${'no member grants assigned - single'}   | ${[standardRole]}                                  | ${[]}                                                                          | ${{ status: 'no-access-defined' }}
-    ${'no member grants assigned - multi'}    | ${[standardRole, awsIcRole]}                       | ${[]}                                                                          | ${{ status: 'no-access-defined' }}
-    ${'standard role exists but no access'}   | ${[standardRoleEmptyAccess]}                       | ${[standardRoleEmptyAccess.metadata.name]}                                     | ${{ status: 'no-access-defined', standardRole: standardRoleEmptyAccess }}
-    ${'awsIc role exists but no access'}      | ${[awsIcRoleEmptyAccess]}                          | ${[awsIcRoleEmptyAccess.metadata.name]}                                        | ${{ status: 'no-access-defined', awsIcRole: awsIcRoleEmptyAccess }}
-    ${'awsIc role exists without app_labels'} | ${[awsIcRoleWithoutLabels]}                        | ${[awsIcRoleWithoutLabels.metadata.name]}                                      | ${{ status: 'no-access-defined', awsIcRole: awsIcRoleWithoutLabels }}
-    ${'both roles exists but no access'}      | ${[awsIcRoleEmptyAccess, standardRoleEmptyAccess]} | ${[awsIcRoleEmptyAccess.metadata.name, standardRoleEmptyAccess.metadata.name]} | ${{ status: 'no-access-defined', awsIcRole: awsIcRoleEmptyAccess, standardRole: standardRoleEmptyAccess }}
+    desc                                    | gotRoles                                           | memberRolesGranted                                                             | expectedResult
+    ${'no member grants assigned - single'} | ${[standardRole]}                                  | ${[]}                                                                          | ${{ status: 'no-access-defined' }}
+    ${'no member grants assigned - multi'}  | ${[standardRole, awsIcRole]}                       | ${[]}                                                                          | ${{ status: 'no-access-defined' }}
+    ${'standard role exists but no access'} | ${[standardRoleEmptyAccess]}                       | ${[standardRoleEmptyAccess.metadata.name]}                                     | ${{ status: 'no-access-defined', standardRole: standardRoleEmptyAccess }}
+    ${'awsIc role exists but no access'}    | ${[awsIcRoleEmptyAccess]}                          | ${[awsIcRoleEmptyAccess.metadata.name]}                                        | ${{ status: 'no-access-defined', awsIcRole: awsIcRoleEmptyAccess }}
+    ${'both roles exists but no access'}    | ${[awsIcRoleEmptyAccess, standardRoleEmptyAccess]} | ${[awsIcRoleEmptyAccess.metadata.name, standardRoleEmptyAccess.metadata.name]} | ${{ status: 'no-access-defined', awsIcRole: awsIcRoleEmptyAccess, standardRole: standardRoleEmptyAccess }}
   `(
     'returns no-access-defined when $desc',
     ({ gotRoles, memberRolesGranted, expectedResult }) => {
@@ -93,13 +93,12 @@ describe('no-access-defined regardless of preset', () => {
 
 describe('test validating for long-term preset', () => {
   test.each`
-    desc                                 | roles                                   | expectedStandard               | expectedAwsIc
-    ${'standard role minimal'}           | ${[standardRole]}                       | ${standardRole}                | ${undefined}
-    ${'standard role fully fleshed out'} | ${[standardRoleFullyFleshedOut]}        | ${standardRoleFullyFleshedOut} | ${undefined}
-    ${'awsIc role'}                      | ${[awsIcRole]}                          | ${undefined}                   | ${awsIcRole}
-    ${'awsIc role fully fleshed out'}    | ${[awsIcRoleFullyFleshedOut]}           | ${undefined}                   | ${awsIcRoleFullyFleshedOut}
-    ${'awsIc role without perm sets'}    | ${[awsIcRoleWithoutAccountAssignments]} | ${undefined}                   | ${awsIcRoleWithoutAccountAssignments}
-    ${'both standard and awsIc'}         | ${[standardRole, awsIcRole]}            | ${standardRole}                | ${awsIcRole}
+    desc                                 | roles                            | expectedStandard               | expectedAwsIc
+    ${'standard role minimal'}           | ${[standardRole]}                | ${standardRole}                | ${undefined}
+    ${'standard role fully fleshed out'} | ${[standardRoleFullyFleshedOut]} | ${standardRoleFullyFleshedOut} | ${undefined}
+    ${'awsIc role'}                      | ${[awsIcRole]}                   | ${undefined}                   | ${awsIcRole}
+    ${'awsIc role fully fleshed out'}    | ${[awsIcRoleFullyFleshedOut]}    | ${undefined}                   | ${awsIcRoleFullyFleshedOut}
+    ${'both standard and awsIc'}         | ${[standardRole, awsIcRole]}     | ${standardRole}                | ${awsIcRole}
   `(
     'returns valid-roles for $desc',
     ({ roles, expectedStandard, expectedAwsIc }) => {
@@ -139,13 +138,12 @@ describe('test validating for long-term preset', () => {
 
 describe('test validating for short-term preset', () => {
   test.each`
-    desc                                 | gotRoles                                                                                                       | expectedStandard               | expectedAwsIc
-    ${'standard role'}                   | ${[standardRole, makeRequesterRole([standardRole.metadata.name])]}                                             | ${standardRole}                | ${undefined}
-    ${'standard role fully fleshed out'} | ${[standardRoleFullyFleshedOut, makeRequesterRole([standardRoleFullyFleshedOut.metadata.name])]}               | ${standardRoleFullyFleshedOut} | ${undefined}
-    ${'awsIc role'}                      | ${[awsIcRole, makeRequesterRole([awsIcRole.metadata.name])]}                                                   | ${undefined}                   | ${awsIcRole}
-    ${'awsic role fully fleshed out'}    | ${[awsIcRoleFullyFleshedOut, makeRequesterRole([awsIcRoleFullyFleshedOut.metadata.name])]}                     | ${undefined}                   | ${awsIcRoleFullyFleshedOut}
-    ${'awsic role without perm sets'}    | ${[awsIcRoleWithoutAccountAssignments, makeRequesterRole([awsIcRoleWithoutAccountAssignments.metadata.name])]} | ${undefined}                   | ${awsIcRoleWithoutAccountAssignments}
-    ${'both standard and awsIc'}         | ${[standardRole, awsIcRole, makeRequesterRole([standardRole.metadata.name, awsIcRole.metadata.name])]}         | ${standardRole}                | ${awsIcRole}
+    desc                                 | gotRoles                                                                                               | expectedStandard               | expectedAwsIc
+    ${'standard role'}                   | ${[standardRole, makeRequesterRole([standardRole.metadata.name])]}                                     | ${standardRole}                | ${undefined}
+    ${'standard role fully fleshed out'} | ${[standardRoleFullyFleshedOut, makeRequesterRole([standardRoleFullyFleshedOut.metadata.name])]}       | ${standardRoleFullyFleshedOut} | ${undefined}
+    ${'awsIc role'}                      | ${[awsIcRole, makeRequesterRole([awsIcRole.metadata.name])]}                                           | ${undefined}                   | ${awsIcRole}
+    ${'awsic role fully fleshed out'}    | ${[awsIcRoleFullyFleshedOut, makeRequesterRole([awsIcRoleFullyFleshedOut.metadata.name])]}             | ${undefined}                   | ${awsIcRoleFullyFleshedOut}
+    ${'both standard and awsIc'}         | ${[standardRole, awsIcRole, makeRequesterRole([standardRole.metadata.name, awsIcRole.metadata.name])]} | ${standardRole}                | ${awsIcRole}
   `(
     'returns valid-roles for $desc',
     ({ gotRoles, expectedStandard, expectedAwsIc }) => {
@@ -184,15 +182,80 @@ describe('test validating for short-term preset', () => {
   });
 });
 
+describe('short-term preset requester role validation', () => {
+  function makeRequesterRoleWithAllow(allow: Partial<RoleConditions>): Role {
+    return {
+      kind: 'role',
+      version: defaultRoleVersion,
+      metadata: {
+        name: requesterRoleName,
+        labels: { [internalAccessListPresetLabelKey]: testAccessListId },
+      },
+      spec: {
+        allow,
+        deny: {},
+        options: optionsWithDefaults(defaultRoleVersion),
+      },
+    };
+  }
+
+  const roleName = standardRole.metadata.name;
+
+  test.each`
+    desc                             | allow
+    ${'has app_labels'}              | ${{ request: { search_as_roles: [roleName] }, app_labels: { env: 'prod' } }}
+    ${'has logins'}                  | ${{ request: { search_as_roles: [roleName] }, logins: ['root'] }}
+    ${'has unknown field'}           | ${{ request: { search_as_roles: [roleName] }, something: { abc: 'abc' } }}
+    ${'has request.roles'}           | ${{ request: { search_as_roles: [roleName], roles: ['some-role'] } }}
+    ${'has request.thresholds'}      | ${{ request: { search_as_roles: [roleName], thresholds: [{ approve: 1, deny: 1 }] } }}
+    ${'has request.claims_to_roles'} | ${{ request: { search_as_roles: [roleName], claims_to_roles: [{ claim: 'group', value: 'admin', roles: ['admin'] }] } }}
+  `(
+    'returns unsupported-role-fields when requester role $desc',
+    ({ allow }) => {
+      const requesterRole = makeRequesterRoleWithAllow(allow);
+      const result = validateQueriedRoles({
+        gotRoles: [standardRole, requesterRole],
+        accessList: makeAccessList({
+          preset: 'short-term',
+          memberRolesGranted: [requesterRoleName],
+        }),
+      });
+
+      expect(result.status).toBe('unsupported-role-fields');
+    }
+  );
+
+  test.each`
+    desc                                  | allow
+    ${'only has request.search_as_roles'} | ${{ request: { search_as_roles: [roleName] } }}
+    ${'has empty unsupported fields'}     | ${{ request: { search_as_roles: [roleName] }, app_labels: {}, logins: [] }}
+  `('returns valid-roles when requester role $desc', ({ allow }) => {
+    const requesterRole = makeRequesterRoleWithAllow(
+      allow as Role['spec']['allow']
+    );
+    const result = validateQueriedRoles({
+      gotRoles: [standardRole, requesterRole],
+      accessList: makeAccessList({
+        preset: 'short-term',
+        memberRolesGranted: [requesterRoleName],
+      }),
+    });
+
+    expect(result.status).toBe('valid-roles');
+  });
+});
+
 describe('unsupported-role-fields status', () => {
   test.each`
-    desc                                   | role
-    ${'standard role with deny fields'}    | ${standardRoleWithDeny}
-    ${'awsIc role with deny fields'}       | ${awsIcRoleWithDeny}
-    ${'standard role with bad version'}    | ${standardRoleWithUnsupportedVersion}
-    ${'awsIc role with bad version'}       | ${awsIcRoleWithUnsupportedVersion}
-    ${'standard role with unknown fields'} | ${standardRoleWithUnknownFields}
-    ${'awsIc role with unknown fields'}    | ${awsIcRoleWithUnknownFields}
+    desc                                        | role
+    ${'standard role with deny fields'}         | ${standardRoleWithDeny}
+    ${'awsIc role with deny fields'}            | ${awsIcRoleWithDeny}
+    ${'standard role with bad version'}         | ${standardRoleWithUnsupportedVersion}
+    ${'awsIc role with bad version'}            | ${awsIcRoleWithUnsupportedVersion}
+    ${'standard role with unknown fields'}      | ${standardRoleWithUnknownFields}
+    ${'awsIc role with unknown fields'}         | ${awsIcRoleWithUnknownFields}
+    ${'awsIc role without account_assignments'} | ${awsIcRoleWithoutAccountAssignments}
+    ${'awsIc role without app_labels'}          | ${awsIcRoleWithoutLabels}
   `('returns unsupported-role-fields for $desc', ({ role }) => {
     const result = validateQueriedRoles({
       gotRoles: [role],
@@ -205,6 +268,53 @@ describe('unsupported-role-fields status', () => {
   });
 });
 
+describe('isStandardRoleKnownFieldUnsupported interpolation checks', () => {
+  function makeStandardRoleWithLabels(
+    labelField: string,
+    labels: Record<string, string | string[]>
+  ): Role {
+    return {
+      kind: 'role',
+      version: defaultRoleVersion,
+      metadata: {
+        name: `access-standard-acl-preset-${testAccessListId}`,
+        labels: { [internalAccessListPresetLabelKey]: testAccessListId },
+      },
+      spec: {
+        allow: {
+          [labelField]: labels,
+        },
+        deny: {},
+        options: optionsWithDefaults(defaultRoleVersion),
+      },
+    };
+  }
+
+  test.each`
+    labelField                  | labels
+    ${'app_labels'}             | ${{ env: '{{internal.logins}}' }}
+    ${'db_labels'}              | ${{ team: '{{external.groups}}' }}
+    ${'kubernetes_labels'}      | ${{ namespace: '{{internal.kubernetes_users}}' }}
+    ${'node_labels'}            | ${{ host: '{{internal.traits}}' }}
+    ${'windows_desktop_labels'} | ${{ domain: '{{external.email}}' }}
+    ${'app_labels'}             | ${{ env: ['{{internal.logins}}', 'prod'] }}
+    ${'db_labels'}              | ${{ team: ['dev', '{{external.groups}}'] }}
+  `(
+    'returns unsupported-role-fields when $labelField contains interpolation',
+    ({ labelField, labels }) => {
+      const role = makeStandardRoleWithLabels(labelField, labels);
+      const result = validateQueriedRoles({
+        gotRoles: [role],
+        accessList: makeAccessList({
+          memberRolesGranted: [role.metadata.name],
+        }),
+      });
+
+      expect(result.status).toBe('unsupported-role-fields');
+    }
+  );
+});
+
 describe('unknownFieldHasValue behavior', () => {
   function makeRoleWithUnknownField(unknownFieldValue: unknown): Role {
     return {
@@ -212,7 +322,7 @@ describe('unknownFieldHasValue behavior', () => {
       version: defaultRoleVersion,
       metadata: {
         name: `access-standard-acl-preset-${testAccessListId}`,
-        labels: { 'teleport.internal/access-list-preset': testAccessListId },
+        labels: { [internalAccessListPresetLabelKey]: testAccessListId },
       },
       spec: {
         allow: {

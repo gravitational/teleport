@@ -34,6 +34,53 @@ export function makeHandlers(handlers: HttpHandler[] = []) {
     http.get(cfg.oss.api.userPreferencesPath, () => {
       return HttpResponse.json([{}]);
     }),
+    http.get('/v1/webapi/roles/:name', ({ params }) => {
+      return HttpResponse.json({
+        kind: 'role',
+        id: params.name,
+        name: params.name,
+        content: `kind: role
+metadata:
+  name: ${params.name}
+version: v7
+spec:
+  allow: {}
+  deny: {}
+  options: {}`,
+      });
+    }),
+    http.post('/v1/webapi/yaml/parse/:kind', () => {
+      return HttpResponse.json({
+        resource: {
+          kind: 'role',
+          version: 'v7',
+          metadata: { name: 'role-name' },
+          spec: {
+            allow: {},
+            deny: {},
+            options: {
+              forward_agent: false,
+              max_session_ttl: '30h0m0s',
+              port_forwarding: true,
+              cert_format: 'standard',
+              client_idle_timeout: '0s',
+              disconnect_expired_cert: false,
+              enhanced_recording: ['command', 'network'],
+              bpf: ['command', 'network'],
+              desktop_clipboard: true,
+              desktop_directory_sharing: true,
+              create_host_user: false,
+              create_host_user_mode: 'off',
+              create_db_user: false,
+              create_db_user_mode: 'off',
+              idp: { saml: { enabled: true } },
+              create_desktop_user: false,
+              ssh_file_copy: true,
+            },
+          },
+        },
+      });
+    }),
     ...handlers,
   ];
 }

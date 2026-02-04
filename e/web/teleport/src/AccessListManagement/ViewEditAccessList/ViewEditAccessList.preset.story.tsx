@@ -10,6 +10,7 @@ import { defaultRoleVersion } from 'teleport/Roles/RoleEditor/StandardEditor/sta
 import { Role } from 'teleport/services/resources';
 import { makeAcl } from 'teleport/services/user/makeAcl';
 
+import { internalAccessListPresetLabelKey } from '../GuideEditor/Preset/TestHelper/roles';
 import { rawAccessList } from './fixtures';
 import { Provider } from './TestHelper/Provider';
 import { ViewEditAccessList } from './ViewEditAccessList';
@@ -24,7 +25,7 @@ const accessListWithPreset = {
     ...rawAccessList.metadata,
     name: presetAccessListId,
     labels: {
-      'teleport.internal/access-list-preset': 'long-term',
+      [internalAccessListPresetLabelKey]: 'long-term',
     },
   },
   spec: {
@@ -55,7 +56,7 @@ const presetStandardRole = {
   metadata: {
     name: presetStandardRoleName,
     labels: {
-      'teleport.internal/access-list-preset': presetAccessListId,
+      [internalAccessListPresetLabelKey]: presetAccessListId,
     },
   },
   spec: {
@@ -92,7 +93,7 @@ const presetAwsIcRole = {
   metadata: {
     name: presetAwsIcRoleName,
     labels: {
-      'teleport.internal/access-list-preset': presetAccessListId,
+      [internalAccessListPresetLabelKey]: presetAccessListId,
     },
   },
   spec: {
@@ -106,6 +107,17 @@ const presetAwsIcRole = {
     },
     deny: {},
     options: {},
+  },
+};
+
+const accessListWithUnknownRoles = {
+  ...accessListWithPreset,
+  spec: {
+    ...accessListWithPreset.spec,
+    grants: {
+      ...accessListWithPreset.spec.grants,
+      roles: [presetStandardRoleName, 'unknown-role-not-matching-pattern'],
+    },
   },
 };
 
@@ -167,7 +179,7 @@ const presetStandardRoleWithDeny: Role = {
   metadata: {
     name: presetStandardRoleName,
     labels: {
-      'teleport.internal/access-list-preset': presetAccessListId,
+      [internalAccessListPresetLabelKey]: presetAccessListId,
     },
   },
   spec: {
@@ -244,11 +256,49 @@ export const NoReadPerm: StoryObj = {
   },
 };
 
-export const InvalidRole: StoryObj = {
+export const NoWritePerm: StoryObj = {
   parameters: {
     msw: {
       handlers: [
         ...makeAccessListHandlers(accessListWithStandardRoleOnly),
+        makeRolesHandler([presetStandardRoleWithDeny]),
+        ...commonHandlers,
+      ],
+    },
+  },
+  render() {
+    const restrictedAcl = makeAcl({
+      ...allAccessAcl,
+      accessList: fullAccess,
+      roles: {
+        ...fullAccess,
+        create: false,
+        edit: false,
+        remove: false,
+      },
+    });
+
+    return (
+      <Provider
+        customAcl={restrictedAcl}
+        initialEntries={[
+          generatePath(cfg.routes.accessLists, {
+            accessListId: accessListWithStandardRoleOnly.metadata.name,
+          }),
+        ]}
+      >
+        <DevNote />
+        <ViewEditAccessList />
+      </Provider>
+    );
+  },
+};
+
+export const InvalidRole: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        ...makeAccessListHandlers(accessListWithUnknownRoles),
         makeRolesHandler([presetStandardRoleWithDeny]),
         ...commonHandlers,
       ],

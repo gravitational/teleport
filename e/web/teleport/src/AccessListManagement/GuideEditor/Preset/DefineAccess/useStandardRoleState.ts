@@ -225,7 +225,7 @@ export function useStandardRoleState(): StandardRoleState {
     });
     if (role) {
       setRoleConditions(extractAllowRoleConditionsFromRole(role));
-      extractRequiredAppIdentitiesFromRole(role);
+      setRequiredAppIdentities(extractRequiredAppIdentitiesFromRole(role));
     } else {
       setRoleConditions(defaultStandardRoleConditions());
       setRequiredAppIdentities(emptyRequiredAppIdentitiesWithFetchResult());
@@ -401,9 +401,9 @@ export function useStandardRoleState(): StandardRoleState {
     return updatedConditions;
   }
 
-  function getDefaultIdentities(
+  function getDefaultOrCleanUpIdentities(
     field: LabelBasedResourceAccessFields
-  ): DbIdentities | null {
+  ): DbIdentities | AppIdentities | null {
     switch (field) {
       case 'db_labels':
         const newDbIdentities: DbIdentities = {
@@ -411,7 +411,35 @@ export function useStandardRoleState(): StandardRoleState {
           db_users: roleConditions['db_users'] ?? [wildcard],
         };
         return newDbIdentities;
+
       case 'app_labels':
+        // Apps are cleaned up because we conditionally render
+        // only the required app identities (b/c not all identities
+        // are relevant for the access defined). App labels may
+        // change where previously set identities are no longer required.
+        const newAppIdentities: AppIdentities = emptyAppIdentities();
+        for (const field of appIdentityFieldNames) {
+          switch (field) {
+            case 'aws_role_arns':
+            case 'azure_identities':
+            case 'gcp_service_accounts':
+              if (requiredAppIdentities[field]) {
+                newAppIdentities[field] = roleConditions[field];
+              }
+              continue;
+            case 'mcp':
+              if (requiredAppIdentities[field].tools && roleConditions[field]) {
+                newAppIdentities[field] = {
+                  tools: roleConditions[field].tools,
+                };
+              }
+              continue;
+            default:
+              field satisfies never;
+          }
+        }
+        return newAppIdentities;
+
       case 'kubernetes_labels':
       case 'node_labels':
       case 'windows_desktop_labels':
@@ -435,8 +463,8 @@ export function useStandardRoleState(): StandardRoleState {
       const emptyIdentities = getEmptyIdentities(field);
       updatedCondition = { ...updatedCondition, ...emptyIdentities };
     } else {
-      // Set default values for identities.
-      const identities = getDefaultIdentities(field);
+      // Set default values or clean up previous values for identities.
+      const identities = getDefaultOrCleanUpIdentities(field);
       if (identities) {
         updatedCondition = { ...updatedCondition, ...identities };
       }

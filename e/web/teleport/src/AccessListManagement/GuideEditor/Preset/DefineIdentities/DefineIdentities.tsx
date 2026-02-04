@@ -8,6 +8,7 @@ import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/
 import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
 
+import { GuideContent } from '../../Shared';
 import { AccessRoleEditor } from '../../ViewAndEditAccessRoles/types';
 import { getPredicateExpression } from '../DefineAccess/unifiedResource';
 import { AppIdentities, appIdentityFieldNames } from '../role/resources/app';
@@ -50,10 +51,17 @@ export function DefineIdentities({
       accessField: 'app_labels',
       roleConditions: standardRoleState.roleConditions,
     });
+
+    let query = appKindQuery;
+
+    if (accessQuery) {
+      query = `(${accessQuery}) && ${appKindQuery}`;
+    }
+
     const response = await teleCtx.resourceService.fetchUnifiedResources(
       cfg.proxyCluster,
       {
-        query: `(${accessQuery}) && ${appKindQuery}`,
+        query,
         kinds: ['app'],
         limit: 1,
       }
@@ -148,7 +156,7 @@ export function DefineIdentities({
   }, []);
 
   return (
-    <Box>
+    <GuideContent pb={3}>
       <Validation>
         <H1 mb={3}>
           Step {guideEditor.currentStep + 1}: Define what identities users can
@@ -165,6 +173,6 @@ export function DefineIdentities({
           <IdentityView accessRoleEditor={accessRoleEditor} />
         )}
       </Validation>
-    </Box>
+    </GuideContent>
   );
 }

@@ -13,6 +13,7 @@ import {
 
 import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import { AccessGraphDemoProvider } from 'e-teleport/Roles/AccessGraphDemoContext';
 import {
   AccessList,
   AccessListMemberKind,
@@ -203,6 +204,15 @@ describe('access definition tab content', () => {
 test('shows warning when role has unsupported fields (e.g. deny rules)', async () => {
   const user = userEvent.setup();
 
+  const accessListWithDenyRole: AccessList = {
+    ...accessListWithPreset,
+    grants: { roles: [standardRoleWithDeny.metadata.name], traits: {} },
+  };
+
+  jest
+    .spyOn(accessManagementService, 'fetchAccessList')
+    .mockResolvedValue(accessListWithDenyRole);
+
   jest.spyOn(ResourceService.prototype, 'fetchRolesV2').mockResolvedValue({
     items: [
       {
@@ -220,17 +230,13 @@ test('shows warning when role has unsupported fields (e.g. deny rules)', async (
 
   expect(
     await screen.findByText(
-      /the roles assigned to this access list cannot be parsed/i
+      /the member roles assigned to this access list cannot be parsed/i
     )
   ).toBeInTheDocument();
 
-  expect(
-    screen.getByRole('button', { name: /redefine access/i })
-  ).toBeInTheDocument();
+  expect(screen.getByText(/manually edit member access/i)).toBeInTheDocument();
 
-  expect(
-    screen.getByRole('link', { name: /manually edit roles/i })
-  ).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /edit/i })).toBeInTheDocument();
 });
 
 const Provider = ({ customAcl }: { customAcl?: Acl }) => {
@@ -240,9 +246,11 @@ const Provider = ({ customAcl }: { customAcl?: Acl }) => {
     <Router history={history}>
       <QueryClientProvider client={testQueryClient}>
         <ContextProvider ctx={ctx}>
-          <AccessListManagementContextProvider>
-            <ViewEditAccessList />
-          </AccessListManagementContextProvider>
+          <AccessGraphDemoProvider>
+            <AccessListManagementContextProvider>
+              <ViewEditAccessList />
+            </AccessListManagementContextProvider>
+          </AccessGraphDemoProvider>
         </ContextProvider>
       </QueryClientProvider>
     </Router>

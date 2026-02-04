@@ -10,42 +10,14 @@ import {
   Text,
 } from 'design';
 import pamSuccess from 'design/assets/images/icons/success.png';
-import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 
 import cfg from 'e-teleport/config';
-import { getPresetRolesFromMetadataLabel } from 'e-teleport/services/accessmanagement/accessmanagement';
 
-import { getRoleSuffix } from '../GuideEditor/Preset/role/role';
 import { useCreateAccessList } from './CreateAccessListContextProvider';
 
 export function Finished() {
   const createContext = useCreateAccessList();
   const { createdAccessList } = createContext;
-
-  let additionalTxt;
-  if (createdAccessList.preset === 'long-term') {
-    const requesterRoleName = getPresetRolesFromMetadataLabel(
-      createdAccessList.metadata.labels
-    ).find(role => role === `requester${getRoleSuffix(createdAccessList.id)}`);
-
-    if (requesterRoleName) {
-      additionalTxt = (
-        <Box mt={3} mb={3}>
-          <Text mb={2}>
-            In addition, you can assign the role below to any Teleport users to
-            allow requesting for the same access defined in this access list.
-          </Text>
-          <TextSelectCopyMulti
-            lines={[
-              {
-                text: requesterRoleName,
-              },
-            ]}
-          />
-        </Box>
-      );
-    }
-  }
 
   return (
     <Flex flexDirection="column" alignItems="center" mt={6} gap={2}>
@@ -65,7 +37,6 @@ export function Finished() {
           Note: Users must re-authenticate to gain the access granted by this
           list.
         </Text>
-        {additionalTxt && <Text>{additionalTxt}</Text>}
       </Box>
       <Flex gap={3}>
         <ButtonPrimary

@@ -1,5 +1,5 @@
 import { Box, Link as ExternalLink, Mark, Stack, Text } from 'design';
-import { Info } from 'design/Alert';
+import { Alert, Info } from 'design/Alert';
 import { CollapsibleInfoSection } from 'design/CollapsibleInfoSection';
 
 import { OktaIntegrationStepType } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
@@ -89,26 +89,32 @@ function NestedAccessListInfo({
   let oktaInfo;
   if (okta && !okta.hasPlugin) {
     oktaInfo = (
-      <Info
+      <Alert
+        kind="outline-info"
         mt={4}
         wrapContents
         primaryAction={{
           content: 'Enroll Okta Integration',
           linkTo: cfg.getIntegrationEnrollRoute('okta'),
         }}
+        details={
+          <>
+            Enrolling Okta integration imports Okta applications and groups as
+            Teleport Access Lists (optional opt-in). Those access lists can then
+            also be assigned as {userCategory}
+            s.
+            <br />
+            <ExternalLink
+              target="_blank"
+              href="https://goteleport.com/docs/identity-governance/integrations/okta/"
+            >
+              Learn more.
+            </ExternalLink>
+          </>
+        }
       >
-        Enrolling Okta integration imports Okta applications and groups as
-        Teleport Access Lists (optional opt-in). Those access lists can then
-        also be assigned as {userCategory}
-        s.
-        <br />
-        <ExternalLink
-          target="_blank"
-          href="https://goteleport.com/docs/identity-governance/integrations/okta/"
-        >
-          Learn more.
-        </ExternalLink>
-      </Info>
+        Did you know?
+      </Alert>
     );
   } else if (okta && !okta.hasAppGroupSyncEnabled) {
     oktaInfo = (
@@ -122,17 +128,22 @@ function NestedAccessListInfo({
             OktaIntegrationStepType.AppGroupSync
           ),
         }}
+        details={
+          <>
+            Enabling <Mark>application and group sync</Mark> in your Okta
+            integration will sync Okta apps and groups as Access Lists which
+            then can also be assigned as {getPluralUserCategory(userCategory)}.
+            <br />
+            <ExternalLink
+              target="_blank"
+              href="https://goteleport.com/docs/identity-governance/integrations/okta/app-and-group-sync/"
+            >
+              Learn more.
+            </ExternalLink>
+          </>
+        }
       >
-        Enabling <Mark>application and group sync</Mark> in your Okta
-        integration will sync Okta apps and groups as Access Lists which then
-        can also be assigned as {getPluralUserCategory(userCategory)}.
-        <br />
-        <ExternalLink
-          target="_blank"
-          href="https://goteleport.com/docs/identity-governance/integrations/okta/app-and-group-sync/"
-        >
-          Learn more.
-        </ExternalLink>
+        Did you know?
       </Info>
     );
   }
