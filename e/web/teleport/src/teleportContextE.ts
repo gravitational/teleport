@@ -1,5 +1,6 @@
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
+import { ACCESS_GRAPH_JS_URL } from 'e-teleport/AccessGraph/loader';
 import CloudService from 'e-teleport/services/cloud';
 import { deviceService } from 'e-teleport/services/devices';
 import RecoveryService from 'e-teleport/services/recovery';
@@ -46,6 +47,15 @@ class TeleportEContext extends TeleportContext {
   // block.
   async init(preferences: UserPreferences) {
     await super.init(preferences);
+
+    // If access graph is enabled, preload the JS bundle for faster launching.
+    if (storageService.getAccessGraphEnabled()) {
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'script';
+      link.href = ACCESS_GRAPH_JS_URL;
+      document.head.appendChild(link);
+    }
 
     const survey = storageService.getOnboardSurvey();
     if (survey) {

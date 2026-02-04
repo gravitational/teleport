@@ -12,7 +12,10 @@ import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 import { AccessGraphError } from 'e-teleport/AccessGraph/AccessGraphError';
 import { AccessGraphLoading } from 'e-teleport/AccessGraph/AccessGraphLoading';
-import { loadAccessGraph } from 'e-teleport/AccessGraph/loader';
+import {
+  ACCESS_GRAPH_JS_FILE,
+  loadAccessGraph,
+} from 'e-teleport/AccessGraph/loader';
 import cfg, { EnterpriseConfig } from 'e-teleport/config';
 import useTeleportE from 'e-teleport/useTeleportE';
 import { storageService } from 'teleport/services/storageService';
@@ -44,7 +47,7 @@ declare global {
 
 const Graph = lazy(() =>
   loadAccessGraph<AccessGraphProps>(
-    'access-graph-react-19.umd.js',
+    ACCESS_GRAPH_JS_FILE,
     () => window.AccessGraphLib.AccessGraph
   )
 );

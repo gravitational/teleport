@@ -6,8 +6,10 @@ import * as jsxRuntime from 'react/jsx-runtime';
 import * as styledComponents from 'styled-components';
 import * as whatwgFetch from 'whatwg-fetch';
 
-const ASSETS_PREFIX = '/enterprise/accessgraph/static';
-const STYLE_URL = `${ASSETS_PREFIX}/style.css`;
+export const ACCESS_GRAPH_ASSETS_PREFIX = '/enterprise/accessgraph/static';
+export const ACCESS_GRAPH_JS_FILE = 'access-graph-react-19.umd.js';
+export const ACCESS_GRAPH_JS_URL = `${ACCESS_GRAPH_ASSETS_PREFIX}/${ACCESS_GRAPH_JS_FILE}`;
+const STYLE_URL = `${ACCESS_GRAPH_ASSETS_PREFIX}/style.css`;
 
 declare global {
   interface Window {
@@ -64,7 +66,7 @@ export function loadAccessGraph<T>(
 
     const script = document.createElement('script');
 
-    script.src = `${ASSETS_PREFIX}/${url}`;
+    script.src = `${ACCESS_GRAPH_ASSETS_PREFIX}/${url}`;
 
     script.onload = () => resolve({ default: selector() });
     script.onerror = reject;
