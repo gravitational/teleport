@@ -190,23 +190,23 @@ export enum ConfigSource {
      */
     UNSPECIFIED = 0,
     /**
-     * Configuration comes from environment variable.
+     * Configuration comes from an environment variable.
      *
-     * @generated from protobuf enum value: CONFIG_SOURCE_ENV_VAR = 2;
+     * @generated from protobuf enum value: CONFIG_SOURCE_ENV_VAR = 1;
      */
-    ENV_VAR = 2,
+    ENV_VAR = 1,
     /**
      * Configuration comes from SOFTWARE\Policies\Teleport\TeleportConnect.
      *
-     * @generated from protobuf enum value: CONFIG_SOURCE_POLICY = 3;
+     * @generated from protobuf enum value: CONFIG_SOURCE_POLICY = 2;
      */
-    POLICY = 3,
+    POLICY = 2,
     /**
-     * Configuration comes from hardcoded default.
+     * Configuration comes from a hardcoded default.
      *
-     * @generated from protobuf enum value: CONFIG_SOURCE_DEFAULT = 4;
+     * @generated from protobuf enum value: CONFIG_SOURCE_DEFAULT = 3;
      */
-    DEFAULT = 4
+    DEFAULT = 3
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class GetClusterVersionsRequest$Type extends MessageType<GetClusterVersionsRequest> {
