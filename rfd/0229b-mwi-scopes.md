@@ -183,6 +183,23 @@ Add a scope field to the existing Bot resource:
 Introduce a new resource type - ScopedBot:
 
 - This provides a clear, new, separate schema for the user to interact with.
+- Introduces tough questions around how we handle ScopedBots in the places
+  we handle Bots today. For example:
+  - How do we encode this ScopedBot identity into a TLS certificate? Do we
+    re-use the BotName field, or introduce a new field (ScopedBotName)? Do 
+    we introduce new UserKind?
+  - How do we present ScopedBots in UX? Separate list page? Intermingled?
+  - How do we handle this in analytics/usage reporting? Today we use the Bot's
+    name to identify analytics, we'd need to introduce a new field to
+    distinguish between a Bot and ScopedBot with the same name - or prohibit
+    them holding the same name.
+  - Arguably - these tough questions could be a "good" thing. We'd be forced to
+    consider all places individually rather than it "automatically" working with
+    ScopedBots. Whilst it increases the amount of work, it decreases the
+    likelihood of a mistake.
+- Requires us to introduce and maintain wholly separate RPCs, `tctl` commands
+  and IaC resources for ScopedBots.
+
 
 Introduce a subkind of the existing Bot resource:
 
