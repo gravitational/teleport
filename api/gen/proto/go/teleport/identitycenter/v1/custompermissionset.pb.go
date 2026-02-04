@@ -412,19 +412,81 @@ func (x *AccessProfile) GetSpec() *AccessProfileSpec {
 	return nil
 }
 
-// AccessProfile describes a set of allowed actions on an AWS resource
-type AccessProfileSpec struct {
+// PolicyStatement holds an AWS policy statement
+type PolicyStatement struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ResourceType  string                 `protobuf:"bytes,1,opt,name=resource_type,json=resourceType,proto3" json:"resource_type,omitempty"`
-	DisplayName   string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	Action        []string               `protobuf:"bytes,3,rep,name=action,proto3" json:"action,omitempty"`
+	Action        []string               `protobuf:"bytes,1,rep,name=action,proto3" json:"action,omitempty"`
+	Effect        string                 `protobuf:"bytes,2,opt,name=effect,proto3" json:"effect,omitempty"`
+	Resource      []string               `protobuf:"bytes,3,rep,name=resource,proto3" json:"resource,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
+func (x *PolicyStatement) Reset() {
+	*x = PolicyStatement{}
+	mi := &file_teleport_identitycenter_v1_custompermissionset_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PolicyStatement) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PolicyStatement) ProtoMessage() {}
+
+func (x *PolicyStatement) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_identitycenter_v1_custompermissionset_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PolicyStatement.ProtoReflect.Descriptor instead.
+func (*PolicyStatement) Descriptor() ([]byte, []int) {
+	return file_teleport_identitycenter_v1_custompermissionset_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *PolicyStatement) GetAction() []string {
+	if x != nil {
+		return x.Action
+	}
+	return nil
+}
+
+func (x *PolicyStatement) GetEffect() string {
+	if x != nil {
+		return x.Effect
+	}
+	return ""
+}
+
+func (x *PolicyStatement) GetResource() []string {
+	if x != nil {
+		return x.Resource
+	}
+	return nil
+}
+
+// AccessProfile describes a set of allowed actions on an AWS resource
+type AccessProfileSpec struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	ResourceType    string                 `protobuf:"bytes,1,opt,name=resource_type,json=resourceType,proto3" json:"resource_type,omitempty"`
+	DisplayName     string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	Action          []string               `protobuf:"bytes,3,rep,name=action,proto3" json:"action,omitempty"`
+	ExtraStatements []*PolicyStatement     `protobuf:"bytes,4,rep,name=extra_statements,json=extraStatements,proto3" json:"extra_statements,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
 func (x *AccessProfileSpec) Reset() {
 	*x = AccessProfileSpec{}
-	mi := &file_teleport_identitycenter_v1_custompermissionset_proto_msgTypes[5]
+	mi := &file_teleport_identitycenter_v1_custompermissionset_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -436,7 +498,7 @@ func (x *AccessProfileSpec) String() string {
 func (*AccessProfileSpec) ProtoMessage() {}
 
 func (x *AccessProfileSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_identitycenter_v1_custompermissionset_proto_msgTypes[5]
+	mi := &file_teleport_identitycenter_v1_custompermissionset_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -449,7 +511,7 @@ func (x *AccessProfileSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccessProfileSpec.ProtoReflect.Descriptor instead.
 func (*AccessProfileSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_custompermissionset_proto_rawDescGZIP(), []int{5}
+	return file_teleport_identitycenter_v1_custompermissionset_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *AccessProfileSpec) GetResourceType() string {
@@ -469,6 +531,13 @@ func (x *AccessProfileSpec) GetDisplayName() string {
 func (x *AccessProfileSpec) GetAction() []string {
 	if x != nil {
 		return x.Action
+	}
+	return nil
+}
+
+func (x *AccessProfileSpec) GetExtraStatements() []*PolicyStatement {
+	if x != nil {
+		return x.ExtraStatements
 	}
 	return nil
 }
@@ -505,11 +574,16 @@ const file_teleport_identitycenter_v1_custompermissionset_proto_rawDesc = "" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12A\n" +
-	"\x04spec\x18\x05 \x01(\v2-.teleport.identitycenter.v1.AccessProfileSpecR\x04spec\"s\n" +
+	"\x04spec\x18\x05 \x01(\v2-.teleport.identitycenter.v1.AccessProfileSpecR\x04spec\"]\n" +
+	"\x0fPolicyStatement\x12\x16\n" +
+	"\x06action\x18\x01 \x03(\tR\x06action\x12\x16\n" +
+	"\x06effect\x18\x02 \x01(\tR\x06effect\x12\x1a\n" +
+	"\bresource\x18\x03 \x03(\tR\bresource\"\xcb\x01\n" +
 	"\x11AccessProfileSpec\x12#\n" +
 	"\rresource_type\x18\x01 \x01(\tR\fresourceType\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x16\n" +
-	"\x06action\x18\x03 \x03(\tR\x06actionB`Z^github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1;identitycenterv1b\x06proto3"
+	"\x06action\x18\x03 \x03(\tR\x06action\x12V\n" +
+	"\x10extra_statements\x18\x04 \x03(\v2+.teleport.identitycenter.v1.PolicyStatementR\x0fextraStatementsB`Z^github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1;identitycenterv1b\x06proto3"
 
 var (
 	file_teleport_identitycenter_v1_custompermissionset_proto_rawDescOnce sync.Once
@@ -523,30 +597,32 @@ func file_teleport_identitycenter_v1_custompermissionset_proto_rawDescGZIP() []b
 	return file_teleport_identitycenter_v1_custompermissionset_proto_rawDescData
 }
 
-var file_teleport_identitycenter_v1_custompermissionset_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_teleport_identitycenter_v1_custompermissionset_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_identitycenter_v1_custompermissionset_proto_goTypes = []any{
 	(*CustomPermissionSet)(nil),     // 0: teleport.identitycenter.v1.CustomPermissionSet
 	(*CustomPermissionSetSpec)(nil), // 1: teleport.identitycenter.v1.CustomPermissionSetSpec
 	(*Resource)(nil),                // 2: teleport.identitycenter.v1.Resource
 	(*ResourceSpec)(nil),            // 3: teleport.identitycenter.v1.ResourceSpec
 	(*AccessProfile)(nil),           // 4: teleport.identitycenter.v1.AccessProfile
-	(*AccessProfileSpec)(nil),       // 5: teleport.identitycenter.v1.AccessProfileSpec
-	(*v1.Metadata)(nil),             // 6: teleport.header.v1.Metadata
-	(*structpb.Struct)(nil),         // 7: google.protobuf.Struct
+	(*PolicyStatement)(nil),         // 5: teleport.identitycenter.v1.PolicyStatement
+	(*AccessProfileSpec)(nil),       // 6: teleport.identitycenter.v1.AccessProfileSpec
+	(*v1.Metadata)(nil),             // 7: teleport.header.v1.Metadata
+	(*structpb.Struct)(nil),         // 8: google.protobuf.Struct
 }
 var file_teleport_identitycenter_v1_custompermissionset_proto_depIdxs = []int32{
-	6, // 0: teleport.identitycenter.v1.CustomPermissionSet.metadata:type_name -> teleport.header.v1.Metadata
+	7, // 0: teleport.identitycenter.v1.CustomPermissionSet.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.identitycenter.v1.CustomPermissionSet.spec:type_name -> teleport.identitycenter.v1.CustomPermissionSetSpec
-	7, // 2: teleport.identitycenter.v1.CustomPermissionSetSpec.inline_policy:type_name -> google.protobuf.Struct
-	6, // 3: teleport.identitycenter.v1.Resource.metadata:type_name -> teleport.header.v1.Metadata
+	8, // 2: teleport.identitycenter.v1.CustomPermissionSetSpec.inline_policy:type_name -> google.protobuf.Struct
+	7, // 3: teleport.identitycenter.v1.Resource.metadata:type_name -> teleport.header.v1.Metadata
 	3, // 4: teleport.identitycenter.v1.Resource.spec:type_name -> teleport.identitycenter.v1.ResourceSpec
-	6, // 5: teleport.identitycenter.v1.AccessProfile.metadata:type_name -> teleport.header.v1.Metadata
-	5, // 6: teleport.identitycenter.v1.AccessProfile.spec:type_name -> teleport.identitycenter.v1.AccessProfileSpec
-	7, // [7:7] is the sub-list for method output_type
-	7, // [7:7] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	7, // 5: teleport.identitycenter.v1.AccessProfile.metadata:type_name -> teleport.header.v1.Metadata
+	6, // 6: teleport.identitycenter.v1.AccessProfile.spec:type_name -> teleport.identitycenter.v1.AccessProfileSpec
+	5, // 7: teleport.identitycenter.v1.AccessProfileSpec.extra_statements:type_name -> teleport.identitycenter.v1.PolicyStatement
+	8, // [8:8] is the sub-list for method output_type
+	8, // [8:8] is the sub-list for method input_type
+	8, // [8:8] is the sub-list for extension type_name
+	8, // [8:8] is the sub-list for extension extendee
+	0, // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_teleport_identitycenter_v1_custompermissionset_proto_init() }
@@ -560,7 +636,7 @@ func file_teleport_identitycenter_v1_custompermissionset_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_identitycenter_v1_custompermissionset_proto_rawDesc), len(file_teleport_identitycenter_v1_custompermissionset_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

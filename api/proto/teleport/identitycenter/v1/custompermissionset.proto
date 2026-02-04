@@ -73,9 +73,17 @@ message AccessProfile {
   AccessProfileSpec spec = 5;
 }
 
+// PolicyStatement holds an AWS policy statement
+message PolicyStatement {
+  repeated string action = 1;
+  string effect = 2;
+  repeated string resource = 3;
+}
+
 // AccessProfile describes a set of allowed actions on an AWS resource
 message AccessProfileSpec {
   string resource_type = 1;
   string display_name = 2;
   repeated string action = 3;
+  repeated PolicyStatement extra_statements = 4;
 }
