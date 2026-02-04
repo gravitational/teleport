@@ -139,6 +139,7 @@ func defaultCollectData(dev *devicepb.Device) *devicepb.DeviceCollectedData {
 		cd.OsBuild = dev.Profile.OsBuild
 		if len(dev.Profile.OsUsernames) > 0 {
 			cd.OsUsername = dev.Profile.OsUsernames[0]
+			cd.OsLoginUser = dev.Profile.OsUsernames[0]
 		}
 		cd.JamfBinaryVersion = dev.Profile.JamfBinaryVersion
 	}

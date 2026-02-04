@@ -3,6 +3,7 @@ package storage_test
 import (
 	"crypto"
 	"encoding/base64"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -189,6 +190,42 @@ func TestValidateCollectedData(t *testing.T) {
 				cd.TpmPlatformAttestation.PlatformParameters.Pcrs[0].DigestAlg = 0
 			}),
 			wantErr: "platform_parameters.pcrs[0].digest_alg must be non-zero",
+		},
+		{
+			name: "os_username max length",
+			cd: modifyValid(func(cd *devicepb.DeviceCollectedData) {
+				cd.OsUsername = strings.Repeat("A", 42)
+			}),
+			wantErr: "OS username",
+		},
+		{
+			name: "os_login_user max length",
+			cd: modifyValid(func(cd *devicepb.DeviceCollectedData) {
+				cd.OsLoginUser = strings.Repeat("A", 42)
+			}),
+			wantErr: "OS login user",
+		},
+		{
+			name: "ok: only OS username set",
+			cd: modifyValid(func(cd *devicepb.DeviceCollectedData) {
+				cd.OsUsername = "llama"
+				cd.OsLoginUser = ""
+			}),
+		},
+		{
+			name: "ok: only OS login user set",
+			cd: modifyValid(func(cd *devicepb.DeviceCollectedData) {
+				cd.OsUsername = ""
+				cd.OsLoginUser = "llama"
+			}),
+		},
+		{
+			name: "usernames must match if set",
+			cd: modifyValid(func(cd *devicepb.DeviceCollectedData) {
+				cd.OsUsername = "llama1"
+				cd.OsLoginUser = "llama2"
+			}),
+			wantErr: "login user mismatch",
 		},
 	}
 	for _, tt := range tests {

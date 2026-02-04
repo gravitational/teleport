@@ -66,6 +66,7 @@ type storedCollectedData struct {
 	OSVersion               string                  `json:"os_version,omitempty"`                // Optional.
 	OSBuild                 string                  `json:"os_build,omitempty"`                  // Optional.
 	OSUsername              string                  `json:"os_username,omitempty"`               // Optional.
+	OSLoginUser             string                  `json:"os_login_user,omitempty"`             // Optional.
 	JamfBinaryVersion       string                  `json:"jamf_binary_version,omitempty"`       // Optional.
 	MacOSEnrollmentProfiles string                  `json:"macos_enrollment_profiles,omitempty"` // Optional.
 	ReportedAssetTag        string                  `json:"reported_asset_tag,omitempty"`        // Optional.

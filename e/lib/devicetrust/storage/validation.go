@@ -93,7 +93,15 @@ func validateCollectedData(cd *devicepb.DeviceCollectedData, createAsResource bo
 	case len(cd.SerialNumber) > maxDeviceSerialNumberLength:
 		return trace.BadParameter("device serial number exceeds %v characters", maxDeviceSerialNumberLength)
 	case len(cd.OsUsername) > maxDataOSUsernameLength:
-		return trace.BadParameter("device OS username exceeds %v characters", maxDeviceSerialNumberLength)
+		return trace.BadParameter("device OS username exceeds %v characters", maxDataOSUsernameLength)
+	case len(cd.OsLoginUser) > maxDataOSUsernameLength:
+		return trace.BadParameter("device OS login user exceeds %v characters", maxDataOSUsernameLength)
+	case cd.OsType != devicepb.OSType_OS_TYPE_LINUX &&
+		cd.OsUsername != "" &&
+		cd.OsLoginUser != "" &&
+		cd.OsUsername != cd.OsLoginUser:
+		// OsUsername is wrong on Linux, validate it otherwise.
+		return trace.BadParameter("device OS username and login user mismatch")
 	}
 
 	if err := validateCollectedDataLike(cd.OsType, cd); err != nil {
@@ -261,14 +269,29 @@ func ValidateCollectedDataAgainstDevice(cd *devicepb.DeviceCollectedData, dev *d
 func validateDeviceProfileDrift(cd *devicepb.DeviceCollectedData, profile *devicepb.DeviceProfile) error {
 	// OS username.
 	if len(profile.OsUsernames) > 0 {
-		found := slices.Contains(profile.OsUsernames, cd.OsUsername)
-		if !found {
+		username := getOSLoginUser(cd)
+		switch {
+		case username == "":
+			return NewCollectedDataDriftError("device OS username required by profile")
+		case !slices.Contains(profile.OsUsernames, username):
 			return NewCollectedDataDriftError("device OS username not present in profile")
 		}
 	}
 
 	// Data-like fields.
 	return trace.Wrap(validateDataLikeDrift(cd, profile))
+}
+
+func getOSLoginUser(cd *devicepb.DeviceCollectedData) string {
+	switch {
+	case cd.OsLoginUser != "":
+		return cd.OsLoginUser
+	case cd.OsType == devicepb.OSType_OS_TYPE_LINUX:
+		// Don't trust OsUsername from Linux, it wrongly reports the display name.
+		return ""
+	default:
+		return cd.OsUsername
+	}
 }
 
 // ValidateDeviceForCreate verifies that `d` is valid to be used as a new
@@ -435,9 +458,15 @@ func validateCollectedDataDrift(target, source *devicepb.DeviceCollectedData) er
 		return NewCollectedDataDriftError("os_type drift detected")
 	case target.SerialNumber != source.SerialNumber:
 		return NewCollectedDataDriftError("serial number drift detected")
-	case source.OsUsername != "" && source.OsUsername != target.OsUsername:
+	case source.OsLoginUser != "" && source.OsLoginUser != target.OsLoginUser:
+		return NewCollectedDataDriftError("device OS login user drift detected")
+	case target.OsType != devicepb.OSType_OS_TYPE_LINUX &&
+		source.OsUsername != "" &&
+		source.OsUsername != target.OsUsername:
+		// OsUsername is wrong on Linux, validate it otherwise.
 		return NewCollectedDataDriftError("device OS username drift detected")
 	}
+
 	if err := validateDataLikeDrift(target, source); err != nil {
 		return trace.Wrap(err)
 	}

@@ -2429,6 +2429,7 @@ func TestService_dataDriftErrorsRedacted(t *testing.T) {
 		cd.OsVersion = "13.2.1"
 		cd.OsBuild = "22D68"
 		cd.OsUsername = "llama"
+		cd.OsLoginUser = "llama"
 		return cd
 	}
 

@@ -2731,6 +2731,7 @@ func TestS_RecordDeviceAuthnData(t *testing.T) {
 				OsVersion:         "11.1",
 				OsBuild:           "11D11",
 				OsUsername:        "alpaca",
+				OsLoginUser:       "alpaca",
 				JamfBinaryVersion: "1",
 				MacosEnrollmentProfiles: `Enrolled via DEP: No
 MDM enrollment: Yes (User Approved)
@@ -2784,7 +2785,8 @@ MDM server: https://example.com/mdm/ServerURL`,
 				ModelIdentifier:       "21J50013US",
 				OsVersion:             "22.04",
 				OsBuild:               "22.04 LTS (Jammy Jellyfish)",
-				OsUsername:            "llama",
+				OsUsername:            "Llama Teleport",
+				OsLoginUser:           "llama",
 				ReportedAssetTag:      "No Asset Information",
 				SystemSerialNumber:    linuxDev.AssetTag,
 				BaseBoardSerialNumber: "L1AA00A00A0",
@@ -2830,7 +2832,7 @@ func TestS_RecordDeviceAuthnData_errors(t *testing.T) {
 
 	s := env.S
 	clock := env.Clock
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const owner = "llama"
 	devWithProfile, _, err := createAndEnroll(ctx, s, &devicepb.Device{
@@ -2874,6 +2876,7 @@ func TestS_RecordDeviceAuthnData_errors(t *testing.T) {
 		OsVersion:         "13.3",
 		OsBuild:           "22E260",
 		OsUsername:        "llama",
+		OsLoginUser:       "llama", // added
 		JamfBinaryVersion: "10.44.1-t1677509507",
 	}
 	for _, cd := range []*devicepb.DeviceCollectedData{cd1, cd2} {
@@ -3006,6 +3009,7 @@ func TestS_RecordDeviceAuthnData_errors(t *testing.T) {
 			createCD: func() *devicepb.DeviceCollectedData {
 				cd := collectedDataForDevice(devWithProfile)
 				cd.OsUsername = "alpaca2" // not in profile
+				cd.OsLoginUser = "alpaca2"
 				return cd
 			},
 			wantErr:   "OS username",
@@ -3017,9 +3021,9 @@ func TestS_RecordDeviceAuthnData_errors(t *testing.T) {
 			name:     "old collected data replay drift",
 			deviceID: devWithData.Id,
 			createCD: func() *devicepb.DeviceCollectedData {
-				return cd1 // rolls back OS version, among others
+				return cd1 // rolls back OsLoginUser, among others
 			},
-			wantErr:   "OS version",
+			wantErr:   "drift detected",
 			assertErr: isDriftError,
 		},
 		{
@@ -3045,14 +3049,15 @@ func TestS_RecordDeviceAuthnData_errors(t *testing.T) {
 			assertErr: isDriftError,
 		},
 		{
-			name:     "collected data OsUsername drift",
+			name:     "collected data OsLoginUser drift",
 			deviceID: devWithData.Id,
 			createCD: func() *devicepb.DeviceCollectedData {
 				cd := proto.Clone(cd2).(*devicepb.DeviceCollectedData)
-				cd.OsUsername = "eve" // unexpected change
+				cd.OsUsername = "eve"  // unexpected change
+				cd.OsLoginUser = "eve" // unexpected change
 				return cd
 			},
-			wantErr:   "OS username",
+			wantErr:   "OS login user",
 			assertErr: isDriftError,
 		},
 		{
@@ -3080,6 +3085,7 @@ func TestS_RecordDeviceAuthnData_errors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			ctx := t.Context()
 			clock.Advance(1 * time.Second) // Use a somewhat-realistic time sequence
 
 			err := s.RecordDeviceAuthnData(ctx, test.deviceID, test.createCD())
@@ -3092,6 +3098,191 @@ func TestS_RecordDeviceAuthnData_errors(t *testing.T) {
 			assert.ErrorContains(t, err, test.wantErr, "RecordDeviceAuthnData error message mismatch")
 		})
 	}
+}
+
+// Tests corner cases of OsUsername and OsLoginUser validation.
+func TestS_RecordDeviceAuthnData_osUsername(t *testing.T) {
+	t.Parallel()
+
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	clock := env.Clock
+
+	mustRecordData := func(
+		t *testing.T, devID string, cd *devicepb.DeviceCollectedData) {
+		t.Helper()
+		clock.Advance(1 * time.Second)
+		assert.NoError(t, s.RecordDeviceAuthnData(t.Context(), devID, cd))
+	}
+
+	mustFailRecordData := func(
+		t *testing.T, devID string, cd *devicepb.DeviceCollectedData, wantErr string) {
+		t.Helper()
+		clock.Advance(1 * time.Second)
+		assert.ErrorContains(t,
+			s.RecordDeviceAuthnData(t.Context(), devID, cd),
+			wantErr,
+		)
+	}
+
+	const user = "llama"
+
+	t.Run("macOS device", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+
+		dev, err := s.CreateDevice(ctx, &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "macos",
+		}, false /* createAsResource */)
+		if err != nil {
+			t.Fatalf("CreateDevice failed: %v", err)
+		}
+
+		// Initial collected data.
+		cd := collectedDataForDevice(dev)
+		cd.OsUsername = user
+		mustRecordData(t, dev.Id, cd)
+
+		// OsUsername is validated.
+		cd.OsUsername = "alpaca"
+		mustFailRecordData(t, dev.Id, cd, "OS username drift")
+
+		// OsUsername and OsLoginUser must match.
+		cd.OsUsername = user
+		cd.OsLoginUser = "alpaca" // bad
+		mustFailRecordData(t, dev.Id, cd, "login user mismatch")
+
+		// OsLoginUser recorded.
+		cd.OsUsername = user
+		cd.OsLoginUser = user
+		mustRecordData(t, dev.Id, cd)
+
+		// OsLoginUser is validated.
+		cd.OsUsername = "alpaca"  // bad
+		cd.OsLoginUser = "alpaca" // bad
+		mustFailRecordData(t, dev.Id, cd, "OS login user drift")
+
+		// One last correct recording after all failures.
+		cd.OsUsername = user
+		cd.OsLoginUser = user
+		mustRecordData(t, dev.Id, cd)
+	})
+
+	t.Run("macOS profile validation", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+
+		dev, err := s.CreateDevice(ctx, &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "macos2",
+			Profile: &devicepb.DeviceProfile{
+				OsUsernames: []string{user},
+			},
+		}, false /* createAsResource */)
+		if err != nil {
+			t.Fatalf("CreateDevice failed: %v", err)
+		}
+
+		// Profile requires username.
+		cd := collectedDataForDevice(dev)
+		cd.OsUsername = ""
+		cd.OsLoginUser = ""
+		mustFailRecordData(t, dev.Id, cd, "username required")
+
+		// OsUsername does not match profile.
+		cd.OsUsername = "alpaca"
+		mustFailRecordData(t, dev.Id, cd, "username not present")
+
+		// OsUsername matches profile.
+		cd.OsUsername = user
+		mustRecordData(t, dev.Id, cd)
+
+		// OsLoginUser matches profile.
+		cd.OsUsername = user
+		cd.OsLoginUser = user
+		mustRecordData(t, dev.Id, cd)
+	})
+
+	t.Run("Linux device", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+
+		dev, err := s.CreateDevice(ctx, &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_LINUX,
+			AssetTag: "linux",
+		}, false /* createAsResource */)
+		if err != nil {
+			t.Fatalf("CreateDevice failed: %v", err)
+		}
+
+		const displayName = "Llama Teleport"
+
+		// Initial collected data.
+		cd := collectedDataForDevice(dev)
+		cd.OsUsername = displayName
+		mustRecordData(t, dev.Id, cd)
+
+		// OsUsername drift allowed.
+		cd.OsUsername = "Just Call Me Llama"
+		mustRecordData(t, dev.Id, cd)
+
+		// OsLoginUser recorded.
+		cd.OsLoginUser = user
+		mustRecordData(t, dev.Id, cd)
+
+		// OsUsername drift still allowed.
+		cd.OsUsername = displayName // changed back
+		cd.OsLoginUser = user
+		mustRecordData(t, dev.Id, cd)
+		// OsLoginUser is validated.
+		cd.OsUsername = displayName
+		cd.OsLoginUser = "alpaca" // bad
+		mustFailRecordData(t, dev.Id, cd, "OS login user drift")
+
+		// One last correct recording after all failures.
+		cd.OsUsername = displayName
+		cd.OsLoginUser = user
+		mustRecordData(t, dev.Id, cd)
+	})
+
+	t.Run("Linux profile validation", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+
+		dev, err := s.CreateDevice(ctx, &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_LINUX,
+			AssetTag: "linux2",
+			Profile: &devicepb.DeviceProfile{
+				OsUsernames: []string{user},
+			},
+		}, false /* createAsResource */)
+		if err != nil {
+			t.Fatalf("CreateDevice failed: %v", err)
+		}
+
+		// Profile requires username.
+		cd := collectedDataForDevice(dev)
+		cd.OsUsername = ""
+		cd.OsLoginUser = ""
+		mustFailRecordData(t, dev.Id, cd, "username required")
+
+		// OsUsername ignored for profile matching.
+		cd.OsUsername = user
+		mustFailRecordData(t, dev.Id, cd, "username required")
+
+		// OsLoginUser does not match profile.
+		cd.OsUsername = "Llama"
+		cd.OsLoginUser = "alpaca" // bad
+		mustFailRecordData(t, dev.Id, cd, "username not present")
+
+		// OsLoginUser matches profile.
+		cd.OsUsername = "Llama"
+		cd.OsLoginUser = user
+		mustRecordData(t, dev.Id, cd)
+	})
 }
 
 func createAndEnroll(ctx context.Context, s *storage.S, dev *devicepb.Device, owner string) (*devicepb.Device, crypto.PrivateKey, error) {
@@ -3153,6 +3344,7 @@ func collectedDataForDevice(dev *devicepb.Device) *devicepb.DeviceCollectedData 
 		cd.OsBuild = p.OsBuild
 		if len(p.OsUsernames) > 0 {
 			cd.OsUsername = p.OsUsernames[0]
+			cd.OsLoginUser = p.OsUsernames[0]
 		}
 		cd.JamfBinaryVersion = p.JamfBinaryVersion
 	}
@@ -3223,6 +3415,7 @@ func TestS_CreateDeviceEnrollTokenUsingData(t *testing.T) {
 				OsVersion:         devFullProfile.Profile.OsVersion,
 				OsBuild:           devFullProfile.Profile.OsBuild,
 				OsUsername:        devFullProfile.Profile.OsUsernames[0],
+				OsLoginUser:       devFullProfile.Profile.OsUsernames[0],
 				JamfBinaryVersion: devFullProfile.Profile.JamfBinaryVersion,
 			},
 			wantDev: devFullProfile,
@@ -3415,14 +3608,26 @@ func TestS_CreateDeviceEnrollTokenUsingData_errors(t *testing.T) {
 			wantErr:   "OS build",
 		},
 		{
-			name: "OsUsername invalid",
+			name: "OsUsername not in profile",
 			createCD: func() *devicepb.DeviceCollectedData {
 				cd := collectedDataForDevice(dev)
 				cd.OsUsername = "llamaO" // wanted "llama" or "admin"
+				cd.OsLoginUser = ""
 				return cd
 			},
 			assertErr: isDriftError,
-			wantErr:   "OS username",
+			wantErr:   "username not present",
+		},
+		{
+			name: "OsLoginUser not in profile",
+			createCD: func() *devicepb.DeviceCollectedData {
+				cd := collectedDataForDevice(dev)
+				cd.OsUsername = ""
+				cd.OsLoginUser = "llamaO" // wanted "llama" or "admin"
+				return cd
+			},
+			assertErr: isDriftError,
+			wantErr:   "username not present",
 		},
 		{
 			name: "JamfBinaryVersion invalid",
