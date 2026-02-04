@@ -37,7 +37,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go/tracing/smithyoteltracing"
-	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -983,41 +982,24 @@ func (rb *responseBuilder) appendUntilSizeLimit(resultResp *athena.GetQueryResul
 			if err != nil {
 				return false, trace.Wrap(err, "failed to marshal event, %s", eventData)
 			}
-			if len(marshalledEvent)+rb.totalSize <= events.MaxEventBytesInResponse {
-				events.MetricQueriedTrimmedEvents.Inc()
-				// Exact rb.totalSize doesn't really matter since the response is
-				// already size limited.
-				rb.totalSize += events.MaxEventBytesInResponse
-				rb.output = append(rb.output, fields)
-				return true, nil
-			}
 
-			// Failed to trim the event to size. The only options are to return
-			// a response with 0 events, skip this event, or return an error.
-			//
-			// Silently skipping events is a terrible option, it's better for
-			// the client to get an error.
-			//
-			// Returning 0 events amounts to either skipping the event or
-			// getting the client stuck in a paging loop depending on what would
-			// be returned for the next page token.
-			//
-			// Returning a descriptive error should at least give the client a
-			// hint as to what has gone wrong so that an attempt can be made to
-			// fix it.
-			//
-			// If this condition is reached it should be considered a bug, any
-			// event that can possibly exceed the maximum size should implement
-			// TrimToMaxSize (until we can one day implement an API for storing
-			// and retrieving large events).
-			rb.logger.ErrorContext(context.Background(), "Failed to query event exceeding maximum response size.",
-				"event_type", fields.GetType(),
-				"event_id", fields.GetID(),
-				"event_size", len(eventData),
-			)
-			return true, trace.Errorf(
-				"%s event %s is %s and cannot be returned because it exceeds the maximum response size of %s",
-				fields.GetType(), fields.GetID(), humanize.IBytes(uint64(len(eventData))), humanize.IBytes(events.MaxEventBytesInResponse))
+			if len(marshalledEvent)+rb.totalSize > events.MaxEventBytesInResponse {
+				// Failed to trim the event to size.
+				// Even if we fail to trim the event, we still try to return the oversized event.
+				rb.logger.WarnContext(context.Background(), "Failed to query event exceeding maximum response size.",
+					"event_type", fields.GetType(),
+					"event_id", fields.GetID(),
+					"event_size", len(eventData),
+					"event_size_after_trim", len(marshalledEvent),
+				)
+			}
+			events.MetricQueriedTrimmedEvents.Inc()
+
+			// Exact rb.totalSize doesn't really matter since the response is
+			// already size limited.
+			rb.totalSize += events.MaxEventBytesInResponse
+			rb.output = append(rb.output, fields)
+			return true, nil
 		}
 		rb.totalSize += len(eventData)
 		rb.output = append(rb.output, fields)
