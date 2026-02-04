@@ -221,11 +221,12 @@ const (
 	AutoDiscoverEC2IssuePermOrgDenied = "ec2-perm-org-denied"
 )
 
-// isPermissionRelatedIssueType returns true if the issue type is related to
-// missing IAM permissions during the discovery phase. These issue types may
-// not have account_id and region available because the error occurs before
-// these values can be determined.
-func isPermissionRelatedIssueType(issueType string) bool {
+// IsPermissionIssueType returns true if the issue type is related to
+// missing IAM permissions during the discovery phase.
+// These issue types do not have associated EC2 instances since the error
+// occurs before instance discovery. The region field may be empty for
+// org-level or account-level errors that occur before region-specific discovery.
+func IsPermissionIssueType(issueType string) bool {
 	switch issueType {
 	case AutoDiscoverEC2IssuePermAccountDenied,
 		AutoDiscoverEC2IssuePermOrgDenied:
@@ -406,29 +407,36 @@ func validateDiscoverEC2TaskType(ut *usertasksv1.UserTask) error {
 		return trace.BadParameter("%s requires the discover_ec2 field", TaskTypeDiscoverEC2)
 	}
 
-	// Permission-related issue types may not have account_id and region available
-	// because they occur during discovery before these values are known.
-	isPermissionIssue := isPermissionRelatedIssueType(ut.GetSpec().IssueType)
-	// Permission-related issue types don't have specific instances associated with them.
-	// They represent discovery-phase failures where no instance information is available.
-	if isPermissionIssue {
-		// For permission issues, we still require at least one entry in Instances,
-		// but the instance ID can be empty since these are discovery-level errors
-		// that occur before any instances are discovered. The entry stores
-		// discovery_config, discovery_group, and sync_time.
-		if len(ut.Spec.DiscoverEc2.Instances) == 0 {
-			return trace.BadParameter("at least one instance entry is required")
-		}
-		// Skip instance-specific validations for permission issues
-		return nil
-	}
-	if ut.GetSpec().DiscoverEc2.AccountId == "" && !isPermissionIssue {
-		return trace.BadParameter("%s requires the discover_ec2.account_id field", TaskTypeDiscoverEC2)
-	}
-	if ut.GetSpec().DiscoverEc2.Region == "" && !isPermissionIssue {
-		return trace.BadParameter("%s requires the discover_ec2.region field", TaskTypeDiscoverEC2)
+	// Validate issue type for all tasks.
+	if !slices.Contains(DiscoverEC2IssueTypes, ut.GetSpec().IssueType) {
+		return trace.BadParameter("invalid issue type %q, allowed values: %v", ut.GetSpec().IssueType, DiscoverEC2IssueTypes)
 	}
 
+	// Permission issues occur before any instance can be discovered at the
+	// organization or account level, so they have relaxed validation:
+	// - Empty account ID is allowed (when using integration credentials without explicit AssumeRole)
+	// - Empty region is allowed (org-level errors don't have a region)
+	// - Empty instance list is allowed
+	isPermissionIssue := IsPermissionIssueType(ut.GetSpec().IssueType)
+
+	// AccountID is required for non-permission issues.
+	// Permission issues may have empty account ID when using integration credentials
+	// without an explicit AssumeRole (account ID isn't available to the fetcher).
+	if !isPermissionIssue {
+		if ut.GetSpec().DiscoverEc2.AccountId == "" {
+			return trace.BadParameter("%s requires the discover_ec2.account_id field", TaskTypeDiscoverEC2)
+		}
+	}
+
+	// Region is required for non-permission issues.
+	// Permission issues may have empty region for org-level or account-level errors.
+	if !isPermissionIssue {
+		if ut.GetSpec().DiscoverEc2.Region == "" {
+			return trace.BadParameter("%s requires the discover_ec2.region field", TaskTypeDiscoverEC2)
+		}
+	}
+
+	// Validate task name matches expected format.
 	expectedTaskName := TaskNameForDiscoverEC2(TaskNameForDiscoverEC2Parts{
 		Integration:     ut.Spec.Integration,
 		IssueType:       ut.Spec.IssueType,
@@ -444,13 +452,15 @@ func validateDiscoverEC2TaskType(ut *usertasksv1.UserTask) error {
 		)
 	}
 
-	if !slices.Contains(DiscoverEC2IssueTypes, ut.GetSpec().IssueType) {
-		return trace.BadParameter("invalid issue type state, allowed values: %v", DiscoverEC2IssueTypes)
-	}
-
+	// Permission issues are allowed to have empty instance lists.
 	if len(ut.Spec.DiscoverEc2.Instances) == 0 {
+		if isPermissionIssue {
+			return nil
+		}
 		return trace.BadParameter("at least one instance is required")
 	}
+
+	// Validate instance entries.
 	for instanceID, instanceIssue := range ut.Spec.DiscoverEc2.Instances {
 		if instanceID == "" {
 			return trace.BadParameter("instance id in discover_ec2.instances map is required")
@@ -461,11 +471,15 @@ func validateDiscoverEC2TaskType(ut *usertasksv1.UserTask) error {
 		if instanceID != instanceIssue.InstanceId {
 			return trace.BadParameter("instance id in discover_ec2.instances map and field are different")
 		}
-		if instanceIssue.DiscoveryConfig == "" {
-			return trace.BadParameter("discovery config in discover_ec2.instances field is required")
-		}
-		if instanceIssue.DiscoveryGroup == "" {
-			return trace.BadParameter("discovery group in discover_ec2.instances field is required")
+		// Permission issues may have empty discovery config/group since the error
+		// occurs at the organization/account level, before discovery config is relevant.
+		if !isPermissionIssue {
+			if instanceIssue.DiscoveryConfig == "" {
+				return trace.BadParameter("discovery config in discover_ec2.instances field is required")
+			}
+			if instanceIssue.DiscoveryGroup == "" {
+				return trace.BadParameter("discovery group in discover_ec2.instances field is required")
+			}
 		}
 	}
 
@@ -501,7 +515,7 @@ func validateDiscoverEKSTaskType(ut *usertasksv1.UserTask) error {
 	}
 
 	if !slices.Contains(DiscoverEKSIssueTypes, ut.GetSpec().IssueType) {
-		return trace.BadParameter("invalid issue type state, allowed values: %v", DiscoverEKSIssueTypes)
+		return trace.BadParameter("invalid issue type %q, allowed values: %v", ut.GetSpec().IssueType, DiscoverEKSIssueTypes)
 	}
 
 	if len(ut.Spec.DiscoverEks.Clusters) == 0 {
@@ -556,7 +570,7 @@ func validateDiscoverRDSTaskType(ut *usertasksv1.UserTask) error {
 	}
 
 	if !slices.Contains(DiscoverRDSIssueTypes, ut.GetSpec().GetIssueType()) {
-		return trace.BadParameter("invalid issue type state, allowed values: %v", DiscoverRDSIssueTypes)
+		return trace.BadParameter("invalid issue type %q, allowed values: %v", ut.GetSpec().GetIssueType(), DiscoverRDSIssueTypes)
 	}
 
 	if len(ut.GetSpec().GetDiscoverRds().GetDatabases()) == 0 {
