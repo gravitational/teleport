@@ -22,6 +22,10 @@ var (
 	procCryptMsgClose    = crypt32.NewProc("CryptMsgClose")
 )
 
+var (
+	procCertCompareCertificateName = crypt32.NewProc("CertCompareCertificateName")
+)
+
 // VerifySignature checks if the update is signed by the same entity as the running service.
 func VerifySignature(updatePath string) error {
 	servicePath, err := os.Executable()
@@ -29,51 +33,66 @@ func VerifySignature(updatePath string) error {
 		return fmt.Errorf("failed to get executable path: %w", err)
 	}
 
-	// 1. Who signed the currently running service?
-	serviceSubject, err := getSignerSubject(servicePath)
+	// 2. Get Certificate Context for the Update
+	updateCert, err := getCertContext(updatePath)
 	if err != nil {
-		return fmt.Errorf("checking service signature: %w", err)
+		return fmt.Errorf("update verification failed: %w", err)
 	}
+	defer windows.CertFreeCertificateContext(updateCert)
 
-	// If current service isn't signed, we skip verification (dev mode/unsigned builds)
-	if serviceSubject == "" {
-		log.Info("service not signed, skipping verification")
-		return nil
-	}
-
-	// 2. Who signed the new update?
-	updateSubject, err := getSignerSubject(updatePath)
+	// 1. Get Certificate Context for the running Service
+	serviceCert, err := getCertContext(servicePath)
 	if err != nil {
-		return fmt.Errorf("checking update signature: %w", err)
+		// If the service isn't signed, we decide here if that's an error.
+		// For dev builds, you might want to return nil.
+		return fmt.Errorf("current service verification failed: %w", err)
 	}
+	defer windows.CertFreeCertificateContext(serviceCert)
 
-	// 3. Do they match?
-	if updateSubject == "" {
-		return errors.New("update is not signed, but service is")
-	}
-	if updateSubject != serviceSubject {
-		return fmt.Errorf("signer mismatch: expected %q, got %q", serviceSubject, updateSubject)
+	// 3. Compare the Subjects using CertCompareCertificateName
+	// This compares the ASN.1 binary blobs directly.
+	if !compareSubjects(serviceCert, updateCert) {
+		return fmt.Errorf("signature mismatch: update is not signed by the same entity as the service")
 	}
 
 	return nil
 }
 
-func getSignerSubject(path string) (string, error) {
-	// Step 1: Verify the file is trusted by the OS (Integrity Check)
-	if err := verifyAuthenticode(path); err != nil {
-		if isNoSignature(err) {
-			return "", nil // Not signed
-		}
-		return "", err
+func compareSubjects(ctx1, ctx2 *windows.CertContext) bool {
+	// X509_ASN_ENCODING | PKCS_7_ASN_ENCODING
+	const encoding = 0x00010001
+
+	r1, _, err := syscall.Syscall6(
+		procCertCompareCertificateName.Addr(),
+		3,
+		uintptr(encoding),
+		uintptr(unsafe.Pointer(&ctx1.CertInfo.Subject)),
+		uintptr(unsafe.Pointer(&ctx2.CertInfo.Subject)),
+		0, 0, 0,
+	)
+
+	if err != 0 {
+		log.Info("failed to compare subjects, %s", err)
 	}
 
-	// Step 2: Open the file as a Crypto Object
+	return r1 != 0 // Returns 1 (TRUE) if identical
+}
+
+// getCertContext extracts the leaf certificate context from a signed file.
+// It verifies the Authenticode signature first.
+func getCertContext(path string) (*windows.CertContext, error) {
+	// 1. Integrity Check
+	if err := verifyAuthenticode(path); err != nil {
+		return nil, err
+	}
+
 	path16, _ := windows.UTF16PtrFromString(path)
 	var (
 		msgHandle, storeHandle windows.Handle
 		encoding               uint32
 	)
 
+	// 2. Open Crypt Object
 	err := windows.CryptQueryObject(
 		windows.CERT_QUERY_OBJECT_FILE,
 		unsafe.Pointer(path16),
@@ -87,44 +106,32 @@ func getSignerSubject(path string) (string, error) {
 		nil,
 	)
 	if err != nil {
-		return "", fmt.Errorf("CryptQueryObject: %w", err)
+		return nil, fmt.Errorf("CryptQueryObject: %w", err)
 	}
 	defer windows.CertCloseStore(storeHandle, 0)
 	defer cryptMsgClose(msgHandle)
 
-	// Step 3: Get the CERT_INFO blob directly (The Magic Trick)
-	// We use param 7 (CMSG_SIGNER_CERT_INFO_PARAM) instead of 6.
-	// This gives us a blob we can pass directly to CertFindCertificateInStore.
-	certInfoBlob, err := getCryptMsgParam(msgHandle, cmsgSignerCertInfoParam)
+	// 3. Extract Signer INFO Blob (Using Param 7 for efficiency)
+	certInfoBlob, err := getCryptMsgParam(msgHandle, 7) // CMSG_SIGNER_CERT_INFO_PARAM
 	if err != nil {
-		return "", fmt.Errorf("failed to get signer cert info: %w", err)
+		return nil, err
 	}
 
-	// Step 4: Find the matching certificate in the store
+	// 4. Find the Certificate in the Store
 	certCtx, err := windows.CertFindCertificateInStore(
 		storeHandle,
 		encoding,
 		0,
 		windows.CERT_FIND_SUBJECT_CERT,
-		unsafe.Pointer(&certInfoBlob[0]), // Pass the opaque blob
+		unsafe.Pointer(&certInfoBlob[0]),
 		nil,
 	)
 	if err != nil {
-		return "", fmt.Errorf("signer certificate not found in store: %w", err)
+		return nil, fmt.Errorf("signer certificate not found in store: %w", err)
 	}
-	defer windows.CertFreeCertificateContext(certCtx)
 
-	// Step 5: Read the Subject Name (CN/O)
-	// 0 = CERT_NAME_SIMPLE_DISPLAY_TYPE (Common Name or Email)
-	// You can change 0 to windows.CERT_NAME_RDN_TYPE to get the full DN.
-	lenName := windows.CertGetNameString(certCtx, windows.CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, nil, nil, 0)
-	if lenName <= 1 {
-		return "", nil
-	}
-	buf := make([]uint16, lenName)
-	windows.CertGetNameString(certCtx, windows.CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, nil, &buf[0], lenName)
-
-	return windows.UTF16ToString(buf), nil
+	// Caller is responsible for freeing certCtx
+	return certCtx, nil
 }
 
 func verifyAuthenticode(path string) error {
