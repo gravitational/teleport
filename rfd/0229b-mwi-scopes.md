@@ -80,6 +80,11 @@ wipwipwip.
 
 ### Behaviour
 
+This section summarizes the expected behaviour of Scoped MWI from a Scope
+Admin's perspective.
+
+#### Creating the Scoped Bot
+
 A Cluster Admin grants the Scope Admin the ability to create, read, update and 
 delete Scoped Bots and Scoped Join Tokens within their scope through a Scoped
 Role and Scoped Role Assignment.
@@ -94,6 +99,8 @@ The Scope Admin can then create the Scoped Bot. To do so, they must specify:
 Notably, at this stage, they do not specify roles as they would do with an
 unscoped Bot. It is not possible to create a Scoped Bot with unscoped Roles.
 
+#### Assigning the Scoped Bot privileges
+
 The Scope Admin then assigns Scoped Roles to the Scoped Bot through Scoped Role
 Assignments or via Scoped Access Lists. They cannot assign unscoped Roles to the
 Scoped Bot.
@@ -107,6 +114,18 @@ an NHI owned/operated by another team to access resources within their scope.
 The Scope Admin then creates a Scoped Join Token to allow `tbot` to join as 
 the Scoped Bot. The Scoped Join Token MUST be created within the same scope as 
 the Scoped Bot.
+
+#### Joining the Scoped Bot
+
+The Scope Admin can now setup `tbot` on a machine to join as the Scoped Bot
+using the Scoped Join Token. To do so, they must configure:
+
+- The name/method of the Scoped Join Token.
+- The address of the Auth or Proxy Service.
+- A type of service they would like `tbot` to run (e.g `identity`).
+
+TODO: Should they configure a scope to pin globally for `tbot`, or on a
+per-service basis? Or do we just infer this from the scope of the bot.
 
 ## Implementation Details
 
