@@ -21,10 +21,11 @@ package config
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/config/joinuri"
-	"github.com/stretchr/testify/require"
 )
 
 func TestJoinURIApplyToConfig(t *testing.T) {

@@ -22,10 +22,11 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	joinuri "github.com/gravitational/teleport/lib/tbot/config/joinuri"
-	"github.com/gravitational/trace"
 )
 
 // applyValueOrError sets the target `target` to the value `value`, but only if
