@@ -64,7 +64,7 @@ ability to onboard bots to teams that will leverage them.
 
 This section explores the behavior and user experience of Scoped MWI without
 delving into implementation specifics. It expects some familiarity with the 
-existing constructs that exist for Scoped RBAC and MWI.
+existing constructs of Scoped RBAC and MWI.
 
 ### User Stories
 
@@ -133,7 +133,20 @@ it exists in? This poses challenges for cross-scope privilege down the line.
 
 ## Future Improvements
 
-### Sub-scoping of generated credentials
+### Sub-pinning of output credentials
+
+Whilst the credentials of a scoped Bot may be pinned to a specific scope or 
+global, it may be useful for users to further constrain the access of these
+credentials by pinning them to a subset of what the Scoped Bot can access.
+
+This provides an opportunity to reduce the blast radius by allowing users to 
+produce credentials with the least privilege necessary for a given task.
+
+This should be viewed as a surface-level constraint. If a bad actor is able to
+gain root access to a machine, then they will be able to extract the bot's 
+internal credentials and use these to issue credentials without this
+sub-pinning. This is an important consideration for those who would use this
+feature.
 
 ### Cross-scope privileges
 
