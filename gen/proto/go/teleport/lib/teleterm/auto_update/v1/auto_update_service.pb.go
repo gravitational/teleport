@@ -42,27 +42,27 @@ type ConfigSource int32
 
 const (
 	ConfigSource_CONFIG_SOURCE_UNSPECIFIED ConfigSource = 0
-	// Configuration comes from environment variable.
-	ConfigSource_CONFIG_SOURCE_ENV_VAR ConfigSource = 2
+	// Configuration comes from an environment variable.
+	ConfigSource_CONFIG_SOURCE_ENV_VAR ConfigSource = 1
 	// Configuration comes from SOFTWARE\Policies\Teleport\TeleportConnect.
-	ConfigSource_CONFIG_SOURCE_POLICY ConfigSource = 3
-	// Configuration comes from hardcoded default.
-	ConfigSource_CONFIG_SOURCE_DEFAULT ConfigSource = 4
+	ConfigSource_CONFIG_SOURCE_POLICY ConfigSource = 2
+	// Configuration comes from a hardcoded default.
+	ConfigSource_CONFIG_SOURCE_DEFAULT ConfigSource = 3
 )
 
 // Enum value maps for ConfigSource.
 var (
 	ConfigSource_name = map[int32]string{
 		0: "CONFIG_SOURCE_UNSPECIFIED",
-		2: "CONFIG_SOURCE_ENV_VAR",
-		3: "CONFIG_SOURCE_POLICY",
-		4: "CONFIG_SOURCE_DEFAULT",
+		1: "CONFIG_SOURCE_ENV_VAR",
+		2: "CONFIG_SOURCE_POLICY",
+		3: "CONFIG_SOURCE_DEFAULT",
 	}
 	ConfigSource_value = map[string]int32{
 		"CONFIG_SOURCE_UNSPECIFIED": 0,
-		"CONFIG_SOURCE_ENV_VAR":     2,
-		"CONFIG_SOURCE_POLICY":      3,
-		"CONFIG_SOURCE_DEFAULT":     4,
+		"CONFIG_SOURCE_ENV_VAR":     1,
+		"CONFIG_SOURCE_POLICY":      2,
+		"CONFIG_SOURCE_DEFAULT":     3,
 	}
 )
 
@@ -586,9 +586,9 @@ const file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDes
 	"\x16is_per_machine_install\x18\x01 \x01(\bR\x13isPerMachineInstall*}\n" +
 	"\fConfigSource\x12\x1d\n" +
 	"\x19CONFIG_SOURCE_UNSPECIFIED\x10\x00\x12\x19\n" +
-	"\x15CONFIG_SOURCE_ENV_VAR\x10\x02\x12\x18\n" +
-	"\x14CONFIG_SOURCE_POLICY\x10\x03\x12\x19\n" +
-	"\x15CONFIG_SOURCE_DEFAULT\x10\x042\xd4\x03\n" +
+	"\x15CONFIG_SOURCE_ENV_VAR\x10\x01\x12\x18\n" +
+	"\x14CONFIG_SOURCE_POLICY\x10\x02\x12\x19\n" +
+	"\x15CONFIG_SOURCE_DEFAULT\x10\x032\xd4\x03\n" +
 	"\x11AutoUpdateService\x12\x97\x01\n" +
 	"\x12GetClusterVersions\x12?.teleport.lib.teleterm.auto_update.v1.GetClusterVersionsRequest\x1a@.teleport.lib.teleterm.auto_update.v1.GetClusterVersionsResponse\x12|\n" +
 	"\tGetConfig\x126.teleport.lib.teleterm.auto_update.v1.GetConfigRequest\x1a7.teleport.lib.teleterm.auto_update.v1.GetConfigResponse\x12\xa6\x01\n" +

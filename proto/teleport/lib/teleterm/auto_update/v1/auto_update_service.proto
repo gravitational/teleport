@@ -100,12 +100,12 @@ message ConfigValue {
 // Source of the config.
 enum ConfigSource {
   CONFIG_SOURCE_UNSPECIFIED = 0;
-  // Configuration comes from environment variable.
-  CONFIG_SOURCE_ENV_VAR = 2;
+  // Configuration comes from an environment variable.
+  CONFIG_SOURCE_ENV_VAR = 1;
   // Configuration comes from SOFTWARE\Policies\Teleport\TeleportConnect.
-  CONFIG_SOURCE_POLICY = 3;
-  // Configuration comes from hardcoded default.
-  CONFIG_SOURCE_DEFAULT = 4;
+  CONFIG_SOURCE_POLICY = 2;
+  // Configuration comes from a hardcoded default.
+  CONFIG_SOURCE_DEFAULT = 3;
 }
 
 // Request for GetInstallationMetadata.
