@@ -272,6 +272,7 @@ function AvailableUpdate(props: { update: UpdateInfo; platform: Platform }) {
               without requiring UAC prompts, migrate these settings to the
               system policy registry keys:{' '}
               <code>HKLM\SOFTWARE\Policies\Teleport\TeleportConnect</code>.
+              {/*TODO(gzdunek): Link to docs.*/}
             </Text>
           </Flex>
         )}
