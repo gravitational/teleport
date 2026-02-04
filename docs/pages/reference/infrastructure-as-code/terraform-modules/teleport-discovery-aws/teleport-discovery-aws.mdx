@@ -98,8 +98,11 @@ No modules.
 | teleport_integration.aws_oidc | resource |
 | teleport_provision_token.aws_iam | resource |
 | [aws_caller_identity.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
+| [aws_iam_policy_document.allow_assume_role_for_child_accounts](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.teleport_discovery_service_iam_role_trust](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+| [aws_iam_policy_document.teleport_discovery_service_organization](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.teleport_discovery_service_single_account](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+| [aws_organizations_organization.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/organizations_organization) | data source |
 | [aws_partition.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/partition) | data source |
 | [http_http.teleport_ping](https://registry.terraform.io/providers/hashicorp/http/latest/docs/data-sources/http) | data source |
 | [tls_certificate.teleport_proxy](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/data-sources/certificate) | data source |
@@ -114,10 +117,12 @@ No modules.
 | aws\_iam\_policy\_name | Name for the AWS IAM policy for discovery. | `string` | `"teleport-discovery"` | no |
 | aws\_iam\_policy\_use\_name\_prefix | Determines whether the name of the AWS IAM policy (`aws_iam_policy_name`) is used as a prefix. | `bool` | `true` | no |
 | aws\_iam\_role\_name | Name for the AWS IAM role for discovery. | `string` | `"teleport-discovery"` | no |
+| aws\_iam\_role\_name\_for\_child\_accounts | Name for the AWS IAM role to assume in child accounts, when using organization-wide discovery. | `string` | `"teleport-discovery-from-organization"` | no |
 | aws\_iam\_role\_use\_name\_prefix | Determines whether the name of the AWS IAM role (`aws_iam_role_name`) is used as a prefix. | `bool` | `true` | no |
 | create | Toggle creation of all resources. | `bool` | `true` | no |
 | create\_aws\_iam\_openid\_connect\_provider | Toggle AWS IAM OIDC provider creation. If false and using OIDC, then the AWS IAM OIDC provider must already exist. | `bool` | `true` | no |
 | discovery\_service\_iam\_credential\_source | Configure the AWS credential source for Teleport Discovery Service instances. The default uses AWS OIDC integration. | ```object({ use_oidc_integration = optional(bool) trust_role = optional(object({ role_arn = string external_id = optional(string, "") })) })``` | ```{ "trust_role": null, "use_oidc_integration": true }``` | no |
+| enroll\_organization\_accounts | Discover resources in all the AWS accounts under the organization. | `bool` | `false` | no |
 | match\_aws\_regions | AWS regions to discover. The default matches all AWS regions. | `list(string)` | ```[ "*" ]``` | no |
 | match\_aws\_resource\_types | AWS resource types to match when discovering resources with Teleport. Valid values are: `ec2`. | `list(string)` | n/a | yes |
 | match\_aws\_tags | AWS resource tags to match when discovering resources with Teleport. The default matches all discovered AWS resources. | `map(list(string))` | ```{ "*": [ "*" ] }``` | no |
@@ -135,6 +140,7 @@ No modules.
 | Name | Description |
 |------|-------------|
 | aws\_oidc\_provider\_arn | AWS resource name (ARN) of the AWS OpenID Connect (OIDC) provider that allows Teleport Discovery Service to assume an AWS IAM role using OIDC. |
+| iam\_role\_to\_create\_in\_child\_accounts | AWS IAM role that must be created in child AWS accounts under the organization for discovering resources. |
 | teleport\_discovery\_config\_name | Name of the Teleport dynamic `discovery_config`. Configuration details can be viewed with `tctl get discovery_config/<name>`. Teleport Discovery Service instances will use this `discovery_config` if they are in the same discovery group as the `discovery_config`. |
 | teleport\_discovery\_service\_iam\_policy\_arn | AWS resource name (ARN) of the AWS IAM policy that grants the permissions needed for Teleport to discover resources in AWS. |
 | teleport\_discovery\_service\_iam\_role\_arn | AWS resource name (ARN) of the AWS IAM role that Teleport Discovery Service will assume. |

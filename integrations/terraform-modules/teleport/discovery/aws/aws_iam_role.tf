@@ -74,3 +74,16 @@ resource "aws_iam_role" "teleport_discovery_service" {
   name_prefix          = local.aws_iam_role_name_prefix
   tags                 = local.apply_aws_tags
 }
+
+data "aws_iam_policy_document" "allow_assume_role_for_child_accounts" {
+  statement {
+    principals {
+      type        = "AWS"
+      identifiers = [aws_iam_role.teleport_discovery_service[0].arn]
+    }
+
+    actions = [
+      "sts:AssumeRole"
+    ]
+  }
+}

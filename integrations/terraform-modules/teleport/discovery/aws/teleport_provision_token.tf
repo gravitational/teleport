@@ -22,8 +22,10 @@ resource "teleport_provision_token" "aws_iam" {
     labels      = local.apply_teleport_resource_labels
   }
   spec = {
+    integration = (local.organization_deployment ? local.teleport_integration_name : null)
     allow = [{
-      aws_account = local.aws_account_id
+      aws_account         = (local.single_account_deployment ? local.aws_account_id : null)
+      aws_organization_id = (local.organization_deployment ? local.aws_organization_id : null)
     }]
     join_method = "iam"
     roles       = ["Node"]
