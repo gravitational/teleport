@@ -441,7 +441,7 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(buf.String()), &response2))
 	require.NotEqual(t, response.TokenID, response2.TokenID)
 
-	token, err = client.GetToken(ctx, response2.TokenID)
+	_, err = client.GetToken(ctx, response2.TokenID)
 	require.NoError(t, err)
 
 	// Try once more, but with legacy mode
