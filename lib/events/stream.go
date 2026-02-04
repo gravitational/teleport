@@ -211,16 +211,26 @@ func (s *ProtoStreamer) CreateAuditStream(ctx context.Context, sid session.ID) (
 func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
 	// Note, that if the session ID does not match the upload ID,
 	// the request will fail
+	sessionExists := func() bool {
+		return s.cfg.SessionStreamer != nil && s.cfg.Uploader.DownloadMetadata(ctx, sid, &MemBuffer{}) == nil
+	}
+	log := slog.With("session_id", sid, "upload_id", uploadID)
 	upload := StreamUpload{SessionID: sid, ID: uploadID}
 	parts, err := s.cfg.Uploader.ListParts(ctx, upload)
+	if trace.IsNotFound(err) {
+		if sessionExists() {
+			log.DebugContext(ctx, "Session reupload detected. Old and new recordings will be merged.")
+			return s.MergeStreams(ctx, sid)
+		}
+		log.DebugContext(ctx, "Upload missing, creating a new one.")
+		return s.CreateAuditStream(ctx, sid)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(parts) == 0 && s.cfg.SessionStreamer != nil {
-		if metaErr := s.cfg.Uploader.DownloadMetadata(ctx, sid, &MemBuffer{}); metaErr == nil {
-			slog.DebugContext(ctx, "Session reupload detected. Old and new recordings will be merged.", "session_id", sid, "old_upload_id", uploadID)
-			return s.MergeStreams(ctx, sid)
-		}
+	if len(parts) == 0 && sessionExists() {
+		log.DebugContext(ctx, "Session reupload detected. Old and new recordings will be merged.")
+		return s.MergeStreams(ctx, sid)
 	}
 	return NewProtoStream(ProtoStreamConfig{
 		Upload:                    upload,
