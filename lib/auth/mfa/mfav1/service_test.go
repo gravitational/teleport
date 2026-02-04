@@ -798,8 +798,7 @@ func TestReplicateValidatedMFAChallenge_NonRemoteProxyDenied(t *testing.T) {
 		Username:      "test-user",
 	})
 	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
-	require.ErrorContains(t, err, "only remote proxy identities can replicate validated MFA challenges")
+	require.ErrorIs(t, err, trace.AccessDenied("only remote proxy identities can replicate validated MFA challenges"))
 	require.Nil(t, resp)
 }
 
