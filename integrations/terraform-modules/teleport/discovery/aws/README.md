@@ -1,9 +1,9 @@
-# AWS Discovery Terraform module
+## AWS Discovery Terraform module
 
-This Terraform module creates the AWS and Teleport cluster resources necessary for a Teleport cluster to discover resources in AWS:
+This Terraform module creates the AWS and Teleport cluster resources necessary for a Teleport cluster to discover resources in AWS.
 
-- AWS IAM role for Teleport Discovery Service to assume. 
-- AWS IAM policy attached to the IAM role that grants the AWS permissions necessary for Teleport to discover resources in AWS. 
+- AWS IAM role for Teleport Discovery Service to assume.
+- AWS IAM policy attached to the IAM role that grants the AWS permissions necessary for Teleport to discover resources in AWS.
 - AWS OIDC Provider for Teleport Discovery Service to assume an IAM role using OIDC. This resource is optional - creation can be disabled using `create_aws_iam_openid_connect_provider = false`. This resource is optional to support two scenarios:
   - When there is already an AWS IAM OIDC provider in the AWS account configured to use your Teleport cluster's proxy URL. AWS restricts AWS IAM OIDC providers to one per unique URL, so if you are managing that provider already then this module cannot create another one for the same Teleport cluster.
   - When AWS IAM OIDC federation is not possible because your Teleport cluster's proxy URL is not reachable. In this case you should configure AWS IAM role credentials for your Teleport Discovery Service instances and set `discovery_service_iam_credential_source` to trust that role.
@@ -13,11 +13,34 @@ This Terraform module creates the AWS and Teleport cluster resources necessary f
 
 ## Prerequisites
 
-- [Install Teleport Terraform Provider](https://goteleport.com/docs/zero-trust-access/infrastructure-as-code/terraform-provider/)
+<!-- lint ignore absolute-docs-links -->
+- [Configure Teleport Terraform Provider](https://goteleport.com/docs/zero-trust-access/infrastructure-as-code/terraform-provider/)
+- [Configure AWS Terraform provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
 
-## Examples
+## Usage
 
-- [Discover resources in a single AWS account](./examples/single-account)
+``` hcl
+module "aws_discovery" {
+  source = "terraform.releases.teleport.dev/teleport/discovery/aws"
+
+  # Your Teleport cluster public proxy address - host:port format is required.
+  teleport_proxy_public_addr = "example.teleport.sh:443"
+  # Teleport Discovery Service instances in this discovery group will be configured to discover AWS resources.
+  # "cloud-discovery-group" is the group name of the discovery service instances running in Teleport Cloud clusters.
+  teleport_discovery_group_name = "cloud-discovery-group"
+
+  # apply additional tags to the AWS resources created by the module
+  apply_aws_tags = {
+    Terraform = "true"
+    Env       = "dev"
+  }
+  # Match EC2 instances that have the AWS tag "origin=example"
+  match_aws_resource_types = ["ec2"]
+  match_aws_tags = {
+    origin = ["example"]
+  }
+}
+```
 
 ## How to get help
 
