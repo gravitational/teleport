@@ -381,7 +381,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|PROFILES|none (optional)|Comma-separated profile names to be exported. Supported profiles: allocs,cmdline,mutex,trace,block,goroutine,heap,profile,threadcreate. Default: goroutine,heap,profile|
+|PROFILES|none (optional)|Comma-separated profile names to be exported. Supported profiles: allocs,block,cmdline,goroutine,heap,mutex,profile,threadcreate,trace. Default: goroutine,heap,profile|
 
 ## teleport debug readyz
 
@@ -823,7 +823,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--advertise-ip`|none|IP to advertise to clients if running behind NAT|
-|`--apply-on-startup`|none|Path to a non-empty YAML file containing resources to apply on startup. Works on initialized clusters, unlike --bootstrap. Only supports the following kinds: \[role user token cluster_networking_config cluster_auth_preference bot\].|
+|`--apply-on-startup`|none|Path to a non-empty YAML file containing resources to apply on startup. Works on initialized clusters, unlike --bootstrap. Only supports the following kinds: \[token cluster_networking_config cluster_auth_preference bot role user\].|
 |`--auth-server`|none|Address of the auth server \[127.0.0.1:3025\]|
 |`--bootstrap`|none|Path to a non-empty YAML file containing bootstrap resources (ignored if already initialized)|
 |`--ca-pin`|none|CA pin to validate the Auth Server (can be repeated for multiple pins)|
