@@ -585,7 +585,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	}
 
 	// Enforce device trust early via the AccessChecker.
-	deviceErr := checker.CheckDeviceAccess(
+	if err = checker.CheckDeviceAccess(
 		app,
 		services.AccessState{
 			DeviceVerified:           dtauthz.IsTLSDeviceVerified((*tlsca.DeviceExtensions)(&req.DeviceExtensions)),
@@ -593,9 +593,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 			IsBot:                    req.BotName != "",
 		},
 		req.Traits,
-	)
-
-	if deviceErr != nil {
+	); err != nil {
 
 		userKind := apievents.UserKind_USER_KIND_HUMAN
 		if req.BotName != "" {
@@ -627,14 +625,12 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		sessionStartEvent.SessionMetadata = apievents.SessionMetadata{
 			WithMFA: req.MFAVerified,
 		}
-		sessionStartEvent.Error = deviceErr.Error()
+		sessionStartEvent.Error = err.Error()
 		sessionStartEvent.UserMessage = errMsg
 
 		a.emitter.EmitAuditEvent(a.closeCtx, sessionStartEvent)
 		// err swallowed/obscured on purpose.
 		return nil, trace.AccessDenied("%s", errMsg)
-	} else {
-		a.logger.DebugContext(ctx, "DEBUG: not rejected.", "app", req.AppName)
 	}
 
 	sessionID := req.SuggestedSessionID

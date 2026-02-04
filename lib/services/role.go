@@ -2816,17 +2816,13 @@ func (set RoleSet) CheckDeviceAccess(r AccessCheckable, state AccessState, userT
 	if !state.EnableDeviceVerification {
 		return nil
 	}
-	for _, role := range set {
 
+	// Check device trust mode across all roles that apply to the resource.
+	for _, role := range set {
+		// If a specific resource is provided, we only enforce Device Trust requirements
+		// for roles that grant access to that resource.
 		if r != nil {
-			matches, _, _ := checkRoleLabelsMatch(
-				types.Allow,
-				role,
-				userTraits,
-				r,
-				false,
-			)
-			if !matches {
+			if matches, _, _ := checkRoleLabelsMatch(types.Allow, role, userTraits, r, false); !matches {
 				continue
 			}
 		}
