@@ -56,6 +56,27 @@ import (
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
+func useStaticTemplateData(t *testing.T) func(map[string]any) {
+	return func(data map[string]any) {
+		if v, ok := data["join_uri"]; ok {
+			u, err := joinuri.Parse(v.(string))
+			require.NoError(t, err)
+			u.Address = "localhost:443"
+
+			data["join_uri"] = u.String()
+		}
+
+		if _, ok := data["addr"]; ok {
+			data["addr"] = "localhost:443"
+		}
+
+		// Not worth the plumbing to ensure the table remains consistent, ugh.
+		if _, ok := data["param_table"]; ok {
+			data["param_table"] = "  Fake: Table\n"
+		}
+	}
+}
+
 func TestAddBot(t *testing.T) {
 	t.Parallel()
 
@@ -71,10 +92,13 @@ func TestAddBot(t *testing.T) {
 
 	buf := &bytes.Buffer{}
 	require.NoError(t, (&BotsCommand{
-		stdout:   buf,
-		format:   teleport.Text,
-		botName:  "test",
-		botRoles: "access",
+		stdout:                 buf,
+		format:                 teleport.Text,
+		botName:                "test",
+		botRoles:               "access",
+		registrationSecret:     "static-registration-secret",
+		testStaticToken:        "static-example-1234",
+		testMutateTemplateData: useStaticTemplateData(t),
 	}).AddBot(t.Context(), rootClient))
 
 	if golden.ShouldSet() {
@@ -99,11 +123,13 @@ func TestAddBotLegacy(t *testing.T) {
 
 	buf := &bytes.Buffer{}
 	require.NoError(t, (&BotsCommand{
-		stdout:   buf,
-		format:   teleport.Text,
-		botName:  "test",
-		botRoles: "access",
-		legacy:   true,
+		stdout:                 buf,
+		format:                 teleport.Text,
+		botName:                "test",
+		botRoles:               "access",
+		legacy:                 true,
+		testStaticToken:        "static-example-1234",
+		testMutateTemplateData: useStaticTemplateData(t),
 	}).AddBot(t.Context(), rootClient))
 
 	if golden.ShouldSet() {
@@ -148,6 +174,7 @@ func TestAddBotJSON(t *testing.T) {
 		botRoles:         "access",
 		recoveryLimit:    12,
 		initialPublicKey: publicKeyString,
+		testStaticToken:  "static-example-1234",
 	}).AddBot(t.Context(), rootClient))
 
 	// Validate the response

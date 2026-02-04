@@ -1,15 +1,11 @@
-The bot joining URI: tbot+proxy+bound-keypair://bot-test-31792a52:38cf6b9192b5a2cc2e3c7bde9f24d190@127.0.0.1:63947
+The bot joining URI: tbot+proxy+bound-keypair://static-example-1234:static-registration-secret@localhost:443
 
 > tbot start identity \
-   --join-uri=tbot+proxy+bound-keypair://bot-test-31792a52:38cf6b9192b5a2cc2e3c7bde9f24d190@127.0.0.1:63947 \
+   --join-uri=tbot+proxy+bound-keypair://static-example-1234:static-registration-secret@localhost:443 \
    --destination=./destination
 
 Full parameters:
-  Proxy:               127.0.0.1:63947                  
-  Token:               bot-test-31792a52                
-  Join Method:         bound_keypair                    
-  Registration Secret: 38cf6b9192b5a2cc2e3c7bde9f24d190 
-
+  Fake: Table
 
 Please note:
   - The ./destination destination directory can be changed as desired.

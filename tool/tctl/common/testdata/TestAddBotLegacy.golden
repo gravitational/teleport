@@ -1,6 +1,6 @@
 
-The bot token: 9e0fd583236301b7d683c989e674ab0e
-The joining URI: tbot+proxy+token://9e0fd583236301b7d683c989e674ab0e@127.0.0.1:63957
+The bot token: static-example-1234
+The joining URI: tbot+proxy+token://static-example-1234@localhost:443
 This token will expire in 59 minutes.
 
 Optionally, if running the bot under an isolated user account, first initialize
@@ -19,8 +19,8 @@ certificates:
 
 > tbot start \
    --destination-dir=./tbot-user \
-   --token=9e0fd583236301b7d683c989e674ab0e \
-   --proxy-server=127.0.0.1:63957 \
+   --token=static-example-1234 \
+   --proxy-server=localhost:443 \
    --join-method=token
 
 Please note:
@@ -29,7 +29,7 @@ Please note:
   - /var/lib/teleport/bot must be accessible to the bot user, or --data-dir
     must point to another accessible directory to store internal bot data.
   - This invitation token will expire in 59 minutes
-  - 127.0.0.1:63957 must be reachable from the new node
+  - localhost:443 must be reachable from the new node
   - This is a single-token that will be consumed upon usage. For scalable
     alternatives, see our documentation on other supported join methods:
     https://goteleport.com/docs/enroll-resources/machine-id/deployment/

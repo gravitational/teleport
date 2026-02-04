@@ -69,17 +69,26 @@ type BotsCommand struct {
 	lockExpires string
 	lockTTL     time.Duration
 
-	botName          string
-	botRoles         string
-	tokenID          string
-	tokenTTL         time.Duration
-	addRoles         string
-	instanceID       string
-	maxSessionTTL    time.Duration
-	legacy           bool
-	initialPublicKey string
-	recoveryMode     string
-	recoveryLimit    uint32
+	botName            string
+	botRoles           string
+	tokenID            string
+	tokenTTL           time.Duration
+	addRoles           string
+	instanceID         string
+	maxSessionTTL      time.Duration
+	legacy             bool
+	initialPublicKey   string
+	recoveryMode       string
+	recoveryLimit      uint32
+	registrationSecret string
+
+	// testStaticToken is a static token name for use in tests and cannot be set
+	// as a CLI flag.
+	testStaticToken string
+
+	// testMutateTemplateData modifies data before a template is rendered. Only
+	// useful in tests.
+	testMutateTemplateData func(data map[string]any)
 
 	allowedLogins []string
 	addLogins     string
@@ -141,6 +150,12 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 			"token. No effect if --token or --legacy is set, or if "+
 			"--recovery-mode is not standard. Must be greater than 1.",
 	).Uint32Var(&c.recoveryLimit)
+	c.botsAdd.Flag(
+		"registration-secret",
+		"Sets a registration secret for the bound keypair token. If not set, "+
+			"one will be randomly generated. No effect if "+
+			"--initial-public-key, --token, or --legacy is set. ",
+	).StringVar(&c.registrationSecret)
 
 	c.botsRemove = bots.Command("rm", "Permanently remove a certificate renewal bot from the cluster.")
 	c.botsRemove.Arg("name", "Name of an existing bot to remove.").Required().StringVar(&c.botName)
@@ -199,6 +214,12 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 			"token. No effect if --token or --legacy is set, or if "+
 			"--recovery-mode is not standard. Must be greater than 1.",
 	).Uint32Var(&c.recoveryLimit)
+	c.botsInstancesAdd.Flag(
+		"registration-secret",
+		"Sets a registration secret for the bound keypair token. If not set, "+
+			"one will be randomly generated. No effect if "+
+			"--initial-public-key, --token, or --legacy is set. ",
+	).StringVar(&c.registrationSecret)
 
 	if c.stdout == nil {
 		c.stdout = os.Stdout
@@ -355,7 +376,6 @@ This token will expire in {{ .minutes }} minutes.{{ end }}
 
 Full parameters:
 {{ .param_table }}
-
 Please note:
   - The ./destination destination directory can be changed as desired.
   - /var/lib/teleport/bot must be accessible to the bot user, or --storage
@@ -403,6 +423,7 @@ func (c *BotsCommand) createBoundKeypairBotToken(ctx context.Context, client bot
 			Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
 				InitialPublicKey:   initialPublicKey,
 				MustRegisterBefore: mustRegisterBefore,
+				RegistrationSecret: c.registrationSecret,
 			},
 			Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
 				Mode:  c.recoveryMode,
@@ -411,7 +432,7 @@ func (c *BotsCommand) createBoundKeypairBotToken(ctx context.Context, client bot
 		},
 	}
 
-	token, err := createUniqueBotToken(ctx, client, 0, spec)
+	token, err := c.createUniqueBotToken(ctx, client, 0, spec)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating join token")
 	}
@@ -442,9 +463,14 @@ func (c *BotsCommand) AddBot(ctx context.Context, client botsCommandClient) erro
 		}
 	case c.tokenID == "" && c.legacy:
 		// If there's no token specified, generate one
-		tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
-		if err != nil {
-			return trace.Wrap(err)
+		var tokenName string
+		if c.testStaticToken != "" {
+			tokenName = c.testStaticToken
+		} else {
+			tokenName, err = utils.CryptoRandomHex(defaults.TokenLenBytes)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
 		ttl := c.tokenTTL
 		if ttl == 0 {
@@ -512,7 +538,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client botsCommandClient) erro
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(outputToken(ctx, c.stdout, c.format, c.legacy, client, bot, token))
+	return trace.Wrap(c.outputToken(ctx, client, bot, token))
 }
 
 func (c *BotsCommand) RemoveBot(ctx context.Context, client botsCommandClient) error {
@@ -877,7 +903,7 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client botsCommandClie
 			return trace.Wrap(err)
 		}
 
-		return trace.Wrap(outputToken(ctx, c.stdout, c.format, false, client, bot, token))
+		return trace.Wrap(c.outputToken(ctx, client, bot, token))
 	} else if c.tokenID == "" && c.legacy {
 		// If there's no token specified, generate one
 		tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
@@ -898,7 +924,7 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client botsCommandClie
 			return trace.Wrap(err)
 		}
 
-		return trace.Wrap(outputToken(ctx, c.stdout, c.format, true, client, bot, token))
+		return trace.Wrap(c.outputToken(ctx, client, bot, token))
 	}
 
 	// There's not much to do in this case, but we can validate the token.
@@ -923,7 +949,7 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client botsCommandClie
 			c.tokenID, token.GetBotName(), c.botName)
 	}
 
-	return trace.Wrap(outputToken(ctx, c.stdout, c.format, false, client, bot, token))
+	return trace.Wrap(c.outputToken(ctx, client, bot, token))
 }
 
 var showMessageTemplate = template.Must(template.New("show").Funcs(template.FuncMap{
@@ -1018,11 +1044,8 @@ type botJSONResponse struct {
 }
 
 // outputToken writes token information to stdout, depending on the token format.
-func outputToken(
+func (c *BotsCommand) outputToken(
 	ctx context.Context,
-	wr io.Writer,
-	format string,
-	legacy bool,
 	client botsCommandClient,
 	bot *machineidv1pb.Bot,
 	token types.ProvisionToken,
@@ -1046,7 +1069,7 @@ func outputToken(
 
 	secret, _ := uri.ToURL().User.Password()
 
-	if format == teleport.JSON {
+	if c.format == teleport.JSON {
 		tokenTTL := time.Duration(0)
 		if exp := token.Expiry(); !exp.IsZero() {
 			tokenTTL = time.Until(exp)
@@ -1077,11 +1100,11 @@ func outputToken(
 			return trace.Wrap(err, "failed to marshal CreateBot response")
 		}
 
-		fmt.Fprintln(wr, string(out))
+		fmt.Fprintln(c.stdout, string(out))
 		return nil
 	}
 
-	if legacy {
+	if c.legacy {
 		joinMethod := token.GetJoinMethod()
 		if joinMethod == types.JoinMethodUnspecified {
 			joinMethod = types.JoinMethodToken
@@ -1098,7 +1121,12 @@ func outputToken(
 		} else if deadline := getBoundKeypairRegistrationDeadline(token); deadline != nil {
 			templateData["minutes"] = int(time.Until(*deadline).Minutes())
 		}
-		return startMessageTemplate.Execute(wr, templateData)
+
+		if c.testMutateTemplateData != nil {
+			c.testMutateTemplateData(templateData)
+		}
+
+		return startMessageTemplate.Execute(c.stdout, templateData)
 	}
 
 	joinMethod := token.GetJoinMethod()
@@ -1124,7 +1152,12 @@ func outputToken(
 	} else if deadline := getBoundKeypairRegistrationDeadline(token); deadline != nil {
 		templateData["minutes"] = int(time.Until(*deadline).Minutes())
 	}
-	return startMessageTemplateV2.Execute(wr, templateData)
+
+	if c.testMutateTemplateData != nil {
+		c.testMutateTemplateData(templateData)
+	}
+
+	return startMessageTemplateV2.Execute(c.stdout, templateData)
 }
 
 func getBoundKeypairRegistrationDeadline(token types.ProvisionToken) *time.Time {
@@ -1315,15 +1348,26 @@ func aggregateServiceHealth(services []*machineidv1pb.BotInstanceServiceHealth) 
 // createUniqueBotToken attempts to create a new uniquely-named bot join token.
 // It generates randomly-named tokens of the form `bot-$name-$suffix`, where
 // `$name` is the bot name, and `$suffix` is a random hex string. It makes up to
-// 2 retry attempts if the token name is already in use.
-func createUniqueBotToken(ctx context.Context, client botsCommandClient, ttl time.Duration, spec types.ProvisionTokenSpecV2) (types.ProvisionToken, error) {
+// 2 retry attempts if the token name is already in use. If staticTokenName is
+// set, that name will be used instead of a random name; this is only suitable
+// for ensuring deterministic tests.
+func (c *BotsCommand) createUniqueBotToken(
+	ctx context.Context,
+	client botsCommandClient,
+	ttl time.Duration,
+	spec types.ProvisionTokenSpecV2,
+) (types.ProvisionToken, error) {
 	for i := 0; i < 3; i++ {
-		suffix, err := utils.CryptoRandomHex(4)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		name := c.testStaticToken
+		if name == "" {
+			suffix, err := utils.CryptoRandomHex(4)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			name = fmt.Sprintf("bot-%s-%s", spec.BotName, suffix)
 		}
 
-		name := fmt.Sprintf("bot-%s-%s", spec.BotName, suffix)
 		token, err := types.NewProvisionTokenFromSpec(name, time.Now().Add(ttl), spec)
 		if err != nil {
 			return nil, trace.Wrap(err)
