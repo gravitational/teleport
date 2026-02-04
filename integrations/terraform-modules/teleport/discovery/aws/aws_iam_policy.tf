@@ -16,8 +16,6 @@ locals {
 }
 
 data "aws_iam_policy_document" "teleport_discovery_service_single_account" {
-  count = local.create ? 1 : 0
-
   statement {
     effect = "Allow"
 
@@ -34,6 +32,43 @@ data "aws_iam_policy_document" "teleport_discovery_service_single_account" {
   }
 }
 
+data "aws_iam_policy_document" "teleport_discovery_service_organization" {
+  # Allow listing accounts in the organization.
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "organizations:ListAccountsForParent",
+      "organizations:ListChildren",
+      "organizations:ListRoots",
+    ]
+
+    resources = ["*"]
+  }
+
+  # Allow assuming the role created in member accounts.
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "sts:AssumeRole",
+    ]
+
+    resources = ["*"]
+  }
+
+  # Allow the Auth Service to accept org join attempts
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "organizations:DescribeAccount",
+    ]
+
+    resources = ["*"]
+  }
+}
+
 resource "aws_iam_policy" "teleport_discovery_service" {
   count = local.create ? 1 : 0
 
@@ -44,7 +79,11 @@ resource "aws_iam_policy" "teleport_discovery_service" {
   tags        = local.apply_aws_tags
   policy = coalesce(
     var.aws_iam_policy_document,
-    data.aws_iam_policy_document.teleport_discovery_service_single_account[0].json,
+    (
+      local.single_account_deployment ?
+      data.aws_iam_policy_document.teleport_discovery_service_single_account.json :
+      data.aws_iam_policy_document.teleport_discovery_service_organization.json
+    )
   )
 }
 

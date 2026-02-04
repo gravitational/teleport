@@ -9,9 +9,16 @@ locals {
     : var.teleport_discovery_config_name
   )
   trust_role = try({
-    role_arn    = var.discovery_service_iam_credential_source.trust_role.role_arn,
-    external_id = var.discovery_service_iam_credential_source.trust_role.external_id,
+    role_name   = (local.organization_deployment ? var.aws_iam_role_name_for_child_accounts : null)
+    role_arn    = (local.single_account_deployment ? var.discovery_service_iam_credential_source.trust_role.role_arn : null)
+    external_id = try(var.discovery_service_iam_credential_source.trust_role.external_id, null)
   }, null)
+  organization = local.organization_deployment ? {
+    organization_id = local.aws_organization_id
+    organizational_units = {
+      include = ["*"]
+    }
+  } : null
 }
 
 resource "teleport_discovery_config" "aws" {
@@ -29,7 +36,8 @@ resource "teleport_discovery_config" "aws" {
   spec = {
     discovery_group = var.teleport_discovery_group_name
     aws = [{
-      assume_role = local.trust_role
+      assume_role  = local.trust_role
+      organization = local.organization
       install = {
         enroll_mode      = 1 # INSTALL_PARAM_ENROLL_MODE_SCRIPT
         install_teleport = true
