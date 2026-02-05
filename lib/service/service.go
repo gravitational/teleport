@@ -2417,6 +2417,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Identity:                  cfg.Identity,
 			Access:                    cfg.Access,
 			StaticTokens:              cfg.Auth.StaticTokens,
+			StaticScopedTokens:        cfg.Auth.StaticScopedTokens,
 			Roles:                     cfg.Auth.Roles,
 			AuthPreference:            cfg.Auth.Preference,
 			OIDCConnectors:            cfg.OIDCConnectors,
@@ -3002,6 +3003,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.AppSession = services.Identity
 	cfg.Apps = services.Applications
 	cfg.ClusterConfig = services.ClusterConfigurationInternal
+	cfg.StaticScopedToken = services.ClusterConfigurationInternal
 	cfg.CrownJewels = services.CrownJewels
 	cfg.DatabaseObjects = services.DatabaseObjects
 	cfg.DatabaseServices = services.DatabaseServices
