@@ -190,7 +190,7 @@ Linux desktops with additional column showing the type of the desktop.
 
 `tctl get/rm linux_desktop/:uuid` will be added.
 
-New flag `--linux-desktop` will be added to `tctl lock`.
+New flag `--linux-desktop` will be added to `tctl lock`. `tctl lock --server-id` will also support Linux desktops.
 
 `tctl token add` will support new system role `linux_desktop`. 
 
