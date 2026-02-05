@@ -336,8 +336,8 @@ We will introduce `sub_kind: materialized` to distinguish materialized
 scoped_role_assignments from user-created ones and prevent name collisions.
 Materialized assignments will be named `acl-<list-name>-<user-name>`, but this
 will not be guaranteed to be stable into the future.
-Access lists with a sub_kind will use `<name>/<sub_kind>` as a primary key in
-the backend and the cache.
+Scoped role assignments with a sub_kind will use `<name>/<sub_kind>` as a
+primary key in the backend and the scoped access cache.
 
 ### Inherited list membership
 
