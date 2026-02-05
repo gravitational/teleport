@@ -61,12 +61,12 @@ import (
 )
 
 // TestKubeRoot tests kube functionality that only requires root cluster (~2.5s setup).
-// This is much faster than TestKube as it avoids the ~5.7s tunnel establishment wait.
+// This is much faster than TestKubeLeaf as it avoids the ~5.7s tunnel establishment wait.
 func TestKubeRoot(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 
-	pack := setupKubeTestPackRoot(t, true)
+	pack := setupKubeTestPack(t, true, false)
 	t.Run("list kube", pack.testListKubeRoot)
 	t.Run("proxy kube", pack.testProxyKubeRoot)
 	t.Run("proxy kube with exec-cmd", pack.testProxyKubeWithExecCmd)
@@ -77,7 +77,7 @@ func TestKubeLeaf(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 
-	pack := setupKubeTestPack(t, true)
+	pack := setupKubeTestPack(t, true, true)
 	t.Run("list kube with --all", pack.testListKubeLeaf)
 	t.Run("proxy kube without cluster arg", pack.testProxyKubeLeaf)
 }
@@ -110,14 +110,14 @@ func TestKubeLogin(t *testing.T) {
 	}
 
 	t.Run("kube login with multiplex mode", func(t *testing.T) {
-		pack := setupKubeTestPack(t, true /* withMultiplexMode */)
+		pack := setupKubeTestPack(t, true /* withMultiplexMode */, false /* includeLeafCluster */)
 		webProxyAddr, err := pack.root.ProxyWebAddr()
 		require.NoError(t, err)
 		testKubeLogin(t, pack.rootKubeCluster1, webProxyAddr.String())
 	})
 
 	t.Run("kube login without multiplex mode", func(t *testing.T) {
-		pack := setupKubeTestPack(t, false /* withMultiplexMode */)
+		pack := setupKubeTestPack(t, false /* withMultiplexMode */, false /* includeLeafCluster */)
 		proxyAddr, err := pack.root.ProxyKubeAddr()
 		require.NoError(t, err)
 		addr := net.JoinHostPort("localhost", fmt.Sprintf("%d", proxyAddr.Port(defaults.KubeListenPort)))
@@ -135,26 +135,21 @@ type kubeTestPack struct {
 	leafKubeCluster  string
 }
 
-func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
+// setupKubeTestPack creates a test environment for kube tests.
+// When includeLeafCluster is false, only root cluster is set up (faster, ~2.5s).
+// When includeLeafCluster is true, both root and leaf clusters are set up (slower, ~8.5s due to tunnel establishment).
+func setupKubeTestPack(t *testing.T, withMultiplexMode bool, includeLeafCluster bool) *kubeTestPack {
 	t.Helper()
 
 	ctx := context.Background()
 	rootKubeCluster1 := "root-cluster"
 	rootKubeCluster2 := "first-cluster"
-	// mock a discovered kube cluster name in the leaf Teleport cluster.
-	leafKubeCluster := "leaf-cluster-some-suffix-added-by-discovery-service"
 	rootLabels := map[string]string{
 		"label1": "val1",
 		"ultra_long_label_for_teleport_kubernetes_service_list_kube_clusters_method": "ultra_long_label_value_for_teleport_kubernetes_service_list_kube_clusters_method",
 	}
-	leafLabels := map[string]string{
-		"label1": "val1",
-		"ultra_long_label_for_teleport_kubernetes_service_list_kube_clusters_method": "ultra_long_label_value_for_teleport_kubernetes_service_list_kube_clusters_method",
-		// mock a discovered kube cluster in the leaf Teleport cluster.
-		types.DiscoveredNameLabel: "leaf-cluster",
-	}
 
-	s := newTestSuite(t,
+	opts := []testSuiteOptionFunc{
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
 			if withMultiplexMode {
 				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
@@ -166,93 +161,79 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 			cfg.Proxy.Kube.Enabled = true
 			cfg.Proxy.Kube.ListenAddr = *utils.MustParseAddr(localListenerAddr())
 		}),
-		withLeafCluster(),
-		withLeafConfigFunc(
-			func(cfg *servicecfg.Config) {
-				if withMultiplexMode {
-					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+	}
+
+	var leafKubeCluster string
+	var leafClusterName string
+
+	if includeLeafCluster {
+		// mock a discovered kube cluster name in the leaf Teleport cluster.
+		leafKubeCluster = "leaf-cluster-some-suffix-added-by-discovery-service"
+		leafLabels := map[string]string{
+			"label1": "val1",
+			"ultra_long_label_for_teleport_kubernetes_service_list_kube_clusters_method": "ultra_long_label_value_for_teleport_kubernetes_service_list_kube_clusters_method",
+			// mock a discovered kube cluster in the leaf Teleport cluster.
+			types.DiscoveredNameLabel: "leaf-cluster",
+		}
+
+		opts = append(opts,
+			withLeafCluster(),
+			withLeafConfigFunc(
+				func(cfg *servicecfg.Config) {
+					if withMultiplexMode {
+						cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+					}
+					cfg.Kube.Enabled = true
+					cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
+					cfg.Kube.KubeconfigPath = newKubeConfigFile(t, leafKubeCluster)
+					cfg.Kube.StaticLabels = leafLabels
+				},
+			),
+			withValidationFunc(func(s *suite) bool {
+				// Wait for cache propagation of the kubernetes resources before proceeding with the tests.
+				var foundRoot1, foundRoot2, foundLeaf bool
+				for ks := range s.root.GetAuthServer().UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
+					foundRoot1 = foundRoot1 || ks.GetCluster().GetName() == rootKubeCluster1
+					foundRoot2 = foundRoot2 || ks.GetCluster().GetName() == rootKubeCluster2
 				}
-				cfg.Kube.Enabled = true
-				cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
-				cfg.Kube.KubeconfigPath = newKubeConfigFile(t, leafKubeCluster)
-				cfg.Kube.StaticLabels = leafLabels
-			},
-		),
-		withValidationFunc(func(s *suite) bool {
-			// Wait for cache propagation of the kubernetes resources before proceeding with the tests.
-			var foundRoot1, foundRoot2, foundLeaf bool
-			for ks := range s.root.GetAuthServer().UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
-				foundRoot1 = foundRoot1 || ks.GetCluster().GetName() == rootKubeCluster1
-				foundRoot2 = foundRoot2 || ks.GetCluster().GetName() == rootKubeCluster2
-			}
 
-			for ks := range s.leaf.GetAuthServer().UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
-				foundLeaf = foundLeaf || ks.GetCluster().GetName() == leafKubeCluster
-			}
+				for ks := range s.leaf.GetAuthServer().UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
+					foundLeaf = foundLeaf || ks.GetCluster().GetName() == leafKubeCluster
+				}
 
-			return foundRoot1 && foundRoot2 && foundLeaf
-		}),
-	)
+				return foundRoot1 && foundRoot2 && foundLeaf
+			}),
+		)
+	} else {
+		opts = append(opts,
+			withValidationFunc(func(s *suite) bool {
+				// Wait for cache propagation of the kubernetes resources before proceeding with the tests.
+				var foundRoot1, foundRoot2 bool
+				for ks := range s.root.GetAuthServer().UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
+					foundRoot1 = foundRoot1 || ks.GetCluster().GetName() == rootKubeCluster1
+					foundRoot2 = foundRoot2 || ks.GetCluster().GetName() == rootKubeCluster2
+				}
+
+				return foundRoot1 && foundRoot2
+			}),
+		)
+	}
+
+	s := newTestSuite(t, opts...)
 
 	mustLoginSetEnvLegacy(t, s)
+
+	if includeLeafCluster {
+		leafClusterName = s.leaf.Config.Auth.ClusterName.GetClusterName()
+	}
 
 	return &kubeTestPack{
 		suite:            s,
 		rootClusterName:  s.root.Config.Auth.ClusterName.GetClusterName(),
-		leafClusterName:  s.leaf.Config.Auth.ClusterName.GetClusterName(),
+		leafClusterName:  leafClusterName,
 		rootKubeCluster1: rootKubeCluster1,
 		rootKubeCluster2: rootKubeCluster2,
 		leafKubeCluster:  leafKubeCluster,
-	}
-}
-
-// setupKubeTestPackRoot creates a test environment with only root cluster (no leaf cluster).
-// This is faster than setupKubeTestPack as it avoids the ~5.7s tunnel establishment wait.
-func setupKubeTestPackRoot(t *testing.T, withMultiplexMode bool) *kubeTestPack {
-	t.Helper()
-
-	ctx := context.Background()
-	rootKubeCluster1 := "root-cluster"
-	rootKubeCluster2 := "first-cluster"
-	rootLabels := map[string]string{
-		"label1": "val1",
-		"ultra_long_label_for_teleport_kubernetes_service_list_kube_clusters_method": "ultra_long_label_value_for_teleport_kubernetes_service_list_kube_clusters_method",
-	}
-
-	s := newTestSuite(t,
-		withRootConfigFunc(func(cfg *servicecfg.Config) {
-			if withMultiplexMode {
-				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-			}
-			cfg.Kube.Enabled = true
-			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
-			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, rootKubeCluster1, rootKubeCluster2)
-			cfg.Kube.StaticLabels = rootLabels
-			cfg.Proxy.Kube.Enabled = true
-			cfg.Proxy.Kube.ListenAddr = *utils.MustParseAddr(localListenerAddr())
-		}),
-		// No leaf cluster
-		withValidationFunc(func(s *suite) bool {
-			// Wait for cache propagation of the kubernetes resources before proceeding with the tests.
-			var foundRoot1, foundRoot2 bool
-			for ks := range s.root.GetAuthServer().UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
-				foundRoot1 = foundRoot1 || ks.GetCluster().GetName() == rootKubeCluster1
-				foundRoot2 = foundRoot2 || ks.GetCluster().GetName() == rootKubeCluster2
-			}
-
-			return foundRoot1 && foundRoot2
-		}),
-	)
-
-	mustLoginSetEnvLegacy(t, s)
-
-	return &kubeTestPack{
-		suite:            s,
-		rootClusterName:  s.root.Config.Auth.ClusterName.GetClusterName(),
-		leafClusterName:  "",
-		rootKubeCluster1: rootKubeCluster1,
-		rootKubeCluster2: rootKubeCluster2,
-		leafKubeCluster:  "",
 	}
 }
 
