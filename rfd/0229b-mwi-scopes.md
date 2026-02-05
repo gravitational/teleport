@@ -105,11 +105,9 @@ The Scope Admin then assigns Scoped Roles to the Scoped Bot through Scoped Role
 Assignments or via Scoped Access Lists. They cannot assign unscoped Roles to the
 Scoped Bot.
 
-TODO: Do the Scoped Roles assigned to the Scoped Bot need to be within the same 
-scope or a sub-scope of the scope in which the Scoped Bot exists? Or do we
-permit a Scoped Bot existing in `/foo` to be assigned Scoped Roles/privileges in
-`/bar`? I think there's some merit in this - e.g allowing a scope admin to grant
-an NHI owned/operated by another team to access resources within their scope.
+The Scoped Roles assigned to the Bot must exist within the same scope as the Bot,
+or a child scope, and they must be assigned within the same Scope as the Bot or
+a child scope. This negates the possibility of cross-scope privilege assignment.
 
 The Scope Admin then creates a Scoped Join Token to allow `tbot` to join as 
 the Scoped Bot. The Scoped Join Token MUST be created within the same scope as 
@@ -124,8 +122,8 @@ using the Scoped Join Token. To do so, they must configure:
 - The address of the Auth or Proxy Service.
 - A type of service they would like `tbot` to run (e.g `identity`).
 
-TODO: The question of Pinning. Are the Bots credentials pinned to the scope
-it exists in? This poses challenges for cross-scope privilege down the line.
+The certificates that `tbot` receives upon joining and that it generates for
+services will be pinned to the scope in which the Scoped Bot exists.
 
 ## Implementation Details
 
