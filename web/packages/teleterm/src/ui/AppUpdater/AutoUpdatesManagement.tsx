@@ -289,7 +289,7 @@ function makeContentForEnabledAutoUpdates(status: AutoUpdatesEnabled): {
     case 'env-config':
       return {
         kind: 'neutral',
-        description: `The app is set to stay on version ${status.version} by your device settings.`,
+        description: `Your device settings require client version ${status.version}.`,
       };
     case 'managing-cluster':
       return;

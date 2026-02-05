@@ -67,7 +67,6 @@ export interface StoryProps {
     | 'Enabled client updates - v16 cluster'
     | 'Disabled client updates - v17 cluster';
   clusterBarSetToManageUpdates: boolean;
-  updateKind: 'Upgrade' | 'Downgrade';
   cdnBaseUrl: 'Unset (OSS build)' | 'Official' | 'Unofficial';
   updateRequiresUacPrompt: boolean;
 }
@@ -108,12 +107,6 @@ const meta: Meta<StoryProps> = {
       control: { type: 'boolean' },
       description: 'Whether cluster "bar" is manually set to control updates',
     },
-    updateKind: {
-      control: { type: 'radio' },
-      options: ['Upgrade', 'Downgrade'],
-      description:
-        'Indicates whether the update version is newer or older than the current application version.',
-    },
     step: {
       control: { type: 'radio' },
       options: [
@@ -147,7 +140,6 @@ const meta: Meta<StoryProps> = {
     clusterFoo: 'Enabled client updates - v18 cluster',
     clusterBar: 'Does not exist',
     clusterBarSetToManageUpdates: false,
-    updateKind: 'Upgrade',
     step: 'Update available',
     platform: 'darwin',
     cdnBaseUrl: 'Official',
@@ -260,7 +252,6 @@ async function resolveEvent(storyProps: StoryProps): Promise<AppUpdateEvent> {
   const updateInfo = makeUpdateInfo(
     nonTeleportCdn,
     status.enabled ? status.version : '',
-    storyProps.updateKind === 'Upgrade' ? 'upgrade' : 'downgrade',
     storyProps.updateRequiresUacPrompt
   );
 
@@ -347,6 +338,7 @@ function WidgetAndDetails(storyProps: StoryProps) {
           </P2>
         </Stack>
         <DetailsView
+          currentVersion="14.7.3"
           platform={storyProps.platform}
           updateEvent={state}
           changeManagingCluster={() => {}}
