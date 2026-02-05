@@ -66,7 +66,7 @@ func TestKubeRoot(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 
-	pack := setupKubeTestPack(t, true, false)
+	pack := setupKubeTestPack(t, true /* withMultiplexMode */, false /* includeLeafCluster */)
 	t.Run("list kube", pack.testListKubeRoot)
 	t.Run("proxy kube", pack.testProxyKubeRoot)
 	t.Run("proxy kube with exec-cmd", pack.testProxyKubeWithExecCmd)
@@ -77,7 +77,7 @@ func TestKubeLeaf(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 
-	pack := setupKubeTestPack(t, true, true)
+	pack := setupKubeTestPack(t, true /* withMultiplexMode */, true /* includeLeafCluster */)
 	t.Run("list kube with --all", pack.testListKubeLeaf)
 	t.Run("proxy kube without cluster arg", pack.testProxyKubeLeaf)
 }
@@ -333,6 +333,10 @@ func (p *kubeTestPack) testListKubeLeaf(t *testing.T) {
 				table := asciitable.MakeTableWithTruncatedColumn(
 					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"},
 					[][]string{
+						// "leaf-cluster" should be displayed instead of the
+						// full leaf cluster name, since it is mocked as a
+						// discovered resource and the discovered resource name
+						// is displayed in non-verbose mode.
 						{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels},
 						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels},
 						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels},
@@ -383,6 +387,10 @@ func (p *kubeTestPack) testListKubeLeaf(t *testing.T) {
 					tc.args...,
 				),
 				setCopyStdout(captureStdout),
+
+				// set a custom empty kube config for each test, as we do
+				// not want parallel (or even shuffled sequential) tests
+				// potentially racing on the same config
 				setKubeConfigPath(filepath.Join(t.TempDir(), "kubeconfig")),
 			)
 			require.NoError(t, err)
