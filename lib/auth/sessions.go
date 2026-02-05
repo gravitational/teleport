@@ -579,12 +579,22 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		},
 	}
 
+	app, err := a.GetApp(ctx, req.AppName)
+	if err != nil {
+		return nil, trace.AccessDenied("application metadata not found")
+	}
+
 	// Enforce device trust early via the AccessChecker.
-	if err = checker.CheckDeviceAccess(services.AccessState{
-		DeviceVerified:           dtauthz.IsTLSDeviceVerified((*tlsca.DeviceExtensions)(&req.DeviceExtensions)),
-		EnableDeviceVerification: true,
-		IsBot:                    req.BotName != "",
-	}); err != nil {
+	if err = checker.CheckDeviceAccess(
+		app,
+		services.AccessState{
+			DeviceVerified:           dtauthz.IsTLSDeviceVerified((*tlsca.DeviceExtensions)(&req.DeviceExtensions)),
+			EnableDeviceVerification: true,
+			IsBot:                    req.BotName != "",
+		},
+		req.Traits,
+	); err != nil {
+
 		userKind := apievents.UserKind_USER_KIND_HUMAN
 		if req.BotName != "" {
 			userKind = apievents.UserKind_USER_KIND_BOT

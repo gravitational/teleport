@@ -2881,11 +2881,20 @@ func deduplicateAndSortPreconditions(preconds []*decisionpb.Precondition) []*dec
 //
 // This is used for early authorization checks where a full resource object
 // is not yet available, but we need to verify the device before proceeding.
-func (set RoleSet) CheckDeviceAccess(state AccessState) error {
+func (set RoleSet) CheckDeviceAccess(r AccessCheckable, state AccessState, userTraits wrappers.Traits) error {
 	if !state.EnableDeviceVerification {
 		return nil
 	}
+
+	// Check device trust mode across all roles that apply to the resource.
 	for _, role := range set {
+		// If a specific resource is provided, we only enforce Device Trust requirements
+		// for roles that grant access to that resource.
+		if r != nil {
+			if matches, _, _ := checkRoleLabelsMatch(types.Allow, role, userTraits, r, false); !matches {
+				continue
+			}
+		}
 		// Note: Unlike RoleSet.checkAccess, VerifyTrustedDeviceMode does not short-circuit
 		// if the device is already verified. It performs validation across the entire RoleSet.
 		if err := dtauthz.VerifyTrustedDeviceMode(

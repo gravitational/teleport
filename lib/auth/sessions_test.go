@@ -206,6 +206,8 @@ func TestServer_CreateWebSessionFromReq_deviceWebToken(t *testing.T) {
 	}
 }
 
+// TestCreateAppSession_DeviceTrust validates the core Device Trust enforcement logic.
+// It tests every permutation of Device Trust modes and against both human users and bots.
 func TestCreateAppSession_DeviceTrust(t *testing.T) {
 	t.Parallel()
 
@@ -281,7 +283,16 @@ func TestCreateAppSession_DeviceTrust(t *testing.T) {
 			suffix := uuid.NewString()
 			username := "user-" + suffix
 			roleName := "role-" + suffix
+			appName := "app-" + suffix
 			publicAddr := "www-" + suffix + ".example.com"
+
+			app, err := types.NewAppV3(types.Metadata{
+				Name: appName,
+			}, types.AppSpecV3{
+				URI: "http://example.com",
+			})
+			require.NoError(t, err)
+			require.NoError(t, authServer.CreateApp(ctx, app))
 
 			role, err := types.NewRole(roleName, types.RoleSpecV6{
 				Options: types.RoleOptions{
@@ -324,7 +335,7 @@ func TestCreateAppSession_DeviceTrust(t *testing.T) {
 
 			req := &proto.CreateAppSessionRequest{
 				Username:    username,
-				AppName:     "example-app",
+				AppName:     appName,
 				URI:         "http://example.com",
 				ClusterName: clusterName,
 				PublicAddr:  publicAddr,
@@ -367,7 +378,7 @@ func TestCreateAppSession_DeviceTrust(t *testing.T) {
 					UserTraits:      traits,
 				},
 				AppMetadata: apievents.AppMetadata{
-					AppName:       "example-app",
+					AppName:       appName,
 					AppURI:        "http://example.com",
 					AppPublicAddr: publicAddr,
 				},
@@ -420,6 +431,93 @@ func TestCreateAppSession_DeviceTrust(t *testing.T) {
 				require.Empty(t, diff, "Audit event mismatch for case: %s\n%s", tt.name, diff)
 			}
 			require.True(t, eventFound, "Expected AppSessionStart event was not found in audit log")
+		})
+	}
+}
+
+func TestCreateAppSession_UntrustedDevice(t *testing.T) {
+	t.Parallel()
+
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testAuthServer.Close() })
+
+	// The first role allows access to all apps and doesn't require a trusted device.
+	allowAllWithoutDeviceTrust, err := types.NewRole("all-apps-any-device", types.RoleSpecV6{
+		Options: types.RoleOptions{DeviceTrustMode: constants.DeviceTrustModeOptional},
+		Allow:   types.RoleConditions{AppLabels: types.Labels{"*": []string{"*"}}},
+	})
+	require.NoError(t, err)
+	_, err = testAuthServer.AuthServer.CreateRole(t.Context(), allowAllWithoutDeviceTrust)
+	require.NoError(t, err)
+
+	// The second role requires a trusted device, but only applies to apps in prod.
+	requireDeviceTrustForProd, err := types.NewRole("prod-trusted-device", types.RoleSpecV6{
+		Options: types.RoleOptions{DeviceTrustMode: constants.DeviceTrustModeRequired},
+		Allow:   types.RoleConditions{AppLabels: types.Labels{"env": []string{"prod"}}},
+	})
+	require.NoError(t, err)
+	_, err = testAuthServer.AuthServer.CreateRole(t.Context(), requireDeviceTrustForProd)
+	require.NoError(t, err)
+
+	// Create a user with both roles.
+	user, err := types.NewUser("bob")
+	require.NoError(t, err)
+	user.AddRole(allowAllWithoutDeviceTrust.GetName())
+	user.AddRole(requireDeviceTrustForProd.GetName())
+	_, err = testAuthServer.AuthServer.CreateUser(t.Context(), user)
+	require.NoError(t, err)
+
+	devApp, err := types.NewAppV3(types.Metadata{
+		Name:   "dev-app",
+		Labels: map[string]string{"env": "dev"},
+	}, types.AppSpecV3{
+		URI: "http://dev-app.example.com",
+	})
+	require.NoError(t, err)
+	require.NoError(t, testAuthServer.AuthServer.CreateApp(t.Context(), devApp))
+
+	prodApp, err := types.NewAppV3(types.Metadata{
+		Name:   "prod-app",
+		Labels: map[string]string{"env": "prod"},
+	}, types.AppSpecV3{
+		URI: "http://prod-app.example.com",
+	})
+	require.NoError(t, err)
+	require.NoError(t, testAuthServer.AuthServer.CreateApp(t.Context(), prodApp))
+
+	cName, err := testAuthServer.AuthServer.GetClusterName(t.Context())
+	require.NoError(t, err)
+	clusterName := cName.GetClusterName()
+
+	checker, err := services.NewAccessChecker(&services.AccessInfo{
+		Username: user.GetName(),
+		Roles:    user.GetRoles(),
+	}, clusterName, testAuthServer.AuthServer)
+	require.NoError(t, err)
+
+	for _, test := range []struct {
+		app    types.Application
+		assert require.ErrorAssertionFunc
+	}{
+		{app: prodApp, assert: require.Error},
+		{app: devApp, assert: require.NoError},
+	} {
+		t.Run(test.app.GetName(), func(t *testing.T) {
+			req := &proto.CreateAppSessionRequest{
+				Username:    user.GetName(),
+				AppName:     test.app.GetName(),
+				URI:         test.app.GetURI(),
+				PublicAddr:  test.app.GetPublicAddr(),
+				ClusterName: clusterName,
+			}
+			// simulate a user identity WITHOUT a trusted device
+			identity := tlsca.Identity{Username: user.GetName()}
+
+			_, err = testAuthServer.AuthServer.CreateAppSession(t.Context(), req, identity, checker)
+			test.assert(t, err)
 		})
 	}
 }
