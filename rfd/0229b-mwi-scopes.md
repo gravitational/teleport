@@ -113,9 +113,9 @@ some of these rules are introduced by this RFD and specific to Scoped Bots
 These rules are as follows:
 
 - RFD299-1: A Scoped Role is only assignable at the scope of the Scoped Role or
-  a child scope.
+  a descendent scope.
 - RFD229-2: A Scoped Role Assignment's scope of effect must be the same or a
-  child scope of its scope of origin.
+  descendent of its scope of origin.
 - RFD229B-1: The scope of origin and scope of effect of a Scoped Role Assignment
   for a Scoped Bot must be the same scope or descendent scope of the Bot's scope.
   - nb: RFD229-2 constrains scope of effect to at most scope of origin for SRA.
