@@ -144,10 +144,10 @@ Worked Examples:
 | /a/b      | /a/b     | /a/b/c              | /a/b/c              | OK                           |
 | /a/b      | /a/b     | /a/b                | /a/b/c              | OK                           |
 | /a/b      | /a/b     | /a                  | /a                  | NOT OK - RFD229-1            |
+| /a/b      | /a/b/c   | /a/b                | /a/b                | NOT OK - RFD229-2            |
 | /a/b      | /a/b     | /a/b                | /a                  | NOT OK - RFD229-1 & RFD229-2 |
-| /z        | /a       | /a                  | /a                  | NOT OK - RFD229B-1           |
-|           |          |                     |                     |                              |
-|           |          |                     |                     |                              |
+| /a/b      | /a       | /a                  | /a                  | NOT OK - RFD229B-1           |
+| /a/b      | /z       | /z                  | /z                  | NOT OK - RFD229B-1           |
 
 These rules are backed up by the Scope Pinning mechanism. Certificates issued to
 the Scoped Bot are pinned to the scope in which it exists.
@@ -250,7 +250,6 @@ Introduce a new resource type - ScopedBot:
     future.
 - Requires us to introduce and maintain wholly separate RPCs, `tctl` commands
   and IaC resources for ScopedBots.
-
 
 Introduce a subkind of the existing Bot resource:
 
