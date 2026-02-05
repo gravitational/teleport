@@ -33,7 +33,7 @@ export function BasicInformation() {
     <Validation>
       {({ validator }) => (
         <>
-          <GuideContent withMaxWidth>
+          <GuideContent withMaxWidth mb={4}>
             <H1>Step {currentStep + 1}: Basic Information</H1>
             <Text mb={4}>
               Describe this access list and how frequently this access list

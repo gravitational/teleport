@@ -48,7 +48,11 @@ export function useFetch(): FetchState {
 
     const options: HybridUserOption[] = accessListsResult.agents.map(list => ({
       label: list.title,
-      value: { membershipKind: AccessListMemberKind.List, name: list.id },
+      value: {
+        membershipKind: AccessListMemberKind.List,
+        name: list.id,
+        origin: list.origin,
+      },
     }));
 
     return options;

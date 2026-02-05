@@ -14,11 +14,16 @@ import type { Theme } from 'design/theme/themes/types';
 import type { Option } from 'shared/components/Select';
 import type useAttempt from 'shared/hooks/useAttemptNext';
 
-import { AccessListMemberKind } from 'e-teleport/services/accessmanagement';
+import {
+  AccessListMemberKind,
+  AccessListOrigin,
+} from 'e-teleport/services/accessmanagement';
 import ResourceService, { type Role } from 'teleport/services/resources';
 import type { User } from 'teleport/services/user';
 import { yamlService } from 'teleport/services/yaml';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
+
+import { TypeBadge } from './TypeBadge';
 
 // HybridUserOption
 //
@@ -40,6 +45,7 @@ export type TextEditKind = 'Title' | 'Description';
 export type MemberSelection = {
   name: string;
   membershipKind: AccessListMemberKind;
+  origin?: AccessListOrigin;
 };
 
 const ReactSelectAccessListOptionBadge = styled.span`
@@ -83,10 +89,17 @@ export function ReactSelectAccessListOption<
   IsMulti extends boolean,
   Group extends GroupBase<Option>,
 >({ children, ...restProps }: OptionProps<Option, IsMulti, Group>) {
-  const isAccessListOpt =
-    typeof restProps.data?.value === 'object' &&
-    'membershipKind' in restProps.data.value &&
-    restProps.data.value?.membershipKind === AccessListMemberKind.List;
+  const data = restProps.data?.value;
+  let isAccessListOpt = false;
+  let origin;
+  if (typeof data === 'object') {
+    if ('membershipKind' in data) {
+      isAccessListOpt = data.membershipKind === AccessListMemberKind.List;
+      if (isAccessListOpt) {
+        origin = data.origin;
+      }
+    }
+  }
 
   return (
     <ReactSelectAccessListOptWrapper>
@@ -95,6 +108,7 @@ export function ReactSelectAccessListOption<
           {isAccessListOpt ? <UserList size={14} /> : <UserIcon size={14} />}
         </ReactSelectAccessListOptionBadge>
         {children}
+        {origin && <TypeBadge type={origin} />}
       </components.Option>
     </ReactSelectAccessListOptWrapper>
   );
