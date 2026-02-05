@@ -114,6 +114,8 @@ These rules are as follows:
 
 - RFD299-1: A Scoped Role is only assignable at the scope of the Scoped Role or
   a descendent scope.
+  - nb: A Scoped Role may include an `assignable_scopes` field that further
+    constrains where it may be assigned.
 - RFD229-2: A Scoped Role Assignment's scope of effect must be the same or a
   descendent of its scope of origin.
 - RFD229B-1: The scope of origin and scope of effect of a Scoped Role Assignment
