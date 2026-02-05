@@ -24,13 +24,13 @@ import { app } from 'electron';
 import {
   autoUpdater,
   DebUpdater,
+  UpdateInfo as ElectronUpdateInfo,
   MacUpdater,
   AppUpdater as NativeUpdater,
   NsisUpdater,
   ProgressInfo,
   RpmUpdater,
   UpdateCheckResult,
-  UpdateInfo,
 } from 'electron-updater';
 import { ProviderRuntimeOptions } from 'electron-updater/out/providers/Provider';
 
@@ -375,6 +375,8 @@ export class AppUpdater {
     }
   }
 }
+
+export interface UpdateInfo extends ElectronUpdateInfo {}
 
 export interface AppUpdaterStorage<
   T = {
