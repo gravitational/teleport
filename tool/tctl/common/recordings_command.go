@@ -45,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -86,8 +85,6 @@ type RecordingsCommand struct {
 	summarySessionID string
 	// summaryFormat is the output format for summary view
 	summaryFormat string
-	// summaryUsePager enables interactive paging for text output
-	summaryUsePager bool
 	// summaryDownloadOutputFile is the output file path to download the summary to
 	summaryDownloadOutputFile string
 
@@ -125,7 +122,6 @@ func (c *RecordingsCommand) Initialize(app *kingpin.Application, t *tctlcfg.Glob
 	c.summaryView = summary.Command("view", "View a session summary.")
 	c.summaryView.Arg("session-id", "ID of the session to view the summary for.").Required().StringVar(&c.summarySessionID)
 	c.summaryView.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+". Defaults to 'text'.").Default(teleport.Text).StringVar(&c.summaryFormat)
-	c.summaryView.Flag("pager", "Use an interactive pager for text output. Defaults to true for terminals.").Default("true").BoolVar(&c.summaryUsePager)
 
 	c.summaryDownload = summary.Command("download", "Download a session summary to a file.")
 	c.summaryDownload.Arg("session-id", "ID of the session to download the summary for.").Required().StringVar(&c.summarySessionID)
@@ -467,11 +463,6 @@ func (c *RecordingsCommand) formatSummaryText(summary *summarizerv1.Summary) err
 
 			fmt.Fprintf(&buf, "\n")
 		}
-	}
-
-	// Use pager if enabled and stdout is a terminal
-	if c.summaryUsePager && utils.IsTerminal(c.stdout) {
-		return runInteractivePager(buf.String(), c.stdout)
 	}
 
 	// Otherwise write directly to stdout
