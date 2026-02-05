@@ -1496,6 +1496,9 @@ type Cache interface {
 
 	// AppAuthConfigGetter defines methods for fetching app auth configs.
 	services.AppAuthConfigReader
+
+	// WorkloadClusterServiceGetter defines methods for fetching workload clusters.
+	services.WorkloadClusterServiceGetter
 }
 
 type NodeWrapper struct {

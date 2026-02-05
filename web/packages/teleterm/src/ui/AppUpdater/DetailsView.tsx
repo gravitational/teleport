@@ -75,6 +75,7 @@ export function DetailsView({
     <Stack gap={3} width="100%">
       {updateEvent.autoUpdatesStatus && (
         <AutoUpdatesManagement
+          platform={platform}
           status={updateEvent.autoUpdatesStatus}
           updateEventKind={updateEvent.kind}
           onCheckForUpdates={onCheckForUpdates}
@@ -263,6 +264,22 @@ function AvailableUpdate(props: { update: UpdateInfo; platform: Platform }) {
           <Flex gap={1} mt={1}>
             <Info size="small" />
             Using {downloadHost} as the update server.
+          </Flex>
+        )}
+      </P3>
+      <P3 m={0} color="text.slightlyMuted">
+        {props.update.requiresUacPrompt && (
+          <Flex gap={1} mt={1}>
+            <Info size="small" />
+            <Text>
+              Teleport Connect updates are currently configured using deprecated
+              environment variables (<code>TELEPORT_TOOLS_VERSION</code> or{' '}
+              <code>TELEPORT_CDN_BASE_URL</code>). To continue receiving updates
+              without requiring UAC prompts, migrate these settings to the
+              system policy registry keys:{' '}
+              <code>HKLM\SOFTWARE\Policies\Teleport\TeleportConnect</code>.
+              {/*TODO(gzdunek): Link to docs.*/}
+            </Text>
           </Flex>
         )}
       </P3>

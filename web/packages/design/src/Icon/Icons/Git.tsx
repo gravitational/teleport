@@ -56,6 +56,7 @@ export const Git = forwardRef<HTMLSpanElement, IconProps>(
       size={size}
       color={color}
       className="icon icon-git"
+      viewBox="0 0 18 20"
       {...otherProps}
       ref={ref}
     >

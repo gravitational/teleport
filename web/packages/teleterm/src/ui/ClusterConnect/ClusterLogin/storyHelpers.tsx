@@ -137,6 +137,7 @@ export function makeProps(
         path: '',
         releaseDate: '',
         sha512: '',
+        requiresUacPrompt: false,
       },
       autoDownload: true,
       autoUpdatesStatus: {

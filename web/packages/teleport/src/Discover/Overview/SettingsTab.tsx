@@ -17,22 +17,24 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { Box, Card, Flex, Indicator } from 'design';
 import { Info as InfoAlert } from 'design/Alert';
-import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
+import { copyToClipboard } from 'design/utils/copyToClipboard';
+import { InfoGuideContainer } from 'shared/components/SlidingSidePanel/InfoGuide';
 import Validation from 'shared/components/Validation';
 
+import { SlidingSidePanel } from 'teleport/components/SlidingSidePanel/SlidingSidePanel';
 import { DeploymentMethodSection } from 'teleport/Integrations/Enroll/Cloud/Aws/DeploymentMethodSection';
 import {
   ConfigurationScopeSection,
   Divider,
-  InfoGuideTab,
   IntegrationSection,
 } from 'teleport/Integrations/Enroll/Cloud/Aws/EnrollAws';
 import {
   InfoGuideContent,
+  InfoGuideTab,
   InfoGuideTitle,
   TerraformInfoGuide,
 } from 'teleport/Integrations/Enroll/Cloud/Aws/InfoGuide';
@@ -44,16 +46,18 @@ import {
   WildcardRegion,
 } from 'teleport/Integrations/Enroll/Cloud/Aws/types';
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
+import { zIndexMap } from 'teleport/Navigation/zIndexMap';
 import {
   IntegrationDiscoveryRule,
   integrationService,
   IntegrationWithSummary,
   Regions,
 } from 'teleport/services/integrations';
+import { useClusterVersion } from 'teleport/useClusterVersion';
 
 import { DeleteIntegrationSection } from './DeleteIntegrationSection';
 
-const infoGuidePanelWidth = 500;
+export const SETTINGS_PANEL_WIDTH = 500;
 
 export function SettingsTab({
   stats,
@@ -65,14 +69,7 @@ export function SettingsTab({
   onInfoGuideTabChange: (tab: InfoGuideTab) => void;
 }) {
   const integrationName = stats.name;
-  const [configCopied, setConfigCopied] = useState(false);
-
-  const handleConfigCopy = () => {
-    setConfigCopied(true);
-    setTimeout(() => {
-      setConfigCopied(false);
-    }, 1000);
-  };
+  const { clusterVersion } = useClusterVersion();
 
   const { data: ec2Rules, isLoading } = useQuery({
     queryKey: ['integrationRules', stats.name, AwsResource.ec2],
@@ -128,56 +125,12 @@ export function SettingsTab({
         integrationName,
         regions: regions,
         ec2Config: ec2Config,
+        version: clusterVersion,
       }),
-    [integrationName, regions, ec2Config]
+    [integrationName, regions, ec2Config, clusterVersion]
   );
 
-  const { infoGuideConfig: currentInfoGuideConfig, setInfoGuideConfig } =
-    useInfoGuide();
-  const copyConfigButtonRef = useRef<HTMLButtonElement>(null);
-  const prevConfigRef = useRef(currentInfoGuideConfig);
-
-  const infoGuideConfig = useMemo(
-    () => ({
-      guide:
-        activeInfoGuideTab === 'terraform' ? (
-          <TerraformInfoGuide
-            terraformConfig={terraformConfig}
-            copyConfigButtonRef={copyConfigButtonRef}
-            configCopied={configCopied}
-          />
-        ) : (
-          <InfoGuideContent />
-        ),
-      title: (
-        <InfoGuideTitle
-          activeSection={activeInfoGuideTab}
-          onSectionChange={onInfoGuideTabChange}
-        />
-      ),
-      panelWidth: infoGuidePanelWidth,
-    }),
-    [terraformConfig, activeInfoGuideTab, onInfoGuideTabChange, configCopied]
-  );
-
-  useEffect(() => {
-    // set active info tab to null when panel closed externally
-    if (
-      prevConfigRef.current &&
-      !currentInfoGuideConfig &&
-      activeInfoGuideTab
-    ) {
-      onInfoGuideTabChange(null);
-    } else if (activeInfoGuideTab) {
-      // open info panel for active info tab
-      setInfoGuideConfig(infoGuideConfig);
-    } else {
-      // close panel
-      setInfoGuideConfig(null);
-    }
-
-    prevConfigRef.current = currentInfoGuideConfig;
-  }, [activeInfoGuideTab, currentInfoGuideConfig, infoGuideConfig]);
+  const isPanelOpen = activeInfoGuideTab !== null;
 
   if (isLoading) {
     return (
@@ -189,51 +142,86 @@ export function SettingsTab({
 
   return (
     <Validation>
-      <Flex pt={3}>
-        <Box flex="1" mr={3}>
-          <Card p={4} mb={3}>
-            <InfoAlert
-              mb={3}
-              details="Review the prerequisites and setup requirements before configuring this integration."
-              primaryAction={{
-                content: 'View Info Guide',
-                onClick: () => onInfoGuideTabChange('info'),
-              }}
-            >
-              Before You Begin
-            </InfoAlert>
-            <Box mb={4}>
-              <IntegrationSection
-                integrationName={integrationName}
-                onChange={() => {}}
-                disabled={true}
+      {({ validator }) => (
+        <Flex pt={3}>
+          <Box flex="1">
+            <Card p={4} mb={3}>
+              <InfoAlert
+                mb={3}
+                details="Review the prerequisites and setup requirements before configuring this integration."
+                primaryAction={{
+                  content: 'View Info Guide',
+                  onClick: () => onInfoGuideTabChange('info'),
+                }}
+              >
+                Before You Begin
+              </InfoAlert>
+              <Box mb={4}>
+                <IntegrationSection
+                  integrationName={integrationName}
+                  onChange={() => {}}
+                  disabled={true}
+                />
+              </Box>
+              <Divider />
+              <Box>
+                <ConfigurationScopeSection />
+              </Box>
+              <Divider />
+              <ResourcesSection
+                ec2Config={ec2Config}
+                onEc2Change={setEc2Config}
               />
-            </Box>
-            <Divider />
-            <Box>
-              <ConfigurationScopeSection />
-            </Box>
-            <Divider />
-            <ResourcesSection
-              ec2Config={ec2Config}
-              onEc2Change={setEc2Config}
-            />
-            <Divider />
-            <RegionsSection regions={regions} onChange={setRegions} />
-            <Divider />
-            <DeploymentMethodSection
-              terraformConfig={terraformConfig}
-              copyConfigButtonRef={copyConfigButtonRef}
-              integrationExists={true}
-              showVerificationStep={false}
-              configCopied={configCopied}
-              onConfigCopy={handleConfigCopy}
-            />
-          </Card>
+              <Divider />
+              <RegionsSection regions={regions} onChange={setRegions} />
+              <Divider />
+              <DeploymentMethodSection
+                terraformConfig={terraformConfig}
+                handleCopy={() => {
+                  if (validator.validate() && terraformConfig) {
+                    copyToClipboard(terraformConfig);
+                  }
+                }}
+                integrationExists={true}
+                showVerificationStep={false}
+              />
+            </Card>
 
-          <DeleteIntegrationSection integrationName={integrationName} />
-        </Box>
-      </Flex>
+            <DeleteIntegrationSection integrationName={integrationName} />
+          </Box>
+
+          <SlidingSidePanel
+            isVisible={isPanelOpen}
+            skipAnimation={false}
+            panelWidth={SETTINGS_PANEL_WIDTH}
+            zIndex={zIndexMap.infoGuideSidePanel}
+            slideFrom="right"
+          >
+            <InfoGuideContainer
+              onClose={() => onInfoGuideTabChange(null)}
+              title={
+                <InfoGuideTitle
+                  activeSection={activeInfoGuideTab}
+                  onSectionChange={onInfoGuideTabChange}
+                />
+              }
+            >
+              {activeInfoGuideTab === 'terraform' ? (
+                <TerraformInfoGuide
+                  terraformConfig={terraformConfig}
+                  handleCopy={() => {
+                    if (validator.validate() && terraformConfig) {
+                      copyToClipboard(terraformConfig);
+                    }
+                  }}
+                />
+              ) : (
+                <InfoGuideContent />
+              )}
+            </InfoGuideContainer>
+          </SlidingSidePanel>
+        </Flex>
+      )}
     </Validation>
   );
 }

@@ -18,30 +18,52 @@
 
 import styled from 'styled-components';
 
-import { Box, Button, Flex, Text } from 'design';
-import { Check, Copy } from 'design/Icon';
+import { Box, Flex, Text } from 'design';
+import { Info } from 'design/Icon';
+import { ResourceIcon } from 'design/ResourceIcon';
+import { HoverTooltip } from 'design/Tooltip';
+import {
+  ViewModeSwitchButton,
+  ViewModeSwitchContainer,
+} from 'shared/components/Controls/ViewModeSwitch';
 import {
   InfoParagraph,
   InfoTitle,
   ReferenceLinks,
   type ReferenceLink,
 } from 'shared/components/SlidingSidePanel/InfoGuide';
+import { marginTransitionCss } from 'shared/components/SlidingSidePanel/InfoGuide/const';
+import { useValidation } from 'shared/components/Validation';
 
 import LiveTextEditor from '../LiveTextEditor';
+import { CopyTerraformButton } from './DeploymentMethodSection';
 
 export const PANEL_WIDTH = 500;
 
+export type InfoGuideTab = 'info' | 'terraform' | null;
+
+export const ContentWithSidePanel = styled(Box)<{
+  isPanelOpen: boolean;
+  panelWidth: number;
+}>`
+  ${props =>
+    marginTransitionCss({
+      sidePanelOpened: props.isPanelOpen,
+      panelWidth: props.panelWidth,
+    })}
+`;
+
 export type TerraformInfoGuideProps = {
   terraformConfig: string;
-  copyConfigButtonRef: React.RefObject<HTMLButtonElement>;
-  configCopied: boolean;
+  handleCopy: () => void;
 };
 
 export function TerraformInfoGuide({
   terraformConfig,
-  copyConfigButtonRef,
-  configCopied,
+  handleCopy,
 }: TerraformInfoGuideProps) {
+  const validator = useValidation();
+
   return (
     <Flex
       ml={-3}
@@ -54,18 +76,21 @@ export function TerraformInfoGuide({
         data={[{ content: terraformConfig, type: 'terraform' }]}
       />
       <Box p={3}>
-        <Button
-          disabled={copyConfigButtonRef.current?.disabled}
-          onClick={() => {
-            copyConfigButtonRef.current?.click();
+        <CopyTerraformButton
+          onClick={e => {
+            const isValid = validator.validate();
+            if (!isValid) {
+              e.preventDefault();
+            } else {
+              handleCopy();
+            }
           }}
-          gap={2}
-          fill="border"
-          intent="primary"
-        >
-          {configCopied ? <Check size="small" /> : <Copy size="small" />}
-          Copy Terraform Module
-        </Button>
+        />
+        {validator.state.validating && !validator.state.valid && (
+          <Text color="error.main" mt={2} fontSize={1}>
+            Please complete the required fields
+          </Text>
+        )}
       </Box>
     </Flex>
   );
@@ -74,7 +99,7 @@ export function TerraformInfoGuide({
 const referenceLinks: ReferenceLink[] = [
   {
     title: 'Teleport AWS Discovery Documentation',
-    href: 'https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/ec2-discovery-guided/',
+    href: 'https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/',
   },
   {
     title: 'AWS IAM Roles',
@@ -167,3 +192,48 @@ export const InfoGuideTab = styled(Text)<{ active: boolean }>`
   color: ${p =>
     p.active ? p.theme.colors.interactive.solid.primary.default : 'inherit'};
 `;
+
+type InfoGuideSwitchProps = {
+  activeTab: InfoGuideTab;
+  isPanelOpen: boolean;
+  onSwitch: (activeTab: InfoGuideTab) => void;
+};
+
+export const InfoGuideSwitch = ({
+  activeTab,
+  isPanelOpen,
+  onSwitch,
+}: InfoGuideSwitchProps) => {
+  return (
+    <ViewModeSwitchContainer
+      aria-label="Info Guide Mode Switch"
+      aria-orientation="horizontal"
+      role="radiogroup"
+    >
+      <HoverTooltip tipContent="Info Guide">
+        <ViewModeSwitchButton
+          className={isPanelOpen && activeTab === 'info' ? 'selected' : ''}
+          onClick={() => onSwitch('info')}
+          role="radio"
+          aria-checked={isPanelOpen && activeTab === 'info'}
+          aria-label="Info Guide"
+          first
+        >
+          <Info size="small" color="text.main" />
+        </ViewModeSwitchButton>
+      </HoverTooltip>
+      <HoverTooltip tipContent="Terraform Configuration">
+        <ViewModeSwitchButton
+          className={isPanelOpen && activeTab === 'terraform' ? 'selected' : ''}
+          onClick={() => onSwitch('terraform')}
+          role="radio"
+          aria-checked={isPanelOpen && activeTab === 'terraform'}
+          aria-label="Terraform Configuration"
+          last
+        >
+          <ResourceIcon name="terraform" width="16px" height="16px" />
+        </ViewModeSwitchButton>
+      </HoverTooltip>
+    </ViewModeSwitchContainer>
+  );
+};

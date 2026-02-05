@@ -37,6 +37,10 @@ service VnetService {
   // VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
   rpc GetBackgroundItemStatus(GetBackgroundItemStatusRequest) returns (GetBackgroundItemStatusResponse);
 
+  // CheckInstallTimeRequirements validates install-time prerequisites (for example, VNet service presence) that can
+  // only be changed by reinstalling the app.
+  rpc CheckInstallTimeRequirements(CheckInstallTimeRequirementsRequest) returns (CheckInstallTimeRequirementsResponse);
+
   // RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
   // is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
   rpc RunDiagnostics(RunDiagnosticsRequest) returns (RunDiagnosticsResponse);
@@ -95,6 +99,23 @@ enum BackgroundItemStatus {
   BACKGROUND_ITEM_STATUS_REQUIRES_APPROVAL = 3;
   BACKGROUND_ITEM_STATUS_NOT_FOUND = 4;
   BACKGROUND_ITEM_STATUS_NOT_SUPPORTED = 5;
+}
+
+// WindowsServiceStatus maps to service-related errors in golang.org/x/sys/windows/zerrors_windows.go.
+enum WindowsServiceStatus {
+  WINDOWS_SERVICE_STATUS_UNSPECIFIED = 0;
+  WINDOWS_SERVICE_STATUS_OK = 1;
+  WINDOWS_SERVICE_STATUS_DOES_NOT_EXIST = 2;
+}
+
+// Request for CheckInstallTimeRequirementsRequest.
+message CheckInstallTimeRequirementsRequest {}
+
+// Response for CheckInstallTimeRequirementsResponse.
+message CheckInstallTimeRequirementsResponse {
+  oneof status {
+    WindowsServiceStatus windows_service_status = 1;
+  }
 }
 
 // Request for RunDiagnostics.

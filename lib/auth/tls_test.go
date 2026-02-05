@@ -1966,7 +1966,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create approved resource request
-	resourceReq, err := services.NewAccessRequestWithResources(username, []string{resourceRequestRoleName}, resourceIDs)
+	resourceReq, err := services.NewAccessRequestWithResources(username, []string{resourceRequestRoleName}, types.ResourceIDsToResourceAccessIDs(resourceIDs))
 	require.NoError(t, err)
 	resourceReq.SetState(types.RequestState_APPROVED)
 	resourceReq, err = clt.CreateAccessRequestV2(ctx, resourceReq)
@@ -1993,7 +1993,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 		ident, err := sshca.DecodeIdentity(sshcert)
 		require.NoError(t, err)
 		assert.ElementsMatch(t, expectRoles, ident.Roles)
-		assert.ElementsMatch(t, expectResources, ident.AllowedResourceIDs)
+		assert.ElementsMatch(t, types.ResourceIDsToResourceAccessIDs(expectResources), ident.AllowedResourceAccessIDs)
 	}
 
 	type extendSessionFunc func(*testing.T, *authclient.Client, types.WebSession) (*authclient.Client, types.WebSession)

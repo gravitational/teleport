@@ -65,7 +65,6 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
@@ -711,7 +710,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			session.XCSRF = csrfToken
 
 			httplib.SetNoCacheHeaders(w.Header())
-			httplib.SetIndexContentSecurityPolicy(w.Header(), cfg.ClusterFeatures, r.URL.Path)
+			httplib.SetIndexContentSecurityPolicy(w.Header(), r.URL.Path)
 
 			if err := indexPage.Execute(w, session); err != nil {
 				h.logger.ErrorContext(r.Context(), "Failed to execute index page template", "error", err)
@@ -2015,6 +2014,11 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		sessionSummarizerEnabled = isEnabledRes.Enabled
 	}
 
+	rsp, err := h.cfg.ProxyClient.GetClusterAccessGraphConfig(r.Context())
+	if err != nil && !trace.IsNotImplemented(err) {
+		h.logger.ErrorContext(r.Context(), "Cannot retrieve Access Graph config from auth server", "error", err)
+	}
+
 	webCfg := webclient.WebConfig{
 		Edition:                        modules.GetModules().BuildType(),
 		Auth:                           authSettings,
@@ -2037,6 +2041,11 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		SessionSummarizerEnabled:       sessionSummarizerEnabled,
 		// Entitlements are reset/overridden in setEntitlementsWithLegacyLogic until setEntitlementsWithLegacyLogic is removed in v18
 		Entitlements: GetWebCfgEntitlements(clusterFeatures.GetEntitlements()),
+		IdentitySecurity: webclient.IdentitySecurity{
+			IsClusterLicensed:           modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy).Enabled,
+			AccessGraphConfigSet:        rsp.GetEnabled() && rsp.GetAddress() != "",
+			SessionSummarizationEnabled: sessionSummarizerEnabled,
+		},
 	}
 
 	// Set entitlements with backwards field compatibility
@@ -2081,7 +2090,8 @@ func globMatch(pattern, str string) (bool, error) {
 // userMatchesConnector is a helper function to check if a user matches any of a connector's user matchers.
 func userMatchesConnector(username string, connector interface {
 	GetUserMatchers() []string
-}) (isMatch bool, isFallback bool, err error) {
+},
+) (isMatch bool, isFallback bool, err error) {
 	matchers := connector.GetUserMatchers()
 	for _, pattern := range matchers {
 		matched, err := globMatch(pattern, username)
@@ -3451,7 +3461,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 
 	getUserGroupLookup := h.getUserGroupLookup(request.Context(), clt)
 
-	clusterAuthProxyFeatures := h.getAuthProxyComponentFeaturesIntersection(request.Context())
+	clusterAuthProxyServerFeatures := componentfeatures.GetClusterAuthProxyServerFeatures(request.Context(), h.GetAccessPoint(), h.logger)
 
 	unifiedResources := make([]any, 0, len(page))
 	for _, enriched := range page {
@@ -3471,13 +3481,27 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			db := ui.MakeDatabaseFromDatabaseServer(r, accessChecker, h.cfg.DatabaseREPLRegistry, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
-			allowedAWSRoles, err := calculateAppLogins(accessChecker, r, enriched.Logins)
+			// Get all (granted ∪ requestable) logins
+			visibleAWSRoles, err := calculateAppLogins(accessChecker, r, enriched.Logins)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			allowedAWSRolesLookup := map[string][]string{
-				r.GetApp().GetName(): allowedAWSRoles,
+
+			var grantedAWSRoles []string
+
+			// If including requestable roles, compute w/ normal accessChecker to
+			// calc difference between sets of requestable and already-granted logins.
+			if req.IncludeRequestable {
+				grantedAWSRoles, err = accessChecker.GetAllowedLoginsForResource(r.GetApp())
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			} else {
+				grantedAWSRoles = visibleAWSRoles
 			}
+
+			allowedAWSRolesLookup := map[string][]string{r.GetApp().GetName(): visibleAWSRoles}
+			grantedAWSRolesLookup := map[string][]string{r.GetApp().GetName(): grantedAWSRoles}
 
 			proxyDNSName := h.proxyDNSName()
 			if r.GetApp().GetUseAnyProxyPublicAddr() {
@@ -3488,13 +3512,14 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			// Compute end-to-end feature support for this app: only features that are supported by the AppServer *and*
 			// by all required cluster hops (Auth + Proxy), so clients can hide features that would fail somewhere
 			// along the request path.
-			appComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyFeatures)
+			appComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures)
 
 			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
 				LocalClusterName:      h.auth.clusterName,
 				LocalProxyDNSName:     proxyDNSName,
 				AppClusterName:        cluster.GetName(),
 				AllowedAWSRolesLookup: allowedAWSRolesLookup,
+				GrantedAWSRolesLookup: grantedAWSRolesLookup,
 				UserGroupLookup:       getUserGroupLookup(),
 				Logger:                h.logger,
 				RequiresRequest:       enriched.RequiresRequest,
@@ -3534,51 +3559,6 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 	}
 
 	return resp, nil
-}
-
-// getAuthProxyComponentFeaturesIntersection returns an intersection of supported ComponentFeatures
-// from all cluster Proxy and Auth servers.
-func (h *Handler) getAuthProxyComponentFeaturesIntersection(ctx context.Context) *componentfeaturesv1.ComponentFeatures {
-	ap := h.GetAccessPoint()
-	features := make([]*componentfeaturesv1.ComponentFeatures, 0)
-
-	allProxies, err := clientutils.CollectWithFallback(
-		ctx,
-		ap.ListProxyServers,
-		func(context.Context) ([]types.Server, error) {
-			//nolint:staticcheck // TODO(kiosion): DELETE IN 21.0.0
-			return ap.GetProxies()
-		},
-	)
-	if err != nil {
-		// If we fail to get proxies & can't be sure about feature support,
-		// intersecting on `nil` ensures any intersection of ComponentFeatures will be empty.
-		h.logger.ErrorContext(ctx, "Failed to get proxy servers to collect ComponentFeatures", "error", err)
-		features = append(features, nil)
-	} else {
-		for _, srv := range allProxies {
-			features = append(features, srv.GetComponentFeatures())
-		}
-	}
-
-	allAuthServers, err := clientutils.CollectWithFallback(
-		ctx,
-		ap.ListAuthServers,
-		func(context.Context) ([]types.Server, error) {
-			//nolint:staticcheck // TODO(kiosion): DELETE IN 21.0.0
-			return ap.GetAuthServers()
-		},
-	)
-	if err != nil {
-		h.logger.ErrorContext(ctx, "Failed to get auth servers to collect ComponentFeatures", "error", err)
-		features = append(features, nil)
-	} else {
-		for _, srv := range allAuthServers {
-			features = append(features, srv.GetComponentFeatures())
-		}
-	}
-
-	return componentfeatures.Intersect(features...)
 }
 
 // clusterNodesGet returns a list of nodes for a given cluster site.

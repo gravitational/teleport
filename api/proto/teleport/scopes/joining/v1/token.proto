@@ -66,6 +66,10 @@ message ScopedTokenSpec {
   // tokens can only be used to provision a single resource. Unlimited tokens
   // can be be used to provision any number of resources until it expires.
   string usage_mode = 4;
+
+  // Immutable labels that should be applied to any resulting resources provisioned
+  // using this token.
+  ImmutableLabels immutable_labels = 5;
 }
 
 // The host certificate parameters that should be cached and leveraged for
@@ -113,4 +117,40 @@ message ScopedTokenStatus {
   string secret = 1;
   // The usage status of the scoped token.
   UsageStatus usage = 2;
+}
+
+// A set of configurations for immutable labels.
+message ImmutableLabels {
+  // Labels that should be applied to SSH nodes.
+  map<string, string> ssh = 1;
+}
+
+// The resource representing static scoped tokens defined in the auth service file configuration. These are
+// represented as a separate resource so that they can be managed separately from dynamic scoped tokens as
+// a singleton.
+message StaticScopedTokens {
+  // The resource kind.
+  string kind = 1;
+
+  // The resource sub-kind.
+  string sub_kind = 2;
+
+  // The resource version.
+  string version = 3;
+
+  // The resource metadata.
+  teleport.header.v1.Metadata metadata = 4;
+
+  // The scope of the resource.
+  string scope = 5;
+
+  // The resource specification.
+  StaticScopedTokensSpec spec = 6;
+}
+
+// The specification representing the static scoped tokens
+// resource.
+message StaticScopedTokensSpec {
+  // The statically parsed scoped tokens.
+  repeated ScopedToken tokens = 1;
 }

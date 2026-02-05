@@ -24,7 +24,7 @@ import styled, { css } from 'styled-components';
 import { Alert } from 'design/Alert/Alert';
 import { CardTile } from 'design/CardTile/CardTile';
 import Flex from 'design/Flex/Flex';
-import { SortOrder } from 'shared/components/Controls/SortMenuV2';
+import { SortOrder } from 'shared/components/Controls/SortMenu';
 import { SearchPanel } from 'shared/components/Search';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
 

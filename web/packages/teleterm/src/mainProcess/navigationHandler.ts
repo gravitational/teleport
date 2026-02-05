@@ -43,7 +43,9 @@ export function registerNavigationHandlers(
     if (settings.dev && new URL(navigationUrl).host === 'localhost:8080') {
       return;
     }
-    logger.warn(`Navigation to ${navigationUrl} blocked by 'will-navigate'`);
+    logger.warn(
+      `Navigation to ${navigationUrl} blocked by 'will-navigate'. Navigating away from the frontend app is not allowed. Does the anchor element have target="_blank" set?`
+    );
     event.preventDefault();
   });
 
