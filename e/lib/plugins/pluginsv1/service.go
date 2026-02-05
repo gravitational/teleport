@@ -901,9 +901,22 @@ func (s *Service) SetPluginStatus(ctx context.Context, req *pluginspb.SetPluginS
 	if err := authCtx.CheckAccessToKind(types.KindPlugin, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := s.pluginService.SetPluginStatus(ctx, req.Name, req.Status); err != nil {
+
+	plugin, err := s.pluginService.GetPlugin(ctx, req.Name, true)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	plugin.SetStatus(req.Status)
+	pluginV1, ok := plugin.(*types.PluginV1)
+	if !ok {
+		return nil, trace.BadParameter("plugin.(%T) is not of type PluginV1", plugin)
+	}
+
+	out := trimToMaxSize(pluginV1, maxDynamoDBItemSize)
+	if err := s.pluginService.SetPluginStatus(ctx, req.Name, out.GetStatus()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &emptypb.Empty{}, nil
 }
 

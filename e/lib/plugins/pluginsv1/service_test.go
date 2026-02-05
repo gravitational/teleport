@@ -2,6 +2,7 @@ package pluginsv1
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -175,5 +177,94 @@ func TestPluginUpdateHandler(t *testing.T) {
 			}
 			require.Equal(t, expectedPlugin, newPlugin)
 		})
+	}
+}
+
+func TestPluginStatusTrimmed(t *testing.T) {
+	s := createSuite(t)
+	s.setRules([]types.Rule{
+		{Resources: []string{types.KindPlugin}, Verbs: services.RW()},
+	})
+	ctx := t.Context()
+
+	plugin := utils.CloneProtoMsg(entraPlugin(t))
+	require.NoError(t, s.pluginService.CreatePlugin(context.Background(), plugin))
+
+	testCases := []struct {
+		name         string
+		maxSize      int
+		in           *types.PluginStatusV1
+		expectNoTrim bool
+	}{
+		{
+			name: "exceeds max size",
+			in: &types.PluginStatusV1{
+				LastSyncTime: time.Now(),
+				ErrorMessage: "Failed to sync, access denied.",
+				LastRawError: strings.Repeat("A", maxDynamoDBItemSize),
+			},
+		},
+		{
+			name: "does not exceed max size",
+			in: &types.PluginStatusV1{
+				ErrorMessage: "Failed to sync, access denied.",
+				LastRawError: strings.Repeat("A", 5500),
+			},
+			expectNoTrim: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			pluginBefore, err := s.svc.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+				Name:        types.PluginTypeEntraID,
+				WithSecrets: false,
+			})
+			require.NoError(t, err)
+			pluginBefore.SetStatus(tc.in)
+
+			_, err = s.svc.SetPluginStatus(ctx, &pluginsv1.SetPluginStatusRequest{
+				Name:   types.PluginTypeEntraID,
+				Status: tc.in,
+			})
+			require.NoError(t, err)
+
+			pluginAfter, err := s.svc.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+				Name:        types.PluginTypeEntraID,
+				WithSecrets: false,
+			})
+			require.NoError(t, err)
+
+			if tc.expectNoTrim {
+				require.Equal(t, pluginBefore.Size(), pluginAfter.Size())
+			} else {
+				require.LessOrEqual(t, pluginAfter.Size(), pluginBefore.Size())
+				require.LessOrEqual(t, pluginAfter.Size(), maxDynamoDBItemSize)
+			}
+		})
+	}
+}
+
+func entraPlugin(t *testing.T) *types.PluginV1 {
+	t.Helper()
+	return &types.PluginV1{
+		Metadata: types.Metadata{
+			Name: types.PluginTypeEntraID,
+		},
+		Spec: types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_EntraId{
+				EntraId: &types.PluginEntraIDSettings{
+					SyncSettings: &types.PluginEntraIDSyncSettings{
+						DefaultOwners:  []string{"testuser"},
+						TenantId:       "testid",
+						EntraAppId:     "testid",
+						SsoConnectorId: "testconnector",
+						GroupFilters: []*types.PluginSyncFilter{
+							{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "^[)$"}},
+						},
+					},
+				},
+			},
+		},
 	}
 }
