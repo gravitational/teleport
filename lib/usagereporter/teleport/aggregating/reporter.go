@@ -42,7 +42,7 @@ const (
 	userActivityReportGranularity        = 15 * time.Minute
 	resourceReportGranularity            = time.Hour
 	botInstanceActivityReportGranularity = 15 * time.Minute
-	identitySecurityReportGranularity    = 15 * time.Minute
+	sessionSummaryReportGranularity      = 15 * time.Minute
 	rollbackGrace                        = time.Minute
 	reportTTL                            = 60 * 24 * time.Hour
 
@@ -125,8 +125,8 @@ func NewReporter(ctx context.Context, cfg ReporterConfig) (*Reporter, error) {
 	return r, nil
 }
 
-// identitySecuritySummariesGeneratedKey uniquely identifies a session summary by session type and resource name
-type identitySecuritySummariesGeneratedKey struct {
+// sessionSummariesGeneratedKey uniquely identifies a session summary by session type and resource name
+type sessionSummariesGeneratedKey struct {
 	sessionType  string
 	resourceName string
 }
@@ -325,13 +325,13 @@ func (r *Reporter) run(ctx context.Context) {
 
 	// sessionSummariesGenerated tracks AI-generated session summaries with token usage
 	// map[key]*SessionSummariesGeneratedRecord
-	sessionSummariesGenerated := make(map[identitySecuritySummariesGeneratedKey]*prehogv1.SessionSummariesGeneratedRecord)
-	identitySecurityStartTime := r.clock.Now().UTC().Truncate(userActivityReportGranularity)
-	identitySecurityWindowStart := identitySecurityStartTime.Add(-rollbackGrace)
-	identitySecurityWindowEnd := identitySecurityStartTime.Add(userActivityReportGranularity)
+	sessionSummariesGenerated := make(map[sessionSummariesGeneratedKey]*prehogv1.SessionSummariesGeneratedRecord)
+	sessionSummariesStartTime := r.clock.Now().UTC().Truncate(userActivityReportGranularity)
+	sessionSummariesWindowStart := sessionSummariesStartTime.Add(-rollbackGrace)
+	sessionSummariesWindowEnd := sessionSummariesStartTime.Add(userActivityReportGranularity)
 
 	incrementSessionSummariesGenerated := func(sessionType string, resourceName string, inputTokens uint64, outputTokens uint64) {
-		key := identitySecuritySummariesGeneratedKey{
+		key := sessionSummariesGeneratedKey{
 			sessionType:  sessionType,
 			resourceName: resourceName,
 		}
@@ -449,23 +449,23 @@ Ingest:
 			resourcePresences = make(map[prehogv1.ResourceKind]map[string]struct{}, len(resourcePresences))
 		}
 
-		if now := r.clock.Now().UTC(); now.Before(identitySecurityWindowStart) || !now.Before(identitySecurityWindowEnd) {
+		if now := r.clock.Now().UTC(); now.Before(sessionSummariesWindowStart) || !now.Before(sessionSummariesWindowEnd) {
 			if len(sessionSummariesGenerated) > 0 {
 				wg.Add(1)
 				go func(
 					ctx context.Context,
 					startTime time.Time,
-					summaries map[identitySecuritySummariesGeneratedKey]*prehogv1.SessionSummariesGeneratedRecord,
+					summaries map[sessionSummariesGeneratedKey]*prehogv1.SessionSummariesGeneratedRecord,
 				) {
 					defer wg.Done()
 					r.persistIdentitySecuritySummariesGenerated(ctx, startTime, summaries)
-				}(ctx, identitySecurityStartTime, sessionSummariesGenerated)
+				}(ctx, sessionSummariesStartTime, sessionSummariesGenerated)
 			}
 
-			identitySecurityStartTime = now.Truncate(identitySecurityReportGranularity)
-			identitySecurityWindowStart = identitySecurityStartTime.Add(-rollbackGrace)
-			identitySecurityWindowEnd = identitySecurityStartTime.Add(identitySecurityReportGranularity)
-			sessionSummariesGenerated = make(map[identitySecuritySummariesGeneratedKey]*prehogv1.SessionSummariesGeneratedRecord, len(sessionSummariesGenerated))
+			sessionSummariesStartTime = now.Truncate(sessionSummaryReportGranularity)
+			sessionSummariesWindowStart = sessionSummariesStartTime.Add(-rollbackGrace)
+			sessionSummariesWindowEnd = sessionSummariesStartTime.Add(sessionSummaryReportGranularity)
+			sessionSummariesGenerated = make(map[sessionSummariesGeneratedKey]*prehogv1.SessionSummariesGeneratedRecord, len(sessionSummariesGenerated))
 		}
 
 		switch te := ae.(type) {
@@ -564,7 +564,7 @@ Ingest:
 	}
 
 	if len(sessionSummariesGenerated) > 0 {
-		r.persistIdentitySecuritySummariesGenerated(ctx, identitySecurityStartTime, sessionSummariesGenerated)
+		r.persistIdentitySecuritySummariesGenerated(ctx, sessionSummariesStartTime, sessionSummariesGenerated)
 	}
 
 	wg.Wait()
@@ -718,7 +718,7 @@ func (r *Reporter) persistResourcePresence(ctx context.Context, startTime time.T
 func (r *Reporter) persistIdentitySecuritySummariesGenerated(
 	ctx context.Context,
 	startTime time.Time,
-	sessionSummariesGenerated map[identitySecuritySummariesGeneratedKey]*prehogv1.SessionSummariesGeneratedRecord,
+	sessionSummariesGenerated map[sessionSummariesGeneratedKey]*prehogv1.SessionSummariesGeneratedRecord,
 ) {
 	records := make([]*prehogv1.SessionSummariesGeneratedRecord, 0, len(sessionSummariesGenerated))
 	for _, record := range sessionSummariesGenerated {
