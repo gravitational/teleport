@@ -85,7 +85,7 @@ and display an error:
 In this mode, the installer will install both the application and the VNet service.
 
 To install per-machine updates silently, we will introduce a special Update Service, implemented by tsh.exe
-(`tsh.exe connect-update-service`).
+(`tsh.exe connect-updater-service`).
 This service will run with full system permissions, and its only job will be to install updates that the main app has
 already downloaded.
 
@@ -145,7 +145,7 @@ For most users, it is sufficient to disable updates entirely by setting the valu
     - The app downloads the update binary to a user-writable directory.
 
 2. Triggering the service.
-    - On "Restart to Update" or app close, Connect spawns `tsh.exe request-connect-update`, passing the file path and
+    - On "Restart to Update" or app close, Connect spawns `tsh.exe `, passing the file path and
       version as arguments.
     - This happens from a synchronous `app.on('quit')` handler after the `tsh` daemon has exited.
 
@@ -157,8 +157,8 @@ For most users, it is sufficient to disable updates entirely by setting the valu
     - Instead, since a named pipe is open anyway, is can be used to securely transfer update metadata and stream the
       binary itself.
     - Flow:
-        - `tsh.exe request-connect-update --path= --version=` starts the update service and waits for it.
-        - The service opens a named pipe `\\.\pipe\TeleportConnectUpdateHelper` and accepts only a single connection
+        - `tsh.exe connect-updater-install-update --path= --update-version=` starts the update service and waits for it.
+        - The service opens a named pipe `\\.\pipe\TeleportConnectUpdaterPipe` and accepts only a single connection
           from an authenticated user (enforced through DACL). Any other client must wait until the current service
           invocation exits.
         - The user process sends metadata (version and size) as JSON and then streams the update binary over the pipe.
@@ -166,30 +166,30 @@ For most users, it is sufficient to disable updates entirely by setting the valu
       pipe.
 
 4. Staging the update file.
-    - Ensure `%ProgramData%\TeleportConnect\Updates\` directory exists.
-        - First try to create a directory with correct ACLs.
-        - If `ERROR_ALREADY_EXISTS` error is returned, open a handle and verify it is a directory and has correct ACLs.
-        - If there is a mismatch, return an error.
-        - Remove all contents (subdirectories and files) within `%ProgramData%\TeleportConnect\Updates\` to ensure an
-          empty staging area (and avoid excessive disk usage).
-    - The service stores the binary stream to a new, unique, system-protected directory under:
-      ```
-      %ProgramData%\TeleportConnect\Updates\<GUID>
-      ```
-      An attacker could use the service to simply copy arbitrary files into our secure `%ProgramData%` location. For
-      example, they could first copy a malicious version.dll (loaded by almost every executable out there), then copy a
-      properly signed executable and have it executed. The malicious DLL could then be loaded from the same directory,
-      resulting in another LPE vector. This can be mitigated by creating a unique subdirectory for each service
-      invocation.
+    - Ensure `%ProgramData%\TeleportConnectUpdater` directory exists.
+        - First try to create a directory with correct ACLs, granting write access only to SYSTEM and Administrators.
+        - If `ERROR_ALREADY_EXISTS` error is returned, open a file handle and verify it's a directory (and not a reparse
+          point). Reapply the expected ACLs to ensure no unauthorized permissions persist.
+        - Attempt to delete all existing contents (files and subdirectories) to prevent excessive disk usage.
+        - Directory cleanup will be implemented using `os.RemoveAll`; its behavior has been checked to ensure it does
+          not traverse reparse points and therefore does not delete data outside the target directory.
+    - Because the directory may have been pre-created by an unprivileged user, deleting existing files (including
+      planted DLLs) may fail if the owner keeps an open handle. To mitigate this, the service writes the update binary
+      to a new, unique, system-protected subdirectory:
+       ```
+       %ProgramData%\TeleportConnectUpdater\<GUID>
+       ```
+   This provides isolation from any malicious DLL that could be loaded from the same directory, resulting in an LPE
+   vector.
 
 5. Validation.
-    - Read the `ToolsVersion` value from `HKEY_LOCAL_MACHINE\SOFTWARE\Policies\TeleportConnect`.
+    - Read the `ToolsVersion` value from `HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Teleport\TeleportConnect`.
         - If the value is set to `off`, the service exits early.
         - If the value is a semver string, the service checks if update version matches it.
     - Ensure the passed update version is newer than the service (`tsh.exe`) version.
     - Download and verify the SHA256 checksum for the target Teleport Connect version to prevent the service from
       installing *any* binary if the service is unsigned.
-    - Verify the binary is signed by the same organization (if the service itself is signed).
+    - If the service is signed, verify that the update's signature subject matches the service's signature subject.
 
 6. Installation.
     - Execute the update and exit.
@@ -200,15 +200,19 @@ Update settings will be managed via the Windows Registry. Configuration can be a
 (HKLM) or the user level (HKCU).
 
 * Settings in `HKEY_LOCAL_MACHINE` take priority over `HKEY_CURRENT_USER`.
-* `TELEPORT_TOOLS_VERSION` and `TELEPORT_CDN_BASE_URL` env variables will be ignored. This prevents standard users
+* `TELEPORT_TOOLS_VERSION` and `TELEPORT_CDN_BASE_URL` env variables will be deprecated. This prevents standard users
   from overriding versioning policies.
     * Overall, using the registry instead of env variables will provide much better UX. The env vars are difficult to
       use for desktop apps.
+    * If the legacy environment variables are set (and there is no HKLM config), they will prevent per-machine updates
+      from installing silently (the standard UAC installer will be executed). The new Update Service will only read
+      configuration from HKLM.
 
 Registry Paths:
 
-* `HKEY_LOCAL_MACHINE\SOFTWARE\Policies\TeleportConnect`
-* `HKEY_CURRENT_USER\SOFTWARE\Policies\TeleportConnect` - must be used only in the context of per-user installations,
+* `HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Teleport\TeleportConnect`
+* `HKEY_CURRENT_USER\SOFTWARE\Policies\Teleport\TeleportConnect` - must be used only in the context of per-user
+  installations,
   will not affect per-machine behavior.
 
 | Setting      | Type   | Description                                                                                                                 |
