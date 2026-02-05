@@ -3312,7 +3312,7 @@
     },
     {
       "source": "/enroll-resources/application-access/guides/ha/",
-      "destination": "/enroll-resources/application-access/configuration/ha/",
+      "destination": "/enroll-resources/agents/high-availability/",
       "permanent": true
     },
     {
@@ -3332,7 +3332,7 @@
     },
     {
       "source": "/enroll-resources/application-access/ha/",
-      "destination": "/enroll-resources/application-access/configuration/ha/",
+      "destination": "/enroll-resources/agents/high-availability/",
       "permanent": true
     },
     {
@@ -3478,6 +3478,16 @@
     {
       "source": "/zero-trust-access/management/daemon/",
       "destination": "/reference/cli/teleport/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/configuration/ha/",
+      "destination": "/enroll-resources/agents/high-availability/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/guides/ha/",
+      "destination": "/enroll-resources/agents/high-availability/",
       "permanent": true
     }
   ]
