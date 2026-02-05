@@ -5,7 +5,7 @@
 import { ComponentType, lazy, Suspense } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 
-import { AccessGraphError } from 'e-teleport/AccessGraph/AccessGraphError';
+import { AccessGraphLoadingError } from 'e-teleport/AccessGraph/AccessGraphError';
 import { AccessGraphLoading } from 'e-teleport/AccessGraph/AccessGraphLoading';
 import { loadAccessGraph } from 'e-teleport/AccessGraph/loader';
 
@@ -68,7 +68,7 @@ const Diff = lazy(() =>
 
 export function AccessGraphDiff(props: AccessGraphDiffProps) {
   return (
-    <ErrorBoundary FallbackComponent={AccessGraphError}>
+    <ErrorBoundary FallbackComponent={AccessGraphLoadingError}>
       <Suspense fallback={<AccessGraphLoading />}>
         <Diff {...props} />
       </Suspense>

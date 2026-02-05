@@ -10,7 +10,10 @@ import { useHistory, useLocation } from 'react-router';
 import { Flex } from 'design';
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
-import { AccessGraphError } from 'e-teleport/AccessGraph/AccessGraphError';
+import {
+  AccessGraphLoadingError,
+  AccessGraphSetupError,
+} from 'e-teleport/AccessGraph/AccessGraphError';
 import { AccessGraphLoading } from 'e-teleport/AccessGraph/AccessGraphLoading';
 import {
   ACCESS_GRAPH_JS_FILE,
@@ -87,11 +90,19 @@ export function AccessGraph() {
   );
 
   if (!hasAccess) {
+    if (cfg.oss.identitySecurity.licensed) {
+      return (
+        <AccessGraphSetupError
+          isConfigured={!cfg.oss.identitySecurity.accessGraphConfigSet}
+        />
+      );
+    }
+
     return <EmptyState />;
   }
 
   return (
-    <ErrorBoundary FallbackComponent={AccessGraphError}>
+    <ErrorBoundary FallbackComponent={AccessGraphLoadingError}>
       <Suspense fallback={<AccessGraphLoading />}>
         <Flex
           data-scrollbar="default"

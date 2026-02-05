@@ -498,7 +498,13 @@ class FeatureAccessGraph implements TeleportFeature {
       return cfg.routes.accessGraph.dashboard;
     },
     exact: false,
-    searchableTags: ['access graph', 'graph', 'tag', 'dashboard'],
+    searchableTags: [
+      'access graph',
+      'graph',
+      'tag',
+      'dashboard',
+      'identity security',
+    ],
   };
 }
 
@@ -517,7 +523,13 @@ class FeatureAccessGraphBrowse extends FeatureAccessGraph {
       return cfg.routes.accessGraph.browse;
     },
     exact: false,
-    searchableTags: ['access graph', 'graph', 'tag', 'browse'],
+    searchableTags: [
+      'access graph',
+      'graph',
+      'tag',
+      'browse',
+      'identity security',
+    ],
   };
 }
 
@@ -536,7 +548,13 @@ class FeatureAccessGraphAlerts extends FeatureAccessGraph {
       return cfg.routes.accessGraph.alerts;
     },
     exact: false,
-    searchableTags: ['access graph', 'graph', 'tag', 'alerts'],
+    searchableTags: [
+      'access graph',
+      'graph',
+      'tag',
+      'alerts',
+      'identity security',
+    ],
   };
 }
 
@@ -555,7 +573,13 @@ class FeatureAccessGraphInvestigate extends FeatureAccessGraph {
       return cfg.routes.accessGraph.investigate;
     },
     exact: false,
-    searchableTags: ['access graph', 'graph', 'tag', 'investigate'],
+    searchableTags: [
+      'access graph',
+      'graph',
+      'tag',
+      'investigate',
+      'identity security',
+    ],
   };
 }
 
@@ -574,7 +598,13 @@ class FeatureAccessGraphCrownJewels extends FeatureAccessGraph {
       return cfg.routes.accessGraph.crownJewels;
     },
     exact: false,
-    searchableTags: ['access graph', 'graph', 'tag', 'crown jewels'],
+    searchableTags: [
+      'access graph',
+      'graph',
+      'tag',
+      'crown jewels',
+      'identity security',
+    ],
   };
 }
 
@@ -593,7 +623,13 @@ class FeatureAccessGraphGraphExplorer extends FeatureAccessGraph {
       return cfg.routes.accessGraph.graphExplorer;
     },
     exact: false,
-    searchableTags: ['access graph', 'graph', 'tag', 'graph explorer'],
+    searchableTags: [
+      'access graph',
+      'graph',
+      'tag',
+      'graph explorer',
+      'identity security',
+    ],
   };
 }
 
@@ -612,7 +648,13 @@ class FeatureAccessGraphSQLEditor extends FeatureAccessGraph {
       return cfg.routes.accessGraph.sqlEditor;
     },
     exact: false,
-    searchableTags: ['access graph', 'graph', 'tag', 'sql editor'],
+    searchableTags: [
+      'access graph',
+      'graph',
+      'tag',
+      'sql editor',
+      'identity security',
+    ],
   };
 }
 
@@ -639,7 +681,13 @@ class FeatureAccessGraphIntegrations extends FeatureAccessGraph {
       return cfg.routes.accessGraph.integrations;
     },
     exact: false,
-    searchableTags: ['access graph', 'graph', 'tag', 'sql editor'],
+    searchableTags: [
+      'access graph',
+      'graph',
+      'tag',
+      'sql editor',
+      'identity security',
+    ],
   };
 }
 
