@@ -247,12 +247,16 @@ func (a *assignmentReconciler) onUpdate(ctx context.Context, updatedAssignment, 
 // onDelete will perform necessary Okta assignment operations based on deleted Okta assignments.
 // NOTE: This should never actually be run as users shouldn't be deleting OktaAssignment objects.
 func (a *assignmentReconciler) onDelete(ctx context.Context, deletedAssignment types.OktaAssignment) error {
-	deletedAssignment.SetCleanupTime(a.clock.Now())
-	if r := a.assignmentProcessor.processAssignment(ctx, a.assignmentProcessorID, deletedAssignment.Copy(), false); r != processAssignmentFailed {
-		a.assignmentsMu.Lock()
-		delete(a.assignments, deletedAssignment.GetName())
-		a.assignmentsMu.Unlock()
-	}
+	a.assignmentsMu.Lock()
+	defer a.assignmentsMu.Unlock()
+	// No call a.assignmentProcessor.processAssignment here, because the assignment is already
+	// deleted form the backend. Assignments are deleted by setting spec.cleanup_time.  When
+	// cleanup_time is in the past then the assignmentProcessor will clean the assignment and
+	// delete it from the backend.
+	// On top of that, when the assignment is not in the backend anymore then it can't be
+	// processed because the assignmentProcessor will fail when trying to set its status to
+	// "processing".
+	delete(a.assignments, deletedAssignment.GetName())
 	return nil
 }
 
