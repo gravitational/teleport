@@ -471,7 +471,7 @@ func TestReporterSessionSummariesAccessed(t *testing.T) {
 			recvIngested()
 
 			// Wait for the aggregation window to complete
-			time.Sleep(identitySecurityReportGranularity)
+			time.Sleep(sessionSummaryReportGranularity)
 			synctest.Wait()
 
 			require.Equal(t, types.OpPut, recvBackendEvent().Type)
