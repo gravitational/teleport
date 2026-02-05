@@ -72,7 +72,7 @@ Okta Integration Network support is still in beta. If unsure please proceed with
 
   3. Search for and select **Teleport**, and then click **Add Integration**.
 
-  4. In *Teleport cluster domain* filed type in your proxy domain, e.g. `example.teleport.sh` and click **Done**.
+  4. In the *Teleport cluster domain* field, type in your Teleport Proxy Service domain, e.g. `example.teleport.sh` and click **Done**.
 
   5. Go to the **Sign On** tab and click **Edit** on the top-right corner of the tab.
 
@@ -162,7 +162,14 @@ to the Okta app are now able to log in to Teleport.
 
 ## Supported features
 
-By default Okta SSO integration supports SP-initiated flow. To enable IdP-initiated flow you will have to edit the Okta SAML connector with `tctl edit saml/<Var name="okta" />` and set `spec.allow_idp_initiated` to `true`.
+By default, the Okta SSO integration supports the SP-initiated flow. To enable the IdP-initiated flow you will have to:
+
+ 1. Edit the Okta SAML connector with the following command:
+   ```code
+   $ tctl edit saml/<Var name="okta" />
+   ``` 
+   
+ 2. In your editor, set `spec.allow_idp_initiated` to `true`.
 
 ## Attribute mapping
 
