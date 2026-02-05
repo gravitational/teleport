@@ -530,7 +530,6 @@ func setAuditSessionID(ctx context.Context, c ExecCommand, auditIDFile, tty *os.
 		if bytes.Equal(id, newID) {
 			return nil, trace.Errorf("audit login session ID was not changed")
 		}
-		id = newID
 	}
 
 	// Let the parent process know the audit login session ID has changed.

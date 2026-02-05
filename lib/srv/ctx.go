@@ -1384,7 +1384,7 @@ func (c *ServerContext) ConsumeApprovedFileTransferRequest() *FileTransferReques
 	return req
 }
 
-// The child does not signal until it complets PAM setup, which can take an arbitrary
+// The child does not signal until it completes PAM setup, which can take an arbitrary
 // amount of time, so we use a reasonably long timeout to avoid dubious lockouts.
 const childReadyWaitTimeout = 3 * time.Minute
 

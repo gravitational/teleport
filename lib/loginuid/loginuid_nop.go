@@ -20,7 +20,7 @@
 
 package loginuid
 
-// WriteLoginUID is a no-op in non-BPF builds.
-func WriteLoginUID(uid string) error {
+// Write is a no-op in non-BPF builds.
+func Write(uid string) error {
 	return nil
 }
