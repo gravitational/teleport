@@ -47,24 +47,24 @@ Then follow the instructions for the [guided Okta single sign-on integration](..
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
 
 - A Teleport role with access to edit and maintain `saml` resources. This is
-  available in the default `editor` role.
+  available in the default `auditor` and `editor` roles.
 
 ## Step 1/3. Configure Okta
 
 Okta indicates a user's group membership as a SAML assertion in the data it
-provides to Teleport. We will configure Teleport to assign the "dev" role to
-members of the `okta-dev` Okta group, and the preset "editor" role to members of
-the `okta-admin` group.
+provides to Teleport. We will configure Teleport to assign the "access" role to
+members of the `devs` Okta group, and the preset "auditor" and "editor" roles to members of
+the `admins` group.
 
-If you already have Okta groups you want to assign to "dev" and "editor" roles in
+If you already have Okta groups you want to assign to "access", "auditor" and "editor" roles in
 Teleport, you can skip to the [next step](#step-13-configure-okta).
 
 ### Create Groups
 
-Create two groups: "okta-dev" and "okta-admin".
+Create two groups: "devs" and "admins".
 
 1. In Okta Console go to the go to **Directory** -> **Groups**, then click **Add group**.
-2. Add groups "okta-dev" and "okta-admin" with optional description.
+2. Add groups "devs" and "admins" with optional description.
 
 
 ### Create and configure an Okta app
@@ -106,21 +106,21 @@ Okta Integration Network support is still in beta. If unsure please proceed with
   5. That will bring you to the "Configure SAML" step where you'll have to provide a several values:
 
      - Single sign on URL:
- 
+
        ```
        https://<Var name="example.teleport.sh" />/v1/webapi/saml/acs/okta
        ```
- 
+
      - Audience URI (SP Entity ID):
- 
+
        ```
        https://<Var name="example.teleport.sh" />/v1/webapi/saml/acs/okta
        ```
- 
+
      - Name ID format `EmailAddress`
- 
-     - Application username `Okta username` 
- 
+
+     - Application username `Okta username`
+
      {/* NOTE: This image is shared in multiple guides. */}
      ![SAML general settings](../../../../img/sso/okta/legacy-general-settings.png)
 
@@ -147,7 +147,7 @@ Okta Integration Network support is still in beta. If unsure please proceed with
 
 1. In the same Okta Teleport app, go to the **Assignments** tab and click the **Assign** dropdown.
 
-2. Select "Assign to Groups" and search for the "okta-dev" and "okta-admin" Okta groups created in the previous step.
+2. Select "Assign to Groups" and search for the "devs" and "admins" Okta groups created in the previous step.
 
 3. Click **Assign** next to each selected group and click **Done**.
 
@@ -199,22 +199,23 @@ metadata:
 spec:
   acs: https://teleport.example.com:443/v1/webapi/saml/acs/okta
   attributes_to_roles:
-  - name: groups
-    roles:
-    - editor
-    value: okta-admin
-  - name: groups
-    roles:
-    - dev
-    value: okta-dev
+    - name: groups
+      roles:
+        - auditor
+        - editor
+      value: admins
+    - name: groups
+      roles:
+        - access
+      value: dev
   audience: https://teleport.example.com:443/v1/webapi/saml/acs/okta
-  cert: ""
-  display: "Okta"
-  entity_descriptor: ""
+  cert: ''
+  display: 'Okta'
+  entity_descriptor: ''
   entity_descriptor_url: https://example.okta.com/app/000000/sso/saml/metadata
-  issuer: ""
+  issuer: ''
   service_provider_issuer: https://teleport.example.com:443/v1/webapi/saml/acs/okta
-  sso: ""
+  sso: ''
 version: v2
 ```
 
@@ -233,13 +234,14 @@ Success! Logged in as: alice@example.com
 --------------------------------------------------------------------------------
 Authentication details:
    roles:
+   - auditor
    - editor
-   - dev
+   - access
    traits:
      groups:
      - Everyone
-     - okta-admin
-     - okta-dev
+     - admins
+     - devs
      username:
      - alice@example.com
    username: alice@example.com
@@ -247,19 +249,20 @@ Authentication details:
 [SAML] Attributes to roles:
 - name: groups
   roles:
+  - auditor
   - editor
-  value: okta-admin
+  value: admins
 - name: groups
   roles:
   - dev
-  value: okta-dev
+  value: devs
 
 --------------------------------------------------------------------------------
 [SAML] Attributes statements:
 groups:
 - Everyone
-- okta-admin
-- okta-dev
+- admins
+- devs
 username:
 - alice@example.com
 

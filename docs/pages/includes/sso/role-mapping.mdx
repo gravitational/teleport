@@ -14,14 +14,14 @@ mapping takes the following format:
 ```
 
 For example, the following role mapping means that any user with the {{fieldType}}
-`groups` with the value `admin` receives the Teleport roles `editor` and
-`auditor`:
+`groups` with the value `admins` receives the Teleport roles `auditor` and
+`editor`:
 
 ```text
-groups,admin,editor,auditor
+groups,admins,auditor,editor,
 ```
 
 For the purpose of this guide, assign two separate role mappings:
 
-- A more permissive role mapping: <Var name="mapping_1" initial="groups,okta-admin,editor" />
-- A more restrictive role mapping: <Var name="mapping_2" initial="groups,okta-dev,dev" />
+- A more permissive role mapping: <Var name="mapping_1" initial="groups,admins,auditor,editor" />
+- A more restrictive role mapping: <Var name="mapping_2" initial="groups,devs,access" />
