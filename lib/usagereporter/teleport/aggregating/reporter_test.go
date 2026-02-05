@@ -23,7 +23,6 @@ import (
 	"context"
 	"slices"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -40,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testutils/synctest"
 )
 
 func TestReporter(t *testing.T) {

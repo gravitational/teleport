@@ -22,7 +22,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/google/uuid"
@@ -35,6 +34,7 @@ import (
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils/testutils/synctest"
 )
 
 // TestSubmitOnce tests the behavior of [submitOnce]; the [RunSubmitter]
