@@ -105,15 +105,48 @@ The Scope Admin then assigns Scoped Roles to the Scoped Bot through Scoped Role
 Assignments or via Scoped Access Lists. They cannot assign unscoped Roles to the
 Scoped Bot.
 
-The Scoped Roles assigned to the Bot must exist within the same scope as the Bot,
-or a child scope, and they must be assigned within the same Scope as the Bot or
-a child scope. This negates the possibility of cross-scope privilege assignment.
+There are a number of rules around the scoped assignment of privileges to a 
+Scoped Bot. These are intended to ensure that:
 
-The Scope Admin then creates a Scoped Join Token to allow `tbot` to join as 
-the Scoped Bot. The Scoped Join Token MUST be created within the same scope as 
-the Scoped Bot.
+- The Scoped Bot can not be assigned privileges that are above the scope in 
+  which it exists.
+  - That is, a Scoped Bot in `/foo/bar` can not access resources in `/foo` but
+    can access resources in `/foo/bar` or `/foo/bar/buzz`.
+- The Scoped Bot can not be assigned privilege across scopes.
+  - That is, a Scoped Bot in `/foo` can not access resources in `/bar`. 
+
+Some of these rules come from the original RFD for Scoped RBAC (marked RFD229),
+but some of these rules are new and specific to Scoped Bots (marked RFD229B).
+These rules are as follows:
+
+- RFD229B-A: Scoped Bots must only be assigned Scoped Roles. They cannot be
+  assigned unscoped Roles.
+- RFD229B-B: The scope of origin of a Scoped Role Assignment for a Scoped Bot
+  must be the same scope or a child scope of Bot's scope.
+- RFD299B-C: The scope of effect of a Scoped Role Assignment for a Scoped Bot
+  must be in the same scope or a child scope of the Bot's scope.
+- RFD299-A: A Scoped Role is only assignable at the scope of the Scoped Role or 
+  a child scope.
+- RFD229-B: A Scoped Role Assignment's scope of effect must be the same or a
+  child scope of it's scope of origin.
+- RFD229-C: A Scoped Role's s
+- WIP WIP WIP
+
+Worked Examples:
+
+| Bot Scope | SR Scope | SRA Scope of Origin | SRA Scope of Effect | Commentary |
+|-----------|----------|---------------------|---------------------|------------|
+| /a/b      | /a/b     | /a/b                | /a/b                | OK         |
+| /a/b      | /a/b/c   | /a/b/c              | /a/b/c              | OK         |
+| /a/b      | /a/b     | /a/b/c              | /a/b/c              | OK         |
+| /a/b      | /a/b     | /a/b                | /a/b/c              | OK         |
+|           |          |                     |                     |            |
 
 #### Joining the Scoped Bot
+
+The Scope Admin then creates a Scoped Join Token to allow `tbot` to join as
+the Scoped Bot. The Scoped Join Token MUST be created within the same scope as
+the Scoped Bot.
 
 The Scope Admin can now setup `tbot` on a machine to join as the Scoped Bot
 using the Scoped Join Token. To do so, they must configure:
@@ -123,9 +156,16 @@ using the Scoped Join Token. To do so, they must configure:
 - A type of service they would like `tbot` to run (e.g `identity`).
 
 The certificates that `tbot` receives upon joining and that it generates for
-services will be pinned to the scope in which the Scoped Bot exists.
+services will be pinned to the scope in which the Scoped Bot exists. This 
+provides an additional layer of protection against escape from scope.
 
 ## Implementation Details
+
+### Joining
+
+### Certificate Issuance
+
+### `tbot`
 
 ## Security Considerations
 
@@ -145,6 +185,10 @@ gain root access to a machine, then they will be able to extract the bot's
 internal credentials and use these to issue credentials without this
 sub-pinning. This is an important consideration for those who would use this
 feature.
+
+The implementation of this would take the following form:
+
+- TODO
 
 ### Cross-scope privileges
 
@@ -218,13 +262,15 @@ and few of the benefits of either. This leaves the choice between adding a
 scoped field to the existing Bot resource or introducing a new ScopedBot 
 resource.
 
-### A.2: The Wrong Implementations
+### A.2: Pinning of Scopes for Scoped Bots
+
+### A.3: The Wrong Implementations
 
 When trying to determine the path for a complex implementation, it can be
 helpful to consider first what *not* to do. This section explores several
 "wrong" implementations of Scoped MWI and why they are not suitable.
 
-#### A.2.1: The Lazy Way
+#### A.3.1: The Lazy Way
 
 The laziest or most naive implementation of Scoped MWI would be to:
 
