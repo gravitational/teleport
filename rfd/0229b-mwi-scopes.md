@@ -134,6 +134,9 @@ In practice, these rules mean:
   - eg: a Scoped Bot in `/foo/bar` could not be permitted to access resources in
     `/zip`.
 
+These rules are backed up by the Scope Pinning mechanism. Certificates issued to
+the Scoped Bot are pinned to the scope in which it exists.
+
 Worked Examples:
 
 | Bot Scope | SR Scope | SRA Scope of Origin | SRA Scope of Effect | Commentary                   |
@@ -148,9 +151,6 @@ Worked Examples:
 | /a/b      | /a/b     | /a/b                | /a                  | NOT OK - RFD229-1 & RFD229-2 |
 | /a/b      | /a       | /a                  | /a                  | NOT OK - RFD229B-1           |
 | /a/b      | /z       | /z                  | /z                  | NOT OK - RFD229B-1           |
-
-These rules are backed up by the Scope Pinning mechanism. Certificates issued to
-the Scoped Bot are pinned to the scope in which it exists.
 
 #### Joining the Scoped Bot
 
