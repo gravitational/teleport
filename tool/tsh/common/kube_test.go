@@ -82,7 +82,6 @@ func TestKubeLeaf(t *testing.T) {
 	t.Run("proxy kube without cluster arg", pack.testProxyKubeLeaf)
 }
 
-
 func TestKubeLogin(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
