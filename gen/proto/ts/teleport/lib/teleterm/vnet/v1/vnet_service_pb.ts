@@ -119,6 +119,32 @@ export interface GetBackgroundItemStatusResponse {
     status: BackgroundItemStatus;
 }
 /**
+ * Request for CheckInstallTimeRequirementsRequest.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsRequest
+ */
+export interface CheckInstallTimeRequirementsRequest {
+}
+/**
+ * Response for CheckInstallTimeRequirementsResponse.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsResponse
+ */
+export interface CheckInstallTimeRequirementsResponse {
+    /**
+     * @generated from protobuf oneof: status
+     */
+    status: {
+        oneofKind: "windowsServiceStatus";
+        /**
+         * @generated from protobuf field: teleport.lib.teleterm.vnet.v1.WindowsServiceStatus windows_service_status = 1;
+         */
+        windowsServiceStatus: WindowsServiceStatus;
+    } | {
+        oneofKind: undefined;
+    };
+}
+/**
  * Request for RunDiagnostics.
  *
  * @generated from protobuf message teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest
@@ -184,6 +210,25 @@ export enum BackgroundItemStatus {
      * @generated from protobuf enum value: BACKGROUND_ITEM_STATUS_NOT_SUPPORTED = 5;
      */
     NOT_SUPPORTED = 5
+}
+/**
+ * WindowsServiceStatus maps to service-related errors in golang.org/x/sys/windows/zerrors_windows.go.
+ *
+ * @generated from protobuf enum teleport.lib.teleterm.vnet.v1.WindowsServiceStatus
+ */
+export enum WindowsServiceStatus {
+    /**
+     * @generated from protobuf enum value: WINDOWS_SERVICE_STATUS_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * @generated from protobuf enum value: WINDOWS_SERVICE_STATUS_OK = 1;
+     */
+    OK = 1,
+    /**
+     * @generated from protobuf enum value: WINDOWS_SERVICE_STATUS_DOES_NOT_EXIST = 2;
+     */
+    DOES_NOT_EXIST = 2
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class StartRequest$Type extends MessageType<StartRequest> {
@@ -454,6 +499,81 @@ class GetBackgroundItemStatusResponse$Type extends MessageType<GetBackgroundItem
  */
 export const GetBackgroundItemStatusResponse = new GetBackgroundItemStatusResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class CheckInstallTimeRequirementsRequest$Type extends MessageType<CheckInstallTimeRequirementsRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsRequest", []);
+    }
+    create(value?: PartialMessage<CheckInstallTimeRequirementsRequest>): CheckInstallTimeRequirementsRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<CheckInstallTimeRequirementsRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CheckInstallTimeRequirementsRequest): CheckInstallTimeRequirementsRequest {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: CheckInstallTimeRequirementsRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsRequest
+ */
+export const CheckInstallTimeRequirementsRequest = new CheckInstallTimeRequirementsRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class CheckInstallTimeRequirementsResponse$Type extends MessageType<CheckInstallTimeRequirementsResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsResponse", [
+            { no: 1, name: "windows_service_status", kind: "enum", oneof: "status", T: () => ["teleport.lib.teleterm.vnet.v1.WindowsServiceStatus", WindowsServiceStatus, "WINDOWS_SERVICE_STATUS_"] }
+        ]);
+    }
+    create(value?: PartialMessage<CheckInstallTimeRequirementsResponse>): CheckInstallTimeRequirementsResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.status = { oneofKind: undefined };
+        if (value !== undefined)
+            reflectionMergePartial<CheckInstallTimeRequirementsResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CheckInstallTimeRequirementsResponse): CheckInstallTimeRequirementsResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.lib.teleterm.vnet.v1.WindowsServiceStatus windows_service_status */ 1:
+                    message.status = {
+                        oneofKind: "windowsServiceStatus",
+                        windowsServiceStatus: reader.int32()
+                    };
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: CheckInstallTimeRequirementsResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.lib.teleterm.vnet.v1.WindowsServiceStatus windows_service_status = 1; */
+        if (message.status.oneofKind === "windowsServiceStatus")
+            writer.tag(1, WireType.Varint).int32(message.status.windowsServiceStatus);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsResponse
+ */
+export const CheckInstallTimeRequirementsResponse = new CheckInstallTimeRequirementsResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class RunDiagnosticsRequest$Type extends MessageType<RunDiagnosticsRequest> {
     constructor() {
         super("teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest", []);
@@ -582,6 +702,7 @@ export const VnetService = new ServiceType("teleport.lib.teleterm.vnet.v1.VnetSe
     { name: "Stop", options: {}, I: StopRequest, O: StopResponse },
     { name: "GetServiceInfo", options: {}, I: GetServiceInfoRequest, O: GetServiceInfoResponse },
     { name: "GetBackgroundItemStatus", options: {}, I: GetBackgroundItemStatusRequest, O: GetBackgroundItemStatusResponse },
+    { name: "CheckInstallTimeRequirements", options: {}, I: CheckInstallTimeRequirementsRequest, O: CheckInstallTimeRequirementsResponse },
     { name: "RunDiagnostics", options: {}, I: RunDiagnosticsRequest, O: RunDiagnosticsResponse },
     { name: "AutoConfigureSSH", options: {}, I: AutoConfigureSSHRequest, O: AutoConfigureSSHResponse }
 ]);

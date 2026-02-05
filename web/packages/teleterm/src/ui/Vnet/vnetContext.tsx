@@ -32,11 +32,14 @@ import { Action } from 'design/Alert';
 import {
   BackgroundItemStatus,
   GetServiceInfoResponse,
+  WindowsServiceStatus,
+  type CheckInstallTimeRequirementsResponse,
 } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 import { useStateRef } from 'shared/hooks';
 import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
+import { statusOneOfIsWindowsServiceStatus } from 'teleterm/helpers';
 import { cloneAbortSignal, isTshdRpcError } from 'teleterm/services/tshd';
 import { hasReportFoundIssues } from 'teleterm/services/vnet/diag';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -84,6 +87,11 @@ export type VnetContext = {
   getDisabledDiagnosticsReason: (
     runDiagnosticsAttempt: Attempt<Report>
   ) => string;
+  /**
+   * Status of install-time prerequisites (for example, VNet service presence) that can
+   * only be changed by reinstalling the app.
+   */
+  installTimeRequirementsCheck: InstallTimeRequirementsCheck;
   /**
    * Dismisses the diagnostics alert shown in the VNet panel. It won't be shown again until the user
    * reinstates the alert by manually requesting diagnostics to be run from the VNet panel.
@@ -168,6 +176,22 @@ export const VnetContextProvider: FC<
     [mainProcessClient]
   );
   const isSupported = platform === 'darwin' || platform === 'win32';
+
+  const [checkInstallTimeRequirementsAttempt, checkInstallTimeRequirements] =
+    useAsync(
+      useCallback(async () => {
+        const { response } = await vnet.checkInstallTimeRequirements({});
+        return response;
+      }, [vnet])
+    );
+  const installTimeRequirementsCheck = useMemo(
+    () => makeInstallTimeRequirements(checkInstallTimeRequirementsAttempt),
+    [checkInstallTimeRequirementsAttempt]
+  );
+
+  useEffect(() => {
+    checkInstallTimeRequirements();
+  }, [checkInstallTimeRequirements]);
 
   const [startAttempt, start] = useAsync(
     useCallback(async () => {
@@ -339,7 +363,8 @@ export const VnetContextProvider: FC<
         // Accessing resources through VNet might trigger the MFA modal,
         // so we have to wait for the tshd events service to be initialized.
         isWorkspaceStateInitialized &&
-        startAttempt.status === ''
+        startAttempt.status === '' &&
+        installTimeRequirementsCheck.status === 'success'
       ) {
         const [, error] = await start();
 
@@ -352,7 +377,7 @@ export const VnetContextProvider: FC<
     };
 
     handleAutoStart();
-  }, [isWorkspaceStateInitialized]);
+  }, [isWorkspaceStateInitialized, installTimeRequirementsCheck.status]);
 
   useEffect(
     function handleUnexpectedShutdown() {
@@ -533,6 +558,7 @@ export const VnetContextProvider: FC<
         showDiagWarningIndicator,
         hasEverStarted,
         openSSHConfigurationModal,
+        installTimeRequirementsCheck,
       }}
     >
       {children}
@@ -584,3 +610,58 @@ const checkDaemonBackgroundItemStatus = async (
   );
   return { didBackgroundItemRequireEnablement: true };
 };
+
+function makeInstallTimeRequirements(
+  attempt: Attempt<CheckInstallTimeRequirementsResponse>
+): InstallTimeRequirementsCheck {
+  switch (attempt.status) {
+    case '':
+    case 'processing':
+      return { status: 'unknown' };
+    case 'error':
+      if (isTshdRpcError(attempt.error, 'UNIMPLEMENTED')) {
+        return { status: 'success' };
+      }
+      return {
+        status: 'failed',
+        reason: {
+          kind: 'error',
+          statusText: attempt.statusText,
+        },
+      };
+  }
+
+  const { status } = attempt.data;
+  if (
+    statusOneOfIsWindowsServiceStatus(status) &&
+    status.windowsServiceStatus === WindowsServiceStatus.DOES_NOT_EXIST
+  ) {
+    return {
+      status: 'failed',
+      reason: {
+        kind: 'missing-windows-service',
+      },
+    };
+  }
+
+  return { status: 'success' };
+}
+
+type InstallTimeRequirementsCheck =
+  | {
+      status: 'unknown';
+    }
+  | {
+      status: 'success';
+    }
+  | {
+      status: 'failed';
+      reason:
+        | {
+            kind: 'missing-windows-service';
+          }
+        | {
+            kind: 'error';
+            statusText: string;
+          };
+    };
