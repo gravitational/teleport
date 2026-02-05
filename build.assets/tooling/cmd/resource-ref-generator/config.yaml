@@ -41,7 +41,7 @@ resources:
         There can be multiple instances of an `app_server` for a single
         application, each corresponding to a different Teleport Application
         Service instance that proxies the application. Read more about [High
-        Availability](../../../enroll-resources/application-access/configuration/ha.mdx)
+        Availability](../../../enroll-resources/agents/high-availability.mdx)
         for the Teleport Application Service. Read the [reference
         guide](./app-v3.mdx) for the `app` resource.
   - type: DatabaseServerV3
