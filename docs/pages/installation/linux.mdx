@@ -76,7 +76,7 @@ You should see output displaying the Teleport version number.
 
 <Checkpoint
   title="Troubleshoot cluster installation issues"
-  description="Success looks like: `teleport version` displays the expected version number."
+  description="Success looks like: The system identifies the Teleport binary and returns a valid version number."
 >
 
 - If `teleport` is not found, the binary may not be in your PATH. For package installs, it should be in `/usr/bin/`. For TAR installs, check `/usr/local/bin/` and ensure it's in your PATH.
@@ -135,7 +135,7 @@ You should see the Teleport version and a status showing the service is active a
 
 <Checkpoint
   title="Troubleshoot agent installation issues"
-  description="Success looks like: `teleport version` displays the version, and systemctl status shows active (running)."
+  description="Success looks like: The Teleport version is displayed and the service status is reported as active and running."
 >
 
 - If the service is not running, start it and check status:
@@ -239,7 +239,7 @@ $ source /etc/os-release
 
 <Checkpoint
   title="Verify OS release variables"
-  description="Success looks like: echo $ID and echo $VERSION_CODENAME (or $VERSION_ID) return valid values."
+  description="Success looks like: The output displays valid identifiers for your distribution and version."
 >
 
 - Run the following to confirm the variables are set:
@@ -378,7 +378,7 @@ You should see output displaying the Teleport version number.
 
 <Checkpoint
   title="Troubleshoot package repository installation issues"
-  description="Success looks like: `teleport version` displays the expected version number."
+  description="Success looks like: The package manager confirms the Teleport package is installed and the version command responds."
 >
 
 - If the package was not found, verify environment variables are set correctly:
@@ -442,7 +442,7 @@ The following architecture values are available:
 
 <Checkpoint
   title="Verify system architecture"
-  description="Success looks like: uname -m returns a recognized architecture (x86_64, aarch64, armv7l, or i686)."
+  description="Success looks like: The system architecture is identified and mapped to a supported Teleport build type (x86_64, aarch64, armv7l, or i686)."
 >
 
 **Determine your system architecture:**
@@ -563,7 +563,7 @@ You should see output displaying the Teleport version number.
 
 <Checkpoint
   title="Troubleshoot manual installation issues"
-  description="Success looks like: `teleport version` displays the expected version number."
+  description="Success looks like: The checksum is verified and Teleport is accessible from your system command path."
 >
 
 - If checksum verification fails (`shasum` reports mismatch), delete the downloaded files and re-download. 
