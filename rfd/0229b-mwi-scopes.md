@@ -105,42 +105,52 @@ The Scope Admin then assigns Scoped Roles to the Scoped Bot through Scoped Role
 Assignments or via Scoped Access Lists. They cannot assign unscoped Roles to the
 Scoped Bot.
 
-There are a number of rules around the scoped assignment of privileges to a 
-Scoped Bot. These are intended to ensure that:
+There are a number of rules that govern the assignment of privileges to a Scoped
+Bot. Some of these rules are inherited from the Scopes RFD (marked RFD229) and
+some of these rules are introduced by this RFD and specific to Scoped Bots
+(marked RFD299B).
 
-- The Scoped Bot can not be assigned privileges that are above the scope in 
-  which it exists.
-  - That is, a Scoped Bot in `/foo/bar` can not access resources in `/foo` but
-    can access resources in `/foo/bar` or `/foo/bar/buzz`.
-- The Scoped Bot can not be assigned privilege across scopes.
-  - That is, a Scoped Bot in `/foo` can not access resources in `/bar`. 
-
-Some of these rules come from the original RFD for Scoped RBAC (marked RFD229),
-but some of these rules are new and specific to Scoped Bots (marked RFD229B).
 These rules are as follows:
 
-- RFD229B-A: Scoped Bots must only be assigned Scoped Roles. They cannot be
-  assigned unscoped Roles.
-- RFD229B-B: The scope of origin of a Scoped Role Assignment for a Scoped Bot
-  must be the same scope or a child scope of Bot's scope.
-- RFD299B-C: The scope of effect of a Scoped Role Assignment for a Scoped Bot
-  must be in the same scope or a child scope of the Bot's scope.
-- RFD299-A: A Scoped Role is only assignable at the scope of the Scoped Role or 
+- RFD299-1: A Scoped Role is only assignable at the scope of the Scoped Role or
   a child scope.
-- RFD229-B: A Scoped Role Assignment's scope of effect must be the same or a
-  child scope of it's scope of origin.
-- RFD229-C: A Scoped Role's s
-- WIP WIP WIP
+- RFD229-2: A Scoped Role Assignment's scope of effect must be the same or a
+  child scope of its scope of origin.
+- RFD229B-1: The scope of origin and scope of effect of a Scoped Role Assignment
+  for a Scoped Bot must be the same scope or descendent scope of the Bot's scope.
+  - nb: RFD229-2 constrains scope of effect to at most scope of origin for SRA.
+  - nb: Future Improvements explores relaxing this constraint under certain
+    conditions to permit cross-scope privileges for Scoped Bots.
+
+In practice, these rules mean:
+
+- The Scoped Bot cannot be assigned privileges that would allow it to access
+  resources outside its scope or descendent scopes.
+  - eg: a Scoped Bot in `/foo/bar` could be permitted to access resources in 
+    `/foo/bar` or `/foo/bar/buzz` but could not be permitted to access resources
+    in `/foo`. 
+- The Scoped Bot can not be assigned privilege that would allow it to access
+  resources in a different hierarchy of scopes.
+  - eg: a Scoped Bot in `/foo/bar` could not be permitted to access resources in
+    `/zip`.
 
 Worked Examples:
 
-| Bot Scope | SR Scope | SRA Scope of Origin | SRA Scope of Effect | Commentary |
-|-----------|----------|---------------------|---------------------|------------|
-| /a/b      | /a/b     | /a/b                | /a/b                | OK         |
-| /a/b      | /a/b/c   | /a/b/c              | /a/b/c              | OK         |
-| /a/b      | /a/b     | /a/b/c              | /a/b/c              | OK         |
-| /a/b      | /a/b     | /a/b                | /a/b/c              | OK         |
-|           |          |                     |                     |            |
+| Bot Scope | SR Scope | SRA Scope of Origin | SRA Scope of Effect | Commentary                   |
+|-----------|----------|---------------------|---------------------|------------------------------|
+| /a/b      | /a/b     | /a/b                | /a/b                | OK                           |
+| /a/b      | /a/b/c   | /a/b/c              | /a/b/c              | OK                           |
+| /a/b      | /a       | /a/b                | /a/b                | OK                           |
+| /a/b      | /a/b     | /a/b/c              | /a/b/c              | OK                           |
+| /a/b      | /a/b     | /a/b                | /a/b/c              | OK                           |
+| /a/b      | /a/b     | /a                  | /a                  | NOT OK - RFD229-1            |
+| /a/b      | /a/b     | /a/b                | /a                  | NOT OK - RFD229-1 & RFD229-2 |
+| /z        | /a       | /a                  | /a                  | NOT OK - RFD229B-1           |
+|           |          |                     |                     |                              |
+|           |          |                     |                     |                              |
+
+These rules are backed up by the Scope Pinning mechanism. Certificates issued to
+the Scoped Bot are pinned to the scope in which it exists.
 
 #### Joining the Scoped Bot
 
@@ -154,10 +164,6 @@ using the Scoped Join Token. To do so, they must configure:
 - The name/method of the Scoped Join Token.
 - The address of the Auth or Proxy Service.
 - A type of service they would like `tbot` to run (e.g `identity`).
-
-The certificates that `tbot` receives upon joining and that it generates for
-services will be pinned to the scope in which the Scoped Bot exists. This 
-provides an additional layer of protection against escape from scope.
 
 ## Implementation Details
 
