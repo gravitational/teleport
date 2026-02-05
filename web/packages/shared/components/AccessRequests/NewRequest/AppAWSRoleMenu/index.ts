@@ -19,10 +19,5 @@
 export {
   AppAWSRoleMenu,
   awsRoleToLoginChoice,
-  isAwsConsoleApp,
-  isAwsConsoleAppWithConstraintSupport,
-  supportsResourceConstraints,
-  type AppAWSRoleMenuProps,
-  type AppWithAWSSupport,
-  type AWSLoginChoice,
+  type AwsLoginChoice,
 } from './AppAWSRoleMenu';

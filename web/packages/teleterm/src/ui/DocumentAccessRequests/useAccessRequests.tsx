@@ -33,6 +33,7 @@ import {
   ResourceConstraints,
 } from 'shared/services/accessRequests';
 
+import { constraintsOneOfIsAwsConsole } from 'teleterm/helpers';
 import { useAccessRequestsContext } from 'teleterm/ui/AccessRequests/AccessRequestsContext';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
@@ -123,12 +124,11 @@ function convertProtoConstraints(
     return undefined;
   }
 
-  const { details } = proto;
-  if ('awsConsole' in details) {
+  if (constraintsOneOfIsAwsConsole(proto.details)) {
     return {
       version: (proto.version || 'v1') as ResourceConstraints['version'],
       aws_console: {
-        role_arns: details.awsConsole.roleArns,
+        role_arns: proto.details.awsConsole.roleArns,
       },
     };
   }

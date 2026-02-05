@@ -41,13 +41,11 @@ export class AccessRequestsService {
     private getState: () => {
       isBarCollapsed: boolean;
       pending: PendingAccessRequest;
-      resourceConstraints: ResourceConstraintsMap;
     },
     private setState: (
       draftState: (draft: {
         isBarCollapsed: boolean;
         pending: PendingAccessRequest;
-        resourceConstraints: ResourceConstraintsMap;
       }) => void
     ) => void
   ) {}
@@ -69,21 +67,26 @@ export class AccessRequestsService {
   clearPendingAccessRequest() {
     this.setState(draftState => {
       draftState.pending = getEmptyPendingAccessRequest();
-      draftState.resourceConstraints = {};
     });
   }
 
   getResourceConstraints() {
-    return this.getState().resourceConstraints;
+    const { pending } = this.getState();
+    if (pending.kind === 'resource') {
+      return pending.resourceConstraints;
+    }
+    return {};
   }
 
   setResourceConstraints(key: ResourceIDString, rc?: ResourceConstraints) {
     this.setState(draftState => {
-      draftState.resourceConstraints = updateResourceConstraints(
-        draftState.resourceConstraints,
-        key,
-        rc
-      );
+      if (draftState.pending.kind === 'resource') {
+        draftState.pending.resourceConstraints = updateResourceConstraints(
+          draftState.pending.resourceConstraints,
+          key,
+          rc
+        );
+      }
     });
   }
 
@@ -110,6 +113,7 @@ export class AccessRequestsService {
         draftState.pending = {
           kind: 'resource',
           resources: new Map(),
+          resourceConstraints: {},
         };
       }
 
@@ -117,8 +121,8 @@ export class AccessRequestsService {
 
       if (resources.has(request.resource.uri)) {
         resources.delete(request.resource.uri);
-        draftState.resourceConstraints = updateResourceConstraints(
-          draftState.resourceConstraints,
+        draftState.pending.resourceConstraints = updateResourceConstraints(
+          draftState.pending.resourceConstraints,
           request.resource.uri as ResourceIDString,
           undefined
         );
@@ -172,6 +176,7 @@ export class AccessRequestsService {
         draftState.pending = {
           kind: 'resource',
           resources: new Map(),
+          resourceConstraints: {},
         };
       }
 
@@ -181,7 +186,7 @@ export class AccessRequestsService {
       );
 
       if (allAdded) {
-        draftState.resourceConstraints = {};
+        draftState.pending.resourceConstraints = {};
       }
 
       requestedResources.forEach(request => {
@@ -203,6 +208,7 @@ export class AccessRequestsService {
         draftState.pending = {
           kind: 'resource',
           resources: new Map(),
+          resourceConstraints: {},
         };
       }
 
@@ -266,6 +272,7 @@ const updateResourceConstraints = (
   key: ResourceIDString,
   rc?: ResourceConstraints
 ) => {
+  prev ||= {};
   if (rc) {
     return { ...prev, [key]: rc };
   }
@@ -302,6 +309,7 @@ export function getEmptyPendingAccessRequest(): PendingAccessRequest {
   return {
     kind: 'resource',
     resources: new Map(),
+    resourceConstraints: {},
   };
 }
 
@@ -309,6 +317,7 @@ export type PendingAccessRequest =
   | {
       kind: 'resource';
       resources: Map<ResourceUri, ResourceRequest>;
+      resourceConstraints: ResourceConstraintsMap;
     }
   | { kind: 'role'; roles: Set<string> };
 

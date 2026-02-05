@@ -26,10 +26,8 @@ import {
   UserPreferences,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-import {
-  AppAWSRoleMenu,
-  isAwsConsoleAppWithConstraintSupport,
-} from 'shared/components/AccessRequests/NewRequest';
+import { AppAWSRoleMenu } from 'shared/components/AccessRequests/NewRequest';
+import { appIsAwsConsoleAndSupportsConstraints } from 'shared/components/AccessRequests/NewRequest/AppAWSRoleMenu/AppAWSRoleMenu';
 import {
   InfoGuidePanelProvider,
   useInfoGuide,
@@ -225,9 +223,14 @@ export function UnifiedResources(props: {
   const resourceConstraints = useStoreSelector(
     'workspacesService',
     useCallback(
-      state =>
-        state.workspaces[rootClusterUri]?.accessRequests.resourceConstraints ??
-        {},
+      state => {
+        const pending =
+          state.workspaces[rootClusterUri]?.accessRequests.pending;
+        if (pending?.kind === 'resource') {
+          return pending.resourceConstraints;
+        }
+        return {};
+      },
       [rootClusterUri]
     )
   );
@@ -248,35 +251,30 @@ export function UnifiedResources(props: {
       // to allow selecting specific AWS IAM roles.
       if (
         resource.kind === 'app' &&
-        isAwsConsoleAppWithConstraintSupport({
-          kind: 'app',
-          awsConsole: resource.resource.awsConsole,
-          awsRoles: resource.resource.awsRoles,
-          supportedFeatureIds: resource.resource.supportedFeatureIds,
-        })
+        appIsAwsConsoleAndSupportsConstraints(resource.resource)
       ) {
         const cluster = clustersService.findClusterByResource(
           resource.resource.uri
         );
+        const awsRoles = resource.resource.awsRoles.map(r => ({
+          ...r,
+          launchUrl: getAwsAppLaunchUrl({
+            app: resource.resource,
+            rootCluster,
+            cluster,
+            arn: r.arn,
+          }),
+        }));
 
         return (
           <AppAWSRoleMenu
-            awsRoles={resource.resource.awsRoles || []}
+            awsRoles={awsRoles}
             isAppInCart={isResourceAdded}
             addedResourceConstraints={resourceConstraints}
             clusterName={cluster.name}
-            kind="app"
             appName={resource.resource.name}
             addOrRemoveApp={() =>
               accessRequestsService.addOrRemoveResource(resource)
-            }
-            getLaunchUrl={r =>
-              getAwsAppLaunchUrl({
-                app: resource.resource,
-                rootCluster,
-                cluster,
-                arn: r.arn,
-              })
             }
             setResourceConstraints={setAddedResourceConstraints}
             requestStarted={requestStarted}
@@ -301,6 +299,8 @@ export function UnifiedResources(props: {
       integratedAccessRequests,
       resourceConstraints,
       setAddedResourceConstraints,
+      clustersService,
+      rootCluster,
     ]
   );
 
@@ -659,15 +659,7 @@ const mapToSharedResource = (
           requiresRequest: resource.requiresRequest,
           subKind: resource.resource.subKind as AppSubKind,
           permissionSets: resource.resource.permissionSets,
-          // AWS roles with requiresRequest field for constraint-based access requests.
-          awsRoles: app.awsRoles?.map(role => ({
-            name: role.name,
-            display: role.display,
-            arn: role.arn,
-            accountId: role.accountId,
-            requiresRequest: role.requiresRequest,
-          })),
-          // Feature IDs to detect if resource constraints are supported.
+          awsRoles: app.awsRoles,
           supportedFeatureIds: app.supportedFeatureIds,
         },
         ui: {

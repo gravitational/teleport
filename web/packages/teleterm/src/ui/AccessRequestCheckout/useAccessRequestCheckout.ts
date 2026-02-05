@@ -303,7 +303,7 @@ export default function useAccessRequestCheckout() {
         name: d.id,
         clusterName: d.clusterName,
         kind: d.kind,
-        subResourceName: d.subResourceName,
+        subResourceName: d.subResourceName || '',
       };
       const key = getResourceIDString({
         cluster: d.clusterName,

@@ -33,7 +33,7 @@ import {
 import { AwsRole } from 'shared/services/apps';
 import { ComponentFeatureID } from 'shared/utils/componentFeatures';
 
-export type AWSLoginChoice = {
+export type AwsLoginChoice = {
   /** The ARN of the AWS role */
   id: string;
   /** Display label for the role */
@@ -45,59 +45,53 @@ export type AWSLoginChoice = {
 };
 
 /**
- * Minimal interface for an app that can be checked for AWS Console support
+ * AppResource represents a minimal interface that satisfies
+ * an AWS Console application resource with support for Resource Constraints.
  */
-export interface AppWithAWSSupport {
-  kind: string;
-  awsConsole?: boolean;
-  awsRoles?: AwsRole[];
+type AppResource = {
+  awsConsole: boolean;
   supportedFeatureIds?: number[];
-}
-
-/**
- * Checks if an app supports resource constraints
- */
-export function supportsResourceConstraints(app: AppWithAWSSupport): boolean {
-  return (
-    app.supportedFeatureIds?.includes?.(
-      ComponentFeatureID.ResourceConstraintsV1
-    ) || false
-  );
-}
-
-/**
- * Checks if an app is an AWS Console app
- */
-export function isAwsConsoleApp(app: AppWithAWSSupport): boolean {
-  return !!app.awsConsole;
-}
-
-/**
- * Checks if an app is an AWS Console app that supports resource constraints
- */
-export function isAwsConsoleAppWithConstraintSupport(
-  app: AppWithAWSSupport
-): boolean {
-  if (app.kind !== 'app') {
-    return false;
-  }
-  if (!isAwsConsoleApp(app)) {
-    return false;
-  }
-  return supportsResourceConstraints(app);
-}
-
-export type AppAWSRoleMenuProps = {
-  /** AWS roles available on the application */
   awsRoles: AwsRole[];
+};
+
+/**
+ * appIsAwsConsoleAndSupportsConstraints returns whether the given
+ * app is an AWS Console app that supports specifying Role ARN constraints.
+ */
+export const appIsAwsConsoleAndSupportsConstraints = (
+  resource: AppResource
+): boolean => {
+  if (!resource.awsConsole) {
+    return false;
+  }
+
+  if (
+    !resource.supportedFeatureIds?.includes(
+      ComponentFeatureID.ResourceConstraintsV1
+    )
+  ) {
+    return false;
+  }
+
+  return !!resource.awsRoles.length;
+};
+
+type AwsRoleWithLaunchUrl = AwsRole & {
+  launchUrl: string;
+};
+
+type AppAWSRoleMenuProps = {
+  /**
+   * AWS roles available on the application, mapped with additional
+   * `launchUrl` property.
+   */
+  awsRoles: AwsRoleWithLaunchUrl[];
   /** Whether the app is currently in the access request cart */
   isAppInCart: boolean;
   /** Resource constraints that have been added to the access request cart */
   addedResourceConstraints: ResourceConstraintsMap;
   /** Name of the cluster where the app is located */
   clusterName: string;
-  /** Kind of the resource (should be 'app') */
-  kind: string;
   /** Name of the app */
   appName: string;
   /** Width of the button (default: '123px') */
@@ -116,26 +110,19 @@ export type AppAWSRoleMenuProps = {
     key: ResourceIDString,
     rc?: ResourceConstraints
   ) => void;
-  /**
-   * Callback to compute the launch URL for a role
-   */
-  getLaunchUrl?: (role: AwsRole) => string;
 };
 
 /**
  * Converts an AwsRole to an AWSLoginChoice for display purposes
  */
-export function awsRoleToLoginChoice(
-  role: AwsRole,
-  getLaunchUrl?: (role: AwsRole) => string
-): AWSLoginChoice {
-  return {
-    id: role.arn,
-    label: `${role.accountId}: ${role.display}${role.display !== role.name ? ` (${role.name})` : ''}`,
-    requiresRequest: role.requiresRequest ?? false,
-    launchUrl: getLaunchUrl?.(role),
-  };
-}
+export const awsRoleToLoginChoice = (
+  role: AwsRoleWithLaunchUrl
+): AwsLoginChoice => ({
+  id: role.arn,
+  label: `${role.accountId}: ${role.display}${role.display !== role.name ? ` (${role.name})` : ''}`,
+  requiresRequest: role.requiresRequest ?? false,
+  launchUrl: role.launchUrl,
+});
 
 /**
  * AppAWSRoleMenu allows selecting/requesting AWS IAM Roles for an AWS Console app.
@@ -150,11 +137,9 @@ export const AppAWSRoleMenu = ({
   isAppInCart,
   addedResourceConstraints,
   clusterName,
-  kind,
   appName,
   addOrRemoveApp,
   setResourceConstraints,
-  getLaunchUrl,
   requestStarted = false,
   isNewRequestFlow = false,
   width = '123px',
@@ -163,8 +148,8 @@ export const AppAWSRoleMenu = ({
   const [open, setOpen] = useState(false);
 
   const { granted, requestable } = (awsRoles || [])
-    .map(role => awsRoleToLoginChoice(role, getLaunchUrl))
-    .reduce(
+    .map(awsRoleToLoginChoice)
+    .reduce<{ granted: AwsLoginChoice[]; requestable: AwsLoginChoice[] }>(
       (acc, role) => {
         // If in new request flow, all present roles are requestable
         // and will not have 'requiresRequest' property.
@@ -175,7 +160,7 @@ export const AppAWSRoleMenu = ({
         target.push(role);
         return acc;
       },
-      { granted: [] as AWSLoginChoice[], requestable: [] as AWSLoginChoice[] }
+      { granted: [], requestable: [] }
     );
 
   const requestStartedOrNoGranted = requestStarted || !granted.length;
@@ -183,16 +168,16 @@ export const AppAWSRoleMenu = ({
   // Resource ID string for constraints map key
   const key = getResourceIDString({
     cluster: clusterName,
-    kind: kind,
+    kind: 'app',
     name: appName,
   });
   const selectedARNs =
-    addedResourceConstraints[key]?.aws_console?.role_arns ?? [];
+    addedResourceConstraints?.[key]?.aws_console?.role_arns ?? [];
 
-  const isChecked = (choice: AWSLoginChoice) =>
+  const isChecked = (choice: AwsLoginChoice) =>
     selectedARNs.includes(choice.id);
 
-  const toggleRequestable = (choice: AWSLoginChoice) => {
+  const toggleRequestable = (choice: AwsLoginChoice) => {
     const next = isChecked(choice)
       ? selectedARNs.filter(arn => arn !== choice.id)
       : [...selectedARNs, choice.id];
@@ -213,15 +198,15 @@ export const AppAWSRoleMenu = ({
 
   // If <= one granted login is available and none requestable, show normal button.
   if (granted.length <= 1 && !requestable.length) {
-    // If getLaunchUrl is provided and we have a granted role, show Connect button
-    if (getLaunchUrl && granted.length === 1) {
+    // If we have a granted role, show Connect button
+    if (granted.length === 1) {
       return (
         <ButtonBorder
           as="a"
           textTransform="none"
           width={width}
           size="small"
-          href={granted[0]?.launchUrl}
+          href={granted[0].launchUrl}
           target="_blank"
           rel="noreferrer"
         >
@@ -250,17 +235,27 @@ export const AppAWSRoleMenu = ({
         textTransform="none"
         width={width}
         size="small"
+        fill={isAppInCart ? 'filled' : undefined}
+        intent={isAppInCart ? 'primary' : undefined}
+        css={`
+          text-wrap: nowrap;
+        `}
         ref={el => (anchorEl.current = el!)}
         onClick={() => {
           setOpen(true);
         }}
       >
-        {isNewRequestFlow
+        {isNewRequestFlow || requestStarted
           ? 'Add to request'
           : requestStartedOrNoGranted
             ? 'Request Access'
             : 'Connect'}
-        <ChevronDown ml={1} mr={-2} size="small" color="text.slightlyMuted" />
+        <ChevronDown
+          ml={1}
+          mr={-1}
+          size="small"
+          color={isAppInCart ? 'test.primaryInverse' : 'text.slightlyMuted'}
+        />
       </ButtonBorder>
 
       <Menu
@@ -284,7 +279,7 @@ export const AppAWSRoleMenu = ({
         onClose={() => setOpen(false)}
       >
         {/* Hide 'connect' section when in request mode */}
-        {!requestStartedOrNoGranted && getLaunchUrl && (
+        {!requestStartedOrNoGranted && (
           <>
             {!!requestable.length && <SectionHeader>Connect:</SectionHeader>}
             <Box>
@@ -307,19 +302,20 @@ export const AppAWSRoleMenu = ({
         )}
         {!!requestable.length && (
           <>
-            {!requestStartedOrNoGranted && getLaunchUrl && (
+            {!requestStartedOrNoGranted && (
               <SectionHeader>Request Access:</SectionHeader>
             )}
             <Box>
               {requestable.map(item => (
                 <StyledMenuItem
-                  as="div"
+                  as="label"
                   key={`r:${item.id}`}
                   title={item.label}
-                  onClick={() => toggleRequestable(item)}
+                  htmlFor={`r:${item.id}`}
                 >
                   <CheckboxInput
                     type="checkbox"
+                    id={`r:${item.id}`}
                     checked={isChecked(item)}
                     onChange={() => toggleRequestable(item)}
                   />
