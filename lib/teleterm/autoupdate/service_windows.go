@@ -30,9 +30,13 @@ import (
 
 const (
 	// Defined in electron-builder-config.js
-	teleportConnectGUID    = "22539266-67e8-54a3-83b9-dfdca7b33ee1"
-	teleportConnectKeyPath = `SOFTWARE\` + teleportConnectGUID
-	installLocationKey     = "InstallLocation"
+	teleportConnectGUID          = "22539266-67e8-54a3-83b9-dfdca7b33ee1"
+	teleportConnectKeyPath       = `SOFTWARE\` + teleportConnectGUID
+	registryValueInstallLocation = "InstallLocation"
+
+	teleportConnectPoliciesKeyPath = `SOFTWARE\Policies\Teleport\TeleportConnect`
+	registryValueToolsVersion      = "ToolsVersion"
+	registryValueCDNBaseURL        = "CdnBaseUrl"
 )
 
 // GetInstallationMetadata returns installation metadata of the currently running app instance.
@@ -45,8 +49,69 @@ func (s *Service) GetInstallationMetadata(_ context.Context, _ *api.GetInstallat
 	return &api.GetInstallationMetadataResponse{IsPerMachineInstall: perMachine}, nil
 }
 
+// platformGetConfig retrieves the local auto updates configuration.
+func platformGetConfig() (*api.GetConfigResponse, error) {
+	perMachine, err := isPerMachineInstall()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	machineValues, err := readRegistryPolicyValues(registry.LOCAL_MACHINE)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	config := &api.GetConfigResponse{
+		CdnBaseUrl: &api.ConfigValue{
+			Value:  machineValues.cdnBaseURL,
+			Source: api.ConfigSource_CONFIG_SOURCE_POLICY,
+		},
+		ToolsVersion: &api.ConfigValue{
+			Value:  machineValues.version,
+			Source: api.ConfigSource_CONFIG_SOURCE_POLICY,
+		},
+	}
+
+	// If per-machine config is fully set, there's no need to check other sources.
+	perMachineConfigFullySet := machineValues.cdnBaseURL != "" && machineValues.version != ""
+	if perMachineConfigFullySet {
+		return config, nil
+	}
+
+	if !perMachine {
+		userValues, err := readRegistryPolicyValues(registry.CURRENT_USER)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if machineValues.cdnBaseURL == "" {
+			config.CdnBaseUrl.Value = userValues.cdnBaseURL
+		}
+
+		if machineValues.version == "" {
+			config.ToolsVersion.Value = userValues.version
+		}
+	}
+
+	// Read deprecated env vars. If they are set and the app is installed per-machine, updates must use
+	// the standard UAC installer (no privileged updater).
+	envVarConfig, err := readConfigFromEnvVars()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if config.CdnBaseUrl.Value == "" {
+		config.CdnBaseUrl = envVarConfig.GetCdnBaseUrl()
+	}
+
+	if config.ToolsVersion.Value == "" {
+		config.ToolsVersion = envVarConfig.GetToolsVersion()
+	}
+
+	return config, nil
+}
+
 func isPerMachineInstall() (bool, error) {
-	perMachineLocation, err := readPerMachineInstallLocation()
+	perMachineLocation, err := readRegistryValue(registry.LOCAL_MACHINE, teleportConnectKeyPath, registryValueInstallLocation)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return false, nil
@@ -60,29 +125,54 @@ func isPerMachineInstall() (bool, error) {
 	}
 
 	// tsh is placed in <installation directory>/resources/bin/tsh.exe.
-	exePathImperMachineLocation := filepath.Join(perMachineLocation, "resources", "bin", "tsh.exe")
+	exePathInPerMachineLocation := filepath.Join(perMachineLocation, "resources", "bin", "tsh.exe")
 
-	return exePath == exePathImperMachineLocation, nil
+	return exePath == exePathInPerMachineLocation, nil
 }
 
-func readPerMachineInstallLocation() (path string, err error) {
-	key, err := registry.OpenKey(registry.LOCAL_MACHINE, teleportConnectKeyPath, registry.READ)
+type policyValue struct {
+	cdnBaseURL string
+	version    string
+}
+
+func readRegistryPolicyValues(key registry.Key) (*policyValue, error) {
+	version, err := readRegistryValue(key, teleportConnectPoliciesKeyPath, registryValueToolsVersion)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	url, err := readRegistryValue(key, teleportConnectPoliciesKeyPath, registryValueCDNBaseURL)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	return &policyValue{
+		cdnBaseURL: url,
+		version:    version,
+	}, nil
+}
+
+func readRegistryValue(hive registry.Key, pathName string, valueName string) (path string, err error) {
+	key, err := registry.OpenKey(hive, pathName, registry.READ)
 	if err != nil {
 		if errors.Is(err, registry.ErrNotExist) {
-			return "", trace.NotFound("registry key %s not found", teleportConnectKeyPath)
+			return "", trace.NotFound("registry key %s not found", pathName)
 		}
-		return "", trace.Wrap(err, "opening registry key %s", teleportConnectKeyPath)
+		return "", trace.Wrap(err, "opening registry key %s", pathName)
 	}
 
 	defer func() {
 		if closeErr := key.Close(); closeErr != nil && err == nil {
-			err = trace.Wrap(closeErr, "closing registry key %s", teleportConnectKeyPath)
+			err = trace.Wrap(closeErr, "closing registry key %s", pathName)
 		}
 	}()
 
-	path, _, err = key.GetStringValue(installLocationKey)
+	path, _, err = key.GetStringValue(valueName)
 	if err != nil {
-		return "", trace.Wrap(err, "reading registry value %s from %s", installLocationKey, teleportConnectKeyPath)
+		if errors.Is(err, registry.ErrNotExist) {
+			return "", trace.NotFound("registry value %s not found in %s", valueName, pathName)
+		}
+		return "", trace.Wrap(err, "reading registry value %s from %s", valueName, pathName)
 	}
 
 	return path, nil

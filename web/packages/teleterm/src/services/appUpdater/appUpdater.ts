@@ -33,8 +33,10 @@ import {
 } from 'electron-updater';
 import { ProviderRuntimeOptions } from 'electron-updater/out/providers/Provider';
 
-import type {
+import {
+  ConfigSource,
   GetClusterVersionsResponse,
+  GetConfigResponse,
   GetInstallationMetadataResponse,
 } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
 import { AbortError } from 'shared/utils/error';
@@ -54,9 +56,10 @@ import {
   ClientToolsUpdateProvider,
   ClientToolsVersionGetter,
 } from './clientToolsUpdateProvider';
-import { NsisDualModeUpdater } from './nsisDualModeUpdater';
-
-export const TELEPORT_TOOLS_VERSION_ENV_VAR = 'TELEPORT_TOOLS_VERSION';
+import {
+  NsisDualModeUpdater,
+  NsisDualModeUpdaterOptions,
+} from './nsisDualModeUpdater';
 
 export class AppUpdater {
   private readonly logger = new Logger('AppUpdater');
@@ -67,43 +70,58 @@ export class AppUpdater {
   private downloadPromise: Promise<string[]> | undefined;
   private isUpdateDownloaded = false;
   private forceNoAutoDownload = false;
+  private readonly nsisUpdaterSettings: NsisDualModeUpdaterOptions = {
+    privilegedUpdaterCannotBeUsed: false,
+  };
 
   constructor(
     private readonly storage: AppUpdaterStorage,
     private readonly client: {
+      getConfig(): Promise<GetConfigResponse>;
       getClusterVersions(): Promise<GetClusterVersionsResponse>;
-      getDownloadBaseUrl(): Promise<string>;
       getInstallationMetadata(): Promise<GetInstallationMetadataResponse>;
     },
     private readonly emit: (event: AppUpdateEvent) => void,
-    private versionEnvVar: string,
     /** Allows overring autoUpdater in tests. */
     private nativeUpdater: NativeUpdater = autoUpdater
   ) {
     const getClientToolsVersion: ClientToolsVersionGetter = async () => {
-      await this.refreshAutoUpdatesStatus();
+      const config = await this.client.getConfig();
+
+      const cdnBaseUrl = config.cdnBaseUrl?.value || '';
+      await this.refreshAutoUpdatesStatus({
+        toolsVersion: config.toolsVersion?.value || '',
+        cdnBaseUrl,
+      });
 
       if (this.autoUpdatesStatus.enabled) {
-        const [baseUrl, installationMetadata] = await Promise.all([
-          client.getDownloadBaseUrl(),
-          client.getInstallationMetadata().catch(error => {
-            if (isTshdRpcError(error, 'UNIMPLEMENTED')) {
-              return { isPerMachineInstall: false };
-            }
+        let isPerMachineInstall: boolean;
+        try {
+          const installationMetadata = await client.getInstallationMetadata();
+          isPerMachineInstall = installationMetadata.isPerMachineInstall;
+        } catch (error) {
+          if (!isTshdRpcError(error, 'UNIMPLEMENTED')) {
             throw error;
-          }),
-        ]);
+          }
+          isPerMachineInstall = false;
+        }
+
+        if (isPerMachineInstall) {
+          this.nsisUpdaterSettings.privilegedUpdaterCannotBeUsed =
+            config.toolsVersion?.source === ConfigSource.ENV_VAR ||
+            config.cdnBaseUrl?.source === ConfigSource.ENV_VAR;
+        }
 
         return {
           version: this.autoUpdatesStatus.version,
-          baseUrl,
-          isPerMachineInstall: installationMetadata.isPerMachineInstall,
+          baseUrl: cdnBaseUrl,
+          isPerMachineInstall,
         };
       }
     };
 
     if (process.platform === 'win32') {
-      this.nativeUpdater = new NsisDualModeUpdater();
+      this.nativeUpdater = new NsisDualModeUpdater(this.nsisUpdaterSettings);
     }
 
     this.nativeUpdater.setFeedURL({
@@ -139,7 +157,8 @@ export class AppUpdater {
       this.nativeUpdater,
       this.emit,
       () => this.autoUpdatesStatus,
-      () => this.shouldAutoDownload()
+      () => this.shouldAutoDownload(),
+      () => this.nsisUpdaterSettings.privilegedUpdaterCannotBeUsed
     );
   }
 
@@ -346,11 +365,15 @@ export class AppUpdater {
     );
   }
 
-  private async refreshAutoUpdatesStatus(): Promise<void> {
+  private async refreshAutoUpdatesStatus(config: {
+    cdnBaseUrl: string;
+    toolsVersion: string;
+  }): Promise<void> {
     const { managingClusterUri } = this.storage.get();
 
     this.autoUpdatesStatus = await resolveAutoUpdatesStatus({
-      versionEnvVar: this.versionEnvVar,
+      cdnBaseUrl: config.cdnBaseUrl,
+      configToolsVersion: config.toolsVersion,
       managingClusterUri,
       getClusterVersions: this.client.getClusterVersions,
     });
@@ -403,6 +426,13 @@ export class AppUpdater {
 export interface UpdateInfo extends ElectronUpdateInfo {
   /** Indicates whether the update version is newer or older than the current app version. */
   updateKind: 'upgrade' | 'downgrade';
+  /**
+   * Deprecated per‑machine env‑var configuration requires a UAC prompt and prevents use of the privileged updater.
+   * Windows only.
+   *
+   * TODO(gzdunek): REMOVE IN 19.0.0
+   */
+  requiresUacPrompt: boolean;
 }
 
 export interface AppUpdaterStorage<
@@ -419,7 +449,8 @@ function registerEventHandlers(
   nativeUpdater: NativeUpdater,
   emit: (event: AppUpdateEvent) => void,
   getAutoUpdatesStatus: () => AutoUpdatesStatus,
-  getAutoDownload: () => boolean
+  getAutoDownload: () => boolean,
+  requiresUacPrompt: () => boolean
 ): () => void {
   // updateInfo becomes defined when an update is available (see onUpdateAvailable).
   // It is later attached to other events, like 'download-progress' or 'error'.
@@ -434,6 +465,7 @@ function registerEventHandlers(
   const onUpdateAvailable = (update: ElectronUpdateInfo) => {
     updateInfo = {
       ...update,
+      requiresUacPrompt: requiresUacPrompt(),
       updateKind:
         compare(update.version, app.getVersion()) === 1
           ? 'upgrade'
