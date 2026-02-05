@@ -42,33 +42,32 @@ $ tsh login --proxy=myinstance.teleport.sh
 $ tctl status
 ```
 
-Obtain your existing `cluster_auth_preference` resource:
+Obtain your existing `cluster_networking_config` resource:
 
 ```code
-$ tctl get cap > cap.yaml
+$ tctl get cluster_networking_config > cnc.yaml
 ```
 
-Include `client_idle_timeout` in `cap.yaml`:
+Include `client_idle_timeout` in `cnc.yaml`:
 
 ```yaml
-kind: cluster_auth_preference
+kind: cluster_networking_config
 metadata:
-  name: cluster-auth-preference
+  name: cluster-networking-config
 spec:
-  options:
-    client_idle_timeout: 30m # Set your desired timeout value
+  client_idle_timeout: 30m # Set your desired timeout value
 ```
 
-Create the `cluster_auth_preference` resource via `tctl`:
+Create the `cluster_networking_config` resource via `tctl`:
 
 ```code
-$ tctl create -f cap.yaml
+$ tctl create -f cnc.yaml
 ```
 
 You should then see the following output:
 
 ```code
-$ cluster auth preference has been created
+$ cluster networking configuration has been updated
 ```
 
 ### Per-role configuration (applies to specific users or groups)
