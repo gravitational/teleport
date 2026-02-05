@@ -213,6 +213,11 @@ Introduce a subkind of the existing Bot resource:
 - Introduces some fairly awkward complexity to listing and fetching since the
   schema for the subkind will be "incompatible" with the normal Bot schema.
 
+The subkind route appears to offer many of the drawbacks of both implementations
+and few of the benefits of either. This leaves the choice between adding a 
+scoped field to the existing Bot resource or introducing a new ScopedBot 
+resource.
+
 ### A.2: The Wrong Implementations
 
 When trying to determine the path for a complex implementation, it can be
