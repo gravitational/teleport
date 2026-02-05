@@ -600,7 +600,7 @@ func TestGetCertAuthority_outdatedTctl(t *testing.T) {
 	trust := local.NewCAService(pack.mem)
 
 	// Prepare an SSH key pair for test CAs.
-	sshPriv, sshPub, err := testauthority.New().GenerateKeyPair()
+	sshPriv, sshPub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	// Prepare a TLS key/cert pair for test CAs.

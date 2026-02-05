@@ -200,7 +200,7 @@ func TestValidateCertAuthority(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	jwtPubPEM, jwtPrivPEM, err := testauthority.New().GenerateJWT()
+	jwtPubPEM, jwtPrivPEM, err := testauthority.GenerateJWT()
 	require.NoError(t, err)
 
 	winCA := &types.CertAuthoritySpecV2{
@@ -382,7 +382,7 @@ func TestValidateCertAuthority(t *testing.T) {
 				// jwtPubPEM/jwtPrivPEM.
 				// This is OK for this test and we retain the call to GenerateJWT() in
 				// case it ever returns distinct keys.
-				pub2, priv2, err := testauthority.New().GenerateJWT()
+				pub2, priv2, err := testauthority.GenerateJWT()
 				require.NoError(t, err)
 
 				spec := clone(oidcIDPCA)
