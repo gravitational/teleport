@@ -20,6 +20,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
+import { GetInstallationMetadataResponse } from "./auto_update_service_pb";
+import { GetInstallationMetadataRequest } from "./auto_update_service_pb";
 import { GetDownloadBaseUrlResponse } from "./auto_update_service_pb";
 import { GetDownloadBaseUrlRequest } from "./auto_update_service_pb";
 import { GetClusterVersionsResponse } from "./auto_update_service_pb";
@@ -45,6 +47,13 @@ export interface IAutoUpdateService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: GetDownloadBaseUrl(teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlRequest) returns (teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlResponse);
      */
     getDownloadBaseUrl: grpc.handleUnaryCall<GetDownloadBaseUrlRequest, GetDownloadBaseUrlResponse>;
+    /**
+     * GetInstallationMetadata returns installation metadata of the currently running app instance.
+     * Implemented only on Windows.
+     *
+     * @generated from protobuf rpc: GetInstallationMetadata(teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataRequest) returns (teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataResponse);
+     */
+    getInstallationMetadata: grpc.handleUnaryCall<GetInstallationMetadataRequest, GetInstallationMetadataResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.auto_update.v1.AutoUpdateService.
@@ -77,5 +86,15 @@ export const autoUpdateServiceDefinition: grpc.ServiceDefinition<IAutoUpdateServ
         requestDeserialize: bytes => GetDownloadBaseUrlRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(GetDownloadBaseUrlResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(GetDownloadBaseUrlRequest.toBinary(value))
+    },
+    getInstallationMetadata: {
+        path: "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/GetInstallationMetadata",
+        originalName: "GetInstallationMetadata",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => GetInstallationMetadataResponse.fromBinary(bytes),
+        requestDeserialize: bytes => GetInstallationMetadataRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(GetInstallationMetadataResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(GetInstallationMetadataRequest.toBinary(value))
     }
 };

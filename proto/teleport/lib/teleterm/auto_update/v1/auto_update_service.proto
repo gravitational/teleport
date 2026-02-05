@@ -28,6 +28,9 @@ service AutoUpdateService {
   // Can be overridden with TELEPORT_CDN_BASE_URL env var.
   // OSS builds require this env var to be set, otherwise an error is returned.
   rpc GetDownloadBaseUrl(GetDownloadBaseUrlRequest) returns (GetDownloadBaseUrlResponse);
+  // GetInstallationMetadata returns installation metadata of the currently running app instance.
+  // Implemented only on Windows.
+  rpc GetInstallationMetadata(GetInstallationMetadataRequest) returns (GetInstallationMetadataResponse);
 }
 
 // Request for GetClusterVersions.
@@ -65,4 +68,13 @@ message GetDownloadBaseUrlRequest {}
 // Response for GetDownloadBaseUrl.
 message GetDownloadBaseUrlResponse {
   string base_url = 1;
+}
+
+// Request for GetInstallationMetadata.
+message GetInstallationMetadataRequest {}
+
+// Response for GetInstallationMetadata.
+message GetInstallationMetadataResponse {
+  // Determines whether updates should target a per-machine installation.
+  bool is_per_machine_install = 1;
 }
