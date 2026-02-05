@@ -542,6 +542,33 @@ create access lists granting scoped roles.
 Instead, admins can create other access lists to grant scoped roles, and define
 the IdP imported access lists as members of those lists.
 
+### Mixing scoped and unscoped role grants
+
+Access lists will technically be allowed to grant both regular and scoped roles:
+
+```yaml
+kind: access_list
+metadata:
+  name: example-list
+spec:
+  grants:
+    roles:
+      - editor
+      - auditor
+    scoped_roles:
+      - role: ops-staging-access
+        scope: /ops/west
+      - role: ops-prod-access
+        scope: /ops/west
+version: v1
+```
+
+When users do a "regular"/unscoped login, they will receive the unscoped roles
+as usual.
+When they do a scoped login at a specific scope, they will receive all roles
+granted in scopes non-orthogonal to the scope they're logging in to (this is
+the effect of the materialized scoped role assignments).
+
 ### Security
 
 #### Invariants
