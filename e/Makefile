@@ -577,10 +577,7 @@ endif
 
 # test-operator runs tests for the k8s operator with enterprise-only resource
 # types that must be tested with an enterprise Teleport cluster.
-include ../integrations/operator/envtest.mk
 .PHONY: test-operator
-test-operator: $(ENVTEST)
-test-operator: export KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
 test-operator:
 	go tool gotestsum --junitfile unit-tests-operator.xml --jsonfile unit-tests-operator.json -- ./lib/operatortest -race -shuffle on
 
