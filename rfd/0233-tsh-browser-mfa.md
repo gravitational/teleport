@@ -176,11 +176,11 @@ Once in the browser, their login session will be used to connect to the auth
 server. If the user is not already logged in, they will be prompted to do so.
 
 When authenticated, the user will be prompted to verify their MFA. Once they've
-done so, a request to `/webapi/mfa/browser/:request_id` will take the challenge response
-and verify it through `rpc ValidateBrowserMFAChallenge`. If the response
-is valid, the auth server will generate an MFA token and upsert it in to the
-backend `SSOMFASession` resource, encrypt it, and append it to the callback URL
-to be returned back to the browser.
+done so, a request to `/webapi/mfa/browser/:request_id` will take the challenge
+response and verify it through `rpc ValidateBrowserMFAChallenge`. If the
+response is valid, the auth server will generate an MFA token and upsert it in
+to the backend `SSOMFASession` resource, encrypt it, and append it to the
+callback URL to be returned back to the browser.
 
 ##### `tsh` receiving certificates
 
@@ -246,7 +246,7 @@ spec:
 ```
 
 When `allow_browser_authentication: false`, the auth server will not return a
-`BrowserChallenge` in MFA challenge responses, and users attempting to use
+`BrowserMFAChallenge` in MFA challenge responses, and users attempting to use
 `--mfa-mode=browser` will receive an error indicating the feature isn't
 available.
 
@@ -295,16 +295,17 @@ an acceptable trade-off for the improved UX.
 #### Newer `tsh` client, older server
 
 If a newer client sends a request to initiate an MFA challenge to an older
-server, it won't return a `BrowserChallenge` field. If the user has specifically
-requested `--mfa-mode=browser`, we can show an error saying browser MFA isn't
-available. Which will also be done if the cluster has browser MFA disabled.
+server, it won't return a `BrowserMFAChallenge` field. If the user has
+specifically requested `--mfa-mode=browser`, we can show an error saying browser
+MFA isn't available. Which will also be done if the cluster has browser MFA
+disabled.
 
 #### Older `tsh` client, newer server
 
 If an older `tsh` client sends a request to initiate an MFA challenge, the newer
-server will respond with a `BrowserChallenge` as an option for the user to MFA.
-The older client won't have knowledge of this field and won't consider it as an
-option for the user to MFA.
+server will respond with a `BrowserMFAChallenge` as an option for the user to
+MFA. The older client won't have knowledge of this field and won't consider it
+as an option for the user to MFA.
 
 ### Test Plan
 
@@ -347,19 +348,19 @@ message MFAAuthenticateChallenge {
   ...
 
   // Browser Challenge is MFA challenge that the user solves in the browser.
-  BrowserChallenge BrowserChallenge = 6;
+  BrowserMFAChallenge BrowserMFAChallenge = 6;
 }
 
-// BrowserChallenge contains browser auth request details to perform a browser MFA check.
-message BrowserChallenge {
+// BrowserMFAChallenge contains browser auth request details to perform a browser MFA check.
+message BrowserMFAChallenge {
   // request_id is the ID of a browser auth request.
   string request_id = 1;
   // redirect_url is a redirect URL to initiate the browser MFA flow.
   string redirect_url = 2;
 }
 
-// BrowserResponse is a response to BrowserChallenge.
-message BrowserResponse {
+// BrowserMFAResponse is a response to BrowserMFAChallenge.
+message BrowserMFAResponse {
   // request_id is the ID of a browser auth request.
   string request_id = 1;
   // Token is a secret token used to verify the user's browser MFA session.
@@ -412,7 +413,7 @@ message AuthenticateChallenge {
 
   // Browser challenge allows a user to MFA in the browser,
   // to get an MFA token that is returned to the client to be used for verification.
-  BrowserChallenge browser_challenge = 4;
+  BrowserMFAChallenge browser_challenge = 4;
 }
 
 // AuthenticateResponse is a response to AuthenticateChallenge using one of the MFA devices registered for a user.
@@ -422,7 +423,7 @@ message AuthenticateResponse {
     ...
 
     // Response to a browser challenge.
-    BrowserResponse browser = 4;
+    BrowserMFAResponse browser = 4;
   }
 }
 
@@ -435,8 +436,8 @@ message CreateSessionChallengeRequest {
   string browser_mfa_client_redirect_url = 5;
 }
 
-// BrowserChallenge contains browser auth request details to perform a browser MFA check.
-message BrowserChallenge {
+// BrowserMFAChallenge contains browser auth request details to perform a browser MFA check.
+message BrowserMFAChallenge {
   // ID of a browser auth request.
   string request_id = 1;
   // Redirect URL to initiate the browser MFA flow.
@@ -445,8 +446,8 @@ message BrowserChallenge {
   types.SSOMFADevice device = 3;
 }
 
-// BrowserResponse is a response to BrowserChallenge.
-message BrowserResponse {
+// BrowserMFAResponse is a response to BrowserMFAChallenge.
+message BrowserMFAResponse {
   // ID of a browser auth request.
   string request_id = 1;
   // Secret token used to verify the user's browser MFA session.
@@ -461,11 +462,11 @@ package teleport.lib.teleterm.v1;
 message PromptMFARequest {
   ...
 
-  BrowserChallenge browser = 8;
+  BrowserMFAChallenge browser = 8;
 }
 
-// BrowserChallenge contains browser challenge details.
-message BrowserChallenge {
+// BrowserMFAChallenge contains browser challenge details.
+message BrowserMFAChallenge {
   string redirect_url = 1;
 }
 ```
@@ -529,7 +530,7 @@ the client to send along `tsh`'s local web server address for redirection later.
 
 #### `POST /webapi/mfa/login/finish`
 
-Another existing endpoint that will be modified to accept a `BrowserResponse`
+Another existing endpoint that will be modified to accept a `BrowserMFAResponse`
 object which will contain a `RequestID` and `MFAToken` to complete its MFA flow.
 The response will remain the same, the user receives their certificates.
 
