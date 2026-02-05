@@ -132,9 +132,16 @@ type payload struct {
 	// not supported for resources with write-only fields.
 	WithoutImportState bool
 	// StatePath is the object path to the current state to observe from the object returned from the provided GetMethod.
-	// StatePath should begin with a period. The value at the specified path must be a string.
+	// StatePath provides a path to lookup the current state from the returned object from GetMethod.
+	// Each string is treated as a field name for a nested object. It's expected
+	// the combined path points to a string value. All other paths along the way must be pointers
+	// to structs.
+	// Example: []string{"Status", "State"} would expect the object returned from GetMethod to have a Status
+	// field that is a pointer to a struct. That struct must have a State field. The State field must
+	// be a string.
 	// TODO(dustinspecker): this is only supported for Create methods. Consider adding for Update methods in the future.
-	StatePath string
+	// TODO(dustinspecker): support slices and other types besides pointers to structs
+	StatePath []string
 	// PendingStates is a list of states that are valid while polling the resource to reach a target state. Any state
 	// that is found that is not in PendingStates or TargetStates is considered a terminal error.
 	PendingStates []string
@@ -160,7 +167,7 @@ func (p *payload) CheckAndSetDefaults() error {
 	if p.SchemaPackagePath == "" {
 		p.SchemaPackagePath = "github.com/gravitational/teleport/integrations/terraform/tfschema"
 	}
-	if p.StatePath != "" {
+	if len(p.StatePath) != 0 {
 		if len(p.PendingStates) == 0 {
 			return errors.New("PendingStates must be provided when StatePath is set")
 		}

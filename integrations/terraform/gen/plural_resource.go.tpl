@@ -275,7 +275,31 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 				return nil, "", trace.Wrap(err)
 			}
 
-			return {{ .VarName }}, {{ .VarName }}{{ .StatePath }}, nil
+			if {{ .VarName }} == nil {
+				return nil, "", trace.Errorf("response from {{ .GetMethod }} was nil")
+			}
+
+			{{- $root := . }}
+			{{- $lastIndex := -1 }}
+			{{- range $i, $p := .StatePath }}
+				{{- $lastIndex = $i }}
+			{{- end }}
+			{{- range $i, $p := .StatePath }}
+				{{- if eq $i $lastIndex }}
+					{{- break }}
+				{{- end }}
+				{{- $currentPath := "" }}
+				{{- range $j, $p := $root.StatePath }}
+					{{- if le $j $i }}
+						{{- $currentPath = print $currentPath "." $p }}
+					{{- end }}
+				{{- end }}
+			if {{ $root.VarName }}{{ $currentPath }} == nil {
+				return nil, "", trace.Errorf("response from {{ $root.GetMethod }} at {{ $currentPath }} was nil")
+			}
+			{{- end }}
+
+			return {{ .VarName }}, {{ .VarName }}{{ range $p := .StatePath }}. {{- $p }}{{ end }}, nil
 		},
 	}
 
