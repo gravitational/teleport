@@ -164,10 +164,9 @@ func (s *Service) GetConfig(_ context.Context, _ *api.GetConfigRequest) (*api.Ge
 
 	cdnBaseUrlValue := strings.TrimSpace(config.GetCdnBaseUrl().Value)
 	cdnBaseUrlSource := config.GetCdnBaseUrl().Source
-	switch cdnBaseUrlValue {
-	case "":
+	if cdnBaseUrlValue == "" {
 		cdnBaseUrlSource = api.ConfigSource_CONFIG_SOURCE_UNSPECIFIED
-	default:
+	} else {
 		if err = validateURL(cdnBaseUrlValue); err != nil {
 			return nil, trace.Wrap(err)
 		}
