@@ -93,6 +93,9 @@ export enum NavTitle {
   AccessGraphGraphExplorer = 'Graph Explorer',
   AccessGraphSQLEditor = 'SQL Editor',
 
+  // Cloud
+  Cloud = 'Cloud',
+
   // Activity
   SessionRecordings = 'Session Recordings',
   AuditLog = 'Audit Log',
