@@ -33,6 +33,7 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
@@ -937,100 +939,122 @@ func TestFormatConnectToProxyErr(t *testing.T) {
 
 type mockRoleGetter func(ctx context.Context) ([]types.Role, error)
 
-func (m mockRoleGetter) GetRoles(ctx context.Context) ([]types.Role, error) {
+func (m mockRoleGetter) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) {
 	return m(ctx)
 }
 
 func TestCommandLimit(t *testing.T) {
 	t.Parallel()
+
+	auth, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			ClusterName: "test",
+			ClusterID:   "test",
+			Dir:         t.TempDir(),
+		},
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() { require.NoError(t, auth.Close()) })
+
 	cases := []struct {
 		name        string
 		mfaRequired bool
-		getter      roleGetter
+		roleGetter  roleGetter
+		roles       []types.RoleSpecV6
 		expected    int
 	}{
 		{
 			name:        "mfa required",
 			mfaRequired: true,
 			expected:    1,
-			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV6{
+			roles: []types.RoleSpecV6{
+				{
 					Options: types.RoleOptions{MaxConnections: 500},
-				})
-				require.NoError(t, err)
-
-				return []types.Role{role}, nil
-			}),
+				},
+			},
 		},
 		{
 			name:     "failure getting roles",
 			expected: 1,
-			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
+			roleGetter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
 				return nil, errors.New("fail")
 			}),
 		},
 		{
 			name:     "no roles",
+			expected: 1,
+		},
+		{
+			name:     "max_connections=0",
 			expected: -1,
-			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				return nil, nil
-			}),
+			roles: []types.RoleSpecV6{
+				{
+					Options: types.RoleOptions{MaxConnections: 0},
+				},
+			},
 		},
 		{
 			name:     "max_connections=1",
 			expected: 1,
-			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV6{
+			roles: []types.RoleSpecV6{
+				{
 					Options: types.RoleOptions{MaxConnections: 1},
-				})
-				require.NoError(t, err)
-
-				return []types.Role{role}, nil
-			}),
+				},
+			},
 		},
 		{
 			name:     "max_connections=2",
 			expected: 1,
-			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV6{
+			roles: []types.RoleSpecV6{
+				{
 					Options: types.RoleOptions{MaxConnections: 2},
-				})
-				require.NoError(t, err)
-
-				return []types.Role{role}, nil
-			}),
+				},
+			},
 		},
 		{
 			name:     "max_connections=500",
 			expected: 250,
-			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV6{
+			roles: []types.RoleSpecV6{
+				{
 					Options: types.RoleOptions{MaxConnections: 500},
-				})
-				require.NoError(t, err)
-
-				return []types.Role{role}, nil
-			}),
+				},
+			},
 		},
 		{
 			name:     "max_connections=max",
 			expected: math.MaxInt64 / 2,
-			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV6{
+			roles: []types.RoleSpecV6{
+				{
 					Options: types.RoleOptions{MaxConnections: math.MaxInt64},
-				})
-				require.NoError(t, err)
-
-				return []types.Role{role}, nil
-			}),
+				},
+			},
 		},
 	}
 
 	for _, tt := range cases {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			require.Equal(t, tt.expected, commandLimit(context.Background(), tt.getter, tt.mfaRequired))
+			var getter roleGetter
+			if tt.roleGetter != nil {
+				getter = tt.roleGetter
+			} else {
+				roles := make([]types.Role, 0, len(tt.roles))
+				for _, spec := range tt.roles {
+					role, err := authtest.CreateRole(t.Context(), auth.Auth(), uuid.NewString(), spec)
+					require.NoError(t, err)
+					roles = append(roles, role)
+				}
+
+				user, err := authtest.CreateUser(t.Context(), auth.Auth(), uuid.NewString(), roles...)
+				require.NoError(t, err)
+
+				clt, err := auth.NewClient(authtest.TestUser(user.GetName()))
+				require.NoError(t, err)
+				getter = clt
+			}
+
+			require.Equal(t, tt.expected, commandLimit(t.Context(), getter, tt.mfaRequired))
 		})
 	}
 }
