@@ -40,7 +40,6 @@ import {
   GetInstallationMetadataResponse,
 } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
 import { AbortError } from 'shared/utils/error';
-import { compare } from 'shared/utils/semVer';
 
 import Logger from 'teleterm/logger';
 import { isTshdRpcError } from 'teleterm/services/tshd';
@@ -139,7 +138,6 @@ export class AppUpdater {
     });
 
     this.nativeUpdater.logger = this.logger;
-    this.nativeUpdater.allowDowngrade = true;
     this.nativeUpdater.autoDownload = false;
     // Must be set to true before any download starts.
     // electron-updater registers a listener to install the update when
@@ -424,8 +422,6 @@ export class AppUpdater {
 }
 
 export interface UpdateInfo extends ElectronUpdateInfo {
-  /** Indicates whether the update version is newer or older than the current app version. */
-  updateKind: 'upgrade' | 'downgrade';
   /**
    * Deprecated per‑machine env‑var configuration requires a UAC prompt and prevents use of the privileged updater.
    * Windows only.
@@ -466,10 +462,6 @@ function registerEventHandlers(
     updateInfo = {
       ...update,
       requiresUacPrompt: requiresUacPrompt(),
-      updateKind:
-        compare(update.version, app.getVersion()) === 1
-          ? 'upgrade'
-          : 'downgrade',
     };
     emit({
       kind: 'update-available',

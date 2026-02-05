@@ -56,6 +56,7 @@ export function DetailsView({
   changeManagingCluster,
   updateEvent,
   platform,
+  currentVersion,
   onCheckForUpdates,
   onDownload,
   onCancelDownload,
@@ -63,6 +64,7 @@ export function DetailsView({
 }: {
   updateEvent: AppUpdateEvent;
   platform: Platform;
+  currentVersion: string;
   onCheckForUpdates(): void;
   onInstall(): void;
   onDownload(): void;
@@ -83,6 +85,7 @@ export function DetailsView({
       <UpdaterState
         event={updateEvent}
         platform={platform}
+        currentVersion={currentVersion}
         onCheckForAppUpdates={onCheckForUpdates}
         onDownload={onDownload}
         onCancelDownload={onCancelDownload}
@@ -96,6 +99,7 @@ export function DetailsView({
 function UpdaterState({
   event,
   platform,
+  currentVersion,
   onCheckForAppUpdates,
   onDownload,
   onCancelDownload,
@@ -103,6 +107,7 @@ function UpdaterState({
 }: {
   event: AppUpdateEvent;
   platform: Platform;
+  currentVersion: string;
   onCheckForAppUpdates(): void;
   onDownload(): void;
   onCancelDownload(): void;
@@ -118,7 +123,7 @@ function UpdaterState({
             <P2>Checking for updates…</P2>
           </Flex>
           <ButtonPrimary block disabled onClick={() => onCheckForAppUpdates()}>
-            Check For Updates
+            Check for Updates
           </ButtonPrimary>
         </Stack>
       );
@@ -147,9 +152,14 @@ function UpdaterState({
       return (
         <Stack gap={3} width="100%">
           {event.autoUpdatesStatus.enabled && (
-            <Flex gap={1}>
+            <Flex gap={3}>
               <Checks color="success.main" size="medium" />
-              <P2>Teleport Connect is up to date.</P2>
+              <Stack gap={0}>
+                <P2>No updates available.</P2>
+                <P3 m={0} color="text.slightlyMuted">
+                  Teleport Connect {currentVersion}
+                </P3>
+              </Stack>
             </Flex>
           )}
           <ButtonSecondary
@@ -159,7 +169,7 @@ function UpdaterState({
               onCheckForAppUpdates();
             }}
           >
-            Check For Updates
+            Check for Updates
           </ButtonSecondary>
         </Stack>
       );
@@ -221,11 +231,7 @@ function AvailableUpdate(props: { update: UpdateInfo; platform: Platform }) {
 
   return (
     <Stack>
-      <Text>
-        {props.update.updateKind === 'upgrade'
-          ? 'A new version is available.'
-          : 'The app needs to be downgraded to match the required version.'}
-      </Text>
+      <Text>A new version is available.</Text>
       <Flex gap={1} alignItems="center">
         {props.platform === 'darwin' ? (
           <img alt="App icon" height="50px" src={iconMac} />

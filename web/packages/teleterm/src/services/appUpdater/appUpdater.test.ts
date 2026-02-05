@@ -26,6 +26,7 @@ import {
   GetClusterVersionsResponse,
   GetInstallationMetadataResponse,
 } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
+import { compare } from 'shared/utils/semVer';
 import { wait } from 'shared/utils/wait';
 
 import Logger, { NullService } from 'teleterm/logger';
@@ -366,54 +367,30 @@ test('discards previous update if the latest check returns no update', async () 
   expect(setup.nativeUpdater.autoInstallOnAppQuit).toBeFalsy();
 });
 
-test('when the update is older than app updateKind equals downgrade', async () => {
+test('downgrades are not allowed', async () => {
+  const toolsVersion = '17.7.4';
+  const clusters = {
+    reachableClusters: [
+      {
+        clusterUri: '/clusters/foo',
+        toolsAutoUpdate: true,
+        toolsVersion,
+        minToolsVersion: '16.0.0-aa',
+      },
+    ],
+    unreachableClusters: [],
+  };
+
   const setup = setUpAppUpdater({
-    clusters: {
-      reachableClusters: [
-        {
-          clusterUri: '/clusters/foo',
-          toolsAutoUpdate: true,
-          toolsVersion: '17.7.5',
-          minToolsVersion: '16.0.0-aa',
-        },
-      ],
-      unreachableClusters: [],
-    },
+    clusters,
   });
 
+  // Ensure the app version is greater than the update version.
+  expect(compare(toolsVersion, mockedAppVersion)).toBe(-1);
   await setup.appUpdater.checkForUpdates();
   expect(setup.lastEvent.value).toEqual(
     expect.objectContaining({
-      kind: 'update-available',
-      update: expect.objectContaining({
-        updateKind: 'downgrade',
-      }),
-    })
-  );
-});
-
-test('when the update is newer than app updateKind equals upgrade', async () => {
-  const setup = setUpAppUpdater({
-    clusters: {
-      reachableClusters: [
-        {
-          clusterUri: '/clusters/foo',
-          toolsAutoUpdate: true,
-          toolsVersion: '19.7.5',
-          minToolsVersion: '16.0.0-aa',
-        },
-      ],
-      unreachableClusters: [],
-    },
-  });
-
-  await setup.appUpdater.checkForUpdates();
-  expect(setup.lastEvent.value).toEqual(
-    expect.objectContaining({
-      kind: 'update-available',
-      update: expect.objectContaining({
-        updateKind: 'upgrade',
-      }),
+      kind: 'update-not-available',
     })
   );
 });

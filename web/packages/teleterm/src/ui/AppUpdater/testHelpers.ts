@@ -27,7 +27,6 @@ import { shouldAutoDownload } from 'teleterm/services/appUpdater/autoUpdatesStat
 export function makeUpdateInfo(
   nonTeleportCdn: boolean,
   version: string,
-  updateKind: 'upgrade' | 'downgrade',
   requiresUacPrompt?: boolean
 ): UpdateInfo {
   return {
@@ -42,7 +41,6 @@ export function makeUpdateInfo(
     ],
     requiresUacPrompt,
     releaseDate: '',
-    updateKind,
     version,
     path: '',
     sha512: '',
