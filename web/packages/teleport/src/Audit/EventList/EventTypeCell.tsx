@@ -347,6 +347,15 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.WORKLOAD_CLUSTER_CREATE]: Icons.Info,
   [eventCodes.WORKLOAD_CLUSTER_UPDATE]: Icons.Info,
   [eventCodes.WORKLOAD_CLUSTER_DELETE]: Icons.Info,
+  [eventCodes.INFERENCE_MODEL_CREATE]: Icons.Info,
+  [eventCodes.INFERENCE_MODEL_UPDATE]: Icons.Info,
+  [eventCodes.INFERENCE_MODEL_DELETE]: Icons.Info,
+  [eventCodes.INFERENCE_SECRET_CREATE]: Icons.Info,
+  [eventCodes.INFERENCE_SECRET_UPDATE]: Icons.Info,
+  [eventCodes.INFERENCE_SECRET_DELETE]: Icons.Info,
+  [eventCodes.INFERENCE_POLICY_CREATE]: Icons.Info,
+  [eventCodes.INFERENCE_POLICY_UPDATE]: Icons.Info,
+  [eventCodes.INFERENCE_POLICY_DELETE]: Icons.Info,
 };
 
 export default function renderTypeCell(event: Event) {
