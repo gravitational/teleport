@@ -122,17 +122,13 @@ These rules are as follows:
   - nb: Future Improvements explores relaxing this constraint under certain
     conditions to permit cross-scope privileges for Scoped Bots.
 
-In practice, these rules mean:
+In practice, these rules mean that a Scoped Bot can only be assigned privileges
+that would allow it to access resources within its own scope or in descendent
+scopes. For example, a Scoped Bot in `/foo/bar`:
 
-- The Scoped Bot cannot be assigned privileges that would allow it to access
-  resources outside its scope or descendent scopes.
-  - eg: a Scoped Bot in `/foo/bar` could be permitted to access resources in 
-    `/foo/bar` or `/foo/bar/buzz` but could not be permitted to access resources
-    in `/foo`. 
-- The Scoped Bot can not be assigned privilege that would allow it to access
-  resources in a different hierarchy of scopes.
-  - eg: a Scoped Bot in `/foo/bar` could not be permitted to access resources in
-    `/zip`.
+- Could be permitted to access resources in `/foo/bar` or `/foo/bar/buzz`.
+- Could not be permitted to access resources in `/foo`.
+- Could not be permitted to access resources in `/zip`.
 
 These rules are backed up by the Scope Pinning mechanism. Certificates issued to
 the Scoped Bot are pinned to the scope in which it exists. This prevents access
