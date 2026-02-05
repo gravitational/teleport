@@ -236,7 +236,7 @@ kind: saml
 metadata:
   name: keycloak
 spec:
-  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
+  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
   audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
   cert: ""
   display: Keycloak
@@ -274,7 +274,7 @@ kind: saml
 metadata:
   name: keycloak
 spec:
-  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
+  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
   attributes_to_roles:
   - name: groups
     roles:

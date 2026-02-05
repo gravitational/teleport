@@ -199,15 +199,15 @@ metadata:
 spec:
   acs: https://teleport.example.com:443/v1/webapi/saml/acs/okta
   attributes_to_roles:
-    - name: groups
-      roles:
-        - auditor
-        - editor
-      value: admins
-    - name: groups
-      roles:
-        - access
-      value: dev
+  - name: groups
+    roles:
+    - auditor
+    - editor
+    value: admins
+  - name: groups
+    roles:
+    - access
+    value: dev
   audience: https://teleport.example.com:443/v1/webapi/saml/acs/okta
   cert: ''
   display: 'Okta'
