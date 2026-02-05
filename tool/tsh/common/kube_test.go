@@ -138,7 +138,6 @@ type kubeTestPack struct {
 func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 	t.Helper()
 
-	startTime := time.Now()
 	ctx := context.Background()
 	rootKubeCluster1 := "root-cluster"
 	rootKubeCluster2 := "first-cluster"
@@ -155,7 +154,6 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 		types.DiscoveredNameLabel: "leaf-cluster",
 	}
 
-	beforeSuite := time.Now()
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
 			if withMultiplexMode {
@@ -195,15 +193,8 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 			return foundRoot1 && foundRoot2 && foundLeaf
 		}),
 	)
-	afterSuite := time.Now()
-	t.Logf("⏱️  newTestSuite: %v", afterSuite.Sub(beforeSuite))
 
-	beforeLogin := time.Now()
 	mustLoginSetEnvLegacy(t, s)
-	afterLogin := time.Now()
-	t.Logf("⏱️  mustLoginSetEnvLegacy: %v", afterLogin.Sub(beforeLogin))
-
-	t.Logf("⏱️  TOTAL setupKubeTestPack: %v", time.Since(startTime))
 
 	return &kubeTestPack{
 		suite:            s,
@@ -220,7 +211,6 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 func setupKubeTestPackRoot(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 	t.Helper()
 
-	startTime := time.Now()
 	ctx := context.Background()
 	rootKubeCluster1 := "root-cluster"
 	rootKubeCluster2 := "first-cluster"
@@ -229,7 +219,6 @@ func setupKubeTestPackRoot(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 		"ultra_long_label_for_teleport_kubernetes_service_list_kube_clusters_method": "ultra_long_label_value_for_teleport_kubernetes_service_list_kube_clusters_method",
 	}
 
-	beforeSuite := time.Now()
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
 			if withMultiplexMode {
@@ -254,15 +243,8 @@ func setupKubeTestPackRoot(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 			return foundRoot1 && foundRoot2
 		}),
 	)
-	afterSuite := time.Now()
-	t.Logf("⏱️  newTestSuite: %v", afterSuite.Sub(beforeSuite))
 
-	beforeLogin := time.Now()
 	mustLoginSetEnvLegacy(t, s)
-	afterLogin := time.Now()
-	t.Logf("⏱️  mustLoginSetEnvLegacy: %v", afterLogin.Sub(beforeLogin))
-
-	t.Logf("⏱️  TOTAL setupKubeTestPackRoot: %v", time.Since(startTime))
 
 	return &kubeTestPack{
 		suite:            s,
