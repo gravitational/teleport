@@ -347,7 +347,7 @@ func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reade
 // uploads it to an S3 bucket. If successful, it returns URL of the uploaded
 // object.
 func (h *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.metadataPath(sessionID), reader)
+	path, err := h.uploadFile(ctx, h.metadataPath(sessionID), reader, withOverwrite())
 	return path, trace.Wrap(err)
 }
 
@@ -355,7 +355,7 @@ func (h *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, read
 // uploads it to an S3 bucket. If successful, it returns URL of the uploaded
 // object.
 func (h *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.thumbnailPath(sessionID), reader)
+	path, err := h.uploadFile(ctx, h.thumbnailPath(sessionID), reader, withOverwrite())
 	return path, trace.Wrap(err)
 }
 
