@@ -50,7 +50,8 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
 
-func (p *kubeTestPack) testProxyKube(t *testing.T) {
+// testProxyKubeRoot tests "tsh proxy kube" without leaf cluster dependencies.
+func (p *kubeTestPack) testProxyKubeRoot(t *testing.T) {
 	// Set default kubeconfig to a non-exist file to avoid loading other things.
 	t.Setenv("KUBECONFIG", filepath.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
 
@@ -72,8 +73,14 @@ func (p *kubeTestPack) testProxyKube(t *testing.T) {
 		)
 		require.NoError(t, err)
 	})
+}
 
-	// Test "tsh proxy kube" after "tsh login"s.
+// testProxyKubeLeaf tests "tsh proxy kube" which requires leaf cluster.
+func (p *kubeTestPack) testProxyKubeLeaf(t *testing.T) {
+	// Set default kubeconfig to a non-exist file to avoid loading other things.
+	t.Setenv("KUBECONFIG", filepath.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
+
+	// Test "tsh proxy kube" after "tsh login"s to both root and leaf.
 	t.Run("without kube cluster arg", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()

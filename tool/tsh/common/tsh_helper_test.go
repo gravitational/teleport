@@ -289,29 +289,44 @@ func withValidationFunc(f func(*suite) bool) testSuiteOptionFunc {
 
 // deprecated: Use `tools/teleport/testenv.MakeTestServer` instead.
 func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
+	startTime := time.Now()
 	var options testSuiteOptions
 	for _, opt := range opts {
 		opt(&options)
 	}
 	s := &suite{}
 
+	beforeRoot := time.Now()
 	s.setupRootCluster(t, options)
+	afterRoot := time.Now()
+	t.Logf("⏱️    setupRootCluster: %v", afterRoot.Sub(beforeRoot))
 
 	if options.leafCluster || options.leafConfigFunc != nil {
+		beforeLeaf := time.Now()
 		s.setupLeafCluster(t, options)
+		afterLeaf := time.Now()
+		t.Logf("⏱️    setupLeafCluster: %v", afterLeaf.Sub(beforeLeaf))
+
+		beforeTunnel := time.Now()
 		require.Eventually(t, func() bool {
 			rt, err := s.root.GetAuthServer().GetTunnelConnections(s.leaf.Config.Auth.ClusterName.GetClusterName())
 			require.NoError(t, err)
 			return len(rt) == 1
-		}, time.Second*10, time.Second)
+		}, time.Second*10, 100*time.Millisecond)
+		afterTunnel := time.Now()
+		t.Logf("⏱️    wait for tunnel connection: %v", afterTunnel.Sub(beforeTunnel))
 	}
 
 	if options.validationFunc != nil {
+		beforeValidation := time.Now()
 		require.Eventually(t, func() bool {
 			return options.validationFunc(s)
 		}, 10*time.Second, 500*time.Millisecond)
+		afterValidation := time.Now()
+		t.Logf("⏱️    validation (cache propagation): %v", afterValidation.Sub(beforeValidation))
 	}
 
+	t.Logf("⏱️  TOTAL newTestSuite: %v", time.Since(startTime))
 	return s
 }
 

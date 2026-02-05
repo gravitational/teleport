@@ -60,15 +60,28 @@ import (
 	"github.com/gravitational/teleport/tool/common"
 )
 
-func TestKube(t *testing.T) {
+// TestKubeRoot tests kube functionality that only requires root cluster (~2.5s setup).
+// This is much faster than TestKube as it avoids the ~5.7s tunnel establishment wait.
+func TestKubeRoot(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
+
+	pack := setupKubeTestPackRoot(t, true)
+	t.Run("list kube", pack.testListKubeRoot)
+	t.Run("proxy kube", pack.testProxyKubeRoot)
+	t.Run("proxy kube with exec-cmd", pack.testProxyKubeWithExecCmd)
+}
+
+// TestKubeLeaf tests kube functionality that requires leaf cluster (~8.5s setup).
+func TestKubeLeaf(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 
 	pack := setupKubeTestPack(t, true)
-	t.Run("list kube", pack.testListKube)
-	t.Run("proxy kube", pack.testProxyKube)
-	t.Run("proxy kube with exec-cmd", pack.testProxyKubeWithExecCmd)
+	t.Run("list kube with --all", pack.testListKubeLeaf)
+	t.Run("proxy kube without cluster arg", pack.testProxyKubeLeaf)
 }
+
 
 func TestKubeLogin(t *testing.T) {
 	lib.SetInsecureDevMode(true)
@@ -126,6 +139,7 @@ type kubeTestPack struct {
 func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 	t.Helper()
 
+	startTime := time.Now()
 	ctx := context.Background()
 	rootKubeCluster1 := "root-cluster"
 	rootKubeCluster2 := "first-cluster"
@@ -142,6 +156,7 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 		types.DiscoveredNameLabel: "leaf-cluster",
 	}
 
+	beforeSuite := time.Now()
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
 			if withMultiplexMode {
@@ -181,8 +196,16 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 			return foundRoot1 && foundRoot2 && foundLeaf
 		}),
 	)
+	afterSuite := time.Now()
+	t.Logf("⏱️  newTestSuite: %v", afterSuite.Sub(beforeSuite))
 
+	beforeLogin := time.Now()
 	mustLoginSetEnvLegacy(t, s)
+	afterLogin := time.Now()
+	t.Logf("⏱️  mustLoginSetEnvLegacy: %v", afterLogin.Sub(beforeLogin))
+
+	t.Logf("⏱️  TOTAL setupKubeTestPack: %v", time.Since(startTime))
+
 	return &kubeTestPack{
 		suite:            s,
 		rootClusterName:  s.root.Config.Auth.ClusterName.GetClusterName(),
@@ -193,14 +216,70 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 	}
 }
 
-func (p *kubeTestPack) testListKube(t *testing.T) {
+// setupKubeTestPackRoot creates a test environment with only root cluster (no leaf cluster).
+// This is faster than setupKubeTestPack as it avoids the ~5.7s tunnel establishment wait.
+func setupKubeTestPackRoot(t *testing.T, withMultiplexMode bool) *kubeTestPack {
+	t.Helper()
+
+	startTime := time.Now()
+	ctx := context.Background()
+	rootKubeCluster1 := "root-cluster"
+	rootKubeCluster2 := "first-cluster"
+	rootLabels := map[string]string{
+		"label1": "val1",
+		"ultra_long_label_for_teleport_kubernetes_service_list_kube_clusters_method": "ultra_long_label_value_for_teleport_kubernetes_service_list_kube_clusters_method",
+	}
+
+	beforeSuite := time.Now()
+	s := newTestSuite(t,
+		withRootConfigFunc(func(cfg *servicecfg.Config) {
+			if withMultiplexMode {
+				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			}
+			cfg.Kube.Enabled = true
+			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
+			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, rootKubeCluster1, rootKubeCluster2)
+			cfg.Kube.StaticLabels = rootLabels
+			cfg.Proxy.Kube.Enabled = true
+			cfg.Proxy.Kube.ListenAddr = *utils.MustParseAddr(localListenerAddr())
+		}),
+		// No leaf cluster
+		withValidationFunc(func(s *suite) bool {
+			// Wait for cache propagation of the kubernetes resources before proceeding with the tests.
+			var foundRoot1, foundRoot2 bool
+			for ks := range s.root.GetAuthServer().UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
+				foundRoot1 = foundRoot1 || ks.GetCluster().GetName() == rootKubeCluster1
+				foundRoot2 = foundRoot2 || ks.GetCluster().GetName() == rootKubeCluster2
+			}
+
+			return foundRoot1 && foundRoot2
+		}),
+	)
+	afterSuite := time.Now()
+	t.Logf("⏱️  newTestSuite: %v", afterSuite.Sub(beforeSuite))
+
+	beforeLogin := time.Now()
+	mustLoginSetEnvLegacy(t, s)
+	afterLogin := time.Now()
+	t.Logf("⏱️  mustLoginSetEnvLegacy: %v", afterLogin.Sub(beforeLogin))
+
+	t.Logf("⏱️  TOTAL setupKubeTestPackRoot: %v", time.Since(startTime))
+
+	return &kubeTestPack{
+		suite:            s,
+		rootClusterName:  s.root.Config.Auth.ClusterName.GetClusterName(),
+		leafClusterName:  "",
+		rootKubeCluster1: rootKubeCluster1,
+		rootKubeCluster2: rootKubeCluster2,
+		leafKubeCluster:  "",
+	}
+}
+
+// testListKubeRoot tests "tsh kube ls" without leaf cluster dependencies.
+func (p *kubeTestPack) testListKubeRoot(t *testing.T) {
 	staticRootLabels := p.suite.root.Config.Kube.StaticLabels
 	formattedRootLabels := common.FormatLabels(staticRootLabels, false)
 	formattedRootLabelsVerbose := common.FormatLabels(staticRootLabels, true)
-
-	staticLeafLabels := p.suite.leaf.Config.Kube.StaticLabels
-	formattedLeafLabels := common.FormatLabels(staticLeafLabels, false)
-	formattedLeafLabelsVerbose := common.FormatLabels(staticLeafLabels, true)
 
 	tests := []struct {
 		name      string
@@ -211,8 +290,6 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			name: "default mode with truncated table",
 			args: nil,
 			wantTable: func() string {
-				// p.rootKubeCluster2 ("first-cluster") should appear before
-				// p.rootKubeCluster1 ("root-cluster") after sorting.
 				table := asciitable.MakeTableWithTruncatedColumn(
 					[]string{"Kube Cluster Name", "Labels", "Selected"},
 					[][]string{
@@ -241,10 +318,52 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 				table := asciitable.MakeHeadlessTable(2)
 				table.AddRow([]string{p.rootKubeCluster2, formattedRootLabels, ""})
 				table.AddRow([]string{p.rootKubeCluster1, formattedRootLabels, ""})
-
 				return table.AsBuffer().String()
 			},
 		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			captureStdout := new(bytes.Buffer)
+			err := Run(
+				context.Background(),
+				append([]string{
+					"--insecure",
+					"kube",
+					"ls",
+				},
+					tc.args...,
+				),
+				setCopyStdout(captureStdout),
+				setKubeConfigPath(filepath.Join(t.TempDir(), "kubeconfig")),
+			)
+			require.NoError(t, err)
+			got := strings.TrimSpace(captureStdout.String())
+			want := strings.TrimSpace(tc.wantTable())
+			diff := cmp.Diff(want, got)
+			require.Empty(t, diff)
+		})
+	}
+}
+
+// testListKubeLeaf tests "tsh kube ls --all" which requires leaf cluster.
+func (p *kubeTestPack) testListKubeLeaf(t *testing.T) {
+	staticRootLabels := p.suite.root.Config.Kube.StaticLabels
+	formattedRootLabels := common.FormatLabels(staticRootLabels, false)
+	formattedRootLabelsVerbose := common.FormatLabels(staticRootLabels, true)
+
+	staticLeafLabels := p.suite.leaf.Config.Kube.StaticLabels
+	formattedLeafLabels := common.FormatLabels(staticLeafLabels, false)
+	formattedLeafLabelsVerbose := common.FormatLabels(staticLeafLabels, true)
+
+	tests := []struct {
+		name      string
+		args      []string
+		wantTable func() string
+	}{
 		{
 			name: "list all clusters including leaf clusters",
 			args: []string{"--all"},
@@ -252,10 +371,6 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 				table := asciitable.MakeTableWithTruncatedColumn(
 					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"},
 					[][]string{
-						// "leaf-cluster" should be displayed instead of the
-						// full leaf cluster name, since it is mocked as a
-						// discovered resource and the discovered resource name
-						// is displayed in non-verbose mode.
 						{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels},
 						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels},
 						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels},
@@ -306,10 +421,6 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 					tc.args...,
 				),
 				setCopyStdout(captureStdout),
-
-				// set a custom empty kube config for each test, as we do
-				// not want parallel (or even shuffled sequential) tests
-				// potentially racing on the same config
 				setKubeConfigPath(filepath.Join(t.TempDir(), "kubeconfig")),
 			)
 			require.NoError(t, err)
