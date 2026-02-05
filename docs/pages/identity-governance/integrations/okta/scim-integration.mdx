@@ -154,14 +154,14 @@ If you have users assigned to the Okta Teleport app before enabling SCIM, you ma
 
 ## Supported features
 
-Teleport supports only *To App* (Okta -> Teleport) provisioning and does not support import from Teleport to Okta.
+Teleport supports only *To App* (Okta -> Teleport) provisioning and does not support importing from Teleport to Okta.
 
 Supposed *To App* provisioning features:
 
 - **Create Users** - Creates a user in Teleport when assigning the SAML app to a user in Okta.
   - *Set password when creating new users* **is not** supported.
 - **Update User Attributes** - Okta updates a user's attributes in Teleport when the SAML app is assigned. Future attribute changes made to the Okta user profile will automatically overwrite the corresponding attribute value in Teleport.
-- **Deactivate Users** - Deletes the Teleport user when it is unassigned in Okta or their Okta account is deactivated. Session lock for the user is created for the maximum session duration. The Teleport user will be recreated if the SAML app is reassigned to a user in Okta.
+- **Deactivate Users** - Deletes the Teleport user when it is unassigned in Okta or their Okta account is deactivated. A session lock for the user is created for the maximum session duration. The Teleport user will be recreated if the SAML app is reassigned to a user in Okta.
  
 Please note Teleport doesn't display SCIM attributes in the UI. They are stored in an internal user label which is a subject to change. The attributes are currently only used to construct compliant SCIM resource responses. All attributes sent to Teleport are stored and then replied in the subsequent SCIM resource responses. The only exception is the "password" attribute.
 
