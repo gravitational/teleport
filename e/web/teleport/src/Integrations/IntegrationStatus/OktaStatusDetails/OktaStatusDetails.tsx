@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { useHistory } from 'react-router-dom';
+import styled from 'styled-components';
 
 import {
   Alert,
@@ -41,6 +42,7 @@ import { withUnsupportedOktaPluginUpdateErrorConversion } from 'teleport/service
 
 import { AppGroupSyncDetails } from './AppGroupSyncDetails';
 import { ScimDetails } from './ScimDetails';
+import { SetupAccessCta } from './SetupAccessCta';
 import { FlexWrap } from './Shared';
 import { SsoDetails } from './SsoDetails';
 import { UserSyncDetails } from './UserSyncDetails';
@@ -422,6 +424,8 @@ const StatusDetails = ({
     ]
   );
 
+  const enabledAppGroupSync = plugin.spec.enableAppGroupSync;
+
   return (
     <Box>
       {confirmModal && (
@@ -434,16 +438,7 @@ const StatusDetails = ({
       {update.isError && (
         <Alert kind="outline-danger">{getErrMessage(update.error)}</Alert>
       )}
-      <FlexWrap
-        css={`
-          gap: ${p => p.theme.space[3]}px;
-          margin-bottom: ${p => p.theme.space[3]}px;
-          @media screen and (max-width: ${p => p.theme.breakpoints.tablet}) {
-            gap: ${p => p.theme.space[4]}px;
-            margin-bottom: ${p => p.theme.space[4]}px;
-          }
-        `}
-      >
+      <FlexSection>
         <SsoDetails
           spec={plugin.status.details?.ssoDetails}
           orgUrl={plugin.spec.orgUrl}
@@ -472,29 +467,8 @@ const StatusDetails = ({
             )
           }
         />
-      </FlexWrap>
-      <FlexWrap
-        css={`
-          gap: ${p => p.theme.space[3]}px;
-          margin-bottom: ${p => p.theme.space[3]}px;
-          @media screen and (max-width: ${p => p.theme.breakpoints.tablet}) {
-            gap: ${p => p.theme.space[4]}px;
-            margin-bottom: ${p => p.theme.space[4]}px;
-          }
-        `}
-      >
-        {!cfg.isCloud && (
-          <IdentitySecuritySyncDetails
-            syncEnabled={plugin.spec?.enableSystemLogExport}
-            accessGraphEnabled={accessGraphEnabled}
-            onToggle={() =>
-              handleToggleFeature(
-                localSettings.enableSystemLogExport ? 'disable' : 'enable',
-                UpdateSetting.IdentitySecuritySync
-              )
-            }
-          />
-        )}
+      </FlexSection>
+      <FlexSection>
         <AppGroupSyncDetails
           appGroupSpec={plugin.status.details?.appGroupSyncDetails}
           accessListSpec={plugin.status.details?.accessListsSyncDetails}
@@ -508,7 +482,26 @@ const StatusDetails = ({
             )
           }
         />
-      </FlexWrap>
+      </FlexSection>
+      <FlexSection>
+        {!cfg.isCloud && (
+          <IdentitySecuritySyncDetails
+            syncEnabled={plugin.spec?.enableSystemLogExport}
+            accessGraphEnabled={accessGraphEnabled}
+            onToggle={() =>
+              handleToggleFeature(
+                localSettings.enableSystemLogExport ? 'disable' : 'enable',
+                UpdateSetting.IdentitySecuritySync
+              )
+            }
+          />
+        )}
+
+        <SetupAccessCta
+          enabledAppGroupSync={enabledAppGroupSync}
+          oktaOrgUrl={plugin.spec.orgUrl}
+        />
+      </FlexSection>
       <ButtonWarning size="large" onClick={deletePlugin} mt={2}>
         <Trash mr={2} />
         <Text>Delete Integration</Text>
@@ -516,3 +509,12 @@ const StatusDetails = ({
     </Box>
   );
 };
+
+const FlexSection = styled(FlexWrap)`
+  gap: ${p => p.theme.space[3]}px;
+  margin-bottom: ${p => p.theme.space[3]}px;
+  @media screen and (max-width: ${p => p.theme.breakpoints.tablet}) {
+    gap: ${p => p.theme.space[4]}px;
+    margin-bottom: ${p => p.theme.space[4]}px;
+  }
+`;

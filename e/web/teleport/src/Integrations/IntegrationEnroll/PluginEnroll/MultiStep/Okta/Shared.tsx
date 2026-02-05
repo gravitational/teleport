@@ -14,7 +14,9 @@ import {
 import pamSuccess from 'design/assets/images/icons/success.png';
 import { FeatureName } from 'design/constants';
 import * as Icons from 'design/Icon';
+import { HoverTooltip } from 'design/Tooltip';
 
+import { goToCreateAccessListFromOktaRoute } from 'e-teleport/AccessListManagement/CreateAccessList/route';
 import cfg from 'e-teleport/config';
 import { useOktaIntegrationSetUpContext } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/SetUpContext';
 import { FormDataField } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/types';
@@ -67,9 +69,46 @@ export const OktaSetupStepComplete = ({
 }: {
   config: OktaIntegrationLevelStep;
 }) => {
-  const { steps, getNextStep } = useOktaIntegrationSetUpContext();
+  const { steps, getNextStep, plugin } = useOktaIntegrationSetUpContext();
 
   const nextStep = getNextStep(config.type);
+
+  let finalSteps: React.ReactNode;
+
+  if (!nextStep) {
+    if (plugin?.spec?.enableAppGroupSync) {
+      finalSteps = (
+        <>
+          <HoverTooltip
+            tipContent="Set up access to Teleport protected resources for your Okta user
+              groups."
+          >
+            <ButtonPrimary
+              as={Link}
+              to={goToCreateAccessListFromOktaRoute(plugin.spec.orgUrl)}
+            >
+              Set Up Access
+            </ButtonPrimary>
+          </HoverTooltip>
+          <ButtonSecondary
+            as={Link}
+            to={cfg.oss.getIntegrationStatusRoute('okta', 'okta')}
+          >
+            See the Integration Status Page
+          </ButtonSecondary>
+        </>
+      );
+    } else {
+      finalSteps = (
+        <ButtonPrimary
+          as={Link}
+          to={cfg.oss.getIntegrationStatusRoute('okta', 'okta')}
+        >
+          See the Integration Status Page
+        </ButtonPrimary>
+      );
+    }
+  }
 
   const index = steps
     .filter(step => step.enabled)
@@ -91,12 +130,7 @@ export const OktaSetupStepComplete = ({
       </Box>
       <Flex flexDirection="row" alignItems="center" gap={3}>
         {!nextStep ? (
-          <ButtonPrimary
-            as={Link}
-            to={cfg.oss.getIntegrationStatusRoute('okta', 'okta')}
-          >
-            See the Integration Status Page
-          </ButtonPrimary>
+          <>{finalSteps}</>
         ) : (
           <>
             <ButtonPrimary

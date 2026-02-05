@@ -7,6 +7,7 @@ import styled from 'styled-components';
 import {
   Alert,
   Box,
+  ButtonBorder,
   ButtonPrimary,
   ButtonSecondary,
   Flex,
@@ -16,8 +17,11 @@ import {
   Text,
 } from 'design';
 import * as Icons from 'design/Icon';
+import { MarkInverse } from 'design/Mark';
+import { HoverTooltip } from 'design/Tooltip';
 import { getErrMessage } from 'shared/utils/errorType';
 
+import { goToCreateAccessListFromOktaRoute } from 'e-teleport/AccessListManagement/CreateAccessList/route';
 import cfg from 'e-teleport/config';
 import { PluginIcon } from 'e-teleport/Integrations/IntegrationEnroll/IntegrationPick/PluginIcon';
 import { CleanupDialogue } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/CleanupDialogue';
@@ -29,6 +33,7 @@ import {
   getCompletedOktaIntegrationStepTypes,
   getOktaIntegrationSteps,
   OktaIntegrationStepType,
+  OktaIntegrationStepWithEnabled,
   OktaLevelProductRequirement,
   UpsellBulletList,
   type OktaIntegrationLevelStep,
@@ -252,12 +257,23 @@ const Overview = ({
   highestCompletedStepType: OktaIntegrationStepType;
   onContinue: (type: OktaIntegrationStepType) => void;
 }) => {
-  const { steps, getNextStep } = useOktaIntegrationSetUpContext();
+  const { steps, getNextStep, plugin } = useOktaIntegrationSetUpContext();
 
   const enabledSteps = useMemo(
     () => steps.filter(step => step.enabled),
     [steps]
   );
+
+  const appAndGroupSyncCfg = enabledSteps.find(
+    s => s.type === OktaIntegrationStepType.AppGroupSync
+  );
+
+  let appAndGroupSyncEnabled = false;
+  if (appAndGroupSyncCfg) {
+    appAndGroupSyncEnabled = completedStepTypes.includes(
+      appAndGroupSyncCfg.type
+    );
+  }
 
   const nextStep = getNextStep(highestCompletedStepType);
 
@@ -282,6 +298,14 @@ const Overview = ({
         ))}
 
         <IntegrationLevelCTA />
+
+        {appAndGroupSyncCfg && (
+          <SetupAccessCta
+            appAndGroupSyncEnabled={appAndGroupSyncEnabled}
+            appAndGroupSyncCfg={appAndGroupSyncCfg}
+            oktaOrgUrl={plugin?.spec?.orgUrl}
+          />
+        )}
       </Flex>
       <Flex flexDirection="row" alignItems="center" gap={3}>
         {nextStep ? (
@@ -336,6 +360,54 @@ function productNameToLockedButtonText(
     case OktaLevelProductRequirement.IdentityGovernance:
       return `Unlock the Full Integration with ${productName}`;
   }
+}
+
+function SetupAccessCta({
+  appAndGroupSyncEnabled,
+  oktaOrgUrl,
+  appAndGroupSyncCfg,
+}: {
+  appAndGroupSyncEnabled: boolean;
+  oktaOrgUrl: string;
+  appAndGroupSyncCfg: OktaIntegrationStepWithEnabled;
+}) {
+  return (
+    <StyledBox
+      header={
+        <Box>
+          <H2>Manage Access to Teleport Resources</H2>
+          <Text>
+            Set up access to Teleport protected resources for your Okta user
+            groups.
+          </Text>
+        </Box>
+      }
+    >
+      <HoverTooltip
+        tipContent={
+          appAndGroupSyncEnabled ? undefined : (
+            <>
+              Requires step <MarkInverse>{appAndGroupSyncCfg.name}</MarkInverse>{' '}
+              to be completed.
+            </>
+          )
+        }
+      >
+        <ButtonBorder
+          width="230px"
+          size="large"
+          mt={2}
+          {...(appAndGroupSyncEnabled && {
+            as: Link,
+            to: goToCreateAccessListFromOktaRoute(oktaOrgUrl),
+          })}
+          disabled={!appAndGroupSyncEnabled}
+        >
+          Set up access
+        </ButtonBorder>
+      </HoverTooltip>
+    </StyledBox>
+  );
 }
 
 function IntegrationLevelCTA() {

@@ -10,9 +10,11 @@ import {
   APP_GROUP_SYNC_CONFIG,
   IDENTITY_SECURITY_SYNC_CONFIG,
   OktaIntegrationStepType,
+  OktaSetupStepComplete,
   SCIM_CONFIG,
   SSO_CONFIG,
   USER_SYNC_CONFIG,
+  type OktaIntegrationLevelStep,
   type OktaIntegrationStepWithEnabled,
 } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
 import {
@@ -101,11 +103,45 @@ export default {
   args: { hasIdentity: true },
 } satisfies Meta<typeof PluginEnroll>;
 
-export const Overview = {
+export const OverviewNoStepsComplete = {
   parameters: {
     msw: [
       http.get(cfg.getPluginUrl('okta', 'get'), async () => {
         return HttpResponse.json({});
+      }),
+    ],
+  },
+  render: args => {
+    cfg.oss.entitlements.Identity = {
+      enabled: (args as { hasIdentity: boolean }).hasIdentity,
+      limit: 0,
+    };
+    return <PluginEnroll />;
+  },
+} satisfies StoryObj<typeof PluginEnroll>;
+
+export const OverviewAllStepsComplete = {
+  parameters: {
+    msw: [
+      http.get(cfg.getPluginUrl('okta', 'get'), async () => {
+        return HttpResponse.json(StubPluginAllStepsComplete);
+      }),
+    ],
+  },
+  render: args => {
+    cfg.oss.entitlements.Identity = {
+      enabled: (args as { hasIdentity: boolean }).hasIdentity,
+      limit: 0,
+    };
+    return <PluginEnroll />;
+  },
+} satisfies StoryObj<typeof PluginEnroll>;
+
+export const OverviewAllExceptAppGroupSyncComplete = {
+  parameters: {
+    msw: [
+      http.get(cfg.getPluginUrl('okta', 'get'), async () => {
+        return HttpResponse.json(StubPluginAllExceptAppGroupSyncComplete);
       }),
     ],
   },
@@ -207,6 +243,52 @@ export const SetUpAppGroupSync = {
   },
 };
 
+export const SetupCompleteWithAppGroupSync = {
+  render: args => {
+    cfg.oss.entitlements.Identity = {
+      enabled: (args as { hasIdentity: boolean }).hasIdentity,
+      limit: 0,
+    };
+    return (
+      <RenderStepComplete
+        config={APP_GROUP_SYNC_CONFIG}
+        plugin={StubPluginAppGroupSyncEnabled}
+      />
+    );
+  },
+};
+
+export const SetupCompleteWithoutAppGroupSync = {
+  render: args => {
+    cfg.oss.entitlements.Identity = {
+      enabled: (args as { hasIdentity: boolean }).hasIdentity,
+      limit: 0,
+    };
+    return (
+      <RenderStepComplete
+        config={APP_GROUP_SYNC_CONFIG}
+        plugin={StubPluginSSOSetUp}
+      />
+    );
+  },
+};
+
+export const StepCompleteWithNextStep = {
+  render: args => {
+    cfg.oss.entitlements.Identity = {
+      enabled: (args as { hasIdentity: boolean }).hasIdentity,
+      limit: 0,
+    };
+    return (
+      <RenderStepComplete
+        config={SSO_CONFIG}
+        plugin={StubPluginSSOSetUp}
+        hasNextStep
+      />
+    );
+  },
+};
+
 const StubPluginNotSetUp = {
   name: 'okta',
   kind: 'okta',
@@ -263,6 +345,59 @@ const StubPluginSCIMSetUp = {
       scimDetails: {
         enabled: true,
       },
+    },
+  },
+} satisfies Plugin<PluginOktaSpec, PluginStatusOkta>;
+
+const StubPluginAppGroupSyncEnabled = {
+  ...StubPluginSCIMSetUp,
+  spec: {
+    ...StubPluginSCIMSetUp.spec,
+    enableAppGroupSync: true,
+  },
+} satisfies Plugin<PluginOktaSpec, PluginStatusOkta>;
+
+const StubPluginAllStepsComplete = {
+  ...StubPluginSCIMSetUp,
+  spec: {
+    ...StubPluginSCIMSetUp.spec,
+    enableAppGroupSync: true,
+    enableAccessListSync: true,
+    enableUserSync: true,
+    enableSystemLogExport: true,
+    credentialsInfo: {
+      hasSCIMToken: true,
+      hasConfiguredOauthCredentials: true,
+    },
+  },
+  status: {
+    ...StubPluginSCIMSetUp.status,
+    details: {
+      ...StubPluginSCIMSetUp.status.details,
+      accessListsSyncDetails: {
+        enabled: true,
+        statusCode: 1,
+        lastSuccess: new Date(Date.now() - 1000 * 60),
+        lastFailed: new Date(0),
+        numApps: 5,
+        numGroups: 10,
+        appFilters: [],
+        groupFilters: [],
+        error: '',
+      },
+    },
+  },
+} satisfies Plugin<PluginOktaSpec, PluginStatusOkta>;
+
+const StubPluginAllExceptAppGroupSyncComplete = {
+  ...StubPluginSCIMSetUp,
+  spec: {
+    ...StubPluginSCIMSetUp.spec,
+    enableUserSync: true,
+    enableSystemLogExport: true,
+    credentialsInfo: {
+      hasSCIMToken: true,
+      hasConfiguredOauthCredentials: true,
     },
   },
 } satisfies Plugin<PluginOktaSpec, PluginStatusOkta>;
@@ -340,6 +475,41 @@ const RenderStep = ({
             ) : (
               <Component />
             )}
+          </OktaIntegrationSetUpContextProvider>
+        </ContextProvider>
+      </Route>
+    </MemoryRouter>
+  );
+};
+
+const RenderStepComplete = ({
+  config,
+  plugin,
+  hasNextStep = false,
+}: {
+  config: OktaIntegrationLevelStep;
+  plugin: Plugin<PluginOktaSpec, PluginStatusOkta>;
+  hasNextStep?: boolean;
+}) => {
+  const ctx = useTeleportE();
+
+  const stepsToUse = hasNextStep
+    ? steps
+    : steps.slice(0, steps.findIndex(s => s.type === config.type) + 1);
+
+  return (
+    <MemoryRouter
+      initialEntries={[{ pathname: cfg.oss.getIntegrationEnrollRoute('okta') }]}
+    >
+      <Route path={cfg.oss.routes.integrationEnroll}>
+        <ContextProvider ctx={ctx}>
+          <OktaIntegrationSetUpContextProvider
+            completedStepTypes={[]}
+            plugin={plugin}
+            startFrom={undefined}
+            steps={stepsToUse}
+          >
+            <OktaSetupStepComplete config={config} />
           </OktaIntegrationSetUpContextProvider>
         </ContextProvider>
       </Route>

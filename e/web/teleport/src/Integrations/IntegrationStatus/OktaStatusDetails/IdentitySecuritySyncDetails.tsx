@@ -72,15 +72,9 @@ export function IdentitySecuritySyncDetails({
           ]}
         />
       </Flex>
-      <Flex
-        flexDirection="column"
-        justifyContent="space-between"
-        height="100%"
-        px={2}
-        pt={1}
-      >
+      <Flex flexDirection="column" justifyContent="space-between" height="100%">
         {showContent ? (
-          <Flex flexDirection="column" gap={2}>
+          <Flex flexDirection="column" gap={2} px={2} pt={1}>
             <Text color="text.slightlyMuted">
               The Okta audit log is being synced to Teleport Identity.
             </Text>

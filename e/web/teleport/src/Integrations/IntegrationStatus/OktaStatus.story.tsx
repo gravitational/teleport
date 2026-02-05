@@ -7,10 +7,13 @@ import cfg from 'e-teleport/config';
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { PluginOktaSyncStatusCode } from 'teleport/services/integrations/oktaStatusTypes';
+import { storageService } from 'teleport/services/storageService';
 
 import { IntegrationStatus } from './IntegrationStatus';
 
 const defaultIdentity = cfg.oss.entitlements.Identity;
+const defaultGetAccessGraphEnabled =
+  storageService.getAccessGraphEnabled.bind(storageService);
 
 export default {
   title: 'TeleportE/Integrations/Status/Okta',
@@ -20,6 +23,7 @@ export default {
         // Clean up
         return () => {
           cfg.oss.entitlements.Identity = defaultIdentity;
+          storageService.getAccessGraphEnabled = defaultGetAccessGraphEnabled;
         };
       }, []);
       return <Story />;
@@ -42,6 +46,7 @@ const basePluginResp = {
     enableUserSync: true,
     enableAppGroupSync: true,
     enableAccessListSync: true,
+    enableSystemLogExport: true,
     credentialsInfo: {
       hasConfiguredOauthCredentials: true,
     },
@@ -101,6 +106,7 @@ export const WithAllFeaturesEnabled = {
   },
   render: () => {
     cfg.oss.entitlements.Identity = { enabled: true, limit: 0 };
+    storageService.getAccessGraphEnabled = () => true;
     return render(cfg.oss.getIntegrationStatusRoute('okta', 'okta'));
   },
 } satisfies StoryObj<typeof IntegrationStatus>;
@@ -132,6 +138,7 @@ export const WithAllFeaturesEnabledWithoutAppName = {
   },
   render: () => {
     cfg.oss.entitlements.Identity = { enabled: true, limit: 0 };
+    storageService.getAccessGraphEnabled = () => true;
     return render(cfg.oss.getIntegrationStatusRoute('okta', 'okta'));
   },
 } satisfies StoryObj<typeof IntegrationStatus>;

@@ -287,6 +287,9 @@ export function DefineUserTemplate({
                 hasPlugin: Boolean(oktaPluginAttempt?.data),
                 hasAppGroupSyncEnabled:
                   oktaPluginAttempt?.data?.spec?.enableAccessListSync,
+                hasConfiguredOauthCredentials:
+                  oktaPluginAttempt?.data?.spec?.credentialsInfo
+                    ?.hasConfiguredOauthCredentials,
               }}
             />
 

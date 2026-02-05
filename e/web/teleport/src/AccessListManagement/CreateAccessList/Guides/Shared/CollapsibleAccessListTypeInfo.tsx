@@ -117,22 +117,23 @@ function NestedAccessListInfo({
       </Alert>
     );
   } else if (okta && !okta.hasAppGroupSyncEnabled) {
+    let step = OktaIntegrationStepType.AppGroupSync;
+    if (!okta.hasConfiguredOauthCredentials) {
+      step = OktaIntegrationStepType.UserSync;
+    }
     oktaInfo = (
       <Info
         mt={4}
         wrapContents
         primaryAction={{
           content: 'Enable Okta Apps and Groups Sync',
-          linkTo: cfg.getIntegrationEnrollRoute(
-            'okta',
-            OktaIntegrationStepType.AppGroupSync
-          ),
+          linkTo: cfg.getIntegrationEnrollRoute('okta', step),
         }}
         details={
           <>
-            Enabling <Mark>application and group sync</Mark> in your Okta
-            integration will sync Okta apps and groups as Access Lists which
-            then can also be assigned as {getPluralUserCategory(userCategory)}.
+            Enabling <Mark>apps and groups sync</Mark> in your Okta integration
+            will sync Okta apps and groups as Access Lists which then can also
+            be assigned as {getPluralUserCategory(userCategory)}.
             <br />
             <ExternalLink
               target="_blank"
