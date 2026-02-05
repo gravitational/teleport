@@ -135,7 +135,8 @@ In practice, these rules mean:
     `/zip`.
 
 These rules are backed up by the Scope Pinning mechanism. Certificates issued to
-the Scoped Bot are pinned to the scope in which it exists.
+the Scoped Bot are pinned to the scope in which it exists. This prevents access
+to any scoped resources outside the pinned scope.
 
 Worked Examples:
 
