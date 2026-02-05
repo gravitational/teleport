@@ -90,11 +90,11 @@ during the migration.
 
 |CA type|Certificate subjects|
 |---|---|
-|[`host`](#host)|Teleport Agents. Auth Service and Proxy Service instances.|
+|[`host`](#host)|Teleport Agents, OpenSSH Agentless Hosts, Auth Service, and Proxy Service instances.|
 |[`user`](#user)|Teleport users.|
 |[`db`](#db-and-db_client)|Self-hosted databases protected by Teleport (users must distribute certificates to databases).|
 |[`db_client`](#db-and-db_client)|The Teleport Database Service.|
-|[`openssh`](#openssh)|OpenSSH servers enrolled in your Teleport cluster.|
+|[`openssh`](#openssh)|Teleport users accessing OpenSSH servers via the Teleport Proxy.|
 |[`jwt`](#jwt)|Teleport users accessing web applications.|
 |[`saml_idp`](#saml_idp)|The Teleport SAML IdP.|
 |[`spiffe`](#spiffe)|Workload Identity (SPIFFE) clients.|
