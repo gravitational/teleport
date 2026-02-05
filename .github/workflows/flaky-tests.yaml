@@ -93,10 +93,6 @@ jobs:
         with:
           flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" --include "tool/tsh/**/*"
           target: test-go-tsh
-          # Reduced from 100 to 25 attempts to accommodate TestKubeLeaf (~8.7s/iteration).
-          # 25 attempts = ~3.6 min for TestKubeLeaf, ~1.1 min for TestKubeRoot, both within timeout.
-          # Default go test timeout is 10 minutes.
-          attempts: 25
 
       - name: Run api difftest
         uses: ./.github/actions/difftest
