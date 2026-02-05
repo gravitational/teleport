@@ -606,10 +606,12 @@ func TestCRLUpdateSchedule(t *testing.T) {
 		close:    cancel,
 	}
 
-	runCRLLoopWG.Go(func() {
+	runCRLLoopWG.Add(1)
+	go func() {
+		defer runCRLLoopWG.Done()
 		t.Log("Calling runCRLUpdateLoop()")
 		winService.runCRLUpdateLoop()
-	})
+	}()
 
 	var wantUpdates int
 	waitForNextCRLUpdate := func(t *testing.T) {
