@@ -373,6 +373,15 @@ export const eventCodes = {
   WORKLOAD_CLUSTER_CREATE: 'WC001I',
   WORKLOAD_CLUSTER_UPDATE: 'WC002I',
   WORKLOAD_CLUSTER_DELETE: 'WC003I',
+  INFERENCE_MODEL_CREATE: 'INF001I',
+  INFERENCE_MODEL_UPDATE: 'INF002I',
+  INFERENCE_MODEL_DELETE: 'INF003I',
+  INFERENCE_SECRET_CREATE: 'INF004I',
+  INFERENCE_SECRET_UPDATE: 'INF005I',
+  INFERENCE_SECRET_DELETE: 'INF006I',
+  INFERENCE_POLICY_CREATE: 'INF007I',
+  INFERENCE_POLICY_UPDATE: 'INF008I',
+  INFERENCE_POLICY_DELETE: 'INF009I',
 } as const;
 
 /**
@@ -2185,6 +2194,42 @@ export type RawEvents = {
   >;
   [eventCodes.WORKLOAD_CLUSTER_DELETE]: RawEvent<
     typeof eventCodes.WORKLOAD_CLUSTER_DELETE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_MODEL_CREATE]: RawEvent<
+    typeof eventCodes.INFERENCE_MODEL_CREATE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_MODEL_UPDATE]: RawEvent<
+    typeof eventCodes.INFERENCE_MODEL_UPDATE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_MODEL_DELETE]: RawEvent<
+    typeof eventCodes.INFERENCE_MODEL_DELETE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_SECRET_CREATE]: RawEvent<
+    typeof eventCodes.INFERENCE_SECRET_CREATE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_SECRET_UPDATE]: RawEvent<
+    typeof eventCodes.INFERENCE_SECRET_UPDATE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_SECRET_DELETE]: RawEvent<
+    typeof eventCodes.INFERENCE_SECRET_DELETE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_POLICY_CREATE]: RawEvent<
+    typeof eventCodes.INFERENCE_POLICY_CREATE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_POLICY_UPDATE]: RawEvent<
+    typeof eventCodes.INFERENCE_POLICY_UPDATE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_POLICY_DELETE]: RawEvent<
+    typeof eventCodes.INFERENCE_POLICY_DELETE,
     HasName
   >;
 };
