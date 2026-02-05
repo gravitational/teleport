@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/rsa"
+	"errors"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -581,19 +582,19 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 
 	app, err := a.GetApp(ctx, req.AppName)
 	if err != nil {
+		a.logger.WarnContext(ctx, "Failed to retrieve application metadata", "error", err, "app_name", req.AppName)
 		return nil, trace.AccessDenied("application metadata not found")
 	}
 
 	// Enforce device trust early via the AccessChecker.
-	if err = checker.CheckDeviceAccess(
+	if err = checker.CheckAccess(
 		app,
 		services.AccessState{
 			DeviceVerified:           dtauthz.IsTLSDeviceVerified((*tlsca.DeviceExtensions)(&req.DeviceExtensions)),
 			EnableDeviceVerification: true,
 			IsBot:                    req.BotName != "",
 		},
-		req.Traits,
-	); err != nil {
+	); errors.Is(err, services.ErrTrustedDeviceRequired) {
 
 		userKind := apievents.UserKind_USER_KIND_HUMAN
 		if req.BotName != "" {
@@ -628,9 +629,14 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		sessionStartEvent.Error = err.Error()
 		sessionStartEvent.UserMessage = errMsg
 
-		a.emitter.EmitAuditEvent(a.closeCtx, sessionStartEvent)
+		if err := a.emitter.EmitAuditEvent(a.closeCtx, sessionStartEvent); err != nil {
+			a.logger.WarnContext(ctx, "Failed to emit app session start event", "error", err)
+		}
 		// err swallowed/obscured on purpose.
 		return nil, trace.AccessDenied("%s", errMsg)
+	} else if err != nil {
+		a.logger.WarnContext(ctx, "Failed to create app session", "error", err)
+		return nil, trace.AccessDenied("access denied")
 	}
 
 	sessionID := req.SuggestedSessionID

@@ -499,10 +499,11 @@ func TestCreateAppSession_UntrustedDevice(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, test := range []struct {
-		app    types.Application
-		assert require.ErrorAssertionFunc
+		app     types.Application
+		assert  require.ErrorAssertionFunc
+		wantErr string
 	}{
-		{app: prodApp, assert: require.Error},
+		{app: prodApp, assert: require.Error, wantErr: "device trust required"},
 		{app: devApp, assert: require.NoError},
 	} {
 		t.Run(test.app.GetName(), func(t *testing.T) {
@@ -517,7 +518,11 @@ func TestCreateAppSession_UntrustedDevice(t *testing.T) {
 			identity := tlsca.Identity{Username: user.GetName()}
 
 			_, err = testAuthServer.AuthServer.CreateAppSession(t.Context(), req, identity, checker)
-			test.assert(t, err)
+			if test.wantErr == "" {
+				assert.NoError(t, err, "CreateAppSession errored unexpectedly")
+				return
+			}
+			assert.ErrorContains(t, err, test.wantErr, "CreateAppSession error mismatch")
 		})
 	}
 }
