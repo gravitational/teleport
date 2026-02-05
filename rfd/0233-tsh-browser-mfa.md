@@ -250,6 +250,18 @@ When `allow_browser_authentication: false`, the auth server will not return a
 `--mfa-mode=browser` will receive an error indicating the feature isn't
 available.
 
+#### Platform-Specific Behavior
+
+On Windows, `tsh` uses `WebAuthn.dll` for WebAuthn support, which provides
+native access to all types of security keys including Windows Hello. This means
+Windows users can already access biometric authentication directly through `tsh`
+without needing to delegate to the browser.
+
+Given this native capability, browser MFA will not be automatically selected as
+a fallback on Windows when WebAuthn devices are unavailable. Users can still
+explicitly request browser MFA using `--mfa-mode=browser` if desired, but the
+automatic fallback behavior will skip browser MFA on Windows platforms.
+
 ### Security
 
 #### `rpc ValidateBrowserMFAChallenge`
