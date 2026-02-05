@@ -20,7 +20,12 @@ import { createHash } from 'node:crypto';
 
 import { MacUpdater } from 'electron-updater';
 
-import type { GetClusterVersionsResponse } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
+import {
+  ConfigSource,
+  ConfigValue,
+  GetClusterVersionsResponse,
+  GetInstallationMetadataResponse,
+} from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
 import { wait } from 'shared/utils/wait';
 
 import Logger, { NullService } from 'teleterm/logger';
@@ -100,7 +105,8 @@ class MockedMacUpdater extends MacUpdater {
 function setUpAppUpdater(options: {
   clusters: GetClusterVersionsResponse;
   storage?: AppUpdaterStorage;
-  processEnvVar?: string;
+  configToolsVersion?: ConfigValue;
+  installationMetadata?: GetInstallationMetadataResponse;
 }) {
   const nativeUpdater = new MockedMacUpdater();
 
@@ -111,13 +117,22 @@ function setUpAppUpdater(options: {
     options.storage || makeUpdaterStorage(),
     {
       getClusterVersions: async () => options.clusters,
-      getDownloadBaseUrl: async () => 'https://cdn.teleport.dev',
-      getInstallationMetadata: async () => ({ isPerMachineInstall: false }),
+      getConfig: async () => ({
+        cdnBaseUrl: {
+          value: 'https://cdn.teleport.dev',
+          source: ConfigSource.ENV_VAR,
+        },
+        toolsVersion: options.configToolsVersion ?? {
+          value: '',
+          source: ConfigSource.UNSPECIFIED,
+        },
+      }),
+      getInstallationMetadata: async () =>
+        options.installationMetadata ?? { isPerMachineInstall: false },
     },
     event => {
       lastEvent.value = event;
     },
-    options.processEnvVar,
     nativeUpdater
   );
 
@@ -192,9 +207,12 @@ test('does not auto-download update when there are unreachable clusters', async 
   expect(setup.downloadUpdateSpy).toHaveBeenCalledTimes(0);
 });
 
-test('does not auto-download update when env var is set to off', async () => {
+test('does not auto-download update when local config tools version is set to off', async () => {
   const setup = setUpAppUpdater({
-    processEnvVar: 'off',
+    configToolsVersion: {
+      value: 'off',
+      source: ConfigSource.ENV_VAR,
+    },
     clusters: {
       reachableClusters: [
         {
@@ -213,7 +231,7 @@ test('does not auto-download update when env var is set to off', async () => {
     expect.objectContaining({
       kind: 'update-not-available',
       autoUpdatesStatus: expect.objectContaining({
-        reason: 'disabled-by-env-var',
+        reason: 'disabled-by-env-config',
       }),
     })
   );
@@ -395,6 +413,37 @@ test('when the update is newer than app updateKind equals upgrade', async () => 
       kind: 'update-available',
       update: expect.objectContaining({
         updateKind: 'upgrade',
+      }),
+    })
+  );
+});
+
+test('when the app is installed per-machine and configured with env vars, UAC prompt is required to install', async () => {
+  const setup = setUpAppUpdater({
+    configToolsVersion: {
+      value: '20.0.0',
+      source: ConfigSource.ENV_VAR,
+    },
+    installationMetadata: { isPerMachineInstall: true },
+    clusters: {
+      reachableClusters: [
+        {
+          clusterUri: '/clusters/foo',
+          toolsAutoUpdate: true,
+          toolsVersion: '19.7.5',
+          minToolsVersion: '16.0.0-aa',
+        },
+      ],
+      unreachableClusters: [],
+    },
+  });
+
+  await setup.appUpdater.checkForUpdates();
+  expect(setup.lastEvent.value).toEqual(
+    expect.objectContaining({
+      kind: 'update-available',
+      update: expect.objectContaining({
+        requiresUacPrompt: true,
       }),
     })
   );

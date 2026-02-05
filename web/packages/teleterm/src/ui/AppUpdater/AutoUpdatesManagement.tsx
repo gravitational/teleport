@@ -26,6 +26,7 @@ import { RadioGroup } from 'design/RadioGroup';
 import { H3, P3 } from 'design/Text';
 import { pluralize } from 'shared/utils/text';
 
+import type { Platform } from 'teleterm/mainProcess/types';
 import {
   AppUpdateEvent,
   AutoUpdatesDisabled,
@@ -40,6 +41,7 @@ const listFormatter = new Intl.ListFormat('en', {
 });
 
 export function AutoUpdatesManagement(props: {
+  platform: Platform;
   status: AutoUpdatesStatus;
   updateEventKind: AppUpdateEvent['kind'];
   changeManagingCluster(clusterUri: RootClusterUri | undefined): void;
@@ -50,7 +52,7 @@ export function AutoUpdatesManagement(props: {
   const content =
     status.enabled === true
       ? makeContentForEnabledAutoUpdates(status)
-      : makeContentForDisabledAutoUpdates(status);
+      : makeContentForDisabledAutoUpdates(status, props.platform);
   const retryButton = {
     content: 'Retry',
     onClick: props.onCheckForUpdates,
@@ -284,7 +286,7 @@ function makeContentForEnabledAutoUpdates(status: AutoUpdatesEnabled): {
   showRetry?: boolean;
 } {
   switch (status.source) {
-    case 'env-var':
+    case 'env-config':
       return {
         kind: 'neutral',
         description: `The app is set to stay on version ${status.version} by your device settings.`,
@@ -308,14 +310,41 @@ function makeContentForEnabledAutoUpdates(status: AutoUpdatesEnabled): {
   }
 }
 
-function makeContentForDisabledAutoUpdates(updateSource: AutoUpdatesDisabled): {
+function makeContentForDisabledAutoUpdates(
+  updateSource: AutoUpdatesDisabled,
+  platform: Platform
+): {
   title?: string;
   description?: ReactNode;
   kind: 'danger' | 'neutral';
   showRetry?: boolean;
 } {
   switch (updateSource.reason) {
-    case 'disabled-by-env-var':
+    case 'no-base-url':
+      return {
+        kind: 'danger',
+        description: (
+          <>
+            Client tools updates are disabled because the download base URL is
+            not configured. To use Community Edition builds or custom binaries,
+            set{' '}
+            {platform === 'win32' ? (
+              <>
+                <code>CdnBaseUrl</code> in{' '}
+                <code>
+                  HKEY_LOCAL_MACHINE|HKEY_CURRENT_USER\SOFTWARE\Policies\Teleport\TeleportConnect
+                </code>{' '}
+                in the system registry.
+              </>
+            ) : (
+              <>
+                the <code>TELEPORT_CDN_BASE_URL</code> environment variable.
+              </>
+            )}
+          </>
+        ),
+      };
+    case 'disabled-by-env-config':
       return {
         kind: 'neutral',
         description: 'App updates are disabled by your device settings.',

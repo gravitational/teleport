@@ -17,6 +17,7 @@
  */
 
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { ConfigSource } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
 import { ClientVersionStatus } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 
 import {
@@ -148,7 +149,11 @@ export class MockAutoUpdateClient implements AutoUpdateClient {
       reachableClusters: [],
       unreachableClusters: [],
     });
-  getDownloadBaseUrl = () => new MockedUnaryCall({ baseUrl: '' });
+  getConfig = () =>
+    new MockedUnaryCall({
+      cdnBaseUrl: { value: '', source: ConfigSource.UNSPECIFIED },
+      toolsVersion: { value: '', source: ConfigSource.UNSPECIFIED },
+    });
   getInstallationMetadata = () =>
     new MockedUnaryCall({ isPerMachineInstall: false });
 }
