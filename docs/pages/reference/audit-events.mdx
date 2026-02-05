@@ -7390,6 +7390,10 @@ Example:
 
 ## workload_cluster.create
 
+There are multiple events with the `workload_cluster.create` type.
+
+### WC001I
+
 Workload Cluster Created
 
 Example:
@@ -7403,7 +7407,26 @@ Example:
 }
 ```
 
+### WC001E
+
+Workload Cluster Create Failed
+
+Example:
+
+```json
+{
+  "code": "WC001E",
+  "event": "workload_cluster.create",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
 ## workload_cluster.delete
+
+There are multiple events with the `workload_cluster.delete` type.
+
+### WC003I
 
 Workload Cluster Deleted
 
@@ -7418,7 +7441,26 @@ Example:
 }
 ```
 
+### WC003E
+
+Workload Cluster Delete Failed
+
+Example:
+
+```json
+{
+  "code": "WC003E",
+  "event": "workload_cluster.delete",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
 ## workload_cluster.update
+
+There are multiple events with the `workload_cluster.update` type.
+
+### WC002I
 
 Workload Cluster Updated
 
@@ -7427,6 +7469,21 @@ Example:
 ```json
 {
   "code": "WC002I",
+  "event": "workload_cluster.update",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+### WC002E
+
+Workload Cluster Update Failed
+
+Example:
+
+```json
+{
+  "code": "WC002E",
   "event": "workload_cluster.update",
   "time": "2020-06-05T16:24:05Z",
   "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
