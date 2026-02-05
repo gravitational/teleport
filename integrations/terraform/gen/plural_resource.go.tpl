@@ -284,16 +284,12 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 			{{- range $i, $p := .StatePath }}
 				{{- $lastIndex = $i }}
 			{{- end }}
+			{{- $currentPath := "" }}
 			{{- range $i, $p := .StatePath }}
 				{{- if eq $i $lastIndex }}
 					{{- break }}
 				{{- end }}
-				{{- $currentPath := "" }}
-				{{- range $j, $p := $root.StatePath }}
-					{{- if le $j $i }}
-						{{- $currentPath = print $currentPath "." $p }}
-					{{- end }}
-				{{- end }}
+				{{- $currentPath = print $currentPath "." $p }}
 			if {{ $root.VarName }}{{ $currentPath }} == nil {
 				return nil, "", trace.Errorf("response from {{ $root.GetMethod }} at {{ $currentPath }} was nil")
 			}
