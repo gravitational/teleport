@@ -271,8 +271,11 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 		PollInterval: {{ .CreatePollIntervalSeconds }} * time.Second,
 		Refresh: func() (any, string, error) {
 			{{ .VarName }}, err := r.p.Client.{{ .GetMethod }}(ctx, id)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
 
-			return {{ .VarName }}, {{ .VarName }}{{ .StatePath }}, err
+			return {{ .VarName }}, {{ .VarName }}{{ .StatePath }}, nil
 		},
 	}
 
