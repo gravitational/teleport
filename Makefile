@@ -1148,7 +1148,7 @@ test-go-flaky: GO_BUILD_TAGS ?= $(PAM_TAG) $(FIPS_TAG) $(RDPCLIENT_TAG) $(BPF_TA
 test-go-flaky: RENDER_FLAGS ?= -report-by flakiness -summary-file $(FLAKY_SUMMARY_FILE) -top $(FLAKY_TOP_N)
 test-go-flaky: test-go-prepare $(RENDER_TESTS) $(RERUN)
 	$(CGOFLAG) $(RERUN) -n $(FLAKY_RUNS) -t $(FLAKY_TIMEOUT) \
-		go test -count=1 -cover -json -tags "$(GO_BUILD_TAGS)" $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+		go test -count=1 -json -tags "$(GO_BUILD_TAGS)" $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| $(RENDER_TESTS) $(RENDER_FLAGS)
 
 #
