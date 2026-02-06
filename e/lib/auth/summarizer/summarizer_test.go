@@ -83,6 +83,7 @@ type summarizerTestPlugin struct {
 	encrypter                        events.EncryptionWrapper
 	envBedrockRegion                 string
 	envBedrockModelID                string
+	mockEmitter                      *eventstest.MockRecorderEmitter
 }
 
 func (p *summarizerTestPlugin) GetName() string {
@@ -129,6 +130,12 @@ func (p *summarizerTestPlugin) RegisterAuthServices(
 	bedrockClientFactory := &bedrock.FakeClientFactory{
 		Clock: p.clock,
 	}
+
+	emitter := apievents.Emitter(authServer.AuthServer)
+	if p.mockEmitter != nil {
+		emitter = p.mockEmitter
+	}
+
 	summarizer, err := NewSessionSummarizer(SummarizerConfig{
 		Backend:                          authServer.AuthServer,
 		Streamer:                         authServer.AuthServer,
@@ -142,6 +149,7 @@ func (p *summarizerTestPlugin) RegisterAuthServices(
 		EnvBedrockRegion:                 p.envBedrockRegion,
 		EnvBedrockModelID:                p.envBedrockModelID,
 		UsageReporter:                    authServer.AuthServer.UsageReporter,
+		Emitter:                          emitter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -159,6 +167,7 @@ type summarizerTestTLSServerConfig struct {
 	envBedrockRegion                 string
 	envBedrockModelID                string
 	usageReporter                    usagereporter.UsageReporter
+	mockEmitter                      *eventstest.MockRecorderEmitter
 }
 
 func newSummarizerTestTLSServer(t *testing.T, scfg summarizerTestTLSServerConfig) *authtest.TLSServer {
@@ -195,6 +204,7 @@ func newSummarizerTestTLSServer(t *testing.T, scfg summarizerTestTLSServerConfig
 			encrypter:                        scfg.encrypter,
 			envBedrockRegion:                 scfg.envBedrockRegion,
 			envBedrockModelID:                scfg.envBedrockModelID,
+			mockEmitter:                      scfg.mockEmitter,
 		})
 		require.NoError(t, err)
 	})
@@ -465,10 +475,12 @@ func TestSummarizer(t *testing.T) {
 
 	ctx := t.Context()
 	mockReporter := &mockUsageReporter{}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
 	srv := newSummarizerTestTLSServer(t, summarizerTestTLSServerConfig{
 		uploader:                         eventstest.NewMemoryUploader(),
 		enableBedrockWithoutRestrictions: true,
 		usageReporter:                    mockReporter,
+		mockEmitter:                      mockEmitter,
 	})
 
 	createTestUser(t, srv, "alice")
@@ -593,6 +605,7 @@ func TestSummarizer(t *testing.T) {
 			t.Run(fmt.Sprintf("%s provider %s", providerName, tc.name), func(t *testing.T) {
 				ctx := t.Context()
 				mockReporter.reset()
+				mockEmitter.Reset()
 				startTime := srv.Clock().Now()
 				sessionID := uuid.NewString()
 				sessEvents := tc.setup(providerName+"-cluster", sessionID)
@@ -645,6 +658,45 @@ func TestSummarizer(t *testing.T) {
 				assert.Equal(t, resourceName, summaryEvent.ResourceName, "Resource name mismatch")
 				assert.Equal(t, resourceType, summaryEvent.SessionType, "Resource type mismatch")
 
+				auditEvents := mockEmitter.Events()
+				var summaryCreateEvents []*apievents.SessionSummarized
+				for _, evt := range auditEvents {
+					if summaryCreate, ok := evt.(*apievents.SessionSummarized); ok {
+						summaryCreateEvents = append(summaryCreateEvents, summaryCreate)
+					}
+				}
+
+				require.Len(t, summaryCreateEvents, 1, "Expected exactly one SessionSummarized audit event to be emitted")
+				auditEvent := summaryCreateEvents[0]
+
+				assert.Equal(t, events.SessionSummarizedEvent, auditEvent.GetType(), "Event type mismatch")
+				assert.Equal(t, sessionID, auditEvent.SessionID, "Session ID mismatch")
+				assert.Equal(t, providerName+"-model", auditEvent.ModelName, "Model name mismatch")
+				assert.Equal(t, tc.state == summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS, auditEvent.Success, "Success flag mismatch in audit event")
+				assert.Equal(t, startTime, auditEvent.InferenceStartedAt, "Inference started time mismatch")
+				assert.Equal(t, startTime.Add(10*time.Second), auditEvent.InferenceFinishedAt, "Inference finished time mismatch")
+
+				if tc.state == summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS {
+					assert.Equal(t, events.SessionSummarizedCode, auditEvent.GetCode(), "Event code mismatch for success")
+				} else {
+					assert.Equal(t, events.SessionSummarizedErrorCode, auditEvent.GetCode(), "Event code mismatch for error")
+					assert.Equal(t, tc.errors[providerName], auditEvent.Error, "Error message mismatch in audit event")
+				}
+
+				switch resourceType {
+				case "ssh":
+					assert.Equal(t, string(types.SSHSessionKind), auditEvent.SessionType, "Session type mismatch")
+					assert.Equal(t, resourceName, auditEvent.ServerID, "Server ID mismatch")
+					assert.Equal(t, "alice", auditEvent.Username, "Username mismatch")
+				case "k8s":
+					assert.Equal(t, string(types.KubernetesSessionKind), auditEvent.SessionType, "Session type mismatch")
+					assert.Equal(t, resourceName, auditEvent.KubernetesCluster, "Kubernetes cluster mismatch")
+					assert.Equal(t, "alice", auditEvent.Username, "Username mismatch")
+				case "db":
+					assert.Equal(t, string(types.DatabaseSessionKind), auditEvent.SessionType, "Session type mismatch")
+					assert.Equal(t, resourceName, auditEvent.DatabaseName, "Database name mismatch")
+					assert.Equal(t, "alice", auditEvent.Username, "Username mismatch")
+				}
 			})
 		}
 	}

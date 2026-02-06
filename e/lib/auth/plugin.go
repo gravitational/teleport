@@ -398,6 +398,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 			EnvBedrockRegion:                 os.Getenv(envVarNameBedrockRegion),
 			EnvBedrockModelID:                os.Getenv(envVarNameBedrockModel),
 			UsageReporter:                    p.authServer.AuthServer.UsageReporter,
+			Emitter:                          p.authServer.AuthServer.GetEmitter(),
 		})
 		if err != nil {
 			return trace.Wrap(err)

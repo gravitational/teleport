@@ -80,6 +80,8 @@ type SummarizerConfig struct {
 
 	// UsageReporter reports usage events.
 	UsageReporter usagereporter.UsageReporter
+	// Emitter emits audit events.
+	Emitter apievents.Emitter
 }
 
 // SummaryUploader allows uploading recording summaries.
@@ -132,6 +134,7 @@ type SessionSummarizer struct {
 	envBedrockRegion                 string
 	envBedrockModelID                string
 	usageReporter                    usagereporter.UsageReporter
+	emitter                          apievents.Emitter
 }
 
 var _ summarizer.SessionSummarizer = (*SessionSummarizer)(nil)
@@ -153,6 +156,9 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 	}
 	if cfg.UsageReporter == nil {
 		return nil, trace.BadParameter("usage reporter is required")
+	}
+	if cfg.Emitter == nil {
+		return nil, trace.BadParameter("emitter is required")
 	}
 
 	clock := cfg.Clock
@@ -176,6 +182,7 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 		envBedrockRegion:                 cfg.EnvBedrockRegion,
 		envBedrockModelID:                cfg.EnvBedrockModelID,
 		usageReporter:                    cfg.UsageReporter,
+		emitter:                          cfg.Emitter,
 	}, nil
 }
 
@@ -189,6 +196,7 @@ type sessionDetails struct {
 	kind         types.SessionKind
 	summary      *summarizerv1pb.Summary
 	provider     InferenceProvider
+	sessionEnd   apievents.AuditEvent
 }
 
 // TODO(bl-nero): rename SummarizeSSH to SummarizePTYSession.
@@ -228,9 +236,10 @@ func (s *SessionSummarizer) SummarizeSSH(ctx context.Context, sessionEndEvent *a
 		username:     username,
 		loginName:    loginName,
 		kind:         kind,
+		sessionEnd:   sessionEndEvent,
 	}
 
-	if err := s.summarize(ctx, details, sessionEndEvent); err != nil {
+	if err := s.summarize(ctx, details); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -262,14 +271,15 @@ func (s *SessionSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEve
 		resourceName: sessionEndEvent.DatabaseMetadata.DatabaseName,
 		username:     username,
 		kind:         kind,
+		sessionEnd:   sessionEndEvent,
 	}
 
-	return trace.Wrap(s.summarize(ctx, details, sessionEndEvent))
+	return trace.Wrap(s.summarize(ctx, details))
 }
 
 // summarize picks the appropriate inference provider and launches a
 // summarization goroutine.
-func (s *SessionSummarizer) summarize(ctx context.Context, details sessionDetails, sessionEndEvent apievents.AuditEvent) error {
+func (s *SessionSummarizer) summarize(ctx context.Context, details sessionDetails) error {
 	supportedSessionKinds := [3]types.SessionKind{
 		types.SSHSessionKind,
 		types.KubernetesSessionKind,
@@ -280,7 +290,7 @@ func (s *SessionSummarizer) summarize(ctx context.Context, details sessionDetail
 		return trace.BadParameter("unsupported session kind: %v", details.kind)
 	}
 
-	user, err := buildUserFromEvent(sessionEndEvent)
+	user, err := buildUserFromEvent(details.sessionEnd)
 	if err != nil {
 		return trace.Wrap(err, "failed to build user from event")
 	}
@@ -288,7 +298,7 @@ func (s *SessionSummarizer) summarize(ctx context.Context, details sessionDetail
 	matchingCtx := &services.InferencePolicyMatchingContext{
 		User: user,
 	}
-	matchingCtx.ExtendWithSessionEnd(sessionEndEvent)
+	matchingCtx.ExtendWithSessionEnd(details.sessionEnd)
 
 	policy, err := s.matchPolicy(ctx, details.kind, matchingCtx)
 	if err != nil {
@@ -306,7 +316,7 @@ func (s *SessionSummarizer) summarize(ctx context.Context, details sessionDetail
 		ctx, "Matched summary inference policy", "session_id", details.sessionID, "policy", policy.Metadata.Name,
 	)
 
-	endEventFields, err := events.ToEventFields(sessionEndEvent)
+	endEventFields, err := events.ToEventFields(details.sessionEnd)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -424,7 +434,7 @@ func (s *SessionSummarizer) summarizeNow(ctx context.Context, details sessionDet
 
 	result.InferenceFinishedAt = timestamppb.New(s.clock.Now().UTC())
 
-	return s.uploadSummary(ctx, log, details.sessionID, result, sumErr)
+	return s.uploadSummary(ctx, log, details.sessionID, result, sumErr, details.sessionEnd)
 }
 
 // summarizeSession performs the actual summarization of the session recording.
@@ -504,6 +514,7 @@ func (s *SessionSummarizer) uploadSummary(
 	sessionID session.ID,
 	result *summarizerv1pb.Summary,
 	sumErr error,
+	sessionEnd apievents.AuditEvent,
 ) error {
 	rBytes, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(result)
 	if err != nil {
@@ -527,6 +538,12 @@ func (s *SessionSummarizer) uploadSummary(
 	}
 
 	log.DebugContext(ctx, "Session summary uploaded", "path", path)
+
+	// Emit audit event for the summary creation
+	if err := s.emitSummaryCreateEvent(ctx, result, sessionEnd); err != nil {
+		log.WarnContext(ctx, "Failed to emit session summary create audit event", "error", err)
+	}
+
 	return sumErr
 }
 
@@ -738,4 +755,79 @@ func buildUserFromEvent(event apievents.AuditEvent) (types.User, error) {
 	user.SetTraits(userTraits)
 
 	return user, nil
+}
+
+// emitSummaryCreateEvent emits a SessionSummarized audit event.
+func (s *SessionSummarizer) emitSummaryCreateEvent(ctx context.Context, summary *summarizerv1pb.Summary, sessionEndEvent apievents.AuditEvent) error {
+	// Create the audit event
+	event := &apievents.SessionSummarized{
+		Metadata: apievents.Metadata{
+			Type:        events.SessionSummarizedEvent,
+			Code:        events.SessionSummarizedCode,
+			Time:        s.clock.Now().UTC(),
+			ClusterName: sessionEndEvent.GetClusterName(),
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: summary.GetSessionId(),
+		},
+		Status: apievents.Status{
+			Success: summary.GetState() == summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS,
+			Error:   summary.GetErrorMessage(),
+		},
+		ModelName:           summary.GetModelName(),
+		InferenceStartedAt:  summary.GetInferenceStartedAt().AsTime(),
+		InferenceFinishedAt: summary.GetInferenceFinishedAt().AsTime(),
+	}
+
+	if !event.Success {
+		event.Metadata.Code = events.SessionSummarizedErrorCode
+	}
+
+	// Extract enhanced summary fields if available
+	if enhancedSummary := summary.GetEnhancedSummary(); enhancedSummary != nil {
+		event.ShortDescription = enhancedSummary.GetShortDescription()
+		event.RiskLevel = strings.TrimPrefix(enhancedSummary.GetRiskLevel().String(), "RISK_LEVEL_")
+	} else {
+		// For simple summaries, use the content as description
+		if summary.GetContent() != "" {
+			// Take first 200 characters as short description
+			content := summary.GetContent()
+			if len(content) > 200 {
+				event.ShortDescription = content[:200] + "..."
+			} else {
+				event.ShortDescription = content
+			}
+		}
+	}
+
+	// Populate session-type-specific metadata
+	switch e := sessionEndEvent.(type) {
+	case *apievents.SessionEnd:
+		event.SessionType = string(types.SSHSessionKind)
+		event.Username = e.User
+		if e.Protocol == events.EventProtocolKube {
+			event.SessionType = string(types.KubernetesSessionKind)
+			event.KubernetesClusterMetadata = e.KubernetesClusterMetadata
+			event.KubernetesPodMetadata = e.KubernetesPodMetadata
+		} else {
+			event.ServerMetadata = e.ServerMetadata
+		}
+	case *apievents.DatabaseSessionEnd:
+		event.SessionType = string(types.DatabaseSessionKind)
+		event.DatabaseMetadata = e.DatabaseMetadata
+		event.Username = e.User
+	case *apievents.WindowsDesktopSessionEnd:
+		event.SessionType = string(types.WindowsDesktopSessionKind)
+		event.WindowsDesktopMetadata.WindowsDesktopService = e.WindowsDesktopService
+		event.WindowsDesktopMetadata.DesktopAddr = e.DesktopAddr
+		event.WindowsDesktopMetadata.Domain = e.Domain
+		event.WindowsDesktopMetadata.WindowsUser = e.WindowsUser
+		event.WindowsDesktopMetadata.DesktopLabels = e.DesktopLabels
+		event.Username = e.User
+	default:
+		return trace.BadParameter("unsupported session end event type: %T", sessionEndEvent)
+	}
+
+	// Emit the audit event
+	return trace.Wrap(s.emitter.EmitAuditEvent(ctx, event))
 }
