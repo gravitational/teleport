@@ -65,7 +65,7 @@ Teleport, you can skip to the [next step](#step-13-configure-okta).
 
 ### Create Groups
 
-Create two groups: "devs" and "admin". In the Okta dashboard go to the
+Create two groups: "devs" and "admins". In the Okta dashboard go to the
 navigation bar and click **Directory** -> **Groups**, then **Add group**:
 
 ![Create Group Devs](../../../../img/sso/okta/okta-saml-2.1@2x.png)
@@ -100,21 +100,21 @@ self-hosted cluster with multiple public addresses for the Teleport Proxy
 Service (the value of `proxy_service.public_addr` in the Teleport configuration
 file), ensure that this address points to the first one listed.
 
-     - Single sign on URL:
+- Single sign on URL:
 
-       ```
+  ```
   https://<Var name="example.teleport.sh:443" />/v1/webapi/saml/acs/okta
-       ```
+  ```
 
-     - Audience URI (SP Entity ID):
+- Audience URI (SP Entity ID):
 
-       ```
+  ```
   https://<Var name="example.teleport.sh:443" />/v1/webapi/saml/acs/okta
-       ```
+  ```
 
-     - Name ID format `EmailAddress`
+- Name ID format `EmailAddress`
 
-     - Application username `Okta username`
+- Application username `Okta username`
 
 #### Attribute Statements
 
@@ -126,8 +126,8 @@ We will map our Okta groups to SAML attribute statements (special signed metadat
 exposed via a SAML XML response), so that Teleport can discover a user's group
 membership and assign matching roles.
 
-     - Name: `groups` | Name format: `Unspecified`
-     - Filter: `Matches regex` |  `.*`
+- Name: `groups` | Name format: `Unspecified`
+- Filter: `Matches regex` |  `.*`
 
 The configuration page should now look like this:
 
@@ -136,11 +136,11 @@ The configuration page should now look like this:
 The "Matches regex" filter requires the literal string `.*` in order to match all
 content from the group attribute statement.
 
-  Notice that we have set "NameID" to the email format and mapped the groups with
-  a wildcard regex in the Group Attribute statements. We have also set the "Audience"
-  and SSO URLs to the same value. This is so Teleport can read and use Okta users'
-  email addresses to create their usernames in Teleport, instead of relying on additional
-  name fields.
+Notice that we have set "NameID" to the email format and mapped the groups with
+a wildcard regex in the Group Attribute statements. We have also set the "Audience"
+and SSO URLs to the same value. This is so Teleport can read and use Okta users'
+email addresses to create their usernames in Teleport, instead of relying on additional
+name fields.
 
 Once you've filled the required fields, click **Next**, then finish the app creation wizard.
 
@@ -214,7 +214,7 @@ spec:
   - name: groups
     roles:
     - access
-    value: dev
+    value: devs
   audience: https://teleport.example.com:443/v1/webapi/saml/acs/okta
   cert: ""
   display: "Okta"
@@ -261,7 +261,7 @@ Authentication details:
   value: admins
 - name: groups
   roles:
-  - dev
+  - access
   value: devs
 
 --------------------------------------------------------------------------------
@@ -269,7 +269,7 @@ Authentication details:
 groups:
 - Everyone
 - admins
-- devs
+- access
 username:
 - alice@example.com
 
