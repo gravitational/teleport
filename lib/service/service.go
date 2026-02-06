@@ -729,7 +729,7 @@ type TeleportProcess struct {
 	//
 	// Both the metricsRegistry and the default global registry are gathered by
 	// Teleport's metric service.
-	metricsRegistry *prometheus.Registry
+	metricsRegistry *metrics.Registry
 
 	// We gather metrics both from the in-process registry (preferred metrics registration method)
 	// and the global registry (used by some Teleport services and many dependencies).
@@ -1123,7 +1123,11 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	// We must create the registry in NewTeleport, as opposed to the config,
 	// because some tests are running multiple Teleport instances from the same
 	// config and reusing the same registry causes them to fail.
-	metricsRegistry := prometheus.NewRegistry()
+	rootMetricRegistry := prometheus.NewRegistry()
+	metricsRegistry, err := metrics.NewRegistry(rootMetricRegistry, teleport.MetricNamespace, "")
+	if err != nil {
+		return nil, trace.Wrap(err, "creating metrics registry")
+	}
 
 	// If FIPS mode was requested make sure binary is build against BoringCrypto.
 	if cfg.FIPS {
@@ -1330,7 +1334,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		TracingProvider:        tracing.NoopProvider(),
 		metricsRegistry:        metricsRegistry,
 		SyncGatherers: metrics.NewSyncGatherers(
-			metricsRegistry,
+			rootMetricRegistry,
 			prometheus.DefaultGatherer,
 		),
 	}
@@ -2485,6 +2489,7 @@ func (process *TeleportProcess) initAuthService() error {
 				Inventory:          as.Services,
 				BotInstanceBackend: as.Services,
 				Logger:             process.logger.With(teleport.ComponentKey, "inventory.cache"),
+				MetricsRegistry:    process.metricsRegistry.Wrap("inventory_cache"),
 			})
 			if err != nil {
 				return trace.Wrap(err, "creating inventory cache")
