@@ -207,15 +207,11 @@ function UpdaterState({
         </Stack>
       );
     case 'update-downloaded':
-      const label =
-        platform === 'darwin'
-          ? 'Ready to install'
-          : 'Ready to install. Admin permissions may be required.';
       return (
         <Stack gap={3} width="100%">
           <Stack width="100%">
             <AvailableUpdate update={event.update} platform={platform} />
-            <Progress progressPercent={100} label={label} />
+            <Progress progressPercent={100} label="Ready to install" />
           </Stack>
           <ButtonPrimary block onClick={onInstall}>
             Restart

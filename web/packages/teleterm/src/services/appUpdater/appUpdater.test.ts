@@ -115,6 +115,7 @@ function setUpAppUpdater(options: {
   const downloadUpdateSpy = jest.spyOn(nativeUpdater, 'downloadUpdate');
   let lastEvent: { value?: AppUpdateEvent } = {};
   const appUpdater = new AppUpdater(
+    'path/to/tsh',
     options.storage || makeUpdaterStorage(),
     {
       getClusterVersions: async () => options.clusters,
