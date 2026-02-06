@@ -53,6 +53,7 @@ export default function EventList(props: Props) {
             headerText: 'Created (UTC)',
             isSortable: true,
             render: renderTimeCell,
+            onSort: onSortTime,
           },
           {
             altKey: 'show-details-btn',
@@ -63,7 +64,10 @@ export default function EventList(props: Props) {
         isSearchable
         searchableProps={['code', 'codeDesc', 'time', 'user', 'message', 'id']}
         customSearchMatchers={[dateTimeMatcher(['time'])]}
-        initialSort={{ key: 'time', dir: 'DESC' }}
+        initialSort={{
+          key: 'time',
+          dir: 'DESC',
+        }}
         pagination={{ pageSize }}
         fetching={{
           onFetchMore: fetchMore,
@@ -105,6 +109,22 @@ export const renderTimeCell = ({ time }: Event) => (
 export function renderDescCell({ message }: Event) {
   return <Cell style={{ wordBreak: 'break-word' }}>{message}</Cell>;
 }
+
+const onSortTime = (a: Event, b: Event) => {
+  const aTime = a.time.getTime();
+  const bTime = b.time.getTime();
+
+  const timeDiff = aTime - bTime;
+  if (timeDiff !== 0) {
+    return timeDiff;
+  }
+
+  // If times are equal, sort by event index (ei)
+  const aEventIndex = a.eventIndex || 0;
+  const bEventIndex = b.eventIndex || 0;
+  // HIGHER index - lower index to counteract the reversal for desc sort
+  return bEventIndex - aEventIndex;
+};
 
 type Props = {
   events: State['events'];
