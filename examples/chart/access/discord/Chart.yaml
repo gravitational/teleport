@@ -1,4 +1,4 @@
-.version: &version "17.7.16"
+.version: &version "17.7.17-dev.electron-40.2"
 
 apiVersion: v2
 name: teleport-plugin-discord
