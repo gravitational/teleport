@@ -48,7 +48,7 @@ plugin and generate credentials that the plugin will use for authentication.
 ### Install the Event Handler plugin
 
 Follow the instructions for your environment to install the Teleport Event
-Handler plugin on your Universal Forwarder host:
+Handler plugin:
 
 (!docs/pages/includes/install-event-handler.mdx!)
 
@@ -174,6 +174,7 @@ your `fluent.conf` file as follows:
 
 1. Assign <Var name="splunk-endpoint" initial="https://splunk-hec.example.com:8088/services/collector/raw" />
    to your Splunk HTTP Event Collector endpoint.
+
    For Splunk Enterprise, this will be of the format:
    - `https://<host>:8088/services/collector/raw`
 
@@ -183,7 +184,7 @@ your `fluent.conf` file as follows:
    - Free Trial: `https://<host>.splunkcloud.com:8088/services/collector/raw`
 
    For more information on Splunk HEC URIs, see [Splunk HTTP Event Collector
-   ](https://help.splunk.com/en/splunk-enterprise/get-started/get-data-in/10.2/get-data-with-http-event-collector/set-up-and-use-http-event-collector-in-splunk-web#send-data-to-http-event-collector-on-splunk-cloud-platform-0)
+   ](https://help.splunk.com/en/splunk-enterprise/get-started/get-data-in/10.2/get-data-with-http-event-collector/set-up-and-use-http-event-collector-in-splunk-web#send-data-to-http-event-collector-on-splunk-cloud-platform-0).
 
 1. Edit the `<match test.log>` section with the following section.
 
