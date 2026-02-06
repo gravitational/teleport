@@ -37,7 +37,7 @@ func TestBpeLoader_LoadTiktokenBpe(t *testing.T) {
 	}
 
 	writeValidBPE := func(t *testing.T, path string) {
-		err := os.WriteFile(path, []byte(validBPEContent), 0644)
+		err := os.WriteFile(path, []byte(validBPEContent), 0o644)
 		require.NoError(t, err)
 	}
 
@@ -55,26 +55,8 @@ func TestBpeLoader_LoadTiktokenBpe(t *testing.T) {
 		validateBPEResult(t, result)
 	})
 
-	t.Run("loads from env dir when set", func(t *testing.T) {
-		tempDir := t.TempDir()
-		envDir := filepath.Join(tempDir, "custom")
-		require.NoError(t, os.MkdirAll(envDir, 0755))
-		writeValidBPE(t, filepath.Join(envDir, "o200k_base.tiktoken"))
-		t.Setenv("TELEPORT_TIKTOKEN_BPE_DIR", envDir)
-
-		loader, server, cdnCalled := setupLoader(tempDir, http.StatusOK)
-		loader.expectedHash = validBPEContentHash
-		defer server.Close()
-
-		result, err := loader.LoadTiktokenBpe("o200k_base")
-		require.NoError(t, err)
-		require.False(t, *cdnCalled)
-		require.Len(t, result, 5)
-	})
-
 	t.Run("falls back to CDN when file not found", func(t *testing.T) {
-		tempDir := t.TempDir()
-		loader, server, cdnCalled := setupLoader(tempDir, http.StatusOK)
+		loader, server, cdnCalled := setupLoader("", http.StatusOK)
 		loader.expectedHash = validBPEContentHash
 		defer server.Close()
 
@@ -86,7 +68,7 @@ func TestBpeLoader_LoadTiktokenBpe(t *testing.T) {
 
 	t.Run("returns error for invalid file content", func(t *testing.T) {
 		tempDir := t.TempDir()
-		err := os.WriteFile(filepath.Join(tempDir, "o200k_base.tiktoken"), []byte("invalid base64"), 0644)
+		err := os.WriteFile(filepath.Join(tempDir, "o200k_base.tiktoken"), []byte("invalid base64"), 0o644)
 		require.NoError(t, err)
 
 		loader, server, cdnCalled := setupLoader(tempDir, http.StatusOK)
@@ -115,8 +97,7 @@ func TestBpeLoader_LoadTiktokenBpe(t *testing.T) {
 	})
 
 	t.Run("returns error when CDN returns non-200", func(t *testing.T) {
-		tempDir := t.TempDir()
-		loader, server, cdnCalled := setupLoader(tempDir, http.StatusNotFound)
+		loader, server, cdnCalled := setupLoader("", http.StatusNotFound)
 		defer server.Close()
 
 		_, err := loader.LoadTiktokenBpe("o200k_base")
@@ -127,14 +108,13 @@ func TestBpeLoader_LoadTiktokenBpe(t *testing.T) {
 	})
 
 	t.Run("returns error when CDN request fails", func(t *testing.T) {
-		tempDir := t.TempDir()
 		cdnCalled := false
 		server := httptest.NewServer(nil)
 		defer server.Close()
 
 		loader := &bpeLoader{
 			cdnURL:  server.URL + "/",
-			fileDir: tempDir,
+			fileDir: "",
 			httpClient: &http.Client{
 				Transport: &errorTransport{
 					err:    fmt.Errorf("network error"),
@@ -154,7 +134,7 @@ func TestBpeLoader_LoadBpeFromFile(t *testing.T) {
 	t.Run("reads from default dir", func(t *testing.T) {
 		tempDir := t.TempDir()
 		content := []byte("test content")
-		require.NoError(t, os.WriteFile(filepath.Join(tempDir, "o200k_base.tiktoken"), content, 0644))
+		require.NoError(t, os.WriteFile(filepath.Join(tempDir, "o200k_base.tiktoken"), content, 0o644))
 
 		loader := &bpeLoader{fileDir: tempDir}
 		data, err := loader.loadBpeFromFile()
@@ -165,13 +145,13 @@ func TestBpeLoader_LoadBpeFromFile(t *testing.T) {
 	t.Run("reads from env dir when set", func(t *testing.T) {
 		tempDir := t.TempDir()
 		envDir := filepath.Join(tempDir, "env")
-		require.NoError(t, os.MkdirAll(envDir, 0755))
+		require.NoError(t, os.MkdirAll(envDir, 0o755))
 
 		content := []byte("env content")
-		require.NoError(t, os.WriteFile(filepath.Join(envDir, "o200k_base.tiktoken"), content, 0644))
+		require.NoError(t, os.WriteFile(filepath.Join(envDir, "o200k_base.tiktoken"), content, 0o644))
 		t.Setenv("TELEPORT_TIKTOKEN_BPE_DIR", envDir)
 
-		loader := &bpeLoader{fileDir: filepath.Join(tempDir, "default")}
+		loader := newBPELoader()
 		data, err := loader.loadBpeFromFile()
 		require.NoError(t, err)
 		require.Equal(t, content, data)

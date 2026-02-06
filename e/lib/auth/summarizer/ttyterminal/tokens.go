@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path"
+	"path/filepath"
 	"strconv"
 	"sync"
 
@@ -27,27 +27,32 @@ var (
 )
 
 var openAIBaseCDNURL = "https://openaipublic.blob.core.windows.net/encodings/"
-var defaultBpeDir = defaults.DataDir + "/tiktoken_bpe"
 
-const bpeFileName = "o200k_base.tiktoken"
-const o200kBaseHash = "446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d"
+const (
+	bpeFileName      = "o200k_base.tiktoken"
+	o200kBaseHash    = "446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d"
+	bpeFileDirEnvVar = "TELEPORT_TIKTOKEN_BPE_DIR"
+)
 
 // initTokenizer initializes the tiktoken encoder for token counting.
 // It uses sync.Once to ensure it's only initialized once.
 func initTokenizer() (*tiktoken.Tiktoken, error) {
 	tkeOnce.Do(func() {
-		loader := &bpeLoader{
-			cdnURL:       openAIBaseCDNURL,
-			fileDir:      defaultBpeDir,
-			httpClient:   &http.Client{},
-			expectedHash: o200kBaseHash,
-		}
+		loader := newBPELoader()
 		tiktoken.SetBpeLoader(loader)
 
 		tke, tkeErr = tiktoken.GetEncoding("o200k_base")
 	})
 
 	return tke, tkeErr
+}
+
+func newBPELoader() *bpeLoader {
+	return &bpeLoader{
+		cdnURL:       openAIBaseCDNURL,
+		fileDir:      os.Getenv(bpeFileDirEnvVar),
+		expectedHash: o200kBaseHash,
+	}
 }
 
 // CountTokens counts the number of tokens in a string using the o200k_base encoding.
@@ -65,24 +70,28 @@ func CountTokens(text string) int {
 type bpeLoader struct {
 	cdnURL       string
 	fileDir      string
-	httpClient   *http.Client
 	expectedHash string
+	// httpClient is used for testing purposes to allow injection of a custom HTTP client.
+	// If nil, the default HTTP client will be used.
+	httpClient *http.Client
 }
 
 // LoadTiktokenBpe is called by tiktoken to load BPE data. This implementation
 // checks to see if the BPE file exists locally, if not, it will fetch it from
 // the OpenAI CDN (same as the default loader).
 func (b *bpeLoader) LoadTiktokenBpe(name string) (map[string]int, error) {
-	bpe, err := b.loadBpeFromFile()
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-
+	var (
+		bpe []byte
+		err error
+	)
+	switch {
+	case b.fileDir != "":
+		bpe, err = b.loadBpeFromFile()
+	default:
 		bpe, err = b.loadBpeFromCDN()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if err := b.verifyHash(bpe); err != nil {
@@ -119,12 +128,7 @@ func (b *bpeLoader) LoadTiktokenBpe(name string) (map[string]int, error) {
 }
 
 func (b *bpeLoader) loadBpeFromFile() ([]byte, error) {
-	dir := os.Getenv("TELEPORT_TIKTOKEN_BPE_DIR")
-	if dir == "" {
-		dir = b.fileDir
-	}
-
-	data, err := os.ReadFile(path.Join(dir, bpeFileName))
+	data, err := os.ReadFile(filepath.Join(b.fileDir, bpeFileName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -138,7 +142,15 @@ func (b *bpeLoader) loadBpeFromCDN() ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := b.httpClient.Get(url)
+	httpClient := b.httpClient
+	if httpClient == nil {
+		httpClient, err = defaults.HTTPClient(defaults.UseProxyFromEnvironment())
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to create HTTP client for fetching BPE from CDN")
+		}
+	}
+
+	resp, err := httpClient.Get(url)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
