@@ -1599,8 +1599,8 @@ func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsN
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := a.GenerateHostCerts(context.Background(),
-		&proto.HostCertsRequest{
+	certs, err := a.GenerateHostCerts(context.Background(), HostCertsParams{
+		Req: &proto.HostCertsRequest{
 			HostID:               id.HostUUID,
 			NodeName:             id.NodeName,
 			Role:                 id.Role,
@@ -1608,7 +1608,8 @@ func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsN
 			DNSNames:             dnsNames,
 			PublicSSHKey:         ssh.MarshalAuthorizedKey(sshPub),
 			PublicTLSKey:         tlsPub,
-		}, "")
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

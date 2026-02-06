@@ -68,6 +68,7 @@ func SSHIdentityToSSHCA(id *decisionpb.SSHIdentity) *sshca.Identity {
 		GitHubUserID:            id.GithubUserId,
 		GitHubUsername:          id.GithubUsername,
 		AgentScope:              id.AgentScope,
+		ImmutableLabelHash:      id.ImmutableLabelHash,
 	}
 }
 
@@ -113,6 +114,7 @@ func SSHIdentityFromSSHCA(id *sshca.Identity) *decisionpb.SSHIdentity {
 		GithubUsername:          id.GitHubUsername,
 		JoinToken:               id.JoinToken,
 		AgentScope:              id.AgentScope,
+		ImmutableLabelHash:      id.ImmutableLabelHash,
 	}
 }
 
