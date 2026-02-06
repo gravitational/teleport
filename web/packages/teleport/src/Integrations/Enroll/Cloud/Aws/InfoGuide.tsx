@@ -99,7 +99,7 @@ export function TerraformInfoGuide({
 const referenceLinks: ReferenceLink[] = [
   {
     title: 'Teleport AWS Discovery Documentation',
-    href: 'https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/ec2-discovery-guided/',
+    href: 'https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/',
   },
   {
     title: 'AWS IAM Roles',

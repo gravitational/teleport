@@ -614,6 +614,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		BotInstance:             p.AuthServer.Services.BotInstance,
 		Plugin:                  p.AuthServer.Services.Plugins,
 		RecordingEncryption:     p.AuthServer.Services.RecordingEncryptionManager,
+		StaticScopedToken:       p.AuthServer.Services.ClusterConfigurationInternal,
 	})
 	if err != nil {
 		return trace.Wrap(err)

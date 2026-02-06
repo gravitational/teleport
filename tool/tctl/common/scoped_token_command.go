@@ -19,6 +19,7 @@
 package common
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -42,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
@@ -73,6 +75,9 @@ type ScopedTokensCommand struct {
 	// ttl is how long the token will live for.
 	ttl time.Duration
 
+	// mode is the usage mode of a token.
+	mode string
+
 	// tokenAdd is used to add a token.
 	tokenAdd *kingpin.CmdClause
 
@@ -89,7 +94,6 @@ type ScopedTokensCommand struct {
 // Initialize allows TokenCommand to plug itself into the CLI parser
 func (c *ScopedTokensCommand) Initialize(scopedCmd *kingpin.CmdClause, config *servicecfg.Config) {
 	c.config = config
-
 	tokens := scopedCmd.Command("tokens", "List or revoke scoped invitation tokens")
 
 	formats := []string{teleport.Text, teleport.JSON, teleport.YAML}
@@ -105,6 +109,7 @@ func (c *ScopedTokensCommand) Initialize(scopedCmd *kingpin.CmdClause, config *s
 	c.tokenAdd.Flag("format", "Output format, 'text', 'json', or 'yaml'").EnumVar(&c.format, formats...)
 	c.tokenAdd.Flag("assign-scope", "Scope that should be applied to resources provisioned by this token").StringVar(&c.assignedScope)
 	c.tokenAdd.Flag("scope", "Scope assigned to the token itself").StringVar(&c.tokenScope)
+	c.tokenAdd.Flag("mode", "Usage mode of a token (default: unlimited, single_use)").StringVar(&c.mode)
 
 	// "tctl scoped tokens rm ..."
 	c.tokenDel = tokens.Command("rm", "Delete/revoke a scoped invitation token.").Alias("del")
@@ -171,6 +176,7 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 		Spec: &joiningv1.ScopedTokenSpec{
 			Roles:         roles.StringSlice(),
 			AssignedScope: c.assignedScope,
+			UsageMode:     cmp.Or(c.mode, joining.TokenUsageModeUnlimited),
 		},
 	}
 

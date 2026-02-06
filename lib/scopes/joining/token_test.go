@@ -47,6 +47,7 @@ func TestValidateScopedToken(t *testing.T) {
 					AssignedScope: "/aa/bb",
 					Roles:         []string{types.RoleNode.String()},
 					JoinMethod:    string(types.JoinMethodToken),
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
 				},
 				Status: &joiningv1.ScopedTokenStatus{
 					Secret: "secret",
@@ -66,6 +67,7 @@ func TestValidateScopedToken(t *testing.T) {
 					AssignedScope: "/aa/bb",
 					Roles:         []string{types.RoleNode.String()},
 					JoinMethod:    string(types.JoinMethodToken),
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
 				},
 				Status: &joiningv1.ScopedTokenStatus{
 					Secret: "secret",
@@ -87,6 +89,7 @@ func TestValidateScopedToken(t *testing.T) {
 					AssignedScope: "/aa/bb",
 					Roles:         []string{types.RoleNode.String()},
 					JoinMethod:    string(types.JoinMethodToken),
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
 				},
 				Status: &joiningv1.ScopedTokenStatus{
 					Secret: "secret",
@@ -104,6 +107,7 @@ func TestValidateScopedToken(t *testing.T) {
 					AssignedScope: "/aa/bb",
 					Roles:         []string{types.RoleNode.String()},
 					JoinMethod:    string(types.JoinMethodToken),
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
 				},
 				Status: &joiningv1.ScopedTokenStatus{
 					Secret: "secret",
@@ -139,6 +143,7 @@ func TestValidateScopedToken(t *testing.T) {
 					AssignedScope: "/aa/bb",
 					Roles:         []string{types.RoleNode.String()},
 					JoinMethod:    string(types.JoinMethodToken),
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
 				},
 				Status: &joiningv1.ScopedTokenStatus{
 					Secret: "secret",
@@ -160,6 +165,7 @@ func TestValidateScopedToken(t *testing.T) {
 					AssignedScope: "/aa/bb",
 					Roles:         []string{types.RoleNode.String()},
 					JoinMethod:    string(types.JoinMethodToken),
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
 				},
 				Status: &joiningv1.ScopedTokenStatus{
 					Secret: "secret",
@@ -180,6 +186,7 @@ func TestValidateScopedToken(t *testing.T) {
 					AssignedScope: "/aa/bb",
 					Roles:         []string{types.RoleNode.String()},
 					JoinMethod:    string(types.JoinMethodToken),
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
 				},
 				Status: &joiningv1.ScopedTokenStatus{
 					Secret: "secret",
@@ -200,6 +207,7 @@ func TestValidateScopedToken(t *testing.T) {
 				Spec: &joiningv1.ScopedTokenSpec{
 					Roles:      []string{types.RoleNode.String()},
 					JoinMethod: string(types.JoinMethodToken),
+					UsageMode:  string(joining.TokenUsageModeUnlimited),
 				},
 				Status: &joiningv1.ScopedTokenStatus{
 					Secret: "secret",
@@ -221,6 +229,7 @@ func TestValidateScopedToken(t *testing.T) {
 					Roles:         []string{types.RoleNode.String()},
 					AssignedScope: "aa/bb",
 					JoinMethod:    string(types.JoinMethodToken),
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
 				},
 				Status: &joiningv1.ScopedTokenStatus{
 					Secret: "secret",
@@ -241,6 +250,7 @@ func TestValidateScopedToken(t *testing.T) {
 					Roles:         []string{types.RoleNode.String()},
 					AssignedScope: "aa/bb}",
 					JoinMethod:    string(types.JoinMethodToken),
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
 				},
 				Status: &joiningv1.ScopedTokenStatus{
 					Secret: "secret",
@@ -262,6 +272,7 @@ func TestValidateScopedToken(t *testing.T) {
 					Roles:         []string{types.RoleNode.String()},
 					AssignedScope: "/bb/aa",
 					JoinMethod:    string(types.JoinMethodToken),
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
 				},
 				Status: &joiningv1.ScopedTokenStatus{
 					Secret: "secret",
@@ -282,6 +293,7 @@ func TestValidateScopedToken(t *testing.T) {
 					Roles:         []string{types.RoleNode.String()},
 					AssignedScope: "/aa/bb",
 					JoinMethod:    string(types.JoinMethodUnspecified),
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
 				},
 				Status: &joiningv1.ScopedTokenStatus{
 					Secret: "secret",
@@ -302,6 +314,7 @@ func TestValidateScopedToken(t *testing.T) {
 				Spec: &joiningv1.ScopedTokenSpec{
 					AssignedScope: "/aa/bb",
 					JoinMethod:    string(types.JoinMethodToken),
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
 				},
 				Status: &joiningv1.ScopedTokenStatus{
 					Secret: "secret",
@@ -323,6 +336,7 @@ func TestValidateScopedToken(t *testing.T) {
 					AssignedScope: "/aa/bb",
 					Roles:         []string{"random_role"},
 					JoinMethod:    string(types.JoinMethodToken),
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
 				},
 				Status: &joiningv1.ScopedTokenStatus{
 					Secret: "secret",
@@ -343,6 +357,7 @@ func TestValidateScopedToken(t *testing.T) {
 					AssignedScope: "/aa/bb",
 					Roles:         []string{types.RoleNode.String(), types.RoleInstance.String()},
 					JoinMethod:    string(types.JoinMethodToken),
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
 				},
 				Status: &joiningv1.ScopedTokenStatus{
 					Secret: "secret",
@@ -363,9 +378,31 @@ func TestValidateScopedToken(t *testing.T) {
 					AssignedScope: "/aa/bb",
 					Roles:         []string{types.RoleNode.String(), types.RoleInstance.String()},
 					JoinMethod:    string(types.JoinMethodToken),
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
 				},
 			},
 			expectedStrongErr: "secret value must be defined for a scoped token",
+		},
+		{
+			name: "invalid usage mode",
+			token: &joiningv1.ScopedToken{
+				Kind:    types.KindScopedToken,
+				Scope:   "/aa/bb",
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "testtoken",
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					Roles:         []string{types.RoleNode.String()},
+					AssignedScope: "/aa/bb",
+					JoinMethod:    string(types.JoinMethodToken),
+					UsageMode:     "invalid",
+				},
+				Status: &joiningv1.ScopedTokenStatus{
+					Secret: "secret",
+				},
+			},
+			expectedStrongErr: "scoped token mode is not supported",
 		},
 		// TODO (eriktate): add a test case for a missing secret with non-token join method once scoped
 		// tokens support other join methods
@@ -382,6 +419,7 @@ func TestValidateScopedToken(t *testing.T) {
 					Roles:         []string{types.RoleNode.String()},
 					AssignedScope: "/aa/bb",
 					JoinMethod:    string(types.JoinMethodToken),
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
 				},
 				Status: &joiningv1.ScopedTokenStatus{
 					Secret: "secret",

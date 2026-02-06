@@ -23,6 +23,7 @@ import (
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/scopes"
 )
 
@@ -33,6 +34,16 @@ var rolesSupportingScopes = types.SystemRoles{
 var joinMethodsSupportingScopes = map[string]struct{}{
 	string(types.JoinMethodToken): {},
 }
+
+// TokenUsageMode represents the possible usage modes of a scoped token.
+type TokenUsageMode string
+
+const (
+	// TokenUsageModeSingle denotes a token that can only provision a single resource.
+	TokenUsageModeSingle TokenUsageMode = "single_use"
+	// TokenUsageModeUnlimited denotes a token that can provision any number of resources.
+	TokenUsageModeUnlimited = "unlimited"
+)
 
 // StrongValidateToken checks if the scoped token is well-formed according to
 // all scoped token rules. This function *must* be used to validate any scoped
@@ -80,6 +91,12 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 
 	if token.GetStatus().GetSecret() == "" && types.JoinMethod(spec.JoinMethod) == types.JoinMethodToken {
 		return trace.BadParameter("secret value must be defined for a scoped token when using the token join method")
+	}
+
+	switch TokenUsageMode(spec.GetUsageMode()) {
+	case TokenUsageModeSingle, TokenUsageModeUnlimited:
+	default:
+		return trace.BadParameter("scoped token mode is not supported")
 	}
 
 	if len(spec.Roles) == 0 {
@@ -130,21 +147,30 @@ func WeakValidateToken(token *joiningv1.ScopedToken) error {
 	return nil
 }
 
+var ErrTokenExpired = &trace.LimitExceededError{Message: "scoped token is expired"}
+
+var ErrTokenExhausted = &trace.LimitExceededError{Message: "scoped token usage exhausted"}
+
 // ValidateTokenForUse checks if a given scoped token can be used for
-// provisioning.
+// provisioning. Returns a [*trace.LimitExceededError] if the token is expired
 func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
 	if err := WeakValidateToken(token); err != nil {
 		return trace.Wrap(err)
 	}
 
+	now := time.Now().UTC()
 	ttl := token.GetMetadata().GetExpires()
-	if ttl == nil || ttl.AsTime().IsZero() {
-		return nil
+	if ttl != nil && !ttl.AsTime().IsZero() {
+		if ttl.AsTime().Before(now) {
+			return trace.Wrap(ErrTokenExpired)
+		}
 	}
 
-	now := time.Now().UTC()
-	if ttl.AsTime().Before(now) {
-		return trace.LimitExceeded("scoped token is expired")
+	reusableUntil := token.GetStatus().GetUsage().GetSingleUse().GetReusableUntil()
+	if reusableUntil != nil && !reusableUntil.AsTime().IsZero() {
+		if reusableUntil.AsTime().Before(now) {
+			return trace.Wrap(ErrTokenExhausted)
+		}
 	}
 
 	return nil
@@ -247,4 +273,15 @@ func (t *Token) GetAWSIIDTTL() types.Duration {
 // GetSecret returns the token's secret value.
 func (t *Token) GetSecret() (string, bool) {
 	return t.scoped.GetStatus().GetSecret(), t.GetJoinMethod() == types.JoinMethodToken
+}
+
+// GetScopedToken attempts to return the underlying [*joiningv1.ScopedToken] backing a
+// [provision.Token]. Returns a boolean indicating whether the token is scoped or not.
+func GetScopedToken(token provision.Token) (*joiningv1.ScopedToken, bool) {
+	wrapper, ok := token.(*Token)
+	if !ok {
+		return nil, false
+	}
+
+	return wrapper.scoped, true
 }

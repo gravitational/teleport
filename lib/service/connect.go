@@ -666,6 +666,7 @@ func (process *TeleportProcess) instanceJoin() (*state.Identity, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	identity, err := state.ReadIdentityFromKeyPair(privateKeyPEM, joinResult.Certs)
 	return identity, trace.Wrap(err)
 }
