@@ -93,6 +93,11 @@ func (forest *Forest) addFile(fileDesc *gogodesc.FileDescriptorProto) *File {
 	// Build messages list.
 	for i, msgDesc := range msgs {
 		message := forest.addMessageFromDesc(msgDesc, i, &file, nil)
+		// hack to prevent Bot message from workloadcluster.proto instead of from bot.proto being
+		// used to generate Bot CRD
+		if message.Name() == "Bot" && strings.HasSuffix(*fileDesc.Name, "workloadcluster.proto") {
+			continue
+		}
 		file.Messages[i] = message
 		file.messageMap[msgDesc] = message
 		file.messageByName[message.Name()] = message
