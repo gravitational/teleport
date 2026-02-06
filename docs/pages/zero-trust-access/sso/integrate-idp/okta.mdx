@@ -65,14 +65,10 @@ Teleport, you can skip to the [next step](#step-13-configure-okta).
 
 ### Create Groups
 
-Create two groups: "devs" and "admins". In the Okta dashboard go to the
-navigation bar and click **Directory** -> **Groups**, then **Add group**:
+Create two groups: "devs" and "admins".
 
-![Create Group Devs](../../../../img/sso/okta/okta-saml-2.1@2x.png)
-
-Repeat for the admin group:
-
-![Create Group Devs](../../../../img/sso/okta/okta-saml-2.2.png)
+1. In Okta Console go to the go to **Directory** -> **Groups**, then click **Add group**.
+2. Add groups "devs" and "admins" with optional description.
 
 In this section we will create an application in the Okta dashboard to allow our
 Teleport cluster to access Okta as an IdP provider. We'll also locate the
@@ -144,13 +140,16 @@ name fields.
 
 Once you've filled the required fields, click **Next**, then finish the app creation wizard.
 
-### Group assignment
+### Assign user groups
 
-From the **Assignments** tab of the new application page, click **Assign**.  Assign the user groups
-which can access to the app. Users being members of those groups will have the SSO access to
-Teleport once the Auth Connector is configured.
+1. In the same Okta Teleport app, go to the **Assignments** tab and click the **Assign** dropdown.
 
-![Configure APP](../../../../img/sso/okta/okta-saml-3.1.png)
+2. Select "Assign to Groups" and search for the "devs" and "admins" Okta groups created in the previous step.
+
+3. Click **Assign** next to each selected group and click **Done**.
+
+   {/* NOTE: This image is shared in multiple guides. */}
+   ![Assign user groups](../../../../img/sso/okta/assign-groups.png)
 
 ### Save IdP metadata path
 

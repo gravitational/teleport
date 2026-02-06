@@ -237,6 +237,16 @@ metadata:
   name: keycloak
 spec:
   acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
+  attributes_to_roles:
+  - name: groups
+    roles:
+    - editor
+    - auditor
+    value: /admins
+  - name: groups
+    roles:
+    - access
+    value: /devs
   audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/keycloak
   cert: ""
   display: Keycloak
