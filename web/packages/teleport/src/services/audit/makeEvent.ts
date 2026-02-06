@@ -2456,17 +2456,35 @@ export const formatters: Formatters = {
     format: ({ name, user }) =>
       `Workload Cluster [${name}] was created by [${user}]`,
   },
+  [eventCodes.WORKLOAD_CLUSTER_CREATE_FAILURE]: {
+    type: 'workload_cluster.create',
+    desc: 'Workload Cluster Create Failed',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] create failed by [${user}]`,
+  },
   [eventCodes.WORKLOAD_CLUSTER_UPDATE]: {
     type: 'workload_cluster.update',
     desc: 'Workload Cluster Updated',
     format: ({ name, user }) =>
       `Workload Cluster [${name}] was updated by [${user}]`,
   },
+  [eventCodes.WORKLOAD_CLUSTER_UPDATE_FAILURE]: {
+    type: 'workload_cluster.update',
+    desc: 'Workload Cluster Update Failed',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] update failed by [${user}]`,
+  },
   [eventCodes.WORKLOAD_CLUSTER_DELETE]: {
     type: 'workload_cluster.delete',
     desc: 'Workload Cluster Deleted',
     format: ({ name, user }) =>
       `Workload Cluster [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.WORKLOAD_CLUSTER_DELETE_FAILURE]: {
+    type: 'workload_cluster.delete',
+    desc: 'Workload Cluster Delete Failed',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] delete failed by [${user}]`,
   },
   [eventCodes.INFERENCE_MODEL_CREATE]: {
     type: 'inference_model.create',
