@@ -173,38 +173,6 @@ using the Scoped Join Token. To do so, they must configure:
 
 ## Security Considerations
 
-## Future Improvements
-
-### Sub-pinning of output credentials
-
-Whilst the credentials of a scoped Bot may be pinned to a specific scope or 
-global, it may be useful for users to further constrain the access of these
-credentials by pinning them to a subset of what the Scoped Bot can access.
-
-This provides an opportunity to reduce the blast radius by allowing users to 
-produce credentials with the least privilege necessary for a given task.
-
-This should be viewed as a surface-level constraint. If a bad actor is able to
-gain root access to a machine, then they will be able to extract the bot's 
-internal credentials and use these to issue credentials without this
-sub-pinning. This is an important consideration for those who would use this
-feature.
-
-The implementation of this would take the following form:
-
-- TODO
-
-### Cross-scope privileges
-
-Challenges:
-
-- We propose making tbot credentials are pinned to the scope the Scoped Bot
-  exists in - so whilst the Bot could be assigned cross-scope privileges, it
-  won't actually be able to use them?
-- How do we bind the Scoped Role Assignment to the Bot & Scope so the deletion
-  of the Bot doesn't allow someone to "swoop" in and steal the sra from another
-  scope?
-
 ## Appendix A: Decisions & Thinking
 
 This section exists as a record of my thinking whilst researching and writing 
@@ -366,3 +334,35 @@ This implementation falls short in a number of ways:
   cognitive model of MWI. Bots would be able to hold scoped and unscoped
   privileges, and, the implementation of `tbot` and the Auth Server would need
   to account for this duality. There would be no clear "mode" to operate in.
+
+## Appendix B: Future Improvements
+
+### B.1 Sub-pinning of output credentials
+
+Whilst the credentials of a scoped Bot may be pinned to a specific scope or
+global, it may be useful for users to further constrain the access of these
+credentials by pinning them to a subset of what the Scoped Bot can access.
+
+This provides an opportunity to reduce the blast radius by allowing users to
+produce credentials with the least privilege necessary for a given task.
+
+This should be viewed as a surface-level constraint. If a bad actor is able to
+gain root access to a machine, then they will be able to extract the bot's
+internal credentials and use these to issue credentials without this
+sub-pinning. This is an important consideration for those who would use this
+feature.
+
+The implementation of this would take the following form:
+
+- TODO
+
+### B.2 Cross-scope privileges
+
+Challenges:
+
+- We propose making tbot credentials are pinned to the scope the Scoped Bot
+  exists in - so whilst the Bot could be assigned cross-scope privileges, it
+  won't actually be able to use them?
+- How do we bind the Scoped Role Assignment to the Bot & Scope so the deletion
+  of the Bot doesn't allow someone to "swoop" in and steal the sra from another
+  scope?
