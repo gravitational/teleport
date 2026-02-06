@@ -54,6 +54,8 @@ rules:
       - teleportautoupdateversionsv1/status
       - teleportinferencemodels
       - teleportinferencemodels/status
+      - teleportinferencepolicies
+      - teleportinferencepolicies/status
     verbs:
       - get
       - list

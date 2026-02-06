@@ -247,6 +247,12 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 				withVersionOverride(types.V1),
 			},
 		},
+		{
+			name: "InferencePolicy",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+			},
+		},
 	}
 
 	for _, resource := range resources {

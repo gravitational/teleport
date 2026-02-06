@@ -77,8 +77,9 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 
 	if policy.Enabled {
 		reconcilers = append(reconcilers, reconcilerFactory{"TeleportInferenceModel", NewInferenceModelReconciler})
+		reconcilers = append(reconcilers, reconcilerFactory{"TeleportInferencePolicy", NewInferencePolicyReconciler})
 	} else {
-		log.Info("Inference Models are only available in Teleport Enterprise edition. TeleportInferenceModel resources won't be reconciled")
+		log.Info("Inference Models and Policies are only available in Teleport Enterprise edition. TeleportInferenceModel and TeleportInferencePolicy resources won't be reconciled")
 	}
 
 	// Login Rules are enterprise-only but there is no specific feature flag for them.
