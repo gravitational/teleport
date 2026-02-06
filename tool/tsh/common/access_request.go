@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path"
 	"sort"
@@ -203,11 +204,16 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 	}
 
 	resourcesStr := ""
-	if resources := req.GetRequestedResourceIDs(); len(resources) > 0 {
-		var err error
-		if resourcesStr, err = types.ResourceIDsToString(resources); err != nil {
+	if resources := req.GetAllRequestedResourceIDs(); len(resources) > 0 {
+		resourceStrs := make([]string, 0, len(resources))
+		for _, r := range resources {
+			resourceStrs = append(resourceStrs, common.FormatResourceAccessID(r, true))
+		}
+		bytes, err := json.Marshal(resourceStrs)
+		if err != nil {
 			return trace.Wrap(err)
 		}
+		resourcesStr = string(bytes)
 	}
 
 	table := asciitable.MakeHeadlessTable(2)
@@ -381,7 +387,9 @@ func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 		if now.After(req.GetAccessExpiry()) {
 			continue
 		}
-		resourceIDsString, err := types.ResourceIDsToString(req.GetRequestedResourceIDs())
+		// This table isn't a comprehensive overview of each request; omit constraints on resources for brevity
+		// and only print their stringified ResourceIDs.
+		resourceIDsString, err := types.ResourceIDsToString(types.RiskyExtractResourceIDs(req.GetAllRequestedResourceIDs()))
 		if err != nil {
 			return trace.Wrap(err)
 		}

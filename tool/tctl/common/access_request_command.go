@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/tool/common"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -487,7 +488,9 @@ func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 			"Full reason was truncated, use the `tctl requests get` subcommand to view the full reason.",
 		)
 		for _, req := range reqs {
-			resourceIDsString, err := types.ResourceIDsToString(req.GetRequestedResourceIDs())
+			// This table isn't a comprehensive overview of each request; omit constraints on resources for brevity
+			// and only print their stringified ResourceIDs.
+			resourceIDsString, err := types.ResourceIDsToString(types.RiskyExtractResourceIDs(req.GetAllRequestedResourceIDs()))
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -518,9 +521,17 @@ func printRequestsDetailed(reqs []types.AccessRequest, format string) error {
 	switch format {
 	case teleport.Text:
 		for _, req := range reqs {
-			resourceIDsString, err := types.ResourceIDsToString(req.GetRequestedResourceIDs())
-			if err != nil {
-				return trace.Wrap(err)
+			resourceIDsString := ""
+			if resourceAccessIDs := req.GetAllRequestedResourceIDs(); len(resourceAccessIDs) > 0 {
+				resourceIDStrings := make([]string, 0, len(resourceAccessIDs))
+				for _, rid := range resourceAccessIDs {
+					resourceIDStrings = append(resourceIDStrings, common.FormatResourceAccessID(rid, true))
+				}
+				bytes, err := json.Marshal(resourceIDStrings)
+				if err != nil {
+					return trace.Wrap(err, "failed to marshal resource IDs")
+				}
+				resourceIDsString = string(bytes)
 			}
 			if resourceIDsString == "" {
 				resourceIDsString = "[none]"
@@ -535,7 +546,7 @@ func printRequestsDetailed(reqs []types.AccessRequest, format string) error {
 			table.AddRow([]string{"Request Reason: ", quoteOrDefault(req.GetRequestReason(), "[none]")})
 			table.AddRow([]string{"Resolve Reason: ", quoteOrDefault(req.GetResolveReason(), "[none]")})
 
-			_, err = table.AsBuffer().WriteTo(os.Stdout)
+			_, err := table.AsBuffer().WriteTo(os.Stdout)
 			if err != nil {
 				return trace.Wrap(err)
 			}
