@@ -4020,11 +4020,11 @@ message RoleConditions {
     (gogoproto.jsontag) = "account_assignments,omitempty"
   ];
 
-  // AccountAssignments holds the list of account assignments affected by this
-  // condition.
-  repeated IdentityCenterResourceCondition IdentityCenterResources = 50 [
+  // AWSResourceCondition describes a set of (AWS Resource, Access Profile) pairs
+  // affected by this condition.
+  repeated AWSResourceCondition AWSResources = 50 [
     (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "identity_center_resources,omitempty"
+    (gogoproto.jsontag) = "aws_resources,omitempty"
   ];
 
   // GitHubPermissions defines GitHub integration related permissions.
@@ -4071,12 +4071,14 @@ message IdentityCenterAccountAssignment {
 }
 
 // IdentityCenterResource  ...
-message IdentityCenterResourceCondition {
+message AWSResourceCondition {
   wrappers.LabelValues ResourceLabels = 1 [
+    (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "resource_labels,omitempty",
     (gogoproto.customtype) = "Labels"
   ];
   wrappers.LabelValues AccessProfileLabels = 2 [
+    (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "access_profile_labels,omitempty",
     (gogoproto.customtype) = "Labels"
   ];

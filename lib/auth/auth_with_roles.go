@@ -2232,7 +2232,7 @@ func (r *resourceChecker) CanAccess(resource types.ResourceWithLabels) error {
 	case types.Resource153UnwrapperT[*identitycenterv1.Resource]:
 		checkable, isCheckable := rr.(services.AccessCheckable)
 		if isCheckable {
-			return r.CheckAccess(checkable, state, services.NewIdentityCenterResourceMatcher(rr.UnwrapT()))
+			return r.CheckAccess(checkable, state, services.NewIdentityCenterResourceMatcher(rr.UnwrapT(), r.Traits()))
 		}
 
 	case *services.IdentityCenterConstrainedResource:

@@ -1195,6 +1195,12 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					GitHubPermissions: []types.GitHubPermission{{
 						Organizations: []string{types.Wildcard},
 					}},
+					AWSResources: []types.AWSResourceCondition{
+						types.AWSResourceCondition{
+							ResourceLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+							AccessProfileLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+						},
+					},
 					Rules: []types.Rule{
 						types.NewRule(types.Wildcard, services.RW()),
 						types.NewRule(types.KindDevice, append(services.RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),

@@ -301,7 +301,8 @@ type Role interface {
 	// Assignments for the role
 	SetIdentityCenterAccountAssignments(RoleConditionType, []IdentityCenterAccountAssignment)
 
-	GetIdentityCenterResourceConditions(RoleConditionType) []IdentityCenterResourceCondition
+	// GetAWSResourceConditions fetches AWS Resource related permissions.
+	GetAWSResourceConditions(RoleConditionType) []AWSResourceCondition
 
 	// GetMCPPermissions returns the allow or deny MCP permissions.
 	GetMCPPermissions(RoleConditionType) *MCPPermissions
@@ -2390,11 +2391,11 @@ func (r *RoleV6) SetIdentityCenterAccountAssignments(rct RoleConditionType, assi
 
 // GetIdentityCenterAccountAssignments fetches the allow or deny Identity Center
 // Account Assignments for the role
-func (r *RoleV6) GetIdentityCenterResourceConditions(rct RoleConditionType) []IdentityCenterResourceCondition {
+func (r *RoleV6) GetAWSResourceConditions(rct RoleConditionType) []AWSResourceCondition {
 	if rct == Allow {
-		return r.Spec.Allow.IdentityCenterResources
+		return r.Spec.Allow.AWSResources
 	}
-	return r.Spec.Deny.IdentityCenterResources
+	return r.Spec.Deny.AWSResources
 }
 
 // GetMCPPermissions returns the allow or deny MCP permissions.
