@@ -242,6 +242,45 @@ able to access resources outside their scope of origin.
 
 #### Security Concerns
 
+The primary concern with allowing a Scoped Bot to have privileges outside its
+scope of origin is the risk that we introduce avenues for an scope admin's
+privileges to escape their scope.
+
+A scoped admin of `/foo` cannot be allowed to directly or indirectly cause a bot
+that they have created in `/foo` to have privileges outside the `/foo` scope. If
+this were possible, then an attacker who has compromised the `/foo` scope admin
+could leverage bots to circumvent scope isolation and expand the blast radius 
+from `/foo` to the entire cluster.
+
+Let's examine a few theoretical vectors of privilege escalation.
+
+##### Traits & Role Templates
+
+Traits are a set of metadata that can be associated with a bot or user. These
+traits can be used within role definitions as part of a role template. This
+allows for one role definition to grant different levels of privilege depending
+on the traits of the bot or user that holds it.
+
+The admin of a bot's scope of origin has the ability to modify the traits of the
+bot. If the admin of another scope assigns the bot a role within their scope
+that leverages traits with role templating, then the admin of the scope of
+origin can cause the bot to have a different set of privileges than what may
+have originally been intended by the admin of the other scope.
+
+Notably, this escalation vector only exists where the bot has been assigned a 
+role that leverages traits with role templating. Where the bot is assigned a
+static role, this risk does not exist.
+
+Potential mitigations:
+
+- Document this risk and encourage scope admins to avoid the use of role
+  templates.
+- Ignore bot traits when evaluating roles outside the bot's scope of origin.
+  Traits would function as expected within the bot's scope of origin. This
+  does eliminate the risk of escalation, but is potentially confusing for 
+  operators.
+- Do not allow traits to be set for scoped bots.
+
 #### Direction
 
 Whilst it seems clear that there are use-cases that require bots to have
