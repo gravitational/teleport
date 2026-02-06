@@ -582,61 +582,67 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 
 	app, err := a.GetApp(ctx, req.AppName)
 	if err != nil {
-		a.logger.WarnContext(ctx, "Failed to retrieve application metadata", "error", err, "app_name", req.AppName)
-		return nil, trace.AccessDenied("application metadata not found")
+		if !trace.IsNotFound(err) {
+			a.logger.WarnContext(ctx, "Failed to retrieve application metadata", "error", err, "app_name", req.AppName)
+			return nil, trace.AccessDenied("application metadata not found")
+		}
+		// In the case of a static app, we can't check labels here, so we skip the early check and let the app agent handle it.
+		a.logger.DebugContext(ctx, "App not found, assuming static app and deferring check to agent", "app_name", req.AppName)
 	}
 
 	// Enforce device trust early via the AccessChecker.
-	if err = checker.CheckAccess(
-		app,
-		services.AccessState{
-			DeviceVerified:           dtauthz.IsTLSDeviceVerified((*tlsca.DeviceExtensions)(&req.DeviceExtensions)),
-			EnableDeviceVerification: true,
-			IsBot:                    req.BotName != "",
-		},
-	); errors.Is(err, services.ErrTrustedDeviceRequired) {
+	if app != nil {
+		if err = checker.CheckAccess(
+			app,
+			services.AccessState{
+				DeviceVerified:           dtauthz.IsTLSDeviceVerified((*tlsca.DeviceExtensions)(&req.DeviceExtensions)),
+				EnableDeviceVerification: true,
+				IsBot:                    req.BotName != "",
+			},
+		); errors.Is(err, services.ErrTrustedDeviceRequired) {
 
-		userKind := apievents.UserKind_USER_KIND_HUMAN
-		if req.BotName != "" {
-			userKind = apievents.UserKind_USER_KIND_BOT
-		}
-
-		userMetadata := apievents.UserMetadata{
-			User:            req.User,
-			BotName:         req.BotName,
-			BotInstanceID:   req.BotInstanceID,
-			UserKind:        userKind,
-			UserRoles:       req.Roles,
-			UserClusterName: req.ClusterName,
-			UserTraits:      req.Traits,
-			AWSRoleARN:      req.AWSRoleARN,
-		}
-
-		if req.DeviceExtensions.DeviceID != "" {
-			userMetadata.TrustedDevice = &apievents.DeviceMetadata{
-				DeviceId:     req.DeviceExtensions.DeviceID,
-				AssetTag:     req.DeviceExtensions.AssetTag,
-				CredentialId: req.DeviceExtensions.CredentialID,
+			userKind := apievents.UserKind_USER_KIND_HUMAN
+			if req.BotName != "" {
+				userKind = apievents.UserKind_USER_KIND_BOT
 			}
-		}
-		errMsg := "requires a trusted device"
 
-		sessionStartEvent.Metadata.SetCode(events.AppSessionStartFailureCode)
-		sessionStartEvent.UserMetadata = userMetadata
-		sessionStartEvent.SessionMetadata = apievents.SessionMetadata{
-			WithMFA: req.MFAVerified,
-		}
-		sessionStartEvent.Error = err.Error()
-		sessionStartEvent.UserMessage = errMsg
+			userMetadata := apievents.UserMetadata{
+				User:            req.User,
+				BotName:         req.BotName,
+				BotInstanceID:   req.BotInstanceID,
+				UserKind:        userKind,
+				UserRoles:       req.Roles,
+				UserClusterName: req.ClusterName,
+				UserTraits:      req.Traits,
+				AWSRoleARN:      req.AWSRoleARN,
+			}
 
-		if err := a.emitter.EmitAuditEvent(a.closeCtx, sessionStartEvent); err != nil {
-			a.logger.WarnContext(ctx, "Failed to emit app session start event", "error", err)
+			if req.DeviceExtensions.DeviceID != "" {
+				userMetadata.TrustedDevice = &apievents.DeviceMetadata{
+					DeviceId:     req.DeviceExtensions.DeviceID,
+					AssetTag:     req.DeviceExtensions.AssetTag,
+					CredentialId: req.DeviceExtensions.CredentialID,
+				}
+			}
+			errMsg := "requires a trusted device"
+
+			sessionStartEvent.Metadata.SetCode(events.AppSessionStartFailureCode)
+			sessionStartEvent.UserMetadata = userMetadata
+			sessionStartEvent.SessionMetadata = apievents.SessionMetadata{
+				WithMFA: req.MFAVerified,
+			}
+			sessionStartEvent.Error = err.Error()
+			sessionStartEvent.UserMessage = errMsg
+
+			if err := a.emitter.EmitAuditEvent(a.closeCtx, sessionStartEvent); err != nil {
+				a.logger.WarnContext(ctx, "Failed to emit app session start event", "error", err)
+			}
+			// err swallowed/obscured on purpose.
+			return nil, trace.AccessDenied("%s", errMsg)
+		} else if err != nil {
+			a.logger.WarnContext(ctx, "Failed to create app session", "error", err)
+			return nil, trace.AccessDenied("access denied")
 		}
-		// err swallowed/obscured on purpose.
-		return nil, trace.AccessDenied("%s", errMsg)
-	} else if err != nil {
-		a.logger.WarnContext(ctx, "Failed to create app session", "error", err)
-		return nil, trace.AccessDenied("access denied")
 	}
 
 	sessionID := req.SuggestedSessionID

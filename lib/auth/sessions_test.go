@@ -34,10 +34,13 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -217,8 +220,10 @@ func TestCreateAppSession_DeviceTrust(t *testing.T) {
 		Clock: fakeClock,
 		Dir:   t.TempDir(),
 	})
-	require.NoError(t, err)
-	t.Cleanup(func() { testAuthServer.Close() })
+	require.NoError(t, err, "NewAuthServer failed")
+	t.Cleanup(func() {
+		assert.NoError(t, testAuthServer.Close(), "testAuthServer.Close() errored")
+	})
 
 	authServer := testAuthServer.AuthServer
 
@@ -503,7 +508,7 @@ func TestCreateAppSession_UntrustedDevice(t *testing.T) {
 		assert  require.ErrorAssertionFunc
 		wantErr string
 	}{
-		{app: prodApp, assert: require.Error, wantErr: "device trust required"},
+		{app: prodApp, assert: require.Error, wantErr: "requires a trusted device"},
 		{app: devApp, assert: require.NoError},
 	} {
 		t.Run(test.app.GetName(), func(t *testing.T) {
@@ -523,6 +528,140 @@ func TestCreateAppSession_UntrustedDevice(t *testing.T) {
 				return
 			}
 			assert.ErrorContains(t, err, test.wantErr, "CreateAppSession error mismatch")
+		})
+	}
+}
+
+func BenchmarkCreateAppSession(b *testing.B) {
+	// Enable Enterprise features
+	modulestest.SetTestModules(b, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.DeviceTrust: {Enabled: true},
+				entitlements.App:         {Enabled: true},
+			},
+		},
+	})
+
+	b.StopTimer()
+	ctx := context.Background()
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: b.TempDir(),
+	})
+	if err != nil {
+		b.Fatalf("NewAuthServer failed: %v", err)
+	}
+	defer testAuthServer.Close()
+	authServer := testAuthServer.AuthServer
+
+	// Set up multiple roles for AccessChecker to evaluate
+	roleOptional, _ := types.NewRole("optional-role", types.RoleSpecV6{
+		Options: types.RoleOptions{DeviceTrustMode: constants.DeviceTrustModeOptional},
+		Allow:   types.RoleConditions{AppLabels: types.Labels{"*": []string{"*"}}},
+	})
+	authServer.CreateRole(ctx, roleOptional)
+
+	roleRequired, _ := types.NewRole("required-role", types.RoleSpecV6{
+		Options: types.RoleOptions{DeviceTrustMode: constants.DeviceTrustModeRequired},
+		Allow:   types.RoleConditions{AppLabels: types.Labels{"env": []string{"prod"}}},
+	})
+	authServer.CreateRole(ctx, roleRequired)
+
+	username := "bench-user"
+	user, _ := types.NewUser(username)
+	user.AddRole(roleOptional.GetName())
+	user.AddRole(roleRequired.GetName())
+	authServer.CreateUser(ctx, user)
+
+	appName := "prod-app"
+	app, _ := types.NewAppV3(types.Metadata{
+		Name:   appName,
+		Labels: map[string]string{"env": "prod"},
+	}, types.AppSpecV3{URI: "http://prod.example.com"})
+	authServer.CreateApp(ctx, app)
+
+	cName, _ := authServer.GetClusterName(ctx)
+	clusterName := cName.GetClusterName()
+
+	benchmarks := []struct {
+		name         string
+		appName      string
+		hasDevice    bool
+		expectDenied bool
+	}{
+		{
+			name:         "Success_App_With_Device",
+			appName:      "prod-app",
+			hasDevice:    true,
+			expectDenied: false,
+		},
+		{
+			name:         "Fail_App_No_Device",
+			appName:      "prod-app",
+			hasDevice:    false,
+			expectDenied: true,
+		},
+		{
+			name:         "Pass_Static_App",
+			appName:      "static-app", // should pass early because app isn't found
+			hasDevice:    false,
+			expectDenied: false,
+		},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			identity := tlsca.Identity{
+				Username: username,
+				Groups:   []string{"required-role", "optional-role"},
+			}
+			if bm.hasDevice {
+				identity.DeviceExtensions = tlsca.DeviceExtensions{
+					DeviceID:     "macbook-id-123",
+					AssetTag:     "asset-tag-123",
+					CredentialID: "cred-id-123",
+				}
+			}
+
+			checker, err := services.NewAccessChecker(&services.AccessInfo{
+				Username: username,
+				Roles:    user.GetRoles(),
+			}, clusterName, authServer)
+			if err != nil {
+				b.Fatalf("NewAccessChecker failed: %v", err)
+			}
+
+			req := &proto.CreateAppSessionRequest{
+				Username:    username,
+				AppName:     bm.appName,
+				ClusterName: clusterName,
+			}
+
+			_, err = authServer.CreateAppSession(ctx, req, identity, checker)
+			if bm.expectDenied {
+				if err == nil || !trace.IsAccessDenied(err) {
+					b.Fatalf("First call failed: expected access denied, got %v", err)
+				}
+			} else {
+				if err != nil {
+					b.Fatalf("First call failed: setup is incorrect for %s: %v", bm.name, err)
+				}
+			}
+
+			b.ReportAllocs()
+			b.ResetTimer()
+
+			for i := 0; i < b.N; i++ {
+				_, err := authServer.CreateAppSession(ctx, req, identity, checker)
+				if bm.expectDenied {
+					if err == nil || !trace.IsAccessDenied(err) {
+						b.Fatal("expected access denied")
+					}
+				} else if err != nil {
+					b.Fatalf("unexpected error: %v", err)
+				}
+			}
 		})
 	}
 }
