@@ -25,11 +25,12 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	apitypes "github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -49,6 +50,7 @@ type RemoteClusterTunnelManager struct {
 	mu      sync.Mutex
 	pools   map[remoteClusterKey]*AgentPool
 	stopRun func()
+	retry   retryutils.Retry
 
 	newAgentPool func(ctx context.Context, cfg RemoteClusterTunnelManagerConfig, cluster, addr string) (*AgentPool, error)
 }
@@ -75,8 +77,6 @@ type RemoteClusterTunnelManagerConfig struct {
 	// Local ReverseTunnelServer to reach other cluster members connecting to
 	// this proxy over a tunnel.
 	ReverseTunnelServer reversetunnelclient.Server
-	// Clock is a mock-able clock.
-	Clock clockwork.Clock
 	// KubeDialAddr is an optional address of a local kubernetes proxy.
 	KubeDialAddr utils.NetAddr
 	// FIPS indicates if Teleport was started in FIPS mode.
@@ -106,9 +106,6 @@ func (c *RemoteClusterTunnelManagerConfig) CheckAndSetDefaults() error {
 	if c.LocalCluster == "" {
 		return trace.BadParameter("missing LocalCluster in RemoteClusterTunnelManagerConfig")
 	}
-	if c.Clock == nil {
-		c.Clock = clockwork.NewRealClock()
-	}
 	if c.Logger == nil {
 		c.Logger = slog.Default()
 	}
@@ -122,10 +119,22 @@ func NewRemoteClusterTunnelManager(cfg RemoteClusterTunnelManagerConfig) (*Remot
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		Driver: retryutils.NewLinearDriver(defaults.HighResPollingPeriod / 5),
+		First:  retryutils.HalfJitter(defaults.HighResPollingPeriod),
+		Max:    defaults.HighResPollingPeriod,
+		Jitter: retryutils.HalfJitter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	w := &RemoteClusterTunnelManager{
 		cfg:          cfg,
 		pools:        make(map[remoteClusterKey]*AgentPool),
 		newAgentPool: realNewAgentPool,
+		retry:        retry,
 	}
 	return w, nil
 }
@@ -152,45 +161,154 @@ func (w *RemoteClusterTunnelManager) Run(ctx context.Context) {
 	ctx, w.stopRun = context.WithCancel(ctx)
 	w.mu.Unlock()
 
-	if err := w.Sync(ctx); err != nil {
-		w.cfg.Logger.WarnContext(ctx, "Failed to sync reverse tunnels", "error", err)
-	}
-
-	ticker := time.NewTicker(defaults.ResyncInterval)
-	defer ticker.Stop()
-
 	for {
-		select {
-		case <-ctx.Done():
-			w.cfg.Logger.DebugContext(ctx, "Closing")
-			return
-		case <-ticker.C:
-			if err := w.Sync(ctx); err != nil {
-				w.cfg.Logger.WarnContext(ctx, "Failed to sync reverse tunnels", "error", err)
-				continue
+		if err := w.runWatchLoop(ctx); err != nil && ctx.Err() == nil {
+			w.cfg.Logger.WarnContext(ctx, "Reverse tunnel watch loop failed, will retry", "error", err)
+		}
+
+		retryAfterChan := w.retry.After()
+	Inner:
+		for {
+			select {
+			case <-ctx.Done():
+				w.cfg.Logger.DebugContext(ctx, "Run completed")
+				return
+			case <-retryAfterChan:
+				w.retry.Inc()
+				break Inner
+			case <-time.After(defaults.ResyncInterval):
+				// Attempt a sync even if the watch loop failed so that pools are updated
+				// when the auth cache is unhealthy.
+				if err := w.Sync(ctx); err != nil {
+					w.cfg.Logger.WarnContext(ctx, "Failed to sync reverse tunnels", "error", err)
+				}
 			}
 		}
 	}
 }
 
-func (w *RemoteClusterTunnelManager) listAllReverseTunnels(ctx context.Context) ([]apitypes.ReverseTunnel, error) {
-	var out []apitypes.ReverseTunnel
-	var nextToken string
-	for {
-		var page []apitypes.ReverseTunnel
-		var err error
-
-		const defaultPageSize = 0
-		page, nextToken, err = w.cfg.AccessPoint.ListReverseTunnels(ctx, defaultPageSize, nextToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
+func (w *RemoteClusterTunnelManager) runWatchLoop(ctx context.Context) error {
+	watcher, err := w.cfg.AccessPoint.NewWatcher(ctx, types.Watch{
+		Kinds: []types.WatchKind{{Kind: types.KindReverseTunnel}},
+	})
+	if err != nil {
+		// Attempt a sync even if the watcher fails so that pools are updated
+		// when the auth cache is unhealthy.
+		if err := w.Sync(ctx); err != nil {
+			w.cfg.Logger.WarnContext(ctx, "Failed to sync reverse tunnels", "error", err)
 		}
-		out = append(out, page...)
-		if nextToken == "" {
-			break
+
+		return trace.Wrap(err, "failed to create reverse tunnel watcher")
+	}
+	defer watcher.Close()
+
+	select {
+	case <-ctx.Done():
+		return nil
+	case <-watcher.Done():
+		return trace.Wrap(watcher.Error(), "watcher closed")
+	case event := <-watcher.Events():
+		if event.Type != types.OpInit {
+			return trace.BadParameter("expected first event to be OpInit, got %s", event.Type)
+		}
+	case <-time.After(defaults.ResyncInterval):
+		// Attempt a sync if the watcher fails to produce a timely event
+		// so that pools are updated even if the auth cache is unhealthy.
+		if err := w.Sync(ctx); err != nil {
+			w.cfg.Logger.WarnContext(ctx, "Failed to sync reverse tunnels", "error", err)
+		}
+
+		return trace.LimitExceeded("time out waiting for OpInit event")
+	}
+
+	if err := w.Sync(ctx); err != nil {
+		w.cfg.Logger.WarnContext(ctx, "Failed to sync reverse tunnels", "error", err)
+		return trace.Wrap(err)
+	}
+
+	w.retry.Reset()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-watcher.Done():
+			return trace.Wrap(watcher.Error(), "watcher closed")
+		case event := <-watcher.Events():
+			switch event.Type {
+			case types.OpPut:
+				if err := w.handlePut(ctx, event.Resource); err != nil {
+					w.cfg.Logger.WarnContext(ctx, "failed to handle put event", "error", err)
+				}
+			case types.OpDelete:
+				if err := w.handleDelete(event.Resource.GetName()); err != nil {
+					w.cfg.Logger.WarnContext(ctx, "failed to handle delete event", "error", err)
+				}
+			default:
+				w.cfg.Logger.DebugContext(ctx, "ignoring unexpected event", "event", event.Type)
+			}
 		}
 	}
-	return out, nil
+}
+
+func (w *RemoteClusterTunnelManager) handleDelete(cluster string) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	for k, pool := range w.pools {
+		if pool.Cluster != cluster {
+			continue
+		}
+
+		pool.Stop()
+		trustedClustersStats.DeleteLabelValues(pool.Cluster)
+		delete(w.pools, k)
+	}
+
+	return nil
+}
+
+func (w *RemoteClusterTunnelManager) handlePut(ctx context.Context, r types.Resource) error {
+	tunnel, ok := r.(types.ReverseTunnel)
+	if !ok {
+		return trace.BadParameter("expected reverse tunnel in event got %T", r)
+	}
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	wantTunnels := make(map[remoteClusterKey]bool, len(tunnel.GetDialAddrs()))
+	for _, addr := range tunnel.GetDialAddrs() {
+		wantTunnels[remoteClusterKey{cluster: tunnel.GetClusterName(), addr: addr}] = true
+	}
+
+	// Delete pools associated with the tunnel that are no longer needed.
+	for k, pool := range w.pools {
+		if pool.Cluster != tunnel.GetClusterName() || wantTunnels[k] {
+			continue
+		}
+		pool.Stop()
+		trustedClustersStats.DeleteLabelValues(pool.Cluster)
+		delete(w.pools, k)
+	}
+
+	var errs []error
+	for _, addr := range tunnel.GetDialAddrs() {
+		k := remoteClusterKey{cluster: tunnel.GetClusterName(), addr: addr}
+		if _, ok := w.pools[k]; ok {
+			continue
+		}
+
+		trustedClustersStats.WithLabelValues(k.cluster).Set(0)
+		pool, err := w.newAgentPool(ctx, w.cfg, k.cluster, k.addr)
+		if err != nil {
+			errs = append(errs, trace.Wrap(err))
+			continue
+		}
+		w.pools[k] = pool
+	}
+
+	return trace.NewAggregate(errs...)
 }
 
 // Sync does a one-time sync of trusted clusters with running agent pools.
@@ -198,12 +316,12 @@ func (w *RemoteClusterTunnelManager) listAllReverseTunnels(ctx context.Context) 
 func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 	// Fetch desired reverse tunnels and convert them to a set of
 	// remoteClusterKeys.
-	wantTunnels, err := w.listAllReverseTunnels(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	wantClusters := make(map[remoteClusterKey]bool, len(wantTunnels))
-	for _, tun := range wantTunnels {
+	wantClusters := make(map[remoteClusterKey]bool)
+	for tun, err := range clientutils.Resources(ctx, w.cfg.AccessPoint.ListReverseTunnels) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		for _, addr := range tun.GetDialAddrs() {
 			wantClusters[remoteClusterKey{cluster: tun.GetClusterName(), addr: addr}] = true
 		}
@@ -248,7 +366,6 @@ func realNewAgentPool(ctx context.Context, cfg RemoteClusterTunnelManagerConfig,
 		AuthMethods:         cfg.AuthMethods,
 		HostUUID:            cfg.HostUUID,
 		LocalCluster:        cfg.LocalCluster,
-		Clock:               cfg.Clock,
 		KubeDialAddr:        cfg.KubeDialAddr,
 		ReverseTunnelServer: cfg.ReverseTunnelServer,
 		FIPS:                cfg.FIPS,
@@ -258,7 +375,7 @@ func realNewAgentPool(ctx context.Context, cfg RemoteClusterTunnelManagerConfig,
 
 		// Configs for remote cluster.
 		Cluster:         cluster,
-		Resolver:        reversetunnelclient.StaticResolver(addr, apitypes.ProxyListenerMode_Separate),
+		Resolver:        reversetunnelclient.StaticResolver(addr, types.ProxyListenerMode_Separate),
 		IsRemoteCluster: true,
 		PROXYSigner:     cfg.PROXYSigner,
 	})
