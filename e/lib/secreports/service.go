@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -26,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -78,6 +81,12 @@ type ServiceConfig struct {
 	// This is a soft limit to prevent overloading the Athena service by running user queries and draining the
 	// ParallelQueryExecutions Athena limit. Note that this limit is per auth server.
 	MaxParallelUserQueries int
+	// ExternalAuditStorage is the external audit storage configurator.
+	// If set and IsUsed() returns true, the service will use external audit storage
+	// configuration for Athena queries and S3 storage.
+	// ExternalAuditStorage is optional and can be nil. It's only set when running in
+	// a Teleport Cloud environment.
+	ExternalAuditStorage *externalauditstorage.Configurator
 }
 
 const (
@@ -131,30 +140,46 @@ func buildAthenaConfig(cfg ServiceConfig) (*athena.Config, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if cfg.AccessMonitoring.ReportResults != "" {
-		athenaConfig.ReportResults = cfg.AccessMonitoring.ReportResults
-	}
-	if len(athenaConfig.RoleARN) == 0 {
-		athenaConfig.RoleARN = cfg.AccessMonitoring.RoleARN
-	}
-	if athenaConfig.Database == "" {
-		athenaConfig.Database = cfg.AccessMonitoring.Database
-	}
-	if athenaConfig.Table == "" {
-		athenaConfig.Table = cfg.AccessMonitoring.Table
-	}
-	if athenaConfig.Workgroup == "" {
-		athenaConfig.Workgroup = cfg.AccessMonitoring.Workgroup
-	}
-	if athenaConfig.QueryResults == "" {
-		athenaConfig.QueryResults = cfg.AccessMonitoring.QueryResults
-	}
-	athenaConfig.Clock = cfg.Clock
 
-	if athenaConfig.Region == "" {
-		// If region is not set in the Athena URL, use the region from the config.
-		athenaConfig.Region = cfg.Region
+	// If external audit storage is used, override configuration with external audit storage spec
+	if cfg.ExternalAuditStorage != nil && cfg.ExternalAuditStorage.IsUsed() {
+		spec := cfg.ExternalAuditStorage.GetSpec()
+		athenaConfig.Database = spec.GlueDatabase
+		athenaConfig.Table = spec.GlueTable
+		athenaConfig.Workgroup = spec.AthenaWorkgroup
+		athenaConfig.QueryResults = spec.AthenaResultsURI
+		athenaConfig.ReportResults = spec.AthenaResultsURI
+		athenaConfig.Region = spec.Region
+		// Clear RoleARN as external audit storage uses OIDC credentials
+		athenaConfig.RoleARN = ""
+	} else {
+		// Use regular access monitoring configuration
+		if cfg.AccessMonitoring.ReportResults != "" {
+			athenaConfig.ReportResults = cfg.AccessMonitoring.ReportResults
+		}
+		if len(athenaConfig.RoleARN) == 0 {
+			athenaConfig.RoleARN = cfg.AccessMonitoring.RoleARN
+		}
+		if athenaConfig.Database == "" {
+			athenaConfig.Database = cfg.AccessMonitoring.Database
+		}
+		if athenaConfig.Table == "" {
+			athenaConfig.Table = cfg.AccessMonitoring.Table
+		}
+		if athenaConfig.Workgroup == "" {
+			athenaConfig.Workgroup = cfg.AccessMonitoring.Workgroup
+		}
+		if athenaConfig.QueryResults == "" {
+			athenaConfig.QueryResults = cfg.AccessMonitoring.QueryResults
+		}
+
+		if athenaConfig.Region == "" {
+			// If region is not set in the Athena URL, use the region from the config.
+			athenaConfig.Region = cfg.Region
+		}
 	}
+
+	athenaConfig.Clock = cfg.Clock
 	return athenaConfig, nil
 }
 
@@ -169,10 +194,25 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	awsConfig, err := cloudaws.BuildAWSConfig(ctx, athenaConfig.Region, cfg.AccessMonitoring.RoleARN, cfg.AccessMonitoring.RoleTags)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var awsConfig aws.Config
+	// If external audit storage is used, build AWS config with the external credentials provider
+	if cfg.ExternalAuditStorage != nil && cfg.ExternalAuditStorage.IsUsed() {
+		cfg.ExternalAuditStorage.WaitForFirstCredentials(ctx)
+		awsConfig, err = config.LoadDefaultConfig(ctx,
+			config.WithRegion(athenaConfig.Region),
+			config.WithCredentialsProvider(cfg.ExternalAuditStorage.CredentialsProvider()),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		// Use regular AWS config with role ARN
+		awsConfig, err = cloudaws.BuildAWSConfig(ctx, athenaConfig.Region, cfg.AccessMonitoring.RoleARN, cfg.AccessMonitoring.RoleTags)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
+
 	athena, err := athena.NewAthena(athenaConfig, awsConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)

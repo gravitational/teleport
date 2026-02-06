@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/secreports/secreportsv1"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/release"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -164,6 +165,26 @@ func (p *Plugin) GetCloudClient() cloudapi.TenantsServiceClient {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 	return p.cloudClient
+}
+
+// newExternalAuditStorageConfigurator creates an external audit storage configurator from the backend.
+// Returns a non-nil configurator that may or may not be in use (check IsUsed()).
+func (p *Plugin) newExternalAuditStorageConfigurator(ctx context.Context) (*externalauditstorage.Configurator, error) {
+	if !modules.GetModules().Features().Cloud {
+		return nil, nil
+	}
+	easSvc := local.NewExternalAuditStorageService(p.authServer.GetBackend())
+	integrationSvc, err := local.NewIntegrationsService(p.authServer.GetBackend())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	statusService := local.NewStatusService(p.authServer.GetBackend())
+	config, err := externalauditstorage.NewConfigurator(ctx, easSvc, integrationSvc, statusService)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	config.SetGenerateOIDCTokenFn(p.authServer.AuthServer.GenerateExternalAuditStorageOIDCToken)
+	return config, nil
 }
 
 // RegisterProxyWebHandlers registers to proxy web handler
@@ -631,20 +652,27 @@ func (p *Plugin) initAndRegisterSecurityReport(ctx context.Context, serviceGRPC 
 	}
 	go limiter.UpdateLimiterBasedOnCloudProduct(ctx, p)
 
+	// Initialize external audit storage configurator if available
+	externalAuditStorage, err := p.newExternalAuditStorageConfigurator(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	secReportsSvc, err := secreports.NewService(secreports.ServiceConfig{
-		Limiter:          limiter,
-		AccessMonitoring: p.AccessMonitoring,
-		AthenaURL:        athenaURI,
-		Authorizer:       p.authServer.Authorizer,
-		Backend:          p.authServer.GetBackend(),
-		Clock:            p.authServer.AuthServer.GetClock(),
-		Emitter:          p.authServer.Emitter,
-		LimiterStorage:   storage,
-		Logger:           logger.With(teleport.ComponentKey, "mon"),
-		ProcessContext:   ctx,
-		Region:           auditConf.Region(),
-		Semaphore:        p.authServer.AuthServer,
-		Storage:          storage,
+		Limiter:              limiter,
+		AccessMonitoring:     p.AccessMonitoring,
+		AthenaURL:            athenaURI,
+		Authorizer:           p.authServer.Authorizer,
+		Backend:              p.authServer.GetBackend(),
+		Clock:                p.authServer.AuthServer.GetClock(),
+		Emitter:              p.authServer.Emitter,
+		LimiterStorage:       storage,
+		Logger:               logger.With(teleport.ComponentKey, "mon"),
+		ProcessContext:       ctx,
+		Region:               auditConf.Region(),
+		Semaphore:            p.authServer.AuthServer,
+		Storage:              storage,
+		ExternalAuditStorage: externalAuditStorage,
 	})
 	if err != nil {
 		return trace.Wrap(err)

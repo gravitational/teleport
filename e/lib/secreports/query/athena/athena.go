@@ -78,9 +78,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.QueryResults == "" {
 		return trace.BadParameter("missing QueryResult")
 	}
-	if c.RoleARN == "" {
-		return trace.BadParameter("missing RoleARN")
-	}
 	if c.QueryMaxDuration == 0 {
 		c.QueryMaxDuration = time.Minute * 30
 	}
