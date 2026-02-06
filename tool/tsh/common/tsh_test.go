@@ -1926,6 +1926,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			)
 			require.NoError(t, err)
 
+			stdin := &input{buf: bytes.Buffer{}}
 			stdout := &output{buf: bytes.Buffer{}}
 			stderr := &output{buf: bytes.Buffer{}}
 			// Clear counter before each ssh command,
@@ -1947,7 +1948,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 				args,
 				setHomePath(tmpHomePath),
 				func(conf *CLIConf) error {
-					conf.overrideStdin = &bytes.Buffer{}
+					conf.overrideStdin = stdin
 					conf.OverrideStdout = stdout
 					conf.overrideStderr = stderr
 					conf.MockHeadlessLogin = mockHeadlessLogin(t, tt.auth, user)
@@ -1985,6 +1986,18 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			}
 		})
 	}
+}
+
+type input struct {
+	lock sync.Mutex
+	buf  bytes.Buffer
+}
+
+func (i *input) Read(p []byte) (int, error) {
+	i.lock.Lock()
+	defer i.lock.Unlock()
+
+	return i.buf.Read(p)
 }
 
 type output struct {
