@@ -113,6 +113,43 @@ type BotsCommand struct {
 	stdout io.Writer
 }
 
+// initSharedBotTokenFlags initializes flags shared between `bots add` and
+// `bot instances add`
+func (c *BotsCommand) initSharedBotTokenFlags(cmd *kingpin.CmdClause) {
+	cmd.Flag("token", "The token to use, if any. If unset, a new single-use token will be created.").StringVar(&c.tokenID)
+	cmd.Flag("format", "Output format, one of: text, json").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
+	cmd.Flag("legacy", "If set, generate a legacy joining token instead of a bound keypair token. No effect if --token is set.").BoolVar(&c.legacy)
+	cmd.Flag(
+		"ttl",
+		"TTL for the bot join token. For standard bound keypair tokens, this "+
+			"sets must_register_before; for legacy tokens, this sets the "+
+			"resource TTL.",
+	).Default(defaults.DefaultBotJoinTTL.String()).DurationVar(&c.tokenTTL)
+	cmd.Flag(
+		"initial-public-key",
+		"If set, use the given initial public key in SSH authorized_keys "+
+			"format, instead of generating a registration secret. The value "+
+			"must be quoted. Not compatible with --token or --legacy.",
+	).StringVar(&c.initialPublicKey)
+	cmd.Flag(
+		"recovery-mode",
+		"If set, overrides the recovery mode for the bound keypair token. No "+
+			"effect if --token or --legacy is set.",
+	).Default(string(boundkeypair.RecoveryModeStandard)).EnumVar(&c.recoveryMode, boundkeypair.RecoveryModeStrings()...)
+	cmd.Flag(
+		"recovery-limit",
+		"Overrides the recovery limit (default: 1) for the bound keypair "+
+			"token. No effect if --token or --legacy is set, or if "+
+			"--recovery-mode is not standard. Must be greater than 1.",
+	).Uint32Var(&c.recoveryLimit)
+	cmd.Flag(
+		"registration-secret",
+		"Sets a registration secret for the bound keypair token. If not set, "+
+			"one will be randomly generated. No effect if "+
+			"--initial-public-key, --token, or --legacy is set. ",
+	).StringVar(&c.registrationSecret)
+}
+
 // Initialize sets up the "tctl bots" command.
 func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	bots := app.Command("bots", "Manage Machine & Workload Identity bots on the cluster.").Alias("bot")
@@ -120,42 +157,12 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	c.botsList = bots.Command("ls", "List all certificate renewal bots registered with the cluster.")
 	c.botsList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 
-	c.botsAdd = bots.Command("add", "Add a new Machine & Workload Identity bot to the cluster.")
+	c.botsAdd = bots.Command("add", "Add a new bot to the cluster.")
 	c.botsAdd.Arg("name", "A name to uniquely identify this bot in the cluster.").Required().StringVar(&c.botName)
 	c.botsAdd.Flag("roles", "Roles the bot is able to assume.").StringVar(&c.botRoles)
-	c.botsAdd.Flag(
-		"ttl",
-		"TTL for the bot join token. For standard bound keypair tokens, this "+
-			"sets must_register_before; for legacy tokens, this sets the "+
-			"resource TTL.",
-	).Default(defaults.DefaultBotJoinTTL.String()).DurationVar(&c.tokenTTL)
-	c.botsAdd.Flag("token", "Name of an existing token to use.").StringVar(&c.tokenID)
-	c.botsAdd.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 	c.botsAdd.Flag("logins", "List of allowed SSH logins for the bot user").StringsVar(&c.allowedLogins)
 	c.botsAdd.Flag("max-session-ttl", "Set a max session TTL for the bot's internal identity. 12h default, 168h maximum.").DurationVar(&c.maxSessionTTL)
-	c.botsAdd.Flag("legacy", "If set, generate a legacy joining token instead of a bound keypair token. No effect if --token is set.").BoolVar(&c.legacy)
-	c.botsAdd.Flag(
-		"initial-public-key",
-		"If set, use the given initial public key in SSH authorized_keys "+
-			"format, instead of generating a registration secret. The value "+
-			"must be quoted. Not compatible with --token or --legacy.",
-	).StringVar(&c.initialPublicKey)
-	c.botsAdd.Flag(
-		"recovery-mode",
-		"If set, use the given recovery mode for the bound keypair token. No effect if --token or --legacy is set.",
-	).Default(string(boundkeypair.RecoveryModeStandard)).EnumVar(&c.recoveryMode, boundkeypair.RecoveryModeStrings()...)
-	c.botsAdd.Flag(
-		"recovery-limit",
-		"Overrides the recovery limit (default: 1) for the bound keypair "+
-			"token. No effect if --token or --legacy is set, or if "+
-			"--recovery-mode is not standard. Must be greater than 1.",
-	).Uint32Var(&c.recoveryLimit)
-	c.botsAdd.Flag(
-		"registration-secret",
-		"Sets a registration secret for the bound keypair token. If not set, "+
-			"one will be randomly generated. No effect if "+
-			"--initial-public-key, --token, or --legacy is set. ",
-	).StringVar(&c.registrationSecret)
+	c.initSharedBotTokenFlags(c.botsAdd)
 
 	c.botsRemove = bots.Command("rm", "Permanently remove a certificate renewal bot from the cluster.")
 	c.botsRemove.Arg("name", "Name of an existing bot to remove.").Required().StringVar(&c.botName)
@@ -189,37 +196,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 
 	c.botsInstancesAdd = c.botsInstances.Command("add", "Join a new instance onto an existing bot.").Alias("join")
 	c.botsInstancesAdd.Arg("name", "The name of the existing bot for which to add a new instance.").Required().StringVar(&c.botName)
-	c.botsInstancesAdd.Flag("token", "The token to use, if any. If unset, a new one-time-use token will be created.").StringVar(&c.tokenID)
-	c.botsInstancesAdd.Flag("format", "Output format, one of: text, json").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
-	c.botsInstancesAdd.Flag("legacy", "If set, generate a legacy joining token instead of a bound keypair token. No effect if --token is set.").BoolVar(&c.legacy)
-	c.botsInstancesAdd.Flag(
-		"ttl",
-		"TTL for the bot join token. For standard bound keypair tokens, this "+
-			"sets must_register_before; for legacy tokens, this sets the "+
-			"resource TTL.",
-	).Default(defaults.DefaultBotJoinTTL.String()).DurationVar(&c.tokenTTL)
-	c.botsInstancesAdd.Flag(
-		"initial-public-key",
-		"If set, use the given initial public key in SSH authorized_keys "+
-			"format, instead of generating a registration secret. The value "+
-			"must be quoted. Not compatible with --token or --legacy.",
-	).StringVar(&c.initialPublicKey)
-	c.botsInstancesAdd.Flag(
-		"recovery-mode",
-		"If set, use the given recovery mode for the bound keypair token. No effect if --token or --legacy is set.",
-	).Default(string(boundkeypair.RecoveryModeStandard)).EnumVar(&c.recoveryMode, boundkeypair.RecoveryModeStrings()...)
-	c.botsInstancesAdd.Flag(
-		"recovery-limit",
-		"Overrides the recovery limit (default: 1) for the bound keypair "+
-			"token. No effect if --token or --legacy is set, or if "+
-			"--recovery-mode is not standard. Must be greater than 1.",
-	).Uint32Var(&c.recoveryLimit)
-	c.botsInstancesAdd.Flag(
-		"registration-secret",
-		"Sets a registration secret for the bound keypair token. If not set, "+
-			"one will be randomly generated. No effect if "+
-			"--initial-public-key, --token, or --legacy is set. ",
-	).StringVar(&c.registrationSecret)
+	c.initSharedBotTokenFlags(c.botsInstancesAdd)
 
 	if c.stdout == nil {
 		c.stdout = os.Stdout
