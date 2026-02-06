@@ -118,6 +118,8 @@ type BotsCommand struct {
 func (c *BotsCommand) initSharedBotTokenFlags(cmd *kingpin.CmdClause) {
 	cmd.Flag("token", "The token to use, if any. If unset, a new single-use token will be created.").StringVar(&c.tokenID)
 	cmd.Flag("format", "Output format, one of: text, json").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
+
+	// TODO(timothyb89): Remove in v20 (optional)
 	cmd.Flag("legacy", "If set, generate a legacy joining token instead of a bound keypair token. No effect if --token is set.").BoolVar(&c.legacy)
 	cmd.Flag(
 		"ttl",
