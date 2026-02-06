@@ -281,7 +281,30 @@ Potential mitigations:
   operators.
 - Do not allow traits to be set for scoped bots.
 
-#### Direction
+##### Name Reuse
+
+In the simplest design, an admin in one scope would grant access to a bot in
+another scope by creating a role assignment that references the bot only by
+name.
+
+This opens the door for a potential name reuse attack:
+
+1. Scope admin in `/foo` creates a bot called `bernard`.
+2. Scope admin in `/bar` creates a role assignment that grants privileges in
+   `/bar` to `bernard`.
+3. Scope admin in `/foo` no longer has use for `bernard` and deletes the bot but
+   does not have the ability to delete the role assignment in `/bar`. 
+4. An attacker, who has compromised the `/zap` scope admin, creates a new bot
+   called `bernard` in `/zap`. This bot now has the privileges in `bar` that 
+   were intended for the original `bernard` bot.
+
+Potential mitigations:
+
+- Namespacing of scoped bots.
+- Require that role assignments are bound to both the scoped bot name and its 
+  scope of origin.
+
+##### Direction
 
 Whilst it seems clear that there are use-cases that require bots to have
 privilege outside their scope of origin, it is also clear that this has 
