@@ -552,7 +552,7 @@ func updateAccessRequestForDB(t *testing.T, s *suite, wantRequestReason, wantDBN
 			if accessRequest.GetRequestReason() != wantRequestReason {
 				continue
 			}
-			for _, resourceID := range accessRequest.GetRequestedResourceIDs() {
+			for _, resourceID := range types.RiskyExtractResourceIDs(accessRequest.GetAllRequestedResourceIDs()) {
 				if resourceID.Kind == types.KindDatabase &&
 					resourceID.Name == wantDBName {
 					accessRequestID = accessRequest.GetName()

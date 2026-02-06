@@ -223,6 +223,31 @@ func FormatResourceName(r types.ResourceWithLabels, verbose bool) string {
 	return r.GetName()
 }
 
+// FormatResourceAccessID returns the provided ResourceAccessID in its string form,
+// appending constraints when present and if verbose.
+func FormatResourceAccessID(rid types.ResourceAccessID, verbose bool) string {
+	resourceIDString := types.ResourceIDToString(rid.GetResourceID())
+	constraintsString := ""
+
+	if verbose {
+		if c := rid.GetConstraints(); c != nil && c.GetDetails() != nil {
+			switch d := c.GetDetails().(type) {
+			case *types.ResourceConstraints_AwsConsole:
+				if d.AwsConsole == nil {
+					break
+				}
+				constraintsString = fmt.Sprintf("role_arns=%s", strings.Join(d.AwsConsole.RoleArns, ", "))
+			}
+		}
+
+		if constraintsString != "" {
+			return fmt.Sprintf("%s (%s)", resourceIDString, constraintsString)
+		}
+	}
+
+	return resourceIDString
+}
+
 // GetDiscoveredResourceName returns the resource original name discovered in
 // the cloud by the Teleport Discovery Service.
 func GetDiscoveredResourceName(r types.ResourceWithLabels) (discoveredName string, ok bool) {
