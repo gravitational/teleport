@@ -21,7 +21,6 @@ package s3sessions
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -516,6 +515,9 @@ func (h *Handler) downloadFile(
 	var offset int64
 	var lastErr error
 	for attempt := range maxDownloadRetries {
+		if err := ctx.Err(); err != nil {
+			return trace.Wrap(err)
+		}
 		if attempt > 0 {
 			h.logger.DebugContext(ctx, "Retrying download from last position",
 				"bucket", h.Bucket,
@@ -552,7 +554,7 @@ func (h *Handler) downloadFile(
 		if err != nil {
 			// If we haven't reached the end, continue
 			// the AWS manager.Downloader retries on every error when reading the error.
-			if offset < contentLength && !errors.Is(err, io.ErrClosedPipe) {
+			if offset < contentLength {
 				lastErr = err
 				continue
 			}
