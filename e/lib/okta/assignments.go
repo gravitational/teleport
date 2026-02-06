@@ -125,7 +125,7 @@ func (a *assignmentReconciler) reconcile(ctx context.Context, reconciler *servic
 			if !ok {
 				return
 			}
-			a.assignmentProcessorID = newAssignmentProcessorIDGen(sourceWatcher, a.clock.Now())(1)
+			a.assignmentProcessorID = newAssignmentProcessorIDGen(a.clock.Now())
 			if err := reconciler.Reconcile(ctx); err != nil {
 				a.logger.ErrorContext(ctx, "Failed to reconcile", "error", err)
 			} else if a.onReconcile != nil {
@@ -226,7 +226,7 @@ func (a *assignmentReconciler) startResourceWatcher(ctx context.Context) (*servi
 
 // onCreate will update the Okta API based on newly created Okta assignments.
 func (a *assignmentReconciler) onCreate(ctx context.Context, newAssignment types.OktaAssignment) error {
-	if r := a.assignmentProcessor.processAssignment(ctx, a.assignmentProcessorID, newAssignment.Copy(), false); r != processAssignmentFailed {
+	if r := a.assignmentProcessor.processAssignment(ctx, a.assignmentProcessorID, newAssignment.Copy(), sourceWatcher); r != processAssignmentFailed {
 		a.assignmentsMu.Lock()
 		a.assignments[newAssignment.GetName()] = newAssignment
 		a.assignmentsMu.Unlock()
@@ -236,7 +236,7 @@ func (a *assignmentReconciler) onCreate(ctx context.Context, newAssignment types
 
 // onUpdate will perform necessary Okta assignment operations based on updated Okta assignments.
 func (a *assignmentReconciler) onUpdate(ctx context.Context, updatedAssignment, _ types.OktaAssignment) error {
-	if r := a.assignmentProcessor.processAssignment(ctx, a.assignmentProcessorID, updatedAssignment.Copy(), false); r != processAssignmentFailed {
+	if r := a.assignmentProcessor.processAssignment(ctx, a.assignmentProcessorID, updatedAssignment.Copy(), sourceWatcher); r != processAssignmentFailed {
 		a.assignmentsMu.Lock()
 		a.assignments[updatedAssignment.GetName()] = updatedAssignment
 		a.assignmentsMu.Unlock()

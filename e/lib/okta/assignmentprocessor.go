@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strconv"
 	"sync"
 	"time"
 
@@ -44,10 +43,6 @@ const (
 	// processAssignmentTimeout is the amount of time before canceling the context of a process assignment call
 	// in the loop.
 	processAssignmentTimeout time.Duration = 5 * time.Minute
-
-	// maxNumWorkers is the maximum number of works that can concurrently use the
-	// Okta client.
-	maxNumWorkers = 5
 )
 
 type assignmentProcessorAccessPoint struct {
@@ -159,55 +154,20 @@ func (a *assignmentProcessor) stop() {
 	close(a.stopCh)
 }
 
-// processAllAssignments will iterate through all of the assignments, spawning a goroutine to
-// process each one.
+// processAllAssignments will iterate through and process all of the assignments.
 func (a *assignmentProcessor) processAllAssignments(ctx context.Context) {
-	var wg sync.WaitGroup
+	id := newAssignmentProcessorIDGen(a.clock.Now())
 	assignments := a.assignmentGetter()
-	numAssignments := len(assignments)
 
 	// Rebuild the target counter in a fresh loop.
 	a.rebuildTargetCounter(assignments)
 
-	// Use up to max num workers. If we have fewer assignments than workers,
-	// just use a worker per assignment.
-	numWorkers := min(maxNumWorkers, numAssignments)
-	assignmentsCh := make(chan types.OktaAssignment, numWorkers)
-
-	// Use a fixed number of workers along with a rate limiter to ensure we don't smack into
-	// any rate limits. Enterprise rate limits for the API endpoints we use is 6000 per minute,
-	// which is 100 per second:
-	// https://developer.okta.com/docs/reference/rl-global-other-endpoints/
-	//
-	// Each Okta API interaction we do as part of processing a target consists of roughly 2 API calls.
-	// By limiting our max workers to 5 and our rate limiting to 5 per second, this means that
-	// generally we expect to issue 10 Okta API calls per second (or less) when running through
-	// these assignments worst case. The assignment client will cache Okta state per run, so API
-	// calls will be minimized.
-	idGen := newAssignmentProcessorIDGen(sourceTimer, a.clock.Now())
-	wg.Add(numWorkers)
-	for i := range numWorkers {
-		go func(id string) {
-			defer wg.Done()
-			for {
-				assignment, ok := <-assignmentsCh
-				if !ok {
-					return
-				}
-				// processAssignment does not return error, it only returns a
-				// result to signal if the assignment was processed or not so the
-				// return value can be ignored here.
-				_ = a.processAssignment(ctx, id, assignment, true)
-			}
-		}(idGen(i + 1))
-	}
-
 	for _, assignment := range assignments {
-		assignmentsCh <- assignment
+		// processAssignment does not return error, it only returns a
+		// result to signal if the assignment was processed or not so the
+		// return value can be ignored here.
+		_ = a.processAssignment(ctx, id, assignment, sourceTimer)
 	}
-
-	close(assignmentsCh)
-	wg.Wait()
 }
 
 type processAssignmentResult int
@@ -219,12 +179,10 @@ const (
 	processAssignmentFailed
 )
 
-// processAssignment will apply the proper actions dictated by the OktaAssignment. The function will
-// update the assignment with the results of the action application. An okta state is optionally suppliable
-// for caching in bulk runs. If reconcile is set, the function will attempt to find differences from the Okta
-// state and reconcile them. Otherwise, they will not be processed. It will return true if the
-// assignment processing was successful or not required.
-func (a *assignmentProcessor) processAssignment(ctx context.Context, id string, assignment types.OktaAssignment, reconcile bool) processAssignmentResult {
+// processAssignment processes the assignment creating Okta-side assignments according to the spec.
+// If the assignment has a cleanup time set in the past it will be scheduled for cleanup and
+// eventually removed from the backend.
+func (a *assignmentProcessor) processAssignment(ctx context.Context, id string, assignment types.OktaAssignment, source processorSource) processAssignmentResult {
 	// Skip processing if the leadership has not been acquired.
 	if !a.leader.IsLeader() {
 		return processAssignmentSkipped
@@ -234,7 +192,7 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, id string, 
 	defer cancel()
 
 	logger := a.logger.With(
-		"processor_id", id,
+		"loop_id", string(source)+":"+id,
 		"assignment", assignment.GetName(),
 		"user", assignment.GetUser(),
 	)
@@ -254,8 +212,10 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, id string, 
 		return processAssignmentProcessed
 	}
 
-	// We only process non-pending assignments if reconcile is set or if the assignment needs to be cleaned up.
-	if !reconcile {
+	// We only process non-pending assignments if the source is timer (i.e. the assignment
+	// comes from the periodic retry mechanism and not from event watcher) or if the assignment
+	// needs to be cleaned up.
+	if source != sourceTimer {
 		force := needsCleanup ||
 			needsReprovision ||
 			assignment.GetStatus() == constants.OktaAssignmentStatusPending
@@ -691,11 +651,8 @@ const (
 	sourceTimer   processorSource = "timer"
 )
 
-func newAssignmentProcessorIDGen(source processorSource, time time.Time) func(idx int) string {
-	timeFmt := time.UTC().Format("02150405") // ddhhmmss
-	return func(idx int) string {
-		return "src:" + string(source) + ":" + timeFmt + ":" + strconv.Itoa(idx)
-	}
+func newAssignmentProcessorIDGen(time time.Time) string {
+	return time.UTC().Format("02150405") // ddhhmmss
 }
 
 // TODO(kopiczko) Move to OSS lib/utils/log (https://github.com/gravitational/teleport/pull/62057)
