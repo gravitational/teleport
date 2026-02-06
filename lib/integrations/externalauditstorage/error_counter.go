@@ -408,28 +408,28 @@ func (c *ErrorCountingSessionHandler) UploadThumbnail(ctx context.Context, sessi
 }
 
 // Download calls [c.wrapped.Download] and counts the error or success.
-func (c *ErrorCountingSessionHandler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (c *ErrorCountingSessionHandler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	err := c.wrapped.Download(ctx, sessionID, writer)
 	c.downloads.observe(err)
 	return err
 }
 
 // DownloadSummary calls [c.wrapped.DownloadSummary] and counts the error or success.
-func (c *ErrorCountingSessionHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (c *ErrorCountingSessionHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	err := c.wrapped.DownloadSummary(ctx, sessionID, writer)
 	c.downloads.observe(err)
 	return err
 }
 
 // DownloadMetadata calls [c.wrapped.DownloadMetadata] and counts the error or success.
-func (c *ErrorCountingSessionHandler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (c *ErrorCountingSessionHandler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	err := c.wrapped.DownloadMetadata(ctx, sessionID, writer)
 	c.downloads.observe(err)
 	return err
 }
 
 // DownloadThumbnail calls [c.wrapped.DownloadThumbnail()] and counts the error or success.
-func (c *ErrorCountingSessionHandler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (c *ErrorCountingSessionHandler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	err := c.wrapped.DownloadThumbnail(ctx, sessionID, writer)
 	c.downloads.observe(err)
 	return err
