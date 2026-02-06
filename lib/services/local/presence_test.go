@@ -192,13 +192,13 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	// Make sure can't delete with empty namespace or host ID or name.
 	err = presence.DeleteDatabaseServer(ctx, server.GetNamespace(), server.GetHostID(), "")
 	require.Error(t, err)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 	err = presence.DeleteDatabaseServer(ctx, server.GetNamespace(), "", server.GetName())
 	require.Error(t, err)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 	err = presence.DeleteDatabaseServer(ctx, "", server.GetHostID(), server.GetName())
 	require.Error(t, err)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 	// Remove the server.
 	err = presence.DeleteDatabaseServer(ctx, server.GetNamespace(), server.GetHostID(), server.GetName())
@@ -224,7 +224,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	// Make sure can't delete all with empty namespace.
 	err = presence.DeleteAllDatabaseServers(ctx, "")
 	require.Error(t, err)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 	// Delete all.
 	err = presence.DeleteAllDatabaseServers(ctx, server.GetNamespace())
@@ -328,7 +328,7 @@ func TestNodeCRUD(t *testing.T) {
 
 		// Expect node not found
 		_, err := presence.GetNode(ctx, apidefaults.Namespace, "node1")
-		require.IsType(t, trace.NotFound(""), err)
+		require.ErrorAs(t, err, new(*trace.NotFoundError))
 	})
 
 	t.Run("DeleteAllNodes", func(t *testing.T) {

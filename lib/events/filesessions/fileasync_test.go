@@ -606,7 +606,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 	select {
 	case event = <-eventsC:
 		require.Equal(t, event.SessionID, sid)
-		require.IsType(t, trace.ConnectionProblem(nil, "connection problem"), event.Error)
+		require.ErrorAs(t, event.Error, new(*trace.ConnectionProblemError))
 	case <-ctx.Done():
 		t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
 	}
@@ -628,7 +628,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 			if i == testCase.retries-1 {
 				require.NoError(t, event.Error)
 			} else {
-				require.IsType(t, trace.ConnectionProblem(nil, "connection problem"), event.Error)
+				require.ErrorAs(t, event.Error, new(*trace.ConnectionProblemError))
 			}
 		case <-ctx.Done():
 			t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")

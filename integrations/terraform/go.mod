@@ -1,9 +1,6 @@
 module github.com/gravitational/teleport/integrations/terraform
 
-go 1.24.12
-
-// Doc generation tooling
-require github.com/hashicorp/terraform-plugin-docs v0.0.0 // replaced
+go 1.25.7
 
 // TF provider dependencies
 require (
@@ -23,6 +20,8 @@ require (
 	google.golang.org/grpc v1.75.0
 	google.golang.org/protobuf v1.36.8
 )
+
+require github.com/hashicorp/terraform-plugin-docs v0.0.0-00010101000000-000000000000
 
 require (
 	cel.dev/expr v0.24.0 // indirect
