@@ -172,7 +172,9 @@ func (h *handler) Execute(ctx context.Context, _ []string) (err error) {
 		return trace.Wrap(err, "checking if update is upgrade")
 	}
 
-	// TODO(gzdunek): Add signature verification.
+	if err = verifySignature(updatePath); err != nil {
+		return trace.Wrap(err, "verifying update signature")
+	}
 
 	hash, err := h.downloadChecksum(ctx, updaterConfig.CDNBaseURL, updateMeta.Version)
 	if err != nil {
