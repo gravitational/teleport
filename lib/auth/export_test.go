@@ -193,7 +193,7 @@ func (a *Server) SetCreateBoundKeypairValidator(validator boundkeypair.CreateBou
 	a.createBoundKeypairValidator = validator
 }
 
-func (a *Server) AuthenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, *services.SplitAccessChecker, error) {
+func (a *Server) AuthenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, *services.SplitAccessCheckerContext, error) {
 	return a.authenticateUserLogin(ctx, req)
 }
 

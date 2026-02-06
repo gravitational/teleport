@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthntypes "github.com/gravitational/teleport/lib/devicetrust/authn/types"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -351,11 +352,9 @@ func TestTeleportClient_Login_local(t *testing.T) {
 				require.NotNil(t, sshIdent.ScopePin)
 				require.Empty(t, cmp.Diff(&scopesv1.Pin{
 					Scope: "/aa",
-					Assignments: map[string]*scopesv1.PinnedAssignments{
-						"/aa": {
-							Roles: []string{"role-a"},
-						},
-					},
+					AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+						"/aa": {"/aa": {"role-a"}},
+					}),
 				}, sshIdent.ScopePin, protocmp.Transform()))
 				require.Empty(t, sshIdent.Roles)
 			}

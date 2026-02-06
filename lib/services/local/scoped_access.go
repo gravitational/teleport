@@ -301,7 +301,7 @@ func (s *ScopedAccessService) UpdateScopedRole(ctx context.Context, req *scopeda
 					continue
 				}
 
-				if !scopedaccess.RoleIsAssignableAtScope(extant.GetRole(), subAssignment.GetScope()) {
+				if !scopedaccess.RoleIsAssignableToScopeOfEffect(extant.GetRole(), subAssignment.GetScope()) {
 					// theoretically, we prevent broken assignments. in practice, its best to
 					// assume they may exist and to not allow them to prevent an otherwsie
 					// valid update. We will still force all broken assignments to be
@@ -309,7 +309,7 @@ func (s *ScopedAccessService) UpdateScopedRole(ctx context.Context, req *scopeda
 					continue
 				}
 
-				if !scopedaccess.RoleIsAssignableAtScope(role, subAssignment.GetScope()) {
+				if !scopedaccess.RoleIsAssignableToScopeOfEffect(role, subAssignment.GetScope()) {
 					return nil, trace.BadParameter("update of scoped role %q would invalidate assignment %q which assigns it to user %q at scope %q", role.GetMetadata().GetName(), assignment.GetMetadata().GetName(), assignment.GetSpec().GetUser(), subAssignment.GetScope())
 				}
 			}
@@ -563,14 +563,15 @@ func (s *ScopedAccessService) CreateScopedRoleAssignment(ctx context.Context, re
 		}
 
 		// verify that the role is scoped to the same resource scope as the assignment itself
-		// NOTE: this restriction may eventually be relaxed in favor of something more flexible,
-		// but as of right now we haven't decided what that should look like.
+		// NOTE: this restriction will eventually be relaxed in favor of [scopedaccess.RoleIsAssignableFromScopeOfOrigin]
+		// once we've finalized the details of the more relaxed role assignment model (the primary prerequisite is ensuring
+		// robust handling of dangling/invalid scoped role assignments).
 		if scopes.Compare(rrsp.GetRole().GetScope(), assignment.GetScope()) != scopes.Equivalent {
 			return nil, trace.BadParameter("role %q is not scoped to the same resource scope as assignment %q (%q -> %q)", subAssignment.GetRole(), assignment.GetMetadata().GetName(), rrsp.GetRole().GetScope(), assignment.GetScope())
 		}
 
 		// verify that the role is assignable at the specified scope
-		if !scopedaccess.RoleIsAssignableAtScope(rrsp.GetRole(), subAssignment.GetScope()) {
+		if !scopedaccess.RoleIsAssignableToScopeOfEffect(rrsp.GetRole(), subAssignment.GetScope()) {
 			return nil, trace.BadParameter("scoped role %q is not configured to be assignable at scope %q", subAssignment.GetRole(), subAssignment.GetScope())
 		}
 
