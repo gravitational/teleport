@@ -211,7 +211,81 @@ This section exists as a record of my thinking whilst researching and writing
 this RFD. It should not be considered a canonical part of the design, but, may
 help provide context around my thought process and decisions for future readers.
 
-### A.1: The form of Scoped Bots
+### A.1: The scoping of Scoped Bots 
+
+A rather early philosophical question revolves around whether a Bot's scope of
+origin should constrain its scope of privilege. That is, whether a Bot in
+`/foo/bar` should theoretically be capable of accessing resource in `/foo` or 
+indeed `/zip` if an admin so desires.
+
+#### User Experience
+
+First, let's approach this from the perspective of possible users and consider
+what use-cases do and do not require this ability.
+
+Use-cases that work even when a Scoped Bot's privilege is constrained to its
+scope of origin:
+
+- Engineering team implementing a CI/CD pipeline to deploy to infrastructure
+  that they own within their scope. Their Scope Admin can create the Bot, Join
+  Token, SR and SRA all within their scope alongside their infrastructure.
+- Engineering team deploys an AI agent that can access their infrastructure
+  that they own within their scope.
+- Engineering team deploying Terraform IaC to manage the configuration of their
+  scope. The Scoped Bot/SR/SRA can be bootstrapped within their scope or within
+  a parent scope (with the SRS granting access only to the team's child scope).
+
+Within these use-cases, there is a unifying theme that the team's bot is only
+accessing or managing infrastructure resources that belong to that team. The
+isolation model actually works quite well here - avoiding accidentally granting
+excessive privilege to the bot.
+
+But, let's examine a counter example of a use-case that could require 
+a scoped bot to have privileges outside its scope of origin.
+
+Within this organization, a central security team offers security scanning
+(think Trivy) to engineering teams. This security scanning may be mandated by 
+policy. These engineering teams own their own infrastructure and its placed into
+scopes in which these teams have privilege.
+
+If it were not for constraining a Scoped Bot's privileges to its scope of 
+origin, a theoretical setup would look something like: the security team creates
+a Scoped Bot and Scoped Join Token in their scope. The engineering teams then
+assign the security team's Scoped Bot privilege within their scopes using SRs
+and SRAs.
+
+For the organization, this setup may be desirable because:
+
+- The security team maintains their own Bot and Join Token for the security
+  scanning tool. They can change how this Bot joins without needing to involve
+  other teams across the organization.
+- The security team has the least privilege necessary. They have not been 
+  excessively granted privilege in the scopes owned by the engineering teams -
+  those who own the infrastructure remain in full control of who can access it.
+
+Within a design where a Scoped Bot's privileges are constrained to its scope of
+origin, this security scanning bot would need to be created within each scope or
+within a parent scope. This risks granting it excessive privilege if created
+within a parent scope, or, creates significant maintenance overhead.
+
+We can generalize from this example. In organizations where teams offer services
+to other teams that own infrastructure, there is likely a desire for bots to be
+able to access resources outside their scope of origin.
+
+#### Security Concerns
+
+#### Direction
+
+Whilst it seems clear that there are use-cases that require bots to have
+privilege outside their scope of origin, it is also clear that this has 
+significant implications for the implementation and security model for 
+Scoped RBAC.
+
+For this reason, the initial implementation of Scoped MWI should constrain a
+Scoped Bot's privileges to its scope of origin. This does not preclude us from
+relaxing this constraint in future with the introduction of additional controls.
+
+### A.2: The form of Scoped Bots
 
 When it comes to introducing the concept of a Bot that is scoped, we have a
 number of options as to what form this actually takes. Broadly, there are three
@@ -264,8 +338,6 @@ The subkind route appears to offer many of the drawbacks of both implementations
 and few of the benefits of either. This leaves the choice between adding a 
 scoped field to the existing Bot resource or introducing a new ScopedBot 
 resource.
-
-### A.2: Pinning of Scopes for Scoped Bots
 
 ### A.3: The Wrong Implementations
 
