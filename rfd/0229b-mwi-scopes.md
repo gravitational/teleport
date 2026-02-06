@@ -303,6 +303,10 @@ Potential mitigations:
 - Namespacing of scoped bots.
 - Require that role assignments are bound to both the scoped bot name and its 
   scope of origin.
+- Require that role assignments reference a unique identifier of the bot that is 
+  not reusable (e.g. a UUID) instead of the bot's name.
+  - This would be very unlike the rest of the way Teleport behaves and presents
+    a significant UX challenge.
 
 ##### Direction
 
