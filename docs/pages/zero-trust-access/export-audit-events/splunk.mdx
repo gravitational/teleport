@@ -27,9 +27,7 @@ or Splunk Enterprise for visualization and alerting.
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
-
 - (!docs/pages/includes/machine-id/plugin-prerequisites.mdx!)
-
 - Splunk Cloud Platform or Splunk Enterprise v9.0.1 or above.
 - Fluentd version v1.12.4 or greater. The Teleport Event Handler
   will create a new fluent.conf file you can integrate into an existing Fluentd
@@ -38,7 +36,6 @@ or Splunk Enterprise for visualization and alerting.
   Teleport Event Handler plugin.
 - On Splunk Enterprise, port `8088` should be open to traffic from the host
   running the Teleport Event Handler and Fluentd instance.
-
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5. Set up the Event Handler plugin
@@ -115,14 +112,19 @@ will show up in Splunk at the time it was ingested, not at the time it was
 generated. Adjust the format of the `time` field in Splunk so Teleport audit
 events appear as expected.
 
+{/*cSpell:disable*/}
+
 1. Navigate to **Settings -> Source Types**. 
 1. Find the `_json` source type and click **Clone**. 
 1. Name the new source type `_json-gotime`. 
 1. Under **Timestamp** click **Advanced**. 
 1. Input `%Y-%m-%dT%H:%M:%S.%3NZ` and click **Save**.
 
+{/*cSpell:enable*/}
+
 ### Create a token for the HTTP Event Collector
 
+{/*cSpell:disable*/}
 1. Visit the home page of the Splunk UI. 
 1. Navigate to **Settings > Data inputs**.
 1. In the **Local inputs** table, find the HTTP Event Collector row and click
@@ -141,6 +143,7 @@ events appear as expected.
 1. Click **Review,** then view the summary and click **Submit**. 
 1. Copy the **Token Value** field and assign <Var name="TOKEN" /> to it so you
    can use it later in this guide.
+{/*cSpell:enable*/}
 
 ## Step 3/5. Connect Fluentd to the Splunk HTTP Event Collector
 
