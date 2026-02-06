@@ -39,6 +39,14 @@
             "tsh.exe vnet-install-service failed with exit code $0. The installer is going to continue. Output: $1"
     ${Endif}
 
+    nsExec::ExecToStack '"$INSTDIR\resources\bin\tsh.exe" connect-updater-install-service'
+    Pop $0 # ExitCode
+    Pop $1 # Output
+    ${If} $0 != 0
+        MessageBox MB_ICONSTOP \
+            "tsh.exe connect-updater-install-service failed with exit code $0. The installer is going to continue. Output: $1"
+    ${Endif}
+
   ${Else}
     # Make EnVar define system user vars when the app is installed per-user.
     EnVar::SetHKCU
@@ -62,6 +70,15 @@
         MessageBox MB_ICONSTOP \
             "tsh.exe vnet-uninstall-service failed with exit code $0. The uninstaller is going to continue. Output: $1"
     ${Endif}
+
+    nsExec::ExecToStack '"$INSTDIR\resources\bin\tsh.exe" connect-updater-uninstall-service'
+    Pop $0 # ExitCode
+    Pop $1 # Output
+    ${If} $0 != 0
+        MessageBox MB_ICONSTOP \
+            "tsh.exe connect-updater-uninstall-service failed with exit code $0. The installer is going to continue. Output: $1"
+    ${Endif}
+
   ${Else}
     EnVar::SetHKCU
     EnVar::DeleteValue "Path" "$INSTDIR\resources\bin"
