@@ -77,33 +77,24 @@ func (s *Server) updateDiscoveryConfigStatus(discoveryConfigNames ...string) {
 		discoveryConfigStatus = s.tagSyncStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
 
 		// Merge AWS EC2 Instances (auto discovery) status
-		discoveryConfigStatus = s.awsEC2ResourcesStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
+		discoveryConfigStatus = s.awsEC2ResourcesStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus, s.clock.Now())
 
 		// Merge AWS RDS databases (auto discovery) status
-		discoveryConfigStatus = s.awsRDSResourcesStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
+		discoveryConfigStatus = s.awsRDSResourcesStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus, s.clock.Now())
 
 		// Merge AWS EKS clusters (auto discovery) status
-		discoveryConfigStatus = s.awsEKSResourcesStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
+		discoveryConfigStatus = s.awsEKSResourcesStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus, s.clock.Now())
 
 		// Merge Azure VMs discovery status.
-		discoveryConfigStatus = s.azureVMStatus.Load().mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
+		discoveryConfigStatus = s.azureVMStatus.Load().mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus, s.clock.Now())
 
 		// Ensure the error message is truncated to the maximum allowed size.
 		// Too large error messages will cause failures when clients (which use the default MaxCallRecvMsgSize of 4MB) try to read DiscoveryConfigs.
 		discoveryConfigStatus.ErrorMessage = truncateErrorMessage(discoveryConfigStatus)
 
-		func() {
-			ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
-			defer cancel()
-
-			_, err := s.AccessPoint.UpdateDiscoveryConfigStatus(ctx, discoveryConfigName, discoveryConfigStatus)
-			switch {
-			case trace.IsNotImplemented(err):
-				s.Log.WarnContext(ctx, "UpdateDiscoveryConfigStatus method is not implemented in Auth Server. Please upgrade it to a recent version.")
-			case err != nil:
-				s.Log.WarnContext(ctx, "Error updating discovery config status", "discovery_config_name", discoveryConfigName, "error", err)
-			}
-		}()
+		if err := s.discoveryConfigStatusUpdater.update(s.ctx, discoveryConfigName, discoveryConfigStatus); err != nil {
+			s.Log.WarnContext(s.ctx, "Failed to update discovery config status", "discovery_config_name", discoveryConfigName, "error", err)
+		}
 	}
 }
 
@@ -284,7 +275,7 @@ func (d *awsResourcesStatus) reset() {
 	d.awsResourcesResults = make(map[awsResourceGroup]awsResourceGroupResult)
 }
 
-func (ars *awsResourcesStatus) mergeIntoGlobalStatus(discoveryConfigName string, existingStatus discoveryconfig.Status) discoveryconfig.Status {
+func (ars *awsResourcesStatus) mergeIntoGlobalStatus(discoveryConfigName string, existingStatus discoveryconfig.Status, syncTime time.Time) discoveryconfig.Status {
 	ars.mu.RLock()
 	defer ars.mu.RUnlock()
 
@@ -299,7 +290,9 @@ func (ars *awsResourcesStatus) mergeIntoGlobalStatus(discoveryConfigName string,
 		// Update counters specific to AWS resources discovered.
 		existingIntegrationResources, ok := existingStatus.IntegrationDiscoveredResources[group.integration]
 		if !ok {
-			existingIntegrationResources = &discoveryconfigv1.IntegrationDiscoveredSummary{}
+			existingIntegrationResources = &discoveryconfigv1.IntegrationDiscoveredSummary{
+				SyncEnd: timestamppb.New(syncTime),
+			}
 		}
 
 		resourcesSummary := &discoveryconfigv1.ResourcesDiscoveredSummary{
@@ -1086,7 +1079,7 @@ func (s *resourceStatusMap) add(key fetcherGroupKey, results map[statusType]int)
 	}
 }
 
-func (s *resourceStatusMap) mergeIntoGlobalStatus(discoveryConfigName string, existingStatus discoveryconfig.Status) discoveryconfig.Status {
+func (s *resourceStatusMap) mergeIntoGlobalStatus(discoveryConfigName string, existingStatus discoveryconfig.Status, syncEnd time.Time) discoveryconfig.Status {
 	if s == nil {
 		// nil resourceStatusMap is valid, just empty.
 		return existingStatus
@@ -1113,7 +1106,9 @@ func (s *resourceStatusMap) mergeIntoGlobalStatus(discoveryConfigName string, ex
 		var summary *discoveryconfigv1.IntegrationDiscoveredSummary
 		summary = existingStatus.IntegrationDiscoveredResources[key.integration]
 		if summary == nil {
-			summary = &discoveryconfigv1.IntegrationDiscoveredSummary{}
+			summary = &discoveryconfigv1.IntegrationDiscoveredSummary{
+				SyncEnd: timestamppb.New(syncEnd),
+			}
 		}
 
 		resourcesSummary := &discoveryconfigv1.ResourcesDiscoveredSummary{
