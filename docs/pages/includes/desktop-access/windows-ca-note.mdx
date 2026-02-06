@@ -1,0 +1,8 @@
+<Admonition type="note" title="Windows CA">
+Teleport v18.7.0 introduced the windows CA for issuance of Windows Desktop
+Access certificates. Prior to that the user CA was used.
+
+Clusters updated to v18.7.0 (or newer) automatically clone the user CA to the
+windows CA, so existing trust relationships hold true until the windows CA is
+rotated.
+</Admonition>
