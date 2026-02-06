@@ -173,7 +173,8 @@ func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.
 		}
 
 		res, err := s.cfg.ScopedTokenService.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
-			Name: name,
+			Name:       name,
+			WithSecret: true,
 		})
 		if err != nil {
 			scopedErr = err
