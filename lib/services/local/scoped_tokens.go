@@ -137,8 +137,13 @@ func (s *ScopedTokenService) GetScopedToken(ctx context.Context, req *joiningv1.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if err := joining.WeakValidateToken(token); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if !req.GetWithSecret() {
+		setScopedTokenWithoutSecret(token)
 	}
 	return &joiningv1.GetScopedTokenResponse{Token: token}, nil
 }
@@ -229,7 +234,9 @@ func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
+		if !req.GetWithSecrets() {
+			setScopedTokenWithoutSecret(tokens...)
+		}
 		return &joiningv1.ListScopedTokensResponse{
 			Tokens: tokens,
 			Cursor: cursor,
@@ -292,6 +299,10 @@ func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv
 		return nil, trace.Wrap(err)
 	}
 
+	if !req.GetWithSecrets() {
+		setScopedTokenWithoutSecret(tokens...)
+	}
+
 	return &joiningv1.ListScopedTokensResponse{
 		Tokens: tokens,
 		Cursor: cursor,
@@ -301,6 +312,51 @@ func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv
 // DeleteScopedToken deletes a scoped token by name.
 func (s *ScopedTokenService) DeleteScopedToken(ctx context.Context, req *joiningv1.DeleteScopedTokenRequest) (*joiningv1.DeleteScopedTokenResponse, error) {
 	return nil, trace.Wrap(s.svc.DeleteResource(ctx, req.GetName()))
+}
+
+// UpsertScopedToken updates or creates a scoped token. If updating an existing token, the scope and status must not be modified.
+func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, req *joiningv1.UpsertScopedTokenRequest) (*joiningv1.UpsertScopedTokenResponse, error) {
+	if err := joining.StrongValidateToken(req.GetToken()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tokenUpsert := req.GetToken()
+	existingToken, err := s.svc.GetResource(ctx, req.GetToken().GetMetadata().GetName())
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if existingToken != nil {
+		if existingToken.GetScope() != tokenUpsert.GetScope() {
+			return nil, trace.BadParameter("cannot modify scope of existing scoped token")
+		}
+
+		if !proto.Equal(existingToken.GetStatus().GetUsage(), tokenUpsert.GetStatus().GetUsage()) {
+			return nil, trace.BadParameter("cannot modify status of existing scoped token")
+		}
+
+		if tokenUpsert.GetStatus().GetSecret() != existingToken.GetStatus().GetSecret() {
+			return nil, trace.BadParameter("cannot modify secret of existing scoped token")
+		}
+	}
+	revision, err := s.svc.UpsertResource(ctx, tokenUpsert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &joiningv1.UpsertScopedTokenResponse{
+		Token: revision,
+	}, nil
+}
+
+func setScopedTokenWithoutSecret(token ...*joiningv1.ScopedToken) {
+	for _, t := range token {
+		if t != nil && t.Status != nil {
+			t.Status.Secret = ""
+		}
+	}
 }
 
 type scopedTokenParser struct {
