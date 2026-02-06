@@ -14,10 +14,10 @@
     "@babel/preset-env": "^7.25.4",
     "@babel/preset-react": "^7.24.7",
     "@babel/preset-typescript": "^7.24.7",
-    "@swc/core": "^1.10.4",
-    "@swc/plugin-styled-components": "^6.0.2",
+    "@swc/core": "1.11.24",
+    "@swc/plugin-styled-components": "7.1.4",
     "@types/jsdom": "^21.1.7",
-    "@vitejs/plugin-react-swc": "^3.7.1",
+    "@vitejs/plugin-react-swc": "3.9.0",
     "babel-plugin-styled-components": "^2.1.4",
     "eslint": "^8.56.0",
     "eslint-import-resolver-typescript": "^3.6.3",
@@ -34,7 +34,7 @@
     "jsdom": "^25.0.1",
     "rollup-plugin-visualizer": "^5.13.1",
     "typescript-eslint": "^7.14.1",
-    "vite-plugin-wasm": "^3.4.1",
-    "vite-tsconfig-paths": "^5.1.4"
+    "vite-plugin-wasm": "3.4.1",
+    "vite-tsconfig-paths": "5.1.4"
   }
 }
