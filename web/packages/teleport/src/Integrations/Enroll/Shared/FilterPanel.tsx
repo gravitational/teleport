@@ -25,7 +25,7 @@ import {
   SortItem,
   SortMenu,
   SortOrder,
-} from 'shared/components/Controls/SortMenuV2';
+} from 'shared/components/Controls/SortMenu';
 
 import {
   integrationTagOptions,

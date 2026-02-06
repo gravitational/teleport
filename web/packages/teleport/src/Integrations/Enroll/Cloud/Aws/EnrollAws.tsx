@@ -331,7 +331,6 @@ export function IntegrationSection({
       <FieldInput
         ml={4}
         mb={0}
-        autoFocus={true}
         rule={requiredIntegrationName}
         value={integrationName}
         required={true}

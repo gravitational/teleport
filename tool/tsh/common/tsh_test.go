@@ -2850,7 +2850,7 @@ func TestSSHCommands(t *testing.T) {
 //
 // Duplicated in integration/integration_test.go
 func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	for range 10 {
 		_, err := authServer.UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err == nil {

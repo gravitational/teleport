@@ -166,7 +166,7 @@ server](https://goteleport.com/docs/get-started/).
 ### Deploy Teleport
 
 If you wish to deploy Teleport inside a Docker container see the
-[installation guide](https://goteleport.com/docs/installation/#running-teleport-on-docker).
+[installation guide](https://goteleport.com/docs/installation/docker/#running-teleport-on-docker).
 
 ### For Local Testing and Development
 

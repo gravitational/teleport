@@ -587,7 +587,7 @@ func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 // GenTestKubeClientsTLSCert generates a "regular" kube client and a dynamic one to access kube service
 func (c *TestContext) GenTestKubeClientsTLSCert(t *testing.T, userName, kubeCluster string, opts ...GenTestKubeClientTLSCertOptions) (*kubernetes.Clientset, *dynamic.DynamicClient, *rest.Config) {
 	authServer := c.AuthServer
-	clusterName, err := authServer.GetClusterName(context.TODO())
+	clusterName, err := authServer.GetClusterName(t.Context())
 	require.NoError(t, err)
 
 	// Fetch user info to get roles and max session TTL.
