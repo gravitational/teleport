@@ -5765,6 +5765,53 @@ Example:
 }
 ```
 
+## session.summarized
+
+There are multiple events with the `session.summarized` type.
+
+### INF010I
+
+Session Summarized
+
+Example:
+
+```json
+{
+  "cluster_name": "teleport.dev",
+  "code": "INF010I",
+  "ei": 0,
+  "event": "session.summarized",
+  "sid": "c3ae6e8f-7f8e-4d44-a5b9-3c9b8e3f8e3f",
+  "session_type": "ssh",
+  "model_name": "gpt-4",
+  "success": true,
+  "time": "2025-03-04T16:00:21.869Z",
+  "uid": "aa973df2-4bee-4a67-9925-575c1d38cc80",
+  "risk_level": "medium",
+  "short_description": "User performed system administration tasks",
+  "inference_started_at": "2025-03-04T16:00:10.000Z",
+  "inference_finished_at": "2025-03-04T16:00:21.869Z",
+  "server_hostname": "ip-172-31-30-254",
+  "server_id": "d3ddd1f8-b602-488b-00c66e29879f",
+  "server_addr": "172.31.30.254:32962"
+}
+```
+
+### INF010E
+
+Session Summarization Failed
+
+Example:
+
+```json
+{
+  "code": "INF010E",
+  "event": "session.summarized",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
 ## session.upload
 
 Session Uploaded

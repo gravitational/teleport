@@ -862,6 +862,11 @@ const (
 	// InferencePolicyDeleteCode is the inference policy delete event code.
 	InferencePolicyDeleteCode = "INF009I"
 
+	// SessionSummarizedCode is the session summarized event code.
+	SessionSummarizedCode = "INF010I"
+	// SessionSummarizedErrorCode is the session summarized error event code.
+	SessionSummarizedErrorCode = "INF010E"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )

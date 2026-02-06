@@ -2847,3 +2847,7 @@ func (m *InferencePolicyUpdate) TrimToMaxSize(_ int) AuditEvent {
 func (m *InferencePolicyDelete) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
+
+func (m *SessionSummarized) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}

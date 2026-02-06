@@ -282,6 +282,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	InferencePolicyCreateEvent:                    &apievents.InferencePolicyCreate{},
 	InferencePolicyUpdateEvent:                    &apievents.InferencePolicyUpdate{},
 	InferencePolicyDeleteEvent:                    &apievents.InferencePolicyDelete{},
+	SessionSummarizedEvent:                        &apievents.SessionSummarized{},
 	SCIMListingEvent:                              &apievents.SCIMListingEvent{},
 	SCIMGetEvent:                                  &apievents.SCIMResourceEvent{},
 	SCIMCreateEvent:                               &apievents.SCIMResourceEvent{},
