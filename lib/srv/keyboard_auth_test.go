@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 )
 
-func TestHandleKeyboardInteractiveAuth_NoPreconds(t *testing.T) {
+func TestKeyboardInteractiveAuth_NoPreconds(t *testing.T) {
 	t.Parallel()
 
 	h, id := setupKeyboardInteractiveAuthTest(t)
@@ -64,7 +64,7 @@ func TestHandleKeyboardInteractiveAuth_NoPreconds(t *testing.T) {
 	)
 }
 
-func TestHandleKeyboardInteractiveAuth_PreCondInBandMFA(t *testing.T) {
+func TestKeyboardInteractiveAuth_PreCondInBandMFA_Success(t *testing.T) {
 	t.Parallel()
 
 	h, id := setupKeyboardInteractiveAuthTest(t)
@@ -135,7 +135,40 @@ func TestHandleKeyboardInteractiveAuth_PreCondInBandMFA(t *testing.T) {
 }
 
 // TODO(cthach): Remove in v20.0 when PublicKeyCallback is removed.
-func TestHandleKeyboardInteractiveAuth_ForceInBandMFAEnv_DisablesLegacyPublicKeyCallback(t *testing.T) {
+func TestKeyboardInteractiveAuth_PreCondInBandMFA_LegacyPublicKeyCallback_RegularCertDenied(t *testing.T) {
+	t.Parallel()
+
+	h, id := setupKeyboardInteractiveAuthTest(t)
+
+	id.MFAVerified = "" // Simulate no MFA verification, indicating a regular SSH certificate.
+
+	preconds := []*decisionpb.Precondition{
+		{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA},
+	}
+
+	inPerms := &ssh.Permissions{}
+
+	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, inPerms)
+	require.Nil(t, outPerms)
+
+	var sshErr *ssh.PartialSuccessError
+	require.ErrorAs(t, err, &sshErr)
+	require.NotNil(t, sshErr.Next)
+	require.NotNil(t, sshErr.Next.PublicKeyCallback)
+	require.NotNil(t, sshErr.Next.KeyboardInteractiveCallback)
+
+	// Verify that the PublicKeyCallback denies authentication since MFA is required but a regular SSH certificate is used.
+	outPerms, err = sshErr.Next.PublicKeyCallback(nil, nil)
+	require.Nil(t, outPerms)
+	require.ErrorIs(
+		t,
+		err,
+		trace.AccessDenied("regular SSH certificates are forbidden when MFA is required and using legacy public key authentication"),
+	)
+}
+
+// TODO(cthach): Remove in v20.0 when PublicKeyCallback is removed.
+func TestKeyboardInteractiveAuth_ForceInBandMFAEnv_DisablesLegacyPublicKeyCallback(t *testing.T) {
 	t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
 
 	h, id := setupKeyboardInteractiveAuthTest(t)
@@ -166,7 +199,7 @@ func TestHandleKeyboardInteractiveAuth_ForceInBandMFAEnv_DisablesLegacyPublicKey
 	)
 }
 
-func TestHandleKeyboardInteractiveAuth_PreCondUnknownKind(t *testing.T) {
+func TestKeyboardInteractiveAuth_PreCondUnknownKind(t *testing.T) {
 	t.Parallel()
 
 	h, id := setupKeyboardInteractiveAuthTest(t)
@@ -202,6 +235,7 @@ func setupKeyboardInteractiveAuthTest(t *testing.T) (*srv.AuthHandlers, *sshca.I
 	id := &sshca.Identity{
 		Username:    "test-user",
 		ClusterName: "test-cluster",
+		MFAVerified: "non-empty-means-mfa-was-verified",
 	}
 
 	return h, id

@@ -137,11 +137,13 @@ export function WidgetView({
       ? updateEvent.autoUpdatesStatus.options.unreachableClusters
       : [];
   const downloadBaseUrl = getDownloadHost(updateEvent);
+  const requiresUacPrompt = updateEvent.update.requiresUacPrompt;
 
   return (
     <AvailableUpdate
       version={updateEvent.update.version}
       platform={platform}
+      requiresUacPrompt={requiresUacPrompt}
       description={description}
       unreachableClusters={unreachableClusters}
       downloadHost={downloadBaseUrl}
@@ -159,6 +161,7 @@ function AvailableUpdate({
   downloadHost,
   onMore,
   platform,
+  requiresUacPrompt,
   primaryButton,
   unreachableClusters,
   version,
@@ -169,6 +172,7 @@ function AvailableUpdate({
   unreachableClusters: UnreachableCluster[];
   downloadHost: string;
   platform: Platform;
+  requiresUacPrompt: boolean;
   onMore(): void;
   primaryButton?: {
     name: string;
@@ -221,7 +225,7 @@ function AvailableUpdate({
           </ButtonSecondary>
         </Flex>
       </Flex>
-      {(hasUnreachableClusters || isNonTeleportServer) && (
+      {(hasUnreachableClusters || isNonTeleportServer || requiresUacPrompt) && (
         <Stack ml={1}>
           {hasUnreachableClusters && (
             <IconAndText
@@ -233,6 +237,12 @@ function AvailableUpdate({
             <IconAndText
               Icon={Info}
               text={`Using ${downloadHost} as the update server.`}
+            />
+          )}
+          {requiresUacPrompt && (
+            <IconAndText
+              Icon={Info}
+              text="Update your configuration to enable UAC-free updates."
             />
           )}
         </Stack>
@@ -277,21 +287,14 @@ function makeUpdaterContent({
         description: `Downloaded ${formatMB(updateEvent.progress.transferred)} of ${formatMB(updateEvent.progress.total)}`,
       };
     case 'update-available':
-      const { updateKind } = updateEvent.update;
       if (updateEvent.autoDownload) {
         return {
-          description:
-            updateKind === 'upgrade'
-              ? 'Update available. Starting download…'
-              : 'Downloading required version…',
+          description: 'Update available. Starting download…',
         };
       }
 
       return {
-        description:
-          updateKind === 'upgrade'
-            ? 'Update available'
-            : 'Downgrade to required version',
+        description: 'Update available',
         button: {
           name: 'Download',
           action: onDownload,

@@ -2984,7 +2984,9 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 	resultsCh := make(chan execResult, len(nodes))
 
 	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(commandLimit(ctx, clt.AuthClient, mfaRequiredCheck.Required))
+	cmdLimit := commandLimit(ctx, clt.AuthClient, mfaRequiredCheck.Required)
+	log.DebugContext(ctx, "Applying command limit", "limit", cmdLimit, "mfa_required", mfaRequiredCheck.Required)
+	g.SetLimit(cmdLimit)
 
 	// Get the width of the terminal so we can wrap properly.
 	var width int
