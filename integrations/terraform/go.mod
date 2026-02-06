@@ -21,6 +21,8 @@ require (
 	google.golang.org/protobuf v1.36.8
 )
 
+require github.com/hashicorp/terraform-plugin-docs v0.0.0-00010101000000-000000000000
+
 require (
 	cel.dev/expr v0.24.0 // indirect
 	cloud.google.com/go v0.121.6 // indirect
