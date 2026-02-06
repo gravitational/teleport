@@ -104,6 +104,7 @@ func (p *summarizerTestPlugin) RegisterAuthServices(
 		Authorizer:        authServer.Authorizer,
 		Backend:           authServer.AuthServer,
 		SummaryDownloader: authServer.AuthServer,
+		Emitter:           authServer.AuthServer.GetEmitter(),
 		Decrypter:         p.decrypter,
 		UsageReporter:     authServer.AuthServer.UsageReporter,
 	})

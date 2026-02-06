@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/session"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -62,6 +63,7 @@ func (p *testPlugin) RegisterAuthServices(
 		Authorizer:        authServer.Authorizer,
 		Backend:           authServer.AuthServer,
 		SummaryDownloader: authServer.AuthServer,
+		Emitter:           authServer.AuthServer.GetEmitter(),
 		Decrypter:         &fakeEncryptedIO{},
 		UsageReporter:     authServer.AuthServer.UsageReporter,
 	})
@@ -88,6 +90,7 @@ func (f *fakeUsageReporter) AnonymizeAndSubmit(event ...usagereporter.Anonymizab
 
 type newTestTLSServerOptions struct {
 	usageReporter usagereporter.UsageReporter
+	emitter       apievents.Emitter
 }
 
 type newTestTLSServerOption func(*newTestTLSServerOptions)
@@ -95,6 +98,12 @@ type newTestTLSServerOption func(*newTestTLSServerOptions)
 func withUsageReporter(ur usagereporter.UsageReporter) newTestTLSServerOption {
 	return func(o *newTestTLSServerOptions) {
 		o.usageReporter = ur
+	}
+}
+
+func withEmitter(emitter apievents.Emitter) newTestTLSServerOption {
+	return func(o *newTestTLSServerOptions) {
+		o.emitter = emitter
 	}
 }
 
@@ -111,6 +120,10 @@ func newTestTLSServer(t testing.TB, opts ...newTestTLSServerOption) *authtest.TL
 
 	if opt.usageReporter != nil {
 		as.AuthServer.SetUsageReporter(opt.usageReporter)
+	}
+
+	if opt.emitter != nil {
+		as.AuthServer.SetEmitter(opt.emitter)
 	}
 
 	srv, err := as.NewTestTLSServer(func(cfg *authtest.TLSServerConfig) {
@@ -1236,6 +1249,181 @@ func (f *fakeEncryptedIO) WithDecryption(ctx context.Context, reader io.Reader) 
 		return nil, trace.BadParameter("invalid encryption header")
 	}
 	return hex.NewDecoder(reader), nil
+}
+
+func TestService_AuditEvents(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	emitter := &eventstest.MockRecorderEmitter{}
+	srv := newTestTLSServer(t, withEmitter(emitter))
+	user := createTestUser(t, srv, "test-user")
+
+	clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
+	require.NoError(t, err)
+	sclt := clt.SummarizerServiceClient()
+
+	getRecentEvents := func(eventTypes ...string) []apievents.AuditEvent {
+		eventTypeMap := make(map[string]bool)
+		for _, et := range eventTypes {
+			eventTypeMap[et] = true
+		}
+
+		var result []apievents.AuditEvent
+		for _, evt := range emitter.Events() {
+			if len(eventTypes) == 0 || eventTypeMap[evt.GetType()] {
+				result = append(result, evt)
+			}
+		}
+		return result
+	}
+
+	t.Run("InferenceModel events", func(t *testing.T) {
+		secret, model, _ := newTestResources(t, "audit1")
+
+		_, err := sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+			Secret: secret,
+		})
+		require.NoError(t, err)
+
+		createdModel, err := sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
+			Model: model,
+		})
+		require.NoError(t, err)
+
+		evts := getRecentEvents(events.InferenceModelCreateEvent)
+		require.NotEmpty(t, evts, "expected at least one model create event")
+		createEvt, ok := evts[len(evts)-1].(*apievents.InferenceModelCreate)
+		require.True(t, ok, "expected InferenceModelCreate event, got %T", evts[len(evts)-1])
+		assert.Equal(t, events.InferenceModelCreateCode, createEvt.Code)
+		assert.Equal(t, "modelaudit1", createEvt.ResourceMetadata.Name)
+		assert.Equal(t, user.GetName(), createEvt.User)
+
+		createdModel.Model.Spec.GetOpenai().Temperature = 1.5
+		_, err = sclt.UpdateInferenceModel(ctx, &summarizerv1pb.UpdateInferenceModelRequest{
+			Model: createdModel.Model,
+		})
+		require.NoError(t, err)
+
+		evts = getRecentEvents(events.InferenceModelUpdateEvent)
+		require.NotEmpty(t, evts, "expected at least one model update event")
+		updateEvt, ok := evts[len(evts)-1].(*apievents.InferenceModelUpdate)
+		require.True(t, ok, "expected InferenceModelUpdate event got %T", evts[len(evts)-1])
+		assert.Equal(t, events.InferenceModelUpdateCode, updateEvt.Code)
+		assert.Equal(t, "modelaudit1", updateEvt.ResourceMetadata.Name)
+		assert.Equal(t, user.GetName(), updateEvt.User)
+
+		_, err = sclt.DeleteInferenceModel(ctx, &summarizerv1pb.DeleteInferenceModelRequest{
+			Name: "modelaudit1",
+		})
+		require.NoError(t, err)
+
+		evts = getRecentEvents(events.InferenceModelDeleteEvent)
+		require.NotEmpty(t, evts, "expected at least one model delete event")
+		deleteEvt, ok := evts[len(evts)-1].(*apievents.InferenceModelDelete)
+		require.True(t, ok, "expected InferenceModelDelete event got %T", evts[len(evts)-1])
+		assert.Equal(t, events.InferenceModelDeleteCode, deleteEvt.Code)
+		assert.Equal(t, "modelaudit1", deleteEvt.ResourceMetadata.Name)
+		assert.Equal(t, user.GetName(), deleteEvt.User)
+	})
+
+	t.Run("InferenceSecret events", func(t *testing.T) {
+		secret, _, _ := newTestResources(t, "audit2")
+
+		_, err := sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+			Secret: secret,
+		})
+		require.NoError(t, err)
+
+		evts := getRecentEvents(events.InferenceSecretCreateEvent)
+		require.NotEmpty(t, evts, "expected at least one secret create event")
+		createEvt, ok := evts[len(evts)-1].(*apievents.InferenceSecretCreate)
+		require.True(t, ok, "expected InferenceSecretCreate event, got %T", evts[len(evts)-1])
+		assert.Equal(t, events.InferenceSecretCreateCode, createEvt.Code)
+		assert.Equal(t, "secretaudit2", createEvt.ResourceMetadata.Name)
+		assert.Equal(t, user.GetName(), createEvt.User)
+
+		backendSecret, err := srv.AuthServer.AuthServer.GetInferenceSecret(ctx, "secretaudit2")
+		require.NoError(t, err)
+		backendSecret.Spec.Value = "updated-value"
+		_, err = sclt.UpdateInferenceSecret(ctx, &summarizerv1pb.UpdateInferenceSecretRequest{
+			Secret: backendSecret,
+		})
+		require.NoError(t, err)
+
+		evts = getRecentEvents(events.InferenceSecretUpdateEvent)
+		require.NotEmpty(t, evts, "expected at least one secret update event")
+		updateEvt, ok := evts[len(evts)-1].(*apievents.InferenceSecretUpdate)
+		require.True(t, ok, "expected InferenceSecretUpdate event, got %T", evts[len(evts)-1])
+		assert.Equal(t, events.InferenceSecretUpdateCode, updateEvt.Code)
+		assert.Equal(t, "secretaudit2", updateEvt.ResourceMetadata.Name)
+		assert.Equal(t, user.GetName(), updateEvt.User)
+
+		_, err = sclt.DeleteInferenceSecret(ctx, &summarizerv1pb.DeleteInferenceSecretRequest{
+			Name: "secretaudit2",
+		})
+		require.NoError(t, err)
+
+		evts = getRecentEvents(events.InferenceSecretDeleteEvent)
+		require.NotEmpty(t, evts, "expected at least one secret delete event")
+		deleteEvt, ok := evts[len(evts)-1].(*apievents.InferenceSecretDelete)
+		require.True(t, ok, "expected InferenceSecretDelete event, got %T", evts[len(evts)-1])
+		assert.Equal(t, events.InferenceSecretDeleteCode, deleteEvt.Code)
+		assert.Equal(t, "secretaudit2", deleteEvt.ResourceMetadata.Name)
+		assert.Equal(t, user.GetName(), deleteEvt.User)
+	})
+
+	t.Run("InferencePolicy events", func(t *testing.T) {
+		secret, model, policy := newTestResources(t, "audit3")
+
+		_, err := sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+			Secret: secret,
+		})
+		require.NoError(t, err)
+		_, err = sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
+			Model: model,
+		})
+		require.NoError(t, err)
+
+		createdPolicy, err := sclt.CreateInferencePolicy(ctx, &summarizerv1pb.CreateInferencePolicyRequest{
+			Policy: policy,
+		})
+		require.NoError(t, err)
+
+		evts := getRecentEvents(events.InferencePolicyCreateEvent)
+		require.NotEmpty(t, evts, "expected at least one policy create event")
+		createEvt, ok := evts[len(evts)-1].(*apievents.InferencePolicyCreate)
+		require.True(t, ok, "expected InferencePolicyCreate event, got %T", evts[len(evts)-1])
+		assert.Equal(t, events.InferencePolicyCreateCode, createEvt.Code)
+		assert.Equal(t, "policyaudit3", createEvt.ResourceMetadata.Name)
+		assert.Equal(t, user.GetName(), createEvt.User)
+
+		createdPolicy.Policy.Spec.Filter = `equals(resource.metadata.labels["env"], "dev")`
+		_, err = sclt.UpdateInferencePolicy(ctx, &summarizerv1pb.UpdateInferencePolicyRequest{
+			Policy: createdPolicy.Policy,
+		})
+		require.NoError(t, err)
+
+		evts = getRecentEvents(events.InferencePolicyUpdateEvent)
+		require.NotEmpty(t, evts, "expected at least one policy update event")
+		updateEvt, ok := evts[len(evts)-1].(*apievents.InferencePolicyUpdate)
+		require.True(t, ok, "expected InferencePolicyUpdate event, got %T", evts[len(evts)-1])
+		assert.Equal(t, events.InferencePolicyUpdateCode, updateEvt.Code)
+		assert.Equal(t, "policyaudit3", updateEvt.ResourceMetadata.Name)
+		assert.Equal(t, user.GetName(), updateEvt.User)
+
+		_, err = sclt.DeleteInferencePolicy(ctx, &summarizerv1pb.DeleteInferencePolicyRequest{
+			Name: "policyaudit3",
+		})
+		require.NoError(t, err)
+
+		evts = getRecentEvents(events.InferencePolicyDeleteEvent)
+		require.NotEmpty(t, evts, "expected at least one policy delete event")
+		deleteEvt, ok := evts[len(evts)-1].(*apievents.InferencePolicyDelete)
+		require.True(t, ok, "expected InferencePolicyDelete event, got %T", evts[len(evts)-1])
+		assert.Equal(t, events.InferencePolicyDeleteCode, deleteEvt.Code)
+		assert.Equal(t, "policyaudit3", deleteEvt.ResourceMetadata.Name)
+		assert.Equal(t, user.GetName(), deleteEvt.User)
+	})
 }
 
 func TestService_TestInferenceModel(t *testing.T) {

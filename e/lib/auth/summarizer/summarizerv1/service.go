@@ -12,6 +12,7 @@ import (
 	"github.com/gravitational/trace"
 	openailib "github.com/openai/openai-go/v3"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
@@ -45,6 +46,8 @@ type ServiceConfig struct {
 	Backend           services.Summarizer
 	SummaryDownloader SummaryDownloader
 	Decrypter         events.DecryptionWrapper
+	// Emitter emits audit events.
+	Emitter apievents.Emitter
 	// OpenAIClientFactory creates OpenAI clients for testing. Optional.
 	OpenAIClientFactory openai.ClientFactory
 	// BedrockClientFactory creates Amazon Bedrock clients for testing. Optional.
@@ -68,6 +71,7 @@ type Service struct {
 	summaryDownloader                SummaryDownloader
 	logger                           *slog.Logger
 	decrypter                        events.DecryptionWrapper
+	emitter                          apievents.Emitter
 	openAIClientFactory              openai.ClientFactory
 	bedrockClientFactory             bedrock.ClientFactory
 	awsConfigCache                   *awsconfig.Cache
@@ -93,6 +97,9 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	if cfg.UsageReporter == nil {
 		return nil, trace.BadParameter("usage reporter is required")
 	}
+	if cfg.Emitter == nil {
+		return nil, trace.BadParameter("emitter is required")
+	}
 
 	return &Service{
 		authorizer:                       cfg.Authorizer,
@@ -100,6 +107,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		summaryDownloader:                cfg.SummaryDownloader,
 		logger:                           slog.With(teleport.ComponentKey, "summarizer"),
 		decrypter:                        cfg.Decrypter,
+		emitter:                          cfg.Emitter,
 		openAIClientFactory:              cfg.OpenAIClientFactory,
 		bedrockClientFactory:             cfg.BedrockClientFactory,
 		awsConfigCache:                   cfg.AWSConfigCache,
@@ -109,6 +117,16 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 }
 
 // CRUD operations for models
+
+// encodeResourcePayload marshals a protobuf message to a Struct for audit event payloads.
+func (s *Service) encodeResourcePayload(msg proto.Message) *apievents.Struct {
+	data, err := apievents.Resource153ToStruct(msg)
+	if err != nil {
+		s.logger.WarnContext(context.Background(), "Failed to marshal resource for audit event", "error", err)
+
+	}
+	return data
+}
 
 func rejectReservedInferenceModelName(m *pb.InferenceModel) error {
 	if m.GetMetadata().GetName() == apisummarizer.CloudDefaultInferenceModelName {
@@ -138,7 +156,30 @@ func (s *Service) CreateInferenceModel(
 	}
 
 	model, err := s.backend.CreateInferenceModel(ctx, req.Model)
-	return &pb.CreateInferenceModelResponse{Model: model}, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferenceModelCreate{
+		Metadata: apievents.Metadata{
+			Type: events.InferenceModelCreateEvent,
+			Code: events.InferenceModelCreateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    model.GetMetadata().GetName(),
+			Expires: model.GetMetadata().GetExpires().AsTime(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+		Payload: s.encodeResourcePayload(model),
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference model create event", "error", err)
+	}
+
+	return &pb.CreateInferenceModelResponse{Model: model}, nil
 }
 
 // GetInferenceModel retrieves an existing InferenceModel by name.
@@ -178,7 +219,30 @@ func (s *Service) UpdateInferenceModel(
 	}
 
 	model, err := s.backend.UpdateInferenceModel(ctx, req.Model)
-	return &pb.UpdateInferenceModelResponse{Model: model}, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferenceModelUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.InferenceModelUpdateEvent,
+			Code: events.InferenceModelUpdateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    model.GetMetadata().GetName(),
+			Expires: model.GetMetadata().GetExpires().AsTime(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+		Payload: s.encodeResourcePayload(model),
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference model update event", "error", err)
+	}
+
+	return &pb.UpdateInferenceModelResponse{Model: model}, nil
 }
 
 // UpsertInferenceModel creates a new InferenceModel or updates an existing one.
@@ -200,7 +264,31 @@ func (s *Service) UpsertInferenceModel(
 	}
 
 	model, err := s.backend.UpsertInferenceModel(ctx, req.Model)
-	return &pb.UpsertInferenceModelResponse{Model: model}, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// For upsert, we emit an update event since it's either creating or updating
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferenceModelUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.InferenceModelUpdateEvent,
+			Code: events.InferenceModelUpdateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    model.GetMetadata().GetName(),
+			Expires: model.GetMetadata().GetExpires().AsTime(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+		Payload: s.encodeResourcePayload(model),
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference model upsert event", "error", err)
+	}
+
+	return &pb.UpsertInferenceModelResponse{Model: model}, nil
 }
 
 // DeleteInferenceModel deletes an existing InferenceModel by name.
@@ -228,6 +316,23 @@ func (s *Service) DeleteInferenceModel(
 	err = s.backend.DeleteInferenceModel(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferenceModelDelete{
+		Metadata: apievents.Metadata{
+			Type: events.InferenceModelDeleteEvent,
+			Code: events.InferenceModelDeleteCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: req.Name,
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference model delete event", "error", err)
 	}
 
 	return &pb.DeleteInferenceModelResponse{}, nil
@@ -275,7 +380,29 @@ func (s *Service) CreateInferenceSecret(
 	}
 
 	secret, err := s.backend.CreateInferenceSecret(ctx, req.Secret)
-	return &pb.CreateInferenceSecretResponse{Secret: secret}, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferenceSecretCreate{
+		Metadata: apievents.Metadata{
+			Type: events.InferenceSecretCreateEvent,
+			Code: events.InferenceSecretCreateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    secret.GetMetadata().GetName(),
+			Expires: secret.GetMetadata().GetExpires().AsTime(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference secret create event", "error", err)
+	}
+
+	return &pb.CreateInferenceSecretResponse{Secret: secret}, nil
 }
 
 // GetInferenceSecret retrieves an existing InferenceSecret by name.
@@ -315,11 +442,33 @@ func (s *Service) UpdateInferenceSecret(
 	}
 
 	secret, err := s.backend.UpdateInferenceSecret(ctx, req.Secret)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferenceSecretUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.InferenceSecretUpdateEvent,
+			Code: events.InferenceSecretUpdateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    secret.GetMetadata().GetName(),
+			Expires: secret.GetMetadata().GetExpires().AsTime(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference secret update event", "error", err)
+	}
+
 	// Don't leak the secret.
 	if secret != nil {
 		secret.Spec = nil
 	}
-	return &pb.UpdateInferenceSecretResponse{Secret: secret}, trace.Wrap(err)
+	return &pb.UpdateInferenceSecretResponse{Secret: secret}, nil
 }
 
 // UpsertInferenceSecret creates a new InferenceSecret or updates an existing one.
@@ -337,11 +486,34 @@ func (s *Service) UpsertInferenceSecret(
 	}
 
 	secret, err := s.backend.UpsertInferenceSecret(ctx, req.Secret)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// For upsert, we emit an update event since it's either creating or updating
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferenceSecretUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.InferenceSecretUpdateEvent,
+			Code: events.InferenceSecretUpdateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    secret.GetMetadata().GetName(),
+			Expires: secret.GetMetadata().GetExpires().AsTime(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference secret upsert event", "error", err)
+	}
+
 	// Don't leak the secret.
 	if secret != nil {
 		secret.Spec = nil
 	}
-	return &pb.UpsertInferenceSecretResponse{Secret: secret}, trace.Wrap(err)
+	return &pb.UpsertInferenceSecretResponse{Secret: secret}, nil
 }
 
 // DeleteInferenceSecret deletes an existing InferenceSecret by name.
@@ -361,6 +533,23 @@ func (s *Service) DeleteInferenceSecret(
 	err = s.backend.DeleteInferenceSecret(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferenceSecretDelete{
+		Metadata: apievents.Metadata{
+			Type: events.InferenceSecretDeleteEvent,
+			Code: events.InferenceSecretDeleteCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: req.Name,
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference secret delete event", "error", err)
 	}
 
 	return &pb.DeleteInferenceSecretResponse{}, nil
@@ -412,7 +601,30 @@ func (s *Service) CreateInferencePolicy(
 	}
 
 	policy, err := s.backend.CreateInferencePolicy(ctx, req.Policy)
-	return &pb.CreateInferencePolicyResponse{Policy: policy}, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferencePolicyCreate{
+		Metadata: apievents.Metadata{
+			Type: events.InferencePolicyCreateEvent,
+			Code: events.InferencePolicyCreateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    policy.GetMetadata().GetName(),
+			Expires: policy.GetMetadata().GetExpires().AsTime(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+		Payload: s.encodeResourcePayload(policy),
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference policy create event", "error", err)
+	}
+
+	return &pb.CreateInferencePolicyResponse{Policy: policy}, nil
 }
 
 // GetInferencePolicy retrieves an existing InferencePolicy by name.
@@ -448,7 +660,30 @@ func (s *Service) UpdateInferencePolicy(
 	}
 
 	policy, err := s.backend.UpdateInferencePolicy(ctx, req.Policy)
-	return &pb.UpdateInferencePolicyResponse{Policy: policy}, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferencePolicyUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.InferencePolicyUpdateEvent,
+			Code: events.InferencePolicyUpdateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    policy.GetMetadata().GetName(),
+			Expires: policy.GetMetadata().GetExpires().AsTime(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+		Payload: s.encodeResourcePayload(policy),
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference policy update event", "error", err)
+	}
+
+	return &pb.UpdateInferencePolicyResponse{Policy: policy}, nil
 }
 
 // UpsertInferencePolicy creates a new InferencePolicy or updates an existing one.
@@ -466,7 +701,31 @@ func (s *Service) UpsertInferencePolicy(
 	}
 
 	policy, err := s.backend.UpsertInferencePolicy(ctx, req.Policy)
-	return &pb.UpsertInferencePolicyResponse{Policy: policy}, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// For upsert, we emit an update event since it's either creating or updating
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferencePolicyUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.InferencePolicyUpdateEvent,
+			Code: events.InferencePolicyUpdateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    policy.GetMetadata().GetName(),
+			Expires: policy.GetMetadata().GetExpires().AsTime(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+		Payload: s.encodeResourcePayload(policy),
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference policy upsert event", "error", err)
+	}
+
+	return &pb.UpsertInferencePolicyResponse{Policy: policy}, nil
 }
 
 // DeleteInferencePolicy deletes an existing InferencePolicy by name.
@@ -486,6 +745,23 @@ func (s *Service) DeleteInferencePolicy(
 	err = s.backend.DeleteInferencePolicy(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.InferencePolicyDelete{
+		Metadata: apievents.Metadata{
+			Type: events.InferencePolicyDeleteEvent,
+			Code: events.InferencePolicyDeleteCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: req.Name,
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status: apievents.Status{
+			Success: true,
+		},
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit inference policy delete event", "error", err)
 	}
 
 	return &pb.DeleteInferencePolicyResponse{}, nil

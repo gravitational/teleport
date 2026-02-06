@@ -409,6 +409,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 			Backend:                          p.authServer.AuthServer,
 			SummaryDownloader:                p.authServer.AuthServer,
 			Decrypter:                        p.authServer.AuthServer.EncryptedIO,
+			Emitter:                          p.authServer.Emitter,
 			AWSConfigCache:                   cfgCache,
 			EnableBedrockWithoutRestrictions: !modules.GetModules().Features().Cloud,
 			UsageReporter:                    p.authServer.AuthServer.UsageReporter,
