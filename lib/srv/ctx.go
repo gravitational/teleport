@@ -1031,6 +1031,7 @@ func getPAMConfig(c *ServerContext) (*reexec.PAMConfig, error) {
 // ConfigureCommand creates a reexec command fully configured to execute. This
 // function is used by Teleport to re-execute itself and pass whatever data
 // is need to the child to actually execute the shell.
+// The caller must ensure the command is closed once it's no longer needed.
 func (c *ServerContext) ConfigureCommand() (*reexec.Command, error) {
 	cfg, err := c.ReexecConfig()
 	if err != nil {
@@ -1041,10 +1042,6 @@ func (c *ServerContext) ConfigureCommand() (*reexec.Command, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Ensure the reexec command, and all of it's pipes, are closed when the
-	// overarching ssh request succeeds/fails.
-	c.AddCloser(cmd)
 
 	// Perform OS-specific tweaks to the command.
 	reexecCommandOSTweaks(cmd.Cmd)

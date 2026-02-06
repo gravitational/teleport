@@ -194,23 +194,12 @@ func (t *terminal) Run(ctx context.Context) error {
 	}
 	t.reexecCmd = cmd
 
-	// Pass the TTY to the child since a terminal is attached.
-	// we need the lock here to protect from concurrent calls to Close()
-	t.mu.Lock()
-	tty := t.tty
-	t.mu.Unlock()
-
 	// Intentionally passing a nil value instead of the PTY. The child
 	// process does not need the PTY, but for compatibility purposes the
 	// first ExtraFiles is left for the PTY descriptor.
 	t.reexecCmd.AddChildPipe(nil)
 	// Pass the TTY to the child since a terminal is attached.
-	t.reexecCmd.AddChildPipe(tty)
-
-	// Close the TTY before returning to ensure that our half of the pipe is
-	// closed. This ensures that reading from the PTY will unblock when the
-	// child process exits.
-	defer t.closeTTY()
+	t.reexecCmd.AddChildPipe(t.takeTTY())
 
 	// Start the process.
 	if err := t.reexecCmd.Start(ctx); err != nil {
@@ -225,7 +214,7 @@ func (t *terminal) Run(ctx context.Context) error {
 
 // Wait will block until the terminal is complete.
 func (t *terminal) Wait() (*ExecResult, error) {
-	err := t.reexecCmd.Wait(t.serverContext.cancelContext)
+	err := t.reexecCmd.Wait()
 	return &ExecResult{
 		Code:    exitCode(err),
 		Command: t.reexecCmd.Cmd.Path,
@@ -244,6 +233,10 @@ func (t *terminal) Continue() {
 
 // KillUnderlyingShell tries to kill the shell/bash process and waits for the process PID to be released.
 func (t *terminal) KillUnderlyingShell(ctx context.Context) error {
+	if t.reexecCmd == nil {
+		return nil
+	}
+
 	t.reexecCmd.Terminate(ctx)
 	pid := t.PID()
 
@@ -300,35 +293,36 @@ func (t *terminal) PID() int {
 
 // Close will free resources associated with the terminal.
 func (t *terminal) Close() error {
-	err := t.closeTTY()
+	var errs []error
+	t.mu.Lock()
+	if t.reexecCmd != nil {
+		if err := t.reexecCmd.Close(); err != nil {
+			errs = append(errs, err)
+		}
+		// Set to nil to prevent re-closing.
+		t.reexecCmd = nil
+	}
+	t.mu.Unlock()
+
+	if tty := t.takeTTY(); tty != nil {
+		if err := tty.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
 	// note, pty is closed in the copying goroutine,
 	// not here to avoid data races
 	go t.closePTY()
-	return trace.Wrap(err)
+
+	return trace.NewAggregate(errs...)
 }
 
-func (t *terminal) closeTTY() error {
+func (t *terminal) takeTTY() *os.File {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-
-	if t.tty == nil {
-		t.log.DebugContext(t.serverContext.CancelContext(), "TTY already closed")
-		return nil
-	}
-
-	t.log.DebugContext(t.serverContext.CancelContext(), "Closing TTY")
-	defer t.log.DebugContext(t.serverContext.CancelContext(), "Closed TTY")
-	err := t.tty.Close()
+	tty := t.tty
 	t.tty = nil
-
-	if err != nil && !errors.Is(err, os.ErrClosed) {
-		t.log.WarnContext(t.serverContext.CancelContext(), "Failed to close TTY", "error", err)
-	}
-	if errors.Is(err, os.ErrClosed) {
-		err = nil
-	}
-
-	return trace.Wrap(err)
+	return tty
 }
 
 func (t *terminal) closePTY() {

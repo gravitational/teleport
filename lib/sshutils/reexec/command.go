@@ -63,6 +63,7 @@ type Command struct {
 }
 
 // NewReexecCommand allocates a ReexecCommand with the common reexec pipes.
+// The caller must ensure the command is closed once it's no longer needed.
 func NewReexecCommand(cfg *Config) (*Command, error) {
 	if cfg == nil {
 		return nil, trace.BadParameter("missing config")
@@ -227,19 +228,19 @@ func (c *Command) WaitReady(ctx context.Context) error {
 // pre-processing routine (placed in a cgroup).
 func (c *Command) Continue(ctx context.Context) {
 	if err := c.contW.Close(); err != nil {
-		c.logger.WarnContext(ctx, "failed to close the continue pipe")
+		c.logger.WarnContext(ctx, "failed to close the continue pipe", "error", err)
 	}
 }
 
 // Terminate attempts to kill the shell/bash process.
 func (c *Command) Terminate(ctx context.Context) {
 	if err := c.termW.Close(); err != nil {
-		c.logger.WarnContext(ctx, "failed to close the terminate pipe")
+		c.logger.WarnContext(ctx, "failed to close the terminate pipe", "error", err)
 	}
 }
 
 // Wait for the underlying exec.Cmd to complete.
-func (c *Command) Wait(ctx context.Context) error {
+func (c *Command) Wait() error {
 	if c.Cmd == nil {
 		return trace.BadParameter("missing exec command")
 	}

@@ -157,6 +157,7 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	e.Ctx.AddCloser(e.reexecCmd)
 
 	// Connect stdout and stderr to the channel so the user can interact with the command.
 	e.reexecCmd.Cmd.Stderr = channel.Stderr()
@@ -201,7 +202,7 @@ func (e *localExec) Wait() *ExecResult {
 	}
 
 	// Block until the command is finished executing.
-	err := e.reexecCmd.Wait(e.Ctx.CancelContext())
+	err := e.reexecCmd.Wait()
 	if err != nil {
 		e.Ctx.Logger.DebugContext(e.Ctx.CancelContext(), "Local command failed", "error", err)
 	} else {

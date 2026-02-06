@@ -192,7 +192,7 @@ func TestContinue(t *testing.T) {
 			cmdDone <- err
 			return
 		}
-		cmdDone <- trace.Wrap(cmd.Wait(ctx))
+		cmdDone <- trace.Wrap(cmd.Wait())
 	}()
 
 	// Wait for the process. Since the continue pipe has not been closed, the

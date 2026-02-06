@@ -101,6 +101,8 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	serverCtx.AddCloser(s.reexecCmd)
+
 	s.reexecCmd.Cmd.Stdout = os.Stdout
 	s.reexecCmd.Cmd.Stderr = os.Stderr
 
@@ -227,7 +229,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 
 func (s *sftpSubsys) Wait() error {
 	ctx := context.Background()
-	waitErr := s.reexecCmd.Wait(ctx)
+	waitErr := s.reexecCmd.Wait()
 	s.logger.DebugContext(ctx, "SFTP process finished")
 
 	s.serverCtx.SendExecResult(ctx, srv.ExecResult{

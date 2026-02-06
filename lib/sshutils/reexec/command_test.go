@@ -49,7 +49,7 @@ func TestStartPreservesExtraFilesAndPlaceholders(t *testing.T) {
 	reexecCmd.AddChildPipe(extraChild)
 
 	require.NoError(t, reexecCmd.Start(ctx))
-	t.Cleanup(func() { _ = reexecCmd.Wait(ctx) })
+	t.Cleanup(func() { _ = reexecCmd.Wait() })
 
 	var existingCount int
 	var childCount int

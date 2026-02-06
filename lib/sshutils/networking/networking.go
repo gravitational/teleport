@@ -145,8 +145,9 @@ func (p *Process) start(ctx context.Context) error {
 	go func() {
 		defer close(p.done)
 		defer p.conn.Close()
+		defer p.cmd.Close()
 		// Ensure unexpected cmd failures get logged.
-		if err := p.cmd.Wait(ctx); err != nil && !p.killed.Load() {
+		if err := p.cmd.Wait(); err != nil && !p.killed.Load() {
 			slog.WarnContext(ctx, "Networking process exited early with unexpected error.", "error", err)
 		}
 	}()
