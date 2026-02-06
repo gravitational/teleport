@@ -95,7 +95,7 @@ version: v2
 }
 
 func TestGetAuthConnectors(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 
 	m := &mockedResourceAPIGetter{}
 	m.mockGetGithubConnectors = func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
@@ -106,7 +106,8 @@ func TestGetAuthConnectors(t *testing.T) {
 					Team:         "dummy",
 					Roles:        []string{"dummmy"},
 				},
-			}})
+			},
+		})
 		require.NoError(t, err)
 		return []types.GithubConnector{connector}, nil
 	}

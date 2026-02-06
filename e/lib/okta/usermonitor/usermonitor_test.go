@@ -577,7 +577,7 @@ func TestProcessEvent(t *testing.T) {
 func setupOktaUAC(t *testing.T, svc *UserMonitor) {
 	t.Helper()
 
-	clusterName, err := svc.authServer.GetClusterName(context.TODO())
+	clusterName, err := svc.authServer.GetClusterName(t.Context())
 	require.NoError(t, err)
 
 	mem, err := memory.New(memory.Config{})
