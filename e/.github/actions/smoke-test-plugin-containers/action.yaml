@@ -95,7 +95,6 @@ runs:
 
           # Construct expected output pattern and run the version command on the container image
           PATTERN="^${image/teleport-plugin/teleport}" # expect teleport-plugin-$NAME to output teleport-$NAME
-          PATTERN="${PATTERN/teleport-event-handler/Teleport event handler}" # no-op on anything not event-handler
           DOCKER_RUN_OUTPUT="$(docker run -i --rm --platform $PLATFORM $IMAGE_REPO version)"
           echo "$DOCKER_RUN_OUTPUT"
           if [[  $DOCKER_RUN_OUTPUT =~ $PATTERN ]]; then

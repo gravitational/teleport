@@ -98,7 +98,6 @@ runs:
           FILE_NAME="${plugin/teleport-access/teleport}"
           FULL_PATH="$plugin/$FILE_NAME"
           PATTERN="^${plugin/teleport-access/teleport}" # expect teleport-access-$NAME to output teleport-$NAME
-          PATTERN="${PATTERN/teleport-event-handler/Teleport event handler}" # no-op on anything not event-handler
 
           tar -xvzf "$TARBALL_PATH"
           VERSION_OUTPUT="$($FULL_PATH version)"
