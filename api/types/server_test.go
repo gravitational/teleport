@@ -858,3 +858,43 @@ func TestServerLabels(t *testing.T) {
 	require.True(t, MatchLabels(server, map[string]string{"time": "now"}))
 	require.True(t, MatchLabels(server, map[string]string{"time": "now", "role": "database"}))
 }
+
+func TestServerGetLabel(t *testing.T) {
+	server := ServerV2{
+		Metadata: Metadata{
+			Labels: map[string]string{
+				"static": "static",
+				// immutable and cmd included to ensure they're overridden
+				"immutable": "static",
+				"cmd":       "static",
+			},
+		},
+		Spec: ServerSpecV2{
+			CmdLabels: map[string]CommandLabelV2{
+				"cmd": {
+					Result: "cmd",
+				},
+				// immutable included to ensure it's overridden
+				"immutable": {
+					Result: "cmd",
+				},
+			},
+			ImmutableLabels: map[string]string{
+				"immutable": "immutable",
+			},
+		},
+	}
+
+	// if priority is respected, all label values should match their keys
+	val, ok := server.GetLabel("immutable")
+	require.True(t, ok)
+	require.Equal(t, "immutable", val)
+
+	val, ok = server.GetLabel("cmd")
+	require.True(t, ok)
+	require.Equal(t, "cmd", val)
+
+	val, ok = server.GetLabel("static")
+	require.True(t, ok)
+	require.Equal(t, "static", val)
+}
