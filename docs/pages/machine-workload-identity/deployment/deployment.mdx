@@ -32,6 +32,18 @@ authentication methods:
   Kubernetes cluster or Amazon EC2 instance, provides a signed identity document
   that Teleport can verify using the platform's certificate authority. This is
   the recommended approach because it avoids the use of shared secrets.
+- **Bound keypair token:** Your `tbot` agent generates a public/private keypair
+  and the Teleport Auth Service is configured to trust the public key. This
+  trust can either be established manually - by an administrator copying the key
+  to Teleport - or automatically if a single-use joining secret is provided to
+  the `tbot` client.
+
+  Once trusted, the `tbot` agent can use its keypair to prove its long-term
+  identity to Teleport and receive a renewable certificate. It authenticates to
+  Teleport for as long as the renewable credential remains valid, but can use
+  the bound keypair to automatically recover if it ever expires - if allowed to
+  do so by your own policy. [Read more about Bound Keypair
+  Joining](../../reference/machine-workload-identity/bound-keypair/bound-keypair.mdx).
 - **Static join token:** Your Teleport client tool generates a string and stores
   it on the Teleport Auth Service. `tbot` provides this string when it first
   connects to your Teleport cluster, demonstrating to the Auth Service that it
