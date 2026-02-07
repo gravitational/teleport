@@ -65,7 +65,7 @@ func TestNoopCommand(t *testing.T) {
 				require.True(t, ok)
 				require.Equal(t, "/foo", dir.Path)
 
-				require.Len(t, cfg.Services, 0)
+				require.Empty(t, cfg.Services)
 			},
 		},
 	})
