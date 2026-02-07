@@ -88,13 +88,20 @@ To register the keypair with Teleport, include this public key in the token's
 
 	{{ .PublicKey }}
 
+You can use 'tctl' to create a bot and token automatically:
+
+    $ tctl bots add bot-name \
+	  --roles=some-role,some-other-role \
+	  --initial-public-key='{{ .PublicKey }}'{{ if or .StaticKeyPath .EncodedPrivateKey }} \
+	  --recovery-mode=insecure{{ end }}
+
 Refer to this token example as a reference:
 
 {{ .TokenExample }}
-{{- if .StaticKeyPath }}
+{{- if or .EncodedPrivateKey .StaticKeyPath }}
 Note that you must also set 'spec.bound_keypair.recovery.mode' to 'insecure'
 to use static keys.
-
+{{ end }}{{- if .StaticKeyPath }}
 The static key has been written to: {{ .StaticKeyPath }}
 
 Configure your bot to use this static key by setting the following 'tbot.yaml'
