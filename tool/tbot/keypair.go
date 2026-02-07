@@ -126,7 +126,7 @@ will be unable to join if a rotation is requested server-side via the token's
 shown above. Read more at:
 
 	https://goteleport.com/docs/reference/machine-workload-identity/machine-id/bound-keypair/concepts/#recovery
-{{- end }}`))
+{{ end }}`))
 
 func generateExampleToken(params KeypairMessageParams, indent string) (string, error) {
 	mode := string(libboundkeypair.RecoveryModeStandard)
