@@ -349,11 +349,24 @@ var startMessageTemplateV2 = template.Must(template.New(
 This token must be used within {{ .minutes }} minutes after which it must be recreated.{{ else if .minutes }}
 This token will expire in {{ .minutes }} minutes.{{ end }}
 
+To start a new tbot running the identity service, run:
+
 > tbot start identity \
    --join-uri={{ .join_uri }} \
    --destination=./destination
 
-Full parameters:
+Alternatively, if you'd like to generate a tbot.yaml config file, you can
+instead run:
+
+> tbot configure identity \
+  --join-uri={{ .join_uri }} \
+  --destination=./destination > tbot.yaml
+
+Then, run tbot with:
+
+> tbot start -c tbot.yaml
+
+Advanced parameters:
 {{ .param_table }}
 Please note:
   - The ./destination destination directory can be changed as desired.

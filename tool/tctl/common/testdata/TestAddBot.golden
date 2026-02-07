@@ -1,10 +1,23 @@
 The bot joining URI: tbot+proxy+bound-keypair://static-example-1234:static-registration-secret@localhost:443
 
+To start a new tbot running the identity service, run:
+
 > tbot start identity \
    --join-uri=tbot+proxy+bound-keypair://static-example-1234:static-registration-secret@localhost:443 \
    --destination=./destination
 
-Full parameters:
+Alternatively, if you'd like to generate a tbot.yaml config file, you can
+instead run:
+
+> tbot configure identity \
+  --join-uri=tbot+proxy+bound-keypair://static-example-1234:static-registration-secret@localhost:443 \
+  --destination=./destination > tbot.yaml
+
+Then, run tbot with:
+
+> tbot start -c tbot.yaml
+
+Advanced parameters:
   Fake: Table
 
 Please note:
