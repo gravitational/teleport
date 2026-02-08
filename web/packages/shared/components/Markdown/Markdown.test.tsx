@@ -377,6 +377,118 @@ that continues
     });
   });
 
+  describe('fenced code blocks', () => {
+    it('renders a fenced code block', () => {
+      const text = `Some text
+
+\`\`\`json
+{
+  "Effect": "Allow",
+  "Action": ["ec2:DescribeInstances"]
+}
+\`\`\`
+
+More text`;
+
+      const { container } = renderMarkdown(text);
+
+      const pre = container.querySelector('pre');
+      expect(pre).toBeInTheDocument();
+
+      const code = pre.querySelector('code');
+      expect(code).toBeInTheDocument();
+      expect(code.textContent).toBe(
+        '{\n  "Effect": "Allow",\n  "Action": ["ec2:DescribeInstances"]\n}'
+      );
+
+      expect(screen.getByText('Some text')).toBeInTheDocument();
+      expect(screen.getByText('More text')).toBeInTheDocument();
+    });
+
+    it('renders a fenced code block without language', () => {
+      const text = `\`\`\`
+hello world
+\`\`\``;
+
+      const { container } = renderMarkdown(text);
+
+      const code = container.querySelector('pre code');
+      expect(code).toBeInTheDocument();
+      expect(code.textContent).toBe('hello world');
+    });
+
+    it('renders multiple fenced code blocks', () => {
+      const text = `\`\`\`json
+{"a": 1}
+\`\`\`
+
+\`\`\`yaml
+regions:
+  - us-east-1
+\`\`\``;
+
+      const { container } = renderMarkdown(text);
+
+      const pres = container.querySelectorAll('pre');
+      expect(pres).toHaveLength(2);
+      expect(pres[0].querySelector('code').textContent).toBe('{"a": 1}');
+      expect(pres[1].querySelector('code').textContent).toBe(
+        'regions:\n  - us-east-1'
+      );
+    });
+
+    it('does not parse inline markdown inside fenced code blocks', () => {
+      const text = `\`\`\`
+**not bold** and \`not code\`
+\`\`\``;
+
+      const { container } = renderMarkdown(text);
+
+      const code = container.querySelector('pre code');
+      expect(code.textContent).toBe('**not bold** and `not code`');
+      expect(container.querySelector('pre strong')).not.toBeInTheDocument();
+    });
+
+    it('handles unclosed fenced code block gracefully', () => {
+      const text = `\`\`\`json
+{"a": 1}
+no closing fence`;
+
+      const { container } = renderMarkdown(text);
+
+      const code = container.querySelector('pre code');
+      expect(code).toBeInTheDocument();
+      expect(code.textContent).toBe('{"a": 1}\nno closing fence');
+    });
+
+    it('escapes HTML inside fenced code blocks', () => {
+      const text = `\`\`\`
+<script>alert('xss')</script>
+\`\`\``;
+
+      const { container } = renderMarkdown(text);
+
+      const code = container.querySelector('pre code');
+      expect(code.textContent).toBe("<script>alert('xss')</script>");
+      expect(code.innerHTML).not.toContain('<script>');
+    });
+
+    it('handles paragraph ending at fenced code block', () => {
+      const text = `This is a paragraph
+\`\`\`
+code here
+\`\`\``;
+
+      const { container } = renderMarkdown(text);
+
+      expect(screen.getByText('This is a paragraph')).toBeInTheDocument();
+
+      const code = container.querySelector('pre code');
+      expect(code).toBeInTheDocument();
+      expect(code.textContent).toBe('code here');
+    });
+  });
+
   describe('edge cases', () => {
     it('handles empty string', () => {
       renderMarkdown(``);
