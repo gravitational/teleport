@@ -91,14 +91,15 @@ during the migration.
 |CA type|Certificate subjects|
 |---|---|
 |[`host`](#host)|Teleport Agents. Auth Service and Proxy Service instances.|
+|[`windows`](#windows)|Teleport users connecting to Windows desktops.|
 |[`user`](#user)|Teleport users.|
 |[`db`](#db-and-db_client)|Self-hosted databases protected by Teleport (users must distribute certificates to databases).|
 |[`db_client`](#db-and-db_client)|The Teleport Database Service.|
 |[`openssh`](#openssh)|OpenSSH servers enrolled in your Teleport cluster.|
 |[`jwt`](#jwt)|Teleport users accessing web applications.|
 |[`saml_idp`](#saml_idp)|The Teleport SAML IdP.|
-|[`spiffe`](#spiffe)|Workload Identity (SPIFFE) clients.|
 |[`oidc_idp`](#oidc_idp)|The Teleport OIDC IdP integration.|
+|[`spiffe`](#spiffe)|Workload Identity (SPIFFE) clients.|
 |[`awsra`](#awsra)|The Teleport AWS IAM Roles Anywhere integration.|
 |[`bound_keypair`](#bound_keypair)|Bound Keypair JWT verification.|
 
@@ -164,12 +165,26 @@ After the rotation is complete, only the new CA pin will be reported.
 Note: Teleport Agents that connect to the Proxy Service never need a CA pin
 because the Proxy's TLS certificate should issued by a trusted CA.
 
+### `windows`
+
+The `windows` CA issues certificates for users connecting to Windows desktops.
+Teleport-protected Windows desktops use these certificates. In Teleport versions
+prior to v18.7.0 the `user` CA performed the functions of the `windows` CA.
+
+When rotating the `windows` CA, during the `init` phase, you must configure your
+Windows hosts to trust the new CA certificate. [Follow the guide](
+../../../enroll-resources/desktop-access/active-directory.mdx) to export
+the Teleport `windows` CA so the Windows Desktop Service can authenticate to RDP
+hosts.
+
+Once you advance to `update_clients`, and throughout the rotation, verify that
+you can connect to registered desktops.
+
 ### `user`
 
 The `user` CA issues a certificate when a user authenticates to Teleport. It
-also signs client certificates for users connecting to Windows desktops and
-Teleport SSH servers. Teleport-protected servers and Windows desktops use these
-certificates.
+also signs client certificates for users connecting to Teleport SSH servers.
+Teleport-protected servers use these certificates.
 
 Before you complete the rotation and reach the final `standby` phase,
 users who have signed into Teleport must reauthenticate to receive a user
@@ -178,12 +193,6 @@ will fail and users may have to log out and log back in.
 To avoid this, you can wait longer than the max user session TTL between the
 `update_clients` and `standby` phases so that all user certificates signed by
 the old CA will have already expired and required a re-login.
-
-If you have registered Windows desktops with Teleport,
-[follow the guide](../../../enroll-resources/desktop-access/active-directory.mdx)
-to export the Teleport user CA so the Windows Desktop Service can authenticate
-to RDP hosts.
-Verify that you can connect to registered desktops throughout the rotation.
 
 ### `db` and `db_client`
 
@@ -323,6 +332,28 @@ the Teleport `saml_idp` CA. Follow the instructions in the
 [SAML IdP documentation](../../../identity-governance/idps/saml-guide.mdx) to export an
 XML metadata file and make it available to your service provider.
 
+### `oidc_idp`
+
+The `oidc_idp` CA signs messages sent by the Teleport OIDC IdP integration.
+Relying parties (e.g., AWS) verify these messages to authenticate your Teleport
+account for features like External Audit Storage, Auto-Discovery, and AWS Sync
+for Access Graph.
+
+The Teleport Proxy Service serves the JSON Web Key Sets for the OIDC IdP
+integration from the `/.well-known/jwks-oidc` path of the Web API.
+
+The `/.well-known/jwks-oidc` path of the Teleport Proxy Service Web API is
+always enabled. The Teleport Proxy Service updates the endpoint automatically.
+
+You can retrieve the full URL of the integration's JSON Web Key Sets by querying
+the `/.well-known/openid-configuration` path of the Web UI and reading the
+`jwks_uri` field:
+
+```code
+$ curl https://example.teleport.sh/.well-known/openid-configuration | jq '.jwks_uri'
+"https://example.teleport.sh/.well-known-jwks-oidc"
+```
+
 ### `spiffe`
 
 The `spiffe` CA signs X509 and JWT SVIDs for Workload Identity clients, often so
@@ -349,28 +380,6 @@ CA:
   ```code
   $ curl https://example.teleport.sh/webapi/spiffe/bundle.json | jq '.spiffe_refresh_hint'
   ```
-
-### `oidc_idp`
-
-The `oidc_idp` CA signs messages sent by the Teleport OIDC IdP integration.
-Relying parties (e.g., AWS) verify these messages to authenticate your Teleport
-account for features like External Audit Storage, Auto-Discovery, and AWS Sync
-for Access Graph.
-
-The Teleport Proxy Service serves the JSON Web Key Sets for the OIDC IdP
-integration from the `/.well-known/jwks-oidc` path of the Web API.
-
-The `/.well-known/jwks-oidc` path of the Teleport Proxy Service Web API is
-always enabled. The Teleport Proxy Service updates the endpoint automatically.
-
-You can retrieve the full URL of the integration's JSON Web Key Sets by querying
-the `/.well-known/openid-configuration` path of the Web UI and reading the
-`jwks_uri` field:
-
-```code
-$ curl https://example.teleport.sh/.well-known/openid-configuration | jq '.jwks_uri'
-"https://example.teleport.sh/.well-known-jwks-oidc"
-```
 
 ### `awsra`
 
