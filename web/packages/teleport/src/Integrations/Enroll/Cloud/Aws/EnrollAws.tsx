@@ -63,10 +63,14 @@ import { Prerequisites } from './Prerequisites';
 import { RegionsSection } from './RegionsSection';
 import { ResourcesSection } from './ResourcesSection';
 import { buildTerraformConfig } from './tf_module';
-import { Ec2Config, WildcardRegion } from './types';
+import { AwsLabel, Ec2Config, WildcardRegion } from './types';
 
 const INTEGRATION_CHECK_RETRIES = 6;
 const INTEGRATION_CHECK_RETRY_DELAY = 5000;
+
+const DEFAULT_RESOURCE_FILTER_TAGS: AwsLabel[] = [
+  { name: 'teleport.dev/discoverable', value: 'true' },
+];
 
 export function EnrollAws() {
   useNoMinWidth();
@@ -81,7 +85,7 @@ export function EnrollAws() {
 
   const [ec2Config, setEc2Config] = useState<Ec2Config>({
     enabled: true,
-    tags: [],
+    tags: DEFAULT_RESOURCE_FILTER_TAGS,
   });
 
   const terraformConfig = useMemo(
