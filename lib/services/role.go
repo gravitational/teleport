@@ -19,11 +19,13 @@
 package services
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
 	"path"
 	"regexp"
 	"slices"
@@ -1697,7 +1699,7 @@ func (set RoleSet) CheckAccessToSAMLIdP(r AccessCheckable, traits wrappers.Trait
 		return nil
 	}
 
-	if err := v8RoleSet.checkAccess(r, traits, state, matchers...); err != nil {
+	if _, err := v8RoleSet.checkAccess(r, traits, state, matchers...); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2638,11 +2640,21 @@ func resourceRequiresLabelMatching(r AccessCheckable) bool {
 	return true
 }
 
-func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state AccessState, matchers ...RoleMatcher) error {
+// checkAccess determines whether access should be granted to a resource based on the provided roles, resource
+// attributes, user traits, access state (MFA, device trust, etc.), and optional matchers. If state.ReturnPreconditions
+// is true, it returns a list of preconditions (e.g., MFA required) that must be satisfied for access. If
+// state.ReturnPreconditions is false, it returns an error immediately if access is denied.
+func (set RoleSet) checkAccess(
+	r AccessCheckable,
+	traits wrappers.Traits,
+	state AccessState,
+	matchers ...RoleMatcher,
+) ([]*decisionpb.Precondition, error) {
+	// TODO(tcsc): remove before merge
 	slog.Warn(">>>> Entering RoleSet.checkAccess()",
 		"resource_type", logutils.TypeAttr(r),
 		"roles", sliceutils.Map(set, types.Role.GetName))
-	slog.Warn("<<<< Leaving RoleSet.checkAccess()")
+	defer slog.Warn("<<<< Leaving RoleSet.checkAccess()")
 
 	// Note: logging in this function only happens in trace mode. This is because
 	// adding logging to this function (which is called on every resource returned
@@ -2651,12 +2663,28 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	logger := rbacLogger
 	isLoggingEnabled := logger.Handler().Enabled(ctx, logutils.TraceLevel)
 	if isLoggingEnabled {
-		logger.With("resource_kind", r.GetKind(), "resource_name", r.GetName())
+		logger = logger.With("resource_kind", r.GetKind(), "resource_name", r.GetName())
 	}
 
-	if !state.MFAVerified && state.MFARequired == MFARequiredAlways {
-		logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, cluster requires per-session MFA")
-		return ErrSessionMFARequired
+	// Collect preconditions to return to the caller.
+	var preconds []*decisionpb.Precondition
+
+	// If the cluster requires per-session MFA and it hasn't been verified yet, add an MFA precondition or deny access early.
+	// If the legacy out-of-band MFA flow is allowed (see below) and MFA has already been verified for this session, skip this check.
+	//
+	// The legacy out-of-band MFA flow is allowed as long as TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is not set to "yes".
+	// When TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is set to "yes", only in-band MFA is allowed and enforced.
+	//
+	// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
+	if state.MFARequired == MFARequiredAlways && (os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") == "yes" || !state.MFAVerified) {
+		// If the caller doesn't want preconditions returned, deny access early to avoid unnecessary work.
+		if !state.ReturnPreconditions {
+			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, cluster requires per-session MFA")
+			return nil, ErrSessionMFARequired
+		}
+
+		// Mark that MFA is required and continue evaluating access.
+		preconds = append(preconds, &decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA})
 	}
 
 	requiresLabelMatching := resourceRequiresLabelMatching(r)
@@ -2687,7 +2715,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		if requiresLabelMatching {
 			matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Deny, role, traits, r, isLoggingEnabled)
 			if err != nil {
-				return trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 			if matchLabels {
 				logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, deny rule in role matched",
@@ -2695,7 +2723,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 					slog.String("namespace_message", namespaceMessage),
 					slog.String("label_message", labelsMessage),
 				)
-				return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+				return nil, trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 					r.GetKind(), additionalDeniedMessage)
 			}
 		} else {
@@ -2705,19 +2733,27 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		// at least one of the matchers returns true.
 		matchMatchers, matchersMessage, err := RoleMatchers(matchers).MatchAny(role, types.Deny)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		if matchMatchers {
 			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, deny rule in role matched",
 				slog.String("role", role.GetName()),
 				slog.Any("matcher_message", matchersMessage),
 			)
-			return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+			return nil, trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 				r.GetKind(), additionalDeniedMessage)
 		}
 	}
 
-	mfaAllowed := state.MFAVerified || state.MFARequired == MFARequiredNever
+	// MFA checks can be bypassed if either:
+	//  1. The cluster doesn't require per-session MFA (MFARequiredNever), OR
+	//  2. The legacy out-of-band MFA flow is allowed (see below) AND MFA has already been verified for the session.
+	//
+	// The legacy out-of-band MFA flow is allowed as long as TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is not set to "yes"
+	// and MFA has already been verified for this session.
+	//
+	// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
+	bypassMFAChecks := state.MFARequired == MFARequiredNever || (os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") != "yes" && state.MFAVerified)
 
 	// TODO(codingllama): Consider making EnableDeviceVerification opt-out instead
 	//  of opt-in.
@@ -2739,7 +2775,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		if requiresLabelMatching {
 			matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Allow, role, traits, r, isLoggingEnabled)
 			if err != nil {
-				return trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 
 			if !matchLabels {
@@ -2758,7 +2794,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		slog.Warn(">>>> Checking role matchers", "role", role.GetName())
 		matchMatchers, err := RoleMatchers(matchers).MatchAll(role, types.Allow)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		if !matchMatchers {
 			if isLoggingEnabled {
@@ -2778,19 +2814,26 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		// (and gets an early exit) or we need to check every applicable role to
 		// ensure the access is permitted.
 
-		if mfaAllowed && deviceTrusted {
+		if bypassMFAChecks && deviceTrusted {
 			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource granted, allow rule in role matched",
+
 				slog.String("role", role.GetName()),
 			)
-			return nil
+			return deduplicateAndSortPreconditions(preconds), nil
 		}
 
-		// MFA verification.
-		if !mfaAllowed && role.GetOptions().RequireMFAType.IsSessionMFARequired() {
-			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, role requires per-session MFA",
-				slog.String("role", role.GetName()),
-			)
-			return ErrSessionMFARequired
+		// Check if MFA is required at the role-level.
+		if !bypassMFAChecks && role.GetOptions().RequireMFAType.IsSessionMFARequired() {
+			// If the caller doesn't want preconditions returned, deny access early to avoid unnecessary work.
+			if !state.ReturnPreconditions {
+				logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, role requires per-session MFA",
+					slog.String("role", role.GetName()),
+				)
+				return nil, ErrSessionMFARequired
+			}
+
+			// Mark that MFA is required and continue evaluating access.
+			preconds = append(preconds, &decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA})
 		}
 
 		// Device verification.
@@ -2805,7 +2848,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, role requires a trusted device",
 				slog.String("role", role.GetName()),
 			)
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		// Current role allows access, but keep looking for a more restrictive
@@ -2817,14 +2860,33 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	}
 
 	if allowed {
-		return nil
+		return deduplicateAndSortPreconditions(preconds), nil
 	}
 
 	logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, no allow rule matched",
 		slog.Any("errors", errs),
 	)
-	return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+	return nil, trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 		r.GetKind(), additionalDeniedMessage)
+}
+
+func deduplicateAndSortPreconditions(preconds []*decisionpb.Precondition) []*decisionpb.Precondition {
+	// Deduplicate preconditions by kind.
+	preconds = slices.CompactFunc(
+		preconds, func(a, b *decisionpb.Precondition) bool {
+			return a.Kind == b.Kind
+		},
+	)
+
+	// Sort by kind for deterministic ordering during enforcement.
+	slices.SortFunc(
+		preconds,
+		func(a, b *decisionpb.Precondition) int {
+			return cmp.Compare(a.Kind, b.Kind)
+		},
+	)
+
+	return preconds
 }
 
 // CheckDeviceAccess verifies if the device state satisfies the device trust
@@ -3697,6 +3759,10 @@ type AccessState struct {
 	// IsBot determines whether the user certificate belongs to a bot. It's used
 	// when deciding whether to enforce device verification.
 	IsBot bool
+	// ReturnPreconditions, when set to true, causes access checks to return a set of preconditions (such as MFA or
+	// device verification requirements) instead of immediately returning an access error. This allows callers to
+	// programmatically determine what additional steps are required for access, rather than failing outright.
+	ReturnPreconditions bool
 }
 
 // MFARequired determines when MFA is required for a user to access a resource.

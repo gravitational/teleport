@@ -488,6 +488,10 @@ export type PluginEntraIdSpec = {
    */
   defaultOwners: string[];
   /**
+   * accessListOwnersSource is the source of the Access List owners.
+   */
+  accessListOwnersSource: string;
+  /**
    * ssoConnectorId is the name of the SSO connector referenced
    * by the Entra ID plugin.
    */

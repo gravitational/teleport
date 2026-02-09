@@ -7450,6 +7450,13 @@ message PluginOktaSyncSettings {
   // groups to teleport. This doesn't affect how quickly Teleport changes are propagated to Okta if
   // bidirectional sync is enabled. The default value is 30m.
   string time_between_imports = 14;
+
+  // TimeBetweenAssignmentProcessLoops controls the time between periodic iterations of the Okta assignment
+  // processor loop. Teleport reacts asynchronously to Okta permission changes and responds to changes immediately.
+  // This also implements a periodic fallback sync that is triggered periodically to reconcile to the desired state.
+  // For most use cases the default value should NOT be changed.
+  // A blank string results in the default value of 5min.
+  string time_between_assignment_process_loops = 15;
 }
 
 // Defines a set of discord channel IDs

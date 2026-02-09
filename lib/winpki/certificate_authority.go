@@ -66,7 +66,7 @@ type CertificateStoreConfig struct {
 
 // Update publishes an empty certificate revocation list to LDAP.
 func (c *CertificateStoreClient) Update(ctx context.Context, tc *tls.Config) error {
-	const caType = types.WindowsCA
+	caType := types.WindowsCA
 
 	// TODO(zmb3): check for the presence of Teleport's CA in the NTAuth store
 
@@ -81,6 +81,16 @@ func (c *CertificateStoreClient) Update(ctx context.Context, tc *tls.Config) err
 	certAuthorities, err := c.cfg.AccessPoint.GetCertAuthorities(ctx, caType, false)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	// The cache doesn't error on an unknown CA, it returns empty instead.
+	// TODO(codingllama): DELETE IN 20. WindowsCA is guaranteed to exist by then.
+	if len(certAuthorities) == 0 {
+		c.cfg.Logger.WarnContext(ctx, "Found no CAs with type WindowsCA. Falling back to UserCA.")
+		caType = types.UserCA
+		certAuthorities, err = c.cfg.AccessPoint.GetCertAuthorities(ctx, caType, false)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	for _, ca := range certAuthorities {
 		for _, keySet := range [][]*types.TLSKeyPair{
@@ -101,7 +111,7 @@ func (c *CertificateStoreClient) Update(ctx context.Context, tc *tls.Config) err
 					"subject", cert.Subject,
 				)
 
-				if err := c.updateCRL(ctx, c.cfg.ClusterName, cert.SubjectKeyId, keyPair.CRL, caType, tc); err != nil {
+				if err := c.updateCRL(ctx, c.cfg.ClusterName, cert.SubjectKeyId, keyPair.CRL, ca.GetType(), tc); err != nil {
 					return trace.Wrap(err)
 				}
 			}

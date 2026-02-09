@@ -560,6 +560,9 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_autoupdate_config":          resourceTeleportAutoUpdateConfigType{},
 		"teleport_health_check_config":        resourceTeleportHealthCheckConfigType{},
 		"teleport_integration":                resourceTeleportIntegrationType{},
+		"teleport_inference_model":            resourceTeleportInferenceModelType{},
+		"teleport_inference_secret":           resourceTeleportInferenceSecretType{},
+		"teleport_inference_policy":           resourceTeleportInferencePolicyType{},
 	}, nil
 }
 
@@ -595,6 +598,13 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_autoupdate_config":          dataSourceTeleportAutoUpdateConfigType{},
 		"teleport_health_check_config":        dataSourceTeleportHealthCheckConfigType{},
 		"teleport_integration":                dataSourceTeleportIntegrationType{},
+		// TODO(bl-nero): Add teleport_inference_* data sources after data sources
+		// are fixed. The current problems with data sources include:
+		// - Data sources only perform a "shallow fill", which means only setting
+		//   leaf-level fields.
+		// - Data sources use the same schema as resources, which means that fields
+		//   required on a resource also need to be set on the data source
+		//   definition.
 	}, nil
 }
 
