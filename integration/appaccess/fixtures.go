@@ -48,7 +48,7 @@ type AppTestOptions struct {
 	ExtraLeafApps        []servicecfg.App
 	RootClusterListeners helpers.InstanceListenerSetupFunc
 	LeafClusterListeners helpers.InstanceListenerSetupFunc
-	Clock                clockwork.FakeClock
+	Clock                *clockwork.FakeClock
 	MonitorCloseChannel  chan struct{}
 
 	RootConfig func(config *servicecfg.Config)
