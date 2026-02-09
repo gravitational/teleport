@@ -50,7 +50,7 @@ func TestOSUpstreamNameservers(t *testing.T) {
 	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "nameserver",
 		Task: func(ctx context.Context) error {
-			err := server.ListenAndServeUDP(ctx, conn)
+			err := server.ListenAndServeUDP(ctx, conn, DNSModeRecursive)
 			if err == nil || utils.IsOKNetworkError(err) {
 				return nil
 			}
