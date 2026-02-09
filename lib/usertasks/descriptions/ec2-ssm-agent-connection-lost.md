@@ -1,4 +1,5 @@
 # SSM Agent lost connection
+
 Auto enrolling EC2 instances requires the SSM Agent to be installed and running on them.
 Some instances appear to have lost connection to Amazon Systems Manager.
 
@@ -24,3 +25,4 @@ For more information please refer to [this page](https://docs.aws.amazon.com/sys
 
 After following the steps above, you can mark the task as resolved.
 Teleport will try to auto-enroll these instances again.
+

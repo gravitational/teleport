@@ -1,10 +1,10 @@
-# Missing permissions to list AWS organization accounts
+# Missing AWS organization permissions
 
 Teleport failed to discover EC2 instances because the integration's IAM role lacks the required permissions to discover AWS accounts in your organization.
 
 This error occurs when using organization-wide discovery, which requires Teleport to list accounts across your AWS organization.
 
-**How to fix**
+**How to fix:**
 
 Add the following permissions to the IAM role used by the integration:
 

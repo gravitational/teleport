@@ -6,7 +6,7 @@ This error can occur when using `regions: ["*"]` (wildcard) in the EC2 matcher c
 
 This error can also occur when the required `ec2:DescribeInstances` permission is missing, which Teleport needs to find EC2 instances that match your auto-discovery configuration.
 
-**How to fix**
+**How to fix:**
 
 Add the following permissions to the IAM role used by the integration:
 
