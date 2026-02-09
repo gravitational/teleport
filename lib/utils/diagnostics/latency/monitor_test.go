@@ -38,7 +38,7 @@ func TestMain(m *testing.M) {
 }
 
 type fakePinger struct {
-	clock   clockwork.FakeClock
+	clock   *clockwork.FakeClock
 	latency time.Duration
 	pingC   chan struct{}
 }
