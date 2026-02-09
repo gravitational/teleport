@@ -385,6 +385,12 @@ and few of the benefits of either. This leaves the choice between adding a
 scoped field to the existing Bot resource or introducing a new ScopedBot 
 resource.
 
+Arguably, implementing the initial MVP reusing the existing Bot resource with
+a scope field is the quickest and simplest way route. There's already a strong
+case for refactoring the Bot resource itself and its internal RBAC at a future
+date, and, this could be tied into the future refactor to introduce the Scoped
+Bot resource.
+
 ### A.3: The Wrong Implementations
 
 When trying to determine the path for a complex implementation, it can be
