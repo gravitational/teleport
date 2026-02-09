@@ -173,7 +173,9 @@ to the token in `spec.bot_name`.
 
 Scoped agents join via the same RPCs, but using Scoped Join Tokens. This is a 
 distinct resource that includes many of the same fields, but, also includes a 
-a `scope` and `spec.assigned_scope` field.
+a `scope` and `spec.assigned_scope` field. A Scoped Join Token can only be
+created with `spec.assigned_scope` that is the same as `scope` or a descendent
+of `scope`.
 
 Joining for scoped Bots will be similar to unscoped Bots and Scoped agents. A
 Scoped Join Token will be used with `spec.roles` field set to `["Bot"]` and the
