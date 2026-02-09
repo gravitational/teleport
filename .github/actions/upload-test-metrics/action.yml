@@ -18,9 +18,10 @@ runs:
         role-duration-seconds: 900 # Minimum by policy.
 
     - name: Normalize test results and push to s3
-      uses: gravitational/shared-workflows/tools/ci-normalize@2428a7fa8c58249f39ad98517201efac9d01a7da # v0.0.1
+      uses: gravitational/shared-workflows/tools/ci-normalize@159f0ae51c8e62ec24b563944a0b812e60f559b9
       if: always() && steps.aws-setup.outcome == 'success'
       continue-on-error: true # Do not fail the workflow
       with:
         s3-bucket: "s3://tp-278576220453-ci-test-artifacts-storage/ci-metrics"
         junit-files: "$GITHUB_WORKSPACE/test-logs/*.xml"
+        tool-version: v0.0.1
