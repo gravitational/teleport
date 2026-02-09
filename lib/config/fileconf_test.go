@@ -33,7 +33,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -621,8 +620,7 @@ teleport:
 					Version: types.V1,
 					Kind:    types.KindScopedToken,
 					Metadata: &headerv1.Metadata{
-						Name:    "fully_defined_token",
-						Expires: timestamppb.New(time.Unix(0, 0).UTC()),
+						Name: "fully_defined_token",
 					},
 					Scope: "/",
 					Spec: &joiningv1.ScopedTokenSpec{
@@ -657,8 +655,7 @@ teleport:
 					Version: types.V1,
 					Kind:    types.KindScopedToken,
 					Metadata: &headerv1.Metadata{
-						Name:    "file_scoped_token",
-						Expires: timestamppb.New(time.Unix(0, 0).UTC()),
+						Name: "file_scoped_token",
 					},
 					Scope: "/",
 					Spec: &joiningv1.ScopedTokenSpec{
@@ -707,8 +704,7 @@ teleport:
 					Version: types.V1,
 					Kind:    types.KindScopedToken,
 					Metadata: &headerv1.Metadata{
-						Name:    "fully_defined_token",
-						Expires: timestamppb.New(time.Unix(0, 0).UTC()),
+						Name: "fully_defined_token",
 					},
 					Scope: "/",
 					Spec: &joiningv1.ScopedTokenSpec{
@@ -725,8 +721,7 @@ teleport:
 					Version: types.V1,
 					Kind:    types.KindScopedToken,
 					Metadata: &headerv1.Metadata{
-						Name:    "file_scoped_token",
-						Expires: timestamppb.New(time.Unix(0, 0).UTC()),
+						Name: "file_scoped_token",
 					},
 					Scope: "/",
 					Spec: &joiningv1.ScopedTokenSpec{
