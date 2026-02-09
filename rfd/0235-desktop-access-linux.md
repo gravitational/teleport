@@ -36,20 +36,20 @@ translates the Teleport desktop protocol (TDPB defined in RFD 232) into X11 prot
 Linux Desktop Service will run in agent mode, no agent-less mode will be supported.
 
 ```
-+--------+
-| web UI |
-+--------+
-    ^
-    | TDPB over websocket
-    v
-+--------+
-| proxy  |
-+--------+
-    ^
-    | TDPB over mTLS over reverse tunnel
-    |
-+---|------------------------------+
-|   v                              |
++--------+                 +---------+
+| web UI |                 | Connect |
++--------+                 +---------+
+    ^                          ^
+    | TDPB over websocket      | TDPB over gRPC
+    |                          |
+    |       +--------+         |
+    +-----> | proxy  | <-------+
+            +--------+
+                ^
+                | TDPB over mTLS over reverse tunnel
+                |
++---------------|------------------+
+|               v                  |
 | +-------------------------+      |
 | |  linux_desktop_service  |      |
 | +-------------------------+      |
