@@ -943,6 +943,8 @@ type CAKeyParams struct {
 	// AWSKMS configures AWS Key Management Service to to be used for
 	// all CA private key crypto operations.
 	AWSKMS *AWSKMS `yaml:"aws_kms,omitempty"`
+	// HealthCheck contains configuration for keystore health checking.
+	HealthCheck *servicecfg.KeystoreHealthCheck `yaml:"health_check,omitempty"`
 }
 
 // PKCS11 configures a PKCS#11 HSM to be used for private key generation and

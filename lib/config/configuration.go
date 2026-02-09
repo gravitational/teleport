@@ -1088,6 +1088,7 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.Auth.CAKeyParams.AWSKMS != nil {
 		return trace.Wrap(applyAWSKMSConfig(fc.Auth.CAKeyParams.AWSKMS, cfg))
 	}
+	cfg.Auth.KeyStore.HealthCheck = fc.Auth.CAKeyParams.HealthCheck
 	return nil
 }
 
