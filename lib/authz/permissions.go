@@ -32,6 +32,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/vulcand/predicate/builder"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -44,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/events"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -84,6 +87,7 @@ type AuthorizerOpts struct {
 	MFAAuthenticator    MFAAuthenticator
 	LockWatcher         *services.LockWatcher
 	Logger              *slog.Logger
+	Emitter             apievents.Emitter
 
 	// DeviceAuthorization holds Device Trust authorization options.
 	//
@@ -136,6 +140,7 @@ func newAuthorizer(opts AuthorizerOpts) (*authorizer, error) {
 		mfaAuthenticator:        opts.MFAAuthenticator,
 		lockWatcher:             opts.LockWatcher,
 		logger:                  logger,
+		emitter:                 opts.Emitter,
 		disableGlobalDeviceMode: opts.DeviceAuthorization.DisableGlobalMode,
 		disableRoleDeviceMode:   opts.DeviceAuthorization.DisableRoleMode,
 	}, nil
@@ -228,6 +233,7 @@ type authorizer struct {
 	mfaAuthenticator    MFAAuthenticator
 	lockWatcher         *services.LockWatcher
 	logger              *slog.Logger
+	emitter             apievents.Emitter
 
 	disableGlobalDeviceMode bool
 	disableRoleDeviceMode   bool
@@ -408,6 +414,54 @@ func (c *Context) GetDisconnectCertExpiry(authPref readonly.AuthPreference) time
 func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error) {
 	defer func() {
 		if err != nil {
+			if a.emitter != nil {
+				if user, _ := UserFromContext(ctx); user != nil {
+					identity := user.GetIdentity()
+					username := identity.Username
+
+					// Filter out failures caused by system components so that we only audit events for real users or bots
+					if len(identity.SystemRoles) > 0 {
+						errorMsg := trace.UserMessage(err)
+						if errorMsg == "" {
+							errorMsg = err.Error()
+						}
+
+						methodName, _ := grpc.Method(ctx)
+						if methodName == "" {
+							methodName = "unknown"
+						}
+
+						userMsg := fmt.Sprintf("access denied to method %s: %s", methodName, errorMsg)
+
+						event := &apievents.AuthAttempt{
+							Metadata: apievents.Metadata{
+								Type: events.AuthAttemptEvent,
+								Code: events.AuthAttemptFailureCode,
+							},
+							UserMetadata: apievents.UserMetadata{
+								User: username,
+							},
+							Status: apievents.Status{
+								Success:     false,
+								Error:       errorMsg,
+								UserMessage: userMsg,
+							},
+							ConnectionMetadata: apievents.ConnectionMetadata{},
+							ServerMetadata: apievents.ServerMetadata{
+								ServerVersion: teleport.Version,
+							},
+						}
+
+						if p, _ := peer.FromContext(ctx); p != nil {
+							event.ConnectionMetadata.RemoteAddr = p.Addr.String()
+						}
+
+						if emitErr := a.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
+							a.logger.WarnContext(ctx, "Failed to emit detailed audit event", "error", emitErr)
+						}
+					}
+				}
+			}
 			err = a.convertAuthorizerError(err)
 		}
 	}()

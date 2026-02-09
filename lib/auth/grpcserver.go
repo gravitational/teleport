@@ -5989,58 +5989,10 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// authMiddlewareInterceptor is a custom interceptor that sits after the authentication
-	// middleware but before the handler. It catches "Access Denied" errors (like Locks
-	// or IP Pinning) and emits an AuthAttempt failure event
-	authMiddlewareInterceptor := func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		resp, err := handler(ctx, req)
-
-		// If the RPC failed with AccessDenied (locks/pinning), emit an audit log.
-		if err != nil && trace.IsAccessDenied(err) {
-			identity, _ := authz.UserFromContext(ctx)
-
-			if identity != nil {
-				username := identity.GetIdentity().Username
-				method := info.FullMethod
-
-				event := &apievents.AuthAttempt{
-					Metadata: apievents.Metadata{
-						Type: events.AuthAttemptEvent,
-						Code: events.AuthAttemptFailureCode,
-					},
-					UserMetadata: apievents.UserMetadata{
-						User: username,
-					},
-					Status: apievents.Status{
-						Success:     false,
-						Error:       err.Error(),
-						UserMessage: fmt.Sprintf("%v [attempted %s]", err.Error(), method),
-					},
-					ConnectionMetadata: apievents.ConnectionMetadata{},
-					ServerMetadata: apievents.ServerMetadata{
-						ServerVersion: teleport.Version,
-						ServerID:      cfg.AuthServer.ServerID,
-					},
-				}
-
-				if p, _ := peer.FromContext(ctx); p != nil {
-					event.ConnectionMetadata.RemoteAddr = p.Addr.String()
-				}
-
-				if emitErr := cfg.Emitter.EmitAuditEvent(ctx, event); emitErr != nil {
-					logger.WarnContext(ctx, "Failed to emit lock failure audit event", "error", emitErr)
-				}
-			}
-		}
-		return resp, err
-	}
-
-	unaryInterceptors := append(cfg.UnaryInterceptors, authMiddlewareInterceptor)
-
 	server := grpc.NewServer(
 		grpc.Creds(creds),
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
-		grpc.ChainUnaryInterceptor(unaryInterceptors...),
+		grpc.ChainUnaryInterceptor(cfg.UnaryInterceptors...),
 		grpc.ChainStreamInterceptor(cfg.StreamInterceptors...),
 		grpc.KeepaliveParams(
 			keepalive.ServerParameters{
