@@ -561,7 +561,9 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 			startCb(evt, nil)
 		}()
 	}
-
+	// TODO(tigrato): consider changing the implementation of Download* to return
+	// an io.ReadCloser instead of writing to a provided writer, which would allow
+	// us to avoid using io.Pipe here.
 	reader, writer := io.Pipe()
 
 	go func() {
