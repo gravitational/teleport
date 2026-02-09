@@ -72,8 +72,8 @@ func (l workloadClusterClient) Create(
 			},
 		)
 
-	// TODO(dustin.specker): support requeuing resources to check for status updates
-	// from Workload Cluster service/Teleport Cloud
+	// TODO(dustin.specker): support requeuing resources to check for status updates from
+	// Workload Cluster service/Teleport Cloud
 
 	return trace.Wrap(err)
 }
