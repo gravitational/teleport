@@ -166,11 +166,10 @@ func TestGenerateCredentials(t *testing.T) {
 	const testSID = "S-1-5-21-1329593140-2634913955-1900852804-500"
 
 	for _, test := range []struct {
-		name                    string
-		activeDirectorySID      string
-		wantSerialNumber        string
-		wantCRLCommonName       string
-		disableWindowsCASupport bool
+		name               string
+		activeDirectorySID string
+		wantSerialNumber   string
+		wantCRLCommonName  string
 	}{
 		{
 			name:               "no ad sid",
@@ -184,20 +183,6 @@ func TestGenerateCredentials(t *testing.T) {
 			wantSerialNumber:   windowsCA.SerialNumber,
 			wantCRLCommonName:  windowsCA.CRLCommonName,
 		},
-		{
-			name:                    "old agent without AD SID",
-			activeDirectorySID:      "",
-			wantSerialNumber:        userCA.SerialNumber,
-			wantCRLCommonName:       userCA.CRLCommonName,
-			disableWindowsCASupport: true,
-		},
-		{
-			name:                    "old agent with AD SID",
-			activeDirectorySID:      testSID,
-			wantSerialNumber:        userCA.SerialNumber,
-			wantCRLCommonName:       userCA.CRLCommonName,
-			disableWindowsCASupport: true,
-		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
@@ -206,12 +191,11 @@ func TestGenerateCredentials(t *testing.T) {
 			defer cancel()
 
 			certb, keyb, err := winpki.GenerateWindowsDesktopCredentials(ctx, client, &winpki.GenerateCredentialsRequest{
-				Username:                          user,
-				Domain:                            domain,
-				TTL:                               5 * time.Minute,
-				ClusterName:                       clusterName,
-				ActiveDirectorySID:                test.activeDirectorySID,
-				DisableWindowsCASupportForTesting: test.disableWindowsCASupport,
+				Username:           user,
+				Domain:             domain,
+				TTL:                5 * time.Minute,
+				ClusterName:        clusterName,
+				ActiveDirectorySID: test.activeDirectorySID,
 			})
 			require.NoError(t, err)
 			require.NotNil(t, certb)

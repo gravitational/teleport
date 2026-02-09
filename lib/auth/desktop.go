@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -67,19 +66,6 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	caID := types.CertAuthID{
 		Type:       types.WindowsCA,
 		DomainName: clusterName.GetClusterName(),
-	}
-	if !req.SupportsWindowsCA {
-		var callerID string
-		if ig, err := authz.UserFromContext(ctx); err == nil {
-			callerID = ig.GetIdentity().Username
-		}
-		a.logger.WarnContext(ctx,
-			""+
-				"Windows Desktop Service caller does not support the WindowsCA. "+
-				"Issuing certificates using the UserCA.",
-			"caller_id", callerID,
-		)
-		caID.Type = types.UserCA
 	}
 	ca, err := a.GetCertAuthority(ctx, caID, true)
 	if err != nil {
