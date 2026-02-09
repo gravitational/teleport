@@ -294,15 +294,11 @@ func (t *terminal) PID() int {
 // Close will free resources associated with the terminal.
 func (t *terminal) Close() error {
 	var errs []error
-	t.mu.Lock()
 	if t.reexecCmd != nil {
 		if err := t.reexecCmd.Close(); err != nil {
 			errs = append(errs, err)
 		}
-		// Set to nil to prevent re-closing.
-		t.reexecCmd = nil
 	}
-	t.mu.Unlock()
 
 	if tty := t.takeTTY(); tty != nil {
 		if err := tty.Close(); err != nil {
