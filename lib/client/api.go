@@ -2892,7 +2892,7 @@ func (tc *TeleportClient) ListDatabases(ctx context.Context, customFilter *proto
 
 // roleGetter retrieves roles for the current user
 type roleGetter interface {
-	GetRoles(ctx context.Context) ([]types.Role, error)
+	GetCurrentUserRoles(ctx context.Context) ([]types.Role, error)
 }
 
 // commandLimit determines how many commands may be executed in parallel.
@@ -2908,7 +2908,7 @@ func commandLimit(ctx context.Context, getter roleGetter, mfaRequired bool) int 
 		return 1
 	}
 
-	roles, err := getter.GetRoles(ctx)
+	roles, err := getter.GetCurrentUserRoles(ctx)
 	if err != nil {
 		return 1
 	}
