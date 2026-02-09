@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
@@ -1120,8 +1119,7 @@ func (t StaticScopedTokens) Parse() (*joiningv1.StaticScopedTokens, error) {
 			Version: types.V1,
 			Kind:    types.KindScopedToken,
 			Metadata: &headerv1.Metadata{
-				Name:    st.Name,
-				Expires: timestamppb.New(time.Unix(0, 0).UTC()),
+				Name: st.Name,
 			},
 			Scope: scopes.Root,
 			Spec: &joiningv1.ScopedTokenSpec{
