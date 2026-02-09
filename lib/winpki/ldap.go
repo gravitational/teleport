@@ -352,9 +352,7 @@ func CRLDistributionPoint(activeDirectoryDomain string, caType types.CertAuthTyp
 func crlKeyName(caType types.CertAuthType) (string, error) {
 	switch caType {
 	case types.UserCA:
-		// TODO(codingllama): DELETE IN 20.
-		//  Once the fallback is removed this shouldn't be needed anymore.
-		fallthrough
+		panic("crlKeyName called for UserCA")
 	case types.WindowsCA:
 		return "Teleport", nil
 	case types.DatabaseCA, types.DatabaseClientCA:

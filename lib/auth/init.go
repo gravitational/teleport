@@ -671,21 +671,6 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		return trace.Wrap(err, "applying migrations")
 	}
 
-	// Clone UserCA into WindowsCA. Must happen before initializeAuthorities() so
-	// it only affects upgraded clusters.
-	// Added on Teleport 18.x and 19.
-	clusterConfiguration, err := local.NewClusterConfigurationService(cfg.Backend)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := migrateWindowsCA(ctx, migrateWindowsCAParams{
-		Logger:               asrv.logger,
-		ClusterConfiguration: clusterConfiguration,
-		Trust:                local.NewCAService(cfg.Backend),
-	}); err != nil {
-		return trace.Wrap(err, "migrate WindowsCA")
-	}
-
 	// generate certificate authorities if they don't exist
 	if err := initializeAuthorities(ctx, asrv, &cfg); err != nil {
 		return trace.Wrap(err)

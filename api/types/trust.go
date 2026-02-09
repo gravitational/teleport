@@ -103,10 +103,7 @@ var CertAuthTypes = []CertAuthType{
 // major version, so that we can avoid erroring out when a potentially older
 // remote server doesn't know about them.
 func (c CertAuthType) NewlyAdded() bool {
-	return c.addedInMajorVer() >= api.VersionMajor ||
-		// WindowsCA is considered new in both v18.x and v19.
-		// TODO(codingllama): DELETE IN 20. Only here for backport purposes.
-		(c == WindowsCA && api.VersionMajor == 18)
+	return c.addedInMajorVer() >= api.VersionMajor
 }
 
 // addedInMajorVer returns the major version in which given CA was added.
