@@ -82,16 +82,7 @@ func (c *CertificateStoreClient) Update(ctx context.Context, tc *tls.Config) err
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// The cache doesn't error on an unknown CA, it returns empty instead.
-	// TODO(codingllama): DELETE IN 20. WindowsCA is guaranteed to exist by then.
-	if len(certAuthorities) == 0 {
-		c.cfg.Logger.WarnContext(ctx, "Found no CAs with type WindowsCA. Falling back to UserCA.")
-		caType = types.UserCA
-		certAuthorities, err = c.cfg.AccessPoint.GetCertAuthorities(ctx, caType, false)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
+
 	for _, ca := range certAuthorities {
 		for _, keySet := range [][]*types.TLSKeyPair{
 			ca.GetActiveKeys().TLS,

@@ -48,12 +48,6 @@ func TestCRLDN(t *testing.T) {
 			crlDN:       "CN=test,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
 		},
 		{
-			name:        "test cluster name (UserCA)",
-			clusterName: "test",
-			caType:      types.UserCA,
-			crlDN:       "CN=test,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
-		},
-		{
 			name:        "full cluster name",
 			clusterName: "cluster.goteleport.com",
 			caType:      types.WindowsCA,

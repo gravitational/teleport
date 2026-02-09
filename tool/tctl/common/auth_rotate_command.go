@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/term"
 
-	"github.com/gravitational/teleport/api"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -1249,10 +1248,6 @@ func manualSteps(caType types.CertAuthType, phase string) []string {
 		switch phase {
 		case "init":
 			return []string{
-				// TODO(codingllama): DELETE IN 20. Obsolete by then.
-				fmt.Sprintf(""+
-					"All Windows Desktop Service instances must be updated to the current Teleport version (%s) prior to rotating WindowsCA. Outdated agents are unable to use the rotated CA.",
-					api.Version),
 				"All Windows desktops must be updated to trust both the new and old CA certificates.",
 			}
 		case "rollback":
