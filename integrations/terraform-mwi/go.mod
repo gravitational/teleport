@@ -367,9 +367,6 @@ require (
 	github.com/oklog/run v1.0.0 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/okta/okta-sdk-golang/v2 v2.20.0 // indirect
-	github.com/olekukonko/errors v1.1.0 // indirect
-	github.com/olekukonko/ll v0.0.9 // indirect
-	github.com/olekukonko/tablewriter v1.1.0 // indirect
 	github.com/openai/openai-go v1.8.2 // indirect
 	github.com/openai/openai-go/v3 v3.16.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
@@ -377,7 +374,7 @@ require (
 	github.com/opencontainers/selinux v1.12.0 // indirect
 	github.com/opensearch-project/opensearch-go/v2 v2.3.0 // indirect
 	github.com/oracle/oci-go-sdk/v65 v65.107.0 // indirect
-	github.com/parquet-go/parquet-go v0.25.0 // indirect
+	github.com/parquet-go/parquet-go v0.25.1 // indirect
 	github.com/pascaldekloe/name v1.0.1 // indirect
 	github.com/patrickmn/go-cache v2.1.1-0.20191004192108-46f407853014+incompatible // indirect
 	github.com/paulmach/orb v0.11.1 // indirect
