@@ -609,6 +609,9 @@ auth_service:
       roles: [node]
       secret: secret_token_value
       scope: /test
+      immutable_labels:
+        ssh:
+            hello: world
 teleport:
   nodename: testing
 `,
@@ -627,6 +630,11 @@ teleport:
 						AssignedScope: "/test",
 						JoinMethod:    string(types.JoinMethodToken),
 						UsageMode:     string(joining.TokenUsageModeUnlimited),
+						ImmutableLabels: &joiningv1.ImmutableLabels{
+							Ssh: map[string]string{
+								"hello": "world",
+							},
+						},
 					},
 					Status: &joiningv1.ScopedTokenStatus{
 						Secret: "secret_token_value",

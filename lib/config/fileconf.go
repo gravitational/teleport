@@ -1084,6 +1084,8 @@ func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
 // resource.
 type StaticScopedTokens []StaticScopedToken
 
+// Parse converts [StaticScopedTokens] into [*joiningv1.StaticScopedTokens] so
+// they can be used to provision static scoped tokens.
 func (t StaticScopedTokens) Parse() (*joiningv1.StaticScopedTokens, error) {
 	var scopedTokens []*joiningv1.ScopedToken
 	for _, st := range t {
@@ -1107,6 +1109,10 @@ func (t StaticScopedTokens) Parse() (*joiningv1.StaticScopedTokens, error) {
 			return nil, trace.Wrap(err)
 		}
 
+		immutableLabels, err := st.ImmutableLabels.Parse()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		scopedToken := &joiningv1.ScopedToken{
 			Version: types.V1,
 			Kind:    types.KindScopedToken,
@@ -1116,10 +1122,11 @@ func (t StaticScopedTokens) Parse() (*joiningv1.StaticScopedTokens, error) {
 			},
 			Scope: scopes.Root,
 			Spec: &joiningv1.ScopedTokenSpec{
-				Roles:         roles.StringSlice(),
-				AssignedScope: st.Scope,
-				JoinMethod:    string(types.JoinMethodToken),
-				UsageMode:     string(joining.TokenUsageModeUnlimited),
+				Roles:           roles.StringSlice(),
+				AssignedScope:   st.Scope,
+				JoinMethod:      string(types.JoinMethodToken),
+				UsageMode:       string(joining.TokenUsageModeUnlimited),
+				ImmutableLabels: immutableLabels,
 			},
 			Status: &joiningv1.ScopedTokenStatus{
 				Secret: st.Secret,
@@ -1149,6 +1156,18 @@ func (t StaticScopedTokens) Parse() (*joiningv1.StaticScopedTokens, error) {
 // ImmutableLabels capture yaml configuration used to generate [joiningv1.ImmutableLabels].
 type ImmutableLabels struct {
 	SSH map[string]string `yaml:"ssh"`
+}
+
+// Parse converts [ImmutableLabels] into [*joininv1.ImmutableLabels] so they
+// can be used to provision static scoped tokens.
+func (il *ImmutableLabels) Parse() (*joiningv1.ImmutableLabels, error) {
+	if il == nil {
+		return nil, nil
+	}
+
+	return &joiningv1.ImmutableLabels{
+		Ssh: il.SSH,
+	}, nil
 }
 
 // StaticScopedToken is a statically defined scoped token. It is meant to capture
