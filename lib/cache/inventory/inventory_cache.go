@@ -661,7 +661,7 @@ func (ic *InventoryCache) parseFilter(filter *inventoryv1.ListUnifiedInstancesFi
 func (ic *InventoryCache) ListUnifiedInstances(ctx context.Context, req *inventoryv1.ListUnifiedInstancesRequest) (*inventoryv1.ListUnifiedInstancesResponse, error) {
 	if !ic.IsHealthy() {
 		// This returns HTTP error 503. Keep in sync with web/packages/teleport/src/Instances/Instances.tsx (isCacheInitializing)
-		return nil, trace.ConnectionProblem(nil, "inventory cache is not yet healthy")
+		return nil, trace.ConnectionProblem(nil, "inventory cache is not yet healthy, please try again in a few minutes'")
 	}
 
 	if req.PageSize <= 0 {

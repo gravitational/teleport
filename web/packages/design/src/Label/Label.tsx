@@ -84,23 +84,6 @@ const kind = ({
     };
   }
 
-  if (kind === 'outline-success') {
-    return {
-      color: theme.colors.success.main,
-      backgroundColor: theme.colors.interactive.tonal.success[0],
-      borderColor: theme.colors.success.main,
-      borderWidth: 1,
-      borderStyle: 'solid',
-      fontWeight: theme.fontWeights.regular,
-      ...(withHoverState && {
-        '&:hover': {
-          color: theme.colors.text.primaryInverse,
-          backgroundColor: theme.colors.interactive.solid['success'].hover,
-        },
-      }),
-    };
-  }
-
   if (kind === 'outline-primary') {
     return {
       color: theme.colors.brand,
@@ -120,9 +103,9 @@ const kind = ({
 
   if (kind === 'outline-secondary') {
     return {
-      color: theme.colors.text.main,
-      backgroundColor: 'transparent',
-      borderColor: theme.colors.interactive.tonal.neutral[0],
+      color: theme.colors.text.slightlyMuted,
+      backgroundColor: theme.colors.interactive.tonal.neutral[0],
+      borderColor: theme.colors.text.slightlyMuted,
       borderWidth: 1,
       borderStyle: 'solid',
       fontWeight: theme.fontWeights.regular,
@@ -135,11 +118,28 @@ const kind = ({
     };
   }
 
+  if (kind === 'outline-success') {
+    return {
+      color: theme.colors.interactive.solid.success.hover,
+      backgroundColor: theme.colors.interactive.tonal.success[0],
+      borderColor: theme.colors.interactive.solid.success.hover,
+      borderWidth: 1,
+      borderStyle: 'solid',
+      fontWeight: theme.fontWeights.regular,
+      ...(withHoverState && {
+        '&:hover': {
+          color: theme.colors.text.primaryInverse,
+          backgroundColor: theme.colors.interactive.solid['success'].hover,
+        },
+      }),
+    };
+  }
+
   if (kind === 'outline-warning') {
     return {
       color: theme.colors.dataVisualisation.primary.sunflower,
       backgroundColor: theme.colors.interactive.tonal.alert[0],
-      borderColor: theme.colors.interactive.tonal.alert[2],
+      borderColor: theme.colors.dataVisualisation.primary.sunflower,
       borderWidth: 1,
       borderStyle: 'solid',
       fontWeight: theme.fontWeights.regular,
@@ -154,9 +154,9 @@ const kind = ({
 
   if (kind === 'outline-danger') {
     return {
-      color: theme.colors.interactive.solid.danger.default,
+      color: theme.colors.dataVisualisation.tertiary.abbey,
       backgroundColor: theme.colors.interactive.tonal.danger[0],
-      borderColor: theme.colors.interactive.tonal.danger[2],
+      borderColor: theme.colors.interactive.solid.danger.default,
       borderWidth: 1,
       borderStyle: 'solid',
       fontWeight: theme.fontWeights.regular,
@@ -235,6 +235,9 @@ export const Danger = (props: LabelPropsWithoutKind) => (
 );
 export const SecondaryOutlined = (props: LabelPropsWithoutKind) => (
   <Label kind="outline-secondary" {...props} />
+);
+export const SuccessOutlined = (props: LabelPropsWithoutKind) => (
+  <Label kind="outline-success" {...props} />
 );
 export const WarningOutlined = (props: LabelPropsWithoutKind) => (
   <Label kind="outline-warning" {...props} />

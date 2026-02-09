@@ -16,26 +16,36 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { useHistory } from 'react-router';
 import { Link as InternalRouteLink } from 'react-router-dom';
 import styled from 'styled-components';
 
-import { Box, Flex } from 'design';
-import Table, { Cell } from 'design/DataTable';
+import { Box, Flex, Text } from 'design';
+import Table, { Cell, StyledPanel } from 'design/DataTable';
+import InputSearch from 'design/DataTable/InputSearch';
+import { CircleCheck, CircleCross, Warning } from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
-import { IconTooltip } from 'design/Tooltip';
+import { HoverTooltip } from 'design/Tooltip';
+import {
+  applyFilters,
+  FilterMap,
+  ListFilters,
+} from 'shared/components/ListFilters';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { useAsync } from 'shared/hooks/useAsync';
 import { saveOnDisk } from 'shared/utils/saveOnDisk';
+import { pluralize } from 'shared/utils/text';
 
 import cfg from 'teleport/config';
-import { getStatus } from 'teleport/Integrations/helpers';
+import {
+  filterByIntegrationStatus,
+  filterBySearch,
+  sortByStatus,
+} from 'teleport/Integrations/helpers';
 import api from 'teleport/services/api';
 import {
   ExternalAuditStorageIntegration,
-  getStatusCodeDescription,
-  getStatusCodeTitle,
   Integration,
   IntegrationKind,
   IntegrationStatusCode,
@@ -44,6 +54,8 @@ import {
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { ExternalAuditStorageOpType } from './Operations/useIntegrationOperation';
+import { StatusLabel } from './shared/StatusLabel';
+import { StatusOptions, type Status } from './types';
 
 type Props = {
   list: IntegrationLike[];
@@ -68,17 +80,18 @@ const statusKinds = [
   IntegrationKind.AwsRa,
 ];
 
+type Filters = {
+  Status: Status;
+};
+
 export function IntegrationList(props: Props) {
   const history = useHistory();
 
   function handleRowClick(row: IntegrationLike) {
-    // TODO (avatus) enable this feature by checking isManagedByTerraform.
-    // Leaving commented until IaC form and settings page are implemented
-
-    // if ('isManagedByTerraform' in row && row.isManagedByTerraform) {
-    //   history.push(cfg.getIaCIntegrationRoute(row.kind, row.name));
-    //   return;
-    // }
+    if ('isManagedByTerraform' in row && row.isManagedByTerraform) {
+      history.push(cfg.getIaCIntegrationRoute(row.kind, row.name));
+      return;
+    }
 
     if (!statusKinds.includes(row.kind)) return;
     history.push(cfg.getIntegrationStatusRoute(row.kind, row.name));
@@ -104,123 +117,176 @@ export function IntegrationList(props: Props) {
     }
   );
 
+  const [searchValue, setSearchValue] = useState<string>('');
+
+  const [filters, setFilters] = useState<FilterMap<IntegrationLike, Filters>>({
+    Status: {
+      options: StatusOptions,
+      selected: [],
+      apply: filterByIntegrationStatus,
+    },
+  });
+
+  const filteredList = useMemo(
+    () => applyFilters(filterBySearch(props.list, searchValue), filters),
+    [props.list, searchValue, filters]
+  );
+
   const { clusterId } = useStickyClusterId();
   return (
-    <Table
-      pagination={{ pageSize: 20 }}
-      isSearchable
-      data={props.list}
-      row={{
-        onClick: handleRowClick,
-        getStyle: getRowStyle,
-      }}
-      columns={[
-        {
-          key: 'resourceType',
-          isNonRender: true,
-        },
-        {
-          key: 'kind',
-          headerText: 'Integration',
-          isSortable: true,
-          render: item => <IconCell item={item} />,
-        },
-        {
-          key: 'details',
-          headerText: 'Details',
-        },
-        {
-          key: 'statusCode',
-          headerText: 'Status',
-          isSortable: true,
-          render: item => <StatusCell item={item} />,
-        },
-        {
-          altKey: 'options-btn',
-          render: item => {
-            if (
-              item.kind === IntegrationKind.AwsOidc ||
-              item.kind === IntegrationKind.AwsRa ||
-              item.kind === 'entra-id'
-            ) {
-              // action menu for these integrations are available on the status page dashboard.
-              return;
-            }
+    <>
+      <Box mb={3}>
+        <InputSearch
+          searchValue={searchValue}
+          setSearchValue={setSearchValue}
+        />
+      </Box>
+      <StyledPanel>
+        <ListFilters filters={filters} onFilterChange={setFilters} />
+      </StyledPanel>
+      <Table
+        data={filteredList}
+        row={{
+          onClick: handleRowClick,
+          getStyle: getRowStyle,
+        }}
+        columns={[
+          {
+            key: 'resourceType',
+            isNonRender: true,
+          },
+          {
+            key: 'name',
+            headerText: 'Name',
+            isSortable: true,
+            render: item => <NameCell item={item} />,
+          },
+          {
+            key: 'statusCode',
+            headerText: 'Status',
+            isSortable: true,
+            onSort: sortByStatus,
+            render: item => (
+              <Cell>
+                <StatusLabel integration={item} />
+              </Cell>
+            ),
+          },
+          {
+            key: 'summary',
+            headerText: 'Issues',
+            render: item => <IssuesCell integration={item} />,
+          },
+          {
+            key: 'details',
+            headerText: 'Details',
+            render: item => <DetailsCell integration={item} />,
+          },
+          {
+            altKey: 'options-btn',
+            render: item => {
+              if (
+                item.kind === IntegrationKind.AwsOidc ||
+                item.kind === IntegrationKind.AwsRa ||
+                item.kind === 'entra-id'
+              ) {
+                // action menu for these integrations are available on the status page dashboard.
+                return;
+              }
 
-            if (item.resourceType === 'plugin') {
-              return (
-                <Cell align="right">
-                  <MenuButton>
-                    {/* Currently, only okta supports status pages */}
-                    {item.kind === 'okta' && (
-                      <MenuItem
-                        as={InternalRouteLink}
-                        to={cfg.getIntegrationStatusRoute(item.kind, item.name)}
-                      >
-                        View Status
+              if (item.resourceType === 'plugin') {
+                return (
+                  <Cell align="right">
+                    <MenuButton>
+                      {/* Currently, only okta supports status pages */}
+                      {item.kind === 'okta' && (
+                        <MenuItem
+                          as={InternalRouteLink}
+                          to={cfg.getIntegrationStatusRoute(
+                            item.kind,
+                            item.name
+                          )}
+                        >
+                          View Status
+                        </MenuItem>
+                      )}
+                      {item.kind === 'msteams' && (
+                        <MenuItem
+                          disabled={downloadAttempt.status === 'processing'}
+                          onClick={() => download(clusterId, item.name)}
+                        >
+                          Download app.zip
+                        </MenuItem>
+                      )}
+                      <MenuItem onClick={() => props.onDeletePlugin(item)}>
+                        Delete...
                       </MenuItem>
-                    )}
-                    {item.kind === 'msteams' && (
-                      <MenuItem
-                        disabled={downloadAttempt.status === 'processing'}
-                        onClick={() => download(clusterId, item.name)}
-                      >
-                        Download app.zip
-                      </MenuItem>
-                    )}
-                    <MenuItem onClick={() => props.onDeletePlugin(item)}>
-                      Delete...
-                    </MenuItem>
-                  </MenuButton>
-                </Cell>
-              );
-            }
+                    </MenuButton>
+                  </Cell>
+                );
+              }
 
-            // Normal 'integration' type.
-            if (item.resourceType === 'integration') {
-              return (
-                <Cell align="right">
-                  <MenuButton>
-                    {item.kind === IntegrationKind.GitHub && (
+              // Normal 'integration' type.
+              if (item.resourceType === 'integration') {
+                return (
+                  <Cell align="right">
+                    <MenuButton>
+                      {item.kind === IntegrationKind.GitHub && (
+                        <MenuItem
+                          onClick={() =>
+                            props.integrationOps.onEditIntegration(item)
+                          }
+                        >
+                          Edit...
+                        </MenuItem>
+                      )}
                       <MenuItem
                         onClick={() =>
-                          props.integrationOps.onEditIntegration(item)
+                          props.integrationOps.onDeleteIntegration(item)
                         }
                       >
-                        Edit...
+                        Delete...
                       </MenuItem>
-                    )}
-                    <MenuItem
-                      onClick={() =>
-                        props.integrationOps.onDeleteIntegration(item)
-                      }
-                    >
-                      Delete...
-                    </MenuItem>
-                  </MenuButton>
-                </Cell>
-              );
-            }
+                    </MenuButton>
+                  </Cell>
+                );
+              }
 
-            // draft external audit storage
-            if (item.statusCode === IntegrationStatusCode.Draft) {
+              // draft external audit storage
+              if (item.statusCode === IntegrationStatusCode.Draft) {
+                return (
+                  <Cell align="right">
+                    <MenuButton>
+                      <MenuItem
+                        as={InternalRouteLink}
+                        to={{
+                          pathname: cfg.getIntegrationEnrollRoute(
+                            IntegrationKind.ExternalAuditStorage
+                          ),
+                          state: { continueDraft: true },
+                        }}
+                      >
+                        Continue Setup...
+                      </MenuItem>
+                      <MenuItem
+                        onClick={() =>
+                          props.onDeleteExternalAuditStorage('draft')
+                        }
+                      >
+                        Delete...
+                      </MenuItem>
+                    </MenuButton>
+                  </Cell>
+                );
+              }
+
+              // active external audit storage
               return (
                 <Cell align="right">
                   <MenuButton>
                     <MenuItem
-                      as={InternalRouteLink}
-                      to={{
-                        pathname: cfg.getIntegrationEnrollRoute(
-                          IntegrationKind.ExternalAuditStorage
-                        ),
-                        state: { continueDraft: true },
-                      }}
-                    >
-                      Continue Setup...
-                    </MenuItem>
-                    <MenuItem
                       onClick={() =>
-                        props.onDeleteExternalAuditStorage('draft')
+                        props.onDeleteExternalAuditStorage('cluster')
                       }
                     >
                       Delete...
@@ -228,93 +294,16 @@ export function IntegrationList(props: Props) {
                   </MenuButton>
                 </Cell>
               );
-            }
-
-            // active external audit storage
-            return (
-              <Cell align="right">
-                <MenuButton>
-                  <MenuItem
-                    onClick={() =>
-                      props.onDeleteExternalAuditStorage('cluster')
-                    }
-                  >
-                    Delete...
-                  </MenuItem>
-                </MenuButton>
-              </Cell>
-            );
+            },
           },
-        },
-      ]}
-      emptyText="No Results Found"
-    />
+        ]}
+        emptyText="No Results Found"
+      />
+    </>
   );
 }
 
-const StatusCell = ({ item }: { item: IntegrationLike }) => {
-  const status = getStatus(item);
-
-  if (
-    item.resourceType === 'integration' &&
-    item.kind === IntegrationKind.AwsOidc &&
-    (!item.spec.issuerS3Bucket || !item.spec.issuerS3Prefix)
-  ) {
-    return (
-      <Cell>
-        <Flex alignItems="center">
-          <StatusLight status={status} />
-          {getStatusCodeTitle(item.statusCode)}
-        </Flex>
-      </Cell>
-    );
-  }
-  const statusDescription = getStatusCodeDescription(
-    item.statusCode,
-    item.status?.errorMessage
-  );
-  return (
-    <Cell>
-      <Flex alignItems="center">
-        <StatusLight status={status} />
-        {getStatusCodeTitle(item.statusCode)}
-        {statusDescription && (
-          <Box mx="1">
-            <IconTooltip>{statusDescription}</IconTooltip>
-          </Box>
-        )}
-      </Flex>
-    </Cell>
-  );
-};
-
-export enum Status {
-  Success,
-  Warning,
-  Error,
-  OktaConfigError = 20,
-}
-
-const StatusLight = styled(Box)<{ status: Status }>`
-  border-radius: 50%;
-  margin-right: 4px;
-  width: 8px;
-  height: 8px;
-  background-color: ${({ status, theme }) => {
-    if (status === Status.Success) {
-      return theme.colors.success.main;
-    }
-    if ([Status.Error, Status.OktaConfigError].includes(status)) {
-      return theme.colors.error.main;
-    }
-    if (status === Status.Warning) {
-      return theme.colors.warning.main;
-    }
-    return theme.colors.grey[300]; // Unknown
-  }};
-`;
-
-const IconCell = ({ item }: { item: IntegrationLike }) => {
+const NameCell = ({ item }: { item: IntegrationLike }) => {
   let formattedText;
   let icon;
   if (item.resourceType === 'plugin') {
@@ -427,4 +416,132 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
 const IconContainer = styled(ResourceIcon)`
   width: 22px;
   margin-right: 10px;
+`;
+
+const IssuesCell = ({ integration }: { integration: IntegrationLike }) => {
+  const issueCount = integration.summary?.unresolvedUserTasks?.length;
+  if (issueCount > 0) {
+    // In the list tooltip, we only want to show up to 3 tasks. If there are more,
+    // the user can go to the integration dashboard to see all of them.
+    const showTopX = 3;
+    return (
+      <Cell>
+        <HoverTooltip
+          tipContent={
+            <Box>
+              <Text fontWeight={600}>
+                {issueCount.toLocaleString()} {pluralize(issueCount, 'Issue')}
+              </Text>
+              <TaskUL>
+                {integration.summary.unresolvedUserTasks
+                  .slice(0, showTopX)
+                  .map(issue => (
+                    <TaskLI key={issue.name}>{issue.title}</TaskLI>
+                  ))}
+              </TaskUL>
+              {issueCount > showTopX && (
+                <Text>
+                  and {(issueCount - showTopX).toLocaleString()} more...
+                </Text>
+              )}
+            </Box>
+          }
+        >
+          <PointerFlex inline alignItems="center" gap={1}>
+            {issueCount.toLocaleString()}
+            <Warning size="small" />
+          </PointerFlex>
+        </HoverTooltip>
+      </Cell>
+    );
+  }
+  return <Cell>-</Cell>;
+};
+
+const TaskUL = styled.ul`
+  margin: 0;
+  padding-left: ${p => p.theme.space[2]}px;
+`;
+
+const TaskLI = styled.li`
+  list-style-position: inside;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+`;
+
+const percentFormatter = new Intl.NumberFormat(undefined, {
+  style: 'percent',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 1,
+  roundingMode: 'trunc',
+});
+
+export function percent(n: number, d: number): string {
+  if (!Number.isFinite(n) || !Number.isFinite(d) || d <= 0) {
+    return '-';
+  }
+
+  const ratio = n / d;
+
+  if (isNaN(ratio)) {
+    return '-';
+  }
+
+  return percentFormatter.format(ratio);
+}
+
+const DetailsCell = ({ integration }: { integration: IntegrationLike }) => {
+  let content = <Text>{integration.details}</Text>;
+  switch (integration.kind) {
+    case IntegrationKind.AwsOidc:
+    case IntegrationKind.AzureOidc:
+      if (integration.summary?.resourcesCount) {
+        const rc = integration.summary.resourcesCount;
+        const hasFailures = rc.failed > 0;
+        const enrolledPct = percent(rc.enrolled, rc.found);
+        const failedPct = percent(rc.failed, rc.found);
+        content = (
+          <HoverTooltip
+            tipContent={
+              <Box>
+                <Text fontWeight={600}>
+                  {rc.found.toLocaleString()} Resources Found
+                </Text>
+                <Flex alignItems="center" mt={1} gap={1}>
+                  <CircleCheck size="small" color="success.main" />
+                  <Text>
+                    {rc.enrolled.toLocaleString()} enrolled ({enrolledPct})
+                  </Text>
+                </Flex>
+                {hasFailures && (
+                  <>
+                    <Flex alignItems="center" gap={1}>
+                      <CircleCross size="small" color="error.main" />
+                      <Text>
+                        {rc.failed.toLocaleString()} failed ({failedPct})
+                      </Text>
+                    </Flex>
+                    <Text mt={1}>
+                      For more information on failures, please check the
+                      integration overview.
+                    </Text>
+                  </>
+                )}
+              </Box>
+            }
+          >
+            <PointerFlex inline gap={1}>
+              {rc.enrolled.toLocaleString()} Resources enrolled ({enrolledPct})
+            </PointerFlex>
+          </HoverTooltip>
+        );
+      }
+      break;
+  }
+  return <Cell>{content}</Cell>;
+};
+
+const PointerFlex = styled(Flex)`
+  cursor: pointer;
 `;

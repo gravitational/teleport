@@ -142,6 +142,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/srv/transport/transportv1"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -328,13 +329,15 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	// start node
 	certs, err := s.server.Auth().GenerateHostCerts(s.ctx,
-		&authproto.HostCertsRequest{
-			HostID:       hostID,
-			NodeName:     nodeID,
-			Role:         types.RoleNode,
-			PublicSSHKey: pub,
-			PublicTLSKey: tlsPub,
-		}, "")
+		auth.HostCertsParams{
+			Req: &authproto.HostCertsRequest{
+				HostID:       hostID,
+				NodeName:     nodeID,
+				Role:         types.RoleNode,
+				PublicSSHKey: pub,
+				PublicTLSKey: tlsPub,
+			},
+		})
 	require.NoError(t, err)
 
 	signer, err := sshutils.NewSigner(priv, certs.SSH)
@@ -650,13 +653,15 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 
 	// start node
 	certs, err := s.server.Auth().GenerateHostCerts(s.ctx,
-		&authproto.HostCertsRequest{
-			HostID:       uuid,
-			NodeName:     hostname,
-			Role:         types.RoleNode,
-			PublicSSHKey: pub,
-			PublicTLSKey: tlsPub,
-		}, "")
+		auth.HostCertsParams{
+			Req: &authproto.HostCertsRequest{
+				HostID:       uuid,
+				NodeName:     hostname,
+				Role:         types.RoleNode,
+				PublicSSHKey: pub,
+				PublicTLSKey: tlsPub,
+			},
+		})
 	require.NoError(t, err)
 
 	signer, err := sshutils.NewSigner(priv, certs.SSH)
@@ -1683,6 +1688,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 			AppClusterName:        clusterName,
 			RequiresRequest:       false,
 			AllowedAWSRolesLookup: map[string][]string{"my-aws-app": {"arn:aws:iam::999999999999:role/ProdInstance"}},
+			GrantedAWSRolesLookup: map[string][]string{"my-aws-app": {"arn:aws:iam::999999999999:role/ProdInstance"}},
 		}
 
 		expectedApps := []webui.App{
@@ -2563,7 +2569,7 @@ func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server) *windows
 		HostUUID: "windows_server",
 		NodeName: "windows_server",
 	}
-	n, err := authClient.GetClusterName(context.TODO())
+	n, err := authClient.GetClusterName(t.Context())
 	require.NoError(t, err)
 	dns := []string{"localhost", "127.0.0.1", desktop.WildcardServiceDNS}
 	identity, err := auth.LocalRegister(authID, authClient, nil, dns, "", nil)
@@ -2601,7 +2607,7 @@ func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server) *windows
 }
 
 func (w *windowsDesktopServiceMock) handleConn(t *testing.T, conn *tls.Conn) {
-	tdpConn := tdp.NewConn(conn)
+	tdpConn := tdp.NewConn(conn, legacy.Decode)
 
 	// Ensure that incoming connection is MFAVerified.
 	require.NotEmpty(t, conn.ConnectionState().PeerCertificates)
@@ -2612,17 +2618,17 @@ func (w *windowsDesktopServiceMock) handleConn(t *testing.T, conn *tls.Conn) {
 
 	msg, err := tdpConn.ReadMessage()
 	require.NoError(t, err)
-	require.IsType(t, tdp.ClientUsername{}, msg)
+	require.IsType(t, legacy.ClientUsername{}, msg)
 
 	msg, err = tdpConn.ReadMessage()
 	require.NoError(t, err)
-	require.IsType(t, tdp.ClientScreenSpec{}, msg)
+	require.IsType(t, legacy.ClientScreenSpec{}, msg)
 
 	msg, err = tdpConn.ReadMessage()
 	require.NoError(t, err)
-	require.IsType(t, tdp.ClientKeyboardLayout{}, msg, "%v", msg)
+	require.IsType(t, legacy.ClientKeyboardLayout{}, msg, "%v", msg)
 
-	err = tdpConn.WriteMessage(tdp.Alert{Message: "test", Severity: tdp.SeverityWarning})
+	err = tdpConn.WriteMessage(legacy.Alert{Message: "test", Severity: legacy.SeverityWarning})
 	require.NoError(t, err)
 }
 
@@ -2695,49 +2701,49 @@ func TestDesktopAccessMFA(t *testing.T) {
 
 			// Before the session can proceed to the MFA ceremony, the proxy expects the
 			// web UI to send both the screen size and keyboard layout over the websocket.
-			ss, err := tdp.ClientScreenSpec{
+			ss, err := legacy.ClientScreenSpec{
 				Width:  1920,
 				Height: 1080,
 			}.Encode()
 			require.NoError(t, err)
 			require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, ss))
-			kl, err := tdp.ClientKeyboardLayout{}.Encode()
+			kl, err := legacy.ClientKeyboardLayout{}.Encode()
 			require.NoError(t, err)
 			require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, kl))
 
 			tc.mfaHandler(t, ws, dev)
 
-			tdpClient := tdp.NewConn(&WebsocketIO{Conn: ws})
+			tdpClient := tdp.NewConn(&WebsocketIO{Conn: ws}, legacy.Decode)
 
 			msg, err := tdpClient.ReadMessage()
 			require.NoError(t, err)
 
 			// sometimes LatencyStats will be sent before we get Alert, in such case just skip it and get next one
-			if _, ok := msg.(tdp.LatencyStats); ok {
+			if _, ok := msg.(legacy.LatencyStats); ok {
 				msg, err = tdpClient.ReadMessage()
 				require.NoError(t, err)
 			}
-			require.IsType(t, tdp.Alert{}, msg)
+			require.IsType(t, legacy.Alert{}, msg)
 		})
 	}
 }
 
 func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *authtest.Device) {
 	wsrwc := &WebsocketIO{Conn: ws}
-	tdpConn := tdp.NewConn(wsrwc)
+	tdpConn := tdp.NewConn(wsrwc, legacy.Decode)
 
 	br := bufio.NewReader(wsrwc)
 	mt, err := br.ReadByte()
 	require.NoError(t, err)
-	require.Equal(t, tdp.TypeMFA, tdp.MessageType(mt))
+	require.Equal(t, legacy.TypeMFA, legacy.MessageType(mt))
 
-	mfaChallange, err := tdp.DecodeMFAChallenge(br)
+	mfaChallange, err := legacy.DecodeMFAChallenge(br)
 	require.NoError(t, err)
 	res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
 		WebauthnChallenge: wantypes.CredentialAssertionToProto(mfaChallange.WebauthnChallenge),
 	})
 	require.NoError(t, err)
-	err = tdpConn.WriteMessage(tdp.MFA{
+	err = tdpConn.WriteMessage(legacy.MFA{
 		Type: defaults.WebsocketMFAChallenge[0],
 		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_Webauthn{
@@ -4915,6 +4921,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 			string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 			string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
 			string(entitlements.ClientIPRestrictions):       {Enabled: false},
+			string(entitlements.WorkloadClusters):           {Enabled: false},
 		},
 		TunnelPublicAddress:            "",
 		RecoveryCodesEnabled:           false,
@@ -5100,6 +5107,7 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 			string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 			string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
 			string(entitlements.ClientIPRestrictions):       {Enabled: false},
+			string(entitlements.WorkloadClusters):           {Enabled: false},
 		},
 		PlayableDatabaseProtocols:     player.SupportedDatabaseProtocols,
 		IsPolicyRoleVisualizerEnabled: true,
@@ -8453,13 +8461,15 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 	const nodeID = "node"
 	// start auth server
 	certs, err := server.Auth().GenerateHostCerts(ctx,
-		&authproto.HostCertsRequest{
-			HostID:       hostID,
-			NodeName:     nodeID,
-			Role:         types.RoleNode,
-			PublicSSHKey: pub,
-			PublicTLSKey: tlsPub,
-		}, "")
+		auth.HostCertsParams{
+			Req: &authproto.HostCertsRequest{
+				HostID:       hostID,
+				NodeName:     nodeID,
+				Role:         types.RoleNode,
+				PublicSSHKey: pub,
+				PublicTLSKey: tlsPub,
+			},
+		})
 	require.NoError(t, err)
 
 	signer, err := sshutils.NewSigner(priv, certs.SSH)
@@ -11405,6 +11415,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.AccessGraphDemoMode):        {Enabled: true, Limit: 99},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: true, Limit: 99},
 					string(entitlements.ClientIPRestrictions):       {Enabled: true, Limit: 99},
+					string(entitlements.WorkloadClusters):           {Enabled: true, Limit: 99},
 				},
 			},
 			expected: &webclient.WebConfig{
@@ -11470,6 +11481,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.AccessGraphDemoMode):        {Enabled: true, Limit: 99},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: true, Limit: 99},
 					string(entitlements.ClientIPRestrictions):       {Enabled: true, Limit: 99},
+					string(entitlements.WorkloadClusters):           {Enabled: true, Limit: 99},
 				},
 			},
 		},
@@ -11574,6 +11586,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
 					string(entitlements.ClientIPRestrictions):       {Enabled: false},
+					string(entitlements.WorkloadClusters):           {Enabled: false},
 
 					// set to equivalent legacy feature
 					string(entitlements.ExternalAuditStorage):   {Enabled: true},
@@ -11705,6 +11718,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
 					string(entitlements.ClientIPRestrictions):       {Enabled: false},
+					string(entitlements.WorkloadClusters):           {Enabled: false},
 
 					// set to legacy feature "IsIGSEnabled"; false so set value and keep limits
 					string(entitlements.AccessLists):       {Enabled: true, Limit: 88},
@@ -11818,6 +11832,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
 					string(entitlements.ClientIPRestrictions):       {Enabled: false},
+					string(entitlements.WorkloadClusters):           {Enabled: false},
 				},
 			},
 		},

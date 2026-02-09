@@ -81,10 +81,11 @@ func certAuthorityHandler() Handler {
 	}
 }
 func getCertAuthority(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
-	getAll := ref.SubKind == "" && ref.Name == ""
-	if getAll {
+	switch {
+	// `tctl get cert_authority`.
+	case ref.SubKind == "" && ref.Name == "":
 		var allAuthorities []types.CertAuthority
-		for _, caType := range types.CertAuthTypesExtended {
+		for _, caType := range types.CertAuthTypes {
 			authorities, err := client.GetCertAuthorities(ctx, caType, opts.WithSecrets)
 			if err != nil {
 				if trace.IsBadParameter(err) {
@@ -96,14 +97,30 @@ func getCertAuthority(ctx context.Context, client *authclient.Client, ref servic
 			allAuthorities = append(allAuthorities, authorities...)
 		}
 		return &certAuthorityCollection{cas: allAuthorities}, nil
-	}
 
-	id := types.CertAuthID{Type: types.CertAuthType(ref.SubKind), DomainName: ref.Name}
-	authority, err := client.GetCertAuthority(ctx, id, opts.WithSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// Eg: `tctl get cert_authority/user`.
+	case ref.SubKind == "":
+		caType := ref.Name // ref.Name is set first.
+		authorities, err := client.GetCertAuthorities(ctx, types.CertAuthType(caType), opts.WithSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &certAuthorityCollection{cas: authorities}, nil
+
+	// Eg: `tctl get cert_authority/user/example.com`.
+	default:
+		caType := ref.SubKind // ref.SubKind is set first.
+		name := ref.Name
+		id := types.CertAuthID{
+			Type:       types.CertAuthType(caType),
+			DomainName: name,
+		}
+		authority, err := client.GetCertAuthority(ctx, id, opts.WithSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &certAuthorityCollection{cas: []types.CertAuthority{authority}}, nil
 	}
-	return &certAuthorityCollection{cas: []types.CertAuthority{authority}}, nil
 }
 
 func createCertAuthority(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {

@@ -20,7 +20,7 @@ import { useHistory } from 'react-router';
 import { Link as InternalLink } from 'react-router-dom';
 import { useTheme } from 'styled-components';
 
-import { ButtonIcon, Flex, Label, Link, MenuItem, Text } from 'design';
+import { ButtonIcon, Flex, Link, MenuItem, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { ArrowLeft } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
@@ -28,13 +28,13 @@ import { MenuButton } from 'shared/components/MenuAction';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import cfg from 'teleport/config';
-import { getStatusAndLabel } from 'teleport/Integrations/helpers';
 import {
   IntegrationOperations,
   useIntegrationOperation,
 } from 'teleport/Integrations/Operations';
 import { type DeleteRequestOptions } from 'teleport/Integrations/Operations/IntegrationOperations';
 import type { EditableIntegrationFields } from 'teleport/Integrations/Operations/useIntegrationOperation';
+import { StatusLabel } from 'teleport/Integrations/shared/StatusLabel';
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { IntegrationAwsOidc } from 'teleport/services/integrations';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
@@ -53,7 +53,6 @@ export function AwsOidcTitle({
   const theme = useTheme();
   const history = useHistory();
   const integrationOps = useIntegrationOperation();
-  const { status, labelKind } = getStatusAndLabel(integration);
   const content = getContent(integration, resource, tasks);
 
   async function removeIntegration(opt: DeleteRequestOptions) {
@@ -84,9 +83,7 @@ export function AwsOidcTitle({
             <Text bold fontSize={6}>
               {content.content}
             </Text>
-            <Label kind={labelKind} aria-label="status" px={3}>
-              {status}
-            </Label>
+            <StatusLabel integration={integration} />
           </Flex>
           {integration.spec && (
             <Flex gap={1}>

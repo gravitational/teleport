@@ -62,7 +62,7 @@ func TestTDPConnTracksLocalRemoteAddrs(t *testing.T) {
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			tc := NewConn(test.conn)
+			tc := NewConn(test.conn, nil)
 			l := tc.LocalAddr()
 			r := tc.RemoteAddr()
 			require.Equal(t, test.local, l)
@@ -398,13 +398,13 @@ func TestRemoveNilMessages(t *testing.T) {
 	}{
 		{msgs: []Message{nil}, expectedLen: 0},
 		{msgs: []Message{nil, nil}, expectedLen: 0},
-		{msgs: []Message{MFA{}, nil}, expectedLen: 1},
-		{msgs: []Message{nil, MFA{}}, expectedLen: 1},
-		{msgs: []Message{nil, MFA{}, nil}, expectedLen: 1},
-		{msgs: []Message{MFA{}, nil, MFA{}}, expectedLen: 2},
-		{msgs: []Message{MFA{}, nil, nil, MFA{}}, expectedLen: 2},
-		{msgs: []Message{MFA{}, nil, nil, MFA{}, nil, nil, MFA{}}, expectedLen: 3},
-		{msgs: []Message{MFA{}, MFA{}, MFA{}}, expectedLen: 3},
+		{msgs: []Message{mockMessage(""), nil}, expectedLen: 1},
+		{msgs: []Message{nil, mockMessage("")}, expectedLen: 1},
+		{msgs: []Message{nil, mockMessage(""), nil}, expectedLen: 1},
+		{msgs: []Message{mockMessage(""), nil, mockMessage("")}, expectedLen: 2},
+		{msgs: []Message{mockMessage(""), nil, nil, mockMessage("")}, expectedLen: 2},
+		{msgs: []Message{mockMessage(""), nil, nil, mockMessage(""), nil, nil, mockMessage("")}, expectedLen: 3},
+		{msgs: []Message{mockMessage(""), mockMessage(""), mockMessage("")}, expectedLen: 3},
 	}
 
 	for _, test := range tests {

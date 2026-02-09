@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -40,6 +41,7 @@ func Handlers() map[string]Handler {
 		types.KindAccessRequest:                      accessRequestHandler(),
 		types.KindApp:                                appHandler(),
 		types.KindAppServer:                          appServerHandler(),
+		types.KindAuditQuery:                         auditQueryHandler(),
 		types.KindAuthServer:                         authHandler(),
 		types.KindAutoUpdateAgentReport:              autoUpdateAgentReportHandler(),
 		types.KindAutoUpdateAgentRollout:             autoUpdateAgentRolloutHandler(),
@@ -50,6 +52,7 @@ func Handlers() map[string]Handler {
 		types.KindBotInstance:                        botInstanceHandler(),
 		types.KindCertAuthority:                      certAuthorityHandler(),
 		types.KindClusterAuthPreference:              authPreferenceHandler(),
+		types.KindClusterMaintenanceConfig:           clusterMaintenanceConfigHandler(),
 		types.KindClusterNetworkingConfig:            networkingConfigHandler(),
 		types.KindConnectors:                         connectorsHandler(),
 		types.KindDatabase:                           databaseHandler(),
@@ -62,6 +65,8 @@ func Handlers() map[string]Handler {
 		types.KindInferenceModel:                     inferenceModelHandler(),
 		types.KindInferenceSecret:                    inferenceSecretHandler(),
 		types.KindInstaller:                          installerHandler(),
+		types.KindKubeServer:                         kubeServerHandler(),
+		types.KindKubernetesCluster:                  kubeClusterHandler(),
 		types.KindLock:                               lockHandler(),
 		types.KindNode:                               serverHandler(),
 		types.KindOIDCConnector:                      oidcConnectorHandler(),
@@ -84,6 +89,10 @@ func Handlers() map[string]Handler {
 		types.KindWorkloadIdentity:                   workloadIdentityHandler(),
 		types.KindWorkloadIdentityX509IssuerOverride: workloadIdentityX509IssuerOverrideHandler(),
 		types.KindWorkloadIdentityX509Revocation:     workloadIdentityX509RevocationHandler(),
+		types.KindAppAuthConfig:                      appAuthConfigHandler(),
+		scopedaccess.KindScopedRole:                  scopedRoleHandler(),
+		scopedaccess.KindScopedRoleAssignment:        scopedRoleAssignmentHandler(),
+		types.KindWorkloadCluster:                    workloadClusterHandler(),
 	}
 }
 

@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	joinv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/aws"
@@ -216,11 +217,18 @@ type RegisterParams struct {
 	OracleIMDSClient utils.HTTPDoClient
 	// AttestTPM overrides the function used to attest the host TPM for the TPM join method.
 	AttestTPM func(context.Context, *slog.Logger) (*tpm.Attestation, func() error, error)
+	// Log is the logger to use for emitting log messages.
+	// If not specified, this defaults to the global logger.
+	Log *slog.Logger
 }
 
 func (r *RegisterParams) CheckAndSetDefaults() error {
 	if r.Clock == nil {
 		r.Clock = clockwork.NewRealClock()
+	}
+
+	if r.Log == nil {
+		r.Log = slog.Default()
 	}
 
 	if r.KubernetesReadFileFunc == nil {
@@ -301,6 +309,9 @@ type RegisterResult struct {
 	// BoundKeypair contains additional results from bound keypair registration
 	// attempts. This is only set when bound keypair joining is used.
 	BoundKeypair *BoundKeypairRegisterResult
+	// ImmutableLabels are the immutable labels that have been assigned to
+	// the host by their join token.
+	ImmutableLabels *joiningv1.ImmutableLabels
 }
 
 // Register is used to get signed certificates when a node, proxy, or bot is
@@ -318,6 +329,7 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 	if err := params.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	log := params.Log
 	// Read in the token. The token can either be passed in or come from a file
 	// on disk.
 	token, err := utils.TryReadValueAsFile(params.Token)
@@ -414,13 +426,13 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 	// If an explicit AuthClient has been provided, we want to go straight to
 	// using that rather than trying both proxy and auth dialing.
 	if params.AuthClient != nil {
-		slog.InfoContext(ctx, "Attempting registration with existing auth client.")
+		log.InfoContext(ctx, "Attempting registration with existing auth client.")
 		result, err := registerThroughAuthClient(ctx, token, params, params.AuthClient)
 		if err != nil {
-			slog.ErrorContext(ctx, "Registration with existing auth client failed.", "error", err)
+			log.ErrorContext(ctx, "Registration with existing auth client failed.", "error", err)
 			return nil, trace.Wrap(err)
 		}
-		slog.InfoContext(ctx, "Successfully registered with existing auth client.")
+		log.InfoContext(ctx, "Successfully registered with existing auth client.")
 		return result, nil
 	}
 
@@ -435,35 +447,35 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 	registerMethods := []registerMethod{registerThroughAuth, registerThroughProxy}
 
 	if !params.ProxyServer.IsEmpty() {
-		slog.DebugContext(ctx, "Registering node to the cluster.", "proxy_server", params.ProxyServer)
+		log.DebugContext(ctx, "Registering node to the cluster.", "proxy_server", params.ProxyServer)
 
 		registerMethods = []registerMethod{registerThroughProxy}
 
 		if proxyServerIsAuth(params.ProxyServer) {
-			slog.DebugContext(ctx, "The specified proxy server appears to be an auth server.")
+			log.DebugContext(ctx, "The specified proxy server appears to be an auth server.")
 		}
 	} else {
-		slog.DebugContext(ctx, "Registering node to the cluster.", "auth_servers", params.AuthServers)
+		log.DebugContext(ctx, "Registering node to the cluster.", "auth_servers", params.AuthServers)
 
 		if params.GetHostCredentials == nil {
-			slog.DebugContext(ctx, "Missing client, it is not possible to register through proxy.")
+			log.DebugContext(ctx, "Missing client, it is not possible to register through proxy.")
 			registerMethods = []registerMethod{registerThroughAuth}
 		} else if LooksLikeProxy(params.AuthServers) {
-			slog.DebugContext(ctx, "The first specified auth server appears to be a proxy.")
+			log.DebugContext(ctx, "The first specified auth server appears to be a proxy.")
 			registerMethods = []registerMethod{registerThroughProxy, registerThroughAuth}
 		}
 	}
 
 	var collectedErrs []error
 	for _, method := range registerMethods {
-		slog.InfoContext(ctx, "Attempting registration.", "method", method.desc)
+		log.InfoContext(ctx, "Attempting registration.", "method", method.desc)
 		result, err := method.call(ctx, token, params)
 		if err != nil {
 			collectedErrs = append(collectedErrs, err)
-			slog.DebugContext(ctx, "Registration failed.", "method", method.desc, "error", err)
+			log.DebugContext(ctx, "Registration failed.", "method", method.desc, "error", err)
 			continue
 		}
-		slog.InfoContext(ctx, "Successfully registered.", "method", method.desc)
+		log.InfoContext(ctx, "Successfully registered.", "method", method.desc)
 		return result, nil
 	}
 	return nil, trace.NewAggregate(collectedErrs...)
@@ -517,7 +529,7 @@ func registerThroughProxy(
 				CipherSuites: params.CipherSuites,
 				Clock:        params.Clock,
 				Insecure:     params.Insecure,
-				Log:          slog.Default(),
+				Log:          params.Log,
 			},
 		)
 		if err != nil {
@@ -652,7 +664,7 @@ func getHostAddresses(params RegisterParams) []string {
 func NewAuthClient(ctx context.Context, params RegisterParams) (*authclient.Client, error) {
 	switch {
 	case params.Insecure:
-		slog.WarnContext(ctx, "Insecure mode enabled. Auth Server cert will not be validated and CAPins and CAPath value will be ignored.")
+		params.Log.WarnContext(ctx, "Insecure mode enabled. Auth Server cert will not be validated and CAPins and CAPath value will be ignored.")
 		return insecureRegisterClient(ctx, params)
 	case len(params.CAPins) != 0:
 		// CAPins takes precedence over CAPath
@@ -677,7 +689,7 @@ func insecureRegisterClient(ctx context.Context, params RegisterParams) (*authcl
 		"attacker can gain privileged network access. To remedy this, use the CA pin " +
 		"value provided when join token was generated to validate the identity of " +
 		"the Auth Server or point to a valid Certificate via the CA Path option."
-	slog.WarnContext(ctx, msg)
+	params.Log.WarnContext(ctx, msg)
 
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
@@ -751,7 +763,7 @@ func pinRegisterClient(
 		}
 
 	}
-	slog.InfoContext(ctx, "Joining remote cluster with CA pin.", "cluster", certs[0].Subject.CommonName)
+	params.Log.InfoContext(ctx, "Joining remote cluster with CA pin.", "cluster", certs[0].Subject.CommonName)
 
 	// Create another client, but this time with the CA provided to validate
 	// that the Auth Server was issued a certificate by the same CA.
@@ -792,7 +804,7 @@ func caPathRegisterClient(ctx context.Context, params RegisterParams) (*authclie
 	// we may wish to consider changing this to return an error - but this is a
 	// breaking change.
 	if trace.IsNotFound(err) {
-		slog.WarnContext(ctx, "Falling back to insecurely joining because a missing or empty CA Path was provided.")
+		params.Log.WarnContext(ctx, "Falling back to insecurely joining because a missing or empty CA Path was provided.")
 		return insecureRegisterClient(ctx, params)
 	}
 
@@ -800,7 +812,7 @@ func caPathRegisterClient(ctx context.Context, params RegisterParams) (*authclie
 	certPool.AddCert(cert)
 	tlsConfig.RootCAs = certPool
 
-	slog.InfoContext(ctx, "Joining remote cluster, validating connection with certificate on disk.", "cluster", cert.Subject.CommonName)
+	params.Log.InfoContext(ctx, "Joining remote cluster, validating connection with certificate on disk.", "cluster", cert.Subject.CommonName)
 
 	client, err := authclient.NewClient(client.Config{
 		Addrs: getHostAddresses(params),
@@ -858,7 +870,8 @@ func registerUsingTokenRequestForParams(token string, hostKeys *newHostKeys, par
 func registerUsingIAMMethod(
 	ctx context.Context, joinServiceClient joinServiceClient, token string, hostKeys *newHostKeys, params RegisterParams,
 ) (*proto.Certs, error) {
-	slog.InfoContext(ctx, "Attempting to register with IAM method using region STS endpoint.", "role", params.ID.Role)
+	log := params.Log
+	log.InfoContext(ctx, "Attempting to register with IAM method using region STS endpoint.", "role", params.ID.Role)
 	// Call RegisterUsingIAMMethod and pass a callback to respond to the challenge with a signed join request.
 	certs, err := joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
 		// create the signed sts:GetCallerIdentity request and include the challenge
@@ -876,11 +889,11 @@ func registerUsingIAMMethod(
 		}, nil
 	})
 	if err != nil {
-		slog.InfoContext(ctx, "Failed to register using regional STS endpoint", "role", params.ID.Role, "error", err)
+		log.InfoContext(ctx, "Failed to register using regional STS endpoint", "role", params.ID.Role, "error", err)
 		return nil, trace.Wrap(err, "registering via IAM method streaming RPC")
 	}
 
-	slog.InfoContext(ctx, "Successfully registered with IAM method using regional STS endpoint.", "role", params.ID.Role)
+	log.InfoContext(ctx, "Successfully registered with IAM method using regional STS endpoint.", "role", params.ID.Role)
 	return certs, nil
 }
 
@@ -924,7 +937,7 @@ func registerUsingTPMMethod(
 	hostKeys *newHostKeys,
 	params RegisterParams,
 ) (*proto.Certs, error) {
-	log := slog.Default()
+	log := params.Log
 
 	initReq := &proto.RegisterUsingTPMMethodInitialRequest{
 		JoinRequest: registerUsingTokenRequestForParams(token, hostKeys, params),
@@ -1039,6 +1052,7 @@ func registerUsingBoundKeypairMethod(
 	params RegisterParams,
 ) (*RegisterResult, error) {
 	bkParams := params.BoundKeypairParams
+	log := params.Log
 
 	initReq := &proto.RegisterUsingBoundKeypairInitialRequest{
 		JoinRequest:       registerUsingTokenRequestForParams(token, hostKeys, params),
@@ -1095,7 +1109,7 @@ func registerUsingBoundKeypairMethod(
 					return nil, trace.BadParameter("RequestNewKeypair is required")
 				}
 
-				slog.InfoContext(ctx, "Server has requested keypair rotation", "suite", kind.Rotation.SignatureAlgorithmSuite)
+				log.InfoContext(ctx, "Server has requested keypair rotation", "suite", kind.Rotation.SignatureAlgorithmSuite)
 
 				newSigner, err := bkParams.RequestNewKeypair(ctx, cryptosuites.StaticAlgorithmSuite(kind.Rotation.SignatureAlgorithmSuite))
 				if err != nil {

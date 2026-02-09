@@ -27,10 +27,24 @@ Provider](../../../zero-trust-access/sso/integrate-idp/okta.mdx).
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
 
-- Familiarity with the [Okta guided integration flow](./okta.mdx).
+- (!docs/pages/includes/tctl.mdx!)
+- An Okta organization with admin access.
 
-- (Optional) An Okta authentication connector. If you do not have one, you can
-  follow the guided Okta SSO integration flow to set one up.
+## Step 1/4. Choose an authentication connector
+
+1. Visit the Teleport Web UI and from the left sidebar, navigate to **Add New** -> **Integration**.
+
+2. Select the **Okta** tile.
+
+   ![Enroll an integration](../../../../img/sso/okta/okta-tile.png)
+
+3. In the **Choose Your Auth Connector** view, select an existing connector or create a new one by selecting an option from the dropdown menu.
+
+You can inspect an existing connector with the `tctl` command. Replace <Var name="okta" /> with the name of your connector.
+
+```code
+$ tctl get saml/<Var name="okta" />
+```
 
   If one of your existing connectors is named `okta`, you won't have the option
   to create a new connector. That's because the name of the connector created by
@@ -39,117 +53,112 @@ Provider](../../../zero-trust-access/sso/integrate-idp/okta.mdx).
   manually following [Authentication With Okta as an SSO Provider
   ](../../../zero-trust-access/sso/integrate-idp/okta.mdx).
 
-- (!docs/pages/includes/tctl.mdx!)
-
-- An Okta organization with admin access.
-
-## Step 1/5. Choose an existing authentication connector
-
-In the **Choose Your Auth Connector** view, select an existing connector from
-the dropdown menu.
-
-To see the full authentication connector resource before selecting it, run the
-following command, assigning <Var name="okta" /> to the name of the resource as
-shown in the dropdown menu:
-
-```code
-$ tctl get saml/<Var name="okta" />
-```
-
-If this is the correct authentication connector, select it. In this case, you
-can now proceed with the next component of the guided Okta enrollment flow:
-
-- [Okta SCIM integration](./scim-integration.mdx)
-- [Okta user sync integration](./user-sync.mdx)
-
-Otherwise, select the option to create a new connector. Continue following the
-guided enrollment flow for the Okta SSO integration.
-
-## Step 2/5. Create an Okta app
-
-Create an Okta SAML application that allows Teleport to receive SAML messages
-from Okta.
-
-1. From the main navigation menu, select **Applications** -> **Applications**,
-   and click **Create App Integration**. Select SAML 2.0, then click **Next**.
-
-   ![Create APP](../../../../img/sso/okta/okta-saml-1.png)
-
-1. On the next screen (**General Settings**), provide a name and optional logo
-   for your new app, then click **Next**. This will bring you to the **Configure
-   SAML** section.
-
-## Step 3/5. Configure the app
-
-Provide the following values to their respective fields:
-
-**General:**
-
-- Single sign on URL: `https://<cluster-url>:<port>/v1/webapi/saml/acs/okta`
-- Audience URI (SP Entity ID): <nobr>`https://<cluster-url>:<port>/v1/webapi/saml/acs/okta`</nobr>
-- Name ID format `EmailAddress`
-- Application username `Okta username`
-
-Replace `<cluster-url>` with your Teleport Proxy Service address or Enterprise
-Cloud account (e.g. `example.teleport.sh`). Replace `<port>` with your Proxy
-Service listening port (`443` by default).
-
-**Attribute statements:**
-
-- Name: `username`  | Name format: `Unspecified` | Value: `user.login`
-
-**Group attribute statements:**
-
-We will map our Okta groups to SAML attribute statements (special signed metadata
-exposed via a SAML XML response), so that Teleport can discover a user's group
-membership and assign matching roles.
-
-- Name: `groups` | Name format: `Unspecified`
-- Filter: `Matches regex` |  `.*`
-
-The configuration page should now look like this:
-
-![Configuring an Okta application](../../../../img/sso/okta/setup-redirection.png)
-
-Notice that we have set "NameID" to the email format and mapped the groups with
-a wildcard regex in the Group Attribute statements. We have also set the
-"Audience" and SSO URLs to the same value. This is so Teleport can read and use
-Okta users' email addresses to create their usernames in Teleport, instead of
-relying on additional name fields.
-
-<Admonition type="warning" >
-The "Matches regex" filter requires the literal string `.*` in order to match all
-content from the group attribute statement.
+<Admonition type="note">
+If you are using already configured Okta connector, you can skip Okta app configuration and go to the **Next steps** section of this guide.
 </Admonition>
 
-Once you've filled the required fields, click **Next**, then finish the app creation wizard.
+## Step 2/4. Create and configure an Okta app
 
-## Step 4/5. Assign user groups
+Okta Integration Network support is still in beta. If unsure please proceed with the Custom SAML 2.0 app.
 
-From the **Assignments** tab of the new application page, click **Assign**.  Assign the user groups
-which can access to the app. Users being members of those groups will have the SSO access to
-Teleport once the Auth Connector is configured.
+<Tabs groupId="saml-app" defaultValue="legacy">
+<TabItem label="Okta Integration Network" value="oin">
 
-![Configure APP](../../../../img/sso/okta/okta-saml-3.1.png)
+  Add Teleport app to Okta if it hasn't been added previously:
 
-## Step 5/5. Provide your Okta app metadata to Teleport
+  1. In Okta Console, go to **Applications**.
 
-Provide metadata about the Okta application you created so Teleport can trust
-its SAML messages.
+  2. Click **Browse App Catalog**.
 
-1. In the Okta administrator web UI, navigate to **Applications** ->
-   **Applications** and find your app. Then go to the **Sign On** tab and copy
-   the metadata URL. Paste this somewhere that you can refer to as you work
-   through the guided flow.
+  3. Search for and select **Teleport**, and then click **Add Integration**.
 
-   ![Okta SAML app metadata URL](../../../../img/enterprise/plugins/okta/okta-saml-app-metadata-url.png)
+  4. Complete the fields on the settings page and click **Done**.
 
-1. In the Teleport Web UI, make sure you are in the **Step Two** view in the
-   Okta SSO connector enrollment flow.
+  5. Go to the **Sign On** tab and click **Edit** on the top-right corner of the tab.
 
-1. Paste the SAML metadata URL into the form in the **Step Two** view. 
+  6. Scroll down to the `groups` attribute, then select `Match regex` and type in `.*` in the input field.
 
-At this point, you have completed the guided flow for the Okta SSO integration.
+     {/* NOTE: This image is shared in multiple guides. */}
+     ![Set groups attribute](../../../../img/sso/okta/group-regex.png)
+
+  7. Scroll down and click **Save**.
+
+</TabItem>
+<TabItem label="Custom SAML 2.0 app (legacy)" value="legacy">
+
+  <Admonition type="note">
+  Please note this is a legacy way of setting up the Teleport SSO app. The preferred way is to use Okta Integration Network app.
+  </Admonition>
+
+  1. In Okta Console, go to **Applications**.
+
+  2. Click **Create App Integration**.
+
+  3. Select "SAML 2.0" and click **Next**.
+
+  4. Give your app a name, e.g. "Teleport" and optionally upload a logo and click **Next**.
+
+  5. That will bring you to the "Configure SAML" step where you'll have to provide a several values:
+
+     - Single sign on URL:
+
+       ```
+       https://<Var name="example.teleport.sh" />/v1/webapi/saml/acs/okta
+       ```
+
+     - Audience URI (SP Entity ID):
+
+       ```
+       https://<Var name="example.teleport.sh" />/v1/webapi/saml/acs/okta
+       ```
+
+     - Name ID format `EmailAddress`
+
+     - Application username `Okta username` 
+
+     {/* NOTE: This image is shared in multiple guides. */}
+     ![SAML general settings](../../../../img/sso/okta/legacy-general-settings.png)
+
+  6. In the same "Configure SAML" setup screen, scroll down to the **Group Attribute Statements (optional)** section and setup it like so:
+
+     - Name: `groups` | Name format: `Unspecified`
+     - Filter: `Matches regex` |  `.*`
+
+     {/* NOTE: This image is shared in multiple guides. */}
+     ![Set groups attribute](../../../../img/sso/okta/legacy-group-regex.png)
+
+  7. Click **Next**. That will bring you to the "Feedback" step where you can just click **Finish**.
+
+</TabItem>
+</Tabs>
+
+## Step 3/4. Assign user groups
+
+1. In the same Okta Teleport app, go to the **Assignments** tab and click the **Assign** dropdown.
+ 
+2. Select "Assign to Groups" and search for the Okta groups which members will have access to Teleport.
+ 
+3. Click **Assign** next to each selected groups and click **Done**.
+
+   {/* NOTE: This image is shared in multiple guides. */}
+   ![Assign user groups](../../../../img/sso/okta/assign-groups.png)
+
+## Step 4/4. Provide your Okta app metadata to Teleport
+
+1. Go to the **Sign On** tab and scroll down to "Metadata URL".
+
+2. Copy the Metadata URL using the **Copy** button below it.
+
+   {/* NOTE: This is a shared image. When making changes check other guides using this image. */}
+   ![Copy metadata URL](../../../../img/sso/okta/copy-metadata-url.png)
+
+3. Go back to the Teleport Web UI, make sure you are in the **Step Two** view in the Okta SSO
+   connector enrollment flow, paste the metadata URL and click **Continue**.
+
+   ![Paste metadata URL](../../../../img/sso/okta/paste-metadata-url.png)
+
+At this point, you have completed the guided flow for the Okta SSO integration. All users assigned
+to the Okta app are now able to log in to Teleport.
 
 ## Next steps
 
@@ -158,3 +167,5 @@ can proceed to one of two guided enrollment flows:
 
 - [Okta SCIM integration](./scim-integration.mdx)
 - [Okta user sync integration](./user-sync.mdx)
+
+To learn more about Okta integration and how to manage it see the [Teleport Okta integration](./okta.mdx) overview page.

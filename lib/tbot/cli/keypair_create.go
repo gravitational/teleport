@@ -48,16 +48,16 @@ type KeypairCreateCommand struct {
 // NewKeypairCreateCommand initializes the `keypair create` command and returns
 // a struct to contain the parse result.
 func NewKeypairCreateCommand(parentCmd KingpinClause, action func(*KeypairCreateCommand) error) *KeypairCreateCommand {
-	cmd := parentCmd.Command("create", "Create a keypair to preregister for bound-keypair joining").Hidden()
+	cmd := parentCmd.Command("create", "Creates a keypair to preregister for bound-keypair joining.")
 
 	c := &KeypairCreateCommand{}
 	c.genericExecutorHandler = newGenericExecutorHandler(cmd, c, action)
 
-	cmd.Flag("storage", "An internal storage URI to write the keypair, such as file:///var/lib/teleport/bot").StringVar(&c.Storage)
-	cmd.Flag("proxy-server", "The proxy server, which will be pinged to determine the current cryptographic suite in use").Required().StringVar(&c.ProxyServer)
+	cmd.Flag("storage", "The internal storage URI to write the keypair to, such as `file:///var/lib/teleport/bot`.").StringVar(&c.Storage)
+	cmd.Flag("proxy-server", "The proxy server, which will be pinged to determine the current cryptographic suite in use.").Required().StringVar(&c.ProxyServer)
 	cmd.Flag("overwrite", "If set, overwrite any existing keypair. If unset and a keypair already exists, its key will be printed for use.").BoolVar(&c.Overwrite)
 	cmd.Flag("format", "Output format, one of: text, json").Default(teleport.Text).EnumVar(&c.Format, teleport.Text, teleport.JSON)
-	cmd.Flag("static", "If set, create a static private key instead of writing a mutable key into bot storage. If --static-key-path is unset, the key will be printed to the terminal.").BoolVar(&c.Static)
+	cmd.Flag("static", "If set, creates a static private key instead of writing a mutable key into bot storage. If --static-key-path is unset, the key will be printed to the terminal.").BoolVar(&c.Static)
 	cmd.Flag("static-key-path", "If set, writes the static private key to a file.").StringVar(&c.StaticKeyPath)
 
 	return c

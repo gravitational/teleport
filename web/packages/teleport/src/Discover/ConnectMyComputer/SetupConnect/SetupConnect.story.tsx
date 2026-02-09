@@ -18,8 +18,8 @@
 
 import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
-import { withoutQuery } from 'web/packages/build/storybook';
 
+import { withoutQuery } from 'build/storybook';
 import {
   OverrideUserAgent,
   UserAgent,

@@ -24,6 +24,10 @@ import { PaginatedResource } from 'gen-proto-ts/teleport/lib/teleterm/v1/service
 import * as api from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 import { WindowsDesktop } from 'gen-proto-ts/teleport/lib/teleterm/v1/windows_desktop_pb';
 import {
+  CheckInstallTimeRequirementsResponse,
+  WindowsServiceStatus,
+} from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
+import {
   CheckReport,
   RouteConflictReport,
   SSHConfigurationReport,
@@ -203,4 +207,13 @@ export function reportOneOfIsSSHConfigurationReport(
   sshConfigurationReport: SSHConfigurationReport;
 } {
   return report.oneofKind === 'sshConfigurationReport';
+}
+
+export function statusOneOfIsWindowsServiceStatus(
+  status: CheckInstallTimeRequirementsResponse['status']
+): status is {
+  oneofKind: 'windowsServiceStatus';
+  windowsServiceStatus: WindowsServiceStatus;
+} {
+  return status.oneofKind === 'windowsServiceStatus';
 }

@@ -33,8 +33,6 @@ import (
 )
 
 func TestValidateConfigAgainstModules(t *testing.T) {
-	// Don't t.Parallel, depends on modules.SetTestModules.
-
 	type testCase struct {
 		name        string
 		buildType   string
@@ -99,11 +97,10 @@ func TestValidateConfigAgainstModules(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			modulestest.SetTestModules(t, modulestest.Modules{
+			testModules := &modulestest.Modules{
 				TestBuildType: test.buildType,
-			})
-
-			gotErr := dtconfig.ValidateConfigAgainstModules(test.deviceTrust)
+			}
+			gotErr := dtconfig.ValidateConfigAgainstModules(test.deviceTrust, testModules)
 			if test.wantErr {
 				assert.Error(t, gotErr, "ValidateConfigAgainstModules mismatch")
 				assert.True(t, trace.IsBadParameter(gotErr), "gotErr is not a trace.BadParameter error")
@@ -115,8 +112,6 @@ func TestValidateConfigAgainstModules(t *testing.T) {
 }
 
 func TestGetEnforcementMode(t *testing.T) {
-	// Don't t.Parallel, depends on modules.SetTestModules.
-
 	tests := []struct {
 		name      string
 		buildType string
@@ -160,11 +155,10 @@ func TestGetEnforcementMode(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			modulestest.SetTestModules(t, modulestest.Modules{
+			testModules := &modulestest.Modules{
 				TestBuildType: test.buildType,
-			})
-
-			got := dtconfig.GetEnforcementMode(test.dt)
+			}
+			got := dtconfig.GetEnforcementMode(test.dt, testModules)
 			assert.Equal(t, test.want, got, "dtconfig.GetEnforcementMode mismatch")
 		})
 	}

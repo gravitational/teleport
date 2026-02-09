@@ -1053,6 +1053,15 @@
           },
           {
             "resources": [
+              "autoupdate_agent_report"
+            ],
+            "verbs": [
+              "list",
+              "read"
+            ]
+          },
+          {
+            "resources": [
               "autoupdate_bot_instance_report"
             ],
             "verbs": [
@@ -1219,6 +1228,18 @@
           {
             "resources": [
               "app_auth_config"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "workload_cluster"
             ],
             "verbs": [
               "list",

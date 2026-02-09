@@ -12,7 +12,7 @@ crate-type = ["staticlib"]
 bitflags = "2.10.0"
 boring = { git = "https://github.com/gravitational/boring", rev = "99897308abb5976ea05625b8314c24b16eebb01b", optional = true }
 byteorder = "1.5.0"
-bytes = "1.11.0"
+bytes = "1.11.1"
 env_logger = "0.11.6"
 ironrdp-cliprdr.workspace = true
 ironrdp-connector.workspace = true
@@ -30,6 +30,7 @@ iso7816 = "0.1.4"
 iso7816-tlv = "0.4.4"
 log = "0.4.29"
 rand = { version = "0.9.2", features = ["os_rng"] }
+rdp-decoder = { path = "../decoder" }
 rsa = "0.9.10"
 sspi = { version = "0.16.1", features = ["network_client"] }
 tokio = { version = "1.48", features = ["full"] }
@@ -39,8 +40,8 @@ uuid = { version = "1.19.0", features = ["v4"] }
 url = "2.5.7"
 picky = { version = "7.0.0-rc.17", default-features = false }
 picky-asn1-der = "0.5.4"
-picky-asn1-x509 = "0.14.6"
-reqwest = { version = "0.12", default-features = false }
+picky-asn1-x509 = "0.15.2"
+reqwest = { version = "0.13", default-features = false }
 rustls = { version = "0.23.35", default-features = false, features = [
     "aws-lc-rs",
 ] }

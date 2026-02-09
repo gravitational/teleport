@@ -19,7 +19,8 @@
 import { StoryObj } from '@storybook/react-vite';
 import { delay, http, HttpResponse } from 'msw';
 import { PropsWithChildren } from 'react';
-import { withoutQuery } from 'web/packages/build/storybook';
+
+import { withoutQuery } from 'build/storybook';
 
 import cfg from 'teleport/config';
 import {

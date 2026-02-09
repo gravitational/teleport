@@ -438,7 +438,7 @@ func TestServiceCheckPrincipals(t *testing.T) {
 		},
 	}
 	for i, tt := range tests {
-		ok := checkServerIdentity(context.TODO(), testConnector, tt.inPrincipals, tt.inDNS, slog.Default().With("test", "TestServiceCheckPrincipals"))
+		ok := checkServerIdentity(t.Context(), testConnector, tt.inPrincipals, tt.inDNS, slog.Default().With("test", "TestServiceCheckPrincipals"))
 		require.Equal(t, tt.outRegenerate, ok, "test %d", i)
 	}
 }

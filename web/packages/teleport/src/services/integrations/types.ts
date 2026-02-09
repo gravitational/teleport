@@ -72,7 +72,18 @@ export type IntegrationTemplate<
   statusCode: IntegrationStatusCode;
   status?: SD;
   credentials?: PluginCredentials;
+  summary?: BriefSummary;
 };
+
+type BriefSummary = {
+  unresolvedUserTasks?: UserTask[];
+  resourcesCount?: {
+    found: number;
+    enrolled: number;
+    failed: number;
+  };
+};
+
 // IntegrationKind string values should be in sync
 // with the backend value for defining the integration
 // resource's subKind field.
@@ -80,9 +91,12 @@ export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
   /* AWS Roles Anywhere */
   AwsRa = 'aws-ra',
+  AwsCloud = 'aws-cloud',
   AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',
   GitHub = 'github',
+  AzureCloud = 'azure-cloud',
+  GoogleCloud = 'google-cloud',
 }
 
 export type IntegrationSpecGitHub = {
@@ -473,6 +487,10 @@ export type PluginEntraIdSpec = {
    * created for Entra ID groups.
    */
   defaultOwners: string[];
+  /**
+   * accessListOwnersSource is the source of the Access List owners.
+   */
+  accessListOwnersSource: string;
   /**
    * ssoConnectorId is the name of the SSO connector referenced
    * by the Entra ID plugin.

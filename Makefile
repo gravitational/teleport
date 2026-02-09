@@ -131,14 +131,16 @@ CARGO_TARGET_linux_arm := arm-unknown-linux-gnueabihf
 CARGO_TARGET_linux_arm64 := aarch64-unknown-linux-gnu
 CARGO_TARGET_linux_386 := i686-unknown-linux-gnu
 CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
+CARGO_TARGET_windows_amd64 := x86_64-pc-windows-gnu
 
 CARGO_TARGET := --target=$(RUST_TARGET_ARCH)
 CARGO_WASM_TARGET := wasm32-unknown-unknown
 
-# If set to 1, Windows RDP client is not built.
+# If set to 1, then we don't build the desktop access RDP client
+# or the RDP decoder for tsh.
 RDPCLIENT_SKIP_BUILD ?= 0
 
-# Enable Windows RDP client build?
+# Enable Rust RDP support?
 with_rdpclient := no
 RDPCLIENT_MESSAGE := without-Windows-RDP-client
 
@@ -160,6 +162,7 @@ ifneq ("$(is_fips_on_arm64)","yes")
 with_rdpclient := yes
 RDPCLIENT_MESSAGE := with-Windows-RDP-client
 RDPCLIENT_TAG := desktop_access_rdp
+TSH_RDP_DECODER_TAG := rust_rdp_decoder
 endif
 endif
 endif
@@ -392,11 +395,11 @@ $(BUILDDIR)/teleport: ensure-webassets rdpclient
 # NOTE: Any changes to the `tsh` build here must be copied to `build.assets/windows/build.ps1`
 # until we can use this Makefile for native Windows builds.
 .PHONY: $(BUILDDIR)/tsh
-$(BUILDDIR)/tsh:
+$(BUILDDIR)/tsh: rdpdecoder
 	@if [[ "$(OS)" != "windows" && -z "$(LIBFIDO2_BUILD_TAG)" ]]; then \
 		echo 'Warning: Building tsh without libfido2. Install libfido2 to have access to MFA.' >&2; \
 	fi
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(VNETDAEMON_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) $(TOOLS_LDFLAGS) ./tool/tsh
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(VNETDAEMON_TAG) $(TSH_RDP_DECODER_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) $(TOOLS_LDFLAGS) ./tool/tsh
 
 .PHONY: $(BUILDDIR)/tbot
 # tbot is CGO-less by default except on Windows because lib/client/terminal/ wants CGO on this OS
@@ -497,6 +500,13 @@ rdpclient: rustup-toolchain-warning
 ifeq ("$(with_rdpclient)", "yes")
 	$(RDPCLIENT_ENV) \
 		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
+endif
+
+.PHONY: rdpdecoder
+rdpdecoder: rustup-toolchain-warning
+ifeq ("$(with_rdpclient)", "yes")
+	$(RDPCLIENT_ENV) \
+		cargo build -p rdp-decoder --release --locked $(CARGO_TARGET)
 endif
 
 define ironrdp_package_json
@@ -877,6 +887,10 @@ DIFF_TEST := $(TOOLINGDIR)/bin/difftest
 $(DIFF_TEST): $(wildcard $(TOOLINGDIR)/cmd/difftest/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/difftest
 
+BENCHFIND := $(TOOLINGDIR)/bin/benchfind
+$(BENCHFIND): $(wildcard $(TOOLINGDIR)/cmd/benchfind/*.go)
+	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/benchfind
+
 RERUN := $(TOOLINGDIR)/bin/rerun
 $(RERUN): $(wildcard $(TOOLINGDIR)/cmd/rerun/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/rerun
@@ -993,17 +1007,26 @@ endif
 # Race detection is not enabled because it significantly slows down benchmarks.
 # todo: Use gotestsum when it is compatible with benchmark output. Currently will consider all benchmarks failed.
 .PHONY: test-go-bench
-test-go-bench: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr testing.B .  | xargs dirname | xargs go list | sort -u)
 test-go-bench: BENCHMARK_SKIP_PATTERN = "^BenchmarkRoot"
-test-go-bench: | $(TEST_LOG_DIR)
-	go test -run ^$$ -bench . -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $(PACKAGES) \
+test-go-bench: $(BENCHFIND) | $(TEST_LOG_DIR)
+	@PKGS=$$($(BENCHFIND) --tags=$(BUILD_TAGS)) ; \
+	if [ -z "$$PKGS" ]; then \
+		echo "No benchmark packages found"; \
+		exit 1; \
+	fi ; \
+	go test -run ^$$ -bench . -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $$PKGS \
 		| tee $(TEST_LOG_DIR)/bench.txt
 
-test-go-bench-root: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr BenchmarkRoot .  | xargs dirname | xargs go list | sort -u)
+.PHONY: test-go-bench-root
 test-go-bench-root: BENCHMARK_PATTERN = "^BenchmarkRoot"
 test-go-bench-root: BENCHMARK_SKIP_PATTERN = ""
-test-go-bench-root: | $(TEST_LOG_DIR)
-	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $(PACKAGES) \
+test-go-bench-root: $(BENCHFIND) | $(TEST_LOG_DIR)
+	@PKGS=$$($(BENCHFIND) --tags=$(BUILD_TAGS)) ; \
+	if [ -z "$$PKGS" ]; then \
+		echo "No benchmark packages found"; \
+		exit 1; \
+	fi ; \
+	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $$PKGS \
 		| tee $(TEST_LOG_DIR)/bench.txt
 
 # Make sure untagged vnetdaemon code build/tests.
@@ -1363,6 +1386,7 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore 'gen/**' \
 		-ignore 'gitref.go' \
 		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
+		-ignore 'lib/srv/desktop/rdp/decoder/target/**' \
 		-ignore 'lib/web/build/**' \
 		-ignore 'target/**' \
 		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
@@ -1672,6 +1696,15 @@ terraform-resources-up-to-date: must-start-clean/host
 	$(MAKE) -C integrations/terraform docs
 	@if ! git diff --quiet; then \
 		./build.assets/please-run.sh "TF provider docs" "make -C integrations/terraform docs"; \
+		exit 1; \
+	fi
+
+# terraform-module-docs-up-to-date checks if the generated Terraform module documentation is up to date.
+.PHONY: terraform-module-docs-up-to-date
+terraform-module-docs-up-to-date: must-start-clean/host
+	$(MAKE) -C integrations/terraform-modules docs
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "TF module docs" "make -C integrations/terraform-modules docs"; \
 		exit 1; \
 	fi
 
@@ -2003,6 +2036,22 @@ cli-docs-tbot:
 	go build -o $(BUILDDIR)/tbotdocs -tags docs ./tool/tbot && \
 	$(BUILDDIR)/tbotdocs help 2>docs/pages/reference/cli/tbot.mdx && \
 	rm $(BUILDDIR)/tbotdocs
+
+.PHONY: cli-docs-teleport
+cli-docs-teleport:
+# Executing go build instead of go run since we don't want to redirect
+# irrelevant output along with the docs page content.
+	go build -o $(BUILDDIR)/teleportdocs -tags docs ./tool/teleport && \
+	$(BUILDDIR)/teleportdocs help 2>docs/pages/reference/cli/teleport.mdx && \
+	rm $(BUILDDIR)/teleportdocs
+
+.PHONY: cli-docs-tctl
+cli-docs-tctl:
+# Executing go build instead of go run since we don't want to redirect
+# irrelevant output along with the docs page content.
+	go build -o $(BUILDDIR)/tctldocs -tags docs ./tool/tctl && \
+	$(BUILDDIR)/tctldocs help 2>docs/pages/reference/cli/tctl.mdx && \
+	rm $(BUILDDIR)/tctldocs
 
 # audit-event-reference generates audit event reference docs using the Web UI
 # source.

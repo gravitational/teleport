@@ -17,6 +17,7 @@
 package resource
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -499,23 +500,39 @@ func getJSONTag(tags string) string {
 	return strings.TrimSuffix(kv[1], ",omitempty")
 }
 
+var camelCaseWordBoundary = regexp.MustCompile(`([a-z0-9])([A-Z][a-z0-9])`)
+
 // splitCamelCase edits the original name of a declaration to make it more
 // suitable as a section within the resource reference.
 func splitCamelCase(original string, camelCaseExceptions []string) string {
-	var exceptions string
-	if len(camelCaseExceptions) > 0 {
-		exceptions = strings.Join(camelCaseExceptions, "|") + "|"
+	exceptionMap := make(map[string]struct{})
+	for _, e := range camelCaseExceptions {
+		exceptionMap[e] = struct{}{}
 	}
-	camelCaseWordBoundary := regexp.MustCompile(fmt.Sprintf(`(%[1]v[a-z0-9])(%[1]v[A-Z][a-z0-9])`, exceptions))
 
-	// Matches can be overlapping, and ReplaceAllString only replaces
-	// non-overlapping matches, so repeat the ReplaceAllString call until
-	// there are no more matches.
-	result := original
-	for camelCaseWordBoundary.MatchString(result) {
-		result = camelCaseWordBoundary.ReplaceAllString(result, "$1 $2")
+	// Ensure that each exception occupies its own word. This way, we can
+	// feed each exception-only word to the result and split the remaining
+	// camel case boundaries.
+	exceptions := regexp.MustCompile(
+		fmt.Sprintf("(%v)", strings.Join(camelCaseExceptions, "|")),
+	)
+	split := exceptions.ReplaceAllString(original, " $1 ")
+	words := bufio.NewScanner(strings.NewReader(split))
+
+	// Iterate through the words we have so far, preserving exceptions and
+	// splitting the remaining camel-cased words.
+	var result bytes.Buffer
+	words.Split(bufio.ScanWords)
+	for words.Scan() {
+		word := words.Text()
+		if _, ok := exceptionMap[word]; ok {
+			result.WriteString(word + " ")
+			continue
+		}
+		result.WriteString(camelCaseWordBoundary.ReplaceAllString(word, "$1 $2") + " ")
 	}
-	return result
+
+	return strings.Trim(result.String(), " ")
 }
 
 // isByteSlice returns whether t is a []byte.

@@ -24,6 +24,8 @@ import { AutoConfigureSSHResponse } from "./vnet_service_pb";
 import { AutoConfigureSSHRequest } from "./vnet_service_pb";
 import { RunDiagnosticsResponse } from "./vnet_service_pb";
 import { RunDiagnosticsRequest } from "./vnet_service_pb";
+import { CheckInstallTimeRequirementsResponse } from "./vnet_service_pb";
+import { CheckInstallTimeRequirementsRequest } from "./vnet_service_pb";
 import { GetBackgroundItemStatusResponse } from "./vnet_service_pb";
 import { GetBackgroundItemStatusRequest } from "./vnet_service_pb";
 import { GetServiceInfoResponse } from "./vnet_service_pb";
@@ -64,6 +66,13 @@ export interface IVnetService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: GetBackgroundItemStatus(teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest) returns (teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse);
      */
     getBackgroundItemStatus: grpc.handleUnaryCall<GetBackgroundItemStatusRequest, GetBackgroundItemStatusResponse>;
+    /**
+     * CheckInstallTimeRequirements validates install-time prerequisites (for example, VNet service presence) that can
+     * only be changed by reinstalling the app.
+     *
+     * @generated from protobuf rpc: CheckInstallTimeRequirements(teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsRequest) returns (teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsResponse);
+     */
+    checkInstallTimeRequirements: grpc.handleUnaryCall<CheckInstallTimeRequirementsRequest, CheckInstallTimeRequirementsResponse>;
     /**
      * RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
      * is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
@@ -130,6 +139,16 @@ export const vnetServiceDefinition: grpc.ServiceDefinition<IVnetService> = {
         requestDeserialize: bytes => GetBackgroundItemStatusRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(GetBackgroundItemStatusResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(GetBackgroundItemStatusRequest.toBinary(value))
+    },
+    checkInstallTimeRequirements: {
+        path: "/teleport.lib.teleterm.vnet.v1.VnetService/CheckInstallTimeRequirements",
+        originalName: "CheckInstallTimeRequirements",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => CheckInstallTimeRequirementsResponse.fromBinary(bytes),
+        requestDeserialize: bytes => CheckInstallTimeRequirementsRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(CheckInstallTimeRequirementsResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(CheckInstallTimeRequirementsRequest.toBinary(value))
     },
     runDiagnostics: {
         path: "/teleport.lib.teleterm.vnet.v1.VnetService/RunDiagnostics",

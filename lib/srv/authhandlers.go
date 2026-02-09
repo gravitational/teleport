@@ -24,12 +24,14 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -37,6 +39,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -75,6 +78,12 @@ var (
 
 var errRoleFileCopyingNotPermitted = trace.AccessDenied("file copying via SCP or SFTP is not permitted")
 
+// ValidatedMFAChallengeVerifier verifies that a validated MFA challenge exists in order to determine if the user has
+// completed MFA.
+type ValidatedMFAChallengeVerifier interface {
+	VerifyValidatedMFAChallenge(ctx context.Context, req *mfav1.VerifyValidatedMFAChallengeRequest, opts ...grpc.CallOption) (*mfav1.VerifyValidatedMFAChallengeResponse, error)
+}
+
 // AuthHandlerConfig is the configuration for an application handler.
 type AuthHandlerConfig struct {
 	// Server is the services.Server in the backend.
@@ -102,9 +111,12 @@ type AuthHandlerConfig struct {
 	// Defaults to real clock if unspecified
 	Clock clockwork.Clock
 
-	// OnRBACFailure is an opitonal callback used to hook in metrics/logs related to
+	// OnRBACFailure is an optional callback used to hook in metrics/logs related to
 	// RBAC failures.
 	OnRBACFailure func(conn ssh.ConnMetadata, ident *sshca.Identity, err error)
+
+	// ValidatedMFAChallengeVerifier is used to verify that a validated MFA challenge resource exists.
+	ValidatedMFAChallengeVerifier ValidatedMFAChallengeVerifier
 }
 
 func (c *AuthHandlerConfig) CheckAndSetDefaults() error {
@@ -122,6 +134,10 @@ func (c *AuthHandlerConfig) CheckAndSetDefaults() error {
 
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
+	}
+
+	if c.ValidatedMFAChallengeVerifier == nil {
+		return trace.BadParameter("ValidatedMFAChallengeVerifier required")
 	}
 
 	return nil
@@ -680,7 +696,18 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 		}
 	}
 
-	return outputPermissions, nil
+	h.log.DebugContext(ctx, "permission granted",
+		"local_addr", conn.LocalAddr(),
+		"remote_addr", conn.RemoteAddr(),
+		"user", conn.User(),
+		"fingerprint", fingerprint,
+		"access_permit", accessPermit,
+		"proxy_permit", proxyPermit,
+		"git_forwarding_permit", gitForwardingPermit,
+	)
+
+	// Proceed to keyboard-interactive auth to ensure all preconditions are met.
+	return h.KeyboardInteractiveAuth(ctx, accessPermit.GetPreconditions(), ident, outputPermissions)
 }
 
 func (h *AuthHandlers) maybeAppendDiagnosticTrace(ctx context.Context, connectionDiagnosticID string, traceType types.ConnectionDiagnosticTrace_TraceType, message string, traceError error) error {
@@ -1065,21 +1092,28 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		return nil, trace.Wrap(err)
 	}
 
-	var isModeratedSessionJoin bool
-	// custom moderated session join permissions allow bypass of the standard node access checks
-	if osUser == teleport.SSHSessionJoinPrincipal &&
-		moderation.RoleSupportsModeratedSessions(accessChecker.Roles()) {
+	// Determine if session join can bypass standard node access checks. This is allowed if all are true:
+	//  1. The requested OS user is the special session join principal (for moderated sessions).
+	//  2. The user's roles support moderated sessions.
+	//  3. MFA is NOT required for this session (MFARequiredNever),
+	//      OR the legacy out-of-band MFA flow is allowed (see below) and MFA has already been verified for this session.
+	//
+	// The legacy out-of-band MFA flow is allowed as long as TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is not set to "yes"
+	// and MFA has already been verified for this session.
+	//
+	// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
+	bypassAccessCheck :=
+		osUser == teleport.SSHSessionJoinPrincipal &&
+			moderation.RoleSupportsModeratedSessions(accessChecker.Roles()) &&
+			(state.MFARequired == services.MFARequiredNever ||
+				(os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") != "yes" && state.MFAVerified))
 
-		// bypass of standard node access checks can only proceed if MFA is not required and/or
-		// the MFA ceremony was already completed.
-		if state.MFARequired == services.MFARequiredNever || state.MFAVerified {
-			isModeratedSessionJoin = true
-		}
-	}
+	// Collect preconditions that must be met before the session can start.
+	var preconds []*decisionpb.Precondition
 
-	if !isModeratedSessionJoin {
-		// perform the primary node access check in all cases except for moderated session join
-		if err := accessChecker.CheckAccess(
+	// Perform the primary node access check unless bypass is allowed.
+	if !bypassAccessCheck {
+		if preconds, err = accessChecker.CheckConditionalAccess(
 			target,
 			state,
 			services.NewLoginMatcher(osUser),
@@ -1146,6 +1180,7 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		HostSudoers:           hostSudoers,
 		BpfEvents:             bpfEvents,
 		HostUsersInfo:         hostUsersInfo,
+		Preconditions:         preconds,
 	}, nil
 }
 
