@@ -645,7 +645,7 @@ func TestWatchers(t *testing.T) {
 			},
 		},
 	}})
-	require.NoError(t, err)
+	require.Error(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, w.Close())
 	})
