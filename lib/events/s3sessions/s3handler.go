@@ -544,9 +544,6 @@ func (h *Handler) downloadFile(
 
 		// copy the body to the writer
 		n, err := io.Copy(writer, output.Body)
-
-		// ensure the body is fully read and closed to allow connection reuse
-		_, _ = io.Copy(io.Discard, output.Body)
 		_ = output.Body.Close()
 
 		offset += n
