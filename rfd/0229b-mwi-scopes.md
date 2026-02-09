@@ -167,6 +167,67 @@ using the Scoped Join Token. To do so, they must configure:
 
 ### Joining
 
+Today, unscoped bots join using unscoped Join Tokens via the standard Join RPCs.
+The Join Token has `spec.roles` set to `["Bot"]` and the name of the Bot bound
+to the token in `spec.bot_name`.
+
+Scoped agents join via the same RPCs, but using Scoped Join Tokens. This is a 
+distinct resource that includes many of the same fields, but, also includes a 
+a `scope` and `spec.assigned_scope` field.
+
+Joining for scoped Bots will be similar to unscoped Bots and Scoped agents. A
+Scoped Join Token will be used with `spec.roles` field set to `["Bot"]` and the
+name of the scoped Bot provided in a `spec.bot_name` field. As this 
+`spec.bot_name` field does not currently exist, it will need to be added to the 
+ScopedToken resource.
+
+The following new fields will be introduced to the ScopedToken resource:
+
+- `spec.bot_name` (string): The name of the scoped Bot that is joining. This
+  must be set when `spec.roles` includes `Bot` and must not be set otherwise.
+
+The following new validation will be enforced for the ScopedToken resource:
+
+- When `spec.roles` includes `Bot`:
+  - `spec.roles` must have a length of 1. That is, other roles cannot co-exist
+    with the `Bot` role.
+  - `spec.bot_name` must be set.
+  - `spec.assigned_scope` and `scope` must be set to the same scope, and this 
+    scope must be the scope of the scoped Bot.
+- When `spec.roles` does not include `Bot`:
+  - `spec.bot_name` must not be set.
+
+When joining with an unscoped token, the following new validation will be
+enforced:
+
+- The Bot must not have a scope set.
+
+When joining with a scoped token, the following new validation will be enforced:
+
+- The Bot must have a scope set, and this scope must match the
+  `spec.assigned_scope` and `scope` of the token.
+  - This is a critical control for ensuring the isolation of scopes is not 
+    compromised - i.e. an admin in scope `/foo` cannot create a join token for
+    a scoped bot in `/bar`.
+
+In the certificate generation process that occurs upon successful joining,
+there is one key difference: the resulting certificate must be pinned to the
+scope that the scoped Bot exists within.
+
+#### Auditing
+
+The `bot.join` audit log event will be extended with new fields to capture 
+information relevant to the scoped Bot joining process:
+
+- `scope` (string): The scope of the Bot that has joined. Unset for unscoped 
+  joining.
+
+The `scoped_token.created` audit log event will be extended to capture new
+fields:
+
+- `bot_name` (string): The name of the Bot that this scoped token is associated
+  with. Unset for non-Bot tokens.
+
 ### Certificate Issuance
 
 ### `tbot`
