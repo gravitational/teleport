@@ -241,6 +241,20 @@ message KubernetesPodMetadata {
   string KubernetesNodeName = 5 [(gogoproto.jsontag) = "kubernetes_node_name,omitempty"];
 }
 
+// WindowsDesktopMetadata contains common windows desktop metadata.
+message WindowsDesktopMetadata {
+  // WindowsDesktopService is the name of the service proxying the RDP session.
+  string WindowsDesktopService = 1 [(gogoproto.jsontag) = "windows_desktop_service,omitempty"];
+  // DesktopAddr is the address of the desktop being accessed.
+  string DesktopAddr = 2 [(gogoproto.jsontag) = "desktop_addr,omitempty"];
+  // Domain is the Active Directory domain of the desktop.
+  string Domain = 3 [(gogoproto.jsontag) = "windows_domain,omitempty"];
+  // WindowsUser is the Windows username used to connect.
+  string WindowsUser = 4 [(gogoproto.jsontag) = "windows_user,omitempty"];
+  // DesktopLabels are the labels on the desktop resource.
+  map<string, string> DesktopLabels = 5 [(gogoproto.jsontag) = "desktop_labels,omitempty"];
+}
+
 // SAMLIdPServiceProviderMetadata contains common metadata for SAML IdP service provider
 // events.
 message SAMLIdPServiceProviderMetadata {
@@ -4988,6 +5002,7 @@ message OneOf {
     events.InferencePolicyCreate InferencePolicyCreate = 244;
     events.InferencePolicyUpdate InferencePolicyUpdate = 245;
     events.InferencePolicyDelete InferencePolicyDelete = 246;
+    events.SessionSummarized SessionSummarized = 247;
   }
 }
 
@@ -6015,6 +6030,94 @@ message SessionRecordingAccess {
   string SessionType = 4 [(gogoproto.jsontag) = "session_type,omitempty"];
   // Format is the format the session recording was accessed.
   string Format = 5 [(gogoproto.jsontag) = "format,omitempty"];
+}
+
+// SessionSummarized is emitted when the system creates a session summary.
+message SessionSummarized {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SessionMetadata is a common event session metadata
+  SessionMetadata Session = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the summarization was successful.
+  Status Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SessionType is type of the session (ssh, k8s, db, desktop).
+  string SessionType = 4 [(gogoproto.jsontag) = "session_type,omitempty"];
+
+  // ModelName is the name of the InferenceModel resource used to generate the summary.
+  string ModelName = 5 [(gogoproto.jsontag) = "model_name,omitempty"];
+
+  // InferenceStartedAt is the time when the summarization process started.
+  google.protobuf.Timestamp InferenceStartedAt = 6 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "inference_started_at,omitempty"
+  ];
+
+  // InferenceFinishedAt is the time when the summarization process finished.
+  google.protobuf.Timestamp InferenceFinishedAt = 7 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "inference_finished_at,omitempty"
+  ];
+
+  // ShortDescription is a concise description of the session from the enhanced summary.
+  string ShortDescription = 8 [(gogoproto.jsontag) = "short_description,omitempty"];
+
+  // RiskLevel is the overall risk level associated with the session (low, medium, high, critical).
+  string RiskLevel = 9 [(gogoproto.jsontag) = "risk_level,omitempty"];
+
+  // ServerMetadata is a common server metadata (for SSH sessions).
+  ServerMetadata Server = 10 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // KubernetesClusterMetadata contains kubernetes cluster information (for k8s sessions).
+  KubernetesClusterMetadata KubernetesCluster = 11 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // DatabaseMetadata contains database information (for database sessions).
+  DatabaseMetadata Database = 12 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // KubernetesPodMetadata contains kubernetes pod information (for k8s sessions).
+  KubernetesPodMetadata KubernetesPod = 13 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // WindowsDesktopMetadata contains windows desktop information (for desktop sessions).
+  WindowsDesktopMetadata Desktop = 14 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Username is the name of the user who initiated the session.
+  string Username = 15 [(gogoproto.jsontag) = "username,omitempty"];
 }
 
 // KubeClusterMetadata contains common kubernetes cluster information.

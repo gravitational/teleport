@@ -1006,12 +1006,6 @@ message GetWebSessionResponse {
   types.WebSessionV2 Session = 1 [(gogoproto.jsontag) = "session"];
 }
 
-// GetWebSessionsResponse contains all the requested web sessions.
-message GetWebSessionsResponse {
-  // Sessions is a list of web sessions.
-  repeated types.WebSessionV2 Sessions = 1 [(gogoproto.jsontag) = "sessions"];
-}
-
 // GetWebTokenResponse contains the requested web token.
 message GetWebTokenResponse {
   // Token is the web token being requested.
@@ -3283,10 +3277,6 @@ service AuthService {
 
   // GetWebSession gets a web session.
   rpc GetWebSession(types.GetWebSessionRequest) returns (GetWebSessionResponse);
-  // GetWebSessions gets all web sessions.
-  rpc GetWebSessions(google.protobuf.Empty) returns (GetWebSessionsResponse) {
-    option deprecated = true;
-  }
   // StreamWebSessions gets all web sessions in a stream.
   rpc StreamWebSessions(google.protobuf.Empty) returns (stream types.WebSessionV2);
   // DeleteWebSession deletes a web session.
