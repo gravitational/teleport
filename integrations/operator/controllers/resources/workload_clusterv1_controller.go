@@ -31,6 +31,13 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 )
 
+// TODO(dustin.specker): figure out how to test this controller
+// The workload cluster service requires running in an enterprise Teleport instance on
+// Teleport Cloud with the WorkloadClusters entitlement enabled.
+
+// TODO(dustin.specker): improve Teleport controller design to support setting
+// status fields on the Custom Resources based on fields found in the Teleport Resource.
+
 // workloadClusterClient implements TeleportResourceClient and offers CRUD
 // methods needed to reconcile WorkloadCluster
 type workloadClusterClient struct {
@@ -64,6 +71,10 @@ func (l workloadClusterClient) Create(
 				Cluster: resource,
 			},
 		)
+
+	// TODO(dustin.specker): support requeuing resources to check for status updates
+	// from Workload Cluster service/Teleport Cloud
+
 	return trace.Wrap(err)
 }
 
