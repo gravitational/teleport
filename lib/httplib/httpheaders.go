@@ -79,7 +79,6 @@ var defaultContentSecurityPolicy = CSPMap{
 
 var defaultFontSrc = CSPMap{"font-src": {"'self'", "data:"}}
 var defaultConnectSrc = CSPMap{"connect-src": {"'self'", "wss:"}}
-var wasmConnectSrc = CSPMap{"connect-src": {"'self'", "wss:", "data:"}}
 
 var wasmSecurityPolicy = CSPMap{
 	"script-src": {"'self'", "'wasm-unsafe-eval'"},
@@ -174,7 +173,7 @@ func getIndexContentSecurityPolicy(withWasm bool) CSPMap {
 	cspMaps := []CSPMap{defaultContentSecurityPolicy, defaultFontSrc, defaultConnectSrc}
 
 	if withWasm {
-		cspMaps = append(cspMaps, wasmSecurityPolicy, wasmConnectSrc)
+		cspMaps = append(cspMaps, wasmSecurityPolicy)
 	}
 
 	return combineCSPMaps(cspMaps...)

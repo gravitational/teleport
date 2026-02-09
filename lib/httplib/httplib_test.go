@@ -319,7 +319,7 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 				"style-src":       "'self' 'unsafe-inline'",
 				"img-src":         "'self' data: blob:",
 				"font-src":        "'self' data:",
-				"connect-src":     "'self' wss: data:",
+				"connect-src":     "'self' wss:",
 			},
 		},
 		{
@@ -335,7 +335,7 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 				"style-src":       "'self' 'unsafe-inline'",
 				"img-src":         "'self' data: blob:",
 				"font-src":        "'self' data:",
-				"connect-src":     "'self' wss: data:",
+				"connect-src":     "'self' wss:",
 			},
 		},
 		{
@@ -351,7 +351,7 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 				"style-src":       "'self' 'unsafe-inline'",
 				"img-src":         "'self' data: blob:",
 				"font-src":        "'self' data:",
-				"connect-src":     "'self' wss: data:",
+				"connect-src":     "'self' wss:",
 			},
 		},
 	} {
