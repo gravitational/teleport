@@ -2,6 +2,7 @@
 
 ## 18.6.7 (02/09/26)
 
+* Revised help messages for event handler CLI commands. [#63620](https://github.com/gravitational/teleport/pull/63620)
 * Fixed `tsh ssh user@foo=bar uptime` from running serially if users did not have `role:read` permissions. [#63612](https://github.com/gravitational/teleport/pull/63612)
 * The minimum version of macOS required to run Teleport or associated client tools is now macOS 12 (Monterey). [#63587](https://github.com/gravitational/teleport/pull/63587)
 * The minimal macOS version required by Teleport Connect is now macOS 12. [#63569](https://github.com/gravitational/teleport/pull/63569)
@@ -17,6 +18,7 @@
 * Fixed `teleport join openssh` on recent versions of Ubuntu. [#63040](https://github.com/gravitational/teleport/pull/63040)
 
 Enterprise:
+* Extend Access Monitoring feature to Teleport Cloud customers using External Audit Storage.
 * Added recording and validation for the fixed OS login user values from tsh.
 * Mitigated a race in the Slack token refresh logic.
 
