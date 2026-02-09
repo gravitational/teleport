@@ -306,16 +306,20 @@ func StartMonitor(cfg MonitorConfig) error {
 		return nil
 	}
 
+	// Wait for the monitor goroutine to register its idle timeout timer before
+	// returning, so callers can safely advance fake clocks after StartMonitor.
+	ready := make(chan struct{})
 	go func() {
-		w.start(lockWatch)
+		w.start(lockWatch, ready)
 		if w.MonitorCloseChannel != nil {
-			// Non blocking send to the close channel.
+			// Non-blocking send to the close channel.
 			select {
 			case w.MonitorCloseChannel <- struct{}{}:
 			default:
 			}
 		}
 	}()
+	<-ready
 	return nil
 }
 
@@ -328,13 +332,19 @@ type Monitor struct {
 }
 
 // start starts monitoring connection.
-func (w *Monitor) start(lockWatch types.Watcher) {
+func (w *Monitor) start(lockWatch types.Watcher, ready chan struct{}) {
 	lockWatchDoneC := lockWatch.Done()
 	defer func() {
 		if err := lockWatch.Close(); err != nil {
 			w.Entry.WithError(err).Warn("Failed to close lock watcher subscription.")
 		}
 	}()
+
+	var idleTime <-chan time.Time
+	if w.ClientIdleTimeout != 0 {
+		idleTime = w.Clock.After(w.ClientIdleTimeout)
+	}
+	close(ready)
 
 	var certTime <-chan time.Time
 	if !w.DisconnectExpiredCert.IsZero() {
@@ -348,11 +358,6 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 		t := w.Clock.NewTicker(discTime)
 		defer t.Stop()
 		certTime = t.Chan()
-	}
-
-	var idleTime <-chan time.Time
-	if w.ClientIdleTimeout != 0 {
-		idleTime = w.Clock.After(w.ClientIdleTimeout)
 	}
 
 	for {

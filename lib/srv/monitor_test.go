@@ -328,6 +328,35 @@ func TestMonitorDisconnectExpiredCertBeforeTimeNow(t *testing.T) {
 	}
 }
 
+// TestFakeClockCanSafelyAdvance verifies that advancing a fake clock immediately
+// after StartMonitor returns correctly triggers the idle timeout.
+func TestFakeClockCanSafelyAdvance(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+
+	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, asrv.Close()) })
+
+	conn, _, _ := newTestMonitor(t.Context(), t, asrv, func(config *MonitorConfig) {
+		config.ClientIdleTimeout = 1 * time.Minute
+		// default activity tracker appears always active due to clock moving forward.
+		// replace it with inactive one.
+		config.Tracker = &mockActivityTracker{clock: clockwork.NewFakeClock()}
+	})
+	clock.Advance(2 * time.Minute)
+
+	select {
+	case <-conn.closedC:
+	case <-time.After(1 * time.Second):
+		t.Fatal("Client is still connected.")
+	}
+}
+
 func TestTrackingReadConn(t *testing.T) {
 	server, client := net.Pipe()
 	defer client.Close()
