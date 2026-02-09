@@ -59,17 +59,19 @@ To prepare a Windows computer:
 1. Open a Command Prompt (`cmd.exe`) window on the Windows computer you want to enroll.
 
 {/*lint ignore ordered-list-marker-value*/}
-2. Export the Teleport user certificate authority by running the following
-   command, assigning <Var name="teleport.example.com"/> to your
-   Teleport cluster address:
+2. Export the Teleport certificate authority by running the following command,
+   assigning <Var name="teleport.example.com"/> to your Teleport cluster
+   address:
 
    ```code
    $ curl.exe -fo teleport.cer https://<Var name="teleport.example.com"/>/webapi/auth/export?type=windows
    ```
 
    If you are using Teleport's support for HSM-backed keys, then your Teleport cluster
-   has multiple user CAs (one for each Auth Service instance). You can download a bundle
-   containing all CAs by appending `&format=zip` to the URL.
+   has multiple CA certificates (one for each Auth Service instance). You can download
+   a bundle containing all CAs by appending `&format=zip` to the URL.
+
+   (!docs/pages/includes/desktop-access/windows-ca-note.mdx!)
 
 3. Download the Teleport Windows Auth setup program:
 
