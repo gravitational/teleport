@@ -43,6 +43,8 @@ try {
 Object.defineProperty(globalThis, 'crypto', {
   value: {
     randomUUID: () => crypto.randomUUID(),
+    getRandomValues: (arr =>
+      crypto.getRandomValues(arr)) as typeof crypto.getRandomValues,
   },
 });
 
