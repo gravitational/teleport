@@ -830,10 +830,16 @@ const (
 
 	// WorkloadClusterCreateCode is the workload cluster create event code.
 	WorkloadClusterCreateCode = "WC001I"
+	// WorkloadClusterCreateFailureCode is the workload cluster create failure event code.
+	WorkloadClusterCreateFailureCode = "WC001E"
 	// WorkloadClusterUpdateCode is the workload cluster update event code.
 	WorkloadClusterUpdateCode = "WC002I"
+	// WorkloadClusterUpdateFailureCode is the workload cluster update failure event code.
+	WorkloadClusterUpdateFailureCode = "WC002E"
 	// WorkloadClusterDeleteCode is the workload cluster delete event code.
 	WorkloadClusterDeleteCode = "WC003I"
+	// WorkloadClusterDeleteFailureCode is the workload cluster delete failure event code.
+	WorkloadClusterDeleteFailureCode = "WC003E"
 
 	// InferenceModelCreateCode is the inference model create event code.
 	InferenceModelCreateCode = "INF001I"

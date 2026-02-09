@@ -91,11 +91,11 @@ func TestPluginsCRUD(t *testing.T) {
 
 	// Try to fetch a plugin that doesn't exist.
 	_, err = service.GetPlugin(ctx, "doesnotexist", true)
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Try to create a duplicate plugin.
 	err = service.CreatePlugin(ctx, plugin1)
-	require.IsType(t, trace.AlreadyExists(""), err)
+	require.ErrorAs(t, err, new(*trace.AlreadyExistsError))
 
 	// Set plugin status.
 	status := &types.PluginStatusV1{
@@ -132,7 +132,7 @@ func TestPluginsCRUD(t *testing.T) {
 
 	// Try to delete a plugin that doesn't exist.
 	err = service.DeletePlugin(ctx, "doesnotexist")
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Delete all plugin.
 	err = service.DeleteAllPlugins(ctx)

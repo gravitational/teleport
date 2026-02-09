@@ -200,7 +200,7 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 			require.Equal(t, HeartbeatStateKeepAlive, hb.state)
 			_, err = hb.announce()
 			require.Error(t, err)
-			require.IsType(t, announcer.err, err)
+			require.ErrorIs(t, err, announcer.err)
 			require.Equal(t, HeartbeatStateInit, hb.state)
 			require.Equal(t, 2, announcer.upsertCalls[hb.Mode])
 
