@@ -1038,6 +1038,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	lsApps.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	lsApps.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	lsApps.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
+
+	// Beams.
+	beams := app.Command("beams", "Create and connect to beam environments.")
+	beams.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	beamsAdd := beams.Command("add", "Create a beam and connect to it over SSH.")
 	lsApps.Arg("labels", labelHelp).StringVar(&cf.Labels)
 	lsApps.Flag("all", "List apps from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
@@ -1796,6 +1801,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onStatus(&cf)
 	case lsApps.FullCommand():
 		err = onApps(&cf)
+	case beamsAdd.FullCommand():
+		err = onBeamsAdd(&cf)
 	case lsRecordings.FullCommand():
 		err = onRecordings(&cf)
 	case exportRecordings.FullCommand():

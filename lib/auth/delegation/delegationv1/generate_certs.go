@@ -90,15 +90,17 @@ func (s *SessionService) GenerateCerts(
 		return nil, trace.Wrap(err)
 	}
 
-	// Perform another best-effort check to see if the delegated identity still
-	// has access to the required resources (i.e. that their roles haven't been
-	// changed) so we can surface it early.
-	if err := s.bestEffortCheckResourceAccess(
-		ctx,
-		user,
-		session.GetSpec().GetResources(),
-	); err != nil {
-		return nil, trace.Wrap(err)
+	if !wildcardPermissions(session.GetSpec().GetResources()) {
+		// Perform another best-effort check to see if the delegated identity still
+		// has access to the required resources (i.e. that their roles haven't been
+		// changed) so we can surface it early.
+		if err := s.bestEffortCheckResourceAccess(
+			ctx,
+			user,
+			session.GetSpec().GetResources(),
+		); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	certs, err := s.generateCertificates(
@@ -159,18 +161,21 @@ func (s *SessionService) generateCertificates(
 	}
 
 	var resourceIDs []types.ResourceID
-	for _, res := range session.GetSpec().GetResources() {
-		// TODO(boxofrad): support kubernetes resources, which have constraints
-		// that may need to "compile down" into many ResourceIDs.
-		if res.GetKind() == types.KindKubernetesCluster {
-			return nil, trace.NotImplemented("Support for delegating access to Kubernetes resources is not yet implemented")
+
+	if !wildcardPermissions(session.GetSpec().GetResources()) {
+		for _, res := range session.GetSpec().GetResources() {
+			// TODO(boxofrad): support kubernetes resources, which have constraints
+			// that may need to "compile down" into many ResourceIDs.
+			if res.GetKind() == types.KindKubernetesCluster {
+				return nil, trace.NotImplemented("Support for delegating access to Kubernetes resources is not yet implemented")
+			}
+			id := types.ResourceID{
+				ClusterName: clusterName.GetClusterName(),
+				Kind:        res.GetKind(),
+				Name:        res.GetName(),
+			}
+			resourceIDs = append(resourceIDs, id)
 		}
-		id := types.ResourceID{
-			ClusterName: clusterName.GetClusterName(),
-			Kind:        res.GetKind(),
-			Name:        res.GetName(),
-		}
-		resourceIDs = append(resourceIDs, id)
 	}
 
 	checker := services.NewAccessCheckerWithRoleSet(
@@ -296,4 +301,13 @@ func (s *SessionService) getRoleSet(ctx context.Context, user types.User) (servi
 		roleSet[idx] = role
 	}
 	return roleSet, nil
+}
+
+func wildcardPermissions(specs []*delegationv1.DelegationResourceSpec) bool {
+	for _, spec := range specs {
+		if spec.GetKind() == types.Wildcard && spec.GetName() == types.Wildcard {
+			return true
+		}
+	}
+	return false
 }
