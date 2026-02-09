@@ -159,7 +159,7 @@ Teleport supports only *To App* (Okta -> Teleport) provisioning and does not sup
 Supposed *To App* provisioning features:
 
 - **Create Users** - Creates a user in Teleport when assigning the SAML app to a user in Okta.
-  - *Set password when creating new users* **is not** supported.
+  - The **Set password when creating new users** option **is not** supported.
 - **Update User Attributes** - Okta updates a user's attributes in Teleport when the SAML app is assigned. Future attribute changes made to the Okta user profile will automatically overwrite the corresponding attribute value in Teleport.
 - **Deactivate Users** - Deletes the Teleport user when it is unassigned in Okta or their Okta account is deactivated. A session lock for the user is created for the maximum session duration. The Teleport user will be recreated if the SAML app is reassigned to a user in Okta.
  
