@@ -553,17 +553,13 @@ func (c *ScopedAccessChecker) SSHPortForwardMode() decisionpb.SSHPortForwardMode
 	return c.checker.SSHPortForwardMode()
 }
 
-// AdjustClientIdleTimeout adjusts requested idle timeout
-// to the lowest max allowed timeout, the most restrictive
-// option will be picked, negative values will be assumed as 0
+// AdjustClientIdleTimeout determines the client idle timeout to apply. The supplied argument must be the globally
+// defined most-permissive value. If the underlying scoped role specifies a more restrictive value, that value will
+// be returned, otherwise the globally defined value is returned unchanged.
 func (c *ScopedAccessChecker) AdjustClientIdleTimeout(timeout time.Duration) time.Duration {
-	// scoped roles do not currently support client idle timeouts, but we don't currently foresee
-	// issues with mirroring the classic role interface here and this method is not used to
-	// derive certificate parameters.  *however*, there are some usages of this method that
-	// are not pre-access-check. This method can be used now for post-access-check adjustments,
-	// but further work will need to be done to determine how we want to handle client idle
-	// timeouts in the context of scoped roles. See ../scopes/access/compat.go for more
-	// discussion.
+	// scoped client idle timeout calculation differs from classic roles, but only insofar as
+	// we don't support multi-role evaluation. since scope access checkers are always built from
+	// a single role anyway, we can defer to the classic implementation.
 	return c.checker.AdjustClientIdleTimeout(timeout)
 }
 

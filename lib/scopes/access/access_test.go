@@ -22,6 +22,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
@@ -793,4 +795,46 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 			require.Equal(t, tt.expect, result)
 		})
 	}
+}
+
+// requireAllFieldsHavePresence recursively verifies that all non-sequence fileds in a proto message have
+// presence enabled (for proto3 this typically means that scalar fields are marked optional).
+func requireAllFieldsHavePresence(t *testing.T, msg proto.Message) {
+	requireAllFieldsHavePresenceRecursive(t, msg.ProtoReflect().Descriptor())
+}
+
+func requireAllFieldsHavePresenceRecursive(t *testing.T, descriptor protoreflect.MessageDescriptor) {
+	fields := descriptor.Fields()
+	for i := 0; i < fields.Len(); i++ {
+		field := fields.Get(i)
+
+		// recursively check nested fields.
+		if field.Kind() == protoreflect.MessageKind {
+			// note: MessageKind fields covers both singular and repeated messages
+			requireAllFieldsHavePresenceRecursive(t, field.Message())
+		}
+		if field.IsMap() && field.MapValue().Kind() == protoreflect.MessageKind {
+			requireAllFieldsHavePresenceRecursive(t, field.MapValue().Message())
+		}
+
+		// skip lists/strings/bytes since empty sequences aren't as concerning as false/0 when it comes to distinguishing
+		// unset vs set to zero value.
+		if field.IsList() || field.Kind() == protoreflect.StringKind || field.Kind() == protoreflect.BytesKind {
+			continue
+		}
+
+		// require that presence is enabled. if you are adding a new field to scoped roles and run into this check failing,
+		// you likely need to make the field optional.
+		require.True(t, field.HasPresence(),
+			"field %s.%s must have presence enabled (use optional for scalar fields)",
+			descriptor.FullName(), field.Name())
+	}
+}
+
+// TestScopedRoleSpecFieldsHavePresence verifies that the scoped role spec and its members
+// have presence enabled for all non-sequence fields.
+// See proto comments for the ScopedRoleSpec type for discussion of this policy.
+func TestScopedRoleSpecFieldsHavePresence(t *testing.T) {
+	t.Parallel()
+	requireAllFieldsHavePresence(t, (*scopedaccessv1.ScopedRoleSpec)(nil))
 }
