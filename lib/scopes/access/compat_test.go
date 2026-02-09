@@ -18,6 +18,7 @@ package access
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
@@ -214,6 +215,83 @@ func TestRulesConversion(t *testing.T) {
 			}, "/foo/bar")
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(tt.expect, role.GetRules(types.Allow)))
+		})
+	}
+}
+
+// TestClientIdleTimeoutConversion verifies that the string client idle timeout field from scoped roles is
+// properly converted to a duration during role conversion.
+func TestClientIdleTimeoutConversion(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name          string
+		timeout       string
+		expectTimeout time.Duration
+		expectErr     bool
+	}{
+		{
+			name:          "empty",
+			timeout:       "",
+			expectTimeout: 0,
+			expectErr:     false,
+		},
+		{
+			name:          "minutes",
+			timeout:       "30m",
+			expectTimeout: 30 * time.Minute,
+			expectErr:     false,
+		},
+		{
+			name:          "hour",
+			timeout:       "1h",
+			expectTimeout: time.Hour,
+			expectErr:     false,
+		},
+		{
+			name:          "seconds",
+			timeout:       "90s",
+			expectTimeout: 90 * time.Second,
+			expectErr:     false,
+		},
+		{
+			name:          "multipart",
+			timeout:       "1h30m",
+			expectTimeout: time.Hour + 30*time.Minute,
+			expectErr:     false,
+		},
+		{
+			name:      "invalid",
+			timeout:   "invalid",
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			role, err := ScopedRoleToRole(&scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/foo",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo/bar"},
+					Options: &scopedaccessv1.ScopedRoleOptions{
+						ClientIdleTimeout: tt.timeout,
+					},
+				},
+				Version: types.V1,
+			}, "/foo/bar")
+
+			if tt.expectErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, role)
+			require.Equal(t, tt.expectTimeout, role.GetOptions().ClientIdleTimeout.Duration())
 		})
 	}
 }

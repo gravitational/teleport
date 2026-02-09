@@ -130,13 +130,22 @@ func (x *ScopedRole) GetSpec() *ScopedRoleSpec {
 	return nil
 }
 
-// ScopedRoleSpec is the specification of a scoped role.
+// ScopedRoleSpec is the specification of a scoped role. Note that this type and all of its
+// members (e.g. [ScopedRoleOptions]) are required to have presence enabled for all non-sequence
+// fields (enforced by unit tests in lib/scopes/access). In practice, this means that scalar values
+// should be declared as optional. This policy exists because fields that default to a value that
+// looks potentially meaningful (e.g. false for bools) can cause difficulties when trying to determine
+// if a field was intentionally set to that value or just left unset. For scoped roles we generally
+// want to defer to global configuration for any policy not explicitly set in the role, so its important
+// to always be able to distinguish presence.
 type ScopedRoleSpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// AssignableScopes is a list of scopes to which this role can be assigned.
 	AssignableScopes []string `protobuf:"bytes,1,rep,name=assignable_scopes,json=assignableScopes,proto3" json:"assignable_scopes,omitempty"`
 	// Allow specifies the permissions granted by this role.
-	Allow         *ScopedRoleConditions `protobuf:"bytes,2,opt,name=allow,proto3" json:"allow,omitempty"`
+	Allow *ScopedRoleConditions `protobuf:"bytes,2,opt,name=allow,proto3" json:"allow,omitempty"`
+	// Options contains fine tuning options for various protocols/controls.
+	Options       *ScopedRoleOptions `protobuf:"bytes,3,opt,name=options,proto3" json:"options,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -181,6 +190,13 @@ func (x *ScopedRoleSpec) GetAssignableScopes() []string {
 func (x *ScopedRoleSpec) GetAllow() *ScopedRoleConditions {
 	if x != nil {
 		return x.Allow
+	}
+	return nil
+}
+
+func (x *ScopedRoleSpec) GetOptions() *ScopedRoleOptions {
+	if x != nil {
+		return x.Options
 	}
 	return nil
 }
@@ -306,6 +322,55 @@ func (x *ScopedRule) GetVerbs() []string {
 	return nil
 }
 
+// ScopedRoleOptions contains fine tuning options for various protocols/controls.
+type ScopedRoleOptions struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// ClientIdleTimeout sets the idle timeout for access sessions. If set to 0 or
+	// an empty string, the appropriate globally defined value is used. The value
+	// must be a valid Go duration string (e.g. "30m", "1h", "90s"). Values that
+	// exceed globally defined limits have no effect.
+	ClientIdleTimeout string `protobuf:"bytes,1,opt,name=client_idle_timeout,json=clientIdleTimeout,proto3" json:"client_idle_timeout,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ScopedRoleOptions) Reset() {
+	*x = ScopedRoleOptions{}
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ScopedRoleOptions) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScopedRoleOptions) ProtoMessage() {}
+
+func (x *ScopedRoleOptions) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ScopedRoleOptions.ProtoReflect.Descriptor instead.
+func (*ScopedRoleOptions) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ScopedRoleOptions) GetClientIdleTimeout() string {
+	if x != nil {
+		return x.ClientIdleTimeout
+	}
+	return ""
+}
+
 var File_teleport_scopes_access_v1_role_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
@@ -318,10 +383,11 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12=\n" +
-	"\x04spec\x18\x06 \x01(\v2).teleport.scopes.access.v1.ScopedRoleSpecR\x04spec\"\x84\x01\n" +
+	"\x04spec\x18\x06 \x01(\v2).teleport.scopes.access.v1.ScopedRoleSpecR\x04spec\"\xcc\x01\n" +
 	"\x0eScopedRoleSpec\x12+\n" +
 	"\x11assignable_scopes\x18\x01 \x03(\tR\x10assignableScopes\x12E\n" +
-	"\x05allow\x18\x02 \x01(\v2/.teleport.scopes.access.v1.ScopedRoleConditionsR\x05allow\"\xa6\x01\n" +
+	"\x05allow\x18\x02 \x01(\v2/.teleport.scopes.access.v1.ScopedRoleConditionsR\x05allow\x12F\n" +
+	"\aoptions\x18\x03 \x01(\v2,.teleport.scopes.access.v1.ScopedRoleOptionsR\aoptions\"\xa6\x01\n" +
 	"\x14ScopedRoleConditions\x12;\n" +
 	"\x05rules\x18\x01 \x03(\v2%.teleport.scopes.access.v1.ScopedRuleR\x05rules\x12\x16\n" +
 	"\x06logins\x18\x02 \x03(\tR\x06logins\x129\n" +
@@ -330,7 +396,9 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\n" +
 	"ScopedRule\x12\x1c\n" +
 	"\tresources\x18\x01 \x03(\tR\tresources\x12\x14\n" +
-	"\x05verbs\x18\x02 \x03(\tR\x05verbsBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
+	"\x05verbs\x18\x02 \x03(\tR\x05verbs\"C\n" +
+	"\x11ScopedRoleOptions\x12.\n" +
+	"\x13client_idle_timeout\x18\x01 \x01(\tR\x11clientIdleTimeoutBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
 
 var (
 	file_teleport_scopes_access_v1_role_proto_rawDescOnce sync.Once
@@ -344,26 +412,28 @@ func file_teleport_scopes_access_v1_role_proto_rawDescGZIP() []byte {
 	return file_teleport_scopes_access_v1_role_proto_rawDescData
 }
 
-var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_teleport_scopes_access_v1_role_proto_goTypes = []any{
 	(*ScopedRole)(nil),           // 0: teleport.scopes.access.v1.ScopedRole
 	(*ScopedRoleSpec)(nil),       // 1: teleport.scopes.access.v1.ScopedRoleSpec
 	(*ScopedRoleConditions)(nil), // 2: teleport.scopes.access.v1.ScopedRoleConditions
 	(*ScopedRule)(nil),           // 3: teleport.scopes.access.v1.ScopedRule
-	(*v1.Metadata)(nil),          // 4: teleport.header.v1.Metadata
-	(*v11.Label)(nil),            // 5: teleport.label.v1.Label
+	(*ScopedRoleOptions)(nil),    // 4: teleport.scopes.access.v1.ScopedRoleOptions
+	(*v1.Metadata)(nil),          // 5: teleport.header.v1.Metadata
+	(*v11.Label)(nil),            // 6: teleport.label.v1.Label
 }
 var file_teleport_scopes_access_v1_role_proto_depIdxs = []int32{
-	4, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
+	5, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.scopes.access.v1.ScopedRole.spec:type_name -> teleport.scopes.access.v1.ScopedRoleSpec
 	2, // 2: teleport.scopes.access.v1.ScopedRoleSpec.allow:type_name -> teleport.scopes.access.v1.ScopedRoleConditions
-	3, // 3: teleport.scopes.access.v1.ScopedRoleConditions.rules:type_name -> teleport.scopes.access.v1.ScopedRule
-	5, // 4: teleport.scopes.access.v1.ScopedRoleConditions.node_labels:type_name -> teleport.label.v1.Label
-	5, // [5:5] is the sub-list for method output_type
-	5, // [5:5] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	4, // 3: teleport.scopes.access.v1.ScopedRoleSpec.options:type_name -> teleport.scopes.access.v1.ScopedRoleOptions
+	3, // 4: teleport.scopes.access.v1.ScopedRoleConditions.rules:type_name -> teleport.scopes.access.v1.ScopedRule
+	6, // 5: teleport.scopes.access.v1.ScopedRoleConditions.node_labels:type_name -> teleport.label.v1.Label
+	6, // [6:6] is the sub-list for method output_type
+	6, // [6:6] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_access_v1_role_proto_init() }
@@ -377,7 +447,7 @@ func file_teleport_scopes_access_v1_role_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_access_v1_role_proto_rawDesc), len(file_teleport_scopes_access_v1_role_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

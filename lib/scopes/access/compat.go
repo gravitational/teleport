@@ -85,6 +85,15 @@ func scopedRoleConditionsToRoleConditions(src *scopedaccessv1.ScopedRoleConditio
 // format converted role names as "<role-name>@<assigned-scope>" to help ensure reasonable error messages from
 // role evaluation logic.
 func ScopedRoleToRole(sr *scopedaccessv1.ScopedRole, assignedScope string) (types.Role, error) {
+	// Parse the client_idle_timeout if specified
+	var clientIdleTimeout time.Duration
+	if timeoutStr := sr.GetSpec().GetOptions().GetClientIdleTimeout(); timeoutStr != "" {
+		var err error
+		clientIdleTimeout, err = time.ParseDuration(timeoutStr)
+		if err != nil {
+			return nil, trace.Errorf("failed to parse client_idle_timeout %q for scoped role %q: %w", timeoutStr, sr.GetMetadata().GetName(), err)
+		}
+	}
 	role, err := types.NewRoleWithVersion(sr.GetMetadata().GetName()+"@"+assignedScope, types.V8, types.RoleSpecV6{
 		// scoped roles support allow blocks, but not deny blocks.
 		Allow: scopedRoleConditionsToRoleConditions(sr.GetSpec().GetAllow()),
@@ -137,14 +146,10 @@ func ScopedRoleToRole(sr *scopedaccessv1.ScopedRole, assignedScope string) (type
 			// per-access lock evaluation specialization possible, but its likely that cert-creation locking behavior will
 			// need special handling of some kind.
 			Lock: "",
-			// ClientIdleTimeout is disabled until we can decide how to handle the cases where client idle timeout is
-			// being used independently of an access check (and therefore independent of a known target scope). It is possible
-			// that the correct way to handle this will be to break compatibility with classic roles and introduce separate
-			// per-protocol idle timeouts, with the global timeout always applying for operations that are not tied to a
-			// specific access check. By setting this value to zero we effectively make the default behavior one where we
-			// are always deferring to the global setting for scoped identities, which aught to be forwards compatible with
-			// whatever solution we eventually land on.
-			ClientIdleTimeout: types.NewDuration(0),
+			// ClientIdleTimeout is set from the role's client_idle_timeout field. If not specified (zero value),
+			// the global cluster networking config timeout will be used as the default. This allows scoped roles
+			// to specify custom idle timeouts that are enforced during post-access-check operations like SSH sessions.
+			ClientIdleTimeout: types.NewDuration(clientIdleTimeout),
 
 			// DisconnectExpiredCert is disabled until we can decide how to handle the cases where disconnect on expired cert is
 			// being used independently of an access check (and therefore independent of a known target scope). It is possible
