@@ -7,8 +7,8 @@ should match the snapshot (tokenSpecOverride set):
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-event-handler
-        app.kubernetes.io/version: 19.0.0-dev.updater.3
-        helm.sh/chart: teleport-plugin-event-handler-19.0.0-dev.updater.3
+        app.kubernetes.io/version: 19.0.0-dev.updater.4
+        helm.sh/chart: teleport-plugin-event-handler-19.0.0-dev.updater.4
       name: RELEASE-NAME-teleport-plugin-event-handler
       namespace: NAMESPACE
     spec:
@@ -28,8 +28,8 @@ should match the snapshot (tokenSpecOverride set):
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-event-handler
-        app.kubernetes.io/version: 19.0.0-dev.updater.3
-        helm.sh/chart: teleport-plugin-event-handler-19.0.0-dev.updater.3
+        app.kubernetes.io/version: 19.0.0-dev.updater.4
+        helm.sh/chart: teleport-plugin-event-handler-19.0.0-dev.updater.4
       name: RELEASE-NAME-teleport-plugin-event-handler
       namespace: NAMESPACE
     spec:
@@ -43,8 +43,8 @@ should match the snapshot (tokenSpecOverride set):
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-event-handler
-        app.kubernetes.io/version: 19.0.0-dev.updater.3
-        helm.sh/chart: teleport-plugin-event-handler-19.0.0-dev.updater.3
+        app.kubernetes.io/version: 19.0.0-dev.updater.4
+        helm.sh/chart: teleport-plugin-event-handler-19.0.0-dev.updater.4
       name: RELEASE-NAME-tbot
       namespace: NAMESPACE
     spec:
