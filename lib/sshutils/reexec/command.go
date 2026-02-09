@@ -43,6 +43,10 @@ type Command struct {
 	// TODO(Joerger): make this a local field once external setup (stderr, etc) is internalized to this package.
 	Cmd *exec.Cmd
 
+	// done is set when the command starts and closed the command completes.
+	done    chan struct{}
+	exitErr error
+
 	// parent side of config pipe.
 	cfgW io.WriteCloser
 	// parent side of logger pipe.
@@ -84,6 +88,7 @@ func NewReexecCommand(cfg *Config) (*Command, error) {
 		logger: slog.Default(),
 		Cmd:    cmd,
 		cfg:    cfg,
+		done:   make(chan struct{}),
 	}
 
 	// Prepare common pipes which should always appear as the first extra files.
@@ -134,7 +139,8 @@ func newTeleportReexecCommand(cfg *Config) (*exec.Cmd, error) {
 }
 
 // Start starts the underlying exec.Cmd and closes the child side of reexec pipes.
-func (c *Command) Start(ctx context.Context) error {
+// The provided closerOnExit will be closed when the command exits.
+func (c *Command) Start(ctx context.Context, closerOnExit ...io.Closer) error {
 	if c.Cmd == nil {
 		return trace.BadParameter("missing exec command")
 	}
@@ -142,7 +148,7 @@ func (c *Command) Start(ctx context.Context) error {
 	// Prepare the child pipes and ensure they are closed after the command starts.
 	c.Cmd.ExtraFiles = c.childPipes
 	c.childPipes = nil
-	defer closePipes(filesToClosers(c.Cmd.ExtraFiles)...)
+	defer closeAll(filesToClosers(c.Cmd.ExtraFiles)...)
 
 	// Start copying the reexec config payload over the pipe. While the
 	// pipe buffer is quite large (64k) some users have run into the pipe
@@ -174,6 +180,13 @@ func (c *Command) Start(ctx context.Context) error {
 		closeErr := c.Close()
 		return trace.NewAggregate(err, closeErr)
 	}
+
+	go func() {
+		c.exitErr = c.Cmd.Wait()
+		close(c.done)
+		closeAll(closerOnExit...)
+		c.Close()
+	}()
 
 	return nil
 }
@@ -212,11 +225,12 @@ func (c *Command) AddParentToChildPipe() (io.WriteCloser, error) {
 	return writer, nil
 }
 
-// The child does not signal until completing PAM setup, which can take an arbitrary
-// amount of time, so we use a reasonably long timeout to avoid dubious lockouts.
-const childReadyWaitTimeout = 3 * time.Minute
-
+// WaitReady waits for the child to signal when initial setup is complete.
 func (c *Command) WaitReady(ctx context.Context) error {
+	// The child does not signal until completing PAM setup, which can take an arbitrary
+	// amount of time, so we use a reasonably long timeout to avoid dubious lockouts.
+	const childReadyWaitTimeout = 3 * time.Minute
+
 	err := WaitForSignal(ctx, c.rdyR, childReadyWaitTimeout)
 	if err != nil {
 		c.logger.ErrorContext(ctx, "Child process never became ready.", "error", err)
@@ -232,45 +246,101 @@ func (c *Command) Continue(ctx context.Context) {
 	}
 }
 
-// Terminate attempts to kill the shell/bash process.
-func (c *Command) Terminate(ctx context.Context) {
-	if err := c.termW.Close(); err != nil {
-		c.logger.WarnContext(ctx, "failed to close the terminate pipe", "error", err)
-	}
-}
-
-// Wait for the underlying exec.Cmd to complete.
-func (c *Command) Wait() error {
-	if c.Cmd == nil {
-		return trace.BadParameter("missing exec command")
-	}
-
-	defer c.Close()
-
-	return trace.Wrap(c.Cmd.Wait())
-}
-
-// Close closes any open pipes used by the command during execution.
+// Close frees up resources associated with the command.
 func (c *Command) Close() error {
 	var errs []error
+
+	// Stop the process if it is running.
+	if err := c.stop(); err != nil {
+		slog.WarnContext(context.Background(), "Unexpected error stopping reexec process", "err", err)
+	}
 
 	// Close the parent side of the common parent-to-child named pipes.
 	// These may already be closed in the normal execution of the command,
 	// so the close errors can be ignored.
-	closePipes(c.cfgW, c.termW, c.contW)
+	closeAll(c.cfgW, c.termW, c.contW)
 
-	if err := closePipes(filesToClosers(c.childPipes)...); err != nil {
+	if err := closeAll(filesToClosers(c.childPipes)...); err != nil {
 		errs = append(errs, trace.Wrap(err, "failed to close child pipes"))
 	}
 
-	if err := closePipes(c.parentReadPipes...); err != nil {
+	if err := closeAll(c.parentReadPipes...); err != nil {
 		errs = append(errs, trace.Wrap(err, "failed to close parent pipes"))
 	}
 
 	return trace.NewAggregate(errs...)
 }
 
-func closePipes(files ...io.Closer) error {
+// stop attempts to stop the reexec process, first with a graceful termination signal
+// before falling back to a kill signal after 5 seconds.
+func (c *Command) stop() error {
+	if !c.isRunning() {
+		return nil
+	}
+
+	// First attempt graceful termination by signaling through the terminate pipe.
+	c.termW.Close()
+	select {
+	case <-time.After(5 * time.Second):
+		slog.DebugContext(context.Background(), "Failed to stop reexec process gracefully, sending kill signal.", "command", c.Path)
+	case <-c.done:
+		return nil
+	}
+
+	err := c.Cmd.Process.Kill()
+
+	// Wait for the kill signal to result in the termination of process, otherwise tests
+	// that create a temporary user may fail to delete the user at the end of the test
+	// while the kill signal is propagating.
+	select {
+	case <-c.done:
+	case <-time.After(5 * time.Second):
+		slog.DebugContext(context.Background(), "Reexec process still running after kill signal.", "command", c.Path)
+	}
+
+	return trace.Wrap(err)
+}
+
+func (c *Command) isRunning() bool {
+	select {
+	case <-c.done:
+		return true
+	default:
+		// If the process is set (started), then it must be running.
+		return c.Cmd.Process != nil
+	}
+}
+
+// Wait for the command to complete.
+// Must not be called without a call to Start.
+func (c *Command) Wait() error {
+	<-c.done
+	return trace.Wrap(c.exitErr)
+}
+
+// Done return a channel that returns when the command completes.
+// Must not be called without a call to Start.
+func (c *Command) Done() <-chan struct{} {
+	return c.done
+}
+
+// PID returns the command PID.
+func (c *Command) PID() int {
+	if c.Cmd == nil || c.Cmd.Process == nil {
+		return 0
+	}
+	return c.Cmd.Process.Pid
+}
+
+// Path returns the command path.
+func (c *Command) Path() string {
+	if c.Cmd == nil {
+		return ""
+	}
+	return c.Cmd.Path
+}
+
+func closeAll(files ...io.Closer) error {
 	var errs []error
 	for _, f := range files {
 		// Nil pipes may be set as placeholders, e.g. for deprecated fds.

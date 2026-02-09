@@ -24,7 +24,6 @@ import (
 	"os/exec"
 	"os/user"
 	"testing"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -86,7 +85,7 @@ func TestGetOwner(t *testing.T) {
 	}
 }
 
-func TestTerminal_KillUnderlyingShell(t *testing.T) {
+func TestTerminal_Kill(t *testing.T) {
 	t.Parallel()
 
 	srv := newMockServer(t)
@@ -126,10 +125,7 @@ func TestTerminal_KillUnderlyingShell(t *testing.T) {
 	// Continue execution
 	term.Continue()
 
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	t.Cleanup(cancel)
-
-	err = term.KillUnderlyingShell(ctx)
+	err = term.Close()
 	require.NoError(t, err)
 
 	// Wait for the process to return.

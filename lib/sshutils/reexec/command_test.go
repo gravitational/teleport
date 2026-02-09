@@ -19,7 +19,6 @@
 package reexec
 
 import (
-	"context"
 	"io"
 	"os"
 	"os/exec"
@@ -29,7 +28,7 @@ import (
 )
 
 func TestStartPreservesExtraFilesAndPlaceholders(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cmd := helperCommand(t)
 

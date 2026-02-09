@@ -39,8 +39,6 @@ import (
 	"log/slog"
 	"net"
 	"os"
-	"sync/atomic"
-	"time"
 
 	"github.com/gravitational/trace"
 
@@ -61,10 +59,6 @@ type Process struct {
 	cmd *reexec.Command
 	// conn is the socket used to request a dialer or listener in the process.
 	conn *net.UnixConn
-	// done signals when the process completes.
-	done chan struct{}
-	// killed is set to true when the process was killed forcibly.
-	killed atomic.Bool
 }
 
 // Request is a networking request.
@@ -125,10 +119,9 @@ func NewProcess(ctx context.Context, cmd *reexec.Command) (*Process, error) {
 	proc := &Process{
 		cmd:  cmd,
 		conn: localConn,
-		done: make(chan struct{}),
 	}
 
-	if err := proc.start(ctx); err != nil {
+	if err := proc.cmd.Start(ctx, localConn); err != nil {
 		localConn.Close()
 		return nil, trace.Wrap(err)
 	}
@@ -136,48 +129,9 @@ func NewProcess(ctx context.Context, cmd *reexec.Command) (*Process, error) {
 	return proc, nil
 }
 
-// start the the networking process.
-func (p *Process) start(ctx context.Context) error {
-	if err := p.cmd.Start(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-
-	go func() {
-		defer close(p.done)
-		defer p.conn.Close()
-		defer p.cmd.Close()
-		// Ensure unexpected cmd failures get logged.
-		if err := p.cmd.Wait(); err != nil && !p.killed.Load() {
-			slog.WarnContext(ctx, "Networking process exited early with unexpected error.", "error", err)
-		}
-	}()
-
-	return nil
-}
-
 // Close stops the process and frees up its related resources.
 func (p *Process) Close() error {
-	p.conn.Close()
-	p.cmd.Close()
-	select {
-	case <-p.done:
-		return nil
-	case <-time.After(5 * time.Second):
-		slog.WarnContext(context.Background(), "Killing networking subprocess.")
-
-		// Kill the process and wait for it to successfully terminate.
-		p.killed.Store(true)
-		p.cmd.Cmd.Process.Kill()
-		select {
-		case <-p.done:
-		case <-time.After(5 * time.Second):
-			// Wait for the kill signal to result in the termination of process, otherwise tests
-			// that create a temporary user may fail to delete the user at the end of the test
-			// while the kill signal is propagating.
-			slog.WarnContext(context.Background(), "Networking subprocess still running after kill signal.")
-		}
-	}
-	return nil
+	return trace.Wrap(p.cmd.Close())
 }
 
 // Dial requests a network connection from the networking subprocess.
@@ -271,7 +225,7 @@ func (p *Process) sendRequest(ctx context.Context, req Request) (*os.File, error
 		defer requestConn.Close()
 		select {
 		case <-ctx.Done():
-		case <-p.done:
+		case <-p.cmd.Done():
 		}
 	}()
 

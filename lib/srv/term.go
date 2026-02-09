@@ -27,8 +27,6 @@ import (
 	"os/user"
 	"strconv"
 	"sync"
-	"syscall"
-	"time"
 
 	"github.com/creack/pty"
 	"github.com/gravitational/trace"
@@ -68,12 +66,6 @@ type Terminal interface {
 	// Continue will resume execution of the process after it completes its
 	// pre-processing routine (placed in a cgroup).
 	Continue()
-
-	// KillUnderlyingShell tries to gracefully stop the terminal process.
-	KillUnderlyingShell(ctx context.Context) error
-
-	// Kill will force kill the terminal.
-	Kill(ctx context.Context) error
 
 	// PTY returns the PTY backing the terminal.
 	PTY() io.ReadWriter
@@ -137,8 +129,6 @@ type terminal struct {
 	pty     *os.File
 	tty     *os.File
 	ttyName string
-
-	pid int
 
 	termType string
 	params   rsession.TerminalParams
@@ -206,9 +196,6 @@ func (t *terminal) Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	// Save off the PID of the Teleport process under which the shell is executing.
-	t.pid = t.reexecCmd.Cmd.Process.Pid
-
 	return nil
 }
 
@@ -217,7 +204,7 @@ func (t *terminal) Wait() (*ExecResult, error) {
 	err := t.reexecCmd.Wait()
 	return &ExecResult{
 		Code:    exitCode(err),
-		Command: t.reexecCmd.Cmd.Path,
+		Command: t.reexecCmd.Path(),
 	}, nil
 }
 
@@ -229,49 +216,6 @@ func (t *terminal) WaitForChild(ctx context.Context) error {
 // pre-processing routine (placed in a cgroup).
 func (t *terminal) Continue() {
 	t.reexecCmd.Continue(t.serverContext.CancelContext())
-}
-
-// KillUnderlyingShell tries to kill the shell/bash process and waits for the process PID to be released.
-func (t *terminal) KillUnderlyingShell(ctx context.Context) error {
-	if t.reexecCmd == nil {
-		return nil
-	}
-
-	t.reexecCmd.Terminate(ctx)
-	pid := t.PID()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		proc, err := os.FindProcess(pid)
-		if err != nil {
-			return trace.Errorf("failed to find the shell process: %w", err)
-		}
-
-		if err := proc.Signal(syscall.Signal(0)); errors.Is(err, os.ErrProcessDone) {
-			t.log.DebugContext(t.serverContext.CancelContext(), "Terminal child process has been stopped")
-			return nil
-		}
-
-		time.Sleep(10 * time.Millisecond)
-	}
-}
-
-// Kill will force kill the child Teleport process.
-func (t *terminal) Kill(_ context.Context) error {
-	if t.reexecCmd != nil && t.reexecCmd.Cmd != nil && t.reexecCmd.Cmd.Process != nil {
-		if err := t.reexecCmd.Cmd.Process.Kill(); err != nil {
-			if err.Error() != "os: process already finished" {
-				return trace.Wrap(err)
-			}
-		}
-	}
-
-	return nil
 }
 
 // PTY returns the PTY backing the terminal.
@@ -288,7 +232,10 @@ func (t *terminal) TTYName() string {
 
 // PID returns the PID of the Teleport process that was re-execed.
 func (t *terminal) PID() int {
-	return t.pid
+	if t.reexecCmd == nil {
+		return 0
+	}
+	return t.reexecCmd.PID()
 }
 
 // Close will free resources associated with the terminal.
@@ -581,20 +528,6 @@ func (t *remoteTerminal) WaitForChild(context.Context) error {
 // Continue does nothing for remote command execution.
 func (t *remoteTerminal) Continue() {}
 
-// Terminate does nothing for remote command execution.
-func (t *remoteTerminal) KillUnderlyingShell(_ context.Context) error {
-	return nil
-}
-
-func (t *remoteTerminal) Kill(ctx context.Context) error {
-	err := t.session.Signal(ctx, ssh.SIGKILL)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 func (t *remoteTerminal) PTY() io.ReadWriter {
 	return t.ptyBuffer
 }
@@ -614,6 +547,11 @@ func (t *remoteTerminal) Close() error {
 	// hooked to directly
 	err := t.session.Close()
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Send a kill signal to ensure the session is promptly closed.
+	if err := t.session.Signal(context.Background(), ssh.SIGKILL); err != nil {
 		return trace.Wrap(err)
 	}
 
