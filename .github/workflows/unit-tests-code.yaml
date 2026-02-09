@@ -6,6 +6,7 @@ on:
     branches:
       - master
       - branch/*
+      - okraport/*
   pull_request:
     paths:
       - '.github/workflows/unit-tests-code.yaml'
