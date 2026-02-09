@@ -91,6 +91,7 @@ during the migration.
 |CA type|Certificate subjects|
 |---|---|
 |[`host`](#host)|Teleport Agents. Auth Service and Proxy Service instances.|
+|[`windows`](#windows)|Teleport users connecting to Windows desktops.|
 |[`user`](#user)|Teleport users.|
 |[`db`](#db-and-db_client)|Self-hosted databases protected by Teleport (users must distribute certificates to databases).|
 |[`db_client`](#db-and-db_client)|The Teleport Database Service.|
@@ -164,12 +165,26 @@ After the rotation is complete, only the new CA pin will be reported.
 Note: Teleport Agents that connect to the Proxy Service never need a CA pin
 because the Proxy's TLS certificate should issued by a trusted CA.
 
+### `windows`
+
+The `windows` CA issues certificates for users connecting to Windows desktops.
+Teleport-protected Windows desktops use these certificates. In Teleport versions
+prior to v18.7.0 the `user` CA performed the functions of the `windows` CA.
+
+When rotating the `windows` CA, during the `init` phase, you must configure your
+Windows hosts to trust the new CA certificate. [Follow the guide](
+../../../enroll-resources/desktop-access/active-directory.mdx) to export
+the Teleport `windows` CA so the Windows Desktop Service can authenticate to RDP
+hosts.
+
+Once you advance to `update_clients`, and throughout the rotation, verify that
+you can connect to registered desktops.
+
 ### `user`
 
 The `user` CA issues a certificate when a user authenticates to Teleport. It
-also signs client certificates for users connecting to Windows desktops and
-Teleport SSH servers. Teleport-protected servers and Windows desktops use these
-certificates.
+also signs client certificates for users connecting to Teleport SSH servers.
+Teleport-protected servers use these certificates.
 
 Before you complete the rotation and reach the final `standby` phase,
 users who have signed into Teleport must reauthenticate to receive a user
@@ -178,12 +193,6 @@ will fail and users may have to log out and log back in.
 To avoid this, you can wait longer than the max user session TTL between the
 `update_clients` and `standby` phases so that all user certificates signed by
 the old CA will have already expired and required a re-login.
-
-If you have registered Windows desktops with Teleport,
-[follow the guide](../../../enroll-resources/desktop-access/active-directory.mdx)
-to export the Teleport user CA so the Windows Desktop Service can authenticate
-to RDP hosts.
-Verify that you can connect to registered desktops throughout the rotation.
 
 ### `db` and `db_client`
 
