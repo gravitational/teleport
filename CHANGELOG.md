@@ -1,5 +1,24 @@
 # Changelog
 
+## 17.7.17 (02/09/26)
+
+* Fixed `tsh ssh user@foo=bar uptime` from running serially if users did not have `role:read` permissions. [#63611](https://github.com/gravitational/teleport/pull/63611)
+* The minimum version of macOS required to run Teleport or associated client tools is now macOS 12 (Monterey). [#63588](https://github.com/gravitational/teleport/pull/63588)
+* The minimal macOS version required by Teleport Connect is now macOS 12. [#63570](https://github.com/gravitational/teleport/pull/63570)
+* Fixed bug where event handler would get stuck on DynamoDB backend when handling large events. [#63562](https://github.com/gravitational/teleport/pull/63562)
+* Updated Go to 1.25.7. [#63561](https://github.com/gravitational/teleport/pull/63561)
+* Fixed bug where event handler would throw an error on Athena backend when handling large events. [#63551](https://github.com/gravitational/teleport/pull/63551)
+* Fixed an issue where a role requiring a trusted device could incorrectly block access to all applications. [#63528](https://github.com/gravitational/teleport/pull/63528)
+* Updated tsh/Linux to correctly capture the OS login user for device trust. [#63453](https://github.com/gravitational/teleport/pull/63453)
+* Fixed a server error when rejecting a headless authentication request in the Web UI. [#63432](https://github.com/gravitational/teleport/pull/63432)
+* Fixed tsh/Linux sending a too-large username for device trust. [#63388](https://github.com/gravitational/teleport/pull/63388)
+* Fixed teleport join openssh on recent versions of Ubuntu. [#63042](https://github.com/gravitational/teleport/pull/63042)
+* Fix an issue in the Teleport SSH Service where interactive PAM Auth modules always fail when trying to run exec sessions with tty allocated. e.g. `tsh ssh --tty <node> ls`. [#62065](https://github.com/gravitational/teleport/pull/62065)
+
+Enterprise:
+* Extend Access Monitoring feature to Teleport Cloud customers using External Audit Storage.
+* Added recording and validation for the fixed OS login user values from tsh.
+
 ## 17.7.16 (02/02/26)
 
 * Improved robustness of the Slack hosted plugin to reduce the likeliness of failed token refresh when experiencing external disruption. [#63347](https://github.com/gravitational/teleport/pull/63347)
