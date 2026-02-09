@@ -171,16 +171,37 @@ By default, the Okta SSO integration supports the SP-initiated flow. To enable t
    
  2. In your editor, set `spec.allow_idp_initiated` to `true`.
 
-## Attribute mapping
+## SAML attributes mapping
 
-All attributes sent with the SAML assertion will be stored as user's traits which then can be used to build RBAC rules. It is also possible to map SAML attributes to Teleport roles. They can be set in the web UI by editing the Okta SAML connector yaml or using the CLI `tctl edit saml/<Var name="okta" />`.
+All attributes sent with the SAML assertion will be stored as [user's external traits](../../../reference/access-controls/roles.mdx#referring-to-external-traits-in-teleport-roles) which then can be used to build RBAC rules.
+
+## Teleport roles assignment
+
+### Access Lists
+
+The preferred way to assign a Teleport role to an Okta SSO user is by adding them as members of [Access Lists](../../access-lists/access-lists.mdx) granting the desired roles. Access List membership can be created before the SSO user is created (i.e. before the user logs in for the first time).
+
+### SAML connector attributes to roles mapping
+
+The alternative is to use SAML connector attributes to roles mapping. The mapping is defined in the SAML connector resource and can be edited either the web UI or `tctl`.
+
+In the web UI:
+
+1. Navigate to the left sidebar, hover over **Zero Trust Access** and then click **Auth Connectors**.
+2. Find the Okta SAML connector tile, click three dots in the top-right corner of the tile and click **Edit**.
+
+Using `tctl`:
+
+```
+tctl edit saml/<Var name="okta" />
+```
 
 In the example below there are 2 mappings:
 
-- *groups* attribute containing value *Everyone* is mapped to Teleport *okta-requester* role.
-- *groups* attribute containing value *okta-admin* Okta group is mapped to Teleport *editor* role.
+- The `groups` attribute containing the value `Everyone` is mapped to the Teleport `okta-requester` role.
+- The `groups` attribute containing the value `okta-admin` is mapped to the Teleport `editor` role.
 
-At least 1 attribute to role mapping is required however we encourage to use [Access Lists](../../access-lists/access-lists.mdx) for access management instead.
+At least 1 attribute to role mapping is required however we encourage to use Access Lists for access management instead.
 
 ```yaml
 kind: saml
