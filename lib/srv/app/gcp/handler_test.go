@@ -90,7 +90,7 @@ func TestHandler_getToken(t *testing.T) {
 			},
 			config: func(state any) HandlerConfig {
 				return HandlerConfig{
-					Clock: state.(*clockwork.FakeClock).(clockwork.Clock),
+					Clock: state.(clockwork.Clock),
 					cloudClientGCP: makeTestCloudClient(&testIAMCredentialsClient{
 						generateAccessToken: func(ctx context.Context, req *credentialspb.GenerateAccessTokenRequest, opts ...gax.CallOption) (*credentialspb.GenerateAccessTokenResponse, error) {
 							clock := state.(*clockwork.FakeClock)
