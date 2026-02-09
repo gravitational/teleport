@@ -165,6 +165,65 @@ using the Scoped Join Token. To do so, they must configure:
 
 ## Implementation Details
 
+**wip wip wip**
+
+### Bot Resource
+
+**wip wip wip**
+
+wip: break this section up into sub-sections?
+
+A new `scope` field will be added to the root of the Bot resource. When this 
+field is provided, the Bot is considered a scoped Bot. This determines the scope
+that the Bot exists within for the purposes of administration and the scope to
+which the Bot's credentials are pinned to limit its scope of effect.
+
+Creating, reading, updating and deleting scoped Bots will occur via the normal
+Bot RPCs (and hence `tctl` commands and IaC resources). However, there are a 
+number of differences in behavior when a Bot is scoped vs unscoped.
+
+Firstly, access control for CRUD of the Bot resource will instead by governed
+by scoped access checks. For creates and deletes, the implementation is fairly
+trivial.
+
+For the Get RPC, fetching a scoped Bot for which you do not have access will
+yield a NotFound error. This is preferred to a PermissionDenied (or similar)
+which leaks the existence of the Bot.
+
+For the List RPC, scoped Bots for which you do not have access will be filtered
+from the results.
+
+wip: Add remark re: adding filter by scope support to List RPC.
+
+We must pay particular attention to the Update and Upsert RPCs since these
+allow a Bot to be transitioned from unscoped to scope, scoped to unscoped, or
+between scopes. This introduces a significant risk of privilege escalation
+or compromise of scope isolation if not handled correctly.
+
+To mitigate this risk, we will not permit updates or upserts that change the 
+`scope` field of an existing Bot. This will be rejected with a PermissionDenied.
+At a future date, we may consider allowing these transitions if a use-case
+arises.
+
+wip wip wip.
+
+The following additional validation will be enforced:
+
+- The `scope.roles` field must not be set.
+
+#### UX Changes
+
+tctl / UI. -- probably shift these into the UX section and out of implementation
+details.
+
+#### Bot Instances
+
+wip: we likely need to implement same rbac changes for Bot Instances as well.
+wip: we will need to propagate scope field into Bot Instance for the sake of 
+wip: performance otherwise we'll need to look up bot for bot instance. also
+wip: probably some security repercussions here to consider. also ux for tctl
+wip: and ui needs to reflect scoped searching?
+
 ### Joining
 
 Today, unscoped bots join using unscoped Join Tokens via the standard Join RPCs.
@@ -512,8 +571,6 @@ services:
 ```
 
 The implementation of this would take the following form:
-
-- TODO
 
 ### B.2 Cross-scope privileges
 
