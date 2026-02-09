@@ -1494,7 +1494,11 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	// Create a process wide key generator that will be shared. This is so the
 	// key generator can pre-generate keys and share these across services.
 	if cfg.Keygen == nil {
-		cfg.Keygen = keygen.New(process.ExitContext())
+		// TODO(tross): replace modules.GetModules with cfg.Modules
+		cfg.Keygen, err = keygen.New(keygen.Config{Now: cfg.Clock.Now, BuildType: modules.GetModules().BuildType()})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Produce global TeleportReadyEvent
@@ -2413,6 +2417,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Identity:                  cfg.Identity,
 			Access:                    cfg.Access,
 			StaticTokens:              cfg.Auth.StaticTokens,
+			StaticScopedTokens:        cfg.Auth.StaticScopedTokens,
 			Roles:                     cfg.Auth.Roles,
 			AuthPreference:            cfg.Auth.Preference,
 			OIDCConnectors:            cfg.OIDCConnectors,
@@ -2998,6 +3003,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.AppSession = services.Identity
 	cfg.Apps = services.Applications
 	cfg.ClusterConfig = services.ClusterConfigurationInternal
+	cfg.StaticScopedToken = services.ClusterConfigurationInternal
 	cfg.CrownJewels = services.CrownJewels
 	cfg.DatabaseObjects = services.DatabaseObjects
 	cfg.DatabaseServices = services.DatabaseServices

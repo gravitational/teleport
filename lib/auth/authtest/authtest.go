@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -317,7 +318,11 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	accessLists, err := local.NewAccessListService(srv.Backend, cfg.Clock, local.WithRunWhileLockedRetryInterval(cfg.RunWhileLockedRetryInterval))
+	accessLists, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: srv.Backend,
+		// TODO(tross): replace with cfg.Modules
+		Modules: modules.GetModules(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -330,11 +335,17 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(tross): replace with cfg.Modules.BuildType
+	authority, err := authority.NewKeygen(modules.GetModules().BuildType(), cfg.Clock.Now)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	srv.AuthServer, err = auth.NewServer(&auth.InitConfig{
 		DataDir:                   cfg.Dir,
 		Backend:                   srv.Backend,
 		VersionStorage:            NewFakeTeleportVersion(),
-		Authority:                 authority.NewWithClock(cfg.Clock),
+		Authority:                 authority,
 		Access:                    access,
 		Identity:                  identity,
 		AuditLog:                  srv.AuditLog,
@@ -601,6 +612,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		BotInstance:             p.AuthServer.Services.BotInstance,
 		Plugin:                  p.AuthServer.Services.Plugins,
 		RecordingEncryption:     p.AuthServer.Services.RecordingEncryptionManager,
+		StaticScopedToken:       p.AuthServer.Services.ClusterConfigurationInternal,
 	})
 	if err != nil {
 		return trace.Wrap(err)

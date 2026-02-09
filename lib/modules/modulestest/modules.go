@@ -31,9 +31,46 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+// OSSModules returns a [Modules] with the build type
+// set to modules.BuildOSS.
+func OSSModules() *Modules {
+	return &Modules{
+		TestBuildType: modules.BuildOSS,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.App:                {Enabled: true, Limit: 0},
+				entitlements.DB:                 {Enabled: true, Limit: 0},
+				entitlements.Desktop:            {Enabled: true, Limit: 0},
+				entitlements.JoinActiveSessions: {Enabled: true, Limit: 0},
+				entitlements.K8s:                {Enabled: true, Limit: 0},
+			},
+		},
+	}
+}
+
+// EnterpriseModules returns a [Modules] with the build type
+// set to modules.BuildEnterprise.
+func EnterpriseModules() *Modules {
+	return &Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.App:                {Enabled: true, Limit: 0},
+				entitlements.DB:                 {Enabled: true, Limit: 0},
+				entitlements.Desktop:            {Enabled: true, Limit: 0},
+				entitlements.JoinActiveSessions: {Enabled: true, Limit: 0},
+				entitlements.K8s:                {Enabled: true, Limit: 0},
+				entitlements.Identity:           {Enabled: true},
+				entitlements.AccessLists:        {Enabled: true, Limit: 2000},
+			},
+		},
+	}
+}
 
 // Modules is an implementation of [modules.Modules] to be
 // used in tests that need to exercise various conditions

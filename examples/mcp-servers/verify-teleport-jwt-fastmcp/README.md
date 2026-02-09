@@ -9,6 +9,7 @@ JWT issued by Teleport and extracts the Teleport's identity information.
 To start the server:
 ```bash
 # export TELEPORT_PROXY_URL=https://teleport.example.com
+$ uv sync
 $ uv run main.py
 ☕ Teleport cluster: teleport.example.com
 ☕ JWT algo: ES256

@@ -29,7 +29,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -78,7 +77,7 @@ const (
 // about granting or withholding list membership.
 type AccessListService struct {
 	backend       backend.Backend
-	clock         clockwork.Clock
+	modules       modules.Modules
 	service       *generic.Service[*accesslist.AccessList]
 	memberService *generic.Service[*accesslist.AccessListMember]
 	reviewService *generic.Service[*accesslist.Review]
@@ -107,54 +106,66 @@ func (s *accessListAndMembersGetter) GetAccessListMember(ctx context.Context, ac
 // interface
 var _ services.AccessLists = (*AccessListService)(nil)
 
-// NewAccessListService creates a new AccessListService.
-func NewAccessListService(b backend.Backend, clock clockwork.Clock, opts ...ServiceOption) (*AccessListService, error) {
-	var opt serviceOptions
-	for _, o := range opts {
-		o(&opt)
+// AccessListServiceConfig contains dependencies required to construct
+// an AccessListService.
+type AccessListServiceConfig struct {
+	// Backend is the persistent storage mechanism.
+	Backend backend.Backend
+	// Modules specifies which AccessList features are enabled.
+	Modules modules.Modules
+	// RunWhileLockedRetryInterval alters locking behavior when interacting with the backend.
+	// This allows tests to run faster.
+	RunWhileLockedRetryInterval time.Duration
+}
+
+// NewAccessListServiceV2 creates a new AccessListService.
+func NewAccessListServiceV2(cfg AccessListServiceConfig) (*AccessListService, error) {
+	if cfg.Modules == nil {
+		return nil, trace.BadParameter("Modules are a required parameter for the AccessListService")
 	}
+
 	service, err := generic.NewService(&generic.ServiceConfig[*accesslist.AccessList]{
-		Backend:                     b,
+		Backend:                     cfg.Backend,
 		PageLimit:                   accessListMaxPageSize,
 		ResourceKind:                types.KindAccessList,
 		BackendPrefix:               backend.NewKey(accessListPrefix),
 		MarshalFunc:                 services.MarshalAccessList,
 		UnmarshalFunc:               services.UnmarshalAccessList,
-		RunWhileLockedRetryInterval: opt.runWhileLockedRetryInterval,
+		RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	memberService, err := generic.NewService(&generic.ServiceConfig[*accesslist.AccessListMember]{
-		Backend:                     b,
+		Backend:                     cfg.Backend,
 		PageLimit:                   accessListMemberMaxPageSize,
 		ResourceKind:                types.KindAccessListMember,
 		BackendPrefix:               backend.NewKey(accessListMemberPrefix),
 		MarshalFunc:                 services.MarshalAccessListMember,
 		UnmarshalFunc:               services.UnmarshalAccessListMember,
-		RunWhileLockedRetryInterval: opt.runWhileLockedRetryInterval,
+		RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	reviewService, err := generic.NewService(&generic.ServiceConfig[*accesslist.Review]{
-		Backend:                     b,
+		Backend:                     cfg.Backend,
 		PageLimit:                   accessListReviewMaxPageSize,
 		ResourceKind:                types.KindAccessListReview,
 		BackendPrefix:               backend.NewKey(accessListReviewPrefix),
 		MarshalFunc:                 services.MarshalAccessListReview,
 		UnmarshalFunc:               services.UnmarshalAccessListReview,
-		RunWhileLockedRetryInterval: opt.runWhileLockedRetryInterval,
+		RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &AccessListService{
-		backend:       b,
-		clock:         clock,
+		backend:       cfg.Backend,
+		modules:       cfg.Modules,
 		service:       service,
 		memberService: memberService,
 		reviewService: reviewService,
@@ -300,7 +311,7 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 	// operation inside *another* lock so that we can accurately count the
 	// access lists in the cluster in order to prevent un-authorized use of
 	// the AccessList feature
-	if !modules.GetModules().Features().GetEntitlement(entitlements.Identity).Enabled {
+	if !a.modules.Features().GetEntitlement(entitlements.Identity).Enabled {
 		actions = append(actions, func() error { return a.VerifyAccessListCreateLimit(ctx, accessList.GetName()) })
 	}
 
@@ -851,7 +862,7 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 	// member reconciliation in *another* lock so that we can accurately count the
 	// access lists in the cluster in order to  prevent un-authorized use of the
 	// AccessList feature
-	if !modules.GetModules().Features().GetEntitlement(entitlements.Identity).Enabled {
+	if !a.modules.Features().GetEntitlement(entitlements.Identity).Enabled {
 		actions = append(actions, func() error { return a.VerifyAccessListCreateLimit(ctx, accessList.GetName()) })
 	}
 
@@ -1088,7 +1099,7 @@ func lockName(accessListName string) []string {
 // access list name matches the ones we retrieved.
 // Returns error if limit has been reached.
 func (a *AccessListService) VerifyAccessListCreateLimit(ctx context.Context, targetAccessListName string) error {
-	f := modules.GetModules().Features()
+	f := a.modules.Features()
 	if f.GetEntitlement(entitlements.Identity).Enabled {
 		return nil // unlimited
 	}

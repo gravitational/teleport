@@ -186,12 +186,76 @@ export const integrations: Integration[] = [
     kind: IntegrationKind.AwsOidc,
     statusCode: IntegrationStatusCode.Running,
     spec: { roleArn: '', issuerS3Prefix: '', issuerS3Bucket: '' },
+    summary: {
+      resourcesCount: {
+        found: 1000,
+        enrolled: 999,
+        failed: 1,
+      },
+      unresolvedUserTasks: [
+        {
+          name: 'ut-ec2-enroll-0001',
+          taskType: 'discover-ec2',
+          state: 'OPEN',
+          issueType: 'ec2-enroll',
+          title: 'Enroll discovered EC2 instances',
+          integration: 'aws-prod',
+          lastStateChange: '2026-01-11T18:42:10Z',
+        },
+        {
+          name: 'ut-eks-enroll-0007',
+          taskType: 'discover-eks',
+          state: 'OPEN',
+          issueType: 'eks-enroll',
+          title: 'An extra long title to show text overflow styles',
+          integration: 'aws-prod',
+          lastStateChange: '2026-01-10T03:15:00Z',
+        },
+        {
+          name: 'ut-rds-failure-0042',
+          taskType: 'discover-rds',
+          state: 'OPEN',
+          issueType: 'rds-discovery-failed',
+          title: 'RDS discovery failed',
+          integration: 'aws-staging',
+          lastStateChange: '2026-01-09T22:01:33Z',
+        },
+        {
+          name: 'aws-oidc:discover-eks:eks-agent-not-connecting:123456789012:us-east-1:example-cluster',
+          taskType: 'discover-eks',
+          state: 'OPEN',
+          issueType: 'eks-agent-not-connecting',
+          title:
+            'Teleport Kubernetes agent is not connecting for EKS cluster example-cluster',
+          integration: 'aws-oidc',
+          lastStateChange: '2026-01-10T18:42:00Z',
+        },
+      ],
+    },
   },
   {
     resourceType: 'integration',
     name: 'azure',
     kind: IntegrationKind.AzureOidc,
     statusCode: IntegrationStatusCode.Running,
+    summary: {
+      unresolvedUserTasks: [
+        {
+          name: 'ut-rds-failure-0042',
+          taskType: 'discover-rds',
+          state: 'OPEN',
+          issueType: 'rds-discovery-failed',
+          title: 'RDS discovery failed',
+          integration: 'aws-staging',
+          lastStateChange: '2026-01-09T22:01:33Z',
+        },
+      ],
+      resourcesCount: {
+        found: 10,
+        enrolled: 10,
+        failed: 0,
+      },
+    },
   },
   {
     resourceType: 'integration',

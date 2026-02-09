@@ -23,20 +23,24 @@ import { Box, Flex, Text } from 'design';
 import {
   CircleCheck,
   CircleCross,
-  Pencil,
+  Info,
   Question,
   Warning,
+  Wrench,
 } from 'design/Icon';
 import { IconSize } from 'design/Icon/Icon';
-import {
+import Label, {
   DangerOutlined,
   SecondaryOutlined,
-  SuccessOutlined,
   WarningOutlined,
 } from 'design/Label/Label';
 import { HoverTooltip } from 'design/Tooltip';
+import { pluralize } from 'shared/utils/text';
 
-import { IntegrationStatusCode } from 'teleport/services/integrations';
+import {
+  IntegrationStatusCode,
+  IntegrationWithSummary,
+} from 'teleport/services/integrations';
 
 import { IntegrationLike } from '../IntegrationList';
 import { Status } from '../types';
@@ -64,14 +68,45 @@ export const StatusLabel = ({
   );
 };
 
+export const SummaryStatusLabel = ({
+  summary,
+}: {
+  summary: IntegrationWithSummary;
+}) => {
+  const hasIssues = summary.unresolvedUserTasks > 0;
+  const isSyncing = isSummarySyncing(summary);
+  const { status, label } = isSyncing
+    ? SCANNING()
+    : hasIssues
+      ? ISSUES()
+      : HEALTHY;
+  return (
+    <DefaultFlex alignItems="center" gap={2} flexWrap="wrap">
+      {statusLabel(status, label)}
+      {isSyncing && (
+        <StatusNote typography="body3">(scanning in progress)</StatusNote>
+      )}
+    </DefaultFlex>
+  );
+};
+
 const PointerFlex = styled(Flex)`
   cursor: pointer;
+`;
+const DefaultFlex = styled(Flex)`
+  cursor: default;
+`;
+
+const StatusNote = styled(Text)`
+  display: flex;
+  align-items: center;
+  line-height: 1;
 `;
 
 const HEALTHY = {
   status: Status.Healthy,
   label: 'Healthy',
-  tooltip: 'Integration is connected and working.',
+  tooltip: 'Integration is connected and active.',
 };
 
 const DRAFT = {
@@ -92,11 +127,21 @@ const UNKNOWN = (tooltip: string) => ({
   tooltip,
 });
 
-const ISSUES = (tooltip: string) => ({
+const ISSUES = (tooltip?: string) => ({
   status: Status.Issues,
   label: 'Issues',
   tooltip,
 });
+
+const SCANNING = (tooltip?: string) => ({
+  status: Status.Scanning,
+  label: 'Scanning',
+  tooltip,
+});
+
+const PrimaryOutlined = (props: { children: React.ReactNode }) => (
+  <Label kind="outline-primary" {...props} />
+);
 
 export function getStatus(item: IntegrationLike): {
   status: Status;
@@ -104,7 +149,13 @@ export function getStatus(item: IntegrationLike): {
   tooltip: string;
 } {
   if (item.resourceType === 'integration') {
-    return HEALTHY;
+    const issueCount = item.summary?.unresolvedUserTasks.length ?? 0;
+    const hasIssues = issueCount > 0;
+    return hasIssues
+      ? ISSUES(
+          `Integration is active but has ${issueCount} ${pluralize(issueCount, 'issue')} to address. Check the integration overview for more details.`
+        )
+      : HEALTHY;
   }
 
   if (item.resourceType === 'external-audit-storage') {
@@ -114,7 +165,7 @@ export function getStatus(item: IntegrationLike): {
   switch (item.statusCode) {
     case IntegrationStatusCode.Unknown:
       return UNKNOWN(
-        'The integration is in an unknown state. If this state persists, try removing and re-connecting the integration.'
+        'Integration is in an unknown state. If this state persists, try removing and re-connecting the integration.'
       );
     case IntegrationStatusCode.Running:
       return HEALTHY;
@@ -126,7 +177,7 @@ export function getStatus(item: IntegrationLike): {
       );
     case IntegrationStatusCode.Unauthorized:
       return FAILED(
-        'The integration was denied access. This could be a result of revoked authorization on the 3rd party provider. Try removing and re-connecting the integration.'
+        'Integration was denied access. This could be a result of revoked authorization on the 3rd party provider. Try removing and re-connecting the integration.'
       );
     case IntegrationStatusCode.OktaConfigError:
       return FAILED(
@@ -148,10 +199,10 @@ const StatusUI: Record<
 > = {
   [Status.Healthy]: {
     Icon: CircleCheck,
-    Label: SuccessOutlined,
+    Label: SecondaryOutlined,
   },
   [Status.Draft]: {
-    Icon: Pencil,
+    Icon: Wrench,
     Label: SecondaryOutlined,
   },
   [Status.Unknown]: {
@@ -165,6 +216,10 @@ const StatusUI: Record<
   [Status.Issues]: {
     Icon: Warning,
     Label: WarningOutlined,
+  },
+  [Status.Scanning]: {
+    Icon: Info,
+    Label: PrimaryOutlined,
   },
 };
 
@@ -180,3 +235,31 @@ const statusLabel = (status: Status, label: string) => {
     </Label>
   );
 };
+
+function isSummarySyncing(summary: IntegrationWithSummary): boolean {
+  const lastSync = Math.max(
+    getTimestamp(summary.awsec2?.discoverLastSync),
+    getTimestamp(summary.awsrds?.discoverLastSync),
+    getTimestamp(summary.awseks?.discoverLastSync),
+    getTimestamp(summary.rolesAnywhereProfileSync?.syncEndTime)
+  );
+
+  return lastSync === 0;
+}
+
+function getTimestamp(value: unknown): number {
+  if (!value) {
+    return 0;
+  }
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+  if (typeof value === 'number') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+  return 0;
+}

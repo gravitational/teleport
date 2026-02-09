@@ -77,10 +77,10 @@ func TestClusterAlerts(t *testing.T) {
 		err = status.UpsertClusterAlert(ctx, alert)
 		require.NoError(t, err)
 	}
-
+	const alert2 = "alert-2"
 	// load a single alert by ID
 	alerts, err := status.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
-		AlertID: "alert-2",
+		AlertID: alert2,
 	})
 	require.NoError(t, err)
 	require.Len(t, alerts, 1)
@@ -123,6 +123,15 @@ func TestClusterAlerts(t *testing.T) {
 	alerts, err = status.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
 	require.NoError(t, err)
 	require.Len(t, alerts, alertCount)
+
+	// delete alert-2 to verify deletion works
+	require.NoError(t, status.DeleteClusterAlert(ctx, alert2))
+
+	alerts, err = status.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+		AlertID: alert2,
+	})
+	require.NoError(t, err)
+	require.Empty(t, alerts)
 
 	// alerts without a specified expiry time expire within 24 hours
 	clock.Advance(time.Hour * 24)

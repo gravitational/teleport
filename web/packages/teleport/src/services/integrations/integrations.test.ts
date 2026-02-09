@@ -41,7 +41,8 @@ test('fetch a single integration: fetchIntegration()', async () => {
       'integration-name'
     );
   expect(api.get).toHaveBeenCalledWith(
-    cfg.getIntegrationsUrl('integration-name')
+    cfg.getIntegrationsUrl('integration-name'),
+    undefined
   );
   expect(response).toEqual({
     kind: 'aws-oidc',

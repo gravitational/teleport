@@ -70,7 +70,7 @@ type SubmitterConfig struct {
 	// Logger is the used for emitting log messages.
 	Logger *slog.Logger
 	// Status is used to create or clear cluster alerts on a failure. Required.
-	Status services.StatusInternal
+	Status services.Status
 	// Submitter is used to submit usage reports. Required.
 	Submitter UsageReportsSubmitter
 
@@ -268,7 +268,7 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 // ClearAlert attempts to delete the reporting-failed alert; it's expected to
 // return nil if it successfully deletes the alert, and a trace.NotFound error
 // if there's no alert.
-func ClearAlert(ctx context.Context, status services.StatusInternal) error {
+func ClearAlert(ctx context.Context, status services.Status) error {
 	if _, err := status.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
 		AlertID: alertName,
 	}); err != nil && trace.IsNotFound(err) {

@@ -239,8 +239,8 @@ spec:
                         type: string
                     type: object
                   redshift_serverless:
-                    description: RedshiftServerless contains Amazon Redshift Serverless-specific
-                      metadata.
+                    description: RedshiftServerless contains metatada specific to
+                      Amazon Redshift Serverless.
                     properties:
                       endpoint_name:
                         description: EndpointName is the VPC endpoint name.

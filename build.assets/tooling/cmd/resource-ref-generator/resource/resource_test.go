@@ -2068,6 +2068,7 @@ my_string: "string"
 
 func TestSplitCamelCase(t *testing.T) {
 	camelCaseExceptions := []string{
+		"ElastiCache",
 		"IdP",
 		"MySQL",
 		"SAML",
@@ -2082,6 +2083,11 @@ func TestSplitCamelCase(t *testing.T) {
 			description: "camel-case name",
 			original:    "ServerSpec",
 			expected:    "Server Spec",
+		},
+		{
+			description: "entire camel-case name excepted",
+			original:    "ElastiCache",
+			expected:    "ElastiCache",
 		},
 		{
 			description: "camel-case name with three words",

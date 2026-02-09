@@ -145,6 +145,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindSessionRecordingConfig},
 		{Kind: types.KindUIConfig},
 		{Kind: types.KindStaticTokens},
+		{Kind: types.KindStaticScopedTokens},
 		{Kind: types.KindToken},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
@@ -641,6 +642,8 @@ type Config struct {
 	Trust services.Trust
 	// ClusterConfig is a cluster configuration service
 	ClusterConfig services.ClusterConfiguration
+	// StaticScopedToken manages the cluster's static scoped tokens.
+	StaticScopedToken services.StaticScopedTokenService
 	// AutoUpdateService is an autoupdate service.
 	AutoUpdateService services.AutoUpdateServiceGetter
 	// Provisioner is a provisioning service

@@ -7,8 +7,8 @@ should match the snapshot (tokenSpecOverride set):
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-event-handler
-        app.kubernetes.io/version: 18.6.4
-        helm.sh/chart: teleport-plugin-event-handler-18.6.4
+        app.kubernetes.io/version: 18.6.6
+        helm.sh/chart: teleport-plugin-event-handler-18.6.6
       name: RELEASE-NAME-teleport-plugin-event-handler
       namespace: NAMESPACE
     spec:
@@ -28,8 +28,8 @@ should match the snapshot (tokenSpecOverride set):
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-event-handler
-        app.kubernetes.io/version: 18.6.4
-        helm.sh/chart: teleport-plugin-event-handler-18.6.4
+        app.kubernetes.io/version: 18.6.6
+        helm.sh/chart: teleport-plugin-event-handler-18.6.6
       name: RELEASE-NAME-teleport-plugin-event-handler
       namespace: NAMESPACE
     spec:
@@ -43,9 +43,9 @@ should match the snapshot (tokenSpecOverride set):
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-event-handler
-        app.kubernetes.io/version: 18.6.4
-        helm.sh/chart: teleport-plugin-event-handler-18.6.4
-      name: test-token
+        app.kubernetes.io/version: 18.6.6
+        helm.sh/chart: teleport-plugin-event-handler-18.6.6
+      name: RELEASE-NAME-tbot
       namespace: NAMESPACE
     spec:
       bot_name: RELEASE-NAME-teleport-plugin-event-handler

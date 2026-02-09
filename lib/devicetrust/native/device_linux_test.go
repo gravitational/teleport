@@ -56,6 +56,7 @@ func TestCollectDeviceData_linux(t *testing.T) {
 		OsVersion:             "22.04",
 		OsBuild:               "22.04.3 LTS (Jammy Jellyfish)",
 		OsUsername:            u.Name,
+		OsLoginUser:           u.Username,
 		ReportedAssetTag:      "No Asset Information",
 		SystemSerialNumber:    "PF0A0AAA",
 		BaseBoardSerialNumber: "L1AA00A00A0",

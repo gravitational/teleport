@@ -1,0 +1,3 @@
+introduction: |-
+  `teleport` is the CLI tool that supports the Teleport Infrastructure Identity
+  Platform, and allows Teleport services to be managed over the command line.

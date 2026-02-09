@@ -382,7 +382,7 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
-							Description: "RedshiftServerless contains Amazon Redshift Serverless-specific metadata.",
+							Description: "RedshiftServerless contains metatada specific to Amazon Redshift Serverless.",
 							Optional:    true,
 						},
 						"region": {

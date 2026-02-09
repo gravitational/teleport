@@ -1,5 +1,45 @@
 # Changelog
 
+## 18.6.6 (02/02/26)
+
+* Fixed tsh/Linux sending a too-large username for device trust. [#63387](https://github.com/gravitational/teleport/pull/63387)
+* Fixed an issue where MCP JSON-RPC messages with mixed-case field names could be parsed inconsistently and re-serialized to lower cases. Teleport now enforces canonical lowercase JSON-RPC fields. [#63364](https://github.com/gravitational/teleport/pull/63364)
+* Improved robustness of the Slack hosted plugin to reduce the likeliness of failed token refresh when experiencing external disruption. [#63344](https://github.com/gravitational/teleport/pull/63344)
+* Fixed a bug affecting access list review queries for lists where the name is a prefix of another list name. [#63337](https://github.com/gravitational/teleport/pull/63337)
+* Updated the OCI SDK to support new regions. [#63265](https://github.com/gravitational/teleport/pull/63265)
+* Ensure application session rejections for untrusted devices are consistently audited as AppSessionStart failures after MFA. [#63149](https://github.com/gravitational/teleport/pull/63149)
+* Added Helm chart support to the `teleport-event-handler configure` command. [#63147](https://github.com/gravitational/teleport/pull/63147)
+* Added `tctl` support for removing `okta_assignment` internal resource should it be needed. [#62698](https://github.com/gravitational/teleport/pull/62698)
+
+Enterprise:
+* Prevented manual membership changes to SCIM-type access lists while enabling support for their reviews.
+* Fixed the issue where Okta integration may not remove previously synced apps after plugin restart.
+
+## 18.6.5 (01/29/26)
+
+* Fixed a `CredentialContainer` error when attempting to log in to the Web UI with a hardware key using Firefox >=147.0.2. [#63245](https://github.com/gravitational/teleport/pull/63245)
+* Added support for deleting cluster alerts via `tctl alerts rm <alertID>` command. [#63211](https://github.com/gravitational/teleport/pull/63211)
+* Updated OpenSSL to 3.0.19. [#63202](https://github.com/gravitational/teleport/pull/63202)
+* Added support for injecting Teleport-issued ID tokens into outgoing MCP requests, enabling integrations with MCP servers such as the AWS Bedrock AgentCore MCP Gateway that can validate tokens via OIDC discovery URL. [#63156](https://github.com/gravitational/teleport/pull/63156)
+* Export "additional_trusted_keys" when exporting TLS CAs, which includes new certificates generated in the "init" rotation phase. Reflected in "tctl auth export" and the "/webapi/auth/export" endpoint. [#63134](https://github.com/gravitational/teleport/pull/63134)
+* Updated indirect dependency go-chi/chi/v5 (addresses GO-2026-4316). [#63092](https://github.com/gravitational/teleport/pull/63092)
+* The `tbot systemd install` command now supports a `--pid-file` flag for setting the path to the PID file. [#63039](https://github.com/gravitational/teleport/pull/63039)
+* Allow kubeconfig and context to be explicitly configured for `tbot` `kubernetes_secret` destination. [#63037](https://github.com/gravitational/teleport/pull/63037)
+* Implemented "tctl get cert_authority/catype", in addition to the already existing "tctl get cert_authority" and "tctl get cert_authority/catype/domain". [#63027](https://github.com/gravitational/teleport/pull/63027)
+* Added a Terraform module to configure Teleport and AWS for EC2 discovery in an AWS account. [#63004](https://github.com/gravitational/teleport/pull/63004)
+* Added opt-in support to bootstrap the `teleport-plugin-event-handler` helm chart with MWI to auto-join Teleport clusters when Operator is enabled. [#63001](https://github.com/gravitational/teleport/pull/63001)
+* Added permissions to the `editor` role allowing users to view autoupdate agent reports. [#62973](https://github.com/gravitational/teleport/pull/62973)
+* Improved performance of large search queries for DynamoDB event backend. [#62890](https://github.com/gravitational/teleport/pull/62890)
+* Introduced tbot-spiffe-daemon-set helm chart for deploying a Daemon Set of tbot agents which serve SPIFFE SVIDs to Kubernetes pods via the SPIFFE Workload API. [#62583](https://github.com/gravitational/teleport/pull/62583)
+
+Enterprise:
+* Fixed an issue with the legacy Azure OIDC IdP SSO `issuer=sts.windows.net` where Teleport was unable to map Teleport roles from the groups claim available in the `id_token`.
+* Added updated resources to SCIM audit events that create or change SCIM resources.
+* Support multi-arch lock file population for the terraform provider.
+* Added audit events to SCIM PATCH operations.
+* Updated Entra ID plugin to support importing Entra ID group owners as Access List owners.
+* Replaced enterprise downloads list view in Web UI with links to Public Downloads page.
+
 ## 18.6.4 (01/20/26)
 
 * Fixed GCS session recording backend not respecting rate limits. [#62986](https://github.com/gravitational/teleport/pull/62986)
@@ -1175,4 +1215,3 @@ or `alpn-ping` as upgrade types was left as a fallback until v17.
 
 Teleport v18 removes the legacy upgrade mode entirely including the use of the
 `TELEPORT_TLS_ROUTING_CONN_UPGRADE_MODE` environment variable.
-

@@ -92,6 +92,17 @@ Create the embedded tbot's service account name.
 {{- end -}}
 
 {{/*
+Create the embedded tbot's token name.
+*/}}
+{{- define "event-handler.tbot.tokenName" -}}
+{{- if .Values.tbot.token -}}
+{{- .Values.tbot.token -}}
+{{- else -}}
+{{- .Release.Name }}-{{ default .Values.tbot.nameOverride "tbot" }}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Create the namespace that Operator custom resources will be created in.
 */}}
 {{- define "event-handler.crd.namespace" -}}
@@ -100,13 +111,6 @@ Create the namespace that Operator custom resources will be created in.
 {{- else -}}
 {{- .Release.Namespace -}}
 {{- end -}}
-{{- end -}}
-
-{{/*
-Create the name for TeleportProvisionToken custom resource.
-*/}}
-{{- define "event-handler.crd.tokenName" -}}
-{{- required "tbot.token cannot be empty in chart values" .Values.tbot.token -}}
 {{- end -}}
 
 {{/*
@@ -138,5 +142,34 @@ Create the full TeleportProvisionToken join spec.
   {{- fail "crd.tokenSpecOverride.join_method cannot be empty in chart values" -}}
   {{- end -}}
 {{- .Values.crd.tokenSpecOverride | toYaml -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Create the name for the Fluentd server TLS certificate secret.
+*/}}
+{{- define "event-handler.certManager.serverCertSecretName" -}}
+{{ include "event-handler.fullname" . }}-server-tls
+{{- end -}}
+
+{{/*
+Create the name for the Fluentd client TLS certificate secret.
+*/}}
+{{- define "event-handler.certManager.clientCertSecretName" -}}
+{{ include "event-handler.fullname" . }}-client-tls
+{{- end -}}
+
+{{/*
+Create the issuer for the cert-manager.
+*/}}
+{{- define "event-handler.certManager.issuer" -}}
+{{- if .Values.certManager.issuer.create -}}
+name: {{ include "event-handler.fullname" . }}-ca-issuer
+kind: Issuer
+group: cert-manager.io
+{{- else -}}
+name: {{ required "certManager.issuer.name is required in chart values" .Values.certManager.issuer.name }}
+kind: {{ required "certManager.issuer.kind is required in chart values" .Values.certManager.issuer.kind }}
+group: {{ required "certManager.issuer.group is required in chart values" .Values.certManager.issuer.group }}
 {{- end -}}
 {{- end -}}

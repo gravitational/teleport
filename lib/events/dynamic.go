@@ -580,6 +580,34 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case VnetConfigDeleteEvent:
 		e = &events.VnetConfigDelete{}
 
+	case WorkloadClusterCreateEvent:
+		e = &events.WorkloadClusterCreate{}
+	case WorkloadClusterUpdateEvent:
+		e = &events.WorkloadClusterUpdate{}
+	case WorkloadClusterDeleteEvent:
+		e = &events.WorkloadClusterDelete{}
+
+	case InferenceModelCreateEvent:
+		e = &events.InferenceModelCreate{}
+	case InferenceModelUpdateEvent:
+		e = &events.InferenceModelUpdate{}
+	case InferenceModelDeleteEvent:
+		e = &events.InferenceModelDelete{}
+
+	case InferenceSecretCreateEvent:
+		e = &events.InferenceSecretCreate{}
+	case InferenceSecretUpdateEvent:
+		e = &events.InferenceSecretUpdate{}
+	case InferenceSecretDeleteEvent:
+		e = &events.InferenceSecretDelete{}
+
+	case InferencePolicyCreateEvent:
+		e = &events.InferencePolicyCreate{}
+	case InferencePolicyUpdateEvent:
+		e = &events.InferencePolicyUpdate{}
+	case InferencePolicyDeleteEvent:
+		e = &events.InferencePolicyDelete{}
+
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 	}

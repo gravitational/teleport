@@ -106,6 +106,7 @@ import (
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertaskv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
+	workloadclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -1700,11 +1701,12 @@ func (c *Client) GenerateAppToken(ctx context.Context, req types.GenerateAppToke
 		}
 	}
 	resp, err := c.grpc.GenerateAppToken(ctx, &proto.GenerateAppTokenRequest{
-		Username: req.Username,
-		Roles:    req.Roles,
-		Traits:   traits,
-		URI:      req.URI,
-		Expires:  req.Expires,
+		Username:      req.Username,
+		Roles:         req.Roles,
+		Traits:        traits,
+		URI:           req.URI,
+		Expires:       req.Expires,
+		AuthorityType: string(req.AuthorityType),
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -4956,6 +4958,13 @@ func (c *Client) UpsertClusterAlert(ctx context.Context, alert types.ClusterAler
 	return trace.Wrap(err)
 }
 
+func (c *Client) DeleteClusterAlert(ctx context.Context, alertID string) error {
+	_, err := c.grpc.DeleteClusterAlert(ctx, &proto.DeleteClusterAlertRequest{
+		AlertId: alertID,
+	})
+	return trace.Wrap(err)
+}
+
 func (c *Client) ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error {
 	_, err := c.grpc.ChangePassword(ctx, req)
 	return trace.Wrap(err)
@@ -5917,4 +5926,74 @@ func (c *Client) CreateScopedToken(ctx context.Context, token *joiningv1.ScopedT
 		Token: token,
 	})
 	return res.GetToken(), trace.Wrap(err)
+}
+
+// WorkloadClustersClient returns an [workloadclusterv1.WorkloadClusterServiceClient].
+func (c *Client) WorkloadClustersClient() workloadclusterv1.WorkloadClusterServiceClient {
+	return workloadclusterv1.NewWorkloadClusterServiceClient(c.conn)
+}
+
+// ListWorkloadClusters returns a list of WorkloadClusters.
+func (c *Client) ListWorkloadClusters(ctx context.Context, pageSize int, nextToken string) ([]*workloadclusterv1.WorkloadCluster, string, error) {
+	resp, err := c.WorkloadClustersClient().ListWorkloadClusters(ctx, &workloadclusterv1.ListWorkloadClustersRequest{
+		PageSize:  int32(pageSize),
+		PageToken: nextToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return resp.Clusters, resp.NextPageToken, nil
+}
+
+// CreateWorkloadCluster creates a new WorkloadCluster.
+func (c *Client) CreateWorkloadCluster(ctx context.Context, req *workloadclusterv1.WorkloadCluster) (*workloadclusterv1.WorkloadCluster, error) {
+	resp, err := c.WorkloadClustersClient().CreateWorkloadCluster(ctx, &workloadclusterv1.CreateWorkloadClusterRequest{
+		Cluster: req,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// GetWorkloadCluster returns a WorkloadCluster by name.
+func (c *Client) GetWorkloadCluster(ctx context.Context, name string) (*workloadclusterv1.WorkloadCluster, error) {
+	resp, err := c.WorkloadClustersClient().GetWorkloadCluster(ctx, &workloadclusterv1.GetWorkloadClusterRequest{
+		Name: name,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpdateWorkloadCluster updates an existing WorkloadCluster.
+func (c *Client) UpdateWorkloadCluster(ctx context.Context, req *workloadclusterv1.WorkloadCluster) (*workloadclusterv1.WorkloadCluster, error) {
+	resp, err := c.WorkloadClustersClient().UpdateWorkloadCluster(ctx, &workloadclusterv1.UpdateWorkloadClusterRequest{
+		Cluster: req,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpsertWorkloadCluster upserts a WorkloadCluster.
+func (c *Client) UpsertWorkloadCluster(ctx context.Context, req *workloadclusterv1.WorkloadCluster) (*workloadclusterv1.WorkloadCluster, error) {
+	resp, err := c.WorkloadClustersClient().UpsertWorkloadCluster(ctx, &workloadclusterv1.UpsertWorkloadClusterRequest{
+		Cluster: req,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// DeleteWorkloadCluster deletes a WorkloadCluster.
+func (c *Client) DeleteWorkloadCluster(ctx context.Context, name string) error {
+	_, err := c.WorkloadClustersClient().DeleteWorkloadCluster(ctx, &workloadclusterv1.DeleteWorkloadClusterRequest{
+		Name: name,
+	})
+	return trace.Wrap(err)
 }

@@ -175,7 +175,7 @@ func StreamEmpty(t *testing.T, handler events.MultipartHandler) {
 
 	select {
 	case status := <-stream.Status():
-		require.Equal(t, status.LastEventIndex, int64(-1))
+		require.Equal(t, int64(-1), status.LastEventIndex)
 	case <-time.After(time.Second):
 		t.Fatalf("Timed out waiting for status update.")
 	}
@@ -217,7 +217,7 @@ func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params 
 
 	select {
 	case status := <-stream.Status():
-		require.Equal(t, status.LastEventIndex, int64(-1))
+		require.Equal(t, int64(-1), status.LastEventIndex)
 	case <-time.After(time.Second):
 		t.Fatalf("Timed out waiting for status update.")
 	}
@@ -308,7 +308,7 @@ func StreamResumeWithParameters(t *testing.T, handler events.MultipartHandler, p
 	// that resume has been started successfully
 	select {
 	case status := <-stream.Status():
-		require.Equal(t, status.LastEventIndex, int64(-1))
+		require.Equal(t, int64(-1), status.LastEventIndex)
 	case <-time.After(time.Second):
 		t.Fatalf("Timed out waiting for status update.")
 	}

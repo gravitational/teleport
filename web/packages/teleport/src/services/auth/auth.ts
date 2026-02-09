@@ -132,7 +132,6 @@ const auth = {
       .then(res =>
         navigator.credentials.get({
           publicKey: res.webauthnPublicKey,
-          mediation: 'silent',
         })
       )
       .then(res => {

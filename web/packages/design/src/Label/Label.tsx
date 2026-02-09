@@ -103,9 +103,9 @@ const kind = ({
 
   if (kind === 'outline-secondary') {
     return {
-      color: theme.colors.text.muted,
+      color: theme.colors.text.slightlyMuted,
       backgroundColor: theme.colors.interactive.tonal.neutral[0],
-      borderColor: theme.colors.text.muted,
+      borderColor: theme.colors.text.slightlyMuted,
       borderWidth: 1,
       borderStyle: 'solid',
       fontWeight: theme.fontWeights.regular,
@@ -137,9 +137,9 @@ const kind = ({
 
   if (kind === 'outline-warning') {
     return {
-      color: theme.colors.interactive.solid.alert.hover,
+      color: theme.colors.dataVisualisation.primary.sunflower,
       backgroundColor: theme.colors.interactive.tonal.alert[0],
-      borderColor: theme.colors.interactive.solid.alert.hover,
+      borderColor: theme.colors.dataVisualisation.primary.sunflower,
       borderWidth: 1,
       borderStyle: 'solid',
       fontWeight: theme.fontWeights.regular,
@@ -154,7 +154,7 @@ const kind = ({
 
   if (kind === 'outline-danger') {
     return {
-      color: theme.colors.interactive.solid.danger.default,
+      color: theme.colors.dataVisualisation.tertiary.abbey,
       backgroundColor: theme.colors.interactive.tonal.danger[0],
       borderColor: theme.colors.interactive.solid.danger.default,
       borderWidth: 1,
