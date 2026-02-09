@@ -34,7 +34,7 @@ import (
 // TestWatcherSimple tests scenarios with watchers
 func TestWatcherSimple(t *testing.T) {
 	ctx := context.Background()
-	b := NewCircularBuffer(
+	b := NewEventFanout(
 		BufferCapacity(3),
 	)
 	defer b.Close()
@@ -79,7 +79,7 @@ func TestWatcherCapacity(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 
 	ctx := context.Background()
-	b := NewCircularBuffer(
+	b := NewEventFanout(
 		BufferCapacity(1),
 		BufferClock(clock),
 		BacklogGracePeriod(gracePeriod),
@@ -153,7 +153,7 @@ func TestWatcherCreationGracePeriod(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 
 	ctx := context.Background()
-	b := NewCircularBuffer(
+	b := NewEventFanout(
 		BufferCapacity(1),
 		BufferClock(clock),
 		BacklogGracePeriod(backlogGracePeriod),
@@ -215,7 +215,7 @@ func TestWatcherCreationGracePeriod(t *testing.T) {
 // will be removed
 func TestWatcherClose(t *testing.T) {
 	ctx := context.Background()
-	b := NewCircularBuffer(
+	b := NewEventFanout(
 		BufferCapacity(3),
 	)
 	defer b.Close()
@@ -273,7 +273,7 @@ func TestRemoveRedundantPrefixes(t *testing.T) {
 // with multiple matching prefixes will get an event only once
 func TestWatcherMulti(t *testing.T) {
 	ctx := context.Background()
-	b := NewCircularBuffer(
+	b := NewEventFanout(
 		BufferCapacity(3),
 	)
 	defer b.Close()
@@ -305,7 +305,7 @@ func TestWatcherMulti(t *testing.T) {
 // TestWatcherReset tests scenarios with watchers and buffer resets
 func TestWatcherReset(t *testing.T) {
 	ctx := context.Background()
-	b := NewCircularBuffer(
+	b := NewEventFanout(
 		BufferCapacity(3),
 	)
 	defer b.Close()

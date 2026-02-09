@@ -127,7 +127,7 @@ type Backend struct {
 	// clock is the
 	clock clockwork.Clock
 	// buf
-	buf *backend.CircularBuffer
+	eventFanout *backend.EventFanout
 	// clientContext firestore client contexts
 	clientContext context.Context
 	// clientCancel firestore context cancel funcs
@@ -408,7 +408,7 @@ func New(ctx context.Context, params backend.Params, options Options) (*Backend,
 	// It won't be needed after New returns.
 	defer firestoreAdminClient.Close()
 
-	buf := backend.NewCircularBuffer(
+	eventFanout := backend.NewEventFanout(
 		backend.BufferCapacity(cfg.BufferSize),
 	)
 
@@ -417,7 +417,7 @@ func New(ctx context.Context, params backend.Params, options Options) (*Backend,
 		logger:        l,
 		backendConfig: *cfg,
 		clock:         options.Clock,
-		buf:           buf,
+		eventFanout:   eventFanout,
 		clientContext: closeCtx,
 		clientCancel:  cancel,
 	}
@@ -960,7 +960,7 @@ func (b *Backend) legacyConditionalUpdate(ctx context.Context, item backend.Item
 
 // NewWatcher returns a new event watcher
 func (b *Backend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.Watcher, error) {
-	return b.buf.NewWatcher(ctx, watch)
+	return b.eventFanout.NewWatcher(ctx, watch)
 }
 
 // KeepAlive keeps object from expiring, updates lease on the existing object,
@@ -1006,7 +1006,7 @@ func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 // Close closes the Firestore client contexts and releases associated resources
 func (b *Backend) Close() error {
 	b.clientCancel()
-	err := b.buf.Close()
+	err := b.eventFanout.Close()
 	if err != nil {
 		b.logger.ErrorContext(b.clientContext, "error closing buffer, continuing with closure of other resources...", "error", err)
 	}
@@ -1015,7 +1015,7 @@ func (b *Backend) Close() error {
 
 // CloseWatchers closes all the watchers without closing the backend
 func (b *Backend) CloseWatchers() {
-	b.buf.Clear()
+	b.eventFanout.Clear()
 }
 
 // Clock returns wall clock
@@ -1105,8 +1105,8 @@ func (b *Backend) watchCollection() error {
 	}
 
 	snaps := query.Snapshots(b.clientContext)
-	b.buf.SetInit()
-	defer b.buf.Reset()
+	b.eventFanout.SetInit()
+	defer b.eventFanout.Reset()
 	defer snaps.Stop()
 
 	for {
@@ -1136,7 +1136,7 @@ func (b *Backend) watchCollection() error {
 					},
 				}
 			}
-			b.buf.Emit(e)
+			b.eventFanout.Emit(e)
 		}
 	}
 }

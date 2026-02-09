@@ -154,8 +154,8 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 	}
 
 	// shard iterators are initialized, unblock any registered watchers
-	b.buf.SetInit()
-	defer b.buf.Reset()
+	b.eventFanout.SetInit()
+	defer b.eventFanout.Reset()
 
 	timer := time.NewTimer(b.PollStreamPeriod)
 	defer timer.Stop()
@@ -177,7 +177,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 				}
 				b.logger.Log(ctx, logutils.TraceLevel, "Shard exited gracefully.", "shard_id", event.shardID)
 			} else {
-				b.buf.Emit(event.events...)
+				b.eventFanout.Emit(event.events...)
 			}
 		case <-timer.C:
 			if err := refreshShards(false); err != nil {
