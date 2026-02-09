@@ -1,7 +1,10 @@
 # Changelog
 
-## 17.7.17 (02/09/26)
+## 17.7.18 (02/09/26)
 
+Skipped 17.7.17 due to a build pipeline issue.
+
+* Revised help messages for event handler CLI commands. [#63642](https://github.com/gravitational/teleport/pull/63642)
 * Fixed `tsh ssh user@foo=bar uptime` from running serially if users did not have `role:read` permissions. [#63611](https://github.com/gravitational/teleport/pull/63611)
 * The minimum version of macOS required to run Teleport or associated client tools is now macOS 12 (Monterey). [#63588](https://github.com/gravitational/teleport/pull/63588)
 * The minimal macOS version required by Teleport Connect is now macOS 12. [#63570](https://github.com/gravitational/teleport/pull/63570)
