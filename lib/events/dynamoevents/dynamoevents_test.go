@@ -34,6 +34,11 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -41,6 +46,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
@@ -780,4 +786,249 @@ func TestCursorIteratorPrecision(t *testing.T) {
 		require.Contains(t, eventsSeen, id, "eventsSeen should contain %q", id)
 	}
 
+}
+
+func Test_eventsFetcher_QueryByDateIndex(t *testing.T) {
+	event1 := &apievents.AppCreate{
+		Metadata: apievents.Metadata{
+			ID:   uuid.NewString(),
+			Time: time.Date(2025, 2, 5, 0, 0, 0, 0, time.UTC),
+			Type: events.AppCreateEvent,
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppName: "app-1",
+		},
+	}
+	event2 := &apievents.AppCreate{
+		Metadata: apievents.Metadata{
+			ID:   uuid.NewString(),
+			Time: time.Date(2025, 2, 5, 0, 0, 0, 0, time.UTC),
+			Type: events.AppCreateEvent,
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppName: "app-2",
+		},
+	}
+	event3 := &apievents.AppCreate{
+		Metadata: apievents.Metadata{
+			ID:   uuid.NewString(),
+			Time: time.Date(2025, 2, 5, 0, 0, 0, 0, time.UTC),
+			Type: events.AppCreateEvent,
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppName: "app-3",
+		},
+	}
+	bigUntrimmableEvent := &apievents.AppCreate{
+		Metadata: apievents.Metadata{
+			ID:   uuid.NewString(),
+			Time: time.Date(2025, 2, 5, 0, 0, 0, 0, time.UTC),
+			Type: events.AppCreateEvent,
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppName: strings.Repeat("aaaaa", events.MaxEventBytesInResponse),
+		},
+	}
+	bigTrimmableEvent := &apievents.DatabaseSessionQuery{
+		Metadata: apievents.Metadata{
+			ID:   uuid.NewString(),
+			Time: time.Date(2025, 2, 5, 0, 0, 0, 0, time.UTC),
+			Type: events.DatabaseSessionQueryEvent,
+		},
+		DatabaseQuery: strings.Repeat("aaaaa", events.MaxEventBytesInResponse),
+	}
+	bigTrimmedEvent := bigTrimmableEvent.TrimToMaxSize(events.MaxEventBytesInResponse)
+
+	// have a deterministic session ID (UID) when used in test cases
+	// expect responses to return key of the next event to process, not the last event processed (sub-page break logic)
+	keyUntrimmable := mustEventToKey(t, bigUntrimmableEvent)
+	keyTrimmable := mustEventToKey(t, bigTrimmableEvent)
+
+	tests := []struct {
+		name          string
+		limit         int32
+		mockResponses map[EventKey]mockResponse
+		wantEvents    []apievents.AuditEvent
+		wantKey       string
+	}{
+		{
+			name:  "no data returned from query, return empty results",
+			limit: 10,
+		},
+		{
+			name:  "events with big untrimmable event exceeding > MaxEventBytesInResponse",
+			limit: 10,
+			mockResponses: map[EventKey]mockResponse{
+				{}: {
+					events: []apievents.AuditEvent{event1, event2, event3, bigUntrimmableEvent},
+				},
+			},
+			// we don't expect bigUntrimmableEvent because it should go to next batch
+			wantEvents: []apievents.AuditEvent{event1, event2, event3},
+			wantKey:    keyUntrimmable,
+		},
+		{
+			name:  "only 1 big untrimmable event",
+			limit: 10,
+			mockResponses: map[EventKey]mockResponse{
+				{}: {
+					events: []apievents.AuditEvent{bigUntrimmableEvent},
+				},
+			},
+			// we still want to receive the untrimmable event
+			wantEvents: []apievents.AuditEvent{bigUntrimmableEvent},
+		},
+		{
+			name:  "events with big trimmable event exceeding > MaxEventBytesInResponse",
+			limit: 10,
+			mockResponses: map[EventKey]mockResponse{
+				{}: {
+					events: []apievents.AuditEvent{event1, event2, event3, bigTrimmableEvent},
+				},
+			},
+			// we don't expect bigTrimmableEvent because it should go to next batch
+			wantEvents: []apievents.AuditEvent{event1, event2, event3},
+			wantKey:    keyTrimmable,
+		},
+		{
+			name:  "only 1 big trimmable event",
+			limit: 10,
+			mockResponses: map[EventKey]mockResponse{
+				{}: {
+					events: []apievents.AuditEvent{bigTrimmableEvent},
+				},
+			},
+			wantEvents: []apievents.AuditEvent{bigTrimmedEvent},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mock := &mockQuery{
+				responses: test.mockResponses,
+			}
+
+			ef := eventsFetcher{
+				log:        slog.Default(),
+				api:        mock,
+				dates:      []string{"2025-02-05"},
+				fromUTC:    time.Date(2025, 2, 5, 0, 0, 0, 0, time.UTC),
+				toUTC:      time.Date(2025, 2, 6, 0, 0, 0, 0, time.UTC),
+				checkpoint: &checkpointKey{},
+				left:       test.limit,
+				filter:     searchEventsFilter{},
+				foundStart: true,
+				hasLeft:    true,
+			}
+
+			gotRawEvents, err := ef.QueryByDateIndex(t.Context(), getExprFilter(ef.filter))
+			require.NoError(t, err)
+
+			if test.wantKey != "" {
+				require.Equal(t, test.wantKey, ef.checkpoint.EventKey)
+			}
+
+			got := make([]events.EventFields, 0, len(gotRawEvents))
+			for _, rawEvent := range gotRawEvents {
+				got = append(got, rawEvent.FieldsMap)
+			}
+
+			want := make([]events.EventFields, 0, len(test.wantEvents))
+			for _, event := range test.wantEvents {
+				fields, err := events.ToEventFields(event)
+				require.NoError(t, err)
+				want = append(want, fields)
+			}
+
+			require.Empty(t, cmp.Diff(want, got, cmpopts.EquateEmpty()))
+		})
+	}
+}
+
+type mockQuery struct {
+	responses map[EventKey]mockResponse
+}
+
+type mockResponse struct {
+	events []apievents.AuditEvent
+}
+
+// Query is a simple mock implementation that does not distinguish queries by date.
+func (m *mockQuery) Query(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+	if m.responses == nil {
+		return &dynamodb.QueryOutput{}, nil
+	}
+
+	var currentKey EventKey
+	if params.ExclusiveStartKey != nil {
+		if err := attributevalue.UnmarshalMap(params.ExclusiveStartKey, &currentKey); err != nil {
+			return nil, err
+		}
+	}
+
+	response, ok := m.responses[currentKey]
+	if !ok {
+		return nil, trace.Errorf("return parameter not defined in mockQuery")
+	}
+
+	items, err := eventsToItems(response.events)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dynamodb.QueryOutput{
+		Items: items,
+	}, nil
+}
+
+func eventsToItems(in []apievents.AuditEvent) ([]map[string]dynamodbtypes.AttributeValue, error) {
+	items := make([]map[string]dynamodbtypes.AttributeValue, 0, len(in))
+	for _, e := range in {
+		fieldsMap, err := events.ToEventFields(e)
+		if err != nil {
+			return nil, err
+		}
+
+		event := event{
+			EventKey: EventKey{
+				SessionID:     e.GetID(), // to make testing deterministic, use ID
+				EventIndex:    e.GetIndex(),
+				CreatedAt:     e.GetTime().Unix(),
+				CreatedAtDate: e.GetTime().Format(iso8601DateFormat),
+			},
+			EventType:      e.GetType(),
+			EventNamespace: apidefaults.Namespace,
+			FieldsMap:      fieldsMap,
+		}
+		item, err := attributevalue.MarshalMap(event)
+		if err != nil {
+			return nil, err
+		}
+
+		items = append(items, item)
+	}
+
+	return items, nil
+}
+
+func mustEventToKey(t *testing.T, e apievents.AuditEvent) string {
+	fieldsMap, err := events.ToEventFields(e)
+	require.NoError(t, err)
+
+	event := event{
+		EventKey: EventKey{
+			SessionID:     e.GetID(), // to make testing deterministic, use ID
+			EventIndex:    e.GetIndex(),
+			CreatedAt:     e.GetTime().Unix(),
+			CreatedAtDate: e.GetTime().Format(iso8601DateFormat),
+		},
+		EventType:      e.GetType(),
+		EventNamespace: apidefaults.Namespace,
+		FieldsMap:      fieldsMap,
+	}
+
+	key, err := getSubPageCheckpoint(&event)
+	require.NoError(t, err)
+
+	return key
 }
