@@ -211,7 +211,6 @@ const cfg = {
     kubeExec: '/web/cluster/:clusterId/console/kube/exec/:kubeId/',
     kubeExecSession: '/web/cluster/:clusterId/console/kube/session/:sid',
     dbConnect: '/web/cluster/:clusterId/console/db/connect/:serviceName',
-    dbSession: '/web/cluster/:clusterId/console/db/session/:sid',
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
     login: '/web/login',
     loginSuccess: '/web/msg/info/login_success',
@@ -989,10 +988,6 @@ const cfg = {
 
   getDbConnectRoute(params: UrlDbConnectParams) {
     return generatePath(cfg.routes.dbConnect, { ...params });
-  },
-
-  getDbSessionRoute({ clusterId, sid }: UrlParams) {
-    return generatePath(cfg.routes.dbSession, { clusterId, sid });
   },
 
   getKubeExecSessionRoute(
