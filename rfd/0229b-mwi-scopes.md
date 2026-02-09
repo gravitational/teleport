@@ -308,6 +308,16 @@ Potential mitigations:
   - This would be very unlike the rest of the way Teleport behaves and presents
     a significant UX challenge.
 
+Notably, this risk is introduced due to how role assignment works in classic
+RBAC vs scoped RBAC. In classic RBAC, role assignments are made as part of the
+definition of the bot itself. In scoped RBAC, role assignments are separate
+resources that reference the bot.
+
+This risk is a good argument for considering namespaces within the designed of
+Scoped RBAC (and Scoped MWI by extension). Whilst this is not currently the
+case, there are ongoing discussions about whether namespacing should be added
+to scopes.
+
 ##### Direction
 
 Whilst it seems clear that there are use-cases that require bots to have
