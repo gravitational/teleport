@@ -347,7 +347,14 @@ export class TdpClient extends EventEmitter<EventMap> {
       wasmLogLevel = LogType.TRACE;
     }
 
-    await init({ module_or_path: wasmUrl });
+    // Convert the inlined (base64) WASM to a raw buffer. The init function will
+    // load this directly which plays nicely with our current Content Security Policy.
+    const wasmBytes = Uint8Array.from(
+      atob(wasmUrl.slice(wasmUrl.indexOf(',') + 1)),
+      c => c.charCodeAt(0)
+    );
+
+    await init({ module_or_path: wasmBytes });
     init_wasm_log(wasmLogLevel);
   }
 
