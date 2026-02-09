@@ -337,6 +337,8 @@ func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *prot
 	}
 	endKey := backend.RangeEnd(backend.ExactKey(accessRequestsPrefix))
 
+	now := time.Now()
+	expired := 0
 	for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
 		StartKey: startKey,
 		EndKey:   endKey,
@@ -360,6 +362,12 @@ func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *prot
 			continue
 		}
 
+		if !req.IncludeExpired {
+			if !accessRequest.Expiry().IsZero() && now.After(accessRequest.Expiry()) {
+				expired++
+				continue
+			}
+		}
 		if !req.Filter.Match(accessRequest) {
 			continue
 		}
@@ -370,6 +378,9 @@ func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *prot
 		}
 
 		rsp.AccessRequests = append(rsp.AccessRequests, accessRequest)
+	}
+	if expired > 5000 {
+		slog.WarnContext(ctx, "More than 5k expired access requests in the backend. Is the expiry service working?", "count", expired)
 	}
 
 	return &rsp, nil
