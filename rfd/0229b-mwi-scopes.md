@@ -171,6 +171,8 @@ using the Scoped Join Token. To do so, they must configure:
 
 ### `tbot`
 
+
+
 ## Security Considerations
 
 ## Appendix A: Decisions & Thinking
@@ -427,6 +429,18 @@ gain root access to a machine, then they will be able to extract the bot's
 internal credentials and use these to issue credentials without this
 sub-pinning. This is an important consideration for those who would use this
 feature.
+
+From a user's perspective, they would specify the scope when configuring an 
+output service within `tbot`:
+
+```yaml
+services:
+- type: identity
+  scope: /foo/bar
+  destination:
+    type: directory
+    path: /opt/machine-id
+```
 
 The implementation of this would take the following form:
 
