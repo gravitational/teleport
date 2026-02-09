@@ -29,6 +29,8 @@ import (
 	events2 "github.com/gravitational/teleport/lib/events"
 )
 
+// comment to trigger workflow
+
 // GetEventSchemaFromType takes an event type, looks up the corresponding
 // protobuf message, and returns the message schema.
 func GetEventSchemaFromType(eventType string) (*Event, error) {
