@@ -715,7 +715,7 @@ func TestStartKeyBackCompat(t *testing.T) {
 // same event over and over.
 func TestCursorIteratorPrecision(t *testing.T) {
 	tt := setupDynamoContext(t)
-	clock, ok := tt.log.Clock.(clockwork.FakeClock)
+	clock, ok := tt.log.Clock.(*clockwork.FakeClock)
 	require.True(t, ok, "this test requires a FakeClock")
 	baseTime := clock.Now().UTC()
 
