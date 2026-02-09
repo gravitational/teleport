@@ -98,8 +98,8 @@ during the migration.
 |[`openssh`](#openssh)|OpenSSH servers enrolled in your Teleport cluster.|
 |[`jwt`](#jwt)|Teleport users accessing web applications.|
 |[`saml_idp`](#saml_idp)|The Teleport SAML IdP.|
-|[`spiffe`](#spiffe)|Workload Identity (SPIFFE) clients.|
 |[`oidc_idp`](#oidc_idp)|The Teleport OIDC IdP integration.|
+|[`spiffe`](#spiffe)|Workload Identity (SPIFFE) clients.|
 |[`awsra`](#awsra)|The Teleport AWS IAM Roles Anywhere integration.|
 |[`bound_keypair`](#bound_keypair)|Bound Keypair JWT verification.|
 
@@ -332,6 +332,28 @@ the Teleport `saml_idp` CA. Follow the instructions in the
 [SAML IdP documentation](../../../identity-governance/idps/saml-guide.mdx) to export an
 XML metadata file and make it available to your service provider.
 
+### `oidc_idp`
+
+The `oidc_idp` CA signs messages sent by the Teleport OIDC IdP integration.
+Relying parties (e.g., AWS) verify these messages to authenticate your Teleport
+account for features like External Audit Storage, Auto-Discovery, and AWS Sync
+for Access Graph.
+
+The Teleport Proxy Service serves the JSON Web Key Sets for the OIDC IdP
+integration from the `/.well-known/jwks-oidc` path of the Web API.
+
+The `/.well-known/jwks-oidc` path of the Teleport Proxy Service Web API is
+always enabled. The Teleport Proxy Service updates the endpoint automatically.
+
+You can retrieve the full URL of the integration's JSON Web Key Sets by querying
+the `/.well-known/openid-configuration` path of the Web UI and reading the
+`jwks_uri` field:
+
+```code
+$ curl https://example.teleport.sh/.well-known/openid-configuration | jq '.jwks_uri'
+"https://example.teleport.sh/.well-known-jwks-oidc"
+```
+
 ### `spiffe`
 
 The `spiffe` CA signs X509 and JWT SVIDs for Workload Identity clients, often so
@@ -358,28 +380,6 @@ CA:
   ```code
   $ curl https://example.teleport.sh/webapi/spiffe/bundle.json | jq '.spiffe_refresh_hint'
   ```
-
-### `oidc_idp`
-
-The `oidc_idp` CA signs messages sent by the Teleport OIDC IdP integration.
-Relying parties (e.g., AWS) verify these messages to authenticate your Teleport
-account for features like External Audit Storage, Auto-Discovery, and AWS Sync
-for Access Graph.
-
-The Teleport Proxy Service serves the JSON Web Key Sets for the OIDC IdP
-integration from the `/.well-known/jwks-oidc` path of the Web API.
-
-The `/.well-known/jwks-oidc` path of the Teleport Proxy Service Web API is
-always enabled. The Teleport Proxy Service updates the endpoint automatically.
-
-You can retrieve the full URL of the integration's JSON Web Key Sets by querying
-the `/.well-known/openid-configuration` path of the Web UI and reading the
-`jwks_uri` field:
-
-```code
-$ curl https://example.teleport.sh/.well-known/openid-configuration | jq '.jwks_uri'
-"https://example.teleport.sh/.well-known-jwks-oidc"
-```
 
 ### `awsra`
 
