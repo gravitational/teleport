@@ -156,7 +156,7 @@ func setupExpiryService(t *testing.T) (*Service, *auth.Server, *eventstest.MockR
 	expiry, err := New(&Config{
 		Log:         logger,
 		Emitter:     emitter,
-		AccessPoint: authServer.AuthServer.Services,
+		AccessPoint: authServer.AuthServer,
 	})
 	require.NoError(t, err)
 
@@ -181,7 +181,9 @@ func mustListAccessRequests(t *testing.T, ap AccessPoint) []*types.AccessRequest
 	t.Helper()
 	ctx := t.Context()
 
-	resp, err := ap.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{})
+	resp, err := ap.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{
+		IncludeExpired: true,
+	})
 	require.NoError(t, err)
 	require.Empty(t, resp.NextKey)
 

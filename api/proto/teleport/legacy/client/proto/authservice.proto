@@ -2862,8 +2862,13 @@ message ListAccessRequestsRequest {
 
   // StartKey is used to resume a query in order to enable pagination.
   // If the previous response had NextKey set then this should be
-  // set to its value. Otherwise leave empty.
+  // set to its value. Should be empty on the first request.
   string StartKey = 5;
+
+  // IncludeExpired determines if the response should contain access requests that are expired.
+  // From the end user's perspective expired access requests should be hidden but some components
+  // especially the expiry service may want to have them included in the resposne.
+  bool IncludeExpired = 6;
 }
 
 // ListAccessRequestsResponse is a page of access requests.

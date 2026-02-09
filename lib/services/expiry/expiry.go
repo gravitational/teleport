@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/interval"
@@ -72,9 +71,7 @@ type Config struct {
 	Log *slog.Logger
 	// Emitter is an events emitter, used to submit discrete events.
 	Emitter apievents.Emitter
-	// AccessPoint provides backend operations. Must not be a cache. The cache skips
-	// expired access requests which are essential for the expiry service to be listed. See
-	// https://github.com/gravitational/teleport/pull/40858.
+	// AccessPoint provides backend operations.
 	AccessPoint AccessPoint
 	// HostID is a unique ID of this host.
 	HostID string
@@ -87,11 +84,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("no AccessPoint configured for expiry")
-	}
-	if _, ok := c.AccessPoint.(*auth.Server); ok {
-		// *auth.Server.ListAccessRequests is cached.
-		// auth.Server.Services should be wired instead.
-		return trace.BadParameter("expiry service AccessPoint must not be a cache")
 	}
 	return nil
 }
@@ -191,8 +183,16 @@ func (s *Service) loop(ctx context.Context, intervalCfg interval.Config) error {
 		}
 	}
 }
-func (s *Service) processRequests(ctx context.Context) error {
+func (s *Service) processRequests(ctx context.Context) (err error) {
 	requestsExpired := 0
+
+	s.Log.DebugContext(ctx, "Cleaning up expired access requests.")
+	defer func() {
+		if err == nil {
+			s.Log.DebugContext(ctx, "Successfully cleaned up expired access requests.", "count", requestsExpired)
+		}
+	}()
+
 	nextPageToken := ""
 	for {
 		var page []*types.AccessRequestV3
@@ -230,9 +230,10 @@ func (s *Service) processRequests(ctx context.Context) error {
 
 func (s *Service) getNextPageOfAccessRequests(ctx context.Context, startKey string) ([]*types.AccessRequestV3, string, error) {
 	req := &proto.ListAccessRequestsRequest{
-		Sort:     proto.AccessRequestSort_DEFAULT,
-		Limit:    accessRequestPageLimit,
-		StartKey: startKey,
+		Sort:           proto.AccessRequestSort_DEFAULT,
+		Limit:          accessRequestPageLimit,
+		StartKey:       startKey,
+		IncludeExpired: true,
 	}
 	resp, err := s.AccessPoint.ListAccessRequests(ctx, req)
 	if err != nil {
