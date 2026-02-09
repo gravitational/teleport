@@ -130,7 +130,7 @@ func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
 
 	wantedChallenge := &mfav1.ValidatedMFAChallenge{
 		Kind:    types.KindValidatedMFAChallenge,
-		Version: "v1",
+		Version: types.V1,
 		Metadata: &types.Metadata{
 			Name: challengeResp.GetMfaChallenge().GetName(),
 		},
@@ -253,7 +253,7 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 
 	wantedChallenge := &mfav1.ValidatedMFAChallenge{
 		Kind:    types.KindValidatedMFAChallenge,
-		Version: "v1",
+		Version: types.V1,
 		Metadata: &types.Metadata{
 			Name: challengeResp.GetMfaChallenge().GetName(),
 		},
@@ -750,7 +750,7 @@ func TestReplicateValidatedMFAChallenge_Success(t *testing.T) {
 	wantedResp := &mfav1.ReplicateValidatedMFAChallengeResponse{
 		ReplicatedChallenge: &mfav1.ValidatedMFAChallenge{
 			Kind:    types.KindValidatedMFAChallenge,
-			Version: "v1",
+			Version: types.V1,
 			Metadata: &types.Metadata{
 				Name: chalName,
 			},
@@ -931,7 +931,7 @@ func TestVerifyValidatedMFAChallenge_Success(t *testing.T) {
 
 	chal := &mfav1.ValidatedMFAChallenge{
 		Kind:    types.KindValidatedMFAChallenge,
-		Version: "v1",
+		Version: types.V1,
 		Metadata: &types.Metadata{
 			Name: chalName,
 		},
@@ -966,7 +966,7 @@ func TestVerifyValidatedMFAChallenge_PayloadMismatch(t *testing.T) {
 
 	chal := &mfav1.ValidatedMFAChallenge{
 		Kind:    types.KindValidatedMFAChallenge,
-		Version: "v1",
+		Version: types.V1,
 		Metadata: &types.Metadata{
 			Name: chalName,
 		},
@@ -1014,7 +1014,7 @@ func TestVerifyValidatedMFAChallenge_SourceClusterMismatch(t *testing.T) {
 
 	chal := &mfav1.ValidatedMFAChallenge{
 		Kind:    types.KindValidatedMFAChallenge,
-		Version: "v1",
+		Version: types.V1,
 		Metadata: &types.Metadata{
 			Name: chalName,
 		},
@@ -1171,7 +1171,7 @@ func TestVerifyValidatedMFAChallenge_WebauthnFailedStorage(t *testing.T) {
 
 	chal := &mfav1.ValidatedMFAChallenge{
 		Kind:    types.KindValidatedMFAChallenge,
-		Version: "v1",
+		Version: types.V1,
 		Metadata: &types.Metadata{
 			Name: chalName,
 		},

@@ -357,7 +357,7 @@ func (s *Service) ValidateSessionChallenge(
 		username,
 		&mfav1.ValidatedMFAChallenge{
 			Kind:    types.KindValidatedMFAChallenge,
-			Version: "v1",
+			Version: types.V1,
 			Metadata: &types.Metadata{
 				Name: req.GetMfaResponse().GetName(),
 			},
@@ -419,7 +419,7 @@ func (s *Service) ReplicateValidatedMFAChallenge(
 
 	chal := &mfav1.ValidatedMFAChallenge{
 		Kind:    types.KindValidatedMFAChallenge,
-		Version: "v1",
+		Version: types.V1,
 		Metadata: &types.Metadata{
 			Name: req.GetName(),
 		},
