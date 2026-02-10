@@ -207,9 +207,9 @@ between scopes. This introduces a significant risk of privilege escalation
 or compromise of scope isolation if not handled correctly.
 
 To mitigate this risk, we will not permit updates or upserts that change the 
-`scope` field of an existing Bot. This will be rejected with a PermissionDenied.
-At a future date, we may consider allowing these transitions if a use-case
-arises.
+`scope` field of an existing Bot within the initial iteration. This will be
+rejected with a PermissionDenied error. In a future iteration, we may consider 
+relaxing this restriction with additional controls.
 
 wip wip wip.
 
