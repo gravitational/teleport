@@ -303,6 +303,15 @@ fields:
 
 ## Security Considerations
 
+The prime security consideration throughout this design and implementation is
+ensuring that the isolation guarantees provided by scopes cannot be circumvented
+through the use of scoped Bots. That is, that an individual with administrative
+privileges within a scope, cannot leverage scoped Bots to gain access to
+resources outside of that scope.
+
+wip: summarize all controls in place, and where those controls are defence in 
+depth or accounting for different attack vectors.
+
 ## Appendix A: Decisions & Thinking
 
 This section exists as a record of my thinking whilst researching and writing 
