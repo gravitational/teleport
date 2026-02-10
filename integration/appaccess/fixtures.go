@@ -510,7 +510,7 @@ func (j *jwksIssuer) createJwt(t *testing.T, audience, email string, issuedAt ti
 }
 
 func newJwksIssuer(t *testing.T) *jwksIssuer {
-	kid := "kid-example"
+	const kid = "kid-example"
 	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 

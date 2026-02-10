@@ -284,7 +284,7 @@ func (h *Handler) BindMCPEndpoints(router *httprouter.Router, limiter func(httpl
 
 		},
 		func(app types.Application) bool {
-			return app.IsMCP()
+			return app.IsMCP() && types.GetMCPServerTransportType(app.GetURI()) == types.MCPTransportHTTP
 		},
 	))
 

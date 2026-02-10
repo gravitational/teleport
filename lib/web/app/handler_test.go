@@ -525,6 +525,9 @@ func makeMCPClient(t *testing.T, testServer *httptest.Server, endpoint string, h
 
 	client := mcpclient.NewClient(mcpClientTransport)
 	require.NoError(t, client.Start(ctx))
+	t.Cleanup(func() {
+		_ = client.Close()
+	})
 
 	return client
 }
@@ -1203,7 +1206,7 @@ func startFakeMCPServerOnCluster(t *testing.T, clusterName string, accessPoint a
 	tlsCert, err := tls.X509KeyPair(cert, key)
 	require.NoError(t, err)
 
-	sseServer := mcpserver.NewStreamableHTTPServer(mcptest.NewServer())
+	httpServer := mcpserver.NewStreamableHTTPServer(mcptest.NewServer())
 	fakeCluster := reversetunnelclient.NewFakeCluster(clusterName, accessPoint)
 	streamableHTTPServer := &httptest.Server{
 		TLS: &tls.Config{
@@ -1212,7 +1215,7 @@ func startFakeMCPServerOnCluster(t *testing.T, clusterName string, accessPoint a
 		Listener: &fakeClusterListener{
 			fakeCluster: fakeCluster,
 		},
-		Config: &http.Server{Handler: sseServer},
+		Config: &http.Server{Handler: httpServer},
 	}
 	streamableHTTPServer.StartTLS()
 	t.Cleanup(func() {
@@ -1238,7 +1241,7 @@ func createMCPServer(t *testing.T, name string, labels map[string]string) types.
 func createAppServerWithApp(t *testing.T, app *types.AppV3) types.AppServer {
 	t.Helper()
 	appServer, err := types.NewAppServerV3(
-		types.Metadata{Name: uuid.New().String()},
+		types.Metadata{Name: app.GetName()},
 		types.AppServerSpecV3{
 			HostID: uuid.New().String(),
 			App:    app,
