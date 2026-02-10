@@ -979,10 +979,33 @@ func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTas
 	return existingTasks
 }
 
+type fakeAccessPointWithWatcher struct {
+	authclient.DiscoveryAccessPoint
+
+	discoveryConfigWatcherMu sync.RWMutex
+	discoveryConfigWatcher   types.Watcher
+}
+
+func (f *fakeAccessPointWithWatcher) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	watcher, err := f.DiscoveryAccessPoint.NewWatcher(ctx, watch)
+
+	f.discoveryConfigWatcherMu.Lock()
+	defer f.discoveryConfigWatcherMu.Unlock()
+	f.discoveryConfigWatcher = watcher
+
+	return watcher, err
+}
+
+func (f *fakeAccessPointWithWatcher) closeDiscoveryConfigWatcher() error {
+	f.discoveryConfigWatcherMu.Lock()
+	defer f.discoveryConfigWatcherMu.Unlock()
+	return f.discoveryConfigWatcher.Close()
+}
+
 // This test exercises the dynamic matcher watcher and ensures that if there's a failure in the watcher,
 // it restarts and continues to pick up new Discovery Configs matchers.
 func TestDiscoveryServer_dynamicMatcherRestart(t *testing.T) {
-	fakeClock := clockwork.NewFakeClock()
+	fakeClock := clockwork.NewRealClock()
 
 	// Create and start test auth server.
 	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
@@ -1002,61 +1025,64 @@ func TestDiscoveryServer_dynamicMatcherRestart(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
 
-	// Start discovery server
-	server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
-		ClusterFeatures: func() proto.Features { return proto.Features{} },
-		AccessPoint:     getDiscoveryAccessPointWithEKSEnroller(tlsServer.Auth(), authClient, authClient.IntegrationAWSOIDCClient()),
-		Matchers:        Matchers{},
-		Emitter:         authClient,
-		Log:             logtest.NewLogger(),
-		DiscoveryGroup:  "discovery-group",
-		clock:           fakeClock,
+	accessPoint := &fakeAccessPointWithWatcher{
+		DiscoveryAccessPoint: getDiscoveryAccessPointWithEKSEnroller(tlsServer.Auth(), authClient, authClient.IntegrationAWSOIDCClient()),
+	}
+
+	synctest.Test(t, func(t *testing.T) {
+		// Start discovery server
+		server, err := New(t.Context(), &Config{
+			ClusterFeatures: func() proto.Features { return proto.Features{} },
+			AccessPoint:     accessPoint,
+			Matchers:        Matchers{},
+			Emitter:         authClient,
+			Log:             logtest.NewLogger(),
+			DiscoveryGroup:  "discovery-group",
+			clock:           fakeClock,
+		})
+		require.NoError(t, err)
+
+		go server.Start()
+		t.Cleanup(server.Stop)
+
+		// 1. Send a new Discovery Config and ensure it gets loaded into the dynamic matchers.
+		discoveryConfigA, err := discoveryconfig.NewDiscoveryConfig(
+			header.Metadata{Name: "dc-a"},
+			discoveryconfig.Spec{
+				DiscoveryGroup: "discovery-group",
+			},
+		)
+		require.NoError(t, err)
+		_, err = tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(t.Context(), discoveryConfigA)
+		require.NoError(t, err)
+
+		synctest.Wait()
+		server.dynamicDiscoveryConfigMu.RLock()
+		require.Len(t, server.dynamicDiscoveryConfig, 1)
+		server.dynamicDiscoveryConfigMu.RUnlock()
+
+		// 2. Break the watcher
+		require.NoError(t, accessPoint.closeDiscoveryConfigWatcher())
+
+		// 3. Send a new Discovery Config and ensure it gets loaded into the dynamic matchers. In this case it will require the watcher to have restarted.
+		discoveryConfigB, err := discoveryconfig.NewDiscoveryConfig(
+			header.Metadata{Name: "dc-b"},
+			discoveryconfig.Spec{
+				DiscoveryGroup: "discovery-group",
+			},
+		)
+		require.NoError(t, err)
+		_, err = tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(t.Context(), discoveryConfigB)
+		require.NoError(t, err)
+
+		// The Watcher only restarts after 1m, so we need to wait for at least that time before checking if the new Discovery Config has been picked up.
+		time.Sleep(1*time.Minute + 10*time.Second)
+
+		synctest.Wait()
+		server.dynamicDiscoveryConfigMu.RLock()
+		require.Len(t, server.dynamicDiscoveryConfig, 2)
+		server.dynamicDiscoveryConfigMu.RUnlock()
 	})
-	require.NoError(t, err)
-
-	go server.Start()
-	t.Cleanup(server.Stop)
-
-	// 1. Send a new Discovery Config and ensure it gets loaded into the dynamic matchers.
-	discoveryConfigA, err := discoveryconfig.NewDiscoveryConfig(
-		header.Metadata{Name: "dc-a"},
-		discoveryconfig.Spec{
-			DiscoveryGroup: "discovery-group",
-		},
-	)
-	require.NoError(t, err)
-	_, err = tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(t.Context(), discoveryConfigA)
-	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		server.dynamicDiscoveryConfigMu.RLock()
-		defer server.dynamicDiscoveryConfigMu.RUnlock()
-		return len(server.dynamicDiscoveryConfig) == 1
-	}, 5*time.Second, 50*time.Millisecond)
-
-	// 2. Break the watcher
-	server.dynamicDiscoveryConfigMu.Lock()
-	server.dynamicMatcherWatcher.Close()
-	server.dynamicDiscoveryConfigMu.Unlock()
-
-	// 3. Send a new Discovery Config and ensure it gets loaded into the dynamic matchers. In this case it will require the watcher to have restarted.
-	discoveryConfigB, err := discoveryconfig.NewDiscoveryConfig(
-		header.Metadata{Name: "dc-b"},
-		discoveryconfig.Spec{
-			DiscoveryGroup: "discovery-group",
-		},
-	)
-	require.NoError(t, err)
-	_, err = tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(t.Context(), discoveryConfigB)
-	require.NoError(t, err)
-
-	// DynamicMatcher watcher waits 1 minute before restarting, but in tests we can speed this up by advancing the fake clock.
-	fakeClock.Advance(2 * time.Minute)
-
-	require.Eventually(t, func() bool {
-		server.dynamicDiscoveryConfigMu.RLock()
-		defer server.dynamicDiscoveryConfigMu.RUnlock()
-		return len(server.dynamicDiscoveryConfig) == 2
-	}, 5*time.Second, 50*time.Millisecond)
 }
 
 func TestDiscoveryServerConcurrency(t *testing.T) {
