@@ -305,8 +305,8 @@ fields:
 
 The prime security consideration throughout this design and implementation is
 ensuring that the isolation guarantees provided by scopes cannot be circumvented
-through the use of scoped Bots. That is, that an individual with administrative
-privileges within a scope, cannot leverage scoped Bots to gain access to
+through the use of scoped MWI. That is, that an individual with administrative
+privileges within a scope, cannot leverage scoped MWI to gain access to
 resources outside of that scope.
 
 wip: summarize all controls in place, and where those controls are defence in 
