@@ -1515,6 +1515,7 @@ type ClientI interface {
 	services.HealthCheckConfig
 	types.Events
 	services.ScopedAccessClientGetter
+	services.WorkloadClusterService
 
 	types.WebSessionsGetter
 	services.WebToken
