@@ -297,9 +297,19 @@ fields:
 
 ### Certificate Issuance
 
+wip: GenerateUserCerts will need to be modified to ensure certificates issued to
+wip: scoped bots take into account SRAs, and, reject the use of role
+wip: impersonation. There may be hidden complexity here as GenerateUserCerts 
+wip: assumes that a Bot will be leveraging role impersonation for output
+wip: certificates, and, will treat unassumed GenerateUserCerts for Bots as an
+wip: attempt to perform a internal certificate renewal (which is only valid for
+wip: bots using the `token` join method...)
+
 ### `tbot`
 
-
+wip: `tbot`'s mechanism for requesting credentials will need to be aware of its
+wip: scoped status and avoid using role impersonation plus take into account
+wip: any changes in Certificate Issuance.
 
 ## Security Considerations
 
