@@ -183,7 +183,9 @@ func (p *Plugin) newExternalAuditStorageConfigurator(ctx context.Context) (*exte
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	config.SetGenerateOIDCTokenFn(p.authServer.AuthServer.GenerateExternalAuditStorageOIDCToken)
+	if config.IsUsed() {
+		config.SetGenerateOIDCTokenFn(p.authServer.AuthServer.GenerateExternalAuditStorageOIDCToken)
+	}
 	return config, nil
 }
 
