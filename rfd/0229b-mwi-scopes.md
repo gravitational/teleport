@@ -301,17 +301,17 @@ wip, wip, wip
 
 We issue certificates for bot instances via three different paths:
 
-- Upon successful calling of a Join RPC, we issue the Bot's "internal"
+- `tbot` successfully calling of a Join RPC, we issue the Bot's "internal"
   credentials. These "internal" credentials reflect the internal Bot Role rather
   than any roles which are assigned to the Bot.
-- Upon calling the GenerateUserCerts RPC to generate certificates intended for
+- `tbot` calling the GenerateUserCerts RPC to generate certificates intended for
   services/outputs. This RPC is called using the bot's internal credentials and
   the resulting certificate reflects the Bot's assigned roles via the role 
   impersonation mechanism.
-- Special case - renewal for `token` join method bot instances. The
-  GenerateUserCerts RPC is called using the bot's internal credentials with the
-  intent of producing internal credentials that expire at a later time than the
-  current credentials. This triggers a set of special renewal checks.
+- Special case - renewal for `token` join method bot instances. `tbot` calls the
+  GenerateUserCerts RPC using the bot's internal credentials with the intent of
+  producing internal credentials that expire at a later time than the current
+  credentials. This triggers a set of special renewal checks.
 
 Likely, all three of these paths will need to be modified in some way to support
 the scoping of bots. 
