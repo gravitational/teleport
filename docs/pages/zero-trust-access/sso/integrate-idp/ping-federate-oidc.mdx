@@ -1,3 +1,14 @@
+---
+title: Configure PingFederate as an OIDC Provider
+description: How to configure Teleport access using PingFederate as an OIDC Provider
+sidebar_label: PingFederate
+tags:
+ - sso
+ - how-to
+ - zero-trust
+ - privileged-access
+---
+
 # Configure PingFederate OIDC with Teleport
 
 This guide explains how to configure PingFederate as a single sign-on (SSO) identity provider for Teleport using OpenID Connect (OIDC).
@@ -126,13 +137,13 @@ Teleport requires the issuer URL to exactly match the `issuer` value published b
 You can find this value at:
 
 ```
-https://<pingfed-hostname>/pf/.well-known/openid-configuration
+https://<pingfederate-hostname>/pf/.well-known/openid-configuration
 ```
 
 A common issuer format is:
 
 ```
-https://<pingfed-hostname>/as
+https://<pingfederate-hostname>/as
 ```
 
 <Admonition
@@ -184,7 +195,7 @@ tctl create -f developer-role.yaml
 
 ### Step 2: Create the OIDC connector
 
-Create a file named `pingfed-connector.yaml` with the following content:
+Create a file named `pingfederate-connector.yaml` with the following content:
 
 ```yaml
 kind: oidc
@@ -228,7 +239,7 @@ spec:
 Using `tctl`:
 
 ```bash
-tctl create -f pingfed-connector.yaml
+tctl create -f pingfederate-connector.yaml
 ```
 
 Using the Teleport Web UI:
