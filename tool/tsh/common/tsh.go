@@ -1445,6 +1445,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	kubectl := app.Command("kubectl", "Runs a kubectl command on a Kubernetes cluster.").Interspersed(false)
 	// This hack is required in order to accept any args for tsh kubectl.
 	kubectl.Arg("", "").StringsVar(new([]string))
+	kubectl.Flag("namespace", "Kubernetes namespace").Short('n').StringVar(&cf.kubeNamespace)
+	kubectl.Flag("all-namespaces", "List the requested object(s) across all namespaces").Short('A').BoolVar(&cf.kubeAllNamespaces)
+	kubectl.Flag("kubeconfig", "Path to the kubeconfig file").String()
+	kubectl.Flag("context", "The name of the kubeconfig context to use").String()
+	kubectl.Flag("container", "Container name").Short('c').String()
+	kubectl.Flag("filename", "Filename, directory, or URL to files to use").Short('f').String()
+	kubectl.Flag("output", "Output format").String()
+	kubectl.Flag("v", "Log level").Short('v').String()
 	// Kubernetes subcommands.
 	kube := newKubeCommand(app)
 	// MFA subcommands.
