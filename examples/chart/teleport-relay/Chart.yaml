@@ -1,4 +1,4 @@
-.version: &version "19.0.0-dev.updater.5"
+.version: &version "19.0.0-dev.updater.6"
 
 name: teleport-relay
 apiVersion: v2
