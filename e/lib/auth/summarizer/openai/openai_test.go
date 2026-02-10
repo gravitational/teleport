@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
-	summarizererrors "github.com/gravitational/teleport/e/lib/auth/summarizer/errors"
+	summarizererrorstypes "github.com/gravitational/teleport/e/lib/auth/summarizer/errors/types"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
 )
 
@@ -44,7 +44,7 @@ func TestSummarizeCommand(t *testing.T) {
 			name:    "empty response",
 			content: "no choices",
 			assert: func(t *testing.T, resp *schema.CommandAnalysis, err error) {
-				assert.ErrorIs(t, err, summarizererrors.BadResponseError{
+				assert.ErrorIs(t, err, summarizererrorstypes.BadResponseError{
 					Message: "model returned no choices",
 				})
 			},
@@ -62,7 +62,7 @@ func TestSummarizeCommand(t *testing.T) {
 			name:    "bad response",
 			content: "cause an error",
 			assert: func(t *testing.T, resp *schema.CommandAnalysis, err error) {
-				assert.ErrorIs(t, err, summarizererrors.BadResponseError{
+				assert.ErrorIs(t, err, summarizererrorstypes.BadResponseError{
 					Message: "model returned unexpected finish reason: \"content_filter\"",
 				})
 			},

@@ -189,14 +189,15 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 // sessionDetails contains details about the session to be summarized,
 // including any pending summarization result.
 type sessionDetails struct {
-	sessionID    session.ID
-	username     string
-	loginName    string
-	resourceName string
-	kind         types.SessionKind
-	summary      *summarizerv1pb.Summary
-	provider     InferenceProvider
-	sessionEnd   apievents.AuditEvent
+	sessionID       session.ID
+	username        string
+	loginName       string
+	resourceName    string
+	kind            types.SessionKind
+	summary         *summarizerv1pb.Summary
+	provider        InferenceProvider
+	sessionEnd      apievents.AuditEvent
+	errorFormatFunc func(error) string
 }
 
 // TODO(bl-nero): rename SummarizeSSH to SummarizePTYSession.
@@ -325,12 +326,13 @@ func (s *SessionSummarizer) summarize(ctx context.Context, details sessionDetail
 		return trace.Wrap(err)
 	}
 
-	provider, err := s.newProvider(ctx, policy.Spec.Model)
+	provider, errorFormatter, err := s.newProvider(ctx, policy.Spec.Model)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	details.provider = provider
+	details.errorFormatFunc = errorFormatter
 	details.summary = &summarizerv1pb.Summary{
 		SessionId:          details.sessionID.String(),
 		State:              summarizerv1pb.SummaryState_SUMMARY_STATE_PENDING,
@@ -412,7 +414,7 @@ func (s *SessionSummarizer) summarizeNow(ctx context.Context, details sessionDet
 	if sumErr != nil {
 		sumErr = trace.Wrap(sumErr, "Failed to acquire the concurrency limiter semaphore")
 		result.State = summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR
-		result.ErrorMessage = sumErr.Error()
+		result.ErrorMessage = details.errorFormatFunc(sumErr)
 	} else {
 		metrics.SummarizationsRunning.WithLabelValues(modelName).Inc()
 
@@ -428,7 +430,7 @@ func (s *SessionSummarizer) summarizeNow(ctx context.Context, details sessionDet
 		default:
 			sumErr = trace.BadParameter("unsupported session kind: %v", details.kind)
 			result.State = summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR
-			result.ErrorMessage = sumErr.Error()
+			result.ErrorMessage = details.errorFormatFunc(sumErr)
 		}
 	}
 
@@ -651,17 +653,19 @@ func (s *SessionSummarizer) matchPolicy(
 }
 
 // newProvider creates a new inference provider based on the model name.
-func (s *SessionSummarizer) newProvider(ctx context.Context, modelName string) (InferenceProvider, error) {
+// It also returns a function that can be used to format errors from the provider
+// in a user-friendly way, and an error if the provider could not be created.
+func (s *SessionSummarizer) newProvider(ctx context.Context, modelName string) (InferenceProvider, func(error) string, error) {
 	model, err := s.backend.GetInferenceModel(ctx, modelName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	switch providerCfg := model.Spec.Provider.(type) {
 	case *summarizerv1pb.InferenceModelSpec_Openai:
 		apiKey, err := s.backend.GetInferenceSecret(ctx, providerCfg.Openai.GetApiKeySecretRef())
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 
 		p, err := openai.NewProvider(ctx, openai.ProviderConfig{
@@ -671,13 +675,15 @@ func (s *SessionSummarizer) newProvider(ctx context.Context, modelName string) (
 			ClientFactory:     s.openAIClientFactory,
 			ModelResourceName: modelName,
 		})
-		return p, trace.Wrap(err)
+		return p, func(err error) string {
+			return openai.FormatError(err, providerCfg.Openai)
+		}, trace.Wrap(err)
 
 	case *summarizerv1pb.InferenceModelSpec_Bedrock:
 		if !s.enableBedrockWithoutRestrictions &&
 			modelName != apisummarizer.CloudDefaultInferenceModelName &&
 			model.GetSpec().GetBedrock().GetIntegration() == "" {
-			return nil, trace.AccessDenied(
+			return nil, nil, trace.AccessDenied(
 				"only the default model is allowed to use Amazon Bedrock without OIDC in Teleport Cloud",
 			)
 		}
@@ -685,14 +691,14 @@ func (s *SessionSummarizer) newProvider(ctx context.Context, modelName string) (
 		bedrockCfg := proto.CloneOf(providerCfg.Bedrock) // Protect from modifying function arguments
 		if strings.ReplaceAll(bedrockCfg.BedrockModelId, " ", "") == apisummarizer.BedrockModelExpansionPlaceholder {
 			if s.envBedrockModelID == "" {
-				return nil, trace.BadParameter("bedrock_model_id cannot be empty. Please set the TELEPORT_BEDROCK_MODEL environment variable")
+				return nil, nil, trace.BadParameter("bedrock_model_id cannot be empty. Please set the TELEPORT_BEDROCK_MODEL environment variable")
 			}
 			bedrockCfg.BedrockModelId = s.envBedrockModelID
 		}
 
 		if strings.ReplaceAll(bedrockCfg.Region, " ", "") == apisummarizer.BedrockRegionExpansionPlaceholder {
 			if s.envBedrockRegion == "" {
-				return nil, trace.BadParameter("region cannot be empty. Please set the TELEPORT_BEDROCK_REGION environment variable")
+				return nil, nil, trace.BadParameter("region cannot be empty. Please set the TELEPORT_BEDROCK_REGION environment variable")
 			}
 			bedrockCfg.Region = s.envBedrockRegion
 		}
@@ -704,9 +710,11 @@ func (s *SessionSummarizer) newProvider(ctx context.Context, modelName string) (
 			ModelResourceName: modelName,
 			AWSConfigCache:    s.awsConfigCache,
 		})
-		return p, trace.Wrap(err)
+		return p, func(err error) string {
+			return bedrock.FormatError(err, providerCfg.Bedrock)
+		}, trace.Wrap(err)
 	default:
-		return nil, trace.BadParameter("unsupported provider type: %T", model.Spec.Provider)
+		return nil, nil, trace.BadParameter("unsupported provider type: %T", model.Spec.Provider)
 	}
 }
 

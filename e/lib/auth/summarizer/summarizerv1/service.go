@@ -2,15 +2,11 @@ package summarizerv1
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"strings"
 
-	"github.com/aws/smithy-go"
 	"github.com/gravitational/trace"
-	openailib "github.com/openai/openai-go/v3"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
@@ -21,6 +17,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisummarizer "github.com/gravitational/teleport/api/types/summarizer"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/bedrock"
+	summarizererrors "github.com/gravitational/teleport/e/lib/auth/summarizer/errors"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/openai"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
@@ -961,7 +958,7 @@ func (s *Service) TestInferenceModel(
 	if err != nil {
 		return &pb.TestInferenceModelResponse{
 			Success: false,
-			Message: formatInferenceError(err, req.GetModel()),
+			Message: summarizererrors.FormatInferenceError(err, req.GetModel()),
 		}, nil
 	}
 
@@ -1056,130 +1053,6 @@ func validateTestResources(req *pb.TestInferenceModelRequest) *pb.TestInferenceM
 		}
 	}
 	return nil
-}
-
-// formatInferenceError formats errors from OpenAI and AWS Bedrock providers into user-friendly messages.
-func formatInferenceError(err error, modelSpec *pb.InferenceModelSpec) string {
-	if err == nil {
-		return ""
-	}
-
-	switch providerCfg := modelSpec.Provider.(type) {
-	case *pb.InferenceModelSpec_Openai:
-		return formatOpenAIError(err, providerCfg.Openai)
-	case *pb.InferenceModelSpec_Bedrock:
-		return formatBedrockError(err, providerCfg.Bedrock)
-	default:
-		return fmt.Sprintf("inference request failed: %v", err)
-	}
-}
-
-// formatOpenAIError formats OpenAI API errors into user-friendly messages.
-func formatOpenAIError(err error, provider *pb.OpenAIProvider) string {
-	// Check for OpenAI API errors
-	var openaiErr *openailib.Error
-	if errors.As(err, &openaiErr) {
-		switch openaiErr.Code {
-		case "invalid_api_key":
-			return "Invalid API key provided. Please verify your OpenAI API key is correct."
-		case "insufficient_quota":
-			return "OpenAI API quota exceeded. Please check your usage limits and billing status."
-		case "rate_limit_exceeded":
-			return "OpenAI API rate limit exceeded. Please try again in a few moments."
-		case "model_not_found":
-			return fmt.Sprintf("Model %q not found. Please verify the model ID is correct and accessible with your API key.", provider.GetOpenaiModelId())
-		case "invalid_request_error":
-			return fmt.Sprintf("Invalid request to OpenAI API: %s", openaiErr.Message)
-		case "server_error", "service_unavailable":
-			return "OpenAI API is currently unavailable. Please try again later."
-		default:
-			return fmt.Sprintf("OpenAI API error (%s): %s", openaiErr.Code, openaiErr.Message)
-		}
-	}
-
-	// Check for network/connection errors
-	if errors.Is(err, context.DeadlineExceeded) {
-		return "Request to OpenAI API timed out. Please check your network connection and try again."
-	}
-	if errors.Is(err, context.Canceled) {
-		return "Request to OpenAI API was canceled."
-	}
-
-	// Check for trace errors
-	if trace.IsConnectionProblem(err) {
-		baseURL := provider.GetBaseUrl()
-		if baseURL != "" {
-			return fmt.Sprintf("Failed to connect to OpenAI API at %s. Please verify the base URL is correct and accessible.", baseURL)
-		}
-		return "Failed to connect to OpenAI API. Please check your network connection."
-	}
-	if trace.IsAccessDenied(err) {
-		return "Access denied by OpenAI API. Please verify your API key has the necessary permissions."
-	}
-
-	// Generic error
-	return fmt.Sprintf("Failed to connect to OpenAI API: %v", err)
-}
-
-// formatBedrockError formats AWS Bedrock errors into user-friendly messages.
-func formatBedrockError(err error, provider *pb.BedrockProvider) string {
-	// Check for AWS API errors
-	var smithyErr smithy.APIError
-	if errors.As(err, &smithyErr) {
-		errorCode := smithyErr.ErrorCode()
-		switch errorCode {
-		case "ValidationException":
-			return fmt.Sprintf("Invalid request to Amazon Bedrock: %s", smithyErr.ErrorMessage())
-		case "ResourceNotFoundException":
-			return fmt.Sprintf("Model %q not found in region %s. Please verify the model ID and ensure the model is available in this region.", provider.GetBedrockModelId(), provider.GetRegion())
-		case "AccessDeniedException":
-			integration := provider.GetIntegration()
-			if integration != "" {
-				return fmt.Sprintf("Access denied to Amazon Bedrock. Please verify the integration %q has the necessary IAM permissions to access Bedrock in region %s.", integration, provider.GetRegion())
-			}
-			return fmt.Sprintf("Access denied to Amazon Bedrock. Please verify your AWS credentials have the necessary IAM permissions to access Bedrock in region %s.", provider.GetRegion())
-		case "ThrottlingException":
-			return "Amazon Bedrock API rate limit exceeded. Please try again in a few moments."
-		case "ServiceQuotaExceededException":
-			return "Amazon Bedrock service quota exceeded. Please check your service limits."
-		case "ModelTimeoutException":
-			return "Amazon Bedrock model request timed out. Please try again."
-		case "ModelNotReadyException":
-			return fmt.Sprintf("Model %q is not ready. Please try again in a few moments.", provider.GetBedrockModelId())
-		case "ModelErrorException":
-			return fmt.Sprintf("Amazon Bedrock model error: %s", smithyErr.ErrorMessage())
-		case "InternalServerException", "ServiceUnavailableException":
-			return "Amazon Bedrock service is currently unavailable. Please try again later."
-		default:
-			return fmt.Sprintf("Amazon Bedrock API error (%s): %s", errorCode, smithyErr.ErrorMessage())
-		}
-	}
-
-	// Check for network/connection errors
-	if errors.Is(err, context.DeadlineExceeded) {
-		return fmt.Sprintf("Request to Amazon Bedrock in region %s timed out. Please check your network connection and try again.", provider.GetRegion())
-	}
-	if errors.Is(err, context.Canceled) {
-		return "Request to Amazon Bedrock was canceled."
-	}
-
-	// Check for trace errors
-	if trace.IsConnectionProblem(err) {
-		return fmt.Sprintf("Failed to connect to Amazon Bedrock in region %s. Please verify the region is correct and accessible.", provider.GetRegion())
-	}
-	if trace.IsAccessDenied(err) {
-		integration := provider.GetIntegration()
-		if integration != "" {
-			return fmt.Sprintf("Access denied to Amazon Bedrock. Please verify the integration %q is configured correctly with proper IAM permissions.", integration)
-		}
-		return "Access denied to Amazon Bedrock. Please verify your AWS credentials and IAM permissions."
-	}
-	if trace.IsNotFound(err) {
-		return fmt.Sprintf("Amazon Bedrock model %q not found in region %s.", provider.GetBedrockModelId(), provider.GetRegion())
-	}
-
-	// Generic error
-	return fmt.Sprintf("Failed to connect to Amazon Bedrock: %v", err)
 }
 
 func resourceToSessionKind(resource types.Resource) (string, types.SessionKind) {

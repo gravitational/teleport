@@ -19,7 +19,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
-	summarizererrors "github.com/gravitational/teleport/e/lib/auth/summarizer/errors"
+	summarizererrorstypes "github.com/gravitational/teleport/e/lib/auth/summarizer/errors/types"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/metrics"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
@@ -208,14 +208,15 @@ func (p *InferenceProvider) Summarize(
 				Value: systemPrompt,
 			},
 		},
-		Messages: []bedrocktypes.Message{{
-			Role: bedrocktypes.ConversationRoleUser,
-			Content: []bedrocktypes.ContentBlock{
-				&bedrocktypes.ContentBlockMemberText{
-					Value: string(transcript),
+		Messages: []bedrocktypes.Message{
+			{
+				Role: bedrocktypes.ConversationRoleUser,
+				Content: []bedrocktypes.ContentBlock{
+					&bedrocktypes.ContentBlockMemberText{
+						Value: string(transcript),
+					},
 				},
 			},
-		},
 		},
 	}
 
@@ -248,7 +249,7 @@ func (p *InferenceProvider) SummarizeCommand(ctx context.Context, sessionID sess
 
 	var analysis schema.CommandAnalysis
 	if err := json.Unmarshal([]byte(stripMarkdownCodeBlock(res.result)), &analysis); err != nil {
-		return nil, trace.Wrap(summarizererrors.BadResponseError{
+		return nil, trace.Wrap(summarizererrorstypes.BadResponseError{
 			Message: fmt.Sprintf("failed to unmarshal model response: %v", err),
 		})
 	}
@@ -277,7 +278,7 @@ func (p *InferenceProvider) SummarizeMultipleCommands(ctx context.Context, sessi
 
 	var analysis schema.SessionAnalysis
 	if err := json.Unmarshal([]byte(stripMarkdownCodeBlock(res.result)), &analysis); err != nil {
-		return nil, trace.Wrap(summarizererrors.BadResponseError{
+		return nil, trace.Wrap(summarizererrorstypes.BadResponseError{
 			Message: fmt.Sprintf("failed to unmarshal model response: %v", err),
 		})
 	}
@@ -388,12 +389,12 @@ func (p *InferenceProvider) makeRequest(ctx context.Context, sessionID session.I
 	case bedrocktypes.StopReasonEndTurn:
 		msg, ok := resp.Output.(*bedrocktypes.ConverseOutputMemberMessage)
 		if !ok {
-			return nil, trace.Wrap(summarizererrors.BadResponseError{
+			return nil, trace.Wrap(summarizererrorstypes.BadResponseError{
 				Message: fmt.Sprintf("expected ConverseOutputMemberMessage, got %T", resp.Output),
 			})
 		}
 		if msg == nil {
-			return nil, trace.Wrap(summarizererrors.BadResponseError{
+			return nil, trace.Wrap(summarizererrorstypes.BadResponseError{
 				Message: "model did not return any output message",
 			})
 		}
@@ -406,7 +407,7 @@ func (p *InferenceProvider) makeRequest(ctx context.Context, sessionID session.I
 		}
 
 		if res.result == "" {
-			return nil, trace.Wrap(summarizererrors.BadResponseError{
+			return nil, trace.Wrap(summarizererrorstypes.BadResponseError{
 				Message: "model returned a message without content",
 			})
 		}
@@ -415,7 +416,7 @@ func (p *InferenceProvider) makeRequest(ctx context.Context, sessionID session.I
 	case bedrocktypes.StopReasonMaxTokens:
 		return nil, trace.LimitExceeded("model response length limit exceeded")
 	default:
-		return nil, trace.Wrap(summarizererrors.BadResponseError{
+		return nil, trace.Wrap(summarizererrorstypes.BadResponseError{
 			Message: fmt.Sprintf("model returned unexpected stop reason: %q", resp.StopReason),
 		})
 	}
@@ -462,4 +463,65 @@ func sanitizePrompt(prompt string) string {
 	}
 
 	return prompt
+}
+
+// FormatError formats AWS Bedrock errors into user-friendly messages.
+func FormatError(err error, provider *summarizerv1pb.BedrockProvider) string {
+	// Check for AWS API errors
+	var smithyErr smithy.APIError
+	if errors.As(err, &smithyErr) {
+		errorCode := smithyErr.ErrorCode()
+		switch errorCode {
+		case "ValidationException":
+			return fmt.Sprintf("Invalid request to Amazon Bedrock: %s", smithyErr.ErrorMessage())
+		case "ResourceNotFoundException":
+			return fmt.Sprintf("Model %q not found in region %s. Please verify the model ID and ensure the model is available in this region.", provider.GetBedrockModelId(), provider.GetRegion())
+		case "AccessDeniedException":
+			integration := provider.GetIntegration()
+			if integration != "" {
+				return fmt.Sprintf("Access denied to Amazon Bedrock. Please verify the integration %q has the necessary IAM permissions to access Bedrock in region %s.", integration, provider.GetRegion())
+			}
+			return fmt.Sprintf("Access denied to Amazon Bedrock. Please verify your AWS credentials have the necessary IAM permissions to access Bedrock in region %s.", provider.GetRegion())
+		case "ThrottlingException":
+			return "Amazon Bedrock API rate limit exceeded. Please try again in a few moments."
+		case "ServiceQuotaExceededException":
+			return "Amazon Bedrock service quota exceeded. Please check your service limits."
+		case "ModelTimeoutException":
+			return "Amazon Bedrock model request timed out. Please try again."
+		case "ModelNotReadyException":
+			return fmt.Sprintf("Model %q is not ready. Please try again in a few moments.", provider.GetBedrockModelId())
+		case "ModelErrorException":
+			return fmt.Sprintf("Amazon Bedrock model error: %s", smithyErr.ErrorMessage())
+		case "InternalServerException", "ServiceUnavailableException":
+			return "Amazon Bedrock service is currently unavailable. Please try again later."
+		default:
+			return fmt.Sprintf("Amazon Bedrock API error (%s): %s", errorCode, smithyErr.ErrorMessage())
+		}
+	}
+
+	// Check for network/connection errors
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Sprintf("Request to Amazon Bedrock in region %s timed out. Please check your network connection and try again.", provider.GetRegion())
+	}
+	if errors.Is(err, context.Canceled) {
+		return "Request to Amazon Bedrock was canceled."
+	}
+
+	// Check for trace errors
+	if trace.IsConnectionProblem(err) {
+		return fmt.Sprintf("Failed to connect to Amazon Bedrock in region %s. Please verify the region is correct and accessible.", provider.GetRegion())
+	}
+	if trace.IsAccessDenied(err) {
+		integration := provider.GetIntegration()
+		if integration != "" {
+			return fmt.Sprintf("Access denied to Amazon Bedrock. Please verify the integration %q is configured correctly with proper IAM permissions.", integration)
+		}
+		return "Access denied to Amazon Bedrock. Please verify your AWS credentials and IAM permissions."
+	}
+	if trace.IsNotFound(err) {
+		return fmt.Sprintf("Amazon Bedrock model %q not found in region %s.", provider.GetBedrockModelId(), provider.GetRegion())
+	}
+
+	// Generic error
+	return fmt.Sprintf("Failed to connect to Amazon Bedrock: %v", err)
 }

@@ -12,7 +12,7 @@ import (
 
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
-	summarizererrors "github.com/gravitational/teleport/e/lib/auth/summarizer/errors"
+	summarizererrorstypes "github.com/gravitational/teleport/e/lib/auth/summarizer/errors/types"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
@@ -60,7 +60,7 @@ func TestInferenceProvider(t *testing.T) {
 			name:    "empty response (no blocks at all)",
 			content: "no choices",
 			assert: func(t *testing.T, resp string, err error) {
-				assert.ErrorIs(t, err, summarizererrors.BadResponseError{
+				assert.ErrorIs(t, err, summarizererrorstypes.BadResponseError{
 					Message: "model returned a message without content",
 				})
 			},
@@ -69,7 +69,7 @@ func TestInferenceProvider(t *testing.T) {
 			name:    "empty response (blocks without content)",
 			content: "respond with multiple empty content blocks",
 			assert: func(t *testing.T, resp string, err error) {
-				assert.ErrorIs(t, err, summarizererrors.BadResponseError{
+				assert.ErrorIs(t, err, summarizererrorstypes.BadResponseError{
 					Message: "model returned a message without content",
 				})
 			},
@@ -151,7 +151,7 @@ func TestSummarizeCommand(t *testing.T) {
 			name:    "empty response (no blocks at all)",
 			content: "no choices",
 			assert: func(t *testing.T, resp *schema.CommandAnalysis, err error) {
-				assert.ErrorIs(t, err, summarizererrors.BadResponseError{
+				assert.ErrorIs(t, err, summarizererrorstypes.BadResponseError{
 					Message: "model returned a message without content",
 				})
 			},
@@ -160,7 +160,7 @@ func TestSummarizeCommand(t *testing.T) {
 			name:    "empty response (blocks without content)",
 			content: "respond with multiple empty content blocks",
 			assert: func(t *testing.T, resp *schema.CommandAnalysis, err error) {
-				assert.ErrorIs(t, err, summarizererrors.BadResponseError{
+				assert.ErrorIs(t, err, summarizererrorstypes.BadResponseError{
 					Message: "model returned a message without content",
 				})
 			},

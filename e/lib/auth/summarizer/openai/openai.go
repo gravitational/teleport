@@ -17,7 +17,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
-	summarizererrors "github.com/gravitational/teleport/e/lib/auth/summarizer/errors"
+	summarizererrorstypes "github.com/gravitational/teleport/e/lib/auth/summarizer/errors/types"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/metrics"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
 	libmetrics "github.com/gravitational/teleport/lib/observability/metrics"
@@ -241,7 +241,7 @@ func (p *InferenceProvider) SummarizeCommand(ctx context.Context, sessionID sess
 
 	var analysis schema.CommandAnalysis
 	if err := json.Unmarshal([]byte(res.result), &analysis); err != nil {
-		return nil, trace.Wrap(summarizererrors.BadResponseError{
+		return nil, trace.Wrap(summarizererrorstypes.BadResponseError{
 			Message: fmt.Sprintf("failed to unmarshal model response: %v", err),
 		})
 	}
@@ -270,7 +270,7 @@ func (p *InferenceProvider) SummarizeMultipleCommands(ctx context.Context, sessi
 
 	var analysis schema.SessionAnalysis
 	if err := json.Unmarshal([]byte(res.result), &analysis); err != nil {
-		return nil, trace.Wrap(summarizererrors.BadResponseError{
+		return nil, trace.Wrap(summarizererrorstypes.BadResponseError{
 			Message: fmt.Sprintf("failed to unmarshal model response: %v", err),
 		})
 	}
@@ -338,7 +338,7 @@ func (p *InferenceProvider) makeRequest(ctx context.Context, sessionID session.I
 	}
 
 	if len(completion.Choices) == 0 {
-		return nil, trace.Wrap(summarizererrors.BadResponseError{
+		return nil, trace.Wrap(summarizererrorstypes.BadResponseError{
 			Message: "model returned no choices",
 		})
 	}
@@ -361,8 +361,55 @@ func (p *InferenceProvider) makeRequest(ctx context.Context, sessionID session.I
 	case string(openai.CompletionChoiceFinishReasonLength):
 		return res, trace.LimitExceeded("model response length limit exceeded")
 	default:
-		return res, trace.Wrap(summarizererrors.BadResponseError{
+		return res, trace.Wrap(summarizererrorstypes.BadResponseError{
 			Message: fmt.Sprintf("model returned unexpected finish reason: %q", choice.FinishReason),
 		})
 	}
+}
+
+// FormatError formats OpenAI API errors into user-friendly messages.
+func FormatError(err error, provider *summarizerv1pb.OpenAIProvider) string {
+	// Check for OpenAI API errors
+	var openaiErr *openai.Error
+	if errors.As(err, &openaiErr) {
+		switch openaiErr.Code {
+		case "invalid_api_key":
+			return "Invalid API key provided. Please verify your OpenAI API key is correct."
+		case "insufficient_quota":
+			return "OpenAI API quota exceeded. Please check your usage limits and billing status."
+		case "rate_limit_exceeded":
+			return "OpenAI API rate limit exceeded. Please try again in a few moments."
+		case "model_not_found":
+			return fmt.Sprintf("Model %q not found. Please verify the model ID is correct and accessible with your API key.", provider.GetOpenaiModelId())
+		case "invalid_request_error":
+			return fmt.Sprintf("Invalid request to OpenAI API: %s", openaiErr.Message)
+		case "server_error", "service_unavailable":
+			return "OpenAI API is currently unavailable. Please try again later."
+		default:
+			return fmt.Sprintf("OpenAI API error (%s): %s", openaiErr.Code, openaiErr.Message)
+		}
+	}
+
+	// Check for network/connection errors
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "Request to OpenAI API timed out. Please check your network connection and try again."
+	}
+	if errors.Is(err, context.Canceled) {
+		return "Request to OpenAI API was canceled."
+	}
+
+	// Check for trace errors
+	if trace.IsConnectionProblem(err) {
+		baseURL := provider.GetBaseUrl()
+		if baseURL != "" {
+			return fmt.Sprintf("Failed to connect to OpenAI API at %s. Please verify the base URL is correct and accessible.", baseURL)
+		}
+		return "Failed to connect to OpenAI API. Please check your network connection."
+	}
+	if trace.IsAccessDenied(err) {
+		return "Access denied by OpenAI API. Please verify your API key has the necessary permissions."
+	}
+
+	// Generic error
+	return fmt.Sprintf("Failed to connect to OpenAI API: %v", err)
 }
