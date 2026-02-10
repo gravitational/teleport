@@ -974,6 +974,29 @@ func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTas
 	return existingTasks
 }
 
+type fakeAccessPointWithWatcher struct {
+	authclient.DiscoveryAccessPoint
+
+	discoveryConfigWatcherMu sync.RWMutex
+	discoveryConfigWatcher   types.Watcher
+}
+
+func (f *fakeAccessPointWithWatcher) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	watcher, err := f.DiscoveryAccessPoint.NewWatcher(ctx, watch)
+
+	f.discoveryConfigWatcherMu.Lock()
+	defer f.discoveryConfigWatcherMu.Unlock()
+	f.discoveryConfigWatcher = watcher
+
+	return watcher, err
+}
+
+func (f *fakeAccessPointWithWatcher) closeDiscoveryConfigWatcher() error {
+	f.discoveryConfigWatcherMu.Lock()
+	defer f.discoveryConfigWatcherMu.Unlock()
+	return f.discoveryConfigWatcher.Close()
+}
+
 // This test exercises the dynamic matcher watcher and ensures that if there's a failure in the watcher,
 // it restarts and continues to pick up new Discovery Configs matchers.
 func TestDiscoveryServer_dynamicMatcherRestart(t *testing.T) {
@@ -997,10 +1020,14 @@ func TestDiscoveryServer_dynamicMatcherRestart(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
 
+	accessPoint := &fakeAccessPointWithWatcher{
+		DiscoveryAccessPoint: getDiscoveryAccessPointWithEKSEnroller(tlsServer.Auth(), authClient, authClient.IntegrationAWSOIDCClient()),
+	}
+
 	// Start discovery server
-	server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
+	server, err := New(t.Context(), &Config{
 		ClusterFeatures: func() proto.Features { return proto.Features{} },
-		AccessPoint:     getDiscoveryAccessPointWithEKSEnroller(tlsServer.Auth(), authClient, authClient.IntegrationAWSOIDCClient()),
+		AccessPoint:     accessPoint,
 		Matchers:        Matchers{},
 		Emitter:         authClient,
 		Log:             logtest.NewLogger(),
@@ -1029,9 +1056,7 @@ func TestDiscoveryServer_dynamicMatcherRestart(t *testing.T) {
 	}, 5*time.Second, 50*time.Millisecond)
 
 	// 2. Break the watcher
-	server.dynamicDiscoveryConfigMu.Lock()
-	server.dynamicMatcherWatcher.Close()
-	server.dynamicDiscoveryConfigMu.Unlock()
+	accessPoint.closeDiscoveryConfigWatcher()
 
 	// 3. Send a new Discovery Config and ensure it gets loaded into the dynamic matchers. In this case it will require the watcher to have restarted.
 	discoveryConfigB, err := discoveryconfig.NewDiscoveryConfig(
