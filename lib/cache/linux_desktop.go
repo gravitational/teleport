@@ -35,7 +35,7 @@ const linuxDesktopNameIndex linuxDesktopIndex = "linux-desktop"
 
 func newLinuxDesktopCollection(upstream services.LinuxDesktops, w types.WatchKind) (*collection[*linuxdesktopv1.LinuxDesktop, linuxDesktopIndex], error) {
 	if upstream == nil {
-		return nil, trace.BadParameter("missing parameter LinuxDesktop")
+		return nil, trace.BadParameter("missing parameter upstream")
 	}
 
 	s := newStore(
