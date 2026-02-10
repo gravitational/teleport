@@ -39,11 +39,15 @@ func InstallService(ctx context.Context) error {
 		return trace.Wrap(err, "checking if wintun.dll is installed next to %s", tshPath)
 	}
 	return trace.Wrap(windowsservice.Install(ctx, &windowsservice.InstallConfig{
-		Name:              serviceName,
-		Description:       serviceDescription,
-		Command:           ServiceCommand,
-		EventSourceName:   eventSource,
-		AccessPermissions: windows.SERVICE_QUERY_STATUS | windows.SERVICE_START | windows.SERVICE_STOP,
+		Name:            serviceName,
+		Description:     serviceDescription,
+		Command:         ServiceCommand,
+		EventSourceName: eventSource,
+		// Build an explicit ACE for authenticated users.
+		// SERVICE_QUERY_STATUS and SERVICE_QUERY_CONFIG are granted by default
+		// (see https://learn.microsoft.com/en-us/windows/win32/services/service-security-and-access-rights),
+		// but we include them explicitly for clarity and safety.
+		AccessPermissions: windows.SERVICE_QUERY_STATUS | windows.SERVICE_QUERY_CONFIG | windows.SERVICE_START | windows.SERVICE_STOP,
 	}))
 }
 

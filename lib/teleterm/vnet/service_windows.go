@@ -70,5 +70,12 @@ func (s *Service) CheckInstallTimeRequirements(_ context.Context, _ *api.CheckIn
 		}, nil
 
 	}
+	if trace.IsCompareFailed(err) {
+		return &api.CheckInstallTimeRequirementsResponse{
+			Status: &api.CheckInstallTimeRequirementsResponse_WindowsServiceStatus{
+				WindowsServiceStatus: api.WindowsServiceStatus_WINDOWS_SERVICE_STATUS_VERSION_MISMATCH,
+			},
+		}, nil
+	}
 	return nil, trace.Wrap(err)
 }

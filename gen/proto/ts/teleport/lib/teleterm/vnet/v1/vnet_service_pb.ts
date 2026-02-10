@@ -228,7 +228,13 @@ export enum WindowsServiceStatus {
     /**
      * @generated from protobuf enum value: WINDOWS_SERVICE_STATUS_DOES_NOT_EXIST = 2;
      */
-    DOES_NOT_EXIST = 2
+    DOES_NOT_EXIST = 2,
+    /**
+     * The VNet service cannot start because its version differs from the client.
+     *
+     * @generated from protobuf enum value: WINDOWS_SERVICE_STATUS_VERSION_MISMATCH = 3;
+     */
+    VERSION_MISMATCH = 3
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class StartRequest$Type extends MessageType<StartRequest> {

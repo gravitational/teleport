@@ -19,6 +19,7 @@ package vnet
 import (
 	"context"
 	"log/slog"
+	"os"
 	"syscall"
 	"time"
 
@@ -158,7 +159,8 @@ func (w *handler) Execute(ctx context.Context, args []string) error {
 	return nil
 }
 
-// VerifyServiceInstalled returns nil if the service is installed and an error otherwise.
+// VerifyServiceInstalled checks whether the service is installed and running the expected version.
+// It returns nil on success, or an error otherwise.
 func VerifyServiceInstalled() error {
 	// Avoid [mgr.Connect] because it requests elevated permissions.
 	scManager, err := windows.OpenSCManager(nil /*machine*/, nil /*database*/, windows.SC_MANAGER_CONNECT)
@@ -170,6 +172,33 @@ func VerifyServiceInstalled() error {
 	if err != nil {
 		return trace.Wrap(err, "converting service name to UTF16")
 	}
-	_, err = windows.OpenService(scManager, serviceNamePtr, serviceAccessFlags)
-	return trace.Wrap(err, "opening Windows service %v", serviceName)
+	serviceHandle, err := windows.OpenService(scManager, serviceNamePtr, windows.SERVICE_QUERY_CONFIG)
+	if err != nil {
+		return trace.Wrap(err, "opening Windows service %v", serviceName)
+	}
+	service := &mgr.Service{
+		Name:   serviceName,
+		Handle: serviceHandle,
+	}
+	defer service.Close()
+
+	config, err := service.Config()
+	if err != nil {
+		return trace.Wrap(err, "getting service config")
+	}
+	serviceArgs, err := windows.DecomposeCommandLine(config.BinaryPathName)
+	if err != nil {
+		return trace.Wrap(err, "parsing Windows service binary command line")
+	}
+	if len(serviceArgs) == 0 {
+		return trace.BadParameter("Windows service has empty binary command line")
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return trace.Wrap(err, "getting executable path")
+	}
+
+	// Run the same check as the service.
+	err = compareFiles(exe, serviceArgs[0])
+	return trace.Wrap(err, "comparing running executable with service executable")
 }

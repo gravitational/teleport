@@ -173,8 +173,7 @@ func grantServiceRights(name string, accessPermissions windows.ACCESS_MASK) erro
 	if err != nil {
 		return trace.Wrap(err, "parsing authenticated users SID")
 	}
-	// Build an explicit access entry allowing authenticated users to start,
-	// stop, and query the service.
+	// Build an explicit access entry for authenticated users.
 	ea := []windows.EXPLICIT_ACCESS{{
 		AccessPermissions: accessPermissions,
 		AccessMode:        windows.GRANT_ACCESS,
