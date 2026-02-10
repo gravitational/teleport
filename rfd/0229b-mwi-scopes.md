@@ -121,8 +121,6 @@ These rules are as follows:
 - RFD229B-1: The scope of origin and scope of effect of a Scoped Role Assignment
   for a Scoped Bot must be the same scope or descendent scope of the Bot's scope.
   - nb: RFD229-2 constrains scope of effect to at most scope of origin for SRA.
-  - nb: Future Improvements explores relaxing this constraint under certain
-    conditions to permit cross-scope privileges for Scoped Bots.
 
 In practice, these rules mean that a Scoped Bot can only be assigned privileges
 that would allow it to access resources within its own scope or in descendent
@@ -135,6 +133,13 @@ scopes. For example, a Scoped Bot in `/foo/bar`:
 These rules are backed up by the Scope Pinning mechanism. Certificates issued to
 the Scoped Bot are pinned to the scope in which it exists. This prevents access
 to any scoped resources outside the pinned scope.
+
+This key constraint of the bot's scope of access to its scope of origin is
+designed to simplify the initial design without introducing the risk of scope
+isolation being compromised. [A.1: The scoping of Scoped Bots](#a1-the-scoping-of-scoped-bots)
+explores this decision in depth and [Future Improvement: Cross-scope privileges](#b2-cross-scope-privileges)
+explores relaxing this constraint in combination with a series of additional
+controls.
 
 Worked Examples:
 
@@ -303,7 +308,7 @@ This section exists as a record of my thinking whilst researching and writing
 this RFD. It should not be considered a canonical part of the design, but, may
 help provide context around my thought process and decisions for future readers.
 
-### A.1: The scoping of Scoped Bots 
+### A.1: The scoping of Scoped Bots
 
 A rather early philosophical question revolves around whether a Bot's scope of
 origin should constrain its scope of privilege. That is, whether a Bot in
