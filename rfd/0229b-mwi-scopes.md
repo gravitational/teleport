@@ -587,13 +587,42 @@ services:
 
 The implementation of this would take the following form:
 
+- wip wip
+
 ### B.2 Cross-scope privileges
 
-Challenges:
+One of the key constraints identified for the initial iteration is that a 
+scoped Bot's access is constrained to its scope of origin
+(or descendent scopes). The reasoning for this is to reduce the risk of 
+violating scope isolation guarantees and to simplify the initial iteration. This
+is explored in depth in [A.1: The scoping of Scoped Bots](#a1-the-scoping-of-scoped-bots).
 
-- We propose making tbot credentials are pinned to the scope the Scoped Bot
-  exists in - so whilst the Bot could be assigned cross-scope privileges, it
-  won't actually be able to use them?
-- How do we bind the Scoped Role Assignment to the Bot & Scope so the deletion
-  of the Bot doesn't allow someone to "swoop" in and steal the sra from another
-  scope?
+As explored in that section, there are feasible use-cases that would be enabled
+by relaxing this constraint. However, also identified are significant potential
+security implications of doing so. To enable this safely, we would need to 
+introduce additional controls.
+
+Before any implementation begins on this work, due to the presented risks, it is
+agreed that this must require an amendment to this RFD or the creation of a
+supplementary RFD. The rest of this section lightly summarizes the changes that
+would be explored in more depth as part of the design of this next iteration.
+
+There are two controls that prevent a scoped Bot's privileges from escaping the
+confines of its scope of origin that would need to be relaxed:
+
+- The restriction of assigned scopes in a SRA for a scoped Bot to the Bot's 
+  scope of origin or a descendent scope.
+- The pinning of the Bot's credentials to its scope of origin.
+
+We propose that to relax these controls, the following new controls would likely
+need to be introduced:
+
+- A global, cluster-wide enablement of cross-scope privileges for scoped Bots.
+  This derisks the introduction of this functionality causing a regression in
+  the isolation of scopes for users who do not wish to leverage it. After a 
+  sufficient period of testing, it may be appropriate to enable this by default.
+- Limit the effect of scoped Bot traits to the Bot's scope of origin.
+  Optionally, allow admins to assign traits to Bots that only apply within their
+  scopes.
+- Namespace bots by scope of origin, or, require SRAs to reference the bot's
+  name and scope of origin to mitigate name reuse attacks.
