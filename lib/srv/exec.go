@@ -159,12 +159,8 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	}
 	e.Ctx.AddCloser(e.reexecCmd)
 
-	// Connect stdout and stderr to the channel so the user can interact with the command.
-	e.reexecCmd.Cmd.Stderr = channel.Stderr()
-	e.reexecCmd.Cmd.Stdout = channel
-
-	// Copy from the channel (client input) into stdin of the process.
-	inputWriter, err := e.reexecCmd.Cmd.StdinPipe()
+	// Connect stdio to the channel so the user can interact with the command.
+	inputWriter, err := e.reexecCmd.WithStdio(channel, channel.Stderr())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -197,8 +193,9 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 
 // Wait will block while the command executes.
 func (e *localExec) Wait() *ExecResult {
-	if e.reexecCmd.Cmd == nil || e.reexecCmd.Cmd.Process == nil {
+	if e.reexecCmd == nil {
 		e.Ctx.Logger.ErrorContext(e.Ctx.CancelContext(), "No process")
+		return nil
 	}
 
 	// Block until the command is finished executing.
@@ -232,7 +229,7 @@ func (e *localExec) Continue() {
 
 // PID returns the PID of the Teleport process that was re-execed.
 func (e *localExec) PID() int {
-	return e.reexecCmd.Cmd.Process.Pid
+	return e.reexecCmd.PID()
 }
 
 func (e *localExec) String() string {

@@ -1038,13 +1038,10 @@ func (c *ServerContext) ConfigureCommand() (*reexec.Command, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cmd, err := reexec.NewReexecCommand(cfg)
+	cmd, err := reexec.NewCommand(cfg, reexecCommandOSTweaks)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Perform OS-specific tweaks to the command.
-	reexecCommandOSTweaks(cmd.Cmd)
 
 	return cmd, nil
 }

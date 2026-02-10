@@ -204,7 +204,7 @@ func (t *terminal) Wait() (*ExecResult, error) {
 	err := t.reexecCmd.Wait()
 	return &ExecResult{
 		Code:    exitCode(err),
-		Command: t.reexecCmd.Path(),
+		Command: t.reexecCmd.Command(),
 	}, nil
 }
 

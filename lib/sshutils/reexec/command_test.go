@@ -19,71 +19,295 @@
 package reexec
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"io"
+	"log/slog"
 	"os"
-	"os/exec"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-func TestStartPreservesExtraFilesAndPlaceholders(t *testing.T) {
+func TestCommand(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 
-	cmd := helperCommand(t)
+	t.Run("success", func(t *testing.T) {
+		t.Parallel()
 
-	reexecCmd, err := NewReexecCommand(&Config{})
-	require.NoError(t, err)
+		reexecCmd, stdin, stdout := newTestReexecCommand(t)
 
-	extraExisting, err := os.CreateTemp(t.TempDir(), "reexec-existing-*")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = extraExisting.Close() })
+		// Start the command and go through the ready signal flow.
+		require.NoError(t, reexecCmd.Start(ctx))
+		require.NoError(t, reexecCmd.WaitReady(ctx))
+		reexecCmd.Continue(ctx)
 
-	extraChild, err := os.CreateTemp(t.TempDir(), "reexec-child-*")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = extraChild.Close() })
+		// The reexec process should echo back anything written to it.
+		echoString := "hello world"
+		stdin.Write([]byte(echoString))
 
-	cmd.ExtraFiles = []*os.File{extraExisting}
-	reexecCmd.AddChildPipe(nil)
-	reexecCmd.AddChildPipe(extraChild)
+		// Close stdin to end the cmd with success.
+		stdin.Close()
+		require.NoError(t, reexecCmd.Wait())
+		require.Equal(t, echoString, stdout.String())
 
-	require.NoError(t, reexecCmd.Start(ctx))
-	t.Cleanup(func() { _ = reexecCmd.Wait() })
+		require.Zero(t, reexecCmd.ExitCode())
+	})
 
-	var existingCount int
-	var childCount int
-	for _, file := range cmd.ExtraFiles {
-		require.NotNil(t, file)
-		if file == extraExisting {
-			existingCount++
-		}
-		if file == extraChild {
-			childCount++
-		}
-	}
+	t.Run("continue", func(t *testing.T) {
+		t.Parallel()
 
-	require.Equal(t, 1, existingCount)
-	require.Equal(t, 1, childCount)
+		reexecCmd, stdin, stdout := newTestReexecCommand(t)
+
+		// Start the command.
+		require.NoError(t, reexecCmd.Start(ctx))
+
+		// The child process should not echo writes until the parent signals to continue.
+		echoString := "hello world"
+		stdin.Write([]byte(echoString))
+
+		require.Never(t, func() bool {
+			return stdout.Len() != 0
+		}, 100*time.Millisecond, 10*time.Millisecond)
+
+		// Signal continue.
+		reexecCmd.Continue(ctx)
+
+		// Close stdin to end the cmd with success.
+		stdin.Close()
+		require.NoError(t, reexecCmd.Wait())
+		require.Equal(t, echoString, stdout.String())
+
+		require.Zero(t, reexecCmd.ExitCode())
+	})
+
+	t.Run("ready", func(t *testing.T) {
+		t.Parallel()
+
+		reexecCmd, _, _ := newTestReexecCommand(t, "REEXEC_SKIP_READY=1")
+
+		// Start the command.
+		require.NoError(t, reexecCmd.Start(ctx))
+
+		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+		defer cancel()
+
+		// If the child never signals ready, we should timeout waiting.
+		err := reexecCmd.WaitReady(ctx)
+		require.ErrorIs(t, err, ctx.Err())
+	})
+
+	t.Run("graceful termination", func(t *testing.T) {
+		t.Parallel()
+
+		reexecCmd, _, stdout := newTestReexecCommand(t)
+
+		// Start the command and go through the ready signal flow.
+		require.NoError(t, reexecCmd.Start(ctx))
+		require.NoError(t, reexecCmd.WaitReady(ctx))
+		reexecCmd.Continue(ctx)
+
+		// Terminate the command prematurely.
+		err := reexecCmd.stop(100 * time.Millisecond)
+		require.NoError(t, err)
+		require.NoError(t, reexecCmd.Wait())
+		require.Empty(t, stdout.Bytes())
+
+		require.Zero(t, reexecCmd.ExitCode())
+	})
+
+	t.Run("kill", func(t *testing.T) {
+		t.Parallel()
+
+		// Purposely don't handle the terminate signal since graceful termination
+		// is always attempted first.
+		reexecCmd, _, stdout := newTestReexecCommand(t, "REEXEC_IGNORE_TERMINATE=1")
+
+		// Start the command and go through the ready signal flow.
+		require.NoError(t, reexecCmd.Start(ctx))
+		require.NoError(t, reexecCmd.WaitReady(ctx))
+		reexecCmd.Continue(ctx)
+
+		// Kill the command prematurely.
+		err := reexecCmd.stop(100 * time.Millisecond)
+		require.NoError(t, err)
+		require.Error(t, reexecCmd.Wait())
+		require.Empty(t, stdout.Bytes())
+
+		require.NotZero(t, reexecCmd.ExitCode())
+	})
+
+	t.Run("extra pipe", func(t *testing.T) {
+		t.Parallel()
+
+		reexecCmd, stdin, stdout := newTestReexecCommand(t)
+
+		echoPipe, err := reexecCmd.AddParentToChildPipe()
+		require.NoError(t, err)
+
+		require.NoError(t, reexecCmd.Start(ctx))
+		require.NoError(t, reexecCmd.WaitReady(ctx))
+		reexecCmd.Continue(ctx)
+
+		// The reexec process should echo back anything written to it.
+		echoString := "hello world"
+		echoPipe.Write([]byte(echoString))
+
+		// Close the pipe and stdin to end the cmd with success.
+		echoPipe.Close()
+		stdin.Close()
+		require.NoError(t, reexecCmd.Wait())
+		require.Equal(t, echoString, stdout.String())
+
+		require.Zero(t, reexecCmd.ExitCode())
+	})
 }
 
-func helperCommand(t *testing.T) *exec.Cmd {
+func newTestReexecCommand(t *testing.T, env ...string) (cmd *Command, stdin io.WriteCloser, stdout *safeBuffer) {
 	t.Helper()
 
-	cmd := exec.Command(os.Args[0], "-test.run=TestReexecHelperProcess", "--")
-	cmd.Env = append(os.Environ(), "GO_WANT_HELPER_PROCESS=1")
-	return cmd
+	reexecCmd, err := NewCommand(newBasicConfig(t))
+	require.NoError(t, err)
+
+	reexecCmd.cmd.Env = append(reexecCmd.cmd.Env, "GO_WANT_HELPER_PROCESS=1")
+	reexecCmd.cmd.Env = append(reexecCmd.cmd.Env, env...)
+
+	stdout = &safeBuffer{}
+	reexecCmd.cmd.Stdout = stdout
+	reexecCmd.cmd.Stderr = io.Discard
+
+	stdin, err = reexecCmd.cmd.StdinPipe()
+	require.NoError(t, err)
+	t.Cleanup(func() { stdin.Close() })
+
+	return reexecCmd, stdin, stdout
 }
 
-func TestReexecHelperProcess(t *testing.T) {
+func newBasicConfig(t *testing.T) *Config {
+	t.Helper()
+
+	return &Config{
+		ReexecCommand: "-test.run=TestReexecEchoProcess",
+		LogConfig: LogConfig{
+			ExtraFields: []string{
+				teleport.ComponentKey, "echo-process",
+			},
+		},
+		LogWriter: os.Stderr,
+	}
+}
+
+func TestReexecEchoProcess(t *testing.T) {
 	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
 		return
 	}
 
 	cfg := os.NewFile(3, "config")
-	if cfg != nil {
-		_, _ = io.Copy(io.Discard, cfg)
-		_ = cfg.Close()
+	logs := os.NewFile(4, "logs")
+	cont := os.NewFile(5, "continue")
+	ready := os.NewFile(6, "ready")
+	term := os.NewFile(7, "terminate")
+	echo := os.NewFile(8, "echo")
+
+	var cfgPayload Config
+	_ = json.NewDecoder(cfg).Decode(&cfgPayload)
+	_ = cfg.Close()
+
+	initTestLogger(logs, cfgPayload.LogConfig)
+
+	// Handle graceful termination by ending the copy loop on our side.
+	if os.Getenv("REEXEC_IGNORE_TERMINATE") != "1" {
+		termReader := term
+		go func() {
+			if termReader == nil {
+				return
+			}
+			_, _ = termReader.Read(make([]byte, 1))
+			slog.DebugContext(t.Context(), "terminate signal received")
+			os.Exit(0)
+		}()
 	}
 
+	if os.Getenv("REEXEC_SKIP_READY") != "1" {
+		_ = ready.Close()
+		slog.DebugContext(t.Context(), "ready signal sent")
+	}
+
+	<-waitForClose(cont)
+	slog.DebugContext(t.Context(), "continue signal received")
+
+	var in io.Reader = os.Stdin
+	if echo != nil {
+		in = io.MultiReader(os.Stdin, echo)
+	}
+
+	_, _ = io.Copy(os.Stdout, in)
+
+	slog.DebugContext(t.Context(), "stdin closed, exiting")
 	os.Exit(0)
+}
+
+func waitForClose(r io.Reader) <-chan struct{} {
+	if r == nil {
+		return nil
+	}
+
+	done := make(chan struct{})
+	go func() {
+		_, _ = r.Read(make([]byte, 1))
+		close(done)
+	}()
+
+	return done
+}
+
+func initTestLogger(w io.Writer, cfg LogConfig) {
+	fields, err := logutils.ValidateFields(cfg.ExtraFields)
+	if err != nil {
+		return
+	}
+
+	logger := slog.New(logutils.NewSlogTextHandler(w, logutils.SlogTextHandlerConfig{
+		Level:            cfg.Level,
+		EnableColors:     cfg.EnableColors,
+		ConfiguredFields: fields,
+		Padding:          cfg.Padding,
+	}))
+	slog.SetDefault(logger.With(teleport.ComponentKey, "reexec"))
+}
+
+type safeBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *safeBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *safeBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+func (b *safeBuffer) Bytes() []byte {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Bytes()
+}
+
+func (b *safeBuffer) Len() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Len()
 }

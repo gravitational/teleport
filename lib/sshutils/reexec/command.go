@@ -39,10 +39,7 @@ type Command struct {
 	cfg    *Config
 	logger *slog.Logger
 
-	// Cmd is the reexec command to be executed.
-	// TODO(Joerger): make this a local field once external setup (stderr, etc) is internalized to this package.
-	Cmd *exec.Cmd
-
+	cmd *exec.Cmd
 	// done is set when the command starts and closed the command completes.
 	done    chan struct{}
 	exitErr error
@@ -66,9 +63,14 @@ type Command struct {
 	parentReadPipes []io.Closer
 }
 
-// NewReexecCommand allocates a ReexecCommand with the common reexec pipes.
+// CommandOpt if a command option.
+// TODO(Joerger): Any changes to the underlying exec.Cmd should be made internally, once more
+// logic is migrated here.
+type CommandOpt func(*exec.Cmd)
+
+// NewCommand allocates a [Command] with the common reexec pipes.
 // The caller must ensure the command is closed once it's no longer needed.
-func NewReexecCommand(cfg *Config) (*Command, error) {
+func NewCommand(cfg *Config, opts ...CommandOpt) (*Command, error) {
 	if cfg == nil {
 		return nil, trace.BadParameter("missing config")
 	}
@@ -84,9 +86,13 @@ func NewReexecCommand(cfg *Config) (*Command, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	for _, opt := range opts {
+		opt(cmd)
+	}
+
 	c := &Command{
 		logger: slog.Default(),
-		Cmd:    cmd,
+		cmd:    cmd,
 		cfg:    cfg,
 		done:   make(chan struct{}),
 	}
@@ -141,14 +147,14 @@ func newTeleportReexecCommand(cfg *Config) (*exec.Cmd, error) {
 // Start starts the underlying exec.Cmd and closes the child side of reexec pipes.
 // The provided closerOnExit will be closed when the command exits.
 func (c *Command) Start(ctx context.Context, closerOnExit ...io.Closer) error {
-	if c.Cmd == nil {
+	if c.cmd == nil {
 		return trace.BadParameter("missing exec command")
 	}
 
 	// Prepare the child pipes and ensure they are closed after the command starts.
-	c.Cmd.ExtraFiles = c.childPipes
+	c.cmd.ExtraFiles = c.childPipes
 	c.childPipes = nil
-	defer closeAll(filesToClosers(c.Cmd.ExtraFiles)...)
+	defer closeAll(filesToClosers(c.cmd.ExtraFiles)...)
 
 	// Start copying the reexec config payload over the pipe. While the
 	// pipe buffer is quite large (64k) some users have run into the pipe
@@ -176,19 +182,32 @@ func (c *Command) Start(ctx context.Context, closerOnExit ...io.Closer) error {
 		}
 	}()
 
-	if err := c.Cmd.Start(); err != nil {
+	if err := c.cmd.Start(); err != nil {
 		closeErr := c.Close()
 		return trace.NewAggregate(err, closeErr)
 	}
 
 	go func() {
-		c.exitErr = c.Cmd.Wait()
+		c.exitErr = c.cmd.Wait()
 		close(c.done)
 		closeAll(closerOnExit...)
 		c.Close()
 	}()
 
 	return nil
+}
+
+// WithStdio sets stdout and stderr and returns a pipe for stdin.
+func (c *Command) WithStdio(stdout, stderr io.Writer) (io.WriteCloser, error) {
+	c.cmd.Stderr = stderr
+	c.cmd.Stdout = stdout
+
+	inputWriter, err := c.cmd.StdinPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return inputWriter, nil
 }
 
 // AddChildPipe appends the child-side of a pipe as an extra file to the command.
@@ -251,7 +270,7 @@ func (c *Command) Close() error {
 	var errs []error
 
 	// Stop the process if it is running.
-	if err := c.stop(); err != nil {
+	if err := c.stop(5 * time.Second); err != nil {
 		slog.WarnContext(context.Background(), "Unexpected error stopping reexec process", "err", err)
 	}
 
@@ -273,7 +292,7 @@ func (c *Command) Close() error {
 
 // stop attempts to stop the reexec process, first with a graceful termination signal
 // before falling back to a kill signal after 5 seconds.
-func (c *Command) stop() error {
+func (c *Command) stop(gracefulTimeout time.Duration) error {
 	if !c.isRunning() {
 		return nil
 	}
@@ -281,13 +300,13 @@ func (c *Command) stop() error {
 	// First attempt graceful termination by signaling through the terminate pipe.
 	c.termW.Close()
 	select {
-	case <-time.After(5 * time.Second):
-		slog.DebugContext(context.Background(), "Failed to stop reexec process gracefully, sending kill signal.", "command", c.Path)
+	case <-time.After(gracefulTimeout):
+		slog.DebugContext(context.Background(), "Failed to stop reexec process gracefully, sending kill signal.", "command", c.Command)
 	case <-c.done:
 		return nil
 	}
 
-	err := c.Cmd.Process.Kill()
+	err := c.cmd.Process.Kill()
 
 	// Wait for the kill signal to result in the termination of process, otherwise tests
 	// that create a temporary user may fail to delete the user at the end of the test
@@ -295,7 +314,7 @@ func (c *Command) stop() error {
 	select {
 	case <-c.done:
 	case <-time.After(5 * time.Second):
-		slog.DebugContext(context.Background(), "Reexec process still running after kill signal.", "command", c.Path)
+		slog.DebugContext(context.Background(), "Reexec process still running after kill signal.", "command", c.Command)
 	}
 
 	return trace.Wrap(err)
@@ -307,7 +326,7 @@ func (c *Command) isRunning() bool {
 		return true
 	default:
 		// If the process is set (started), then it must be running.
-		return c.Cmd.Process != nil
+		return c.cmd.Process != nil
 	}
 }
 
@@ -326,18 +345,34 @@ func (c *Command) Done() <-chan struct{} {
 
 // PID returns the command PID.
 func (c *Command) PID() int {
-	if c.Cmd == nil || c.Cmd.Process == nil {
+	if c.cmd == nil || c.cmd.Process == nil {
 		return 0
 	}
-	return c.Cmd.Process.Pid
+	return c.cmd.Process.Pid
 }
 
-// Path returns the command path.
-func (c *Command) Path() string {
-	if c.Cmd == nil {
+// Command returns the command to run.
+func (c *Command) Command() string {
+	if c.cmd == nil {
 		return ""
 	}
-	return c.Cmd.Path
+	return c.cmd.String()
+}
+
+// Command returns the command to run.
+func (c *Command) Env() []string {
+	if c.cmd == nil {
+		return nil
+	}
+	return c.Env()
+}
+
+// ExitCode returns the exit code.
+func (c *Command) ExitCode() int {
+	if c.cmd == nil || c.cmd.ProcessState == nil {
+		return 0
+	}
+	return c.cmd.ProcessState.ExitCode()
 }
 
 func closeAll(files ...io.Closer) error {

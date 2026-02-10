@@ -25,7 +25,6 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"os"
 	"strings"
 	"time"
 
@@ -102,9 +101,6 @@ func (s *sftpSubsys) Start(ctx context.Context,
 		return trace.Wrap(err)
 	}
 	serverCtx.AddCloser(s.reexecCmd)
-
-	s.reexecCmd.Cmd.Stdout = os.Stdout
-	s.reexecCmd.Cmd.Stderr = os.Stderr
 
 	// Create two sets of anonymous pipes to give the child process
 	// access to the SSH channel
@@ -233,8 +229,8 @@ func (s *sftpSubsys) Wait() error {
 	s.logger.DebugContext(ctx, "SFTP process finished")
 
 	s.serverCtx.SendExecResult(ctx, srv.ExecResult{
-		Command: s.reexecCmd.Cmd.String(),
-		Code:    s.reexecCmd.Cmd.ProcessState.ExitCode(),
+		Command: s.reexecCmd.Command(),
+		Code:    s.reexecCmd.ExitCode(),
 	})
 
 	errs := []error{waitErr}

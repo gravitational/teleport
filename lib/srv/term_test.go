@@ -19,16 +19,12 @@
 package srv
 
 import (
-	"context"
 	"os"
-	"os/exec"
 	"os/user"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-
-	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 )
 
 func TestGetOwner(t *testing.T) {
@@ -83,57 +79,4 @@ func TestGetOwner(t *testing.T) {
 		require.Equal(t, tt.outGID, gid)
 		require.Equal(t, tt.outMode, mode)
 	}
-}
-
-func TestTerminal_Kill(t *testing.T) {
-	t.Parallel()
-
-	srv := newMockServer(t)
-	scx := newTestServerContext(t, srv, nil, &decisionpb.SSHAccessPermit{})
-
-	shPath, err := exec.LookPath("sh")
-	require.NoError(t, err)
-	scx.execRequest.SetCommand(shPath)
-
-	term, err := newLocalTerminal(scx)
-	require.NoError(t, err)
-
-	term.SetTermType("xterm")
-
-	// Mark the terminal allocation to make sh wait indefinitely.
-	// Without it, sh quits immediately as stdin is not set.
-	scx.termAllocated = true
-
-	ctx := context.Background()
-
-	// Run sh
-	err = term.Run(ctx)
-	require.NoError(t, err)
-
-	errors := make(chan error)
-	go func() {
-		// Call wait to avoid creating zombie process.
-		// Ignore exit code as we're checking term.reexecCmd.Cmd.ProcessState already
-		_, err := term.Wait()
-
-		errors <- err
-	}()
-
-	// Wait for the child process to indicate its completed initialization.
-	require.NoError(t, term.WaitForChild(ctx))
-
-	// Continue execution
-	term.Continue()
-
-	err = term.Close()
-	require.NoError(t, err)
-
-	// Wait for the process to return.
-	require.NoError(t, <-errors)
-
-	// ProcessState should be not nil after the process exits.
-	require.NotNil(t, term.reexecCmd.Cmd.ProcessState)
-	require.NotZero(t, term.reexecCmd.Cmd.ProcessState.Pid())
-	// 255 is returned on subprocess kill.
-	require.Equal(t, 255, term.reexecCmd.Cmd.ProcessState.ExitCode())
 }

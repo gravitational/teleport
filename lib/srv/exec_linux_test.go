@@ -159,8 +159,8 @@ func TestConfigureCommand(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NotNil(t, cmd)
-	require.Equal(t, "/proc/self/exe", cmd.Cmd.Path)
-	require.NotContains(t, cmd.Cmd.Env, unexpectedKey+"="+unexpectedValue)
+	require.Equal(t, "/proc/self/exe", cmd.Command())
+	require.NotContains(t, cmd.Env(), unexpectedKey+"="+unexpectedValue)
 }
 
 // TestContinue tests if the process hangs if a continue signal is not sent
