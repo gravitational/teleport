@@ -211,3 +211,13 @@ New flag `--linux-desktop` will be added to `tctl lock`. `tctl lock --server-id`
 `tctl token add` will support new system role `linux_desktop`. 
 
 No changes to `tsh` are needed.
+
+### Events
+
+For audit log purposes, we will add new `linux.desktop.session.start` and `linux.desktop.session.end` events.
+Other events will be shared with Windows desktops. That includes `desktop.clipboard.*`, `desktop.directory.*`,
+and `client.disconnect`.
+
+For usage reporting, a new resource kind `RESOURCE_KIND_LINUX_DESKTOP` will be added to prehog and 
+[TPR query](https://github.com/gravitational/cloud/blob/26eaac92bd0e297dcb127797b2e8d95706e34c5b/jobs/exporter/athena.go#L182-L186)
+will be updated to count instances of this new resource. Events will be sent using `UsageReporter.AnonymizeAndSubmit`.
