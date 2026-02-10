@@ -139,7 +139,7 @@ func newTeleportReexecCommand(cfg *Config) (*exec.Cmd, error) {
 
 // Start starts the underlying exec.Cmd and closes the child side of reexec pipes.
 // The provided closerOnExit will be closed when the command exits.
-func (c *Command) Start(ctx context.Context, closerOnExit ...io.Closer) error {
+func (c *Command) Start(closerOnExit ...io.Closer) error {
 	if c.cmd == nil {
 		return trace.BadParameter("missing exec command")
 	}
@@ -165,7 +165,7 @@ func (c *Command) Start(ctx context.Context, closerOnExit ...io.Closer) error {
 	go func() {
 		defer c.cfgW.Close()
 		if err := json.NewEncoder(c.cfgW).Encode(c.cfg); err != nil {
-			c.logger.ErrorContext(ctx, "Failed to copy config over pipe", "error", err)
+			c.logger.ErrorContext(context.Background(), "Failed to copy config over pipe", "error", err)
 		}
 	}()
 
@@ -252,9 +252,9 @@ func (c *Command) WaitReady(ctx context.Context) error {
 
 // Continue will resume execution of the process after it completes its
 // pre-processing routine (placed in a cgroup).
-func (c *Command) Continue(ctx context.Context) {
+func (c *Command) Continue() {
 	if err := c.contW.Close(); err != nil {
-		c.logger.WarnContext(ctx, "failed to close the continue pipe", "error", err)
+		c.logger.WarnContext(context.Background(), "failed to close the continue pipe", "error", err)
 	}
 }
 
@@ -294,7 +294,7 @@ func (c *Command) stop(gracefulTimeout time.Duration) error {
 	c.termW.Close()
 	select {
 	case <-time.After(gracefulTimeout):
-		slog.DebugContext(context.Background(), "Failed to stop reexec process gracefully, sending kill signal.", "command", c.Command)
+		slog.DebugContext(context.Background(), "Failed to stop reexec process gracefully, sending kill signal.", "command", c.Command())
 	case <-c.done:
 		return nil
 	}
@@ -316,7 +316,7 @@ func (c *Command) stop(gracefulTimeout time.Duration) error {
 func (c *Command) isRunning() bool {
 	select {
 	case <-c.done:
-		return true
+		return false
 	default:
 		// If the process is set (started), then it must be running.
 		return c.cmd.Process != nil
@@ -337,11 +337,20 @@ func (c *Command) Done() <-chan struct{} {
 }
 
 // PID returns the command PID.
+// Returns 0 if called before the command is started.
 func (c *Command) PID() int {
 	if c.cmd == nil || c.cmd.Process == nil {
 		return 0
 	}
 	return c.cmd.Process.Pid
+}
+
+// Path returns the command path to run.
+func (c *Command) Path() string {
+	if c.cmd == nil {
+		return ""
+	}
+	return c.cmd.Path
 }
 
 // Command returns the command to run.
@@ -352,20 +361,24 @@ func (c *Command) Command() string {
 	return c.cmd.String()
 }
 
-// Command returns the command to run.
+// Env returns the command environment variables.
 func (c *Command) Env() []string {
 	if c.cmd == nil {
 		return nil
 	}
-	return c.Env()
+	return c.cmd.Env
 }
 
 // ExitCode returns the exit code.
+// Returns 0 if called before the command completes.
 func (c *Command) ExitCode() int {
-	if c.cmd == nil || c.cmd.ProcessState == nil {
+	select {
+	case <-c.done:
+		// ProcessState should always be populated when c.cmd.Wait returns and c.done is closed.
+		return c.cmd.ProcessState.ExitCode()
+	default:
 		return 0
 	}
-	return c.cmd.ProcessState.ExitCode()
 }
 
 func closeAll(files ...io.Closer) error {
@@ -376,7 +389,7 @@ func closeAll(files ...io.Closer) error {
 			continue
 
 		}
-		if err := f.Close(); err != nil {
+		if err := f.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
 			errs = append(errs, err)
 		}
 	}

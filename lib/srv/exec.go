@@ -166,7 +166,7 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	}
 
 	// Start the command.
-	err = e.reexecCmd.Start(ctx)
+	err = e.reexecCmd.Start()
 	if err != nil {
 		logger.WarnContext(ctx, "Local command failed to start", "error", err)
 
@@ -211,7 +211,7 @@ func (e *localExec) Wait() *ExecResult {
 
 	execResult := &ExecResult{
 		Command: e.GetCommand(),
-		Code:    exitCode(err),
+		Code:    e.reexecCmd.ExitCode(),
 	}
 
 	return execResult
@@ -224,7 +224,7 @@ func (e *localExec) WaitForChild(ctx context.Context) error {
 // Continue will resume execution of the process after it completes its
 // pre-processing routine (placed in a cgroup).
 func (e *localExec) Continue() {
-	e.reexecCmd.Continue(e.Ctx.CancelContext())
+	e.reexecCmd.Continue()
 }
 
 // PID returns the PID of the Teleport process that was re-execed.

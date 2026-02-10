@@ -24,6 +24,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/exec"
 	"os/user"
 	"strconv"
 	"sync"
@@ -192,7 +193,7 @@ func (t *terminal) Run(ctx context.Context) error {
 	t.reexecCmd.AddChildPipe(t.takeTTY())
 
 	// Start the process.
-	if err := t.reexecCmd.Start(ctx); err != nil {
+	if err := t.reexecCmd.Start(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -202,9 +203,16 @@ func (t *terminal) Run(ctx context.Context) error {
 // Wait will block until the terminal is complete.
 func (t *terminal) Wait() (*ExecResult, error) {
 	err := t.reexecCmd.Wait()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if !errors.As(err, &exitErr) {
+			return nil, err
+		}
+	}
+
 	return &ExecResult{
-		Code:    exitCode(err),
-		Command: t.reexecCmd.Command(),
+		Code:    t.reexecCmd.ExitCode(),
+		Command: t.reexecCmd.Path(),
 	}, nil
 }
 
@@ -215,7 +223,7 @@ func (t *terminal) WaitForChild(ctx context.Context) error {
 // Continue will resume execution of the process after it completes its
 // pre-processing routine (placed in a cgroup).
 func (t *terminal) Continue() {
-	t.reexecCmd.Continue(t.serverContext.CancelContext())
+	t.reexecCmd.Continue()
 }
 
 // PTY returns the PTY backing the terminal.

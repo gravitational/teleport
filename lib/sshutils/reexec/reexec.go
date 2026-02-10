@@ -19,9 +19,15 @@
 package reexec
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
+	"time"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -127,5 +133,32 @@ func InitLogger(name string, cfg LogConfig) {
 		slog.SetDefault(logger.With(teleport.ComponentKey, name))
 	default:
 		return
+	}
+}
+
+// WaitForSignal waits for the other side of the pipe to signal. If not
+// received, it will stop waiting and exit.
+func WaitForSignal(ctx context.Context, r io.Reader, timeout time.Duration) error {
+	waitCh := make(chan error, 1)
+	go func() {
+		// Reading from the file descriptor will block until it's closed.
+		_, err := r.Read(make([]byte, 1))
+		if errors.Is(err, io.EOF) {
+			err = nil
+		}
+		waitCh <- err
+	}()
+
+	// Timeout if no signal has been sent within the provided duration.
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err(), "got context error while waiting for signal")
+	case <-timer.C:
+		return trace.LimitExceeded("timed out waiting for signal")
+	case err := <-waitCh:
+		return trace.Wrap(err)
 	}
 }

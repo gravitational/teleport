@@ -128,11 +128,11 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	}
 
 	s.logger.DebugContext(ctx, "starting SFTP process")
-	err = s.reexecCmd.Start(ctx)
+	err = s.reexecCmd.Start()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.reexecCmd.Continue(ctx)
+	s.reexecCmd.Continue()
 
 	// Send the file transfer request if applicable. The SFTP process
 	// expects the file transfer request data will end with a null byte,
@@ -155,6 +155,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	s.errCh = make(chan error, copyingGoroutines)
 	go func() {
 		defer chReadPipeIn.Close()
+
 		_, err := io.Copy(chReadPipeIn, ch)
 		s.errCh <- err
 	}()

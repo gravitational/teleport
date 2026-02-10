@@ -108,7 +108,6 @@ func NewProcess(ctx context.Context, cmd *reexec.Command) (*Process, error) {
 		return nil, trace.Wrap(err)
 	}
 	defer remoteConn.Close()
-
 	remoteFD, err := remoteConn.File()
 	if err != nil {
 		localConn.Close()
@@ -121,7 +120,7 @@ func NewProcess(ctx context.Context, cmd *reexec.Command) (*Process, error) {
 		conn: localConn,
 	}
 
-	if err := proc.cmd.Start(ctx, localConn); err != nil {
+	if err := proc.cmd.Start(localConn); err != nil {
 		localConn.Close()
 		return nil, trace.Wrap(err)
 	}
@@ -258,7 +257,7 @@ func readResponse(conn *net.UnixConn) (*os.File, error) {
 		if n > 0 {
 			// The networking process only ever writes to the request conn if an error occurs.
 			// Read the rest of the connection to ensure we don't return just a partial stream.
-			errMsg, err := io.ReadAll(io.LimitReader(conn, int64(cap(buf)-len(buf))))
+			errMsg, err := io.ReadAll(conn)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

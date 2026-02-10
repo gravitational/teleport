@@ -45,9 +45,9 @@ func TestCommand(t *testing.T) {
 		reexecCmd, stdin, stdout := newTestReexecCommand(t)
 
 		// Start the command and go through the ready signal flow.
-		require.NoError(t, reexecCmd.Start(ctx))
+		require.NoError(t, reexecCmd.Start())
 		require.NoError(t, reexecCmd.WaitReady(ctx))
-		reexecCmd.Continue(ctx)
+		reexecCmd.Continue()
 
 		// The reexec process should echo back anything written to it.
 		echoString := "hello world"
@@ -67,7 +67,7 @@ func TestCommand(t *testing.T) {
 		reexecCmd, stdin, stdout := newTestReexecCommand(t)
 
 		// Start the command.
-		require.NoError(t, reexecCmd.Start(ctx))
+		require.NoError(t, reexecCmd.Start())
 
 		// The child process should not echo writes until the parent signals to continue.
 		echoString := "hello world"
@@ -78,7 +78,7 @@ func TestCommand(t *testing.T) {
 		}, 100*time.Millisecond, 10*time.Millisecond)
 
 		// Signal continue.
-		reexecCmd.Continue(ctx)
+		reexecCmd.Continue()
 
 		// Close stdin to end the cmd with success.
 		stdin.Close()
@@ -94,7 +94,7 @@ func TestCommand(t *testing.T) {
 		reexecCmd, _, _ := newTestReexecCommand(t, "REEXEC_SKIP_READY=1")
 
 		// Start the command.
-		require.NoError(t, reexecCmd.Start(ctx))
+		require.NoError(t, reexecCmd.Start())
 
 		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 		defer cancel()
@@ -110,9 +110,9 @@ func TestCommand(t *testing.T) {
 		reexecCmd, _, stdout := newTestReexecCommand(t)
 
 		// Start the command and go through the ready signal flow.
-		require.NoError(t, reexecCmd.Start(ctx))
+		require.NoError(t, reexecCmd.Start())
 		require.NoError(t, reexecCmd.WaitReady(ctx))
-		reexecCmd.Continue(ctx)
+		reexecCmd.Continue()
 
 		// Terminate the command prematurely.
 		err := reexecCmd.stop(100 * time.Millisecond)
@@ -131,9 +131,9 @@ func TestCommand(t *testing.T) {
 		reexecCmd, _, stdout := newTestReexecCommand(t, "REEXEC_IGNORE_TERMINATE=1")
 
 		// Start the command and go through the ready signal flow.
-		require.NoError(t, reexecCmd.Start(ctx))
+		require.NoError(t, reexecCmd.Start())
 		require.NoError(t, reexecCmd.WaitReady(ctx))
-		reexecCmd.Continue(ctx)
+		reexecCmd.Continue()
 
 		// Kill the command prematurely.
 		err := reexecCmd.stop(100 * time.Millisecond)
@@ -152,9 +152,9 @@ func TestCommand(t *testing.T) {
 		echoPipe, err := reexecCmd.AddParentToChildPipe()
 		require.NoError(t, err)
 
-		require.NoError(t, reexecCmd.Start(ctx))
+		require.NoError(t, reexecCmd.Start())
 		require.NoError(t, reexecCmd.WaitReady(ctx))
-		reexecCmd.Continue(ctx)
+		reexecCmd.Continue()
 
 		// The reexec process should echo back anything written to it.
 		echoString := "hello world"
@@ -168,6 +168,16 @@ func TestCommand(t *testing.T) {
 
 		require.Zero(t, reexecCmd.ExitCode())
 	})
+}
+
+func TestCommandCloseIdempotent(t *testing.T) {
+	t.Parallel()
+
+	reexecCmd, err := NewCommand(newBasicConfig(t))
+	require.NoError(t, err)
+
+	require.NoError(t, reexecCmd.Close())
+	require.NoError(t, reexecCmd.Close())
 }
 
 func newTestReexecCommand(t *testing.T, env ...string) (cmd *Command, stdin io.WriteCloser, stdout *safeBuffer) {

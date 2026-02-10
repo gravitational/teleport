@@ -804,12 +804,12 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 	scx.Identity.AccessPermit = &decisionpb.SSHAccessPermit{}
 	scx.execRequest.SetCommand(command)
 
-	cmd, err := ConfigureCommand(scx)
+	cmd, err := scx.ConfigureCommand()
 	require.NoError(t, err)
 
 	var output bytes.Buffer
-	cmd.Cmd.Stdout = &output
-	cmd.Cmd.Stderr = &output
+	_, err = cmd.WithStdio(&output, &output)
+	require.NoError(t, err)
 
 	t.Logf("running %q", command)
 
@@ -830,7 +830,7 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 		ServerHostname: "ip-172-31-11-148",
 		Login:          "foo",
 		User:           "foo@example.com",
-		PID:            cmd.Cmd.Process.Pid,
+		PID:            cmd.PID(),
 		Emitter:        emitter,
 		Events:         recordEvents,
 	}
@@ -856,7 +856,7 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 	case <-time.After(5 * time.Second):
 		// We're not interested in the error, we just want to clean up the
 		// process.
-		scx.reexecCommand.Terminate()
+		cmd.Close()
 		t.Fatal("Timed out waiting for process to finish.")
 	case err := <-cmdDone:
 		t.Logf("output:\n%s", output.String())

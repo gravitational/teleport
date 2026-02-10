@@ -159,14 +159,13 @@ func TestConfigureCommand(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NotNil(t, cmd)
-	require.Equal(t, "/proc/self/exe", cmd.Command())
+	require.Equal(t, "/proc/self/exe", cmd.Path())
 	require.NotContains(t, cmd.Env(), unexpectedKey+"="+unexpectedValue)
 }
 
 // TestContinue tests if the process hangs if a continue signal is not sent
 // and makes sure the process continues once it has been sent.
 func TestContinue(t *testing.T) {
-	ctx := t.Context()
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
 
@@ -188,7 +187,7 @@ func TestContinue(t *testing.T) {
 	// Re-execute Teleport and run "ls". Signal over the context when execution
 	// is complete.
 	go func() {
-		if err := cmd.Start(ctx); err != nil {
+		if err := cmd.Start(); err != nil {
 			cmdDone <- err
 			return
 		}

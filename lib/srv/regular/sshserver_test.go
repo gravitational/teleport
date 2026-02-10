@@ -3773,6 +3773,96 @@ func TestSharedSessionOwnerDisconnect(t *testing.T) {
 	}
 }
 
+func TestExecSessionCloseTerminatesChild(t *testing.T) {
+	f := newFixtureWithoutDiskBasedLogging(t)
+	ctx := t.Context()
+
+	client, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+
+	session, err := client.NewSession(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	sleepPath, err := exec.LookPath("sleep")
+	if err != nil {
+		t.Skip("sleep not found")
+	}
+
+	require.NoError(t, session.Start(ctx, fmt.Sprintf("%s 60", sleepPath)))
+
+	waitErr := make(chan error, 1)
+	go func() {
+		waitErr <- session.Wait()
+	}()
+
+	require.NoError(t, client.Close())
+
+	select {
+	case <-waitErr:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for exec session to exit")
+	}
+}
+
+func TestShellSessionCloseTerminatesChild(t *testing.T) {
+	f := newFixtureWithoutDiskBasedLogging(t)
+	ctx := t.Context()
+
+	client, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+
+	session, err := client.NewSession(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	require.NoError(t, session.RequestPty(ctx, "xterm", 40, 80, ssh.TerminalModes{}))
+	require.NoError(t, session.Shell(ctx))
+
+	waitErr := make(chan error, 1)
+	go func() {
+		waitErr <- session.Wait()
+	}()
+
+	require.NoError(t, client.Close())
+
+	select {
+	case <-waitErr:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for shell session to exit")
+	}
+}
+
+func TestSFTPSubsystemDisconnectTerminatesProcess(t *testing.T) {
+	f := newFixtureWithoutDiskBasedLogging(t, SetAllowFileCopying(true))
+	ctx := t.Context()
+
+	client, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+
+	session, err := client.NewSession(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	require.NoError(t, session.RequestSubsystem(ctx, teleport.SFTPSubsystem))
+
+	waitErr := make(chan error, 1)
+	go func() {
+		waitErr <- session.Wait()
+	}()
+
+	require.NoError(t, client.Close())
+
+	select {
+	case <-waitErr:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for sftp subsystem to exit")
+	}
+}
+
 func TestServerInfo(t *testing.T) {
 	scope := "/aa"
 	f := newFixtureWithoutDiskBasedLogging(t, SetScope(scope))
