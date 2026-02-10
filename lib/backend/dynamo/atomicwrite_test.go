@@ -19,7 +19,6 @@
 package dynamo
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -37,24 +36,11 @@ func newAtomicWriteBackend(options ...test.ConstructionOption) (backend.Backend,
 		"poll_stream_period": 300 * time.Millisecond,
 	}
 
-	testCfg, err := test.ApplyOptions(options)
+	uut, err := newBackend(dynamoCfg, options...)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	if testCfg.MirrorMode {
-		return nil, nil, test.ErrMirrorNotSupported
-	}
-
-	// This would seem to be a bad thing for dynamo to omit
-	if testCfg.ConcurrentBackend != nil {
-		return nil, nil, test.ErrConcurrentAccessNotSupported
-	}
-
-	uut, err := New(context.Background(), dynamoCfg)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
 	clock := clockwork.NewFakeClockAt(time.Now())
 	uut.clock = clock
 	return uut, clock, nil
