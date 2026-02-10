@@ -68,11 +68,11 @@ func TestUpsertIAMJoinToken(t *testing.T) {
 
 		require.Equal(t, "t", iamToken.GetName())
 		require.Contains(t, iamToken.GetRoles(), types.RoleDatabase)
-		require.Len(t, iamToken.GetAllowRules(), 1)
+		require.Len(t, iamToken.GetAWSAllowRules(), 1)
 		require.Equal(t, &types.TokenRule{
 			AWSAccount: "123456789012",
 			AWSARN:     "arn:aws:sts::123456789012:assumed-role/myrole/*",
-		}, iamToken.GetAllowRules()[0])
+		}, iamToken.GetAWSAllowRules()[0])
 	})
 
 	t.Run("when token exist but is missing the required allow rule and system role, it is updated", func(t *testing.T) {
@@ -102,12 +102,12 @@ func TestUpsertIAMJoinToken(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, "t", iamToken.GetName())
-		require.Len(t, iamToken.GetAllowRules(), 1)
+		require.Len(t, iamToken.GetAWSAllowRules(), 1)
 		require.Contains(t, iamToken.GetRoles(), types.RoleDatabase)
 		require.Equal(t, &types.TokenRule{
 			AWSAccount: "123456789012",
 			AWSARN:     "arn:aws:sts::123456789012:assumed-role/myrole/*",
-		}, iamToken.GetAllowRules()[0])
+		}, iamToken.GetAWSAllowRules()[0])
 	})
 
 	t.Run("when token exist but has an invalid join method, it returns an error", func(t *testing.T) {
