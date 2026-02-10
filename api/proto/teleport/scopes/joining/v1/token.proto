@@ -73,6 +73,9 @@ message ScopedTokenSpec {
 
   // The AWS-specific configuration used with the "ec2" and "iam" join methods.
   AWS aws = 6;
+
+  // The GCP-specific configuration used with the "gcp" join method.
+  GCP gcp = 7;
 }
 
 // The host certificate parameters that should be cached and leveraged for
@@ -190,4 +193,21 @@ message AWS {
   // Integration name which provides credentials for validating join attempts.
   // Currently only in use for validating the AWS Organization ID in the IAM Join method.
   string integration = 3;
+}
+
+// The GCP-specific configuration used with the "gcp" join method.
+message GCP {
+  // A rule that a joining node must match in order to use the associated token
+  // with the "gcp" join method.
+  message Rule {
+    // A list of project IDs (e.g. `<example-id-123456>`).
+    repeated string project_ids = 1;
+    // A list of regions (e.g. "us-west1") and/or zones (e.g. "us-west1-b").
+    repeated string locations = 2;
+    // A list of service account emails (e.g. `<project-number>-compute@developer.gserviceaccount.com`).
+    repeated string service_accounts = 3;
+  }
+  // A list of Rules for allowing use of this token. A node must match at least one
+  // allow rule in order to use this token.
+  repeated Rule allow = 1;
 }
