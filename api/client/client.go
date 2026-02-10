@@ -974,6 +974,33 @@ func (c *Client) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
 	return c.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
 }
 
+// CreateVnetConfig creates the singleton VnetConfig resource.
+func (c *Client) CreateVnetConfig(ctx context.Context, vnetConfig *vnet.VnetConfig) (*vnet.VnetConfig, error) {
+	return c.VnetConfigServiceClient().CreateVnetConfig(ctx, &vnet.CreateVnetConfigRequest{
+		VnetConfig: vnetConfig,
+	})
+}
+
+// UpdateVnetConfig updates the singleton VnetConfig resource.
+func (c *Client) UpdateVnetConfig(ctx context.Context, vnetConfig *vnet.VnetConfig) (*vnet.VnetConfig, error) {
+	return c.VnetConfigServiceClient().UpdateVnetConfig(ctx, &vnet.UpdateVnetConfigRequest{
+		VnetConfig: vnetConfig,
+	})
+}
+
+// UpsertVnetConfig upserts the singleton VnetConfig resource.
+func (c *Client) UpsertVnetConfig(ctx context.Context, vnetConfig *vnet.VnetConfig) (*vnet.VnetConfig, error) {
+	return c.VnetConfigServiceClient().UpsertVnetConfig(ctx, &vnet.UpsertVnetConfigRequest{
+		VnetConfig: vnetConfig,
+	})
+}
+
+// DeleteVnetConfig deletes the singleton VnetConfig resource.
+func (c *Client) DeleteVnetConfig(ctx context.Context) error {
+	_, err := c.VnetConfigServiceClient().DeleteVnetConfig(ctx, &vnet.DeleteVnetConfigRequest{})
+	return trace.Wrap(err)
+}
+
 // Ping gets basic info about the auth server.
 func (c *Client) Ping(ctx context.Context) (proto.PingResponse, error) {
 	rsp, err := c.grpc.Ping(ctx, &proto.PingRequest{})

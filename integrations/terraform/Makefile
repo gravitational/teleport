@@ -139,6 +139,13 @@ endif
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
 		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-vnet.yaml:./tfschema \
+		teleport/vnet/v1/vnet_config.proto
+
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
 		--terraform_out=config=protoc-gen-terraform-healthcheckconfig.yaml:./tfschema \
 		teleport/healthcheckconfig/v1/health_check_config.proto
 
@@ -169,6 +176,8 @@ endif
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2/statichostuser_terraform.go ./tfschema/userprovisioning/v2/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1/resource_terraform.go ./tfschema/workloadidentity/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1/autoupdate_terraform.go ./tfschema/autoupdate/v1/
+	mkdir -p ./tfschema/vnet/v1
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1/vnet_config_terraform.go ./tfschema/vnet/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1/health_check_config_terraform.go ./tfschema/healthcheckconfig/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1/discoveryconfig_terraform.go ./tfschema/discoveryconfig/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1/appauthconfig_terraform.go ./tfschema/appauthconfig/v1/

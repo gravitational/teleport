@@ -558,6 +558,7 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_workload_identity":          resourceTeleportWorkloadIdentityType{},
 		"teleport_autoupdate_version":         resourceTeleportAutoUpdateVersionType{},
 		"teleport_autoupdate_config":          resourceTeleportAutoUpdateConfigType{},
+		"teleport_vnet_config":                resourceTeleportVnetConfigType{},
 		"teleport_health_check_config":        resourceTeleportHealthCheckConfigType{},
 		"teleport_integration":                resourceTeleportIntegrationType{},
 		"teleport_inference_model":            resourceTeleportInferenceModelType{},
@@ -596,6 +597,7 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_workload_identity":          dataSourceTeleportWorkloadIdentityType{},
 		"teleport_autoupdate_version":         dataSourceTeleportAutoUpdateVersionType{},
 		"teleport_autoupdate_config":          dataSourceTeleportAutoUpdateConfigType{},
+		"teleport_vnet_config":                dataSourceTeleportVnetConfigType{},
 		"teleport_health_check_config":        dataSourceTeleportHealthCheckConfigType{},
 		"teleport_integration":                dataSourceTeleportIntegrationType{},
 		// TODO(bl-nero): Add teleport_inference_* data sources after data sources

@@ -654,6 +654,32 @@ var (
 		DefaultName:  "apitypes.MetaNameAutoUpdateConfig",
 	}
 
+	vnetConfig = payload{
+		Name:                  "VnetConfig",
+		TypeName:              "VnetConfig",
+		VarName:               "vnetConfig",
+		GetMethod:             "GetVnetConfig",
+		CreateMethod:          "CreateVnetConfig",
+		UpsertMethodArity:     2,
+		UpdateMethod:          "UpsertVnetConfig",
+		DeleteMethod:          "DeleteVnetConfig",
+		ID:                    "vnetConfig.Metadata.Name",
+		Kind:                  "vnet_config",
+		HasStaticID:           false,
+		ProtoPackage:          "vnetv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/vnet/v1",
+		TerraformResourceType: "teleport_vnet_config",
+		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+		// resources are plain structs.
+		IsPlainStruct: true,
+		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind: "apitypes.KindVnetConfig",
+		DefaultName:  "apitypes.MetaNameVnetConfig",
+	}
+
 	healthCheckConfig = payload{
 		Name:                  "HealthCheckConfig",
 		TypeName:              "HealthCheckConfig",
@@ -890,6 +916,8 @@ func genTFSchema() {
 	generateDataSource(autoUpdateVersion, singularDataSource)
 	generateResource(autoUpdateConfig, singularResource)
 	generateDataSource(autoUpdateConfig, singularDataSource)
+	generateResource(vnetConfig, singularResource)
+	generateDataSource(vnetConfig, singularDataSource)
 	generateResource(healthCheckConfig, pluralResource)
 	generateDataSource(healthCheckConfig, pluralDataSource)
 	generateResource(discoveryConfig, pluralResource)
