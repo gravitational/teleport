@@ -382,7 +382,62 @@ func TestValidateScopedToken(t *testing.T) {
 					UsageMode:     string(joining.TokenUsageModeUnlimited),
 				},
 			},
-			expectedStrongErr: "secret value must be defined for a scoped token",
+			expectedStrongErr: "secret value must be defined for a scoped token when using the token join method",
+			expectedWeakErr:   "secret value must be defined for a scoped token when using the token join method",
+		},
+		{
+			name: "ec2 token without aws configuration",
+			token: &joiningv1.ScopedToken{
+				Kind:    types.KindScopedToken,
+				Scope:   "/aa/bb",
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "testtoken",
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					AssignedScope: "/aa/bb",
+					Roles:         []string{types.RoleNode.String()},
+					JoinMethod:    string(types.JoinMethodEC2),
+				},
+			},
+			expectedStrongErr: "aws configuration must be defined for a scoped token when using the ec2 or iam join methods",
+			expectedWeakErr:   "aws configuration must be defined for a scoped token when using the ec2 or iam join methods",
+		},
+		{
+			name: "iam token without aws configuration",
+			token: &joiningv1.ScopedToken{
+				Kind:    types.KindScopedToken,
+				Scope:   "/aa/bb",
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "testtoken",
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					AssignedScope: "/aa/bb",
+					Roles:         []string{types.RoleNode.String()},
+					JoinMethod:    string(types.JoinMethodIAM),
+				},
+			},
+			expectedStrongErr: "aws configuration must be defined for a scoped token when using the ec2 or iam join methods",
+			expectedWeakErr:   "aws configuration must be defined for a scoped token when using the ec2 or iam join methods",
+		},
+		{
+			name: "gcp token without gcp configuration",
+			token: &joiningv1.ScopedToken{
+				Kind:    types.KindScopedToken,
+				Scope:   "/aa/bb",
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "testtoken",
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					AssignedScope: "/aa/bb",
+					Roles:         []string{types.RoleNode.String()},
+					JoinMethod:    string(types.JoinMethodGCP),
+				},
+			},
+			expectedStrongErr: "gcp configuration must be defined for a scoped token when using the gcp join method",
+			expectedWeakErr:   "gcp configuration must be defined for a scoped token when using the gcp join method",
 		},
 		{
 			name: "invalid usage mode",
@@ -486,6 +541,75 @@ func TestValidateScopedToken(t *testing.T) {
 				},
 				Status: &joiningv1.ScopedTokenStatus{
 					Secret: "secret",
+				},
+			},
+		},
+		{
+			name: "valid ec2 scoped token",
+			token: &joiningv1.ScopedToken{
+				Kind:    types.KindScopedToken,
+				Scope:   "/aa/bb",
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "testtoken",
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					Roles:         []string{types.RoleNode.String()},
+					AssignedScope: "/aa/bb",
+					JoinMethod:    string(types.JoinMethodEC2),
+					Aws: &joiningv1.AWS{
+						Allow: []*joiningv1.AWS_Rule{
+							{
+								AwsAccount: "1234567890",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "valid iam scoped token",
+			token: &joiningv1.ScopedToken{
+				Kind:    types.KindScopedToken,
+				Scope:   "/aa/bb",
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "testtoken",
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					Roles:         []string{types.RoleNode.String()},
+					AssignedScope: "/aa/bb",
+					JoinMethod:    string(types.JoinMethodIAM),
+					Aws: &joiningv1.AWS{
+						Allow: []*joiningv1.AWS_Rule{
+							{
+								AwsAccount: "1234567890",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "valid gcp scoped token",
+			token: &joiningv1.ScopedToken{
+				Kind:    types.KindScopedToken,
+				Scope:   "/aa/bb",
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "testtoken",
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					Roles:         []string{types.RoleNode.String()},
+					AssignedScope: "/aa/bb",
+					JoinMethod:    string(types.JoinMethodGCP),
+					Gcp: &joiningv1.GCP{
+						Allow: []*joiningv1.GCP_Rule{
+							{
+								ProjectIds: []string{"1234567890"},
+							},
+						},
+					},
 				},
 			},
 		},

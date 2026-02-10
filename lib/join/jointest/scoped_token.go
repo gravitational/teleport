@@ -88,6 +88,18 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 			Allow:       allow,
 			Integration: base.Integration,
 		}
+	case types.JoinMethodGCP:
+		allow := make([]*joiningv1.GCP_Rule, len(base.GCP.Allow))
+		for i, rule := range base.GCP.Allow {
+			allow[i] = &joiningv1.GCP_Rule{
+				ProjectIds:      rule.ProjectIDs,
+				Locations:       rule.Locations,
+				ServiceAccounts: rule.ServiceAccounts,
+			}
+		}
+		scopedToken.Spec.Gcp = &joiningv1.GCP{
+			Allow: allow,
+		}
 	default:
 		return nil, trace.BadParameter("unsupported join method %q", base.JoinMethod)
 	}
