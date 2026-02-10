@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.6.8-gus-testcloudonly.1"
+const Version = "18.6.8-gus-test-dev.cloud"
 
 const VersionMajor = 18
 const VersionMinor = 6
 const VersionPatch = 8
-const VersionPreRelease = "gus-testcloudonly.1"
+const VersionPreRelease = "gus-test-dev.cloud"
 const VersionMetadata = ""
