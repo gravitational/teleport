@@ -843,10 +843,42 @@ const (
 
 	// WorkloadClusterCreateCode is the workload cluster create event code.
 	WorkloadClusterCreateCode = "WC001I"
+	// WorkloadClusterCreateFailureCode is the workload cluster create failure event code.
+	WorkloadClusterCreateFailureCode = "WC001E"
 	// WorkloadClusterUpdateCode is the workload cluster update event code.
 	WorkloadClusterUpdateCode = "WC002I"
+	// WorkloadClusterUpdateFailureCode is the workload cluster update failure event code.
+	WorkloadClusterUpdateFailureCode = "WC002E"
 	// WorkloadClusterDeleteCode is the workload cluster delete event code.
 	WorkloadClusterDeleteCode = "WC003I"
+	// WorkloadClusterDeleteFailureCode is the workload cluster delete failure event code.
+	WorkloadClusterDeleteFailureCode = "WC003E"
+
+	// InferenceModelCreateCode is the inference model create event code.
+	InferenceModelCreateCode = "INF001I"
+	// InferenceModelUpdateCode is the inference model update event code.
+	InferenceModelUpdateCode = "INF002I"
+	// InferenceModelDeleteCode is the inference model delete event code.
+	InferenceModelDeleteCode = "INF003I"
+
+	// InferenceSecretCreateCode is the inference secret create event code.
+	InferenceSecretCreateCode = "INF004I"
+	// InferenceSecretUpdateCode is the inference secret update event code.
+	InferenceSecretUpdateCode = "INF005I"
+	// InferenceSecretDeleteCode is the inference secret delete event code.
+	InferenceSecretDeleteCode = "INF006I"
+
+	// InferencePolicyCreateCode is the inference policy create event code.
+	InferencePolicyCreateCode = "INF007I"
+	// InferencePolicyUpdateCode is the inference policy update event code.
+	InferencePolicyUpdateCode = "INF008I"
+	// InferencePolicyDeleteCode is the inference policy delete event code.
+	InferencePolicyDeleteCode = "INF009I"
+
+	// SessionSummarizedCode is the session summarized event code.
+	SessionSummarizedCode = "INF010I"
+	// SessionSummarizedErrorCode is the session summarized error event code.
+	SessionSummarizedErrorCode = "INF010E"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

@@ -210,9 +210,9 @@ func assertTshInProgramFiles(tshPath string) error {
 	if err := assertRegularFile(tshPath); err != nil {
 		return trace.Wrap(err)
 	}
-	programFiles := os.Getenv("PROGRAMFILES")
-	if programFiles == "" {
-		return trace.Errorf("PROGRAMFILES env var is not set")
+	programFiles, err := windows.KnownFolderPath(windows.FOLDERID_ProgramFiles, 0)
+	if err != nil {
+		return trace.Wrap(err, "failed to read Program Files path")
 	}
 	// Windows file paths are case-insensitive.
 	cleanedProgramFiles := strings.ToLower(filepath.Clean(programFiles)) + string(filepath.Separator)

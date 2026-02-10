@@ -529,15 +529,17 @@ func resultToMessage(resp *joinv1.Result) (messages.Response, error) {
 
 func hostResultToMessage(resp *joinv1.HostResult) *messages.HostResult {
 	return &messages.HostResult{
-		Certificates: certificatesToMessage(resp.GetCertificates()),
-		HostID:       resp.GetHostId(),
+		Certificates:    certificatesToMessage(resp.GetCertificates()),
+		HostID:          resp.GetHostId(),
+		ImmutableLabels: resp.GetImmutableLabels(),
 	}
 }
 
 func hostResultFromMessage(msg *messages.HostResult) *joinv1.HostResult {
 	return &joinv1.HostResult{
-		Certificates: certificatesFromMessage(&msg.Certificates),
-		HostId:       msg.HostID,
+		Certificates:    certificatesFromMessage(&msg.Certificates),
+		HostId:          msg.HostID,
+		ImmutableLabels: msg.ImmutableLabels,
 	}
 }
 

@@ -78,11 +78,11 @@ export default function Empty(props: Props) {
           {showCloud && (
             <Pane
               title="Automatically Discover"
-              text="Connect your AWS, Azure, or GCP accounts to automatically scan and import all resources."
+              text="Use Terraform to connect your AWS, Azure, or GCP accounts to Teleport and automatically discover your resources."
               button={
                 <ButtonPrimary
                   as={Link}
-                  to={cfg.getIntegrationsEnrollRoute({ tags: ['cloud'] })}
+                  to={cfg.getIntegrationsEnrollRoute({ tags: ['terraform'] })}
                   width="100%"
                 >
                   Connect Cloud Account

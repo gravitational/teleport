@@ -79,6 +79,7 @@ export default function generateResourcePath(
     .replace(':upgraders?', processedParams.upgraders || '')
     .replace(':regions?', processedParams.regions || '')
     .replace(':owners?', processedParams.owners || '')
+    .replace(':origin?', processedParams.origin || '')
     .replace(':roles?', processedParams.roles || '')
     .replace(
       ':includedResourceMode?',

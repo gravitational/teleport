@@ -10,6 +10,8 @@ the Teleport Event Handler. This file includes setting similar to the following:
 storage = "./storage"
 timeout = "10s"
 batch = 20
+# concurrency is the number of concurrent sessions to process. By default, this is set to 5.
+concurrency = 5
 # The window size configures the duration of the time window for the event handler
 # to request events from Teleport. By default, this is set to 24 hours.
 # Reduce the window size if the events backend cannot manage the event volume
@@ -55,6 +57,8 @@ eventHandler:
   storagePath: "./storage"
   timeout: "10s"
   batch: 20
+  # concurrency is the number of concurrent sessions to process. By default, this is set to 5.
+  concurrency: 5
   # The window size configures the duration of the time window for the event handler
   # to request events from Teleport. By default, this is set to 24 hours.
   # Reduce the window size if the events backend cannot manage the event volume

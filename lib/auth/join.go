@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	"github.com/gravitational/teleport/lib/join/provision"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
 // checkTokenJoinRequestCommon checks all token join rules that are common to
@@ -509,17 +510,21 @@ func (a *Server) GenerateHostCertsForJoin(
 
 	// generate and return host certificate and keys
 	certs, err := a.GenerateHostCerts(ctx,
-		&proto.HostCertsRequest{
-			HostID:               params.HostID,
-			NodeName:             params.HostName,
-			Role:                 params.SystemRole,
-			AdditionalPrincipals: params.AdditionalPrincipals,
-			PublicTLSKey:         params.PublicTLSKey,
-			PublicSSHKey:         params.PublicSSHKey,
-			RemoteAddr:           params.RemoteAddr,
-			DNSNames:             params.DNSNames,
-			SystemRoles:          systemRoles,
-		}, token.GetAssignedScope())
+		HostCertsParams{
+			Req: &proto.HostCertsRequest{
+				HostID:               params.HostID,
+				NodeName:             params.HostName,
+				Role:                 params.SystemRole,
+				AdditionalPrincipals: params.AdditionalPrincipals,
+				PublicTLSKey:         params.PublicTLSKey,
+				PublicSSHKey:         params.PublicSSHKey,
+				RemoteAddr:           params.RemoteAddr,
+				DNSNames:             params.DNSNames,
+				SystemRoles:          systemRoles,
+			},
+			AgentScope:         token.GetAssignedScope(),
+			ImmutableLabelHash: joining.HashImmutableLabels(token.GetImmutableLabels()),
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

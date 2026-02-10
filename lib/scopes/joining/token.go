@@ -17,6 +17,10 @@
 package joining
 
 import (
+	"cmp"
+	"crypto/sha256"
+	"encoding/hex"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -33,6 +37,8 @@ var rolesSupportingScopes = types.SystemRoles{
 
 var joinMethodsSupportingScopes = map[string]struct{}{
 	string(types.JoinMethodToken): {},
+	string(types.JoinMethodEC2):   {},
+	string(types.JoinMethodIAM):   {},
 }
 
 // TokenUsageMode represents the possible usage modes of a scoped token.
@@ -106,6 +112,10 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 	roles, err := types.NewTeleportRoles(spec.Roles)
 	if err != nil {
 		return trace.Wrap(err, "validating scoped token roles")
+	}
+
+	if err := validateImmutableLabels(spec); err != nil {
+		return trace.Wrap(err)
 	}
 
 	for _, role := range roles {
@@ -260,20 +270,36 @@ func (t *Token) GetAssignedScope() string {
 	return t.scoped.GetSpec().GetAssignedScope()
 }
 
-// GetAllowRules returns the list of allow rules.
-func (t *Token) GetAllowRules() []*types.TokenRule {
-	return nil
+// GetAWSAllowRules returns the list of AWS-specific allow rules.
+func (t *Token) GetAWSAllowRules() []*types.TokenRule {
+	allow := make([]*types.TokenRule, len(t.scoped.GetSpec().GetAws().GetAllow()))
+	for i, rule := range t.scoped.GetSpec().GetAws().GetAllow() {
+		allow[i] = &types.TokenRule{
+			AWSAccount:        rule.GetAwsAccount(),
+			AWSRegions:        rule.GetAwsRegions(),
+			AWSRole:           rule.GetAwsRole(),
+			AWSARN:            rule.GetAwsArn(),
+			AWSOrganizationID: rule.GetAwsOrganizationId(),
+		}
+	}
+
+	return allow
 }
 
 // GetAWSIIDTTL returns the TTL of EC2 IIDs
 func (t *Token) GetAWSIIDTTL() types.Duration {
-	return types.NewDuration(0)
+	ttl := t.scoped.GetSpec().GetAws().GetAwsIidTtl()
+	if ttl == 0 {
+		// default to 5 minute ttl if unspecified
+		return types.Duration(5 * time.Minute)
+	}
+	return types.Duration(ttl)
 }
 
 // GetIntegration returns the Integration field which is used to provide
 // credentials that will be used when validating the AWS Organization if required by an IAM Token.
 func (t *Token) GetIntegration() string {
-	return ""
+	return t.scoped.GetSpec().GetAws().GetIntegration()
 }
 
 // GetSecret returns the token's secret value.
@@ -290,4 +316,63 @@ func GetScopedToken(token provision.Token) (*joiningv1.ScopedToken, bool) {
 	}
 
 	return wrapper.scoped, true
+}
+
+// GetImmutableLabels returns labels that must be applied to resources
+// provisioned with this token.
+func (t *Token) GetImmutableLabels() *joiningv1.ImmutableLabels {
+	return t.scoped.GetSpec().GetImmutableLabels()
+}
+
+func validateImmutableLabels(spec *joiningv1.ScopedTokenSpec) error {
+	if spec == nil {
+		return nil
+	}
+
+	sshLabels := spec.GetImmutableLabels().GetSsh()
+	if len(sshLabels) > 0 {
+		if !slices.Contains(spec.GetRoles(), string(types.RoleNode)) {
+			return trace.BadParameter("immutable ssh labels are only supported for tokens that allow the node role")
+		}
+	}
+
+	for k := range sshLabels {
+		if !types.IsValidLabelKey(k) {
+			return trace.BadParameter("invalid immutable label key %q", k)
+		}
+	}
+
+	return nil
+}
+
+// HashImmutableLabels returns a deterministic hash of the given [*joiningv1.ImmutableLabels].
+func HashImmutableLabels(labels *joiningv1.ImmutableLabels) string {
+	if labels == nil {
+		return ""
+	}
+
+	hash := sha256.New()
+	if sshLabels := labels.GetSsh(); sshLabels != nil {
+		sorted := make([]struct{ key, value string }, 0, len(sshLabels))
+		for k, v := range sshLabels {
+			sorted = append(sorted, struct{ key, value string }{k, v})
+		}
+		slices.SortFunc(sorted, func(a, b struct{ key, value string }) int {
+			return cmp.Compare(a.key, b.key)
+		})
+
+		for _, v := range sorted {
+			_, _ = hash.Write([]byte(v.key))
+			_, _ = hash.Write([]byte(v.value))
+		}
+	}
+
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
+// VerifyImmutableLabelsHash returns whether or not the given [*joiningv1.ImmutableLabels]
+// matches the given hash.
+func VerifyImmutableLabelsHash(labels *joiningv1.ImmutableLabels, hash string) bool {
+	newHash := HashImmutableLabels(labels)
+	return newHash == hash
 }
