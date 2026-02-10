@@ -521,17 +521,9 @@ func printRequestsDetailed(reqs []types.AccessRequest, format string) error {
 	switch format {
 	case teleport.Text:
 		for _, req := range reqs {
-			resourceIDsString := ""
-			if resourceAccessIDs := req.GetAllRequestedResourceIDs(); len(resourceAccessIDs) > 0 {
-				resourceIDStrings := make([]string, 0, len(resourceAccessIDs))
-				for _, rid := range resourceAccessIDs {
-					resourceIDStrings = append(resourceIDStrings, common.FormatResourceAccessID(rid, true))
-				}
-				bytes, err := json.Marshal(resourceIDStrings)
-				if err != nil {
-					return trace.Wrap(err, "failed to marshal resource IDs")
-				}
-				resourceIDsString = string(bytes)
+			resourceIDsString, err := common.FormatResourceAccessIDs(req.GetAllRequestedResourceIDs())
+			if err != nil {
+				return trace.Wrap(err)
 			}
 			if resourceIDsString == "" {
 				resourceIDsString = "[none]"
@@ -546,7 +538,7 @@ func printRequestsDetailed(reqs []types.AccessRequest, format string) error {
 			table.AddRow([]string{"Request Reason: ", quoteOrDefault(req.GetRequestReason(), "[none]")})
 			table.AddRow([]string{"Resolve Reason: ", quoteOrDefault(req.GetResolveReason(), "[none]")})
 
-			_, err := table.AsBuffer().WriteTo(os.Stdout)
+			_, err = table.AsBuffer().WriteTo(os.Stdout)
 			if err != nil {
 				return trace.Wrap(err)
 			}

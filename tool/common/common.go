@@ -224,28 +224,47 @@ func FormatResourceName(r types.ResourceWithLabels, verbose bool) string {
 }
 
 // FormatResourceAccessID returns the provided ResourceAccessID in its string form,
-// appending constraints when present and if verbose.
-func FormatResourceAccessID(rid types.ResourceAccessID, verbose bool) string {
+// appending constraints when present.
+func FormatResourceAccessID(rid types.ResourceAccessID) string {
 	resourceIDString := types.ResourceIDToString(rid.GetResourceID())
 	constraintsString := ""
 
-	if verbose {
-		if c := rid.GetConstraints(); c != nil && c.GetDetails() != nil {
-			switch d := c.GetDetails().(type) {
-			case *types.ResourceConstraints_AwsConsole:
-				if d.AwsConsole == nil {
-					break
-				}
-				constraintsString = fmt.Sprintf("role_arns=%s", strings.Join(d.AwsConsole.RoleArns, ", "))
+	if c := rid.GetConstraints(); c != nil && c.GetDetails() != nil {
+		switch d := c.GetDetails().(type) {
+		case *types.ResourceConstraints_AwsConsole:
+			if d.AwsConsole == nil {
+				break
 			}
-		}
-
-		if constraintsString != "" {
-			return fmt.Sprintf("%s (%s)", resourceIDString, constraintsString)
+			constraintsString = fmt.Sprintf("role_arns=%s", strings.Join(d.AwsConsole.RoleArns, ","))
 		}
 	}
 
+	if constraintsString != "" {
+		return fmt.Sprintf("%s (%s)", resourceIDString, constraintsString)
+	}
+
 	return resourceIDString
+}
+
+// FormatResourceAccessIDs returns the provided ResourceAccessIDs in string form,
+// appending constraints to each when present. Uses JSON.Marshal to
+// ensure proper handling for any IDs containing commas/quotes.
+func FormatResourceAccessIDs(rids []types.ResourceAccessID) (string, error) {
+	out := ""
+
+	if len(rids) > 0 {
+		resourceIDStrings := make([]string, 0, len(rids))
+		for _, rid := range rids {
+			resourceIDStrings = append(resourceIDStrings, FormatResourceAccessID(rid))
+		}
+		bytes, err := json.Marshal(resourceIDStrings)
+		if err != nil {
+			return "", trace.Wrap(err, "failed to marshal ResourceAccessIDs")
+		}
+		out = string(bytes)
+	}
+
+	return out, nil
 }
 
 // GetDiscoveredResourceName returns the resource original name discovered in
