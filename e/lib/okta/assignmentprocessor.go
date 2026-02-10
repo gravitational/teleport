@@ -269,18 +269,13 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, id string, 
 		return processAssignmentFailed
 	}
 
-	var processErrs []error
 	// TODO(kopiczko) pass the logger with extra attributes to assignmentClient.
 	assignmentClient := a.getAssignmentClient()
-	// If we can't find the user in Okta, skip trying to process any of the targets.
-	if _, err := assignmentClient.userID(ctx, userName(assignment.GetUser())); err != nil {
-		processErrs = []error{trace.NotFound("Okta user for the assignment not found; it could have been deleted in the meantime")}
-		logger.DebugContext(ctx, "Okta user for the assignment not found. It could have been deleted in the meantime. Skipping", "error", err.Error())
-	} else if needsCleanup {
-		processErrs = a.cleanupTargets(ctx, logger, assignmentClient, assignment)
-	} else {
-		processErrs = a.processTargets(ctx, logger, assignmentClient, assignment)
+	op := opProvision
+	if needsCleanup {
+		op = opCleanup
 	}
+	processErrs := a.processTargets(ctx, logger, assignmentClient, assignment, op)
 
 	var err error
 	if len(processErrs) == 0 {
@@ -364,8 +359,15 @@ func (a *assignmentProcessor) shouldProcess(ctx context.Context, logger *slog.Lo
 	return true
 }
 
-// processTargets will process or retry the targets for an assignment.
-func (a *assignmentProcessor) processTargets(ctx context.Context, logger *slog.Logger, client *assignmentClient, assignment types.OktaAssignment) []error {
+// processTargets will try to provision/cleanup targets. It returns the updates assignment status
+// and errors that should be reported in the audit event if any.
+func (a *assignmentProcessor) processTargets(ctx context.Context, logger *slog.Logger, client *assignmentClient, assignment types.OktaAssignment, op opType) []error {
+	// If we can't find the user in Okta, skip trying to process any of the targets.
+	if _, err := client.userID(ctx, userName(assignment.GetUser())); err != nil {
+		logger.WarnContext(ctx, "Okta user for the assignment not found (was the user deleted/deactivated in Okta?). Skipping")
+		return []error{trace.NotFound("Okta user for the assignment not found (was the user deleted/deactivated in Okta?)")}
+	}
+
 	var errs []error
 	for _, target := range assignment.GetTargets() {
 		logger := logger.With(
@@ -373,104 +375,105 @@ func (a *assignmentProcessor) processTargets(ctx context.Context, logger *slog.L
 			"target_id", target.GetID(),
 		)
 
-		m, err := a.accessPoint.GetAccessListMember(ctx, target.GetID(), assignment.GetUser())
-		switch {
-		case err == nil && m.Spec.AddedBy == accesslist.OktaServiceRoleUsername:
-			// If the assignment was added by the "okta-service" role, it means it originated
-			// from Okta and was imported into Teleport via Okta Access List Sync.
-			//
-			// In this case, we treat the assignment as being managed by Okta upstream,
-			// so we should not attempt to re-provision the target resource
-			continue
-		case trace.IsNotFound(err):
-			// User member, nothing to check.
-		case err != nil:
-			logger.WarnContext(ctx, "Failed to check access list membership", "error", err)
-		}
-
-		switch outcome := a.authorizeTarget(target); outcome {
-		case targetAuthorized:
-			// Carry on with processing.
-		case targetNotFound:
-			// If we can't find the target, then we'll continue because there's nothing we can do here.
-			logger.DebugContext(ctx, "Resource for the target not found, ignoring")
-			continue
-		default:
-			logger.WarnContext(ctx, "target is not managed by this service", "reason", outcome)
-			continue
-		}
-
-		var registerErr error
-		switch target.GetTargetType() {
-		case constants.OktaAssignmentTargetGroup:
-			registerErr = client.registerUserToGroup(ctx, userName(assignment.GetUser()), oktaGroupID(target.GetID()))
-		case constants.OktaAssignmentTargetApplication:
-			if appID, ok := a.getOktaAppIDFromAppServer(target.GetID()); !ok {
-				registerErr = trace.Errorf("app_server %q does not have an Okta App ID", target.GetID())
-			} else {
-				registerErr = trace.Wrap(client.registerUserToApp(ctx, userName(assignment.GetUser()), appID))
-			}
-		default:
-			logger.ErrorContext(ctx, "Unrecognized target type, skipping (this is a bug)", "target_type", target.GetTargetType())
-		}
-		if registerErr != nil {
-			logger.ErrorContext(ctx, "Error provisioning target", "error", registerErr)
-			errs = append(errs, newTargetAuditError(target, verbProvision, registerErr))
-		} else {
-			a.registerUserTarget(assignment, target)
+		if err := a.processTarget(ctx, logger, client, assignment, target, op); err != nil {
+			errs = append(errs, trace.Wrap(err))
 		}
 	}
 	return errs
 }
 
-// cleanupTargets will cleanup the targets for an assignment.
-func (a *assignmentProcessor) cleanupTargets(ctx context.Context, logger *slog.Logger, client *assignmentClient, assignment types.OktaAssignment) []error {
-	var errs []error
-	for _, target := range assignment.GetTargets() {
-		logger := logger.With(
-			"target_type", target.GetTargetType(),
-			"target_id", target.GetID(),
-		)
-
-		switch outcome := a.authorizeTarget(target); outcome {
-		case targetAuthorized:
-			// Carry on with processing.
-		case targetNotFound:
-			// If we can't find the target, then we'll continue because there's nothing we can do here.
-			logger.DebugContext(ctx, "Resource for the target not found, ignoring")
-			continue
-		default:
-			logger.WarnContext(ctx, "target is not managed by this service", "reason", outcome)
-			continue
-		}
-
-		// Only cleanup the target if there are no more known assignments that have the given target.
-		remainingAssignments := a.unregisterUserTarget(assignment, target)
-		if remainingAssignments != 0 {
-			logger.InfoContext(ctx, "Skipping target clean up, because other assignments still reference it",
-				"remaining_assignments", remainingAssignments)
-			continue
-		}
-
-		var unregisterErr error
-		switch target.GetTargetType() {
-		case constants.OktaAssignmentTargetGroup:
-			unregisterErr = client.unregisterUserFromGroup(ctx, userName(assignment.GetUser()), oktaGroupID(target.GetID()))
-		case constants.OktaAssignmentTargetApplication:
-			if appID, ok := a.getOktaAppIDFromAppServer(target.GetID()); !ok {
-				unregisterErr = trace.Errorf("app_server %q does not have an Okta App ID", target.GetID())
-			} else {
-				unregisterErr = client.unregisterUserFromApp(ctx, userName(assignment.GetUser()), appID)
-			}
-		default:
-			logger.ErrorContext(ctx, "Unrecognized target type, skipping (this is a bug)", "target_type", target.GetTargetType())
-		}
-		if unregisterErr != nil {
-			logger.ErrorContext(ctx, "Error cleaning up target", "error", unregisterErr)
-			errs = append(errs, unregisterErr)
-		}
+func (a *assignmentProcessor) processTarget(ctx context.Context, logger *slog.Logger, client *assignmentClient, assignment types.OktaAssignment, target types.OktaAssignmentTarget, op opType) error {
+	switch outcome := a.authorizeTarget(target); outcome {
+	case targetAuthorized:
+		// Carry on with processing.
+	case targetNotFound:
+		// If we can't find the target, then we'll continue because there's nothing we can do here.
+		logger.DebugContext(ctx, "Resource for the target not found, ignoring")
+		return nil
+	default:
+		logger.WarnContext(ctx, "target is not managed by this service", "reason", outcome)
+		return nil
 	}
-	return errs
+
+	switch op {
+	case opProvision:
+		return trace.Wrap(a.provisionTarget(ctx, logger, client, assignment, target))
+	case opCleanup:
+		return trace.Wrap(a.cleanupTarget(ctx, logger, client, assignment, target))
+	default:
+		logger.ErrorContext(ctx, "Unknown process target operation (this is a bug)", "op", op)
+		return nil
+	}
+}
+
+func (a *assignmentProcessor) provisionTarget(ctx context.Context, logger *slog.Logger, client *assignmentClient, assignment types.OktaAssignment, target types.OktaAssignmentTarget) error {
+	m, err := a.accessPoint.GetAccessListMember(ctx, target.GetID(), assignment.GetUser())
+	switch {
+	case err == nil && m.Spec.AddedBy == accesslist.OktaServiceRoleUsername:
+		// If the assignment was added by the "okta-service" role, it means it originated
+		// from Okta and was imported into Teleport via Okta Access List Sync.
+		//
+		// In this case, we treat the assignment as being managed by Okta upstream,
+		// so we should not attempt to re-provision the target resource
+		return nil
+	case trace.IsNotFound(err):
+		// User member, nothing to check.
+	case err != nil:
+		logger.WarnContext(ctx, "Failed to check access list membership", "error", err)
+	}
+
+	var registerErr error
+	switch target.GetTargetType() {
+	case constants.OktaAssignmentTargetGroup:
+		registerErr = client.registerUserToGroup(ctx, userName(assignment.GetUser()), oktaGroupID(target.GetID()))
+	case constants.OktaAssignmentTargetApplication:
+		if appID, ok := a.getOktaAppIDFromAppServer(target.GetID()); !ok {
+			registerErr = trace.Errorf("app_server %q does not have an Okta App ID", target.GetID())
+		} else {
+			registerErr = trace.Wrap(client.registerUserToApp(ctx, userName(assignment.GetUser()), appID))
+		}
+	default:
+		logger.ErrorContext(ctx, "Unrecognized target type, skipping (this is a bug)", "target_type", target.GetTargetType())
+		return nil
+	}
+	if registerErr != nil {
+		logger.ErrorContext(ctx, "Error provisioning target", "error", registerErr)
+		return trace.Wrap(newTargetAuditError(target, opProvision, registerErr))
+	}
+	a.registerUserTarget(assignment, target)
+
+	return nil
+}
+
+func (a *assignmentProcessor) cleanupTarget(ctx context.Context, logger *slog.Logger, client *assignmentClient, assignment types.OktaAssignment, target types.OktaAssignmentTarget) error {
+	// Only cleanup the target if there are no more known assignments that have the given target.
+	referencingAssignments := a.unregisterUserTarget(assignment, target)
+	if referencingAssignments != 0 {
+		logger.InfoContext(ctx, "Skipping target clean up, because other assignments still reference it",
+			"referencing_assignments", referencingAssignments)
+		return nil
+	}
+
+	var unregisterErr error
+	switch target.GetTargetType() {
+	case constants.OktaAssignmentTargetGroup:
+		unregisterErr = client.unregisterUserFromGroup(ctx, userName(assignment.GetUser()), oktaGroupID(target.GetID()))
+	case constants.OktaAssignmentTargetApplication:
+		if appID, ok := a.getOktaAppIDFromAppServer(target.GetID()); !ok {
+			unregisterErr = trace.Errorf("app_server %q does not have an Okta App ID", target.GetID())
+		} else {
+			unregisterErr = client.unregisterUserFromApp(ctx, userName(assignment.GetUser()), appID)
+		}
+	default:
+		logger.ErrorContext(ctx, "Unrecognized target type, skipping (this is a bug)", "target_type", target.GetTargetType())
+		return nil
+	}
+	if unregisterErr != nil {
+		logger.ErrorContext(ctx, "Error cleaning up target", "error", unregisterErr)
+		return trace.Wrap(newTargetAuditError(target, opCleanup, unregisterErr))
+	}
+
+	return nil
 }
 
 // rebuildTargetCounter will rebuild the target counter based on the list of assignments.
@@ -617,17 +620,17 @@ func userTargetName(assignment types.OktaAssignment, target types.OktaAssignment
 	return fmt.Sprintf("%x:%x:%x", assignment.GetUser(), target.GetTargetType(), target.GetID())
 }
 
-type verb int
+type opType int
 
 const (
-	_ verb = iota // unset
-	verbProvision
-	verbCleanup
+	_ opType = iota // unset
+	opProvision
+	opCleanup
 )
 
 // newTargetAuditError creates an error for an assignment target which denotes the error details
 // are already logged and can be found using assignment reference in this error message.
-func newTargetAuditError(target types.OktaAssignmentTarget, verb verb, err error) error {
+func newTargetAuditError(target types.OktaAssignmentTarget, verb opType, err error) error {
 	// The assignment reference should be already present in the audit event, but there is no
 	// info about the target so add the target ref to the error message.
 	targetRef := target.GetTargetType() + ":" + target.GetID()
@@ -635,9 +638,9 @@ func newTargetAuditError(target types.OktaAssignmentTarget, verb verb, err error
 	// verb type is intentionally not a string to discourage from using %s formatting which
 	// would make it difficult to grep the code for the error message.
 	switch verb {
-	case verbProvision:
+	case opProvision:
 		return trace.BadParameter("failed to provision target %q: %s", targetRef, err)
-	case verbCleanup:
+	case opCleanup:
 		return trace.BadParameter("failed to cleanup target %q: %s", targetRef, err)
 	default:
 		return trace.BadParameter("failed to process target (unsupported verb [%d]) %q: %s", verb, targetRef, err)
