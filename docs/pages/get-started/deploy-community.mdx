@@ -314,9 +314,12 @@ allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
      If a user does not already exist, you can create it with `adduser <login>` or
      use [host user creation](../enroll-resources/server-access/guides/host-user-creation.mdx).
    
-     If you do not have the permission to create new users on the Linux host, run
-     `tctl users update teleport-admin --set-logins=root,ubuntu,ec2-user,$(whoami)` to explicitly allow Teleport to
-     authenticate as the user that you have currently logged in as.
+     If you do not have permission to create new users on the Linux host, run the following command to explicitly allow Teleport to 
+     authenticate as the user that you have currently logged in as:
+     
+     ```code
+     $ tctl users update teleport-admin --set-logins=root,ubuntu,ec2-user,$(whoami)
+     ```
    
    </Admonition>
 
