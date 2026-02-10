@@ -100,6 +100,15 @@ export const VnetSliderStep = (props: StepComponentProps) => {
                 will be required.
               </ErrorText>
             )}
+            {installTimeRequirementsCheck.reason.kind ===
+              'incompatible-windows-service-version' && (
+              <ErrorText>
+                VNet system service version differs from the app version. <br />
+                To use VNet, reinstall Teleport Connect selecting &apos;Anyone
+                who uses this computer&apos; option. Administrator privileges
+                will be required.
+              </ErrorText>
+            )}
             {installTimeRequirementsCheck.reason.kind === 'error' && (
               <ErrorText>
                 Could not perform VNet installation requirements checks:{' '}

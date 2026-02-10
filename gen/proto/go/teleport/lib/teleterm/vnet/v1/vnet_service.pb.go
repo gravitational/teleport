@@ -107,6 +107,8 @@ const (
 	WindowsServiceStatus_WINDOWS_SERVICE_STATUS_UNSPECIFIED    WindowsServiceStatus = 0
 	WindowsServiceStatus_WINDOWS_SERVICE_STATUS_OK             WindowsServiceStatus = 1
 	WindowsServiceStatus_WINDOWS_SERVICE_STATUS_DOES_NOT_EXIST WindowsServiceStatus = 2
+	// VNet service is compatible only with the client on the same version.
+	WindowsServiceStatus_WINDOWS_SERVICE_STATUS_INCOMPATIBLE_VERSION WindowsServiceStatus = 3
 )
 
 // Enum value maps for WindowsServiceStatus.
@@ -115,11 +117,13 @@ var (
 		0: "WINDOWS_SERVICE_STATUS_UNSPECIFIED",
 		1: "WINDOWS_SERVICE_STATUS_OK",
 		2: "WINDOWS_SERVICE_STATUS_DOES_NOT_EXIST",
+		3: "WINDOWS_SERVICE_STATUS_INCOMPATIBLE_VERSION",
 	}
 	WindowsServiceStatus_value = map[string]int32{
-		"WINDOWS_SERVICE_STATUS_UNSPECIFIED":    0,
-		"WINDOWS_SERVICE_STATUS_OK":             1,
-		"WINDOWS_SERVICE_STATUS_DOES_NOT_EXIST": 2,
+		"WINDOWS_SERVICE_STATUS_UNSPECIFIED":          0,
+		"WINDOWS_SERVICE_STATUS_OK":                   1,
+		"WINDOWS_SERVICE_STATUS_DOES_NOT_EXIST":       2,
+		"WINDOWS_SERVICE_STATUS_INCOMPATIBLE_VERSION": 3,
 	}
 )
 
@@ -787,11 +791,12 @@ const file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDesc = "" +
 	"\x1eBACKGROUND_ITEM_STATUS_ENABLED\x10\x02\x12,\n" +
 	"(BACKGROUND_ITEM_STATUS_REQUIRES_APPROVAL\x10\x03\x12$\n" +
 	" BACKGROUND_ITEM_STATUS_NOT_FOUND\x10\x04\x12(\n" +
-	"$BACKGROUND_ITEM_STATUS_NOT_SUPPORTED\x10\x05*\x88\x01\n" +
+	"$BACKGROUND_ITEM_STATUS_NOT_SUPPORTED\x10\x05*\xb9\x01\n" +
 	"\x14WindowsServiceStatus\x12&\n" +
 	"\"WINDOWS_SERVICE_STATUS_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19WINDOWS_SERVICE_STATUS_OK\x10\x01\x12)\n" +
-	"%WINDOWS_SERVICE_STATUS_DOES_NOT_EXIST\x10\x022\x9b\a\n" +
+	"%WINDOWS_SERVICE_STATUS_DOES_NOT_EXIST\x10\x02\x12/\n" +
+	"+WINDOWS_SERVICE_STATUS_INCOMPATIBLE_VERSION\x10\x032\x9b\a\n" +
 	"\vVnetService\x12b\n" +
 	"\x05Start\x12+.teleport.lib.teleterm.vnet.v1.StartRequest\x1a,.teleport.lib.teleterm.vnet.v1.StartResponse\x12_\n" +
 	"\x04Stop\x12*.teleport.lib.teleterm.vnet.v1.StopRequest\x1a+.teleport.lib.teleterm.vnet.v1.StopResponse\x12}\n" +

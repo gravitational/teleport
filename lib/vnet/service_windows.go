@@ -19,6 +19,7 @@ package vnet
 import (
 	"context"
 	"log/slog"
+	"os"
 	"syscall"
 	"time"
 
@@ -170,6 +171,34 @@ func VerifyServiceInstalled() error {
 	if err != nil {
 		return trace.Wrap(err, "converting service name to UTF16")
 	}
-	_, err = windows.OpenService(scManager, serviceNamePtr, serviceAccessFlags)
-	return trace.Wrap(err, "opening Windows service %v", serviceName)
+	serviceHandle, err := windows.OpenService(scManager, serviceNamePtr, serviceAccessFlags)
+	if err != nil {
+		return trace.Wrap(err, "opening Windows service %v", serviceName)
+	}
+	service := &mgr.Service{
+		Name:   serviceName,
+		Handle: serviceHandle,
+	}
+	defer service.Close()
+
+	config, err := service.Config()
+	if err != nil {
+		return trace.Wrap(err, "getting service config")
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return trace.Wrap(err, "getting executable path")
+	}
+	serviceArgs, err := windows.DecomposeCommandLine(config.BinaryPathName)
+	if err != nil {
+		return trace.Wrap(err, "parsing Windows service binary command line")
+	}
+	if len(serviceArgs) == 0 {
+		return trace.BadParameter("Windows service has empty binary command line")
+	}
+
+	if err := compareFiles(exe, serviceArgs[0]); err != nil {
+		return trace.Wrap(err, "comparing running executable with service executable")
+	}
+	return nil
 }

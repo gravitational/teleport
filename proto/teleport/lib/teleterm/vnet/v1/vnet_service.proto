@@ -106,6 +106,8 @@ enum WindowsServiceStatus {
   WINDOWS_SERVICE_STATUS_UNSPECIFIED = 0;
   WINDOWS_SERVICE_STATUS_OK = 1;
   WINDOWS_SERVICE_STATUS_DOES_NOT_EXIST = 2;
+  // VNet service is compatible only with the client on the same version.
+  WINDOWS_SERVICE_STATUS_INCOMPATIBLE_VERSION = 3;
 }
 
 // Request for CheckInstallTimeRequirementsRequest.
