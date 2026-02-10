@@ -493,7 +493,7 @@ func TestJoinAzure(t *testing.T) {
 				require.NoError(t, a.DeleteToken(ctx, token.GetName()))
 			})
 
-			scopedToken, err := jointest.ScopedTokenFromProvisionToken(token, &joiningv1.ScopedToken{
+			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, &joiningv1.ScopedToken{
 				Scope: "/test",
 				Metadata: &headerv1.Metadata{
 					Name: "scoped_" + token.GetName(),
@@ -859,7 +859,7 @@ func TestJoinAzureClaims(t *testing.T) {
 				require.NoError(t, a.DeleteToken(ctx, token.GetName()))
 			})
 
-			scopedToken, err := jointest.ScopedTokenFromProvisionToken(token, &joiningv1.ScopedToken{
+			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, &joiningv1.ScopedToken{
 				Scope: "/test",
 				Metadata: &headerv1.Metadata{
 					Name: "scoped_" + token.GetName(),

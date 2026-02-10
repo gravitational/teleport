@@ -100,8 +100,8 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 			Allow: allow,
 		}
 	case types.JoinMethodAzure:
-		allow := make([]*joiningv1.Azure_Rule, len(base.GetAzure().Allow))
-		for i, rule := range base.GetAzure().Allow {
+		allow := make([]*joiningv1.Azure_Rule, len(base.Azure.Allow))
+		for i, rule := range base.Azure.Allow {
 			allow[i] = &joiningv1.Azure_Rule{
 				Subscription:   rule.Subscription,
 				ResourceGroups: rule.ResourceGroups,
@@ -111,8 +111,8 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 			Allow: allow,
 		}
 	case types.JoinMethodAzureDevops:
-		allow := make([]*joiningv1.AzureDevops_Rule, len(base.GetAzureDevops().Allow))
-		for i, rule := range base.GetAzureDevops().Allow {
+		allow := make([]*joiningv1.AzureDevops_Rule, len(base.AzureDevops.Allow))
+		for i, rule := range base.AzureDevops.Allow {
 			allow[i] = &joiningv1.AzureDevops_Rule{
 				Sub:               rule.Sub,
 				ProjectName:       rule.ProjectName,
@@ -126,7 +126,7 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 		}
 		scopedToken.Spec.AzureDevops = &joiningv1.AzureDevops{
 			Allow:          allow,
-			OrganizationId: base.GetAzureDevops().OrganizationID,
+			OrganizationId: base.AzureDevops.OrganizationID,
 		}
 	default:
 		return nil, trace.BadParameter("unsupported join method %q", base.JoinMethod)
