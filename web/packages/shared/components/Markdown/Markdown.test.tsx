@@ -390,16 +390,15 @@ that continues
 
 More text`;
 
-      const { container } = renderMarkdown(text);
+      renderMarkdown(text);
 
-      const pre = container.querySelector('pre');
-      expect(pre).toBeInTheDocument();
-
-      const code = pre.querySelector('code');
-      expect(code).toBeInTheDocument();
-      expect(code.textContent).toBe(
-        '{\n  "Effect": "Allow",\n  "Action": ["ec2:DescribeInstances"]\n}'
+      const expectedCode =
+        '{\n  "Effect": "Allow",\n  "Action": ["ec2:DescribeInstances"]\n}';
+      const code = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' && element.textContent === expectedCode
       );
+      expect(code).toBeInTheDocument();
 
       expect(screen.getByText('Some text')).toBeInTheDocument();
       expect(screen.getByText('More text')).toBeInTheDocument();
@@ -410,11 +409,13 @@ More text`;
 hello world
 \`\`\``;
 
-      const { container } = renderMarkdown(text);
+      renderMarkdown(text);
 
-      const code = container.querySelector('pre code');
+      const code = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' && element.textContent === 'hello world'
+      );
       expect(code).toBeInTheDocument();
-      expect(code.textContent).toBe('hello world');
     });
 
     it('renders multiple fenced code blocks', () => {
@@ -427,14 +428,20 @@ regions:
   - us-east-1
 \`\`\``;
 
-      const { container } = renderMarkdown(text);
+      renderMarkdown(text);
 
-      const pres = container.querySelectorAll('pre');
-      expect(pres).toHaveLength(2);
-      expect(pres[0].querySelector('code').textContent).toBe('{"a": 1}');
-      expect(pres[1].querySelector('code').textContent).toBe(
-        'regions:\n  - us-east-1'
+      const code1 = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' && element.textContent === '{"a": 1}'
       );
+      expect(code1).toBeInTheDocument();
+
+      const code2 = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' &&
+          element.textContent === 'regions:\n  - us-east-1'
+      );
+      expect(code2).toBeInTheDocument();
     });
 
     it('does not parse inline markdown inside fenced code blocks', () => {
@@ -442,11 +449,14 @@ regions:
 **not bold** and \`not code\`
 \`\`\``;
 
-      const { container } = renderMarkdown(text);
+      renderMarkdown(text);
 
-      const code = container.querySelector('pre code');
-      expect(code.textContent).toBe('**not bold** and `not code`');
-      expect(container.querySelector('pre strong')).not.toBeInTheDocument();
+      const code = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' &&
+          element.textContent === '**not bold** and `not code`'
+      );
+      expect(code).toBeInTheDocument();
     });
 
     it('handles unclosed fenced code block gracefully', () => {
@@ -454,11 +464,14 @@ regions:
 {"a": 1}
 no closing fence`;
 
-      const { container } = renderMarkdown(text);
+      renderMarkdown(text);
 
-      const code = container.querySelector('pre code');
+      const code = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' &&
+          element.textContent === '{"a": 1}\nno closing fence'
+      );
       expect(code).toBeInTheDocument();
-      expect(code.textContent).toBe('{"a": 1}\nno closing fence');
     });
 
     it('escapes HTML inside fenced code blocks', () => {
@@ -466,10 +479,14 @@ no closing fence`;
 <script>alert('xss')</script>
 \`\`\``;
 
-      const { container } = renderMarkdown(text);
+      renderMarkdown(text);
 
-      const code = container.querySelector('pre code');
-      expect(code.textContent).toBe("<script>alert('xss')</script>");
+      const code = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' &&
+          element.textContent === "<script>alert('xss')</script>"
+      );
+      expect(code).toBeInTheDocument();
       expect(code.innerHTML).not.toContain('<script>');
     });
 
@@ -479,13 +496,15 @@ no closing fence`;
 code here
 \`\`\``;
 
-      const { container } = renderMarkdown(text);
+      renderMarkdown(text);
 
       expect(screen.getByText('This is a paragraph')).toBeInTheDocument();
 
-      const code = container.querySelector('pre code');
+      const code = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' && element.textContent === 'code here'
+      );
       expect(code).toBeInTheDocument();
-      expect(code.textContent).toBe('code here');
     });
   });
 
