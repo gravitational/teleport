@@ -1,0 +1,52 @@
+---
+title: Example for discovering AWS resources in a single account
+sidebar_label: organization
+description: Configure Teleport to discover resources in a AWS account.
+---
+
+{/*
+    Auto-generated file.
+    Do not edit this directly in the docs/pages tree.
+    Instead, edit teleport/discovery/aws/examples/organization/README.md
+    Then, regenerate the docs with `make -C integrations/terraform-modules docs`.
+*/}
+
+Source Code: [github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/discovery/aws/examples/organization](https://github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/discovery/aws/examples/organization)
+# Teleport AWS Organization Discovery Example
+
+Configuration in this directory creates AWS and Teleport resources necessary for Teleport to discover resources in multiple AWS accounts under the same Organization.
+
+{/* BEGIN_TF_DOCS */}
+## Requirements
+
+| Name | Version |
+|------|---------|
+| terraform | >= 1.0 |
+| aws | >= 5.0 |
+| teleport | >= 18.6.6 |
+| tls | >= 4.0 |
+
+## Providers
+
+No providers.
+
+## Modules
+
+| Name | Source | Version |
+|------|--------|---------|
+| aws\_discovery | ../.. | n/a |
+
+## Resources
+
+No resources.
+
+## Inputs
+
+No inputs.
+
+## Outputs
+
+| Name | Description |
+|------|-------------|
+| aws\_discovery | n/a |
+{/* END_TF_DOCS */}

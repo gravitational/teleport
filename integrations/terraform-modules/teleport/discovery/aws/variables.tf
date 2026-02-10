@@ -210,3 +210,17 @@ variable "discovery_service_iam_credential_source" {
     error_message = "If the discovery service is to assume the discovery IAM role without OIDC (`use_oidc_integration` is set to false), then `trust_role.role_arn` must be set to a non-empty value."
   }
 }
+
+variable "aws_iam_role_name_for_child_accounts" {
+  description = "Name for the AWS IAM role to assume in child accounts, when using organization-wide discovery."
+  type        = string
+  default     = "teleport-discovery-from-organization"
+  nullable    = false
+}
+
+variable "enroll_organization_accounts" {
+  description = "Discover resources in all the AWS accounts under the organization."
+  type        = bool
+  default     = false
+  nullable    = false
+}
