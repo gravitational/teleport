@@ -35,12 +35,6 @@ var rolesSupportingScopes = types.SystemRoles{
 	types.RoleNode,
 }
 
-var joinMethodsSupportingScopes = map[string]struct{}{
-	string(types.JoinMethodToken): {},
-	string(types.JoinMethodEC2):   {},
-	string(types.JoinMethodIAM):   {},
-}
-
 // TokenUsageMode represents the possible usage modes of a scoped token.
 type TokenUsageMode string
 
@@ -50,6 +44,28 @@ const (
 	// TokenUsageModeUnlimited denotes a token that can provision any number of resources.
 	TokenUsageModeUnlimited = "unlimited"
 )
+
+func validateJoinMethod(token *joiningv1.ScopedToken) error {
+
+	switch types.JoinMethod(token.GetSpec().GetJoinMethod()) {
+	case types.JoinMethodToken:
+		if token.GetStatus().GetSecret() == "" {
+			return trace.BadParameter("secret value must be defined for a scoped token when using the token join method")
+		}
+	case types.JoinMethodEC2, types.JoinMethodIAM:
+		if len(token.GetSpec().GetAws().GetAllow()) == 0 {
+			return trace.BadParameter("aws configuration must be defined for a scoped token when using the ec2 or iam join methods")
+		}
+	case types.JoinMethodGCP:
+		if len(token.GetSpec().GetGcp().GetAllow()) == 0 {
+			return trace.BadParameter("gcp configuration must be defined for a scoped token when using the gcp join method")
+		}
+	default:
+		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
+	}
+
+	return nil
+}
 
 // StrongValidateToken checks if the scoped token is well-formed according to
 // all scoped token rules. This function *must* be used to validate any scoped
@@ -91,12 +107,8 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 		return trace.BadParameter("scoped token assigned scope must be descendant of its resource scope")
 	}
 
-	if _, ok := joinMethodsSupportingScopes[spec.JoinMethod]; !ok {
-		return trace.BadParameter("join method %q does not support scoping", spec.JoinMethod)
-	}
-
-	if token.GetStatus().GetSecret() == "" && types.JoinMethod(spec.JoinMethod) == types.JoinMethodToken {
-		return trace.BadParameter("secret value must be defined for a scoped token when using the token join method")
+	if err := validateJoinMethod(token); err != nil {
+		return trace.Wrap(err)
 	}
 
 	switch TokenUsageMode(spec.GetUsageMode()) {
@@ -150,8 +162,8 @@ func WeakValidateToken(token *joiningv1.ScopedToken) error {
 		return trace.BadParameter("scoped token must have at least one role")
 	}
 
-	if _, ok := joinMethodsSupportingScopes[token.GetSpec().GetJoinMethod()]; !ok {
-		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
+	if err := validateJoinMethod(token); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -270,7 +282,12 @@ func (t *Token) GetAssignedScope() string {
 	return t.scoped.GetSpec().GetAssignedScope()
 }
 
-// GetAWSAllowRules returns the list of AWS-specific allow rules.
+// GetSecret returns the token's secret value.
+func (t *Token) GetSecret() (string, bool) {
+	return t.scoped.GetStatus().GetSecret(), t.GetJoinMethod() == types.JoinMethodToken
+}
+
+// GetAllowRules returns the list of allow rules.
 func (t *Token) GetAWSAllowRules() []*types.TokenRule {
 	allow := make([]*types.TokenRule, len(t.scoped.GetSpec().GetAws().GetAllow()))
 	for i, rule := range t.scoped.GetSpec().GetAws().GetAllow() {
@@ -302,9 +319,20 @@ func (t *Token) GetIntegration() string {
 	return t.scoped.GetSpec().GetAws().GetIntegration()
 }
 
-// GetSecret returns the token's secret value.
-func (t *Token) GetSecret() (string, bool) {
-	return t.scoped.GetStatus().GetSecret(), t.GetJoinMethod() == types.JoinMethodToken
+// GetGCPRules returns the GCP-specific configuration for this token.
+func (t *Token) GetGCPRules() *types.ProvisionTokenSpecV2GCP {
+	allow := make([]*types.ProvisionTokenSpecV2GCP_Rule, len(t.scoped.GetSpec().GetGcp().GetAllow()))
+	for i, rule := range t.scoped.GetSpec().GetGcp().GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2GCP_Rule{
+			ProjectIDs:      rule.GetProjectIds(),
+			Locations:       rule.GetLocations(),
+			ServiceAccounts: rule.GetServiceAccounts(),
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2GCP{
+		Allow: allow,
+	}
 }
 
 // GetScopedToken attempts to return the underlying [*joiningv1.ScopedToken] backing a

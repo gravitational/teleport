@@ -530,7 +530,7 @@ func (p *ProvisionTokenV2) SetAllowRules(rules []*TokenRule) {
 	p.Spec.Allow = rules
 }
 
-// GetGCPRules will return the GCP rules within this token.
+// GetGCPRules will return the GCP-specific configuration for this token.
 func (p *ProvisionTokenV2) GetGCPRules() *ProvisionTokenSpecV2GCP {
 	return p.Spec.GCP
 }
