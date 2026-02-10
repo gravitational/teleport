@@ -177,7 +177,8 @@ using the Scoped Join Token. To do so, they must configure:
 
 **wip wip wip**
 
-wip: break this section up into sub-sections?
+wip: break this section up into sub-sections and add more detail where any
+wip: new fields will be added.?
 
 A new `scope` field will be added to the root of the Bot resource. When this 
 field is provided, the Bot is considered a scoped Bot. This determines the scope
@@ -197,9 +198,8 @@ yield a NotFound error. This is preferred to a PermissionDenied (or similar)
 which leaks the existence of the Bot.
 
 For the List RPC, scoped Bots for which you do not have access will be filtered
-from the results.
-
-wip: Add remark re: adding filter by scope support to List RPC.
+from the results. Additionally, support will be added for filtering by exact
+scope or descendent scope. This will enable by-scope UI and `tctl` CLI commands.
 
 We must pay particular attention to the Update and Upsert RPCs since these
 allow a Bot to be transitioned from unscoped to scope, scoped to unscoped, or
