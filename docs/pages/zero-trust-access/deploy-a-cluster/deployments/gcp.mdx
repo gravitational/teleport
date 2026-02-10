@@ -1,5 +1,6 @@
 ---
 title: Running Teleport on GCP
+sidebar_label: Google Cloud VMs
 description: How to install and configure Teleport on GCP
 tags:
  - conceptual
@@ -69,7 +70,7 @@ GCP relies heavily on [Health Checks](https://cloud.google.com/load-balancing/do
 this is helpful when adding new instances to an instance group.
 
 To enable health checks in Teleport start with `teleport start --diag-addr=0.0.0.0:3000`
-see  [Admin Guide: Troubleshooting](../../management/admin/troubleshooting.mdx) for more information.
+see  [Admin Guide: Troubleshooting](../../management/diagnostics/troubleshooting.mdx) for more information.
 
 ### Storage: Cloud Firestore
 
@@ -225,7 +226,7 @@ We recommend configuring Teleport as per the below steps:
 <Tabs>
 	<TabItem label="Teleport Community Edition" scope="oss">
 **1. Configure Teleport Auth Service** using the below example `teleport.yaml`, and start it
-using [systemd](../../management/admin/daemon.mdx). The DEB/RPM installations will
+using [systemd](../../../reference/cli/teleport.mdx#teleport-install-systemd). The DEB/RPM installations will
 automatically include the `systemd` configuration.
 
 ```yaml
@@ -260,7 +261,7 @@ ssh_service:
 	</TabItem>
 	<TabItem label="Enterprise" label="Enterprise" scope={["enterprise"]}>
 **1. Configure Teleport Auth Service** using the below example `teleport.yaml`, and start it
-using [systemd](../../management/admin/daemon.mdx). The DEB/RPM installations will
+using [systemd](../../../reference/cli/teleport.mdx#teleport-install-systemd). The DEB/RPM installations will
 automatically include the `systemd` configuration.
 
 ```yaml
@@ -351,6 +352,6 @@ proxy_service:
 
 **4. Add Users**
 
-Follow our [Local Users](../../management/admin/users.mdx) guide or integrate
-with [Google Workspace](../../../zero-trust-access/sso/google-workspace.mdx) to
+Follow our [Local Users](../../rbac-get-started/users.mdx) guide or integrate
+with [Google Workspace](../../sso/integrate-idp/google-workspace.mdx) to
 provide SSO access.

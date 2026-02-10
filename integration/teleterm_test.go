@@ -145,6 +145,11 @@ func TestTeleterm(t *testing.T) {
 		testLogout(t, pack, creds)
 	})
 
+	t.Run("setting site name", func(t *testing.T) {
+		t.Parallel()
+		testSettingSiteName(t, pack, creds)
+	})
+
 	t.Run("ListDatabaseUsers", func(t *testing.T) {
 		// ListDatabaseUsers cannot be run in parallel as it modifies the default roles of users set up
 		// through the test pack.
@@ -671,6 +676,59 @@ func testLogout(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserC
 	// Log out again, the operation should be idempotent.
 	err = daemonService.ClusterLogout(ctx, cluster.URI, true)
 	require.NoError(t, err)
+}
+
+func testSettingSiteName(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
+	ctx := context.Background()
+
+	tc, err := pack.Root.Cluster.NewClient(helpers.ClientConfig{
+		TeleportUser: pack.Root.User.GetName(),
+		Cluster:      "root.example.com",
+	})
+	require.NoError(t, err)
+
+	storageFakeClock := clockwork.NewFakeClockAt(time.Now())
+
+	storage, err := clusters.NewStorage(clusters.Config{
+		ClientStore:        tc.ClientStore,
+		Clock:              storageFakeClock,
+		InsecureSkipVerify: tc.InsecureSkipVerify,
+	})
+	require.NoError(t, err)
+
+	// Add a cluster.
+	cluster, clusterClient, err := storage.Add(ctx, tc.WebProxyAddr)
+	require.NoError(t, err)
+	require.Equal(t, "root.example.com", clusterClient.SiteName)
+	require.Equal(t, "root.example.com", cluster.Name)
+	// Adding a cluster should set the site name in the profile.
+	profile, err := clusterClient.GetProfile(tc.WebProxyAddr)
+	require.NoError(t, err)
+	require.Equal(t, "root.example.com", profile.SiteName)
+
+	// Simulate logging into a leaf cluster, which changes the profile's site name.
+	clusterClient.SiteName = "leaf.example.com"
+	err = clusterClient.SaveProfile(false)
+	require.NoError(t, err)
+
+	// The URI should always resolve to the target cluster, even if the profile's site name points to a different cluster.
+	cluster, clusterClient, err = storage.ResolveCluster(cluster.URI)
+	require.NoError(t, err)
+	// These are empty because the user is not logged in, so there's no cert to retrieve the root cluster name.
+	require.Empty(t, clusterClient.SiteName)
+	require.Empty(t, cluster.Name)
+	// SiteName in the profile should still point to the leaf.
+	profile, err = clusterClient.GetProfile(tc.WebProxyAddr)
+	require.NoError(t, err)
+	require.Equal(t, "leaf.example.com", profile.SiteName)
+
+	// Saving the profile with SaveProfileAndPreserveSiteName doesn't overwrite the profile
+	// with the current clusterClient.SiteName.
+	err = clusters.SaveProfileAndPreserveSiteName(clusterClient, false)
+	require.NoError(t, err)
+	profile, err = clusterClient.GetProfile(tc.WebProxyAddr)
+	require.NoError(t, err)
+	require.Equal(t, "leaf.example.com", profile.SiteName)
 }
 
 func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack) {
@@ -1323,11 +1381,13 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 				mustUpdateUserRoles(ctx, t, pack.Root.Cluster, rootUserName, []string{requesterRole.GetName()})
 			},
 			createAccessRequest: func(ctx context.Context, t *testing.T) string {
-				req, err := services.NewAccessRequestWithResources(rootUserName, []string{rootRoleName}, []types.ResourceID{
-					types.ResourceID{
-						ClusterName: pack.Leaf.Cluster.Secrets.SiteName,
-						Kind:        types.KindDatabase,
-						Name:        pack.Leaf.PostgresService.Name,
+				req, err := services.NewAccessRequestWithResources(rootUserName, []string{rootRoleName}, []types.ResourceAccessID{
+					{
+						Id: types.ResourceID{
+							ClusterName: pack.Leaf.Cluster.Secrets.SiteName,
+							Kind:        types.KindDatabase,
+							Name:        pack.Leaf.PostgresService.Name,
+						},
 					},
 				})
 				require.NoError(t, err)

@@ -138,7 +138,7 @@ export const mockGetBotInstanceResponse = {
             seconds: new Date('2025-10-10T10:46:00Z').getTime() / 1_000,
           },
           reason:
-            'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+            'rendering OpenSSH config\n\twriting known_hosts to destination\n\t\treading "/opt/teleport/identity/known_hosts"\n\t\t\topen /opt/teleport/identity/known_hosts: permission denied',
         },
         {
           service: {

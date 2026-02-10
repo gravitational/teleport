@@ -51,7 +51,6 @@ const populateRuleFieldTest =
       baseState({
         rules: [
           {
-            ref_type: 'any',
             [field]: value,
           },
         ],
@@ -97,14 +96,7 @@ describe('GitlabJoinTokenForm', () => {
     expect(onUpdate).toHaveBeenCalledTimes(1);
     expect(onUpdate).toHaveBeenLastCalledWith(
       baseState({
-        rules: [
-          {
-            ref_type: 'any',
-          },
-          {
-            ref_type: 'any',
-          },
-        ],
+        rules: [{}, {}],
       })
     );
   });
@@ -190,20 +182,14 @@ describe('GitlabJoinTokenForm', () => {
   // eslint-disable-next-line jest/expect-expect
   it(
     'ref field can be populated',
-    populateRuleFieldTest('ref', 'ref/heads/main', 'ref/heads/main')
+    populateRuleFieldTest('ref', 'main', 'release-*')
   );
-
-  it('ref type is disabled when ref is not populated', async () => {
-    renderComponent();
-    expect(screen.getByLabelText('Ref type')).toBeDisabled();
-  });
 
   it('ref type can be selected', async () => {
     const state = baseState({
       rules: [
         {
-          ref: 'ref/heads/main',
-          ref_type: 'any',
+          ref: 'main',
         },
       ],
     });
@@ -223,6 +209,22 @@ describe('GitlabJoinTokenForm', () => {
               {
                 ...state.gitlab.rules[0],
                 ref_type: 'branch',
+              },
+            ]
+          : [],
+      })
+    );
+
+    await selectEvent.select(selectElement, ['Any']);
+
+    expect(onUpdate).toHaveBeenCalledTimes(2);
+    expect(onUpdate).toHaveBeenLastCalledWith(
+      baseState({
+        rules: state.gitlab?.rules
+          ? [
+              {
+                ...state.gitlab.rules[0],
+                ref_type: undefined,
               },
             ]
           : [],
@@ -298,10 +300,6 @@ const baseState = (
   bot_name: 'test-bot-name',
   gitlab: {
     ...gitlab,
-    rules: gitlab.rules ?? [
-      {
-        ref_type: 'any',
-      },
-    ],
+    rules: gitlab.rules ?? [{}],
   },
 });

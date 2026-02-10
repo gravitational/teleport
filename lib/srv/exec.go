@@ -79,7 +79,7 @@ type Exec interface {
 
 	// WaitForChild blocks until the child process has completed any required
 	// setup operations before proceeding with execution.
-	WaitForChild() error
+	WaitForChild(ctx context.Context) error
 
 	// Continue will resume execution of the process after it completes its
 	// pre-processing routine (placed in a cgroup).
@@ -224,12 +224,8 @@ func (e *localExec) Wait() *ExecResult {
 	return execResult
 }
 
-func (e *localExec) WaitForChild() error {
-	err := waitForSignal(e.Ctx.readyr, 20*time.Second)
-	closeErr := e.Ctx.readyr.Close()
-	// Set to nil so the close in the context doesn't attempt to re-close.
-	e.Ctx.readyr = nil
-	return trace.NewAggregate(err, closeErr)
+func (e *localExec) WaitForChild(ctx context.Context) error {
+	return e.Ctx.WaitForChild(ctx)
 }
 
 // Continue will resume execution of the process after it completes its
@@ -305,31 +301,6 @@ func checkSCPAllowed(scx *ServerContext, command string) (bool, error) {
 	}
 
 	return true, trace.Wrap(scx.CheckFileCopyingAllowed())
-}
-
-// waitForSignal will wait 10 seconds for the other side of the pipe to signal, if not
-// received, it will stop waiting and exit.
-func waitForSignal(fd *os.File, timeout time.Duration) error {
-	waitCh := make(chan error, 1)
-	go func() {
-		// Reading from the file descriptor will block until it's closed.
-		_, err := fd.Read(make([]byte, 1))
-		if errors.Is(err, io.EOF) {
-			err = nil
-		}
-		waitCh <- err
-	}()
-
-	// Timeout if no signal has been sent within the provided duration.
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
-	select {
-	case <-timer.C:
-		return trace.LimitExceeded("timed out waiting for continue signal")
-	case err := <-waitCh:
-		return err
-	}
 }
 
 // remoteExec is used to run an "exec" SSH request and return the result.
@@ -414,7 +385,7 @@ func (e *remoteExec) Wait() *ExecResult {
 	}
 }
 
-func (e *remoteExec) WaitForChild() error { return nil }
+func (e *remoteExec) WaitForChild(context.Context) error { return nil }
 
 // Continue does nothing for remote command execution.
 func (e *remoteExec) Continue() {}
@@ -529,10 +500,10 @@ func getDefaultEnvPath(uid string, loginDefsPath string) string {
 	f, err := utils.OpenFileAllowingUnsafeLinks(loginDefsPath)
 	if err != nil {
 		if uid == "0" {
-			slog.InfoContext(context.Background(), "Unable to open login.defs, returning default su path", "login_defs_path", loginDefsPath, "error", err, "default_path", defaultEnvRootPath)
+			slog.DebugContext(context.Background(), "Unable to open login.defs, returning default su path", "login_defs_path", loginDefsPath, "error", err, "default_path", defaultEnvRootPath)
 			return defaultEnvRootPath
 		}
-		slog.InfoContext(context.Background(), "Unable to open login.defs, returning default path", "login_defs_path", loginDefsPath, "error", err, "default_path", defaultEnvPath)
+		slog.DebugContext(context.Background(), "Unable to open login.defs, returning default path", "login_defs_path", loginDefsPath, "error", err, "default_path", defaultEnvPath)
 		return defaultEnvPath
 	}
 	defer f.Close()

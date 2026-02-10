@@ -29,7 +29,10 @@ import { parseDeepLink } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
 import MainProcess from 'teleterm/mainProcess';
 import { registerNavigationHandlers } from 'teleterm/mainProcess/navigationHandler';
-import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandler';
+import {
+  registerAppFileProtocol,
+  setUpProtocolHandlers,
+} from 'teleterm/mainProcess/protocolHandler';
 import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
 import { createConfigService } from 'teleterm/services/config';
@@ -69,9 +72,18 @@ if (app.requestSingleInstanceLock()) {
 
 async function initializeApp(): Promise<void> {
   updateSessionDataPath();
+  registerAppFileProtocol();
   const settings = await getRuntimeSettings();
   const logger = initMainLogger(settings);
+
+  process.on('uncaughtException', (error, origin) => {
+    logger.error('Uncaught exception', origin, error);
+    showDialogWithError(`Uncaught exception (${origin} origin)`, error);
+    app.exit(1);
+  });
+
   logger.info(`Starting ${app.getName()} version ${app.getVersion()}`);
+
   const {
     appStateFileStorage,
     configFileStorage,
@@ -84,16 +96,6 @@ async function initializeApp(): Promise<void> {
     settings,
   });
 
-  const tshHome = configService.get('tshHome').value;
-  // Ensure the tsh directory exist.
-  await fs.mkdir(tshHome, {
-    recursive: true,
-  });
-
-  // TODO(gzdunek): DELETE IN 20.0.0. Users should already migrate to the new location.
-  // Also remove TshHomeMigrationBanner component and relevant properties from app_state.json.
-  await migrateOldTshHomeOnce(logger, tshHome, appStateFileStorage);
-
   nativeTheme.themeSource = configService.get('theme').value;
   const windowsManager = new WindowsManager(
     appStateFileStorage,
@@ -101,11 +103,39 @@ async function initializeApp(): Promise<void> {
     configService
   );
 
-  process.on('uncaughtException', (error, origin) => {
-    logger.error('Uncaught exception', origin, error);
-    showDialogWithError(`Uncaught exception (${origin} origin)`, error);
-    app.exit(1);
+  // On Windows/Linux: Re-launching the app while it's already running
+  // triggers 'second-instance' (because of app.requestSingleInstanceLock()).
+  //
+  // On macOS: Re-launching the app (from places like Finder, Spotlight, or Dock)
+  // does not trigger 'second-instance'. Instead, the system emits 'activate'.
+  // However, launching the app outside the desktop manager (e.g., from the command
+  // line) does trigger 'second-instance'.
+  app.on('second-instance', () => {
+    windowsManager.focusWindow();
   });
+  app.on('activate', () => {
+    windowsManager.focusWindow();
+  });
+
+  // Since setUpDeepLinks adds another listener for second-instance, it's important to call it after
+  // the listener which calls windowsManager.focusWindow. This way the focus will be brought to the
+  // window before processing the listener for deep links.
+  //
+  // This must be called as early as possible, before an async code.
+  // Otherwise, if the app is launched via a macOS deep link, the 'open-url' event may be emitted
+  // before a handler is registered, causing the link to be lost.
+  setUpDeepLinks(logger, windowsManager, settings);
+
+  const tshHome = configService.get('tshHome').value;
+  // Ensure the tsh directory exist.
+  await fs.mkdir(tshHome, {
+    recursive: true,
+  });
+
+  // TODO(gzdunek): DELETE IN 20.0.0. Users should already migrate to the new location.
+  // Also remove TshHomeMigrationBanner component, relevant properties from app_state.json,
+  // and address the TODO in teleport-connect.mdx > ##Troubleshooting.
+  await migrateOldTshHomeOnce(logger, tshHome, appStateFileStorage);
 
   let mainProcess: MainProcess;
   try {
@@ -141,29 +171,19 @@ async function initializeApp(): Promise<void> {
     app.exit();
   });
 
-  // On Windows/Linux: Re-launching the app while it's already running
-  // triggers 'second-instance' (because of app.requestSingleInstanceLock()).
-  //
-  // On macOS: Re-launching the app (from places like Finder, Spotlight, or Dock)
-  // does not trigger 'second-instance'. Instead, the system emits 'activate'.
-  // However, launching the app outside the desktop manager (e.g., from the command
-  // line) does trigger 'second-instance'.
-  app.on('second-instance', () => {
-    windowsManager.focusWindow();
+  app.on('web-contents-created', (_, webContents) => {
+    registerNavigationHandlers(
+      webContents,
+      settings,
+      mainProcess.clusterStore,
+      logger
+    );
   });
-  app.on('activate', () => {
-    windowsManager.focusWindow();
-  });
-
-  // Since setUpDeepLinks adds another listener for second-instance, it's important to call it after
-  // the listener which calls windowsManager.focusWindow. This way the focus will be brought to the
-  // window before processing the listener for deep links.
-  setUpDeepLinks(logger, windowsManager, settings);
 
   app
     .whenReady()
     .then(() => {
-      enableWebHandlersProtection();
+      setUpProtocolHandlers(settings.dev);
 
       windowsManager.createWindow();
 
@@ -177,15 +197,6 @@ async function initializeApp(): Promise<void> {
       showDialogWithError(message, error);
       app.exit(1);
     });
-
-  app.on('web-contents-created', (_, webContents) => {
-    registerNavigationHandlers(
-      webContents,
-      settings,
-      mainProcess.clusterStore,
-      logger
-    );
-  });
 }
 
 /**

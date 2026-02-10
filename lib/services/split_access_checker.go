@@ -73,7 +73,7 @@ type ScopedAccessCheckerSubset interface {
 type UnscopedAccessCheckerSubset interface {
 	RoleNames() []string
 	CertificateFormat() string
-	GetAllowedResourceIDs() []types.ResourceID
+	GetAllowedResourceAccessIDs() []types.ResourceAccessID
 	CertificateExtensions() []*types.CertExtension
 	CheckAccessToRemoteCluster(cluster types.RemoteCluster) error
 	CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) (groups []string, users []string, err error)
@@ -216,6 +216,14 @@ func NewScopedSplitAccessCheckerContext(ctx *ScopedAccessCheckerContext) *SplitA
 // Scoped
 func (c *SplitAccessCheckerContext) Scoped() *ScopedAccessCheckerContext {
 	return c.scopedContext
+}
+
+// ScopePin returns the scope pin associated with the context, if any.
+func (c *SplitAccessCheckerContext) ScopePin() (*scopesv1.Pin, bool) {
+	if c.scopedContext == nil {
+		return nil, false
+	}
+	return c.scopedContext.ScopePin(), true
 }
 
 // CheckMaybeHasAccessToRules returns an error if the context definitely does not have access to the provided rules. in practice

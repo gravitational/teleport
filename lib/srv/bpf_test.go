@@ -818,7 +818,7 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 	require.NoError(t, scx.readyw.Close())
 
 	// Wait for the child process to indicate its completed initialization.
-	require.NoError(t, scx.execRequest.WaitForChild())
+	require.NoError(t, scx.execRequest.WaitForChild(t.Context()))
 
 	// Create a fake audit log that can be used to capture the events emitted.
 	emitter := &eventstest.MockRecorderEmitter{}

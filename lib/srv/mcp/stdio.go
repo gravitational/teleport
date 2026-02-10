@@ -84,6 +84,7 @@ func (s *Server) handleStdio(ctx context.Context, sessionCtx *SessionCtx, makeSe
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer session.close()
 
 	session.logger.InfoContext(ctx, "Started handling stdio session")
 	defer session.logger.InfoContext(ctx, "Completed handling stdio session")
@@ -131,11 +132,6 @@ func (s *Server) handleStdio(ctx context.Context, sessionCtx *SessionCtx, makeSe
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// TODO(greedy52) capture client info then emit start event with client
-	// information.
-	session.emitStartEvent(s.cfg.ParentContext)
-	defer session.emitEndEvent(s.cfg.ParentContext)
 
 	go clientRequestReader.Run(ctx)
 	go serverResponseReader.Run(ctx)

@@ -43,6 +43,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
@@ -217,6 +218,12 @@ type MFAAuthData struct {
 	// AllowReuse determines whether the MFA challenge response used to authenticate
 	// can be reused. AllowReuse MFAAuthData may be denied for specific actions.
 	AllowReuse mfav1.ChallengeAllowReuse
+	// Payload is the optional session identifying payload attached to the MFA authentication.
+	Payload *mfatypes.SessionIdentifyingPayload
+	// SourceCluster is the source cluster name associated with this MFA authentication.
+	SourceCluster string
+	// TargetCluster is the target cluster name associated with this MFA authentication.
+	TargetCluster string
 }
 
 // authorizer creates new local authorizer
@@ -340,9 +347,9 @@ func (c *Context) WithExtraRoles(access services.RoleGetter, clusterName string,
 	}
 
 	accessInfo := &services.AccessInfo{
-		Roles:              newRoleNames,
-		Traits:             c.User.GetTraits(),
-		AllowedResourceIDs: c.Checker.GetAllowedResourceIDs(),
+		Roles:                    newRoleNames,
+		Traits:                   c.User.GetTraits(),
+		AllowedResourceAccessIDs: c.Checker.GetAllowedResourceAccessIDs(),
 	}
 	checker, err := services.NewAccessChecker(accessInfo, clusterName, access)
 	if err != nil {
@@ -564,7 +571,7 @@ func (a *authorizer) isAdminActionAuthorizationRequired(ctx context.Context, aut
 		// Check that the impersonator matches a host service FQDN - <host-id>.<clustername>
 		if trace.IsNotFound(err) {
 			hostFQDNParts := strings.SplitN(impersonator, ".", 2)
-			if hostFQDNParts[1] == a.clusterName {
+			if len(hostFQDNParts) > 1 && hostFQDNParts[1] == a.clusterName {
 				if _, err := uuid.Parse(hostFQDNParts[0]); err == nil {
 					a.logger.DebugContext(ctx, "Skipping admin action MFA check for admin-impersonated identity", "identity", ident)
 					return false, nil
@@ -852,9 +859,9 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 	roles := []string{string(types.RoleRemoteProxy)}
 	user.SetRoles(roles)
 	checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
-		Roles:              roles,
-		Traits:             nil,
-		AllowedResourceIDs: nil,
+		Roles:                    roles,
+		Traits:                   nil,
+		AllowedResourceAccessIDs: nil,
 	}, a.clusterName, roleSet)
 	return &Context{
 		User:                  user,
@@ -942,6 +949,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindRelayServer, services.RO()),
 				types.NewRule(types.KindAccessList, services.RO()),
 				types.NewRule(types.KindHealthCheckConfig, services.RO()),
+				types.NewRule(types.KindAppAuthConfig, services.RO()),
 				// this rule allows cloud proxies to read
 				// plugins of `openai` type, since Assist uses the OpenAI API and runs in Proxy.
 				{
@@ -1307,6 +1315,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindLock, services.RW()),
 						types.NewRule(types.KindSAML, services.ReadNoSecrets()),
 						types.NewRule(types.KindAccessList, services.RO()),
+						types.NewRule(types.KindAccessListMember, services.RO()),
 						// Okta can read/write access lists and roles it creates.
 						{
 							Resources: []string{types.KindRole},
@@ -1386,9 +1395,9 @@ func ContextForBuiltinRole(r BuiltinRole, recConfig readonly.SessionRecordingCon
 	}
 	user.SetRoles(roles)
 	checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
-		Roles:              roles,
-		Traits:             nil,
-		AllowedResourceIDs: nil,
+		Roles:                    roles,
+		Traits:                   nil,
+		AllowedResourceAccessIDs: nil,
 	}, r.ClusterName, roleSet)
 	return &Context{
 		User:                  user,

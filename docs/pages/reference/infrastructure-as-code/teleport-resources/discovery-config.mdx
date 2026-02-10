@@ -1,0 +1,727 @@
+---
+title: Discovery Config Reference
+description: Provides a reference of fields within the Discovery Config resource, which you can manage with tctl.
+sidebar_label: Discovery Config
+---
+{/* vale 3rd-party-products.former-names = NO */}
+{/* vale messaging.capitalization = NO */}
+{/* Automatically generated from: types/discoveryconfig/discoveryconfig.go */}
+{/* DO NOT EDIT */}
+
+**Kind**: `discovery_config`<br/>
+**Version**: `v1`
+
+Describes extra discovery matchers that are added to DiscoveryServices that share the same Discovery Group.
+
+Example definition:
+```yaml
+kind: discovery_config
+version: v1
+metadata:
+  name: my-discovery-config
+spec:
+  # discovery_group is used to group discovered resources into different
+  # sets. This is required when you have multiple Teleport Discovery services
+  # running. It prevents discovered services from colliding in Teleport when
+  # managing discovered resources.
+  # If two Discovery Services match the same resources, they must be in the
+  # same discovery group.
+  # If two Discovery Services match different resources, they must be in
+  # different discovery groups.
+  #
+  # It is also used to watch DiscoveryConfig resources.
+  # The Discovery Configs that have a matching discovery_group will be added to
+  # this Discovery Service matchers.
+  discovery_group: "disc-group"
+  # Matchers for discovering AWS-hosted resources.
+  aws:
+    # AWS resource types to discover and register with your Teleport cluster.
+    # Valid options are:
+    # 'ec2' - Amazon EC2 instances.
+    # 'eks' - Amazon EKS clusters.
+    # 'rds' - Amazon RDS and Aurora databases.
+    # 'rdsproxy' - Amazon RDS Proxy databases.
+    # 'redshift' - Amazon Redshift databases.
+    # 'redshift-serverless' - Amazon Redshift Serverless databases.
+    # 'elasticache' - Amazon ElastiCache Redis and Valkey databases.
+    # 'elasticache-serverless' - Amazon ElastiCache Serverless Redis or Valkey databases.
+    # 'memorydb' - Amazon MemoryDB databases.
+    # 'opensearch' - Amazon OpenSearch Redis databases.
+    # 'docdb' - Amazon DocumentDB databases.
+  - types: ["ec2"]
+    # AWS regions to search for resources from
+    regions: ["us-east-1","us-west-1"]
+    # Optional AWS resource tags to match when registering resources
+    # Defaults to a wildcard selector that matches any resource: "*":"*"
+    tags:
+      "*": "*"
+    # Optional AWS role that the Discovery Service will assume to discover
+    # and register AWS-hosted databases and EKS clusters.
+    assume_role:
+      role_arn: "arn:aws:iam::123456789012:role/example-role-name"
+      # AWS role name that the Discovery Service will assume to discover resources in other accounts
+      # Only required when using discovering accounts under an organization.
+      role_name: "example-role-name"
+      # Optional AWS external ID that the Discovery Service will use to assume
+      # a role in an external AWS account.
+      external_id: "example-external-id"
+    # Organization sections enables AWS organization account discovery.
+    # Only applicable for EC2 discovery.
+    organization:
+      # Organization ID used for discovering accounts in the AWS organization.
+      organization_id: "o-exampleorgid"
+      # Filters for matching on AWS Organizational Units (OUs).
+      organizational_units:
+        # Include is a list of AWS Organizational Unit IDs and children OUs to include.
+        # Accounts that belong to these OUs, and their children, will be included.
+        # Only exact matches or wildcard (*) are supported.
+        # Required.
+        include_ous: ["*"]
+        # Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude.
+        # Accounts that belong to these OUs, and their children, will be excluded, even if they were included.
+        # Only exact matches are supported.
+        # Optional. If empty, no OUs are excluded.
+        exclude_ous: []
+    # Optional section: install is used to provide parameters to the installer script.
+    # Only applicable for EC2 discovery.
+    install:
+      # The token to use when joining the cluster
+      join_token: "iam-join-token"
+      # The method to use when joining the cluster
+      join_method: "iam"
+      # script_name is the name of the Teleport install script to use.
+      # Optional, defaults to: "default-installer".
+      script_name: "default-installer"
+      # Optional: adds a suffix to teleport installation, allowing for multiple agent installations.
+      # Requires managed updates to be enabled.
+      # Supported characters are alphanumeric characters and `-`.
+      suffix: "<suffix>"
+      # Optional: when using managed updates, set the update group of the installation.
+      # Supported characters are alphanumeric characters and `-`.
+      update_group: "<update-group>"
+      # Optional: proxy settings for the install script.
+      # Sets the http_proxy, HTTP_PROXY, https_proxy, HTTPS_PROXY, no_proxy, and NO_PROXY
+      # environment variables for the install script.
+      http_proxy_settings:
+        https_proxy: http://172.31.5.130:3128
+        http_proxy: http://172.31.5.130:3128
+        no_proxy: my-local-domain
+    # Optional section: ssm is used to configure which AWS SSM document to use
+    # If the ssm section isnt provided the below defaults are used.
+    ssm:
+      # document_name is the name of the SSM document that should be
+      # executed when installing teleport on matching nodes
+      # Can be set to "AWS-RunShellScript" which is a pre-defined SSM Document,
+      # removing the need to create a custom SSM Document in each region.
+      # Optional, defaults to: "TeleportDiscoveryInstaller".
+      document_name: "AWS-RunShellScript"
+    # Optional role for which the Discovery Service should create the EKS access entry.
+    # If not set, the Discovery Service will attempt to create the access
+    # entry using its own identity.
+    # If used, the role must match the role configured for a Teleport Kubernetes Service.
+    setup_access_for_arn: arn:aws:iam::123456789012:role/kube-service-role
+  # Matchers for discovering Azure-hosted resources.
+  azure:
+    # Azure resource types. Valid options are:
+    # 'aks' - discovers and registers Azure AKS Kubernetes Clusters.
+    # 'vm' - discovers and registers Azure virtual machines.
+    # 'mysql' - discovers and registers Azure MySQL databases.
+    # 'postgres' - discovers and registers Azure PostgreSQL databases.
+    # 'redis' - discovers and registers Azure Cache for Redis databases.
+    # 'sqlserver' - discovers and registers Azure SQL Server databases.
+  - types: ["aks"]
+    # Azure regions to search for resources from. Valid options are:
+    # '*' - discovers resources in all regions (default).
+    # Any valid Azure region name. List all valid regions using the Azure "az" cli: `az account list-locations -o table`
+    regions: ["eastus", "westus"]
+    # Azure subscription IDs to search resources from. Valid options are:
+    # '*' - discovers resources in all subscriptions (default).
+    # Any subscription_id: `az account subscription list -o table`
+    subscriptions: ["11111111-2222-3333-4444-555555555555"]
+    # Azure resource groups to search resources from. Valid options are:
+    # '*' - discovers resources in all resource groups within configured subscription(s) (default).
+    # Any resource_groups: `az group list -o table`
+    resource_groups: ["group1", "group2"]
+    # Optional section: install is used to provide parameters to the Teleport installation in Azure VMs.
+    # Only applicable for VM discovery.
+    install_params:
+      # The token to use when joining the cluster
+      join_token: "iam-join-token"
+      # The method to use when joining the cluster
+      join_method: "azure"
+      # script_name is the name of the Teleport install script to use.
+      # Optional, defaults to: "default-installer".
+      script_name: "default-installer"
+      # Optional: adds a suffix to teleport installation, allowing for multiple agent installations.
+      # Requires managed updates to be enabled.
+      # Supported characters are alphanumeric characters and `-`.
+      suffix: "<suffix>"
+      # Optional: when using managed updates, set the update group of the installation.
+      # Supported characters are alphanumeric characters and `-`.
+      update_group: "<update-group>"
+      # Optional: proxy settings for the install script.
+      # Sets the http_proxy, HTTP_PROXY, https_proxy, HTTPS_PROXY, no_proxy, and NO_PROXY
+      # environment variables for the install script.
+      http_proxy_settings:
+        https_proxy: http://172.31.5.130:3128
+        http_proxy: http://172.31.5.130:3128
+        no_proxy: my-local-domain
+    # Azure resource tag filters used to match resources.
+    tags:
+      "*": "*"
+  # Matchers for discovering GCP-hosted resources.
+  gcp:
+    # GCP resource types. Valid options are:
+    # 'gke' - discovers and registers GKE Kubernetes clusters.
+    # 'gce' - discovers and registers GCP compute instances.
+    - types: ["gce"]
+      # IDs of GCP projects to search for resources from.
+      project_ids: ["project-id"]
+      # GCP locations to search for resources from. Valid options are:
+      # '*' - discovers resources in all locations.
+      # Any valid GCP region (e.g. "us-west1").
+      # Any valid GCP zone (e.g. "us-west1-b").
+      locations: ["us-east2", "us-west1-b"]
+      # Email addresses of service accounts that instances can join with.
+      # If empty, any service account is allowed.
+      service_accounts: []
+      # Optional section: install is used to provide parameters to the Teleport installation in Google Cloud VMs.
+      # Only applicable for VM discovery.
+      install_params:
+        # The token to use when joining the cluster
+        join_token: "gcp-join-token"
+        # The method to use when joining the cluster
+        join_method: "gcp"
+        # script_name is the name of the Teleport install script to use.
+        # Optional, defaults to: "default-installer".
+        script_name: "default-installer"
+        # Optional: adds a suffix to teleport installation, allowing for multiple agent installations.
+        # Requires managed updates to be enabled.
+        # Supported characters are alphanumeric characters and `-`.
+        suffix: "<suffix>"
+        # Optional: when using managed updates, set the update group of the installation.
+        # Supported characters are alphanumeric characters and `-`.
+        update_group: "<update-group>"
+        # Optional: proxy settings for the install script.
+        # Sets the http_proxy, HTTP_PROXY, https_proxy, HTTPS_PROXY, no_proxy, and NO_PROXY
+        # environment variables for the install script.
+        http_proxy_settings:
+          https_proxy: http://172.31.5.130:3128
+          http_proxy: http://172.31.5.130:3128
+          no_proxy: my-local-domain
+      # GCP resource label filters used to match resources.
+      labels:
+        "*": "*"
+
+```
+
+## Top-level fields
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+status: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind.|string|
+|metadata|Metadata for the resource.|[Metadata](#metadata)|
+|spec|The specification for the discovery config.|[Spec](#spec)|
+|status|The status for the discovery config.|[Status](#status)|
+|sub_kind|An optional resource sub kind, used in some resources.|string|
+|version|The resource version.|string|
+
+## AWS Matcher
+
+Matches AWS EC2 instances and AWS Databases
+
+
+Example:
+
+```yaml
+types: 
+  - "string"
+  - "string"
+  - "string"
+regions: 
+  - "string"
+  - "string"
+  - "string"
+assume_role: # [...]
+tags: # [...]
+install: # [...]
+ssm: # [...]
+integration: "string"
+kube_app_discovery: true
+setup_access_for_arn: "string"
+organization: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|assume_role|ARN is the AWS role to assume for database discovery.|[Assume Role](#assume-role)|
+|install|Sets the join method when installing on discovered EC2 nodes|[Installer Params](#installer-params)|
+|integration|The integration name used to generate credentials to interact with AWS APIs. Environment credentials will not be used when this value is set.|string|
+|kube_app_discovery|Controls whether Kubernetes App Discovery will be enabled for agents running on discovered clusters, currently only affects AWS EKS discovery in integration mode.|Boolean|
+|organization|An AWS Organization matcher for discovering resources accross multiple accounts under an Organization.|[AWS Organization Matcher](#aws-organization-matcher)|
+|regions|AWS regions to query for databases.|[]string|
+|setup_access_for_arn|The role that the Discovery Service should create EKS Access Entries for. This value should match the IAM identity that Teleport Kubernetes Service uses. If this value is empty, the Discovery Service will attempt to set up access for its own identity (self).|string|
+|ssm|Provides options to use when sending a document command to an EC2 node|[AWS SSM](#aws-ssm)|
+|tags|AWS resource Tags to match.|[Labels](#labels)|
+|types|AWS database types to match, "ec2", "rds", "redshift", "elasticache", or "memorydb".|[]string|
+
+## AWS Organization Matcher
+
+Specifies an Organization and rules for discovering accounts under that organization.
+
+
+Example:
+
+```yaml
+organization_id: "string"
+organizational_units: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|organization_id|The AWS Organization ID to match against. Required.|string|
+|organizational_units|Contains rules for matchings AWS accounts based on their Organizational Units.|[AWS Organization Units Matcher](#aws-organization-units-matcher)|
+
+## AWS Organization Units Matcher
+
+Contains rules for matching accounts under an Organization. Accounts that belong to an excluded Organizational Unit, and its children, will be excluded even if they were included.
+
+
+Example:
+
+```yaml
+include: 
+  - "string"
+  - "string"
+  - "string"
+exclude: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|exclude|A list of AWS Organizational Unit IDs and children OUs to exclude. Accounts that belong to these OUs, and their children, will be excluded, even if they were included. Only exact matches are supported. Optional. If empty, no OUs are excluded.|[]string|
+|include|A list of AWS Organizational Unit IDs and children OUs to include. Accounts that belong to these OUs, and their children, will be included. Only exact matches or wildcard (*) are supported. Required.|[]string|
+
+## AWS SSM
+
+Provides options to use when executing SSM documents
+
+
+Example:
+
+```yaml
+document_name: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|document_name|The name of the document to use when executing an SSM command|string|
+
+## Access Graph AWS Sync
+
+A configuration for AWS Access Graph service poll service.
+
+
+Example:
+
+```yaml
+regions: 
+  - "string"
+  - "string"
+  - "string"
+assume_role: # [...]
+integration: "string"
+cloud_trail_logs: # [...]
+eks_audit_logs: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|assume_role|ARN is the AWS role to assume for database discovery.|[Assume Role](#assume-role)|
+|cloud_trail_logs|Configuration settings for collecting AWS CloudTrail logs via an SQS queue.|[Access Graph AWS Sync Cloud Trail Logs](#access-graph-aws-sync-cloud-trail-logs)|
+|eks_audit_logs||[Access Graph AWS Sync EKS Audit Logs](#access-graph-aws-sync-eks-audit-logs)|
+|integration|The integration name used to generate credentials to interact with AWS APIs.|string|
+|regions|AWS regions to import resources from.|[]string|
+
+## Access Graph AWS Sync Cloud Trail Logs
+
+Defines settings for ingesting AWS CloudTrail logs by polling an SQS queue that receives notifications about new log files.
+
+
+Example:
+
+```yaml
+region: "string"
+sqs_queue: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|region|The AWS region of the SQS queue for CloudTrail notifications, ex.: "us-east-2".|string|
+|sqs_queue|The name or URL for CloudTrail log events, ex.: "demo-cloudtrail-queue".|string|
+
+## Access Graph AWS Sync EKS Audit Logs
+
+Defines the settings for ingesting Kubernetes apiserver audit logs from EKS clusters.
+
+
+Example:
+
+```yaml
+tags: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|tags|The tags of EKS clusters for which apiserver audit logs should be fetched.|[Labels](#labels)|
+
+## Access Graph Azure Sync
+
+A configuration for Azure Access Graph service poll service.
+
+
+Example:
+
+```yaml
+subscription_id: "string"
+integration: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|integration|The integration name used to generate credentials to interact with AWS APIs.|string|
+|subscription_id|Is the ID of the Azure subscription to sync resources from|string|
+
+## Access Graph Sync
+
+A configuration for Access Graph service.
+
+
+Example:
+
+```yaml
+aws: 
+  - # [...]
+  - # [...]
+  - # [...]
+poll_interval: # See description
+azure: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|aws|A configuration for AWS Access Graph service poll service.|[][Access Graph AWS Sync](#access-graph-aws-sync)|
+|azure|A configuration for Azure Access Graph service poll service.|[][Access Graph Azure Sync](#access-graph-azure-sync)|
+|poll_interval|The frequency at which to poll for resources||
+
+## Assume Role
+
+Provides a role ARN and ExternalID to assume an AWS role when interacting with AWS resources.
+
+
+Example:
+
+```yaml
+role_arn: "string"
+external_id: "string"
+role_name: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|external_id|The external ID used to assume a role in another account.|string|
+|role_arn|The fully specified AWS IAM role ARN.|string|
+|role_name|The AWS IAM Role name to assume. This is used in place of Role ARN when iterating over multiple accounts in an AWS Organization.|string|
+
+## Azure Installer Params
+
+The set of Azure-specific installation parameters.
+
+
+Example:
+
+```yaml
+client_id: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|client_id|The client ID of the managed identity discovered nodes should use to join the cluster.|string|
+
+## Azure Matcher
+
+Matches Azure resources. It defines which resource types, filters and some configuration params.
+
+
+Example:
+
+```yaml
+subscriptions: 
+  - "string"
+  - "string"
+  - "string"
+resource_groups: 
+  - "string"
+  - "string"
+  - "string"
+types: 
+  - "string"
+  - "string"
+  - "string"
+regions: 
+  - "string"
+  - "string"
+  - "string"
+tags: # [...]
+install_params: # [...]
+integration: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|install_params|Sets the join method when installing on discovered Azure nodes.|[Installer Params](#installer-params)|
+|integration|The integration name used to generate credentials to interact with Azure APIs. Environment credentials will not be used when this value is set.|string|
+|regions|Azure locations to match for databases.|[]string|
+|resource_groups|Azure resource groups to query for resources.|[]string|
+|subscriptions|Azure subscriptions to query for resources.|[]string|
+|tags|Azure tags on resources to match.|[Labels](#labels)|
+|types|Azure types to match: "mysql", "postgres", "aks", "vm"|[]string|
+
+## GCP Matcher
+
+Matches GCP resources.
+
+
+Example:
+
+```yaml
+types: 
+  - "string"
+  - "string"
+  - "string"
+locations: 
+  - "string"
+  - "string"
+  - "string"
+tags: # [...]
+project_ids: 
+  - "string"
+  - "string"
+  - "string"
+service_accounts: 
+  - "string"
+  - "string"
+  - "string"
+install_params: # [...]
+labels: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|install_params|Sets the join method when installing on discovered GCP nodes.|[Installer Params](#installer-params)|
+|labels|GCP labels to match.|[Labels](#labels)|
+|locations|GKE locations to search resources for.|[]string|
+|project_ids|The GCP project ID where the resources are deployed.|[]string|
+|service_accounts|The emails of service accounts attached to VMs.|[]string|
+|tags|Obsolete and only exists for backwards compatibility. Use Labels instead.|[Labels](#labels)|
+|types|GKE resource types to match: "gke", "vm".|[]string|
+
+## HTTP Proxy Settings
+
+Defines HTTP proxy settings for making HTTP and HTTPS requests.
+
+
+Example:
+
+```yaml
+http_proxy: "string"
+https_proxy: "string"
+no_proxy: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|http_proxy|The URL for the HTTP proxy to use when making requests. When applied, this will set the HTTP_PROXY environment variable.|string|
+|https_proxy|The URL for the HTTPS Proxy to use when making requests. When applied, this will set the HTTPS_PROXY environment variable.|string|
+|no_proxy|A comma separated list of URLs that will be excluded from proxying. When applied, this will set the NO_PROXY environment variable.|string|
+
+## Install Param Enroll Mode
+
+The mode used to enroll the node into the cluster.
+
+
+## Installer Params
+
+InstallParams sets join method to use on discovered nodes
+
+
+Example:
+
+```yaml
+join_method: # [...]
+join_token: "string"
+script_name: "string"
+install_teleport: true
+sshd_config: "string"
+proxy_addr: "string"
+azure: # [...]
+enroll_mode: # [...]
+suffix: "string"
+update_group: "string"
+http_proxy_settings: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|azure|The set of Azure-specific installation parameters.|[Azure Installer Params](#azure-installer-params)|
+|enroll_mode|Indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)|[Install Param Enroll Mode](#install-param-enroll-mode)|
+|http_proxy_settings|Defines HTTP proxy settings for making HTTP requests. When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation.|[HTTP Proxy Settings](#http-proxy-settings)|
+|install_teleport|Disables agentless discovery|Boolean|
+|join_method|The method to use when joining the cluster|[Join Method](#join-method)|
+|join_token|The token to use when joining the cluster|string|
+|proxy_addr|The address of the proxy the discovered node should use to connect to the cluster.|string|
+|script_name|The name of the teleport installer script resource for the cloud instance to execute|string|
+|sshd_config|Provides the path to write sshd configuration changes|string|
+|suffix|Indicates the installation suffix for the teleport installation. Set this value if you want multiple installations of Teleport. See --install-suffix flag in teleport-update program. Note: only supported for Amazon EC2. Suffix name can only contain alphanumeric characters and hyphens.|string|
+|update_group|Indicates the update group for the teleport installation. This value is used to group installations in order to update them in batches. See --group flag in teleport-update program. Note: only supported for Amazon EC2. Group name can only contain alphanumeric characters and hyphens.|string|
+
+## Join Method
+
+The method used for new nodes to join the cluster.
+
+
+## Kubernetes Matcher
+
+Matches Kubernetes services.
+
+
+Example:
+
+```yaml
+types: 
+  - "string"
+  - "string"
+  - "string"
+namespaces: 
+  - "string"
+  - "string"
+  - "string"
+labels: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|labels|Kubernetes services labels to match.|[Labels](#labels)|
+|namespaces|Kubernetes namespaces in which to discover services|[]string|
+|types|Kubernetes services types to match. Currently only 'app' is supported.|[]string|
+
+## Labels
+
+A wrapper around map that can marshal and unmarshal itself from scalar and list values
+
+
+## Metadata
+
+Resource metadata
+
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|description|Object description|string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|labels|A set of labels|map[string]string|
+|name|An object name|string|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+
+## Spec
+
+The specification for a discovery config.
+
+
+Example:
+
+```yaml
+discovery_group: "string"
+aws: 
+  - # [...]
+  - # [...]
+  - # [...]
+azure: 
+  - # [...]
+  - # [...]
+  - # [...]
+gcp: 
+  - # [...]
+  - # [...]
+  - # [...]
+kube: 
+  - # [...]
+  - # [...]
+  - # [...]
+access_graph: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|access_graph|The configuration for the Access Graph Cloud sync.|[Access Graph Sync](#access-graph-sync)|
+|aws|A list of matchers for the supported resources in AWS.|[][AWS Matcher](#aws-matcher)|
+|azure|A list of matchers for the supported resources in Azure.|[][Azure Matcher](#azure-matcher)|
+|discovery_group|The Discovery Group for the current DiscoveryConfig. DiscoveryServices should include all the matchers if the DiscoveryGroup matches with their own group.|string|
+|gcp|A list of matchers for the supported resources in GCP.|[][GCP Matcher](#gcp-matcher)|
+|kube|A list of matchers for the supported resources in Kubernetes.|[][Kubernetes Matcher](#kubernetes-matcher)|
+
+## Status
+
+Holds dynamic information about the discovery configuration running status such as errors, state and count of the resources.
+
+
+Example:
+
+```yaml
+state: "string"
+error_message: "string"
+discovered_resources: 1
+last_sync_time: # See description
+integration_discovered_resources: 
+  "string": # See description
+  "string": # See description
+  "string": # See description
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|discovered_resources|Holds the count of the discovered resources in the previous iteration.|number|
+|error_message|Holds the error message when state is DISCOVERY_CONFIG_STATE_ERROR.|string|
+|integration_discovered_resources|Maps an integration to a summary of resources that were found using that integration.|map[string]|
+|last_sync_time|The timestamp when the Discovery Config was last sync.||
+|state|The current state of the discovery config.|string|
+

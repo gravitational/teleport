@@ -18,6 +18,7 @@ package types
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -68,6 +69,10 @@ func TestIntegrationJSONMarshalCycle(t *testing.T) {
 			require.Equal(t, &ig2, ig)
 		})
 	}
+
+	aws.SubKind = ""
+	_, err = json.MarshalIndent(aws, "", "  ")
+	require.ErrorContains(t, err, `invalid subkind "", supported values are ["aws-oidc" "azure-oidc" "aws-ra" "github"]`)
 }
 
 func TestIntegrationCheckAndSetDefaults(t *testing.T) {
@@ -223,7 +228,12 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 					},
 				)
 			},
-			expectedErrorIs: trace.IsBadParameter,
+			expectedErrorIs: func(err error) bool {
+				return trace.IsBadParameter(err) &&
+					strings.Contains(err.Error(),
+						`unsupported audience value "testvalue", supported values are ["" "aws-identity-center"]`,
+					)
+			},
 		},
 		{
 			name: "azure-oidc: valid",
@@ -468,8 +478,8 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			name := uuid.NewString()
 			ig, err := tt.integration(name)
-			require.True(t, tt.expectedErrorIs(err), "expected another error", err)
-			if err != nil {
+			require.True(t, tt.expectedErrorIs(err), "expected another error %v", err)
+			if err != nil && trace.IsBadParameter(err) {
 				return
 			}
 

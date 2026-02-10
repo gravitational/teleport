@@ -40,6 +40,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -258,13 +259,15 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	sshPublicKey := ssh.MarshalAuthorizedKey(sshPub)
 
 	certs, err := s.server.Auth().GenerateHostCerts(ctx,
-		&proto.HostCertsRequest{
-			HostID:       hostID,
-			NodeName:     s.server.ClusterName(),
-			Role:         types.RoleNode,
-			PublicSSHKey: sshPublicKey,
-			PublicTLSKey: tlsPublicKey,
-		}, "")
+		auth.HostCertsParams{
+			Req: &proto.HostCertsRequest{
+				HostID:       hostID,
+				NodeName:     s.server.ClusterName(),
+				Role:         types.RoleNode,
+				PublicSSHKey: sshPublicKey,
+				PublicTLSKey: tlsPublicKey,
+			},
+		})
 	require.NoError(t, err)
 
 	// set up user CA and set up a user that has access to the server
@@ -359,7 +362,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 
 func newUpack(ctx context.Context, s *SrvCtx, username string, allowedLogins []string, allowedLabels types.Labels) (*upack, error) {
 	auth := s.server.Auth()
-	upriv, upub, err := testauthority.New().GenerateKeyPair()
+	upriv, upub, err := testauthority.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

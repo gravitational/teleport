@@ -20,6 +20,7 @@ import React, { ReactElement, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
 
 import { Box, ButtonBorder, Label as DesignLabel, Flex, Text } from 'design';
+import { makeLabelTag } from 'design/formatters';
 import * as icons from 'design/Icon';
 import { Cross as CloseIcon } from 'design/Icon';
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
@@ -1138,11 +1139,7 @@ function Label(props: {
     .map(match => match.searchTerm);
 
   return (
-    <DesignLabel
-      key={label.name}
-      kind="secondary"
-      title={`${label.name}: ${label.value}`}
-    >
+    <DesignLabel key={label.name} kind="secondary" title={makeLabelTag(label)}>
       <Highlight text={label.name} keywords={nameMatches} />:{' '}
       <Highlight text={label.value} keywords={valueMatches} />
     </DesignLabel>

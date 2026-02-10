@@ -458,6 +458,12 @@ func shouldUseKubeLocalProxy(cf *CLIConf, kubectlArgs []string) (*clientcmdapi.C
 		return nil, nil, false
 	}
 
+	// TODO(espadolini): we could skip the local proxy when using a relay, but
+	// we can only know if we are using a relay once we have a TeleportClient
+	// and we load the profile, which will only happen later; seeing as it's
+	// only a little wasteful to spin up a local proxy it's fine for now, but if
+	// we rework the flow we should add a way to skip the local proxy when using
+	// a relay even if a connection through the control plane would require it
 	if !profile.RequireKubeLocalProxy() {
 		return nil, nil, false
 	}

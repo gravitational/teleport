@@ -19,6 +19,7 @@ package delay
 import (
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/jonboulle/clockwork"
@@ -28,8 +29,11 @@ import (
 )
 
 func TestMultiBasics(t *testing.T) {
-	const interval = time.Millisecond * 20
 	t.Parallel()
+	synctest.Test(t, testMultiBasics)
+}
+func testMultiBasics(t *testing.T) {
+	const interval = time.Millisecond * 20
 
 	multi := NewMulti[int](MultiParams{
 		FixedInterval: interval,
@@ -41,6 +45,7 @@ func TestMultiBasics(t *testing.T) {
 	for i := 1; i <= 10; i++ {
 		// add a subinterval
 		multi.Add(i)
+		time.Sleep(time.Nanosecond)
 	}
 
 	for i := range 30 {
@@ -82,11 +87,33 @@ func TestMultiBasics(t *testing.T) {
 	case <-time.After(interval * 3):
 		t.Fatal("timeout waiting for re-added delay to fire")
 	}
+
+	time.Sleep(interval / 2)
+	multi.Add(42)
+	added42 := time.Now()
+
+	elapsed := <-multi.Elapsed()
+	require.Equal(t, added42.Add(interval/2), elapsed)
+	require.Equal(t, 777, multi.Tick(elapsed))
+
+	time.Sleep(interval / 2)
+	multi.Reset(42)
+	reset42 := time.Now()
+
+	elapsed = <-multi.Elapsed()
+	require.Equal(t, reset42.Add(interval/2), elapsed)
+	require.Equal(t, 777, multi.Tick(elapsed))
+
+	elapsed = <-multi.Elapsed()
+	require.Equal(t, reset42.Add(interval), elapsed)
+	require.Equal(t, 42, multi.Tick(elapsed))
 }
 
 func TestMultiJitter(t *testing.T) {
 	t.Parallel()
-
+	synctest.Test(t, testMultiJitter)
+}
+func testMultiJitter(t *testing.T) {
 	var jitterCalled atomic.Bool
 	fakeJitter := func(d time.Duration) time.Duration {
 		jitterCalled.Store(true)

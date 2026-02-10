@@ -21,23 +21,41 @@ export type SerializedError = {
   message: string;
   stack?: string;
   cause?: unknown;
+  toStringResult?: string;
 };
 
 /** Serializes an Error into a plain object for transport through Electron IPC. */
 export function serializeError(error: Error): SerializedError {
+  const {
+    name,
+    cause,
+    stack,
+    message,
+    // functions must be skipped, otherwise structuredClone will fail to clone the object
+    // eslint-disable-next-line unused-imports/no-unused-vars
+    toString,
+    ...enumerableFields
+  } = error;
   return {
-    name: error.name,
-    message: error.message,
-    cause: error.cause,
-    stack: error.stack,
+    name,
+    message,
+    cause,
+    stack,
+    // Calling the destructured function directly could result in the following error:
+    // Method Error.prototype.toString called on incompatible receiver undefined
+    toStringResult: error.toString?.(),
+    ...enumerableFields,
   };
 }
 
 /** Deserializes a plain object back into an Error instance. */
 export function deserializeError(serialized: SerializedError): Error {
-  const error = new Error(serialized.message);
-  error.name = serialized.name;
-  error.cause = serialized.cause;
-  error.stack = serialized.stack;
+  const { name, cause, stack, message, toStringResult, ...rest } = serialized;
+  const error = new Error(message);
+  error.name = name;
+  error.cause = cause;
+  error.stack = stack;
+  error.toString = () => toStringResult;
+  Object.assign(error, rest);
   return error;
 }

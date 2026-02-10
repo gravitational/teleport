@@ -11,6 +11,7 @@ import Resources, { ResourcesProps } from "@site/src/components/Pages/Homepage/R
 import Integrations, { IntegrationsProps } from "@site/src/components/Pages/Homepage/Integrations";
 import GetStarted from "@site/src/components/Pages/Homepage/GetStarted";
 
+import agenticAiImg from '@version/docs/img/agentic-ai/agentic-ai-hero.png';
 import applicationSvg from "@site/src/components/Icon/teleport-svg/application.svg";
 import linuxServersSvg from "@site/src/components/Icon/teleport-svg/linux-servers.svg";
 import databaseSvg from "@site/src/components/Icon/teleport-svg/database-access.svg";
@@ -48,11 +49,11 @@ import listBulletsSvg from "@site/src/components/Icon/teleport-svg/list-bullets.
     },
     { 
       label: "Set up SSO with GitHub", 
-      href: "./zero-trust-access/sso/github-sso/" 
+      href: "./zero-trust-access/sso/integrate-idp/github-sso/" 
     },
     { 
       label: "Set up Slack Access Request Plugin", 
-      href: "./identity-governance/access-request-plugins/ssh-approval-slack/" 
+      href: "./identity-governance/access-requests/plugins/slack/" 
     }
   ]}
 />
@@ -110,6 +111,19 @@ import listBulletsSvg from "@site/src/components/Icon/teleport-svg/list-bullets.
 />
 
 <Products
+  highlightedProduct={
+    {
+      title: "Agentic AI/MCP Security",
+      description: "The Teleport Agentic Identity Framework is a standards-driven security architecture and a reference implementation for deploying AI agents across infrastructure. It provides designs and reference implementations for safe agent adoption across infrastructure with built-in security invariants, observability, and governance.",
+      image: agenticAiImg,
+      tag: {
+        label: "Upcoming release",
+        colorHex: "#007D6B",
+        icon: "rocketLaunch",
+      },
+      href: "./agentic-identity-framework",
+    }
+  }
   productCategories={[
     {
       id: 'zero-trust-access',
@@ -127,7 +141,7 @@ import listBulletsSvg from "@site/src/components/Icon/teleport-svg/list-bullets.
         {
           title: 'VNet: Build without VPNs',
           description: 'Secure app & SSH access with no VPNs or proxies',
-          href: './enroll-resources/application-access/guides/vnet/'
+          href: './enroll-resources/application-access/vnet/'
         },
         {
           title: 'Secure MCP (Protect the Vibes)',
@@ -393,13 +407,13 @@ import listBulletsSvg from "@site/src/components/Icon/teleport-svg/list-bullets.
     },
     {
       title: 'Slack',
-      href: './identity-governance/access-request-plugins/',
+      href: './identity-governance/access-requests/plugins/slack/',
       iconColor: '#ECB22E1A',
       iconComponent: slackSvg,
     },
     {
       title: 'PagerDuty',
-      href: './identity-governance/access-request-plugins/',
+      href: './identity-governance/access-requests/plugins/pagerduty/',
       iconColor: '#06AC381A',
       iconComponent: pagerDutySvg,
     },
@@ -417,7 +431,7 @@ import listBulletsSvg from "@site/src/components/Icon/teleport-svg/list-bullets.
     },
     {
       title: 'Snowflake',
-      href: './enroll-resources/database-access/enroll-managed-databases/snowflake/',
+      href: './enroll-resources/database-access/enrollment/managed/snowflake/',
       iconColor: '#29B5E81A',
       iconComponent: snowflakeSvg,
     }, 

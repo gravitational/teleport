@@ -22,11 +22,12 @@ import Label, {
   Primary,
   Secondary,
   SecondaryOutlined,
+  SuccessOutlined,
   Warning,
   WarningOutlined,
 } from './Label';
 
 export default Label;
 export { Primary, Secondary, Warning, Danger };
-export { SecondaryOutlined, WarningOutlined, DangerOutlined };
+export { SecondaryOutlined, SuccessOutlined, WarningOutlined, DangerOutlined };
 export type { LabelKind } from './Label';

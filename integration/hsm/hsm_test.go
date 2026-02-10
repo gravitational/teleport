@@ -109,7 +109,9 @@ func TestHSMRotation(t *testing.T) {
 	allServices := teleportServices{auth1}
 
 	t.Cleanup(func() {
-		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil))
+		assert.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil),
+			"failed to delete hsm keys during test cleanup")
+		assert.NoError(t, auth1.cleanup())
 	})
 
 	// start a proxy to make sure it can get creds at each stage of rotation
@@ -185,7 +187,7 @@ func testAdminClient(t *testing.T, authDataDir string, authAddr string) {
 			return err
 		}
 		defer clt.Close()
-		_, err = clt.GetClusterName(context.TODO())
+		_, err = clt.GetClusterName(t.Context())
 		return err
 	}
 	// We might be hitting a load balancer in front of two auths, running
@@ -209,8 +211,7 @@ func testAdminClient(t *testing.T, authDataDir string, authAddr string) {
 // Tests multiple CA rotations and rollbacks with 2 HSM auth servers in an HA configuration
 func TestHSMDualAuthRotation(t *testing.T) {
 	t.Setenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK", "1")
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	ctx := t.Context()
 	log := logtest.With(teleport.ComponentKey, "TestHSMDualAuthRotation")
 	storageConfig := liteBackendConfig(t)
 
@@ -220,8 +221,9 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	auth1, err := newTeleportService(ctx, auth1Config, "auth1")
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil),
+		assert.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil),
 			"failed to delete hsm keys during test cleanup")
+		assert.NoError(t, auth1.cleanup())
 	})
 	authServices := teleportServices{auth1}
 
@@ -234,7 +236,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, lb.Listen())
 	go lb.Serve()
-	t.Cleanup(func() { require.NoError(t, lb.Close()) })
+	t.Cleanup(func() { assert.NoError(t, lb.Close()) })
 
 	// add a new auth server
 	log.DebugContext(ctx, "Starting auth server 2")
@@ -242,7 +244,9 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	auth2, err := newTeleportService(ctx, auth2Config, "auth2")
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, auth2.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil))
+		assert.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil),
+			"failed to delete hsm keys during test cleanup")
+		assert.NoError(t, auth2.cleanup())
 	})
 	authServices = append(authServices, auth2)
 
@@ -391,8 +395,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 // Tests a dual-auth server migration from raw keys to HSM keys
 func TestHSMMigrate(t *testing.T) {
 	t.Setenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK", "1")
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	ctx := t.Context()
 	log := logtest.With(teleport.ComponentKey, "TestHSMMigrate")
 	storageConfig := liteBackendConfig(t)
 
@@ -404,6 +407,11 @@ func TestHSMMigrate(t *testing.T) {
 	auth2Config.Auth.KeyStore = servicecfg.KeystoreConfig{}
 	auth1, err := newTeleportService(ctx, auth1Config, "auth1")
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil),
+			"failed to delete hsm keys during test cleanup")
+		assert.NoError(t, auth1.cleanup())
+	})
 	auth2, err := newTeleportService(ctx, auth2Config, "auth2")
 	require.NoError(t, err)
 
@@ -422,7 +430,7 @@ func TestHSMMigrate(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, lb.Listen())
 	go lb.Serve()
-	t.Cleanup(func() { require.NoError(t, lb.Close()) })
+	t.Cleanup(func() { assert.NoError(t, lb.Close()) })
 
 	testClient := func(t *testing.T) {
 		testAdminClient(t, auth1Config.DataDir, lb.Addr().String())
@@ -546,7 +554,9 @@ func TestHSMRevert(t *testing.T) {
 	auth1, err := newTeleportService(ctx, auth1Config, "auth1")
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil))
+		assert.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil),
+			"failed to delete hsm keys during test cleanup")
+		assert.NoError(t, auth1.cleanup())
 	})
 
 	// Switch config back to default (software) and restart.
@@ -555,12 +565,6 @@ func TestHSMRevert(t *testing.T) {
 	auth1Config.Auth.KeyStore = servicecfg.KeystoreConfig{}
 	auth1, err = newTeleportService(ctx, auth1Config, "auth1")
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		auth1.process.Close()
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		assert.NoError(t, auth1.waitForShutdown(ctx), "waiting for auth process to shut down")
-	})
 
 	// Make sure a cluster alert is created.
 	var alert types.ClusterAlert

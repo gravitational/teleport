@@ -266,35 +266,38 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 		ClusterName: profile.SiteName,
 		Username:    profile.Username,
 	}
+
+	// If we can't find a keyRing to match the profile, connect to the keyRing (hardware key),
+	// or read the full profile status, return a partial status.
+	// This is used for some superficial functions `tsh logout` and `tsh status`.
+	partialStatus := &ProfileStatus{
+		Name: profileName,
+		Dir:  profile.Dir,
+		ProxyURL: url.URL{
+			Scheme: "https",
+			Host:   profile.WebProxyAddr,
+		},
+		Username:    profile.Username,
+		Cluster:     profile.SiteName,
+		KubeEnabled: profile.KubeProxyAddr != "",
+		// Set ValidUntil to now and GetKeyRingError to show that the keys are not available.
+		ValidUntil:              time.Now(),
+		SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
+		SSOHost:                 profile.SSOHost,
+	}
+
 	keyRing, err := s.GetKeyRing(idx, WithAllCerts...)
 	if err != nil {
 		if trace.IsNotFound(err) || trace.IsConnectionProblem(err) {
-			// If we can't find a keyRing to match the profile, or can't connect to
-			// the keyRing (hardware key), return a partial status. This is used for
-			// some superficial functions `tsh logout` and `tsh status`.
-			return &ProfileStatus{
-				Name: profileName,
-				Dir:  profile.Dir,
-				ProxyURL: url.URL{
-					Scheme: "https",
-					Host:   profile.WebProxyAddr,
-				},
-				Username:    profile.Username,
-				Cluster:     profile.SiteName,
-				KubeEnabled: profile.KubeProxyAddr != "",
-				// Set ValidUntil to now and GetKeyRingError to show that the keys are not available.
-				ValidUntil:              time.Now(),
-				GetKeyRingError:         err,
-				SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
-				SSOHost:                 profile.SSOHost,
-			}, nil
+			partialStatus.GetKeyRingError = err
+			return partialStatus, nil
 		}
 		return nil, trace.Wrap(err)
 	}
 
 	_, onDisk := s.KeyStore.(*FSKeyStore)
 
-	return profileStatusFromKeyRing(keyRing, profileOptions{
+	profileStatus, err := profileStatusFromKeyRing(keyRing, profileOptions{
 		ProfileName:             profileName,
 		ProfileDir:              profile.Dir,
 		WebProxyAddr:            profile.WebProxyAddr,
@@ -308,6 +311,12 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 		IsVirtual:               !onDisk,
 		TLSRoutingEnabled:       profile.TLSRoutingEnabled,
 	})
+	if trace.IsNotFound(err) {
+		return partialStatus, nil
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return profileStatus, nil
 }
 
 // FullProfileStatus returns the status of the active profile along with the

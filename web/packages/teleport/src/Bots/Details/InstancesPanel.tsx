@@ -27,6 +27,7 @@ import Flex from 'design/Flex/Flex';
 import { SortAscending, SortDescending } from 'design/Icon';
 import { Indicator } from 'design/Indicator/Indicator';
 import Text from 'design/Text';
+import { SortOrder } from 'shared/components/Controls/SortMenu';
 
 import { listBotInstances } from 'teleport/services/bot/bot';
 import { BotInstanceSummary } from 'teleport/services/bot/types';
@@ -42,7 +43,7 @@ export function InstancesPanel(props: {
   const { botName, onItemSelected } = props;
 
   const [sortField] = useState('active_at_latest');
-  const [sortDir, setSortDir] = useState<'ASC' | 'DESC'>('DESC');
+  const [sortDir, setSortDir] = useState<SortOrder>('DESC');
 
   const contentRef = React.useRef<HTMLDivElement>(null);
 

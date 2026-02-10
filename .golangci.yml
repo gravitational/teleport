@@ -19,6 +19,7 @@ linters:
     - testifylint
     - unconvert
     - unused
+    - usetesting
   settings:
     depguard:
       rules:
@@ -94,7 +95,6 @@ linters:
             - '!**lib/services/compare.go'
             - '!**/lib/services/local/access_list.go'
             - '!**/lib/services/local/users.go'
-            - '!**/lib/services/server.go'
             - '!**/lib/services/user.go'
           deny:
             - pkg: github.com/google/go-cmp/cmp
@@ -193,17 +193,18 @@ linters:
         test_packages:
           files:
             - '!$test'
-            - '!**/integrations/operator/controllers/resources/testlib/**.go'
             - '!**/e/lib/aws/identitycenter/test/**'
             - '!**/e/lib/devicetrust/testenv/**'
-            - '!**/e/lib/jamf/testenv/**'
-            - '!**/e/lib/intune/testenv/**'
             - '!**/e/lib/idp/saml/testenv/**'
+            - '!**/e/lib/intune/testenv/**'
+            - '!**/e/lib/jamf/testenv/**'
             - '!**/e/lib/operatortest/**'
             - '!**/e/tests/**'
             - '!**/integration/db/fixture.go'
             - '!**/integration/helpers/**'
             - '!**/integrations/lib/testing/**'
+            - '!**/integrations/operator/controllers/resources/testlib/**.go'
+            - '!**/lib/auth/authtest/**'
           deny:
             - pkg: github.com/gravitational/teleport/e/lib/aws/identitycenter/test
               desc: testing packages should not be imported outside of _test.go files
@@ -230,6 +231,8 @@ linters:
             - pkg: github.com/gravitational/teleport/lib/modules/modulestest
               desc: testing packages should not be imported outside of _test.go files
             - pkg: github.com/gravitational/teleport/lib/utils/logtesttest
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/auth/authcatest
               desc: testing packages should not be imported outside of _test.go files
             - pkg: github.com/gravitational/teleport/lib/auth/authtest
               desc: testing packages should not be imported outside of _test.go files
@@ -326,6 +329,8 @@ linters:
       forbid:
         - pattern: ^rsa\.GenerateKey$
           msg: generating RSA keys is slow, use lib/cryptosuites to generate an appropriate key type
+        - pattern: ^common\.StringToRegion$
+          msg: use oraclejoincommon.StringToRegion to avoid OCI SDK data races
         - pattern: ^iam\.NewFromConfig$
           msg: Use iamutils.NewFromConfig
         - pattern: ^sts\.NewFromConfig$
@@ -370,6 +375,15 @@ linters:
         - len
         - suite-extra-assert-call
         - suite-thelper
+    usetesting:
+        context-todo: true
+        # TODO: Enable the following after the issues are fixed.
+        context-background: false
+        os-chdir: false
+        os-create-temp: false
+        os-mkdir-temp: false
+        os-setenv: false
+        os-temp-dir: false
   exclusions:
     generated: lax
     presets:

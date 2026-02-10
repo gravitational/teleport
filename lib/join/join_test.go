@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/joinv1"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils"
@@ -87,6 +88,11 @@ func TestJoinToken(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	authService := newFakeAuthService(t)
+	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token1))
+	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token2))
+
+	// generate scoped tokens
 	scopedToken1 := &joiningv1.ScopedToken{
 		Kind:    types.KindScopedToken,
 		Version: types.V1,
@@ -98,33 +104,29 @@ func TestJoinToken(t *testing.T) {
 			AssignedScope: "/aa/bb",
 			Roles:         []string{types.RoleNode.String()},
 			JoinMethod:    string(types.JoinMethodToken),
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
+		},
+		Status: &joiningv1.ScopedTokenStatus{
+			Secret: "secret",
 		},
 	}
 	scopedToken2 := proto.CloneOf(scopedToken1)
-	scopedToken2.Metadata.Name = "scoped2"
 	scopedToken2.Spec.AssignedScope = "/aa/cc"
+	scopedToken2.Metadata.Name = "scoped2"
 
 	scopedToken3 := proto.CloneOf(scopedToken1)
 	scopedToken3.Metadata.Name = "scoped3"
 
-	authService := newFakeAuthService(t)
-	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token1))
-	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token2))
+	singleUseToken := proto.CloneOf(scopedToken1)
+	singleUseToken.Spec.UsageMode = string(joining.TokenUsageModeSingle)
+	singleUseToken.Metadata.Name = "scoped-single-use-1"
 
-	_, err = authService.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
-		Token: scopedToken1,
-	})
-	require.NoError(t, err)
-
-	_, err = authService.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
-		Token: scopedToken2,
-	})
-	require.NoError(t, err)
-
-	_, err = authService.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
-		Token: scopedToken3,
-	})
-	require.NoError(t, err)
+	for _, tok := range []*joiningv1.ScopedToken{scopedToken1, scopedToken2, scopedToken3, singleUseToken} {
+		_, err = authService.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+			Token: tok,
+		})
+		require.NoError(t, err)
+	}
 
 	proxy := newFakeProxy(authService)
 	proxy.join(t)
@@ -215,9 +217,10 @@ func TestJoinToken(t *testing.T) {
 
 	t.Run("join and rejoin with scoped token", func(t *testing.T) {
 		// Node initially joins by connecting to the proxy's gRPC service.
-		identity, err := joinViaProxy(
+		identity, err := joinViaProxyWithSecret(
 			t.Context(),
 			scopedToken1.GetMetadata().GetName(),
+			scopedToken1.GetStatus().GetSecret(),
 			proxyListener.Addr(),
 		)
 		require.NoError(t, err)
@@ -243,9 +246,10 @@ func TestJoinToken(t *testing.T) {
 		//
 		// It should get back its original host ID and the combined roles of
 		// its original certificate and the new token.
-		newIdentity, err := rejoinViaAuthClient(
+		newIdentity, err := rejoinViaAuthClientWithSecret(
 			t.Context(),
 			scopedToken3.GetMetadata().GetName(),
+			scopedToken3.GetStatus().GetSecret(),
 			authClient,
 		)
 		require.NoError(t, err)
@@ -265,9 +269,10 @@ func TestJoinToken(t *testing.T) {
 
 	t.Run("join and rejoin with mismatched scoped tokens", func(t *testing.T) {
 		// Node initially joins by connecting to the proxy's gRPC service.
-		identity, err := joinViaProxy(
+		identity, err := joinViaProxyWithSecret(
 			t.Context(),
 			scopedToken1.GetMetadata().GetName(),
+			scopedToken1.GetStatus().GetSecret(),
 			proxyListener.Addr(),
 		)
 		require.NoError(t, err)
@@ -344,6 +349,34 @@ func TestJoinToken(t *testing.T) {
 				}),
 			))
 		}, 5*time.Second, 5*time.Millisecond, "expected instance.join failed event not found")
+	})
+
+	t.Run("join with single use scoped token", func(t *testing.T) {
+		identity, err := joinViaProxyWithSecret(
+			t.Context(),
+			singleUseToken.GetMetadata().GetName(),
+			singleUseToken.GetStatus().GetSecret(),
+			proxyListener.Addr(),
+		)
+		require.NoError(t, err)
+		// Make sure the result contains a host ID and expected certificate roles.
+		require.NotEmpty(t, identity.ID.HostUUID)
+		require.Equal(t, types.RoleInstance, identity.ID.Role)
+		expectedSystemRoles := slices.DeleteFunc(
+			singleUseToken.GetSpec().GetRoles(),
+			func(s string) bool { return s == types.RoleInstance.String() },
+		)
+		require.ElementsMatch(t, expectedSystemRoles, identity.SystemRoles)
+		require.Equal(t, singleUseToken.GetSpec().GetAssignedScope(), identity.AgentScope)
+
+		// ensure subsequent join attempts fail
+		_, err = joinViaProxyWithSecret(
+			t.Context(),
+			singleUseToken.GetMetadata().GetName(),
+			singleUseToken.GetStatus().GetSecret(),
+			proxyListener.Addr(),
+		)
+		require.ErrorContains(t, err, joining.ErrTokenExhausted.Error())
 	})
 }
 
@@ -581,13 +614,19 @@ func (p *fakeProxy) runGRPCServer(t *testing.T, l net.Listener) {
 	})
 }
 
-func joinViaProxy(
+func joinViaProxy(ctx context.Context, token string, addr net.Addr) (*state.Identity, error) {
+	return joinViaProxyWithSecret(ctx, token, "", addr)
+}
+
+func joinViaProxyWithSecret(
 	ctx context.Context,
 	token string,
+	tokenSecret string,
 	addr net.Addr,
 ) (*state.Identity, error) {
 	joinResult, err := joinclient.Join(ctx, joinclient.JoinParams{
-		Token: token,
+		Token:       token,
+		TokenSecret: tokenSecret,
 		ID: state.IdentityID{
 			Role:     types.RoleInstance,
 			NodeName: "node",
@@ -610,13 +649,19 @@ func joinViaProxy(
 	return state.ReadIdentityFromKeyPair(privateKeyPEM, joinResult.Certs)
 }
 
-func rejoinViaAuthClient(
+func rejoinViaAuthClient(ctx context.Context, token string, authClient authjoin.AuthJoinClient) (*state.Identity, error) {
+	return rejoinViaAuthClientWithSecret(ctx, token, "", authClient)
+}
+
+func rejoinViaAuthClientWithSecret(
 	ctx context.Context,
 	token string,
+	tokenSecret string,
 	authClient authjoin.AuthJoinClient,
 ) (*state.Identity, error) {
 	joinResult, err := joinclient.Join(ctx, joinclient.JoinParams{
-		Token: token,
+		Token:       token,
+		TokenSecret: tokenSecret,
 		ID: state.IdentityID{
 			Role:     types.RoleInstance,
 			NodeName: "node",

@@ -57,11 +57,22 @@ export function PolicyPlaceholder({
   roleDiffProps?: RoleDiffProps;
 }) {
   const theme = useTheme();
+
+  // We don't show the Identity Security CTA when
+  // feature hiding is enabled.
+  if (cfg.hideInaccessibleFeatures) {
+    return;
+  }
+
   const waitingForSync =
     roleDiffProps?.roleDiffState === RoleDiffState.WaitingForSync;
   const loading =
     roleDiffProps?.roleDiffState === RoleDiffState.LoadingSettings ||
     waitingForSync;
+
+  // roleDiffProps can be undefined if not cloud and not role tester
+  // enabled.
+  const hideSalesButton = (cfg.isPolicyEnabled || cfg.isCloud) && roleDiffProps;
 
   return (
     <Box maxWidth={promoImageWidth + 2 * 2} minWidth={300}>
@@ -92,22 +103,21 @@ export function PolicyPlaceholder({
                 {loading ? 'Creating graph…' : 'Preview Identity Security'}
               </ButtonPrimary>
             )}
-          {!cfg.isPolicyEnabled &&
-            !cfg.isCloud && ( // non-cloud must contact sales
-              <>
-                <ButtonLockedFeature noIcon py={0} width={undefined}>
-                  Contact Sales
-                </ButtonLockedFeature>
-                <ButtonSecondary
-                  as="a"
-                  href="https://goteleport.com/platform/policy/"
-                  target="_blank"
-                  ml={2}
-                >
-                  Learn More
-                </ButtonSecondary>
-              </>
-            )}
+          {!hideSalesButton && ( // non-cloud must contact sales
+            <>
+              <ButtonLockedFeature noIcon py={0} width={undefined}>
+                Contact Sales
+              </ButtonLockedFeature>
+              <ButtonSecondary
+                as="a"
+                href="https://goteleport.com/platform/policy/"
+                target="_blank"
+                ml={2}
+              >
+                Learn More
+              </ButtonSecondary>
+            </>
+          )}
         </Flex>
       </Flex>
       <Flex

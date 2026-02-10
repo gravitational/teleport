@@ -385,65 +385,12 @@ func IsAccessListMember(
 		}
 	}
 
-	members, err := fetchMembers(ctx, accessList.GetName(), g)
-	if err != nil {
-		return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err, "fetching access list %q members", accessList.GetName())
+	cfg := walkConfig{
+		getter: g,
+		root:   accessList,
 	}
 
-	var membershipErr error
-
-	for _, member := range members {
-		// Is user an explicit member?
-		if member.Spec.MembershipKind != accesslist.MembershipKindList && member.GetName() == user.GetName() {
-			if !UserMeetsRequirements(user, accessList.Spec.MembershipRequires) {
-				// Avoid non-deterministic behavior in these checks. Rather than returning immediately, continue
-				// through all members to make sure there isn't a valid match later on.
-				membershipErr = trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
-				continue
-			}
-			if !member.Spec.Expires.IsZero() && !clock.Now().Before(member.Spec.Expires) {
-				membershipErr = trace.AccessDenied("User '%s's membership in Access List '%s' has expired", user.GetName(), accessList.Spec.Title)
-				continue
-			}
-			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT, nil
-		}
-		// Is user an inherited member through any potential member AccessLists?
-		if member.Spec.MembershipKind == accesslist.MembershipKindList {
-			memberAccessList, err := g.GetAccessList(ctx, member.GetName())
-			if err != nil {
-				if trace.IsNotFound(err) {
-					continue
-				}
-				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err, "getting access list %q", member.GetName())
-			}
-			// Since we already verified that the user is not locked, don't provide lockGetter here
-			membershipType, err := IsAccessListMember(ctx, user, memberAccessList, g, nil, clock)
-			if err != nil {
-				if trace.IsAccessDenied(err) {
-					membershipErr = err
-					continue
-				}
-				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
-			}
-			if membershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
-				if !UserMeetsRequirements(user, accessList.Spec.MembershipRequires) {
-					membershipErr = trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
-					continue
-				}
-				if !member.Spec.Expires.IsZero() && !clock.Now().Before(member.Spec.Expires) {
-					membershipErr = trace.AccessDenied("User '%s's membership in Access List '%s' has expired", user.GetName(), accessList.Spec.Title)
-					continue
-				}
-				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, nil
-			}
-		}
-	}
-
-	if membershipErr == nil {
-		membershipErr = trace.AccessDenied("no access path found")
-	}
-
-	return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(membershipErr)
+	return isAccessListMember(ctx, user, cfg, clock.Now())
 }
 
 // UserMeetsRequirements is a helper which will return whether the User meets the AccessList Ownership/MembershipRequires.
@@ -528,7 +475,7 @@ func withUserRequirementsCheck(user types.User, clock clockwork.Clock) ancestorO
 type HierarchyConfig struct {
 	// AccessListService is used to fetch Access Lists and their members.
 	AccessListsService AccessListAndMembersGetter
-	// Getter is used to fetch Access Lists and their members.
+	// Clock is used to check if memberships are expired.
 	Clock clockwork.Clock
 }
 

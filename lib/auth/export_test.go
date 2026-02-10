@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -71,8 +70,6 @@ const (
 
 	MaxUserAgentLen = maxUserAgentLen
 	ForwardedTag    = forwardedTag
-
-	AzureAccessTokenAudience = azureAccessTokenAudience
 )
 
 var (
@@ -99,8 +96,8 @@ func (a *Server) CreateRecoveryToken(ctx context.Context, username, tokenType st
 	return a.createRecoveryToken(ctx, username, tokenType, usage)
 }
 
-func (a *Server) NewUserToken(req authclient.CreateUserTokenRequest) (types.UserToken, error) {
-	return a.newUserToken(req)
+func (a *Server) NewUserToken(ctx context.Context, req authclient.CreateUserTokenRequest) (types.UserToken, error) {
+	return a.newUserToken(ctx, req)
 }
 
 func CreatePrivilegeToken(ctx context.Context, srv *Server, username, tokenKind string) (*types.UserTokenV3, error) {
@@ -192,30 +189,6 @@ func (a *Server) ResetPassword(ctx context.Context, username string) error {
 	return a.resetPassword(ctx, username)
 }
 
-func (a *Server) SetJWKSValidator(clt JWKSValidator) {
-	a.k8sJWKSValidator = clt
-}
-
-func (a *Server) SetAzureDevopsIDTokenValidator(validator azureDevopsIDTokenValidator) {
-	a.azureDevopsIDTokenValidator = validator
-}
-
-func (a *Server) SetK8sTokenReviewValidator(validator k8sTokenReviewValidator) {
-	a.k8sTokenReviewValidator = validator
-}
-
-func (a *Server) SetSpaceliftIDTokenValidator(validator spaceliftIDTokenValidator) {
-	a.spaceliftIDTokenValidator = validator
-}
-
-func (a *Server) SetTerraformIDTokenValidator(validator terraformCloudIDTokenValidator) {
-	a.terraformIDTokenValidator = validator
-}
-
-func (a *Server) SetTPMValidator(validator func(ctx context.Context, log *slog.Logger, params tpm.ValidateParams) (*tpm.ValidatedTPM, error)) {
-	a.tpmValidator = validator
-}
-
 func (a *Server) SetCreateBoundKeypairValidator(validator boundkeypair.CreateBoundKeypairValidator) {
 	a.createBoundKeypairValidator = validator
 }
@@ -252,16 +225,16 @@ func ValidateOracleJoinToken(token types.ProvisionToken) error {
 	return validateOracleJoinToken(token)
 }
 
-func CreatePresetUsers(ctx context.Context, um PresetUsers) error {
-	return createPresetUsers(ctx, um)
+func CreatePresetUsers(ctx context.Context, buildType string, um PresetUsers) error {
+	return createPresetUsers(ctx, buildType, um)
 }
 
-func CreatePresetRoles(ctx context.Context, um PresetRoleManager) error {
-	return createPresetRoles(ctx, um)
+func CreatePresetRoles(ctx context.Context, buildType string, um PresetRoleManager) error {
+	return createPresetRoles(ctx, buildType, um)
 }
 
-func GetPresetUsers() []types.User {
-	return getPresetUsers()
+func GetPresetUsers(buildType string) []types.User {
+	return getPresetUsers(buildType)
 }
 
 func CreatePresetDatabaseObjectImportRule(ctx context.Context, rules services.DatabaseObjectImportRules) error {
@@ -272,8 +245,8 @@ func ValidServerHostname(hostname string) bool {
 	return validServerHostname(hostname)
 }
 
-func FormatAccountName(s proxyDomainGetter, username string, authHostname string) (string, error) {
-	return formatAccountName(s, username, authHostname)
+func FormatAccountName(ctx context.Context, s proxyDomainGetter, username string, authHostname string) (string, error) {
+	return formatAccountName(ctx, s, username, authHostname)
 }
 
 func ConfigureCAsForTrustedCluster(tc types.TrustedCluster, cas []types.CertAuthority) {
@@ -332,10 +305,6 @@ func TrimUserAgent(userAgent string) string {
 	return trimUserAgent(userAgent)
 }
 
-func IsAllowedDomain(cn string, domains []string) bool {
-	return isAllowedDomain(cn, domains)
-}
-
 func GetSnowflakeJWTParams(ctx context.Context, accountName, userName string, publicKey []byte) (string, string) {
 	return getSnowflakeJWTParams(ctx, accountName, userName, publicKey)
 }
@@ -361,33 +330,13 @@ func CheckHeaders(headers http.Header, challenge string, clock clockwork.Clock) 
 }
 
 type GitHubManager = githubManager
-type AttestedData = attestedData
-type SignedAttestedData = signedAttestedData
-type JWKSValidator = k8sJWKSValidator
-type AzureRegisterOption = azureRegisterOption
-type AzureRegisterConfig = azureRegisterConfig
-type AzureVMClientGetter = vmClientGetter
-type AzureVerifyTokenFunc = azureVerifyTokenFunc
-type AccessTokenClaims = accessTokenClaims
-
-func WithAzureCerts(certs []*x509.Certificate) AzureRegisterOption {
-	return func(cfg *AzureRegisterConfig) {
-		cfg.certificateAuthorities = certs
-	}
-}
-
-func WithAzureVerifyFunc(verify azureVerifyTokenFunc) AzureRegisterOption {
-	return func(cfg *AzureRegisterConfig) {
-		cfg.verify = verify
-	}
-}
-
-func WithAzureVMClientGetter(getVMClient vmClientGetter) AzureRegisterOption {
-	return func(cfg *AzureRegisterConfig) {
-		cfg.getVMClient = getVMClient
-	}
-}
 
 func (s *TLSServer) GRPCServer() *GRPCServer {
 	return s.grpcServer
+}
+
+type MigrateWindowsCAParams = migrateWindowsCAParams
+
+func MigrateWindowsCA(ctx context.Context, params MigrateWindowsCAParams) error {
+	return migrateWindowsCA(ctx, params)
 }

@@ -47,6 +47,20 @@ func obeyIdleTimeoutClock(conn net.Conn, timeout time.Duration, clock clockwork.
 	}
 }
 
+func ObeyIdleTimeoutDisarmed(conn net.Conn) (net.Conn, func(time.Duration)) {
+	return obeyIdleTimeoutDisarmed(conn, clockwork.NewRealClock())
+}
+
+func obeyIdleTimeoutDisarmed(conn net.Conn, clock clockwork.Clock) (net.Conn, func(time.Duration)) {
+	tc := &timeoutConn{
+		Conn: conn,
+	}
+
+	return tc, func(timeout time.Duration) {
+		tc.arm(timeout, clock)
+	}
+}
+
 type timeoutConn struct {
 	net.Conn
 
@@ -54,6 +68,18 @@ type timeoutConn struct {
 
 	mu       sync.Mutex
 	watchdog clockwork.Timer
+	closed   bool
+}
+
+func (c *timeoutConn) arm(timeout time.Duration, clock clockwork.Clock) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.closed && c.watchdog == nil {
+		c.timeout = timeout
+		c.watchdog = clock.AfterFunc(timeout, func() {
+			c.Conn.Close()
+		})
+	}
 }
 
 func (c *timeoutConn) pet() {
@@ -61,7 +87,7 @@ func (c *timeoutConn) pet() {
 	defer c.mu.Unlock()
 	// if the timer has already fired the underlying net.Conn has been closed or
 	// will be closed shortly anyway
-	if c.watchdog.Stop() {
+	if c.watchdog != nil && c.watchdog.Stop() {
 		c.watchdog.Reset(c.timeout)
 	}
 }
@@ -77,7 +103,10 @@ func (c *timeoutConn) Close() error {
 	err := c.Conn.Close()
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.watchdog.Stop()
+	if c.watchdog != nil {
+		c.watchdog.Stop()
+	}
+	c.closed = true
 	return trace.Wrap(err)
 }
 

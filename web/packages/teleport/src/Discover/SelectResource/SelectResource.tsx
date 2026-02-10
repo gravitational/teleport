@@ -137,6 +137,11 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
   const canAddResources =
     acl.tokens.create && defaultResources.some(r => r.hasAccess);
 
+  const canConnectCloud =
+    acl.integrations.create && acl.tokens.create && acl.discoverConfigs.create;
+
+  const showCloudCTA = canConnectCloud && cfg.isCloud;
+
   const [showApp, setShowApp] = useState(false);
 
   function onSearch(s: string, customList?: SelectResourceSpec[]) {
@@ -261,6 +266,22 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
           />
         </Box>
       </Flex>
+      {showCloudCTA && (
+        <Alert
+          kind="cta"
+          dismissible={true}
+          details={
+            'Use Terraform to connect your AWS, Azure, or GCP accounts to Teleport and automatically discover your resources.'
+          }
+          primaryAction={{
+            content: 'Connect Cloud Account',
+            linkTo: cfg.getIntegrationsEnrollRoute({ tags: ['terraform'] }),
+          }}
+          linkColor="buttons.primary.text"
+        >
+          Automatically Discover
+        </Alert>
+      )}
       <Flex gap={3} mb={3}>
         <MultiselectMenu
           options={resourceTypeOptions}

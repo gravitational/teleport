@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/user"
@@ -45,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
@@ -106,6 +108,9 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 	scx.cmdr, scx.cmdw, err = os.Pipe()
 	require.NoError(t, err)
 
+	_, scx.logw, err = os.Pipe()
+	require.NoError(t, err)
+
 	scx.contr, scx.contw, err = os.Pipe()
 	require.NoError(t, err)
 
@@ -146,10 +151,13 @@ func newMockServer(t *testing.T) *mockServer {
 	})
 	require.NoError(t, err)
 
+	authority, err := testauthority.NewKeygen(modules.BuildOSS, clock.Now)
+	require.NoError(t, err)
+
 	authServer, err := auth.NewServer(&auth.InitConfig{
 		Backend:        bk,
 		VersionStorage: authtest.NewFakeTeleportVersion(),
-		Authority:      testauthority.New(),
+		Authority:      authority,
 		ClusterName:    clusterName,
 		StaticTokens:   staticTokens,
 		HostUUID:       uuid.NewString(),
@@ -222,8 +230,8 @@ func (m *mockServer) GetDataDir() string {
 }
 
 // GetPAM returns PAM configuration for this server.
-func (m *mockServer) GetPAM() (*servicecfg.PAMConfig, error) {
-	return &servicecfg.PAMConfig{}, nil
+func (m *mockServer) GetPAM() *servicecfg.PAMConfig {
+	return &servicecfg.PAMConfig{Enabled: false}
 }
 
 // GetClock returns a clock setup for the server
@@ -327,6 +335,16 @@ func (m *mockServer) GetHostSudoers() HostSudoers {
 // GetSELinuxEnabled
 func (m *mockServer) GetSELinuxEnabled() bool {
 	return false
+}
+
+// ChildLogConfig returns a noop log configuration.
+func (m *mockServer) ChildLogConfig() ChildLogConfig {
+	return ChildLogConfig{
+		ExecLogConfig: ExecLogConfig{
+			Level: &slog.LevelVar{},
+		},
+		Writer: io.Discard,
+	}
 }
 
 // Implementation of ssh.Conn interface.

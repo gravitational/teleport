@@ -21,7 +21,6 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"sync"
 	"testing"
 	"time"
 
@@ -126,7 +125,9 @@ func testRedshiftCluster(t *testing.T) {
 			fmt.Sprintf("DROP USER IF EXISTS %q", adminUser.Name),
 		} {
 			_, err := conn.Exec(ctx, stmt)
-			assert.NoError(t, err, "test cleanup failed, stmt=%q", stmt)
+			if err != nil {
+				t.Logf("test cleanup failed, stmt=%q, err=%v", stmt, err)
+			}
 		}
 	})
 	testTable := "ctf" // capture the flag :)
@@ -147,7 +148,6 @@ func testRedshiftCluster(t *testing.T) {
 	require.NoError(t, err)
 	autoRolesQuery := fmt.Sprintf("select 1 from %q.%q", testSchema, testTable)
 
-	var pgxConnMu sync.Mutex
 	for name, test := range map[string]struct {
 		user            string
 		dbUser          string
@@ -170,8 +170,6 @@ func testRedshiftCluster(t *testing.T) {
 			dbUser: autoUserKeep,
 			query:  autoRolesQuery,
 			afterConnTestFn: func(t *testing.T) {
-				pgxConnMu.Lock()
-				defer pgxConnMu.Unlock()
 				waitForRedshiftAutoUserDeactivate(t, ctx, conn, autoUserKeep)
 			},
 		},
@@ -180,8 +178,6 @@ func testRedshiftCluster(t *testing.T) {
 			dbUser: autoUserDrop,
 			query:  autoRolesQuery,
 			afterConnTestFn: func(t *testing.T) {
-				pgxConnMu.Lock()
-				defer pgxConnMu.Unlock()
 				waitForRedshiftAutoUserDrop(t, ctx, conn, autoUserDrop)
 			},
 		},
@@ -196,11 +192,9 @@ func testRedshiftCluster(t *testing.T) {
 					Database:    "dev",
 				}
 				t.Run("via proxy", func(t *testing.T) {
-					t.Parallel()
 					postgresConnTest(t, cluster, test.user, route, test.query)
 				})
 				t.Run("via local proxy", func(t *testing.T) {
-					t.Parallel()
 					postgresLocalProxyConnTest(t, cluster, test.user, route, test.query)
 				})
 			})
@@ -262,31 +256,14 @@ func provisionRedshiftAutoUsersAdmin(t *testing.T, ctx context.Context, conn *pg
 func waitForRedshiftAutoUserDeactivate(t *testing.T, ctx context.Context, conn *pgConn, user string) {
 	t.Helper()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		// `Query` documents that it is always safe to attempt to read from the
-		// returned rows even if an error is returned.
-		// It also documents that the same error will be in rows.Err() and
-		// rows.Err() will also contain any error from executing the query after
-		// closing rows. Hence, we do not check the error until after reading
-		// and closing rows.
-		rows, _ := conn.Query(ctx, "SELECT 1 FROM pg_user_info as a WHERE a.usename = $1", user)
-		gotRow := rows.Next()
-		rows.Close()
-		require.NoError(t, rows.Err())
+		values := conn.mustQuery(t, ctx, "SELECT a.usename FROM pg_user_info as a WHERE a.usename = $1", user)
+		require.NotEmpty(t, values, "user %q should not have been dropped after disconnecting", user)
 
-		require.True(t, gotRow, "user %q should not have been dropped after disconnecting", user)
+		values = conn.mustQuery(t, ctx, "SELECT usename, useconnlimit FROM pg_user_info WHERE usename = $1 AND useconnlimit != 0", user)
+		require.Empty(t, values, "user %q should not be able to login after deactivating", user)
 
-		rows, _ = conn.Query(ctx, "SELECT 1 FROM pg_user_info WHERE usename = $1 AND useconnlimit != 0", user)
-		gotRow = rows.Next()
-		rows.Close()
-		require.NoError(t, rows.Err())
-		require.False(t, gotRow, "user %q should not be able to login after deactivating", user)
-
-		rows, _ = conn.Query(ctx, "SELECT 1 FROM svv_user_grants as a WHERE a.user_name = $1 AND a.role_name != 'teleport-auto-user'", user)
-		gotRow = rows.Next()
-		rows.Close()
-		require.NoError(t, rows.Err())
-
-		require.False(t, gotRow, "user %q should have lost all additional roles after deactivating", user)
+		values = conn.mustQuery(t, ctx, "SELECT a.user_name, a.role_name FROM svv_user_grants as a WHERE a.user_name = $1 AND a.role_name != 'teleport-auto-user'", user)
+		require.Empty(t, values, "user %q should have lost all additional roles after deactivating", user)
 	}, autoUserWaitDur, autoUserWaitStep, "waiting for auto user %q to be deactivated", user)
 }
 
@@ -299,10 +276,7 @@ func waitForRedshiftAutoUserDrop(t *testing.T, ctx context.Context, conn *pgConn
 		// rows.Err() will also contain any error from executing the query after
 		// closing rows. Hence, we do not check the error until after reading
 		// and closing rows.
-		rows, _ := conn.Query(ctx, "SELECT 1 FROM pg_user_info WHERE usename=$1", user)
-		gotRow := rows.Next()
-		rows.Close()
-		require.NoError(t, rows.Err())
-		require.False(t, gotRow, "user %q should have been dropped automatically after disconnecting", user)
+		rows := conn.mustQuery(t, ctx, "SELECT usename FROM pg_user_info WHERE usename=$1", user)
+		require.Empty(t, rows, "user %q should have been dropped automatically after disconnecting", user)
 	}, autoUserWaitDur, autoUserWaitStep, "waiting for auto user %q to be dropped", user)
 }

@@ -84,6 +84,8 @@ type CommandLineFlags struct {
 	AuthServerAddr []string
 	// --token flag
 	AuthToken string
+	// --token-secret flag
+	TokenSecret string
 	// --join-method flag
 	JoinMethod string
 	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
@@ -127,7 +129,7 @@ type CommandLineFlags struct {
 	// It's useful for learning Teleport (following quick starts, etc).
 	InsecureMode bool
 
-	// FIPS mode means Teleport starts in a FedRAMP/FIPS 140-2 compliant
+	// FIPS mode means Teleport starts in a FedRAMP/FIPS 140 compliant
 	// configuration.
 	FIPS bool
 
@@ -264,6 +266,10 @@ type CommandLineFlags struct {
 	// IntegrationConfAWSRATrustAnchorArguments contains the arguments of
 	// `teleport integration configure awsra-trust-anchor` command
 	IntegrationConfAWSRATrustAnchorArguments IntegrationConfAWSRATrustAnchor
+
+	// IntegrationConfSessionSummariesBedrockArguments contains the arguments of
+	// `teleport integration configure session-summaries bedrock` command
+	IntegrationConfSessionSummariesBedrockArguments IntegrationConfSessionSummariesBedrock
 
 	// LogLevel is the new application's log level.
 	LogLevel string
@@ -464,6 +470,20 @@ type IntegrationConfListDatabasesIAM struct {
 	AutoConfirm bool
 }
 
+// IntegrationConfSessionSummariesBedrock contains the arguments of
+// `teleport integration configure session-summaries bedrock` command
+type IntegrationConfSessionSummariesBedrock struct {
+	// Role is the AWS Role associated with the Integration
+	Role string
+	// Resource is the AWS Bedrock resource to grant access to.
+	// Can be a full ARN or a model ID (e.g., 'anthropic.claude-v2' or '*' for all models).
+	Resource string
+	// AccountID is the AWS account ID.
+	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
+}
+
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
 // and overrides values in 'cfg' structure
 func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
@@ -643,6 +663,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 	cfg.CachePolicy = *cachePolicy
+
+	authConnectionConfig, err := fc.AuthConnectionConfig.Parse()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cfg.AuthConnectionConfig = *authConnectionConfig
 
 	cfg.ShutdownDelay = time.Duration(fc.ShutdownDelay)
 
@@ -856,20 +882,17 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *servicecfg.Config) error {
 }
 
 func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
-	logger, level, err := logutils.Initialize(logutils.Config{
+	cfg.LogConfig = logutils.Config{
 		Output:       loggerConfig.Output,
 		Severity:     loggerConfig.Severity,
 		Format:       loggerConfig.Format.Output,
 		ExtraFields:  loggerConfig.Format.ExtraFields,
 		EnableColors: utils.IsTerminal(os.Stderr),
-	})
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
-	cfg.Logger = logger
-	cfg.LoggerLevel = level
-	return nil
+	var err error
+	cfg.Logger, cfg.LoggerLevel, cfg.LogWriter, err = logutils.Initialize(cfg.LogConfig)
+	return trace.Wrap(err)
 }
 
 // applyAuthConfig applies file configuration for the "auth_service" section.
@@ -924,6 +947,12 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// read in static tokens from file configuration and create services.StaticTokens
 	if fc.Auth.StaticTokens != nil {
 		cfg.Auth.StaticTokens, err = fc.Auth.StaticTokens.Parse()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if fc.Auth.StaticScopedTokens != nil {
+		cfg.Auth.StaticScopedTokens, err = fc.Auth.StaticScopedTokens.Parse()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1060,6 +1089,7 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.Auth.CAKeyParams.AWSKMS != nil {
 		return trace.Wrap(applyAWSKMSConfig(fc.Auth.CAKeyParams.AWSKMS, cfg))
 	}
+	cfg.Auth.KeyStore.HealthCheck = fc.Auth.CAKeyParams.HealthCheck
 	return nil
 }
 
@@ -1567,14 +1597,19 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		var assumeRole *types.AssumeRole
-		if matcher.AssumeRoleARN != "" || matcher.ExternalID != "" {
+		if matcher.AssumeRoleARN != "" || matcher.ExternalID != "" || matcher.AssumeRoleName != "" {
 			assumeRole = &types.AssumeRole{
 				RoleARN:    matcher.AssumeRoleARN,
+				RoleName:   matcher.AssumeRoleName,
 				ExternalID: matcher.ExternalID,
 			}
 		}
 
 		for _, region := range matcher.Regions {
+			if region == types.Wildcard {
+				continue
+			}
+
 			if !awsregion.IsKnownRegion(region) {
 				const message = "AWS matcher uses unknown region" +
 					"This is either a typo or a new AWS region that is unknown to the AWS SDK used to compile this binary. "
@@ -1582,6 +1617,17 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 					"region", region,
 					"known_regions", awsregion.GetKnownRegions(),
 				)
+			}
+		}
+
+		var organizationMatcher *types.AWSOrganizationMatcher
+		if matcher.Organization != nil {
+			organizationMatcher = &types.AWSOrganizationMatcher{
+				OrganizationID: matcher.Organization.OrganizationID,
+				OrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+					Include: matcher.Organization.OrganizationalUnits.Include,
+					Exclude: matcher.Organization.OrganizationalUnits.Exclude,
+				},
 			}
 		}
 
@@ -1595,6 +1641,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			Integration:       matcher.Integration,
 			KubeAppDiscovery:  matcher.KubeAppDiscovery,
 			SetupAccessForARN: matcher.SetupAccessForARN,
+			Organization:      organizationMatcher,
 		}
 		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
@@ -1633,6 +1680,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			Types:          matcher.Types,
 			Regions:        matcher.Regions,
 			ResourceTags:   matcher.ResourceTags,
+			Integration:    matcher.Integration,
 			Params:         installParams,
 		}
 		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
@@ -1835,6 +1883,7 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				Types:          matcher.Types,
 				Regions:        matcher.Regions,
 				ResourceTags:   matcher.ResourceTags,
+				Integration:    matcher.Integration,
 			})
 	}
 	for _, database := range fc.Databases.Databases {
@@ -2207,6 +2256,19 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
 			}
 		}
+		for k := range discoveryConfig.Labels {
+			if !types.IsValidLabelKey(k) {
+				return trace.BadParameter("WindowsDesktopService specifies label %q which is not a valid label key", k)
+			}
+		}
+		for _, attributeName := range discoveryConfig.LabelAttributes {
+			if !types.IsValidLabelKey(attributeName) {
+				return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
+			}
+		}
+		if p := discoveryConfig.RDPPort; p < 0 || p > 65535 {
+			return trace.BadParameter("WindowsDesktopService specifies invalid RDP port %d", p)
+		}
 	}
 
 	// append the old (singular) discovery config to the new format that supports multiple configs
@@ -2223,6 +2285,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			servicecfg.LDAPDiscoveryConfig{
 				BaseDN:          dc.BaseDN,
 				Filters:         dc.Filters,
+				Labels:          dc.Labels,
 				LabelAttributes: dc.LabelAttributes,
 				RDPPort:         cmp.Or(dc.RDPPort, int(defaults.RDPListenPort)),
 			},
@@ -2629,8 +2692,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		return trace.Wrap(err)
 	}
 
-	// If FIPS mode is specified, validate Teleport configuration is FedRAMP/FIPS
-	// 140-2 compliant.
+	// If FIPS mode is specified, validate Teleport uses a FIPS-validated module
 	if clf.FIPS {
 		// Make sure all cryptographic primitives are FIPS compliant.
 		//
@@ -2651,10 +2713,10 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 			return trace.BadParameter("non-FIPS compliant SSH mac algorithm selected: %v", err)
 		}
 
-		// Make sure cluster settings are also FedRAMP/FIPS 140-2 compliant.
+		// Make sure cluster settings are also FedRAMP/FIPS compliant.
 		if cfg.Auth.Enabled {
 			// Only SSO based authentication is supported. The SSO provider is where
-			// any FedRAMP/FIPS 140-2 compliance (like password complexity) should be
+			// any FedRAMP/FIPS compliance (like password complexity) should be
 			// enforced.
 			if cfg.Auth.Preference.GetAllowLocalAuth() {
 				return trace.BadParameter("non-FIPS compliant authentication setting: \"local_auth\" must be false")
@@ -2760,6 +2822,11 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		cfg.SetToken(clf.AuthToken)
 	}
 
+	if clf.TokenSecret != "" {
+		// store the value of the --token-secret flag:
+		cfg.SetTokenSecret(clf.TokenSecret)
+	}
+
 	// Apply flags used for the node to validate the Auth Server.
 	if err = cfg.ApplyCAPins(clf.CAPins); err != nil {
 		return trace.Wrap(err)
@@ -2850,14 +2917,29 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 	lib.SetInsecureDevMode(clf.InsecureMode)
 
 	// Apply command line --debug flag to override logger severity.
+	level := slog.LevelError
 	if clf.Debug {
 		cfg.SetLogLevel(slog.LevelDebug)
+		level = slog.LevelDebug
 		cfg.Debug = clf.Debug
 	}
+
+	// Ensure that the logging level is respected by the logger.
+	utils.InitLogger(utils.LoggingForDaemon, level)
 
 	if clf.AuthToken != "" {
 		// store the value of the --token flag:
 		cfg.SetToken(clf.AuthToken)
+	}
+
+	if clf.TokenSecret != "" {
+		// store the value of the --token-secret flag:
+		cfg.SetTokenSecret(clf.TokenSecret)
+	}
+
+	// apply --skip-version-check flag.
+	if clf.SkipVersionCheck {
+		cfg.SkipVersionCheck = clf.SkipVersionCheck
 	}
 
 	slog.DebugContext(context.Background(), "Disabling all services, only the Teleport OpenSSH service can run during the `teleport join openssh` command")
@@ -3052,6 +3134,7 @@ func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	if fc.JoinParams != (JoinParams{}) {
 		cfg.SetToken(fc.JoinParams.TokenName)
+		cfg.SetTokenSecret(fc.JoinParams.TokenSecret)
 
 		if err := types.ValidateJoinMethod(fc.JoinParams.Method); err != nil {
 			return trace.Wrap(err)

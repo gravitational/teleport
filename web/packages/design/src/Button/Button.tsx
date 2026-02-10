@@ -63,7 +63,7 @@ export type ButtonProps<E extends React.ElementType> =
        * size of input margins, thus allowing alignment between input text and
        * button labels.
        */
-      inputAlignment?: boolean;
+      $inputAlignment?: boolean;
 
       /**
        * If set to true, renders a button with the smallest horizontal paddings.
@@ -359,7 +359,7 @@ const horizontalPadding = <E extends React.ElementType>(
   if (props.compact) {
     return 4;
   }
-  if (props.inputAlignment) {
+  if (props.$inputAlignment) {
     return 16;
   }
   if (props.size === 'small') {

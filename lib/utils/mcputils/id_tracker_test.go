@@ -42,7 +42,7 @@ func TestIDTracker(t *testing.T) {
 	t.Run("request tracked", func(t *testing.T) {
 		require.True(t, tracker.PushRequest(&JSONRPCRequest{
 			ID:     mcp.NewRequestId(0),
-			Method: mcp.MethodToolsList,
+			Method: MethodToolsList,
 		}))
 		require.Equal(t, 1, tracker.Len())
 	})
@@ -65,7 +65,7 @@ func TestIDTracker(t *testing.T) {
 	t.Run("pop tracked id", func(t *testing.T) {
 		method, ok := tracker.PopByID(mcp.NewRequestId(0))
 		require.True(t, ok)
-		require.Equal(t, mcp.MethodToolsList, method)
+		require.Equal(t, MethodToolsList, method)
 		require.Empty(t, tracker.Len())
 	})
 
@@ -73,14 +73,14 @@ func TestIDTracker(t *testing.T) {
 		for i := range 20 {
 			tracker.PushRequest(&JSONRPCRequest{
 				ID:     mcp.NewRequestId(i + 1),
-				Method: mcp.MethodToolsCall,
+				Method: MethodToolsCall,
 			})
 			require.LessOrEqual(t, tracker.Len(), 10)
 		}
 		for i := range 5 {
 			method, ok := tracker.PopByID(mcp.NewRequestId(20 - i))
 			require.True(t, ok)
-			require.Equal(t, mcp.MethodToolsCall, method)
+			require.Equal(t, MethodToolsCall, method)
 		}
 		require.Empty(t, tracker.Len())
 	})
@@ -93,7 +93,7 @@ func BenchmarkIDTracker(b *testing.B) {
 	for i := range 100 {
 		idTracker.PushRequest(&JSONRPCRequest{
 			ID:     mcp.NewRequestId(i),
-			Method: mcp.MethodToolsList,
+			Method: MethodToolsList,
 		})
 	}
 
@@ -102,7 +102,7 @@ func BenchmarkIDTracker(b *testing.B) {
 	for b.Loop() {
 		idTracker.PushRequest(&JSONRPCRequest{
 			ID:     mcp.NewRequestId(2000),
-			Method: mcp.MethodToolsList,
+			Method: MethodToolsList,
 		})
 		idTracker.PopByID(mcp.NewRequestId(2000))
 	}

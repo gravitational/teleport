@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.join.v1;
 
 import "google/protobuf/timestamp.proto";
+import "teleport/scopes/joining/v1/token.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1;joinv1";
 
@@ -105,6 +106,8 @@ message ClientParams {
 message TokenInit {
   // ClientParams holds parameters for the specific type of client trying to join.
   ClientParams client_params = 1;
+  // The secret value that must be provided when using the token join method.
+  string secret = 2;
 }
 
 // OIDCInit holds the OIDC identity token used for all OIDC-based join methods.
@@ -349,6 +352,44 @@ message TPMSolution {
   bytes solution = 1;
 }
 
+// AzureInit is sent from the client in response to the ServerInit message for
+// the Azure join method.
+//
+// The Azure method join flow is:
+// 1. client->server: ClientInit
+// 2. client<-server: ServerInit
+// 3. client->server: AzureInit
+// 4. client<-server: AzureChallenge
+// 5. client->server: AzureChallengeSolution
+// 6. client<-server: Result
+message AzureInit {
+  // ClientParams holds parameters for the specific type of client trying to join.
+  ClientParams client_params = 1;
+}
+
+// AzureChallenge is sent from the server in response to the AzureInit message from the client.
+// The client is expected to respond with a AzureChallengeSolution.
+message AzureChallenge {
+  // Challenge is a a crypto-random string that should be included by the
+  // client in the challenge response message.
+  string challenge = 1;
+}
+
+// AzureChallengeSolution must be sent from the client in response to the
+// AzureChallenge message.
+message AzureChallengeSolution {
+  // AttestedData is a signed JSON document from an Azure VM's attested data
+  // metadata endpoint used to prove the identity of a joining node. It must
+  // include the challenge string as the nonce.
+  bytes attested_data = 1;
+  // Intermediate encodes the intermediate CAs that issued the leaf certificate
+  // used to sign the attested data document, in x509 DER format.
+  bytes intermediate = 2;
+  // AccessToken is a JWT signed by Azure, used to prove the identity of a
+  // joining node.
+  string access_token = 3;
+}
+
 // ChallengeSolution holds a solution to a challenge issued by the server.
 message ChallengeSolution {
   oneof payload {
@@ -357,6 +398,7 @@ message ChallengeSolution {
     IAMChallengeSolution iam_challenge_solution = 3;
     OracleChallengeSolution oracle_challenge_solution = 4;
     TPMSolution tpm_solution = 5;
+    AzureChallengeSolution azure_challenge_solution = 6;
   }
 }
 
@@ -396,6 +438,7 @@ message JoinRequest {
     OIDCInit oidc_init = 8;
     OracleInit oracle_init = 9;
     TPMInit tpm_init = 10;
+    AzureInit azure_init = 11;
   }
 }
 
@@ -417,6 +460,7 @@ message Challenge {
     IAMChallenge iam_challenge = 3;
     OracleChallenge oracle_challenge = 4;
     TPMEncryptedCredential tpm_encrypted_credential = 5;
+    AzureChallenge azure_challenge = 6;
   }
 }
 
@@ -450,6 +494,8 @@ message HostResult {
   Certificates certificates = 1;
   // HostId is the unique ID assigned to the host.
   string host_id = 2;
+  // The immutable labels assigned to the host by their join token.
+  teleport.scopes.joining.v1.ImmutableLabels immutable_labels = 3;
 }
 
 // HostResult holds results for bot joining.

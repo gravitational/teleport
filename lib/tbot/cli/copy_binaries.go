@@ -34,14 +34,14 @@ type CopyBinariesCommand struct {
 // NewCopyBinariesCommand initializes the `tbot copy-binaries` subcommand and
 // its fields.
 func NewCopyBinariesCommand(app KingpinClause, action func(*CopyBinariesCommand) error) *CopyBinariesCommand {
-	cmd := app.Command("copy-binaries", "Copies this tbot binary to a given destination")
+	cmd := app.Command("copy-binaries", "Copies this tbot binary to a given destination.")
 	cmd.Interspersed(true)
 
 	c := &CopyBinariesCommand{}
 	c.genericExecutorHandler = newGenericExecutorHandler(cmd, c, action)
 
 	cmd.Flag("include-fdpass", "If set, also copy `fdpass-teleport`. It must be available in the same path as `tbot`.").BoolVar(&c.IncludeFDPass)
-	cmd.Arg("destination-dir", "The destination path to write the copy of the tbot binary").Required().StringVar(&c.DestinationDir)
+	cmd.Arg("destination-dir", "The destination path to write the copy of the tbot binary.").Required().StringVar(&c.DestinationDir)
 
 	return c
 }

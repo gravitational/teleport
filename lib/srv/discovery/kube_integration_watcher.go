@@ -407,9 +407,6 @@ func versionGetterForProxy(ctx context.Context, proxyPublicAddr string) (version
 		Host:    proxyPublicAddr,
 		RawPath: path.Join("/webapi/automaticupgrades/channel", automaticupgrades.DefaultChannelName),
 	}
-	if err != nil {
-		return nil, trace.Wrap(err, "crafting the channel base URL (this is a bug)")
-	}
 
 	return version.FailoverGetter{
 		// We try getting the version via the new webapi

@@ -182,10 +182,10 @@ func TestStablePath(t *testing.T) {
 			if tt.path != "" && !filepath.IsAbs(tt.path) {
 				tt.path = filepath.Join(nsDir, tt.path)
 				createPath = filepath.Join(nsDir, "bin")
-				cfgPath := filepath.Join(nsDir, updateConfigName)
+				cfgPath := filepath.Join(nsDir, UpdateConfigName)
 				err := writeConfig(cfgPath, &UpdateConfig{
-					Version: updateConfigVersion,
-					Kind:    updateConfigKind,
+					Version: UpdateConfigV1,
+					Kind:    UpdateConfigKind,
 					Spec: UpdateSpec{
 						Path: createPath,
 					},

@@ -31,9 +31,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -56,44 +56,24 @@ func extractPort(svr *httptest.Server) (int, error) {
 	return n, nil
 }
 
-func waitForSessionToBeEstablished(ctx context.Context, namespace string, site authclient.ClientI) ([]types.SessionTracker, error) {
+// waitForSessionToBeEstablished waits for a session tracker to exist in the backend
+// with the provided number of participants present.
+func waitForSessionToBeEstablished(t *testing.T, clt authclient.ClientI, participants int) types.SessionTracker {
+	t.Helper()
+	ctx := t.Context()
 
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
+	var tracker types.SessionTracker
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		trackers, err := clt.GetActiveSessionTrackers(ctx)
+		require.NoError(t, err, "getting session trackers")
+		require.Len(t, trackers, 1, "no active sessions found")
 
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
+		require.Len(t, trackers[0].GetParticipants(), participants, "got %d participants, expected %d", len(trackers[0].GetParticipants()), participants)
 
-		case <-ticker.C:
-			ss, err := site.GetActiveSessionTrackers(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if len(ss) > 0 {
-				return ss, nil
-			}
-		}
-	}
-}
+		tracker = trackers[0]
+	}, 30*time.Second, 250*time.Millisecond)
 
-// testPingLocalServer checks whether or not an HTTP server is serving on
-// localhost at the given port.
-func testPingLocalServer(t *testing.T, port int, expectSuccess bool) {
-	addr := fmt.Sprintf("http://%s:%d/", "localhost", port)
-	r, err := http.Get(addr)
-
-	if r != nil {
-		r.Body.Close()
-	}
-
-	if expectSuccess {
-		require.NoError(t, err)
-		require.NotNil(t, r)
-	} else {
-		require.Error(t, err)
-	}
+	return tracker
 }
 
 func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
@@ -162,7 +142,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			cfg.SSH.AllowTCPForwarding = tt.portForwardingAllowed
 			cfg.SSH.Labels = map[string]string{"foo": "bar"}
 
-			privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+			privateKey, publicKey, err := testauthority.GenerateKeyPair()
 			require.NoError(t, err)
 
 			instance := helpers.NewInstance(t, helpers.InstanceConfig{
@@ -188,7 +168,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			})
 
 			// create an node instance
-			privateKey, publicKey, err = testauthority.New().GenerateKeyPair()
+			privateKey, publicKey, err = testauthority.GenerateKeyPair()
 			require.NoError(t, err)
 
 			node := helpers.NewInstance(t, helpers.InstanceConfig{
@@ -221,7 +201,8 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 				require.NoError(t, node.StopAll())
 			})
 
-			site := instance.GetSiteAPI(helpers.Site)
+			// Wait for the node to be present in the inventory.
+			instance.WaitForNodeCount(t.Context(), helpers.Site, 2)
 
 			// ...and a pair of running dummy servers
 			handler := http.HandlerFunc(
@@ -253,11 +234,15 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			nodeSSHPort := helpers.Port(t, instance.SSH)
+			term := NewTerminal(250)
 			cl, err := instance.NewClient(helpers.ClientConfig{
 				Login:   tt.login,
 				Cluster: helpers.Site,
 				Host:    Host,
 				Port:    nodeSSHPort,
+				Stdout:  term,
+				Stdin:   term,
+				Labels:  tt.labels,
 			})
 			require.NoError(t, err)
 			cl.Config.LocalForwardPorts = []client.ForwardedPort{
@@ -276,26 +261,45 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 					DestPort: localServerPort,
 				},
 			}
-			term := NewTerminal(250)
-			cl.Stdout = term
-			cl.Stdin = term
-			cl.Labels = tt.labels
 
-			go cl.SSH(t.Context(), []string{})
+			// Create a session that is terminated when the context is canceled.
+			ctx, cancel := context.WithCancel(t.Context())
+			t.Cleanup(cancel)
+			go func() {
+				_ = cl.SSH(ctx, nil)
+			}()
 
-			timeout, cancel := context.WithTimeout(t.Context(), 15*time.Second)
-			defer cancel()
-			_, err = waitForSessionToBeEstablished(timeout, apidefaults.Namespace, site)
-			require.NoError(t, err)
+			cases := []struct {
+				name string
+				port int
+			}{
+				{
+					name: "local forwarding",
+					port: localClientPort,
+				},
+				{
+					name: "remote forwarding",
+					port: remoteClientPort,
+				},
+			}
+			for _, test := range cases {
+				t.Run(test.name, func(t *testing.T) {
+					require.EventuallyWithT(t, func(t *assert.CollectT) {
+						addr := fmt.Sprintf("http://localhost:%d/", test.port)
+						r, err := http.Get(addr)
+						if r != nil {
+							r.Body.Close()
+						}
 
-			// When everything is *finally* set up, and I attempt to use the
-			// forwarded connections
-			t.Run("local forwarding", func(t *testing.T) {
-				testPingLocalServer(t, localClientPort, tt.expectSuccess)
-			})
-			t.Run("remote forwarding", func(t *testing.T) {
-				testPingLocalServer(t, remoteClientPort, tt.expectSuccess)
-			})
+						if tt.expectSuccess {
+							require.NoError(t, err)
+							require.NotNil(t, r)
+						} else {
+							require.Error(t, err)
+						}
+					}, 20*time.Second, 250*time.Millisecond)
+				})
+			}
 		})
 	}
 }

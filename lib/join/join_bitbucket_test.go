@@ -99,7 +99,7 @@ func TestJoinBitbucket(t *testing.T) {
 	authServer.Auth().SetBitbucketIDTokenValidator(idTokenValidator)
 
 	// helper for creating RegisterUsingTokenRequest
-	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
+	sshPrivateKey, sshPublicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)

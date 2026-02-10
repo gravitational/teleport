@@ -31,13 +31,12 @@ import {
   MenuItem,
   Text,
 } from 'design';
+import { makeLabelTag } from 'design/formatters';
 import * as icons from 'design/Icon';
 import type { IconProps } from 'design/Icon/Icon';
 import Indicator from 'design/Indicator';
 import { MenuIcon } from 'shared/components/MenuAction';
 
-// eslint-disable-next-line no-restricted-imports -- FIXME
-import { makeLabelTag } from 'teleport/components/formatters';
 import type * as tsh from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {

@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"path/filepath"
@@ -58,10 +59,8 @@ func TestSQSPollEvents(t *testing.T) {
 
 	eventsC := make(chan payloadChannelMessage)
 	errC := make(chan error, 1)
-	wg := sync.WaitGroup{}
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
+		defer close(errC)
 		err := s.pollEventsFromSQSFilesImpl(
 			ctx,
 			"accountID",
@@ -73,6 +72,11 @@ func TestSQSPollEvents(t *testing.T) {
 			},
 			eventsC,
 		)
+
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+
 		errC <- err
 	}()
 
@@ -132,14 +136,16 @@ func TestSQSPollEvents(t *testing.T) {
 		}
 	}, time.Second*5, time.Millisecond, "expected all files to be downloaded")
 
-	require.Never(t, func() bool {
-		// Check that the message is not deleted from the queue.
-		return slices.Contains(fakeSQSQueue.getDeletedMessages(), "messageID4")
-	}, time.Second*2, time.Millisecond, "expected message to not be deleted from the queue")
-
 	// Clean up the goroutine.
 	cancel()
-	wg.Wait()
+
+	// Wait for the goroutine to exit.
+	require.NoError(t, <-errC)
+
+	// Assert that messageID4 was never deleted.
+	deleted := fakeSQSQueue.getDeletedMessages()
+	slices.Sort(deleted)
+	require.Equal(t, []string{"messageID1", "messageID2", "messageID3"}, deleted)
 }
 
 // fakeQueue is used to fake SNS+SQS combination on AWS.

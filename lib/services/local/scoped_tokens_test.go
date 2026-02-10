@@ -18,13 +18,16 @@ package local_test
 
 import (
 	"cmp"
+	"crypto/sha256"
+	"fmt"
 	"slices"
+	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -37,17 +40,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
 func TestScopedTokenService(t *testing.T) {
-	clock := clockwork.NewFakeClock()
-	clock.Advance(-30 * time.Hour)
-	bk, err := memory.New(memory.Config{
-		Clock: clock,
-	})
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	// service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
 	service, err := local.NewScopedTokenService(bk)
 	require.NoError(t, err)
 
@@ -64,6 +63,10 @@ func TestScopedTokenService(t *testing.T) {
 			AssignedScope: "/test/one",
 			JoinMethod:    "token",
 			Roles:         []string{types.RoleNode.String()},
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
+		},
+		Status: &joiningv1.ScopedTokenStatus{
+			Secret: "secret",
 		},
 	}
 
@@ -111,19 +114,16 @@ func TestScopedTokenService(t *testing.T) {
 	require.NoError(t, err)
 
 	// expired tokens should error and delete the token
-	expiredToken, err = service.UseScopedToken(ctx, expiredRes.Token.Metadata.Name)
-	require.True(t, trace.IsLimitExceeded(err))
+	expiredToken, err = service.UseScopedToken(ctx, expiredRes.Token, nil)
+	// If for some reason the expired token is not automatically deleted by the backend, a
+	// LimitExceededError will be returned. Otherwise, we should expect the token not to be found.
+	require.True(t, trace.IsLimitExceeded(err) || trace.IsNotFound(err))
 	require.Nil(t, expiredToken)
 
 	_, err = service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
 		Name: expiredRes.Token.Metadata.Name,
 	})
 	require.True(t, trace.IsNotFound(err))
-
-	// active tokens should function like a get
-	activeToken, err = service.UseScopedToken(ctx, activeToken.Metadata.Name)
-	require.NoError(t, err)
-	assert.Empty(t, gocmp.Diff(activeToken, activeRes.Token, cmpOpts...))
 
 	fetchedActive, err := service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
 		Name: activeRes.Token.Metadata.Name,
@@ -135,7 +135,7 @@ func TestScopedTokenService(t *testing.T) {
 func TestScopedTokenList(t *testing.T) {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
+	service, err := local.NewScopedTokenService(bk)
 	require.NoError(t, err)
 
 	ctx := t.Context()
@@ -153,6 +153,10 @@ func TestScopedTokenList(t *testing.T) {
 			Roles: []string{
 				types.RoleNode.String(),
 			},
+			UsageMode: string(joining.TokenUsageModeUnlimited),
+		},
+		Status: &joiningv1.ScopedTokenStatus{
+			Secret: "secret",
 		},
 	}
 
@@ -347,4 +351,177 @@ func TestScopedTokenList(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestScopedTokenNameCollisions(t *testing.T) {
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	service, err := local.NewScopedTokenService(bk)
+	require.NoError(t, err)
+
+	provisioningService := local.NewProvisioningService(bk)
+
+	ctx := t.Context()
+
+	token := &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "testtoken",
+		},
+		Scope: "/test",
+		Spec: &joiningv1.ScopedTokenSpec{
+			AssignedScope: "/test/one",
+			JoinMethod:    "token",
+			Roles:         []string{types.RoleNode.String()},
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
+		},
+		Status: &joiningv1.ScopedTokenStatus{
+			Secret: "secret",
+		},
+	}
+
+	t.Run("basic", func(t *testing.T) {
+		// create initial scoped token
+		_, err = service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+			Token: token,
+		})
+		require.NoError(t, err)
+
+		// assert that creating another scoped token with the same name fails
+		_, err = service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+			Token: token,
+		})
+		require.True(t, trace.IsAlreadyExists(err))
+
+		// create a 'classic' token
+		classicToken := &types.ProvisionTokenV2{
+			Metadata: types.Metadata{
+				Name: "testtoken2",
+			},
+			Spec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{
+					types.RoleAdmin,
+				},
+			},
+		}
+		err = provisioningService.CreateToken(ctx, classicToken)
+		require.NoError(t, err)
+
+		// assert that creating a scoped token with a name that conflicts with
+		// a classic token fails
+		conflictWithClassic := proto.CloneOf(token)
+		conflictWithClassic.Metadata.Name = classicToken.GetName()
+		_, err = service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+			Token: conflictWithClassic,
+		})
+		require.True(t, trace.IsAlreadyExists(err))
+	})
+
+	t.Run("concurrent", func(t *testing.T) {
+		for i := range 50 {
+			name := fmt.Sprintf("testtoken-%d", i)
+			var classicErr error
+			var scopedErr error
+			wg := sync.WaitGroup{}
+			wg.Go(func() {
+				classicErr = provisioningService.CreateToken(ctx, &types.ProvisionTokenV2{
+					Metadata: types.Metadata{
+						Name: name,
+					},
+					Spec: types.ProvisionTokenSpecV2{
+						Roles: []types.SystemRole{
+							types.RoleAdmin,
+						},
+					},
+				})
+			})
+
+			wg.Go(func() {
+				token := proto.CloneOf(token)
+				token.Metadata.Name = name
+				_, scopedErr = service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+					Token: token,
+				})
+			})
+			wg.Wait()
+
+			// One token type should always succeed and the other should always fail. When one succeeds,
+			// the other should always be a [trace.AlreadyExistsError] due to the name conflict.
+			if classicErr == nil {
+				require.True(t, trace.IsAlreadyExists(scopedErr))
+			} else if scopedErr == nil {
+				require.True(t, trace.IsAlreadyExists(classicErr))
+			} else {
+				require.Fail(t, "unexpected failure to create either a scoped or classic token", name)
+			}
+		}
+	})
+}
+
+func TestScopedTokenUse(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		bk, err := memory.New(memory.Config{})
+		require.NoError(t, err)
+		service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
+		require.NoError(t, err)
+
+		ctx := t.Context()
+
+		token := &joiningv1.ScopedToken{
+			Kind:    types.KindScopedToken,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name:    "testtoken",
+				Expires: timestamppb.New(time.Now().Add(24 * time.Hour)),
+			},
+			Scope: "/test",
+			Spec: &joiningv1.ScopedTokenSpec{
+				AssignedScope: "/test/one",
+				JoinMethod:    "token",
+				Roles:         []string{types.RoleNode.String()},
+				UsageMode:     string(joining.TokenUsageModeSingle),
+			},
+			Status: &joiningv1.ScopedTokenStatus{
+				Secret: "secret",
+			},
+		}
+
+		created, err := service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+			Token: token,
+		})
+		require.NoError(t, err)
+
+		testKey := []byte("test")
+		otherKey := []byte("other")
+		fp := sha256.Sum256(testKey)
+		reuseDuration := 30 * time.Minute
+
+		now := time.Now().UTC()
+		// first usage should always succeed
+		tok, err := service.UseScopedToken(ctx, created.GetToken(), testKey)
+		require.NoError(t, err)
+		usage := tok.GetStatus().GetUsage().GetSingleUse()
+		require.NotNil(t, now.Add(reuseDuration), usage.GetReusableUntil().AsTime())
+		require.Equal(t, now, usage.GetUsedAt().AsTime())
+		require.Equal(t, fp[:], usage.GetUsedByFingerprint())
+
+		// reusing the same token should succeed with the same public key when
+		// reusuable_until is still in the future
+		tok, err = service.UseScopedToken(ctx, tok, testKey)
+		require.NoError(t, err)
+		usage = tok.GetStatus().GetUsage().GetSingleUse()
+		require.Equal(t, now.Add(reuseDuration), usage.GetReusableUntil().AsTime())
+		require.Equal(t, now, usage.GetUsedAt().AsTime())
+		require.Equal(t, fp[:], usage.GetUsedByFingerprint())
+
+		// reusing with a different key should fail
+		_, err = service.UseScopedToken(ctx, tok, otherKey)
+		require.ErrorIs(t, err, joining.ErrTokenExhausted)
+
+		// reusing with the same key after reusuble_until has elapsed should fail
+		<-time.After(reuseDuration + time.Minute)
+		_, err = service.UseScopedToken(ctx, tok, testKey)
+		require.ErrorIs(t, err, joining.ErrTokenExhausted)
+	})
 }

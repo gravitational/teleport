@@ -54,8 +54,7 @@ describe('HealthTab', () => {
       type: 'database-tunnel',
       updatedAt: 'Reported 14 minutes ago',
       status: 'Unhealthy',
-      reason:
-        'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+      reason: 'permission denied',
     });
 
     expectItem({
@@ -101,7 +100,9 @@ function expectItem(match: {
   expect(within(item).getByText(match.updatedAt)).toBeInTheDocument();
   expect(within(item).getByText(match.status)).toBeInTheDocument();
   if (match.reason) {
-    expect(within(item).getByText(match.reason)).toBeInTheDocument();
+    expect(
+      within(item).getByText(match.reason, { exact: false })
+    ).toBeInTheDocument();
   }
 }
 

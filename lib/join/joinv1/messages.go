@@ -44,6 +44,8 @@ func requestToMessage(req *joinv1.JoinRequest) (messages.Request, error) {
 		return oracleInitToMessage(msg.OracleInit)
 	case *joinv1.JoinRequest_TpmInit:
 		return tpmInitToMessage(msg.TpmInit)
+	case *joinv1.JoinRequest_AzureInit:
+		return azureInitToMessage(msg.AzureInit)
 	case *joinv1.JoinRequest_Solution:
 		return challengeSolutionToMessage(msg.Solution)
 	case *joinv1.JoinRequest_GivingUp:
@@ -133,11 +135,22 @@ func requestFromMessage(msg messages.Request) (*joinv1.JoinRequest, error) {
 				TpmInit: tpmInit,
 			},
 		}, nil
+	case *messages.AzureInit:
+		azureInit, err := azureInitFromMessage(typedMsg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &joinv1.JoinRequest{
+			Payload: &joinv1.JoinRequest_AzureInit{
+				AzureInit: azureInit,
+			},
+		}, nil
 	case *messages.BoundKeypairChallengeSolution,
 		*messages.BoundKeypairRotationResponse,
 		*messages.IAMChallengeSolution,
 		*messages.OracleChallengeSolution,
-		*messages.TPMSolution:
+		*messages.TPMSolution,
+		*messages.AzureChallengeSolution:
 		solution, err := challengeSolutionFromMessage(typedMsg)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -199,6 +212,7 @@ func tokenInitToMessage(req *joinv1.TokenInit) (*messages.TokenInit, error) {
 	}
 	return &messages.TokenInit{
 		ClientParams: clientParams,
+		Secret:       req.GetSecret(),
 	}, nil
 }
 
@@ -209,6 +223,7 @@ func tokenInitFromMessage(msg *messages.TokenInit) (*joinv1.TokenInit, error) {
 	}
 	return &joinv1.TokenInit{
 		ClientParams: clientParams,
+		Secret:       msg.Secret,
 	}, nil
 }
 
@@ -307,6 +322,8 @@ func challengeSolutionToMessage(req *joinv1.ChallengeSolution) (messages.Request
 		return oracleChallengeSolutionToMessage(payload.OracleChallengeSolution), nil
 	case *joinv1.ChallengeSolution_TpmSolution:
 		return tpmSolutionToMessage(payload.TpmSolution), nil
+	case *joinv1.ChallengeSolution_AzureChallengeSolution:
+		return azureChallengeSolutionToMessage(payload.AzureChallengeSolution), nil
 	default:
 		return nil, trace.BadParameter("unrecognized challenge solution message type %T", payload)
 	}
@@ -344,6 +361,12 @@ func challengeSolutionFromMessage(msg messages.Request) (*joinv1.ChallengeSoluti
 				TpmSolution: tpmSolutionFromMessage(typedMsg),
 			},
 		}, nil
+	case *messages.AzureChallengeSolution:
+		return &joinv1.ChallengeSolution{
+			Payload: &joinv1.ChallengeSolution_AzureChallengeSolution{
+				AzureChallengeSolution: azureChallengeSolutionFromMessage(typedMsg),
+			},
+		}, nil
 	default:
 		return nil, trace.BadParameter("unrecognized challenge solution message type %T", msg)
 	}
@@ -377,7 +400,8 @@ func responseFromMessage(msg messages.Response) (*joinv1.JoinResponse, error) {
 		*messages.BoundKeypairRotationRequest,
 		*messages.IAMChallenge,
 		*messages.OracleChallenge,
-		*messages.TPMEncryptedCredential:
+		*messages.TPMEncryptedCredential,
+		*messages.AzureChallenge:
 		challenge, err := challengeFromMessage(msg)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -442,6 +466,8 @@ func challengeToMessage(resp *joinv1.Challenge) (messages.Response, error) {
 		return oracleChallengeToMessage(payload.OracleChallenge), nil
 	case *joinv1.Challenge_TpmEncryptedCredential:
 		return tpmEncryptedCredentialToMessage(payload.TpmEncryptedCredential), nil
+	case *joinv1.Challenge_AzureChallenge:
+		return azureChallengeToMessage(payload.AzureChallenge), nil
 	default:
 		return nil, trace.BadParameter("unrecognized challenge payload type %T", payload)
 	}
@@ -479,6 +505,12 @@ func challengeFromMessage(resp messages.Response) (*joinv1.Challenge, error) {
 				TpmEncryptedCredential: tpmEncryptedCredentialFromMessage(msg),
 			},
 		}, nil
+	case *messages.AzureChallenge:
+		return &joinv1.Challenge{
+			Payload: &joinv1.Challenge_AzureChallenge{
+				AzureChallenge: azureChallengeFromMessage(msg),
+			},
+		}, nil
 	default:
 		return nil, trace.BadParameter("unrecognized challenge message type %T", msg)
 	}
@@ -497,15 +529,17 @@ func resultToMessage(resp *joinv1.Result) (messages.Response, error) {
 
 func hostResultToMessage(resp *joinv1.HostResult) *messages.HostResult {
 	return &messages.HostResult{
-		Certificates: certificatesToMessage(resp.GetCertificates()),
-		HostID:       resp.GetHostId(),
+		Certificates:    certificatesToMessage(resp.GetCertificates()),
+		HostID:          resp.GetHostId(),
+		ImmutableLabels: resp.GetImmutableLabels(),
 	}
 }
 
 func hostResultFromMessage(msg *messages.HostResult) *joinv1.HostResult {
 	return &joinv1.HostResult{
-		Certificates: certificatesFromMessage(&msg.Certificates),
-		HostId:       msg.HostID,
+		Certificates:    certificatesFromMessage(&msg.Certificates),
+		HostId:          msg.HostID,
+		ImmutableLabels: msg.ImmutableLabels,
 	}
 }
 

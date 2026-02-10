@@ -19,14 +19,24 @@
 package resources
 
 import (
+	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/usertasks"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/plugin"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
@@ -36,7 +46,17 @@ import (
 func TestHandlers(t *testing.T) {
 	t.Parallel()
 
-	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(logtest.NewLogger()))
+	registry := plugin.NewRegistry()
+	require.NoError(t, registry.Add(&mockServicesPlugin{
+		mockedServices: []func(grpc.ServiceRegistrar){
+			registerMockSummarizerServiceServer,
+		},
+	}))
+
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(logtest.NewLogger()), testenv.WithConfig(func(cfg *servicecfg.Config) {
+		cfg.PluginRegistry = registry
+	}))
+
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())
@@ -49,13 +69,10 @@ func TestHandlers(t *testing.T) {
 	updateResourceWithLabels := func(t *testing.T, r types.Resource) types.Resource {
 		t.Helper()
 
-		type setStaticLabels interface {
-			SetStaticLabels(labels map[string]string)
-		}
-
-		rWithLabels, ok := r.(setStaticLabels)
-		require.True(t, ok)
+		r153 := types.LegacyToResource153(r)
+		rWithLabels := types.Resource153ToResourceWithLabels(r153)
 		rWithLabels.SetStaticLabels(map[string]string{"updated": "true"})
+
 		return r
 	}
 
@@ -156,6 +173,92 @@ func TestHandlers(t *testing.T) {
 			updateResource:   updateResourceWithLabels,
 			checkMFARequired: require.False,
 		},
+		{
+			kind: types.KindInferenceModel,
+			makeResource: func(t *testing.T, name string) types.Resource {
+				t.Helper()
+				model := makeInferenceModel(name, "")
+				return types.ProtoResource153ToLegacy(model)
+			},
+			updateResource:   updateResourceWithLabels,
+			checkMFARequired: require.False,
+		},
+		{
+			kind: types.KindInferenceSecret,
+			makeResource: func(t *testing.T, name string) types.Resource {
+				t.Helper()
+				secret := makeInferenceSecret(name)
+				return types.ProtoResource153ToLegacy(secret)
+			},
+			updateResource:   updateResourceWithLabels,
+			checkMFARequired: require.False,
+		},
+		{
+			kind: types.KindUserTask,
+			makeResource: func(t *testing.T, name string) types.Resource {
+				t.Helper()
+				userTask, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
+					Integration: name + "-integration",
+					TaskType:    "discover-ec2",
+					IssueType:   "ec2-ssm-invocation-failure",
+					State:       "OPEN",
+					DiscoverEc2: &usertasksv1.DiscoverEC2{
+						AccountId: "123456789012",
+						Region:    "us-east-1",
+						Instances: map[string]*usertasksv1.DiscoverEC2Instance{
+							"i-123": {
+								InstanceId:      "i-123",
+								DiscoveryConfig: "dc01",
+								DiscoveryGroup:  "dg01",
+							},
+						},
+					},
+				})
+				require.NoError(t, err)
+				return types.ProtoResource153ToLegacy(userTask)
+			},
+			updateResource: func(t *testing.T, r types.Resource) types.Resource {
+				r.SetExpiry(time.Now().Add(time.Minute))
+				return r
+			},
+			checkMFARequired: require.False,
+		},
+		{
+			kind: types.KindAccessMonitoringRule,
+			makeResource: func(t *testing.T, name string) types.Resource {
+				t.Helper()
+				accessMonitoringRule, err := services.NewAccessMonitoringRuleWithLabels(name, nil, &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+					Subjects:  []string{types.KindAccessRequest},
+					Condition: "true",
+					Notification: &accessmonitoringrulesv1.Notification{
+						Name:       name + "-notification",
+						Recipients: []string{"recipient"},
+					},
+					AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
+						Integration: name + "-review",
+						Decision:    types.RequestState_APPROVED.String(),
+					},
+					DesiredState: types.AccessMonitoringRuleStateReviewed,
+					Schedules: map[string]*accessmonitoringrulesv1.Schedule{
+						"default": {
+							Time: &accessmonitoringrulesv1.TimeSchedule{
+								Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+									{
+										Weekday: time.Monday.String(),
+										Start:   "00:00",
+										End:     "23:59",
+									},
+								},
+							},
+						},
+					},
+				})
+				require.NoError(t, err)
+				return types.ProtoResource153ToLegacy(accessMonitoringRule)
+			},
+			updateResource:   updateResourceWithLabels,
+			checkMFARequired: require.False,
+		},
 	}
 
 	for _, tt := range tests {
@@ -239,4 +342,37 @@ func mustMakeUnknownResource(t *testing.T, r types.Resource) services.UnknownRes
 	var unknown services.UnknownResource
 	require.NoError(t, json.Unmarshal(resourceJSON, &unknown))
 	return unknown
+}
+
+type mockServicesPlugin struct {
+	mockedServices []func(grpc.ServiceRegistrar)
+}
+
+func (m *mockServicesPlugin) GetName() string {
+	return "auth.enterprise"
+}
+
+func (m *mockServicesPlugin) RegisterProxyWebHandlers(handler any) error {
+	return nil
+}
+
+func (m *mockServicesPlugin) RegisterAuthWebHandlers(service any) error {
+	return nil
+}
+
+func (m *mockServicesPlugin) RegisterAuthServices(ctx context.Context, server any, _ func() (*tls.Certificate, error)) error {
+	authServer, ok := server.(*auth.GRPCServer)
+	if !ok {
+		return trace.BadParameter("expected auth.GRPCServer, got %T", server)
+	}
+
+	grpcServer, err := authServer.GetServer()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, registerService := range m.mockedServices {
+		registerService(grpcServer)
+	}
+	return nil
 }

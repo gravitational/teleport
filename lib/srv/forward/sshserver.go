@@ -226,7 +226,7 @@ type ServerConfig struct {
 	// Clock is an optoinal clock to override default real time clock
 	Clock clockwork.Clock
 
-	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// FIPS mode means Teleport started in a FedRAMP/FIPS compliant
 	// configuration.
 	FIPS bool
 
@@ -375,13 +375,14 @@ func New(c ServerConfig) (*Server, error) {
 
 	// Common auth handlers.
 	authHandlerConfig := srv.AuthHandlerConfig{
-		Server:       s,
-		Component:    teleport.ComponentForwardingNode,
-		Emitter:      c.Emitter,
-		AccessPoint:  c.TargetClusterAccessPoint,
-		TargetServer: c.TargetServer,
-		FIPS:         c.FIPS,
-		Clock:        c.Clock,
+		Server:                        s,
+		Component:                     teleport.ComponentForwardingNode,
+		Emitter:                       c.Emitter,
+		AccessPoint:                   c.TargetClusterAccessPoint,
+		TargetServer:                  c.TargetServer,
+		FIPS:                          c.FIPS,
+		Clock:                         c.Clock,
+		ValidatedMFAChallengeVerifier: s.authClient.MFAServiceClient(),
 	}
 
 	s.authHandlers, err = srv.NewAuthHandlers(&authHandlerConfig)
@@ -467,8 +468,8 @@ func (s *Server) GetAccessPoint() srv.AccessPoint {
 
 // GetPAM returns the PAM configuration for a server. Because the forwarding
 // server runs in-memory, it does not support PAM.
-func (s *Server) GetPAM() (*servicecfg.PAMConfig, error) {
-	return nil, trace.BadParameter("PAM not supported by forwarding server")
+func (s *Server) GetPAM() *servicecfg.PAMConfig {
+	return &servicecfg.PAMConfig{Enabled: false}
 }
 
 // UseTunnel used to determine if this node has connected to this cluster
@@ -559,6 +560,17 @@ func (s *Server) GetUserAccountingPaths() (string, string, string, string) {
 // GetLockWatcher gets the server's lock watcher.
 func (s *Server) GetLockWatcher() *services.LockWatcher {
 	return s.lockWatcher
+}
+
+// ChildLogConfig returns a noop log configuration since the forwarding server
+// does not spawn child processes.
+func (s *Server) ChildLogConfig() srv.ChildLogConfig {
+	return srv.ChildLogConfig{
+		ExecLogConfig: srv.ExecLogConfig{
+			Level: &slog.LevelVar{},
+		},
+		Writer: io.Discard,
+	}
 }
 
 func (s *Server) Serve() {
@@ -1189,7 +1201,7 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 		reply, payload, err := s.remoteClient.SendRequest(ctx, teleport.SessionIDQueryRequestV2, true, nil)
 		if err != nil {
 			s.logger.WarnContext(ctx, "Failed to send session ID query request", "error", err)
-		} else if !reply && payload != nil {
+		} else if !reply && len(payload) != 0 {
 			// If the target node replies with a payload, this means that the connection itself has been rejected,
 			// presumably due to an authz error, and the server is trying to communicate the error with the first
 			// req/chan received.

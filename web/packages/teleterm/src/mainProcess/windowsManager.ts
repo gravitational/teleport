@@ -17,7 +17,6 @@
  */
 
 import path from 'node:path';
-import * as url from 'node:url';
 
 import {
   app,
@@ -36,6 +35,10 @@ import { ensureError } from 'shared/utils/error';
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
 import {
+  DEV_APP_WINDOW_URL,
+  PACKAGED_APP_WINDOW_URL,
+} from 'teleterm/mainProcess/protocolHandler';
+import {
   RendererIpc,
   RuntimeSettings,
   WindowsManagerIpc,
@@ -45,10 +48,6 @@ import { FileStorage } from 'teleterm/services/fileStorage';
 import { darkTheme, lightTheme } from 'teleterm/ui/ThemeProvider/theme';
 
 type WindowState = Rectangle;
-
-interface RunInBackgroundState {
-  notified?: boolean;
-}
 
 export class WindowsManager {
   private storageKey = 'windowState';
@@ -164,7 +163,13 @@ export class WindowsManager {
     window.on('close', async e => {
       this.saveWindowState(window);
 
-      if (isAppQuitting || !this.configService.get('runInBackground').value) {
+      const shouldRunInBackground =
+        this.configService.get('runInBackground').value;
+
+      if (isAppQuitting || !shouldRunInBackground) {
+        // If frontendAppInit wasn't resolved yet, reject it with an error since the app is about to
+        // quit. Electron apps by default quit after the last window is closed.
+        // https://www.electronjs.org/docs/latest/api/app#event-window-all-closed
         this.frontendAppInit.reject(
           new Error('Window was closed before frontend app got initialized')
         );
@@ -172,18 +177,22 @@ export class WindowsManager {
       }
 
       e.preventDefault();
-
-      const shouldRun = await this.confirmIfShouldRunInBackgroundOnce();
-      if (shouldRun) {
-        this.enterBackgroundMode();
-        return;
-      }
-      // Retry closing.
-      window.close();
+      this.enterBackgroundMode();
     });
 
-    // shows the window when the DOM is ready, so we don't have a brief flash of a blank screen
-    window.once('ready-to-show', window.show);
+    // The ready-to-show event doesn't always fire on Wayland because of an Electron bug.
+    // Use the `did-finish-load` event on the web contents instead as that is similar enough.
+    // https://github.com/electron/electron/issues/48859
+    if (
+      process.platform === 'linux' &&
+      app.commandLine.getSwitchValue('ozone-platform') === 'wayland'
+    ) {
+      window.webContents.once('did-finish-load', () => window.show());
+    } else {
+      // Shows the window when the DOM is ready, so we don't have a brief flash of a blank screen
+      window.once('ready-to-show', () => window.show());
+    }
+
     window.loadURL(this.windowUrl);
     window.webContents.on('context-menu', (_, props) => {
       this.popupUniversalContextMenu(window, props);
@@ -483,42 +492,6 @@ export class WindowsManager {
     };
   }
 
-  private async confirmIfShouldRunInBackgroundOnce(): Promise<boolean> {
-    const runInBackgroundState = this.fileStorage.get(
-      'runInBackground'
-    ) as RunInBackgroundState;
-    if (
-      runInBackgroundState?.notified ||
-      // If the value is set in the config file, do not notify too.
-      this.configService.get('runInBackground').metadata.isStored
-    ) {
-      return true;
-    }
-
-    const isMac = this.settings.platform === 'darwin';
-
-    const { response } = await dialog.showMessageBox(this.window, {
-      type: 'question',
-      message: isMac
-        ? 'Keep Teleport Connect running in the menu bar?'
-        : 'Keep Teleport Connect running in the system tray?',
-      detail:
-        'VNet and connections to databases, Kubernetes clusters, and apps will remain active.',
-      buttons: ['Keep Running', 'Quit'],
-      noLink: true,
-      defaultId: 0,
-    });
-
-    const state: RunInBackgroundState = { notified: true };
-    this.fileStorage.put('runInBackground', state);
-
-    const keepRunning = response === 0;
-    if (!keepRunning) {
-      this.configService.set('runInBackground', false);
-    }
-    return keepRunning;
-  }
-
   /**
    * Displays an error in a system dialog and offers reloading the window
    * or quitting the app.
@@ -563,16 +536,5 @@ export class WindowsManager {
  * for the packaged app.
  * */
 function getWindowUrl(isDev: boolean): string {
-  if (isDev) {
-    return 'http://localhost:8080/';
-  }
-
-  // The returned URL is percent-encoded.
-  // It is important because `details.requestingUrl` (in `setPermissionRequestHandler`)
-  // to which we match the URL is also percent-encoded.
-  return url
-    .pathToFileURL(
-      path.resolve(app.getAppPath(), __dirname, '../renderer/index.html')
-    )
-    .toString();
+  return isDev ? DEV_APP_WINDOW_URL : PACKAGED_APP_WINDOW_URL;
 }

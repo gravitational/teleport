@@ -50,6 +50,7 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
     CUSTOM_SHELL_ID,
   ];
 
+  const pathSchema = tildeExpandingPathSchema(settings.homeDir);
   const shortcutSchema = createKeyboardShortcutSchema(settings.platform);
 
   // `keymap.` prefix is used in `initUi.ts` in a predicate function.
@@ -70,10 +71,10 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
       .describe(
         'Keeps the app running in the menu bar/system tray even when the main window is closed. On Linux, displaying the system tray icon may require installing shell extensions.'
       ),
-    tshHome: z
-      .string()
-      .default(settings.tshd.defaultHomeDir)
-      .describe('Home location for tsh configuration and data.'),
+    tshHome: pathSchema({
+      defaultPath: settings.tshd.defaultHomeDir,
+      description: 'Home location for tsh configuration and data.',
+    }),
     /**
      * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
      * in a styled component or used in CSS, as it may inject malicious CSS code.
@@ -112,12 +113,11 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
             `Cannot find the shell "${iss.input}". Available options are: ${availableShellIdsWithCustom.join(', ')}. Using platform default.`,
         }
       ),
-    'terminal.customShell': z
-      .string()
-      .default('')
-      .describe(
-        'Path to the custom shell that is used when `terminal.shell` is set to `custom`. It is best to configure it through UI (right click on a terminal tab > Custom Shell…).'
-      ),
+    'terminal.customShell': pathSchema({
+      defaultPath: '',
+      description:
+        'Path to the custom shell that is used when `terminal.shell` is set to `custom`. It is best to configure it through UI (right click on a terminal tab > Custom Shell…).',
+    }),
     'terminal.rightClick': z
       .enum(['paste', 'copyPaste', 'menu'])
       .default(settings.platform === 'win32' ? 'copyPaste' : 'menu')
@@ -128,6 +128,12 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
       .boolean()
       .default(false)
       .describe('Automatically copies selected text to the clipboard.'),
+    'terminal.setTeleportAuthServerEnvVar': z
+      .boolean()
+      .default(true)
+      .describe(
+        'Whether to set TELEPORT_AUTH_SERVER in local terminal sessions. Setting it helps tctl choose the right profile.'
+      ),
     'usageReporting.enabled': z
       .boolean()
       .default(false)
@@ -375,3 +381,22 @@ z.config({
     }
   },
 });
+
+/**
+ * Creates a Zod string schema for filesystem paths that automatically expand
+ * leading "~" to the provided home directory.
+ */
+function tildeExpandingPathSchema(homeDir: string) {
+  return ({
+    defaultPath,
+    description,
+  }: {
+    defaultPath: string;
+    description: string;
+  }) =>
+    z
+      .string()
+      .default(defaultPath)
+      .describe(description)
+      .transform(p => p.replace(/^~/, homeDir));
+}

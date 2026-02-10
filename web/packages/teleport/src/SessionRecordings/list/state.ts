@@ -27,6 +27,8 @@ import {
 } from 'react';
 import { useHistory } from 'react-router';
 
+import { SortOrder } from 'shared/components/Controls/SortMenu';
+
 import {
   EventRange,
   getRangeOptions,
@@ -35,15 +37,6 @@ import {
   validateRecordingType,
   type RecordingType,
 } from 'teleport/services/recordings';
-
-const sortKeys = ['date', 'type'] as const;
-
-export type RecordingsListSortKey = (typeof sortKeys)[number];
-export type RecordingsListSortDirection = 'ASC' | 'DESC';
-
-function isValidSortKey(key: string): key is RecordingsListSortKey {
-  return sortKeys.includes(key as RecordingsListSortKey);
-}
 
 export interface RecordingsListFilters {
   hideNonInteractive: boolean;
@@ -57,8 +50,8 @@ export interface RecordingsListState {
   page: number;
   range: EventRange;
   search: string;
-  sortKey: RecordingsListSortKey;
-  sortDirection: RecordingsListSortDirection;
+  sortKey: string;
+  sortDirection: SortOrder;
 }
 
 export type RecordingsListFilterKey = keyof RecordingsListFilters;
@@ -134,13 +127,13 @@ export function searchParamsToState(
   }
 
   const sortKey = params.get('sort');
-  if (sortKey && isValidSortKey(sortKey)) {
-    state.sortKey = sortKey as RecordingsListSortKey;
+  if (sortKey && ['date', 'type'].includes(sortKey)) {
+    state.sortKey = sortKey;
   }
 
   const direction = params.get('direction');
   if (direction === 'ASC' || direction === 'DESC') {
-    state.sortDirection = direction as RecordingsListSortDirection;
+    state.sortDirection = direction;
   }
 
   const page = params.get('page');

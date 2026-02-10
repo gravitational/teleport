@@ -1,0 +1,137 @@
+---
+title: Connect a Grafana MCP Server to Teleport
+sidebar_label: Grafana
+description: Set up a Grafana MCP server for access through Teleport
+tags:
+- how-to
+- mcp
+- zero-trust
+---
+
+(!docs/pages/includes/mcp-access/integration-intro.mdx serviceName="Grafana" !)
+
+## How it works
+
+The [Grafana MCP server](https://github.com/grafana/mcp-grafana)
+forwards JWT tokens signed by Teleport to access Grafana and runs on a local
+endpoint reachable by the Teleport Application Service. Teleport proxies all
+client requests to the server, which interacts with Grafana using permissions
+mapped by [JWT authentication](https://grafana.com/docs/grafana/latest/setup-grafana/configure-access/configure-authentication/jwt/).
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v18.3.0 or higher)" clients="\`tsh\` client"!)
+- Ability to configure your Grafana instance.
+- A host to run the MCP server that is reachable by the Teleport Application Service.
+- A running Teleport Application Service. If you have not yet done this, follow
+  the [Getting Started guide](../getting-started.mdx).
+- A Teleport user with sufficient permissions (e.g. role `mcp-user`) to access
+  MCP servers.
+
+## Step 1/3. Configure JWT authentication in Grafana
+
+(!docs/pages/includes/application-access/jwt-grafana-config.mdx!)
+
+## Step 2/3. Run the Grafana MCP server
+
+The Grafana MCP Server can be run either as a compiled binary or via the
+official Docker image:
+
+<Tabs>
+<TabItem label="mcp-grafana binary">
+Run the MCP server in streamable-HTTP transport. Assign  <Var name="GRAFANA_URL"
+initial_value="https://your-grafana-instance-url"/> to the URL of your Grafana
+instance and <Var name="MCP_HOST" initial_value="localhost" /> to the hostname
+of the host machine running the MCP server:
+```code
+$ export GRAFANA_URL=<Var name="GRAFANA_URL" initial_value="https://your-grafana-instance-url" />
+$ ./mcp-grafana --transport streamable-http --address <Var name="MCP_HOST" initial_value="localhost" />:8000
+```
+</TabItem>
+
+<TabItem label="Docker">
+Run the MCP server in streamable-HTTP transport. Assign <Var name="GRAFANA_URL"
+initial_value="https://your-grafana-instance-url"/> to the URL of your Grafana
+instance:
+```code
+$ docker run -d -p 8000:8000 \
+  -e GRAFANA_URL=<Var name="GRAFANA_URL" initial_value="https://your-grafana-instance-url" /> \
+  mcp/grafana --transport streamable-http
+```
+</TabItem>
+</Tabs>
+
+The Grafana MCP Server now exposes a streamable-HTTP endpoint at `http://<Var name="MCP_HOST"/>:8000/mcp`.
+
+## Step 3/3. Connect via Teleport
+
+(!docs/pages/includes/mcp-access/integration-teleport-app-rewrite.mdx service="grafana" serviceName="Grafana" port="8000" headerName="X-Grafana-API-Key" headerValue="&#123;&#123;internal.jwt&#125;&#125;" !)
+
+The header rewrite configuration above will replace the `{{internal.jwt}}`
+template variable with a Teleport-signed JWT token in each request. The Grafana
+MCP server will use this token as a bearer token in "Authorization" header when
+connecting to Grafana.
+
+(!docs/pages/includes/mcp-access/integration-limit-tools.mdx!)
+```yaml
+kind: role
+version: v8
+metadata:
+  name: grafana-mcp-readonly
+spec:
+  allow:
+    app_labels:
+      'service': 'grafana'
+    mcp:
+      tools:
+      - ^(get|query|list|search|find)_.*$
+```
+
+(!docs/pages/includes/mcp-access/integration-tsh.mdx service="grafana" serviceName="Grafana" !)
+
+![Grafana Claude](../../../../img/mcp-access/grafana-claude.png)
+
+## Connect to Grafana using a service account
+
+Instead of accessing Grafana with JWT authentication, you can also use a service
+account.
+
+Navigate to Administrators > Users and Accounts > Service Accounts, and then
+click **Create Service Account**:
+
+![Grafana Service Account](../../../../img/mcp-access/grafana-create-sa.png)
+
+Assign the **Viewer** role to keep the service account limited to read-only
+access.
+
+After the service account is created, click **Add service account
+token** to generate a new token. Use this token <Var
+name="SERVICE_ACCOUNT_TOKEN" initial_value="your_service_account_token"/> when
+starting the Grafana MCP server:
+```code
+$ docker run -d -p 8000:8000 \
+  -e GRAFANA_URL=<Var name="GRAFANA_URL" /> \
+  -e GRAFANA_SERVICE_ACCOUNT_TOKEN=<Var name="SERVICE_ACCOUNT_TOKEN"/> \
+  mcp/grafana --transport streamable-http
+```
+
+Lastly, you don’t need to configure any header rewrites in the Teleport
+application:
+```yaml
+app_service:
+  enabled: "yes"
+  apps:
+  - name: "grafana-mcp"
+    uri: "mcp+http://<Var name="MCP_HOST"/>:8000/mcp"
+    labels:
+      env: dev
+      service: grafana
+```
+
+## Next steps
+
+- Read more on accessing Grafana through Teleport with [JWT authentication](../../application-access/jwt/grafana.mdx).
+- Review [Enroll a Streamable-HTTP MCP Server](../enrolling-mcp-servers/streamable-http.mdx).
+- See the [dynamic registration](../dynamic-registration.mdx) guide.
+- Learn more about [mcp-grafana](https://github.com/grafana/mcp-grafana).
+- Connect your [MCP clients](../../../connect-your-client/model-context-protocol/mcp-access.mdx).

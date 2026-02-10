@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
-	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/srv/db/redis/connection"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
 	"github.com/gravitational/teleport/lib/utils"
@@ -662,16 +661,4 @@ func getConnectionOptions(db types.Database) (*connection.Options, error) {
 
 func getHostPort(connOpts *connection.Options) string {
 	return net.JoinHostPort(connOpts.Address, connOpts.Port)
-}
-
-// NewEndpointsResolver resolves an endpoint from DB URI.
-func NewEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
-	connOpts, err := getConnectionOptions(db)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	hostPort := getHostPort(connOpts)
-	return endpoints.ResolverFn(func(context.Context) ([]string, error) {
-		return []string{hostPort}, nil
-	}), nil
 }

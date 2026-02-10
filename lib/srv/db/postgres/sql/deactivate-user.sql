@@ -13,7 +13,7 @@ BEGIN
         SELECT r.rolname
         FROM pg_roles r
         WHERE r.rolname NOT IN (username, 'teleport-auto-user') AND
-              r.oid IN (select m.roleid from pg_auth_members m where m.member = to_regrole(username)::oid)
+              r.oid IN (select m.roleid from pg_auth_members m where m.member = to_regrole(QUOTE_IDENT(username))::oid)
         LOOP
             EXECUTE FORMAT('REVOKE %I FROM %I', role_, username);
         END LOOP;

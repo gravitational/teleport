@@ -1154,6 +1154,7 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER = 26;
   INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS = 27;
   INTEGRATION_ENROLL_KIND_MACHINE_ID_ARGOCD = 28;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES = 29;
 }
 
 // IntegrationEnrollMetadata contains common metadata
@@ -1196,6 +1197,12 @@ enum IntegrationEnrollStep {
   INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_GIT_SERVER = 6;
   INTEGRATION_ENROLL_STEP_GITHUBRA_CONFIGURE_SSH_CERT = 7;
   INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_ROLE = 8;
+
+  // MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+  INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB = 9;
+  INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONFIGURE_ACCESS = 10;
+  INTEGRATION_ENROLL_STEP_MWIGHAK8S_SETUP_WORKFLOW = 11;
+  INTEGRATION_ENROLL_STEP_MWIGHAK8S_WELCOME = 12;
 }
 
 // IntegrationEnrollStatusCode defines status code for an integration enroll step.
@@ -1234,6 +1241,90 @@ message UIIntegrationEnrollStepEvent {
   IntegrationEnrollStep step = 2;
   // Status is the status of the step outcome.
   IntegrationEnrollStepStatus status = 3;
+}
+
+// UIIntegrationEnrollSectionOpenEvent is emitted when the user opens or expands
+// a section (e.g. "Advanced Options") in an integration setup wizard.
+message UIIntegrationEnrollSectionOpenEvent {
+  // Metadata of the event.
+  IntegrationEnrollMetadata metadata = 1;
+  // Step where the section was opened.
+  IntegrationEnrollStep step = 2;
+  // Section that was opened.
+  IntegrationEnrollSection section = 3;
+}
+
+// IntegrationEnrollSection identifies a section the user opened or expanded in
+// an integration setup wizard.
+enum IntegrationEnrollSection {
+  INTEGRATION_ENROLL_SECTION_UNSPECIFIED = 0;
+
+  // MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+  INTEGRATION_ENROLL_SECTION_MWIGHAK8S_GITHUB_ADVANCED_OPTIONS = 1;
+  INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_LABEL_PICKER = 2;
+  INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_ADVANCED_OPTIONS = 3;
+  INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_RESOURCE_RULE_PICKER = 4;
+}
+
+// UIIntegrationEnrollFieldCompleteEvent is emitted when the user completes a
+// field in an integration setup wizard.
+message UIIntegrationEnrollFieldCompleteEvent {
+  // Metadata of the event.
+  IntegrationEnrollMetadata metadata = 1;
+  // Step where the field was completed.
+  IntegrationEnrollStep step = 2;
+  // Field that was completed.
+  IntegrationEnrollField field = 3;
+}
+
+// IntegrationEnrollField identifies a field the user completed in an integration
+// setup wizard.
+enum IntegrationEnrollField {
+  INTEGRATION_ENROLL_FIELD_UNSPECIFIED = 0;
+
+  // MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REPOSITORY_URL = 1;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_BRANCH = 2;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_WORKFLOW = 3;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENVIRONMENT = 4;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REF = 5;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_SLUG = 6;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_STATIC_JWKS = 7;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_LABELS = 8;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_GROUPS = 9;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_USERS = 10;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_RESOURCE_RULES = 11;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_CLUSTER_NAME = 12;
+}
+
+// UIIntegrationEnrollCodeCopyEvent is emitted when the user copies generated
+// IaC (e.g. Terraform) code in an integration setup wizard.
+message UIIntegrationEnrollCodeCopyEvent {
+  // Metadata of the event.
+  IntegrationEnrollMetadata metadata = 1;
+  // Step where the code was copied.
+  IntegrationEnrollStep step = 2;
+  // Type of code that was copied.
+  IntegrationEnrollCodeType type = 3;
+}
+
+// IntegrationEnrollCodeType identifies the type of code that was copied in an
+// integration setup wizard.
+enum IntegrationEnrollCodeType {
+  INTEGRATION_ENROLL_CODE_TYPE_UNSPECIFIED = 0;
+  INTEGRATION_ENROLL_CODE_TYPE_TERRAFORM = 1;
+  INTEGRATION_ENROLL_CODE_TYPE_GITHUB_ACTIONS_YAML = 2;
+}
+
+// UIIntegrationEnrollLinkClickEvent is emitted when the user clicks a link to
+// documentation, etc. in an integration setup wizard.
+message UIIntegrationEnrollLinkClickEvent {
+  // Metadata of the event.
+  IntegrationEnrollMetadata metadata = 1;
+  // Step where the link was clicked.
+  IntegrationEnrollStep step = 2;
+  // Link that was clicked.
+  string link = 3;
 }
 
 // EditorChangeEvent is an event that is emitted when a user role set changes resulting in
@@ -1678,6 +1769,78 @@ message AccessRequestReviewEvent {
   ProposedState proposed_state = 4;
 }
 
+// SessionSummaryAccessEvent is emitted when the user accesses a session
+// summary.
+//
+// PostHog event: tp.session.summary.access
+message SessionSummaryAccessEvent {
+  // session_type is type of the session, should be
+  // "ssh"/"k8s"/"db"/"desktop" (matching the values for
+  // api/types.SessionKind).
+  //
+  // PostHog property: tp.session_type
+  string session_type = 1;
+
+  // user_name is the anonymized Teleport username, 32 bytes (HMAC-SHA-256)
+  // encoded in base64.
+  //
+  // PostHog property: tp.user_name
+  string user_name = 2;
+
+  // resource_name is the anonymized resource name, 32 bytes (HMAC-SHA-256)
+  // encoded in base64.
+  //
+  // PostHog property: tp.resource_name
+  string resource_name = 3;
+
+  // Indicates this event was generated by a Machine ID bot user or a human.
+  UserKind user_kind = 4;
+}
+
+// SessionSummaryCreateEvent is emitted when the session summarizer tries to
+// summarize a session.
+//
+// PostHog event: tp.session.summary.create
+message SessionSummaryCreateEvent {
+  // session_type is type of the session, should be
+  // "ssh"/"k8s"/"db"/"desktop" (matching the values for
+  // api/types.SessionKind).
+  //
+  // PostHog property: tp.session_type
+  string session_type = 1;
+
+  // provider is the AI provider used for the session summary.
+  // Should be "bedrock" or "openai".
+  //
+  // PostHog property: tp.ai.provider
+  string provider = 2;
+
+  // total_input_tokens is number of total tokens consumed during the summary.
+  //
+  // PostHog property: tp.ai.input_tokens
+  uint64 total_input_tokens = 3;
+
+  // total_output_tokens is number of total output tokens generated during the summary.
+  //
+  // PostHog property: tp.ai.output_tokens
+  uint64 total_output_tokens = 4;
+
+  // success indicates whether the session summary was successfully created.
+  bool success = 5;
+
+  // resource_name is the anonymized resource name, 32 bytes (HMAC-SHA-256)
+  // encoded in base64.
+  //
+  // PostHog property: tp.resource_name
+  string resource_name = 6;
+
+  // is_cloud_default_model indicates wether the session summary was generated using
+  // the cloud default model.
+  //
+  // PostHog property: tp.ai.default_model
+  bool is_cloud_default_model = 7;
+}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //
@@ -1848,6 +2011,14 @@ message SubmitEventRequest {
 
     AccessRequestCreateEvent access_request_create = 99;
     AccessRequestReviewEvent access_request_review = 100;
+
+    UIIntegrationEnrollSectionOpenEvent ui_integration_enroll_section_open_event = 101;
+    UIIntegrationEnrollFieldCompleteEvent ui_integration_enroll_field_complete_event = 102;
+    UIIntegrationEnrollCodeCopyEvent ui_integration_enroll_code_copy_event = 103;
+    UIIntegrationEnrollLinkClickEvent ui_integration_enroll_link_click_event = 104;
+
+    SessionSummaryCreateEvent session_summary_create_event = 105;
+    SessionSummaryAccessEvent session_summary_access_event = 106;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

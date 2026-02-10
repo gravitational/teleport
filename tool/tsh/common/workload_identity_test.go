@@ -63,6 +63,7 @@ func TestWorkloadIdentityIssueX509(t *testing.T) {
 		user.AddRole(role.GetName())
 		cfg.Auth.BootstrapResources[1] = user
 		cfg.Auth.BootstrapResources = append(cfg.Auth.BootstrapResources, role)
+		cfg.SSH.Enabled = false
 	}))
 	setWorkloadIdentityX509CAOverride(ctx, t, s.root)
 
@@ -89,14 +90,14 @@ func TestWorkloadIdentityIssueX509(t *testing.T) {
 	}, time.Second*5, 100*time.Millisecond)
 
 	homeDir, _ := mustLoginLegacy(t, s)
-	temp := t.TempDir()
+	outDir := filepath.Join(t.TempDir(), "out")
 	err = Run(
 		ctx,
 		[]string{
 			"workload-identity",
 			"issue-x509",
 			"--insecure",
-			"--output", temp,
+			"--output", outDir,
 			"--credential-ttl", "10m",
 			"--name-selector", "my-workload-identity",
 		},
@@ -104,7 +105,7 @@ func TestWorkloadIdentityIssueX509(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	certPEM, err := os.ReadFile(filepath.Join(temp, "svid.pem"))
+	certPEM, err := os.ReadFile(filepath.Join(outDir, "svid.pem"))
 	require.NoError(t, err)
 	certs, err := tlsca.ParseCertificatePEMs(certPEM)
 	require.NoError(t, err)
@@ -114,7 +115,7 @@ func TestWorkloadIdentityIssueX509(t *testing.T) {
 	// Sanity check we generated an ECDSA public key (test suite uses
 	// balanced-v1 algorithm suite).
 	require.IsType(t, (*ecdsa.PublicKey)(nil), certs[0].PublicKey)
-	keyPEM, err := os.ReadFile(filepath.Join(temp, "svid_key.pem"))
+	keyPEM, err := os.ReadFile(filepath.Join(outDir, "svid_key.pem"))
 	require.NoError(t, err)
 	keyBlock, _ := pem.Decode(keyPEM)
 	privateKey, err := x509.ParsePKCS8PrivateKey(keyBlock.Bytes)
@@ -123,7 +124,7 @@ func TestWorkloadIdentityIssueX509(t *testing.T) {
 	require.Implements(t, (*crypto.Signer)(nil), privateKey)
 	require.Equal(t, certs[0].PublicKey, privateKey.(crypto.Signer).Public())
 
-	bundlePEM, err := os.ReadFile(filepath.Join(temp, "svid_bundle.pem"))
+	bundlePEM, err := os.ReadFile(filepath.Join(outDir, "svid_bundle.pem"))
 	require.NoError(t, err)
 	bundleBlock, _ := pem.Decode(bundlePEM)
 	_, err = x509.ParseCertificate(bundleBlock.Bytes)

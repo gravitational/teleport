@@ -1,32 +1,260 @@
 ---
 title: Enrolling Teleport Resources
 description: Provides step-by-step instructions for enrolling servers, databases, and other infrastructure resources with your Teleport cluster.
+template: "landing-page"
 tags:
  - conceptual
  - zero-trust
 ---
 
-You can use Teleport to protect infrastructure resources like servers,
-databases, and Kubernetes clusters. Once an infrastructure resource is protected
-by Teleport, you can restrict access to the resource using the Teleport
-[role-based access controls
-system](../zero-trust-access/authentication/authentication.mdx) and use Teleport
-features like session recordings and audit events to understand how your users
-interact with the resource.
+import LandingHero from '@site/src/components/Pages/Landing/LandingHero';
+import EnrollmentMethods, { Method } from "@site/src/components/Pages/Landing/EnrollmentMethods/EnrollmentMethods";
+import ResourceGrid from "@site/src/components/Pages/Landing/ResourceGrid";
 
-To enroll a resource with Teleport, you deploy a Teleport Agent, an instance of
-the `teleport` binary configured to run certain services, such as the Teleport
-SSH Service and Teleport Database Service. You then configure the Agent to proxy
-a resource by querying a service discovery API (Auto Discovery), using a
-[dynamic Teleport
-resource](../zero-trust-access/infrastructure-as-code/infrastructure-as-code.mdx), or
-naming the resource in the Agent's configuration file. Read more about [Teleport
-Agent architecture](../reference/architecture/agents.mdx).
+import enrollResourcesImg from '@version/docs/img/enroll-resources/enroll-resources-hero.png';
+import bookOpenSvg from "@site/src/components/Icon/teleport-svg/book-open.svg";
+import magicWandSvg from "@site/src/components/Icon/teleport-svg/magic-wand.svg";
+import terminalWindowSvg from "@site/src/components/Icon/teleport-svg/terminal-window.svg";
+import applicationSvg from "@site/src/components/Icon/teleport-svg/application.svg";
+import linuxServersSvg from "@site/src/components/Icon/teleport-svg/linux-servers.svg";
+import databaseSvg from "@site/src/components/Icon/teleport-svg/database-access.svg";
+import kubernetesClustersSvg from "@site/src/components/Icon/teleport-svg/kubernetes-clusters.svg";
+import windowsDesktopsSvg from "@site/src/components/Icon/teleport-svg/windows-desktops.svg";
+import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
 
-You can also create a Teleport bot user and set up Machine & Workload Identity
-to enable service accounts to access Teleport-protected resources.
+<LandingHero
+  title="Enroll Resources"
+  image={enrollResourcesImg}
+  linksTitle="Enrollment Methods"
+  linksColumnCount={2}
+  links={[
+    {
+      title: "Infrastructure as Code",
+      description: "Manage resources as code with Terraform, Kubernetes operator, and tctl",
+      href: "../zero-trust-access/infrastructure-as-code/managing-resources/",
+      icon: terminalWindowSvg,
+    },
+    {
+      title: "Auto-Discovery",
+      description: "Automatically discover and enroll resources",
+      href: "./auto-discovery/",
+      icon: magicWandSvg,
+    },
+  ]}
+>
+Teleport protects infrastructure resources such as servers, databases, and Kubernetes clusters by enforcing strong access controls and auditability. Once a resource is enrolled with Teleport, you can manage access to it using the Teleport role-based access control (RBAC) system, allowing you to define which users or teams can connect and what actions they are permitted to perform.
+- [Learn about Teleport Agents](../reference/architecture/agents.mdx)
+- [Restrict access to resources with RBAC](../zero-trust-access/rbac-get-started/rbac-get-started.mdx)
+</LandingHero>
 
-Read the following documentation for more information on enrolling
-infrastructure resources with Teleport:
+<EnrollmentMethods>
+<Method
+title="Applications"
+icon={applicationSvg}
+href="./application-access/"
+tagLists={
+  [
+    {
+      tags:
+        [
+          {
+            name: "Cloud consoles",
+            href: "./application-access/cloud-apis/",
+            icon: "cloud3",
+          },
+          {
+            name: "Web apps",
+            href: "./application-access/protect-apps/connecting-apps/",
+            icon: "appWindow",
+          },
+          {
+            name: "TCP apps",
+            href: "./application-access/protect-apps/tcp/",
+            icon: "tcp",
+          },
+          {
+            name: "more",
+            href: "./application-access/configuration/",
+            arrow: true,
+          }
+        ]
+    },
+  ]
+}
+>
+Secure access to web applications, TCP apps, cloud provider consoles and CLIs, and more.
+</Method>
+<Method
+title="Databases"
+icon={databaseSvg}
+href="./database-access/"
+tagLists={
+  [
+    {
+      tags:
+        [
+          {
+            name: "AWS",
+            href: "./database-access/enrollment/aws/",
+            icon: "aws",
+          },
+          {
+            name: "Azure",
+            href: "./database-access/enrollment/azure/",
+            icon: "azure",
+          },
+         {
+            name: "Google Cloud",
+            href: "./database-access/enrollment/google-cloud/",
+            icon: "googleCloud",
+          },
+          {
+            name: "more",
+            href: "./database-access/",
+            arrow: true,
+          }
+        ]
+    },
+  ]
+}
+>
+Secure, auditable access to cloud and self-hosted databases.
+</Method>
+<Method
+title="Kubernetes Clusters"
+icon={kubernetesClustersSvg}
+href="./kubernetes-access/"
+tagLists={
+  [
+    {
+      title: "Kubernetes Clusters Guides",
+      tags:
+        [
+          {
+            name: "Enroll Kubernetes clusters",
+            href: "./kubernetes-access/getting-started/",
+          },
+          {
+            name: "Access controls",
+            href: "./kubernetes-access/controls/",
+          },
+        ]
+    },
+  ]
+}
+>
+Protect Kubernetes clusters with SSO integration, RBAC, and session recordings.
+</Method>
+<Method
+title="Windows Desktop"
+icon={windowsDesktopsSvg}
+href="./desktop-access/"
+tagLists={
+  [
+    {
+      title: "Windows Desktops Access Guides",
+      tags:
+        [
+          {
+            name: "Local Windows users",
+            href: "./desktop-access/getting-started/",
+          },
+          {
+            name: "Active Directory",
+            href: "./desktop-access/active-directory/",
+          },
+        ]
+    },
+  ]
+}
+>
+Passwordless access to Windows Desktops and servers for domain users and local users.
+</Method>
+<Method
+title="SSH Servers"
+icon={linuxServersSvg}
+href="./server-access/"
+tagLists={
+  [
+    {
+      title: "Server Access Guides",
+      tags:
+        [
+          {
+            name: "Get started guide",
+            href: "./server-access/getting-started/",
+          },
+          {
+            name: "Agentless OpenSSH",
+            href: "./server-access/openssh/openssh-agentless/",
+          },
+          {
+            name: "more",
+            href: "./server-access/guides/",
+            arrow: true,
+          }
+        ]
+    },
+  ]
+}
+>
+Streamline SSH access, reduce configuration overhead, and provide auditability.
+</Method>
+<Method
+title="MCP Servers"
+icon={mcpAndAiSvg}
+href="./mcp-access/"
+tagLists={
+  [
+    {
+      title: "MCP Server Guides",
+      tags:
+        [
+          {
+            name: "Get Started Guide",
+            href: "./mcp-access/getting-started/",
+          },
+          {
+            name: "Configure MCP clients",
+            href: "./mcp-access/rbac/",
+          },
+          {
+            name: "DB access for MCP",
+            href: "../connect-your-client/model-context-protocol/database-access/",
+          },
+        ]
+    },
+  ]
+}
+>
+Secure the vibes with access controls and auditability for all Model Context Protocol access.
+</Method>
+</EnrollmentMethods>
 
-<DocCardList />
+<ResourceGrid
+  title="Auto-Discovery Guides"
+  resources={[
+    {
+      title: 'Databases',
+      iconComponent: databaseSvg,
+      href: './auto-discovery/databases/'
+    },
+    {
+      title: 'Servers',
+      iconComponent: linuxServersSvg,
+      href: './auto-discovery/servers/'
+    },
+    {
+      title: 'Kubernetes Clusters',
+      iconComponent: kubernetesClustersSvg,
+      href: './auto-discovery/kubernetes/'
+    },
+    {
+      title: 'Kube services as apps',
+      iconComponent: applicationSvg,
+      href: './auto-discovery/kubernetes-applications/'
+    },
+  ]}
+>
+Automatically detect and enroll resources in your Teleport cluster with the Teleport Discovery Service.
+</ResourceGrid>

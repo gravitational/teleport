@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/joinutils"
@@ -100,6 +101,9 @@ type TokenInit struct {
 
 	// ClientParams holds parameters for the specific type of client trying to join.
 	ClientParams ClientParams
+	// Secret holds the token secret required when using the token join method with
+	// a scoped token.
+	Secret string
 }
 
 func (i *TokenInit) Check() error {
@@ -468,6 +472,51 @@ type TPMSolution struct {
 	Solution []byte
 }
 
+// AzureInit is sent from the client in response to the ServerInit message for
+// the Azure join method.
+//
+// The Azure method join flow is:
+// 1. client->server: ClientInit
+// 2. client<-server: ServerInit
+// 3. client->server: AzureInit
+// 4. client<-server: AzureChallenge
+// 5. client->server: AzureChallengeSolution
+// 6. client<-server: Result
+type AzureInit struct {
+	embedRequest
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams ClientParams
+}
+
+// AzureChallenge is sent from the server in response to the AzureInit message
+// from the client. The client is expected to respond with a
+// AzureChallengeSolution.
+type AzureChallenge struct {
+	embedResponse
+
+	// Challenge is a a crypto-random string that should be included by the
+	// client in the AzureChallengeSolution message.
+	Challenge string
+}
+
+// AzureChallenge message.
+// AzureChallengeSolution must be sent from the client in response to the
+type AzureChallengeSolution struct {
+	embedRequest
+
+	// AttestedData is a signed JSON document from an Azure VM's attested data
+	// metadata endpoint used to prove the identity of a joining node. It must
+	// include the challenge string as the nonce.
+	AttestedData []byte
+	// Intermediate encodes the intermediate CAs that issued the leaf certificate
+	// used to sign the attested data document, in x509 DER format.
+	Intermediate []byte
+	// AccessToken is a JWT signed by Azure, used to prove the identity of a
+	// joining node.
+	AccessToken string
+}
+
 // Response is implemented by all join response messages.
 type Response interface {
 	isResponse()
@@ -499,6 +548,9 @@ type HostResult struct {
 	Certificates Certificates
 	// HostId is the unique ID assigned to the host.
 	HostID string
+	// ImmutableLabels are the immutable labels that have been assigned to
+	// the host.
+	ImmutableLabels *joiningv1.ImmutableLabels
 }
 
 // BotResult holds results for bot joining.

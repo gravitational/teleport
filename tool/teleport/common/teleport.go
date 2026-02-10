@@ -50,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/selinux"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -86,7 +85,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	// configure logger for a typical CLI scenario until configuration file is
 	// parsed
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelError)
-	app = utils.InitCLIParser("teleport", "Teleport Infrastructure Identity Platform. Learn more at https://goteleport.com")
+	app = utils.InitCLIParser("teleport", "Teleport unifies identities — humans, machines, and AI — with strong identity implementation to speed up engineering, improve resiliency against identity-based attacks, and secure AI in production infrastructure.")
 
 	// define global flags:
 	var (
@@ -143,6 +142,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	start.Flag("token",
 		"Invitation token or path to file with token value. Used to register with an auth server [none]").
 		StringVar(&ccf.AuthToken)
+	start.Flag("token-secret", "Invitation token secret or path to file with secret value. Used to register with an auth server [none]").
+		StringVar(&ccf.TokenSecret)
 	start.Flag("ca-pin",
 		"CA pin to validate the Auth Server (can be repeated for multiple pins)").
 		StringsVar(&ccf.CAPins)
@@ -168,7 +169,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	start.Flag("insecure",
 		"Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
 	start.Flag("fips",
-		"Start Teleport in FedRAMP/FIPS 140-2 mode.").
+		"Start Teleport in FedRAMP/FIPS 140 mode.").
 		Default("false").
 		BoolVar(&ccf.FIPS)
 	start.Flag("skip-version-check",
@@ -223,7 +224,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	appStartCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
 	appStartCmd.Flag("config-string", "Base64 encoded configuration string.").Hidden().Envar(defaults.ConfigEnvar).StringVar(&ccf.ConfigString)
 	appStartCmd.Flag("labels", "Comma-separated list of labels for this node, for example env=dev,app=web.").StringVar(&ccf.Labels)
-	appStartCmd.Flag("fips", "Start Teleport in FedRAMP/FIPS 140-2 mode.").Default("false").BoolVar(&ccf.FIPS)
+	appStartCmd.Flag("fips", "Start Teleport in FedRAMP/FIPS 140 mode.").Default("false").BoolVar(&ccf.FIPS)
 	appStartCmd.Flag("name", "Name of the application to start.").StringVar(&ccf.AppName)
 	appStartCmd.Flag("uri", "Internal address of the application to proxy.").StringVar(&ccf.AppURI)
 	appStartCmd.Flag("cloud", fmt.Sprintf("Set to one of %v if application should proxy particular cloud API", []string{types.CloudAWS, types.CloudAzure, types.CloudGCP})).StringVar(&ccf.AppCloud)
@@ -246,7 +247,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbStartCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
 	dbStartCmd.Flag("config-string", "Base64 encoded configuration string.").Hidden().Envar(defaults.ConfigEnvar).StringVar(&ccf.ConfigString)
 	dbStartCmd.Flag("labels", "Comma-separated list of labels for this node, for example env=dev,app=web.").StringVar(&ccf.Labels)
-	dbStartCmd.Flag("fips", "Start Teleport in FedRAMP/FIPS 140-2 mode.").Default("false").BoolVar(&ccf.FIPS)
+	dbStartCmd.Flag("fips", "Start Teleport in FedRAMP/FIPS 140 mode.").Default("false").BoolVar(&ccf.FIPS)
 	dbStartCmd.Flag("name", "Name of the proxied database.").StringVar(&ccf.DatabaseName)
 	dbStartCmd.Flag("description", "Description of the proxied database.").StringVar(&ccf.DatabaseDescription)
 	dbStartCmd.Flag("protocol", fmt.Sprintf("Proxied database protocol. Supported are: %v.", defaults.DatabaseProtocols)).StringVar(&ccf.DatabaseProtocol)
@@ -490,12 +491,15 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	joinOpenSSH.Flag("data-dir", fmt.Sprintf("Path to directory to store teleport data [%v].", defaults.DataDir)).Default(defaults.DataDir).StringVar(&ccf.DataDir)
 	joinOpenSSH.Flag("restart-sshd", "Restart OpenSSH.").Default("true").BoolVar(&ccf.RestartOpenSSH)
 	joinOpenSSH.Flag("sshd-check-command", "Command to use when checking OpenSSH config for validity. (sshd -t -f <sshd_config>)").Default("sshd -t -f").StringVar(&ccf.CheckCommand)
-	joinOpenSSH.Flag("sshd-restart-command", "Command to use when restarting openssh.").Default(openssh.DefaultRestartCommand).StringVar(&ccf.RestartCommand)
+	joinOpenSSH.Flag("sshd-restart-command", "Command to use when restarting openssh.").StringVar(&ccf.RestartCommand)
 	joinOpenSSH.Flag("labels", "Comma-separated list of labels for this OpenSSH node, for example env=dev,app=web.").StringVar(&ccf.Labels)
 	joinOpenSSH.Flag("address", "Hostname or IP address of this OpenSSH node.").StringVar(&ccf.Address)
 	joinOpenSSH.Flag("additional-principals", "Additional principal to include, can be specified multiple times.").StringVar(&ccf.AdditionalPrincipals)
 	joinOpenSSH.Flag("insecure", "Insecure mode disables certificate validation.").BoolVar(&ccf.InsecureMode)
-
+	joinOpenSSH.Flag("skip-version-check",
+		"Skip version checking between server and client.").
+		Default("false").
+		BoolVar(&ccf.SkipVersionCheck)
 	joinOpenSSH.Flag("debug", "Enable verbose logging to stderr.").Short('d').BoolVar(&ccf.Debug)
 
 	integrationCmd := app.Command("integration", "Integration commands")
@@ -530,6 +534,13 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfEKSCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfEKSIAMArguments.Role)
 	integrationConfEKSCmd.Flag("aws-account-id", "The AWS account ID.").StringVar(&ccf.IntegrationConfEKSIAMArguments.AccountID)
 	integrationConfEKSCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfEKSIAMArguments.AutoConfirm)
+
+	integrationConfSessionSummariesCmd := integrationConfigureCmd.Command("session-summaries", "Adds required IAM permissions for Session Summaries feature.")
+	integrationBedrockSessionSummariesCmd := integrationConfSessionSummariesCmd.Command("bedrock", "Adds required IAM permissions for Session Summaries feature using AWS Bedrock.")
+	integrationBedrockSessionSummariesCmd.Flag("role", "The AWS Role name used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfSessionSummariesBedrockArguments.Role)
+	integrationBedrockSessionSummariesCmd.Flag("resource", "The AWS Bedrock resource to grant access to. Can be a full ARN or a model ID (e.g., 'anthropic.claude-v2' or '*' for all models).").Default("*").StringVar(&ccf.IntegrationConfSessionSummariesBedrockArguments.Resource)
+	integrationBedrockSessionSummariesCmd.Flag("aws-account-id", "The AWS account ID.").StringVar(&ccf.IntegrationConfSessionSummariesBedrockArguments.AccountID)
+	integrationBedrockSessionSummariesCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfSessionSummariesBedrockArguments.AutoConfirm)
 
 	integrationConfAccessGraphCmd := integrationConfigureCmd.Command("access-graph", "Manages Access Graph configuration.")
 	integrationConfAccessGraphAWSSyncCmd := integrationConfAccessGraphCmd.Command("aws-iam", "Adds required AWS IAM permissions for syncing AWS resources into Access Graph service.")
@@ -617,6 +628,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	collectProfilesCmd.Alias(collectProfileUsageExamples) // We're using "alias" section to display usage examples.
 	collectProfilesCmd.Arg("PROFILES", fmt.Sprintf("Comma-separated profile names to be exported. Supported profiles: %s. Default: %s", strings.Join(slices.Collect(maps.Keys(debugclient.SupportedProfiles)), ","), strings.Join(defaultCollectProfiles, ","))).StringVar(&ccf.Profiles)
 	collectProfilesCmd.Flag("seconds", "For CPU and trace profiles, profile for the given duration (if set to 0, it returns a profile snapshot). For other profiles, return a delta profile. Default: 0").Short('s').Default("0").IntVar(&ccf.ProfileSeconds)
+	readyzCmd := debugCmd.Command("readyz", "Checks if the instance is ready to serve requests.")
+	metricsCmd := debugCmd.Command("metrics", "Fetches the cluster's Prometheus metrics.")
 
 	selinuxCmd := app.Command("selinux-ssh", "Commands related to SSH SELinux module.").Hidden()
 	selinuxCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
@@ -709,7 +722,7 @@ Examples:
 		// Validate binary modules against the device trust configuration.
 		// Catches errors in file-based configs.
 		if conf.Auth.Enabled {
-			if err := dtconfig.ValidateConfigAgainstModules(conf.Auth.Preference.GetDeviceTrust()); err != nil {
+			if err := dtconfig.ValidateConfigAgainstModules(conf.Auth.Preference.GetDeviceTrust(), modules.GetModules()); err != nil {
 				utils.FatalError(err)
 			}
 		}
@@ -791,6 +804,8 @@ Examples:
 		err = onIntegrationConfAccessGraphAWSSync(ctx, ccf.IntegrationConfAccessGraphAWSSyncArguments)
 	case integrationConfAccessGraphAzureSyncCmd.FullCommand():
 		err = onIntegrationConfAccessGraphAzureSync(ctx, ccf.IntegrationConfAccessGraphAzureSyncArguments)
+	case integrationBedrockSessionSummariesCmd.FullCommand():
+		err = onIntegrationConfSessionSummariesBedrock(ctx, ccf.IntegrationConfSessionSummariesBedrockArguments)
 	case integrationConfAzureOIDCCmd.FullCommand():
 		err = onIntegrationConfAzureOIDCCmd(ctx, ccf.IntegrationConfAzureOIDCArguments)
 	case integrationSAMLIdPGCPWorkforce.FullCommand():
@@ -810,6 +825,10 @@ Examples:
 		err = onGetLogLevel(ccf.ConfigFile)
 	case collectProfilesCmd.FullCommand():
 		err = onCollectProfiles(ccf.ConfigFile, ccf.Profiles, ccf.ProfileSeconds)
+	case readyzCmd.FullCommand():
+		err = onReadyz(ctx, ccf.ConfigFile)
+	case metricsCmd.FullCommand():
+		err = onMetrics(ctx, ccf.ConfigFile)
 	case moduleSourceCmd.FullCommand():
 		if runtime.GOOS != "linux" {
 			break
@@ -827,6 +846,13 @@ Examples:
 		}
 		err = onSELinuxDirs(ccf.ConfigFile)
 	case backendCloneCmd.FullCommand():
+		// Ensure that the logging level is respected by the logger.
+		level := slog.LevelInfo
+		if ccf.Debug {
+			level = slog.LevelDebug
+		}
+		utils.InitLogger(utils.LoggingForDaemon, level)
+
 		err = onBackendClone(ctx, ccf.ConfigFile)
 	case backendGetCmd.FullCommand():
 		// configuration merge: defaults -> file-based conf -> CLI conf
@@ -1141,7 +1167,7 @@ func onSCP(scpFlags *scp.Flags) error {
 	if scpFlags.Verbose {
 		verbosity = teleport.DebugLevel
 	}
-	_, _, err := logutils.Initialize(logutils.Config{
+	_, _, _, err := logutils.Initialize(logutils.Config{
 		Output:   logutils.LogOutputSyslog,
 		Severity: verbosity,
 	})

@@ -49,10 +49,11 @@ func (s *Server) handleStdioToSSE(ctx context.Context, sessionCtx *SessionCtx) e
 		return trace.Wrap(err, "parsing SSE URI")
 	}
 
-	session, err := s.makeSessionHandlerWithJWT(ctx, sessionCtx)
+	session, err := s.makeSessionHandler(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err, "setting up session handler")
 	}
+	defer session.close()
 
 	// Use custom transport that adds extra headers including JWT.
 	httpTransport, err := s.makeSSEHTTPTransport(session)
@@ -71,7 +72,7 @@ func (s *Server) handleStdioToSSE(ctx context.Context, sessionCtx *SessionCtx) e
 	}
 	session.logger.DebugContext(ctx, "Received SSE endpoint", "endpoint_url", sseRequestWriter.GetEndpointURL())
 	if mcpSessionID := sseRequestWriter.GetSessionID(); mcpSessionID != "" {
-		session.mcpSessionID.Store(&mcpSessionID)
+		session.updatePendingSessionStartEventWithExternalSessionID(mcpSessionID)
 	}
 
 	// Setup proxy. The SSE stream and the stdio client connection should
@@ -102,11 +103,6 @@ func (s *Server) handleStdioToSSE(ctx context.Context, sessionCtx *SessionCtx) e
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// TODO(greedy52) capture client info then emit start event with client
-	// information.
-	session.emitStartEvent(s.cfg.ParentContext)
-	defer session.emitEndEvent(s.cfg.ParentContext)
 
 	// Wait until reader finishes.
 	clientRequestReader.Run(ctx)
@@ -150,7 +146,9 @@ type sseHTTPTransport struct {
 }
 
 func (t *sseHTTPTransport) RoundTrip(r *http.Request) (resp *http.Response, err error) {
-	t.session.rewriteHTTPRequestHeaders(r)
+	if err := t.session.rewriteHTTPRequestHeaders(r); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return t.targetTransport.RoundTrip(r)
 }
 

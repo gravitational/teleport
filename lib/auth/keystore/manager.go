@@ -193,7 +193,7 @@ type Options struct {
 	Logger *slog.Logger
 	// AuthPreferenceGetter provides the current cluster auth preference.
 	AuthPreferenceGetter cryptosuites.AuthPreferenceGetter
-	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	// FIPS means FedRAMP/FIPS compliant configuration was requested.
 	FIPS bool
 	// OAEPHash function to use with keystores that support OAEP with a configurable hash.
 	OAEPHash crypto.Hash
@@ -479,6 +479,13 @@ func (m *Manager) GetTLSCertAndSigner(ctx context.Context, ca types.CertAuthorit
 	return cert, signer, trace.Wrap(err)
 }
 
+// GetTLSSigner selects a usable TLS keypair from the given CA and returns a
+// [crypto.Signer].
+func (m *Manager) GetTLSSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error) {
+	_, signer, err := m.getTLSCertAndSigner(ctx, ca.GetActiveKeys())
+	return signer, trace.Wrap(err)
+}
+
 // GetAdditionalTrustedTLSCertAndSigner selects a usable TLS keypair from the given CA
 // and returns the PEM-encoded TLS certificate and a [crypto.Signer].
 func (m *Manager) GetAdditionalTrustedTLSCertAndSigner(ctx context.Context, ca types.CertAuthority) ([]byte, crypto.Signer, error) {
@@ -587,7 +594,9 @@ func (m *Manager) FindDecryptersByLabels(ctx context.Context, labels ...*types.K
 		for _, label := range labels {
 			decs, err := backend.findDecryptersByLabel(ctx, label)
 			if err != nil {
-				m.logger.DebugContext(ctx, "could not find key for label", "backend", backend.name(), "label_type", label.Type, "label", label.Label, "error", err)
+				if !trace.IsNotImplemented(err) {
+					m.logger.DebugContext(ctx, "could not find key for label", "backend", backend.name(), "label_type", label.Type, "label", label.Label, "error", err)
+				}
 				continue
 			}
 

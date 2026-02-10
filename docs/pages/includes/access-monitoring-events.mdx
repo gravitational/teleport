@@ -1,0 +1,1559 @@
+{/*generated file. DO NOT EDIT.*/}
+{/*To generate, run make access-monitoring-reference*/}
+{/*vale messaging.capitalization = NO*/}
+{/*vale messaging.consistent-terms = NO*/}
+
+## access_list.create
+
+`access_list.create` is emitted when an access list is created.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select cluster_name,code,ei from access_list_create limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|error|varchar|Includes system error message for the failed attempt|
+|event|varchar|The event type|
+|expires|varchar|Set if resource expires|
+|message|varchar|A user-friendly message for successfull or unsuccessfull auth attempt|
+|name|varchar|A resource name|
+|success|boolean|Indicates the success or failure of the operation|
+|time|varchar|Event time|
+|ttl|varchar|A TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|varchar|A unique event identifier|
+|updated_by|varchar|If set indicates the user who modified the resource|
+
+## access_list.delete
+
+`access_list.delete` is emitted when an access list is deleted.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select cluster_name,code,ei from access_list_delete limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|error|varchar|Includes system error message for the failed attempt|
+|event|varchar|The event type|
+|expires|varchar|Set if resource expires|
+|message|varchar|A user-friendly message for successfull or unsuccessfull auth attempt|
+|name|varchar|A resource name|
+|success|boolean|Indicates the success or failure of the operation|
+|time|varchar|Event time|
+|ttl|varchar|A TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|varchar|A unique event identifier|
+|updated_by|varchar|If set indicates the user who modified the resource|
+
+## access_list.member.create
+
+`access_list.member.create` is emitted when an access list member is created.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_list_name,cluster_name,code from access_list_member_create limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_list_name|varchar|The name of the access list the members are being added to or removed from|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|error|varchar|Includes system error message for the failed attempt|
+|event|varchar|The event type|
+|expires|varchar|Set if resource expires|
+|members|array(row(joined_on varchar, member_name varchar, reason varchar, removed_on varchar))|All members affected by the access list membership change|
+|message|varchar|A user-friendly message for successfull or unsuccessfull auth attempt|
+|name|varchar|A resource name|
+|success|boolean|Indicates the success or failure of the operation|
+|time|varchar|Event time|
+|ttl|varchar|A TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|varchar|A unique event identifier|
+|updated_by|varchar|If set indicates the user who modified the resource|
+
+## access_list.member.delete
+
+`access_list.member.delete` is emitted when an access list member is deleted.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_list_name,cluster_name,code from access_list_member_delete limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_list_name|varchar|The name of the access list the members are being added to or removed from|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|error|varchar|Includes system error message for the failed attempt|
+|event|varchar|The event type|
+|expires|varchar|Set if resource expires|
+|members|array(row(joined_on varchar, member_name varchar, reason varchar, removed_on varchar))|All members affected by the access list membership change|
+|message|varchar|A user-friendly message for successfull or unsuccessfull auth attempt|
+|name|varchar|A resource name|
+|success|boolean|Indicates the success or failure of the operation|
+|time|varchar|Event time|
+|ttl|varchar|A TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|varchar|A unique event identifier|
+|updated_by|varchar|If set indicates the user who modified the resource|
+
+## access_list.member.update
+
+`access_list.member.update` is emitted when an access list member is updated.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_list_name,cluster_name,code from access_list_member_update limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_list_name|varchar|The name of the access list the members are being added to or removed from|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|error|varchar|Includes system error message for the failed attempt|
+|event|varchar|The event type|
+|expires|varchar|Set if resource expires|
+|members|array(row(joined_on varchar, member_name varchar, reason varchar, removed_on varchar))|All members affected by the access list membership change|
+|message|varchar|A user-friendly message for successfull or unsuccessfull auth attempt|
+|name|varchar|A resource name|
+|success|boolean|Indicates the success or failure of the operation|
+|time|varchar|Event time|
+|ttl|varchar|A TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|varchar|A unique event identifier|
+|updated_by|varchar|If set indicates the user who modified the resource|
+
+## access_list.review
+
+`access_list.review` is emitted when an access list is reviewed.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select cluster_name,code,ei from access_list_review limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|error|varchar|Includes system error message for the failed attempt|
+|event|varchar|The event type|
+|expires|varchar|Set if resource expires|
+|membership_requirements_changed_roles|array(varchar)|The roles that changed as part of a review|
+|membership_requirements_changed_traits_key|varchar||
+|membership_requirements_changed_traits_value|varchar||
+|message|varchar|A user-friendly message for successfull or unsuccessfull auth attempt|
+|name|varchar|A resource name|
+|removed_members|array(varchar)|The members that were removed as part of the review|
+|review_day_of_month_changed|varchar|Populated if the review day of month has changed|
+|review_frequency_changed|varchar|Populated if the review frequency has changed|
+|review_id|varchar|The ID of the review|
+|success|boolean|Indicates the success or failure of the operation|
+|time|varchar|Event time|
+|ttl|varchar|A TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|varchar|A unique event identifier|
+|updated_by|varchar|If set indicates the user who modified the resource|
+
+## access_list.update
+
+`access_list.update` is emitted when an access list is updated.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select cluster_name,code,ei from access_list_update limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|error|varchar|Includes system error message for the failed attempt|
+|event|varchar|The event type|
+|expires|varchar|Set if resource expires|
+|message|varchar|A user-friendly message for successfull or unsuccessfull auth attempt|
+|name|varchar|A resource name|
+|success|boolean|Indicates the success or failure of the operation|
+|time|varchar|Event time|
+|ttl|varchar|A TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|varchar|A unique event identifier|
+|updated_by|varchar|If set indicates the user who modified the resource|
+
+## access_request.create
+
+`access_request.create` is emitted when access request has been created or updated.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,assume_start_time,aws_role_arn from access_request_create limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|assume_start_time|varchar|The time the requested roles can be assumed|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|delegator|varchar|Used by teleport plugins to indicate the identity which caused them to update state|
+|ei|integer|A monotonically incremented index in the event sequence|
+|event|varchar|The event type|
+|expires|varchar|Set if resource expires|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|id|varchar|Access request ID|
+|impersonator|varchar|A user acting on behalf of another user|
+|login|varchar|OS login|
+|max_duration|varchar|Indicates how long the access should be granted for|
+|name|varchar|A resource name|
+|promoted_access_list_name|varchar|The name of the access list that this request was promoted to. This field is only populated when the request is in the PROMOTED state|
+|proposed_state|varchar|The state proposed by a review (only used in the access_request.review event variant)|
+|reason|varchar|An optional description of why the request is being created or updated|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|resource_ids|array(row(cluster varchar, kind varchar, name varchar, sub_resource varchar))|The set of resources to which access is being requested|
+|reviewer|varchar|The author of the review (only used in the access_request.review event variant)|
+|roles|array(varchar)|A list of roles for the user|
+|state|varchar|Access request state (in the access_request.review variant of the event this represents the post-review state of the request)|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|ttl|varchar|A TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|varchar|A unique event identifier|
+|updated_by|varchar|If set indicates the user who modified the resource|
+|user|varchar|Teleport user name|
+
+## access_request.review
+
+`access_request.review` is emitted when access request has been created or updated.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,assume_start_time,aws_role_arn from access_request_review limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|assume_start_time|varchar|The time the requested roles can be assumed|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|delegator|varchar|Used by teleport plugins to indicate the identity which caused them to update state|
+|ei|integer|A monotonically incremented index in the event sequence|
+|event|varchar|The event type|
+|expires|varchar|Set if resource expires|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|id|varchar|Access request ID|
+|impersonator|varchar|A user acting on behalf of another user|
+|login|varchar|OS login|
+|max_duration|varchar|Indicates how long the access should be granted for|
+|name|varchar|A resource name|
+|promoted_access_list_name|varchar|The name of the access list that this request was promoted to. This field is only populated when the request is in the PROMOTED state|
+|proposed_state|varchar|The state proposed by a review (only used in the access_request.review event variant)|
+|reason|varchar|An optional description of why the request is being created or updated|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|resource_ids|array(row(cluster varchar, kind varchar, name varchar, sub_resource varchar))|The set of resources to which access is being requested|
+|reviewer|varchar|The author of the review (only used in the access_request.review event variant)|
+|roles|array(varchar)|A list of roles for the user|
+|state|varchar|Access request state (in the access_request.review variant of the event this represents the post-review state of the request)|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|ttl|varchar|A TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|varchar|A unique event identifier|
+|updated_by|varchar|If set indicates the user who modified the resource|
+|user|varchar|Teleport user name|
+
+## auth
+
+`auth` is emitted upon a failed or successfull authentication attempt.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,addr_local,addr_remote from auth limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|addr_local|varchar|A target address on the host|
+|addr_remote|varchar|A client (user's) address|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|error|varchar|Includes system error message for the failed attempt|
+|event|varchar|The event type|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|impersonator|varchar|A user acting on behalf of another user|
+|login|varchar|OS login|
+|message|varchar|A user-friendly message for successfull or unsuccessfull auth attempt|
+|proto|varchar|Specifies protocol that was captured|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|success|boolean|Indicates the success or failure of the operation|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|uid|varchar|A unique event identifier|
+|user|varchar|Teleport user name|
+
+## bot.join
+
+`bot.join` records a bot join event.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select bot_name,cluster_name,code from bot_join limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|bot_name|varchar|The name of the bot which has joined|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|error|varchar|Includes system error message for the failed attempt|
+|event|varchar|The event type|
+|message|varchar|A user-friendly message for successfull or unsuccessfull auth attempt|
+|method|varchar|The event field indicating what join method was used|
+|success|boolean|Indicates the success or failure of the operation|
+|time|varchar|Event time|
+|token_name|varchar|The name of the provision token used to join|
+|uid|varchar|A unique event identifier|
+
+## cert.create
+
+`cert.create` is emitted when a certificate is issued.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select cert_type,cluster_name,code from cert_create limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|cert_type|varchar|The type of certificate that was just issued|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|event|varchar|The event type|
+|identity_access_requests|array(varchar)|A list of UUIDs of active requests for this Identity|
+|identity_allowed_resource_ids|array(row(cluster varchar, kind varchar, name varchar, sub_resource varchar))|The list of resources which the identity will be allowed to access. An empty list indicates that no resource-specific restrictions will be applied|
+|identity_aws_role_arns|array(varchar)|A list of allowed AWS role ARNs user can assume|
+|identity_azure_identities|array(varchar)|A list of allowed Azure identities user can assume|
+|identity_client_ip|varchar|An observed IP of the client that this Identity represents|
+|identity_database_names|array(varchar)|A list of allowed database names|
+|identity_database_users|array(varchar)|A list of allowed database users|
+|identity_disallow_reissue|boolean|A flag that, if set, instructs the auth server to deny any attempts to reissue new certificates while authenticated with this certificate|
+|identity_expires|varchar|Specifies whenever the session will expire|
+|identity_gcp_service_accounts|array(varchar)|A list of allowed GCP service accounts user can assume|
+|identity_impersonator|varchar|A username of a user impersonating this user|
+|identity_kubernetes_cluster|varchar|Specifies the target kubernetes cluster for TLS identities. This can be empty on older Teleport clients|
+|identity_kubernetes_groups|array(varchar)|A list of Kubernetes groups allowed|
+|identity_kubernetes_users|array(varchar)|A list of Kubernetes users allowed|
+|identity_logins|array(varchar)|A list of Unix logins allowed|
+|identity_mfa_device_uuid|varchar|The UUID of an MFA device when this Identity was confirmed immediately after an MFA check|
+|identity_prev_identity_expires|varchar|The expiry time of the identity/cert that this identity/cert was derived from. It is used to determine a session's hard deadline in cases where both require_session_mfa and disconnect_expired_cert are enabled. See https://github.com/gravitational/teleport/issues/18544|
+|identity_private_key_policy|varchar|The private key policy of the user's private key|
+|identity_roles|array(varchar)|A list of groups (Teleport roles) encoded in the identity|
+|identity_route_to_app_aws_role_arn|varchar|The AWS role to assume when accessing AWS API|
+|identity_route_to_app_azure_identity|varchar|The Azure identity ot assume when accessing Azure API|
+|identity_route_to_app_cluster_name|varchar|The cluster where the application resides|
+|identity_route_to_app_gcp_service_account|varchar|The GCP service account to assume when accessing GCP API|
+|identity_route_to_app_name|varchar|The application name certificate is being requested for|
+|identity_route_to_app_public_addr|varchar|The application public address|
+|identity_route_to_app_session_id|varchar|The ID of the application session|
+|identity_route_to_cluster|varchar|Specifies the target cluster if present in the session|
+|identity_route_to_database_database|varchar|An optional database name to embed|
+|identity_route_to_database_protocol|varchar|The type of the database the cert is for|
+|identity_route_to_database_service_name|varchar|The Teleport database proxy service name the cert is for|
+|identity_route_to_database_username|varchar|An optional database username to embed|
+|identity_teleport_cluster|varchar|The name of the teleport cluster that this identity originated from. For TLS certs this may not be the same as cert issuer, in case of multi-hop requests that originate from a remote cluster|
+|identity_usage|array(varchar)|A list of usage restrictions encoded in the identity|
+|identity_user|varchar|A username or name of the node connection|
+|time|varchar|Event time|
+|uid|varchar|A unique event identifier|
+
+## db.session.query
+
+`db.session.query` is emitted when a user executes a database query.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,aws_role_arn,azure_identity from db_session_query limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|db_aws_redshift_cluster_id|varchar|Cluster ID for Redshift databases|
+|db_aws_region|varchar|AWS regions for AWS hosted databases|
+|db_gcp_instance_id|varchar|Instance ID for GCP hosted databases|
+|db_gcp_project_id|varchar|Project ID for GCP hosted databases|
+|db_labels_key|varchar||
+|db_labels_value|varchar||
+|db_name|varchar|The name of the database a user is connecting to|
+|db_origin|varchar|The database origin source|
+|db_protocol|varchar|The database type, e.g. postgres or mysql|
+|db_query|varchar|The executed query string|
+|db_query_parameters|array(varchar)|The query parameters for prepared statements|
+|db_roles|array(varchar)|A list of database roles for auto-provisioned users|
+|db_service|varchar|The name of the database service proxying the database|
+|db_type|varchar|The database type|
+|db_uri|varchar|The database URI to connect to|
+|db_user|varchar|The database username used to connect|
+|ei|integer|A monotonically incremented index in the event sequence|
+|error|varchar|Includes system error message for the failed attempt|
+|event|varchar|The event type|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|impersonator|varchar|A user acting on behalf of another user|
+|login|varchar|OS login|
+|message|varchar|A user-friendly message for successfull or unsuccessfull auth attempt|
+|private_key_policy|varchar|The private key policy of the private key used to start this session|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|sid|varchar|A unique UUID of the session|
+|success|boolean|Indicates the success or failure of the operation|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|uid|varchar|A unique event identifier|
+|user|varchar|Teleport user name|
+|with_mfa|varchar|A UUID of an MFA device used to start this session|
+
+## db.session.query.failed
+
+`db.session.query.failed` is emitted when a user executes a database query.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,aws_role_arn,azure_identity from db_session_query_failed limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|db_aws_redshift_cluster_id|varchar|Cluster ID for Redshift databases|
+|db_aws_region|varchar|AWS regions for AWS hosted databases|
+|db_gcp_instance_id|varchar|Instance ID for GCP hosted databases|
+|db_gcp_project_id|varchar|Project ID for GCP hosted databases|
+|db_labels_key|varchar||
+|db_labels_value|varchar||
+|db_name|varchar|The name of the database a user is connecting to|
+|db_origin|varchar|The database origin source|
+|db_protocol|varchar|The database type, e.g. postgres or mysql|
+|db_query|varchar|The executed query string|
+|db_query_parameters|array(varchar)|The query parameters for prepared statements|
+|db_roles|array(varchar)|A list of database roles for auto-provisioned users|
+|db_service|varchar|The name of the database service proxying the database|
+|db_type|varchar|The database type|
+|db_uri|varchar|The database URI to connect to|
+|db_user|varchar|The database username used to connect|
+|ei|integer|A monotonically incremented index in the event sequence|
+|error|varchar|Includes system error message for the failed attempt|
+|event|varchar|The event type|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|impersonator|varchar|A user acting on behalf of another user|
+|login|varchar|OS login|
+|message|varchar|A user-friendly message for successfull or unsuccessfull auth attempt|
+|private_key_policy|varchar|The private key policy of the private key used to start this session|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|sid|varchar|A unique UUID of the session|
+|success|boolean|Indicates the success or failure of the operation|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|uid|varchar|A unique event identifier|
+|user|varchar|Teleport user name|
+|with_mfa|varchar|A UUID of an MFA device used to start this session|
+
+## db.session.start
+
+`db.session.start` is emitted when a user connects to a database.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,addr_local,addr_remote from db_session_start limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|addr_local|varchar|A target address on the host|
+|addr_remote|varchar|A client (user's) address|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|db_aws_redshift_cluster_id|varchar|Cluster ID for Redshift databases|
+|db_aws_region|varchar|AWS regions for AWS hosted databases|
+|db_gcp_instance_id|varchar|Instance ID for GCP hosted databases|
+|db_gcp_project_id|varchar|Project ID for GCP hosted databases|
+|db_labels_key|varchar||
+|db_labels_value|varchar||
+|db_name|varchar|The name of the database a user is connecting to|
+|db_origin|varchar|The database origin source|
+|db_protocol|varchar|The database type, e.g. postgres or mysql|
+|db_roles|array(varchar)|A list of database roles for auto-provisioned users|
+|db_service|varchar|The name of the database service proxying the database|
+|db_type|varchar|The database type|
+|db_uri|varchar|The database URI to connect to|
+|db_user|varchar|The database username used to connect|
+|ei|integer|A monotonically incremented index in the event sequence|
+|error|varchar|Includes system error message for the failed attempt|
+|event|varchar|The event type|
+|forwarded_by|varchar|Tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|impersonator|varchar|A user acting on behalf of another user|
+|login|varchar|OS login|
+|message|varchar|A user-friendly message for successfull or unsuccessfull auth attempt|
+|namespace|varchar|A namespace of the server event|
+|private_key_policy|varchar|The private key policy of the private key used to start this session|
+|proto|varchar|Specifies protocol that was captured|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|server_addr|varchar|The address of the server the session occurred on|
+|server_hostname|varchar|The hostname of the server the session occurred on|
+|server_id|varchar|The UUID of the server the session occurred on|
+|server_labels_key|varchar||
+|server_labels_value|varchar||
+|server_sub_kind|varchar|The sub kind of the server the session occurred on|
+|sid|varchar|A unique UUID of the session|
+|success|boolean|Indicates the success or failure of the operation|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|uid|varchar|A unique event identifier|
+|user|varchar|Teleport user name|
+|with_mfa|varchar|A UUID of an MFA device used to start this session|
+
+## device.authenticate
+
+`device.authenticate` is a device-related event. See the "lib/events.Device*Event" and "lib/events.Device*Code" for the various event types and codes, respectively. Replaces the previous [DeviceEvent] proto, presenting a more standard event interface with various embeds.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,aws_role_arn,azure_identity from device_authenticate limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|device_asset_tag|varchar|Inventory identifier|
+|device_credential_id|varchar|Credential identifier|
+|device_device_id|varchar|Of the device|
+|device_device_origin|integer|Origin|
+|device_os_type|integer|Of the device|
+|ei|integer|A monotonically incremented index in the event sequence|
+|error|varchar|Includes system error message for the failed attempt|
+|event|varchar|The event type|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|impersonator|varchar|A user acting on behalf of another user|
+|login|varchar|OS login|
+|message|varchar|A user-friendly message for successfull or unsuccessfull auth attempt|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|success|boolean|Indicates the success or failure of the operation|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|uid|varchar|A unique event identifier|
+|user|varchar|Teleport user name|
+
+## device.enroll
+
+`device.enroll` is a device-related event. See the "lib/events.Device*Event" and "lib/events.Device*Code" for the various event types and codes, respectively. Replaces the previous [DeviceEvent] proto, presenting a more standard event interface with various embeds.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,aws_role_arn,azure_identity from device_enroll limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|device_asset_tag|varchar|Inventory identifier|
+|device_credential_id|varchar|Credential identifier|
+|device_device_id|varchar|Of the device|
+|device_device_origin|integer|Origin|
+|device_os_type|integer|Of the device|
+|ei|integer|A monotonically incremented index in the event sequence|
+|error|varchar|Includes system error message for the failed attempt|
+|event|varchar|The event type|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|impersonator|varchar|A user acting on behalf of another user|
+|login|varchar|OS login|
+|message|varchar|A user-friendly message for successfull or unsuccessfull auth attempt|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|success|boolean|Indicates the success or failure of the operation|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|uid|varchar|A unique event identifier|
+|user|varchar|Teleport user name|
+
+## exec
+
+`exec` specifies command exec event.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,addr_local,addr_remote from exec limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|addr_local|varchar|A target address on the host|
+|addr_remote|varchar|A client (user's) address|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|command|varchar|The executed command name|
+|ei|integer|A monotonically incremented index in the event sequence|
+|event|varchar|The event type|
+|exitCode|varchar|Specifies command exit code|
+|exitError|varchar|An optional exit error, set if command has failed|
+|forwarded_by|varchar|Tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|impersonator|varchar|A user acting on behalf of another user|
+|kubernetes_cluster|varchar|A kubernetes cluster name|
+|kubernetes_container_image|varchar|The image of the container within the pod|
+|kubernetes_container_name|varchar|The name of the container within the pod|
+|kubernetes_groups|array(varchar)|A list of kubernetes groups for the user|
+|kubernetes_labels_key|varchar||
+|kubernetes_labels_value|varchar||
+|kubernetes_node_name|varchar|The node that runs the pod|
+|kubernetes_pod_name|varchar|The name of the pod|
+|kubernetes_pod_namespace|varchar|The namespace of the pod|
+|kubernetes_users|array(varchar)|A list of kubernetes usernames for the user|
+|login|varchar|OS login|
+|namespace|varchar|A namespace of the server event|
+|private_key_policy|varchar|The private key policy of the private key used to start this session|
+|proto|varchar|Specifies protocol that was captured|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|server_addr|varchar|The address of the server the session occurred on|
+|server_hostname|varchar|The hostname of the server the session occurred on|
+|server_id|varchar|The UUID of the server the session occurred on|
+|server_labels_key|varchar||
+|server_labels_value|varchar||
+|server_sub_kind|varchar|The sub kind of the server the session occurred on|
+|sid|varchar|A unique UUID of the session|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|uid|varchar|A unique event identifier|
+|user|varchar|Teleport user name|
+|with_mfa|varchar|A UUID of an MFA device used to start this session|
+
+## instance.join
+
+`instance.join` records an instance join event.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select cluster_name,code,ei from instance_join limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|error|varchar|Includes system error message for the failed attempt|
+|event|varchar|The event type|
+|host_id|varchar|The unique host ID of the instance which attempted to join|
+|message|varchar|A user-friendly message for successfull or unsuccessfull auth attempt|
+|method|varchar|The event field indicating what join method was used|
+|node_name|varchar|The name of the instance which attempted to join|
+|role|varchar|The role that the node requested when attempting to join|
+|success|boolean|Indicates the success or failure of the operation|
+|time|varchar|Event time|
+|token_expires|varchar|Contain information about token expiration time. In case of static token the TokenExpiration time is to the Unix epoch start time|
+|token_name|varchar|The name of the token used to join. This will be omitted for the 'token' join method where the token name is a secret value|
+|uid|varchar|A unique event identifier|
+
+## join_token.create
+
+`join_token.create` event is emitted when a provisioning token (a.k.a. join token) of any role is created.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,aws_role_arn,azure_identity from join_token_create limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|event|varchar|The event type|
+|expires|varchar|Set if resource expires|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|impersonator|varchar|A user acting on behalf of another user|
+|join_method|varchar||
+|login|varchar|OS login|
+|name|varchar|A resource name|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|roles|array(varchar)||
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|ttl|varchar|A TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|varchar|A unique event identifier|
+|updated_by|varchar|If set indicates the user who modified the resource|
+|user|varchar|Teleport user name|
+
+## kube.request
+
+`kube.request` specifies a Kubernetes API request event.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,addr_local,addr_remote from kube_request limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|addr_local|varchar|A target address on the host|
+|addr_remote|varchar|A client (user's) address|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|event|varchar|The event type|
+|forwarded_by|varchar|Tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|impersonator|varchar|A user acting on behalf of another user|
+|kubernetes_cluster|varchar|A kubernetes cluster name|
+|kubernetes_groups|array(varchar)|A list of kubernetes groups for the user|
+|kubernetes_labels_key|varchar||
+|kubernetes_labels_value|varchar||
+|kubernetes_users|array(varchar)|A list of kubernetes usernames for the user|
+|login|varchar|OS login|
+|namespace|varchar|A namespace of the server event|
+|private_key_policy|varchar|The private key policy of the private key used to start this session|
+|proto|varchar|Specifies protocol that was captured|
+|request_path|varchar|The raw request URL path|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|resource_api_group|varchar|The resource API group|
+|resource_kind|varchar|The API resource kind (e.g. "pod", "service", etc)|
+|resource_name|varchar|The API resource name|
+|resource_namespace|varchar|The resource namespace|
+|response_code|integer|The HTTP response code for this request|
+|server_addr|varchar|The address of the server the session occurred on|
+|server_hostname|varchar|The hostname of the server the session occurred on|
+|server_id|varchar|The UUID of the server the session occurred on|
+|server_labels_key|varchar||
+|server_labels_value|varchar||
+|server_sub_kind|varchar|The sub kind of the server the session occurred on|
+|sid|varchar|A unique UUID of the session|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|uid|varchar|A unique event identifier|
+|user|varchar|Teleport user name|
+|verb|varchar|The HTTP verb used for this request (e.g. GET, POST, etc)|
+|with_mfa|varchar|A UUID of an MFA device used to start this session|
+
+## lock.created
+
+`lock.created` is emitted when a lock is created/updated. Locks are used to restrict access to a Teleport environment by disabling interactions involving a user, an RBAC role, a node, etc. See rfd/0009-locking.md for more details.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,aws_role_arn,azure_identity from lock_created limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|event|varchar|The event type|
+|expires|varchar|Set if resource expires|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|impersonator|varchar|A user acting on behalf of another user|
+|login|varchar|OS login|
+|name|varchar|A resource name|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|target_access_request|varchar|Specifies the UUID of an access request|
+|target_device|varchar|The device ID of a trusted device. Requires Teleport Enterprise|
+|target_login|varchar|Specifies the name of a local UNIX user|
+|target_mfa_device|varchar|Specifies the UUID of a user MFA device|
+|target_node|varchar|Specifies the UUID of a Teleport node. A matching node is also prevented from heartbeating to the auth server. DEPRECATED: use ServerID instead|
+|target_role|varchar|Specifies the name of an RBAC role known to the root cluster. In remote clusters, this constraint is evaluated before translating to local roles|
+|target_server_id|varchar|The host id of the Teleport instance|
+|target_user|varchar|Specifies the name of a Teleport user|
+|target_windows_desktop|varchar|Specifies the name of a Windows desktop|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|ttl|varchar|A TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|varchar|A unique event identifier|
+|updated_by|varchar|If set indicates the user who modified the resource|
+|user|varchar|Teleport user name|
+
+## lock.deleted
+
+`lock.deleted` is emitted when a lock is deleted.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,aws_role_arn,azure_identity from lock_deleted limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|event|varchar|The event type|
+|expires|varchar|Set if resource expires|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|impersonator|varchar|A user acting on behalf of another user|
+|login|varchar|OS login|
+|name|varchar|A resource name|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|ttl|varchar|A TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|varchar|A unique event identifier|
+|updated_by|varchar|If set indicates the user who modified the resource|
+|user|varchar|Teleport user name|
+
+## recovery_code.used
+
+`recovery_code.used` is emitted when a user's recovery code was used successfully or unsuccessfully.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,aws_role_arn,azure_identity from recovery_code_used limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|error|varchar|Includes system error message for the failed attempt|
+|event|varchar|The event type|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|impersonator|varchar|A user acting on behalf of another user|
+|login|varchar|OS login|
+|message|varchar|A user-friendly message for successfull or unsuccessfull auth attempt|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|success|boolean|Indicates the success or failure of the operation|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|uid|varchar|A unique event identifier|
+|user|varchar|Teleport user name|
+
+## reset_password_token.create
+
+`reset_password_token.create` is emitted when a user token is created.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,aws_role_arn,azure_identity from reset_password_token_create limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|event|varchar|The event type|
+|expires|varchar|Set if resource expires|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|impersonator|varchar|A user acting on behalf of another user|
+|login|varchar|OS login|
+|name|varchar|A resource name|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|ttl|varchar|A TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|varchar|A unique event identifier|
+|updated_by|varchar|If set indicates the user who modified the resource|
+|user|varchar|Teleport user name|
+
+## saml.idp.auth
+
+`saml.idp.auth` is emitted when a user has attempted to authorize against the SAML IdP.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,aws_role_arn,azure_identity from saml_idp_auth limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|error|varchar|Includes system error message for the failed attempt|
+|event|varchar|The event type|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|impersonator|varchar|A user acting on behalf of another user|
+|login|varchar|OS login|
+|message|varchar|A user-friendly message for successfull or unsuccessfull auth attempt|
+|private_key_policy|varchar|The private key policy of the private key used to start this session|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|service_provider_entity_id|varchar|The entity ID of the service provider|
+|service_provider_shortcut|varchar|The shortcut name of a service provider|
+|sid|varchar|A unique UUID of the session|
+|success|boolean|Indicates the success or failure of the operation|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|uid|varchar|A unique event identifier|
+|user|varchar|Teleport user name|
+|with_mfa|varchar|A UUID of an MFA device used to start this session|
+
+## session.command
+
+`session.command` is a session command event.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,argv,aws_role_arn from session_command limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|argv|array(varchar)|The list of arguments to the program. Note, the first element does not contain the name of the process|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cgroup_id|integer|The internal cgroupv2 ID of the event|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|event|varchar|The event type|
+|forwarded_by|varchar|Tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|impersonator|varchar|A user acting on behalf of another user|
+|login|varchar|OS login|
+|namespace|varchar|A namespace of the server event|
+|path|varchar|The full path to the executable|
+|pid|integer|The ID of the process|
+|ppid|integer|The PID of the parent process|
+|private_key_policy|varchar|The private key policy of the private key used to start this session|
+|program|varchar|Name of the executable|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|return_code|integer|The return code of execve|
+|server_addr|varchar|The address of the server the session occurred on|
+|server_hostname|varchar|The hostname of the server the session occurred on|
+|server_id|varchar|The UUID of the server the session occurred on|
+|server_labels_key|varchar||
+|server_labels_value|varchar||
+|server_sub_kind|varchar|The sub kind of the server the session occurred on|
+|sid|varchar|A unique UUID of the session|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|uid|varchar|A unique event identifier|
+|user|varchar|Teleport user name|
+|with_mfa|varchar|A UUID of an MFA device used to start this session|
+
+## session.join
+
+`session.join` emitted when another user joins a session.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,addr_local,addr_remote from session_join limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|addr_local|varchar|A target address on the host|
+|addr_remote|varchar|A client (user's) address|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|event|varchar|The event type|
+|forwarded_by|varchar|Tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|impersonator|varchar|A user acting on behalf of another user|
+|kubernetes_cluster|varchar|A kubernetes cluster name|
+|kubernetes_groups|array(varchar)|A list of kubernetes groups for the user|
+|kubernetes_labels_key|varchar||
+|kubernetes_labels_value|varchar||
+|kubernetes_users|array(varchar)|A list of kubernetes usernames for the user|
+|login|varchar|OS login|
+|namespace|varchar|A namespace of the server event|
+|private_key_policy|varchar|The private key policy of the private key used to start this session|
+|proto|varchar|Specifies protocol that was captured|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|server_addr|varchar|The address of the server the session occurred on|
+|server_hostname|varchar|The hostname of the server the session occurred on|
+|server_id|varchar|The UUID of the server the session occurred on|
+|server_labels_key|varchar||
+|server_labels_value|varchar||
+|server_sub_kind|varchar|The sub kind of the server the session occurred on|
+|sid|varchar|A unique UUID of the session|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|uid|varchar|A unique event identifier|
+|user|varchar|Teleport user name|
+|with_mfa|varchar|A UUID of an MFA device used to start this session|
+
+## session.rejected
+
+`session.rejected` event happens when a user hits a session control restriction.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,addr_local,addr_remote from session_rejected limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|addr_local|varchar|A target address on the host|
+|addr_remote|varchar|A client (user's) address|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|event|varchar|The event type|
+|forwarded_by|varchar|Tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|impersonator|varchar|A user acting on behalf of another user|
+|login|varchar|OS login|
+|max|integer|An event field specifying a maximal value (e.g. the value of `max_connections` for a `session.rejected` event)|
+|namespace|varchar|A namespace of the server event|
+|proto|varchar|Specifies protocol that was captured|
+|reason|varchar|A field that specifies reason for event, e.g. in disconnect event it explains why server disconnected the client|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|server_addr|varchar|The address of the server the session occurred on|
+|server_hostname|varchar|The hostname of the server the session occurred on|
+|server_id|varchar|The UUID of the server the session occurred on|
+|server_labels_key|varchar||
+|server_labels_value|varchar||
+|server_sub_kind|varchar|The sub kind of the server the session occurred on|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|uid|varchar|A unique event identifier|
+|user|varchar|Teleport user name|
+
+## session.start
+
+`session.start` is a session start event.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,addr_local,addr_remote from session_start limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|addr_local|varchar|A target address on the host|
+|addr_remote|varchar|A client (user's) address|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|event|varchar|The event type|
+|forwarded_by|varchar|Tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|impersonator|varchar|A user acting on behalf of another user|
+|initial_command|array(varchar)|The command used to start this session|
+|kubernetes_cluster|varchar|A kubernetes cluster name|
+|kubernetes_container_image|varchar|The image of the container within the pod|
+|kubernetes_container_name|varchar|The name of the container within the pod|
+|kubernetes_groups|array(varchar)|A list of kubernetes groups for the user|
+|kubernetes_labels_key|varchar||
+|kubernetes_labels_value|varchar||
+|kubernetes_node_name|varchar|The node that runs the pod|
+|kubernetes_pod_name|varchar|The name of the pod|
+|kubernetes_pod_namespace|varchar|The namespace of the pod|
+|kubernetes_users|array(varchar)|A list of kubernetes usernames for the user|
+|login|varchar|OS login|
+|namespace|varchar|A namespace of the server event|
+|private_key_policy|varchar|The private key policy of the private key used to start this session|
+|proto|varchar|Specifies protocol that was captured|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|server_addr|varchar|The address of the server the session occurred on|
+|server_hostname|varchar|The hostname of the server the session occurred on|
+|server_id|varchar|The UUID of the server the session occurred on|
+|server_labels_key|varchar||
+|server_labels_value|varchar||
+|server_sub_kind|varchar|The sub kind of the server the session occurred on|
+|session_recording|varchar|The type of session recording|
+|sid|varchar|A unique UUID of the session|
+|size|varchar|Expressed as 'W:H'|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|uid|varchar|A unique event identifier|
+|user|varchar|Teleport user name|
+|with_mfa|varchar|A UUID of an MFA device used to start this session|
+
+## user.create
+
+`user.create` is emitted when the user is created or upserted.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,aws_role_arn,azure_identity from user_create limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|connector|varchar|The connector used to create the user|
+|ei|integer|A monotonically incremented index in the event sequence|
+|event|varchar|The event type|
+|expires|varchar|Set if resource expires|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|impersonator|varchar|A user acting on behalf of another user|
+|login|varchar|OS login|
+|name|varchar|A resource name|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|roles|array(varchar)|A list of roles for the user|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|ttl|varchar|A TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|varchar|A unique event identifier|
+|updated_by|varchar|If set indicates the user who modified the resource|
+|user|varchar|Teleport user name|
+
+## user.login
+
+`user.login` records a successfully or failed user login event.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,addr_local,addr_remote from user_login limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|addr_local|varchar|A target address on the host|
+|addr_remote|varchar|A client (user's) address|
+|applied_login_rules|array(varchar)|Stores the name of each login rule that was applied during the login|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|error|varchar|Includes system error message for the failed attempt|
+|event|varchar|The event type|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|impersonator|varchar|A user acting on behalf of another user|
+|login|varchar|OS login|
+|message|varchar|A user-friendly message for successfull or unsuccessfull auth attempt|
+|method|varchar|The event field indicating how the login was performed|
+|mfa_device_mfa_device_name|varchar|The user-specified name of the MFA device|
+|mfa_device_mfa_device_type|varchar|The type of this MFA device|
+|mfa_device_mfa_device_uuid|varchar|The UUID of the MFA device generated by Teleport|
+|proto|varchar|Specifies protocol that was captured|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|success|boolean|Indicates the success or failure of the operation|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|uid|varchar|A unique event identifier|
+|user|varchar|Teleport user name|
+|user_agent|varchar|Identifies the type of client that attempted the event|
+
+## user.password_change
+
+`user.password_change` is emitted when the user changes their own password.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,aws_role_arn,azure_identity from user_password_change limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|ei|integer|A monotonically incremented index in the event sequence|
+|event|varchar|The event type|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|impersonator|varchar|A user acting on behalf of another user|
+|login|varchar|OS login|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|uid|varchar|A unique event identifier|
+|user|varchar|Teleport user name|
+
+## windows.desktop.session.end
+
+`windows.desktop.session.end` is emitted when a user ends a Windows desktop session.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,aws_role_arn,azure_identity from windows_desktop_session_end limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|desktop_addr|varchar|The address of the desktop being accessed|
+|desktop_labels_key|varchar||
+|desktop_labels_value|varchar||
+|desktop_name|varchar|The name of the desktop resource|
+|ei|integer|A monotonically incremented index in the event sequence|
+|event|varchar|The event type|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|impersonator|varchar|A user acting on behalf of another user|
+|login|varchar|OS login|
+|participants|array(varchar)|A list of participants in the session|
+|private_key_policy|varchar|The private key policy of the private key used to start this session|
+|recorded|boolean|True if the session was recorded, false otherwise|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|session_start|varchar|The timestamp at which the session began|
+|session_stop|varchar|The timestamp at which the session ended|
+|sid|varchar|A unique UUID of the session|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|uid|varchar|A unique event identifier|
+|user|varchar|Teleport user name|
+|windows_desktop_service|varchar|The name of the service proxying the RDP session|
+|windows_domain|varchar|The Active Directory domain of the desktop being accessed|
+|windows_user|varchar|The Windows username used to connect|
+|with_mfa|varchar|A UUID of an MFA device used to start this session|
+
+## windows.desktop.session.start
+
+`windows.desktop.session.start` is emitted when a user connects to a desktop.
+
+Example query:
+
+```code
+$ tctl audit query exec \
+  'select access_requests,addr_local,addr_remote from windows_desktop_session_start limit 1'
+```
+
+Columns:
+
+|SQL Name|Type|Description|
+|---|---|---|
+|access_requests|array(varchar)|The IDs of access requests created by the user|
+|addr_local|varchar|A target address on the host|
+|addr_remote|varchar|A client (user's) address|
+|allow_user_creation|boolean|Indicates whether automatic local user creation is allowed for this session|
+|aws_role_arn|varchar|AWS IAM role user assumes when accessing AWS console|
+|azure_identity|varchar|The Azure identity user assumes when accessing Azure API|
+|cluster_name|varchar|Identifies the originating teleport cluster|
+|code|varchar|A unique event code|
+|desktop_addr|varchar|The address of the desktop being accessed|
+|desktop_labels_key|varchar||
+|desktop_labels_value|varchar||
+|desktop_name|varchar|The name of the desktop resource|
+|ei|integer|A monotonically incremented index in the event sequence|
+|error|varchar|Includes system error message for the failed attempt|
+|event|varchar|The event type|
+|gcp_service_account|varchar|The GCP service account user assumes when accessing GCP API|
+|impersonator|varchar|A user acting on behalf of another user|
+|login|varchar|OS login|
+|message|varchar|A user-friendly message for successfull or unsuccessfull auth attempt|
+|private_key_policy|varchar|The private key policy of the private key used to start this session|
+|proto|varchar|Specifies protocol that was captured|
+|required_private_key_policy|varchar|The private key policy enforced for this login|
+|sid|varchar|A unique UUID of the session|
+|success|boolean|Indicates the success or failure of the operation|
+|time|varchar|Event time|
+|trusted_device_asset_tag|varchar|Inventory identifier|
+|trusted_device_credential_id|varchar|Credential identifier|
+|trusted_device_device_id|varchar|Of the device|
+|trusted_device_device_origin|integer|Origin|
+|trusted_device_os_type|integer|Of the device|
+|uid|varchar|A unique event identifier|
+|user|varchar|Teleport user name|
+|windows_desktop_service|varchar|The name of the service proxying the RDP session|
+|windows_domain|varchar|The Active Directory domain of the desktop being accessed|
+|windows_user|varchar|The Windows username used to connect|
+|with_mfa|varchar|A UUID of an MFA device used to start this session|
+
+
+{/*vale messaging.capitalization = YES*/}
+{/*vale messaging.consistent-terms = YES*/}

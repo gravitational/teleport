@@ -52,3 +52,10 @@ func SNILabelForKubeCluster(teleportClusterName, kubeClusterName string) string 
 	h := hashForTarget(teleportClusterName, kubeClusterName)
 	return SNIPrefixForKubeCluster + base32hex.EncodeToString(h[:])
 }
+
+// FullSNIForKubeCluster returns the full server name used to identify a
+// Kubernetes cluster as the target for a passively routed Relay connection,
+// i.e. the same value as [SNILabelForKubeCluster] followed by [SNISuffix].
+func FullSNIForKubeCluster(teleportClusterName, kubeClusterName string) string {
+	return SNILabelForKubeCluster(teleportClusterName, kubeClusterName) + SNISuffix
+}

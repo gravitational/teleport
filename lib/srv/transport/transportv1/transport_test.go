@@ -39,6 +39,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
@@ -120,7 +121,7 @@ func (f fakeDialer) DialSite(ctx context.Context, clusterName string, clientSrcA
 	return conn, nil
 }
 
-func (f fakeDialer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter sshagent.ClientGetter, singer agentless.SignerCreator) (_ net.Conn, err error) {
+func (f fakeDialer) DialHost(ctx context.Context, scopePin *scopesv1.Pin, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter sshagent.ClientGetter, singer agentless.SignerCreator) (_ net.Conn, err error) {
 	key := fmt.Sprintf("%s.%s.%s", host, port, cluster)
 	conn, ok := f.hostConns[key]
 	if !ok {
@@ -954,7 +955,7 @@ func (s *sshServer) DialSite(ctx context.Context, clusterName string, clientSrcA
 // nil and is of type testAgent, then the server will serve its keyring
 // over the underlying [streamutils.ReadWriter] so that tests can exercise
 // ssh agent multiplexing.
-func (s *sshServer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter sshagent.ClientGetter, singer agentless.SignerCreator) (_ net.Conn, err error) {
+func (s *sshServer) DialHost(ctx context.Context, scopePin *scopesv1.Pin, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter sshagent.ClientGetter, singer agentless.SignerCreator) (_ net.Conn, err error) {
 	conn, err := s.dial()
 	if err != nil {
 		return nil, trace.Wrap(err)

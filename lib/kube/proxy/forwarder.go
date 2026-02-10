@@ -954,7 +954,7 @@ func (f *Forwarder) emitAuditEvent(req *http.Request, sess *clusterSession, stat
 	}
 
 	r.populateEvent(event)
-	if err := f.cfg.AuthClient.EmitAuditEvent(f.ctx, event); err != nil {
+	if err := f.cfg.Emitter.EmitAuditEvent(f.ctx, event); err != nil {
 		f.log.WarnContext(f.ctx, "Failed to emit event", "error", err)
 	}
 }
@@ -1004,7 +1004,7 @@ func (f *Forwarder) getKubeAccessDetails(
 		}
 
 		// Get list of allowed kube user/groups based on kubernetes service labels.
-		labels := types.CombineLabels(c.GetStaticLabels(), types.LabelsToV2(c.GetDynamicLabels()))
+		labels := types.CombineLabels(nil, c.GetStaticLabels(), types.LabelsToV2(c.GetDynamicLabels()))
 
 		matchers := make([]services.RoleMatcher, 0, 2)
 		// Creates a matcher that matches the cluster labels against `kubernetes_labels`
@@ -1168,7 +1168,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		// the kubeResource.
 		// This is required because CheckAccess does not validate the subresource type.
 		if !actx.metaResource.isList {
-			if rbacResource := actx.metaResource.rbacResource(); rbacResource != nil && len(actx.Checker.GetAllowedResourceIDs()) > 0 {
+			if rbacResource := actx.metaResource.rbacResource(); rbacResource != nil && len(actx.Checker.GetAllowedResourceAccessIDs()) > 0 {
 				// GetKubeResources returns the allowed and denied Kubernetes resources
 				// for the user. Since we have active access requests, the allowed
 				// resources will be the list of pods that the user requested access to if he
@@ -1278,32 +1278,24 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		closeC := make(chan struct{})
-		var wg sync.WaitGroup
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			select {
-			case <-stream.Done():
-				party.InformClose(trace.BadParameter("websocket connection closed"))
-			case <-closeC:
-				return
+
+		defer func() {
+			if _, err := session.leave(party.ID); err != nil {
+				f.log.DebugContext(req.Context(), "Participant was unable to leave session",
+					"participant_id", party.ID,
+					"session_id", session.id,
+					"error", err,
+				)
 			}
 		}()
 
-		err = <-party.closeC
-		close(closeC)
-
-		if _, err := session.leave(party.ID); err != nil {
-			f.log.DebugContext(req.Context(), "Participant was unable to leave session",
-				"participant_id", party.ID,
-				"session_id", session.id,
-				"error", err,
-			)
+		select {
+		case <-stream.Done():
+			party.InformClose(trace.BadParameter("websocket connection closed"))
+			return nil
+		case err := <-party.closeC:
+			return trace.Wrap(err)
 		}
-		wg.Wait()
-
-		return trace.Wrap(err)
 	}(); err != nil {
 		writeErr := ws.WriteControl(gwebsocket.CloseMessage, gwebsocket.FormatCloseMessage(gwebsocket.CloseInternalServerErr, err.Error()), time.Now().Add(time.Second*10))
 		if writeErr != nil {

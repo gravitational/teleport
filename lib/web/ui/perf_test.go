@@ -178,9 +178,19 @@ func (m *mockAccessPoint) GetNodes(ctx context.Context, namespace string) ([]typ
 }
 
 func (m *mockAccessPoint) GetProxies() ([]types.Server, error) {
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	return m.presence.GetProxies()
 }
 
+func (m *mockAccessPoint) ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	return m.presence.ListProxyServers(ctx, pageSize, pageToken)
+}
+
 func (m *mockAccessPoint) GetAuthServers() ([]types.Server, error) {
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	return m.presence.GetAuthServers()
+}
+
+func (m *mockAccessPoint) ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	return m.presence.ListAuthServers(ctx, pageSize, pageToken)
 }

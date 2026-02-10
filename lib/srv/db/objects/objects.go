@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/databaseobject"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
@@ -42,7 +42,7 @@ type Config struct {
 	DatabaseObjectClient *databaseobject.Client
 	ImportRules          ImportRulesReader
 	Auth                 common.Auth
-	GCPClients           cloud.GCPClients
+	GCPClients           gcp.Clients
 
 	// ScanInterval specifies how often the database is scanned.
 	// A higher ScanInterval reduces the load on the database and database agent,

@@ -11,11 +11,11 @@ tags:
 
 External Audit Storage is a feature of Teleport in which the Auth Service stores
 audit events and session recordings directly on infrastructure in any AWS
-account. 
+account.
 
 Because you control the infrastructure that stores audit events and session
 recordings, you can use External Audit Storage to satisfy compliance, retention,
-and privacy policies. 
+and privacy policies.
 
 With External Audit Storage, you do not need to build an exporter to support
 custom audit event queries, since you can access and efficiently query your
@@ -27,11 +27,6 @@ External Audit Storage is based on Teleport's
 available on Teleport Enterprise Cloud clusters running Teleport v14.2.1 or
 above.
 
-<Admonition type="note">
-On Teleport Enterprise (Cloud), External Audit
-Storage is not currently supported for users who have Access Monitoring enabled.
-This functionality will be enabled in a future Teleport release.  
-</Admonition>
 
 ## Prerequisites
 
@@ -173,7 +168,7 @@ will continue to be exported. Only events emitted after the transition to
 External Audit Storage will be visible in the Teleport UI or accessible to
 Teleport clients.
 
-## Disabling External Audit Storage 
+## Disabling External Audit Storage
 
 If you disable External Audit Storage at any time in the future, your
 infrastructure will not be touched and all audit events and session recordings

@@ -79,6 +79,11 @@ func NewScopedAccessCheckerContext(ctx context.Context, info *AccessInfo, localC
 	}, nil
 }
 
+// ScopePin returns the scope pin that this context was created from.
+func (c *ScopedAccessCheckerContext) ScopePin() *scopesv1.Pin {
+	return c.builder.info.ScopePin
+}
+
 // CheckersForResourceScope returns a stream of scoped access checkers, descending from root to the specified resource
 // scope. This is the mechanism that *must* be used for getting checkers when checking access to a resource. This
 // method both evaluates immediate compliance of the resource scope with the scope pin, and yields correctly ordered
@@ -168,7 +173,7 @@ func (b *scopedAccessCheckerBuilder) Check() error {
 		return trace.BadParameter("cannot create scoped access checkers for unscoped identity")
 	}
 
-	if len(b.info.AllowedResourceIDs) != 0 {
+	if len(b.info.AllowedResourceAccessIDs) != 0 {
 		return trace.BadParameter("cannot create scoped access checkers for identity with active resource IDs")
 	}
 

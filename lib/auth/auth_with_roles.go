@@ -21,7 +21,6 @@ package auth
 import (
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -52,6 +51,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -59,7 +59,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/auth/okta"
-	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -69,6 +68,7 @@ import (
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -663,7 +663,11 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 		return nil, trace.AccessDenied("roles do not match: %v and %v", existingRoles, req.Role)
 	}
 	identity := a.context.Identity.GetIdentity()
-	return a.authServer.GenerateHostCerts(ctx, req, identity.AgentScope)
+	return a.authServer.GenerateHostCerts(ctx, HostCertsParams{
+		Req:                req,
+		AgentScope:         identity.AgentScope,
+		ImmutableLabelHash: identity.ImmutableLabelHash,
+	})
 }
 
 // checkAdditionalSystemRoles verifies additional system roles in host cert request.
@@ -803,7 +807,12 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 		return nil, trace.AccessDenied("provided scope %q does not match agent identity %q", hello.Scope, agentScope)
 	}
 	hello.Scope = agentScope
-
+	labelHash := a.context.Identity.GetIdentity().ImmutableLabelHash
+	if labels := hello.GetImmutableLabels(); labels != nil || labelHash != "" {
+		if !joining.VerifyImmutableLabelsHash(labels, labelHash) {
+			return nil, trace.AccessDenied("immutable labels do not match their agent identity")
+		}
+	}
 	return hello, a.authServer.RegisterInventoryControlStream(ics, hello)
 }
 
@@ -962,9 +971,16 @@ func (a *ServerWithRoles) UpsertClusterAlert(ctx context.Context, alert types.Cl
 	return a.authServer.UpsertClusterAlert(ctx, alert)
 }
 
+func (a *ServerWithRoles) DeleteClusterAlert(ctx context.Context, alertID string) error {
+	if err := a.authorizeAction(types.KindClusterAlert, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteClusterAlert(ctx, alertID)
+}
+
 func (a *ServerWithRoles) CreateAlertAck(ctx context.Context, ack types.AlertAcknowledgement) error {
 	// we treat alert acks as an extension of the cluster alert resource rather than its own resource
-	if err := a.authorizeAction(types.KindClusterAlert, types.VerbCreate, types.VerbUpdate); err != nil {
+	if err := a.authorizeAction(types.KindClusterAlert, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1802,13 +1818,21 @@ func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTa
 	lreq := &proto.ListUnifiedResourcesRequest{
 		Kinds:            []string{types.KindNode},
 		SortBy:           types.SortBy{Field: types.ResourceMetadataName},
-		UseSearchAsRoles: true,
+		UseSearchAsRoles: a.scopedContext == nil, // TODO(fspmarshall/scopes): switch this to always be true once we support search_as_roles with scoped identities
 	}
+
+	// note that we're using a ServerWithRoles level method here rather than some internal method. We are
+	// delegating all RBAC filtering to the lister and then performing additional filtering on top of that.
+	// Until we unify scoped/unscoped resource listing this bifurcation is necessary to ensure that search_as_roles
+	// results are available for unscoped identities.
+	lister := a.ListUnifiedResources
+	if a.scopedContext != nil {
+		lister = a.scopedListUnifiedResources
+	}
+
 	var servers []*types.ServerV2
 	for {
-		// note that we're calling ServerWithRoles.ListUnifiedResources here rather than some internal method. This method
-		// delegates all RBAC filtering to ListResources, and then performs additional filtering on top of that.
-		lrsp, err := a.ListUnifiedResources(ctx, lreq)
+		lrsp, err := lister(ctx, lreq)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2397,6 +2421,9 @@ func (a *ServerWithRoles) UpsertAuthServer(ctx context.Context, s types.Server) 
 	return a.authServer.UpsertAuthServer(ctx, s)
 }
 
+// Deprecated: Prefer paginated variant [ListAuthServers].
+//
+// TODO(kiosion) DELETE IN 21.0.0
 func (a *ServerWithRoles) GetAuthServers() ([]types.Server, error) {
 	if a.scopedContext != nil {
 		ruleCtx := a.scopedContext.RuleContext()
@@ -2410,16 +2437,39 @@ func (a *ServerWithRoles) GetAuthServers() ([]types.Server, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		return a.authServer.GetAuthServers()
+		out, err := iterstream.Collect(clientutils.Resources(context.TODO(), a.authServer.ListAuthServers))
+		return out, trace.Wrap(err)
 	}
 
 	if err := a.authorizeAction(types.KindAuthServer, types.VerbList, types.VerbRead); err != nil {
-		if !errors.Is(err, services.ErrScopedIdentity) {
-			return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
+	}
+
+	out, err := iterstream.Collect(clientutils.Resources(context.TODO(), a.authServer.ListAuthServers))
+	return out, trace.Wrap(err)
+}
+
+func (a *ServerWithRoles) ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	if a.scopedContext != nil {
+		ruleCtx := a.scopedContext.RuleContext()
+		// For auth server reads we do not enforce scope pinning. This ensures that auths are readable for
+		// all scoped identities regardless of their current scope pinning. This pattern should not
+		// be used for any checks save essential global configuration reads that are necessary for basic
+		// teleport functionality.
+		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.SplitAccessChecker) error {
+			return checker.Common().CheckAccessToRules(&ruleCtx, types.KindAuthServer, types.VerbList, types.VerbRead)
+		}); err != nil {
+			return nil, "", trace.Wrap(err)
 		}
 
+		return a.authServer.ListAuthServers(ctx, pageSize, pageToken)
 	}
-	return a.authServer.GetAuthServers()
+
+	if err := a.authorizeAction(types.KindAuthServer, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return a.authServer.ListAuthServers(ctx, pageSize, pageToken)
 }
 
 // DeleteAuthServer deletes auth server by name
@@ -2437,6 +2487,9 @@ func (a *ServerWithRoles) UpsertProxy(ctx context.Context, s types.Server) error
 	return a.authServer.UpsertProxy(ctx, s)
 }
 
+// Deprecated: Prefer paginated variant [ListProxyServers].
+//
+// TODO(kiosion) DELETE IN 21.0.0
 func (a *ServerWithRoles) GetProxies() ([]types.Server, error) {
 	if a.scopedContext != nil {
 		ruleCtx := a.scopedContext.RuleContext()
@@ -2450,13 +2503,39 @@ func (a *ServerWithRoles) GetProxies() ([]types.Server, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		return a.authServer.GetProxies()
+		out, err := iterstream.Collect(clientutils.Resources(context.TODO(), a.authServer.ListProxyServers))
+		return out, trace.Wrap(err)
 	}
 
 	if err := a.authorizeAction(types.KindProxy, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetProxies()
+
+	out, err := iterstream.Collect(clientutils.Resources(context.TODO(), a.authServer.ListProxyServers))
+	return out, trace.Wrap(err)
+}
+
+func (a *ServerWithRoles) ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	if a.scopedContext != nil {
+		ruleCtx := a.scopedContext.RuleContext()
+		// For proxy reads we do not enforce scope pinning. This ensures that proxies are readable for
+		// all scoped identities regardless of their current scope pinning. This pattern should not
+		// be used for any checks save essential global configuration reads that are necessary for basic
+		// teleport functionality.
+		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.SplitAccessChecker) error {
+			return checker.Common().CheckAccessToRules(&ruleCtx, types.KindProxy, types.VerbList, types.VerbRead)
+		}); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		return a.authServer.ListProxyServers(ctx, pageSize, pageToken)
+	}
+
+	if err := a.authorizeAction(types.KindProxy, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return a.authServer.ListProxyServers(ctx, pageSize, pageToken)
 }
 
 // DeleteAllProxies deletes all proxies
@@ -3171,7 +3250,7 @@ func (a *ServerWithRoles) GetRemoteAccessCapabilities(ctx context.Context, req t
 		"remote_roles", req.SearchAsRoles,
 		"local_roles", localSearchAsRoles)
 
-	localAccessRoles, err := services.PruneMappedSearchAsRoles(ctx, a.authServer.clock, a.authServer, a.context.User, localSearchAsRoles, req.ResourceIDs, "")
+	localAccessRoles, err := services.PruneMappedSearchAsRoles(ctx, a.authServer.clock, a.authServer, a.context.User, localSearchAsRoles, types.ResourceIDsToResourceAccessIDs(req.ResourceIDs), "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3382,7 +3461,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 
 	// Reset the resource restrictions, we are going to iterate all access
 	// requests below, if there are any resource requests this will be set.
-	accessInfo.AllowedResourceIDs = nil
+	accessInfo.AllowedResourceAccessIDs = nil
 
 	for _, reqID := range finalRequestIDs {
 		// Fetch and validate the access request for this user.
@@ -3402,11 +3481,11 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 		// Make sure only 1 access request includes resource restrictions. There
 		// is not a logical way to merge resource access requests, e.g. if a
 		// user requested "node1" with role "user" and "node2" with role "admin".
-		if requestedResourceIDs := accessRequest.GetRequestedResourceIDs(); len(requestedResourceIDs) > 0 {
-			if len(accessInfo.AllowedResourceIDs) > 0 {
+		if requestedResourceIDs := accessRequest.GetAllRequestedResourceIDs(); len(requestedResourceIDs) > 0 {
+			if len(accessInfo.AllowedResourceAccessIDs) > 0 {
 				return nil, trace.BadParameter("cannot generate certificate with multiple resource access requests")
 			}
-			accessInfo.AllowedResourceIDs = requestedResourceIDs
+			accessInfo.AllowedResourceAccessIDs = requestedResourceIDs
 		}
 	}
 	accessInfo.Roles = apiutils.Deduplicate(accessInfo.Roles)
@@ -3529,8 +3608,15 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// preserved in user login state, where local users may get updated roles
 	// from ConnectMyComputer setup. So here we retrieve additional fields from
 	// user login state. Ideally we should solve this some other way.
-	if err := userloginstate.UpdatePreservedAttributes(ctx, user, a.authServer.Services); err != nil {
-		return nil, trace.Wrap(err, "updating preserved attributes")
+	if githubIdentities := user.GetGithubIdentities(); len(githubIdentities) == 0 {
+		uls, err := a.authServer.Services.GetUserLoginState(ctx, user.GetName())
+		if trace.IsNotFound(err) {
+			// Nothing to do.
+		} else if err != nil {
+			return nil, trace.Wrap(err, "updating GitHub identities")
+		} else if githubIdentities := uls.GetGithubIdentities(); len(githubIdentities) > 0 {
+			user.SetGithubIdentities(githubIdentities)
+		}
 	}
 
 	// Do not allow SSO users to be impersonated.
@@ -3977,7 +4063,7 @@ func (a *ServerWithRoles) trySettingConnectorNameToPasswordless(ctx context.Cont
 // This method always compare with the original preset users, and take into account that some preset users may
 // have been removed.
 func hasOneNonPresetUser(users []types.User) bool {
-	presets := getPresetUsers()
+	presets := getPresetUsers(modules.GetModules().BuildType())
 
 	// Exit early if the number of users is greater than the number of presets + 1.
 	if len(users) > len(presets)+1 {
@@ -5242,7 +5328,7 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 		return trace.Wrap(err)
 	}
 
-	if err := dtconfig.ValidateConfigAgainstModules(newAuthPref.GetDeviceTrust()); err != nil {
+	if err := dtconfig.ValidateConfigAgainstModules(newAuthPref.GetDeviceTrust(), modules.GetModules()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6190,11 +6276,11 @@ func (a *ServerWithRoles) GenerateAppToken(ctx context.Context, req types.Genera
 		return "", trace.Wrap(err)
 	}
 
-	session, err := a.authServer.generateAppToken(ctx, req.Username, req.Roles, req.Traits, req.URI, req.Expires)
+	token, err := a.authServer.generateAppToken(ctx, req)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return session, nil
+	return token, nil
 }
 
 func (a *ServerWithRoles) Close() error {

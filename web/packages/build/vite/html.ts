@@ -27,11 +27,18 @@ import type { Plugin } from 'vite';
 function getHTML(target: string, headers: IncomingHttpHeaders) {
   return new Promise<{ data: string; headers: IncomingHttpHeaders }>(
     (resolve, reject) => {
-      headers.host = target;
+      // Remove http2 pseudo-headers since the target may only accept http1.
+      const filteredHeaders: IncomingHttpHeaders = Object.fromEntries(
+        Object.entries(headers).filter(
+          ([name, value]) => value != null && !name.startsWith(':')
+        )
+      );
+
+      filteredHeaders.host = target;
 
       get(
         `https://${target}/web`,
-        { headers, rejectUnauthorized: false },
+        { headers: filteredHeaders, rejectUnauthorized: false },
         res => {
           let data = '';
 

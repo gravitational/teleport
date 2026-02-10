@@ -22,7 +22,7 @@ This page describes the supported values of the teleport_role resource of the Te
 # Teleport Role resource
 
 resource "teleport_role" "example" {
-  version = "v7"
+  version = "v8"
   metadata = {
     name        = "example"
     description = "Example Teleport Role"
@@ -85,7 +85,7 @@ resource "teleport_role" "example" {
 
 ### Required
 
-- `version` (String) Version is the resource version. It must be specified. Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`.
+- `version` (String) Version is the resource version. It must be specified. Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`.
 
 ### Optional
 
@@ -147,6 +147,9 @@ Optional:
 - `kubernetes_labels_expression` (String) KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.
 - `kubernetes_resources` (Attributes List) KubernetesResources is the Kubernetes Resources this Role grants access to. (see [below for nested schema](#nested-schema-for-specallowkubernetes_resources))
 - `kubernetes_users` (List of String) KubeUsers is an optional kubernetes users to impersonate
+- `linux_desktop_labels` (Map of List of String) LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.
+- `linux_desktop_labels_expression` (String) LinuxDesktopLabelsExpression is a predicate expression used to allow/deny access to Linux desktops.
+- `linux_desktop_logins` (List of String) LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.
 - `logins` (List of String) Logins is a list of *nix system logins.
 - `mcp` (Attributes) MCPPermissions defines MCP servers related permissions. (see [below for nested schema](#nested-schema-for-specallowmcp))
 - `node_labels` (Map of List of String) NodeLabels is a map of node labels (used to dynamically grant access to nodes).
@@ -356,6 +359,9 @@ Optional:
 - `kubernetes_labels_expression` (String) KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.
 - `kubernetes_resources` (Attributes List) KubernetesResources is the Kubernetes Resources this Role grants access to. (see [below for nested schema](#nested-schema-for-specdenykubernetes_resources))
 - `kubernetes_users` (List of String) KubeUsers is an optional kubernetes users to impersonate
+- `linux_desktop_labels` (Map of List of String) LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.
+- `linux_desktop_labels_expression` (String) LinuxDesktopLabelsExpression is a predicate expression used to allow/deny access to Linux desktops.
+- `linux_desktop_logins` (List of String) LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.
 - `logins` (List of String) Logins is a list of *nix system logins.
 - `mcp` (Attributes) MCPPermissions defines MCP servers related permissions. (see [below for nested schema](#nested-schema-for-specdenymcp))
 - `node_labels` (Map of List of String) NodeLabels is a map of node labels (used to dynamically grant access to nodes).

@@ -16,12 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import {
+  Cluster,
+  LoggedInUser,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
 import Logger from 'teleterm/logger';
-import { AwaitableSender } from 'teleterm/mainProcess/awaitableSender';
+import type { IAwaitableSender } from 'teleterm/mainProcess/awaitableSender';
 import { RendererIpc } from 'teleterm/mainProcess/types';
-import type { WindowsManager } from 'teleterm/mainProcess/windowsManager';
 import { AppUpdater } from 'teleterm/services/appUpdater';
 import { isTshdRpcError, TshdClient } from 'teleterm/services/tshd';
 import { mergeClusterProfileWithDetails } from 'teleterm/services/tshd/cluster';
@@ -41,13 +43,31 @@ export interface ClusterLifecycleEvent {
    *
    * Operations prefixed with `did-` occur after the action has already happened
    * in the main process, so they cannot prevent it.
+   *
+   * Operation meanings:
+   * * did-add-cluster - A cluster has been successfully added.
+   * * did-change-access - The logged-in user has changed, or their roles,
+   * or access requests have been updated.
+   * * will-logout - The user is about to be logged out.
+   * * will-logout-and-remove - The user is about to be logged out
+   * and their profile (cluster) will be removed.
    */
-  op: 'did-add-cluster' | 'will-logout' | 'will-logout-and-remove';
+  op:
+    | 'did-add-cluster'
+    | 'did-change-access'
+    | 'will-logout'
+    | 'will-logout-and-remove';
 }
 
 export interface ProfileWatcherError {
   error: unknown;
   reason: 'processing-error' | 'exited';
+}
+
+interface WindowsManager {
+  getWindow(): {
+    webContents: { send(channel: string, ...args: any[]): void };
+  };
 }
 
 /**
@@ -67,20 +87,20 @@ export interface ProfileWatcherError {
 export class ClusterLifecycleManager {
   private readonly logger = new Logger('ClusterLifecycleManager');
   private rendererEventHandler:
-    | AwaitableSender<ClusterLifecycleEvent>
+    | IAwaitableSender<ClusterLifecycleEvent>
     | undefined;
   private watcherStarted = false;
 
   constructor(
     private readonly clusterStore: ClusterStore,
     private readonly getTshdClient: () => Promise<TshdClient>,
-    private readonly appUpdater: AppUpdater,
-    private readonly windowsManager: Pick<WindowsManager, 'getWindow'>,
+    private readonly appUpdater: Pick<AppUpdater, 'maybeRemoveManagingCluster'>,
+    private readonly windowsManager: WindowsManager,
     private readonly profileWatcher: AsyncIterable<ProfileChangeSet>
   ) {}
 
   setRendererEventHandler(
-    handler: AwaitableSender<ClusterLifecycleEvent>
+    handler: IAwaitableSender<ClusterLifecycleEvent>
   ): void {
     if (this.rendererEventHandler) {
       this.logger.error(
@@ -112,6 +132,18 @@ export class ClusterLifecycleManager {
     await this.clusterStore.logoutAndRemove(uri);
   }
 
+  async syncCluster(uri: RootClusterUri): Promise<void> {
+    const { previous, next } = await this.clusterStore.sync(uri);
+    if (!hasAccessChanged(previous.loggedInUser, next.loggedInUser)) {
+      return;
+    }
+
+    await this.rendererEventHandler.send({
+      op: 'did-change-access',
+      uri: next.uri,
+    });
+  }
+
   async syncRootClustersAndStartProfileWatcher(): Promise<void> {
     await this.clusterStore.syncRootClusters();
     if (!this.watcherStarted) {
@@ -135,7 +167,7 @@ export class ClusterLifecycleManager {
   private async syncOrUpdateCluster(cluster: Cluster): Promise<void> {
     if (cluster.connected) {
       try {
-        return this.clusterStore.sync(cluster.uri);
+        await this.clusterStore.sync(cluster.uri);
       } catch (e) {
         // Theoretically, the cert could just expire and result in an error
         // resolvable with relogin when trying to sync the cluster.
@@ -208,15 +240,27 @@ export class ClusterLifecycleManager {
 
     if (hasLoggedOut) {
       await this.handleClusterLogout(next);
-    } else {
-      const client = await this.getTshdClient();
-      // Only clear clients with outdated certificates.
-      // The watcher 'changed' event may be emitted right after the user logs in
-      // or assumes a role via Connect (which already closes all clients
-      // for the profile), so we avoid closing them again if they're already up to date.
-      await client.clearStaleClusterClients({ rootClusterUri: next.uri });
-      await this.syncOrUpdateCluster(next);
+      return;
     }
+
+    const client = await this.getTshdClient();
+    // Only clear clients with outdated certificates.
+    // The watcher 'changed' event may be emitted right after the user logs in
+    // or assumes a role via Connect (which already closes all clients
+    // for the profile), so we avoid closing them again if they're already up to date.
+    //
+    // This needs to be done before the check for changed access. It handles a scenario where the
+    // user logged in again via tsh and the auth server has disconnect_expired_cert enabled.
+    await client.clearStaleClusterClients({ rootClusterUri: next.uri });
+    await this.syncOrUpdateCluster(next);
+
+    if (!hasAccessChanged(previous.loggedInUser, next.loggedInUser)) {
+      return;
+    }
+    await this.rendererEventHandler.send({
+      op: 'did-change-access',
+      uri: next.uri,
+    });
   }
 
   private async handleClusterRemoved(cluster: Cluster): Promise<void> {
@@ -243,4 +287,33 @@ export class ClusterLifecycleManager {
       .getWindow()
       .webContents.send(RendererIpc.ProfileWatcherError, error);
   }
+}
+
+/**
+ * Checks if the username, roles or active requests changed.
+ * If yes, then probably the user has access to different resources.
+ */
+function hasAccessChanged(
+  previousUser: LoggedInUser | undefined,
+  nextUser: LoggedInUser | undefined
+): boolean {
+  // No user, we don't know if access changed.
+  if (!(previousUser?.name && nextUser?.name)) {
+    return false;
+  }
+
+  const hasChangedUsername = previousUser.name !== nextUser.name;
+  const hasChangedRoles = !areArraysEqual(previousUser.roles, nextUser.roles);
+  const hasChangedActiveRequests = !areArraysEqual(
+    previousUser.activeRequests,
+    nextUser.activeRequests
+  );
+
+  return hasChangedUsername || hasChangedRoles || hasChangedActiveRequests;
+}
+
+function areArraysEqual(a: string[], b: string[]): boolean {
+  const aSet = new Set(a);
+  const bSet = new Set(b);
+  return aSet.size === bSet.size && aSet.isSubsetOf(bSet);
 }

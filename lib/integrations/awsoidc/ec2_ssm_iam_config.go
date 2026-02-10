@@ -150,6 +150,9 @@ func NewEC2SSMConfigureClient(ctx context.Context, region string) (EC2SSMConfigu
 // ConfigureEC2SSM creates the required resources in AWS to enable EC2 Auto Discover using script mode..
 // It creates an inline policy with the following permissions:
 //
+// Action: List AWS Regions.
+//   - account:ListRegions
+//
 // Action: List EC2 instances where teleport is going to be installed.
 //   - ec2:DescribeInstances
 //
@@ -182,9 +185,10 @@ func ConfigureEC2SSM(ctx context.Context, clt EC2SSMConfigureClient, req EC2SSMI
 
 	actions := []provisioning.Action{*putRolePolicy}
 
-	// If using an existing document, the SSMDocumentName is empty.
-	// If using the pre-existing Document AWS-RunShellScript, the SSM Document already exists, so no need to create it.
-	if req.SSMDocumentName != "" || req.SSMDocumentName == types.AWSSSMDocumentRunShellScript {
+	// SSM Document creation only happens when the user specifies a custom name.
+	// The AWSSSMDocumentRunShellScript SSM Document (AWS-RunShellScript) already exists in all accounts.
+	mustCreateDoc := req.SSMDocumentName != "" && req.SSMDocumentName != types.AWSSSMDocumentRunShellScript
+	if mustCreateDoc {
 		content := awslib.EC2DiscoverySSMDocument(req.ProxyPublicURL,
 			awslib.WithInsecureSkipInstallPathRandomization(req.insecureSkipInstallPathRandomization),
 		)

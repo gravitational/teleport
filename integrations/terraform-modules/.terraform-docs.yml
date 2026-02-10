@@ -1,0 +1,35 @@
+content: ''
+footer-from: ''
+formatter: markdown table
+header-from: main.tf
+output:
+  file: README.md
+  mode: inject
+output-values:
+  enabled: false
+  from: ''
+recursive:
+  enabled: false
+  path: modules
+  include-main: true
+sections:
+  hide: []
+  show: []
+settings:
+  anchor: false
+  color: true
+  default: true
+  description: false
+  escape: true
+  hide-empty: false
+  html: false
+  indent: 2
+  lockfile: false # avoid pinning provider version in README
+  read-comments: true
+  required: true
+  sensitive: true
+  type: true
+sort:
+  enabled: true
+  by: name
+version: '0.21.0'

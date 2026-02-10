@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -44,6 +45,10 @@ type DebugClient interface {
 	GetLogLevel(context.Context) (string, error)
 	// CollectProfile collects a pprof profile.
 	CollectProfile(context.Context, string, int) ([]byte, error)
+	// GetReadiness checks if the instance is ready to serve requests.
+	GetReadiness(context.Context) (debugclient.Readiness, error)
+	// GetRawMetrics fetches the unprocessed Prometheus metrics.
+	GetRawMetrics(context.Context) (io.ReadCloser, error)
 	SocketPath() string
 }
 
@@ -164,6 +169,54 @@ func collectProfiles(ctx context.Context, clt DebugClient, buf io.Writer, rawPro
 	}
 
 	return trace.NewAggregate(tw.Close(), gw.Close())
+}
+
+// onReadyz checks if the instance is ready to serve requests.
+func onReadyz(ctx context.Context, configPath string) error {
+	clt, dataDir, err := newDebugClient(configPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := readyz(ctx, clt); err != nil {
+		return convertToReadableErr(err, dataDir, clt.SocketPath())
+	}
+
+	return nil
+}
+
+func readyz(ctx context.Context, clt DebugClient) error {
+	readiness, err := clt.GetReadiness(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !readiness.Ready {
+		return trace.Errorf("not ready (PID:%d): %s", readiness.PID, readiness.Status)
+	}
+
+	fmt.Printf("ready (PID:%d)\n", readiness.PID)
+	return nil
+}
+
+// onMetrics fetches the current Prometheus metrics.
+func onMetrics(ctx context.Context, configPath string) error {
+	clt, dataDir, err := newDebugClient(configPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	metrics, err := clt.GetRawMetrics(ctx)
+	if err != nil {
+		return convertToReadableErr(err, dataDir, clt.SocketPath())
+	}
+	defer metrics.Close()
+
+	if _, err := io.Copy(os.Stdout, metrics); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // newDebugClient initializes the debug client based on the Teleport

@@ -110,6 +110,8 @@ class TeleportContext implements types.Context {
     }
 
     if (user.acl.accessGraph.list) {
+      storageService.resetAccessGraphEnabled();
+
       // If access graph is enabled, check what features are enabled and store them in local storage.
       // We await this so it is done by the time the page renders, otherwise the local storage event
       // wouldn't trigger a re-render and Policy could end up not being displayed until the navigation
@@ -225,7 +227,15 @@ class TeleportContext implements types.Context {
         userContext.getGitServersAccess().read,
       readBotInstances: userContext.getBotInstancesAccess().read,
       listBotInstances: userContext.getBotInstancesAccess().list,
+      readInstances: userContext.getInstancesAccess().read,
+      listInstances: userContext.getInstancesAccess().list,
       listWorkloadIdentities: userContext.getWorkloadIdentityAccess().list,
+      readAutoUpdateConfig: userContext.getAutoUpdateConfigAccess().read,
+      readAutoUpdateVersion: userContext.getAutoUpdateVersionAccess().read,
+      readAutoUpdateAgentRollout:
+        userContext.getAutoUpdateAgentRolloutAccess().read,
+      listAutoUpdateAgentReport:
+        userContext.getAutoUpdateAgentReportAccess().list,
     };
   }
 }
@@ -271,7 +281,13 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   gitServers: false,
   readBotInstances: false,
   listBotInstances: false,
+  readInstances: false,
+  listInstances: false,
   listWorkloadIdentities: false,
+  readAutoUpdateConfig: false,
+  readAutoUpdateVersion: false,
+  readAutoUpdateAgentRollout: false,
+  listAutoUpdateAgentReport: false,
 };
 
 export default TeleportContext;

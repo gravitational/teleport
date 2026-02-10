@@ -258,6 +258,16 @@ internet, a local container, or a private network:
 
    ![Teleport Welcome Screen](../../img/quickstart/welcome.png)
 
+<Checkpoint
+  title="Verify Teleport is running"
+  description="Confirm that you can access the Teleport Web UI and see the welcome screen."
+>
+  Here are some troubleshooting tips:
+  - Ensure that Teleport is running on your host (`systemctl status teleport` on a VM, or check that the `teleport start` command is still running in your container).
+  - Verify that port 443 (or 3080 for Docker) is accessible and not blocked by a firewall.
+  - Check the Teleport logs for errors: `sudo journalctl -u teleport` on a VM, or review the terminal output in your container.
+</Checkpoint>
+
 ## Step 3/4. Create a Teleport user and set up multi-factor authentication
 
 In this step, we'll create a new Teleport user, `teleport-admin`, which is
@@ -304,9 +314,12 @@ allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
      If a user does not already exist, you can create it with `adduser <login>` or
      use [host user creation](../enroll-resources/server-access/guides/host-user-creation.mdx).
    
-     If you do not have the permission to create new users on the Linux host, run
-     `tctl users update teleport-admin --logins=root,ubuntu,ec2-user,$(whoami)` to explicitly allow Teleport to
-     authenticate as the user that you have currently logged in as.
+     If you do not have permission to create new users on the Linux host, run the following command to explicitly allow Teleport to 
+     authenticate as the user that you have currently logged in as:
+     
+     ```code
+     $ tctl users update teleport-admin --set-logins=root,ubuntu,ec2-user,$(whoami)
+     ```
    
    </Admonition>
 
@@ -349,11 +362,21 @@ Now that you have Teleport running and a user configured, you can access your Li
 
 ![Teleport Web UI showing an SSH server](../../img/new-ssh-server.png)
 
-Click on `Connect` to access it via the web-based terminal, or use Teleport's [`tsh` CLI tool](../connect-your-client/tsh.mdx) to SSH into it:
+Click on `Connect` to access it via the web-based terminal, or use Teleport's [`tsh` CLI tool](../connect-your-client/teleport-clients/tsh.mdx) to SSH into it:
 
 ```code
 $ tsh ssh root@<server-name>
 ```
+
+<Checkpoint
+  title="Verify server access"
+  description="Confirm that you can authenticate and connect to your Linux server through the Teleport Web UI or via tsh ssh."
+>
+  Here are some troubleshooting tips:
+  - Ensure the user you created has the correct logins assigned (e.g., `root`, `ubuntu`, `ec2-user`) that match existing OS users on the host.
+  - If you receive a permission denied error, verify that the login user exists on the Linux host or create it with `adduser <login>`.
+  - Check that your MFA device is properly enrolled and that you're completing the authentication challenge.
+</Checkpoint>
 
 ## Next step: deploy Teleport Agents
 

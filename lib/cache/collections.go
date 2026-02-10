@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/trace"
 
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
@@ -35,8 +36,10 @@ import (
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
+	workloadclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -72,6 +75,7 @@ type collections struct {
 
 	provisionTokens                    *collection[types.ProvisionToken, provisionTokenIndex]
 	staticTokens                       *collection[types.StaticTokens, staticTokensIndex]
+	staticScopedTokens                 *collection[*joiningv1.StaticScopedTokens, staticScopedTokensIndex]
 	certAuthorities                    *collection[types.CertAuthority, certAuthorityIndex]
 	users                              *collection[types.User, userIndex]
 	roles                              *collection[types.Role, roleIndex]
@@ -144,6 +148,8 @@ type collections struct {
 	botInstances                       *collection[*machineidv1.BotInstance, botInstanceIndex]
 	recordingEncryption                *collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex]
 	plugins                            *collection[types.Plugin, pluginIndex]
+	appAuthConfig                      *collection[*appauthconfigv1.AppAuthConfig, appAuthConfigIndex]
+	workloadClusters                   *collection[*workloadclusterv1.WorkloadCluster, workloadClusterIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -189,6 +195,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.staticTokens = collect
 			out.byKind[resourceKind] = out.staticTokens
+		case types.KindStaticScopedTokens:
+			collect, err := newStaticScopedTokensCollection(c.StaticScopedToken, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.staticScopedTokens = collect
+			out.byKind[resourceKind] = out.staticScopedTokens
 		case types.KindCertAuthority:
 			collect, err := newCertAuthorityCollection(c.Trust, watch)
 			if err != nil {
@@ -767,6 +781,22 @@ func setupCollections(c Config) (*collections, error) {
 			}
 			out.plugins = collect
 			out.byKind[resourceKind] = out.plugins
+		case types.KindAppAuthConfig:
+			collect, err := newAppAuthConfigCollection(c.AppAuthConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.appAuthConfig = collect
+			out.byKind[resourceKind] = out.appAuthConfig
+		case types.KindWorkloadCluster:
+			collect, err := newWorkloadClusterCollection(c.WorkloadClusterService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.workloadClusters = collect
+			out.byKind[resourceKind] = out.workloadClusters
 		default:
 			if _, ok := out.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)

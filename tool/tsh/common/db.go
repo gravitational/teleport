@@ -536,11 +536,14 @@ func onDatabaseConfig(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case dbFormatCommand:
-		cmd, err := dbcmd.NewCmdBuilder(tc, profile, *database, rootCluster,
+		cb, err := dbcmd.NewCmdBuilder(tc, profile, *database, rootCluster, getDatabase,
 			dbcmd.WithPrintFormat(),
 			dbcmd.WithLogger(logger),
-			dbcmd.WithGetDatabaseFunc(getDatabase),
-		).GetConnectCommand(cf.Context)
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cmd, err := cb.GetConnectCommand(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -607,7 +610,10 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 	requires *dbLocalProxyRequirement,
 ) ([]dbcmd.ConnectCommandFunc, error) {
 	if !requires.localProxy {
-		return nil, nil
+		// Even when local proxy is not required, we need to build the base
+		// options for database command.
+		baseOpts, err := makeDatabaseCommandOptions(ctx, tc, dbInfo)
+		return baseOpts, trace.Wrap(err)
 	}
 	if requires.tunnel {
 		logger.DebugContext(ctx, "Starting local proxy tunnel", "reasons", requires.tunnelReasons)
@@ -787,7 +793,10 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	bb := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootClusterName, opts...)
+	bb, err := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootClusterName, dbInfo.getDatabaseForDBCmd, opts...)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	cmd, err := bb.GetConnectCommand(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
@@ -803,7 +812,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 	peakStderr := utils.NewCaptureNBytesWriter(dbcmd.PeakStderrSize)
 	cmd.Stderr = io.MultiWriter(os.Stderr, peakStderr)
 
-	err = cmd.Run()
+	err = cf.RunCommand(cmd)
 	if err != nil {
 		return dbcmd.ConvertCommandError(cmd, err, string(peakStderr.Bytes()))
 	}
@@ -908,7 +917,7 @@ func makeAccessRequestForDatabase(tc *client.TeleportClient, db types.Database) 
 		Name:        db.GetName(),
 	}}
 
-	req, err := services.NewAccessRequestWithResources(tc.Username, nil /* roles */, requestResourceIDs)
+	req, err := services.NewAccessRequestWithResources(tc.Username, nil /* roles */, types.ResourceIDsToResourceAccessIDs(requestResourceIDs))
 	return req, trace.Wrap(err)
 }
 

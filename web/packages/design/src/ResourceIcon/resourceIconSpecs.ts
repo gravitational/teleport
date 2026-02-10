@@ -82,6 +82,7 @@ export const resourceIconSpecs = {
   awsredshift: forAllThemes(i.awsredshift),
   awssimplestorageservices3: forAllThemes(i.awssimplestorageservices3),
   awssinglesignon: forAllThemes(i.awssinglesignon),
+  awsquicksight: forAllThemes(i.awsquicksight),
   azure: forAllThemes(i.azure),
 
   bill: forAllThemes(i.bill),

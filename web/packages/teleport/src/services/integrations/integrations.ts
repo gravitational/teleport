@@ -83,20 +83,27 @@ export const integrationService = {
     return api.get(cfg.getIntegrationCaUrl(clusterId, integrationName));
   },
 
-  fetchIntegration<T>(name: string): Promise<T> {
+  fetchIntegration<T>(name: string, abortSignal?: AbortSignal): Promise<T> {
     return api
-      .get(cfg.getIntegrationsUrl(name))
+      .get(cfg.getIntegrationsUrl(name), abortSignal)
       .then(resp => makeIntegration(resp) as T);
   },
 
-  fetchIntegrations(): Promise<IntegrationListResponse> {
-    return api.get(cfg.getIntegrationsUrl()).then(resp => {
-      const integrations = resp?.items ?? [];
-      return {
-        items: integrations.map(makeIntegration),
-        nextKey: resp?.nextKey,
-      };
-    });
+  fetchIntegrations(
+    withSummaries: boolean = false
+  ): Promise<IntegrationListResponse> {
+    return api
+      .get(cfg.getIntegrationsUrl(undefined, withSummaries))
+      .then(resp => {
+        const integrations = resp?.items ?? [];
+        if (withSummaries) {
+          mapSummaries(integrations, resp?.summaries);
+        }
+        return {
+          items: integrations.map(makeIntegration),
+          nextKey: resp?.nextKey,
+        };
+      });
   },
 
   createIntegration<T extends IntegrationCreateRequest>(
@@ -505,8 +512,11 @@ export const integrationService = {
       });
   },
 
-  fetchUserTask(name: string): Promise<UserTaskDetail> {
-    return api.get(cfg.getUserTaskUrl(name)).then(resp => {
+  fetchUserTask(
+    name: string,
+    abortSignal?: AbortSignal
+  ): Promise<UserTaskDetail> {
+    return api.get(cfg.getUserTaskUrl(name), abortSignal).then(resp => {
       return {
         name: resp.name,
         taskType: resp.taskType,
@@ -517,20 +527,20 @@ export const integrationService = {
         description: resp.description,
         title: resp.title,
         discoverEc2: {
-          instances: resp.discoverEc2?.instances,
+          instances: resp.discoverEc2?.instances || {},
           account_id: resp.discoverEc2?.account_id,
           region: resp.discoverEc2?.region,
           ssm_document: resp.discoverEc2?.ssm_document,
           installer_script: resp.discoverEc2?.installer_script,
         },
         discoverEks: {
-          clusters: resp.discoverEks?.clusters,
+          clusters: resp.discoverEks?.clusters || {},
           account_id: resp.discoverEks?.account_id,
           region: resp.discoverEks?.region,
           app_auto_discover: resp.discoverEks?.app_auto_discover,
         },
         discoverRds: {
-          databases: resp.discoverRds?.databases,
+          databases: resp.discoverRds?.databases || {},
           account_id: resp.discoverRds?.account_id,
           region: resp.discoverRds?.region,
         },
@@ -626,9 +636,18 @@ export function makeIntegrations(json: any): Integration[] {
 
 function makeIntegration(json: any): Integration {
   json = json || {};
-  const { name, subKind, awsoidc, github, awsra } = json;
+  const {
+    name,
+    subKind,
+    awsoidc,
+    github,
+    awsra,
+    isManagedByTerraform,
+    summary,
+  } = json;
 
   const commonFields = {
+    resourceType: 'integration' as const,
     name,
     kind: subKind,
     // The integration resource does not have a "status" field, but is
@@ -637,12 +656,13 @@ function makeIntegration(json: any): Integration {
     // supported status for integration is `Running` for now:
     // https://github.com/gravitational/teleport/pull/22556#discussion_r1158674300
     statusCode: IntegrationStatusCode.Running,
+    isManagedByTerraform,
+    summary,
   };
 
   if (subKind === IntegrationKind.AwsOidc) {
     return {
       ...commonFields,
-      resourceType: 'integration',
       details:
         'Enroll EC2, RDS and EKS resources or enable Web/CLI access to your AWS Account.',
       spec: {
@@ -657,7 +677,6 @@ function makeIntegration(json: any): Integration {
   if (subKind === IntegrationKind.AwsRa) {
     return {
       ...commonFields,
-      resourceType: 'integration',
       details: 'Sync AWS IAM Roles Anywhere Profiles with Teleport',
       spec: {
         trustAnchorARN: awsra?.trustAnchorARN,
@@ -674,7 +693,6 @@ function makeIntegration(json: any): Integration {
   if (subKind === IntegrationKind.GitHub) {
     return {
       ...commonFields,
-      resourceType: 'integration',
       details: `GitHub repository access for organization "${github.organization}"`,
       spec: {
         organization: github.organization,
@@ -682,10 +700,18 @@ function makeIntegration(json: any): Integration {
     };
   }
 
-  return {
-    ...commonFields,
-    resourceType: 'integration',
-  };
+  return commonFields;
+}
+
+function mapSummaries(integrations, summaryMap) {
+  if (!integrations || !summaryMap) return;
+
+  for (const i of integrations) {
+    const s = summaryMap[i.name];
+    if (s !== undefined) {
+      i.summary = s;
+    }
+  }
 }
 
 export function makeAwsDatabase(json: any): AwsRdsDatabase {

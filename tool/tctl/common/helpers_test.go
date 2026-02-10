@@ -261,6 +261,7 @@ type testServerOptions struct {
 	fileDescriptors []*servicecfg.FileDescriptor
 	fakeClock       *clockwork.FakeClock
 	enableCache     bool
+	enableProxy     bool
 }
 
 type testServerOptionFunc func(options *testServerOptions)
@@ -289,6 +290,12 @@ func withEnableCache(enableCache bool) testServerOptionFunc {
 	}
 }
 
+func withEnableProxy() testServerOptionFunc {
+	return func(options *testServerOptions) {
+		options.enableProxy = true
+	}
+}
+
 func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth *service.TeleportProcess) {
 	var options testServerOptions
 	for _, opt := range opts {
@@ -305,6 +312,9 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	}
 
 	cfg.CachePolicy.Enabled = options.enableCache
+	if options.enableProxy {
+		cfg.Proxy.Enabled = true
+	}
 	cfg.Proxy.DisableWebInterface = true
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	if options.fakeClock != nil {

@@ -16,6 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { createMemoryHistory } from 'history';
+import { MemoryRouter, Router } from 'react-router';
+
 import { render, screen, theme, userEvent } from 'design/utils/testing';
 
 import { Alert, Banner } from '.';
@@ -107,7 +110,7 @@ describe('Banner', () => {
     expect(primaryCallback).toHaveBeenCalled();
   });
 
-  test('action buttons as links', async () => {
+  test('action buttons as external links', async () => {
     render(
       <Banner
         primaryAction={{
@@ -125,9 +128,60 @@ describe('Banner', () => {
       'href',
       'https://goteleport.com/1'
     );
+    expect(screen.getByRole('link', { name: 'Primary Link' })).toHaveAttribute(
+      'target',
+      '_blank'
+    );
     expect(
       screen.getByRole('link', { name: 'Secondary Link' })
     ).toHaveAttribute('href', 'https://goteleport.com/2');
+    expect(
+      screen.getByRole('link', { name: 'Secondary Link' })
+    ).toHaveAttribute('target', '_blank');
+  });
+
+  test('action buttons as internal links', async () => {
+    const user = userEvent.setup();
+    const history = createMemoryHistory({
+      initialEntries: ['/'],
+    });
+    const push = jest.spyOn(history, 'push');
+
+    render(
+      <MemoryRouter>
+        <Router history={history}>
+          <Banner
+            primaryAction={{
+              content: 'Primary Link',
+              linkTo: 'primary-route',
+            }}
+            secondaryAction={{
+              content: 'Secondary Link',
+              linkTo: 'secondary-route',
+            }}
+          />
+        </Router>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('link', { name: 'Primary Link' })).toHaveAttribute(
+      'href',
+      '/primary-route'
+    );
+    expect(
+      screen.getByRole('link', { name: 'Primary Link' })
+    ).not.toHaveAttribute('target');
+    await user.click(screen.getByRole('link', { name: 'Primary Link' }));
+    expect(push).toHaveBeenCalledWith('primary-route');
+
+    expect(
+      screen.getByRole('link', { name: 'Secondary Link' })
+    ).toHaveAttribute('href', '/secondary-route');
+    expect(
+      screen.getByRole('link', { name: 'Secondary Link' })
+    ).not.toHaveAttribute('target');
+    await user.click(screen.getByRole('link', { name: 'Secondary Link' }));
+    expect(push).toHaveBeenCalledWith('secondary-route');
   });
 
   test('dismiss button', async () => {

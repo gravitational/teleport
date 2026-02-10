@@ -21,7 +21,6 @@ package discovery
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/gravitational/trace"
 
@@ -73,10 +72,11 @@ func (s *Server) startKubeAppsWatchers() error {
 
 	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
 		FetchersFn:     common.StaticFetchers(s.kubeAppsFetchers),
-		Interval:       5 * time.Minute,
 		Logger:         s.Log.With("kind", types.KindApp),
 		DiscoveryGroup: s.DiscoveryGroup,
+		Interval:       s.PollInterval,
 		Origin:         types.OriginDiscoveryKubernetes,
+		Clock:          s.clock,
 	})
 	if err != nil {
 		return trace.Wrap(err)

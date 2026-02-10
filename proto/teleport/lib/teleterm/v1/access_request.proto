@@ -21,6 +21,7 @@ syntax = "proto3";
 package teleport.lib.teleterm.v1;
 
 import "google/protobuf/timestamp.proto";
+import "teleport/legacy/types/resources.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
 
@@ -97,4 +98,6 @@ message ResourceDetails {
 message Resource {
   ResourceID id = 1;
   ResourceDetails details = 2;
+  // constraints holds optional resource-specific constraints (e.g., AWS role ARNs).
+  types.ResourceConstraints constraints = 3;
 }

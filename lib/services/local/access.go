@@ -103,7 +103,7 @@ func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesReque
 
 	startKey := backend.ExactKey(rolesPrefix)
 	if req.StartKey != "" {
-		startKey = backend.NewKey(rolesPrefix, req.StartKey, paramsPrefix)
+		startKey = roleKey(req.StartKey)
 	}
 
 	var resp proto.ListRolesResponse
@@ -152,22 +152,9 @@ func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesReque
 
 // CreateRole creates a new role.
 func (s *AccessService) CreateRole(ctx context.Context, role types.Role) (types.Role, error) {
-	err := services.ValidateRoleName(role)
+	item, err := roleToBackendItem(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	rev := role.GetRevision()
-	value, err := services.MarshalRole(role)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	item := backend.Item{
-		Key:      backend.NewKey(rolesPrefix, role.GetName(), paramsPrefix),
-		Value:    value,
-		Expires:  role.Expiry(),
-		Revision: rev,
 	}
 
 	lease, err := s.Create(ctx, item)
@@ -180,22 +167,9 @@ func (s *AccessService) CreateRole(ctx context.Context, role types.Role) (types.
 
 // UpdateRole updates an existing role.
 func (s *AccessService) UpdateRole(ctx context.Context, role types.Role) (types.Role, error) {
-	err := services.ValidateRoleName(role)
+	item, err := roleToBackendItem(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	rev := role.GetRevision()
-	value, err := services.MarshalRole(role)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	item := backend.Item{
-		Key:      backend.NewKey(rolesPrefix, role.GetName(), paramsPrefix),
-		Value:    value,
-		Expires:  role.Expiry(),
-		Revision: rev,
 	}
 
 	lease, err := s.ConditionalUpdate(ctx, item)
@@ -208,22 +182,9 @@ func (s *AccessService) UpdateRole(ctx context.Context, role types.Role) (types.
 
 // UpsertRole creates or overwrites an existing role.
 func (s *AccessService) UpsertRole(ctx context.Context, role types.Role) (types.Role, error) {
-	err := services.ValidateRoleName(role)
+	item, err := roleToBackendItem(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	rev := role.GetRevision()
-	value, err := services.MarshalRole(role)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	item := backend.Item{
-		Key:      backend.NewKey(rolesPrefix, role.GetName(), paramsPrefix),
-		Value:    value,
-		Expires:  role.Expiry(),
-		Revision: rev,
 	}
 
 	lease, err := s.Put(ctx, item)
@@ -239,7 +200,7 @@ func (s *AccessService) GetRole(ctx context.Context, name string) (types.Role, e
 	if name == "" {
 		return nil, trace.BadParameter("missing role name")
 	}
-	item, err := s.Get(ctx, backend.NewKey(rolesPrefix, name, paramsPrefix))
+	item, err := s.Get(ctx, roleKey(name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			// This error message format should be kept in sync with web/packages/teleport/src/services/api/api.isRoleNotFoundError
@@ -256,7 +217,7 @@ func (s *AccessService) DeleteRole(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing role name")
 	}
-	err := s.Delete(ctx, backend.NewKey(rolesPrefix, name, paramsPrefix))
+	err := s.Delete(ctx, roleKey(name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("role %q is not found", name)
@@ -477,3 +438,30 @@ const (
 	paramsPrefix = "params"
 	locksPrefix  = "locks"
 )
+
+// roleKey returns the backend key for a role with the given name.
+func roleKey(roleName string) backend.Key {
+	return backend.NewKey(rolesPrefix, roleName, paramsPrefix)
+}
+
+// roleToBackendItem converts a role to a backend item for storage.
+// It validates the role name before conversion.
+func roleToBackendItem(role types.Role) (backend.Item, error) {
+	if err := services.ValidateRoleName(role); err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+
+	value, err := services.MarshalRole(role)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:      roleKey(role.GetName()),
+		Value:    value,
+		Expires:  role.Expiry(),
+		Revision: role.GetRevision(),
+	}
+
+	return item, nil
+}
