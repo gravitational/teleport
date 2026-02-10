@@ -170,6 +170,13 @@ func InferenceModelCreationTest(t *testing.T, clt *client.Client) {
 	)
 }
 
+func InferenceModelDeletionTest(t *testing.T, clt *client.Client) {
+	test := &inferenceModelTestingPrimitives{}
+	ResourceDeletionSynchronousTest(
+		t, resources.NewInferenceModelReconciler, test, WithTeleportClient(clt),
+	)
+}
+
 func InferenceModelDeletionDriftTest(t *testing.T, clt *client.Client) {
 	test := &inferenceModelTestingPrimitives{}
 	ResourceDeletionDriftSynchronousTest(

@@ -186,7 +186,19 @@ func TestTrustedClusterV2Creation(t *testing.T) {
 	test := &trustedClusterV2TestingPrimitives{}
 	const remoteClusterName = "remote.example.com"
 	test.setupTest(t, remoteClusterName)
-	testlib.ResourceCreationSynchronousTest[types.TrustedCluster, *resourcesv1.TeleportTrustedClusterV2](
+	testlib.ResourceCreationSynchronousTest(
+		t,
+		resources.NewTrustedClusterV2Reconciler,
+		test,
+		testlib.WithResourceName(remoteClusterName),
+	)
+}
+
+func TestTrustedClusterV2Deletion(t *testing.T) {
+	test := &trustedClusterV2TestingPrimitives{}
+	const remoteClusterName = "remote.example.com"
+	test.setupTest(t, remoteClusterName)
+	testlib.ResourceDeletionSynchronousTest(
 		t,
 		resources.NewTrustedClusterV2Reconciler,
 		test,
@@ -198,7 +210,7 @@ func TestTrustedClusterV2DeletionDrift(t *testing.T) {
 	test := &trustedClusterV2TestingPrimitives{}
 	const remoteClusterName = "remote.example.com"
 	test.setupTest(t, remoteClusterName)
-	testlib.ResourceDeletionDriftSynchronousTest[types.TrustedCluster, *resourcesv1.TeleportTrustedClusterV2](
+	testlib.ResourceDeletionDriftSynchronousTest(
 		t,
 		resources.NewTrustedClusterV2Reconciler,
 		test,
@@ -210,7 +222,7 @@ func TestTrustedClusterUpdate(t *testing.T) {
 	test := &trustedClusterV2TestingPrimitives{}
 	const remoteClusterName = "remote.example.com"
 	test.setupTest(t, remoteClusterName)
-	testlib.ResourceUpdateTestSynchronous[types.TrustedCluster, *resourcesv1.TeleportTrustedClusterV2](
+	testlib.ResourceUpdateTestSynchronous(
 		t,
 		resources.NewTrustedClusterV2Reconciler,
 		test,
