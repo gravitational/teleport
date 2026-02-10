@@ -20,7 +20,6 @@ package common
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"path"
 	"sort"
@@ -203,17 +202,9 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 		reviewers = strings.Join(r, ", ")
 	}
 
-	resourcesStr := ""
-	if resources := req.GetAllRequestedResourceIDs(); len(resources) > 0 {
-		resourceStrs := make([]string, 0, len(resources))
-		for _, r := range resources {
-			resourceStrs = append(resourceStrs, common.FormatResourceAccessID(r, true))
-		}
-		bytes, err := json.Marshal(resourceStrs)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		resourcesStr = string(bytes)
+	resourcesStr, err := common.FormatResourceAccessIDs(req.GetAllRequestedResourceIDs())
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	table := asciitable.MakeHeadlessTable(2)
@@ -234,7 +225,7 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 	}
 	table.AddRow([]string{"Status:", req.GetState().String()})
 
-	_, err := table.AsBuffer().WriteTo(cf.Stdout())
+	_, err = table.AsBuffer().WriteTo(cf.Stdout())
 	if err != nil {
 		return trace.Wrap(err)
 	}
