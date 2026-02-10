@@ -1,5 +1,10 @@
 # Changelog
 
+## 17.7.19 (02/10/26)
+
+Enterprise:
+* Fixes a panic that occurred when External Audit Storage was available but not enabled in Teleport Cloud while Access Monitoring was enabled.
+
 ## 17.7.18 (02/09/26)
 
 Skipped 17.7.17 due to a build pipeline issue.
