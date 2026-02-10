@@ -654,6 +654,30 @@ var (
 		DefaultName:  "apitypes.MetaNameAutoUpdateConfig",
 	}
 
+	crownJewel = payload{
+		Name:                  "CrownJewel",
+		TypeName:              "CrownJewel",
+		VarName:               "crownJewel",
+		GetMethod:             "CrownJewelServiceClient().GetCrownJewel",
+		CreateMethod:          "CrownJewelServiceClient().CreateCrownJewel",
+		UpsertMethodArity:     2,
+		UpdateMethod:          "CrownJewelServiceClient().UpsertCrownJewel",
+		DeleteMethod:          "CrownJewelServiceClient().DeleteCrownJewel",
+		ID:                    "crownJewel.Metadata.Name",
+		Kind:                  "crown_jewel",
+		HasStaticID:           false,
+		ProtoPackage:          "crownjewelv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/crownjewel/v1",
+		TerraformResourceType: "teleport_crown_jewel",
+		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+		// resources are plain structs.
+		IsPlainStruct: true,
+		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind: "apitypes.KindCrownJewel",
+	}
 	healthCheckConfig = payload{
 		Name:                  "HealthCheckConfig",
 		TypeName:              "HealthCheckConfig",
@@ -882,6 +906,8 @@ func genTFSchema() {
 	generateDataSource(installer, pluralDataSource)
 	generateResource(accessMonitoringRule, pluralResource)
 	generateDataSource(accessMonitoringRule, pluralDataSource)
+	generateResource(crownJewel, pluralResource)
+	generateDataSource(crownJewel, pluralDataSource)
 	generateResource(staticHostUser, pluralResource)
 	generateDataSource(staticHostUser, pluralDataSource)
 	generateResource(workloadIdentity, pluralResource)

@@ -755,6 +755,7 @@ func TestAddRoleDefaults(t *testing.T) {
 							// The missing resources got added as individual rules
 							types.NewRule(types.KindDiscoveryConfig, RW()),
 							types.NewRule(types.KindAccessMonitoringRule, RW()),
+							types.NewRule(types.KindCrownJewel, RW()),
 							types.NewRule(types.KindDynamicWindowsDesktop, RW()),
 							types.NewRule(types.KindStaticHostUser, RW()),
 							types.NewRule(types.KindWorkloadIdentity, RW()),

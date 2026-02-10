@@ -822,6 +822,7 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindBot, RW()),
 					types.NewRule(types.KindInstaller, RW()),
 					types.NewRule(types.KindAccessMonitoringRule, RW()),
+					types.NewRule(types.KindCrownJewel, RW()),
 					types.NewRule(types.KindDynamicWindowsDesktop, RW()),
 					types.NewRule(types.KindStaticHostUser, RW()),
 					types.NewRule(types.KindWorkloadIdentity, RW()),
