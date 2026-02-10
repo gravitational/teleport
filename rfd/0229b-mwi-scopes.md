@@ -103,7 +103,8 @@ unscoped Bot. It is not possible to create a Scoped Bot with unscoped Roles.
 
 The Scope Admin then assigns Scoped Roles to the Scoped Bot through Scoped Role
 Assignments or via Scoped Access Lists. They cannot assign unscoped Roles to the
-Scoped Bot.
+Scoped Bot as this would allow the Scope Admin to escape the confines of their 
+scope.
 
 There are a number of rules that govern the assignment of privileges to a Scoped
 Bot. Some of these rules are inherited from the Scopes RFD (marked RFD229) and
