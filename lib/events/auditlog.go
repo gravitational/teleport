@@ -561,58 +561,29 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 			startCb(evt, nil)
 		}()
 	}
+	// TODO(tigrato): consider changing the implementation of Download* to return
+	// an io.ReadCloser instead of writing to a provided writer, which would allow
+	// us to avoid using io.Pipe here.
+	reader, writer := io.Pipe()
 
-	rawSession, err := os.CreateTemp(l.playbackDir, string(sessionID)+".stream.tar.*")
-	if err != nil {
-		e <- trace.Wrap(trace.ConvertSystemError(err), "creating temporary stream file")
-		close(sessionStartCh)
-		return c, e
-	}
-	// The file is still perfectly usable after unlinking it, and the space it's
-	// using on disk will get reclaimed as soon as the file is closed (or the
-	// process terminates) - and if the session is small enough and we go
-	// through it quickly enough, we're likely not even going to end up with any
-	// bytes on the physical disk, anyway. We're using the same playback
-	// directory as the GetSessionChunk flow, which means that if we crash
-	// between creating the empty file and unlinking it, we'll end up with an
-	// empty file that will eventually be cleaned up by periodicCleanupPlaybacks
-	//
-	// TODO(espadolini): investigate the use of O_TMPFILE on Linux, so we don't
-	// even have to bother with the unlink and we avoid writing on the directory
-	if err := os.Remove(rawSession.Name()); err != nil {
-		_ = rawSession.Close()
-		e <- trace.Wrap(trace.ConvertSystemError(err), "removing temporary stream file")
-		close(sessionStartCh)
-		return c, e
-	}
-
-	start := time.Now()
-	if err := l.UploadHandler.Download(ctx, sessionID, rawSession); err != nil {
-		_ = rawSession.Close()
+	go func() {
+		err := l.UploadHandler.Download(ctx, sessionID, writer)
 		if errors.Is(err, fs.ErrNotExist) {
 			err = trace.NotFound("a recording for session %v was not found", sessionID)
 		}
-		e <- trace.Wrap(err)
-		close(sessionStartCh)
-		return c, e
-	}
-	l.log.DebugContext(ctx, "Downloaded session to a temporary file for streaming.",
-		"duration", time.Since(start),
-		"session_id", string(sessionID),
-	)
+
+		// if the error is nil, it means the download was successful and closing the
+		// writer will signal the reader with io.EOF.
+		if err := writer.CloseWithError(err); err != nil {
+			l.log.WarnContext(ctx, "Failed to close the writer with error", "session_id", string(sessionID), "error", err)
+		}
+	}()
 
 	go func() {
-		defer rawSession.Close()
 		defer close(sessionStartCh)
+		defer reader.Close()
 
-		// this shouldn't be necessary as the position should be already 0 (Download
-		// takes an io.WriterAt), but it's better to be safe than sorry
-		if _, err := rawSession.Seek(0, io.SeekStart); err != nil {
-			e <- trace.Wrap(err)
-			return
-		}
-
-		protoReader := NewProtoReader(rawSession, l.decrypter)
+		protoReader := NewProtoReader(reader, l.decrypter)
 		defer protoReader.Close()
 
 		firstEvent := true
