@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
@@ -30,728 +31,323 @@ import (
 )
 
 func TestValidateScopedToken(t *testing.T) {
+	// baseToken contains a valid scoped token using the token join method.
+	// It's used as a base for constructing scoped tokens in various valid
+	// and invalid states.
+	baseToken := &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Scope:   "/aa/bb",
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "testtoken",
+		},
+		Spec: &joiningv1.ScopedTokenSpec{
+			Roles:         []string{types.RoleNode.String()},
+			AssignedScope: "/aa/bb",
+			JoinMethod:    string(types.JoinMethodToken),
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
+			ImmutableLabels: &joiningv1.ImmutableLabels{
+				Ssh: map[string]string{
+					"one":   "1",
+					"two":   "2",
+					"three": "3",
+				},
+			},
+		},
+		Status: &joiningv1.ScopedTokenStatus{
+			Secret: "secret",
+		},
+	}
 	cases := []struct {
 		name              string
-		token             *joiningv1.ScopedToken
+		modFn             func(*joiningv1.ScopedToken)
 		expectedStrongErr string
 		expectedWeakErr   string
 	}{
 		{
 			name: "invalid kind",
-			token: &joiningv1.ScopedToken{
-				Version: types.V1,
-				Scope:   "/aa",
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/aa/bb",
-					Roles:         []string{types.RoleNode.String()},
-					JoinMethod:    string(types.JoinMethodToken),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
-				Status: &joiningv1.ScopedTokenStatus{
-					Secret: "secret",
-				},
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Kind = ""
 			},
 			expectedStrongErr: fmt.Sprintf("expected kind %v, got %q", types.KindScopedToken, ""),
 		},
 		{
 			name: "invalid version",
-			token: &joiningv1.ScopedToken{
-				Kind:  types.KindScopedToken,
-				Scope: "/aa",
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/aa/bb",
-					Roles:         []string{types.RoleNode.String()},
-					JoinMethod:    string(types.JoinMethodToken),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
-				Status: &joiningv1.ScopedTokenStatus{
-					Secret: "secret",
-				},
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Version = ""
 			},
 			expectedStrongErr: fmt.Sprintf("expected version %v, got %q", types.V1, ""),
 		},
 		{
 			name: "invalid subkind",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Version: types.V1,
-				Scope:   "/aa",
-				SubKind: "subkind",
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/aa/bb",
-					Roles:         []string{types.RoleNode.String()},
-					JoinMethod:    string(types.JoinMethodToken),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
-				Status: &joiningv1.ScopedTokenStatus{
-					Secret: "secret",
-				},
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.SubKind = "subkind"
 			},
 			expectedStrongErr: fmt.Sprintf("expected sub_kind %v, got %q", "", "subkind"),
 		},
 		{
 			name: "missing name",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Version: types.V1,
-				Scope:   "/aa",
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/aa/bb",
-					Roles:         []string{types.RoleNode.String()},
-					JoinMethod:    string(types.JoinMethodToken),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
-				Status: &joiningv1.ScopedTokenStatus{
-					Secret: "secret",
-				},
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Metadata.Name = ""
 			},
 			expectedStrongErr: "missing name",
 		},
 		{
 			name: "missing spec",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Version: types.V1,
-				Scope:   "/aa",
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Status: &joiningv1.ScopedTokenStatus{
-					Secret: "secret",
-				},
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec = nil
 			},
 			expectedStrongErr: "spec must not be nil",
 			expectedWeakErr:   "validating scoped token assigned scope",
 		},
 		{
 			name: "missing scope",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/aa/bb",
-					Roles:         []string{types.RoleNode.String()},
-					JoinMethod:    string(types.JoinMethodToken),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
-				Status: &joiningv1.ScopedTokenStatus{
-					Secret: "secret",
-				},
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Scope = ""
 			},
 			expectedStrongErr: "scoped token must have a scope assigned",
 			expectedWeakErr:   "validating scoped token resource scope",
 		},
 		{
 			name: "non-absolute scope",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/aa/bb",
-					Roles:         []string{types.RoleNode.String()},
-					JoinMethod:    string(types.JoinMethodToken),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
-				Status: &joiningv1.ScopedTokenStatus{
-					Secret: "secret",
-				},
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Scope = "aa/bb"
 			},
 			expectedStrongErr: "validating scoped token resource scope",
 		},
 		{
 			name: "scope with invalid characters",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb}",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/aa/bb",
-					Roles:         []string{types.RoleNode.String()},
-					JoinMethod:    string(types.JoinMethodToken),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
-				Status: &joiningv1.ScopedTokenStatus{
-					Secret: "secret",
-				},
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Scope = "/aa/bb}"
 			},
 			expectedStrongErr: "validating scoped token resource scope",
 			expectedWeakErr:   "validating scoped token resource scope",
 		},
 		{
 			name: "missing assigned scope",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					Roles:      []string{types.RoleNode.String()},
-					JoinMethod: string(types.JoinMethodToken),
-					UsageMode:  string(joining.TokenUsageModeUnlimited),
-				},
-				Status: &joiningv1.ScopedTokenStatus{
-					Secret: "secret",
-				},
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.AssignedScope = ""
 			},
 			expectedStrongErr: "validating scoped token assigned scope",
 			expectedWeakErr:   "validating scoped token assigned scope",
 		},
 		{
 			name: "non-absolute assigned scope",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					Roles:         []string{types.RoleNode.String()},
-					AssignedScope: "aa/bb",
-					JoinMethod:    string(types.JoinMethodToken),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
-				Status: &joiningv1.ScopedTokenStatus{
-					Secret: "secret",
-				},
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.AssignedScope = "aa/bb"
 			},
 			expectedStrongErr: "validating scoped token assigned scope",
 		},
 		{
 			name: "assigned scope with invalid character",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					Roles:         []string{types.RoleNode.String()},
-					AssignedScope: "aa/bb}",
-					JoinMethod:    string(types.JoinMethodToken),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
-				Status: &joiningv1.ScopedTokenStatus{
-					Secret: "secret",
-				},
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.AssignedScope = "aa/bb}"
 			},
 			expectedStrongErr: "validating scoped token assigned scope",
 			expectedWeakErr:   "validating scoped token assigned scope",
 		},
 		{
 			name: "assigned scope is not descendant of token scope",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					Roles:         []string{types.RoleNode.String()},
-					AssignedScope: "/bb/aa",
-					JoinMethod:    string(types.JoinMethodToken),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
-				Status: &joiningv1.ScopedTokenStatus{
-					Secret: "secret",
-				},
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.AssignedScope = "/bb/aa"
 			},
 			expectedStrongErr: "scoped token assigned scope must be descendant of its resource scope",
 		},
 		{
 			name: "invalid join method",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					Roles:         []string{types.RoleNode.String()},
-					AssignedScope: "/aa/bb",
-					JoinMethod:    string(types.JoinMethodUnspecified),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
-				Status: &joiningv1.ScopedTokenStatus{
-					Secret: "secret",
-				},
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodUnspecified)
 			},
 			expectedStrongErr: fmt.Sprintf("join method %q does not support scoping", types.JoinMethodUnspecified),
 			expectedWeakErr:   fmt.Sprintf("join method %q does not support scoping", types.JoinMethodUnspecified),
 		},
 		{
 			name: "missing roles",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/aa/bb",
-					JoinMethod:    string(types.JoinMethodToken),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
-				Status: &joiningv1.ScopedTokenStatus{
-					Secret: "secret",
-				},
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.Roles = nil
 			},
 			expectedStrongErr: "scoped token must have at least one role",
 			expectedWeakErr:   "scoped token must have at least one role",
 		},
 		{
 			name: "invalid roles",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/aa/bb",
-					Roles:         []string{"random_role"},
-					JoinMethod:    string(types.JoinMethodToken),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
-				Status: &joiningv1.ScopedTokenStatus{
-					Secret: "secret",
-				},
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.Roles = []string{"random_role"}
 			},
 			expectedStrongErr: "validating scoped token roles",
 		},
 		{
 			name: "unsupported roles",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/aa/bb",
-					Roles:         []string{types.RoleNode.String(), types.RoleInstance.String()},
-					JoinMethod:    string(types.JoinMethodToken),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
-				Status: &joiningv1.ScopedTokenStatus{
-					Secret: "secret",
-				},
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.Roles = []string{types.RoleNode.String(), types.RoleInstance.String()}
 			},
 			expectedStrongErr: fmt.Sprintf("role %q does not support scoping", types.RoleInstance),
 		},
 		{
+			name: "invalid usage mode",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.UsageMode = "invalid"
+			},
+			expectedStrongErr: "scoped token mode is not supported",
+		},
+		{
+			name: "invalid labels key",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.ImmutableLabels = &joiningv1.ImmutableLabels{
+					Ssh: map[string]string{
+						"one":  "1",
+						"two;": "2",
+					},
+				}
+			},
+			expectedStrongErr: "invalid immutable label key \"two;\"",
+		},
+		{
+			name: "setting ssh labels for role other than node",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.Roles = []string{types.RoleBot.String()}
+				tok.Spec.ImmutableLabels = &joiningv1.ImmutableLabels{
+					Ssh: map[string]string{
+						"one":   "1",
+						"two":   "2",
+						"three": "3",
+					},
+				}
+			},
+			expectedStrongErr: "immutable ssh labels are only supported for tokens that allow the node role",
+		},
+		{
 			name: "no secret with token join method",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/aa/bb",
-					Roles:         []string{types.RoleNode.String()},
-					JoinMethod:    string(types.JoinMethodToken),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Status = nil
 			},
 			expectedStrongErr: "secret value must be defined for a scoped token when using the token join method",
 			expectedWeakErr:   "secret value must be defined for a scoped token when using the token join method",
 		},
 		{
 			name: "ec2 token without aws configuration",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/aa/bb",
-					Roles:         []string{types.RoleNode.String()},
-					JoinMethod:    string(types.JoinMethodEC2),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodEC2)
 			},
 			expectedStrongErr: "aws configuration must be defined for a scoped token when using the ec2 or iam join methods",
 			expectedWeakErr:   "aws configuration must be defined for a scoped token when using the ec2 or iam join methods",
 		},
 		{
 			name: "iam token without aws configuration",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/aa/bb",
-					Roles:         []string{types.RoleNode.String()},
-					JoinMethod:    string(types.JoinMethodIAM),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodIAM)
 			},
 			expectedStrongErr: "aws configuration must be defined for a scoped token when using the ec2 or iam join methods",
 			expectedWeakErr:   "aws configuration must be defined for a scoped token when using the ec2 or iam join methods",
 		},
 		{
 			name: "gcp token without gcp configuration",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/aa/bb",
-					Roles:         []string{types.RoleNode.String()},
-					JoinMethod:    string(types.JoinMethodGCP),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodGCP)
 			},
 			expectedStrongErr: "gcp configuration must be defined for a scoped token when using the gcp join method",
 			expectedWeakErr:   "gcp configuration must be defined for a scoped token when using the gcp join method",
 		},
 		{
 			name: "azure token without azure configuration",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/aa/bb",
-					Roles:         []string{types.RoleNode.String()},
-					JoinMethod:    string(types.JoinMethodAzure),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodAzure)
 			},
 			expectedStrongErr: "azure configuration must be defined for a scoped token when using the azure join method",
 			expectedWeakErr:   "azure configuration must be defined for a scoped token when using the azure join method",
 		},
 		{
 			name: "azure_devops token without azure configuration",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/aa/bb",
-					Roles:         []string{types.RoleNode.String()},
-					JoinMethod:    string(types.JoinMethodAzureDevops),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodAzureDevops)
 			},
 			expectedStrongErr: "azure_devops configuration must be defined for a scoped token when using the azure_devops join method",
 			expectedWeakErr:   "azure_devops configuration must be defined for a scoped token when using the azure_devops join method",
 		},
 		{
-			name: "invalid usage mode",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					Roles:         []string{types.RoleNode.String()},
-					AssignedScope: "/aa/bb",
-					JoinMethod:    string(types.JoinMethodToken),
-					UsageMode:     "invalid",
-				},
-				Status: &joiningv1.ScopedTokenStatus{
-					Secret: "secret",
-				},
-			},
-			expectedStrongErr: "scoped token mode is not supported",
-		},
-		// TODO (eriktate): add a test case for a missing secret with non-token join method once scoped
-		// tokens support other join methods
-		{
-			name: "invalid labels key",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/aa/bb",
-					Roles:         []string{types.RoleNode.String()},
-					JoinMethod:    string(types.JoinMethodToken),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-					ImmutableLabels: &joiningv1.ImmutableLabels{
-						Ssh: map[string]string{
-							"one":  "1",
-							"two;": "2",
-						},
-					},
-				},
-				Status: &joiningv1.ScopedTokenStatus{
-					Secret: "secret",
-				},
-			},
-			expectedStrongErr: "invalid immutable label key \"two;\"",
-		},
-		{
-			name: "setting ssh labels for role other than node",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					Roles:         []string{types.RoleBot.String()},
-					AssignedScope: "/aa/bb",
-					JoinMethod:    string(types.JoinMethodToken),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-					ImmutableLabels: &joiningv1.ImmutableLabels{
-						Ssh: map[string]string{
-							"one":   "1",
-							"two":   "2",
-							"three": "3",
-						},
-					},
-				},
-				Status: &joiningv1.ScopedTokenStatus{
-					Secret: "secret",
-				},
-			},
-			expectedStrongErr: "immutable ssh labels are only supported for tokens that allow the node role",
-		},
-		{
 			name: "valid scoped token",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					Roles:         []string{types.RoleNode.String()},
-					AssignedScope: "/aa/bb",
-					JoinMethod:    string(types.JoinMethodToken),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-					ImmutableLabels: &joiningv1.ImmutableLabels{
-						Ssh: map[string]string{
-							"one":   "1",
-							"two":   "2",
-							"three": "3",
-						},
-					},
-				},
-				Status: &joiningv1.ScopedTokenStatus{
-					Secret: "secret",
-				},
-			},
 		},
 		{
 			name: "valid ec2 scoped token",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					Roles:         []string{types.RoleNode.String()},
-					AssignedScope: "/aa/bb",
-					JoinMethod:    string(types.JoinMethodEC2),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-					ImmutableLabels: &joiningv1.ImmutableLabels{
-						Ssh: map[string]string{
-							"one":   "1",
-							"two":   "2",
-							"three": "3",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodEC2)
+				tok.Spec.Aws = &joiningv1.AWS{
+					Allow: []*joiningv1.AWS_Rule{
+						{
+							AwsAccount: "1234567890",
 						},
 					},
-					Aws: &joiningv1.AWS{
-						Allow: []*joiningv1.AWS_Rule{
-							{
-								AwsAccount: "1234567890",
-							},
-						},
-					},
-				},
+				}
 			},
 		},
 		{
 			name: "valid iam scoped token",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					Roles:         []string{types.RoleNode.String()},
-					AssignedScope: "/aa/bb",
-					JoinMethod:    string(types.JoinMethodIAM),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-					ImmutableLabels: &joiningv1.ImmutableLabels{
-						Ssh: map[string]string{
-							"one":   "1",
-							"two":   "2",
-							"three": "3",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodIAM)
+				tok.Spec.Aws = &joiningv1.AWS{
+					Allow: []*joiningv1.AWS_Rule{
+						{
+							AwsAccount: "1234567890",
 						},
 					},
-					Aws: &joiningv1.AWS{
-						Allow: []*joiningv1.AWS_Rule{
-							{
-								AwsAccount: "1234567890",
-							},
-						},
-					},
-				},
+				}
 			},
 		},
 		{
 			name: "valid gcp scoped token",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					Roles:         []string{types.RoleNode.String()},
-					AssignedScope: "/aa/bb",
-					JoinMethod:    string(types.JoinMethodGCP),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-					ImmutableLabels: &joiningv1.ImmutableLabels{
-						Ssh: map[string]string{
-							"one":   "1",
-							"two":   "2",
-							"three": "3",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodGCP)
+				tok.Spec.Gcp = &joiningv1.GCP{
+					Allow: []*joiningv1.GCP_Rule{
+						{
+							ProjectIds: []string{"1234567890"},
 						},
 					},
-					Gcp: &joiningv1.GCP{
-						Allow: []*joiningv1.GCP_Rule{
-							{
-								ProjectIds: []string{"1234567890"},
-							},
-						},
-					},
-				},
+				}
 			},
 		},
 		{
 			name: "valid azure scoped token",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					Roles:         []string{types.RoleNode.String()},
-					AssignedScope: "/aa/bb",
-					JoinMethod:    string(types.JoinMethodAzure),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-					ImmutableLabels: &joiningv1.ImmutableLabels{
-						Ssh: map[string]string{
-							"one":   "1",
-							"two":   "2",
-							"three": "3",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodAzure)
+				tok.Spec.Azure = &joiningv1.Azure{
+					Allow: []*joiningv1.Azure_Rule{
+						{
+							Subscription: "1234567890",
 						},
 					},
-					Azure: &joiningv1.Azure{
-						Allow: []*joiningv1.Azure_Rule{
-							{
-								Subscription: "1234567890",
-							},
-						},
-					},
-				},
+				}
 			},
 		},
 		{
 			name: "valid azure_devops scoped token",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					Roles:         []string{types.RoleNode.String()},
-					AssignedScope: "/aa/bb",
-					JoinMethod:    string(types.JoinMethodAzureDevops),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-					ImmutableLabels: &joiningv1.ImmutableLabels{
-						Ssh: map[string]string{
-							"one":   "1",
-							"two":   "2",
-							"three": "3",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodAzureDevops)
+				tok.Spec.AzureDevops = &joiningv1.AzureDevops{
+					Allow: []*joiningv1.AzureDevops_Rule{
+						{
+							Sub: "1234567890",
 						},
 					},
-					AzureDevops: &joiningv1.AzureDevops{
-						Allow: []*joiningv1.AzureDevops_Rule{
-							{
-								Sub: "1234567890",
-							},
-						},
-					},
-				},
+				}
 			},
 		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			err := joining.StrongValidateToken(c.token)
+			tok := proto.CloneOf(baseToken)
+			if c.modFn != nil {
+				c.modFn(tok)
+			}
+			err := joining.StrongValidateToken(tok)
 			if c.expectedStrongErr == "" {
 				assert.NoError(t, err)
 			} else {
 				assert.ErrorContains(t, err, c.expectedStrongErr)
 			}
 
-			err = joining.WeakValidateToken(c.token)
+			err = joining.WeakValidateToken(tok)
 			if c.expectedWeakErr == "" {
 				assert.NoError(t, err)
 			} else {
