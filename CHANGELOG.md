@@ -1,5 +1,12 @@
 # Changelog
 
+## 18.6.8 (02/10/26)
+
+* Added `--exec-cmd` and `--exec-arg` flags to `tsh proxy kube` to allow launching custom commands like k9s directly without requiring environment variable workarounds. [#63066](https://github.com/gravitational/teleport/pull/63066)
+
+Enterprise:
+* Fixes a panic that occurred when External Audit Storage was available but not enabled in Teleport Cloud while Access Monitoring was enabled.
+
 ## 18.6.7 (02/09/26)
 
 * Revised help messages for event handler CLI commands. [#63620](https://github.com/gravitational/teleport/pull/63620)
