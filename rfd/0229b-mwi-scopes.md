@@ -299,6 +299,8 @@ fields:
 
 wip, wip, wip
 
+wip: Remark on how bot identities work today - internal and assumed roles.
+
 We issue certificates for bot instances via three different paths:
 
 - `tbot` successfully calling of a Join RPC, we issue the Bot's "internal"
@@ -315,6 +317,9 @@ We issue certificates for bot instances via three different paths:
 
 Likely, all three of these paths will need to be modified in some way to support
 the scoping of bots. 
+
+wip: Lightly remark on how scoped roles are encoded, and the meaning of this,
+wip: and how this clashes with the way role assumption works today.
 
 #### GenerateUserCerts RPC
 
