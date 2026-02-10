@@ -76,10 +76,10 @@ func TestForwarder_getToken(t *testing.T) {
 				Clock: clockwork.NewFakeClock(),
 				getAccessToken: func(ctx context.Context, managedIdentity string, scope string) (*azcore.AccessToken, error) {
 					// find the fake clock from above
-					var clock clockwork.FakeClock
+					var clock *clockwork.FakeClock
 					for _, test := range tests {
 						if test.name == "timeout" {
-							clock = test.config.Clock.(clockwork.FakeClock)
+							clock = test.config.Clock.(*clockwork.FakeClock)
 						}
 					}
 
