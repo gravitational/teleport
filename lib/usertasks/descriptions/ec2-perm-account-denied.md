@@ -12,18 +12,37 @@ Add the following permissions to the IAM role used by the integration:
 
 ```json
 {
-  "Effect": "Allow",
-  "Action": ["ec2:DescribeInstances", "account:ListRegions"],
-  "Resource": "*"
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "EC2Discovery",
+      "Effect": "Allow",
+      "Action": [
+        "account:ListRegions",
+        "ec2:DescribeInstances",
+        "ssm:DescribeInstanceInformation",
+        "ssm:SendCommand",
+        "ssm:GetCommandInvocation",
+        "ssm:ListCommandInvocations"
+      ],
+      "Resource": ["*"]
+    }
+  ]
 }
 ```
 
 These permissions allow Teleport to:
 
-- `ec2:DescribeInstances` - Find EC2 instances that match your auto-discovery configuration
 - `account:ListRegions` - Determine which AWS regions to scan (required when using `regions: ["*"]`)
+- `ec2:DescribeInstances` - Find EC2 instances that match your auto-discovery configuration
+- `ssm:DescribeInstanceInformation` - Check SSM agent status on discovered instances before installation
+- `ssm:SendCommand` - Run the Teleport installation script on instances via SSM
+- `ssm:GetCommandInvocation` - Retrieve installation script execution results from instances
+- `ssm:ListCommandInvocations` - Poll for SSM command execution status during installation
 
 **Alternative fix for account:ListRegions**
+
+`account:ListRegions` is only required if `regions: ["*"]` is used.
 
 If you prefer not to grant `account:ListRegions`, specify explicit region names in your matcher configuration instead of using `regions: ["*"]`. Explicitly listing regions means Teleport doesn't need to dynamically discover them via the API, thus not requiring that permission:
 
