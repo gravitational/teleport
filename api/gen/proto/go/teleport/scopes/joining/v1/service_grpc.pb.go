@@ -52,7 +52,7 @@ type ScopedJoiningServiceClient interface {
 	ListScopedTokens(ctx context.Context, in *ListScopedTokensRequest, opts ...grpc.CallOption) (*ListScopedTokensResponse, error)
 	// CreateScopedToken creates a new scoped token.
 	CreateScopedToken(ctx context.Context, in *CreateScopedTokenRequest, opts ...grpc.CallOption) (*CreateScopedTokenResponse, error)
-	// UpdateScopedToken updates a scoped token.
+	// UpsertScopedToken upserts a scoped token.
 	UpsertScopedToken(ctx context.Context, in *UpsertScopedTokenRequest, opts ...grpc.CallOption) (*UpsertScopedTokenResponse, error)
 	// DeleteScopedToken deletes a scoped token.
 	DeleteScopedToken(ctx context.Context, in *DeleteScopedTokenRequest, opts ...grpc.CallOption) (*DeleteScopedTokenResponse, error)
@@ -128,7 +128,7 @@ type ScopedJoiningServiceServer interface {
 	ListScopedTokens(context.Context, *ListScopedTokensRequest) (*ListScopedTokensResponse, error)
 	// CreateScopedToken creates a new scoped token.
 	CreateScopedToken(context.Context, *CreateScopedTokenRequest) (*CreateScopedTokenResponse, error)
-	// UpdateScopedToken updates a scoped token.
+	// UpsertScopedToken upserts a scoped token.
 	UpsertScopedToken(context.Context, *UpsertScopedTokenRequest) (*UpsertScopedTokenResponse, error)
 	// DeleteScopedToken deletes a scoped token.
 	DeleteScopedToken(context.Context, *DeleteScopedTokenRequest) (*DeleteScopedTokenResponse, error)

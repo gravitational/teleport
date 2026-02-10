@@ -384,10 +384,10 @@ func (x *CreateScopedTokenResponse) GetToken() *ScopedToken {
 	return nil
 }
 
-// UpsertScopedTokenRequest is the request to update a scoped token.
+// UpsertScopedTokenRequest is the request to upsert a scoped token.
 type UpsertScopedTokenRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Token is the scoped token to update.
+	// Token is the scoped token to upsert.
 	Token         *ScopedToken `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -430,10 +430,10 @@ func (x *UpsertScopedTokenRequest) GetToken() *ScopedToken {
 	return nil
 }
 
-// UpsertScopedTokenResponse is the response to update a scoped token.
+// UpsertScopedTokenResponse is the response to upsert a scoped token.
 type UpsertScopedTokenResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Token is the post-update scoped token.
+	// Token is the post-upsert scoped token.
 	Token         *ScopedToken `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

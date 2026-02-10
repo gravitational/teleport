@@ -231,7 +231,7 @@ func TestScopedJoiningService(t *testing.T) {
 				Scope: "/staging/aa",
 				Assignments: map[string]*scopesv1.PinnedAssignments{
 					"/staging/aa": {
-						Roles: []string{"staging-update"},
+						Roles: []string{"staging-upserter"},
 					},
 				},
 			},
@@ -372,21 +372,23 @@ func TestScopedJoiningService(t *testing.T) {
 			tokenUpdate.Metadata = proto.CloneOf(stageTokenAA.GetMetadata())
 			tokenUpdate.Metadata.Labels = map[string]string{"env": "test"}
 
-			nonUpdaterIdents := []*joining.Server{reader, readerNoSecrets, writer}
-			for _, ident := range nonUpdaterIdents {
-				_, err := ident.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{
-					Token: tokenUpdate,
-				})
-				require.True(t, trace.IsAccessDenied(err))
-			}
-
 			_, err := updater.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{
 				Token: tokenUpdate,
 			})
 			require.NoError(t, err)
+
+			t.Run("non upserter role cannot update a token", func(t *testing.T) {
+				nonUpdaterIdents := []*joining.Server{reader, readerNoSecrets, writer}
+				for _, ident := range nonUpdaterIdents {
+					_, err := ident.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{
+						Token: tokenUpdate,
+					})
+					require.True(t, trace.IsAccessDenied(err))
+				}
+			})
 		})
 
-		t.Run("ensure upserter cannot update a token at an accessible scope", func(t *testing.T) {
+		t.Run("ensure upserter cannot upsert a token at an orthogonal scope", func(t *testing.T) {
 			tokenUpdate := proto.CloneOf(stageTokenBB)
 			tokenUpdate.Metadata = proto.CloneOf(stageTokenBB.GetMetadata())
 			tokenUpdate.Metadata.Labels = map[string]string{"env": "test"}
@@ -485,7 +487,7 @@ func newBackendPack(t *testing.T) *backendPack {
 					Rules: []*scopedaccessv1.ScopedRule{
 						{
 							Resources: []string{types.KindScopedToken},
-							Verbs:     []string{types.VerbCreate, types.VerbRead, types.VerbList, types.VerbDelete},
+							Verbs:     []string{types.VerbCreate, types.VerbRead, types.VerbList, types.VerbDelete, types.VerbUpdate},
 						},
 					},
 				},
@@ -566,7 +568,7 @@ func newBackendPack(t *testing.T) *backendPack {
 		}, {
 			Kind: scopedaccess.KindScopedRole,
 			Metadata: &headerv1.Metadata{
-				Name: "staging-update",
+				Name: "staging-upserter",
 			},
 			Scope: "/staging",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
@@ -575,7 +577,7 @@ func newBackendPack(t *testing.T) *backendPack {
 					Rules: []*scopedaccessv1.ScopedRule{
 						{
 							Resources: []string{types.KindScopedToken},
-							Verbs:     []string{types.VerbUpdate},
+							Verbs:     []string{types.VerbUpdate, types.VerbCreate},
 						},
 					},
 				},

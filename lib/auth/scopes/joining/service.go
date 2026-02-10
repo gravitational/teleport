@@ -300,14 +300,12 @@ func (s *Server) UpsertScopedToken(ctx context.Context, req *scopedjoiningv1.Ups
 
 	ruleCtx := authzContext.RuleContext()
 	if err := authzContext.CheckerContext.Decision(ctx, req.GetToken().GetScope(), func(checker *services.SplitAccessChecker) error {
-		return checker.Common().CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbUpdate)
+		return checker.Common().CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbUpdate, types.VerbCreate)
 	}); err != nil {
-		s.logger.WarnContext(ctx, "user does not have permission to update scoped tokens in the requested scope", "user", authzContext.User.GetName(), "scope", req.GetToken().GetScope())
+		s.logger.WarnContext(ctx, "user does not have permission to upsert scoped tokens in the requested scope", "user", authzContext.User.GetName(), "scope", req.GetToken().GetScope())
 		return nil, trace.Wrap(err)
 	}
 
 	res, err := s.backend.UpsertScopedToken(ctx, req)
-	return &scopedjoiningv1.UpsertScopedTokenResponse{
-		Token: res.GetToken(),
-	}, trace.Wrap(err)
+	return res, trace.Wrap(err)
 }

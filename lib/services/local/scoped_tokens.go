@@ -334,20 +334,20 @@ func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, req *joining
 		}
 
 		if !proto.Equal(existingToken.GetStatus().GetUsage(), tokenUpsert.GetStatus().GetUsage()) {
-			return nil, trace.BadParameter("cannot modify status of existing scoped token")
+			return nil, trace.BadParameter("cannot modify usage mode of existing scoped token")
 		}
 
 		if tokenUpsert.GetStatus().GetSecret() != existingToken.GetStatus().GetSecret() {
 			return nil, trace.BadParameter("cannot modify secret of existing scoped token")
 		}
 	}
-	revision, err := s.svc.UpsertResource(ctx, tokenUpsert)
+	upsertedToken, err := s.svc.UpsertResource(ctx, tokenUpsert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &joiningv1.UpsertScopedTokenResponse{
-		Token: revision,
+		Token: upsertedToken,
 	}, nil
 }
 

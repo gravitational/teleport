@@ -32,7 +32,7 @@ service ScopedJoiningService {
   // CreateScopedToken creates a new scoped token.
   rpc CreateScopedToken(CreateScopedTokenRequest) returns (CreateScopedTokenResponse);
 
-  // UpdateScopedToken updates a scoped token.
+  // UpsertScopedToken upserts a scoped token.
   rpc UpsertScopedToken(UpsertScopedTokenRequest) returns (UpsertScopedTokenResponse);
 
   // DeleteScopedToken deletes a scoped token.
@@ -99,15 +99,15 @@ message CreateScopedTokenResponse {
   ScopedToken token = 1;
 }
 
-// UpsertScopedTokenRequest is the request to update a scoped token.
+// UpsertScopedTokenRequest is the request to upsert a scoped token.
 message UpsertScopedTokenRequest {
-  // Token is the scoped token to update.
+  // Token is the scoped token to upsert.
   ScopedToken token = 1;
 }
 
-// UpsertScopedTokenResponse is the response to update a scoped token.
+// UpsertScopedTokenResponse is the response to upsert a scoped token.
 message UpsertScopedTokenResponse {
-  // Token is the post-update scoped token.
+  // Token is the post-upsert scoped token.
   ScopedToken token = 1;
 }
 
