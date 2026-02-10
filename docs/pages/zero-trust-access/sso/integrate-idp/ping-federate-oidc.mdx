@@ -1,0 +1,319 @@
+---
+title: Configure PingFederate as an OIDC Provider
+description: Configure Teleport access using PingFederate as an OIDC provider.
+sidebar_label: PingFederate
+tags:
+  - sso
+  - how-to
+  - zero-trust
+  - privileged-access
+---
+
+This guide explains how to configure PingFederate as a single sign-on
+(SSO) identity provider for Teleport using **OpenID Connect** (OIDC).
+
+Teleport acts as the OIDC client and PingFederate acts as the identity
+provider. When a user authenticates, Teleport redirects them to
+PingFederate. PingFederate authenticates the user and returns an ID
+token containing claims. Teleport evaluates the claims against its
+`claims_to_roles` mapping and assigns the appropriate roles.
+
+ {/* lint ignore page-structure remark-lint */}
+
+## Prerequisites
+
+- A running Teleport Enterprise cluster. OIDC connectors require an
+  Enterprise license.
+- Administrative access to PingFederate.
+- Administrative access to Teleport (`tctl` or the Web UI).
+- The `tctl` and `tsh` client tools installed on your workstation. For
+  instructions, see [installation](../../../installation/installation.mdx).
+
+## Step 1/7. Create an OIDC client in PingFederate
+
+In the PingFederate administrative console, navigate to
+**Applications > OAuth > Clients** and select **Add Client**.
+
+Configure the following fields:
+
+| Field                     | Value                                                              |
+|---------------------------|--------------------------------------------------------------------|
+| **Client ID**             | `teleport-prod-client`                                             |
+| **Client Authentication** | `Client Secret`                                                    |
+| **Redirect URI**          | `https://<your-teleport-domain>/v1/webapi/oidc/callback`           |
+
+Ensure the **Authorization Code** grant type and the **openid** scope
+are enabled, then generate a client secret and store it securely.
+
+<Admonition type="warning" title="Important">
+PingFederate does not allow you to retrieve the client secret after
+creation. Store the secret in a password manager or secrets manager
+before continuing.
+</Admonition>
+
+<Checkpoint
+  title="Verify the OIDC client configuration"
+  description="Ensure PingFederate is correctly configured to redirect authentication responses to Teleport."
+>
+  Here are some troubleshooting tips:
+  - Confirm the **Redirect URI** exactly matches your Teleport callback URL,
+    including protocol, domain, and path. For example:
+    `https://teleport.example.com/v1/webapi/oidc/callback`. Check for
+    trailing slash or HTTP versus HTTPS mismatches.
+  - Ensure the **Authorization Code** grant type is enabled.
+  - Confirm the **openid** scope is enabled.
+  - Verify the client status is **active** in PingFederate.
+  - Confirm the client ID and client secret you recorded match what is
+    configured in PingFederate. If needed, regenerate the secret, update
+    your connector YAML, and reapply it with `tctl create -f pingfederate-connector.yaml`.
+</Checkpoint>
+
+## Step 2/7. Configure scopes in PingFederate
+
+Enable the following scopes for the OIDC client:
+
+| Scope     | Required |
+|-----------|----------|
+| `openid`  | Yes      |
+| `email`   | Yes      |
+| `profile` | Yes      |
+| `groups`  | No       |
+
+<Admonition type="note" title="Groups scope and role mapping">
+PingFederate does not provide a default `groups` scope. If you want to
+use group membership to drive Teleport role assignments, you must
+configure a custom scope and attribute mapping to include group
+membership in the ID token. See Step 3/7 for attribute mapping details.
+</Admonition>
+
+## Step 3/7. Configure attribute mappings in PingFederate
+
+Teleport needs the following claims in the ID token:
+
+| OIDC claim | Purpose                | Example PingFederate attribute |
+|------------|------------------------|--------------------------------|
+| `sub`      | Unique user identifier | `uid`                          |
+| `email`    | User email address     | `mail`                         |
+| `groups`   | Role mapping           | `memberOf`                     |
+
+To configure these mappings, navigate to **Identity Provider > Attribute
+Mapping** in the PingFederate administrative console and map each
+PingFederate attribute to the corresponding OIDC claim name.
+
+When a user authenticates, PingFederate issues an ID token that contains
+claims like the following:
+
+```json
+{
+  "sub": "alice@example.com",
+  "email": "alice@example.com",
+  "groups": ["developers"]
+}
+```
+
+Teleport evaluates the `groups` claim against the `claims_to_roles`
+mapping in the OIDC connector to assign the user to the appropriate
+roles.
+
+## Step 4/7. Determine the issuer URL
+
+Teleport requires the exact issuer URL published by PingFederate. Open
+the PingFederate OIDC discovery document in a browser:
+
+```code
+https://<pingfederate-host>/pf/.well-known/openid-configuration
+```
+
+Locate the `issuer` field in the response. The typical value is
+`https://<pingfederate-host>/as`. Copy this value exactly into the
+Teleport OIDC connector in a later step.
+
+<Checkpoint
+  title="Verify issuer configuration"
+  description="Ensure the issuer URL you will use in Teleport matches the PingFederate OIDC discovery document."
+>
+  Here are some troubleshooting tips:
+  - Open the discovery document in a browser and locate the `issuer` value.
+  - Do not use the authorization or token endpoint as the issuer URL.
+  - Ensure there are no trailing slash differences between the discovery
+    document and your connector configuration.
+</Checkpoint>
+
+## Step 5/7. Create Teleport roles
+
+Create the Teleport roles that you will map PingFederate groups to. The
+following example creates a `developer` role:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: developer
+spec:
+  allow:
+    logins: ['ubuntu', 'ec2-user', '{{internal.username}}']
+    node_labels:
+      env: dev
+    kubernetes_groups: ['developers']
+    kubernetes_labels:
+      env: dev
+  options:
+    max_session_ttl: 8h
+```
+
+Apply the role:
+
+```code
+$ tctl create -f developer-role.yaml
+```
+
+<Checkpoint
+  title="Verify the Teleport role exists"
+  description="Ensure the roles referenced by claims_to_roles exist in the cluster."
+>
+  Run `tctl get roles` to list all roles. Here are some troubleshooting tips:
+  - Ensure the role name exactly matches the value you will use in the
+    `claims_to_roles` section of the OIDC connector.
+  - Role names are case-sensitive.
+</Checkpoint>
+
+## Step 6/7. Create the OIDC connector
+
+Create a file called `pingfederate-connector.yaml` with the following
+content:
+
+```yaml
+kind: oidc
+version: v3
+metadata:
+  name: pingfederate
+spec:
+  client_id: teleport-prod-client
+  client_secret: "<secret>"
+  issuer_url: https://pingfed.example.com/as
+  redirect_url: https://teleport.example.com/v1/webapi/oidc/callback
+  provider: ping
+  display: PingFederate SSO
+  prompt: none
+  scope:
+    - openid
+    - email
+    - profile
+  username_claim: sub
+  claims_to_roles:
+    - claim: groups
+      value: developers
+      roles:
+        - developer
+```
+
+Replace the following placeholder values:
+
+| Placeholder                           | Description                                                         |
+|---------------------------------------|---------------------------------------------------------------------|
+| `<secret>`                            | The client secret you generated in Step 1/7.                        |
+| `https://pingfed.example.com/as`      | Your PingFederate issuer URL from Step 4/7.                         |
+| `https://teleport.example.com`        | Your Teleport Proxy Service public address.                         |
+| `teleport-prod-client`                | Your PingFederate client ID if you used a different name.           |
+| `developers`                          | The PingFederate group you want to map to a Teleport role.          |
+| `developer`                           | The Teleport role to assign to members of the mapped group.         |
+
+Note that `prompt: none` is required for PingFederate compatibility.
+Without it, PingFederate may return an `OAuth2 error code=invalid_request`
+error during authentication.
+
+Apply the connector:
+
+```code
+$ tctl create -f pingfederate-connector.yaml
+```
+
+You can also apply the connector through the Web UI by navigating to
+**Zero Trust Access > Auth Connectors**, selecting **Add OIDC**, and
+pasting the YAML content.
+
+<Checkpoint
+  title="Verify connector configuration"
+  description="Ensure the OIDC connector is valid and authentication succeeds."
+>
+  Here are some troubleshooting tips:
+  - Confirm `issuer_url` matches the `issuer` value in the PingFederate
+    OIDC discovery document exactly, with no trailing slash differences.
+  - Verify `redirect_url` matches the redirect URI configured in the
+    PingFederate client.
+  - Confirm `client_id` and `client_secret` are correct. If needed,
+    regenerate the secret in PingFederate, update the YAML, and reapply
+    with `tctl create -f pingfederate-connector.yaml`.
+  - Confirm `prompt` is set to `none`.
+  - If Teleport reports that the username claim does not exist in the ID
+    token, verify that `username_claim` references a claim PingFederate
+    includes in the token. Common values are `sub`, `email`, and
+    `preferred_username`.
+  - Confirm the user belongs to the expected PingFederate group and that
+    the claim value in the ID token exactly matches the `value` field in
+    `claims_to_roles`.
+</Checkpoint>
+
+## Step 7/7. Test authentication
+
+Log in to Teleport using the PingFederate connector:
+
+```code
+$ tsh login --auth=pingfederate
+```
+
+Verify your session:
+
+```code
+$ tsh status
+```
+
+<Checkpoint
+  title="Verify successful login"
+  description="Confirm the user is authenticated, assigned the correct roles, and that Teleport received the expected claims."
+>
+  Here are some troubleshooting tips:
+  - Ensure the username in `tsh status` output is correct.
+  - Confirm the expected roles appear in the output.
+  - Verify the cluster connection succeeds.
+
+  When an SSO login occurs, Teleport records the received claims in the
+  audit log. To inspect the claims PingFederate returned, run:
+
+  ```code
+  $ tctl audit log --query='event="user.login" AND method="oidc"' --format=json
+  ```
+
+  An example audit event looks like the following:
+
+  ```json
+  {
+    "event": "user.login",
+    "method": "oidc",
+    "user": "alice@example.com",
+    "attributes": {
+      "sub": "alice@example.com",
+      "email": "alice@example.com",
+      "groups": [
+        "developers",
+        "platform"
+      ]
+    }
+  }
+  ```
+
+  Confirm that `sub`, `email`, and `groups` claims appear in the event,
+  that the claim names match your connector configuration, and that the
+  attributes are present in the ID token rather than only in the userinfo
+  endpoint response.
+</Checkpoint>
+
+## Next steps
+- Learn how to configure [Multi-Factor Authentication](../../authentication/per-session-mfa.mdx)
+  to require MFA on top of SSO.
+- Set up [Access Requests](../../../identity-governance/access-requests/access-requests.mdx)
+  to allow users to request elevated roles on demand.
+- Review other [SSO connector guides](../sso.mdx) for alternative identity
+  providers.
+- Learn more about [OIDC connector reference](../../../reference/access-controls/authentication.mdx)
+  for all available connector configuration options.
