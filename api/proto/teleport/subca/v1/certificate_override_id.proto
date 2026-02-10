@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package teleport.subca.v1;
+
+import "teleport/subca/v1/public_key_hash.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1;subcav1";
+
+// ID of a CertificateOverride within a CertAuthorityOverride resource.
+message CertificateOverrideID {
+  // CA type per api/types.CertAuthType.
+  string ca_type = 1;
+
+  // Certificate override to target.
+  PublicKeyHash public_key_hash = 2;
+}

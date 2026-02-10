@@ -1,0 +1,220 @@
+syntax = "proto3";
+
+package teleport.subca.v1;
+
+import "teleport/subca/v1/cert_authority_override.proto";
+import "teleport/subca/v1/cert_authority_override_id.proto";
+import "teleport/subca/v1/certificate_override.proto";
+import "teleport/subca/v1/certificate_override_id.proto";
+import "teleport/subca/v1/csr.proto";
+import "teleport/subca/v1/distinguished_name.proto";
+import "teleport/subca/v1/public_key_hash.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1;subcav1";
+
+// SubCAService manages resources related to the Sub CA feature.
+//
+// Sub CA allows Teleport CAs, which are originally self-signed roots, to be
+// chained to an external authority (effectively becoming a Sub CA). This is
+// achieved through the creation of a CertAuthorityOverride resource.
+//
+// The typical CertAuthorityOverride creation flow is:
+//
+//  1. rpc:CreateCSR
+//  2. User sends CSRs to the external authority, acquires corresponding
+//     certificates.
+//  3. rpc:UpsertCertAuthorityOverride or rpc:AddCertificateOverride
+//
+// The steps above are facilitated by tctl commands, namely `tctl auth
+// create-override-csr` and `tctl auth create-override`.
+//
+// Interacting with CertAuthorityOverride resources requires the corresponding
+// kind/verb permissions (KindCertAuthorityOverride, verb create/read/etc/...).
+//
+// https://github.com/gravitational/teleport/blob/master/rfd/0237-sub-ca-support.md
+service SubCAService {
+  // CreateCSR creates certificate signing requests for all certificates of the
+  // specified CA, in preparation for the creation of a CertAuthorityOverride.
+  //
+  // CreateCSR requires cert_authority_override:read+list permissions.
+  rpc CreateCSR(CreateCSRRequest) returns (CreateCSRResponse);
+
+  // UpsertCertAuthorityOverride creates or fully updates a
+  // CertAuthorityOverride resource.
+  //
+  // Disabling an active override is disallowed. See
+  // UpsertCertAuthorityOverrideRequest.force_immediate_disable.
+  //
+  // Added certificate overrides may take effect immediately depending on the
+  // value of CertificateOverride.disabled. See it for reference.
+  rpc UpsertCertAuthorityOverride(UpsertCertAuthorityOverrideRequest) returns (UpsertCertAuthorityOverrideResponse);
+
+  // AddCertificateOverride adds or updates a single CertiticateOverride inside
+  // a CertAuthorityOverride resource.
+  //
+  // The CertAuthorityOverride resource is created as a consequence of this RPC,
+  // if it doesn't yet exist.
+  //
+  // Disabling an active override is disallowed. See
+  // AddCertificateOverrideRequest.force_immediate_disable.
+  //
+  // Added certificate overrides may take effect immediately depending on the
+  // value of CertificateOverride.disabled. See it for reference.
+  rpc AddCertificateOverride(AddCertificateOverrideRequest) returns (AddCertificateOverrideResponse);
+
+  // RemoveCertificateOverride removes a single CertiticateOverride inside a
+  // CertAuthorityOverride resource.
+  //
+  // If the last CertificateOverride of a CertAuthorityOverride is removed as a
+  // consequence of this RPC, then the entire CertAuthorityOverride resource is
+  // removed by the server, as if DeleteCertAuthorityOverride was called.
+  //
+  // Removals are only allowed for disabled overrides, or overrides that target
+  // removed certificates. See
+  // RemoveCertificateOverrideRequest.force_immediate_delete.
+  rpc RemoveCertificateOverride(RemoveCertificateOverrideRequest) returns (RemoveCertificateOverrideResponse);
+
+  // GetCertAuthorityOverride reads a CertAuthorityOverride resource.
+  rpc GetCertAuthorityOverride(GetCertAuthorityOverrideRequest) returns (GetCertAuthorityOverrideResponse);
+
+  // ListCertAuthorityOverride lists all CertAuthorityOverride resources.
+  rpc ListCertAuthorityOverride(ListCertAuthorityOverrideRequest) returns (ListCertAuthorityOverrideResponse);
+
+  // DeleteCertAuthorityOverride deletes a CertAuthorityOverride resource.
+  //
+  // Deletes are only allowed for CertAuthorityOverride resources composed
+  // entirely of inactive certificate overrides. See
+  // DeleteCertAuthorityOverrideRequest.force_immediate_delete.
+  rpc DeleteCertAuthorityOverride(DeleteCertAuthorityOverrideRequest) returns (DeleteCertAuthorityOverrideResponse);
+}
+
+// Request for CreateCSR.
+message CreateCSRRequest {
+  // CA type per api/types.CertAuthType.
+  // Required.
+  string ca_type = 1;
+
+  // Targets a CA certificate by its public key.
+  // Optional.
+  PublicKeyHash public_key_hash = 2;
+
+  // Customized certificate Subject.
+  // Eg: `O=mycluster,OU=Llama Unit,CN=Llama Teleport DB client CA`.
+  //
+  // Teleport CA Subject restrictions still apply. The system may modify the
+  // Subject or reject the request if restrictions cannot be fulfilled.
+  //
+  // Optional. If present the request must target a single certificate.
+  DistinguishedName custom_subject = 3;
+}
+
+// Response for CreateCSR.
+message CreateCSRResponse {
+  // Created CSRs.
+  repeated CertificateSigningRequest csrs = 1;
+}
+
+// Request for UpsertCertAuthorityOverride.
+message UpsertCertAuthorityOverrideRequest {
+  // CA override to upsert.
+  // Required.
+  CertAuthorityOverride ca_override = 1;
+
+  // If true the server will allow disable of an active override.
+  // Active overrides are defined as overrides of certificates that are used to
+  // mint certificate (see CertAuthoritySpecV2.ActiveKeys and
+  // CertAuthoritySpecV2.AdditionalTrustedKeys).
+  bool force_immediate_disable = 2;
+}
+
+// Response for UpsertCertAuthorityOverride.
+message UpsertCertAuthorityOverrideResponse {
+  // Created or updated CA override.
+  CertAuthorityOverride ca_override = 1;
+}
+
+// Request for AddCertificateOverride.
+message AddCertificateOverrideRequest {
+  // CA override to target.
+  CertAuthorityOverrideID ca_id = 1;
+
+  // Certificate override to add or update.
+  CertificateOverride certificate_override = 2;
+
+  // If true the server will allow disable of an active override.
+  // Active overrides are defined as overrides of certificates that are used to
+  // mint certificate (see CertAuthoritySpecV2.ActiveKeys and
+  // CertAuthoritySpecV2.AdditionalTrustedKeys).
+  bool force_immediate_disable = 3;
+}
+
+// Response for AddCertificateOverride.
+message AddCertificateOverrideResponse {
+  // Added or updated certificate override.
+  CertificateOverride certificate_override = 1;
+}
+
+// Request for RemoveCertificateOverride.
+message RemoveCertificateOverrideRequest {
+  // Certificate override to target.
+  CertificateOverrideID certificate_override_id = 1;
+
+  // If true the server will allow deletion of an active override
+  // Active overrides are defined as overrides of certificates that are used to
+  // mint certificate (see CertAuthoritySpecV2.ActiveKeys and
+  // CertAuthoritySpecV2.AdditionalTrustedKeys).
+  bool force_immediate_delete = 3;
+}
+
+// Response for RemoveCertificateOverride.
+message RemoveCertificateOverrideResponse {}
+
+// Request for GetCertAuthorityOverride.
+message GetCertAuthorityOverrideRequest {
+  // CA override to target.
+  CertAuthorityOverrideID ca_id = 1;
+}
+
+// Response for GetCertAuthorityOverride.
+message GetCertAuthorityOverrideResponse {
+  // The CA override.
+  CertificateOverride ca_override = 1;
+}
+
+// Request for ListCertAuthorityOverride.
+message ListCertAuthorityOverrideRequest {
+  // CA override to target.
+  CertAuthorityOverrideID ca_id = 1;
+
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 2;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 3;
+}
+
+// Response for ListCertAuthorityOverride.
+message ListCertAuthorityOverrideResponse {
+  // The CA overrides.
+  repeated CertificateOverride ca_overrides = 1;
+
+  // Token to retrieve the next page of results, or empty if there are no more
+  // results in the list.
+  string next_page_token = 2;
+}
+
+// Request for DeleteCertAuthorityOverride.
+message DeleteCertAuthorityOverrideRequest {
+  // CA override to target.
+  CertAuthorityOverrideID ca_id = 1;
+
+  // If true the server will allow deletion of a CertAuthorityOverride that
+  // contains active overrides.
+  // Active overrides are defined as overrides of certificates that are used to
+  // mint certificate (see CertAuthoritySpecV2.ActiveKeys and
+  // CertAuthoritySpecV2.AdditionalTrustedKeys).
+  bool force_immediate_delete = 2;
+}
+
+// Response for DeleteCertAuthorityOverride.
+message DeleteCertAuthorityOverrideResponse {}
