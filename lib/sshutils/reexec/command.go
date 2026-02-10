@@ -63,14 +63,9 @@ type Command struct {
 	parentReadPipes []io.Closer
 }
 
-// CommandOpt if a command option.
-// TODO(Joerger): Any changes to the underlying exec.Cmd should be made internally, once more
-// logic is migrated here.
-type CommandOpt func(*exec.Cmd)
-
 // NewCommand allocates a [Command] with the common reexec pipes.
 // The caller must ensure the command is closed once it's no longer needed.
-func NewCommand(cfg *Config, opts ...CommandOpt) (*Command, error) {
+func NewCommand(cfg *Config) (*Command, error) {
 	if cfg == nil {
 		return nil, trace.BadParameter("missing config")
 	}
@@ -86,9 +81,7 @@ func NewCommand(cfg *Config, opts ...CommandOpt) (*Command, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	for _, opt := range opts {
-		opt(cmd)
-	}
+	CommandOSTweaks(cmd)
 
 	c := &Command{
 		logger: slog.Default(),

@@ -1038,7 +1038,7 @@ func (c *ServerContext) ConfigureCommand() (*reexec.Command, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cmd, err := reexec.NewCommand(cfg, reexecCommandOSTweaks)
+	cmd, err := reexec.NewCommand(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

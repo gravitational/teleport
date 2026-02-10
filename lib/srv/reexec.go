@@ -58,79 +58,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/envutils"
 	"github.com/gravitational/teleport/lib/utils/host"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/uds"
 )
-
-// FileFD is a file descriptor passed down from a parent process when
-// Teleport is re-executing itself.
-type FileFD = uintptr
-
-const (
-	// ConfigFile is used to pass the reexec configuration payload
-	// (including the command, logging, and session settings) from the parent process.
-	ConfigFile FileFD = 3 + iota
-	// LogFile is used to emit logs from the child process to the parent
-	// process.
-	LogFile
-	// ContinueFile is used to communicate to the child process that
-	// it can continue after the parent process assigns a cgroup to the
-	// child process.
-	ContinueFile
-	// ReadyFile is used to communicate to the parent process that
-	// the child has completed any setup operations that must occur before
-	// the child is placed into its cgroup.
-	ReadyFile
-	// TerminateFile is used to communicate to the child process that
-	// the interactive terminal should be killed as the client ended the
-	// SSH session and without termination the terminal process will be assigned
-	// to pid 1 and "live forever". Killing the shell should not prevent processes
-	// preventing SIGHUP to be reassigned (ex. processes running with nohup).
-	TerminateFile
-	// FirstExtraFile is the first file descriptor that will be valid when
-	// extra files are passed to child processes without a terminal.
-	FirstExtraFile FileFD = TerminateFile + 1
-)
-
-// FileFDs for terminal based exec sessions.
-const (
-	// PTYFileDeprecated is a placeholder for the unused PTY file that
-	// was passed to the child process. The PTY should only be used in the
-	// the parent process but was left here for compatibility purposes.
-	PTYFileDeprecated = FirstExtraFile + iota
-	// TTYFile is a TTY the parent process passes to the child process.
-	TTYFile
-)
-
-// FileFDs for non-terminal based exec sessions.
-const (
-	// StdinFile is used to capture the stdin stream of the shell (grandchild) process.
-	StdinFile = FirstExtraFile + iota
-	// StdoutFile is used to capture the stdout stream of the shell (grandchild) process.
-	StdoutFile
-	// StderrFile is used to capture the stderr stream of the shell (grandchild) process.
-	StderrFile
-)
-
-// FileFDs for SFTP sessions.
-const (
-	// FileTransferOutFile is used to pass write transfer data to the sftp (grandchild) process.
-	FileTransferOutFile = FirstExtraFile + iota
-	// FileTransferInFile is used to pass read transfer data from the sftp (grandchild) process.
-	FileTransferInFile
-	// AuditInFile is used to pass audit events from the sftp (grandchild) process.
-	AuditInFile
-)
-
-// FileFDs for networking sessions.
-const (
-	// ListenerFile is a unix datagram socket listener.
-	ListenerFile = FirstExtraFile + iota
-)
-
-func fdName(f FileFD) string {
-	return fmt.Sprintf("/proc/self/fd/%d", f)
-}
 
 // RunCommand reads in the command to run from the parent process (over a
 // pipe) then constructs and runs the command. This function may change
@@ -161,15 +90,15 @@ func RunCommand() (code int, err error) {
 	}()
 
 	// Parent sends the reexec configuration payload in the third file descriptor.
-	cfgfd := os.NewFile(ConfigFile, fdName(ConfigFile))
+	cfgfd := os.NewFile(reexec.ConfigFile, reexec.FDName(reexec.ConfigFile))
 	if cfgfd == nil {
 		return teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
 	}
-	contfd := os.NewFile(ContinueFile, fdName(ContinueFile))
+	contfd := os.NewFile(reexec.ContinueFile, reexec.FDName(reexec.ContinueFile))
 	if contfd == nil {
 		return teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
 	}
-	readyfd := os.NewFile(ReadyFile, fdName(ReadyFile))
+	readyfd := os.NewFile(reexec.ReadyFile, reexec.FDName(reexec.ReadyFile))
 	if readyfd == nil {
 		return teleport.RemoteCommandFailure, trace.BadParameter("ready pipe not found")
 	}
@@ -184,7 +113,7 @@ func RunCommand() (code int, err error) {
 		_ = readyfd.Close()
 	}()
 
-	terminatefd := os.NewFile(TerminateFile, fdName(TerminateFile))
+	terminatefd := os.NewFile(reexec.TerminateFile, reexec.FDName(reexec.TerminateFile))
 	if terminatefd == nil {
 		return teleport.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
 	}
@@ -195,7 +124,7 @@ func RunCommand() (code int, err error) {
 		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	initLogger("reexec", c.LogConfig)
+	reexec.InitLogger("exec", c.LogConfig)
 
 	auditdMsg := auditd.Message{
 		SystemUser:   c.Login,
@@ -228,7 +157,7 @@ func RunCommand() (code int, err error) {
 	// TTY. Extract it and set the controlling TTY. Otherwise, connect
 	// std{in,out,err} directly.
 	if c.Terminal {
-		tty = os.NewFile(TTYFile, fdName(TTYFile))
+		tty = os.NewFile(reexec.TTYFile, reexec.FDName(reexec.TTYFile))
 		if tty == nil {
 			return teleport.RemoteCommandFailure, trace.BadParameter("tty not found")
 		}
@@ -346,7 +275,7 @@ func RunCommand() (code int, err error) {
 		}
 	}
 
-	if err := setNeutralOOMScore(); err != nil {
+	if err := reexec.SetNeutralOOMScore(); err != nil {
 		slog.WarnContext(ctx, "failed to adjust OOM score", "error", err)
 	}
 
@@ -516,12 +445,12 @@ func RunNetworking() (code int, err error) {
 	signal.Ignore(syscall.SIGQUIT)
 
 	// Parent sends the reexec configuration payload in the third file descriptor.
-	cfgfd := os.NewFile(ConfigFile, fdName(ConfigFile))
+	cfgfd := os.NewFile(reexec.ConfigFile, reexec.FDName(reexec.ConfigFile))
 	if cfgfd == nil {
 		return teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
 	}
 
-	terminatefd := os.NewFile(TerminateFile, fdName(TerminateFile))
+	terminatefd := os.NewFile(reexec.TerminateFile, reexec.FDName(reexec.TerminateFile))
 	if terminatefd == nil {
 		return teleport.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
 	}
@@ -532,7 +461,7 @@ func RunNetworking() (code int, err error) {
 		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	initLogger("networking", c.LogConfig)
+	reexec.InitLogger("networking", c.LogConfig)
 
 	// If PAM is enabled, open a PAM context. This has to be done before anything
 	// else because PAM is sometimes used to create the local user used for
@@ -618,7 +547,7 @@ func RunNetworking() (code int, err error) {
 	}
 
 	// Build request listener from first extra file that was passed to command.
-	ffd := os.NewFile(ListenerFile, "listener")
+	ffd := os.NewFile(reexec.ListenerFile, "listener")
 	if ffd == nil {
 		return teleport.RemoteCommandFailure, trace.BadParameter("missing socket fd")
 	}
@@ -1077,15 +1006,15 @@ func buildCommand(c *reexec.Config, localUser *user.User, tty *os.File, pamEnvir
 
 	// Pass extra files for SFTP to grandchild.
 	if c.Command == teleport.SFTPSubCommand {
-		out := os.NewFile(FileTransferOutFile, strconv.Itoa(int(FileTransferOutFile)))
+		out := os.NewFile(reexec.FileTransferOutFile, strconv.Itoa(int(reexec.FileTransferOutFile)))
 		if out == nil {
 			return nil, trace.NotFound("read pipe out file not found")
 		}
-		in := os.NewFile(FileTransferInFile, strconv.Itoa(int(FileTransferInFile)))
+		in := os.NewFile(reexec.FileTransferInFile, strconv.Itoa(int(reexec.FileTransferInFile)))
 		if in == nil {
 			return nil, trace.NotFound("read pipe in file not found")
 		}
-		audit := os.NewFile(AuditInFile, strconv.Itoa(int(AuditInFile)))
+		audit := os.NewFile(reexec.AuditInFile, strconv.Itoa(int(reexec.AuditInFile)))
 		if audit == nil {
 			return nil, trace.NotFound("read pipe audit file not found")
 		}
@@ -1128,9 +1057,9 @@ func buildCommand(c *reexec.Config, localUser *user.User, tty *os.File, pamEnvir
 
 	// Perform OS-specific tweaks to the command.
 	if isReexec {
-		reexecCommandOSTweaks(&cmd)
+		reexec.CommandOSTweaks(&cmd)
 	} else {
-		userCommandOSTweaks(&cmd)
+		reexec.UserCommandOSTweaks(&cmd)
 	}
 
 	return &cmd, nil
@@ -1241,7 +1170,7 @@ func CheckHomeDir(localUser *user.User) (bool, error) {
 	}
 
 	// Perform OS-specific tweaks to the command.
-	reexecCommandOSTweaks(cmd)
+	reexec.CommandOSTweaks(cmd)
 
 	if err := cmd.Run(); err != nil {
 		if cmd.ProcessState.ExitCode() == teleport.RemoteCommandFailure {
@@ -1267,7 +1196,7 @@ func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential
 	}
 
 	// Perform OS-specific tweaks to the command.
-	parkerCommandOSTweaks(cmd)
+	reexec.ParkerCommandOSTweaks(cmd)
 
 	if err := cmd.Start(); err != nil {
 		return trace.Wrap(err)
@@ -1278,36 +1207,4 @@ func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential
 	go cmd.Wait()
 
 	return nil
-}
-
-// initLogger initializes slog using log pipe configuration from the parent.
-func initLogger(name string, cfg reexec.LogConfig) {
-	logWriter := os.NewFile(LogFile, fdName(LogFile))
-	if logWriter == nil {
-		return
-	}
-
-	fields, err := logutils.ValidateFields(cfg.ExtraFields)
-	if err != nil {
-		return
-	}
-
-	switch cfg.Format {
-	case "text", "":
-		logger := slog.New(logutils.NewSlogTextHandler(logWriter, logutils.SlogTextHandlerConfig{
-			Level:            cfg.Level,
-			EnableColors:     cfg.EnableColors,
-			ConfiguredFields: fields,
-			Padding:          cfg.Padding,
-		}))
-		slog.SetDefault(logger.With(teleport.ComponentKey, name))
-	case "json":
-		logger := slog.New(logutils.NewSlogJSONHandler(logWriter, logutils.SlogJSONHandlerConfig{
-			Level:            cfg.Level,
-			ConfiguredFields: fields,
-		}))
-		slog.SetDefault(logger.With(teleport.ComponentKey, name))
-	default:
-		return
-	}
 }

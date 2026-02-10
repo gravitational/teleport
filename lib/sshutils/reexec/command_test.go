@@ -209,18 +209,17 @@ func TestReexecEchoProcess(t *testing.T) {
 		return
 	}
 
-	cfg := os.NewFile(3, "config")
-	logs := os.NewFile(4, "logs")
-	cont := os.NewFile(5, "continue")
-	ready := os.NewFile(6, "ready")
-	term := os.NewFile(7, "terminate")
-	echo := os.NewFile(8, "echo")
+	cfg := os.NewFile(ConfigFile, "config")
+	cont := os.NewFile(ContinueFile, "continue")
+	ready := os.NewFile(ReadyFile, "ready")
+	term := os.NewFile(TerminateFile, "terminate")
+	echo := os.NewFile(FirstExtraFile, "echo")
 
 	var cfgPayload Config
 	_ = json.NewDecoder(cfg).Decode(&cfgPayload)
 	_ = cfg.Close()
 
-	initTestLogger(logs, cfgPayload.LogConfig)
+	InitLogger("echo-reexec", cfgPayload.LogConfig)
 
 	// Handle graceful termination by ending the copy loop on our side.
 	if os.Getenv("REEXEC_IGNORE_TERMINATE") != "1" {
