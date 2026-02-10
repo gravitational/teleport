@@ -75,14 +75,6 @@ func updateVnetConfig(ctx context.Context, client *authclient.Client, raw servic
 	return nil
 }
 
-func deleteVnetConfig(ctx context.Context, client *authclient.Client, ref services.Ref) error {
-	if _, err := client.VnetConfigServiceClient().DeleteVnetConfig(ctx, &vnet.DeleteVnetConfigRequest{}); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Println("vnet_config has been deleted")
-	return nil
-}
-
 type vnetConfigCollection struct {
 	vnetConfig *vnet.VnetConfig
 }
@@ -110,9 +102,8 @@ func vnetConfigHandler() Handler {
 		getHandler:    getVnetConfig,
 		createHandler: createVnetConfig,
 		updateHandler: updateVnetConfig,
-		deleteHandler: deleteVnetConfig,
 		singleton:     true,
-		mfaRequired:   false, // TODO(carheden): Check this
+		mfaRequired:   false,
 		description:   "Configures the VNet settings",
 	}
 }
