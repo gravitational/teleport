@@ -49,18 +49,19 @@ type GCPInstances struct {
 	DiscoveryConfigName string
 }
 
-// MakeEvents generates MakeEvents for these instances.
-func (instances *GCPInstances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
-	resourceType := types.DiscoveredResourceNode
+// MakeEvents generates ResourceDiscoveredEvents for these instances.
+func (instances *GCPInstances) MakeEvents() map[string]*usageeventsv1.ResourceDiscoveredEvent {
+	resourceType := types.ResourceNode
 	if instances.InstallerParams.ScriptName == installers.InstallerScriptNameAgentless {
-		resourceType = types.DiscoveredResourceAgentlessNode
+		resourceType = types.ResourceAgentlessNode
 	}
-	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))
+	events := make(map[string]*usageeventsv1.ResourceDiscoveredEvent, len(instances.Instances))
 	for _, inst := range instances.Instances {
-		events[fmt.Sprintf("%s%s/%s", gcpEventPrefix, inst.ProjectID, inst.Name)] = &usageeventsv1.ResourceCreateEvent{
-			ResourceType:   resourceType,
-			ResourceOrigin: types.OriginCloud,
-			CloudProvider:  types.CloudGCP,
+		events[fmt.Sprintf("%s%s/%s", gcpEventPrefix, inst.ProjectID, inst.Name)] = &usageeventsv1.ResourceDiscoveredEvent{
+			ResourceType:        resourceType,
+			ResourceName:        inst.Name,
+			CloudProvider:       types.CloudGCP,
+			DiscoveryConfigName: instances.DiscoveryConfigName,
 		}
 	}
 	return events

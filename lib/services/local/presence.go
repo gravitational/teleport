@@ -1194,6 +1194,19 @@ func (s *PresenceService) UnconditionalUpdateApplicationServer(ctx context.Conte
 	return server, nil
 }
 
+// GetApplicationServer returns a specific application server.
+func (s *PresenceService) GetApplicationServer(ctx context.Context, namespace, hostID, name string) (types.AppServer, error) {
+	key := backend.NewKey(appServersPrefix, namespace, hostID, name)
+	item, err := s.Get(ctx, key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalAppServer(item.Value,
+		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
+	)
+}
+
 // DeleteApplicationServer removes specified application server.
 func (s *PresenceService) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
 	key := backend.NewKey(appServersPrefix, namespace, hostID, name)

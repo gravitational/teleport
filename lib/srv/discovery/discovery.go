@@ -1698,7 +1698,34 @@ func (s *Server) handleGCPDiscovery() {
 	}
 }
 
-func (s *Server) emitUsageEvents(events map[string]*usageeventsv1.ResourceCreateEvent) error {
+// resolveDiscoveryMethod determines how the resource was discovered based on
+// the DiscoveryConfig that originated the discovery.
+func (s *Server) resolveDiscoveryMethod(discoveryConfigName string) string {
+	if discoveryConfigName == "" {
+		return "static"
+	}
+
+	s.dynamicDiscoveryConfigMu.RLock()
+	dc, ok := s.dynamicDiscoveryConfig[discoveryConfigName]
+	s.dynamicDiscoveryConfigMu.RUnlock()
+
+	if ok {
+		if _, hasLabel := dc.GetAllLabels()[types.CreatedByIaCLabel]; hasLabel {
+			return "iac"
+		}
+	}
+
+	return "guided"
+}
+
+func (s *Server) emitUsageEvents(events map[string]*usageeventsv1.ResourceDiscoveredEvent) error {
+	// Resolve discovery methods before taking the cache lock.
+	for _, event := range events {
+		if event.DiscoveryMethod == "" {
+			event.DiscoveryMethod = s.resolveDiscoveryMethod(event.DiscoveryConfigName)
+		}
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for name, event := range events {
@@ -1708,8 +1735,8 @@ func (s *Server) emitUsageEvents(events map[string]*usageeventsv1.ResourceCreate
 		s.usageEventCache[name] = struct{}{}
 		if err := s.AccessPoint.SubmitUsageEvent(s.ctx, &proto.SubmitUsageEventRequest{
 			Event: &usageeventsv1.UsageEventOneOf{
-				Event: &usageeventsv1.UsageEventOneOf_ResourceCreateEvent{
-					ResourceCreateEvent: event,
+				Event: &usageeventsv1.UsageEventOneOf_ResourceDiscoveredEvent{
+					ResourceDiscoveredEvent: event,
 				},
 			},
 		}); err != nil {

@@ -156,7 +156,7 @@ func (m *mockUsageReporter) AnonymizeAndSubmit(events ...usagereporter.Anonymiza
 	defer m.mu.Unlock()
 	for _, e := range events {
 		switch e.(type) {
-		case *usagereporter.ResourceCreateEvent:
+		case *usagereporter.ResourceDiscoveredEvent:
 			m.resourceAddedEventCount++
 		case *usagereporter.DiscoveryFetchEvent:
 			m.discoveryFetchEventCount++
@@ -164,7 +164,7 @@ func (m *mockUsageReporter) AnonymizeAndSubmit(events ...usagereporter.Anonymiza
 	}
 }
 
-func (m *mockUsageReporter) ResourceCreateEventCount() int {
+func (m *mockUsageReporter) ResourceDiscoveredEventCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.resourceAddedEventCount
@@ -904,11 +904,11 @@ func TestDiscoveryServer(t *testing.T) {
 				require.Eventually(t, func() bool {
 					instances := installer.GetInstalledInstances()
 					slices.Sort(instances)
-					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.ResourceCreateEventCount()
+					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.ResourceDiscoveredEventCount()
 				}, 10*time.Second, 50*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
-					return len(installer.GetInstalledInstances()) > 0 || reporter.ResourceCreateEventCount() > 0
+					return len(installer.GetInstalledInstances()) > 0 || reporter.ResourceDiscoveredEventCount() > 0
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
 			require.Eventually(t, func() bool {
@@ -1739,7 +1739,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			require.Equal(t, tc.wantEvents, reporter.ResourceCreateEventCount())
+			require.Equal(t, tc.wantEvents, reporter.ResourceDiscoveredEventCount())
 		})
 	}
 }
@@ -2731,7 +2731,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			require.Equal(t, tc.wantEvents, reporter.ResourceCreateEventCount())
+			require.Equal(t, tc.wantEvents, reporter.ResourceDiscoveredEventCount())
 		})
 	}
 }
@@ -3333,7 +3333,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 				if tc.runError != nil {
 					expectedEvents = 0
 				}
-				require.Equal(c, expectedEvents, reporter.ResourceCreateEventCount())
+				require.Equal(c, expectedEvents, reporter.ResourceDiscoveredEventCount())
 			}, 500*time.Millisecond, 50*time.Millisecond)
 
 			if tc.userTasksCheck != nil {
@@ -3651,11 +3651,11 @@ func TestGCPVMDiscovery(t *testing.T) {
 				require.Eventually(t, func() bool {
 					instances := installer.GetInstalledInstances()
 					slices.Sort(instances)
-					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.ResourceCreateEventCount()
+					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.ResourceDiscoveredEventCount()
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
-					return len(installer.GetInstalledInstances()) > 0 || reporter.ResourceCreateEventCount() > 0
+					return len(installer.GetInstalledInstances()) > 0 || reporter.ResourceDiscoveredEventCount() > 0
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
 		})
@@ -3858,20 +3858,20 @@ func TestEmitUsageEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Equal(t, 0, reporter.ResourceCreateEventCount())
+	require.Equal(t, 0, reporter.ResourceDiscoveredEventCount())
 	// Check that events are emitted for new instances.
-	event := &usageeventsv1.ResourceCreateEvent{}
-	require.NoError(t, server.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
+	event := &usageeventsv1.ResourceDiscoveredEvent{}
+	require.NoError(t, server.emitUsageEvents(map[string]*usageeventsv1.ResourceDiscoveredEvent{
 		"inst1": event,
 		"inst2": event,
 	}))
-	require.Equal(t, 2, reporter.ResourceCreateEventCount())
+	require.Equal(t, 2, reporter.ResourceDiscoveredEventCount())
 	// Check that events for duplicate instances are discarded.
-	require.NoError(t, server.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
+	require.NoError(t, server.emitUsageEvents(map[string]*usageeventsv1.ResourceDiscoveredEvent{
 		"inst1": event,
 		"inst3": event,
 	}))
-	require.Equal(t, 3, reporter.ResourceCreateEventCount())
+	require.Equal(t, 3, reporter.ResourceDiscoveredEventCount())
 }
 
 type eksClustersEnroller interface {

@@ -6589,6 +6589,13 @@ func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.Ke
 		}
 	}
 
+	namespace := server.GetNamespace()
+	if namespace == "" {
+		namespace = apidefaults.Namespace
+	}
+	_, err := a.Services.GetNode(ctx, namespace, server.GetName())
+	isNew := trace.IsNotFound(err)
+
 	lease, err := a.Services.UpsertNode(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6607,6 +6614,25 @@ func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.Ke
 		Kind:   kind,
 		Static: server.Expiry().IsZero(),
 	})
+
+	if isNew {
+		resourceType := types.ResourceNode
+		switch server.GetSubKind() {
+		case types.SubKindOpenSSHNode:
+			resourceType = types.ResourceAgentlessNode
+		case types.SubKindOpenSSHEICENode:
+			resourceType = types.ResourceEICENode
+		}
+		var cloudProvider string
+		if aws := server.GetAWSInfo(); aws != nil {
+			cloudProvider = types.CloudAWS
+		}
+		a.AnonymizeAndSubmit(&usagereporter.ResourceCreateEvent{
+			ResourceType:   resourceType,
+			ResourceOrigin: server.Origin(),
+			CloudProvider:  cloudProvider,
+		})
+	}
 
 	return lease, nil
 }
@@ -6649,16 +6675,33 @@ func (a *Server) UpsertKubernetesServer(ctx context.Context, server types.KubeSe
 // UpsertApplicationServer implements [services.Presence] by delegating to
 // [Server.Services] and then potentially emitting a [usagereporter] event.
 func (a *Server) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
+	namespace := server.GetNamespace()
+	if namespace == "" {
+		namespace = apidefaults.Namespace
+	}
+	_, err := a.bk.Get(ctx, backend.NewKey("appServers", namespace, server.GetHostID(), server.GetName()))
+	isNew := trace.IsNotFound(err)
+
 	lease, err := a.Services.UpsertApplicationServer(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
-		Name:   server.GetName(),
-		Kind:   usagereporter.ResourceKindAppServer,
-		Static: server.Expiry().IsZero(),
-	})
+	events := []usagereporter.Anonymizable{
+		&usagereporter.ResourceHeartbeatEvent{
+			Name:   server.GetName(),
+			Kind:   usagereporter.ResourceKindAppServer,
+			Static: server.Expiry().IsZero(),
+		},
+	}
+	if isNew {
+		events = append(events, &usagereporter.ResourceCreateEvent{
+			ResourceType:   types.ResourceApp,
+			ResourceOrigin: server.Origin(),
+		})
+	}
+
+	a.AnonymizeAndSubmit(events...)
 
 	return lease, nil
 }
@@ -6715,11 +6758,17 @@ func (a *Server) CreateWindowsDesktop(ctx context.Context, desktop types.Windows
 		return trace.Wrap(err)
 	}
 
-	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
-		Name:   desktop.GetName(),
-		Kind:   usagereporter.ResourceKindWindowsDesktop,
-		Static: desktop.Expiry().IsZero(),
-	})
+	a.AnonymizeAndSubmit(
+		&usagereporter.ResourceHeartbeatEvent{
+			Name:   desktop.GetName(),
+			Kind:   usagereporter.ResourceKindWindowsDesktop,
+			Static: desktop.Expiry().IsZero(),
+		},
+		&usagereporter.ResourceCreateEvent{
+			ResourceType:   types.KindWindowsDesktop,
+			ResourceOrigin: desktop.Origin(),
+		},
+	)
 
 	return nil
 }
@@ -7439,6 +7488,17 @@ func (a *Server) CreateDatabase(ctx context.Context, database types.Database) er
 	}); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit database create event", "error", err)
 	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceCreateEvent{
+		ResourceType:   types.ResourceDatabase,
+		ResourceOrigin: database.Origin(),
+		CloudProvider:  database.GetCloud(),
+		Database: &prehogv1a.DiscoveredDatabaseMetadata{
+			DbType:     database.GetType(),
+			DbProtocol: database.GetProtocol(),
+		},
+	})
+
 	return nil
 }
 
@@ -7557,6 +7617,13 @@ func (a *Server) CreateKubernetesCluster(ctx context.Context, kubeCluster types.
 	}); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit kube cluster create event", "error", err)
 	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceCreateEvent{
+		ResourceType:   types.ResourceKubernetes,
+		ResourceOrigin: kubeCluster.Origin(),
+		CloudProvider:  kubeCluster.GetCloud(),
+	})
+
 	return nil
 }
 

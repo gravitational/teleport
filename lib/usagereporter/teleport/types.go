@@ -189,6 +189,35 @@ func (u *ResourceCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEven
 	}
 }
 
+// ResourceDiscoveredEvent is emitted by the discovery service when it discovers
+// a resource from a cloud provider.
+type ResourceDiscoveredEvent struct {
+	// ResourceType is the type of resource ("node", "node.openssh", "db", "k8s", "app").
+	ResourceType string
+	// ResourceName is the name of the discovered resource.
+	ResourceName string
+	// CloudProvider is the cloud provider ("AWS", "Azure", "GCP").
+	CloudProvider string
+	// DiscoveryConfigName is the name of the DiscoveryConfig that triggered discovery.
+	DiscoveryConfigName string
+	// DiscoveryMethod is how the resource was discovered: "static", "guided", or "iac".
+	DiscoveryMethod string
+}
+
+func (u *ResourceDiscoveredEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_ResourceDiscovered{
+			ResourceDiscovered: &prehogv1a.ResourceDiscoveredEvent{
+				ResourceType:        u.ResourceType,
+				ResourceName:        a.AnonymizeNonEmpty(u.ResourceName),
+				CloudProvider:       u.CloudProvider,
+				DiscoveryConfigName: a.AnonymizeNonEmpty(u.DiscoveryConfigName),
+				DiscoveryMethod:     u.DiscoveryMethod,
+			},
+		},
+	}
+}
+
 func integrationEnrollMetadataToPrehog(u *usageeventsv1.IntegrationEnrollMetadata, userMD UserMetadata) *prehogv1a.IntegrationEnrollMetadata {
 	// Some enums are out of sync and need to be mapped manually
 	var prehogKind prehogv1a.IntegrationEnrollKind
@@ -1888,6 +1917,14 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			}
 		}
 		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_ResourceDiscoveredEvent:
+		return &ResourceDiscoveredEvent{
+			ResourceType:        e.ResourceDiscoveredEvent.ResourceType,
+			ResourceName:        e.ResourceDiscoveredEvent.ResourceName,
+			CloudProvider:       e.ResourceDiscoveredEvent.CloudProvider,
+			DiscoveryConfigName: e.ResourceDiscoveredEvent.DiscoveryConfigName,
+			DiscoveryMethod:     e.ResourceDiscoveredEvent.DiscoveryMethod,
+		}, nil
 	case *usageeventsv1.UsageEventOneOf_FeatureRecommendationEvent:
 		ret := &FeatureRecommendationEvent{
 			UserName:                    userMD.Username,
