@@ -86,7 +86,7 @@ They have defined the following scoped roles that they want to grant to their us
 kind: scoped_role
 metadata:
   name: ops-admin
-scope: /ops
+scope: /
 spec:
   assignable_scopes:
   - /ops/**
@@ -99,7 +99,7 @@ spec:
 kind: scoped_role
 metadata:
   name: ops-staging-access
-scope: /ops
+scope: /
 spec:
   assignable_scopes:
   - /ops/**
@@ -111,7 +111,7 @@ spec:
 kind: scoped_role
 metadata:
   name: ops-prod-access
-scope: /ops
+scope: /
 spec:
   assignable_scopes:
   - /ops/**
@@ -227,7 +227,7 @@ resources that look like the following:
 kind: scoped_role_assignment
 metadata:
   name: uuid1
-scope: /ops
+scope: /
 spec:
   user: admin@ops-west.example.com
   assignments:
