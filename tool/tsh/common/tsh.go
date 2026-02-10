@@ -1425,7 +1425,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, args)
-	command, err := app.Parse(args)
+	command, err := app.Parse(insertDoubleDashAfterKubectl(args))
 	if errors.Is(err, kingpin.ErrExpectedCommand) {
 		if _, ok := cf.TSHConfig.Aliases[aliasCommand]; ok {
 			log.Debugf("Failing due to recursive alias %q. Aliases seen: %v", aliasCommand, ar.getSeenAliases())
