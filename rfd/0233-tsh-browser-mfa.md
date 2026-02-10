@@ -537,9 +537,15 @@ containing the MFA token.
 
 ```json
 {
-  "Browser": {
-    "request_id": "83f5b0ed-82e9-42cb-9571-68b5209186ea",
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  "browser_response": {
+    "requestId": "83f5b0ed-82e9-42cb-9571-68b5209186ea",
+    "webauthnResponse": {
+      "id": "credential_id_base64",
+      "response": {
+        "authenticatorData": "auth_data_base64",
+        "clientDataJSON": "client_data_base64",
+        "signature": "signature_base64"
+      }
   }
 }
 ```
