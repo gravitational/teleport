@@ -76,9 +76,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v6
         with:
-          go-version: stable
-          check-latest: true
-          cache: false
+          go-version-file: go.mod
 
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
