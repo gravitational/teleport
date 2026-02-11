@@ -26,6 +26,7 @@ import "teleport/legacy/types/mfa_device.proto";
 import "teleport/legacy/types/resources.proto";
 import "teleport/legacy/types/trusted_device_requirement.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
+import "teleport/legacy/types/x509_certificate.proto";
 
 option go_package = "github.com/gravitational/teleport/api/types";
 option (gogoproto.goproto_getters_all) = false;
@@ -1280,6 +1281,14 @@ message TLSKeyPair {
   PrivateKeyType KeyType = 3 [(gogoproto.jsontag) = "key_type,omitempty"];
   // CRL is an empty DER-encoded revocation list.
   bytes CRL = 4 [(gogoproto.jsontag) = "crl"];
+  // If true a certificate override (via cert_authority_override) is active.
+  // Cert and CRL and replaced by the override.
+  bool CertOverrideActive = 5 [(gogoproto.jsontag) = "cert_override_active,omitempty"];
+  // Certificate trust chain, in PEM form. Sorted from leaf to root.
+  //
+  // Absent for self-signed certificates, but may be present if a cert override
+  // is active.
+  repeated X509Certificate TrustChain = 6 [(gogoproto.jsontag) = "trust_chain,omitempty"];
 }
 
 // JWTKeyPair is a PEM encoded keypair used for signing JWT tokens.

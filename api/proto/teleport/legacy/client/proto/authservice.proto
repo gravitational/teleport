@@ -30,6 +30,7 @@ import "teleport/legacy/types/mfa_device.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/webauthn/webauthn.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
+import "teleport/legacy/types/x509_certificate.proto";
 import "teleport/mfa/v1/mfa.proto";
 import "teleport/usageevents/v1/usageevents.proto";
 
@@ -1165,6 +1166,10 @@ message DatabaseCertResponse {
   bytes Cert = 1 [(gogoproto.jsontag) = "cert"];
   // CACerts is a list of certificate authorities.
   repeated bytes CACerts = 2 [(gogoproto.jsontag) = "ca_certs"];
+  // Certificate trust chain, in PEM form. Sorted from leaf to root.
+  //
+  // If non-empty should be presented along with Cert to form its trust chain.
+  repeated types.X509Certificate TrustChain = 3;
 }
 
 // SnowflakeJWTRequest contains data required to generate Snowflake JWT used for authorization.
