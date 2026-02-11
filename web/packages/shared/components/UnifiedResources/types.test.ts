@@ -155,6 +155,21 @@ describe('generateUnifiedResourceKey', () => {
     );
   });
 
+  test('generates key for linux_desktop resource using host_id/kind format', () => {
+    const desktopResource: UnifiedResourceDesktop = {
+      kind: 'linux_desktop',
+      name: 'MyLinuxDesktop',
+      os: 'linux',
+      addr: '127.0.0.1',
+      labels: [],
+      host_id: 'LinuxDesktopResourceName',
+    };
+
+    expect(generateUnifiedResourceKey(desktopResource)).toBe(
+      'linuxdesktopresourcename/linux_desktop'
+    );
+  });
+
   test('generates key for user_group resource using name/kind format', () => {
     const userGroupResource: UnifiedResourceUserGroup = {
       kind: 'user_group',

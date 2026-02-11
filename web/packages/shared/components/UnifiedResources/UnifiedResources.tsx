@@ -801,6 +801,9 @@ export function generateUnifiedResourceKey(
   if (resource.kind === 'app' && resource.friendlyName !== '') {
     return `${resource.friendlyName}/${resource.name}/${resource.kind}`.toLowerCase();
   }
+  if (resource.kind === 'linux_desktop') {
+    return `${resource.host_id}/${resource.kind}`.toLowerCase();
+  }
   return `${resource.name}/${resource.kind}`.toLowerCase();
 }
 
