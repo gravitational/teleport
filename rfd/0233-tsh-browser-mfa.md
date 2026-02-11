@@ -696,7 +696,7 @@ Each major platform provides different levels of native WebAuthn support:
   browsers. However, this API requires an
   [associated domain](https://developer.apple.com/documentation/xcode/supporting-associated-domains#Add-the-associated-domain-file-to-your-website)
   to be configured, which involves hosting an `apple-app-site-association`
-  (AASA) file at the domain that includes an Apple Team ID. This creates a
+  file at the domain that includes an Apple Team ID. This creates a
   strong impediment for self-hosted customers, as each customer would need to
   configure this association for their own domain. While it could work for
   Teleport Cloud (where we control the domain), this only partly solves the
@@ -712,7 +712,7 @@ Each major platform provides different levels of native WebAuthn support:
   over USB or NFC — it does not provide access to platform authenticators such
   as TPM-based passkeys. This means Linux users can use hardware security keys
   through `tsh`, but browser-based passkeys (such as those stored in password
-  managers like 1Password or Bitwarden) are not accessible through `libfido2`.
+  managers like 1Password) are not accessible through `libfido2`.
 
 Given these platform-specific constraints — particularly the associated domain
 requirement on macOS and the lack of platform authenticator support in
