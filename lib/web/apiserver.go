@@ -2433,7 +2433,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 				}
 			}
 		}
-		if errors.Is(err, auth.ErrGithubNoTeams) {
+		if errors.Is(err, auth.ErrGithubNoRoles) {
 			return sso.LoginFailedUnauthorizedRedirectURL
 		}
 

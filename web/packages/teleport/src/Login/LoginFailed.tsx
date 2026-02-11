@@ -32,7 +32,7 @@ export function LoginFailed() {
         <LoginFailedComponent message="Unable to process SSO callback. The connector has a mapping to role that does not exist. Please contact your SSO administrator." />
       </Route>
       <Route path={cfg.routes.loginErrorUnauthorized}>
-        <LoginFailedComponent message="You are not authorized, please contact your SSO administrator." />
+        <LoginFailedComponent message="You are not authorized. Please contact your Teleport administrator." />
       </Route>
       <Route component={LoginFailed} />
     </Switch>
