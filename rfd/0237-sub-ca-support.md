@@ -748,7 +748,7 @@ message CertAuthorityOverrideEvent {
   UserMetadata user = 2;
   ResourceMetadata resource = 3; // name=cluster name
   Status status = 4;             // Distinguishes successes and failures.
-  CertAuthorityOverrideMetadata cert_authority_override = 4;
+  CertAuthorityOverrideMetadata cert_authority_override = 5;
 }
 
 message CertAuthorityOverrideMetadata {
