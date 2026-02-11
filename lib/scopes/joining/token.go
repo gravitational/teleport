@@ -381,7 +381,13 @@ func HashImmutableLabels(labels *joiningv1.ImmutableLabels) string {
 	}
 
 	hash := sha256.New()
-	if sshLabels := labels.GetSsh(); sshLabels != nil {
+	var bytesWrittenToHash int
+	writeHash := func(p []byte) {
+		n, _ := hash.Write(p)
+		bytesWrittenToHash += n
+	}
+
+	if sshLabels := labels.GetSsh(); len(sshLabels) > 0 {
 		sorted := make([]struct{ key, value string }, 0, len(sshLabels))
 		for k, v := range sshLabels {
 			sorted = append(sorted, struct{ key, value string }{k, v})
@@ -392,7 +398,7 @@ func HashImmutableLabels(labels *joiningv1.ImmutableLabels) string {
 
 		// first we write the service type so that the following labels do not collide with identical labels
 		// from other services e.g. app labels or database labels
-		_, _ = hash.Write([]byte("ssh"))
+		writeHash([]byte("ssh"))
 
 		// Each map entry is added to the hash as 4 components:
 		// 1. The length of the key
@@ -402,18 +408,21 @@ func HashImmutableLabels(labels *joiningv1.ImmutableLabels) string {
 		// This combination prevents collisions between:
 		// - single labels (e.g. aaa=bbb and aaab=bb)
 		// - splitting labels (e.g. aaa=bbbcccddd and aaa=bbb,ccc=ddd)
-		// Because in both cases the lengths of the keys/values must change to to create different labels from
+		// ...because in both cases the lengths of the keys/values must change to create different labels from
 		// the same set of characters.
 		for _, v := range sorted {
 			buf := [8]byte{}
 			binary.BigEndian.PutUint64(buf[:], uint64(len(v.key)))
-			_, _ = hash.Write(buf[:])
-			_, _ = hash.Write([]byte(v.key))
+			writeHash(buf[:])
+			writeHash([]byte(v.key))
 			binary.BigEndian.PutUint64(buf[:], uint64(len(v.value)))
-			_, _ = hash.Write(buf[:])
-			_, _ = hash.Write([]byte(v.value))
-			_, _ = hash.Write(hash.Sum(nil))
+			writeHash(buf[:])
+			writeHash([]byte(v.value))
 		}
+	}
+
+	if bytesWrittenToHash == 0 {
+		return ""
 	}
 
 	return hex.EncodeToString(hash.Sum(nil))

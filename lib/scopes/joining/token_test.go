@@ -693,7 +693,7 @@ func TestImmutableLabelHashCollision(t *testing.T) {
 		labelsB *joiningv1.ImmutableLabels
 	}{
 		{
-			// guards against map entries being naiively concatenated as they're hashed. e.g.
+			// guards against map entries being naively concatenated as they're hashed. e.g.
 			// aaa=bbbcccddd should not collide with aaa=bbb,ccc=ddd
 			name: "split label concatenation",
 			labelsA: &joiningv1.ImmutableLabels{
@@ -710,7 +710,7 @@ func TestImmutableLabelHashCollision(t *testing.T) {
 			},
 		},
 		{
-			// guards against single entries being naiievely concatenated as they're hashed. e.g.
+			// guards against single entries being naively concatenated as they're hashed. e.g.
 			// aaa=bbb should not collide with aaab=bb
 			name: "single label concatenation",
 			labelsA: &joiningv1.ImmutableLabels{
@@ -733,6 +733,53 @@ func TestImmutableLabelHashCollision(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			hashA := joining.HashImmutableLabels(c.labelsA)
 			require.False(t, joining.VerifyImmutableLabelsHash(c.labelsB, hashA))
+		})
+	}
+}
+
+// TestImmutableLabelHashGolden tests the immutable labels hashing implementation against a set of known-good hashes
+// to help guard against regressions.
+func TestImmutableLabelHashGolden(t *testing.T) {
+	cases := []struct {
+		name   string
+		labels *joiningv1.ImmutableLabels
+		hash   string
+	}{
+		{
+			name: "single ssh label",
+			labels: &joiningv1.ImmutableLabels{
+				Ssh: map[string]string{
+					"aaa": "bbb",
+				},
+			},
+			hash: "5dd8fad69587f17535a4dea3ab41400914c3fbecd1972d4e194b1c18c0f4c4ff",
+		},
+		{
+			name: "multiple ssh label",
+			labels: &joiningv1.ImmutableLabels{
+				Ssh: map[string]string{
+					"aaa": "bbb",
+					"ccc": "ddd",
+					"eee": "fff",
+				},
+			},
+			hash: "b4757712bb94a422f835ca983e9ab3a9ce9925617496e9eeea676fb65b28f2b9",
+		},
+		{
+			name: "empty labels",
+			labels: &joiningv1.ImmutableLabels{
+				Ssh: map[string]string{},
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			hash := joining.HashImmutableLabels(c.labels)
+			// assert both VerifyImmutableLabelsHash and a regular equality check just in case
+			// the VerifyImmutableLabelsHash implementation drifts
+			assert.True(t, joining.VerifyImmutableLabelsHash(c.labels, hash))
+			assert.Equal(t, c.hash, hash)
 		})
 	}
 }
