@@ -12,7 +12,7 @@ enterprise: Identity Security
 Understand access patterns within your Okta organization using Teleport Identity Security. 
 By scanning users, groups, applications, roles, role assignments, and API tokens, Teleport provides a visual
 representation to help you understand and strengthen the permission model within your Okta environment.
-Additionally, Teleport Identity Security streams Okta system logs via [Identity Activity Center](../access-graph/identity-activity-center.mdx).
+Additionally, Teleport Identity Security streams Okta system logs via [Identity Activity Center](../access-graph/identity-activity-center.mdx)
 for audit and investigation. This functionality enables you to answer queries such as:
 
 - Which applications can a specific user access?
@@ -25,7 +25,7 @@ for audit and investigation. This functionality enables you to answer queries su
 
 ## How it works
 
-Access Graph synchronizes various Okta resources and visualizes their relationships using
+Access Graph synchronizes Okta resources with Teleport resources, and visualizes their relationships using
 the graph representation detailed in the [Identity Security usage page](../usage/usage.mdx). Teleport Identity
 Activity Center captures Okta system logs, allowing you to investigate user activities and administrative actions
 within your Okta organization.
@@ -49,7 +49,7 @@ information from your Okta organization.
 
 ### Importing resources
 
-Identity Security's Access Graph maps the relationships between imported resources, including:
+Access Graph maps the relationships between imported resources, including:
 
 - User-to-group memberships
 - User-to-application assignments
@@ -60,7 +60,7 @@ from any identity to the resources it can reach.
 
 ### Streaming Okta system logs
 
-Identity Security Activity Center polls the Okta System Log API on a minute-by-minute basis, retrieving
+Identity Activity Center polls the Okta System Log API on a minute-by-minute basis, retrieving
 audit events and streaming them to the Identity Activity Center. The export uses cursor-based
 pagination, so it resumes from where it left off if interrupted.
 
@@ -96,7 +96,7 @@ creating a new one. See Step 2 for details.
 
 Teleport supports two authentication methods for connecting to the Okta API.
 
-### Option A: SSWS Bearer Token
+### Option A: SSWS bearer token
 
 1. In the Okta Admin Console, navigate to **Security** > **API** > **Tokens**.
 2. Click **Create Token** and give it a descriptive name (e.g., `Teleport Identity Security`).
@@ -109,7 +109,7 @@ roles, and system logs. Use a service account with the **Read-Only Administrator
 role or a custom admin role with equivalent read permissions.
 </Admonition>
 
-### Option B: OAuth 2.0 Client Credentials
+### Option B: OAuth 2.0 client credentials
 
 1. In the Okta Admin Console, navigate to **Applications** > **Applications**.
 2. Click **Create App Integration** and select **API Services**.
