@@ -57,8 +57,8 @@ Teleport infrastructure itself. In smaller organizations this may be acceptable,
 but in large organizations, this becomes a significant bottleneck for teams that
 wish to onboard MWI and can even discourage its adoption.
 
-To resolve this problem, we need to create a safe way for to delegate the
-ability to onboard bots to teams that will leverage them.
+To resolve this problem, we need to create a safe way to delegate the ability to
+onboard bots to teams that will leverage them.
 
 ## UX
 
@@ -321,8 +321,31 @@ wip: and ui needs to reflect scoped searching?
 
 ### Scoped Role Assignments
 
-wip: add "bot" field as counterpart to "user" field to avoid confusion.
-wip: add new validation rules as per behaviour section?
+The ScopedRoleAssignment resource will be extended with a new field, `spec.bot`,
+which will be used to specify a Bot as the target of a role assignment instead
+of a user.
+
+The `spec.bot` field will be mutually exclusive with the `spec.user` field.
+
+As per [Behaviour: Assigning the Scoped Bot privileges](#assigning-the-scoped-bot-privileges),
+new validation rules will be added to the Create/Update/Upsert RPCs for the 
+ScopedRoleAssignment to enforce the following when `spec.bot` is set:
+
+- That `spec.bot` references a bot that exists.
+- That `spec.bot` references a bot with a scope.
+- That the scope of origin (`scope`) and scope of effect
+  (`spec.assignments.*.scope`) of the role assignment are the same or descendent
+  scopes of the bot's scope.
+
+This validation must only be performed on creation or update, and should not
+be enforced on read of existing role assignments - this avoids the risk of
+breaking reads/cache initialisation if the condition of the referenced bot
+changes.
+
+Instead, the privilege calculation mechanisms defined under
+[Bot Identity Representation and Certificate Issuance](#bot-identity-representation-and-certificate-issuance)
+should ignore any invalid scoped role assignments that would violate the above
+rules.
 
 ### Joining
 
