@@ -93,9 +93,10 @@ func createAccessRequest(ctx context.Context, clt accessRequestGetCreator, reque
 		rid, constraints := raid.ID, raid.Constraints
 		resourceAccessIDs = append(resourceAccessIDs, types.ResourceAccessID{
 			Id: types.ResourceID{
-				ClusterName: rid.ClusterName,
-				Name:        rid.Name,
-				Kind:        rid.Kind,
+				ClusterName:     rid.ClusterName,
+				Name:            rid.Name,
+				Kind:            rid.Kind,
+				SubResourceName: rid.SubResourceName,
 			},
 			Constraints: constraints,
 		})
