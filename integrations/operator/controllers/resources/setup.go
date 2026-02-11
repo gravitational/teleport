@@ -68,7 +68,7 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		{"TeleportScopedTokenV1", NewScopedTokenV1Reconciler},
 		{"TeleportScopedRoleV1", NewScopedRoleV1Reconciler},
 		{"TeleportScopedRoleAssignmentV1", NewScopedRoleAssignmentV1Reconciler},
-		{"WorkloadClusterV1", NewWorkloadClusterV1Reconciler},
+		{"TeleportWorkloadClusterV1", NewWorkloadClusterV1Reconciler},
 	}
 
 	oidc := modules.GetProtoEntitlement(features, entitlements.OIDC)
