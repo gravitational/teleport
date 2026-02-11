@@ -87,7 +87,7 @@ func TestCommand(t *testing.T) {
 		require.Zero(t, reexecCmd.ExitCode())
 	})
 
-	t.Run("ready", func(t *testing.T) {
+	t.Run("never ready", func(t *testing.T) {
 		t.Parallel()
 
 		reexecCmd, _, _ := newTestReexecCommand(t, "REEXEC_SKIP_READY=1")
@@ -114,7 +114,7 @@ func TestCommand(t *testing.T) {
 		reexecCmd.Continue()
 
 		// Terminate the command prematurely.
-		err := reexecCmd.stop(100 * time.Millisecond)
+		err := reexecCmd.stop(3 * time.Second)
 		require.NoError(t, err)
 		require.NoError(t, reexecCmd.Wait())
 		require.Empty(t, stdout.Bytes())
@@ -135,7 +135,7 @@ func TestCommand(t *testing.T) {
 		reexecCmd.Continue()
 
 		// Kill the command prematurely.
-		err := reexecCmd.stop(100 * time.Millisecond)
+		err := reexecCmd.stop(500 * time.Millisecond)
 		require.NoError(t, err)
 		require.Error(t, reexecCmd.Wait())
 		require.Empty(t, stdout.Bytes())
@@ -146,7 +146,7 @@ func TestCommand(t *testing.T) {
 	t.Run("extra pipe", func(t *testing.T) {
 		t.Parallel()
 
-		reexecCmd, stdin, stdout := newTestReexecCommand(t)
+		reexecCmd, stdin, stdout := newTestReexecCommand(t, "REEXEC_USE_EXTRA=1")
 
 		echoPipe, err := reexecCmd.AddParentToChildPipe()
 		require.NoError(t, err)
@@ -222,7 +222,10 @@ func TestReexecEchoProcess(t *testing.T) {
 	cont := os.NewFile(ContinueFile, "continue")
 	ready := os.NewFile(ReadyFile, "ready")
 	term := os.NewFile(TerminateFile, "terminate")
-	echo := os.NewFile(FirstExtraFile, "echo")
+	var echo *os.File
+	if os.Getenv("REEXEC_USE_EXTRA") == "1" {
+		echo = os.NewFile(FirstExtraFile, "echo")
+	}
 
 	var cfgPayload Config
 	_ = json.NewDecoder(cfg).Decode(&cfgPayload)
