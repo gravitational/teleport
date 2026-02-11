@@ -682,3 +682,39 @@ func TestImmutableLabelHashing(t *testing.T) {
 	labels.Ssh["three"] = "3"
 	require.False(t, joining.VerifyImmutableLabelsHash(labels, initialHash))
 }
+
+func TestImmutableLabelHashCollision(t *testing.T) {
+	// Assert labels that could feasibly result in the same set of strings in the same order do not collide
+	// unless they're the exact same keys and values. Represented as a slice of test cases to make it easier
+	// to extend once immutable labels are made up of more than SSH labels.
+	cases := []struct {
+		name    string
+		labelsA *joiningv1.ImmutableLabels
+		labelsB *joiningv1.ImmutableLabels
+	}{
+		{
+			// guards against keys and values being concatenated as they're hashed. e.g.
+			// foo:bar-baz-qux would become foobar-baz-qux which would collide with foo:bar-,baz:-qux
+			name: "simple concatenation",
+			labelsA: &joiningv1.ImmutableLabels{
+				Ssh: map[string]string{
+					"aaa": "bbbcccddd",
+				},
+			},
+
+			labelsB: &joiningv1.ImmutableLabels{
+				Ssh: map[string]string{
+					"aaa": "bbb",
+					"ccc": "ddd",
+				},
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			hashA := joining.HashImmutableLabels(c.labelsA)
+			require.False(t, joining.VerifyImmutableLabelsHash(c.labelsB, hashA))
+		})
+	}
+}

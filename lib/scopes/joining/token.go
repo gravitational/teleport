@@ -390,8 +390,10 @@ func HashImmutableLabels(labels *joiningv1.ImmutableLabels) string {
 		})
 
 		for _, v := range sorted {
-			_, _ = hash.Write([]byte(v.key))
-			_, _ = hash.Write([]byte(v.value))
+			entryHash := sha256.New()
+			_, _ = entryHash.Write([]byte(v.key))
+			_, _ = entryHash.Write([]byte(v.value))
+			_, _ = hash.Write(entryHash.Sum(nil))
 		}
 	}
 
