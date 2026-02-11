@@ -2,6 +2,9 @@ name: Lint
 on:
   pull_request:
   merge_group:
+  push:
+    branches:
+      - okraport/debug-proto-lint
 env:
   GOFLAGS: '-buildvcs=false'
 
@@ -228,8 +231,8 @@ jobs:
 
   lint-proto:
     name: Lint (Proto)
-    needs: changes
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_proto == 'true' }}
+    # needs: changes
+    # if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_proto == 'true' }}
     runs-on: ubuntu-22.04-16core
 
     permissions:
