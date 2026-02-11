@@ -1008,6 +1008,7 @@ endif
 # todo: Use gotestsum when it is compatible with benchmark output. Currently will consider all benchmarks failed.
 .PHONY: test-go-bench
 test-go-bench: BENCHMARK_SKIP_PATTERN = "^BenchmarkRoot"
+test-go-bench: BENCH_OUTPUT ?= $(TEST_LOG_DIR)/bench.txt
 test-go-bench: $(BENCHFIND) | $(TEST_LOG_DIR)
 	@PKGS=$$($(BENCHFIND) --tags=$(BUILD_TAGS)) ; \
 	if [ -z "$$PKGS" ]; then \
@@ -1015,11 +1016,12 @@ test-go-bench: $(BENCHFIND) | $(TEST_LOG_DIR)
 		exit 1; \
 	fi ; \
 	go test -run ^$$ -bench . -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $$PKGS \
-		| tee $(TEST_LOG_DIR)/bench.txt
+		| tee $(BENCH_OUTPUT)
 
 .PHONY: test-go-bench-root
 test-go-bench-root: BENCHMARK_PATTERN = "^BenchmarkRoot"
 test-go-bench-root: BENCHMARK_SKIP_PATTERN = ""
+test-go-bench-root: BENCH_OUTPUT ?= $(TEST_LOG_DIR)/bench.txt
 test-go-bench-root: $(BENCHFIND) | $(TEST_LOG_DIR)
 	@PKGS=$$($(BENCHFIND) --tags=$(BUILD_TAGS)) ; \
 	if [ -z "$$PKGS" ]; then \
@@ -1027,7 +1029,7 @@ test-go-bench-root: $(BENCHFIND) | $(TEST_LOG_DIR)
 		exit 1; \
 	fi ; \
 	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $$PKGS \
-		| tee $(TEST_LOG_DIR)/bench.txt
+		| tee $(BENCH_OUTPUT)
 
 # Make sure untagged vnetdaemon code build/tests.
 .PHONY: test-go-vnet-daemon
@@ -2095,3 +2097,10 @@ resource-docs-up-to-date: must-start-clean/host gen-resource-docs
 		./build.assets/please-run.sh "tctl resource reference docs" "make gen-resource-docs"; \
 		exit 1; \
 	fi
+
+.PHONY: benchstat
+benchstat:
+ifndef BENCH_FILES
+	$(error "Please provide BENCH_FILES=<file1> <file2> ...")
+endif
+	@$(BENCHSTAT) $(BENCH_FILES) | tee test-logs/benchstat.txt
