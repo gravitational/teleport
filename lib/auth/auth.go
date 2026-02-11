@@ -404,7 +404,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 	if cfg.AccessLists == nil {
-		cfg.AccessLists, err = local.NewAccessListService(cfg.Backend, cfg.Clock)
+		cfg.AccessLists, err = local.NewAccessListServiceV2(local.AccessListServiceConfig{
+			Backend: cfg.Backend,
+			// TODO(tross): replace modules.GetModules with cfg.Modules
+			Modules:                     modules.GetModules(),
+			RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -599,6 +604,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	if cfg.WorkloadClusterService == nil {
+		cfg.WorkloadClusterService, err = local.NewWorkloadClusterService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating WorkloadClusterService")
+		}
+	}
+
 	scopedAccessCache, err := scopedaccesscache.NewCache(scopedaccesscache.CacheConfig{
 		Events: cfg.Events,
 		Reader: cfg.ScopedAccess,
@@ -638,7 +650,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		DatabaseObjects:                 cfg.DatabaseObjects,
 		SecReports:                      cfg.SecReports,
 		UserLoginStates:                 cfg.UserLoginState,
-		StatusInternal:                  cfg.Status,
+		Status:                          cfg.Status,
 		UsageReporter:                   cfg.UsageReporter,
 		UserPreferences:                 cfg.UserPreferences,
 		PluginData:                      cfg.PluginData,
@@ -666,6 +678,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Summarizer:                      cfg.Summarizer,
 		RecordingEncryptionManager:      cfg.RecordingEncryption,
 		ScopedTokenService:              cfg.ScopedTokenService,
+		WorkloadClusterService:          cfg.WorkloadClusterService,
 	}
 
 	as = &Server{
@@ -895,7 +908,7 @@ type Services struct {
 	services.UserGroups
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
-	services.StatusInternal
+	services.Status
 	services.Integrations
 	services.IntegrationsTokenGenerator
 	services.UserTasks
@@ -939,6 +952,7 @@ type Services struct {
 	services.Summarizer
 	RecordingEncryptionManager
 	services.ScopedTokenService
+	services.WorkloadClusterService
 }
 
 // GetWebSession returns existing web session described by req.
@@ -4249,7 +4263,7 @@ func (a *Server) CreateAuthPreference(ctx context.Context, p types.AuthPreferenc
 		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 	}
 
-	if err := dtconfig.ValidateConfigAgainstModules(p.GetDeviceTrust()); err != nil {
+	if err := dtconfig.ValidateConfigAgainstModules(p.GetDeviceTrust(), modules.GetModules()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -5186,9 +5200,21 @@ func ExtractHostID(hostName string, clusterName string) (string, error) {
 	return strings.TrimSuffix(hostName, suffix), nil
 }
 
+// HostCertsParams attaches additional parameters to a [proto.HostCertsRequest] that should not be
+// exposed by the request itself.
+type HostCertsParams struct {
+	// Req is the original request to generate host certificates.
+	Req *proto.HostCertsRequest
+	// The AgentScope that should be encoded into the resulting certificates.
+	AgentScope string
+	// The ImmutableLabelHash that should be encoded into the resulting certificates.
+	ImmutableLabelHash string
+}
+
 // GenerateHostCerts generates new host certificates (signed
 // by the host certificate authority) for a node.
-func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest, scope string) (*proto.Certs, error) {
+func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) (*proto.Certs, error) {
+	req := params.Req
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5318,10 +5344,11 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		HostID:        req.HostID,
 		NodeName:      req.NodeName,
 		Identity: sshca.Identity{
-			ClusterName: clusterName.GetClusterName(),
-			SystemRole:  req.Role,
-			Principals:  req.AdditionalPrincipals,
-			AgentScope:  scope,
+			ClusterName:        clusterName.GetClusterName(),
+			SystemRole:         req.Role,
+			Principals:         req.AdditionalPrincipals,
+			AgentScope:         params.AgentScope,
+			ImmutableLabelHash: params.ImmutableLabelHash,
 		},
 	})
 	if err != nil {
@@ -5339,11 +5366,12 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 
 	// generate host TLS certificate
 	identity := tlsca.Identity{
-		Username:        utils.HostFQDN(req.HostID, clusterName.GetClusterName()),
-		Groups:          []string{req.Role.String()},
-		TeleportCluster: clusterName.GetClusterName(),
-		SystemRoles:     systemRoles,
-		AgentScope:      scope,
+		Username:           utils.HostFQDN(req.HostID, clusterName.GetClusterName()),
+		Groups:             []string{req.Role.String()},
+		TeleportCluster:    clusterName.GetClusterName(),
+		SystemRoles:        systemRoles,
+		AgentScope:         params.AgentScope,
+		ImmutableLabelHash: params.ImmutableLabelHash,
 	}
 	subject, err := identity.Subject()
 	if err != nil {

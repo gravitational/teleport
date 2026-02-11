@@ -103,6 +103,12 @@ const cfg = {
 
   baseUrl: window.location.origin,
 
+  // terraform contains terraform related configuration
+  terraform: {
+    registry: 'terraform.releases.teleport.dev',
+    stagingRegistry: 'terraform-staging.releases.development.teleport.dev',
+  },
+
   // enterprise non-exact routes will be merged into this
   // see `getNonExactRoutes` for details about non-exact routes
   nonExactRoutes: [],

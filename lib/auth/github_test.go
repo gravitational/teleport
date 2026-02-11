@@ -83,11 +83,14 @@ func setupGithubContext(ctx context.Context, t *testing.T) *githubContext {
 		require.NoError(t, tt.b.Close())
 	})
 
+	keygen, err := authority.NewKeygen(modules.BuildOSS, tt.c.Now)
+	require.NoError(t, err)
+
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterName,
 		Backend:                tt.b,
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
-		Authority:              authority.New(),
+		Authority:              keygen,
 		SkipPeriodicOperations: true,
 		HostUUID:               uuid.NewString(),
 	}

@@ -426,6 +426,9 @@ const (
 	// TraitJWT is the name of the trait containing JWT header for app access.
 	TraitJWT = "jwt"
 
+	// TraitIDToken is the name of the trait containing ID token header for app access.
+	TraitIDToken = "id_token"
+
 	// TraitHostUserUID is the name of the variable used to specify
 	// the UID to create host user account with.
 	TraitHostUserUID = "host_user_uid"

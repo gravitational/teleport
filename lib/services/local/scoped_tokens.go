@@ -17,12 +17,16 @@
 package local
 
 import (
+	"cmp"
 	"context"
+	"crypto/sha256"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
@@ -139,21 +143,57 @@ func (s *ScopedTokenService) GetScopedToken(ctx context.Context, req *joiningv1.
 	return &joiningv1.GetScopedTokenResponse{Token: token}, nil
 }
 
-// UseScopedToken fetches a scoped join token by unique name and checks if it
-// can be used for provisioning. Expired tokens will be deleted.
-func (s *ScopedTokenService) UseScopedToken(ctx context.Context, name string) (*joiningv1.ScopedToken, error) {
-	token, err := s.svc.GetResource(ctx, name)
+// tokenReuseDuration is how long a scoped token can be reused by the host that consumed it
+const tokenReuseDuration = time.Minute * 30
+
+// UseScopedToken attempts to use a scoped token to provision a resource. A
+// [trace.LimitExceededError] error is returned if the token is expired or has
+// been exhausted, which should be treated as a failure to provision. The
+// given public key is an idempotency key to allow the same host to temporarily
+// retry a failed join due to spurious errors even after the token has been
+// consumed.
+func (s *ScopedTokenService) UseScopedToken(ctx context.Context, token *joiningv1.ScopedToken, publicKey []byte) (*joiningv1.ScopedToken, error) {
+	if err := joining.ValidateTokenForUse(token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if joining.TokenUsageMode(token.Spec.UsageMode) != joining.TokenUsageModeSingle {
+		return token, nil
+	}
+
+	// make sure the correct, non-nil usage status is set
+	token.Status = cmp.Or(token.Status, &joiningv1.ScopedTokenStatus{})
+	token.Status.Usage = cmp.Or(token.Status.Usage, &joiningv1.UsageStatus{})
+	if token.Status.Usage.Status == nil {
+		token.Status.Usage.Status = &joiningv1.UsageStatus_SingleUse{
+			SingleUse: &joiningv1.SingleUseStatus{},
+		}
+	}
+	usage := token.Status.Usage.GetSingleUse()
+	if usage == nil {
+		return nil, trace.Errorf("single use token does not have a single use status")
+	}
+
+	fp := sha256.Sum256(publicKey)
+	if len(usage.GetUsedByFingerprint()) > 0 {
+		// no need to update the token if we're retrying for the same public key
+		if slices.Equal(usage.GetUsedByFingerprint(), fp[:]) {
+			return token, nil
+		}
+
+		return nil, trace.Wrap(joining.ErrTokenExhausted)
+	}
+
+	// set the public key if this is the first time this token has been used
+	usage.UsedByFingerprint = fp[:]
+	usage.UsedAt = timestamppb.New(time.Now())
+	usage.ReusableUntil = timestamppb.New(time.Now().Add(tokenReuseDuration))
+
+	token, err := s.svc.ConditionalUpdateResource(ctx, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := joining.ValidateTokenForUse(token); err != nil {
-		if trace.IsLimitExceeded(err) {
-			if err := s.svc.DeleteResource(ctx, name); err != nil {
-				return nil, trace.LimitExceeded("cleaning up expired token: %v", err)
-			}
-		}
-		return nil, trace.Wrap(err)
-	}
+
 	return token, nil
 }
 
@@ -297,6 +337,41 @@ func (p *scopedTokenParser) parse(event backend.Event) (types.Resource, error) {
 				Name: name,
 			},
 		}, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+type staticScopedTokenParser struct {
+	baseParser
+}
+
+func newStaticScopedTokenParser() *staticScopedTokenParser {
+	return &staticScopedTokenParser{
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, types.MetaNameStaticScopedTokens)),
+	}
+}
+
+func (p *staticScopedTokenParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return &types.ResourceHeader{
+			Kind:    types.KindStaticScopedTokens,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name: types.MetaNameStaticScopedTokens,
+			},
+		}, nil
+	case types.OpPut:
+		tokens, err := services.UnmarshalProtoResource[*joiningv1.StaticScopedTokens](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "unmarshaling resource from event")
+		}
+		return types.Resource153ToLegacy(tokens), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

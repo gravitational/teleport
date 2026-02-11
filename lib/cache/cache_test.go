@@ -61,6 +61,7 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
+	workloadclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -173,6 +174,7 @@ type testPack struct {
 	botInstanceService      *local.BotInstanceService
 	plugin                  *local.PluginsService
 	recordingEncryption     *local.RecordingEncryptionService
+	workloadClusters        *local.WorkloadClusterService
 }
 
 // resourceOps contains helpers to modify the state of either types.Resource or types.Resource153  which
@@ -430,7 +432,10 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.secReports = secReportsSvc
 
-	accessListsSvc, err := local.NewAccessListService(p.backend, p.backend.Clock())
+	accessListsSvc, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: p.backend,
+		Modules: modulestest.EnterpriseModules(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -525,6 +530,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	workloadClusterSvc, err := local.NewWorkloadClusterService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.workloadClusters = workloadClusterSvc
+
 	return p, nil
 }
 
@@ -587,6 +598,8 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		RecordingEncryption:     p.recordingEncryption,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
+		StaticScopedToken:       p.clusterConfigS,
+		WorkloadClusterService:  p.workloadClusters,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -853,6 +866,8 @@ func TestCompletenessInit(t *testing.T) {
 			HealthCheckConfig:       p.healthCheckConfig,
 			BotInstanceService:      p.botInstanceService,
 			Plugin:                  p.plugin,
+			StaticScopedToken:       p.clusterConfigS,
+			WorkloadClusterService:  p.workloadClusters,
 		}))
 		require.NoError(t, err)
 
@@ -940,6 +955,8 @@ func TestCompletenessReset(t *testing.T) {
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
+		StaticScopedToken:       p.clusterConfigS,
+		WorkloadClusterService:  p.workloadClusters,
 	}))
 	require.NoError(t, err)
 
@@ -1100,6 +1117,8 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
+		StaticScopedToken:       p.clusterConfigS,
+		WorkloadClusterService:  p.workloadClusters,
 	}))
 	require.NoError(t, err)
 
@@ -1199,6 +1218,8 @@ func initStrategy(t *testing.T) {
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
+		StaticScopedToken:       p.clusterConfigS,
+		WorkloadClusterService:  p.workloadClusters,
 	}))
 	require.NoError(t, err)
 
@@ -1869,6 +1890,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindSessionRecordingConfig:            types.DefaultSessionRecordingConfig(),
 		types.KindUIConfig:                          &types.UIConfigV1{},
 		types.KindStaticTokens:                      &types.StaticTokensV2{},
+		types.KindStaticScopedTokens:                &types.StaticTokensV2{},
 		types.KindToken:                             &types.ProvisionTokenV2{},
 		types.KindUser:                              &types.UserV2{},
 		types.KindRole:                              &types.RoleV6{Version: types.V4},
@@ -1940,6 +1962,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		scopedaccess.KindScopedRole:                 types.Resource153ToLegacy(&scopedaccessv1.ScopedRole{}),
 		scopedaccess.KindScopedRoleAssignment:       types.Resource153ToLegacy(&scopedaccessv1.ScopedRoleAssignment{}),
 		types.KindRelayServer:                       types.ProtoResource153ToLegacy(new(presencev1.RelayServer)),
+		types.KindWorkloadCluster:                   types.Resource153ToLegacy(newWorkloadCluster(t, "test")),
 	}
 
 	for name, cfg := range cases {
@@ -2011,6 +2034,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*presencev1.RelayServer]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*presencev1.RelayServer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*workloadclusterv1.WorkloadCluster]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*workloadclusterv1.WorkloadCluster]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				default:
 					require.Empty(t, cmp.Diff(resource, event.Resource))
 				}
@@ -2621,6 +2646,18 @@ func newAutoUpdateBotInstanceReport(t *testing.T) *autoupdate.AutoUpdateBotInsta
 			},
 		},
 	}
+}
+
+func newWorkloadCluster(t *testing.T, name string) *workloadclusterv1.WorkloadCluster {
+	t.Helper()
+
+	workloadCluster := &workloadclusterv1.WorkloadCluster{
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
+	}
+
+	return workloadCluster
 }
 
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {

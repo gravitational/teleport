@@ -23,6 +23,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/stretchr/testify/require"
@@ -429,6 +430,87 @@ Arguments:
 |Argument|Default|Description|
 |---|---|---|
 |type|none (optional)|The type of the resource|
+
+`,
+		},
+		{
+			name: "overridden dynamic flag value",
+			makeApp: func() *kingpin.Application {
+				app := InitCLIParser("myapp", "This is the main CLI tool.")
+				app.Flag("start_time", "When to start the app").Default(time.Now().String()).String()
+				return app
+			},
+			config: generatorConfig{
+				Introduction: "This is the main CLI tool.",
+				FlagDefaultOverrides: []flagDefaultOverride{
+					{
+						FullCommand: "myapp",
+						Flag:        "start_time",
+						Value:       "now",
+					},
+				},
+			},
+			expectSubstring: `---
+title: myapp Reference
+description: Provides a comprehensive list of commands, arguments, and flags for myapp.
+sidebar_label: myapp
+tags:
+  - reference
+  - platform-wide
+---
+{/*vale messaging = NO*/}
+
+This guide provides a comprehensive list of commands, arguments, and flags for
+myapp.
+
+This is the main CLI tool.
+
+@@@code
+$ myapp [<flags>] <command> [<args> ...]
+@@@
+
+Global flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|@--start_time@|@now@|When to start the app|
+`,
+		},
+		{
+			name: "overridden subcommand argument default",
+			makeApp: func() *kingpin.Application {
+				app := InitCLIParser("myapp", "This is the main CLI tool.")
+				create := app.Command("create", "Create.")
+				create.Arg("verbosity", "Verbosity level.").Default("3").Int()
+				create.Arg("start_time", "When to start the app").Default(time.Now().String()).String()
+				return app
+			},
+			config: generatorConfig{
+				Introduction: "This is the main CLI tool.",
+				ArgDefaultOverrides: []argDefaultOverride{
+					{
+						FullCommand: "myapp create",
+						Arg:         "start_time",
+						Value:       "now",
+					},
+				},
+			},
+			expectSubstring: `## myapp create
+
+Create.
+
+Usage:
+
+@@@code
+$ myapp create [<verbosity>] [<start_time>]
+@@@
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|start_time|@now@ (optional)|When to start the app|
+|verbosity|@3@ (optional)|Verbosity level.|
 
 `,
 		},

@@ -238,6 +238,7 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 		} else {
 			identity = newIdentity
 		}
+		process.SetImmutableLabels(identity.ImmutableLabels)
 	}
 
 	rotation := processState.Spec.Rotation
@@ -383,6 +384,7 @@ func (process *TeleportProcess) healInstanceIdentity(currentIdentity *state.Iden
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse new identity")
 		}
+		newIdentity.ImmutableLabels = rejoinResult.ImmutableLabels
 	}
 
 	newSystemRoles := utils.NewSet(newIdentity.SystemRoles...)
@@ -452,7 +454,7 @@ type localReRegister struct {
 
 // GenerateHostCerts allows for generating host certs without providing a scope.
 func (l localReRegister) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
-	return l.Server.GenerateHostCerts(ctx, req, "")
+	return l.Server.GenerateHostCerts(ctx, auth.HostCertsParams{Req: req})
 }
 
 // reRegister receives new identity credentials for proxy, node and auth.
@@ -556,6 +558,8 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		if err := process.storage.PersistAssignedHostID(process.GracefulExitContext(), process.Config, identity.ID.HostID()); err != nil {
 			return nil, trace.Wrap(err, "persisting host ID to storage")
 		}
+
+		process.SetImmutableLabels(identity.ImmutableLabels)
 	}
 	process.logger.InfoContext(process.ExitContext(), "The process successfully wrote the credentials and state to the disk.", "identity", role)
 	return connector, nil
@@ -563,7 +567,12 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 
 func (process *TeleportProcess) firstTimeConnectIdentity(role types.SystemRole) (*state.Identity, error) {
 	if localAuth := process.getLocalAuth(); localAuth != nil {
-		return process.firstTimeConnectIdentityLocal(role, localAuth)
+		identity, err := process.firstTimeConnectIdentityLocal(role, localAuth)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return identity, nil
 	}
 	return process.firstTimeConnectIdentityRemote(role)
 }
@@ -621,7 +630,11 @@ func (process *TeleportProcess) firstTimeConnectIdentityRemote(role types.System
 		//
 		// TODO(nklaassen): DELETE IN 20
 		process.Config.Logger.InfoContext(process.GracefulExitContext(), "Instance identity does not include required system role, must re-join with a provision token", "role", role)
-		return process.legacyJoinWithHostUUID(role, instanceIdentity.ID.HostID())
+		identity, err := process.legacyJoinWithHostUUID(role, instanceIdentity.ID.HostID())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return identity, nil
 	}
 	// The instance connector does have the role requested, we can reregister
 	// without going through the join process.
@@ -655,19 +668,24 @@ func (process *TeleportProcess) instanceJoin() (*state.Identity, error) {
 		return nil, trace.Wrap(err)
 	}
 	process.logger.InfoContext(process.ExitContext(), "Joining the cluster with a secure token.")
-	joinResult, err := joinclient.Join(process.GracefulExitContext(), *joinParams)
+	result, err := joinclient.Join(process.GracefulExitContext(), *joinParams)
 	if err != nil {
 		if utils.IsUntrustedCertErr(err) {
 			return nil, trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
 		}
 		return nil, trace.Wrap(err)
 	}
-	privateKeyPEM, err := keys.MarshalPrivateKey(joinResult.PrivateKey)
+	privateKeyPEM, err := keys.MarshalPrivateKey(result.PrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	identity, err := state.ReadIdentityFromKeyPair(privateKeyPEM, joinResult.Certs)
-	return identity, trace.Wrap(err)
+
+	identity, err := state.ReadIdentityFromKeyPair(privateKeyPEM, result.Certs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity.ImmutableLabels = result.ImmutableLabels
+	return identity, nil
 }
 
 func (process *TeleportProcess) legacyJoinWithHostUUID(role types.SystemRole, hostUUID string) (*state.Identity, error) {
@@ -697,6 +715,10 @@ func (process *TeleportProcess) legacyJoinWithHostUUID(role types.SystemRole, ho
 		return nil, trace.Wrap(err)
 	}
 	identity, err := state.ReadIdentityFromKeyPair(privateKeyPEM, joinResult.Certs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity.ImmutableLabels = joinResult.ImmutableLabels
 	return identity, trace.Wrap(err)
 }
 

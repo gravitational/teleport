@@ -2371,7 +2371,7 @@ func newRawNode(t *testing.T, authSrv *auth.Server) *rawNode {
 	hostname, err := os.Hostname()
 	require.NoError(t, err)
 
-	priv, pub, err := testauthority.New().GenerateKeyPair()
+	priv, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPub, err := authtest.PrivateKeyToPublicKeyTLS(priv)
@@ -2379,15 +2379,17 @@ func newRawNode(t *testing.T, authSrv *auth.Server) *rawNode {
 
 	// Create host key and certificate for node.
 	certs, err := authSrv.GenerateHostCerts(t.Context(),
-		&proto.HostCertsRequest{
-			HostID:               "raw-node",
-			NodeName:             "raw-node",
-			Role:                 types.RoleNode,
-			AdditionalPrincipals: []string{hostname},
-			DNSNames:             []string{hostname},
-			PublicSSHKey:         pub,
-			PublicTLSKey:         tlsPub,
-		}, "")
+		auth.HostCertsParams{
+			Req: &proto.HostCertsRequest{
+				HostID:               "raw-node",
+				NodeName:             "raw-node",
+				Role:                 types.RoleNode,
+				AdditionalPrincipals: []string{hostname},
+				DNSNames:             []string{hostname},
+				PublicSSHKey:         pub,
+				PublicTLSKey:         tlsPub,
+			},
+		})
 	require.NoError(t, err)
 
 	signer, err := sshutils.NewSigner(priv, certs.SSH)
@@ -3103,7 +3105,7 @@ type upack struct {
 
 func newUpack(ctx context.Context, testSvr *authtest.Server, username string, allowedLogins []string, allowedLabels types.Labels) (*upack, error) {
 	auth := testSvr.Auth()
-	upriv, upub, err := testauthority.New().GenerateKeyPair()
+	upriv, upub, err := testauthority.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3223,20 +3225,22 @@ func newCertAuthorityWatcher(ctx context.Context, t *testing.T, client types.Eve
 func newSigner(t testing.TB, ctx context.Context, testServer *authtest.Server) ssh.Signer {
 	t.Helper()
 
-	priv, pub, err := testauthority.New().GenerateKeyPair()
+	priv, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPub, err := authtest.PrivateKeyToPublicKeyTLS(priv)
 	require.NoError(t, err)
 
 	certs, err := testServer.Auth().GenerateHostCerts(ctx,
-		&proto.HostCertsRequest{
-			HostID:       hostID,
-			NodeName:     testServer.ClusterName(),
-			Role:         types.RoleNode,
-			PublicSSHKey: pub,
-			PublicTLSKey: tlsPub,
-		}, "")
+		auth.HostCertsParams{
+			Req: &proto.HostCertsRequest{
+				HostID:       hostID,
+				NodeName:     testServer.ClusterName(),
+				Role:         types.RoleNode,
+				PublicSSHKey: pub,
+				PublicTLSKey: tlsPub,
+			},
+		})
 	require.NoError(t, err)
 
 	// set up user CA and set up a user that has access to the server

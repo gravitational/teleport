@@ -950,6 +950,12 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			return trace.Wrap(err)
 		}
 	}
+	if fc.Auth.StaticScopedTokens != nil {
+		cfg.Auth.StaticScopedTokens, err = fc.Auth.StaticScopedTokens.Parse()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	// read in and set authentication preferences
 	if fc.Auth.Authentication != nil {
 		cfg.Auth.Preference, err = fc.Auth.Authentication.Parse()
@@ -1082,6 +1088,7 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.Auth.CAKeyParams.AWSKMS != nil {
 		return trace.Wrap(applyAWSKMSConfig(fc.Auth.CAKeyParams.AWSKMS, cfg))
 	}
+	cfg.Auth.KeyStore.HealthCheck = fc.Auth.CAKeyParams.HealthCheck
 	return nil
 }
 
@@ -2881,10 +2888,15 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 	lib.SetInsecureDevMode(clf.InsecureMode)
 
 	// Apply command line --debug flag to override logger severity.
+	level := slog.LevelError
 	if clf.Debug {
 		cfg.SetLogLevel(slog.LevelDebug)
+		level = slog.LevelDebug
 		cfg.Debug = clf.Debug
 	}
+
+	// Ensure that the logging level is respected by the logger.
+	utils.InitLogger(utils.LoggingForDaemon, level)
 
 	if clf.AuthToken != "" {
 		// store the value of the --token flag:
@@ -2894,6 +2906,11 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 	if clf.TokenSecret != "" {
 		// store the value of the --token-secret flag:
 		cfg.SetTokenSecret(clf.TokenSecret)
+	}
+
+	// apply --skip-version-check flag.
+	if clf.SkipVersionCheck {
+		cfg.SkipVersionCheck = clf.SkipVersionCheck
 	}
 
 	slog.DebugContext(context.Background(), "Disabling all services, only the Teleport OpenSSH service can run during the `teleport join openssh` command")

@@ -26,7 +26,7 @@ import (
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/teleportcr"
 )
 
 func init() {
@@ -48,7 +48,7 @@ type TeleportAutoupdateVersionV1 struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   *TeleportAutoupdateVersionV1Spec `json:"spec,omitempty"`
-	Status resources.Status                 `json:"status,omitempty"`
+	Status teleportcr.Status                `json:"status,omitempty"`
 }
 
 // TeleportAutoupdateVersionV1Spec defines the desired state of TeleportAutoupdateVersionV1
@@ -70,7 +70,7 @@ func (l *TeleportAutoupdateVersionV1) ToTeleport() *autoupdatev1pb.AutoUpdateVer
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name:        l.Name,
-			Description: l.Annotations[resources.DescriptionKey],
+			Description: l.Annotations[teleportcr.DescriptionKey],
 			Labels:      l.Labels,
 		},
 		Spec: (*autoupdatev1pb.AutoUpdateVersionSpec)(l.Spec),

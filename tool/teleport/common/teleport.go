@@ -50,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/selinux"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -492,12 +491,15 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	joinOpenSSH.Flag("data-dir", fmt.Sprintf("Path to directory to store teleport data [%v].", defaults.DataDir)).Default(defaults.DataDir).StringVar(&ccf.DataDir)
 	joinOpenSSH.Flag("restart-sshd", "Restart OpenSSH.").Default("true").BoolVar(&ccf.RestartOpenSSH)
 	joinOpenSSH.Flag("sshd-check-command", "Command to use when checking OpenSSH config for validity. (sshd -t -f <sshd_config>)").Default("sshd -t -f").StringVar(&ccf.CheckCommand)
-	joinOpenSSH.Flag("sshd-restart-command", "Command to use when restarting openssh.").Default(openssh.DefaultRestartCommand).StringVar(&ccf.RestartCommand)
+	joinOpenSSH.Flag("sshd-restart-command", "Command to use when restarting openssh.").StringVar(&ccf.RestartCommand)
 	joinOpenSSH.Flag("labels", "Comma-separated list of labels for this OpenSSH node, for example env=dev,app=web.").StringVar(&ccf.Labels)
 	joinOpenSSH.Flag("address", "Hostname or IP address of this OpenSSH node.").StringVar(&ccf.Address)
 	joinOpenSSH.Flag("additional-principals", "Additional principal to include, can be specified multiple times.").StringVar(&ccf.AdditionalPrincipals)
 	joinOpenSSH.Flag("insecure", "Insecure mode disables certificate validation.").BoolVar(&ccf.InsecureMode)
-
+	joinOpenSSH.Flag("skip-version-check",
+		"Skip version checking between server and client.").
+		Default("false").
+		BoolVar(&ccf.SkipVersionCheck)
 	joinOpenSSH.Flag("debug", "Enable verbose logging to stderr.").Short('d').BoolVar(&ccf.Debug)
 
 	integrationCmd := app.Command("integration", "Integration commands")
@@ -720,7 +722,7 @@ Examples:
 		// Validate binary modules against the device trust configuration.
 		// Catches errors in file-based configs.
 		if conf.Auth.Enabled {
-			if err := dtconfig.ValidateConfigAgainstModules(conf.Auth.Preference.GetDeviceTrust()); err != nil {
+			if err := dtconfig.ValidateConfigAgainstModules(conf.Auth.Preference.GetDeviceTrust(), modules.GetModules()); err != nil {
 				utils.FatalError(err)
 			}
 		}
@@ -844,6 +846,13 @@ Examples:
 		}
 		err = onSELinuxDirs(ccf.ConfigFile)
 	case backendCloneCmd.FullCommand():
+		// Ensure that the logging level is respected by the logger.
+		level := slog.LevelInfo
+		if ccf.Debug {
+			level = slog.LevelDebug
+		}
+		utils.InitLogger(utils.LoggingForDaemon, level)
+
 		err = onBackendClone(ctx, ccf.ConfigFile)
 	case backendGetCmd.FullCommand():
 		// configuration merge: defaults -> file-based conf -> CLI conf

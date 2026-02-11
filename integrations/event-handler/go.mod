@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/integrations/event-handler
 
-go 1.24.12
+go 1.25.7
 
 require (
 	github.com/alecthomas/kong v1.10.0
@@ -269,7 +269,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
-	github.com/oracle/oci-go-sdk/v65 v65.89.3 // indirect
+	github.com/oracle/oci-go-sdk/v65 v65.107.0 // indirect
 	github.com/patrickmn/go-cache v2.1.1-0.20191004192108-46f407853014+incompatible // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect

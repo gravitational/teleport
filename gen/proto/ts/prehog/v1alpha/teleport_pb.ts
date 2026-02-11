@@ -4474,7 +4474,11 @@ export enum IntegrationEnrollField {
     /**
      * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_RESOURCE_RULES = 11;
      */
-    MWIGHAK8S_KUBERNETES_RESOURCE_RULES = 11
+    MWIGHAK8S_KUBERNETES_RESOURCE_RULES = 11,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_CLUSTER_NAME = 12;
+     */
+    MWIGHAK8S_KUBERNETES_CLUSTER_NAME = 12
 }
 /**
  * IntegrationEnrollCodeType identifies the type of code that was copied in an

@@ -19,6 +19,7 @@ package provision
 import (
 	"time"
 
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -51,4 +52,7 @@ type Token interface {
 	GetAllowRules() []*types.TokenRule
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() types.Duration
+	// GetImmutableLabels returns labels that must be applied to resources
+	// provisioned with this token.
+	GetImmutableLabels() *joiningv1.ImmutableLabels
 }

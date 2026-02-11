@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -317,7 +318,11 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	accessLists, err := local.NewAccessListService(srv.Backend, cfg.Clock, local.WithRunWhileLockedRetryInterval(cfg.RunWhileLockedRetryInterval))
+	accessLists, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: srv.Backend,
+		// TODO(tross): replace with cfg.Modules
+		Modules: modules.GetModules(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -330,11 +335,17 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(tross): replace with cfg.Modules.BuildType
+	authority, err := authority.NewKeygen(modules.GetModules().BuildType(), cfg.Clock.Now)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	srv.AuthServer, err = auth.NewServer(&auth.InitConfig{
 		DataDir:                   cfg.Dir,
 		Backend:                   srv.Backend,
 		VersionStorage:            NewFakeTeleportVersion(),
-		Authority:                 authority.NewWithClock(cfg.Clock),
+		Authority:                 authority,
 		Access:                    access,
 		Identity:                  identity,
 		AuditLog:                  srv.AuditLog,
@@ -601,6 +612,8 @@ func InitAuthCache(p AuthCacheParams) error {
 		BotInstance:             p.AuthServer.Services.BotInstance,
 		Plugin:                  p.AuthServer.Services.Plugins,
 		RecordingEncryption:     p.AuthServer.Services.RecordingEncryptionManager,
+		StaticScopedToken:       p.AuthServer.Services.ClusterConfigurationInternal,
+		WorkloadClusterService:  p.AuthServer.Services.WorkloadClusterService,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -701,28 +714,30 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 
 		return tlsCert, privateKeyPEM, nil
 	case authz.BuiltinRole:
-		certs, err := authServer.GenerateHostCerts(ctx,
-			&proto.HostCertsRequest{
+		certs, err := authServer.GenerateHostCerts(ctx, auth.HostCertsParams{
+			Req: &proto.HostCertsRequest{
 				HostID:       id.Username,
 				NodeName:     id.Username,
 				Role:         id.Role,
 				PublicTLSKey: tlsPublicKeyPEM,
 				PublicSSHKey: sshPublicKeyPEM,
 				SystemRoles:  id.AdditionalSystemRoles,
-			}, "")
+			},
+		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 		return certs.TLS, privateKeyPEM, nil
 	case authz.RemoteBuiltinRole:
-		certs, err := authServer.GenerateHostCerts(ctx,
-			&proto.HostCertsRequest{
+		certs, err := authServer.GenerateHostCerts(ctx, auth.HostCertsParams{
+			Req: &proto.HostCertsRequest{
 				HostID:       id.Username,
 				NodeName:     id.Username,
 				Role:         id.Role,
 				PublicTLSKey: tlsPublicKeyPEM,
 				PublicSSHKey: sshPublicKeyPEM,
-			}, "")
+			},
+		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -1345,14 +1360,15 @@ func NewServerIdentity(clt *auth.Server, hostID string, role types.SystemRole) (
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := clt.GenerateHostCerts(context.Background(),
-		&proto.HostCertsRequest{
+	certs, err := clt.GenerateHostCerts(context.Background(), auth.HostCertsParams{
+		Req: &proto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     hostID,
 			Role:         role,
 			PublicSSHKey: ssh.MarshalAuthorizedKey(sshPubKey),
 			PublicTLSKey: tlsPubKey,
-		}, "")
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

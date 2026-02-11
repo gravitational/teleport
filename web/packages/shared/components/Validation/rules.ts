@@ -100,29 +100,51 @@ const requiredConfirmedPassword =
   };
 
 /**
- * DNS1035_LABEL_REGEX uses the same regex matcher as documented here:
+ * Using the IETF RFC 1035 Label Names rules documented here:
  * https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#rfc-1035-label-names
  *
- * This matches how the backend validates integration names to satisfy a lowercase valid DNS subdomain.
+ * - contain at most 63 characters
+ * - contain only lowercase alphanumeric characters or '-'
+ * - start with an alphabetic character
+ * - end with an alphanumeric character
+ *
  */
-const DNS1035_LABEL_REGEX = /^[a-z]([-a-z0-9]*[a-z0-9])?$/;
-const DNS1035_LABEL_MAX_LENGTH = 63;
+const RFC1035_LABEL_ALLOWED_CHARS = /^[-a-z0-9]+$/;
+const RFC1035_LABEL_START = /^[a-z]/;
+const RFC1035_LABEL_END = /[a-z0-9]$/;
+const RFC1035_LABEL_MAX_LENGTH = 63;
 /**
  * @param name validIntegrationName verifies if the given value is a
  * valid Integration name.
  */
 const validIntegrationName = (name: string): ValidationResult => {
-  if (name.length > DNS1035_LABEL_MAX_LENGTH) {
+  if (name.length > RFC1035_LABEL_MAX_LENGTH) {
     return {
       valid: false,
-      message: 'Name should be <= ' + DNS1035_LABEL_MAX_LENGTH + ' characters',
+      message:
+        'Name must contain at most ' + RFC1035_LABEL_MAX_LENGTH + ' characters',
     };
   }
 
-  if (!name.match(DNS1035_LABEL_REGEX)) {
+  if (!name.match(RFC1035_LABEL_ALLOWED_CHARS)) {
     return {
       valid: false,
-      message: 'Name must be a lower case valid DNS subdomain',
+      message:
+        "Name must only contain lowercase alphanumeric characters or '-'",
+    };
+  }
+
+  if (!name.match(RFC1035_LABEL_START)) {
+    return {
+      valid: false,
+      message: 'Name must start with an alphabetic character',
+    };
+  }
+
+  if (!name.match(RFC1035_LABEL_END)) {
+    return {
+      valid: false,
+      message: 'Name must end with an alphanumeric character',
     };
   }
 
@@ -147,14 +169,15 @@ const validAwsIAMRoleName = (name: string): ValidationResult => {
   if (name.length > IAM_ROLE_NAME_MAX_LENGTH) {
     return {
       valid: false,
-      message: 'Name should be <= ' + IAM_ROLE_NAME_MAX_LENGTH + ' characters',
+      message: 'Name must be <= ' + IAM_ROLE_NAME_MAX_LENGTH + ' characters',
     };
   }
 
   if (!name.match(IAM_ROLE_NAME_REGEX)) {
     return {
       valid: false,
-      message: 'Name can only contain characters @ = , . + - and alphanumerics',
+      message:
+        'Name must only contain characters @ = , . + - and alphanumerics',
     };
   }
 
@@ -178,7 +201,7 @@ const validAwsRaResourceName = (name: string): ValidationResult => {
     return {
       valid: false,
       message:
-        'Name should be <= ' + ROLES_ANYWHERE_NAME_MAX_LENGTH + ' characters',
+        'Name must be <= ' + ROLES_ANYWHERE_NAME_MAX_LENGTH + ' characters',
     };
   }
 
@@ -193,7 +216,8 @@ const validAwsRaResourceName = (name: string): ValidationResult => {
   if (!name.match(ROLES_ANYWHERE_NAME_REGEX)) {
     return {
       valid: false,
-      message: 'Name can only contain characters [space] - _ and alphanumerics',
+      message:
+        'Name must only contain characters [space] - _ and alphanumerics',
     };
   }
   return {
@@ -203,7 +227,7 @@ const validAwsRaResourceName = (name: string): ValidationResult => {
 
 /**
  * requiredIntegrationName is a required field and checks for a
- * value which should also be a valid Integration name.
+ * value which must also be a valid Integration name.
  * @param name is an integration name.
  * @returns ValidationResult
  */
@@ -220,7 +244,7 @@ const requiredIntegrationName: Rule = name => (): ValidationResult => {
 
 /**
  * requiredIamRoleName is a required field and checks for a
- * value which should also be a valid AWS IAM Role name.
+ * value which must also be a valid AWS IAM Role name.
  * @param name is a role name.
  * @returns ValidationResult
  */
@@ -237,7 +261,7 @@ const requiredIamRoleName: Rule = name => (): ValidationResult => {
 
 /**
  * requiredIamTrustAnchorName is a required field and checks for a
- * value which should also be a valid AWS IAM Roles Anywhere Trust Anchor name.
+ * value which must also be a valid AWS IAM Roles Anywhere Trust Anchor name.
  * @param name is a trust anchor name.
  * @returns ValidationResult
  */
@@ -254,7 +278,7 @@ const requiredIamTrustAnchorName: Rule = name => (): ValidationResult => {
 
 /**
  * requiredIamProfileName is a required field and checks for a
- * value which should also be a valid AWS IAM Roles Anywhere Profile name.
+ * value which must also be a valid AWS IAM Roles Anywhere Profile name.
  * @param name is a profile name.
  * @returns ValidationResult
  */

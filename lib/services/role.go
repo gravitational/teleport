@@ -710,7 +710,7 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
 				constants.TraitGCPServiceAccounts, constants.TraitJWT,
 				constants.TraitGitHubOrgs, constants.TraitMCPTools,
-				constants.TraitDefaultRelayAddr:
+				constants.TraitDefaultRelayAddr, constants.TraitIDToken:
 			default:
 				return trace.BadParameter("unsupported variable %q", name)
 			}
@@ -2635,7 +2635,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	logger := rbacLogger
 	isLoggingEnabled := logger.Handler().Enabled(ctx, logutils.TraceLevel)
 	if isLoggingEnabled {
-		logger.With("resource_kind", r.GetKind(), "resource_name", r.GetName())
+		logger = logger.With("resource_kind", r.GetKind(), "resource_name", r.GetName())
 	}
 
 	if !state.MFAVerified && state.MFARequired == MFARequiredAlways {
@@ -2777,23 +2777,18 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		}
 
 		// Device verification.
-		var deviceVerificationPassed bool
-		switch role.GetOptions().DeviceTrustMode {
-		case constants.DeviceTrustModeOff, constants.DeviceTrustModeOptional, "":
-			// OK, extensions not enforced.
-			deviceVerificationPassed = true
-		case constants.DeviceTrustModeRequiredForHumans:
-			// Humans must use trusted devices, bots can use untrusted devices.
-			deviceVerificationPassed = deviceTrusted || state.IsBot
-		case constants.DeviceTrustModeRequired:
-			// Only trusted devices allowed for bot human and bot users.
-			deviceVerificationPassed = deviceTrusted
-		}
-		if !deviceVerificationPassed {
+		if err := dtauthz.VerifyTrustedDeviceMode(
+			role.GetOptions().DeviceTrustMode,
+			dtauthz.VerifyTrustedDeviceModeParams{
+				IsTrustedDevice: deviceTrusted,
+				IsBot:           state.IsBot,
+				AllowEmptyMode:  true, // Empty mode on roles is equivalent to "off".
+			},
+		); err != nil {
 			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, role requires a trusted device",
 				slog.String("role", role.GetName()),
 			)
-			return ErrTrustedDeviceRequired
+			return trace.Wrap(err)
 		}
 
 		// Current role allows access, but keep looking for a more restrictive

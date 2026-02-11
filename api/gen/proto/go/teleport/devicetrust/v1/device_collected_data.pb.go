@@ -70,7 +70,13 @@ type DeviceCollectedData struct {
 	// Example: "22D68" or "22F770820d".
 	OsBuild string `protobuf:"bytes,7,opt,name=os_build,json=osBuild,proto3" json:"os_build,omitempty"`
 	// OS username (distinct from the Teleport user).
+	// Old tsh/Linux binaries incorrectly send the display name instead of the
+	// login user.
+	// See os_login_user.
+	// TODO(codingllama): DELETE IN 20. All clients send os_login_user by then.
 	OsUsername string `protobuf:"bytes,8,opt,name=os_username,json=osUsername,proto3" json:"os_username,omitempty"`
+	// OS login user (distinct from the Teleport user).
+	OsLoginUser string `protobuf:"bytes,16,opt,name=os_login_user,json=osLoginUser,proto3" json:"os_login_user,omitempty"`
 	// Jamf binary version, without the leading 'v'.
 	// Example: "9.27" or "10.44.1-t1677509507".
 	JamfBinaryVersion string `protobuf:"bytes,9,opt,name=jamf_binary_version,json=jamfBinaryVersion,proto3" json:"jamf_binary_version,omitempty"`
@@ -194,6 +200,13 @@ func (x *DeviceCollectedData) GetOsUsername() string {
 	return ""
 }
 
+func (x *DeviceCollectedData) GetOsLoginUser() string {
+	if x != nil {
+		return x.OsLoginUser
+	}
+	return ""
+}
+
 func (x *DeviceCollectedData) GetJamfBinaryVersion() string {
 	if x != nil {
 		return x.JamfBinaryVersion
@@ -247,7 +260,7 @@ var File_teleport_devicetrust_v1_device_collected_data_proto protoreflect.FileDe
 
 const file_teleport_devicetrust_v1_device_collected_data_proto_rawDesc = "" +
 	"\n" +
-	"3teleport/devicetrust/v1/device_collected_data.proto\x12\x17teleport.devicetrust.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a%teleport/devicetrust/v1/os_type.proto\x1a!teleport/devicetrust/v1/tpm.proto\"\xfb\x05\n" +
+	"3teleport/devicetrust/v1/device_collected_data.proto\x12\x17teleport.devicetrust.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a%teleport/devicetrust/v1/os_type.proto\x1a!teleport/devicetrust/v1/tpm.proto\"\x9f\x06\n" +
 	"\x13DeviceCollectedData\x12=\n" +
 	"\fcollect_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\vcollectTime\x12;\n" +
 	"\vrecord_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
@@ -259,7 +272,8 @@ const file_teleport_devicetrust_v1_device_collected_data_proto_rawDesc = "" +
 	"os_version\x18\x06 \x01(\tR\tosVersion\x12\x19\n" +
 	"\bos_build\x18\a \x01(\tR\aosBuild\x12\x1f\n" +
 	"\vos_username\x18\b \x01(\tR\n" +
-	"osUsername\x12.\n" +
+	"osUsername\x12\"\n" +
+	"\ros_login_user\x18\x10 \x01(\tR\vosLoginUser\x12.\n" +
 	"\x13jamf_binary_version\x18\t \x01(\tR\x11jamfBinaryVersion\x12:\n" +
 	"\x19macos_enrollment_profiles\x18\n" +
 	" \x01(\tR\x17macosEnrollmentProfiles\x12,\n" +

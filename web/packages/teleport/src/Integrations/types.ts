@@ -19,6 +19,7 @@
 export const Status = {
   Healthy: 'Healthy',
   Issues: 'Issues',
+  Scanning: 'Scanning',
   Failed: 'Failed',
   Draft: 'Draft',
   Unknown: 'Unknown',

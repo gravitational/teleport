@@ -1399,7 +1399,6 @@ func TestParseCachePolicy(t *testing.T) {
 	tcs := []struct {
 		in  *CachePolicy
 		out *servicecfg.CachePolicy
-		err error
 	}{
 		{in: &CachePolicy{EnabledFlag: "yes", TTL: "never"}, out: &servicecfg.CachePolicy{Enabled: true}},
 		{in: &CachePolicy{EnabledFlag: "true", TTL: "10h"}, out: &servicecfg.CachePolicy{Enabled: true}},
@@ -1410,12 +1409,8 @@ func TestParseCachePolicy(t *testing.T) {
 	for i, tc := range tcs {
 		comment := fmt.Sprintf("test case #%v", i)
 		out, err := tc.in.Parse()
-		if tc.err != nil {
-			require.IsType(t, tc.err, err, comment)
-		} else {
-			require.NoError(t, err, comment)
-			require.Equal(t, out, tc.out, comment)
-		}
+		require.NoError(t, err, comment)
+		require.Equal(t, out, tc.out, comment)
 	}
 }
 
@@ -3392,6 +3387,44 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 				},
 			},
 			errMessage: "must set keyring in ca_key_params.gcp_kms",
+		},
+		{
+			name: "enable health checking",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					HealthCheck: &servicecfg.KeystoreHealthCheck{
+						Active: &servicecfg.KeystoreActiveHealthCheck{
+							Enabled: true,
+						},
+					},
+				},
+			},
+			want: servicecfg.KeystoreConfig{
+				HealthCheck: &servicecfg.KeystoreHealthCheck{
+					Active: &servicecfg.KeystoreActiveHealthCheck{
+						Enabled: true,
+					},
+				},
+			},
+		},
+		{
+			name: "disable health checking",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					HealthCheck: &servicecfg.KeystoreHealthCheck{
+						Active: &servicecfg.KeystoreActiveHealthCheck{
+							Enabled: false,
+						},
+					},
+				},
+			},
+			want: servicecfg.KeystoreConfig{
+				HealthCheck: &servicecfg.KeystoreHealthCheck{
+					Active: &servicecfg.KeystoreActiveHealthCheck{
+						Enabled: false,
+					},
+				},
+			},
 		},
 	}
 

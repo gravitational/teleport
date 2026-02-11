@@ -61,6 +61,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
+	libproto "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
@@ -72,6 +73,7 @@ import (
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -734,7 +736,8 @@ type TeleportProcess struct {
 	// need to add and remove metrics seevral times (e.g. hosted plugin metrics).
 	*metrics.SyncGatherers
 
-	tsrv reversetunnelclient.Server
+	tsrv            reversetunnelclient.Server
+	immutableLabels *joiningv1.ImmutableLabels
 }
 
 // processIndex is an internal process index
@@ -830,6 +833,23 @@ func (process *TeleportProcess) getInstanceRoles() []types.SystemRole {
 		out = append(out, role)
 	}
 	return out
+}
+
+// SetImmutableLabels sets the [*joiningv1.ImmutableLabels] for the process.
+func (process *TeleportProcess) SetImmutableLabels(labels *joiningv1.ImmutableLabels) {
+	process.Lock()
+	defer process.Unlock()
+
+	process.immutableLabels = libproto.CloneOf(labels)
+}
+
+// getImmutableLabels returns the [*joiningv1.ImmutableLabels] assigned to
+// the process.
+func (process *TeleportProcess) getImmutableLabels() *joiningv1.ImmutableLabels {
+	process.Lock()
+	defer process.Unlock()
+
+	return libproto.CloneOf(process.immutableLabels)
 }
 
 // getInstanceRoleEventMapping returns the same instance roles as getInstanceRoles, but as a mapping
@@ -1369,6 +1389,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 			Services:         services,
 			Hostname:         cfg.Hostname,
 			ExternalUpgrader: externalUpgrader,
+			ImmutableLabels:  process.getImmutableLabels(),
 		}
 
 		if upgraderVersion != nil {
@@ -1494,7 +1515,11 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	// Create a process wide key generator that will be shared. This is so the
 	// key generator can pre-generate keys and share these across services.
 	if cfg.Keygen == nil {
-		cfg.Keygen = keygen.New(process.ExitContext())
+		// TODO(tross): replace modules.GetModules with cfg.Modules
+		cfg.Keygen, err = keygen.New(keygen.Config{Now: cfg.Clock.Now, BuildType: modules.GetModules().BuildType()})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Produce global TeleportReadyEvent
@@ -2413,6 +2438,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Identity:                  cfg.Identity,
 			Access:                    cfg.Access,
 			StaticTokens:              cfg.Auth.StaticTokens,
+			StaticScopedTokens:        cfg.Auth.StaticScopedTokens,
 			Roles:                     cfg.Auth.Roles,
 			AuthPreference:            cfg.Auth.Preference,
 			OIDCConnectors:            cfg.OIDCConnectors,
@@ -2998,6 +3024,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.AppSession = services.Identity
 	cfg.Apps = services.Applications
 	cfg.ClusterConfig = services.ClusterConfigurationInternal
+	cfg.StaticScopedToken = services.ClusterConfigurationInternal
 	cfg.CrownJewels = services.CrownJewels
 	cfg.DatabaseObjects = services.DatabaseObjects
 	cfg.DatabaseServices = services.DatabaseServices
@@ -3037,6 +3064,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.BotInstance = services.BotInstance
 	cfg.Plugin = services.Plugins
 	cfg.RecordingEncryption = services.RecordingEncryptionManager
+	cfg.WorkloadClusterService = services.WorkloadClusterService
 
 	return accesspoint.NewCache(cfg)
 }
@@ -3483,6 +3511,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetChildLogConfig(cfg),
 			regular.SetUUID(conn.HostUUID()),
 			regular.SetScope(conn.Scope()),
+			regular.SetImmutableLabels(process.getImmutableLabels().GetSsh()),
 			regular.SetLimiter(limiter),
 			regular.SetEmitter(&events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: conn.Client}),
 			regular.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels, process.cloudLabels),

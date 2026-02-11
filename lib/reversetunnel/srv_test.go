@@ -40,14 +40,14 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func newCAAndSigner(t *testing.T, caType types.CertAuthType, name string) (types.CertAuthority, ssh.Signer) {
-	ta := testauthority.New()
-	priv, pub, err := ta.GenerateKeyPair()
+	priv, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 	signer, err := ssh.ParsePrivateKey(priv)
 	require.NoError(t, err)
@@ -70,7 +70,7 @@ func newCAAndSigner(t *testing.T, caType types.CertAuthType, name string) (types
 
 // newPubKey generates a new public key for testing.
 func newPubKey(t *testing.T) []byte {
-	_, pub, err := testauthority.New().GenerateKeyPair()
+	_, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 	return pub
 }
@@ -89,7 +89,8 @@ func TestServerKeyAuth(t *testing.T) {
 		},
 	}
 
-	ta := testauthority.New()
+	ta, err := testauthority.NewKeygen(modules.BuildOSS, s.Config.Clock.Now)
+	require.NoError(t, err)
 
 	con := mockSSHConnMetadata{}
 	tests := []struct {

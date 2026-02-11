@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/integrations/terraform
 
-go 1.24.12
+go 1.25.7
 
 // TF provider dependencies
 require (
@@ -365,7 +365,7 @@ require (
 	github.com/opencontainers/selinux v1.12.0 // indirect
 	github.com/opensearch-project/opensearch-go/v2 v2.3.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
-	github.com/oracle/oci-go-sdk/v65 v65.89.3 // indirect
+	github.com/oracle/oci-go-sdk/v65 v65.107.0 // indirect
 	github.com/parquet-go/parquet-go v0.25.0 // indirect
 	github.com/pascaldekloe/name v1.0.1 // indirect
 	github.com/patrickmn/go-cache v2.1.1-0.20191004192108-46f407853014+incompatible // indirect

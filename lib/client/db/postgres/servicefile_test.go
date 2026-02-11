@@ -69,5 +69,5 @@ func TestServiceFile(t *testing.T) {
 
 	_, err = serviceFile.Env(profile.Name)
 	require.Error(t, err)
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 }
