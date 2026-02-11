@@ -331,8 +331,9 @@ func readAuditSessionID(pid int) (uint32, error) {
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
+	sessionIDStr := strings.TrimSpace(string(sessionIDBytes))
 
-	sessionID, err := strconv.ParseUint(string(sessionIDBytes), 10, 32)
+	sessionID, err := strconv.ParseUint(sessionIDStr, 10, 32)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}

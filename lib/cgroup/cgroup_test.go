@@ -55,7 +55,7 @@ func TestRootCleanup(t *testing.T) {
 		MountPath: dir,
 	})
 	require.NoError(t, err)
-	defer service.Close()
+	defer service.Close(true)
 
 	// Create fake session ID and cgroup.
 	sessionID := uuid.New().String()

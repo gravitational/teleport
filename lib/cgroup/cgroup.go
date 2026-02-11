@@ -94,10 +94,15 @@ func New(config *Config) (*Service, error) {
 
 // Close will clean up the session cgroups and unmount the cgroup2 filesystem,
 // unless otherwise requested.
-func (s *Service) Close() error {
+func (s *Service) Close(skipUnmount bool) error {
 	err := s.cleanupHierarchy()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if skipUnmount {
+		logger.DebugContext(context.TODO(), "Cleaned up Teleport session hierarchy.", "hierarchy_root", s.teleportRoot)
+		return nil
 	}
 
 	err = s.unmount()

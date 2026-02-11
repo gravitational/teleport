@@ -1666,7 +1666,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		return trace.Wrap(err)
 	}
 
-	s.setHasEnhancedRecording(bpfEnabled || len(eventsMap) == 0)
+	s.setHasEnhancedRecording(bpfEnabled && len(eventsMap) > 0)
 
 	s.logger.DebugContext(ctx, "Waiting for continue signal.")
 

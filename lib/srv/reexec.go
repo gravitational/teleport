@@ -103,6 +103,11 @@ const (
 	// FirstExtraFile is the first file descriptor that will be valid when
 	// extra files are passed to child processes without a terminal.
 	FirstExtraFile FileFD = BPFSessionIDFile + 1
+
+	// procLoginuid is the path to the current process's loginuid.
+	procLoginuid = "/proc/self/loginuid"
+	// procSessionID is the path to the current process's session ID.
+	procSessionID = "/proc/self/sessionid"
 )
 
 func fdName(f FileFD) string {
@@ -340,28 +345,57 @@ func RunCommand() (code int, err error) {
 		}
 	}()
 
-	// If Enhanced Session Recording is enabled, handle the BPF-specific setup.
-	// This will also open a PAM context if PAM is enabled.
-	var pamEnvironment []string
+	// If Enhanced Session Recording is enabled, take note of what the
+	// loginuid is set to before a PAM context is opened. We will need
+	// to write to the loginuid file if PAM hasn't already.
+	var loginUIDBytes []byte
 	if c.RecordWithBPF {
-		pamEnvironment, err = setAuditSessionID(ctx, c, sessionIDFile, tty)
+		loginUIDBytes, err = os.ReadFile(procLoginuid)
 		if err != nil {
 			return exitCode(err), trace.Wrap(err)
 		}
-	} else {
-		// If PAM is enabled, open a PAM context. This has to be done before anything
-		// else because PAM is sometimes used to create the local user used to
-		// launch the shell under.
-		if c.PAMConfig != nil {
-			pamContext, err := openPAM(c, tty)
-			if err != nil {
-				return teleport.RemoteCommandFailure, trace.Wrap(err, "failed to open PAM context")
-			}
-			defer pamContext.Close()
+	}
 
-			// Save off any environment variables that come from PAM.
-			pamEnvironment = pamContext.Environment()
+	// If PAM is enabled, open a PAM context. This has to be done before anything
+	// else because PAM is sometimes used to create the local user used to
+	// launch the shell under.
+	var pamEnvironment []string
+	if c.PAMConfig != nil {
+		// Connect std{in,out,err} to the TTY if it's a shell request, otherwise
+		// discard std{out,err}. If this was not done, things like MOTD would be
+		// printed for "exec" requests.
+		var stdin io.Reader
+		var stdout io.Writer
+		var stderr io.Writer
+		if c.RequestType == sshutils.ShellRequest {
+			stdin = tty
+			stdout = tty
+			stderr = tty
+		} else {
+			stdin = os.Stdin
+			stdout = io.Discard
+			stderr = io.Discard
 		}
+
+		// Open the PAM context.
+		pamContext, err := pam.Open(&servicecfg.PAMConfig{
+			ServiceName: c.PAMConfig.ServiceName,
+			UsePAMAuth:  c.PAMConfig.UsePAMAuth,
+			Login:       c.Login,
+			// Set Teleport specific environment variables that PAM modules
+			// like pam_script.so can pick up to potentially customize the
+			// account/session.
+			Env:    c.PAMConfig.Environment,
+			Stdin:  stdin,
+			Stdout: stdout,
+			Stderr: stderr,
+		})
+		if err != nil {
+			return exitCode(err), trace.Wrap(err, "failed to open PAM context")
+		}
+
+		// Save off any environment variables that come from PAM.
+		pamEnvironment = pamContext.Environment()
 	}
 
 	uaccHandler := uacc.NewUserAccountHandler(uacc.UaccConfig{
@@ -377,6 +411,14 @@ func RunCommand() (code int, err error) {
 			slog.DebugContext(ctx, "unable to write failed login attempt to uacc", "error", uaccErr)
 		}
 		return teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+
+	// Ensure this process has a unique audit login session ID (auid) set
+	// so Enhanced Session Recording can track events correctly.
+	if c.RecordWithBPF {
+		if err := setAuditSessionID(ctx, c, loginUIDBytes, localUser, sessionIDFile); err != nil {
+			return exitCode(err), trace.Wrap(err)
+		}
 	}
 
 	if c.Terminal {
@@ -402,12 +444,14 @@ func RunCommand() (code int, err error) {
 	}
 
 	// Wait until the continue signal is received from Teleport signaling that
-	// Teleport is monitoring this session.
-	err = waitForSignal(ctx, contfd, 10*time.Second)
-	if err != nil {
-		return teleport.RemoteCommandFailure, trace.Wrap(err)
+	// Teleport is monitoring this session if Enhanced Session Recording is enabled.
+	if c.RecordWithBPF {
+		err = waitForSignal(ctx, contfd, 10*time.Second)
+		if err != nil {
+			return teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+		slog.DebugContext(ctx, "Received continue signal")
 	}
-	slog.DebugContext(ctx, "Received continue signal")
 
 	// If we're planning on changing credentials, we should first park an
 	// innocuous process with the same UID and then check the user database
@@ -468,7 +512,7 @@ func RunCommand() (code int, err error) {
 
 // setAuditSessionID ensures the audit login session ID is updated by
 // either PAM if PAM is configured or us otherwise.
-func setAuditSessionID(ctx context.Context, c ExecCommand, auditIDFile, tty *os.File) ([]string, error) {
+func setAuditSessionID(ctx context.Context, c ExecCommand, preLoginUID []byte, localUser *user.User, auditIDFile *os.File) error {
 	// Depending of the PAM service, PAM may write to /proc/self/loginuid
 	// if the 'pam_loginuid.so' module is enabled. We always want to
 	// write to /proc/self/loginuid to ensure the kernel will update the
@@ -478,102 +522,46 @@ func setAuditSessionID(ctx context.Context, c ExecCommand, auditIDFile, tty *os.
 	// currently in /proc/self/loginuid. In any case we can detect if
 	// we need to write to /proc/self/loginuid ourselves by seeing if
 	// /proc/self/loginuid changed after a PAM context was opened.
-	var pamEnv []string
 	writeLoginuid := true
 	if c.PAMConfig != nil {
-		preLoginuid, err := os.ReadFile("/proc/self/loginuid")
+		postLoginuid, err := os.ReadFile(procLoginuid)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
-
-		pamContext, err := openPAM(c, tty)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		defer pamContext.Close()
-
-		pamEnv = pamContext.Environment()
-
-		postLoginuid, err := os.ReadFile("/proc/self/loginuid")
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if !bytes.Equal(preLoginuid, postLoginuid) {
+		if !bytes.Equal(preLoginUID, postLoginuid) {
 			writeLoginuid = false
 		}
 	}
 
-	id, err := os.ReadFile("/proc/self/sessionid")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if writeLoginuid {
-		localUser, err := user.Lookup(c.Login)
+		oldID, err := os.ReadFile(procSessionID)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
 		if err := loginuid.Write(localUser.Uid); err != nil {
-			return nil, trace.Errorf("failed to write to loginuid: %w", err)
+			return trace.Errorf("failed to write to loginuid: %w", err)
 		}
 
-		newID, err := os.ReadFile("/proc/self/sessionid")
+		newID, err := os.ReadFile(procSessionID)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
-		slog.DebugContext(ctx, "Audit login session IDs", "old", id, "new", newID)
+		slog.DebugContext(ctx, "Audit login session IDs", "old", oldID, "new", newID)
 		// If the audit login session IDs are the same, the session ID
 		// was not changed and ESR logging will not work correctly.
-		if bytes.Equal(id, newID) {
-			return nil, trace.Errorf("audit login session ID was not changed")
+		if bytes.Equal(oldID, newID) {
+			return trace.Errorf("audit login session ID was not changed")
 		}
 	}
 
 	// Let the parent process know the audit login session ID has changed.
 	if err := auditIDFile.Close(); err != nil {
-		return nil, trace.Errorf("failed to close audit login session ID: %w", err)
+		return trace.Errorf("failed to close audit login session ID: %w", err)
 	}
 
-	return pamEnv, nil
-}
-
-func openPAM(c ExecCommand, tty *os.File) (*pam.PAM, error) {
-	// Connect std{in,out,err} to the TTY if it's a shell request, otherwise
-	// discard std{out,err}. If this was not done, things like MOTD would be
-	// printed for "exec" requests.
-	var stdin io.Reader
-	var stdout io.Writer
-	var stderr io.Writer
-	if c.RequestType == sshutils.ShellRequest {
-		stdin = tty
-		stdout = tty
-		stderr = tty
-	} else {
-		stdin = os.Stdin
-		stdout = io.Discard
-		stderr = io.Discard
-	}
-
-	// Open the PAM context.
-	pamContext, err := pam.Open(&servicecfg.PAMConfig{
-		ServiceName: c.PAMConfig.ServiceName,
-		UsePAMAuth:  c.PAMConfig.UsePAMAuth,
-		Login:       c.Login,
-		// Set Teleport specific environment variables that PAM modules
-		// like pam_script.so can pick up to potentially customize the
-		// account/session.
-		Env:    c.PAMConfig.Environment,
-		Stdin:  stdin,
-		Stdout: stdout,
-		Stderr: stderr,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return pamContext, nil
+	return nil
 }
 
 // waitForShell waits either for the command to return or the kill signal from the parent Teleport process.

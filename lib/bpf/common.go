@@ -39,7 +39,7 @@ type BPF interface {
 	CloseSession(ctx *SessionContext) error
 
 	// Close will stop any running BPF programs.
-	Close() error
+	Close(restarting bool) error
 
 	// Enabled returns whether enhanced recording is active.
 	Enabled() bool
@@ -99,7 +99,7 @@ type SessionContext struct {
 type NOP struct{}
 
 // Close closes the NOP service. Note this function does nothing.
-func (s *NOP) Close() error {
+func (s *NOP) Close(_ bool) error {
 	return nil
 }
 

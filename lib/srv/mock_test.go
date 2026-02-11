@@ -460,8 +460,8 @@ func (f fakeBPF) CloseSession(ctx *bpf.SessionContext) error {
 	return f.bpf.CloseSession(ctx)
 }
 
-func (f fakeBPF) Close() error {
-	return f.bpf.Close()
+func (f fakeBPF) Close(restarting bool) error {
+	return f.bpf.Close(restarting)
 }
 
 func (f fakeBPF) Enabled() bool {

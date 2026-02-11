@@ -25,6 +25,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"math"
 	"net"
 	"slices"
 	"strconv"
@@ -45,14 +46,10 @@ import (
 
 // ArgsCacheSize is the number of args events to store before dropping args
 // events.
-var ArgsCacheSize = len(new(commandDataT).Argv)
+const ArgsCacheSize = len(commandDataT{}.Argv)
 
 type sessionHandler interface {
 	startSession(auditSessionID uint32) error
-	sessionEnder
-}
-
-type sessionEnder interface {
 	endSession(auditSessionID uint32) error
 }
 
@@ -118,7 +115,7 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 	}
 	defer func() {
 		if err != nil {
-			if err := s.cgroup.Close(); err != nil {
+			if err := s.cgroup.Close(true); err != nil {
 				logger.WarnContext(closeContext, "Failed to close cgroup", "error", err)
 			}
 		}
@@ -167,16 +164,16 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 // Close will stop any running BPF programs. Note this is only for a graceful
 // shutdown, from the man page for BPF: "Generally, eBPF programs are loaded by
 // the user process and automatically unloaded when the process exits".
-func (s *Service) Close() error {
+func (s *Service) Close(restarting bool) error {
 	// Unload the BPF programs.
 	s.exec.close()
 	s.open.close()
 	s.conn.close()
 
-	// If we are restarting we might have a parent that's from an older
-	// version that's still using cgroups, so attempt to cleanup cgroups
-	// just in case.
-	if err := s.cgroup.Close(); err != nil {
+	// Close cgroup service. We should not unmount the cgroup filesystem if
+	// we're restarting.
+	skipCgroupUnmount := restarting
+	if err := s.cgroup.Close(skipCgroupUnmount); err != nil {
 		logger.WarnContext(s.closeContext, "Failed to close cgroup", "error", err)
 	}
 
@@ -192,11 +189,10 @@ func (s *Service) OpenSession(ctx *SessionContext) error {
 	auditSessID := ctx.AuditSessionID
 
 	// Sanity check the audit session ID just in case.
-	if auditSessID == 0 {
-		return trace.NotFound("audit session ID not found")
+	if auditSessID == math.MaxUint32 {
+		return trace.NotFound("audit session ID not set")
 	}
-	sctx, found := s.sessions.Load(auditSessID)
-	if found {
+	if sctx, found := s.sessions.Load(auditSessID); found {
 		logger.WarnContext(s.closeContext, "Audit session ID already in use", "session_id", sctx.SessionID, "current_session_id", ctx.SessionID, "audit_session_id", auditSessID)
 		return trace.BadParameter("audit session ID already in use")
 	}
@@ -204,7 +200,7 @@ func (s *Service) OpenSession(ctx *SessionContext) error {
 	logger.DebugContext(s.closeContext, "Opening session", "session_id", ctx.SessionID, "audit_session_id", auditSessID)
 
 	// initializedModClosures holds all already opened modules closures.
-	initializedModClosures := make([]sessionEnder, 0)
+	initializedModClosures := make([]sessionHandler, 0)
 	for _, m := range []struct {
 		eventName string
 		module    sessionHandler
@@ -247,7 +243,7 @@ func (s *Service) CloseSession(ctx *SessionContext) error {
 
 	for _, m := range []struct {
 		eventName string
-		module    sessionEnder
+		module    sessionHandler
 	}{
 		{constants.EnhancedRecordingCommand, s.exec},
 		{constants.EnhancedRecordingDisk, s.open},
@@ -402,9 +398,10 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 				UserTraits:      ctx.UserTraits.Clone(),
 			},
 			BPFMetadata: apievents.BPFMetadata{
-				CgroupID: event.Cgroup,
-				Program:  ConvertString(event.Command[:]),
-				PID:      event.Pid,
+				CgroupID:       event.Cgroup,
+				AuditSessionID: event.AuditSessionId,
+				Program:        ConvertString(event.Command[:]),
+				PID:            event.Pid,
 			},
 			PPID:       event.Ppid,
 			ReturnCode: event.Retval,
@@ -465,9 +462,10 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 			UserTraits:      ctx.UserTraits.Clone(),
 		},
 		BPFMetadata: apievents.BPFMetadata{
-			CgroupID: event.Cgroup,
-			Program:  ConvertString(event.Command[:]),
-			PID:      event.Pid,
+			CgroupID:       event.Cgroup,
+			AuditSessionID: event.AuditSessionId,
+			Program:        ConvertString(event.Command[:]),
+			PID:            event.Pid,
 		},
 		Flags:      event.Flags,
 		Path:       ConvertString(event.FilePath[:]),
@@ -524,9 +522,10 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 			UserTraits:      ctx.UserTraits.Clone(),
 		},
 		BPFMetadata: apievents.BPFMetadata{
-			CgroupID: event.Cgroup,
-			Program:  ConvertString(event.Command[:]),
-			PID:      uint64(event.Pid),
+			CgroupID:       event.Cgroup,
+			AuditSessionID: event.AuditSessionId,
+			Program:        ConvertString(event.Command[:]),
+			PID:            uint64(event.Pid),
 		},
 		DstPort:    int32(event.Dport),
 		DstAddr:    dstAddr.String(),
@@ -585,9 +584,10 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 			UserTraits:      ctx.UserTraits.Clone(),
 		},
 		BPFMetadata: apievents.BPFMetadata{
-			CgroupID: event.Cgroup,
-			Program:  ConvertString(event.Command[:]),
-			PID:      uint64(event.Pid),
+			CgroupID:       event.Cgroup,
+			AuditSessionID: event.AuditSessionId,
+			Program:        ConvertString(event.Command[:]),
+			PID:            uint64(event.Pid),
 		},
 		DstPort:    int32(event.Dport),
 		DstAddr:    dstAddr.String(),

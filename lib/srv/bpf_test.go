@@ -879,7 +879,7 @@ func newServices(t *testing.T) (*mockServer, bpf.BPF) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		require.NoError(t, bpfSrv.Close())
+		require.NoError(t, bpfSrv.Close(true))
 	})
 
 	srv := newMockServer(t)
