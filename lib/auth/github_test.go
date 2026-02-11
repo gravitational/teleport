@@ -37,7 +37,10 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -291,7 +294,7 @@ func (m *mockedGithubManager) ValidateGithubAuthRedirect(ctx context.Context, di
 	return nil, trace.NotImplemented("mockValidateGithubAuthCallback not implemented")
 }
 
-func TestCalculateGithubUserNoTeams(t *testing.T) {
+func TestCalculateGithubUserNoTeamsReturnsNoError(t *testing.T) {
 	ctx := context.Background()
 	a := &auth.Server{}
 	connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
@@ -315,7 +318,7 @@ func TestCalculateGithubUserNoTeams(t *testing.T) {
 		},
 		Teams: []string{"team1", "team2", "team1"},
 	}, &types.GithubAuthRequest{})
-	require.ErrorIs(t, err, auth.ErrGithubNoTeams)
+	require.NoError(t, err)
 }
 
 // Test that calculateGithubUser calls the login rule evaluator, evaluated
@@ -615,6 +618,313 @@ func TestBuildAPIEndpoint(t *testing.T) {
 			got, err := auth.BuildAPIEndpoint(tt.input)
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestGithubUserRoleMappingCombinations(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+	})
+
+	ctx := t.Context()
+	tt := setupGithubContext(ctx, t)
+
+	accessRole, err := types.NewRole("access", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	_, err = tt.a.CreateRole(ctx, accessRole)
+	require.NoError(t, err)
+
+	connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
+		TeamsToRoles: []types.TeamRolesMapping{{
+			Organization: "org1",
+			Team:         "teamx",
+			Roles:        []string{"access"},
+		}},
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		testName  string
+		claims    *types.GithubClaims
+		setup     func(t *testing.T, username string)
+		assertion func(t *testing.T, userState services.UserState, err error)
+	}{
+		{
+			testName: "SSO role mapping and access list role mapping",
+			claims: &types.GithubClaims{
+				Username:            "testuser1",
+				OrganizationToTeams: map[string][]string{"org1": {"teamx"}},
+				Teams:               []string{"teamx"},
+			},
+			setup: func(t *testing.T, username string) {
+				acl, err := accesslist.NewAccessList(
+					header.Metadata{Name: "test-acl-user1"},
+					accesslist.Spec{
+						Title:              "title",
+						Owners:             []accesslist.Owner{{Name: "owner"}},
+						Audit:              accesslist.Audit{NextAuditDate: time.Now().Add(24 * time.Hour)},
+						MembershipRequires: accesslist.Requires{},
+						OwnershipRequires:  accesslist.Requires{},
+						Grants:             accesslist.Grants{Roles: []string{"access"}},
+					},
+				)
+				require.NoError(t, err)
+
+				member, err := accesslist.NewAccessListMember(
+					header.Metadata{Name: username},
+					accesslist.AccessListMemberSpec{
+						AccessList: acl.GetName(),
+						Name:       username,
+						Joined:     time.Now(),
+						Expires:    time.Now().Add(24 * time.Hour),
+						Reason:     "test",
+						AddedBy:    "admin",
+					},
+				)
+				require.NoError(t, err)
+
+				_, _, err = tt.a.UpsertAccessListWithMembers(ctx, acl, []*accesslist.AccessListMember{member})
+				require.NoError(t, err)
+
+				t.Cleanup(func() {
+					tt.a.DeleteAccessList(ctx, acl.GetName())
+				})
+			},
+			assertion: func(t *testing.T, userState services.UserState, err error) {
+				require.NoError(t, err)
+				require.Contains(t, userState.GetRoles(), "access")
+			},
+		},
+		{
+			testName: "SSO role mapping and no access list role mapping",
+			claims: &types.GithubClaims{
+				Username:            "testuser2",
+				OrganizationToTeams: map[string][]string{"org1": {"teamx"}},
+				Teams:               []string{"teamx"},
+			},
+			assertion: func(t *testing.T, userState services.UserState, err error) {
+				require.NoError(t, err)
+				require.Contains(t, userState.GetRoles(), "access")
+			},
+		},
+		{
+			testName: "no SSO role mapping and access list role mapping",
+			claims: &types.GithubClaims{
+				Username:            "testuser3",
+				OrganizationToTeams: map[string][]string{"org1": {"other-team"}},
+				Teams:               []string{"other-team"},
+			},
+			setup: func(t *testing.T, username string) {
+				acl, err := accesslist.NewAccessList(
+					header.Metadata{Name: "test-acl-user3"},
+					accesslist.Spec{
+						Title:  "title",
+						Owners: []accesslist.Owner{{Name: "owner"}},
+						Audit: accesslist.Audit{
+							NextAuditDate: time.Now().Add(365 * 24 * time.Hour),
+						},
+						MembershipRequires: accesslist.Requires{},
+						OwnershipRequires:  accesslist.Requires{},
+						Grants:             accesslist.Grants{Roles: []string{"access"}}},
+				)
+				require.NoError(t, err)
+				member, err := accesslist.NewAccessListMember(
+					header.Metadata{Name: username},
+					accesslist.AccessListMemberSpec{
+						AccessList: acl.GetName(),
+						Name:       username,
+						Joined:     time.Now(),
+						Expires:    time.Now().Add(24 * time.Hour),
+						Reason:     "test",
+						AddedBy:    "admin",
+					},
+				)
+				require.NoError(t, err)
+
+				_, _, err = tt.a.UpsertAccessListWithMembers(ctx, acl, []*accesslist.AccessListMember{member})
+				require.NoError(t, err)
+
+				t.Cleanup(func() {
+					tt.a.DeleteAccessList(ctx, acl.GetName())
+				})
+			},
+			assertion: func(t *testing.T, userState services.UserState, err error) {
+				require.NoError(t, err)
+				require.Contains(t, userState.GetRoles(), "access")
+			},
+		},
+		{
+			testName: "no SSO role mapping and no access list role mapping",
+			claims: &types.GithubClaims{
+				Username:            "testuser4",
+				OrganizationToTeams: map[string][]string{"org1": {"other-team"}},
+				Teams:               []string{"other-team"},
+			},
+			assertion: func(t *testing.T, userState services.UserState, err error) {
+				require.NoError(t, err)
+				require.Empty(t, userState.GetRoles())
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			diagCtx := &auth.SSODiagContext{}
+
+			params, err := tt.a.CalculateGithubUser(
+				ctx,
+				diagCtx,
+				connector,
+				test.claims,
+				&types.GithubAuthRequest{},
+			)
+			require.NoError(t, err)
+
+			user, err := tt.a.CreateGithubUser(ctx, params, false)
+			require.NoError(t, err)
+
+			if test.setup != nil {
+				test.setup(t, user.GetName())
+			}
+
+			require.NoError(t, tt.a.CallLoginHooks(ctx, user))
+
+			userState, err := tt.a.GetUserOrLoginState(ctx, user.GetName())
+
+			test.assertion(t, userState, err)
+		})
+	}
+}
+
+func TestGithubCallbackRoleValidation(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+	})
+
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+
+	connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
+		ClientID:     "test-client-id",
+		ClientSecret: "test-client-secret",
+		RedirectURL:  "https://example.com/v1/webapi/github/callback",
+		Display:      "Sign in with GitHub",
+		TeamsToRoles: []types.TeamRolesMapping{
+			{
+				Organization: "org1",
+				Team:         "teamx",
+				Roles:        []string{"access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	a := srv.Auth()
+	a.GithubUserAndTeamsOverride = func() (*auth.GithubUserResponse, []auth.GithubTeamResponse, error) {
+		return &auth.GithubUserResponse{
+				Login: "testuser1",
+			}, []auth.GithubTeamResponse{{
+				Name: "other-team",
+				Slug: "other-team",
+				Org:  auth.GithubOrgResponse{Login: "org1"},
+			}}, nil
+	}
+
+	_, err = auth.UpsertGithubConnector(ctx, a, connector)
+	require.NoError(t, err)
+
+	_, err = authtest.CreateRole(ctx, a, "access", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	proxyClient, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
+	tests := []struct {
+		testName  string
+		setup     func(t *testing.T)
+		assertion func(t *testing.T, resp *authclient.GithubAuthResponse, err error)
+	}{
+		{
+			testName: "user with no roles",
+			assertion: func(t *testing.T, resp *authclient.GithubAuthResponse, err error) {
+				require.Nil(t, resp)
+				require.ErrorIs(t, err, auth.ErrGithubNoRoles)
+			},
+		},
+		{
+			testName: "user with roles from ACL",
+			setup: func(t *testing.T) {
+				acl, err := accesslist.NewAccessList(
+					header.Metadata{Name: "test-acl-user1"},
+					accesslist.Spec{
+						Title:              "title",
+						Owners:             []accesslist.Owner{{Name: "owner"}},
+						Audit:              accesslist.Audit{NextAuditDate: time.Now().Add(24 * time.Hour)},
+						MembershipRequires: accesslist.Requires{},
+						OwnershipRequires:  accesslist.Requires{},
+						Grants:             accesslist.Grants{Roles: []string{"access"}},
+					},
+				)
+				require.NoError(t, err)
+
+				member, err := accesslist.NewAccessListMember(
+					header.Metadata{Name: "testuser1"},
+					accesslist.AccessListMemberSpec{
+						AccessList: acl.GetName(),
+						Name:       "testuser1",
+						Joined:     time.Now(),
+						Expires:    time.Now().Add(24 * time.Hour),
+						Reason:     "test",
+						AddedBy:    "admin",
+					},
+				)
+				require.NoError(t, err)
+
+				_, _, err = a.UpsertAccessListWithMembers(ctx, acl, []*accesslist.AccessListMember{member})
+				require.NoError(t, err)
+
+				t.Cleanup(func() {
+					a.DeleteAccessList(ctx, acl.GetName())
+				})
+			},
+			assertion: func(t *testing.T, resp *authclient.GithubAuthResponse, err error) {
+				require.NotNil(t, resp)
+				require.NoError(t, err)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			req, err := proxyClient.CreateGithubAuthRequest(ctx, types.GithubAuthRequest{
+				ConnectorID: connector.GetName(),
+				Type:        constants.Github,
+				CertTTL:     defaults.MinCertDuration,
+			})
+			require.NoError(t, err)
+
+			if tt.setup != nil {
+				tt.setup(t)
+			}
+
+			resp, err := proxyClient.ValidateGithubAuthCallback(ctx, url.Values{
+				"code":  []string{"test-code"},
+				"state": []string{req.StateToken},
+			})
+
+			tt.assertion(t, resp, err)
 		})
 	}
 }
