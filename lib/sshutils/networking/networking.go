@@ -141,7 +141,7 @@ func NewProcess(ctx context.Context, cmd *reexec.Command) (*Process, error) {
 	case <-ready:
 		return proc, nil
 	case <-proc.cmd.Done():
-		return nil, proc.cmd.ChildError()
+		return nil, proc.cmd.ExitError()
 	}
 }
 

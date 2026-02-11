@@ -847,7 +847,8 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 	// Create a channel that will be used to signal that execution is complete.
 	cmdDone := make(chan error, 1)
 	go func() {
-		cmdDone <- cmd.Wait()
+		_, exitErr := cmd.Wait()
+		cmdDone <- exitErr
 	}()
 
 	// Program should have executed now. If the complete signal has not come
@@ -863,8 +864,6 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 
 		if expectedCmdFail {
 			require.Error(t, err)
-			var exitErr *exec.ExitError
-			require.ErrorAs(t, err, &exitErr)
 		} else {
 			require.NoError(t, err)
 		}

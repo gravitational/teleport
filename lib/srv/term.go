@@ -24,7 +24,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"os/user"
 	"strconv"
 	"sync"
@@ -202,18 +201,11 @@ func (t *terminal) Run(ctx context.Context) error {
 
 // Wait will block until the terminal is complete.
 func (t *terminal) Wait() (*ExecResult, error) {
-	err := t.reexecCmd.Wait()
-	if err != nil {
-		var exitErr *exec.ExitError
-		if !errors.As(err, &exitErr) {
-			return nil, err
-		}
-	}
-
+	exitCode, exitErr := t.reexecCmd.Wait()
 	return &ExecResult{
-		Code:    t.reexecCmd.ExitCode(),
+		Code:    exitCode,
 		Command: t.reexecCmd.Path(),
-		Error:   t.reexecCmd.ChildError(),
+		Error:   exitErr,
 	}, nil
 }
 
@@ -515,13 +507,15 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 			return &ExecResult{
 				Code:    exitErr.ExitStatus(),
 				Command: execRequest.GetCommand(),
-			}, err
+				Error:   err,
+			}, nil
 		}
 
 		return &ExecResult{
 			Code:    teleport.RemoteCommandFailure,
 			Command: execRequest.GetCommand(),
-		}, err
+			Error:   err,
+		}, nil
 	}
 
 	return &ExecResult{

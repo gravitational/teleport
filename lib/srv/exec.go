@@ -63,7 +63,7 @@ type ExecResult struct {
 	// Code is return code that execution of the command resulted in.
 	Code int
 
-	// Error is an error message from the child process.
+	// Error is an an exec error. This should be populated for non-zero exit codes.
 	Error error
 }
 
@@ -224,20 +224,20 @@ func (e *localExec) Wait() *ExecResult {
 	}
 
 	// Block until the command is finished executing.
-	err := e.reexecCmd.Wait()
-	if err != nil {
-		e.Ctx.Logger.DebugContext(e.Ctx.CancelContext(), "Local command failed", "error", err)
+	exitCode, exitErr := e.reexecCmd.Wait()
+	if exitErr != nil {
+		e.Ctx.Logger.DebugContext(e.Ctx.CancelContext(), "Local command failed", "error", exitErr)
 	} else {
 		e.Ctx.Logger.DebugContext(e.Ctx.CancelContext(), "Local command successfully executed")
 	}
 
 	// Emit the result of execution to the Audit Log.
-	emitExecAuditEvent(e.Ctx, e.GetCommand(), err)
+	emitExecAuditEvent(e.Ctx, e.GetCommand(), exitErr)
 
 	execResult := &ExecResult{
 		Command: e.GetCommand(),
-		Code:    e.reexecCmd.ExitCode(),
-		Error:   e.reexecCmd.ChildError(),
+		Code:    exitCode,
+		Error:   exitErr,
 	}
 
 	return execResult

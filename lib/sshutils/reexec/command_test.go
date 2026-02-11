@@ -54,10 +54,10 @@ func TestCommand(t *testing.T) {
 
 		// Close stdin to end the cmd with success.
 		stdin.Close()
-		require.NoError(t, reexecCmd.Wait())
+		exitCode, exitErr := reexecCmd.Wait()
+		require.NoError(t, exitErr)
+		require.Zero(t, exitCode)
 		require.Equal(t, echoString, stdout.String())
-
-		require.Zero(t, reexecCmd.ExitCode())
 	})
 
 	t.Run("continue", func(t *testing.T) {
@@ -81,10 +81,10 @@ func TestCommand(t *testing.T) {
 
 		// Close stdin to end the cmd with success.
 		stdin.Close()
-		require.NoError(t, reexecCmd.Wait())
+		exitCode, exitErr := reexecCmd.Wait()
+		require.NoError(t, exitErr)
+		require.Zero(t, exitCode)
 		require.Equal(t, echoString, stdout.String())
-
-		require.Zero(t, reexecCmd.ExitCode())
 	})
 
 	t.Run("never ready", func(t *testing.T) {
@@ -116,10 +116,10 @@ func TestCommand(t *testing.T) {
 		// Terminate the command prematurely.
 		err := reexecCmd.stop(3 * time.Second)
 		require.NoError(t, err)
-		require.NoError(t, reexecCmd.Wait())
+		exitCode, exitErr := reexecCmd.Wait()
+		require.NoError(t, exitErr)
+		require.Zero(t, exitCode)
 		require.Empty(t, stdout.Bytes())
-
-		require.Zero(t, reexecCmd.ExitCode())
 	})
 
 	t.Run("kill", func(t *testing.T) {
@@ -137,10 +137,10 @@ func TestCommand(t *testing.T) {
 		// Kill the command prematurely.
 		err := reexecCmd.stop(500 * time.Millisecond)
 		require.NoError(t, err)
-		require.Error(t, reexecCmd.Wait())
+		exitCode, exitErr := reexecCmd.Wait()
+		require.Error(t, exitErr)
+		require.NotZero(t, exitCode)
 		require.Empty(t, stdout.Bytes())
-
-		require.NotZero(t, reexecCmd.ExitCode())
 	})
 
 	t.Run("extra pipe", func(t *testing.T) {
@@ -162,10 +162,10 @@ func TestCommand(t *testing.T) {
 		// Close the pipe and stdin to end the cmd with success.
 		echoPipe.Close()
 		stdin.Close()
-		require.NoError(t, reexecCmd.Wait())
+		exitCode, exitErr := reexecCmd.Wait()
+		require.NoError(t, exitErr)
+		require.Zero(t, exitCode)
 		require.Equal(t, echoString, stdout.String())
-
-		require.Zero(t, reexecCmd.ExitCode())
 	})
 }
 

@@ -42,9 +42,8 @@ type Command struct {
 
 	cmd *exec.Cmd
 	// done is set when the command starts and closed the command completes.
-	done     chan struct{}
-	exitErr  error
-	childErr error
+	done    chan struct{}
+	exitErr error
 
 	// parent side of config pipe.
 	cfgW io.WriteCloser
@@ -194,11 +193,12 @@ func (c *Command) Start(closerOnExit ...io.Closer) error {
 	go func() {
 		c.exitErr = c.cmd.Wait()
 
+		// Read the stderr pipe for a more detailed error message than the basic exitErr above.
 		childErr, err := readChildError(context.Background(), stderrR)
 		if err != nil {
 			c.logger.WarnContext(context.Background(), "Failed to read child process stderr", "error", err)
 		} else {
-			c.childErr = childErr
+			c.exitErr = childErr
 		}
 
 		close(c.done)
@@ -342,25 +342,25 @@ func (c *Command) isRunning() bool {
 	}
 }
 
-// Wait for the command to complete.
-// Must not be called without a call to Start.
-func (c *Command) Wait() error {
-	<-c.done
-	return trace.Wrap(c.exitErr)
-}
-
 // Done return a channel that returns when the command completes.
 // Must not be called without a call to Start.
 func (c *Command) Done() <-chan struct{} {
 	return c.done
 }
 
-// ChildError returns the child stderr error message.
+// Wait for the command to complete and return the resulting exit code and error.
+// Must not be called without a call to Start.
+func (c *Command) Wait() (int, error) {
+	<-c.done
+	return c.cmd.ProcessState.ExitCode(), c.exitErr
+}
+
+// ExitError returns the exit error.
 // Returns nil if called before the command completes.
-func (c *Command) ChildError() error {
+func (c *Command) ExitError() error {
 	select {
 	case <-c.done:
-		return c.childErr
+		return c.exitErr
 	default:
 		return nil
 	}

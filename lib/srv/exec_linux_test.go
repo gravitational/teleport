@@ -31,7 +31,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
@@ -196,7 +195,8 @@ func TestContinue(t *testing.T) {
 			cmdDone <- err
 			return
 		}
-		cmdDone <- trace.Wrap(cmd.Wait())
+		_, exitErr := cmd.Wait()
+		cmdDone <- exitErr
 	}()
 
 	// Wait for the process. Since the continue pipe has not been closed, the

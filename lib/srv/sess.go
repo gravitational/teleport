@@ -1473,6 +1473,11 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 			s.logger.ErrorContext(ctx, "Received error waiting for the interactive session to finish.", "error", err)
 		}
 
+		exitErr := err
+		if result != nil {
+			exitErr = result.Error
+		}
+
 		// wait for copying from the pty to be complete or a timeout before
 		// broadcasting the result (which will close the pty) if it has not been
 		// closed already.
@@ -1489,7 +1494,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		}
 
 		if execRequest, err := scx.GetExecRequest(); err == nil && execRequest.GetCommand() != "" {
-			emitExecAuditEvent(scx, execRequest.GetCommand(), err)
+			emitExecAuditEvent(scx, execRequest.GetCommand(), exitErr)
 		}
 
 		s.emitSessionEndEvent()

@@ -226,17 +226,18 @@ func (s *sftpSubsys) Start(ctx context.Context,
 }
 
 func (s *sftpSubsys) Wait() error {
-	ctx := context.Background()
-	waitErr := s.reexecCmd.Wait()
+	ctx := s.serverCtx.GetServer().Context()
+
+	exitCode, exitErr := s.reexecCmd.Wait()
 	s.logger.DebugContext(ctx, "SFTP process finished")
 
 	s.serverCtx.SendExecResult(ctx, srv.ExecResult{
 		Command: s.reexecCmd.Command(),
-		Code:    s.reexecCmd.ExitCode(),
-		Error:   s.reexecCmd.ChildError(),
+		Code:    exitCode,
+		Error:   exitErr,
 	})
 
-	errs := []error{waitErr}
+	errs := []error{exitErr}
 	for range copyingGoroutines {
 		err := <-s.errCh
 		if err != nil && !utils.IsOKNetworkError(err) {
