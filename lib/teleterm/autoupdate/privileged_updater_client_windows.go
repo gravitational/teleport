@@ -18,6 +18,8 @@ package autoupdate
 
 import (
 	"context"
+	"errors"
+	"net"
 	"os"
 	"syscall"
 	"time"
@@ -27,11 +29,17 @@ import (
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
+
+	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
 const (
-	serviceStartTimeout = 5 * time.Second
-	servicePollInterval = 500 * time.Millisecond
+	serviceStartTimeout   = 5 * time.Second
+	serviceStartRetryStep = 500 * time.Millisecond
+	serviceStartRetryMax  = 500 * time.Millisecond
+	pipeDialTimeout       = 3 * time.Second
+	pipeDialRetryStep     = 100 * time.Millisecond
+	pipeDialRetryMax      = 300 * time.Millisecond
 )
 
 // RunServiceAndInstallUpdateFromClient is called by the client.
@@ -45,7 +53,13 @@ func RunServiceAndInstallUpdateFromClient(ctx context.Context, path string, forc
 		return trace.Wrap(err, "service start failed, executed fallback installer")
 	}
 
-	conn, err := winio.DialPipeContext(ctx, pipePath)
+	err := InstallUpdateFromClient(ctx, path, forceRun, version)
+	return trace.Wrap(err)
+}
+
+// InstallUpdateFromClient sends update metadata, and transfers the binary for validation and installation.
+func InstallUpdateFromClient(ctx context.Context, path string, forceRun bool, version string) error {
+	conn, err := dialPipeWithRetry(ctx, UpdaterPipePath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -64,7 +78,38 @@ func RunServiceAndInstallUpdateFromClient(ctx context.Context, path string, forc
 	return trace.Wrap(writeUpdate(conn, meta, file))
 }
 
+func dialPipeWithRetry(ctx context.Context, path string) (net.Conn, error) {
+	ctx, cancel := context.WithTimeout(ctx, pipeDialTimeout)
+	defer cancel()
+	linearRetry, err := retryutils.NewLinear(retryutils.LinearConfig{
+		Step: pipeDialRetryStep,
+		Max:  pipeDialRetryMax,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	isRetryError := func(err error) bool {
+		return errors.Is(err, windows.ERROR_FILE_NOT_FOUND)
+	}
+
+	var conn net.Conn
+	err = linearRetry.For(ctx, func() error {
+		conn, err = winio.DialPipeContext(ctx, path)
+		if err != nil && !isRetryError(err) {
+			return retryutils.PermanentRetryError(trace.Wrap(err))
+		}
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conn, nil
+}
+
 func ensureServiceRunning(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, serviceStartTimeout)
+	defer cancel()
 	// Avoid [mgr.Connect] because it requests elevated permissions.
 	scManager, err := windows.OpenSCManager(nil /*machine*/, nil /*database*/, windows.SC_MANAGER_CONNECT)
 	if err != nil {
@@ -97,20 +142,23 @@ func ensureServiceRunning(ctx context.Context) error {
 		return trace.Wrap(err, "starting Windows service %s", serviceName)
 	}
 
-	deadline := time.Now().Add(serviceStartTimeout)
-	for time.Now().Before(deadline) {
-		select {
-		case <-ctx.Done():
-			return trace.Wrap(ctx.Err())
-		default:
-		}
-
-		status, err = service.Query()
-		if err == nil && status.State == svc.Running {
-			return nil
-		}
-		time.Sleep(servicePollInterval)
+	linearRetry, err := retryutils.NewLinear(retryutils.LinearConfig{
+		Step: serviceStartRetryStep,
+		Max:  serviceStartRetryMax,
+	})
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	return trace.LimitExceeded("timed out waiting for service to start")
+	err = linearRetry.For(ctx, func() error {
+		status, err = service.Query()
+		if err != nil {
+			return retryutils.PermanentRetryError(trace.Wrap(err))
+		}
+		if status.State == svc.Running {
+			return nil
+		}
+		return trace.LimitExceeded("service not running yet")
+	})
+	return trace.Wrap(err)
 }

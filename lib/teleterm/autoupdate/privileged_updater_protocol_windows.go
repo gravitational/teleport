@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	pipePath              = `\\.\pipe\TeleportConnectUpdaterPipe`
+	UpdaterPipePath       = `\\.\pipe\TeleportConnectUpdaterPipe`
 	maxUpdateMetadataSize = 1 * 1024 * 1024        // 1 MiB
 	maxUpdatePayloadSize  = 1 * 1024 * 1024 * 1024 // 1 GiB
 )
@@ -90,7 +90,7 @@ func readUpdate(conn io.Reader, destinationPath string) (*updateMetadata, error)
 	}
 	meta := &updateMetadata{}
 	if err = json.Unmarshal(buf, meta); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "failed to unmarshal update metadata")
 	}
 	if meta.Version == "" {
 		return nil, trace.BadParameter("update version is required")

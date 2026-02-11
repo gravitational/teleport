@@ -30,6 +30,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 	"unsafe"
 
@@ -67,6 +68,19 @@ const (
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, "autoupdate")
 
+// PrivilegedServiceTestConfig allows overriding certain updater config properties.
+// Must be used only in tests.
+type PrivilegedServiceTestConfig struct {
+	// UpdateDirSecurityDescriptor overrides updateDirSecurityDescriptor.
+	UpdateDirSecurityDescriptor string
+	// UpdateBaseDir overrides the default %ProgramData%\TeleportConnectUpdater update path.
+	UpdateBaseDir string
+	// PolicyToolsVersion overrides ToolsVersion in HKLM\SOFTWARE\Policies\Teleport\TeleportConnect.
+	PolicyToolsVersion string
+	// PolicyToolsVersion overrides CdnBaseUrl in HKLM\SOFTWARE\Policies\Teleport\TeleportConnect.
+	PolicyCDNBaseURL string
+}
+
 // InstallPrivilegedService installs Teleport Connect privileged update service.
 // The service allows installing updates with asking for admin permissions.
 func InstallPrivilegedService(ctx context.Context) (err error) {
@@ -90,6 +104,10 @@ func UninstallPrivilegedService(ctx context.Context) (err error) {
 // PrivilegedServiceMain implements Teleport Connect privileged update service.
 // The service allows installing updates with asking for admin permissions.
 func PrivilegedServiceMain() error {
+	h := &handler{
+		testCfg: &PrivilegedServiceTestConfig{},
+	}
+
 	closeLogger, err := windowsservice.InitSlogEventLogger(eventSource)
 	if err != nil {
 		return trace.Wrap(err)
@@ -97,20 +115,31 @@ func PrivilegedServiceMain() error {
 
 	err = windowsservice.Run(&windowsservice.RunConfig{
 		Name:    serviceName,
-		Handler: &handler{},
+		Handler: h,
 		Logger:  log,
 	})
 	return trace.NewAggregate(err, closeLogger())
 }
 
+// PrivilegedServiceMainTest implements Teleport Connect privileged update service.
+// It runs the service implementation directly.
+// Must be used only in tests.
+func PrivilegedServiceMainTest(ctx context.Context, cfg *PrivilegedServiceTestConfig) error {
+	h := &handler{
+		testCfg: cfg,
+	}
+	return trace.Wrap(h.Execute(ctx, nil))
+}
+
 type handler struct {
+	testCfg *PrivilegedServiceTestConfig
 }
 
 func (h *handler) Execute(ctx context.Context, _ []string) (err error) {
 	ctx, cancel := context.WithTimeout(ctx, serviceRunTimeout)
 	defer cancel()
 
-	updaterConfig, err := getUpdaterConfig()
+	updaterConfig, err := h.getUpdaterConfig()
 	if err != nil {
 		return trace.Wrap(err, "getting updater config")
 	}
@@ -120,7 +149,7 @@ func (h *handler) Execute(ctx context.Context, _ []string) (err error) {
 		return trace.Wrap(err, "waiting for client")
 	}
 
-	dir, err := getSecureUpdateDir()
+	dir, err := h.getSecureUpdateDir()
 	if err != nil {
 		return trace.NewAggregate(err, conn.Close())
 	}
@@ -153,25 +182,30 @@ func (h *handler) Execute(ctx context.Context, _ []string) (err error) {
 		return trace.Wrap(err, "verifying update checksum")
 	}
 
-	return trace.Wrap(runInstaller(updatePath, updateMeta.ForceRun), "running admin process")
+	return trace.Wrap(runInstaller(updatePath, updateMeta.ForceRun), "running installer")
 }
 
 // getUpdaterConfig reads the per-machine config.
-func getUpdaterConfig() (*policyValue, error) {
+func (h *handler) getUpdaterConfig() (*policyValue, error) {
 	policyValues, err := readRegistryPolicyValues(registry.LOCAL_MACHINE)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	versionFromPolicy := policyValues.version
+	if h.testCfg.PolicyToolsVersion != "" {
+		versionFromPolicy = h.testCfg.PolicyToolsVersion
+	}
 	if versionFromPolicy == teleportToolsVersionOff {
 		return nil, trace.BadParameter(`ToolsVersion in HKLM\SOFTWARE\Policies\Teleport\TeleportConnect is "off", the update will not be installed`)
 	}
 
 	cdnBaseURL := policyValues.cdnBaseURL
-	defaultBaseUrlValue := getDefaultBaseURL()
+	if h.testCfg.PolicyCDNBaseURL != "" {
+		cdnBaseURL = h.testCfg.PolicyCDNBaseURL
+	}
 	if cdnBaseURL == "" {
-		cdnBaseURL = defaultBaseUrlValue
+		cdnBaseURL = getDefaultBaseURL()
 	}
 	if cdnBaseURL == "" {
 		return nil, trace.BadParameter("client tools updates are disabled as they are licensed under AGPL. To use Community Edition builds or custom binaries, set CdnBaseUrl in HKLM\\SOFTWARE\\Policies\\Teleport\\TeleportConnect")
@@ -190,7 +224,7 @@ type acceptResult struct {
 
 // waitForSingleClient waits for the first client and then closes the listener.
 func waitForSingleClient(ctx context.Context) (net.Conn, error) {
-	l, err := winio.ListenPipe(pipePath, &winio.PipeConfig{
+	l, err := winio.ListenPipe(UpdaterPipePath, &winio.PipeConfig{
 		SecurityDescriptor: pipeSecurityDescriptor,
 	})
 	if err != nil {
@@ -222,13 +256,21 @@ func waitForSingleClient(ctx context.Context) (net.Conn, error) {
 
 // getSecureUpdateDir secures %ProgramData%\TeleportConnectUpdater directory and then returns
 // a unique  %ProgramData%\TeleportConnectUpdater\<GUID> path.
-func getSecureUpdateDir() (string, error) {
-	programData, err := windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
-	if err != nil {
-		return "", trace.Wrap(err, "reading ProgramData path")
+func (h *handler) getSecureUpdateDir() (string, error) {
+	updateRoot := h.testCfg.UpdateBaseDir
+	if updateRoot == "" {
+		programData, err := windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
+		if err != nil {
+			return "", trace.Wrap(err, "reading ProgramData path")
+		}
+		updateRoot = filepath.Join(programData, "TeleportConnectUpdater")
 	}
 
-	sd, err := windows.SecurityDescriptorFromString(updateDirSecurityDescriptor)
+	descriptor := updateDirSecurityDescriptor
+	if h.testCfg.UpdateDirSecurityDescriptor != "" {
+		descriptor = h.testCfg.UpdateDirSecurityDescriptor
+	}
+	sd, err := windows.SecurityDescriptorFromString(descriptor)
 	if err != nil {
 		return "", trace.Wrap(err, "creating security descriptor")
 	}
@@ -239,19 +281,18 @@ func getSecureUpdateDir() (string, error) {
 		InheritHandle:      0,
 	}
 
-	dir := filepath.Join(programData, "TeleportConnectUpdater")
-	if err = ensureDirIsSecure(dir, sa); err != nil {
+	if err = ensureDirIsSecure(updateRoot, sa); err != nil {
 		return "", trace.Wrap(err, "securing TeleportConnectUpdater directory")
 	}
 
-	err = cleanupOldUpdates(dir)
+	err = cleanupOldUpdates(updateRoot)
 	if err != nil {
 		return "", trace.Wrap(err, "cleaning up old updates")
 	}
 
 	// Create a per-update random directory. This prevents DLL planting attacks, as the update is executed from its own directory.
 	newGUID := uuid.New().String()
-	updateDir := filepath.Join(dir, newGUID)
+	updateDir := filepath.Join(updateRoot, newGUID)
 	updateDirPtr, err := windows.UTF16PtrFromString(updateDir)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -440,7 +481,7 @@ func runInstaller(updatePath string, forceRun bool) error {
 
 	err := cmd.Start()
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "starting installer path=%s args=%q", updatePath, strings.Join(args, " "))
 	}
 
 	// Release the handle to the parent process can exit and the installer will continue.
