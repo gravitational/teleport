@@ -311,6 +311,19 @@ The following additional validation will be enforced:
 tctl / UI. -- probably shift these into the UX section and out of implementation
 details.
 
+### Bot Instances
+
+wip: we likely need to implement same rbac changes for Bot Instances as well.
+wip: we will need to propagate scope field into Bot Instance for the sake of
+wip: performance otherwise we'll need to look up bot for bot instance. also
+wip: probably some security repercussions here to consider. also ux for tctl
+wip: and ui needs to reflect scoped searching?
+
+### Scoped Role Assignments
+
+wip: add "bot" field as counterpart to "user" field to avoid confusion.
+wip: add new validation rules as per behaviour section?
+
 ### Joining
 
 Today, unscoped bots join using unscoped Join Tokens via the standard Join RPCs.
@@ -422,19 +435,6 @@ wip: bots using the `token` join method...)
 wip: `tbot`'s mechanism for requesting credentials will need to be aware of its
 wip: scoped status and avoid using role impersonation plus take into account
 wip: any changes in Certificate Issuance.
-
-### Bot Instances
-
-wip: we likely need to implement same rbac changes for Bot Instances as well.
-wip: we will need to propagate scope field into Bot Instance for the sake of
-wip: performance otherwise we'll need to look up bot for bot instance. also
-wip: probably some security repercussions here to consider. also ux for tctl
-wip: and ui needs to reflect scoped searching?
-
-### Scoped Role Assignments 
-
-wip: add "bot" field as counterpart to "user" field to avoid confusion. 
-wip: add new validation rules as per behaviour section?
 
 ### Implementation Phases
 
