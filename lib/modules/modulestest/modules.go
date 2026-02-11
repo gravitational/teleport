@@ -142,6 +142,15 @@ func (m *Modules) GetSuggestedAccessLists(ctx context.Context, identity *tlsca.I
 	return nil, trace.NotImplemented("GetSuggestedAccessLists not implemented")
 }
 
+// RequireEnterpriseBuild returns an [*trace.AccessDeniedError] indicating the provided featureName
+// is only available in Teleport Enterprise builds if the current build type is not Enterprise.
+func (m *Modules) RequireEnterpriseBuild(featureName string) error {
+	if m.IsEnterpriseBuild() {
+		return nil
+	}
+	return modules.NewEnterpriseBuildRequiredError(featureName, m.BuildType())
+}
+
 // IsBoringBinary implements modules.Modules.
 func (m *Modules) IsBoringBinary() bool {
 	return m.FIPS

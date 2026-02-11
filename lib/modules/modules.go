@@ -299,6 +299,9 @@ type Modules interface {
 	GenerateLongTermResourceGrouping(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.LongTermResourceGrouping, error)
 	// GetSuggestedAccessLists generates a list of valid promotions for given access request.
 	GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt AccessListSuggestionClient, accessListGetter AccessListAndMembersGetter, requestID string) ([]*accesslist.AccessList, error)
+	// RequireEnterpriseBuild returns an [*trace.AccessDeniedError] indicating the provided featureName
+	// is only available in Teleport Enterprise builds if the current build type is not Enterprise.
+	RequireEnterpriseBuild(featureName string) error
 	// EnableRecoveryCodes enables the usage of recovery codes for resetting forgotten passwords
 	EnableRecoveryCodes()
 	// EnablePlugins enables the hosted plugins runtime
@@ -321,6 +324,74 @@ const (
 	// Teleport Community license agreement.
 	BuildCommunity = "community"
 )
+
+// NewEnterpriseBuildRequiredError returns an [*trace.AccessDeniedError] indicating that the
+// provided featureName requires a Teleport Enterprise build.
+func NewEnterpriseBuildRequiredError(featureName, buildType string) *trace.AccessDeniedError {
+	return &trace.AccessDeniedError{Message: fmt.Sprintf(
+		"%s: this feature requires a Teleport Enterprise build; you are running a %s build",
+		featureName,
+		buildType,
+	)}
+}
+
+// NewEnterpriseEntitlementRequiredError returns an [*trace.AccessDeniedError] indicating that the
+// provided featureName requires a Teleport Enterprise license with the provided entitlement.
+func NewEnterpriseEntitlementRequiredError(ek entitlements.EntitlementKind, featureName string) *trace.AccessDeniedError {
+	return &trace.AccessDeniedError{Message: fmt.Sprintf(
+		"%s: this feature requires a Teleport Enterprise license with the %s entitlement",
+		featureName,
+		ek,
+	)}
+}
+
+// RequireEntitlementOption configures the behavior of [RequireEntitlement].
+type RequireEntitlementOption func(*requireEntitlementConfig)
+
+type requireEntitlementConfig struct {
+	featureName    string
+	check          func(EntitlementInfo) bool
+	modules        Modules
+}
+
+// WithFeatureName overrides the entitlement kind as the display name in error messages.
+func WithFeatureName(name string) RequireEntitlementOption {
+	return func(c *requireEntitlementConfig) {
+		c.featureName = name
+	}
+}
+
+// WithModules overrides the default [Modules] used by [RequireEntitlement].
+func WithModules(m Modules) RequireEntitlementOption {
+	return func(c *requireEntitlementConfig) {
+		c.modules = m
+	}
+}
+
+// RequireEntitlement returns nil if the given entitlement satisfies [EntitlementInfo.Enabled].
+// Otherwise, it returns an [*trace.AccessDeniedError] that distinguishes between a build-type
+// limitation (not running an Enterprise build) and a license limitation (e.g., Enterprise build
+// but entitlement not enabled or limit exceeded).
+func RequireEntitlement(e entitlements.EntitlementKind, opts ...RequireEntitlementOption) error {
+	cfg := requireEntitlementConfig{
+		modules:     GetModules(),
+		featureName: string(e),
+		check:       func(info EntitlementInfo) bool { return info.Enabled },
+	}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	info := cfg.modules.Features().GetEntitlement(e)
+	if cfg.check(info) {
+		return nil
+	}
+
+	if !cfg.modules.IsEnterpriseBuild() {
+		return NewEnterpriseBuildRequiredError(cfg.featureName, cfg.modules.BuildType())
+	}
+	return NewEnterpriseEntitlementRequiredError(e, cfg.featureName)
+}
 
 // SetModules sets the modules interface
 func SetModules(m Modules) {
@@ -456,6 +527,12 @@ func (p *defaultModules) GetSuggestedAccessLists(ctx context.Context, identity *
 	accessListGetter AccessListAndMembersGetter, requestID string,
 ) ([]*accesslist.AccessList, error) {
 	return nil, trace.NotImplemented("GetSuggestedAccessLists not implemented")
+}
+
+// RequireEnterpriseBuild returns an [*trace.AccessDeniedError] indicating the provided featureName
+// is only available in Teleport Enterprise builds if the current build type is not Enterprise.
+func (p *defaultModules) RequireEnterpriseBuild(featureName string) error {
+	return NewEnterpriseBuildRequiredError(featureName, p.BuildType())
 }
 
 // EnableRecoveryCodes enables recovery codes. This is a noop since OSS teleport does not
