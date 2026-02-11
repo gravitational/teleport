@@ -53,7 +53,7 @@ func TestExpiryBasic(t *testing.T) {
 
 		synctest.Wait()
 		require.Len(t, mustListAccessRequests(t, authServer), 2)
-		require.Len(t, emitter.Events(), 0)
+		require.Empty(t, emitter.Events())
 
 		sleep1 := expiry1 + scanInterval*3 // *2 to accommodate for the jitter and initial duration
 		time.Sleep(sleep1)
@@ -64,7 +64,7 @@ func TestExpiryBasic(t *testing.T) {
 		sleep2 := expiry2 + scanInterval*3 - sleep1
 		time.Sleep(sleep2)
 		synctest.Wait()
-		require.Len(t, mustListAccessRequests(t, authServer), 0)
+		require.Empty(t, mustListAccessRequests(t, authServer))
 		require.Len(t, emitter.Events(), 2)
 	})
 }
@@ -96,7 +96,7 @@ func TestExpiryInterval(t *testing.T) {
 		synctest.Wait()
 
 		require.Len(t, mustListAccessRequests(t, authServer), 3)
-		require.Len(t, emitter.Events(), 0)
+		require.Empty(t, emitter.Events())
 
 		// First sweep.
 		time.Sleep(time.Nanosecond)
@@ -130,7 +130,7 @@ func TestExpiryInterval(t *testing.T) {
 		time.Sleep(time.Nanosecond)
 		synctest.Wait()
 
-		require.Len(t, mustListAccessRequests(t, authServer), 0)
+		require.Empty(t, mustListAccessRequests(t, authServer))
 		require.Len(t, emitter.Events(), 3)
 	})
 }
@@ -159,7 +159,7 @@ func TestExpiryPendingGracePeriod(t *testing.T) {
 
 		// Check both are in the backend.
 		require.Len(t, mustListAccessRequests(t, authServer), 2)
-		require.Len(t, emitter.Events(), 0)
+		require.Empty(t, emitter.Events())
 
 		// Wait for the expiry service sweep.
 		time.Sleep(testInterval)
@@ -184,7 +184,7 @@ func TestExpiryPendingGracePeriod(t *testing.T) {
 
 		// We are after the grace period so check everything is cleared now.
 		require.True(t, testInterval > pendingRequestGracePeriod)
-		require.Len(t, mustListAccessRequests(t, authServer), 0)
+		require.Empty(t, mustListAccessRequests(t, authServer))
 		require.Len(t, emitter.Events(), 2)
 	})
 }

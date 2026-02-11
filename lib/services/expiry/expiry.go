@@ -118,8 +118,6 @@ func (s *Service) Run(ctx context.Context) error {
 func (s *Service) run(ctx context.Context, intervalCfg interval.Config) error {
 	for {
 		if err := s.runWithLock(ctx, intervalCfg); err != nil {
-			// We don't want to log cancelled context but timeouts and any other errors
-			// should be logged.
 			if !errors.Is(err, context.Canceled) {
 				s.Log.ErrorContext(ctx, "Expiry service failed", "error", err)
 			}
