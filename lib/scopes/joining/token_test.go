@@ -693,9 +693,9 @@ func TestImmutableLabelHashCollision(t *testing.T) {
 		labelsB *joiningv1.ImmutableLabels
 	}{
 		{
-			// guards against keys and values being concatenated as they're hashed. e.g.
-			// foo:bar-baz-qux would become foobar-baz-qux which would collide with foo:bar-,baz:-qux
-			name: "simple concatenation",
+			// guards against map entries being naiively concatenated as they're hashed. e.g.
+			// aaa=bbbcccddd should not collide with aaa=bbb,ccc=ddd
+			name: "split label concatenation",
 			labelsA: &joiningv1.ImmutableLabels{
 				Ssh: map[string]string{
 					"aaa": "bbbcccddd",
@@ -709,6 +709,24 @@ func TestImmutableLabelHashCollision(t *testing.T) {
 				},
 			},
 		},
+		{
+			// guards against single entries being naiievely concatenated as they're hashed. e.g.
+			// aaa=bbb should not collide with aaab=bb
+			name: "single label concatenation",
+			labelsA: &joiningv1.ImmutableLabels{
+				Ssh: map[string]string{
+					"aaa": "bbb",
+				},
+			},
+
+			labelsB: &joiningv1.ImmutableLabels{
+				Ssh: map[string]string{
+					"aaab": "bb",
+				},
+			},
+		},
+		// TODO (eriktate): add test case for identical labels applied to different service types once immutable
+		// labels support more than SSH
 	}
 
 	for _, c := range cases {

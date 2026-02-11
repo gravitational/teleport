@@ -19,6 +19,7 @@ package joining
 import (
 	"cmp"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"slices"
 	"time"
@@ -389,11 +390,29 @@ func HashImmutableLabels(labels *joiningv1.ImmutableLabels) string {
 			return cmp.Compare(a.key, b.key)
 		})
 
+		// first we write the service type so that the following labels do not collide with identical labels
+		// from other services e.g. app labels or database labels
+		_, _ = hash.Write([]byte("ssh"))
+
+		// Each map entry is added to the hash as 4 components:
+		// 1. The length of the key
+		// 2. The value of the key
+		// 3. The length of the value
+		// 4. The value itself
+		// This combination prevents collisions between:
+		// - single labels (e.g. aaa=bbb and aaab=bb)
+		// - splitting labels (e.g. aaa=bbbcccddd and aaa=bbb,ccc=ddd)
+		// Because in both cases the lengths of the keys/values must change to to create different labels from
+		// the same set of characters.
 		for _, v := range sorted {
-			entryHash := sha256.New()
-			_, _ = entryHash.Write([]byte(v.key))
-			_, _ = entryHash.Write([]byte(v.value))
-			_, _ = hash.Write(entryHash.Sum(nil))
+			buf := [8]byte{}
+			binary.BigEndian.PutUint64(buf[:], uint64(len(v.key)))
+			_, _ = hash.Write(buf[:])
+			_, _ = hash.Write([]byte(v.key))
+			binary.BigEndian.PutUint64(buf[:], uint64(len(v.value)))
+			_, _ = hash.Write(buf[:])
+			_, _ = hash.Write([]byte(v.value))
+			_, _ = hash.Write(hash.Sum(nil))
 		}
 	}
 
