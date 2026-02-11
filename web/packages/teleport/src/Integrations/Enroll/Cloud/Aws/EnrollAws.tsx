@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 import { Link as InternalLink } from 'react-router-dom';
 import styled from 'styled-components';
 
@@ -29,25 +29,17 @@ import {
   Subtitle1,
   Text,
 } from 'design';
-import { Info } from 'design/Icon';
-import { ResourceIcon } from 'design/ResourceIcon';
-import { HoverTooltip } from 'design/Tooltip';
-import {
-  ViewModeSwitchButton,
-  ViewModeSwitchContainer,
-} from 'shared/components/Controls/ViewModeSwitch';
+import { copyToClipboard } from 'design/utils/copyToClipboard';
 import FieldInput from 'shared/components/FieldInput';
-import {
-  InfoGuideConfig,
-  useInfoGuide,
-} from 'shared/components/SlidingSidePanel/InfoGuide';
-import { useToastNotifications } from 'shared/components/ToastNotification';
+import { InfoGuideContainer } from 'shared/components/SlidingSidePanel/InfoGuide';
 import Validation from 'shared/components/Validation';
 import { requiredIntegrationName } from 'shared/components/Validation/rules';
 
+import { SlidingSidePanel } from 'teleport/components/SlidingSidePanel/SlidingSidePanel';
 import cfg from 'teleport/config';
 import { Header } from 'teleport/Discover/Shared';
 import { useNoMinWidth } from 'teleport/Main';
+import { zIndexMap } from 'teleport/Navigation/zIndexMap';
 import { ApiError } from 'teleport/services/api/parseError';
 import {
   Regions as AwsRegion,
@@ -58,7 +50,10 @@ import { useClusterVersion } from 'teleport/useClusterVersion';
 
 import { DeploymentMethodSection } from './DeploymentMethodSection';
 import {
+  ContentWithSidePanel,
   InfoGuideContent,
+  InfoGuideSwitch,
+  InfoGuideTab,
   InfoGuideTitle,
   PANEL_WIDTH,
   TerraformInfoGuide,
@@ -72,14 +67,17 @@ import { Ec2Config, WildcardRegion } from './types';
 const INTEGRATION_CHECK_RETRIES = 6;
 const INTEGRATION_CHECK_RETRY_DELAY = 5000;
 
-export type InfoGuideTab = 'info' | 'terraform' | null;
-
 export function EnrollAws() {
   useNoMinWidth();
 
   const { clusterVersion } = useClusterVersion();
 
-  const [integrationName, setIntegrationName] = useState('');
+  const [integrationName, setIntegrationName] = useState(() => {
+    const randomHex = Array.from(crypto.getRandomValues(new Uint8Array(4)))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    return `aws-integration-${randomHex}`;
+  });
 
   const [regions, setRegions] = useState<WildcardRegion | AwsRegion[]>([
     '*',
@@ -89,15 +87,6 @@ export function EnrollAws() {
     enabled: true,
     tags: [],
   });
-
-  const [configCopied, setConfigCopied] = useState(false);
-
-  const handleConfigCopy = () => {
-    setConfigCopied(true);
-    setTimeout(() => {
-      setConfigCopied(false);
-    }, 1000);
-  };
 
   const terraformConfig = useMemo(
     () =>
@@ -110,55 +99,21 @@ export function EnrollAws() {
     [integrationName, regions, ec2Config, clusterVersion]
   );
 
-  const copyConfigButtonRef = useRef<HTMLButtonElement>(null);
-
+  const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [activeInfoGuideTab, setActiveInfoGuideTab] =
     useState<InfoGuideTab>('terraform');
-
-  const { infoGuideConfig: currentInfoGuideConfig, setInfoGuideConfig } =
-    useInfoGuide();
-
-  const infoGuideConfig = useMemo(
-    () => ({
-      guide:
-        activeInfoGuideTab === 'terraform' ? (
-          <TerraformInfoGuide
-            terraformConfig={terraformConfig}
-            copyConfigButtonRef={copyConfigButtonRef}
-            configCopied={configCopied}
-          />
-        ) : (
-          <InfoGuideContent />
-        ),
-      title: (
-        <InfoGuideTitle
-          activeSection={activeInfoGuideTab}
-          onSectionChange={setActiveInfoGuideTab}
-        />
-      ),
-      panelWidth: PANEL_WIDTH,
-    }),
-    [terraformConfig, activeInfoGuideTab, configCopied]
-  );
-
-  useEffect(() => {
-    setInfoGuideConfig(infoGuideConfig);
-  }, [setInfoGuideConfig, infoGuideConfig]);
-
-  const toastNotifications = useToastNotifications();
-  const didShowToast = useRef(false);
 
   const integrationQueryKey = ['integration', integrationName];
 
   const {
     data: integrationData,
     isFetching,
-    isSuccess,
     isError,
     refetch,
   } = useQuery({
     queryKey: integrationQueryKey,
-    queryFn: () => integrationService.fetchIntegration(integrationName),
+    queryFn: ({ signal }) =>
+      integrationService.fetchIntegration(integrationName, signal),
     enabled: false,
     retry: (failureCount, error: unknown) => {
       const shouldRetry =
@@ -171,72 +126,35 @@ export function EnrollAws() {
     gcTime: 0,
   });
 
-  const shouldShowErrorToast = isError && !isFetching && integrationName;
-  const shouldShowSuccessToast = isSuccess && !isFetching && integrationName;
-
-  // handle success / error toasts
-  useEffect(() => {
-    if (isFetching) {
-      return;
-    }
-
-    if (shouldShowSuccessToast) {
-      toastNotifications.add({
-        severity: 'success',
-        content: {
-          title: 'Amazon Web Services successfully added',
-          description:
-            'Amazon Web Services has been successfully added ' +
-            'to this Teleport Cluster. Your resources will appear ' +
-            "automatically as they're discovered. This may take a few minutes.",
-          action: {
-            content: 'View Integration',
-            linkTo: cfg.getIaCIntegrationRoute(
-              IntegrationKind.AwsOidc,
-              integrationName
-            ),
-          },
-          isAutoRemovable: false,
-        },
-      });
-    } else if (shouldShowErrorToast) {
-      toastNotifications.add({
-        severity: 'error',
-        content: {
-          title: 'Failed to detect integration',
-          description: `Unable to detect the AWS integration "${integrationName}". Please check your configuration and try again.`,
-        },
-      });
-    }
-
-    didShowToast.current = true;
-  }, [isFetching]);
+  const queryClient = useQueryClient();
 
   const checkIntegration = () => {
-    didShowToast.current = false;
     refetch();
   };
 
   const integrationExists = !!integrationData;
 
   const onInfoGuideClick = (section: InfoGuideTab) => {
-    if (!!currentInfoGuideConfig && activeInfoGuideTab === section) {
-      setInfoGuideConfig(null);
+    if (isPanelOpen && activeInfoGuideTab === section) {
+      setIsPanelOpen(false);
     } else {
       setActiveInfoGuideTab(section);
-      setInfoGuideConfig(infoGuideConfig);
+      setIsPanelOpen(true);
     }
   };
 
   return (
     <Validation>
       {({ validator }) => (
-        <Flex pt={3}>
-          <Box flex="1" mr={3}>
+        <Box pt={3}>
+          <ContentWithSidePanel
+            isPanelOpen={isPanelOpen}
+            panelWidth={PANEL_WIDTH}
+          >
             <Flex justifyContent="space-between" alignItems="start" mb={1}>
               <Header>Connect Amazon Web Services</Header>
               <InfoGuideSwitch
-                currentConfig={currentInfoGuideConfig}
+                isPanelOpen={isPanelOpen}
                 activeTab={activeInfoGuideTab}
                 onSwitch={onInfoGuideClick}
               />
@@ -266,17 +184,24 @@ export function EnrollAws() {
               <Divider />
               <DeploymentMethodSection
                 terraformConfig={terraformConfig}
-                copyConfigButtonRef={copyConfigButtonRef}
+                handleCopy={() => {
+                  if (validator.validate() && terraformConfig) {
+                    copyToClipboard(terraformConfig);
+                  }
+                }}
                 integrationExists={integrationExists}
                 integrationName={integrationName}
-                onCheckIntegration={() => {
+                handleCheckIntegration={() => {
                   if (validator.validate()) {
                     checkIntegration();
                   }
                 }}
+                handleCancelCheckIntegration={() => {
+                  queryClient.cancelQueries({ queryKey: integrationQueryKey });
+                  queryClient.resetQueries({ queryKey: integrationQueryKey });
+                }}
                 isCheckingIntegration={isFetching}
-                configCopied={configCopied}
-                onConfigCopy={handleConfigCopy}
+                checkIntegrationError={isError}
               />
             </Container>
             <Box mb={2}>
@@ -307,8 +232,39 @@ export function EnrollAws() {
                 Back
               </ButtonSecondary>
             </Box>
-          </Box>
-        </Flex>
+          </ContentWithSidePanel>
+
+          <SlidingSidePanel
+            isVisible={isPanelOpen}
+            skipAnimation={false}
+            panelWidth={PANEL_WIDTH}
+            zIndex={zIndexMap.infoGuideSidePanel}
+            slideFrom="right"
+          >
+            <InfoGuideContainer
+              onClose={() => setIsPanelOpen(false)}
+              title={
+                <InfoGuideTitle
+                  activeSection={activeInfoGuideTab}
+                  onSectionChange={setActiveInfoGuideTab}
+                />
+              }
+            >
+              {activeInfoGuideTab === 'terraform' ? (
+                <TerraformInfoGuide
+                  terraformConfig={terraformConfig}
+                  handleCopy={() => {
+                    if (validator.validate() && terraformConfig) {
+                      copyToClipboard(terraformConfig);
+                    }
+                  }}
+                />
+              ) : (
+                <InfoGuideContent />
+              )}
+            </InfoGuideContainer>
+          </SlidingSidePanel>
+        </Box>
       )}
     </Validation>
   );
@@ -337,7 +293,6 @@ export function IntegrationSection({
       <FieldInput
         ml={4}
         mb={0}
-        autoFocus={true}
         rule={requiredIntegrationName}
         value={integrationName}
         required={true}
@@ -379,53 +334,6 @@ export function ConfigurationScopeSection() {
     </>
   );
 }
-
-type InfoGuideSwitchProps = {
-  activeTab: InfoGuideTab;
-  currentConfig: InfoGuideConfig | null;
-  onSwitch: (activeTab: InfoGuideTab) => void;
-};
-
-export const InfoGuideSwitch = ({
-  activeTab,
-  currentConfig,
-  onSwitch,
-}: InfoGuideSwitchProps) => {
-  return (
-    <ViewModeSwitchContainer
-      aria-label="Info Guide Mode Switch"
-      aria-orientation="horizontal"
-      role="radiogroup"
-    >
-      <HoverTooltip tipContent="Info Guide">
-        <ViewModeSwitchButton
-          className={!!currentConfig && activeTab === 'info' ? 'selected' : ''}
-          onClick={() => onSwitch('info')}
-          role="radio"
-          aria-checked={!!currentConfig && activeTab === 'info'}
-          aria-label="Info Guide"
-          first
-        >
-          <Info size="small" color="text.main" />
-        </ViewModeSwitchButton>
-      </HoverTooltip>
-      <HoverTooltip tipContent="Terraform Configuration">
-        <ViewModeSwitchButton
-          className={
-            !!currentConfig && activeTab === 'terraform' ? 'selected' : ''
-          }
-          onClick={() => onSwitch('terraform')}
-          role="radio"
-          aria-checked={!!currentConfig && activeTab === 'terraform'}
-          aria-label="Terraform Configuration"
-          last
-        >
-          <ResourceIcon name="terraform" width="16px" height="16px" />
-        </ViewModeSwitchButton>
-      </HoverTooltip>
-    </ViewModeSwitchContainer>
-  );
-};
 
 export const Container = styled(Flex)`
   border-radius: 8px;

@@ -161,6 +161,12 @@ const cfg = {
 
   defaultDatabaseTTL: '2190h',
 
+  identitySecurity: {
+    accessGraphConfigSet: false,
+    licensed: false,
+    sessionSummarizationEnabled: false,
+  },
+
   routes: {
     root: '/web',
     discover: '/web/discover',

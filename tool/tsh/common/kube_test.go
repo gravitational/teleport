@@ -153,6 +153,7 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 			cfg.Kube.StaticLabels = rootLabels
 			cfg.Proxy.Kube.Enabled = true
 			cfg.Proxy.Kube.ListenAddr = *utils.MustParseAddr(localListenerAddr())
+			cfg.SSH.Enabled = false
 		}),
 		withLeafCluster(),
 		withLeafConfigFunc(
@@ -164,6 +165,7 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 				cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
 				cfg.Kube.KubeconfigPath = newKubeConfigFile(t, leafKubeCluster)
 				cfg.Kube.StaticLabels = leafLabels
+				cfg.SSH.Enabled = false
 			},
 		),
 		withValidationFunc(func(s *suite) bool {

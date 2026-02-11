@@ -329,13 +329,15 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	// start node
 	certs, err := s.server.Auth().GenerateHostCerts(s.ctx,
-		&authproto.HostCertsRequest{
-			HostID:       hostID,
-			NodeName:     nodeID,
-			Role:         types.RoleNode,
-			PublicSSHKey: pub,
-			PublicTLSKey: tlsPub,
-		}, "")
+		auth.HostCertsParams{
+			Req: &authproto.HostCertsRequest{
+				HostID:       hostID,
+				NodeName:     nodeID,
+				Role:         types.RoleNode,
+				PublicSSHKey: pub,
+				PublicTLSKey: tlsPub,
+			},
+		})
 	require.NoError(t, err)
 
 	signer, err := sshutils.NewSigner(priv, certs.SSH)
@@ -651,13 +653,15 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 
 	// start node
 	certs, err := s.server.Auth().GenerateHostCerts(s.ctx,
-		&authproto.HostCertsRequest{
-			HostID:       uuid,
-			NodeName:     hostname,
-			Role:         types.RoleNode,
-			PublicSSHKey: pub,
-			PublicTLSKey: tlsPub,
-		}, "")
+		auth.HostCertsParams{
+			Req: &authproto.HostCertsRequest{
+				HostID:       uuid,
+				NodeName:     hostname,
+				Role:         types.RoleNode,
+				PublicSSHKey: pub,
+				PublicTLSKey: tlsPub,
+			},
+		})
 	require.NoError(t, err)
 
 	signer, err := sshutils.NewSigner(priv, certs.SSH)
@@ -2565,7 +2569,7 @@ func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server) *windows
 		HostUUID: "windows_server",
 		NodeName: "windows_server",
 	}
-	n, err := authClient.GetClusterName(context.TODO())
+	n, err := authClient.GetClusterName(t.Context())
 	require.NoError(t, err)
 	dns := []string{"localhost", "127.0.0.1", desktop.WildcardServiceDNS}
 	identity, err := auth.LocalRegister(authID, authClient, nil, dns, "", nil)
@@ -4917,6 +4921,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 			string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 			string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
 			string(entitlements.ClientIPRestrictions):       {Enabled: false},
+			string(entitlements.WorkloadClusters):           {Enabled: false},
 		},
 		TunnelPublicAddress:            "",
 		RecoveryCodesEnabled:           false,
@@ -5102,6 +5107,7 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 			string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 			string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
 			string(entitlements.ClientIPRestrictions):       {Enabled: false},
+			string(entitlements.WorkloadClusters):           {Enabled: false},
 		},
 		PlayableDatabaseProtocols:     player.SupportedDatabaseProtocols,
 		IsPolicyRoleVisualizerEnabled: true,
@@ -8455,13 +8461,15 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 	const nodeID = "node"
 	// start auth server
 	certs, err := server.Auth().GenerateHostCerts(ctx,
-		&authproto.HostCertsRequest{
-			HostID:       hostID,
-			NodeName:     nodeID,
-			Role:         types.RoleNode,
-			PublicSSHKey: pub,
-			PublicTLSKey: tlsPub,
-		}, "")
+		auth.HostCertsParams{
+			Req: &authproto.HostCertsRequest{
+				HostID:       hostID,
+				NodeName:     nodeID,
+				Role:         types.RoleNode,
+				PublicSSHKey: pub,
+				PublicTLSKey: tlsPub,
+			},
+		})
 	require.NoError(t, err)
 
 	signer, err := sshutils.NewSigner(priv, certs.SSH)
@@ -11407,6 +11415,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.AccessGraphDemoMode):        {Enabled: true, Limit: 99},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: true, Limit: 99},
 					string(entitlements.ClientIPRestrictions):       {Enabled: true, Limit: 99},
+					string(entitlements.WorkloadClusters):           {Enabled: true, Limit: 99},
 				},
 			},
 			expected: &webclient.WebConfig{
@@ -11472,6 +11481,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.AccessGraphDemoMode):        {Enabled: true, Limit: 99},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: true, Limit: 99},
 					string(entitlements.ClientIPRestrictions):       {Enabled: true, Limit: 99},
+					string(entitlements.WorkloadClusters):           {Enabled: true, Limit: 99},
 				},
 			},
 		},
@@ -11576,6 +11586,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
 					string(entitlements.ClientIPRestrictions):       {Enabled: false},
+					string(entitlements.WorkloadClusters):           {Enabled: false},
 
 					// set to equivalent legacy feature
 					string(entitlements.ExternalAuditStorage):   {Enabled: true},
@@ -11707,6 +11718,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
 					string(entitlements.ClientIPRestrictions):       {Enabled: false},
+					string(entitlements.WorkloadClusters):           {Enabled: false},
 
 					// set to legacy feature "IsIGSEnabled"; false so set value and keep limits
 					string(entitlements.AccessLists):       {Enabled: true, Limit: 88},
@@ -11820,6 +11832,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
 					string(entitlements.ClientIPRestrictions):       {Enabled: false},
+					string(entitlements.WorkloadClusters):           {Enabled: false},
 				},
 			},
 		},

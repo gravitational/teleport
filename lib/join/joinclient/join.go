@@ -22,13 +22,13 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"log/slog"
 	"os"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	authjoin "github.com/gravitational/teleport/lib/auth/join"
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
@@ -61,6 +61,7 @@ func Join(ctx context.Context, params JoinParams) (*JoinResult, error) {
 	if err := params.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	log := params.Log
 	if params.AuthClient == nil && params.ID.HostUUID != "" {
 		// This check is skipped if AuthClient is provided because this is a
 		// re-join with an existing identity and the HostUUID will be
@@ -70,18 +71,18 @@ func Join(ctx context.Context, params JoinParams) (*JoinResult, error) {
 	if params.ID.Role != types.RoleInstance && params.ID.Role != types.RoleBot {
 		return nil, trace.BadParameter("Only Instance and Bot roles may be used for direct join attempts")
 	}
-	slog.InfoContext(ctx, "Trying to join with the new join service")
+	log.InfoContext(ctx, "Trying to join with the new join service")
 	result, err := joinNew(ctx, params)
 	if trace.IsNotImplemented(err) || isConnectionError(err) {
 		// Fall back to joining via legacy service.
-		slog.InfoContext(ctx, "Joining via new join service failed, falling back to joining via the legacy join service", "error", err)
+		log.InfoContext(ctx, "Joining via new join service failed, falling back to joining via the legacy join service", "error", err)
 		// Non-bots must provide their own host UUID when joining via legacy service.
 		if params.ID.HostUUID == "" && params.ID.Role != types.RoleBot {
 			hostID, err := hostid.Generate(ctx, params.JoinMethod)
 			if err != nil {
 				return nil, trace.Wrap(err, "generating host ID")
 			}
-			slog.InfoContext(ctx, "Generated host UUID for legacy join attempt", "host_uuid", hostID)
+			log.InfoContext(ctx, "Generated host UUID for legacy join attempt", "host_uuid", hostID)
 			params.ID.HostUUID = hostID
 		}
 		result, err := LegacyJoin(ctx, params)
@@ -104,12 +105,13 @@ func LegacyJoin(ctx context.Context, params JoinParams) (*JoinResult, error) {
 }
 
 func joinNew(ctx context.Context, params JoinParams) (*JoinResult, error) {
+	log := params.Log
 	if params.AuthClient != nil {
-		slog.InfoContext(ctx, "Attempting to join cluster with existing Auth client")
+		log.InfoContext(ctx, "Attempting to join cluster with existing Auth client")
 		return joinViaAuthClient(ctx, params, params.AuthClient)
 	}
 	if !params.ProxyServer.IsEmpty() {
-		slog.InfoContext(ctx, "Attempting to join cluster via Proxy")
+		log.InfoContext(ctx, "Attempting to join cluster via Proxy")
 		return joinViaProxy(ctx, params, params.ProxyServer.String())
 	}
 
@@ -117,7 +119,7 @@ func joinNew(ctx context.Context, params JoinParams) (*JoinResult, error) {
 	// params.CheckAndSetDefaults() asserts that this list is not empty when
 	// AuthClient and ProxyServer are both unset.
 	addr := params.AuthServers[0].String()
-	slog := slog.With("addr", addr)
+	log = log.With("addr", addr)
 
 	type strategy struct {
 		name string
@@ -137,10 +139,10 @@ func joinNew(ctx context.Context, params JoinParams) (*JoinResult, error) {
 	}
 	var strategies []strategy
 	if authjoin.LooksLikeProxy(params.AuthServers) {
-		slog.InfoContext(ctx, "Attempting to join cluster, address looks like a Proxy")
+		log.InfoContext(ctx, "Attempting to join cluster, address looks like a Proxy")
 		strategies = []strategy{proxyStrategy, authStrategy}
 	} else {
-		slog.InfoContext(ctx, "Attempting to join cluster, address looks like an Auth server")
+		log.InfoContext(ctx, "Attempting to join cluster, address looks like an Auth server")
 		strategies = []strategy{authStrategy, proxyStrategy}
 	}
 
@@ -157,7 +159,7 @@ func joinNew(ctx context.Context, params JoinParams) (*JoinResult, error) {
 		// Connection error: keep for aggregate and try next strategy (if any).
 		errs = append(errs, trace.Wrap(err, "joining via %s", strat.name))
 		if i+1 < len(strategies) {
-			slog.InfoContext(ctx, "Failed to join cluster with a connection error, will try next method",
+			log.InfoContext(ctx, "Failed to join cluster with a connection error, will try next method",
 				"method", strat.name, "next_method", strategies[i+1].name)
 		}
 	}
@@ -173,7 +175,7 @@ func joinViaProxy(ctx context.Context, params JoinParams, proxyAddr string) (*Jo
 			CipherSuites: params.CipherSuites,
 			Clock:        params.Clock,
 			Insecure:     params.Insecure,
-			Log:          slog.Default(),
+			Log:          params.Log,
 		},
 	)
 	if err != nil {
@@ -259,9 +261,9 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	// Convert the result message into a JoinResult.
 	switch typedResult := resultMsg.(type) {
 	case *messages.HostResult:
-		return makeJoinResult(signer, typedResult.Certificates)
+		return makeJoinResult(signer, typedResult.Certificates, typedResult.ImmutableLabels)
 	case *messages.BotResult:
-		joinResult, err := makeJoinResult(signer, typedResult.Certificates)
+		joinResult, err := makeJoinResult(signer, typedResult.Certificates, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -442,7 +444,7 @@ func makeClientParams(params JoinParams, publicKeys *messages.PublicKeys) messag
 	}
 }
 
-func makeJoinResult(signer crypto.Signer, certs messages.Certificates) (*JoinResult, error) {
+func makeJoinResult(signer crypto.Signer, certs messages.Certificates, immutableLabels *joiningv1.ImmutableLabels) (*JoinResult, error) {
 	// Callers expect proto.Certs with PEM-formatted TLS certs and
 	// authorized_keys formated SSH certs/keys.
 	sshCert, err := toAuthorizedKey(certs.SSHCert)
@@ -460,7 +462,8 @@ func makeJoinResult(signer crypto.Signer, certs messages.Certificates) (*JoinRes
 			SSH:        sshCert,
 			SSHCACerts: sshCAKeys, // SSHCACerts is a misnomer, SSH CAs are just public keys.
 		},
-		PrivateKey: signer,
+		PrivateKey:      signer,
+		ImmutableLabels: immutableLabels,
 	}, nil
 }
 

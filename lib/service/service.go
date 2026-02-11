@@ -62,6 +62,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
+	libproto "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
@@ -73,6 +74,7 @@ import (
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -729,7 +731,7 @@ type TeleportProcess struct {
 	//
 	// Both the metricsRegistry and the default global registry are gathered by
 	// Teleport's metric service.
-	metricsRegistry *prometheus.Registry
+	metricsRegistry *metrics.Registry
 
 	// We gather metrics both from the in-process registry (preferred metrics registration method)
 	// and the global registry (used by some Teleport services and many dependencies).
@@ -737,7 +739,8 @@ type TeleportProcess struct {
 	// need to add and remove metrics seevral times (e.g. hosted plugin metrics).
 	*metrics.SyncGatherers
 
-	tsrv reversetunnelclient.Server
+	tsrv            reversetunnelclient.Server
+	immutableLabels *joiningv1.ImmutableLabels
 }
 
 // processIndex is an internal process index
@@ -833,6 +836,23 @@ func (process *TeleportProcess) getInstanceRoles() []types.SystemRole {
 		out = append(out, role)
 	}
 	return out
+}
+
+// SetImmutableLabels sets the [*joiningv1.ImmutableLabels] for the process.
+func (process *TeleportProcess) SetImmutableLabels(labels *joiningv1.ImmutableLabels) {
+	process.Lock()
+	defer process.Unlock()
+
+	process.immutableLabels = libproto.CloneOf(labels)
+}
+
+// getImmutableLabels returns the [*joiningv1.ImmutableLabels] assigned to
+// the process.
+func (process *TeleportProcess) getImmutableLabels() *joiningv1.ImmutableLabels {
+	process.Lock()
+	defer process.Unlock()
+
+	return libproto.CloneOf(process.immutableLabels)
 }
 
 // getInstanceRoleEventMapping returns the same instance roles as getInstanceRoles, but as a mapping
@@ -1104,7 +1124,11 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	// We must create the registry in NewTeleport, as opposed to the config,
 	// because some tests are running multiple Teleport instances from the same
 	// config and reusing the same registry causes them to fail.
-	metricsRegistry := prometheus.NewRegistry()
+	rootMetricRegistry := prometheus.NewRegistry()
+	metricsRegistry, err := metrics.NewRegistry(rootMetricRegistry, teleport.MetricNamespace, "")
+	if err != nil {
+		return nil, trace.Wrap(err, "creating metrics registry")
+	}
 
 	// If FIPS mode was requested make sure binary is build against BoringCrypto.
 	if cfg.FIPS {
@@ -1311,7 +1335,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		TracingProvider:        tracing.NoopProvider(),
 		metricsRegistry:        metricsRegistry,
 		SyncGatherers: metrics.NewSyncGatherers(
-			metricsRegistry,
+			rootMetricRegistry,
 			prometheus.DefaultGatherer,
 		),
 	}
@@ -1371,6 +1395,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 			Services:         services,
 			Hostname:         cfg.Hostname,
 			ExternalUpgrader: externalUpgrader,
+			ImmutableLabels:  process.getImmutableLabels(),
 		}
 
 		if upgraderVersion != nil {
@@ -2479,6 +2504,7 @@ func (process *TeleportProcess) initAuthService() error {
 				Inventory:          as.Services,
 				BotInstanceBackend: as.Services,
 				Logger:             process.logger.With(teleport.ComponentKey, "inventory.cache"),
+				MetricsRegistry:    process.metricsRegistry.Wrap("inventory_cache"),
 			})
 			if err != nil {
 				return trace.Wrap(err, "creating inventory cache")
@@ -3536,6 +3562,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetChildLogConfig(cfg),
 			regular.SetUUID(conn.HostUUID()),
 			regular.SetScope(conn.Scope()),
+			regular.SetImmutableLabels(process.getImmutableLabels().GetSsh()),
 			regular.SetLimiter(limiter),
 			regular.SetEmitter(&events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: conn.Client}),
 			regular.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels, process.cloudLabels),

@@ -2831,3 +2831,43 @@ func (m *WorkloadClusterUpdate) TrimToMaxSize(_ int) AuditEvent {
 func (m *WorkloadClusterDelete) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
+
+func (m *InferenceModelCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *InferenceModelUpdate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *InferenceModelDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *InferenceSecretCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *InferenceSecretUpdate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *InferenceSecretDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *InferencePolicyCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *InferencePolicyUpdate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *InferencePolicyDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *SessionSummarized) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}

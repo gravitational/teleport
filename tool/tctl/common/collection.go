@@ -50,11 +50,18 @@ import (
 )
 
 func printMetadataLabels(labels map[string]string) string {
-	pairs := []string{}
+	var sb strings.Builder
+	sb.Grow(len(labels) * 4)
+	i := 0
 	for key, value := range labels {
-		pairs = append(pairs, fmt.Sprintf("%v=%v", key, value))
+		sb.WriteString(key + "=" + value)
+
+		if i < len(labels)-1 {
+			sb.WriteRune(',')
+		}
+		i++
 	}
-	return strings.Join(pairs, ",")
+	return sb.String()
 }
 
 type reverseTunnelCollection struct {

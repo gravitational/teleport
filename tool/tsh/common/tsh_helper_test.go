@@ -104,6 +104,8 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	cfg.FileDescriptors = dynAddr.Descriptors
 
 	cfg.Proxy.DisableWebInterface = true
+	cfg.Proxy.DisableDatabaseProxy = true
+	cfg.Proxy.IdP.SAMLIdP.Enabled = false
 	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{{
 			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleTrustedCluster, types.RoleNode, types.RoleApp},
@@ -204,6 +206,8 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	require.NoError(t, err)
 
 	cfg.Proxy.DisableWebInterface = true
+	cfg.Proxy.DisableDatabaseProxy = true
+	cfg.Proxy.IdP.SAMLIdP.Enabled = false
 	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{{
 			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleTrustedCluster, types.RoleNode, types.RoleApp},
@@ -303,13 +307,13 @@ func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 			rt, err := s.root.GetAuthServer().GetTunnelConnections(s.leaf.Config.Auth.ClusterName.GetClusterName())
 			require.NoError(t, err)
 			return len(rt) == 1
-		}, time.Second*10, time.Second)
+		}, 10*time.Second, 100*time.Millisecond)
 	}
 
 	if options.validationFunc != nil {
 		require.Eventually(t, func() bool {
 			return options.validationFunc(s)
-		}, 10*time.Second, 500*time.Millisecond)
+		}, 10*time.Second, 100*time.Millisecond)
 	}
 
 	return s
