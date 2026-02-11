@@ -142,7 +142,7 @@ disable may be forced via the `--force` flag.
 Deleting an override removes it completely, making Teleport use its self-signed
 certificate. Deletes take effect immediately.
 
-`tctl auth delete-override --type=db_client`
+`tctl auth delete-override --type=db_client --public-key='AB:CD:EF:...'`
 
 Deletes are only allowed for keys absent from the CA key sets, as a fallback. A
 delete may be forced with the `--force` flag.
