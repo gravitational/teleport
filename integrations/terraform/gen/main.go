@@ -148,10 +148,10 @@ type payload struct {
 	// TargetStates is a list of possible states that indicate a resource is ready for usage while polling. Any state
 	// that is found that is not in PendingStates or TargetStates is considered a terminal error.
 	TargetStates []string
-	// CreatePollIntervalSeconds is how long to wait before polling the pending resource again.
-	CreatePollIntervalSeconds int
-	// CreateTimeoutSeconds is the maximum amount of seconds to wait for a resource to reach a target state.
-	CreateTimeoutSeconds int
+	// StatePollIntervalSeconds is how long to wait before polling the pending resource again.
+	StatePollIntervalSeconds int
+	// StateTimeoutSeconds is the maximum amount of seconds to wait for a resource to reach a target state.
+	StateTimeoutSeconds int
 }
 
 func (p *payload) CheckAndSetDefaults() error {
@@ -176,12 +176,12 @@ func (p *payload) CheckAndSetDefaults() error {
 			return errors.New("TargetStates must be provided when StatePath is set")
 		}
 
-		if p.CreatePollIntervalSeconds == 0 {
-			return errors.New("CreatePollIntervalSeconds must be provided when StatePath is set")
+		if p.StatePollIntervalSeconds == 0 {
+			return errors.New("StatePollIntervalSeconds must be provided when StatePath is set")
 		}
 
-		if p.CreateTimeoutSeconds == 0 {
-			return errors.New("CreateTimeoutSeconds must be provided when StatePath is set")
+		if p.StateTimeoutSeconds == 0 {
+			return errors.New("StateTimeoutSeconds must be provided when StatePath is set")
 		}
 	}
 	return nil

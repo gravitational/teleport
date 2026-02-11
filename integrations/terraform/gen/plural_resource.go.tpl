@@ -267,8 +267,8 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 			"{{ $state }}",
 		{{- end }}
 		},
-		Timeout:      {{ .CreateTimeoutSeconds }} * time.Second,
-		PollInterval: {{ .CreatePollIntervalSeconds }} * time.Second,
+		Timeout:      {{ .StateTimeoutSeconds }} * time.Second,
+		PollInterval: {{ .StatePollIntervalSeconds }} * time.Second,
 		Refresh: func() (any, string, error) {
 			{{ .VarName }}, err := r.p.Client.{{ .GetMethod }}(ctx, id)
 			if err != nil {
