@@ -558,11 +558,6 @@ func (t *remoteTerminal) Close() error {
 		return trace.Wrap(err)
 	}
 
-	// Send a kill signal to ensure the session is promptly closed.
-	if err := t.session.Signal(context.Background(), ssh.SIGKILL); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Wait for parties to be relased after closing the remote session. This
 	// avoid cases where the parties are blocked, reading from the remote
 	// session.

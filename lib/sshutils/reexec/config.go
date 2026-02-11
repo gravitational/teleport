@@ -97,6 +97,10 @@ type Config struct {
 	// SetSELinuxContext is true when the SELinux context should be set
 	// for the child.
 	SetSELinuxContext bool `json:"set_selinux_context"`
+
+	// IsSFTPRequest indicates whether this is an sftp request. Used to differentiate
+	// between `tsh ssh sftp` and `tsh scp`.
+	IsSFTPRequest bool `json"is_sftp_request"`
 }
 
 // LogConfig represents all the logging configuration data that

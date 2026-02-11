@@ -1005,7 +1005,7 @@ func buildCommand(c *reexec.Config, localUser *user.User, tty *os.File, pamEnvir
 	}
 
 	// Pass extra files for SFTP to grandchild.
-	if c.Command == teleport.SFTPSubCommand {
+	if c.IsSFTPRequest {
 		out := os.NewFile(reexec.FileTransferOutFile, strconv.Itoa(int(reexec.FileTransferOutFile)))
 		if out == nil {
 			return nil, trace.NotFound("read pipe out file not found")

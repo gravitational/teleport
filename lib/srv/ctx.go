@@ -1116,6 +1116,7 @@ func (c *ServerContext) ReexecConfig() (*reexec.Config, error) {
 		IsTestStub:            c.IsTestStub,
 		UaccMetadata:          *uaccMetadata,
 		SetSELinuxContext:     c.srv.GetSELinuxEnabled(),
+		IsSFTPRequest:         c.ExecType == teleport.SFTPSubCommand,
 	}, nil
 }
 

@@ -96,6 +96,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 		return trace.Wrap(err)
 	}
 
+	serverCtx.ExecType = teleport.SFTPSubCommand
 	s.reexecCmd, err = serverCtx.ConfigureCommand()
 	if err != nil {
 		return trace.Wrap(err)
