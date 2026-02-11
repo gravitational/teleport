@@ -135,7 +135,7 @@ To create a new Okta integration with Identity Security:
    - Enable the Identity Security features you want: resource scanning and/or system log export.
 4. Once credentials are validated, the integration begins syncing resources.
 
-![Okta Integration Overview showing Identity Security Sync enabled](../../../img/identity-security/okta-sync-teleport.png)
+![Okta Integration Overview showing Identity Security Sync enabled](https://goteleport.com/_uploads/okta_sync_teleport_73f87551ed.png)
 
 ### Existing integration
 
@@ -215,7 +215,7 @@ SELECT * FROM access_path WHERE resource = '<Var name="group-name" />' AND resou
 SELECT * FROM access_path WHERE standing_privileges >= 1 AND resource_labels @> '{"teleport.dev/origin": "okta"}';
 ```
 
-![Running an Okta query in the SQL Editor](../../../img/identity-security/okta-access-graph-sql.png)
+![Running an Okta query in the SQL Editor](https://goteleport.com/_uploads/okta_access_graph_sql_89c4205c77.png)
 
 ## Step 4/4. View Okta activity in Identity Activity Center
 
@@ -229,7 +229,7 @@ GitHub, and Teleport, giving you a single view of identity activity across your 
 Use the [Investigate](../usage/investigate.mdx) view to explore related events and trace
 activity across platforms for a specific identity.
 
-![Investigating Okta audit logs in the Identity Activity Center](../../../img/identity-security/okta-audit-logs.png)
+![Investigating Okta audit logs in the Identity Activity Center](https://goteleport.com/_uploads/okta_audit_logs_54713adcc6.png)
 
 ## Alerts
 
@@ -268,7 +268,7 @@ To view active alerts, navigate to **Identity Security** > **Alerts** in the
 Teleport Web UI. See [Identity Security Alerts](../usage/alerts.mdx) for the
 full list of detections across all platforms.
 
-![Okta alerts in Identity Security](../../../img/identity-security/okta-identity-security-alerts.png)
+![Okta alerts in Identity Security](https://goteleport.com/_uploads/okta_identity_security_alerts_e565fcafbf.png)
 
 ## Troubleshooting
 
