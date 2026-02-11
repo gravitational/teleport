@@ -72,6 +72,8 @@ rules:
       - teleportscopedrolesv1/status
       - teleportscopedroleassignmentsv1
       - teleportscopedroleassignmentsv1/status
+      - teleportworkloadclusterv1
+      - teleportworkloadclusterv1/status
     verbs:
       - get
       - list
