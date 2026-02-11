@@ -431,6 +431,11 @@ wip: `tbot`'s mechanism for requesting credentials will need to be aware of its
 wip: scoped status and avoid using role impersonation plus take into account
 wip: any changes in Certificate Issuance.
 
+### Implementation Phases
+
+wip: list of individual tickets we will create as part of epic, and rough order
+wip: of implementation
+
 ## Security Considerations
 
 The prime security consideration throughout this design and implementation is
