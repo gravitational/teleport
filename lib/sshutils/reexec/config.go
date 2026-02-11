@@ -100,7 +100,7 @@ type Config struct {
 
 	// IsSFTPRequest indicates whether this is an sftp request. Used to differentiate
 	// between `tsh ssh sftp` and `tsh scp`.
-	IsSFTPRequest bool `json"is_sftp_request"`
+	IsSFTPRequest bool `json:"is_sftp_request"`
 }
 
 // LogConfig represents all the logging configuration data that
