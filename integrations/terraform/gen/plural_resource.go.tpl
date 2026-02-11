@@ -491,6 +491,55 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 	if resp.Diagnostics.HasError() {
 		return
 	}
+{{- if .StatePath }}
+
+	stateConf := resource.StateChangeConf{
+		Pending: []string{
+		{{- range $state := .PendingStates }}
+			"{{ $state }}",
+		{{- end }}
+		},
+		Target:  []string{
+		{{- range $state := .TargetStates }}
+			"{{ $state }}",
+		{{- end }}
+		},
+		Timeout:      {{ .StateTimeoutSeconds }} * time.Second,
+		PollInterval: {{ .StatePollIntervalSeconds }} * time.Second,
+		Refresh: func() (any, string, error) {
+			{{ .VarName }}, err := r.p.Client.{{ .GetMethod }}(ctx, name)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			if {{ .VarName }} == nil {
+				return nil, "", trace.Errorf("response from {{ .GetMethod }} was nil")
+			}
+
+			{{- $root := . }}
+			{{- $lastIndex := -1 }}
+			{{- range $i, $p := .StatePath }}
+				{{- $lastIndex = $i }}
+			{{- end }}
+			{{- $currentPath := "" }}
+			{{- range $i, $p := .StatePath }}
+				{{- if eq $i $lastIndex }}
+					{{- break }}
+				{{- end }}
+				{{- $currentPath = print $currentPath "." $p }}
+			if {{ $root.VarName }}{{ $currentPath }} == nil {
+				return nil, "", trace.Errorf("response from {{ $root.GetMethod }} at {{ $currentPath }} was nil")
+			}
+			{{- end }}
+
+			return {{ .VarName }}, {{ .VarName }}{{ range $p := .StatePath }}. {{- $p }}{{ end }}, nil
+		},
+	}
+
+	if _, err := stateConf.WaitForStateContext(ctx); err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error waiting for {{ .TypeName }}", trace.Wrap(err), "{{ .Kind }}"))
+	}
+{{- end }}
 }
 
 // Delete deletes Teleport {{.Name}}
