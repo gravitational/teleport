@@ -1,0 +1,9 @@
+tolerations:
+- key: "dedicated"
+  operator: "Equal"
+  value: "teleport"
+  effect: "NoExecute"
+- key: "dedicated"
+  operator: "Equal"
+  value: "teleport"
+  effect: "NoSchedule"

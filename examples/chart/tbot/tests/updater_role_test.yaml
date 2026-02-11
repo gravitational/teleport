@@ -1,0 +1,30 @@
+suite: Updater Role
+templates:
+  - updater.yaml
+tests:
+  #
+  # Basic tests
+  #
+  - it: does not create a Role when updater.enabled is false (default)
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: creates a Role when updater.enabled is true
+    values:
+      - ../.lint/updater.yaml
+    asserts:
+      - containsDocument:
+          kind: Role
+          apiVersion: rbac.authorization.k8s.io/v1
+          name: RELEASE-NAME-updater
+          namespace: NAMESPACE
+  #
+  # Catch-all content test
+  #
+  - it: sets the correct role rules
+    documentIndex: 1
+    values:
+      - ../.lint/updater.yaml
+    asserts:
+      - matchSnapshot:
+          path: rules
