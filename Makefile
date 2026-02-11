@@ -879,7 +879,6 @@ docs-test-whitespace:
 #
 # Deprecated: Use gotestsum instead.
 TOOLINGDIR := ${abspath ./build.assets/tooling}
-
 RENDER_TESTS := $(TOOLINGDIR)/bin/render-tests
 $(RENDER_TESTS): $(wildcard $(TOOLINGDIR)/cmd/render-tests/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/render-tests
