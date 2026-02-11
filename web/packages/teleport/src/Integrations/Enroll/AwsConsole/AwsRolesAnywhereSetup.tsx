@@ -34,7 +34,7 @@ import { IntegrationKind } from 'teleport/services/integrations';
 import useTeleport from 'teleport/useTeleport';
 
 export const AwsRolesAnywhereSetup = () => {
-  const params = useParams() as Record<string, string | undefined>;
+  const params = useParams<Record<string, string | undefined>>();
   const subPage = params.subPage ?? params['*']?.split('/')[0];
   const ctx = useTeleport();
   const navigate = useNavigate();

@@ -16,11 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 
 import { render, screen, theme, userEvent } from 'design/utils/testing';
 
 import { Alert, Banner } from '.';
+
+function CurrentPath() {
+  const location = useLocation();
+  return <span data-testid="current-path">{location.pathname}</span>;
+}
 
 describe('Alert', () => {
   test.each`
@@ -154,8 +159,11 @@ describe('Banner', () => {
             linkTo: 'secondary-route',
           }}
         />
+        <CurrentPath />
       </MemoryRouter>
     );
+
+    expect(screen.getByTestId('current-path')).toHaveTextContent('/');
 
     expect(screen.getByRole('link', { name: 'Primary Link' })).toHaveAttribute(
       'href',
@@ -165,6 +173,9 @@ describe('Banner', () => {
       screen.getByRole('link', { name: 'Primary Link' })
     ).not.toHaveAttribute('target');
     await user.click(screen.getByRole('link', { name: 'Primary Link' }));
+    expect(screen.getByTestId('current-path')).toHaveTextContent(
+      '/primary-route'
+    );
 
     expect(
       screen.getByRole('link', { name: 'Secondary Link' })
@@ -173,6 +184,9 @@ describe('Banner', () => {
       screen.getByRole('link', { name: 'Secondary Link' })
     ).not.toHaveAttribute('target');
     await user.click(screen.getByRole('link', { name: 'Secondary Link' }));
+    expect(screen.getByTestId('current-path')).toHaveTextContent(
+      '/secondary-route'
+    );
   });
 
   test('dismiss button', async () => {

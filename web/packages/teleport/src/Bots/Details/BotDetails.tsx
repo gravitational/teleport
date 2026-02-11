@@ -72,9 +72,7 @@ export function BotDetails() {
   const ctx = useTeleport();
   const navigate = useNavigate();
   const location = useLocation();
-  const params = useParams() as {
-    botName: string;
-  };
+  const { botName = '' } = useParams<{ botName: string }>();
   const [isEditing, setEditing] = useState(false);
   const [showLockConfirmation, setShowLockConfirmation] = useState(false);
   const [showUnlockConfirmation, setShowUnlockConfirmation] = useState(false);
@@ -85,13 +83,16 @@ export function BotDetails() {
   const hasEditPermission = flags.editBots;
   const hasDeletePermission = flags.removeBots;
 
-  const { data, error, isSuccess, isError, isLoading } = useGetBot(params, {
-    enabled: hasReadPermission,
-    staleTime: 30_000, // Keep data in the cache for 30 seconds
-  });
+  const { data, error, isSuccess, isError, isLoading } = useGetBot(
+    { botName },
+    {
+      enabled: hasReadPermission,
+      staleTime: 30_000, // Keep data in the cache for 30 seconds
+    }
+  );
 
   const targetKind = 'user';
-  const targetName = `bot-${params.botName}`;
+  const targetName = `bot-${botName}`;
 
   const {
     isLocked,
@@ -218,7 +219,7 @@ export function BotDetails() {
       ) : undefined}
 
       {isSuccess && data === null ? (
-        <Alert kind="warning">Bot {params.botName} does not exist</Alert>
+        <Alert kind="warning">Bot {botName} does not exist</Alert>
       ) : undefined}
 
       {!hasReadPermission ? (
@@ -327,7 +328,7 @@ export function BotDetails() {
           </ColumnContainer>
           <ColumnContainer maxWidth={400}>
             <InstancesPanel
-              botName={params.botName}
+              botName={botName}
               onItemSelected={handleInstanceSelected}
             />
           </ColumnContainer>
@@ -367,7 +368,7 @@ export function BotDetails() {
                 setShowLockConfirmation(true);
                 setShowDeleteConfirmation(false);
               }}
-              botName={params.botName}
+              botName={botName}
               showLockAlternative={!isLocked}
             />
           ) : undefined}

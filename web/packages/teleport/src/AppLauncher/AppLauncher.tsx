@@ -167,29 +167,17 @@ export function AppLauncher({
         });
       }
     },
-    [
-      mfa,
-      pathParams.arn,
-      pathParams.clusterId,
-      pathParams.fqdn,
-      pathParams.publicAddr,
-      queryParams,
-      setAttempt,
-      windowLocation,
-      isRedirectFlow,
-    ]
+    [mfa, queryParams, setAttempt, windowLocation, isRedirectFlow]
   );
 
   useEffect(() => {
-    if (!pathParams.fqdn) {
-      setAttempt({
-        status: 'failed',
-        statusText: 'Missing application FQDN in the launch route.',
-      });
-      return;
-    }
-    createAppSession(pathParams);
-  }, [createAppSession, pathParams, setAttempt]);
+    createAppSession({
+      fqdn: pathParams.fqdn || '',
+      clusterId: pathParams.clusterId,
+      publicAddr: pathParams.publicAddr,
+      arn: pathParams.arn,
+    });
+  }, [createAppSession, pathParams]);
 
   return (
     <div>
