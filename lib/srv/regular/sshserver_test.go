@@ -514,6 +514,9 @@ func TestSessionAuditLog(t *testing.T) {
 	se, err := f.ssh.clt.NewSession(ctx)
 	require.NoError(t, err)
 
+	stdin, err := se.StdinPipe()
+	require.NoError(t, err)
+
 	// start interactive SSH session (new shell):
 	err = se.Shell(ctx)
 	require.NoError(t, err)
@@ -615,6 +618,9 @@ func TestSessionAuditLog(t *testing.T) {
 	require.Equal(t, listener.Addr().String(), remoteForwardStop.Addr)
 
 	// End the session. Session leave, data, and end events should be emitted.
+	_, err = stdin.Write([]byte("exit\n"))
+	require.NoError(t, err)
+	require.NoError(t, stdin.Close())
 	se.Close()
 
 	e = <-emitter.C()
