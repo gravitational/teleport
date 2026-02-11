@@ -345,7 +345,9 @@ changes.
 Instead, the privilege calculation mechanisms defined under
 [Bot Identity Representation and Certificate Issuance](#bot-identity-representation-and-certificate-issuance)
 should ignore any invalid scoped role assignments that would violate the above
-rules.
+rules. Ignoring role assignments is safe as scoped roles cannot include deny
+clauses and thus ignoring a role assignment can only lead to a decrease in
+privileges.
 
 ### Joining
 
