@@ -195,7 +195,7 @@ func (s *Service) processRequests(ctx context.Context) {
 		// Add grace period for pending access requests as expiry time may be extended on approval.
 		if expiredAccessRequest.GetState() == types.RequestState_PENDING {
 			expiry := expiredAccessRequest.Expiry().Add(pendingRequestGracePeriod)
-			if expiry.After(readTime) {
+			if !readTime.After(expiry) {
 				continue
 			}
 		}

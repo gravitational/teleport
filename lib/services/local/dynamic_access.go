@@ -338,10 +338,9 @@ func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *prot
 // because we need to emit audit events on the access requests expiry.
 func (s *DynamicAccessService) ListExpiredAccessRequests(ctx context.Context, limit int, pageToken string) ([]*types.AccessRequestV3, string, error) {
 	now := time.Now()
-	res, token, err := s.collectPage(ctx, limit, pageToken, func(r *types.AccessRequestV3) bool {
+	return s.collectPage(ctx, limit, pageToken, func(r *types.AccessRequestV3) bool {
 		return now.After(r.Expiry())
 	})
-	return res, token, err
 }
 
 func (s *DynamicAccessService) collectPage(ctx context.Context, limit int, start string, filter func(*types.AccessRequestV3) bool) ([]*types.AccessRequestV3, string, error) {
