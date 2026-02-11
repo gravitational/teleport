@@ -60,3 +60,4 @@ TOOLS_DIR := $(abspath $(COMMON_MK_DIR)/build.assets/tools)
 GOTESTSUM = go tool -modfile=$(TOOLS_DIR)/gotestsum/go.mod gotestsum
 GCI = go tool -modfile=$(TOOLS_DIR)/gci/go.mod gci
 GODA = go tool -modfile=$(TOOLS_DIR)/goda/go.mod goda
+BENCHSTAT = go tool -modfile=$(TOOLS_DIR)/benchstat/go.mod benchstat
