@@ -92,16 +92,44 @@ Teleport, which is currently `(=teleport.latest_oss_docker_image=)`.
 </TabItem>
 </Tabs>
 
+### Verify image pull
+
+Run the following command to pull the image:
+```code
+$ docker pull (=teleport.latest_oss_docker_image=)
+```
+
+You should see output indicating the image layers are being downloaded, ending with a success message like `Status: Downloaded newer image`.
+
+Check the current version before upgrading: 
+
+```code
+$ docker exec teleport teleport version
+```
+
+<Checkpoint
+  title="Troubleshoot image pull issues"
+  description="If the image pull failed or timed out, try these steps."
+>
+
+- If you see `Error response from daemon: pull access denied`, verify the image name and tag are correct.
+- For network timeouts, check your internet connection and any proxy settings configured in Docker.
+- If you see `no matching manifest for linux/arm64`, try specifying the platform explicitly with `docker pull --platform linux/amd64`.
+- If you are on Apple Silicon, try `--platform linux/arm64`.
+- If pulls fail behind a corporate proxy, verify Docker is configured to trust the proxy's CA.
+- For rate limiting errors from ECR Public, wait a few minutes and try again, or authenticate with an AWS account.
+
+</Checkpoint>
+
 ### Interacting with distroless images
 
-Teleport images are based on Google's [Distroless](https://github.com/GoogleContainerTools/distroless) images.
+Since version 15, Teleport images are based on Google's [Distroless](https://github.com/GoogleContainerTools/distroless) images.
 Those images don't contain any shell.
 
 To execute Teleport commands on containers based on these images, run commands similar to the following:
-
 ```code
 # in docker
-$ docker run -i my-container tctl status
+$ docker exec -i my-container tctl status
 
 # in Kubernetes
 $ kubectl exec -i my-pod -- tctl status
@@ -122,10 +150,100 @@ total 24
 ```
 
 Alternatively, you can use the debug variant of the image, which contains [busybox](https://www.busybox.net/about.html) and a minimal shell invocable via `busybox sh`:
-
 ```code
 $ docker run -it --entrypoint="" (=teleport.latest_oss_debug_docker_image=) busybox sh
 ```
+
+<Checkpoint
+  title="Troubleshoot Kubernetes pod issues"
+  description="If the pod is not running or shows errors, try these steps."
+>
+
+- Verify that `/var/lib/teleport` is backed by a writable volume and that file permissions allow the container to write to it.  
+  Teleport will fail if it cannot write to its data directory.
+- If the pod is stuck in `Pending`, check for resource constraints or scheduling issues in the Events section of `kubectl describe pod <pod-name>`.
+- If the pod is in `CrashLoopBackOff`, view logs from the previous crash with 
+  ```code
+  $ kubectl logs <pod-name> --previous
+  ```
+- If the pod is in `ImagePullBackOff`, verify the image name is correct and that your cluster can reach the ECR registry. Check if pull secrets are required.
+- If the pod shows a high restart count, check for OOM kills or liveness probe failures with `kubectl describe pod <pod-name>` and review the `lastState` section.
+- For distroless images, ensure `fsGroup` / `runAsUser` settings allow write access to the data directory.
+
+</Checkpoint>
+
+#### Verify Teleport is responding in Kubernetes
+
+Check Teleport cluster status from inside the pod:
+```code
+$ kubectl exec -i <pod-name> -- tctl status
+```
+
+You should see output showing the cluster name, version, and CA pin.
+
+To test the web API locally, port-forward and query the endpoint:
+```code
+$ kubectl port-forward <pod-name> 3080:3080
+$ curl --insecure https://localhost:3080/webapi/ping
+```
+
+You should see JSON output containing `cluster_name`, `server_version`, and configuration details.
+
+<Checkpoint
+  title="Troubleshoot Kubernetes connectivity issues"
+  description="If Teleport is not responding or commands fail, try these steps."
+>
+
+- If `tctl status` fails due to authentication or RBAC, use `/webapi/ping` as the primary health check.
+- If port-forward fails, ensure the pod is running and the container port is correct.
+- View pod logs for startup errors with `kubectl logs -f <pod-name>`.
+- Check recent events for a specific pod with `kubectl get events --field-selector involvedObject.name=<pod-name>`.
+- Verify the mounted configuration with `kubectl exec -i <pod-name> -- cat /etc/teleport.yaml`.
+
+</Checkpoint>
+
+#### Verify Kubernetes deployment and upgrades
+
+Check rollout status during an upgrade:
+```code
+$ kubectl rollout status deployment/teleport
+```
+
+You should see a message indicating the rollout completed successfully.
+
+Verify the running image version:
+```code
+$ kubectl get pod <pod-name> -o jsonpath='{.spec.containers[0].image}'
+```
+
+You should see the expected image tag matching the version you deployed.
+
+<Checkpoint
+  title="Troubleshoot Kubernetes deployment issues"
+  description="If the deployment or upgrade is not completing, try these steps."
+>
+
+- If the rollout is stuck, view rollout history with `kubectl rollout history deployment/teleport`.
+- To roll back to the previous version, run `kubectl rollout undo deployment/teleport`.
+- If pods fail after upgrade, check for migration errors in logs with `kubectl logs <pod-name>`. Teleport supports upgrades from one major version to the next; do not skip major versions.
+- To restart pods without changing configuration, run `kubectl rollout restart deployment/teleport`.
+- Check resource usage during upgrades with `kubectl top pod -l app=teleport`.
+- Verify advertised addresses (`proxy_service.public_addr`, `cluster_name`) match how you access the proxy from outside the container.
+- Ensure system time is synchronized on the host; clock skew can cause certificate validation failures.
+
+</Checkpoint>
+
+### Running Teleport container images on Kubernetes
+
+**Verify Kubernetes pod status**
+
+Run the following commands to check pod status:
+```code
+$ kubectl get pods -l app=teleport -o wide
+$ kubectl describe pod <pod-name>
+```
+
+You should see the pod listed with a status of `Running` and no recent restarts.
 
 ### Machine & Workload Identity (tbot)
 
@@ -185,7 +303,6 @@ For example, if you are running the Teleport Proxy Service on a container, you
 need to mount the directory containing TLS credentials to your Teleport
 container, then assign the following fields in the container's configuration
 file to the appropriate paths:
-
 ```yaml
 proxy_service:
   https_keypairs:
@@ -220,7 +337,6 @@ filesystem. You can either pipe this output directly to `tar`, or redirect it
 to a local file for later use.
 
 For example:
-
 ```code
 $ docker exec ${TELEPORT_CONTAINER} \
   tctl auth sign --user alice --format tls -o alice.local --tar | tar xv
@@ -241,7 +357,6 @@ method](../enroll-resources/agents/join-token.mdx).
 
 First, create directories in your home directory to mount to the container. The
 Teleport container will write its configuration and data to these directories:
-
 ```code
 $ mkdir -p ~/teleport/config ~/teleport/data
 ```
@@ -249,32 +364,72 @@ $ mkdir -p ~/teleport/config ~/teleport/data
 Run `teleport configure` from the Teleport container to generate a configuration
 file. This sets the container's name to `localhost` so your browser can trust
 the Proxy Service's self-signed TLS certificate:
-
 ```code
 $ docker run --hostname localhost --rm \
   --entrypoint=/usr/local/bin/teleport \
-  <Var name="(=teleport.latest_oss_docker_image=)" /> configure --roles=proxy,auth > ~/teleport/config/teleport.yaml
+  docker pull (=teleport.latest_oss_docker_image=) configure --roles=proxy,auth > ~/teleport/config/teleport.yaml
 ```
 
-Start Teleport on your container:
+### Verify configuration file
 
+Run the following command to verify the configuration file exists and contains valid content:
+```code
+$ cat ~/teleport/config/teleport.yaml | head -20
+```
+
+You should see YAML configuration output beginning with `version:` and `teleport:` sections.
+
+<Checkpoint
+  title="Troubleshoot configuration file issues"
+  description="If the configuration file is missing or empty, try these steps."
+>
+
+- If the file is empty or missing, ensure the `docker run` command completed without errors and that you have write permissions to `~/teleport/config/`.
+- If you see `docker: Error response from daemon: OCI runtime create failed`, verify Docker is running and you have permission to use it.
+- If you see permission denied errors, check that your user has access to the Docker socket (you may need to add your user to the `docker` group).
+- On SELinux-enabled systems, you may need to add `:z` to your volume mounts (e.g., `-v ~/teleport/config:/etc/teleport:z`).
+- On Docker Desktop, ensure the host directory is shared with Docker (Settings → Resources → File Sharing).
+
+</Checkpoint>
+
+Start Teleport on your container:
 ```code
 $ docker run --hostname localhost --name teleport \
   -v ~/teleport/config:/etc/teleport \
   -v ~/teleport/data:/var/lib/teleport \
   -p 3025:3025 -p 3080:3080 \
-  <Var name="(=teleport.latest_oss_docker_image=)" />
+  docker pull (=teleport.latest_oss_docker_image=)
 ```
+
+### Verify container is running
+
+Open a new terminal and run:
+```code
+$ docker ps --filter name=teleport
+```
+
+You should see the `teleport` container listed with a status of `Up`.
+
+<Checkpoint
+  title="Troubleshoot container startup issues"
+  description="If the container is not running or exited unexpectedly, try these steps."
+>
+
+- If the container is not listed, check if it exited with `docker ps -a --filter name=teleport`. View logs with `docker logs teleport`.
+- If you see `Error response from daemon: Conflict. The container name "/teleport" is already in use`, remove the existing container with `docker rm teleport` or choose a different name.
+- If you see `bind: address already in use` for ports 3025 or 3080, another process is using those ports. Find it with `lsof -i :3080` (macOS/Linux) or choose different host ports (e.g., `-p 3081:3080`).
+- Depending on your configuration, you may need to expose additional ports (for example 3022 - 3025) as described in the Networking Reference.
+- If logs show `failed to read configuration`, verify your volume mount paths are correct and the configuration file exists.
+
+</Checkpoint>
 
 From there, open another terminal and make sure your Teleport container's web
 API is functioning as intended:
-
 ```code
 $ curl --insecure https://localhost:3080/webapi/ping | jq
 ```
 
 You should see JSON output similar to the following:
-
 ```json
 {
   "auth": {
@@ -315,6 +470,20 @@ We are using the `--insecure` flag to trust Teleport's self-signed certificate.
 In production, you will want to provision TLS credentials to the Proxy Service
 from a trusted CA, e.g., Let's Encrypt.
 
+<Checkpoint
+  title="Troubleshoot Teleport connectivity issues"
+  description="If Teleport is not responding or the connection fails, try these steps."
+>
+
+- If you see `curl: (7) Failed to connect to localhost port 3080`, verify the container is running with `docker ps` and that port 3080 is correctly mapped.
+- If you see `curl: (35) SSL connect error` or certificate errors, ensure you're using the `--insecure` flag for self-signed certificates.
+- If the response is empty or malformed, check container logs with `docker logs teleport` for startup errors.
+- If you see `connection refused`, the Teleport process may still be initializing. Wait a few seconds and try again.
+- On macOS, if Docker Desktop is using a VM, ensure the ports are correctly forwarded from the VM to your host.
+- If connections fail after startup, verify the container hostname and certificate SANs match how you access the proxy.
+
+</Checkpoint>
+
 ## Upgrading Teleport on Docker
 
 To upgrade a Teleport container running on Docker:
@@ -325,3 +494,26 @@ To upgrade a Teleport container running on Docker:
    the data directory as you did while running the container initially. As long
    as the data directory contains the same content as before the upgrade, the
    Teleport container does not need to re-join the cluster.
+
+### Verify upgrade
+
+After starting the new container, verify the upgraded version:
+```code
+$ curl --insecure https://localhost:3080/webapi/ping | jq '.server_version'
+```
+
+You should see the new version number in the output.
+
+<Checkpoint
+  title="Troubleshoot upgrade issues"
+  description="If the upgrade failed or the container won't start, try these steps."
+>
+
+- Before upgrading, take a snapshot or backup of the data directory.
+- If the container fails to start after upgrade, check logs with `docker logs teleport` for migration or compatibility errors.
+- If you see database migration errors, ensure you're not skipping major versions. Teleport supports upgrades from one major version to the next, not skipping versions.
+- If the cluster state seems incorrect, verify the data directory mount is pointing to the same location as before the upgrade.
+- To roll back, stop the new container and start a container with the previous image version using the same data directory.
+- For Enterprise Auth deployments, ensure the license file is still mounted after upgrade.
+
+</Checkpoint>
