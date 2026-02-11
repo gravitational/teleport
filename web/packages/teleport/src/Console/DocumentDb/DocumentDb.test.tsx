@@ -16,7 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { createMemoryHistory } from 'history';
+import { Router } from 'react-router';
 
 import '@testing-library/jest-dom';
 import 'jest-canvas-mock';
@@ -39,7 +41,23 @@ const mockUseDbSession = useDbSession as jest.MockedFunction<
   typeof useDbSession
 >;
 
-const setup = (status: Status) => {
+// Suppress WebGL errors that occur in jsdom when rendering terminal
+let errorHandler: (event: ErrorEvent) => void;
+
+beforeEach(() => {
+  errorHandler = (event: ErrorEvent) => {
+    if (event.message?.includes('WebGL2 not supported')) {
+      event.preventDefault();
+    }
+  };
+  window.addEventListener('error', errorHandler);
+});
+
+afterEach(() => {
+  window.removeEventListener('error', errorHandler);
+});
+
+const mockDbSession = (status: Status) => {
   mockUseDbSession.mockReturnValue({
     tty: {
       sendDbConnectData: jest.fn(),
@@ -54,7 +72,10 @@ const setup = (status: Status) => {
     sendDbConnectData: jest.fn(),
     session: baseSession,
   });
+};
 
+const setup = (status: Status) => {
+  mockDbSession(status);
   const { ctx, consoleCtx } = getContexts();
 
   render(
@@ -90,6 +111,55 @@ test('does not render data dialog when status is initialized', () => {
   setup('initialized');
 
   expect(screen.queryByText('Connect to Database')).not.toBeInTheDocument();
+});
+
+test('should keep the document at the connect URL after connecting', async () => {
+  const connectUrl = '/web/cluster/test-cluster/console/db/connect/test-db';
+  const connectDoc = {
+    kind: 'db' as const,
+    sid: 'test-session-id',
+    clusterId: 'test-cluster',
+    serverId: 'test-server',
+    login: 'test-user',
+    name: 'test-db',
+    url: connectUrl,
+    created: new Date(),
+  };
+
+  mockDbSession('waiting');
+  const { ctx, consoleCtx } = getContexts();
+  const history = createMemoryHistory();
+  history.push(connectUrl);
+
+  const { rerender } = render(
+    <Router history={history}>
+      <ContextProvider ctx={ctx}>
+        <TestLayout ctx={consoleCtx}>
+          <DocumentDb doc={connectDoc} visible={true} />
+        </TestLayout>
+      </ContextProvider>
+    </Router>
+  );
+
+  expect(history.location.pathname).toBe(connectUrl);
+
+  mockDbSession('initialized');
+
+  rerender(
+    <Router history={history}>
+      <ContextProvider ctx={ctx}>
+        <TestLayout ctx={consoleCtx}>
+          <DocumentDb doc={connectDoc} visible={true} />
+        </TestLayout>
+      </ContextProvider>
+    </Router>
+  );
+
+  await waitFor(() => {
+    expect(screen.getByTestId('terminal')).toBeInTheDocument();
+  });
+
+  expect(history.location.pathname).toBe(connectUrl);
 });
 
 function getContexts() {
