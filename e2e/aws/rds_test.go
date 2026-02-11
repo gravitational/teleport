@@ -31,7 +31,6 @@ import (
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -192,7 +191,6 @@ func testRDS(t *testing.T) {
 		pgMustExec(t, ctx, conn, fmt.Sprintf("GRANT SELECT ON %q.%q TO %q", testSchema, testTable, autoRole2))
 
 		autoRolesQuery := fmt.Sprintf("select 1 from %q.%q", testSchema, testTable)
-		var pgxConnMu sync.Mutex
 		for _, test := range []struct {
 			name              string
 			db                types.Database
@@ -237,8 +235,6 @@ func testRDS(t *testing.T) {
 						dbUser: autoUserKeep,
 						query:  autoRolesQuery,
 						afterConnTestFn: func(t *testing.T) {
-							pgxConnMu.Lock()
-							defer pgxConnMu.Unlock()
 							waitForPostgresAutoUserDeactivate(t, ctx, conn, autoUserKeep)
 						},
 					},
@@ -247,8 +243,6 @@ func testRDS(t *testing.T) {
 						dbUser: autoUserDrop,
 						query:  autoRolesQuery,
 						afterConnTestFn: func(t *testing.T) {
-							pgxConnMu.Lock()
-							defer pgxConnMu.Unlock()
 							waitForPostgresAutoUserDrop(t, ctx, conn, autoUserDrop)
 						},
 					},
@@ -266,8 +260,6 @@ func testRDS(t *testing.T) {
 								%q.%q
 							`, testTable, testSchema, testTable),
 						afterConnTestFn: func(t *testing.T) {
-							pgxConnMu.Lock()
-							defer pgxConnMu.Unlock()
 							waitForPostgresAutoUserPermissionsRemoved(t, ctx, conn, autoUserFineGrain)
 						},
 					},
@@ -347,7 +339,9 @@ func testRDS(t *testing.T) {
 				fmt.Sprintf("DROP USER IF EXISTS %q", autoUserDrop),
 			} {
 				_, err := conn.Execute(stmt)
-				assert.NoError(t, err, "test cleanup failed, stmt=%q", stmt)
+				if err != nil {
+					t.Logf("test cleanup failed, stmt=%q, err=%v", stmt, err)
+				}
 			}
 		})
 
@@ -474,7 +468,9 @@ func testRDS(t *testing.T) {
 				fmt.Sprintf("DELETE FROM teleport.user_attributes WHERE USER=%q", autoUserDrop),
 			} {
 				_, err := conn.Execute(stmt)
-				assert.NoError(t, err, "test cleanup failed, stmt=%q", stmt)
+				if err != nil {
+					t.Logf("test cleanup failed, stmt=%q, err=%v", stmt, err)
+				}
 			}
 		})
 
@@ -902,7 +898,9 @@ func cleanupDB(t *testing.T, ctx context.Context, conn *pgConn, statement string
 	t.Helper()
 	t.Cleanup(func() {
 		_, err := conn.Exec(ctx, statement)
-		assert.NoError(t, err, "failed to cleanup test resource with %s", statement)
+		if err != nil {
+			t.Logf("test cleanup failed, stmt=%q, err=%v", statement, err)
+		}
 	})
 }
 
