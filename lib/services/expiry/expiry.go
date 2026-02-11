@@ -25,9 +25,9 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -45,9 +45,6 @@ const (
 	// as the expiry time may be extended on approval.
 	pendingRequestGracePeriod = time.Second * 40
 
-	// minPageDelay is the minimum delay between processing each page of access requests.
-	minPageDelay           = time.Millisecond * 200
-	accessRequestPageLimit = 100
 	// maxExpiresPerCycle is an arbitrary limit on the number of requests to expire per cycle
 	// to prevent any one auth server holding the lease for more than a couple of minutes.
 	maxExpiresPerCycle = 120
@@ -58,8 +55,10 @@ type AccessPoint interface {
 	// Semaphores provides semaphore operations
 	types.Semaphores
 
-	// ListAccessRequests is an access request getter with pagination and sorting options.
-	ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error)
+	// ListExpiredAccessRequests lists all access requests that are expired. This is used by
+	// the expiry service. Access requests expiration handling is done outside the backend
+	// because we need to emit audit events on the access requests expiry.
+	ListExpiredAccessRequests(ctx context.Context, limit int, pageToken string) ([]*types.AccessRequestV3, string, error)
 
 	// DeleteAccessRequest deletes an access request.
 	DeleteAccessRequest(ctx context.Context, reqID string) error
@@ -177,79 +176,43 @@ func (s *Service) loop(ctx context.Context, intervalCfg interval.Config) error {
 		case <-ctx.Done():
 			return nil
 		case <-interval.Next():
-			if err := s.processRequests(ctx); err != nil {
-				s.Log.WarnContext(ctx, "error processing access requests", "error", err)
-			}
+			s.processRequests(ctx)
 		}
 	}
 }
-func (s *Service) processRequests(ctx context.Context) (err error) {
-	requestsExpired := 0
 
+func (s *Service) processRequests(ctx context.Context) {
 	s.Log.DebugContext(ctx, "Cleaning up expired access requests.")
-	defer func() {
-		if err == nil {
-			s.Log.DebugContext(ctx, "Successfully cleaned up expired access requests.", "count", requestsExpired)
-		}
-	}()
 
-	nextPageToken := ""
-	for {
-		var page []*types.AccessRequestV3
-		var err error
-		// Use time at read when calculating expiry of requests.
-		readTime := time.Now()
-		page, nextPageToken, err = s.getNextPageOfAccessRequests(ctx, nextPageToken)
+	requestsExpired := 0
+	readTime := time.Now()
+	for expiredAccessRequest, err := range clientutils.Resources(ctx, s.AccessPoint.ListExpiredAccessRequests) {
 		if err != nil {
-			return trace.Wrap(err)
+			s.Log.ErrorContext(ctx, "Error listing expired access requests.", "error", err)
+			return
 		}
-		for _, req := range page {
-			if !s.shouldExpire(req, readTime) {
+
+		// Add grace period for pending access requests as expiry time may be extended on approval.
+		if expiredAccessRequest.GetState() == types.RequestState_PENDING {
+			expiry := expiredAccessRequest.Expiry().Add(pendingRequestGracePeriod)
+			if expiry.After(readTime) {
 				continue
 			}
-			requestsExpired++
-			s.Log.InfoContext(ctx, "expiring access request", "request", req.GetName())
-			if err := s.expireRequest(ctx, req); err != nil {
-				s.Log.WarnContext(ctx, "error expiring access request", "error", err)
-				continue
-			}
-			if requestsExpired >= maxExpiresPerCycle {
-				return nil
-			}
 		}
-		if nextPageToken == "" {
-			return nil
+
+		requestsExpired++
+		s.Log.DebugContext(ctx, "Expiring access request.", "request", expiredAccessRequest.GetName())
+		if err := s.expireRequest(ctx, expiredAccessRequest); err != nil {
+			s.Log.ErrorContext(ctx, "Error expiring access request.", "error", err)
+			continue
 		}
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-time.After(retryutils.SeventhJitter(minPageDelay)):
+		if requestsExpired >= maxExpiresPerCycle {
+			s.Log.DebugContext(ctx, "Cleaned up maximum amount of expired access requests. Will continue in the next run.", "max", maxExpiresPerCycle)
+			return
 		}
 	}
-}
 
-func (s *Service) getNextPageOfAccessRequests(ctx context.Context, startKey string) ([]*types.AccessRequestV3, string, error) {
-	req := &proto.ListAccessRequestsRequest{
-		Sort:           proto.AccessRequestSort_DEFAULT,
-		Limit:          accessRequestPageLimit,
-		StartKey:       startKey,
-		IncludeExpired: true,
-	}
-	resp, err := s.AccessPoint.ListAccessRequests(ctx, req)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	return resp.AccessRequests, resp.NextKey, nil
-}
-
-func (s *Service) shouldExpire(req types.AccessRequest, readTime time.Time) bool {
-	expires := req.Expiry()
-	// Add grace period for pending access requests as expiry time may be extended on approval.
-	if req.GetState() == types.RequestState_PENDING {
-		expires = expires.Add(pendingRequestGracePeriod)
-	}
-	return readTime.After(expires)
+	s.Log.DebugContext(ctx, "Successfully cleaned up expired access requests.", "count", requestsExpired)
 }
 
 func (s *Service) expireRequest(ctx context.Context, req types.AccessRequest) error {

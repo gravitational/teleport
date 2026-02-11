@@ -219,12 +219,20 @@ func (c *AccessRequestCache) ListMatchingAccessRequests(ctx context.Context, req
 
 	// perform the traversal until we've seen all items or fill the page
 	var rsp proto.ListAccessRequestsResponse
+	now := time.Now()
+	var expired int
 	for r := range accessRequests(index, req.StartKey, "") {
 		if len(rsp.AccessRequests) == limit {
 			rsp.NextKey = cache.KeyOf(index, r)
 			break
 		}
 
+		if !r.Expiry().IsZero() && now.After(r.Expiry()) {
+			expired++
+			// skip requests that appear expired. some backends can take up to 48 hours to expired items
+			// and access requests showing up past their expiry time is particularly confusing.
+			continue
+		}
 		if !req.Filter.Match(r) || !match(r) {
 			continue
 		}
@@ -237,6 +245,12 @@ func (c *AccessRequestCache) ListMatchingAccessRequests(ctx context.Context, req
 		}
 
 		rsp.AccessRequests = append(rsp.AccessRequests, cr)
+	}
+
+	if expired > 0 {
+		// this is a debug-level log since some amount of delay between expiry and backend cleanup is expected, but
+		// very large and/or disproportionate numbers of stale access requests might be a symptom of a deeper issue.
+		slog.DebugContext(ctx, "omitting expired access requests from cache read", "count", expired)
 	}
 
 	return &rsp, nil

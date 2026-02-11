@@ -52,19 +52,19 @@ func TestExpiryBasic(t *testing.T) {
 		_ = createAccessRequestWithExpiry(t, authServer, time.Now().Add(expiry2))
 
 		synctest.Wait()
-		require.Len(t, mustListAccessRequests(t, expiry.AccessPoint), 2)
+		require.Len(t, mustListAccessRequests(t, authServer), 2)
 		require.Len(t, emitter.Events(), 0)
 
 		sleep1 := expiry1 + scanInterval*3 // *2 to accommodate for the jitter and initial duration
 		time.Sleep(sleep1)
 		synctest.Wait()
-		require.Len(t, mustListAccessRequests(t, expiry.AccessPoint), 1)
+		require.Len(t, mustListAccessRequests(t, authServer), 1)
 		require.Len(t, emitter.Events(), 1)
 
 		sleep2 := expiry2 + scanInterval*3 - sleep1
 		time.Sleep(sleep2)
 		synctest.Wait()
-		require.Len(t, mustListAccessRequests(t, expiry.AccessPoint), 0)
+		require.Len(t, mustListAccessRequests(t, authServer), 0)
 		require.Len(t, emitter.Events(), 2)
 	})
 }
@@ -95,42 +95,42 @@ func TestExpiryInterval(t *testing.T) {
 		time.Sleep(testInterval - time.Nanosecond)
 		synctest.Wait()
 
-		require.Len(t, mustListAccessRequests(t, expiry.AccessPoint), 3)
+		require.Len(t, mustListAccessRequests(t, authServer), 3)
 		require.Len(t, emitter.Events(), 0)
 
 		// First sweep.
 		time.Sleep(time.Nanosecond)
 		synctest.Wait()
 
-		require.Len(t, mustListAccessRequests(t, expiry.AccessPoint), 2)
+		require.Len(t, mustListAccessRequests(t, authServer), 2)
 		require.Len(t, emitter.Events(), 1)
 
 		// Stop just before the second sweep.
 		time.Sleep(testInterval - time.Nanosecond)
 		synctest.Wait()
 
-		require.Len(t, mustListAccessRequests(t, expiry.AccessPoint), 2)
+		require.Len(t, mustListAccessRequests(t, authServer), 2)
 		require.Len(t, emitter.Events(), 1)
 
 		// Second sweep.
 		time.Sleep(time.Nanosecond)
 		synctest.Wait()
 
-		require.Len(t, mustListAccessRequests(t, expiry.AccessPoint), 1)
+		require.Len(t, mustListAccessRequests(t, authServer), 1)
 		require.Len(t, emitter.Events(), 2)
 
 		// Stop just before the third sweep.
 		time.Sleep(testInterval - time.Nanosecond)
 		synctest.Wait()
 
-		require.Len(t, mustListAccessRequests(t, expiry.AccessPoint), 1)
+		require.Len(t, mustListAccessRequests(t, authServer), 1)
 		require.Len(t, emitter.Events(), 2)
 
 		// Third sweep.
 		time.Sleep(time.Nanosecond)
 		synctest.Wait()
 
-		require.Len(t, mustListAccessRequests(t, expiry.AccessPoint), 0)
+		require.Len(t, mustListAccessRequests(t, authServer), 0)
 		require.Len(t, emitter.Events(), 3)
 	})
 }
@@ -170,6 +170,7 @@ func createAccessRequestWithExpiry(t *testing.T, auth *auth.Server, expiry time.
 	req, err := types.NewAccessRequest(uuid.NewString(), "alice", "test_role_1")
 	require.NoError(t, err)
 	req.SetExpiry(expiry)
+	req.SetState(types.RequestState_APPROVED)
 
 	err = auth.CreateAccessRequest(ctx, req)
 	require.NoError(t, err)
@@ -177,11 +178,11 @@ func createAccessRequestWithExpiry(t *testing.T, auth *auth.Server, expiry time.
 	return req
 }
 
-func mustListAccessRequests(t *testing.T, ap AccessPoint) []*types.AccessRequestV3 {
+func mustListAccessRequests(t *testing.T, auth *auth.Server) []*types.AccessRequestV3 {
 	t.Helper()
 	ctx := t.Context()
 
-	resp, err := ap.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{
+	resp, err := auth.Services.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{
 		IncludeExpired: true,
 	})
 	require.NoError(t, err)
