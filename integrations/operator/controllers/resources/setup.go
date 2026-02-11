@@ -85,9 +85,9 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 	if workloadClusters.Enabled {
 		reconcilers = append(reconcilers, reconcilerFactory{"TeleportWorkloadClusterV1", NewWorkloadClusterV1Reconciler})
 	} else if features.Cloud {
-		log.Info("Workload Clusters are only available with the Workload Clusters features - please reach out to our support team at support@goteleport.com to discuss enabling this feature")
+		log.Info("Workload Clusters are only available with the Workload Clusters features - please reach out to our support team at support@goteleport.com to discuss enabling this feature. TeleportWorkloadCluster resources won't be reconciled.")
 	} else {
-		log.Info("Workload Clusters are only available for Teleport Cloud users")
+		log.Info("Workload Clusters are only available for Teleport Cloud users. TeleportWorkloadCluster resources won't be reconciled.")
 	}
 
 	// AccessLists, OktaImports are enterprise-only but there is no specific feature-flag for them.
