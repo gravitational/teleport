@@ -1140,8 +1140,8 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	}
 
 	if cfg.Auth.Preference.GetPrivateKeyPolicy().IsHardwareKeyPolicy() {
-		if modules.GetModules().BuildType() != modules.BuildEnterprise {
-			return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
+		if err := modules.GetModules().RequireEnterpriseBuild("Hardware Key support"); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -2259,16 +2259,16 @@ func (process *TeleportProcess) initAuthService() error {
 
 	switch {
 	case cfg.Auth.KeyStore.PKCS11 != servicecfg.PKCS11Config{}:
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
-			return trace.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", auth.ErrRequiresEnterprise)
+		if err := modules.RequireEntitlement(entitlements.HSM, modules.WithFeatureName("PKCS11 HSM support")); err != nil {
+			return trace.Wrap(err)
 		}
 	case cfg.Auth.KeyStore.GCPKMS != servicecfg.GCPKMSConfig{}:
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
-			return trace.Errorf("GCP KMS support requires a license with the HSM feature enabled: %w", auth.ErrRequiresEnterprise)
+		if err := modules.RequireEntitlement(entitlements.HSM, modules.WithFeatureName("GCP KMS support")); err != nil {
+			return trace.Wrap(err)
 		}
 	case cfg.Auth.KeyStore.AWSKMS != nil:
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
-			return trace.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", auth.ErrRequiresEnterprise)
+		if err := modules.RequireEntitlement(entitlements.HSM, modules.WithFeatureName("AWS KMS support")); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
@@ -4665,9 +4665,10 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		tunnelStrategy = types.AgentMesh
 	}
 
-	if tunnelStrategy == types.ProxyPeering &&
-		modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil, trace.AccessDenied("proxy peering is an enterprise-only feature")
+	if tunnelStrategy == types.ProxyPeering {
+		if err := modules.GetModules().RequireEnterpriseBuild("proxy peering"); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if !cfg.Proxy.DisableReverseTunnel && tunnelStrategy == types.ProxyPeering {

@@ -213,8 +213,6 @@ const (
 	tagVersion = "version"
 )
 
-var ErrRequiresEnterprise = services.ErrRequiresEnterprise
-
 // ServerOption allows setting options as functional arguments to Server
 type ServerOption func(*Server) error
 
@@ -272,16 +270,16 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			Clock:                cfg.Clock,
 		}
 		if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
-			if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
-				return nil, fmt.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+			if err := modules.RequireEntitlement(entitlements.HSM, modules.WithFeatureName("PKCS11 HSM support")); err != nil {
+				return nil, trace.Wrap(err)
 			}
 		} else if cfg.KeyStoreConfig.GCPKMS != (servicecfg.GCPKMSConfig{}) {
-			if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
-				return nil, fmt.Errorf("GCP KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+			if err := modules.RequireEntitlement(entitlements.HSM, modules.WithFeatureName("GCP KMS support")); err != nil {
+				return nil, trace.Wrap(err)
 			}
 		} else if cfg.KeyStoreConfig.AWSKMS != nil {
-			if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
-				return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+			if err := modules.RequireEntitlement(entitlements.HSM, modules.WithFeatureName("AWS KMS support")); err != nil {
+				return nil, trace.Wrap(err)
 			}
 		}
 		cfg.KeyStore, err = keystore.NewManager(context.Background(), &cfg.KeyStoreConfig, keystoreOpts)
@@ -3595,8 +3593,10 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	}
 
 	if unscopedChecker, ok := req.checker.Unscoped(); ok {
-		if len(unscopedChecker.GetAllowedResourceAccessIDs()) > 0 && modules.GetModules().BuildType() != modules.BuildEnterprise {
-			return nil, trace.Errorf("resource access requests: %w", ErrRequiresEnterprise)
+		if len(unscopedChecker.GetAllowedResourceAccessIDs()) > 0 {
+			if err := modules.GetModules().RequireEnterpriseBuild("Resource Access Requests"); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	}
 
@@ -4336,8 +4336,10 @@ func (a *Server) CreateAuthPreference(ctx context.Context, p types.AuthPreferenc
 	}
 
 	// check that the given RequireMFAType is supported in this build.
-	if p.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
+	if p.GetPrivateKeyPolicy().IsHardwareKeyPolicy() {
+		if err := modules.GetModules().RequireEnterpriseBuild("Hardware Key support"); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if err := dtconfig.ValidateConfigAgainstModules(p.GetDeviceTrust(), modules.GetModules()); err != nil {
@@ -7403,8 +7405,8 @@ func (a *Server) CreateSessionTracker(ctx context.Context, tracker types.Session
 	// Don't allow sessions that require moderation without the enterprise feature enabled.
 	for _, policySet := range tracker.GetHostPolicySets() {
 		if len(policySet.RequireSessionJoin) != 0 {
-			if modules.GetModules().BuildType() != modules.BuildEnterprise {
-				return nil, fmt.Errorf("moderated sessions: %w", ErrRequiresEnterprise)
+			if err := modules.GetModules().RequireEnterpriseBuild("moderated sessions"); err != nil {
+				return nil, trace.Wrap(err)
 			}
 		}
 	}

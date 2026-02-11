@@ -19,10 +19,10 @@ package secreportsv1
 import (
 	"context"
 
-	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	secreportsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 // NotImplementedService is a [secreportsv1pb.SecReportsServiceServer] which
@@ -33,7 +33,7 @@ type NotImplementedService struct {
 }
 
 func (n NotImplementedService) requireEnterprise() error {
-	return trace.AccessDenied("Security Reports are only available with an enterprise license")
+	return modules.NewEnterpriseBuildRequiredError("Security Reports", modules.GetModules().BuildType())
 }
 
 // DeleteAuditQuery implements secreportsv1.SecReportsServiceServer.

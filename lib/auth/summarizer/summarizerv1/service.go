@@ -19,9 +19,8 @@ package summarizerv1
 import (
 	"context"
 
-	"github.com/gravitational/trace"
-
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 // NewService creates a new OSS version of the SummarizerService. It
@@ -215,6 +214,9 @@ func (s *UnimplementedService) IsEnabled(
 }
 
 func requireEnterprise() error {
-	return trace.AccessDenied(
-		"session recording summarization is only available with an enterprise license that supports Teleport Identity Security")
+	buildType := modules.GetModules().BuildType()
+	if buildType != modules.BuildEnterprise {
+		return modules.NewEnterpriseBuildRequiredError("session recording summarization", buildType)
+	}
+	return modules.NewEnterpriseEntitlementRequiredError("Identity Security", "session recording summarization")
 }

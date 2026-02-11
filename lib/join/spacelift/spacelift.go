@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -124,8 +123,8 @@ func CheckIDToken(
 		return nil, trace.BadParameter("spacelift join method only supports ProvisionTokenV2, '%T' was provided", params.ProvisionToken)
 	}
 
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil, trace.Wrap(services.ErrRequiresEnterprise, "spacelift joining")
+	if err := modules.GetModules().RequireEnterpriseBuild("spacelift joining"); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	claims, err := params.Validator.Validate(

@@ -28,16 +28,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
-
-// ErrSAMLRequiresEnterprise is the error returned by the SAML methods when not
-// using the Enterprise edition of Teleport.
-//
-// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
-// we can't currently propagate wrapped errors across the gRPC boundary,
-// and we want tctl to display a clean user-facing message in this case
-var ErrSAMLRequiresEnterprise = &trace.AccessDeniedError{Message: "SAML is only available in Teleport Enterprise"}
 
 // SAMLService are the methods that the auth server delegates to a plugin for
 // implementing the SAML connector. These are the core functions of SAML
@@ -206,7 +199,7 @@ func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorID string) er
 // or returns a NotImplemented error if not present.
 func (a *Server) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
 	if a.samlAuthService == nil {
-		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
+		return nil, modules.NewEnterpriseBuildRequiredError("SAML", modules.GetModules().BuildType())
 	}
 
 	rq, err := a.samlAuthService.CreateSAMLAuthRequest(ctx, req)
@@ -217,7 +210,7 @@ func (a *Server) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRe
 // or returns a NotImplemented error if not present.
 func (a *Server) CreateSAMLAuthRequestForMFA(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
 	if a.samlAuthService == nil {
-		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
+		return nil, modules.NewEnterpriseBuildRequiredError("SAML", modules.GetModules().BuildType())
 	}
 
 	rq, err := a.samlAuthService.CreateSAMLAuthRequestForMFA(ctx, req)
@@ -228,7 +221,7 @@ func (a *Server) CreateSAMLAuthRequestForMFA(ctx context.Context, req types.SAML
 // or returns a NotImplemented error if not present.
 func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*authclient.SAMLAuthResponse, error) {
 	if a.samlAuthService == nil {
-		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
+		return nil, modules.NewEnterpriseBuildRequiredError("SAML", modules.GetModules().BuildType())
 	}
 
 	resp, err := a.samlAuthService.ValidateSAMLResponse(ctx, samlResponse, connectorID, clientIP)

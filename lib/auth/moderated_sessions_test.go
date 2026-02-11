@@ -22,6 +22,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -95,7 +96,8 @@ func TestModeratedSessionsDisabled(t *testing.T) {
 	tracker, err = srv.CreateSessionTracker(context.Background(), tracker)
 	require.Error(t, err)
 	require.Nil(t, tracker)
-	require.ErrorIs(t, err, auth.ErrRequiresEnterprise)
+	require.True(t, trace.IsAccessDenied(err))
+	require.ErrorContains(t, err, "moderated sessions: this feature requires a Teleport Enterprise build")
 }
 
 // TestModeratedSessionsEnabled verifies that we can create session trackers with moderation

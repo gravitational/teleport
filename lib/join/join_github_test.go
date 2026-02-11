@@ -258,9 +258,8 @@ func TestJoinGHA(t *testing.T) {
 			},
 			request: newRequest(validIDToken),
 			assertError: require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
-				// Note: testing over the network does not perfectly map errors
-				// so we can't use require.ErrorIs(..., services.ErrRequiresEnterprise)
-				require.ErrorContains(t, err, "this feature requires Teleport Enterprise")
+				require.True(t, trace.IsAccessDenied(err))
+				require.ErrorContains(t, err, "this feature requires a Teleport Enterprise build")
 			}),
 		},
 		{
@@ -277,9 +276,8 @@ func TestJoinGHA(t *testing.T) {
 			},
 			request: newRequest(validIDToken),
 			assertError: require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
-				// Note: testing over the network does not perfectly map errors
-				// so we can't use require.ErrorIs(..., services.ErrRequiresEnterprise)
-				require.ErrorContains(t, err, "this feature requires Teleport Enterprise")
+				require.True(t, trace.IsAccessDenied(err))
+				require.ErrorContains(t, err, "this feature requires a Teleport Enterprise build")
 			}),
 		},
 		{

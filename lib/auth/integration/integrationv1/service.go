@@ -256,8 +256,8 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 
 	switch req.Integration.GetSubKind() {
 	case types.IntegrationSubKindGitHub:
-		if modules.GetModules().BuildType() != modules.BuildEnterprise {
-			return nil, trace.AccessDenied("GitHub integration requires a Teleport Enterprise license")
+		if err := modules.GetModules().RequireEnterpriseBuild("GitHub integration"); err != nil {
+			return nil, trace.Wrap(err)
 		}
 		if err := s.createGitHubCredentials(ctx, req.Integration); err != nil {
 			return nil, trace.Wrap(err)

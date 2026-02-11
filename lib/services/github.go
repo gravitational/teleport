@@ -20,7 +20,6 @@ package services
 
 import (
 	"encoding/json"
-	"fmt"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -29,10 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 )
-
-// ErrRequiresEnterprise indicates that a feature requires
-// Teleport Enterprise.
-var ErrRequiresEnterprise = &trace.AccessDeniedError{Message: "this feature requires Teleport Enterprise"}
 
 // githubConnectorMutex is a mutex for the GitHub auth connector
 // registration functions.
@@ -181,14 +176,14 @@ func MarshalOSSGithubConnector(githubConnector types.GithubConnector, opts ...Ma
 		//
 		// Note that the enterprise marshaler also calls this marshaler to
 		// produce the final output.
-		if modules.GetModules().IsOSSBuild() {
+		if m := modules.GetModules(); m.IsOSSBuild() {
 			if githubConnector.Spec.EndpointURL != "" &&
 				githubConnector.Spec.EndpointURL != types.GithubURL {
-				return nil, fmt.Errorf("GitHub endpoint URL is set: %w", ErrRequiresEnterprise)
+				return nil, modules.NewEnterpriseBuildRequiredError("GitHub endpoint URL is set", m.BuildType())
 			}
 			if githubConnector.Spec.APIEndpointURL != "" &&
 				githubConnector.Spec.APIEndpointURL != types.GithubAPIURL {
-				return nil, fmt.Errorf("GitHub API endpoint URL is set: %w", ErrRequiresEnterprise)
+				return nil, modules.NewEnterpriseBuildRequiredError("GitHub API endpoint URL is set", m.BuildType())
 			}
 		}
 		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, githubConnector))

@@ -19,6 +19,7 @@ package workloadidentityv1
 import (
 	"context"
 
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -106,7 +107,7 @@ func (s *X509OverridesService) authorizeAccessToKindAdminReusedMFA(ctx context.C
 }
 
 func (s *X509OverridesService) requireEnterprise() error {
-	return trace.AccessDenied("SPIFFE X.509 issuer overrides are only available with an enterprise license")
+	return modules.NewEnterpriseBuildRequiredError("SPIFFE X.509 issuer overrides", modules.GetModules().BuildType())
 }
 
 // SignX509IssuerCSR implements [workloadidentityv1pb.X509OverridesServiceServer].

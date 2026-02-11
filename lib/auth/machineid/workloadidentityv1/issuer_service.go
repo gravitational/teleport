@@ -30,6 +30,7 @@ import (
 	"time"
 
 	gogotypes "github.com/gogo/protobuf/types"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -75,7 +76,7 @@ type OSSSigstorePolicyEvaluator struct{}
 // Evaluate satisfies the SigstorePolicyEvaluator interface.
 func (OSSSigstorePolicyEvaluator) Evaluate(_ context.Context, policyNames []string, attrs *workloadidentityv1pb.Attrs) (map[string]error, error) {
 	if len(policyNames) != 0 || len(attrs.GetWorkload().GetSigstore().GetPayloads()) != 0 {
-		return nil, trace.AccessDenied("Sigstore workload attestation is only available with an enterprise license")
+		return nil, modules.NewEnterpriseBuildRequiredError("Sigstore workload attestation", modules.GetModules().BuildType())
 	}
 	return make(map[string]error), nil
 }

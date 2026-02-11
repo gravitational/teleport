@@ -172,7 +172,7 @@ func (k *Keygen) GenerateUserCertWithoutValidation(req sshca.UserCertificateRequ
 
 	// if the provided identity is attempting to perform IP pinning, make sure modules are enforced
 	if ident.PinnedIP != "" && k.buildType != modules.BuildEnterprise {
-		return nil, trace.AccessDenied("source IP pinning is only supported in Teleport Enterprise")
+		return nil, modules.NewEnterpriseBuildRequiredError("source IP pinning", k.buildType)
 	}
 
 	// encode the identity into a certificate

@@ -19,7 +19,7 @@ package workloadidentityv1
 import (
 	"context"
 
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/modules"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -40,23 +40,19 @@ type sigstorePolicyResourceService struct {
 func (s sigstorePolicyResourceService) CreateSigstorePolicy(context.Context, *workloadidentityv1.CreateSigstorePolicyRequest) (*workloadidentityv1.SigstorePolicy, error) {
 	return nil, s.requireEnterprise()
 }
-
 func (s sigstorePolicyResourceService) UpdateSigstorePolicy(context.Context, *workloadidentityv1.UpdateSigstorePolicyRequest) (*workloadidentityv1.SigstorePolicy, error) {
 	return nil, s.requireEnterprise()
 }
-
 func (s sigstorePolicyResourceService) DeleteSigstorePolicy(context.Context, *workloadidentityv1.DeleteSigstorePolicyRequest) (*emptypb.Empty, error) {
 	return nil, s.requireEnterprise()
 }
-
 func (s sigstorePolicyResourceService) GetSigstorePolicy(context.Context, *workloadidentityv1.GetSigstorePolicyRequest) (*workloadidentityv1.SigstorePolicy, error) {
 	return nil, s.requireEnterprise()
 }
-
 func (s sigstorePolicyResourceService) ListSigstorePolicies(context.Context, *workloadidentityv1.ListSigstorePoliciesRequest) (*workloadidentityv1.ListSigstorePoliciesResponse, error) {
 	return nil, s.requireEnterprise()
 }
 
 func (sigstorePolicyResourceService) requireEnterprise() error {
-	return trace.AccessDenied("Sigstore workload attestation is only available with an enterprise license")
+	return modules.NewEnterpriseBuildRequiredError("Sigstore workload attestation", modules.GetModules().BuildType())
 }

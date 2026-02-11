@@ -201,8 +201,10 @@ func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb
 	}
 
 	// check that the given RequireMFAType is supported in this build.
-	if req.AuthPreference.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
+	if req.AuthPreference.GetPrivateKeyPolicy().IsHardwareKeyPolicy() {
+		if err := modules.GetModules().RequireEnterpriseBuild("Hardware Key support"); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if err := dtconfig.ValidateConfigAgainstModules(req.AuthPreference.GetDeviceTrust(), modules.GetModules()); err != nil {
@@ -269,8 +271,10 @@ func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb
 	}
 
 	// check that the given RequireMFAType is supported in this build.
-	if req.AuthPreference.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
+	if req.AuthPreference.GetPrivateKeyPolicy().IsHardwareKeyPolicy() {
+		if err := modules.GetModules().RequireEnterpriseBuild("Hardware Key support"); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if err := dtconfig.ValidateConfigAgainstModules(req.AuthPreference.GetDeviceTrust(), modules.GetModules()); err != nil {
@@ -432,12 +436,8 @@ func (s *Service) CreateClusterNetworkingConfig(ctx context.Context, cfg types.C
 		return nil, trace.AccessDenied("this request can be only executed by an auth server")
 	}
 
-	tst, err := cfg.GetTunnelStrategyType()
-	if err != nil {
+	if err := validateTunnelStrategy(cfg); err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if tst == types.ProxyPeering && modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil, trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
 	created, err := s.backend.CreateClusterNetworkingConfig(ctx, cfg)
@@ -472,12 +472,8 @@ func (s *Service) UpdateClusterNetworkingConfig(ctx context.Context, req *cluste
 		return nil, trace.Wrap(err)
 	}
 
-	tst, err := req.ClusterNetworkConfig.GetTunnelStrategyType()
-	if err != nil {
+	if err := validateTunnelStrategy(req.ClusterNetworkConfig); err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if tst == types.ProxyPeering && modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil, trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
 	req.ClusterNetworkConfig.SetOrigin(types.OriginDynamic)
@@ -519,6 +515,23 @@ func (s *Service) UpdateClusterNetworkingConfig(ctx context.Context, req *cluste
 	return cfgV2, nil
 }
 
+type tunnelStrategyTypeGetter interface {
+	GetTunnelStrategyType() (types.TunnelStrategyType, error)
+}
+
+// validateTunnelStrategy fetches the TunnelStrategyType and checks its validity for the current BuildType
+// ([types.ProxyPeering] is only valid for Enterprise builds).
+func validateTunnelStrategy(g tunnelStrategyTypeGetter) error {
+	tst, err := g.GetTunnelStrategyType()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if tst == types.ProxyPeering {
+		return modules.GetModules().RequireEnterpriseBuild("proxy peering")
+	}
+	return nil
+}
+
 // UpsertClusterNetworkingConfig creates a new networking configuration or overwrites an existing configuration.
 func (s *Service) UpsertClusterNetworkingConfig(ctx context.Context, req *clusterconfigpb.UpsertClusterNetworkingConfigRequest) (*types.ClusterNetworkingConfigV2, error) {
 	authzCtx, err := s.authorizer.Authorize(ctx)
@@ -537,12 +550,8 @@ func (s *Service) UpsertClusterNetworkingConfig(ctx context.Context, req *cluste
 		return nil, trace.Wrap(err)
 	}
 
-	tst, err := req.ClusterNetworkConfig.GetTunnelStrategyType()
-	if err != nil {
+	if err := validateTunnelStrategy(req.ClusterNetworkConfig); err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if tst == types.ProxyPeering && modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil, trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
 	req.ClusterNetworkConfig.SetOrigin(types.OriginDynamic)

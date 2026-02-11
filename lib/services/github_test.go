@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -114,7 +115,8 @@ func TestMarshal(t *testing.T) {
 
 	t.Run("oss with private endpoint", func(t *testing.T) {
 		_, err := MarshalGithubConnector(connectorWithPrivateEndpoint)
-		require.ErrorIs(t, err, ErrRequiresEnterprise, "expected ErrRequiresEnterprise, got %T", err)
+		require.True(t, trace.IsAccessDenied(err))
+		require.ErrorContains(t, err, "this feature requires a Teleport Enterprise build; you are running a oss build")
 	})
 
 	t.Run("enterprise", func(t *testing.T) {

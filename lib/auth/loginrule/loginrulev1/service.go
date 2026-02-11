@@ -24,7 +24,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 // NotImplementedService is a [loginrulepb.LoginRuleServiceServer] which
@@ -35,21 +35,25 @@ type NotImplementedService struct {
 	loginrulepb.UnimplementedLoginRuleServiceServer
 }
 
-func (NotImplementedService) CreateLoginRule(context.Context, *loginrulepb.CreateLoginRuleRequest) (*loginrulepb.LoginRule, error) {
-	return nil, services.ErrRequiresEnterprise
+func (s NotImplementedService) CreateLoginRule(context.Context, *loginrulepb.CreateLoginRuleRequest) (*loginrulepb.LoginRule, error) {
+	return nil, s.requireEnterprise()
 }
-func (NotImplementedService) UpsertLoginRule(context.Context, *loginrulepb.UpsertLoginRuleRequest) (*loginrulepb.LoginRule, error) {
-	return nil, services.ErrRequiresEnterprise
+func (s NotImplementedService) UpsertLoginRule(context.Context, *loginrulepb.UpsertLoginRuleRequest) (*loginrulepb.LoginRule, error) {
+	return nil, s.requireEnterprise()
 }
-func (NotImplementedService) GetLoginRule(context.Context, *loginrulepb.GetLoginRuleRequest) (*loginrulepb.LoginRule, error) {
-	return nil, services.ErrRequiresEnterprise
+func (s NotImplementedService) GetLoginRule(context.Context, *loginrulepb.GetLoginRuleRequest) (*loginrulepb.LoginRule, error) {
+	return nil, s.requireEnterprise()
 }
-func (NotImplementedService) ListLoginRules(context.Context, *loginrulepb.ListLoginRulesRequest) (*loginrulepb.ListLoginRulesResponse, error) {
-	return nil, services.ErrRequiresEnterprise
+func (s NotImplementedService) ListLoginRules(context.Context, *loginrulepb.ListLoginRulesRequest) (*loginrulepb.ListLoginRulesResponse, error) {
+	return nil, s.requireEnterprise()
 }
-func (NotImplementedService) DeleteLoginRule(context.Context, *loginrulepb.DeleteLoginRuleRequest) (*emptypb.Empty, error) {
-	return nil, services.ErrRequiresEnterprise
+func (s NotImplementedService) DeleteLoginRule(context.Context, *loginrulepb.DeleteLoginRuleRequest) (*emptypb.Empty, error) {
+	return nil, s.requireEnterprise()
 }
-func (NotImplementedService) TestLoginRule(context.Context, *loginrulepb.TestLoginRuleRequest) (*loginrulepb.TestLoginRuleResponse, error) {
-	return nil, services.ErrRequiresEnterprise
+func (s NotImplementedService) TestLoginRule(context.Context, *loginrulepb.TestLoginRuleRequest) (*loginrulepb.TestLoginRuleResponse, error) {
+	return nil, s.requireEnterprise()
+}
+
+func (s NotImplementedService) requireEnterprise() error {
+	return modules.NewEnterpriseBuildRequiredError("Sigstore workload attestation", modules.GetModules().BuildType())
 }

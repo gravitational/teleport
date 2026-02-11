@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tpm"
 )
 
@@ -56,11 +55,8 @@ type CheckTPMRequestParams struct {
 
 // CheckTPMRequest checks a TPM method join request.
 func CheckTPMRequest(ctx context.Context, params CheckTPMRequestParams) (*tpm.ValidatedTPM, error) {
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil, trace.Wrap(
-			services.ErrRequiresEnterprise,
-			"tpm joining",
-		)
+	if err := modules.GetModules().RequireEnterpriseBuild("tpm joining"); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	certPool, err := buildCertPool(params.Token)

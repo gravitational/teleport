@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -196,8 +195,8 @@ func CheckGithubIDToken(ctx context.Context, params *CheckGithubIDTokenParams) (
 	enterpriseOverride := token.Spec.GitHub.EnterpriseServerHost
 	enterpriseSlug := token.Spec.GitHub.EnterpriseSlug
 	if enterpriseOverride != "" || enterpriseSlug != "" {
-		if modules.GetModules().BuildType() != modules.BuildEnterprise {
-			return nil, trace.Wrap(services.ErrRequiresEnterprise, "github enterprise server joining")
+		if err := modules.GetModules().RequireEnterpriseBuild("github enterprise server joining"); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 

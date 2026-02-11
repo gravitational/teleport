@@ -2622,10 +2622,6 @@ func (a *ServerWithRoles) GetToken(ctx context.Context, token string) (types.Pro
 }
 
 func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
-	if modules.GetModules().BuildType() == modules.BuildEnterprise {
-		return nil
-	}
-
 	v, ok := token.(*types.ProvisionTokenV2)
 	if !ok {
 		return trace.BadParameter("unexpected token type %T", token)
@@ -2634,21 +2630,12 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 	switch v.Spec.JoinMethod {
 	case types.JoinMethodGitHub:
 		if v.Spec.GitHub != nil && v.Spec.GitHub.EnterpriseServerHost != "" {
-			return trace.Wrap(
-				ErrRequiresEnterprise,
-				"github enterprise server joining",
-			)
+			return trace.Wrap(modules.GetModules().RequireEnterpriseBuild("github enterprise server joining"))
 		}
 	case types.JoinMethodSpacelift:
-		return trace.Wrap(
-			ErrRequiresEnterprise,
-			"spacelift joining",
-		)
+		return trace.Wrap(modules.GetModules().RequireEnterpriseBuild("spacelift joining"))
 	case types.JoinMethodTPM:
-		return trace.Wrap(
-			ErrRequiresEnterprise,
-			"tpm joining",
-		)
+		return trace.Wrap(modules.GetModules().RequireEnterpriseBuild("tpm joining"))
 	}
 
 	return nil
@@ -4122,11 +4109,8 @@ func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(types.KindOIDC, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
-		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
-		// we can't currently propagate wrapped errors across the gRPC boundary,
-		// and we want tctl to display a clean user-facing message in this case
-		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
+	if err := modules.RequireEntitlement(entitlements.OIDC); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Support reused MFA for bulk tctl create requests.
@@ -4143,11 +4127,8 @@ func (a *ServerWithRoles) UpdateOIDCConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(types.KindOIDC, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
-		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
-		// we can't currently propagate wrapped errors across the gRPC boundary,
-		// and we want tctl to display a clean user-facing message in this case
-		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
+	if err := modules.RequireEntitlement(entitlements.OIDC); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
@@ -4163,11 +4144,8 @@ func (a *ServerWithRoles) CreateOIDCConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(types.KindOIDC, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
-		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
-		// we can't currently propagate wrapped errors across the gRPC boundary,
-		// and we want tctl to display a clean user-facing message in this case
-		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
+	if err := modules.RequireEntitlement(entitlements.OIDC); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Support reused MFA for bulk tctl create requests.
@@ -4225,11 +4203,8 @@ func (a *ServerWithRoles) ListOIDCConnectors(ctx context.Context, limit int, sta
 }
 
 func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
-	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
-		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
-		// we can't currently propagate wrapped errors across the gRPC boundary,
-		// and we want tctl to display a clean user-facing message in this case
-		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
+	if err := modules.RequireEntitlement(entitlements.OIDC); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if err := a.authorizeAction(types.KindOIDCRequest, types.VerbCreate); err != nil {
@@ -4306,8 +4281,8 @@ func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID s
 
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
-		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
+	if err := modules.RequireEntitlement(entitlements.SAML); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if err := a.authConnectorAction(types.KindSAML, types.VerbCreate); err != nil {
@@ -4329,8 +4304,8 @@ func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector typ
 
 // CreateSAMLConnector creates a new SAML connector.
 func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
-		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
+	if err := modules.RequireEntitlement(entitlements.SAML); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if err := a.authConnectorAction(types.KindSAML, types.VerbCreate); err != nil {
@@ -4347,8 +4322,8 @@ func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector typ
 
 // UpdateSAMLConnector updates an existing SAML connector
 func (a *ServerWithRoles) UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
-		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
+	if err := modules.RequireEntitlement(entitlements.SAML); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if err := a.authConnectorAction(types.KindSAML, types.VerbUpdate); err != nil {
@@ -4410,8 +4385,8 @@ func (a *ServerWithRoles) ListSAMLConnectorsWithOptions(ctx context.Context, lim
 }
 
 func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
-	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
-		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
+	if err := modules.RequireEntitlement(entitlements.SAML); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if err := a.authorizeAction(types.KindSAMLRequest, types.VerbCreate); err != nil {
@@ -4998,8 +4973,8 @@ func (a *ServerWithRoles) validateRole(role types.Role) error {
 
 	// check that the given RequireMFAType is supported in this build.
 	if role.GetPrivateKeyPolicy().IsHardwareKeyPolicy() {
-		if modules.GetModules().BuildType() != modules.BuildEnterprise {
-			return trace.AccessDenied("Hardware Key support is only available with an enterprise license")
+		if err := modules.GetModules().RequireEnterpriseBuild("Hardware Key support"); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
@@ -5107,36 +5082,42 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) (type
 }
 
 func checkRoleFeatureSupport(role types.Role) error {
-	features := modules.GetModules().Features()
+	m := modules.GetModules()
+	features := m.Features()
 	options := role.GetOptions()
 	allowReq, allowRev := role.GetAccessRequestConditions(types.Allow), role.GetAccessReviewConditions(types.Allow)
 
-	// source IP pinning doesn't have a dedicated feature flag,
-	// it is available to all enterprise users
-	if modules.GetModules().BuildType() != modules.BuildEnterprise && role.GetOptions().PinSourceIP {
-		return trace.AccessDenied("role option pin_source_ip is only available in enterprise subscriptions")
+	// Source IP Pinning, MaxSessions and SearchAsRoles don't have dedicated feature flags;
+	// they are available to all Enterprise customers
+	if options.PinSourceIP {
+		if err := m.RequireEnterpriseBuild("role option pin_source_ip"); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if options.MaxSessions > 0 {
+		if err := m.RequireEnterpriseBuild("role option max_sessions"); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if len(allowReq.SearchAsRoles) != 0 {
+		if err := m.RequireEnterpriseBuild("role field allow.search_as_roles"); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
-	switch {
-	case !features.AccessControls && options.MaxSessions > 0:
-		return trace.AccessDenied(
-			"role option max_sessions is only available in enterprise subscriptions")
-	case !features.AdvancedAccessWorkflows &&
-		(options.RequestAccess == types.RequestStrategyReason || options.RequestAccess == types.RequestStrategyAlways):
-		return trace.AccessDenied(
-			"role option request_access: %v is only available in enterprise subscriptions", options.RequestAccess)
-	case !features.AdvancedAccessWorkflows && len(allowReq.Thresholds) != 0:
-		return trace.AccessDenied(
-			"role field allow.request.thresholds is only available in enterprise subscriptions")
-	case !features.AdvancedAccessWorkflows && !allowRev.IsZero():
-		return trace.AccessDenied(
-			"role field allow.review_requests is only available in enterprise subscriptions")
-	case modules.GetModules().BuildType() != modules.BuildEnterprise && len(allowReq.SearchAsRoles) != 0:
-		return trace.AccessDenied(
-			"role field allow.search_as_roles is only available in enterprise subscriptions")
-	default:
-		return nil
+	// AdvancedAccessWorkflows _should_ be available to all Enterprise customers but isn't deprecated yet.
+	if !features.AdvancedAccessWorkflows {
+		switch {
+		case options.RequestAccess == types.RequestStrategyReason || options.RequestAccess == types.RequestStrategyAlways:
+			return modules.NewEnterpriseBuildRequiredError(fmt.Sprintf("role option request_access: %v", options.RequestAccess), m.BuildType())
+		case len(allowReq.Thresholds) != 0:
+			return modules.NewEnterpriseBuildRequiredError("role field allow.request.thresholds", m.BuildType())
+		case !allowRev.IsZero():
+			return modules.NewEnterpriseBuildRequiredError("role field allow.review_requests", m.BuildType())
+		}
 	}
+
+	return nil
 }
 
 // GetRole returns role by name
@@ -5315,8 +5296,8 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 
 	// check that the given RequireMFAType is supported in this build.
 	if newAuthPref.GetPrivateKeyPolicy().IsHardwareKeyPolicy() {
-		if modules.GetModules().BuildType() != modules.BuildEnterprise {
-			return trace.AccessDenied("Hardware Key support is only available with an enterprise license")
+		if err := modules.GetModules().RequireEnterpriseBuild("Hardware Key support"); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
@@ -5457,9 +5438,10 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if tst == types.ProxyPeering &&
-		modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return trace.AccessDenied("proxy peering is an enterprise-only feature")
+	if tst == types.ProxyPeering {
+		if err := modules.GetModules().RequireEnterpriseBuild("proxy peering"); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	oldNetConf, err := a.authServer.GetClusterNetworkingConfig(ctx)

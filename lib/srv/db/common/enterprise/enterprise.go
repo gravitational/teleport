@@ -19,6 +19,8 @@
 package enterprise
 
 import (
+	"fmt"
+
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -29,8 +31,8 @@ import (
 func ProtocolValidation(dbProtocol string) error {
 	switch dbProtocol {
 	case defaults.ProtocolOracle:
-		if modules.GetModules().BuildType() != modules.BuildEnterprise {
-			return trace.BadParameter("%s database protocol is only available with an enterprise license", dbProtocol)
+		if err := modules.GetModules().RequireEnterpriseBuild(fmt.Sprintf("%s database protocol", dbProtocol)); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 	return nil
