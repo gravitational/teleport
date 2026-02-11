@@ -171,6 +171,15 @@ by name. Click on any node to open a side panel showing its details:
 You can run SQL queries in the Graph Explorer query bar to fetch specific information.
 Okta resources are tagged with `teleport.dev/origin: okta`, which you can use to filter results.
 
+In the following queries, replace the placeholder values with your own:
+
+| Placeholder | Description |
+|---|---|
+| <Var name="your-org" /> | Your Okta organization subdomain (e.g., `acme` for `acme.okta.com`) |
+| <Var name="user" /> | The Okta username to look up |
+| <Var name="app-name" /> | The name of the Okta application |
+| <Var name="group-name" /> | The name of the Okta group |
+
 #### Show all Okta resources
 
 ```sql
