@@ -1149,14 +1149,20 @@ func (t StaticScopedTokens) Parse() (*joiningv1.StaticScopedTokens, error) {
 	}, nil
 }
 
+// ImmutableLabels capture yaml configuration used to generate [joiningv1.ImmutableLabels].
+type ImmutableLabels struct {
+	SSH map[string]string `yaml:"ssh"`
+}
+
 // StaticScopedToken is a statically defined scoped token. It is meant to capture
 // yaml configuration that can be used to generate a [joiningv1.ScopedToken].
 type StaticScopedToken struct {
-	Name   string   `yaml:"name"`
-	Secret string   `yaml:"secret"`
-	Roles  []string `yaml:"roles"`
-	Scope  string   `yaml:"scope"`
-	Path   string   `yaml:"path"`
+	Name            string           `yaml:"name"`
+	Secret          string           `yaml:"secret"`
+	Roles           []string         `yaml:"roles"`
+	Scope           string           `yaml:"scope"`
+	Path            string           `yaml:"path"`
+	ImmutableLabels *ImmutableLabels `yaml:"immutable_labels"`
 }
 
 // Validate whether or not a [StaticScopedToken] is well formed.
