@@ -29,7 +29,7 @@ import { Rule } from 'shared/components/Validation/rules';
 
 import { RegionGroup, RegionId } from './types';
 
-type RegionOption = Option<RegionId>;
+type RegionOption = Option<RegionId, React.ReactNode>;
 type RegionOptionGroup = {
   label: string;
   options: RegionOption[];
@@ -60,9 +60,9 @@ function OptionWithCheckbox(
 ) {
   return (
     <components.Option {...props}>
-      <Flex alignItems="center" gap={2}>
+      <Flex gap={2}>
         <CheckboxInput checked={props.isSelected} />
-        <span>{props.children}</span>
+        <Flex flex="1">{props.children}</Flex>
       </Flex>
     </components.Option>
   );
@@ -99,7 +99,12 @@ export function RegionMultiSelector({
     label: regionGroup.name,
     options: regionGroup.regions.map(region => ({
       value: region.id,
-      label: region.name,
+      label: (
+        <Flex justifyContent="space-between" width="100%">
+          <Text as="span">{region.name}</Text>
+          <Text as="span">{region.id}</Text>
+        </Flex>
+      ),
     })),
   }));
 
