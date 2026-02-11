@@ -50,8 +50,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// ErrGithubNoTeams results from a github user not belonging to any teams.
-var ErrGithubNoTeams = trace.BadParameter("user does not belong to any teams configured in connector; the configuration may have typos.")
+// ErrGithubNoRoles is returned when a user authenticated via GitHub has no roles assigned in Teleport.
+var ErrGithubNoRoles = trace.AccessDenied("GitHub user has no Teleport-assigned roles.")
 
 // InvalidClientRedirectErrorMessage is a string added to SSO login errors
 // caused by an invalid client redirect URL; the presence of this string is
@@ -644,6 +644,10 @@ func (a *Server) ValidateGithubAuthRedirect(ctx context.Context, diagCtx *SSODia
 		return nil, trace.Wrap(err)
 	}
 
+	if len(userState.GetRoles()) == 0 {
+		return nil, trace.Wrap(ErrGithubNoRoles)
+	}
+
 	// In test flow skip signing and creating web sessions.
 	if req.SSOTestFlow {
 		diagCtx.Info.Success = true
@@ -654,8 +658,14 @@ func (a *Server) ValidateGithubAuthRedirect(ctx context.Context, diagCtx *SSODia
 		}, nil
 	}
 
+	sessionRoles, err := services.FetchRoles(userState.GetRoles(), a, userState.GetTraits())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sessionTTL := utils.MinTTL(sessionRoles.AdjustSessionTTL(apidefaults.MaxCertDuration), params.SessionTTL)
+
 	// Auth was successful, return session, certificate, etc. to caller.
-	return a.makeGithubAuthResponse(ctx, req, userState, userResp, params.SessionTTL)
+	return a.makeGithubAuthResponse(ctx, req, userState, userResp, sessionTTL)
 }
 
 func (a *Server) makeGithubAuthResponse(
@@ -663,7 +673,8 @@ func (a *Server) makeGithubAuthResponse(
 	req *types.GithubAuthRequest,
 	userState services.UserState,
 	githubUser *GithubUserResponse,
-	sessionTTL time.Duration) (*authclient.GithubAuthResponse, error) {
+	sessionTTL time.Duration,
+) (*authclient.GithubAuthResponse, error) {
 	auth := authclient.GithubAuthResponse{
 		Req:      GithubAuthRequestFromProto(req),
 		Identity: githubUser.makeExternalIdentity(req.ConnectorID),
@@ -910,9 +921,6 @@ func (a *Server) calculateGithubUser(ctx context.Context, diagCtx *SSODiagContex
 
 	// Calculate logins, kubegroups, roles, and traits.
 	p.Roles, p.KubeGroups, p.KubeUsers = connector.MapClaims(*claims)
-	if len(p.Roles) == 0 {
-		return nil, trace.Wrap(ErrGithubNoTeams)
-	}
 	p.Traits = map[string][]string{
 		constants.TraitLogins:     {p.Username},
 		constants.TraitKubeGroups: p.KubeGroups,
