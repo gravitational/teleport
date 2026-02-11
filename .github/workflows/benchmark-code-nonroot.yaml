@@ -59,8 +59,7 @@ jobs:
       env:
         TELEPORT_XAUTH_TEST: yes
         WEBASSETS_SKIP_BUILD: 1
-        BENCH_SKIP_HEAVY: ${{ matrix.BENCH_SKIP_HEAVY }}
-        BENCH_SKIP_MICRO: ${{ matrix.BENCH_SKIP_MICRO }}
+        BENCH_HEAVY: ${{ matrix.BENCH_HEAVY }}
         BENCH_TIME: ${{ matrix.BENCH_TIME }}
         BENCH_COUNT: ${{ matrix.BENCH_COUNT }}
 
