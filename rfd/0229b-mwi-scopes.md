@@ -76,7 +76,7 @@ Personas:
   cluster. Typically, someone who owns infrastructure that belongs to a group
   or team within the organization.
 
-wipwipwip.
+wip: Collect user stories from customer, anonymize and summarise.
 
 ### Behaviour
 
@@ -168,6 +168,95 @@ using the Scoped Join Token. To do so, they must configure:
 - The name/method of the Scoped Join Token.
 - The address of the Auth or Proxy Service.
 - A type of service they would like `tbot` to run (e.g `identity`).
+
+### Example Full Configuration
+
+First, the configuration used to grant the Scope Admin the ability to manage
+Scoped Bots, Join Tokens, Scoped Roles and Scoped Role Assignments:
+
+```yaml
+kind: scoped_role
+version: v1
+metadata:
+  name: staging-admin
+scope: /staging
+spec:
+  allow:
+    rules:
+      - kind: bot
+        verbs: [create, read, update, delete]
+      - kind: scoped_role
+        verbs: [create, read, update, delete]
+      - kind: scoped_role_assignment
+        verbs: [create, read, update, delete]
+      - kind: scoped_token
+        verbs: [create, read, update, delete]
+---
+kind: scoped_role_assignment
+version: v1
+metadata:
+  name: alice-staging-admin
+scope: /staging
+spec:
+  user: alice
+  assignments:
+    - role: staging-admin
+      scope: /staging
+```
+
+With these privileges, Alice can now create the Scoped Bot and Scoped Join
+Token:
+
+```yaml
+kind: bot
+version: v1
+metadata:
+  name: staging-deployer
+scope: /staging
+spec: {}
+---
+kind: scoped_token
+version: v1
+metadata:
+  name: staging-deployer 
+scope: /staging
+spec:
+  assigned_scope: /staging
+  bot_name: staging-deployer
+  roles:
+    - Bot
+  join_method: token
+  mode: single_use # wip: what to do with mode??
+```
+
+Now, Alice can create a Scoped Role and assign it to the Bot using a Scoped
+Role Assignment:
+
+```yaml
+kind: scoped_role
+version: v1
+metadata:
+  name: staging-ssh-access
+scope: /staging
+spec:
+  allow:
+    # Grants access to all SSH nodes as root within the assigned scope.
+    node_labels:
+      "*": "*"
+    logins:
+      - root
+---
+kind: scoped_role_assignment
+version: v1
+metadata:
+  name: staging-deployer-ssh-access
+scope: /staging
+spec:
+  user: staging-deployer # wip: do we add a new "bot" field here to avoid confusion?
+  assignments:
+    - role: staging-ssh-access 
+      scope: /staging
+```
 
 ## Implementation Details
 
