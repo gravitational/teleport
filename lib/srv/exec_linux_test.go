@@ -206,7 +206,7 @@ func TestContinue(t *testing.T) {
 	require.NoError(t, scx.execRequest.WaitForChild(t.Context()))
 
 	// Signal to child that it may execute the requested program.
-	scx.execRequest.Continue()
+	cmd.Continue()
 
 	// Program should have executed now. If the complete signal has not come
 	// over the context, something failed.
