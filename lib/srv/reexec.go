@@ -78,21 +78,16 @@ const (
 	// it can continue after the parent process starts monitoring the
 	// child's audit login session ID.
 	ContinueFile
-	// Deprecated: ReadyFileDeprecated is a placeholder for the unused file that
-	// was passed to the child process and used to communicate to the
-	// parent that the child is ready to be placed into its cgroup.
-	// This is unnecessary now that we don't use cgroups anymore.
-	ReadyFileDeprecated
+	// ReadyFile is used to communicate to the parent process that the
+	// child has changed its auid and is ready to be monitored when
+	// Enhanced Session Recording is enabled.
+	ReadyFile
 	// TerminateFile is used to communicate to the child process that
 	// the interactive terminal should be killed as the client ended the
 	// SSH session and without termination the terminal process will be assigned
 	// to pid 1 and "live forever". Killing the shell should not prevent processes
 	// preventing SIGHUP to be reassigned (ex. processes running with nohup).
 	TerminateFile
-	// BPFSessionIDFile is used when Enhanced Session Recording is enabled
-	// and is used to tell the parent that the child has written to loginuid
-	// and that the parent should check the child's new audit login session ID.
-	BPFSessionIDFile
 	// Depcrecated: PTYFileDeprecated is a placeholder for the unused PTY file that
 	// was passed to the child process. The PTY should only be used in the
 	// the parent process but was left here for compatibility purposes.
@@ -102,7 +97,7 @@ const (
 
 	// FirstExtraFile is the first file descriptor that will be valid when
 	// extra files are passed to child processes without a terminal.
-	FirstExtraFile FileFD = BPFSessionIDFile + 1
+	FirstExtraFile FileFD = TerminateFile + 1
 
 	// procLoginuid is the path to the current process's loginuid.
 	procLoginuid = "/proc/self/loginuid"
@@ -274,6 +269,10 @@ func RunCommand() (code int, err error) {
 	if logfd == nil {
 		return teleport.RemoteCommandFailure, trace.BadParameter("log pipe not found")
 	}
+	readyfd := os.NewFile(ReadyFile, fdName(ReadyFile))
+	if readyfd == nil {
+		return teleport.RemoteCommandFailure, trace.BadParameter("ready pipe not found")
+	}
 	contfd := os.NewFile(ContinueFile, fdName(ContinueFile))
 	if contfd == nil {
 		return teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
@@ -281,10 +280,6 @@ func RunCommand() (code int, err error) {
 	terminatefd := os.NewFile(TerminateFile, fdName(TerminateFile))
 	if terminatefd == nil {
 		return teleport.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
-	}
-	sessionIDFile := os.NewFile(BPFSessionIDFile, fdName(BPFSessionIDFile))
-	if sessionIDFile == nil {
-		return teleport.RemoteCommandFailure, trace.BadParameter("BPF PID pipe not found")
 	}
 
 	// Read in the command payload.
@@ -295,16 +290,16 @@ func RunCommand() (code int, err error) {
 
 	initLogger("reexec", logfd, c.LogConfig)
 
-	// If BPF is enabled, ensure that the audit session ID file is closed
-	// if a failure causes execution to terminate prior to the audit session
+	// If BPF is enabled, ensure that the ready file is closed if a
+	// failure causes execution to terminate prior to the audit session
 	// ID actually being changed to unblock the parent process.
 	if c.RecordWithBPF {
 		defer func() {
-			if sessionIDFile == nil {
+			if readyfd == nil {
 				return
 			}
 
-			_ = sessionIDFile.Close()
+			_ = readyfd.Close()
 		}()
 	}
 
@@ -416,7 +411,7 @@ func RunCommand() (code int, err error) {
 	// Ensure this process has a unique audit login session ID (auid) set
 	// so Enhanced Session Recording can track events correctly.
 	if c.RecordWithBPF {
-		if err := setAuditSessionID(ctx, c, loginUIDBytes, localUser, sessionIDFile); err != nil {
+		if err := setAuditSessionID(ctx, c, loginUIDBytes, localUser, readyfd); err != nil {
 			return exitCode(err), trace.Wrap(err)
 		}
 	}
@@ -512,7 +507,7 @@ func RunCommand() (code int, err error) {
 
 // setAuditSessionID ensures the audit login session ID is updated by
 // either PAM if PAM is configured or us otherwise.
-func setAuditSessionID(ctx context.Context, c ExecCommand, preLoginUID []byte, localUser *user.User, auditIDFile *os.File) error {
+func setAuditSessionID(ctx context.Context, c ExecCommand, preLoginUID []byte, localUser *user.User, readyfd *os.File) error {
 	// Depending of the PAM service, PAM may write to /proc/self/loginuid
 	// if the 'pam_loginuid.so' module is enabled. We always want to
 	// write to /proc/self/loginuid to ensure the kernel will update the
@@ -557,7 +552,7 @@ func setAuditSessionID(ctx context.Context, c ExecCommand, preLoginUID []byte, l
 	}
 
 	// Let the parent process know the audit login session ID has changed.
-	if err := auditIDFile.Close(); err != nil {
+	if err := readyfd.Close(); err != nil {
 		return trace.Errorf("failed to close audit login session ID: %w", err)
 	}
 
@@ -1384,9 +1379,8 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 			ctx.cmdr,
 			ctx.logw,
 			ctx.contr,
-			nil, // ready file is not used anymore
+			ctx.readyw,
 			ctx.killShellr,
-			ctx.auditSessionIDw,
 		},
 	}
 	// Add extra files if applicable.

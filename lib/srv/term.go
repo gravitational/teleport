@@ -223,10 +223,10 @@ func (t *terminal) Run(ctx context.Context) error {
 	}
 	// Close our half of the write pipe since it is only to be used by the child process.
 	// Not closing prevents being signaled when the child closes its half.
-	if err := t.serverContext.auditSessionIDw.Close(); err != nil {
+	if err := t.serverContext.readyw.Close(); err != nil {
 		t.log.WarnContext(ctx, "Failed to close parent process audit session ID signal write fd", "error", err)
 	}
-	t.serverContext.auditSessionIDw = nil
+	t.serverContext.readyw = nil
 
 	// Save off the PID of the Teleport process under which the shell is executing.
 	t.pid = t.cmd.Process.Pid

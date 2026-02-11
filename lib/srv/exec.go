@@ -185,10 +185,10 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	}
 	// Close our half of the write pipe since it is only to be used by the child process.
 	// Not closing prevents being signaled when the child closes its half.
-	if err := e.Ctx.auditSessionIDw.Close(); err != nil {
+	if err := e.Ctx.readyw.Close(); err != nil {
 		logger.WarnContext(ctx, "Failed to close parent process audit session ID signal write fd", "error", err)
 	}
-	e.Ctx.auditSessionIDw = nil
+	e.Ctx.readyw = nil
 
 	// Save off the PID of the Teleport process under which the command is executing.
 	e.pid = e.Cmd.Process.Pid

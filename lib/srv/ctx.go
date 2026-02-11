@@ -418,6 +418,12 @@ type ServerContext struct {
 	// logw is used to send logs from the child process to the parent process.
 	logw *os.File
 
+	// ready{r,w} are used to send the unique audit session ID of the
+	// process that will be used to correlate audit events to the SSH session
+	// for sessions with Enhanced Session Recording enabled.
+	readyr *os.File
+	readyw *os.File
+
 	// cont{r,w} is used to send the continue signal from the parent process
 	// to the child process.
 	contr *os.File
@@ -427,12 +433,6 @@ type ServerContext struct {
 	// to terminate the shell.
 	killShellr *os.File
 	killShellw *os.File
-
-	// auditSessionID{r,w} are used to send the unique audit session ID of the
-	// process that will be used to correlate audit events to the SSH session
-	// for sessions with Enhanced Session Recording enabled.
-	auditSessionIDr *os.File
-	auditSessionIDw *os.File
 
 	// ExecType holds the type of the channel or request. For example "session" or
 	// "direct-tcpip". Used to create correct subcommand during re-exec.
@@ -579,6 +579,14 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	child.AddCloser(child.cmdr)
 	child.AddCloser(child.cmdw)
 
+	child.readyr, child.readyw, err = os.Pipe()
+	if err != nil {
+		childErr := child.Close()
+		return nil, trace.NewAggregate(err, childErr)
+	}
+	child.AddCloser(child.readyr)
+	child.AddCloser(child.readyw)
+
 	// Create pipe used to signal continue to child process.
 	child.contr, child.contw, err = os.Pipe()
 	if err != nil {
@@ -623,14 +631,6 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 			}
 		}()
 	}
-
-	child.auditSessionIDr, child.auditSessionIDw, err = os.Pipe()
-	if err != nil {
-		childErr := child.Close()
-		return nil, trace.NewAggregate(err, childErr)
-	}
-	child.AddCloser(child.auditSessionIDr)
-	child.AddCloser(child.auditSessionIDw)
 
 	return child, nil
 }
@@ -1399,13 +1399,13 @@ func (c *ServerContext) WaitForChild(ctx context.Context) error {
 	// Session Recording events to the SSH session.
 	var waitErr error
 	if bpfService.Enabled() {
-		if waitErr = waitForSignal(ctx, c.auditSessionIDr, childReadyWaitTimeout); waitErr != nil {
+		if waitErr = waitForSignal(ctx, c.readyr, childReadyWaitTimeout); waitErr != nil {
 			c.Logger.ErrorContext(ctx, "Child process never became ready.", "error", waitErr)
 		}
 	}
 
-	closeErr := c.auditSessionIDr.Close()
+	closeErr := c.readyr.Close()
 	// Set to nil so the close in the context doesn't attempt to re-close.
-	c.auditSessionIDr = nil
+	c.readyr = nil
 	return trace.NewAggregate(waitErr, closeErr)
 }
