@@ -48,8 +48,8 @@ func TestExpiryBasic(t *testing.T) {
 		}()
 
 		const expiry1, expiry2 = 10 * scanInterval, 20 * scanInterval
-		_ = createAccessRequestWithExpiry(t, authServer, time.Now().Add(expiry1))
-		_ = createAccessRequestWithExpiry(t, authServer, time.Now().Add(expiry2))
+		_ = createAccessRequest(t, authServer, types.RequestState_NONE, time.Now().Add(expiry1))
+		_ = createAccessRequest(t, authServer, types.RequestState_PROMOTED, time.Now().Add(expiry2))
 
 		synctest.Wait()
 		require.Len(t, mustListAccessRequests(t, authServer), 2)
@@ -87,9 +87,9 @@ func TestExpiryInterval(t *testing.T) {
 		}()
 
 		// Create a request with minimal expiry after each interval.
-		_ = createAccessRequestWithExpiry(t, authServer, time.Now().Add(1))
-		_ = createAccessRequestWithExpiry(t, authServer, time.Now().Add(1+testInterval))
-		_ = createAccessRequestWithExpiry(t, authServer, time.Now().Add(1+2*testInterval))
+		_ = createAccessRequest(t, authServer, types.RequestState_DENIED, time.Now().Add(1))
+		_ = createAccessRequest(t, authServer, types.RequestState_DENIED, time.Now().Add(1+testInterval))
+		_ = createAccessRequest(t, authServer, types.RequestState_DENIED, time.Now().Add(1+2*testInterval))
 
 		// Stop just before the first sweep.
 		time.Sleep(testInterval - time.Nanosecond)
@@ -135,6 +135,60 @@ func TestExpiryInterval(t *testing.T) {
 	})
 }
 
+func TestExpiryPendingGracePeriod(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+
+		const testInterval = time.Hour
+
+		expiryService, authServer, emitter := setupExpiryService(t)
+		go func() {
+			// Run with rigid intervals.
+			err := expiryService.run(ctx, interval.Config{
+				Duration:      testInterval,
+				FirstDuration: testInterval,
+			})
+			require.NoError(t, err)
+		}()
+
+		expiryTime := time.Now().Add(testInterval - pendingRequestGracePeriod + time.Nanosecond)
+
+		pendingRequest := createAccessRequest(t, authServer, types.RequestState_PENDING, expiryTime)
+		approvedRequest := createAccessRequest(t, authServer, types.RequestState_APPROVED, expiryTime)
+
+		// Check both are in the backend.
+		require.Len(t, mustListAccessRequests(t, authServer), 2)
+		require.Len(t, emitter.Events(), 0)
+
+		// Wait for the expiry service sweep.
+		time.Sleep(testInterval)
+		synctest.Wait()
+
+		// Make sure both are expired.
+		require.True(t, time.Now().After(pendingRequest.Expiry()))
+		require.True(t, time.Now().After(approvedRequest.Expiry()))
+
+		// Make sure both are expired within the pending request grace period.
+		require.True(t, time.Since(pendingRequest.Expiry()) < pendingRequestGracePeriod)
+		require.True(t, time.Since(approvedRequest.Expiry()) < pendingRequestGracePeriod)
+
+		// Check the approved one expired, but the pending one is still within the grace period.
+		require.Len(t, mustListAccessRequests(t, authServer), 1)
+		require.Equal(t, types.RequestState_PENDING, mustListAccessRequests(t, authServer)[0].GetState())
+		require.Len(t, emitter.Events(), 1)
+
+		// Wait for the second expiry service sweep.
+		time.Sleep(testInterval)
+		synctest.Wait()
+
+		// We are after the grace period so check everything is cleared now.
+		require.True(t, testInterval > pendingRequestGracePeriod)
+		require.Len(t, mustListAccessRequests(t, authServer), 0)
+		require.Len(t, emitter.Events(), 2)
+	})
+}
+
 func setupExpiryService(t *testing.T) (*Service, *auth.Server, *eventstest.MockRecorderEmitter) {
 	t.Helper()
 
@@ -163,14 +217,14 @@ func setupExpiryService(t *testing.T) (*Service, *auth.Server, *eventstest.MockR
 	return expiry, authServer.AuthServer, emitter
 }
 
-func createAccessRequestWithExpiry(t *testing.T, auth *auth.Server, expiry time.Time) types.AccessRequest {
+func createAccessRequest(t *testing.T, auth *auth.Server, state types.RequestState, expiry time.Time) types.AccessRequest {
 	t.Helper()
 	ctx := t.Context()
 
 	req, err := types.NewAccessRequest(uuid.NewString(), "alice", "test_role_1")
 	require.NoError(t, err)
 	req.SetExpiry(expiry)
-	req.SetState(types.RequestState_APPROVED)
+	req.SetState(state)
 
 	err = auth.CreateAccessRequest(ctx, req)
 	require.NoError(t, err)
