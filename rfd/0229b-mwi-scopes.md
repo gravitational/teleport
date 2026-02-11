@@ -445,6 +445,11 @@ the scoping of bots.
 wip: Lightly remark on how scoped roles are encoded, and the meaning of this,
 wip: and how this clashes with the way role assumption works today.
 
+#### Calculating Scoped Role Assignments
+
+wip: Re-iterate rules that must be followed when calculating the roles that
+wip: should be encoded for a bot.
+
 #### GenerateUserCerts RPC
 
 wip: GenerateUserCerts will need to be modified to ensure certificates issued to
