@@ -11,13 +11,22 @@ sidebar_label: App Server V3
 **Kind**: `app_server`<br/>
 **Version**: `v3`
 
-The `app_server` resource represents an instance of the Teleport
-Application Service, which allows you to [protect
-applications](../../../enroll-resources/application-access/application-access.mdx)
-with Teleport.
+The `app_server` resource represents an application that has been
+registered with Teleport. 
 
-To manage applications proxied by Teleport instead, you can use the [`app`
-resource](app-v3.mdx).
+The Teleport Application Service creates an `app_server` in two situations:
+
+  1. It reads information about the target application in its
+     configuration file when it first starts.
+  1. It fetches a dynamically registered `app` resource from the Teleport
+     backend that matches its dynamic resource watchers.
+
+  There can be multiple instances of an `app_server` for a single
+  application, each corresponding to a different Teleport Application
+  Service instance that proxies the application. Read more about [High
+  Availability](../../../enroll-resources/application-access/configuration/ha.mdx)
+  for the Teleport Application Service. Read the [reference
+  guide](./app-v3.mdx) for the `app` resource.
 
 
 ## Top-level fields
@@ -117,13 +126,13 @@ relay_ids:
   - "string"
   - "string"
   - "string"
-component_features: # See description
+component_features: # [...]
 ```
 
 |Field Name|Description|Type|
 |---|---|---|
 |app|The app proxied by this app server.|[App V3](#app-v3)|
-|component_features|Component_features contains features supported by this app server.||
+|component_features|Component_features contains features supported by this app server.|[Component Features](#component-features)|
 |host_id|The app server host uuid.|string|
 |hostname|The app server hostname.|string|
 |proxy_ids|A list of proxy IDs this server is expected to be connected to.|[]string|
@@ -268,6 +277,29 @@ result: "string"
 |command|A command to run|[]string|
 |period|A time between command runs|[Duration](#duration)|
 |result|Captures standard output|string|
+
+## Component Feature ID
+
+An identifier for a specific feature supported by a Teleport component.
+
+
+## Component Features
+
+Represents a set of features supported by a given Teleport component.
+
+
+Example:
+
+```yaml
+features: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|features|Features is a list of supported feature identifiers.|[][Component Feature ID](#component-feature-id)|
 
 ## Duration
 
