@@ -11,9 +11,20 @@ sidebar_label: App V3
 **Kind**: `app`<br/>
 **Version**: `v3`
 
-The `app` resource represents a single application protected by Teleport.
+The `app` resource represents an application that is dynamically
+registered with Teleport. 
+
+If you configure the Teleport Application Service with **dynamic resource
+watchers**, the service queries the Teleport backend for `app` resources
+that match their configured filters. For each matching `app`, the
+Application Service creates an `app_server` resource configured to proxy
+the target application.
+
 To learn more about using the `app` resource, see [Dynamic App
 Registration](../../../enroll-resources/application-access/configuration/dynamic-registration.mdx).
+
+To learn more about the `app_server` resource, see the [reference
+guide](app-server-v3.mdx).
 
 
 ## Top-level fields
