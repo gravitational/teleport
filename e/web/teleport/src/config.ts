@@ -74,7 +74,7 @@ const cfg = {
     // TODO(kimlisa): move accessListXXX to the "accessList" object.
     accessListManagementPath: '/v1/enterprise/accesslist/:accessListId?',
     accessListManagementPathV2:
-      '/v2/enterprise/accesslists?limit=:limit?&startKey=:startKey?&search=:search?&sort=:sort?&owners=:owners?',
+      '/v2/enterprise/accesslists?limit=:limit?&startKey=:startKey?&search=:search?&sort=:sort?&owners=:owners?&origin=:origin?',
     accessListAddMembersPath: '/v1/enterprise/accesslist/:accessListId/members',
     accessListReviewPath: '/v1/enterprise/accesslist/:accessListId/reviews',
     accessListSuggestionsPath:
@@ -298,6 +298,7 @@ const cfg = {
     limit?: number;
     startKey?: string;
     owners?: string[];
+    origin?: string;
   }) {
     return generateResourcePath(cfg.api.accessListManagementPathV2, {
       sort: params.sort,
@@ -305,6 +306,7 @@ const cfg = {
       limit: params.limit,
       search: params.search || undefined,
       owners: params.owners || [],
+      origin: params.origin || undefined,
     });
   },
 

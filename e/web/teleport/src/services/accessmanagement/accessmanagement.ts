@@ -81,6 +81,7 @@ export const accessManagementService = {
       sort?: SortType;
       startKey?: string;
       owners?: string[];
+      origin?: string;
     },
     abortSignal?: AbortSignal
   ): Promise<ResourcesResponse<AccessList>> {

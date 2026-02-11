@@ -86,6 +86,7 @@ func (p *Plugin) listAccessLists(_ http.ResponseWriter, r *http.Request, _ httpr
 		Filter: &accesslistv1.AccessListsFilter{
 			Search: searchFilter,
 			Owners: owners,
+			Origin: values.Get("origin"),
 		},
 	}
 	accessListClient := clt.AccessListClient()
