@@ -109,9 +109,59 @@ Application Service:
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Application Service"!)
 
+<Checkpoint
+  title="Verify the Application Service is running"
+  description="Confirm that the Teleport Application Service has started and connected to your cluster."
+>
+  Here are some troubleshooting tips:
+
+  - Check the service status on the Application Service host:
+
+    ```code
+    $ systemctl status teleport
+    ```
+
+  - Review logs for connection errors:
+
+    ```code
+    $ sudo journalctl -u teleport
+    ```
+
+  - Verify the token hasn't expired (tokens are valid for 30 minutes by default).
+
+  - Ensure the Linux server can reach both the Teleport Proxy and the target application.
+
+  - Test connectivity to the target app from the Application Service host: 
+  
+    ```code
+    $ curl -v http://app.example.com:3000
+    ```
+
+  - Verify the application is registered in the cluster:
+
+    ```code
+    $ tctl get app/<my-app>
+    ```
+
+</Checkpoint>
+
 ## Step 2/3. [Optional] Configure TLS and DNS for your web applications
 
 (!docs/pages/includes/dns-app-access.mdx!)
+
+<Checkpoint
+  title="Verify DNS and TLS configuration"
+  description="Confirm that DNS is correctly configured to route traffic through Teleport (if you completed this optional step)."
+>
+  Verify DNS resolution by running the following command:
+
+  ```code
+  $ nslookup my-app.teleport.example.com
+  ```
+
+  This should resolve to your Teleport Proxy. If it doesn't, check that your DNS provider has propagated the changes (this can take up to 48 hours). If using a wildcard certificate, ensure it covers `*.teleport.example.com`.
+
+</Checkpoint>
 
 ## Step 3/3. Configure RBAC and access the application
 
@@ -147,6 +197,28 @@ Application Service:
 
 1. Sign in to the Teleport Web UI as `appuser`. You should see the option to
    visit the web application that you enrolled.
+
+<Checkpoint
+  title="Verify application access"
+  description="Confirm that you can access the web application through the Teleport Web UI."
+>
+  Here are some troubleshooting tips:
+
+  - Ensure the `appuser` account has the `demo-app-access` role assigned.
+
+  - If the application doesn't appear in the **Applications** tab, verify that the role's `app_labels` match the labels assigned to your application:
+
+    ```code
+    $ tctl get roles/demo-app-access
+    ```
+
+  - Review Application Service logs for connection errors:
+
+    ```code
+    $ sudo journalctl -u teleport
+    ```
+  
+</Checkpoint>
 
 ## Advanced options
 
