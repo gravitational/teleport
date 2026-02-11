@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
@@ -1015,6 +1016,32 @@ func (s *PresenceService) GetDatabaseServers(ctx context.Context, namespace stri
 			return nil, trace.Wrap(err)
 		}
 		servers[i] = server
+	}
+	return servers, nil
+}
+
+// GetDatabaseServers returns all registered database proxy servers.
+func (s *PresenceService) GetDatabaseServersWithName(ctx context.Context, name string) ([]types.DatabaseServer, error) {
+	startKey := backend.ExactKey(dbServersPrefix, defaults.Namespace)
+	endKey := backend.RangeEnd(startKey)
+	it := s.Backend.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey})
+	var servers []types.DatabaseServer
+	for item, err := range it {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		server, err := services.UnmarshalDatabaseServer(
+			item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if server.GetName() != name {
+			continue
+		}
+		servers = append(servers, server)
 	}
 	return servers, nil
 }

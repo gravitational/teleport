@@ -1756,6 +1756,40 @@ func (c *Client) GetDatabaseServers(ctx context.Context, namespace string) ([]ty
 	return servers, trace.Wrap(err)
 }
 
+func (c *Client) GetDatabaseServersWithName(ctx context.Context, name string) ([]types.DatabaseServer, error) {
+	it := clientutils.Resources(ctx,
+		func(ctx context.Context, pageSize int, pageToken string) ([]*proto.PaginatedResource, string, error) {
+			resp, err := c.grpc.ListResources(ctx, &proto.ListResourcesRequest{
+				ResourceType: types.KindDatabaseServer,
+				Namespace:    defaults.Namespace,
+				Limit:        int32(pageSize),
+				StartKey:     pageToken,
+			})
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			return resp.Resources, resp.NextKey, nil
+		},
+	)
+
+	var servers []types.DatabaseServer
+	for resource, err := range it {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		server := resource.GetDatabaseServer()
+		if server == nil {
+			return nil, trace.BadParameter("expected database server from ListResources, got %T", resource.GetResource())
+		}
+		if server.GetName() != name {
+			continue
+		}
+		servers = append(servers, server)
+	}
+
+	return servers, nil
+}
+
 // UpsertDatabaseServer registers a new database proxy server.
 func (c *Client) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
 	s, ok := server.(*types.DatabaseServerV3)

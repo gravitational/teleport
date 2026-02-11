@@ -163,6 +163,8 @@ type Presence interface {
 	// DeleteAllDatabaseServers removes all database proxy servers.
 	DeleteAllDatabaseServers(context.Context, string) error
 
+	GetDatabaseServersWithName(ctx context.Context, name string) ([]types.DatabaseServer, error)
+
 	// KeepAliveServer updates TTL of the server resource in the backend.
 	KeepAliveServer(ctx context.Context, h types.KeepAlive) error
 

@@ -224,6 +224,32 @@ func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts .
 	return out, nil
 }
 
+func (c *Cache) GetDatabaseServersWithName(ctx context.Context, name string) ([]types.DatabaseServer, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabaseServersWithName")
+	defer span.End()
+
+	rg, err := acquireReadGuard(c, c.collections.dbServers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	if !rg.ReadCache() {
+		servers, err := c.Config.Presence.GetDatabaseServersWithName(ctx, name)
+		return servers, trace.Wrap(err)
+	}
+
+	var out []types.DatabaseServer
+	for ds := range rg.store.resources(databaseServerNameIndex, "", "") {
+		if ds.GetName() != name {
+			continue
+		}
+		out = append(out, ds.Copy())
+	}
+
+	return out, nil
+}
+
 type databaseServiceIndex string
 
 const databaseServiceNameIndex databaseServiceIndex = "name"

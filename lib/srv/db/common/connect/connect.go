@@ -31,12 +31,10 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -45,8 +43,7 @@ import (
 // DatabaseServersGetter is an interface for retrieving information about
 // database proxy servers within a specific namespace.
 type DatabaseServersGetter interface {
-	// GetDatabaseServers returns all registered database proxy servers.
-	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
+	GetDatabaseServersWithName(ctx context.Context, name string) ([]types.DatabaseServer, error)
 }
 
 // GetDatabaseServersParams contains the parameters required to retrieve
@@ -64,18 +61,9 @@ type GetDatabaseServersParams struct {
 // GetDatabaseServers returns a list of database servers in a cluster that match
 // the routing information from the provided identity.
 func GetDatabaseServers(ctx context.Context, params GetDatabaseServersParams) ([]types.DatabaseServer, error) {
-	servers, err := params.DatabaseServersGetter.GetDatabaseServers(ctx, apidefaults.Namespace)
+	result, err := params.DatabaseServersGetter.GetDatabaseServersWithName(ctx, params.Identity.RouteToDatabase.ServiceName)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// Find out which database servers proxy the database a user is
-	// connecting to using routing information from identity.
-	var result []types.DatabaseServer
-	for _, server := range servers {
-		if server.GetDatabase().GetName() == params.Identity.RouteToDatabase.ServiceName {
-			result = append(result, server)
-		}
 	}
 
 	params.Logger.DebugContext(ctx, "Available database servers",
