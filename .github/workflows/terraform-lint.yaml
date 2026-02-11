@@ -15,14 +15,13 @@ on:
 
 jobs:
   terraform-lint:
-    uses: gravitational/shared-workflows/.github/workflows/terraform-lint.yaml@664e788d45a7f56935cf63094b4fb52a41b12015 # workflows/v0.0.2
+    uses: gravitational/shared-workflows/.github/workflows/terraform-lint.yaml@8804e927040482769e2972b560435e3e8de61d75 # TODO(gavin): update this before merging to point at workflows/v0.0.3 once it's released
     with:
       # TODO: Fix Terraform linting issues and stop using force to pass the job.
       tflint_force: true
       tflint_config_path: $GITHUB_WORKSPACE/.tflint.hcl
-      # TODO(gavin): update shared-workflow version to lint module docs 
-      # terraform_docs_config_path: $GITHUB_WORKSPACE/integrations/terraform-modules/.terraform-docs.yml
-      # terraform_docs_find_dir: $GITHUB_WORKSPACE/integrations/terraform-modules
+      terraform_docs_config_path: $GITHUB_WORKSPACE/integrations/terraform-modules/.terraform-docs.yml
+      terraform_docs_find_dir: $GITHUB_WORKSPACE/integrations/terraform-modules
     permissions:
       actions: read
       contents: read
