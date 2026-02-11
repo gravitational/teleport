@@ -275,14 +275,19 @@ func Test_insertDoubleDashAfterKubectl(t *testing.T) {
 		expect []string
 	}{
 		{
-			name:   "flag before positional arg",
+			name:   "short flag before positional arg",
 			input:  []string{"kubectl", "-n", "default", "get", "pod"},
 			expect: []string{"kubectl", "--", "-n", "default", "get", "pod"},
 		},
 		{
+			name:   "long flag before positional arg",
+			input:  []string{"kubectl", "--namespace", "default", "get", "pod"},
+			expect: []string{"kubectl", "--", "--namespace", "default", "get", "pod"},
+		},
+		{
 			name:   "positional arg first",
 			input:  []string{"kubectl", "get", "pod", "-n", "default"},
-			expect: []string{"kubectl", "--", "get", "pod", "-n", "default"},
+			expect: []string{"kubectl", "get", "pod", "-n", "default"},
 		},
 		{
 			name:   "global flags before kubectl",
@@ -302,7 +307,17 @@ func Test_insertDoubleDashAfterKubectl(t *testing.T) {
 		{
 			name:   "kubectl with no extra args",
 			input:  []string{"kubectl"},
-			expect: []string{"kubectl", "--"},
+			expect: []string{"kubectl"},
+		},
+		{
+			name:   "kubectl as arg to another command",
+			input:  []string{"ssh", "jake@foo", "kubectl"},
+			expect: []string{"ssh", "jake@foo", "kubectl"},
+		},
+		{
+			name:   "kubectl as arg to another command with flags",
+			input:  []string{"ssh", "jake@foo", "kubectl", "-n", "default", "get", "pod"},
+			expect: []string{"ssh", "jake@foo", "kubectl", "-n", "default", "get", "pod"},
 		},
 	}
 
