@@ -1,11 +1,13 @@
 ---
 title: Using the AWS CLI tools with Teleport and AWS IAM Identity Center
-description: Provides an overview of the Teleport AWS IAM Identity Center integration.
+sidebar_label: AWS CLI Access
+description: Explains how to use the AWS IAM Identity Center integration to protect AWS CLI tools with Teleport.
 tags:
  - how-to
  - identity-governance
  - privileged-access
  - aws
+enterprise: Identity Governance
 ---
 
 This guide will show you how to configure the `aws` command-line tool to use
@@ -88,7 +90,7 @@ which tells the AWS tools to use SSO authentication when the profile is active.
 
 Again you can do this either via an `aws configure` wizard, or editing your `/.aws/config` file directly.
 
-<Admonition type="info">
+<Admonition type="tip">
 You can create as many profiles as you like, so repeat this step for as many AWS
 Account / Permission Set pairs that you need.
 </Admonition>

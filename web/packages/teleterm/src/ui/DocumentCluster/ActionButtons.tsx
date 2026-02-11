@@ -43,10 +43,14 @@ import {
   MenuLoginProps,
 } from 'shared/components/MenuLogin';
 import { MenuLoginWithActionMenu } from 'shared/components/MenuLoginWithActionMenu';
+import { AppSubKind } from 'shared/services';
+import { getAppProtocol } from 'shared/services/apps';
 
 import {
+  doesMcpAppSupportGateway,
   formatPortRange,
   getAwsAppLaunchUrl,
+  getAwsIcLaunchUrl,
   getSamlAppSsoUrl,
   getWebAppLaunchUrl,
   isMcp,
@@ -178,6 +182,7 @@ export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
     setUpAppGateway(appContext, props.app.uri, {
       telemetry: { origin: 'resource_table' },
       targetPort,
+      targetProtocol: getAppProtocol(props.app.endpointUri),
     });
   }
 
@@ -305,6 +310,30 @@ function AppButton(props: {
     );
   }
 
+  if (props.app.subKind === AppSubKind.AwsIcAccount) {
+    const icRoles = props.app.permissionSets.map(ps => ({
+      name: ps.name,
+      arn: ps.name,
+      display: ps.name,
+      accountId: props.app.name,
+    }));
+
+    return (
+      <AwsLaunchButton
+        width={buttonWidth}
+        awsRoles={icRoles}
+        getLaunchUrl={arn =>
+          getAwsIcLaunchUrl({
+            app: props.app,
+            roleName: arn,
+          })
+        }
+        onLaunchUrl={props.onLaunchUrl}
+        isAwsIdentityCenterApp
+      />
+    );
+  }
+
   if (props.app.samlApp) {
     return (
       <ButtonBorder
@@ -326,7 +355,20 @@ function AppButton(props: {
   }
 
   if (isMcp(props.app)) {
-    // TODO(greedy52) decide what to do with MCP servers.
+    // Streamable HTTP MCP servers support local proxy gateway.
+    if (doesMcpAppSupportGateway(props.app)) {
+      return (
+        <ButtonBorder
+          size="small"
+          onClick={() => props.setUpGateway()}
+          textTransform="none"
+          width={buttonWidth}
+        >
+          Connect
+        </ButtonBorder>
+      );
+    }
+    // TODO(greedy52) decide what to do with MCP servers that don't support gateway.
     // In the meantime, display a box of specific width to make the other columns line up for MCP
     // apps in the list view of unified resources.
     return <Box width={buttonWidth} />;

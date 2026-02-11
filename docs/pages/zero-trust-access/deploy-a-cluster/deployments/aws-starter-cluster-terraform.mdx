@@ -1,8 +1,9 @@
 ---
 title: Teleport Single-Instance Deployment on AWS
+sidebar_label: Terraform (Single-Instance)
 description: How to quickly configure Teleport on a single instance for testing in AWS.
-tocDepth: 3
 tags:
+ - infrastructure-as-code
  - how-to
  - platform-wide
  - aws
@@ -28,6 +29,13 @@ More details are [provided below](#reference-deployment-defaults).
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
 ## Prerequisites
+
+This guide assumes that your infrastructure is **not** hosted in AWS GovCloud or
+in an air-gapped AWS environment (EKS Anywhere). If it is, [contact the Teleport
+team](https://goteleport.com/contact-us) for assistance planning your
+deployment.
+
+This guide also requires the following:
 
 - Terraform installed on your system. Visit [Install
   Terraform](https://developer.hashicorp.com/terraform/install) for
@@ -187,12 +195,12 @@ cluster from scratch, so choose carefully. A good example might be something lik
 $ export TF_VAR_ami_name="teleport-ent-(=teleport.version=)-x86_64"
 ```
 
-Teleport (Gravitational) automatically builds and publishes OSS, Enterprise and Enterprise FIPS 140-2 AMIs when we
+Teleport (Gravitational) automatically builds and publishes OSS, Enterprise and Enterprise FIPS AMIs when we
 release a new version of Teleport. The AMI names follow the format: `teleport-<type>-<version>-<arch>`
 where `<type>` is either `oss` or `ent` (Enterprise), `<version>` is the version of Teleport, e.g. `(=teleport.version=)`,
 and `<arch>` is either `x86_64` or `arm64`.
 
-FIPS 140-2 compatible AMIs (which deploy Teleport in FIPS 140-2 mode by default) have the `-fips` suffix after `<arch>`,
+FIPS compatible AMIs (which deploy Teleport in FIPS mode by default) have the `-fips` suffix after `<arch>`,
 e.g. `teleport-ent-(=teleport.version=)-x86_64-fips`.
 
 The AWS account ID that publishes these AMIs is `146628656107`. You can list the available AMIs with
@@ -212,7 +220,7 @@ the example `awscli` commands below. The output is in JSON format by default.
   $ aws --region <Var name="us-west-2" /> ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-ent-(=teleport.version=)-*'
   ```
 
-  Enterprise FIPS 140-2 AMIs<br/>
+  Enterprise FIPS AMIs<br/>
   ```code
   $ aws --region <Var name="us-west-2" /> ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-ent-(=teleport.version=)-*-fips-*'
   ```
@@ -741,7 +749,7 @@ ways to integrate Teleport onto your servers. We recommend looking at our [Insta
 To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 
 - [Install the Teleport binary on the Server](../../../installation/installation.mdx)
-- [Run Teleport - we recommend using systemd](../../management/admin/daemon.mdx)
+- [Run Teleport - we recommend using systemd](../../../reference/cli/teleport.mdx#teleport-install-systemd)
 - [Set the correct settings in /etc/teleport.yaml](../../../reference/deployment/config.mdx)
 - [Add Nodes to the Teleport
   cluster](../../../enroll-resources/agents/agents.mdx)

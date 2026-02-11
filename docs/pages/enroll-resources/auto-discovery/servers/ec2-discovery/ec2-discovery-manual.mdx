@@ -1,5 +1,6 @@
 ---
 title: Manual EC2 Auto-Discovery Configuration
+sidebar_label: Manual
 description: How to configure Teleport EC2 auto-discovery with manually configured permissions
 tags:
  - how-to
@@ -23,6 +24,8 @@ includes manually editing IAM policies and SSM documents.
 To automatically bootstrap IAM policies instead, read [Guided EC2 Auto-Discovery
 Configuration](ec2-discovery-guided.mdx).
 
+If you manage multiple AWS accounts in an AWS Organization, see [Organization-level EC2 Auto-Discovery Configuration](ec2-discovery-organization.mdx).
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -34,11 +37,17 @@ default Teleport install script. (For other Linux distributions, you can
 install Teleport manually.)
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/7. Create an EC2 invite token
+All EC2 instances that are to be added to the Teleport cluster by the Discovery
+Service must include the `AmazonSSMManagedInstanceCore` IAM policy in order to
+receive commands from the Discovery Service. For a list of permissions included
+in the policy, see the [AWS
+documentation](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonSSMManagedInstanceCore.html).
+
+## Step 1/5. Create an EC2 invite token
 
 (!docs/pages/includes/auto-discovery/ec2-invite-token.mdx!)
 
-## Step 2/7. Configure IAM policies
+## Step 2/5. Configure IAM policies
 
 Create the following policy and attach it to the EC2 instance that will run
 the Discovery Service:
@@ -50,6 +59,7 @@ the Discovery Service:
         {
             "Effect": "Allow",
             "Action": [
+                "account:ListRegions",
                 "ec2:DescribeInstances",
                 "ssm:DescribeInstanceInformation",
                 "ssm:GetCommandInvocation",
@@ -64,78 +74,7 @@ the Discovery Service:
 }
 ```
 
-<Details>
-
-All EC2 instances that are to be added to the Teleport cluster by the
-Discovery Service must include the `AmazonSSMManagedInstanceCore` IAM policy
-in order to receive commands from the Discovery Service.
-
-This policy includes the following permissions:
-
-- `ssm:DescribeAssociation`
-- `ssm:GetDeployablePatchSnapshotForInstance`
-- `ssm:GetDocument`
-- `ssm:DescribeDocument`
-- `ssm:GetManifest`
-- `ssm:GetParameter`
-- `ssm:GetParameters`
-- `ssm:ListAssociations`
-- `ssm:ListInstanceAssociations`
-- `ssm:PutInventory`
-- `ssm:PutComplianceItems`
-- `ssm:PutConfigurePackageResult`
-- `ssm:UpdateAssociationStatus`
-- `ssm:UpdateInstanceAssociationStatus`
-- `ssm:UpdateInstanceInformation`
-- `ssmmessages:CreateControlChannel`
-- `ssmmessages:CreateDataChannel`
-- `ssmmessages:OpenControlChannel`
-- `ssmmessages:OpenDataChannel`
-- `ec2messages:AcknowledgeMessage`
-- `ec2messages:DeleteMessage`
-- `ec2messages:FailMessage`
-- `ec2messages:GetEndpoint`
-- `ec2messages:GetMessages`
-- `ec2messages:SendReply`
-
-</Details>
-
-## Step 3/7. Create SSM Documents
-
-In each region you plan to discover instances in, create the following SSM document
-in the AWS Systems Manager and name it `TeleportDiscoveryInstaller`:
-
-```yaml
-schemaVersion: '2.2'
-description: aws:runShellScript
-parameters:
-  token:
-    type: String
-    description: "(Required) The Teleport invite token to use when joining the cluster."
-  scriptName:
-    type: String
-    description: "(Required) The Teleport installer script to use when joining the cluster."
-  env:
-    type: String
-    description: "Environment variables exported to the script. Format 'ENV=var FOO=bar'"
-    default: "X=$X"
-mainSteps:
-- action: aws:downloadContent
-  name: downloadContent
-  inputs:
-    sourceType: "HTTP"
-    destinationPath: "/tmp/installTeleport.sh"
-    sourceInfo:
-      url: "https://<Var name="teleport.example.com:443" />/webapi/scripts/installer/{{ scriptName }}"
-- action: aws:runShellScript
-  name: runShellScript
-  inputs:
-    timeoutSeconds: '300'
-    runCommand:
-      - export {{ env }}; /bin/sh /tmp/installTeleport.sh "{{ token }}"
-```
-
-## Step 4/7. Install Teleport on the Discovery Node
+## Step 3/5. Install Teleport on the Discovery Node
 
 <Admonition type="tip">
 
@@ -148,15 +87,11 @@ Install Teleport on the EC2 instance that will run the Discovery Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 5/7. Configure Teleport to discover EC2 instances
+## Step 4/5. Configure Teleport to discover EC2 instances
 
 (!docs/pages/includes/auto-discovery/ec2-config.mdx!)
 
-## Step 6/7. [Optional] Customize the default installer script
-
-(!docs/pages/includes/server-access/custom-installer.mdx matcher="aws"!)
-
-## Step 7/7. Start Teleport
+## Step 5/5. Start Teleport
 
 (!docs/pages/includes/aws-credentials.mdx service="the Discovery Service"!)
 
@@ -189,6 +124,7 @@ following IAM policy and attach it to the new role:
         {
             "Effect": "Allow",
             "Action": [
+                "account:ListRegions",
                 "ec2:DescribeInstances",
                 "ssm:DescribeInstanceInformation",
                 "ssm:GetCommandInvocation",
@@ -287,6 +223,14 @@ $ sudo systemd restart teleport
 You can check the status of the Discovery Service with `systemctl status teleport`
 and view its logs with `journalctl -fu teleport`.
 
+## Auto-discovery labels
+
+(!docs/pages/includes/auto-discovery/auto-discovery-labels.mdx!)
+
+## Advanced configuration
+
+(!docs/pages/includes/auto-discovery/aws-ec2-advanced-config.mdx!)
+
 ## Troubleshooting
 
 (!docs/pages/includes/auto-discovery/ec2-troubleshooting.mdx!)
@@ -294,3 +238,5 @@ and view its logs with `journalctl -fu teleport`.
 ## Next steps
 
 (!docs/pages/includes/auto-discovery/ec2-next-steps.mdx!)
+
+- Follow the [Terraform EC2 Auto-Discovery Configuration guide](./ec2-discovery-terraform.mdx) to manage these steps as Infrastructure as Code (IaC)

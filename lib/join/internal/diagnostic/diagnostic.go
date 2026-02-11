@@ -47,6 +47,7 @@ type Info struct {
 	BotGeneration       uint64
 	BotInstanceID       string
 	Error               error
+	RawJoinAttrs        any
 }
 
 // New returns an empty diagnostic ready to use.
@@ -72,8 +73,7 @@ func (d *Diagnostic) Set(f func(*Info)) {
 // SlogAttrs returns the current collected info as a slice of [slog.Attr]
 // suitable for logging. Unset fields will be included as an empty [slog.Attr]
 // which are conventionally ignored by log handlers.
-func (d *Diagnostic) SlogAttrs() []slog.Attr {
-	info := d.Get()
+func (info *Info) SlogAttrs() []slog.Attr {
 	return []slog.Attr{
 		stringAttr("error", info.Error.Error()),
 		stringAttr("remote_addr", info.RemoteAddr),

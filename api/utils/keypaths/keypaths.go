@@ -29,7 +29,7 @@ const (
 	// sessionKeyDir is a sub-directory where session keys are stored
 	sessionKeyDir = "keys"
 	// sshDirSuffix is the suffix of a sub-directory where SSH certificates are stored.
-	sshDirSuffix = "-ssh"
+	SSHDirSuffix = "-ssh"
 	// fileNameKnownHosts is a file where known hosts are stored.
 	fileNameKnownHosts = "known_hosts"
 	// FileExtTLSCertLegacy is the legacy suffix/extension of a file where a TLS cert is stored.
@@ -257,7 +257,7 @@ func TLSCAsPathCluster(baseDir, proxy, cluster string) string {
 //
 // <baseDir>/keys/<proxy>/<username>-ssh
 func SSHDir(baseDir, proxy, username string) string {
-	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+sshDirSuffix)
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+SSHDirSuffix)
 }
 
 // PPKFilePath returns the path to the user's PuTTY PPK-formatted keypair

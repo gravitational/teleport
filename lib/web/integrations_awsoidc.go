@@ -25,6 +25,7 @@ import (
 	"maps"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
@@ -678,10 +679,9 @@ func (h *Handler) awsOIDCConfigureEC2SSMIAM(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err, "invalid awsAccountID")
 	}
 
+	// SSM Document is not required, since the user might want to use a pre-defined one. Eg, AWS-RunShellScript.
 	ssmDocumentName := queryParams.Get("ssmDocument")
-	if ssmDocumentName == "" {
-		return nil, trace.BadParameter("missing ssmDocument query param")
-	}
+
 	// PublicProxyAddr() might return tenant.teleport.sh
 	// However, the expected format for --proxy-public-url includes the protocol `https://`
 	proxyPublicURL := h.PublicProxyAddr()
@@ -1337,6 +1337,38 @@ func (h *Handler) accessGraphCloudSyncOIDC(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+func (h *Handler) awsBedrockSummarizerOIDC(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (any, error) {
+	queryParams := r.URL.Query()
+	role := queryParams.Get("role")
+	if err := aws.IsValidIAMRoleName(role); err != nil {
+		return nil, trace.BadParameter("invalid role %q", role)
+	}
+	awsAccountID := queryParams.Get("awsAccountID")
+	// The script must execute the following command:
+	// "teleport integration configure session-summaries bedrock"
+	argsList := []string{
+		"integration", "configure", "session-summaries", "bedrock",
+		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
+		fmt.Sprintf("--resource=%s", shsprintf.EscapeDefaultContext(queryParams.Get("resource"))),
+	}
+	if awsAccountID != "" {
+		argsList = append(argsList, fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)))
+	}
+
+	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
+		EntrypointArgs: strings.Join(argsList, " "),
+		SuccessMessage: "Success! You can now go back to the Teleport Web UI to complete the Access Graph AWS Sync enrollment.",
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	httplib.SetScriptHeaders(w.Header())
+	_, err = w.Write([]byte(script))
+
+	return nil, trace.Wrap(err)
+}
+
 func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (any, error) {
 	queryParams := r.URL.Query()
 	role := queryParams.Get("role")
@@ -1378,6 +1410,19 @@ func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request,
 				return nil, trace.BadParameter("invalid kmsKeysARNs %q", keyARN)
 			}
 			argsList = append(argsList, fmt.Sprintf("--kms-key=%s", shsprintf.EscapeDefaultContext(keyARN)))
+		}
+	}
+
+	if eksAuditLogs := queryParams.Get("eksAuditLogs"); eksAuditLogs != "" {
+		enabled, err := strconv.ParseBool(eksAuditLogs)
+		if err != nil {
+			// The error returned by ParseBool contains no more information than this
+			// error. As we canot wrap both it and trace.BadParameter, we do the
+			// latter as a preferred error type.
+			return nil, trace.BadParameter("invalid boolean value for eksAuditLogs %q", eksAuditLogs)
+		}
+		if enabled {
+			argsList = append(argsList, "--eks-audit-logs")
 		}
 	}
 

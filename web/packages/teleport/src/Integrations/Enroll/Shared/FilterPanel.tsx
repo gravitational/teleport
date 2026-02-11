@@ -21,19 +21,18 @@ import { type Dispatch, type SetStateAction } from 'react';
 import { Box, Flex } from 'design';
 import InputSearch from 'design/DataTable/InputSearch';
 import { MultiselectMenu } from 'shared/components/Controls/MultiselectMenu';
-import { SortMenu } from 'shared/components/Controls/SortMenu';
+import {
+  SortItem,
+  SortMenu,
+  SortOrder,
+} from 'shared/components/Controls/SortMenu';
 
 import {
   integrationTagOptions,
   isIntegrationTag,
   type IntegrationTag,
 } from './common';
-import {
-  IntegrationPickerFilterKey,
-  IntegrationPickerSortDirection,
-  IntegrationPickerSortKey,
-  IntegrationPickerState,
-} from './state';
+import { IntegrationPickerFilterKey, IntegrationPickerState } from './state';
 
 export function FilterPanel({
   state,
@@ -44,16 +43,22 @@ export function FilterPanel({
   setState: Dispatch<SetStateAction<IntegrationPickerState>>;
   tagOptions: { value: string; label: string }[];
 }) {
-  const sortFieldOptions = [{ label: 'Name', value: 'name' }];
+  const sortFieldOptions: SortItem[] = [
+    {
+      label: 'Name',
+      key: 'name',
+      ascendingLabel: 'Name, A - Z',
+      descendingLabel: 'Name, Z - A',
+      ascendingOptionLabel: 'Alphabetical, A - Z',
+      descendingOptionLabel: 'Alphabetical, Z - A',
+    },
+  ];
 
-  const handleSortChange = (newSort: {
-    fieldName: IntegrationPickerSortKey;
-    dir: IntegrationPickerSortDirection;
-  }) => {
+  const handleSortChange = (key: string, order: SortOrder) => {
     setState(prev => ({
       ...prev,
-      sortKey: newSort.fieldName,
-      sortDirection: newSort.dir,
+      sortKey: key,
+      sortDirection: order,
     }));
   };
 
@@ -100,11 +105,9 @@ export function FilterPanel({
         </Flex>
         <Flex justifyContent="flex-end">
           <SortMenu
-            current={{
-              fieldName: state.sortKey || 'name',
-              dir: state.sortDirection,
-            }}
-            fields={sortFieldOptions}
+            selectedKey={state.sortKey || 'name'}
+            selectedOrder={state.sortDirection}
+            items={sortFieldOptions}
             onChange={handleSortChange}
           />
         </Flex>

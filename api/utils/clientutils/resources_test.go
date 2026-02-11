@@ -34,9 +34,9 @@ import (
 const totalItems = defaults.DefaultChunkSize*2 + 5
 
 type mockPaginator struct {
-	accessDenied  bool
-	limitExceeded bool
-	pageCalls     int
+	accessDenied         bool
+	maxSupportedPageSize int
+	pageCalls            int
 }
 
 func generatePage(start, count int) []int {
@@ -78,7 +78,7 @@ func (m *mockPaginator) List(_ context.Context, pageSize int, token string) ([]i
 		return nil, "", trace.AccessDenied("access denied")
 	}
 
-	if m.limitExceeded {
+	if pageSize > m.maxSupportedPageSize {
 		return nil, "", trace.LimitExceeded("page size %d exceeded the limit", pageSize)
 	}
 
@@ -95,8 +95,8 @@ func (m *mockPaginator) List(_ context.Context, pageSize int, token string) ([]i
 func TestIterateResources(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		var count int
-		paginator := mockPaginator{}
-		err := IterateResources(context.Background(), paginator.List, func(int) error {
+		paginator := mockPaginator{maxSupportedPageSize: defaults.DefaultChunkSize}
+		err := IterateResources(t.Context(), paginator.List, func(int) error {
 			count++
 			return nil
 		})
@@ -104,15 +104,15 @@ func TestIterateResources(t *testing.T) {
 		assert.Equal(t, totalItems, count)
 	})
 	t.Run("paginator error", func(t *testing.T) {
-		paginator := mockPaginator{accessDenied: true}
-		err := IterateResources(context.Background(), paginator.List, func(int) error {
+		paginator := mockPaginator{accessDenied: true, maxSupportedPageSize: defaults.DefaultChunkSize}
+		err := IterateResources(t.Context(), paginator.List, func(int) error {
 			return nil
 		})
 		assert.Error(t, err)
 	})
 	t.Run("callback error", func(t *testing.T) {
-		paginator := mockPaginator{}
-		err := IterateResources(context.Background(), paginator.List, func(int) error {
+		paginator := mockPaginator{maxSupportedPageSize: defaults.DefaultChunkSize}
+		err := IterateResources(t.Context(), paginator.List, func(int) error {
 			return trace.BadParameter("error")
 		})
 		assert.Error(t, err)
@@ -121,9 +121,9 @@ func TestIterateResources(t *testing.T) {
 
 func TestResources(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		paginator := mockPaginator{}
+		paginator := mockPaginator{maxSupportedPageSize: defaults.DefaultChunkSize}
 		var count int
-		for _, err := range Resources(context.Background(), paginator.List) {
+		for _, err := range Resources(t.Context(), paginator.List) {
 			count++
 			require.NoError(t, err)
 		}
@@ -132,9 +132,9 @@ func TestResources(t *testing.T) {
 		assert.Equal(t, 3, paginator.pageCalls)
 	})
 	t.Run("paginator error", func(t *testing.T) {
-		paginator := mockPaginator{accessDenied: true}
+		paginator := mockPaginator{accessDenied: true, maxSupportedPageSize: defaults.DefaultChunkSize}
 		var count int
-		for _, err := range Resources(context.Background(), paginator.List) {
+		for _, err := range Resources(t.Context(), paginator.List) {
 			count++
 			require.Error(t, err)
 		}
@@ -143,9 +143,9 @@ func TestResources(t *testing.T) {
 	})
 
 	t.Run("limit exceeded", func(t *testing.T) {
-		paginator := mockPaginator{limitExceeded: true}
+		paginator := mockPaginator{maxSupportedPageSize: 0}
 		var count int
-		for _, err := range Resources(context.Background(), paginator.List) {
+		for _, err := range Resources(t.Context(), paginator.List) {
 			count++
 			require.Error(t, err)
 		}
@@ -155,9 +155,9 @@ func TestResources(t *testing.T) {
 }
 
 func TestResourcesWithCustomPageSize(t *testing.T) {
-	paginator := mockPaginator{}
+	paginator := mockPaginator{maxSupportedPageSize: defaults.DefaultChunkSize}
 	var count int
-	for _, err := range ResourcesWithPageSize(context.Background(), paginator.List, 10) {
+	for _, err := range ResourcesWithPageSize(t.Context(), paginator.List, 10) {
 		count++
 		require.NoError(t, err)
 	}
@@ -172,70 +172,87 @@ func TestRangeResources(t *testing.T) {
 	}
 
 	tests := []struct {
-		name              string
-		start             string
-		end               string
-		expectedItemCount int
-		expectedListCalls int
-		accessDenied      bool
-		limitExceeded     bool
+		name                 string
+		start                string
+		end                  string
+		expectedItemCount    int
+		expectedListCalls    int
+		accessDenied         bool
+		maxSupportedPageSize int
+		errFn                func(require.TestingT, error, ...any)
 	}{
 		{
-			name:              "RangeAllItems",
-			expectedItemCount: totalItems,
-			expectedListCalls: 3,
+			name:                 "RangeAllItems",
+			expectedItemCount:    totalItems,
+			expectedListCalls:    3,
+			maxSupportedPageSize: defaults.DefaultChunkSize,
+			errFn:                require.NoError,
 		},
 		{
-			name:              "RangeAccessDenied",
-			expectedItemCount: 0,
-			expectedListCalls: 1,
-			accessDenied:      true,
+			name:                 "RangeAccessDenied",
+			expectedItemCount:    0,
+			expectedListCalls:    1,
+			accessDenied:         true,
+			maxSupportedPageSize: defaults.DefaultChunkSize,
+			errFn:                require.Error,
 		},
 		{
-			name:              "RangeWithEnd",
-			expectedItemCount: 20,
-			expectedListCalls: 1,
-			end:               keyFunc(20),
+			name:                 "RangeWithEnd",
+			expectedItemCount:    20,
+			expectedListCalls:    1,
+			end:                  keyFunc(20),
+			maxSupportedPageSize: defaults.DefaultChunkSize,
+			errFn:                require.NoError,
 		},
 		{
-			name:              "RangeWithStart",
-			expectedItemCount: totalItems - 1337,
-			expectedListCalls: 1,
-			start:             keyFunc(1337),
+			name:                 "RangeWithStart",
+			expectedItemCount:    totalItems - 1337,
+			expectedListCalls:    1,
+			start:                keyFunc(1337),
+			maxSupportedPageSize: defaults.DefaultChunkSize,
+			errFn:                require.NoError,
 		},
 		{
 			name:              "RangeSpan",
 			expectedItemCount: 1500 - 500,
 			// The end marker is not inclusive and the number of items falls on the pagesize, in this case 2 calls will be made.
-			expectedListCalls: 2,
-			start:             keyFunc(500),
-			end:               keyFunc(1500),
+			expectedListCalls:    2,
+			start:                keyFunc(500),
+			end:                  keyFunc(1500),
+			maxSupportedPageSize: defaults.DefaultChunkSize,
+			errFn:                require.NoError,
 		},
 		{
-			name:              "RangeLimitExceeded",
-			expectedItemCount: 0,
-			expectedListCalls: 10,
-			start:             keyFunc(500),
-			end:               keyFunc(1500),
-			limitExceeded:     true,
+			name:                 "RangeLimitExceeded",
+			expectedItemCount:    0,
+			expectedListCalls:    10,
+			start:                keyFunc(500),
+			end:                  keyFunc(1500),
+			maxSupportedPageSize: -1,
+			errFn:                require.Error,
+		},
+		{
+			name:                 "RangeLimitExceededWithRecovery",
+			expectedItemCount:    1000,
+			expectedListCalls:    4,
+			start:                keyFunc(500),
+			end:                  keyFunc(1500),
+			maxSupportedPageSize: defaults.DefaultChunkSize / 2,
+			errFn:                require.NoError,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			paginator := mockPaginator{accessDenied: tc.accessDenied, limitExceeded: tc.limitExceeded}
+			paginator := mockPaginator{accessDenied: tc.accessDenied, maxSupportedPageSize: tc.maxSupportedPageSize}
 			var count int
 
-			for _, err := range RangeResources(context.Background(), tc.start, tc.end, paginator.List, keyFunc) {
+			for _, err := range RangeResources(t.Context(), tc.start, tc.end, paginator.List, keyFunc) {
 				if err == nil {
 					count++
 				}
 
-				if tc.accessDenied || tc.limitExceeded {
-					require.Error(t, err)
-				} else {
-					require.NoError(t, err)
-				}
+				tc.errFn(t, err)
 			}
 
 			assert.Equal(t, tc.expectedItemCount, count)

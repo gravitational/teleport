@@ -29,10 +29,12 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/constants"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
@@ -77,11 +79,21 @@ func TestIdentityConversion(t *testing.T) {
 		BotName:       "bot",
 		BotInstanceID: "instance",
 		JoinToken:     "join-token",
-		AllowedResourceIDs: []types.ResourceID{{
-			ClusterName:     "cluster",
-			Kind:            "kube:ns:pods", // must use a kube resource kind with ns for parsing of sub-resource to work correctly.
-			Name:            "name",
-			SubResourceName: "sub/sub",
+		AllowedResourceAccessIDs: []types.ResourceAccessID{{
+			Id: types.ResourceID{
+				ClusterName:     "cluster",
+				Kind:            types.KindKubePod, // this is not valid in practice; Constraints and KindKube cannot be mixed
+				Name:            "name",
+				SubResourceName: "sub/sub",
+			},
+			Constraints: &types.ResourceConstraints{
+				Version: types.V1,
+				Details: &types.ResourceConstraints_AwsConsole{
+					AwsConsole: &types.AWSConsoleResourceConstraints{
+						RoleArns: []string{"arn:aws:iam::123456789012:role/TestRole"},
+					},
+				},
+			},
 		}},
 		ConnectionDiagnosticID: "diag",
 		PrivateKeyPolicy:       keys.PrivateKeyPolicy("policy"),
@@ -90,6 +102,13 @@ func TestIdentityConversion(t *testing.T) {
 		DeviceCredentialID:     "cred",
 		GitHubUserID:           "github",
 		GitHubUsername:         "ghuser",
+		AgentScope:             "/foo",
+		ImmutableLabelHash: joining.HashImmutableLabels(&joiningv1.ImmutableLabels{
+			Ssh: map[string]string{
+				"one": "1",
+				"two": "2",
+			},
+		}),
 	}
 
 	ignores := []string{
@@ -108,6 +127,16 @@ func TestIdentityConversion(t *testing.T) {
 		"PinnedAssignments.XXX_NoUnkeyedLiteral",
 		"PinnedAssignments.XXX_unrecognized",
 		"PinnedAssignments.XXX_sizecache",
+		"ResourceAccessID.XXX_NoUnkeyedLiteral",
+		"ResourceAccessID.XXX_unrecognized",
+		"ResourceAccessID.XXX_sizecache",
+		"ResourceConstraints.XXX_NoUnkeyedLiteral",
+		"ResourceConstraints.XXX_unrecognized",
+		"ResourceConstraints.XXX_sizecache",
+		"AWSConsoleResourceConstraints.XXX_NoUnkeyedLiteral",
+		"AWSConsoleResourceConstraints.XXX_unrecognized",
+		"AWSConsoleResourceConstraints.XXX_sizecache",
+		"Identity.AllowedResourceIDs", // at decode, allowedResourceIDs are converted to ResourceAccessIDs and stored in Identity.AllowedResourceAccessIDs
 	}
 
 	require.True(t, testutils.ExhaustiveNonEmpty(ident, ignores...), "empty=%+v", testutils.FindAllEmpty(ident, ignores...))

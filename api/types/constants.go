@@ -286,6 +286,9 @@ const (
 	// KindToken is a provisioning token resource
 	KindToken = "token"
 
+	// KindScopedToken is a provisioning token resource
+	KindScopedToken = "scoped_token"
+
 	// KindCertAuthority is a certificate authority resource
 	KindCertAuthority = "cert_authority"
 
@@ -403,8 +406,14 @@ const (
 	// KindStaticTokens is a type of configuration resource that contains static tokens.
 	KindStaticTokens = "static_tokens"
 
+	// KindStaticScopedTokens is a type of configuration resource that contains static scoped tokens.
+	KindStaticScopedTokens = "static_scoped_tokens"
+
 	// MetaNameStaticTokens is the name of a configuration resource for static tokens.
 	MetaNameStaticTokens = "static-tokens"
+
+	// MetaNameStaticScopedTokens is the name of a configuration resource for static scoped tokens.
+	MetaNameStaticScopedTokens = "static-scoped-tokens"
 
 	// MetaNameSessionTracker is the prefix of resources used to track live sessions.
 	MetaNameSessionTracker = "session-tracker"
@@ -681,6 +690,18 @@ const (
 	// KindRelayServer is the resource kind for a Relay service heartbeat.
 	KindRelayServer = "relay_server"
 
+	// KindClientIPRestriction is the resource kind for Client IP Restriction allowlist.
+	KindClientIPRestriction = "client_ip_restriction"
+
+	// KindAppAuthConfig is the resource kind for app auth configs.
+	KindAppAuthConfig = "app_auth_config"
+
+	// KindValidatedMFAChallenge is the resource kind for validated MFA challenges.
+	KindValidatedMFAChallenge = "validated_mfa_challenge"
+
+	// KindWorkloadCluster is the resource kind for workload clusters.
+	KindWorkloadCluster = "workload_cluster"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 
@@ -770,6 +791,8 @@ const (
 	// ADLabel is a resource metadata label name used to identify if resource is part of Active Directory
 	ADLabel = TeleportNamespace + "/ad"
 
+	// CreatedByIaCLabel is a resource metadata label name used to identify if resource was created by IaC tooling.
+	CreatedByIaCLabel = TeleportNamespace + "/iac-tool"
 	// OriginDefaults is an origin value indicating that the resource was
 	// constructed as a default value.
 	OriginDefaults = common.OriginDefaults

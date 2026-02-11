@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"os"
 	"slices"
 	"sync"
 
@@ -31,7 +30,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 )
@@ -43,8 +41,7 @@ type urlChecker struct {
 	// awsClients is an SDK client provider.
 	awsClients awsClientProvider
 
-	logger      *slog.Logger
-	warnOnError bool
+	logger *slog.Logger
 
 	warnAWSOnce sync.Once
 
@@ -59,28 +56,7 @@ func newURLChecker(cfg DiscoveryResourceCheckerConfig) *urlChecker {
 		awsConfigProvider: cfg.AWSConfigProvider,
 		awsClients:        defaultAWSClients{},
 		logger:            cfg.Logger,
-		warnOnError:       getWarnOnError(),
 	}
-}
-
-// getWarnOnError returns true if urlChecker should only log a warning instead
-// of returning errors when check fails.
-//
-// DELETE IN 16.0.0 The environement variable is a temporary toggle to disable
-// returning errors by urlChecker, in case Database Service doesn't have proper
-// permissions and basic endpoint checks fail for unknown reasons. Remove after
-// one or two releases when implementation is stable.
-func getWarnOnError() bool {
-	value := os.Getenv("TELEPORT_DATABASE_URL_CHECK_WARN_ON_ERROR")
-	if value == "" {
-		return false
-	}
-
-	boolValue, err := utils.ParseBool(value)
-	if err != nil {
-		slog.WarnContext(context.Background(), "Invalid bool value for TELEPORT_DATABASE_URL_CHECK_WARN_ON_ERROR", "value", value)
-	}
-	return boolValue
 }
 
 type checkDatabaseFunc func(context.Context, types.Database) error
@@ -112,12 +88,7 @@ func (c *urlChecker) Check(ctx context.Context, database types.Database) error {
 	}
 
 	if check := checkersByDatabaseType[database.GetType()]; check != nil {
-		err := check(ctx, database)
-		if err != nil && c.warnOnError {
-			c.logger.WarnContext(ctx, "URL check failed for database", "database", database.GetName(), "error", err)
-			return nil
-		}
-		return trace.Wrap(err)
+		return trace.Wrap(check(ctx, database))
 	}
 
 	c.logger.DebugContext(ctx, "URL checker does not support database type", "database_type", database.GetType())

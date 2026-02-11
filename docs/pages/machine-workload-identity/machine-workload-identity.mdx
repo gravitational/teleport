@@ -1,6 +1,6 @@
 ---
 title: "Teleport Machine & Workload Identity"
-description: "Provides information on Zero Trust Access & Flexible Workload Identity."
+description: "Includes guides for for Machine & Workload Identity, which replaces static secrets with secure, short-lived identities for machines and workloads."
 template: "landing-page"
 tags:
  - mwi
@@ -11,7 +11,6 @@ import LandingHero, { LandingHeroProps } from '@site/src/components/Pages/Landin
 import Integrations, { IntegrationsProps } from "@site/src/components/Pages/Homepage/Integrations";
 import UseCasesList, { UseCasesListProps } from "@site/src/components/Pages/Landing/UseCasesList";
 
-import mwiImg from '@version/docs/img/machine-id/mwi-hero.png';
 import bookOpenSvg from "@site/src/components/Icon/teleport-svg/book-open.svg";
 import identificationBadgeSvg from "@site/src/components/Icon/teleport-svg/identification-badge.svg";
 import listBulletsSvg from "@site/src/components/Icon/teleport-svg/list-bullets.svg";
@@ -35,10 +34,11 @@ import appWindowSvg from "@site/src/components/Icon/teleport-svg/app-window.svg"
 import certificateSvg from "@site/src/components/Icon/teleport-svg/certificate.svg";
 import cloudSvg from "@site/src/components/Icon/teleport-svg/cloud.svg";
 import teleportSvg from "@site/src/components/Icon/teleport-svg/teleport.svg";
+import githubSvg from "@site/src/components/Icon/svg/github.svg";
 
 <LandingHero
   title="Machine & Workload Identity"
-  image={mwiImg}
+  youtubeVideoId="ZDWRt105tBg"
 >
 
 Use Teleport to replace long-lived secrets with identity-based authentication for your machines and workloads.
@@ -57,27 +57,27 @@ Teleport Machine & Workload Identity replaces static secrets across your infrast
     {
       title: "Secure CI/CD pipelines with identity-based auth",
       description: "Replace long-lived secrets in CI/CD pipelines",
-      href: "./mwi-ci-cd/",
+      href: "./use-cases/mwi-ci-cd/",
     },  
     {
       title: "Guard infrastructure as code with short-lived certs",
       description: "Manage IaC workflows in Terraform and Pulumi",
-      href: "./iac-mwi/",
+      href: "./use-cases/iac-mwi/",
     },
     {
       title: "Configure workload-to-workload authentication",
       description: "Set up service-to-service authentication with mTLS",
-      href: "./workload-mwi/",
+      href: "./use-cases/workload-mwi/",
     },  
     {
       title: "Manage AI agent identities with role-based access",
       description: "Use RBAC to manage autonomous agents and processes",
-      href: "./ai-agents-mwi/",
+      href: "./use-cases/ai-agents-mwi/",
     },
     {
       title: "Configure hybrid & multi-cloud authentication",
       description: "Set up universal identities across cloud platforms",
-      href: "./hybrid-multi-mwi/",
+      href: "./use-cases/hybrid-multi-mwi/",
     },
   ]}
 />
@@ -94,73 +94,73 @@ The following steps will help you get started with Machine and Workload Identity
   integrations={[
     {
       title: 'AWS',
-      href: './machine-id/deployment/aws/',
+      href: './deployment/aws/',
       iconColor: '#FF99001A',
       iconComponent: awsSvg,
     },
     {
       title: 'Azure',
-      href: './machine-id/deployment/azure/',
+      href: './deployment/azure/',
       iconColor: '#0078D41A',
       iconComponent: azureSvg,
     },
     {
       title: 'Azure DevOps',
-      href: './machine-id/deployment/azure-devops/',
+      href: './deployment/azure-devops/',
       iconColor: '#0078D41A',
       iconComponent: azureDevOpsSvg,
     },
     {
       title: 'Bitbucket Pipelines',
-      href: './machine-id/deployment/bitbucket/',
+      href: './deployment/bitbucket/',
       iconColor: '#0078D41A',
       iconComponent: bitbucketSvg,
     },
     {
       title: 'CircleCI',
-      href: './machine-id/deployment/circleci/',
+      href: './deployment/circleci/',
       iconColor: '#0000001A',
       iconComponent: circleCISvg,
     },
     {
       title: 'Google Cloud',
-      href: './machine-id/deployment/gcp/',
+      href: './deployment/gcp/',
       iconColor: '#06AC381A',
       iconComponent: gcpSvg,
     },
     {
+      title: 'GitHub Actions',
+      href: './deployment/github-actions/',
+      iconColor: '#0000001A',
+      iconComponent: githubSvg,
+    },
+    {
       title: 'Gitlab CI',
-      href: './machine-id/deployment/gitlab/',
+      href: './deployment/gitlab/',
       iconColor: '#FF99001A',
       iconComponent: gitlabSvg,
     },
     {
       title: 'Jenkins',
-      href: 'machine-id/deployment/jenkins/',
+      href: './deployment/jenkins/',
       iconColor: '#EA43351A',
       iconComponent: jenkinsSvg,
     },
     {
       title: 'Kubernetes',
-      href: './machine-id/deployment/kubernetes/',
+      href: './deployment/kubernetes/',
       iconColor: '#0078D41A',
       iconComponent: kubernetesSvg,
     },
     {
       title: 'Linux',
-      href: './machine-id/deployment/linux/',
-      iconColor: '#FF99001A',
-      iconComponent: linuxSvg,
-    },
-    {
-      title: 'Linux (TPM)',
-      href: './machine-id/deployment/linux-tpm/',
+      href: './deployment/linux/',
       iconColor: '#FF99001A',
       iconComponent: linuxSvg,
     }, 
     {
       title: 'View all Integrations',
-      href: './machine-id/deployment#deployment-guides',
+      href: './deployment#deployment-guides',
       iconComponent: arrowRightSvg,
     },
   ]}
@@ -169,11 +169,11 @@ The following steps will help you get started with Machine and Workload Identity
     links: [
     {
       title: "The architecture behind the bots",
-      href: "./machine-id/introduction/"
+      href: "./introduction/"
     },
     {
       title: "View all tbot guides",
-      href: "./machine-id/deployment/"
+      href: "./deployment/"
     }
   ]
   }}
@@ -190,42 +190,42 @@ The following steps will help you get started with Machine and Workload Identity
     {
       title: 'SSH servers',
       description: 'Access enrolled Linux servers with OpenSSH.',
-      href: './machine-id/access-guides/ssh/',
+      href: './access-guides/ssh/',
       iconColor: '#F1F2F4',
       iconComponent: terminalSvg,
     },
     {
       title: 'Kubernetes',
       description: 'Access enrolled Kubernetes clusters.',
-      href: './machine-id/access-guides/kubernetes/',
+      href: './access-guides/kubernetes/',
       iconColor: '#0078D41A',
       iconComponent: kubernetesSvg,
     },
     {
       title: 'Databases',
       description: 'Access databases enrolled in Teleport.',
-      href: './machine-id/access-guides/databases/',
+      href: './access-guides/databases/',
       iconColor: '#F1F2F4',
       iconComponent: databaseSvg,
     },
     {
       title: 'HTTP & TCP applications',
       description: 'Access enrolled applications.',
-      href: './machine-id/access-guides/applications/',
+      href: './access-guides/applications/',
       iconColor: '#F1F2F4',
       iconComponent: appWindowSvg,
     },
     {
       title: 'Ansible',
       description: 'Access enrolled Linux hosts via SSH.',
-      href: './machine-id/access-guides/ansible/',
+      href: './access-guides/ansible/',
       iconColor: '#0000001A',
       iconComponent: ansibleSvg,
     },
     {
       title: 'tctl',
       description: 'Use Teleport CLI tool for custom flows.',
-      href: './machine-id/access-guides/tctl/',
+      href: './access-guides/tctl/',
       iconColor: '#F1F2F4',
       iconComponent: teleportSvg,
     },
@@ -239,7 +239,7 @@ The following steps will help you get started with Machine and Workload Identity
     {
       title: 'Terraform',
       description: 'Configure Teleport using Terraform on a dedicated server.',
-      href: './machine-id/infrastructure-as-code/terraform-provider/dedicated-server/',
+      href: '../zero-trust-access/infrastructure-as-code/terraform-provider/dedicated-server/',
       iconColor: '#512FC91A',
       iconComponent: terraformSvg,
     },
@@ -256,11 +256,15 @@ The following steps will help you get started with Machine and Workload Identity
     links: [
     {
       title: "Issuing certs for NHI remote server access",
-      href: "./machine-id/getting-started/"
+      href: "./getting-started/"
     },
     {
       title: "Frequently Asked Questions",
-      href: "./machine-id/faq/"
+      href: "./faq/"
+    },
+    {
+      title: "Troubleshooting",
+      href: "./troubleshooting/"
     },
   ]
   }}

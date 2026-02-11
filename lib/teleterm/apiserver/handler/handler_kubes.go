@@ -56,6 +56,21 @@ func (s *Handler) ListKubernetesResources(ctx context.Context, req *api.ListKube
 	return response, nil
 }
 
+// ListKubernetesServers returns a paginated list of Kubernetes servers (resource kind "kube_server").
+func (s *Handler) ListKubernetesServers(ctx context.Context, req *api.ListKubernetesServersRequest) (*api.ListKubernetesServersResponse, error) {
+	resp, err := s.DaemonService.ListKubernetesServers(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response := &api.ListKubernetesServersResponse{
+		NextPageToken: resp.NextKey,
+	}
+	for _, server := range resp.Servers {
+		response.Resources = append(response.Resources, newAPIKubeServer(server))
+	}
+	return response, nil
+}
+
 func newAPIKube(kube clusters.Kube) *api.Kube {
 	staticLabels := kube.KubernetesCluster.GetStaticLabels()
 	dynamicLabels := kube.KubernetesCluster.GetDynamicLabels()
@@ -67,6 +82,11 @@ func newAPIKube(kube clusters.Kube) *api.Kube {
 		Name:   kube.KubernetesCluster.GetName(),
 		Uri:    kube.URI.String(),
 		Labels: apiLabels,
+		TargetHealth: &api.TargetHealth{
+			Status:  kube.TargetHealth.Status,
+			Error:   kube.TargetHealth.TransitionError,
+			Message: kube.TargetHealth.Message,
+		},
 	}
 }
 
@@ -80,5 +100,18 @@ func newApiKubeResource(resource *types.KubernetesResourceV1, kubeCluster string
 		Labels:    apiLabels,
 		Namespace: resource.Spec.Namespace,
 		Cluster:   kubeCluster,
+	}
+}
+
+func newAPIKubeServer(server clusters.KubeServer) *api.KubeServer {
+	return &api.KubeServer{
+		Uri:      server.URI.String(),
+		Hostname: server.GetHostname(),
+		HostId:   server.GetHostID(),
+		TargetHealth: &api.TargetHealth{
+			Status:  server.GetTargetHealth().Status,
+			Error:   server.GetTargetHealth().TransitionError,
+			Message: server.GetTargetHealth().Message,
+		},
 	}
 }

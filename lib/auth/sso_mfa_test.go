@@ -52,8 +52,11 @@ func TestSSOMFAChallenge_Creation(t *testing.T) {
 		Clock: fakeClock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
 	testServer, err := testAuthServer.NewTestTLSServer()
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testServer.Close()) })
 
 	a := testServer.Auth()
 	a.SetSAMLService(&fakeSSOService{a})
@@ -368,8 +371,11 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 		Clock: fakeClock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
 	testServer, err := testAuthServer.NewTestTLSServer()
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testServer.Close()) })
 
 	a := testServer.Auth()
 

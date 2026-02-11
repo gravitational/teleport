@@ -53,7 +53,7 @@ func (c *Cluster) SyncAuthPreference(ctx context.Context) (*webclient.WebConfigA
 		c.Logger.DebugContext(ctx, "Got ping response", "response", string(pingResponseJSON))
 	}
 
-	if err := c.clusterClient.SaveProfile(false); err != nil {
+	if err := SaveProfileAndPreserveSiteName(c.clusterClient, false); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 

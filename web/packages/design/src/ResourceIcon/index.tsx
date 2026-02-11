@@ -85,6 +85,9 @@ const Container = styled(Flex)<{ $size: IconProps['size'] }>`
  * @returns the pixel size
  */
 function sizetoInnerPx(size: IconProps['size']) {
+  if (typeof size === 'number') {
+    return `${Math.floor(size * 0.8)}}px`;
+  }
   if (size === 'small') return '14px';
   if (size === 'medium') return '16px';
   if (size === 'large') return '20px';
@@ -93,6 +96,9 @@ function sizetoInnerPx(size: IconProps['size']) {
 }
 
 function sizetoOuterPx(size: IconProps['size']) {
+  if (typeof size === 'number') {
+    return `${size}px`;
+  }
   if (size === 'small') return '16px';
   if (size === 'medium') return '20px';
   if (size === 'large') return '24px';

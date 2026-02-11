@@ -1,6 +1,7 @@
 ---
-title: Using JWT authentication with Elasticsearch
-description: How to use JWT authentication with Elasticsearch
+title: Using JWT Authentication with Elasticsearch
+sidebar_label: Elasticsearch
+description: How to use JWT Authentication with Elasticsearch
 tags:
  - how-to
  - zero-trust
@@ -17,7 +18,7 @@ with Teleport.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
-- Running [Application Service](../guides/connecting-apps.mdx).
+- Running [Application Service](../protect-apps/connecting-apps.mdx).
 - Elasticsearch cluster version >= `8.2.0`.
 
 ## Step 1/3. Enable a JWT realm in Elasticsearch
@@ -26,7 +27,7 @@ Update your Elasticsearch configuration file, `elasticsearch.yaml`, to enable a
 JWT realm:
 
 ```yaml
-xpack.security.authc.realms.jwt.jwt1:
+xpack.security.authc.realms.jwt.teleport:
   order: 1
   client_authentication.type: none
   pkc_jwkset_path: https://proxy.example.com/.well-known/jwks.json
@@ -35,6 +36,18 @@ xpack.security.authc.realms.jwt.jwt1:
   allowed_issuer: example-cluster
   allowed_audiences: ["https://elasticsearch.example.com:9200"]
 ```
+
+<Admonition type="tip" title="Elastic Cloud">
+For **hosted deployments** in Elastic Cloud, you can configure the same settings
+by editing your deployment.
+
+Go to "Manage user settings and extensions" for "Elasticsearch", then add the
+configuration snippet above under "User Settings". You may have to use an order
+number bigger than 1.
+
+Please note that Elastic Cloud **Serverless** projects do not support connecting
+external realms, and therefore cannot be configured with JWT authentication.
+</Admonition>
 
 Let's take a closer look at the parameters and their values:
 
@@ -46,7 +59,7 @@ Let's take a closer look at the parameters and their values:
   it instead of using a URL.
 - Set `claims.principal` and `claims.groups` to `sub` and `roles` respectively.
   These are the claims Teleport uses to pass user and role information in JWT
-  tokens. Keep in mind that **users and roles must exist** in Elasticsearch.
+  tokens.
 - Set `allowed_issuer` to the name of your Teleport cluster.
 - Set `allowed_audiences` to the URL which Teleport Application Service will
   use to connect to Elasticsearch.
@@ -54,14 +67,33 @@ Let's take a closer look at the parameters and their values:
 <Admonition title="Elasticsearch role mapping" type="note">
   Note that when using JWT authentication, you cannot map user roles using the
   standard Elasticsearch `role_mapping.yml` file. Instead, you need to set the
-  role mapping using the API. See [JWT realm authorization](https://www.elastic.co/guide/en/elasticsearch/reference/current/jwt-realm.html#jwt-authorization)
+  role mapping using the API.
+
+  For example, you can create the following mapping to map Teleport's `access` role
+  to `superuser` role in Elasticsearch:
+  ```
+  PUT /_security/role_mapping/teleport_access
+  {
+    "roles": [ "superuser" ],
+    "rules": {
+      "all": [
+        { "field": { "realm.name": "teleport" } },
+        { "field": { "groups": "access" } }
+      ]
+    },
+    "enabled": true
+  }
+  ```
+  
+  See [JWT realm
+  authorization](https://www.elastic.co/guide/en/elasticsearch/reference/current/jwt-realm.html#jwt-authorization)
   for details.
 </Admonition>
 
 ## Step 2/3. Register an Elasticsearch application in Teleport
 
-In your Teleport App Service configuration file, `teleport.yaml`, register an
-entry for Elasticsearch:
+In your Teleport Application Service configuration file, `teleport.yaml`,
+register an entry for Elasticsearch:
 
 ```yaml
 app_service:
@@ -73,10 +105,6 @@ app_service:
       headers:
       - "Authorization: Bearer {{internal.jwt}}"
 ```
-
-<Admonition type="tip">
-  You can also use [dynamic registration](../guides/dynamic-registration.mdx).
-</Admonition>
 
 Elasticsearch requires a JWT token to be passed inside the `Authorization`
 header. The header rewrite configuration above will replace the `{{internal.jwt}}`
@@ -108,12 +136,13 @@ $ curl \
   --cacert ~/.tsh/keys/teleport.example.com/cas/root.pem \
   --cert ~/.tsh/keys/teleport.example.com/alice-app/example-cluster/elastic-x509.pem \
   --key ~/.tsh/keys/teleport.example.com/alice \
-  https://elastic.teleport.example.com/_security/user | jq
+  https://elastic.teleport.example.com/_security/_authenticate | jq
 ```
 
 ## Next steps
 
 - Get more information about integrating with [Teleport JWT tokens](./introduction.mdx).
-- Learn more about [accessing APIs](../guides/api-access.mdx) with the Teleport
+- See the [dynamic registration](../configuration/dynamic-registration.mdx) guide.
+- Learn more about [accessing APIs](../protect-apps/api-access.mdx) with the Teleport
   Application Service.
-- Take a look at application-related [Access Controls](../controls.mdx).
+- Take a look at application-related [Access Controls](../configuration/controls.mdx).

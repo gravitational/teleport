@@ -10,7 +10,7 @@ ARCH ?= $(shell go env GOARCH)
 
 .PHONY: test
 test: pkg/img/cosign_fixtures_test.go
-	go test ./...
+	gotestsum --junitfile unit-tests-kube-agent-updater.xml --jsonfile unit-tests-kube-agent-updater.json
 
 .PHONY: docker-build
 docker-build: ## Build docker image

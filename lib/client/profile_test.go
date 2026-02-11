@@ -122,10 +122,12 @@ func TestProfileNameFromProxyAddress(t *testing.T) {
 }
 
 func TestProfileStatusAccessInfo(t *testing.T) {
-	allowedResourceIDs := []types.ResourceID{{
-		ClusterName: "cluster",
-		Kind:        types.KindNode,
-		Name:        "uuid",
+	allowedResourceAccessIDs := []types.ResourceAccessID{{
+		Id: types.ResourceID{
+			ClusterName: "cluster",
+			Kind:        types.KindNode,
+			Name:        "uuid",
+		},
 	}}
 	traits := wrappers.Traits{
 		"trait1": {"value1", "value2"},
@@ -133,17 +135,17 @@ func TestProfileStatusAccessInfo(t *testing.T) {
 	}
 
 	wantAccessInfo := &services.AccessInfo{
-		Username:           "alice",
-		Roles:              []string{"role1", "role2"},
-		Traits:             traits,
-		AllowedResourceIDs: allowedResourceIDs,
+		Username:                 "alice",
+		Roles:                    []string{"role1", "role2"},
+		Traits:                   traits,
+		AllowedResourceAccessIDs: allowedResourceAccessIDs,
 	}
 
 	profileStatus := ProfileStatus{
-		Username:           "alice",
-		Roles:              []string{"role1", "role2"},
-		Traits:             traits,
-		AllowedResourceIDs: allowedResourceIDs,
+		Username:                 "alice",
+		Roles:                    []string{"role1", "role2"},
+		Traits:                   traits,
+		AllowedResourceAccessIDs: allowedResourceAccessIDs,
 	}
 
 	require.Equal(t, wantAccessInfo, profileStatus.AccessInfo())

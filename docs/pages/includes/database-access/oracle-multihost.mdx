@@ -1,0 +1,27 @@
+In some deployments the same logical database is reachable via multiple hostnames with different characteristics, for example:
+
+* replicated databases
+* hostnames that traverse different network paths
+
+If this applies to your setup, list all hosts in order of preference to improve connection resiliency.
+
+If a TCP dial error occurs for a host, the next host in the list is tried automatically. Non-network errors (e.g., certificate or authentication failures) are not retried and do not advance to the next host.
+
+By default, hosts are attempted in the listed order. Retries cycle through the list and wrap to the start as needed (e.g., `host1 → host2 → host3 → host1 → ...`). To randomize the sequence per connection attempt, set `shuffle_hostnames`; the same cyclic pattern then applies to that randomized order.
+
+`retry_count` controls the number of retries per host after the initial attempt on a network error. The default is `2`, so there are 3 total attempts per host (1 initial + 2 retries) before moving to the next host in sequence.
+
+This setup supports failover and basic load-balancing for new connections: enabling `shuffle_hostnames` spreads initial connection attempts across hosts (load-balancing), while retries automatically move to the next host if the current one is unreachable (failover).
+
+```yaml
+- name: oracle
+  protocol: oracle
+  uri: host1:2484,host2:2484,host3:2484  # Multiple hosts; dials in sequence and wraps (host1 → host2 → host3 → host1 ...). Dialing sequence can be randomized with `shuffle_hostnames`.
+  static_labels:
+    env: dev
+  oracle:
+    # Randomize host order per connection attempt to spread load. Optional.
+    shuffle_hostnames: true
+    # Retries per host on network errors only; non-network errors stop (default: 2). Optional.
+    retry_count: 5            
+```

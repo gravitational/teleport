@@ -71,6 +71,8 @@ message UploadPartRequest {
   int64 part_number = 2;
   // The encrypted part of session recording data being uploaded.
   bytes part = 3;
+  // Whether this is the last upload part in the upload.
+  bool is_last = 4;
 }
 
 // The resulting metadata about an uploaded part.

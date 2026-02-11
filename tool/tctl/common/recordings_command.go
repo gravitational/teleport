@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -34,7 +35,10 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/tool/common"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -48,6 +52,8 @@ type RecordingsCommand struct {
 	format string
 	// recordingsList implements the "tctl recordings ls" subcommand.
 	recordingsList *kingpin.CmdClause
+	// recordingsDownload implements the "tctl recordings download" subcommand.
+	recordingsDownload *kingpin.CmdClause
 	// recordingsEncryption implements the "tctl recordings encryption" subcommand.
 	recordingsEncryption recordingsEncryptionCommand
 	// fromUTC is the start time to use for the range of recordings listed by the recorded session listing command
@@ -59,12 +65,17 @@ type RecordingsCommand struct {
 	// recordingsSince is a duration which sets the time into the past in which to list session recordings
 	recordingsSince string
 
+	// recordingsDownloadSessionID is the session ID to download recordings for
+	recordingsDownloadSessionID string
+	// recordingsDownloadOutputDir is the output directory to download session recordings to
+	recordingsDownloadOutputDir string
+
 	// stdout allows to switch standard output source for resource command. Used in tests.
 	stdout io.Writer
 }
 
 // Initialize allows RecordingsCommand to plug itself into the CLI parser
-func (c *RecordingsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
+func (c *RecordingsCommand) Initialize(app *kingpin.Application, t *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	if c.stdout == nil {
 		c.stdout = os.Stdout
 	}
@@ -79,6 +90,15 @@ func (c *RecordingsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Glob
 	c.recordingsList.Flag("last", "Duration into the past from which session recordings should be listed. Format 5h30m40s").StringVar(&c.recordingsSince)
 	c.recordingsEncryption.Initialize(recordings, c.stdout)
 
+	download := recordings.Command("download", "Download session recordings.")
+	download.Arg("session-id", "ID of the session to download recordings for.").Required().StringVar(&c.recordingsDownloadSessionID)
+	pwd, err := os.Getwd()
+	if err != nil {
+		pwd = "."
+	}
+	download.Flag("output-dir", "Directory to download session recordings to.").Short('o').Default(pwd).StringVar(&c.recordingsDownloadOutputDir)
+	c.recordingsDownload = download
+
 	if c.recordingsEncryption.stdout == nil {
 		c.recordingsEncryption.stdout = c.stdout
 	}
@@ -90,6 +110,8 @@ func (c *RecordingsCommand) TryRun(ctx context.Context, cmd string, clientFunc c
 	switch cmd {
 	case c.recordingsList.FullCommand():
 		commandFunc = c.ListRecordings
+	case c.recordingsDownload.FullCommand():
+		commandFunc = c.DownloadRecordings
 	default:
 		return c.recordingsEncryption.TryRun(ctx, cmd, clientFunc)
 	}
@@ -119,4 +141,78 @@ func (c *RecordingsCommand) ListRecordings(ctx context.Context, tc *authclient.C
 		return trace.Errorf("getting session events: %v", err)
 	}
 	return trace.Wrap(common.ShowSessions(recordings, c.format, c.stdout))
+}
+
+func (c *RecordingsCommand) DownloadRecordings(ctx context.Context, tc *authclient.Client) (err error) {
+	sessionID, err := session.ParseID(c.recordingsDownloadSessionID)
+	if err != nil {
+		return trace.BadParameter("invalid session id")
+	}
+
+	e, err := createFileWriter(ctx, *sessionID, c.recordingsDownloadOutputDir)
+	if err != nil {
+		return trace.Wrap(err, "creating file downloader")
+	}
+	defer func() {
+		completeErr := e.Complete(ctx)
+		if err == nil && completeErr == nil {
+			return
+		}
+		localRemErr := os.Remove(filepath.Join(c.recordingsDownloadOutputDir, string(*sessionID)+".tar"))
+		// ignore file not found errors
+		if os.IsNotExist(localRemErr) {
+			localRemErr = nil
+		}
+		err = trace.NewAggregate(err, completeErr, localRemErr)
+	}()
+
+	recC, errC := tc.StreamSessionEvents(ctx, *sessionID, 0)
+loop:
+	for {
+		select {
+		case rec, ok := <-recC:
+			if !ok {
+				break loop
+			}
+			prepared, err := e.PrepareSessionEvent(rec)
+			if err != nil {
+				return trace.Wrap(err, "preparing recording event")
+			}
+			err = e.RecordEvent(ctx, prepared)
+			if err != nil {
+				return trace.Wrap(err, "recording session event")
+			}
+		case err := <-errC:
+			if err != nil && !trace.IsEOF(err) {
+				return trace.Wrap(err, "downloading session recordings")
+			}
+			return nil
+		}
+	}
+	return nil
+}
+
+// createFileWriter creates a file-based session event writer that outputs to a file.
+func createFileWriter(ctx context.Context, sessionID session.ID, outputDir string) (*events.SessionWriter, error) {
+	fileStreamer, err := filesessions.NewStreamer(
+		filesessions.StreamerConfig{
+			Dir: outputDir,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to create fileStreamer")
+	}
+
+	e, err := events.NewSessionWriter(
+		events.SessionWriterConfig{
+			SessionID: sessionID,
+			Component: "downloader",
+			// Use NoOpPreparer as events are already prepared by the server.
+			Preparer: &events.NoOpPreparer{},
+			Context:  ctx,
+			Clock:    clockwork.NewRealClock(),
+			Streamer: fileStreamer,
+		},
+	)
+	return e, trace.Wrap(err, "creating session writer")
 }

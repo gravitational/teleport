@@ -146,6 +146,7 @@ func (c *Cluster) createKubeGateway(ctx context.Context, params CreateGatewayPar
 		Cert:                          cert,
 		Insecure:                      c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:                  c.clusterClient.WebProxyAddr,
+		RelayAddr:                     c.clusterClient.RelayAddr,
 		Logger:                        c.Logger,
 		TCPPortAllocator:              params.TCPPortAllocator,
 		OnExpiredCert:                 params.OnExpiredCert,

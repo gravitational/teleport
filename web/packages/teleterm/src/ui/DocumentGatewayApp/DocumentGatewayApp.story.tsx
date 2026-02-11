@@ -34,7 +34,7 @@ import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspace
 import * as types from 'teleterm/ui/services/workspacesService';
 
 type StoryProps = {
-  appType: 'web' | 'tcp' | 'tcp-multi-port';
+  appType: 'web' | 'tcp' | 'tcp-multi-port' | 'mcp';
   online: boolean;
   changeLocalPort: 'succeed' | 'throw-error';
   changeTargetPort: 'succeed' | 'throw-error';
@@ -48,7 +48,7 @@ const meta: Meta<StoryProps> = {
   argTypes: {
     appType: {
       control: { type: 'radio' },
-      options: ['web', 'tcp', 'tcp-multi-port'],
+      options: ['web', 'tcp', 'tcp-multi-port', 'mcp'],
     },
     changeLocalPort: {
       if: { arg: 'online' },
@@ -92,6 +92,9 @@ export function Story(props: StoryProps) {
   if (props.appType === 'tcp-multi-port') {
     gateway.protocol = 'TCP';
     gateway.targetSubresourceName = '4242';
+  }
+  if (props.appType === 'mcp') {
+    gateway.protocol = 'MCP';
   }
   const documentGateway: types.DocumentGateway = {
     kind: 'doc.gateway',

@@ -26,18 +26,35 @@ import (
 func TestInstallers(t *testing.T) {
 	t.Parallel()
 
-	p := newTestPack(t, ForProxy)
+	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
+	t.Run("GetInstallers", func(t *testing.T) {
+		testResources(t, p, testFuncs[types.Installer]{
+			newResource: func(name string) (types.Installer, error) {
+				return types.NewInstallerV1(name, "test.sh")
+			},
+			create:    p.clusterConfigS.SetInstaller,
+			list:      getAllAdapter(p.clusterConfigS.GetInstallers),
+			cacheList: getAllAdapter(p.cache.GetInstallers),
+			deleteAll: func(ctx context.Context) error {
+				return p.clusterConfigS.DeleteAllInstallers(ctx)
+			},
+		}, withSkipPaginationTest())
+	})
 
-	testResources(t, p, testFuncs[types.Installer]{
-		newResource: func(name string) (types.Installer, error) {
-			return types.NewInstallerV1(name, "test.sh")
-		},
-		create:    p.clusterConfigS.SetInstaller,
-		list:      getAllAdapter(p.clusterConfigS.GetInstallers),
-		cacheList: getAllAdapter(p.cache.GetInstallers),
-		deleteAll: func(ctx context.Context) error {
-			return p.clusterConfigS.DeleteAllInstallers(ctx)
-		},
-	}, withSkipPaginationTest())
+	t.Run("ListInstallers", func(t *testing.T) {
+		testResources(t, p, testFuncs[types.Installer]{
+			newResource: func(name string) (types.Installer, error) {
+				return types.NewInstallerV1(name, "test.sh")
+			},
+			create:     p.clusterConfigS.SetInstaller,
+			list:       p.clusterConfigS.ListInstallers,
+			Range:      p.clusterConfigS.RangeInstallers,
+			cacheList:  p.cache.ListInstallers,
+			cacheRange: p.cache.RangeInstallers,
+			deleteAll: func(ctx context.Context) error {
+				return p.clusterConfigS.DeleteAllInstallers(ctx)
+			},
+		})
+	})
 }

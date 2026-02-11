@@ -17,10 +17,13 @@ limitations under the License.
 package types
 
 import (
+	"os"
 	"slices"
+	"strconv"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 )
@@ -37,6 +40,10 @@ const (
 	// AWSInstallerDocument is the name of the default AWS document
 	// that will be called when executing the SSM command.
 	AWSInstallerDocument = "TeleportDiscoveryInstaller"
+
+	// AWSSSMDocumentRunShellScript is the `AWS-RunShellScript` SSM Document name.
+	// It is available in all AWS accounts and does not need to be manually created.
+	AWSSSMDocumentRunShellScript = "AWS-RunShellScript"
 
 	// AWSAgentlessInstallerDocument is the name of the default AWS document
 	// that will be called when executing the SSM command .
@@ -124,6 +131,11 @@ func isAlphanumericIncluding(s string, extraChars ...rune) bool {
 	return true
 }
 
+// IsRegionWildcard returns true if the matcher is configured to discover resources in all regions.
+func (m *AWSMatcher) IsRegionWildcard() bool {
+	return len(m.Regions) == 1 && m.Regions[0] == Wildcard
+}
+
 // CheckAndSetDefaults that the matcher is correct and adds default values.
 func (m *AWSMatcher) CheckAndSetDefaults() error {
 	for _, matcherType := range m.Types {
@@ -138,13 +150,24 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 	}
 
 	if len(m.Regions) == 0 {
-		return trace.BadParameter("discovery service requires at least one region")
+		return trace.BadParameter("discovery service requires at least one region, for EC2 you can also set the region to %q to iterate over all regions (requires account:ListRegions IAM permission)", Wildcard)
 	}
 
 	for _, region := range m.Regions {
+		if region == Wildcard {
+			if len(m.Regions) > 1 {
+				return trace.BadParameter("when using %q as region, no other regions can be specified", Wildcard)
+			}
+			break
+		}
+
 		if err := awsapiutils.IsValidRegion(region); err != nil {
 			return trace.BadParameter("discovery service does not support region %q", region)
 		}
+	}
+
+	if err := m.validateOrganizationAccountDiscovery(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if m.AssumeRole != nil {
@@ -199,6 +222,12 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 		return trace.BadParameter("invalid enroll mode %s", m.Params.EnrollMode.String())
 	}
 
+	if slices.Contains(m.Types, AWSMatcherEC2) && m.Params.EnrollMode == InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE {
+		if eiceEnabled, _ := strconv.ParseBool(os.Getenv(constants.UnstableEnableEICEEnvVar)); !eiceEnabled {
+			return trace.BadParameter(constants.EICEDisabledMessage)
+		}
+	}
+
 	switch m.Params.JoinMethod {
 	case JoinMethodIAM, "":
 		m.Params.JoinMethod = JoinMethodIAM
@@ -226,6 +255,10 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 		}
 	}
 
+	if err := m.Params.HTTPProxySettings.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if m.Params.ScriptName == "" {
 		m.Params.ScriptName = DefaultInstallerScriptNameAgentless
 		if m.Params.InstallTeleport {
@@ -244,4 +277,46 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 		}
 	}
 	return nil
+}
+
+// HasOrganizationMatcher returns true if the matcher has an organization ID set.
+func (m *AWSMatcher) HasOrganizationMatcher() bool {
+	return m.Organization != nil && m.Organization.OrganizationID != ""
+}
+
+func (m *AWSMatcher) validateOrganizationAccountDiscovery() error {
+	if m.Organization.IsEmpty() {
+		return nil
+	}
+
+	if m.Organization.OrganizationID == "" {
+		return trace.BadParameter("organization ID required but missing")
+	}
+
+	if m.Organization.OrganizationalUnits == nil {
+		return trace.BadParameter("organizational units required but missing")
+	}
+
+	if len(m.Organization.OrganizationalUnits.Include) == 0 {
+		return trace.BadParameter("at least one organizational unit must be included ('*' can be used to include everything)")
+	}
+
+	if m.AssumeRole == nil || m.AssumeRole.RoleName == "" {
+		return trace.BadParameter("assume role name is required when organization id is set")
+	}
+
+	if m.AssumeRole.RoleARN != "" {
+		return trace.BadParameter("assume role must be set to the role name (not the arn) when discovering accounts")
+	}
+
+	if err := awsapiutils.IsValidIAMRoleName(m.AssumeRole.RoleName); err != nil {
+		return trace.BadParameter("assume role must be set to the role name (not the arn) when discovering accounts: %v", err)
+	}
+
+	return nil
+}
+
+// IsEmpty returns true if the AWSOrganizationMatcher is empty.
+func (m *AWSOrganizationMatcher) IsEmpty() bool {
+	return m == nil || deriveTeleportEqualAWSOrganizationMatcher(&AWSOrganizationMatcher{}, m)
 }

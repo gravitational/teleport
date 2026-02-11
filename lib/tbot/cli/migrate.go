@@ -29,12 +29,12 @@ type MigrateCommand struct {
 
 // NewMigrateCommand initializes the `tbot migrate` command and its flags.
 func NewMigrateCommand(app KingpinClause, action func(*MigrateCommand) error) *MigrateCommand {
-	cmd := app.Command("migrate", "Migrates a config file from an older version to the newest version. Outputs to stdout by default.")
+	cmd := app.Command("migrate", "Migrates a configuration file from an older version to the newest version. Outputs to stdout by default.")
 
 	c := &MigrateCommand{}
 	c.genericExecutorHandler = newGenericExecutorHandler(cmd, c, action)
 
-	cmd.Flag("output", "Path to write the generated configuration file to rather than write to stdout.").Short('o').StringVar(&c.ConfigureOutput)
+	cmd.Flag("output", "The path to write the generated configuration file to. If unset, it will be written to stdout.").Short('o').StringVar(&c.ConfigureOutput)
 
 	return c
 }

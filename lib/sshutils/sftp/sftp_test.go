@@ -490,7 +490,11 @@ func TestHomeDirExpansion(t *testing.T) {
 			path:         "~",
 			expandedPath: ".",
 		},
-
+		{
+			name:         "tilde slash",
+			path:         "~/",
+			expandedPath: ".",
+		},
 		{
 			name: "~user path",
 			path: "~user/foo",
@@ -502,7 +506,7 @@ func TestHomeDirExpansion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			expanded, err := expandPath(tt.path)
+			expanded, err := ExpandHomeDir(tt.path)
 			if tt.errCheck == nil {
 				require.NoError(t, err)
 				require.Equal(t, tt.expandedPath, expanded)
@@ -538,18 +542,38 @@ func TestCopyingSymlinkedFile(t *testing.T) {
 	checkTransfer(t, false, dstPath, linkPath)
 }
 
+type mockFile struct {
+	File
+	altDataSource io.Reader
+}
+
+func (m *mockFile) Read(p []byte) (int, error) {
+	return m.altDataSource.Read(p)
+}
+
 type mockFS struct {
 	localFS
 	fileAccesses map[string]int
+	altData      io.Reader
 }
 
 func (m *mockFS) Open(path string) (File, error) {
+	if m.fileAccesses == nil {
+		m.fileAccesses = make(map[string]int)
+	}
 	realPath, err := m.localFS.RealPath(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	m.fileAccesses[realPath]++
-	return m.localFS.Open(path)
+	file, err := m.localFS.Open(path)
+	if err != nil || m.altData == nil {
+		return file, err
+	}
+	return &mockFile{
+		File:          file,
+		altDataSource: m.altData,
+	}, nil
 }
 
 func TestRecursiveSymlinks(t *testing.T) {
@@ -586,7 +610,7 @@ func TestRecursiveSymlinks(t *testing.T) {
 			dstDir := filepath.Join(root, "dst")
 			t.Cleanup(func() { os.RemoveAll(dstDir) })
 
-			srcFS := &mockFS{fileAccesses: make(map[string]int)}
+			srcFS := &mockFS{}
 			req := &FileTransferRequest{
 				Sources: Sources{
 					Paths: []string{tc.srcDir},
@@ -705,6 +729,35 @@ func TestHTTPDownload(t *testing.T) {
 	require.Empty(t, cmp.Diff(contentLengthStr, w.Header().Get("Content-Length")))
 	require.Empty(t, cmp.Diff("application/octet-stream", w.Header().Get("Content-Type")))
 	require.Empty(t, cmp.Diff(`attachment;filename="robots.txt"`, w.Header().Get("Content-Disposition")))
+}
+
+func TestTransferUnexpectedLargerFile(t *testing.T) {
+	t.Parallel()
+	tempDir := t.TempDir()
+	srcFile := filepath.Join(tempDir, "in")
+	require.NoError(t, os.WriteFile(srcFile, []byte("original file data\n"), 0o755))
+	dstFile := filepath.Join(tempDir, "out")
+	srcFileReader, err := os.Open(srcFile)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srcFileReader.Close()) })
+
+	srcFS := &mockFS{altData: io.MultiReader(srcFileReader, strings.NewReader("extra data\n"))}
+	req := &FileTransferRequest{
+		Sources: Sources{
+			Paths: []string{srcFile},
+		},
+		Destination: Target{
+			Path: dstFile,
+		},
+		// Ensure progress bar is created.
+		ProgressWriter: io.Discard,
+		srcFS:          srcFS,
+	}
+	require.NoError(t, TransferFiles(t.Context(), req))
+	require.FileExists(t, dstFile)
+	dstFileData, err := os.ReadFile(dstFile)
+	require.NoError(t, err)
+	require.Equal(t, "original file data\nextra data\n", string(dstFileData))
 }
 
 func createFile(t *testing.T, path string) {

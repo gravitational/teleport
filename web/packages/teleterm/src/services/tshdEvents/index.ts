@@ -64,7 +64,9 @@ export async function createTshdEventsServer(
   const { service, setupTshdEventContextBridgeService } = createService(logger);
 
   server.addService(apiService.tshdEventsServiceDefinition, service);
-
+  window.addEventListener('unload', () => {
+    server.forceShutdown();
+  });
   return { resolvedAddress, setupTshdEventContextBridgeService };
 }
 

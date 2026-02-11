@@ -99,6 +99,12 @@ func BenchmarkStore(b *testing.B) {
 // 1. Handles are loadable by ID.
 // 2. When multiple handles have the same ID, loads are distributed across them.
 func TestStoreAccess(t *testing.T) {
+	if testing.Short() {
+		t.Skip("TestStoreAccess is heavy")
+	}
+
+	t.Parallel()
+
 	store := NewStore()
 
 	// we keep a record of all handles inserted into the store
@@ -152,6 +158,12 @@ func TestStoreAccess(t *testing.T) {
 // every handle in the store, even when multiple handles are registered with
 // the same server ID.
 func TestAllHandles(t *testing.T) {
+	if testing.Short() {
+		t.Skip("TestAllHandles is heavy")
+	}
+
+	t.Parallel()
+
 	store := NewStore()
 
 	// we keep a record of all handles inserted into the store

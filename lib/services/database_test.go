@@ -557,6 +557,48 @@ func TestValidateSQLServerDatabaseURI(t *testing.T) {
 	}
 }
 
+func TestValidateOracleURI(t *testing.T) {
+	tests := []struct {
+		name    string
+		uri     string
+		wantErr string
+	}{
+		{
+			name: "single",
+			uri:  "host1:2484",
+		},
+		{
+			name: "multiple",
+			uri:  "host1:2484,host2:2484",
+		},
+		{
+			name:    "invalid empty",
+			uri:     "",
+			wantErr: `invalid empty part of URI ""`,
+		},
+		{
+			name:    "invalid one of",
+			uri:     "host1:2484,host2,host3:1234",
+			wantErr: `address host2: missing port in address`,
+		},
+		{
+			name:    "empty one of",
+			uri:     "host1:2484,,",
+			wantErr: `invalid empty part of URI "host1:2484,,"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateOracleURI(tt.uri)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tt.wantErr)
+			}
+		})
+	}
+}
+
 // indent returns the string where each line is indented by the specified
 // number of spaces.
 func indent(s string, spaces int) string {

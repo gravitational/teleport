@@ -206,6 +206,18 @@ highAvailability:
 # for more details.
 resources: {}
 
+# goMemLimitRatio(float) -- configures the GOMEMLIMIT env var set by the chart.
+# GOMEMLIMIT instructs the go garbage collector to try to keep allocated memory
+# below a given threshold. This is a best-effort attempt, but this helps
+# to prevent OOMs in case of bursts.
+#
+# When the memory limits are set and goMemLimitRatio is non-zero,
+# the chart sets the GOMEMLIMIT to `resources.memory.limits * goMemLimitRatio`.
+# The value must be between 0 and 1.
+# Set to 0 to unset GOMEMLIMIT.
+# This has no effect if GOMEMLIMIT is already set through `extraEnv`.
+goMemLimitRatio: 0.9
+
 # service -- options for the Service that points to the Teleport Relay
 # instances.
 service:
@@ -305,7 +317,7 @@ image: public.ecr.aws/gravitational/teleport-distroless
 # dependencies, and does not contain a shell.
 #
 # This setting only takes effect when [`enterprise`](#enterprise) is `true`.
-# When running an enterprise version, you must use [`image`](#image) instead.
+# When running an OSS version, you must use [`image`](#image) instead.
 enterpriseImage: public.ecr.aws/gravitational/teleport-ent-distroless
 
 # imagePullSecrets(list) -- is a list of secrets containing authorization tokens

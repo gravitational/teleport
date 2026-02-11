@@ -32,9 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
-	"github.com/gravitational/teleport/lib/services"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	listenerutils "github.com/gravitational/teleport/lib/utils/listener"
@@ -76,6 +74,7 @@ func (s *Server) handleStreamableHTTP(ctx context.Context, sessionCtx *SessionCt
 	if err != nil {
 		return trace.Wrap(err, "setting up session handler")
 	}
+	defer session.sessionAuditor.flush(s.cfg.ParentContext)
 
 	transport, err := s.makeStreamableHTTPTransport(session)
 	if err != nil {
@@ -92,9 +91,12 @@ func (s *Server) handleStreamableHTTP(ctx context.Context, sessionCtx *SessionCt
 		reverseproxy.WithLogger(session.logger),
 		reverseproxy.WithRewriter(appcommon.NewHeaderRewriter(delegate)),
 		reverseproxy.WithResponseModifier(func(resp *http.Response) error {
-			if resp.Request != nil && resp.Request.Method == http.MethodDelete {
-				// Nothing to modify here.
-				return nil
+			if resp.Request != nil {
+				// Nothing to modify for these.
+				if resp.Request.Method == http.MethodDelete ||
+					isWellKnownPath(resp.Request.URL.Path) {
+					return nil
+				}
 			}
 			return trace.Wrap(mcputils.ReplaceHTTPResponse(ctx, resp, newHTTPResponseReplacer(session)))
 		}),
@@ -113,7 +115,7 @@ func (s *Server) makeStreamableHTTPTransport(session *sessionHandler) (http.Roun
 	}
 	targetURI.Scheme = strings.TrimPrefix(targetURI.Scheme, "mcp+")
 
-	targetTransport, err := s.makeHTTPTransport(session.App)
+	targetTransport, err := s.makeBasicHTTPTransport(session.App)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -137,26 +139,38 @@ func (t *streamableHTTPTransport) RoundTrip(r *http.Request) (*http.Response, er
 	case http.MethodDelete:
 		return t.handleSessionEndRequest(r)
 	case http.MethodGet:
+		if isWellKnownPath(r.URL.Path) {
+			// TODO(greedy52) we don't send audit for this but we should add
+			// this to recording if we support recording one day.
+			t.logger.DebugContext(r.Context(), "Passthrough HTTP request", "path", r.URL.Path)
+			resp, err := t.rewriteAndSendRequest(r)
+			return resp, trace.Wrap(err)
+		}
+
 		return t.handleListenSSEStreamRequest(r)
 	case http.MethodPost:
 		return t.handleMCPMessage(r)
 
 	default:
 		t.emitInvalidHTTPRequest(t.parentCtx, r)
+
+		statusText := http.StatusText(http.StatusMethodNotAllowed)
 		return &http.Response{
 			Request:    r,
+			Status:     statusText,
 			StatusCode: http.StatusMethodNotAllowed,
+			Body:       io.NopCloser(bytes.NewReader(nil)), // Body must not be nil.
 		}, nil
 	}
 }
 
 func (t *streamableHTTPTransport) setExternalSessionID(header http.Header) {
 	if id := header.Get(mcpSessionIDHeader); id != "" {
-		t.mcpSessionID.Store(&id)
+		t.updatePendingSessionStartEventWithExternalSessionID(id)
 	}
 }
 
-func (t *streamableHTTPTransport) rewriteRequest(r *http.Request) *http.Request {
+func (t *streamableHTTPTransport) rewriteRequest(r *http.Request) (*http.Request, error) {
 	r = r.Clone(r.Context())
 	r.URL.Scheme = t.targetURI.Scheme
 	r.URL.Host = t.targetURI.Host
@@ -169,33 +183,29 @@ func (t *streamableHTTPTransport) rewriteRequest(r *http.Request) *http.Request 
 		r.URL.Path = t.targetURI.Path
 	}
 
-	// Add in JWT headers. By default, JWT is not put into "Authorization"
-	// headers since the auth token can also come from the client and Teleport
-	// just pass it through. If the remote MCP server does verify the auth token
-	// signed by Teleport, the server can take the token from the
-	// "teleport-jwt-assertion" header or use a rewrite setting to set the JWT
-	// as "Bearer" in "Authorization".
-	r.Header.Set(teleport.AppJWTHeader, t.jwt)
-	// Add headers from rewrite configuration.
-	rewriteHeaders := appcommon.AppRewriteHeaders(r.Context(), t.App.GetRewrite(), t.logger)
-	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, t.traitsForRewriteHeaders, t.logger)
-	return r
+	if err := t.rewriteHTTPRequestHeaders(r); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return r, nil
 }
 
 func (t *streamableHTTPTransport) rewriteAndSendRequest(r *http.Request) (*http.Response, error) {
-	rCopy := t.rewriteRequest(r)
+	rCopy, err := t.rewriteRequest(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return t.targetTransport.RoundTrip(rCopy)
 }
 
 func (t *streamableHTTPTransport) handleSessionEndRequest(r *http.Request) (*http.Response, error) {
 	resp, err := t.rewriteAndSendRequest(r)
-	t.emitEndEvent(t.parentCtx, convertHTTPResponseErrorForAudit(resp, err))
+	t.emitEndEvent(t.parentCtx, eventWithHTTPResponseError(resp, err), eventWithHeader(r.Header))
 	return resp, trace.Wrap(err)
 }
 
 func (t *streamableHTTPTransport) handleListenSSEStreamRequest(r *http.Request) (*http.Response, error) {
 	resp, err := t.rewriteAndSendRequest(r)
-	t.emitListenSSEStreamEvent(t.parentCtx, convertHTTPResponseErrorForAudit(resp, err))
+	t.emitListenSSEStreamEvent(t.parentCtx, eventWithHTTPResponseError(resp, err), eventWithHeader(r.Header))
 	return resp, trace.Wrap(err)
 }
 
@@ -212,11 +222,11 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 	switch {
 	case baseMessage.IsRequest():
 		mcpRequest := baseMessage.MakeRequest()
-		if errResp, authErr := t.sessionHandler.processClientRequestNoAudit(r.Context(), mcpRequest); authErr != nil {
+		if errResp, authErr := t.sessionHandler.processClientRequest(r.Context(), mcpRequest); authErr != nil {
 			return t.handleRequestAuthError(r, mcpRequest, errResp, authErr)
 		}
 	case baseMessage.IsNotification():
-		// nothing to do, yet.
+		t.sessionHandler.processClientNotification(r.Context(), baseMessage.MakeNotification())
 	default:
 		// Not sending it to the server if we don't understand it.
 		t.emitInvalidHTTPRequest(t.parentCtx, r)
@@ -237,18 +247,18 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 	case baseMessage.IsRequest():
 		mcpRequest := baseMessage.MakeRequest()
 		// Only emit session start if "initialize" succeeded.
-		if mcpRequest.Method == mcp.MethodInitialize && respErrForAudit == nil {
-			t.emitStartEvent(t.parentCtx)
+		if mcpRequest.Method == mcputils.MethodInitialize && respErrForAudit == nil {
+			t.appendStartEvent(r.Context(), eventWithHeader(r.Header))
 		}
-		t.emitRequestEvent(t.parentCtx, mcpRequest, respErrForAudit)
+		t.emitRequestEvent(r.Context(), mcpRequest, eventWithError(respErrForAudit), eventWithHeader(r.Header))
 	case baseMessage.IsNotification():
-		t.emitNotificationEvent(t.parentCtx, baseMessage.MakeNotification(), respErrForAudit)
+		t.emitNotificationEvent(r.Context(), baseMessage.MakeNotification(), eventWithError(respErrForAudit), eventWithHeader(r.Header))
 	}
 	return resp, trace.Wrap(err)
 }
 
 func (t *streamableHTTPTransport) handleRequestAuthError(r *http.Request, mcpRequest *mcputils.JSONRPCRequest, errResp mcp.JSONRPCMessage, authErr error) (*http.Response, error) {
-	t.emitRequestEvent(t.parentCtx, mcpRequest, authErr)
+	t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(authErr), eventWithHeader(r.Header))
 
 	errRespAsBody, err := json.Marshal(errResp)
 	if err != nil {
@@ -296,9 +306,17 @@ func newHTTPResponseReplacer(sessionHandler *sessionHandler) *streamableHTTPResp
 }
 
 func (p *streamableHTTPResponseReplacer) ProcessResponse(ctx context.Context, resp *mcputils.JSONRPCResponse) mcp.JSONRPCMessage {
-	return p.processServerResponse(ctx, resp)
+	method, response := p.processServerResponse(ctx, resp)
+	if method == mcputils.MethodInitialize {
+		p.sessionAuditor.updatePendingSessionStartEventWithInitializeResult(ctx, resp)
+	}
+	return response
 }
 func (p *streamableHTTPResponseReplacer) ProcessNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) mcp.JSONRPCMessage {
 	p.processServerNotification(ctx, notification)
 	return notification
+}
+
+func isWellKnownPath(urlPath string) bool {
+	return strings.HasPrefix(urlPath, "/.well-known/")
 }

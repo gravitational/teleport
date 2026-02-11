@@ -24,6 +24,8 @@ import ButtonIcon from 'design/ButtonIcon/ButtonIcon';
 import Flex from 'design/Flex/Flex';
 import { Cross } from 'design/Icon/Icons/Cross';
 import { Indicator } from 'design/Indicator/Indicator';
+import { TabBorder, TabContainer, TabsContainer } from 'design/Tabs/Tabs';
+import { useSlidingBottomBorderTabs } from 'design/Tabs/useSlidingBottomBorderTabs';
 import Text from 'design/Text/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
 import TextEditor from 'shared/components/TextEditor/TextEditor';
@@ -31,13 +33,17 @@ import TextEditor from 'shared/components/TextEditor/TextEditor';
 import useTeleport from 'teleport/useTeleport';
 
 import { useGetBotInstance } from '../hooks';
+import { HealthTab } from './HealthTab';
+import { InfoTab } from './InfoTab';
 
 export function BotInstanceDetails(props: {
   botName: string;
   instanceId: string;
   onClose: () => void;
+  activeTab?: string | null;
+  onTabSelected: (tab: string) => void;
 }) {
-  const { botName, instanceId, onClose } = props;
+  const { botName, instanceId, onClose, activeTab, onTabSelected } = props;
 
   const ctx = useTeleport();
   const flags = ctx.getFeatureFlags();
@@ -54,17 +60,19 @@ export function BotInstanceDetails(props: {
     }
   );
 
+  const tab = tabs.find(t => t.id === activeTab)?.id ?? 'info';
+
   return (
     <Container>
       <TitleContainer>
-        <Flex gap={2} alignItems={'center'}>
-          <HoverTooltip placement="top" tipContent={'Close'}>
-            <ButtonIcon onClick={() => onClose()} aria-label="close">
-              <Cross size="medium" />
-            </ButtonIcon>
-          </HoverTooltip>
-          <TitleText>Resource YAML</TitleText>
-        </Flex>
+        <TitleText>
+          {botName}/{instanceId}
+        </TitleText>
+        <HoverTooltip placement="top" tipContent={'Close'}>
+          <ButtonIcon onClick={() => onClose()} aria-label="close">
+            <Cross size="medium" />
+          </ButtonIcon>
+        </HoverTooltip>
       </TitleContainer>
       <Divider />
       <ContentContainer>
@@ -87,19 +95,34 @@ export function BotInstanceDetails(props: {
           </Alert>
         ) : undefined}
 
-        {isSuccess && data.yaml ? (
-          <YamlContaner>
-            <TextEditor
-              bg="levels.elevated"
-              data={[
-                {
-                  content: data.yaml,
-                  type: 'yaml',
-                },
-              ]}
-              readOnly={true}
-            />
-          </YamlContaner>
+        {isSuccess ? (
+          <>
+            <Tabs activeTab={tab} onTabSelected={onTabSelected} />
+
+            {tab === 'info' ? (
+              <TabContentContainer>
+                <InfoTab
+                  data={data}
+                  onGoToServicesClick={() => onTabSelected('health')}
+                />
+              </TabContentContainer>
+            ) : undefined}
+
+            {tab === 'health' ? <HealthTab data={data} /> : undefined}
+
+            {tab === 'yaml' ? (
+              <TextEditor
+                bg="levels.sunken"
+                data={[
+                  {
+                    content: data.yaml,
+                    type: 'yaml',
+                  },
+                ]}
+                readOnly={true}
+              />
+            ) : undefined}
+          </>
         ) : undefined}
       </ContentContainer>
     </Container>
@@ -113,20 +136,27 @@ const Container = styled.section`
   border-left-color: ${p => p.theme.colors.interactive.tonal.neutral[0]};
   border-left-width: 1px;
   border-left-style: solid;
+  overflow: hidden;
+  min-width: 300px;
 `;
 
 const TitleContainer = styled(Flex)`
   align-items: center;
   justify-content: space-between;
-  height: ${p => p.theme.space[8]}px;
+  min-height: ${p => p.theme.space[8]}px;
   padding-left: ${p => p.theme.space[3]}px;
+  padding-right: ${p => p.theme.space[3]}px;
   gap: ${p => p.theme.space[2]}px;
+  overflow: hidden;
 `;
 
 export const TitleText = styled(Text).attrs({
   as: 'h2',
   typography: 'h2',
-})``;
+})`
+  flex: 1;
+  white-space: nowrap;
+`;
 
 const Divider = styled.div`
   height: 1px;
@@ -138,10 +168,60 @@ const ContentContainer = styled.div`
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-height: 0;
 `;
 
-const YamlContaner = styled(Flex)`
+const TabContentContainer = styled(Flex)`
+  overflow: auto;
   flex: 1;
-  border-radius: ${props => props.theme.space[2]}px;
-  background-color: ${({ theme }) => theme.colors.levels.elevated};
+  background-color: ${({ theme }) => theme.colors.levels.surface};
+`;
+
+const tabs = [
+  {
+    id: 'info',
+    label: 'Overview',
+  },
+  {
+    id: 'health',
+    label: 'Services',
+  },
+  { id: 'yaml', label: 'YAML' },
+] as const;
+
+type TabId = (typeof tabs)[number]['id'];
+
+function Tabs(props: {
+  activeTab: TabId;
+  onTabSelected: (tab: TabId) => void;
+}) {
+  const { activeTab, onTabSelected } = props;
+  const { borderRef, parentRef } = useSlidingBottomBorderTabs({ activeTab });
+
+  return (
+    <StyledTabsContainer ref={parentRef} withBottomBorder role="tablist">
+      {tabs.map(t => (
+        <StyledTabContainer
+          key={t.id}
+          data-tab-id={t.id}
+          selected={activeTab === t.id}
+          onClick={() => onTabSelected(t.id)}
+          role="tab"
+        >
+          {t.label}
+        </StyledTabContainer>
+      ))}
+      <TabBorder ref={borderRef} />
+    </StyledTabsContainer>
+  );
+}
+
+const StyledTabsContainer = styled(TabsContainer)`
+  gap: 0;
+`;
+
+const StyledTabContainer = styled(TabContainer)`
+  padding: ${p => p.theme.space[2]}px ${p => p.theme.space[3]}px;
+  font-weight: ${p => p.theme.fontWeights.medium};
+  font-size: ${p => p.theme.fontSizes[2]}px;
 `;

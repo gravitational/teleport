@@ -66,7 +66,7 @@ type CertificateStoreConfig struct {
 
 // Update publishes an empty certificate revocation list to LDAP.
 func (c *CertificateStoreClient) Update(ctx context.Context, tc *tls.Config) error {
-	caType := types.UserCA
+	caType := types.WindowsCA
 
 	// TODO(zmb3): check for the presence of Teleport's CA in the NTAuth store
 
@@ -78,44 +78,46 @@ func (c *CertificateStoreClient) Update(ctx context.Context, tc *tls.Config) err
 	// #1 and #2 are done manually as part of the set-up process (see public docs).
 	// Below we do #3.
 
-	hasCRL := false
 	certAuthorities, err := c.cfg.AccessPoint.GetCertAuthorities(ctx, caType, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for _, ca := range certAuthorities {
-		for _, keyPair := range ca.GetActiveKeys().TLS {
-			if len(keyPair.CRL) == 0 {
-				continue
-			}
-			hasCRL = true
-			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			if err := c.updateCRL(ctx, c.cfg.ClusterName, cert.SubjectKeyId, keyPair.CRL, caType, tc); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-	}
-
-	// All authorities are missing CRL, fall back to legacy behavior since some early v18 auth servers
-	// won't have set up CRLs yet.
-	// DELETE IN v19 (zmb3/probakowski): this is agent code, by the time agents are on v19 we won't
-	// need to worry about v18 auth servers.
-	if !hasCRL {
-		c.cfg.Logger.WarnContext(ctx, "No existing certificate authorities had an associated CRL. "+
-			"If you are using HSM or KMS for private key material, please update your auth server.")
-		crlDER, err := c.cfg.AccessPoint.GenerateCertAuthorityCRL(ctx, caType)
+	// The cache doesn't error on an unknown CA, it returns empty instead.
+	// TODO(codingllama): DELETE IN 20. WindowsCA is guaranteed to exist by then.
+	if len(certAuthorities) == 0 {
+		c.cfg.Logger.WarnContext(ctx, "Found no CAs with type WindowsCA. Falling back to UserCA.")
+		caType = types.UserCA
+		certAuthorities, err = c.cfg.AccessPoint.GetCertAuthorities(ctx, caType, false)
 		if err != nil {
-			return trace.Wrap(err, "generating CRL")
-		}
-
-		if err := c.updateCRL(ctx, c.cfg.ClusterName, nil, crlDER, caType, tc); err != nil {
-			return trace.Wrap(err, "updating CRL over LDAP")
+			return trace.Wrap(err)
 		}
 	}
+	for _, ca := range certAuthorities {
+		for _, keySet := range [][]*types.TLSKeyPair{
+			ca.GetActiveKeys().TLS,
+			ca.GetAdditionalTrustedKeys().TLS,
+		} {
+			for _, keyPair := range keySet {
+				if len(keyPair.CRL) == 0 {
+					continue
+				}
+
+				cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				c.cfg.Logger.DebugContext(ctx, "Processing CA key pair",
+					"issuer", cert.Issuer,
+					"subject", cert.Subject,
+				)
+
+				if err := c.updateCRL(ctx, c.cfg.ClusterName, cert.SubjectKeyId, keyPair.CRL, ca.GetType(), tc); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -133,8 +135,14 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuerCN string,
 	// Teleport cluster name. So, for instance, CRL for cluster "prod" and User
 	// CA will be placed at:
 	// ... > CDP > Teleport > prod
-	containerDN := crlContainerDN(c.cfg.Domain, caType)
-	crlDN := CRLDN(issuerCN, issuerSKID, c.cfg.Domain, caType)
+	containerDN, err := crlContainerDN(c.cfg.Domain, caType)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	crlDN, err := CRLDN(issuerCN, issuerSKID, c.cfg.Domain, caType)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	ldapClient, err := DialLDAP(ctx, c.cfg.LC, tc)
 	if err != nil {
@@ -146,6 +154,11 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuerCN string,
 	if err := ldapClient.CreateContainer(ctx, containerDN); err != nil {
 		return trace.Wrap(err, "creating CRL container")
 	}
+
+	logger := c.cfg.Logger.With(
+		"ca_type", caType,
+		"dn", crlDN,
+	)
 
 	// Create the CRL object itself.
 	if err := ldapClient.Create(
@@ -164,9 +177,9 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuerCN string,
 		); err != nil {
 			return trace.Wrap(err)
 		}
-		c.cfg.Logger.InfoContext(ctx, "Updated CRL for Windows logins via LDAP", "dn", crlDN)
+		logger.InfoContext(ctx, "Updated CRL for Windows logins via LDAP")
 	} else {
-		c.cfg.Logger.InfoContext(ctx, "Added CRL for Windows logins via LDAP", "dn", crlDN)
+		logger.InfoContext(ctx, "Added CRL for Windows logins via LDAP")
 	}
 	return nil
 }

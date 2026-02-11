@@ -44,6 +44,8 @@ func TestSharedStartArgs(t *testing.T) {
 		"--diag-addr=0.0.0.0:8080",
 		"--storage=file:///foo/bar",
 		"--proxy-server=example.teleport.sh:443",
+		"--pid-file=/run/tbot.pid",
+		"--diag-socket-for-updater=/var/lib/teleport/bot/debug.sock",
 	})
 	require.NoError(t, err)
 
@@ -56,6 +58,8 @@ func TestSharedStartArgs(t *testing.T) {
 	require.Equal(t, "0.0.0.0:8080", args.DiagAddr)
 	require.Equal(t, "file:///foo/bar", args.Storage)
 	require.Equal(t, "example.teleport.sh:443", args.ProxyServer)
+	require.Equal(t, "/run/tbot.pid", args.PIDFile)
+	require.Equal(t, "/var/lib/teleport/bot/debug.sock", args.DiagSocketForUpdater)
 
 	// Convert these args to a BotConfig.
 	cfg, err := LoadConfigWithMutators(&GlobalArgs{}, args)

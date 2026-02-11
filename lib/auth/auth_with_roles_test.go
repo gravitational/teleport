@@ -54,6 +54,7 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/metadata"
@@ -73,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -83,6 +85,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/okta/oktatest"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
@@ -925,6 +928,19 @@ func TestAppAccessUsingAWSOIDC_doesntGenerateClientCredentials(t *testing.T) {
 	require.NoError(t, err)
 	pub, err := keys.MarshalPublicKey(priv.Public())
 	require.NoError(t, err)
+
+	// Impersonating the requester name fails.
+	_, err = client.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		TLSPublicKey: pub,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
+		RouteToApp: proto.RouteToApp{
+			Name:       appName,
+			AWSRoleARN: roleARN,
+		},
+		RequesterName: proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS,
+	})
+	require.Error(t, err)
 
 	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		TLSPublicKey: pub,
@@ -1889,6 +1905,7 @@ type testDynamicallyConfigurableRBACParams struct {
 func testDynamicallyConfigurableRBAC(t *testing.T, p testDynamicallyConfigurableRBACParams) {
 	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuth.Close()) })
 
 	testOperation := func(op func(*auth.ServerWithRoles) error, allowRules []types.Rule, expectErr, withConfigFile bool) func(*testing.T) {
 		return func(t *testing.T) {
@@ -2642,6 +2659,7 @@ func TestStreamSessionEvents_SessionType(t *testing.T) {
 
 	as, err := authtest.NewAuthServer(authServerConfig)
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
 	srv, err := as.NewTestTLSServer()
 	require.NoError(t, err)
@@ -3045,10 +3063,22 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		require.True(t, trace.IsAccessDenied(discoveryClt.CreateKubernetesCluster(ctx, clusterWithDynamicLabels)))
 	})
 	t.Run("Read", func(t *testing.T) {
+		diffopt := cmpopts.IgnoreFields(types.Metadata{}, "Revision")
+
 		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
+
+		clusters, next, err := discoveryClt.ListKubernetesClusters(ctx, 0, "")
+		require.Empty(t, next)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
+
+		clusters, err = stream.Collect(discoveryClt.RangeKubernetesClusters(ctx, "", ""))
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
 	})
+
 	t.Run("Update", func(t *testing.T) {
 		require.NoError(t, discoveryClt.UpdateKubernetesCluster(ctx, eksCluster))
 		require.True(t, trace.IsAccessDenied(discoveryClt.UpdateKubernetesCluster(ctx, nonCloudCluster)))
@@ -3059,8 +3089,16 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, clusters)
 
+		clusters, err = stream.Collect(discoveryClt.RangeKubernetesClusters(ctx, "", ""))
+		require.NoError(t, err)
+		require.Empty(t, clusters)
+
 		// Discovery service cannot delete non-cloud clusters.
 		clusters, err = srv.Auth().GetKubernetesClusters(ctx)
+		require.NoError(t, err)
+		require.Len(t, clusters, 1)
+
+		clusters, err = stream.Collect(srv.Auth().RangeKubernetesClusters(ctx, "", ""))
 		require.NoError(t, err)
 		require.Len(t, clusters, 1)
 	})
@@ -3692,6 +3730,7 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 	ctx := context.Background()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	user, role, err := authtest.CreateUserAndRole(srv.AuthServer, "test-user", []string{}, nil)
 	require.NoError(t, err)
@@ -3830,7 +3869,9 @@ func TestIsMFARequired_databaseProtocols(t *testing.T) {
 				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 				role.SetDatabaseNames(types.Allow, nil)
 			},
-			want: proto.MFARequired_MFA_REQUIRED_NO,
+			// MFA should be required if the role says so, regardless of whether
+			// the database name matches or not.
+			want: proto.MFARequired_MFA_REQUIRED_YES,
 		},
 		{
 			name:       "RequireSessionMFA on Postgres protocol database name matches",
@@ -3854,6 +3895,32 @@ func TestIsMFARequired_databaseProtocols(t *testing.T) {
 				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 				role.SetDatabaseNames(types.Allow, []string{"example"})
 			},
+			want: proto.MFARequired_MFA_REQUIRED_YES,
+		},
+		{
+			name:       "RequireSessionMFA database user does not match",
+			dbProtocol: defaults.ProtocolPostgres,
+			req: &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_Database{
+					Database: &proto.RouteToDatabase{
+						ServiceName: databaseName,
+						Protocol:    defaults.ProtocolPostgres,
+						Username:    userName,
+						Database:    "example",
+					},
+				},
+			},
+			modifyRoleFunc: func(role types.Role) {
+				roleOpt := role.GetOptions()
+				roleOpt.RequireMFAType = types.RequireMFAType_SESSION
+				role.SetOptions(roleOpt)
+
+				role.SetDatabaseUsers(types.Allow, nil)
+				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+				role.SetDatabaseNames(types.Allow, []string{"example"})
+			},
+			// MFA should be required if the role says so, regardless of whether
+			// the database user matches or not.
 			want: proto.MFARequired_MFA_REQUIRED_YES,
 		},
 	}
@@ -3932,6 +3999,7 @@ func TestKindClusterConfig(t *testing.T) {
 	ctx := context.Background()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	getClusterConfigResources := func(ctx context.Context, user types.User) []error {
 		authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I))
@@ -4724,6 +4792,7 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	ctx := context.Background()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestBuiltin(types.RoleProxy).I))
 	require.NoError(t, err)
@@ -4833,6 +4902,7 @@ func TestListResources_KindUserGroup(t *testing.T) {
 	ctx := context.Background()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	role, err := types.NewRole("test-role", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -7084,7 +7154,7 @@ func TestGenerateHostCert(t *testing.T) {
 
 	clusterName := srv.ClusterName()
 
-	_, pub, err := testauthority.New().GenerateKeyPair()
+	_, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	noError := func(err error) bool {
@@ -7226,6 +7296,66 @@ func TestGenerateHostCert(t *testing.T) {
 	}
 }
 
+// newScopedTestServerForHost creates a self-cleaning `ServerWithRoles`, configured
+// for a given host
+func newScopedTestServerForHost(t *testing.T, srv *authtest.AuthServer, hostID, scope string, role types.SystemRole) *auth.ServerWithRoles {
+	authzContext := authz.ContextWithUser(t.Context(), authtest.TestScopedHost(srv.ClusterName, hostID, scope, role).I)
+	ctxIdentity, err := srv.Authorizer.Authorize(authzContext)
+	require.NoError(t, err)
+
+	authWithRole := auth.NewServerWithRoles(
+		srv.AuthServer,
+		srv.AuditLog,
+		*ctxIdentity,
+	)
+
+	t.Cleanup(func() { authWithRole.Close() })
+
+	return authWithRole
+}
+
+func TestGenerateHostCertsScoped(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	scope := "/aa/bb"
+	hostID := "testhost"
+	roles := types.SystemRoles{types.RoleNode}
+
+	s := newScopedTestServerForHost(t, srv.AuthServer, hostID, scope, types.RoleNode)
+
+	_, sshPub, err := testauthority.GenerateKeyPair()
+	require.NoError(t, err)
+	tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	tlsPubPEM, err := keys.MarshalPublicKey(tlsKey.Public())
+	require.NoError(t, err)
+
+	certs, err := s.GenerateHostCerts(ctx, &proto.HostCertsRequest{
+		PublicTLSKey: tlsPubPEM,
+		PublicSSHKey: sshPub,
+		HostID:       hostID,
+		Role:         types.RoleInstance,
+		SystemRoles:  roles,
+	})
+	require.NoError(t, err)
+
+	// ensure scope encoded in TLS cert matches the auth identity
+	tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+	require.NoError(t, err)
+
+	tlsIdent, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+	require.NoError(t, err)
+	require.Equal(t, scope, tlsIdent.AgentScope)
+
+	// ensure scope encoded in SSH cert matches the auth identity
+	sshCert, err := sshutils.ParseCertificate(certs.SSH)
+	require.NoError(t, err)
+	sshIdent, err := sshca.DecodeIdentity(sshCert)
+	require.NoError(t, err)
+	require.Equal(t, scope, sshIdent.AgentScope)
+}
+
 // TestLocalServiceRolesHavePermissionsForUploaderService verifies that all of Teleport's
 // builtin roles have permissions to execute the calls required by the uploader service.
 // This is because only one uploader service runs per Teleport process, and it will use
@@ -7233,6 +7363,7 @@ func TestGenerateHostCert(t *testing.T) {
 func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err, trace.DebugReport(err))
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	roles := types.LocalServiceMappings()
 	for _, role := range roles {
@@ -8811,6 +8942,7 @@ func TestGenerateCertAuthorityCRL(t *testing.T) {
 	ctx := context.Background()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	_, err = authtest.CreateRole(ctx, srv.AuthServer.Services, "rolename", types.RoleSpecV6{})
 	require.NoError(t, err)
@@ -8987,6 +9119,56 @@ func TestGetSnowflakeSessions(t *testing.T) {
 			test.assertErr(t, err)
 		})
 	}
+}
+
+func TestListSnowflakeSessions(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	alice, bob, admin := createSessionTestUsers(t, srv.Auth())
+
+	client, err := srv.NewClient(authtest.TestBuiltin(types.RoleDatabase))
+	require.NoError(t, err)
+	ctx := t.Context()
+	opts := []cmp.Option{
+		cmpopts.SortSlices(func(a, b types.WebSession) bool {
+			return a.GetName() < b.GetName()
+		}),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	}
+
+	createSession := func(user string) types.WebSession {
+		session, err := client.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
+			Username:     user,
+			TokenTTL:     time.Minute * 15,
+			SessionToken: "test-token-" + user,
+		})
+		require.NoError(t, err)
+		return session
+	}
+
+	expected := []types.WebSession{
+		createSession(alice),
+		createSession(bob),
+		createSession(admin),
+	}
+
+	sessions, next, err := client.ListSnowflakeSessions(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Len(t, sessions, 3)
+	require.Empty(t, cmp.Diff(expected, sessions, opts...))
+
+	page1, next, err := client.ListSnowflakeSessions(ctx, 2, "")
+	require.NoError(t, err)
+	require.NotEmpty(t, next)
+	require.Len(t, page1, 2)
+
+	page2, next, err := client.ListSnowflakeSessions(ctx, 0, next)
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Len(t, page2, 1)
+	require.Empty(t, cmp.Diff(expected, append(page1, page2...), opts...))
+
 }
 
 func TestDeleteSnowflakeSession(t *testing.T) {
@@ -9691,7 +9873,7 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 						Name:        id,
 					})
 				}
-				req, err = types.NewAccessRequestWithResources(uuid.NewString(), user.GetName(), tc.requestedRoles, resourceIds)
+				req, err = types.NewAccessRequestWithResources(uuid.NewString(), user.GetName(), tc.requestedRoles, types.ResourceIDsToResourceAccessIDs(resourceIds))
 			}
 			require.NoError(t, err)
 
@@ -9711,7 +9893,7 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 func mustAccessRequest(t *testing.T, user string, state types.RequestState, created, expires time.Time, roles []string, resourceIDs []types.ResourceID) types.AccessRequest {
 	t.Helper()
 
-	accessRequest, err := types.NewAccessRequestWithResources(uuid.NewString(), user, roles, resourceIDs)
+	accessRequest, err := types.NewAccessRequestWithResources(uuid.NewString(), user, roles, types.ResourceIDsToResourceAccessIDs(resourceIDs))
 	require.NoError(t, err)
 
 	accessRequest.SetState(state)
@@ -10051,6 +10233,63 @@ func TestScopedRoleEvents(t *testing.T) {
 	}, event.Resource.(*types.ResourceHeader), protocmp.Transform()))
 }
 
+// TestWatchAllCacheKinds ensures the system builtin roles can watch every
+// kind used by the proxy cache config. The only exception (and not included in
+// this test) is auth role which has access to all cache kinds and will fail
+// early if there is a mismatch.
+func TestWatchAllCacheKinds(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+
+	for role, watchKinds := range map[types.SystemRole][]types.WatchKind{
+		types.RoleProxy:          cache.ForProxy(cache.Config{}).Watches,
+		types.RoleNode:           cache.ForNode(cache.Config{}).Watches,
+		types.RoleApp:            cache.ForApps(cache.Config{}).Watches,
+		types.RoleDatabase:       cache.ForDatabases(cache.Config{}).Watches,
+		types.RoleOkta:           cache.ForOkta(cache.Config{}).Watches,
+		types.RoleRelay:          cache.ForRelay(cache.Config{}).Watches,
+		types.RoleDiscovery:      cache.ForDiscovery(cache.Config{}).Watches,
+		types.RoleKube:           cache.ForKubernetes(cache.Config{}).Watches,
+		types.RoleWindowsDesktop: cache.ForWindowsDesktop(cache.Config{}).Watches,
+	} {
+		t.Run(string(role), func(t *testing.T) {
+			client, err := srv.NewClient(authtest.TestBuiltin(role))
+			require.NoError(t, err)
+
+			watcher, err := client.NewWatcher(ctx, types.Watch{
+				Kinds:               watchKinds,
+				AllowPartialSuccess: true,
+			})
+			require.NoError(t, err)
+			defer watcher.Close()
+
+			select {
+			case event := <-watcher.Events():
+				require.Equal(t, types.OpInit, event.Type, "expected watch init event")
+				status, ok := event.Resource.(types.WatchStatus)
+				require.True(t, ok, "expected watch status, got %T", event.Resource)
+				require.ElementsMatch(t, collectWatchKind(watchKinds), collectWatchKind(status.GetKinds()),
+					"watch kind confirmation mismatch. check system role permissions",
+				)
+			case <-watcher.Done():
+				require.FailNow(t, "watcher closed unexpectedly", watcher.Error())
+			case <-time.After(5 * time.Second):
+				require.FailNow(t, "timeout waiting for watcher init")
+			}
+		})
+	}
+}
+
+func collectWatchKind(kinds []types.WatchKind) []string {
+	res := make([]string, 0, len(kinds))
+	for _, kind := range kinds {
+		res = append(res, kind.Kind+"_"+kind.SubKind)
+	}
+	return res
+}
+
 func TestKubeKeepAliveServer(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
@@ -10288,7 +10527,7 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 
 			// the test server doesn't create the preset users, so we call createPresetUsers manually
 			if tc.withPresetUsers {
-				auth.CreatePresetUsers(ctx, srv.Auth())
+				auth.CreatePresetUsers(ctx, modules.BuildEnterprise, srv.Auth())
 			}
 
 			// create preexisting users
@@ -10865,6 +11104,333 @@ func TestSAMLIdPRoleOptionCreateUpdateValidation(t *testing.T) {
 			roleToUpsert := newRole(t, fmt.Sprintf("test-upsert-role-%d", i), tt.roleOptions)
 			_, err = s.UpsertRole(ctx, roleToUpsert)
 			tt.errAssertion(t, err)
+		})
+	}
+}
+
+func TestClusterAlertOperations(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+
+	t.Run("perform alert operations with admin role", func(t *testing.T) {
+		client, err := srv.NewClient(authtest.TestAdmin())
+		require.NoError(t, err)
+		defer client.Close()
+		const testAlertId = "test-alert"
+		t.Run("create ClusterAlert succeeds and can retrieve and delete it", func(t *testing.T) {
+			alert, err := types.NewClusterAlert(testAlertId, "testmessage", types.WithAlertSeverity(types.AlertSeverity_LOW))
+			require.NoError(t, err)
+			require.NoError(t, client.UpsertClusterAlert(ctx, alert))
+
+			retrieved, err := client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+				WithUntargeted: true,
+			})
+			require.NoError(t, err)
+			require.Len(t, retrieved, 1)
+			require.Equal(t, alert.Spec.Message, retrieved[0].Spec.Message)
+			require.Equal(t, alert.Spec.Severity, retrieved[0].Spec.Severity)
+
+			require.NoError(t, client.DeleteClusterAlert(ctx, testAlertId))
+
+			retrieved, err = client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+				WithUntargeted: true,
+			})
+			require.NoError(t, err)
+			require.Empty(t, retrieved)
+		})
+
+		t.Run("acknowledge cluster alert operations", func(t *testing.T) {
+			testAlertAck := "testAlertAck"
+			testAlert, err := types.NewClusterAlert(testAlertAck, "testmessage", types.WithAlertSeverity(types.AlertSeverity_LOW))
+			require.NoError(t, err)
+
+			require.NoError(t, client.UpsertClusterAlert(ctx, testAlert))
+
+			t.Run("create AlertAcknowledgement succeeds and can retrieve and delete it", func(t *testing.T) {
+				require.NoError(t, client.CreateAlertAck(ctx, types.AlertAcknowledgement{
+					AlertID: testAlertAck,
+					Reason:  "test",
+					Expires: time.Now().Add(24 * time.Hour),
+				}))
+
+				retrievedAcks, err := client.GetAlertAcks(ctx)
+				require.NoError(t, err)
+				require.Len(t, retrievedAcks, 1)
+				require.Equal(t, testAlertAck, retrievedAcks[0].AlertID)
+
+				//cluster alert is filtered out since it's acknowledged
+				retrieved, err := client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+					WithUntargeted: true,
+					AlertID:        testAlertAck,
+				})
+				require.NoError(t, err)
+				require.Empty(t, retrieved)
+
+				require.NoError(t, client.ClearAlertAcks(ctx, proto.ClearAlertAcksRequest{
+					AlertID: testAlertAck,
+				}))
+				retrievedAcks, err = client.GetAlertAcks(ctx)
+				require.NoError(t, err)
+				require.Empty(t, retrievedAcks)
+
+				//cluster alert is back since its acknowledgement is cleared
+				retrieved, err = client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+					WithUntargeted: true,
+					AlertID:        testAlertAck,
+				})
+				require.NoError(t, err)
+				require.Len(t, retrieved, 1)
+				require.Equal(t, testAlertAck, retrieved[0].GetMetadata().Name)
+			})
+		})
+	})
+
+	t.Run("perform alert operations with non read and write role fails", func(t *testing.T) {
+		user, _, err := authtest.CreateUserAndRole(srv.Auth(), "someuser", []string{"role"}, nil)
+		require.NoError(t, err)
+		badUser, err := srv.NewClient(authtest.TestUser(user.GetName()))
+		require.NoError(t, err)
+		defer badUser.Close()
+
+		t.Run("create ClusterAlert fails", func(t *testing.T) {
+			testAlertId := "test-alert-non-admin"
+			alert, err := types.NewClusterAlert(testAlertId, "testmessage", types.WithAlertSeverity(types.AlertSeverity_LOW))
+			require.NoError(t, err)
+			err = badUser.UpsertClusterAlert(ctx, alert)
+			require.ErrorContains(t, err, "access denied")
+		})
+		t.Run("get ClusterAlert succeeds but returns nothing", func(t *testing.T) {
+			alerts, err := badUser.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+				WithUntargeted: true,
+			})
+			require.NoError(t, err)
+			require.Empty(t, alerts)
+		})
+		t.Run("delete ClusterAlert fails", func(t *testing.T) {
+			err := badUser.DeleteClusterAlert(ctx, "some-alert-id")
+			require.ErrorContains(t, err, "access denied")
+		})
+		t.Run("create AlertAcknowledgement fails", func(t *testing.T) {
+			err := badUser.CreateAlertAck(ctx, types.AlertAcknowledgement{
+				AlertID: "test-alert-ack-non-admin",
+				Reason:  "test",
+				Expires: time.Now().Add(24 * time.Hour),
+			})
+			require.ErrorContains(t, err, "access denied")
+		})
+		t.Run("get AlertAcknowledgement fails", func(t *testing.T) {
+			_, err := badUser.GetAlertAcks(ctx)
+			require.ErrorContains(t, err, "access denied")
+		})
+		t.Run("clear AlertAcknowledgement fails", func(t *testing.T) {
+			err := badUser.ClearAlertAcks(ctx, proto.ClearAlertAcksRequest{
+				AlertID: "test-alert-ack-non-admin",
+			})
+			require.ErrorContains(t, err, "access denied")
+		})
+	})
+}
+
+type inventoryControlStreamHarness struct {
+	server     *auth.ServerWithRoles
+	upstream   apiclient.UpstreamInventoryControlStream
+	downstream apiclient.DownstreamInventoryControlStream
+}
+
+func newInventoryControlStreamHarness(t *testing.T, srv *authtest.AuthServer, serverID, scope, labelHash string, role types.SystemRole) inventoryControlStreamHarness {
+	t.Helper()
+
+	username := serverID + "." + srv.ClusterName
+	identity := authz.BuiltinRole{
+		Role:                  types.RoleInstance,
+		AdditionalSystemRoles: types.SystemRoles{role},
+		Username:              username,
+		ClusterName:           srv.ClusterName,
+		Identity: tlsca.Identity{
+			Username:           username,
+			AgentScope:         scope,
+			ImmutableLabelHash: labelHash,
+		},
+	}
+
+	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(t.Context(), identity))
+	require.NoError(t, err)
+
+	authWithRole := auth.NewServerWithRoles(
+		srv.AuthServer,
+		srv.AuditLog,
+		*authContext,
+	)
+	upstream, downstream := apiclient.InventoryControlStreamPipe()
+
+	t.Cleanup(func() {
+		_ = upstream.Close()
+		_ = downstream.Close()
+	})
+
+	return inventoryControlStreamHarness{
+		server:     authWithRole,
+		upstream:   upstream,
+		downstream: downstream,
+	}
+}
+
+func TestRegisterInventoryControlStreamScopes(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+
+	const serverID = "test-server"
+	const agentScope = "/test/one"
+
+	cases := []struct {
+		name        string
+		helloScope  string
+		expectScope string
+		expectErr   func(error) bool
+	}{
+		{
+			name:        "empty scope defaults to agent scope",
+			helloScope:  "",
+			expectScope: agentScope,
+			expectErr:   nil,
+		},
+		{
+			name:        "matching scope accepted",
+			helloScope:  agentScope,
+			expectScope: agentScope,
+			expectErr:   nil,
+		},
+		{
+			name:       "mismatched scope denied",
+			helloScope: "/test/two",
+			expectErr:  trace.IsAccessDenied,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			h := newInventoryControlStreamHarness(t, srv.AuthServer, serverID, agentScope, "", types.RoleNode)
+			type registerResult struct {
+				hello *proto.UpstreamInventoryHello
+				err   error
+			}
+			resultCh := make(chan registerResult)
+			go func() {
+				hello, err := h.server.RegisterInventoryControlStream(h.upstream)
+				resultCh <- registerResult{hello: hello, err: err}
+			}()
+
+			err := h.downstream.Send(ctx, &proto.UpstreamInventoryHello{
+				ServerID: serverID,
+				Scope:    c.helloScope,
+			})
+			require.NoError(t, err)
+
+			if c.expectErr != nil {
+				result := <-resultCh
+				require.True(t, c.expectErr(result.err), "expected error")
+				return
+			}
+
+			msg := <-h.downstream.Recv()
+			require.IsType(t, *new(*proto.DownstreamInventoryHello), msg)
+
+			result := <-resultCh
+			require.NoError(t, result.err)
+			require.NotNil(t, result.hello)
+			require.Equal(t, c.expectScope, result.hello.GetScope())
+		})
+	}
+}
+
+func TestRegisterInventoryControlStreamImmutableLabels(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	const serverID = "test-server"
+	helloLabels := &joiningv1.ImmutableLabels{
+		Ssh: map[string]string{
+			"test":  "label",
+			"test2": "label2",
+		},
+	}
+	helloHash := joining.HashImmutableLabels(helloLabels)
+
+	srv := newTestTLSServer(t)
+	t.Cleanup(func() { srv.Close() })
+
+	cases := []struct {
+		name        string
+		helloLabels *joiningv1.ImmutableLabels
+		identHash   string
+		expectErr   func(error) bool
+	}{
+		{
+			name:        "matching immutable labels accepted",
+			helloLabels: helloLabels,
+			identHash:   helloHash,
+			expectErr:   nil,
+		},
+		{
+			name:        "no labels with no hash accepted",
+			helloLabels: nil,
+			identHash:   "",
+			expectErr:   nil,
+		},
+		{
+			name:        "immutable labels with different hash denied",
+			helloLabels: helloLabels,
+			identHash:   "some-other-hash",
+			expectErr:   trace.IsAccessDenied,
+		},
+		{
+			name:        "immutable labels with empty hash denied",
+			helloLabels: helloLabels,
+			identHash:   "",
+			expectErr:   trace.IsAccessDenied,
+		},
+		{
+			name:      "nil immutable labels with provided hash denied",
+			identHash: helloHash,
+			expectErr: trace.IsAccessDenied,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			h := newInventoryControlStreamHarness(t, srv.AuthServer, serverID, "", c.identHash, types.RoleNode)
+			type registerResult struct {
+				hello *proto.UpstreamInventoryHello
+				err   error
+			}
+			resultCh := make(chan registerResult)
+			go func() {
+				hello, err := h.server.RegisterInventoryControlStream(h.upstream)
+				resultCh <- registerResult{hello: hello, err: err}
+			}()
+
+			err := h.downstream.Send(ctx, &proto.UpstreamInventoryHello{
+				ServerID:        serverID,
+				ImmutableLabels: c.helloLabels,
+			})
+			require.NoError(t, err)
+
+			if c.expectErr != nil {
+				result := <-resultCh
+				require.True(t, c.expectErr(result.err), "expected error")
+				return
+			}
+
+			msg := <-h.downstream.Recv()
+			require.IsType(t, *new(*proto.DownstreamInventoryHello), msg)
+
+			result := <-resultCh
+			require.NoError(t, result.err)
+			require.NotNil(t, result.hello)
 		})
 	}
 }

@@ -1,0 +1,112 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package teleport.web.teleterm.ptyhost.v1;
+
+import "google/protobuf/struct.proto";
+
+// PtyHost runs in the shared process of Teleport Connect and manages PTY processes.
+service PtyHostService {
+  // CreatePtyProcess initializes the PTY process in the shared process without starting it yet.
+  rpc CreatePtyProcess(CreatePtyProcessRequest) returns (CreatePtyProcessResponse);
+  // ManagePtyProcess is a bidirectional stream that lets the client send input and resize requests
+  // to the PTY process and receive output from the PTY process.
+  rpc ManagePtyProcess(stream ManagePtyProcessRequest) returns (stream ManagePtyProcessResponse);
+  // GetCwd returns the current working directory of the given PTY process.
+  rpc GetCwd(GetCwdRequest) returns (GetCwdResponse);
+}
+
+// CreatePtyProcessRequest includes fields necessary to start a PTY process.
+message CreatePtyProcessRequest {
+  string path = 1;
+  repeated string args = 2;
+  string cwd = 3;
+  google.protobuf.Struct env = 4;
+  string init_message = 5;
+  bool use_conpty = 6;
+}
+
+// CreatePtyProcessResponse returns the ID of the initialized PTY process.
+message CreatePtyProcessResponse {
+  string id = 1;
+}
+
+// ManagePtyProcessRequest represents events sent from the terminal client to the PTY process.
+message ManagePtyProcessRequest {
+  oneof event {
+    PtyEventStart start = 1;
+    PtyEventResize resize = 2;
+    PtyEventData data = 3;
+  }
+}
+
+// ManagePtyProcessResponse represents events sent from the PTY process to the terminal client.
+message ManagePtyProcessResponse {
+  oneof event {
+    PtyEventData data = 1;
+    PtyEventOpen open = 2;
+    PtyEventExit exit = 3;
+    PtyEventStartError start_error = 4;
+  }
+}
+
+// PtyEventStart sent by the client makes the shared process attempt to spawn the PTY process
+// previously initialized with CreatePtyProcess.
+message PtyEventStart {
+  uint32 columns = 1;
+  uint32 rows = 2;
+}
+
+// PtyEventData is input sent by the client to the PTY process or output sent from the PTY process
+// to the client.
+message PtyEventData {
+  string message = 1;
+}
+
+// PtyEventResize is a resize request sent from the client to the PTY process.
+message PtyEventResize {
+  uint32 columns = 1;
+  uint32 rows = 2;
+}
+
+// PtyEventOpen is sent by the PTY process after a successful start.
+message PtyEventOpen {}
+
+// PtyEventExit is sent by the PTY process on exit.
+message PtyEventExit {
+  uint32 exit_code = 1;
+  optional uint32 signal = 2;
+  string last_input = 3;
+}
+
+// PtyEventStartError is sent by the PTY process when the shared process fails to start it.
+message PtyEventStartError {
+  string message = 1;
+}
+
+// GetCwdRequest identifies the PTY process for which the cwd should be returned.
+message GetCwdRequest {
+  string id = 1;
+}
+
+// GetCwdResponse includes the current working directory of a PTY process.
+message GetCwdResponse {
+  string cwd = 1;
+}

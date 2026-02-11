@@ -392,8 +392,10 @@ func requireBindEvent(t *testing.T, testCtx *testContext) *events.PostgresBind {
 	return bindEvent
 }
 
-func requireEvent(t *testing.T, testCtx *testContext, code string) events.AuditEvent {
-	t.Helper()
+func requireEvent(t require.TestingT, testCtx *testContext, code string) events.AuditEvent {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
 	event := waitForAnyEvent(t, testCtx)
 	require.Equal(t, code, event.GetCode())
 	return event
@@ -417,8 +419,10 @@ func requireQueryEventWithDBName(t *testing.T, testCtx *testContext, code, query
 	require.Equal(t, dbName, queryEvent.DatabaseName)
 }
 
-func waitForAnyEvent(t *testing.T, testCtx *testContext) events.AuditEvent {
-	t.Helper()
+func waitForAnyEvent(t require.TestingT, testCtx *testContext) events.AuditEvent {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
 	select {
 	case event := <-testCtx.emitter.C():
 		return event

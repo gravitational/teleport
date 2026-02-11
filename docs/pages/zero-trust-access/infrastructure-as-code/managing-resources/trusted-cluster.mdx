@@ -1,7 +1,9 @@
 ---
 title: Managing Trusted Clusters With IaC
+sidebar_label: Trusted Clusters
 description: Use infrastructure-as-code tooling to create Teleport trusted clusters.
 tags:
+ - infrastructure-as-code
  - how-to
  - zero-trust
 ---
@@ -26,7 +28,7 @@ Teleport supports three ways to dynamically create resources from code:
 
 ## Prerequisites
 
-- Access to **two** Teleport cluster instances. Follow the [Run a Self-Hosted Demo Cluster](../../../linux-demo.mdx)
+- Access to **two** Teleport cluster instances. Follow the [Run a Self-Hosted Demo Cluster](../../../get-started/deploy-community.mdx)
   guide to learn how to deploy a self-hosted Teleport cluster on a Linux server.
 
   The two clusters should be at the same version or, at most, the leaf cluster can be one major version
@@ -36,7 +38,7 @@ Teleport supports three ways to dynamically create resources from code:
   For information about how to enroll a resource in your cluster, see
   [Join Services to your Cluster](../../../enroll-resources/agents/agents.mdx).
 
-- Read through the [Configure Trusted Clusters](../../management/admin/trustedclusters.mdx)
+- Read through the [Configure Trusted Clusters](../../deploy-a-cluster/trustedclusters.mdx)
   guide to understand how trusted clusters works.
 
 - The `tctl` admin tool and `tsh` client tool.

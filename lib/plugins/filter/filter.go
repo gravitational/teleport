@@ -141,3 +141,69 @@ func Matches(filters Filters, param MatchParam) bool {
 	}
 	return !hasInclude
 }
+
+// Inputs is used to configure filters
+// in the Web UI or tctl. Field name matches with the
+// include and exclude fields of PluginSyncFilter proto.
+type Inputs struct {
+	ID               []string `json:"id,omitempty"`
+	NameRegex        []string `json:"nameRegex,omitempty"`
+	ExcludeID        []string `json:"excludeId,omitempty"`
+	ExcludeNameRegex []string `json:"excludeNameRegex,omitempty"`
+}
+
+// NewFromInputs returns a new [Filters] from [Inputs].
+func NewFromInputs(in Inputs) (Filters, error) {
+	cap := len(in.ID) + len(in.NameRegex) + len(in.ExcludeID) + len(in.ExcludeNameRegex)
+	protoFilters := make([]*types.PluginSyncFilter, 0, cap)
+
+	for _, id := range in.ID {
+		protoFilters = append(protoFilters, &types.PluginSyncFilter{
+			Include: &types.PluginSyncFilter_Id{Id: id},
+		})
+	}
+	for _, n := range in.NameRegex {
+		protoFilters = append(protoFilters, &types.PluginSyncFilter{
+			Include: &types.PluginSyncFilter_NameRegex{NameRegex: n},
+		})
+	}
+	for _, id := range in.ExcludeID {
+		protoFilters = append(protoFilters, &types.PluginSyncFilter{
+			Exclude: &types.PluginSyncFilter_ExcludeId{ExcludeId: id},
+		})
+	}
+	for _, n := range in.ExcludeNameRegex {
+		protoFilters = append(protoFilters, &types.PluginSyncFilter{
+			Exclude: &types.PluginSyncFilter_ExcludeNameRegex{ExcludeNameRegex: n},
+		})
+	}
+
+	filters, err := New(protoFilters)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return filters, nil
+}
+
+// ToInputs transforms [types.PluginSyncFilter] to [Inputs].
+func ToInputs(in []*types.PluginSyncFilter) Inputs {
+	var out Inputs
+
+	for _, v := range in {
+		if v.GetId() != "" {
+			out.ID = append(out.ID, v.GetId())
+		}
+		if v.GetNameRegex() != "" {
+			out.NameRegex = append(out.NameRegex, v.GetNameRegex())
+		}
+		if v.GetExcludeId() != "" {
+			out.ExcludeID = append(out.ExcludeID, v.GetExcludeId())
+		}
+		if v.GetExcludeNameRegex() != "" {
+			out.ExcludeNameRegex = append(out.ExcludeNameRegex, v.GetExcludeNameRegex())
+		}
+	}
+
+	return out
+}

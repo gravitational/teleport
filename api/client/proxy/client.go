@@ -502,7 +502,11 @@ func (c *Client) ClientConfig(ctx context.Context, cluster string) (client.Confi
 func (c *Client) DialHost(ctx context.Context, target, cluster string, keyring agent.ExtendedAgent) (net.Conn, ClusterDetails, error) {
 	conn, details, err := cmp.Or(c.relayTransport, c.transport).DialHost(ctx, target, cluster, nil, keyring)
 	if err != nil {
-		return nil, ClusterDetails{}, trace.ConnectionProblem(err, "failed connecting to host %s: %v", target, err)
+		host := target
+		if h, _, err := net.SplitHostPort(target); err == nil {
+			host = h
+		}
+		return nil, ClusterDetails{}, trace.ConnectionProblem(err, "failed connecting to host %s: %v", host, err)
 	}
 
 	return conn, ClusterDetails{FIPS: details.FipsEnabled}, nil

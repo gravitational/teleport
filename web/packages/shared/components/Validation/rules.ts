@@ -17,14 +17,6 @@
  */
 
 /**
- * ROLE_ARN_REGEX uses the same regex matcher used in the backend:
- * https://github.com/gravitational/teleport/blob/2cba82cb332e769ebc8a658d32ff24ddda79daff/api/utils/aws/identifiers.go#L43
- *
- * The regex checks for alphanumerics and select few characters.
- */
-const IAM_ROLE_NAME_REGEX = /^[\w+=,.@-]+$/;
-
-/**
  * The result of validating a field.
  */
 export interface ValidationResult {
@@ -107,28 +99,52 @@ const requiredConfirmedPassword =
     };
   };
 
-const isIamRoleNameValid = roleName => {
-  return (
-    roleName && roleName.length <= 64 && roleName.match(IAM_ROLE_NAME_REGEX)
-  );
-};
-
 /**
- * @param name validAwsIAMRoleName verifies if the given value is a
- * valid AWS IAM role name.
+ * Using the IETF RFC 1035 Label Names rules documented here:
+ * https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#rfc-1035-label-names
+ *
+ * - contain at most 63 characters
+ * - contain only lowercase alphanumeric characters or '-'
+ * - start with an alphabetic character
+ * - end with an alphanumeric character
+ *
  */
-const validAwsIAMRoleName = (name: string): ValidationResult => {
-  if (name.length > 64) {
+const RFC1035_LABEL_ALLOWED_CHARS = /^[-a-z0-9]+$/;
+const RFC1035_LABEL_START = /^[a-z]/;
+const RFC1035_LABEL_END = /[a-z0-9]$/;
+const RFC1035_LABEL_MAX_LENGTH = 63;
+/**
+ * @param name validIntegrationName verifies if the given value is a
+ * valid Integration name.
+ */
+const validIntegrationName = (name: string): ValidationResult => {
+  if (name.length > RFC1035_LABEL_MAX_LENGTH) {
     return {
       valid: false,
-      message: 'name should be <= 64 characters',
+      message:
+        'Name must contain at most ' + RFC1035_LABEL_MAX_LENGTH + ' characters',
     };
   }
 
-  if (!isIamRoleNameValid(name)) {
+  if (!name.match(RFC1035_LABEL_ALLOWED_CHARS)) {
     return {
       valid: false,
-      message: 'name can only contain characters @ = , . + - and alphanumerics',
+      message:
+        "Name must only contain lowercase alphanumeric characters or '-'",
+    };
+  }
+
+  if (!name.match(RFC1035_LABEL_START)) {
+    return {
+      valid: false,
+      message: 'Name must start with an alphabetic character',
+    };
+  }
+
+  if (!name.match(RFC1035_LABEL_END)) {
+    return {
+      valid: false,
+      message: 'Name must end with an alphanumeric character',
     };
   }
 
@@ -138,8 +154,97 @@ const validAwsIAMRoleName = (name: string): ValidationResult => {
 };
 
 /**
+ * IAM_ROLE_NAME_REGEX uses the same regex matcher used in the backend:
+ * https://github.com/gravitational/teleport/blob/8d946146999260578f1a1b250aa87a6008343bab/api/utils/aws/identifiers.go#L178
+ *
+ * The regex checks for alphanumerics and select few characters.
+ */
+const IAM_ROLE_NAME_REGEX = /^[\w+=,.@-]+$/;
+const IAM_ROLE_NAME_MAX_LENGTH = 64;
+/**
+ * @param name validAwsIAMRoleName verifies if the given value is a
+ * valid AWS IAM role name.
+ */
+const validAwsIAMRoleName = (name: string): ValidationResult => {
+  if (name.length > IAM_ROLE_NAME_MAX_LENGTH) {
+    return {
+      valid: false,
+      message: 'Name must be <= ' + IAM_ROLE_NAME_MAX_LENGTH + ' characters',
+    };
+  }
+
+  if (!name.match(IAM_ROLE_NAME_REGEX)) {
+    return {
+      valid: false,
+      message:
+        'Name must only contain characters @ = , . + - and alphanumerics',
+    };
+  }
+
+  return {
+    valid: true,
+  };
+};
+
+/**
+ * ROLES_ANYWHERE_NAME_REGEX uses the same regex matcher used in the backend:
+ * https://github.com/gravitational/teleport/blob/8d946146999260578f1a1b250aa87a6008343bab/api/utils/aws/identifiers.go#L213
+ */
+const ROLES_ANYWHERE_NAME_REGEX = /^[ a-zA-Z0-9-_]{1,255}$/;
+const ROLES_ANYWHERE_NAME_MAX_LENGTH = 255;
+/**
+ * @param name validAwsRaResourceName verifies if the given value is a
+ * valid AWS Roles Anywhere resource name.
+ */
+const validAwsRaResourceName = (name: string): ValidationResult => {
+  if (name.length > ROLES_ANYWHERE_NAME_MAX_LENGTH) {
+    return {
+      valid: false,
+      message:
+        'Name must be <= ' + ROLES_ANYWHERE_NAME_MAX_LENGTH + ' characters',
+    };
+  }
+
+  // Since [space] is allowed in regex matcher, we don't want leading/trailing whitespaces.
+  if (name !== name.trim()) {
+    return {
+      valid: false,
+      message: 'Name contains leading/trailing whitespace characters',
+    };
+  }
+
+  if (!name.match(ROLES_ANYWHERE_NAME_REGEX)) {
+    return {
+      valid: false,
+      message:
+        'Name must only contain characters [space] - _ and alphanumerics',
+    };
+  }
+  return {
+    valid: true,
+  };
+};
+
+/**
+ * requiredIntegrationName is a required field and checks for a
+ * value which must also be a valid Integration name.
+ * @param name is an integration name.
+ * @returns ValidationResult
+ */
+const requiredIntegrationName: Rule = name => (): ValidationResult => {
+  if (!name) {
+    return {
+      valid: false,
+      message: 'Integration name is required',
+    };
+  }
+
+  return validIntegrationName(name);
+};
+
+/**
  * requiredIamRoleName is a required field and checks for a
- * value which should also be a valid AWS IAM role name.
+ * value which must also be a valid AWS IAM Role name.
  * @param name is a role name.
  * @returns ValidationResult
  */
@@ -147,11 +252,45 @@ const requiredIamRoleName: Rule = name => (): ValidationResult => {
   if (!name) {
     return {
       valid: false,
-      message: 'IAM role name required',
+      message: 'IAM Role name is required',
     };
   }
 
   return validAwsIAMRoleName(name);
+};
+
+/**
+ * requiredIamTrustAnchorName is a required field and checks for a
+ * value which must also be a valid AWS IAM Roles Anywhere Trust Anchor name.
+ * @param name is a trust anchor name.
+ * @returns ValidationResult
+ */
+const requiredIamTrustAnchorName: Rule = name => (): ValidationResult => {
+  if (!name) {
+    return {
+      valid: false,
+      message: 'IAM Trust Anchor name is required',
+    };
+  }
+
+  return validAwsRaResourceName(name);
+};
+
+/**
+ * requiredIamProfileName is a required field and checks for a
+ * value which must also be a valid AWS IAM Roles Anywhere Profile name.
+ * @param name is a profile name.
+ * @returns ValidationResult
+ */
+const requiredIamProfileName: Rule = name => (): ValidationResult => {
+  if (!name) {
+    return {
+      valid: false,
+      message: 'IAM Profile name is required',
+    };
+  }
+
+  return validAwsRaResourceName(name);
 };
 
 /**
@@ -186,6 +325,14 @@ const requiredRoleArn: Rule = roleArn => () => {
   return {
     valid: true,
   };
+};
+
+const isIamRoleNameValid = (roleName: string) => {
+  return (
+    roleName &&
+    roleName.length <= IAM_ROLE_NAME_MAX_LENGTH &&
+    roleName.match(IAM_ROLE_NAME_REGEX)
+  );
 };
 
 export interface EmailValidationResult extends ValidationResult {
@@ -401,7 +548,10 @@ export {
   requiredConfirmedPassword,
   requiredField,
   requiredRoleArn,
+  requiredIntegrationName,
   requiredIamRoleName,
+  requiredIamTrustAnchorName,
+  requiredIamProfileName,
   requiredEmailLike,
   requiredMaxLength,
   requiredAll,

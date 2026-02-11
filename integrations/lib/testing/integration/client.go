@@ -109,6 +109,7 @@ func (api *Client) SearchAccessRequestEvents(ctx context.Context, reqID string) 
 		100,
 		types.EventOrderAscending,
 		"",
+		"",
 	)
 	result := make([]*events.AccessRequestCreate, 0, len(auditEvents))
 	for _, event := range auditEvents {

@@ -183,7 +183,7 @@ describe('BotIntancesList', () => {
       screen.getByRole('menuitem', { name: 'Bot name' })
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('menuitem', { name: 'Recent' })
+      screen.getByRole('menuitem', { name: 'Activity' })
     ).toBeInTheDocument();
     expect(
       screen.getByRole('menuitem', { name: 'Hostname' })
@@ -191,10 +191,13 @@ describe('BotIntancesList', () => {
     const versionOption = screen.getByRole('menuitem', { name: 'Version' });
     await user.click(versionOption);
 
-    expect(onSortChanged).toHaveBeenLastCalledWith('version_latest', 'DESC');
+    expect(onSortChanged).toHaveBeenLastCalledWith('version_latest', 'ASC');
 
-    const dirAction = screen.getByRole('button', { name: 'Sort direction' });
-    await user.click(dirAction);
+    await user.click(fieldAction);
+    const oldestAction = screen.getByRole('menuitem', {
+      name: 'Oldest',
+    });
+    await user.click(oldestAction);
 
     // The component under test does not keep sort state so the sort field will
     // be 'active_at_latest' on the next change.
@@ -220,6 +223,38 @@ describe('BotIntancesList', () => {
 
     expect(onSortChanged).toHaveBeenLastCalledWith('bot_name', 'ASC');
   });
+
+  describe('When filtering', () => {
+    it('Shows an alterate title', async () => {
+      renderComponent({
+        props: {
+          isFiltering: true,
+        },
+      });
+
+      expect(
+        screen.getByRole('heading', { name: 'Filtered Instances' })
+      ).toBeInTheDocument();
+    });
+
+    it('Shows an empty state', async () => {
+      renderComponent({
+        props: {
+          data: [],
+          isFiltering: true,
+        },
+      });
+
+      expect(
+        screen.getByText('No instances matching filter')
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          'Bot instances are ephemeral, and disappear once all issued credentials have expired.'
+        )
+      ).not.toBeInTheDocument();
+    });
+  });
 });
 
 const renderComponent = (options?: {
@@ -238,6 +273,7 @@ const renderComponent = (options?: {
     onSortChanged = jest.fn(),
     onLoadNextPage = jest.fn(),
     onItemSelected = jest.fn(),
+    isFiltering = false,
   } = props ?? {};
 
   const user = userEvent.setup();
@@ -255,6 +291,7 @@ const renderComponent = (options?: {
         onSortChanged={onSortChanged}
         onLoadNextPage={onLoadNextPage}
         onItemSelected={onItemSelected}
+        isFiltering={isFiltering}
       />,
       {
         wrapper: makeWrapper(),

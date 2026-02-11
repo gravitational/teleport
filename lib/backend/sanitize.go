@@ -55,15 +55,14 @@ func isValidKeyByte(b byte) bool {
 
 // IsKeySafe checks if the passed in key conforms to whitelist
 func IsKeySafe(key Key) bool {
-	components := key.Components()
-	for i, k := range components {
+	for i, k := range key.components {
 		switch k {
 		case noEnd:
 			continue
 		case ".", "..":
 			return false
 		case "":
-			return key.exactKey && i == len(components)-1
+			return key.exactKey && i == len(key.components)-1
 		}
 
 		for _, b := range []byte(k) {
@@ -119,6 +118,17 @@ func (s *Sanitizer) Put(ctx context.Context, i Item) (*Lease, error) {
 	}
 
 	return s.backend.Put(ctx, i)
+}
+
+// PutBatch puts multiple values into backend.
+func (s *Sanitizer) PutBatch(ctx context.Context, items []Item) ([]string, error) {
+	for _, item := range items {
+		if !IsKeySafe(item.Key) {
+			return nil, trace.BadParameter(errorMessage, item.Key)
+		}
+	}
+	out, err := PutBatch(ctx, s.backend, items)
+	return out, trace.Wrap(err)
 }
 
 // Update updates value in the backend

@@ -20,6 +20,7 @@ syntax = "proto3";
 
 package teleport.lib.teleterm.v1;
 
+import "google/protobuf/timestamp.proto";
 import "teleport/legacy/types/trusted_device_requirement.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
@@ -34,7 +35,9 @@ message Cluster {
   // For leaf clusters, it has the form of /clusters/:rootClusterId/leaves/:leafClusterId where
   // leafClusterId is equal to the name property of the cluster.
   string uri = 1;
-  // name is used throughout the Teleport Connect codebase as the cluster name.
+  // name is the site name of Teleport cluster.
+  // Only present in root clusters if the user has logged in (the name comes from the certificate).
+  // Always available for leaf clusters.
   string name = 2;
   // proxy_host is address of the proxy used to connect to this cluster.
   // Always includes port number. Present only for root clusters.
@@ -109,6 +112,8 @@ message LoggedInUser {
   bool is_device_trusted = 9;
   // Indicates whether access may be hindered by the lack of a trusted device.
   types.TrustedDeviceRequirement trusted_device_requirement = 10;
+  // Expiration time of the certificate.
+  google.protobuf.Timestamp valid_until = 11;
 }
 
 // ACL is the access control list of the user

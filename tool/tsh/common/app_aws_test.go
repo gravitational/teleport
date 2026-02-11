@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -251,10 +252,14 @@ func TestAWSRolesAnywhereBasedAccess(t *testing.T) {
 	// check if external files were set correctly
 	require.FileExists(t, awsConfigFile)
 
+	// check if certificate file was written
+	expectedCredentialFilePath := filepath.Join(tmpHomePath, "keys", proxyAddr.Host(), user.GetName()+"-app", "server01", profileName+".crt")
+	require.FileExists(t, expectedCredentialFilePath)
+
 	awsConfigContents, err := os.ReadFile(awsConfigFile)
 	require.NoError(t, err)
 
-	expectedProfileConfig := `; Do not edit. Section managed by Teleport. Generated for accessing aws-profile
+	expectedProfileConfig := `; Do not edit. Section managed by Teleport.
 [profile aws-profile]
 credential_process=tsh apps config --format aws-credential-process aws-profile
 `
@@ -282,6 +287,137 @@ credential_process=tsh apps config --format aws-credential-process aws-profile
 	awsConfigContents, err = os.ReadFile(awsConfigFile)
 	require.NoError(t, err)
 	require.Empty(t, awsConfigContents)
+}
+
+func TestAWSRolesAnywhereBasedAccess_usingMFA(t *testing.T) {
+	tmpHomePath := t.TempDir()
+
+	awsConfigFile := filepath.Join(tmpHomePath, "aws_config")
+	t.Setenv("AWS_CONFIG_FILE", awsConfigFile)
+
+	connector := mockConnector(t)
+
+	user, awsRole := makeUserWithAWSRole(t)
+	awsRoleOptions := awsRole.GetOptions()
+	awsRoleOptions.RequireMFAType = types.RequireMFAType_SESSION
+	awsRole.SetOptions(awsRoleOptions)
+
+	authProcess, err := testserver.NewTeleportProcess(
+		t.TempDir(),
+		testserver.WithBootstrap(connector, user, awsRole),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authProcess.Close())
+		require.NoError(t, authProcess.Wait())
+	})
+
+	authServer := authProcess.GetAuthServer()
+	proxyAddr, err := authProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Set up MFA device for the user.
+	origin := "https://127.0.0.1"
+	device, err := mocku2f.Create()
+	require.NoError(t, err)
+	device.SetPasswordless()
+	webauthnLoginOpt := setupWebAuthnChallengeSolver(device, true /* success */)
+
+	_, err = authProcess.GetAuthServer().UpsertAuthPreference(t.Context(), &types.AuthPreferenceV2{
+		Spec: types.AuthPreferenceSpecV2{
+			SecondFactor: constants.SecondFactorOptional,
+			Webauthn: &types.Webauthn{
+				RPID: "127.0.0.1",
+			},
+			RequireMFAType: types.RequireMFAType_SESSION,
+		},
+	})
+	require.NoError(t, err)
+	registerDeviceForUser(t, authServer, device, user.GetName(), origin)
+
+	authServer.AWSRolesAnywhereCreateSessionOverride = func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
+		return &createsession.CreateSessionResponse{
+			Version:         1,
+			AccessKeyID:     "aki",
+			SecretAccessKey: "sak",
+			SessionToken:    "st",
+			Expiration:      "2025-06-25T12:07:02.474135Z",
+		}, nil
+	}
+
+	integrationName := "aws-app"
+	profileName := "aws-profile"
+	integration, err := types.NewIntegrationAWSRA(
+		types.Metadata{Name: integrationName},
+		&types.AWSRAIntegrationSpecV1{
+			TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
+		},
+	)
+	require.NoError(t, err)
+	_, err = authProcess.GetAuthServer().CreateIntegration(t.Context(), integration)
+	require.NoError(t, err)
+
+	awsAppUsingRolesAnywhere, err := types.NewAppServerV3(types.Metadata{
+		Name: profileName,
+	}, types.AppServerSpecV3{
+		HostID: authProcess.GetID(),
+		App: &types.AppV3{Metadata: types.Metadata{
+			Name: profileName,
+		}, Spec: types.AppSpecV3{
+			URI:         constants.AWSConsoleURL,
+			Integration: integrationName,
+			AWS: &types.AppAWS{
+				RolesAnywhereProfile: &types.AppAWSRolesAnywhereProfile{
+					ProfileARN:            "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/12345678-1234-1234-1234-123456789012",
+					AcceptRoleSessionName: true,
+				},
+			},
+			PublicAddr: "example.com",
+		}},
+	})
+	require.NoError(t, err)
+
+	_, err = authServer.UpsertApplicationServer(t.Context(), awsAppUsingRolesAnywhere)
+	require.NoError(t, err)
+
+	// Log into Teleport cluster.
+	err = Run(t.Context(), []string{
+		"login", "--insecure", "--debug", "--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, user, connector.GetName()))
+	require.NoError(t, err)
+
+	// Log into the "aws-profile" app.
+	err = Run(
+		t.Context(),
+		[]string{"apps", "login", "--insecure", "--aws-role", "some-aws-role", profileName},
+		setHomePath(tmpHomePath),
+		webauthnLoginOpt,
+	)
+	require.ErrorContains(t, err, "AWS access is configured to use per-session MFA")
+
+	// Log in again but now use the `--env` flag to export the credentials to the shell.
+	output := &bytes.Buffer{}
+	err = Run(
+		t.Context(),
+		[]string{"apps", "login", "--insecure", "--aws-role", "some-aws-role", profileName, "--env"},
+		setHomePath(tmpHomePath),
+		setOverrideStdout(output),
+		webauthnLoginOpt,
+	)
+	require.NoError(t, err)
+
+	require.Equal(t, `export AWS_ACCESS_KEY_ID=aki
+export AWS_SECRET_ACCESS_KEY=sak
+export AWS_SESSION_TOKEN=st
+# Export the above variables in your current shell to start using the AWS credentials.
+`, output.String())
+
+	// Verify that the AWS config file was not created.
+	require.NoFileExists(t, awsConfigFile)
+
+	// Verify that the certificate file was not created.
+	expectedCredentialFilePath := filepath.Join(tmpHomePath, "keys", proxyAddr.Host(), user.GetName()+"-app", "server01", profileName+".crt")
+	require.NoFileExists(t, expectedCredentialFilePath)
 }
 
 // TestAWSConsoleLogins given a AWS console application, execute a app login

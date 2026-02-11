@@ -42,10 +42,17 @@ function createRenderer(metadata?: Partial<SessionRecordingMetadata>) {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d')!;
 
-  const renderer = new TimeMarkersRenderer(ctx, darkTheme, {
+  const m = {
     ...mockMetadata,
     ...metadata,
-  });
+  };
+
+  const renderer = new TimeMarkersRenderer(
+    ctx,
+    darkTheme,
+    m.duration,
+    m.startTime
+  );
 
   return { ctx, renderer };
 }

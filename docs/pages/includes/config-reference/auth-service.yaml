@@ -152,8 +152,13 @@ auth_service:
     #local_auth: true
 
     # Enforce per-session MFA or PIV-hardware key restrictions on user login sessions.
-    # Possible values: true, false, "hardware_key", "hardware_key_touch".
-    # Defaults to false.
+    # Defaults to false. Possible values:
+    # - "false" to disable per-session MFA
+    # - "true" to require MFA of any type on each session
+    # - "hardware_key" to require MFA of any type on each session AND hardware-key-backed private keys
+    # - "hardware_key_touch" to require a hardware key touch on each session
+    # - "hardware_key_pin" to require entering a hardware key PIN on each session
+    # - "hardware_key_touch_and_pin" to require a hardware key touch and PIN on each session
     require_session_mfa: false
 
     # second_factors is the list of allowed second factors for the cluster.
@@ -413,8 +418,8 @@ auth_service:
   # unlikely that you'll need to change this.
   # session_control_timeout: 2m
 
-  # Determines the routing strategy used to connect to nodes. Can be
-  # 'unambiguous_match' (default), or 'most_recent'.
+  # Determines the routing strategy used to connect to nodes when connecting via 
+  # node name. Can be 'unambiguous_match' (default), or 'most_recent'.
   routing_strategy: unambiguous_match
 
   # License file to start auth server with. Note that this setting is ignored

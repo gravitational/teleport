@@ -112,6 +112,15 @@ service AccessListService {
 
   // GetInheritedGrants returns the inherited grants for an access list.
   rpc GetInheritedGrants(GetInheritedGrantsRequest) returns (GetInheritedGrantsResponse);
+
+  // ListUserAccessLists returns a paginated list of all access lists where the
+  // user is an owner or member.
+  rpc ListUserAccessLists(ListUserAccessListsRequest) returns (ListUserAccessListsResponse);
+
+  // CreateAccessListWithPreset creates a new access list with preset configuration.
+  rpc CreateAccessListWithPreset(CreateAccessListWithPresetRequest) returns (CreateAccessListWithPresetResponse);
+  // UpdateAccessListWithPreset updates an existing access list with preset configuration.
+  rpc UpdateAccessListWithPreset(UpdateAccessListWithPresetRequest) returns (UpdateAccessListWithPresetResponse);
 }
 
 // GetAccessListsRequest is the request for getting all access lists.
@@ -504,4 +513,66 @@ message GetSuggestedAccessListsRequest {
 message GetSuggestedAccessListsResponse {
   // access_lists is the list of suggested lists.
   repeated AccessList access_lists = 1;
+}
+
+// ListUserAccessListsRequest is the request for getting access lists where the
+// user is an owner or member.
+message ListUserAccessListsRequest {
+  // username is the name of the user to get access lists for.
+  string username = 1;
+  // page_size is the size of the page to request.
+  int32 page_size = 2;
+  // page_token is the page token.
+  string page_token = 3;
+}
+
+// ListUserAccessListsResponse is the response for getting access lists where the
+// user is an owner or member.
+message ListUserAccessListsResponse {
+  // access_lists are the access lists where the user is a member or owner.
+  repeated AccessList access_lists = 1;
+  // next_page_token is the next page token.
+  string next_page_token = 2;
+  // total_count is the total number of access lists in all pages.
+  int32 total_count = 3;
+}
+
+// CreateAccessListWithPresetRequest is the request for creating an access list with preset configuration.
+message CreateAccessListWithPresetRequest {
+  // preset_type specifies the access pattern: "long-term" (direct access) or "short-term" (request-based access).
+  string preset_type = 1;
+  // access_list is the access list to create. Grants will be automatically configured based on preset_type.
+  AccessList access_list = 2;
+  // access_roles define the permissions needed to handle short-term and long-term flow.
+  repeated types.RoleV6 roles = 3;
+}
+
+// CreateAccessListWithPresetResponse is the response for creating an access list with preset configuration.
+message CreateAccessListWithPresetResponse {
+  // access_list is the created access list with grants automatically configured.
+  AccessList access_list = 1;
+  // access are the roles that grant actual permissions to resources. Managed by Teleport.
+  repeated types.RoleV6 roles = 2;
+}
+
+// UpdateAccessListWithPresetRequest is the request for updating an access list with preset configuration.
+message UpdateAccessListWithPresetRequest {
+  // access_list is the created access list with grants automatically configured.
+  AccessList access_list = 1;
+  // access_roles define the permissions needed to handle short-term and long-term flow.
+  repeated types.RoleV6 roles = 2;
+}
+
+// UpdateAccessListWithPresetResponse is the response for updating an access list with preset configuration.
+message UpdateAccessListWithPresetResponse {
+  // access_list is the updated access list with the latest configuration.
+  AccessList access_list = 1;
+  // roles are the updated roles that grant permissions to resources. Managed by Teleport.
+  repeated types.RoleV6 roles = 2;
+
+  // RolesToBeDeleted contains role names that are no longer valid for this access list preset.
+  // These roles may still be in use, so instead of deleting them in the backend and relying on
+  // "roles in use" error handling, deletion is deferred to a user.
+  // Where the UpdateAccessListWithPresetResponse should be ONLY by web API preset flow.
+  repeated string roles_to_be_deleted = 6;
 }

@@ -142,6 +142,7 @@ export type ThemeColors = {
   tooltip: {
     background: string;
     inverseBackground: string;
+    inverseLinkDefault: string;
   };
 
   progressBarColor: string;
@@ -231,6 +232,12 @@ export type ThemeColors = {
         seeking: string;
         progress: string;
       };
+    };
+    riskLevels: {
+      low: string;
+      medium: string;
+      high: string;
+      critical: string;
     };
   };
 

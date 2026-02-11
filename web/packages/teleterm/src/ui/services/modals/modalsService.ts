@@ -214,7 +214,6 @@ export type ClusterConnectReason =
 export interface DialogClusterLogout {
   kind: 'cluster-logout';
   clusterUri: RootClusterUri;
-  clusterTitle: string;
 }
 
 export interface DialogDocumentsReopen {

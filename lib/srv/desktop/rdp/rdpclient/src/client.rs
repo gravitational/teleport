@@ -45,8 +45,10 @@ use ironrdp_pdu::input::fast_path::{
 use ironrdp_pdu::input::mouse::PointerFlags;
 use ironrdp_pdu::input::{InputEventError, MousePdu};
 use ironrdp_pdu::nego::NegoRequestData;
-use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
-use ironrdp_pdu::rdp::client_info::PerformanceFlags;
+use ironrdp_pdu::rdp::capability_sets::{
+    client_codecs_capabilities, BitmapCodecs, MajorPlatformType,
+};
+use ironrdp_pdu::rdp::client_info::{PerformanceFlags, TimezoneInfo};
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::PduError;
 use ironrdp_pdu::PduResult;
@@ -60,7 +62,7 @@ use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
 use ironrdp_svc::{SvcMessage, SvcProcessor, SvcProcessorMessages};
 use ironrdp_tokio::{single_sequence_step_read, Framed, FramedWrite, TokioStream};
-use log::debug;
+use log::{debug, error};
 use rand::{Rng, TryRngCore};
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
@@ -195,11 +197,11 @@ impl Client {
         });
         let drdynvc_client = DrdynvcClient::new().with_dynamic_channel(display_control);
 
-        let mut connector = ironrdp_connector::ClientConnector::new(connector_config.clone())
-            .with_server_addr(server_socket_addr)
-            .with_static_channel(drdynvc_client) // require for resizing
-            .with_static_channel(Rdpsnd::new(Box::new(NoopRdpsndBackend {}))) // required for rdpdr to work
-            .with_static_channel(rdpdr); // required for smart card + directory sharing
+        let mut connector =
+            ironrdp_connector::ClientConnector::new(connector_config.clone(), server_socket_addr)
+                .with_static_channel(drdynvc_client) // require for resizing
+                .with_static_channel(Rdpsnd::new(Box::new(NoopRdpsndBackend {}))) // required for rdpdr to work
+                .with_static_channel(rdpdr); // required for smart card + directory sharing
 
         if params.allow_clipboard {
             connector = connector.with_static_channel(Cliprdr::new(Box::new(
@@ -377,7 +379,6 @@ impl Client {
                                         &mut read_stream,
                                         sequence.as_mut(),
                                         &mut buf,
-                                        None,
                                     )
                                     .await?;
 
@@ -503,12 +504,17 @@ impl Client {
         let mut pending_resize =
             Self::resize_manager_lock(pending_resize).map_err(ClientError::from)?;
         let pending_resize = pending_resize.pending_resize.take();
-        if let Some((width, height)) = pending_resize {
+        if let Some((initial_width, initial_height)) = pending_resize {
             // If there was a resize pending, perform it now.
             debug!(
                 "Pending resize for size [{:?}x{:?}] found, sending now",
-                width, height
+                initial_width, initial_height
             );
+            let (width, height) =
+                MonitorLayoutEntry::adjust_display_size(initial_width, initial_height);
+            if width != initial_width || height != initial_height {
+                debug!("Adjusted screen resize to [{:?}x{:?}]", width, height);
+            }
             let pdu: DisplayControlPdu = DisplayControlMonitorLayout::new_single_primary_monitor(
                 width,
                 height,
@@ -666,7 +672,7 @@ impl Client {
         event: FastPathInputEvent,
     ) -> ClientResult<()> {
         write_stream
-            .write_all(&encode_vec(&FastPathInput(vec![event]))?)
+            .write_all(&encode_vec(&FastPathInput::single(event))?)
             .await?;
         Ok(())
     }
@@ -1369,6 +1375,12 @@ type RdpReadStream = Framed<TokioStream<ReadHalf<TlsStream<TokioTcpStream>>>>;
 type RdpWriteStream = Framed<TokioStream<WriteHalf<TlsStream<TokioTcpStream>>>>;
 
 fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> Config {
+    let initial_width = params.screen_width as u32;
+    let initial_height = params.screen_height as u32;
+    let (width, height) = MonitorLayoutEntry::adjust_display_size(initial_width, initial_height);
+    if width != initial_width || height != initial_height {
+        debug!("Adjusted screen size to [{:?}x{:?}]", width, height);
+    }
     Config {
         desktop_size: DesktopSize {
             width: params.screen_width,
@@ -1376,6 +1388,8 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
         },
         enable_tls: true,
         enable_credssp: params.ad && params.nla,
+        enable_audio_playback: false,
+        timezone_info: TimezoneInfo::default(),
         credentials: Credentials::SmartCard {
             config: params.ad.then(|| SmartCardIdentity {
                 csp_name: "Microsoft Base Smart Card Crypto Provider".to_string(),
@@ -1402,13 +1416,19 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
             // Changing this to 16 gets us uncompressed bitmaps on machines configured like
             // https://github.com/Devolutions/IronRDP/blob/55d11a5000ebd474c2ddc294b8b3935554443112/README.md?plain=1#L17-L36
             color_depth: 32,
+            // Try to configure the client to use remotefx only. This should never fail in practice, but just in
+            // case we'll log an error and fall back to defaults.
+            codecs: client_codecs_capabilities(&["remotefx"]).unwrap_or_else(|err| {
+                error!("Failed to configure client for remotefx: {}", err);
+                BitmapCodecs::default()
+            }),
         }),
         dig_product_id: "".to_string(),
         // `client_dir` is apparently unimportant, however most RDP clients hardcode this value (including FreeRDP):
         // https://github.com/FreeRDP/FreeRDP/blob/4e24b966c86fdf494a782f0dfcfc43a057a2ea60/libfreerdp/core/settings.c#LL49C34-L49C70
         client_dir: "C:\\Windows\\System32\\mstscax.dll".to_string(),
         platform: MajorPlatformType::UNSPECIFIED,
-        no_server_pointer: false,
+        enable_server_pointer: true,
         autologon: true,
         pointer_software_rendering: false,
         // Send the username in the request cookie, which is sent in the initial connection request.
@@ -1422,7 +1442,8 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
         } else {
             PerformanceFlags::empty()
         },
-        desktop_scale_factor: 0,
+        // spec says that any value not in [100, 500] is ignored
+        desktop_scale_factor: 100,
         license_cache: Some(Arc::new(GoLicenseCache { cgo_handle })),
         hardware_id: Some(params.client_id),
     }

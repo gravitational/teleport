@@ -100,12 +100,15 @@ func TestCRUD(t *testing.T) {
 	t.Run("TestToken", tt.suite.TokenCRUD)
 	t.Run("TestRoles", tt.suite.RolesCRUD)
 	t.Run("TestSAMLCRUD", tt.suite.SAMLCRUD)
+	t.Run("TestSAMLPagination", tt.suite.SAMLPagination)
 	t.Run("TestTunnelConnectionsCRUD", tt.suite.TunnelConnectionsCRUD)
 	t.Run("TestGithubConnectorCRUD", tt.suite.GithubConnectorCRUD)
+	t.Run("TestGithubPagination", tt.suite.GithubPagination)
 	t.Run("TestEvents", tt.suite.Events)
 	t.Run("TestEventsClusterConfig", tt.suite.EventsClusterConfig)
 	t.Run("TestNetworkRestrictions", func(t *testing.T) { tt.suite.NetworkRestrictions(t) })
 	t.Run("TestOIDCCRUD", tt.suite.OIDCCRUD)
+	t.Run("TestOIDCPagination", tt.suite.OIDCPagination)
 }
 
 func TestSemaphore(t *testing.T) {

@@ -90,7 +90,7 @@ export const EmptyList = ({
       <Box mb={3}>
         <H1 mb={3}>What are Trusted Devices?</H1>
         <Text css={{ maxWidth }}>
-          Device trust reduces the attack surface by enforcing that only
+          Device Trust reduces the attack surface by enforcing that only
           trusted, registered devices can access your Teleport cluster.
         </Text>
       </Box>
@@ -116,7 +116,7 @@ export const EmptyList = ({
             isSliding={!!intervalId}
             onClick={() => handleOnClick(2)}
             title="Tie audit events to the user AND machine accessing the system."
-            description="Device trust maps the device identity to every audit log event, so you always know which device was used for each action."
+            description="Device Trust maps the device identity to every audit log event, so you always know which device was used for each action."
           />
           <DetailsTab
             active={currIndex === 3}

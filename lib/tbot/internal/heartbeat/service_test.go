@@ -22,11 +22,12 @@ import (
 	"context"
 	"os"
 	"runtime"
+	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -59,54 +61,128 @@ func (f *fakeHeartbeatSubmitter) SubmitHeartbeat(
 func TestHeartbeatService(t *testing.T) {
 	t.Parallel()
 
-	log := logtest.NewLogger()
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	synctest.Test(t, func(t *testing.T) {
+		log := logtest.NewLogger()
+		ctx, cancel := context.WithCancel(t.Context())
+		t.Cleanup(cancel)
 
-	fhs := &fakeHeartbeatSubmitter{
-		ch: make(chan *machineidv1pb.SubmitHeartbeatRequest, 2),
-	}
+		fhs := &fakeHeartbeatSubmitter{
+			ch: make(chan *machineidv1pb.SubmitHeartbeatRequest, 2),
+		}
 
-	now := time.Date(2024, time.April, 1, 12, 0, 0, 0, time.UTC)
-	svc, err := NewService(Config{
-		Interval:   time.Second,
-		RetryLimit: 3,
-		Client:     fhs,
-		Clock:      clockwork.NewFakeClockAt(now),
-		StartedAt:  time.Date(2024, time.April, 1, 11, 0, 0, 0, time.UTC),
-		Logger:     log,
-		JoinMethod: types.JoinMethodGitHub,
+		reg := readyz.NewRegistry()
+
+		svcA := reg.AddService("a", "a")
+		svcB := reg.AddService("b", strings.Repeat("b", 200))
+
+		svc, err := NewService(Config{
+			Interval:       time.Second,
+			RetryLimit:     3,
+			Client:         fhs,
+			StartedAt:      time.Now().Add(-1 * time.Hour),
+			Logger:         log,
+			JoinMethod:     types.JoinMethodGitHub,
+			StatusReporter: reg.AddService("internal/heartbeat", "heartbeat"),
+			StatusRegistry: reg,
+			BotKind:        machineidv1pb.BotKind_BOT_KIND_TBOT,
+		})
+		require.NoError(t, err)
+
+		hostName, err := os.Hostname()
+		require.NoError(t, err)
+
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- svc.Run(ctx)
+		}()
+
+		synctest.Wait()
+		select {
+		case <-fhs.ch:
+			t.Fatal("should not have received a heartbeat until all services have reported their status")
+		default:
+		}
+
+		svcA.ReportReason(readyz.Unhealthy, "no more bananas")
+		svcB.ReportReason(readyz.Unhealthy, strings.Repeat("b", 300))
+
+		want := &machineidv1pb.SubmitHeartbeatRequest{
+			Heartbeat: &machineidv1pb.BotInstanceStatusHeartbeat{
+				Hostname:     hostName,
+				IsStartup:    true,
+				OneShot:      false,
+				Uptime:       durationpb.New(time.Hour),
+				Version:      teleport.Version,
+				Architecture: runtime.GOARCH,
+				Os:           runtime.GOOS,
+				JoinMethod:   string(types.JoinMethodGitHub),
+				Kind:         machineidv1pb.BotKind_BOT_KIND_TBOT,
+			},
+			ServiceHealth: []*machineidv1pb.BotInstanceServiceHealth{
+				{
+					Service: &machineidv1pb.BotInstanceServiceIdentifier{
+						Name: "a",
+						Type: "a",
+					},
+					Reason:    ptr("no more bananas"),
+					Status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
+					UpdatedAt: timestamppb.New(time.Now()),
+				},
+				// Check limits were applied on user-controlled or dynamic fields.
+				{
+					Service: &machineidv1pb.BotInstanceServiceIdentifier{
+						Name: strings.Repeat("b", 64),
+						Type: "b",
+					},
+					Reason:    ptr(strings.Repeat("b", 256)),
+					Status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
+					UpdatedAt: timestamppb.New(time.Now()),
+				},
+				{
+					Service: &machineidv1pb.BotInstanceServiceIdentifier{
+						Name: "heartbeat",
+						Type: "internal/heartbeat",
+					},
+					Status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY,
+					UpdatedAt: timestamppb.New(time.Now()),
+				},
+			},
+		}
+
+		compare := func(t *testing.T, want, got *machineidv1pb.SubmitHeartbeatRequest) {
+			t.Helper()
+
+			assert.Empty(t,
+				cmp.Diff(want, got,
+					protocmp.Transform(),
+					protocmp.IgnoreFields(&machineidv1pb.BotInstanceStatusHeartbeat{}, "recorded_at"),
+				),
+			)
+		}
+
+		synctest.Wait()
+		select {
+		case got := <-fhs.ch:
+			compare(t, want, got)
+		default:
+			t.Fatal("no heartbeat received")
+		}
+
+		time.Sleep(1 * time.Second)
+		synctest.Wait()
+
+		select {
+		case got := <-fhs.ch:
+			want.Heartbeat.IsStartup = false
+			want.Heartbeat.Uptime = durationpb.New(time.Hour + time.Second)
+			compare(t, want, got)
+		default:
+			t.Fatal("no heartbeat received")
+		}
+
+		cancel()
+		assert.NoError(t, <-errCh)
 	})
-	require.NoError(t, err)
-
-	hostName, err := os.Hostname()
-	require.NoError(t, err)
-
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- svc.Run(ctx)
-	}()
-
-	got := <-fhs.ch
-	want := &machineidv1pb.SubmitHeartbeatRequest{
-		Heartbeat: &machineidv1pb.BotInstanceStatusHeartbeat{
-			RecordedAt:   timestamppb.New(now),
-			Hostname:     hostName,
-			IsStartup:    true,
-			OneShot:      false,
-			Uptime:       durationpb.New(time.Hour),
-			Version:      teleport.Version,
-			Architecture: runtime.GOARCH,
-			Os:           runtime.GOOS,
-			JoinMethod:   string(types.JoinMethodGitHub),
-		},
-	}
-	assert.Empty(t, cmp.Diff(want, got, protocmp.Transform()))
-
-	got = <-fhs.ch
-	want.Heartbeat.IsStartup = false
-	assert.Empty(t, cmp.Diff(want, got, protocmp.Transform()))
-
-	cancel()
-	assert.NoError(t, <-errCh)
 }
+
+func ptr[T any](v T) *T { return &v }

@@ -57,6 +57,12 @@ type DatabaseServer interface {
 	SetDatabase(Database) error
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
+	// GetRelayGroup returns the name of the Relay group that the database
+	// server is connected to.
+	GetRelayGroup() string
+	// GetRelayIDs returns the list of Relay host IDs that the database server
+	// is connected to.
+	GetRelayIDs() []string
 	// GetTargetHealth returns the database server's target health.
 	GetTargetHealth() TargetHealth
 	// SetTargetHealth sets the database server's target health.
@@ -65,6 +71,8 @@ type DatabaseServer interface {
 	GetTargetHealthStatus() TargetHealthStatus
 	// SetTargetHealthStatus sets target health status
 	SetTargetHealthStatus(status TargetHealthStatus)
+	// GetScope returns the scope this server belongs to.
+	GetScope() string
 }
 
 // NewDatabaseServerV3 creates a new database server instance.
@@ -192,6 +200,22 @@ func (s *DatabaseServerV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }
 
+// GetRelayGroup implements [DatabaseServer].
+func (s *DatabaseServerV3) GetRelayGroup() string {
+	if s == nil {
+		return ""
+	}
+	return s.Spec.RelayGroup
+}
+
+// GetRelayIDs implements [DatabaseServer].
+func (s *DatabaseServerV3) GetRelayIDs() []string {
+	if s == nil {
+		return nil
+	}
+	return s.Spec.RelayIds
+}
+
 // String returns the server string representation.
 func (s *DatabaseServerV3) String() string {
 	return fmt.Sprintf("DatabaseServer(Name=%v, Version=%v, Hostname=%v, HostID=%v, Database=%v)",
@@ -280,6 +304,11 @@ func (s *DatabaseServerV3) SetStaticLabels(sl map[string]string) {
 // Copy returns a copy of this database server object.
 func (s *DatabaseServerV3) Copy() DatabaseServer {
 	return utils.CloneProtoMsg(s)
+}
+
+// GetScope returns the scope this server belongs to.
+func (s *DatabaseServerV3) GetScope() string {
+	return s.Scope
 }
 
 // CloneResource returns a copy of this database server object.

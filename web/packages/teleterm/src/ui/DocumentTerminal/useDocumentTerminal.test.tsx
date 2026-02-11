@@ -21,12 +21,16 @@ import { renderHook, waitFor } from '@testing-library/react';
 import 'jest-canvas-mock';
 
 import Logger, { NullService } from 'teleterm/logger';
-import { PtyCommand, PtyProcessCreationStatus } from 'teleterm/services/pty';
+import {
+  IPtyProcess,
+  PtyCommand,
+  PtyProcessCreationStatus,
+} from 'teleterm/services/pty';
+import { MockPtyProcess } from 'teleterm/services/pty/fixtures/mocks';
 import {
   makeLeafCluster,
   makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
-import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import {
@@ -71,18 +75,9 @@ const getDocPtySession: () => DocumentPtySession = () => ({
   rootClusterId: 'test',
 });
 
-const getPtyProcessMock = (): IPtyProcess => ({
-  onOpen: jest.fn(),
-  write: jest.fn(),
-  resize: jest.fn(),
-  dispose: jest.fn(),
-  onData: jest.fn(),
-  start: jest.fn(),
-  onStartError: jest.fn(),
-  onExit: jest.fn(),
-  getCwd: jest.fn(),
-  getPtyId: jest.fn(),
-});
+const getPtyProcessMock = (): IPtyProcess => {
+  return new MockPtyProcess();
+};
 
 test('useDocumentTerminal calls TerminalsService during init', async () => {
   const doc = getDocTshNode();

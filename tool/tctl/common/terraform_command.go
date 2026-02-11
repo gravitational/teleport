@@ -307,6 +307,7 @@ func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr util
 		RenewalInterval: bot.DefaultCredentialLifetime.RenewalInterval,
 	}
 	cfg := bot.Config{
+		Kind: bot.KindTctl,
 		Connection: connection.Config{
 			Address:     addr.String(),
 			AddressKind: connection.AddressKindAuth,

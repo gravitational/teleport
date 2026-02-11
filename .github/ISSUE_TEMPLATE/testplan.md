@@ -1379,6 +1379,7 @@ $ TELEPORT_TEST_GCP_KMS_KEYRING=projects/<account>/locations/us-west3/keyRings/<
 ## Moderated session
 
 Create two Teleport users, a moderator and a user. Configure Teleport roles to require that the moderator moderate the user's sessions. Use `TELEPORT_HOME` to `tsh login` as the user in one terminal, and the moderator in another.
+For web, run each session in a different browser.
 
 Ensure the default `terminationPolicy` of `terminate` has not been changed.
 
@@ -1386,6 +1387,8 @@ For each of the following cases, create a moderated session with the user using 
  - [ ] Ensure that `Ctrl+C` in the user terminal disconnects the moderator as the session has ended.
  - [ ] Ensure that `Ctrl+C` in the moderator terminal disconnects the moderator and terminates the user's session as the session no longer has a moderator.
  - [ ] Ensure that `t` in the moderator terminal terminates the session for all participants.
+ - [ ] Upload file (web only).
+ - [ ] Download file (web only).
 
 ## Performance
 
@@ -2172,14 +2175,20 @@ Docs: [IP Pinning](https://goteleport.com/docs/admin-guides/access-controls/guid
   - [ ] Verify that the Privileged Access Report is generated and periodically refreshed.
 
 - [ ] Access Requests
-  - [ ] Verify when role.spec.allow.request.reason.mode: "required":
+  - [ ] Verify when `role.spec.allow.request.reason.mode: "required"`:
     - [ ] CLI fails to create Access Request displaying a message that reason is required.
     - [ ] Web UI fails to create Access Request displaying a message that reason is required.
-    - [ ] Other roles allowing requesting the same resources/roles without reason.mode set or with reason.mode: "optional" don't affect the behaviour.
+    - [ ] Other roles allowing requesting the same resources/roles without `reason.mode` set or with `reason.mode: "optional"` don't affect the behaviour.
     - [ ] Non-affected resources/roles don't require reason.
     - [ ] When there is a role with spec.options.request_access: always it effectively becomes role.spec.options.request_access: reason (i.e.) requires reason:
       - [ ] For CLI.
       - [ ] For Web UI.
+  - [ ] When `spec.allow.request.reason.prompt` is set on one of the user's roles:
+    - [ ] Verify this prompt is displayed in the Web UI when user makes an Access Request containing a resource/role requestable from this role.
+    - [ ] Verify non-affected resources/roles don't display this prompt.
+  - [ ] When both `spec.options.request_prompt` and `spec.allow.request.reason.prompt` are set on separate roles assigned to a user:
+    - [ ] Verify both prompts are displayed in the Web UI when user makes an Access Request containing requestable resource with `spec.allow.request.reason.prompt` set.
+    - [ ] Verify prompts are deduplicated and sorted.
 
   - [ ] [Automatic Review Rules](https://goteleport.com/docs/ver/18.x/admin-guides/access-controls/access-requests/automatic-reviews/)
     - [ ] Create automatic review rule with `desired_state` and `automatic_review` spec.

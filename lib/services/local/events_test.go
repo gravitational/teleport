@@ -28,6 +28,7 @@ import (
 
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
@@ -83,9 +84,12 @@ func TestWatchers(t *testing.T) {
 			kind: types.KindCertAuthority,
 			causeEvents: func(subtestCtx context.Context, subtestT *testing.T, backend backend.Backend) {
 				// GIVEN an empty backend, WHEN I create 3 new CAs
-				userCA := NewTestCA(types.UserCA, "example.com")
-				hostCA := NewTestCA(types.HostCA, "example.com")
-				hostCARemote := NewTestCA(types.HostCA, "remote.com")
+				userCA, err := authcatest.NewCA(types.UserCA, "example.com")
+				require.NoError(t, err)
+				hostCA, err := authcatest.NewCA(types.HostCA, "example.com")
+				require.NoError(t, err)
+				hostCARemote, err := authcatest.NewCA(types.HostCA, "remote.com")
+				require.NoError(t, err)
 				require.NoError(subtestT, CreateResources(subtestCtx, backend, userCA, hostCA, hostCARemote))
 			},
 			validateEvents: func(subtestCtx context.Context, subtestT *testing.T, watcher types.Watcher) {
@@ -117,9 +121,12 @@ func TestWatchers(t *testing.T) {
 			filter: types.CertAuthorityFilter{types.HostCA: "example.com"}.IntoMap(),
 			causeEvents: func(subtestCtx context.Context, subtestT *testing.T, backend backend.Backend) {
 				// GIVEN an empty backend, WHEN I create some new CAs
-				userCA := NewTestCA(types.UserCA, "example.com")
-				hostCA := NewTestCA(types.HostCA, "example.com")
-				hostCARemote := NewTestCA(types.HostCA, "remote.com")
+				userCA, err := authcatest.NewCA(types.UserCA, "example.com")
+				require.NoError(t, err)
+				hostCA, err := authcatest.NewCA(types.HostCA, "example.com")
+				require.NoError(t, err)
+				hostCARemote, err := authcatest.NewCA(types.HostCA, "remote.com")
+				require.NoError(t, err)
 				require.NoError(subtestT, CreateResources(subtestCtx, backend, userCA, hostCA, hostCARemote))
 			},
 			validateEvents: func(subtestCtx context.Context, subtestT *testing.T, watcher types.Watcher) {

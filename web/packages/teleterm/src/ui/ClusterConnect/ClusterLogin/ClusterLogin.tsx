@@ -92,7 +92,6 @@ function ClusterLoginForm({
   platform,
   next,
   refCallback,
-  clusterGetter,
   changeAppUpdatesManagingCluster,
   appUpdateEvent,
   cancelAppUpdateDownload,
@@ -155,7 +154,6 @@ function ClusterLoginForm({
             shouldSkipVersionCheck={shouldSkipVersionCheck}
             disableVersionCheck={disableVersionCheck}
             platform={platform}
-            clusterGetter={clusterGetter}
             checkForAppUpdates={checkForAppUpdates}
             changeAppUpdatesManagingCluster={changeAppUpdatesManagingCluster}
             appUpdateEvent={appUpdateEvent}
@@ -173,13 +171,13 @@ function ClusterLoginForm({
 const AppUpdateDetails = ({
   refCallback,
   platform,
+  currentVersion,
   downloadAppUpdate,
   checkForAppUpdates,
   cancelAppUpdateDownload,
   quitAndInstallAppUpdate,
   changeAppUpdatesManagingCluster,
   appUpdateEvent,
-  clusterGetter,
   onCloseDialog,
   prev,
 }: ClusterLoginPresentationProps & StepComponentProps) => {
@@ -200,13 +198,13 @@ const AppUpdateDetails = ({
         <DetailsView
           onInstall={() => quitAndInstallAppUpdate()}
           platform={platform}
+          currentVersion={currentVersion}
           changeManagingCluster={clusterUri =>
             changeAppUpdatesManagingCluster(clusterUri)
           }
           updateEvent={appUpdateEvent}
           onDownload={() => downloadAppUpdate()}
           onCancelDownload={() => cancelAppUpdateDownload()}
-          clusterGetter={clusterGetter}
           onCheckForUpdates={() => checkForAppUpdates()}
         />
       </Flex>

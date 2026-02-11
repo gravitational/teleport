@@ -41,6 +41,11 @@ func (s *Config) GetName() string {
 	return s.Name
 }
 
+// SetName sets the service's name to an automatically generated one.
+func (o *Config) SetName(name string) {
+	o.Name = name
+}
+
 func (s *Config) Type() string {
 	return ServiceType
 }

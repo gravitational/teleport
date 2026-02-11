@@ -174,12 +174,17 @@ func (p *ProcessStorage) ReadIdentity(name string, role types.SystemRole) (*stat
 	if err := res.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return state.ReadIdentityFromKeyPair(res.Spec.Key, &proto.Certs{
+	identity, err := state.ReadIdentityFromKeyPair(res.Spec.Key, &proto.Certs{
 		SSH:        res.Spec.SSHCert,
 		TLS:        res.Spec.TLSCert,
 		TLSCACerts: res.Spec.TLSCACerts,
 		SSHCACerts: res.Spec.SSHCACerts,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity.ImmutableLabels = res.Spec.ImmutableLabels
+	return identity, nil
 }
 
 // WriteIdentity writes identity to the backend.
@@ -193,11 +198,12 @@ func (p *ProcessStorage) WriteIdentity(name string, id state.Identity) error {
 			},
 		},
 		Spec: state.IdentitySpecV2{
-			Key:        id.KeyBytes,
-			SSHCert:    id.CertBytes,
-			TLSCert:    id.TLSCertBytes,
-			TLSCACerts: id.TLSCACertsBytes,
-			SSHCACerts: id.SSHCACertBytes,
+			Key:             id.KeyBytes,
+			SSHCert:         id.CertBytes,
+			TLSCert:         id.TLSCertBytes,
+			TLSCACerts:      id.TLSCACertsBytes,
+			SSHCACerts:      id.SSHCACertBytes,
+			ImmutableLabels: id.ImmutableLabels,
 		},
 	}
 	if err := res.CheckAndSetDefaults(); err != nil {
@@ -380,6 +386,31 @@ func readHostIDFromStorages(ctx context.Context, dataDir string, kubeBackend sta
 	// not found in secret.
 	hostID, err := hostid.ReadFile(dataDir)
 	return hostID, trace.Wrap(err)
+}
+
+// PersistAssignedHostID writes an assigned host ID to state storage and the
+// host_uuid file. This should not be called in the same process as
+// ReadOrGenerateHostID, it is intended to persist a host UUID assigned by the
+// Auth service that was not generated locally. With the new auth-assigned host
+// persisted to storage to maintain compatibility with any other processes that
+// UUID flow the agent doesn't even need to read the host ID, it is only
+// may read it.
+func (p *ProcessStorage) PersistAssignedHostID(ctx context.Context, cfg *servicecfg.Config, hostID string) error {
+	if p.stateStorage != nil {
+		if _, err := p.stateStorage.Put(
+			ctx,
+			backend.Item{
+				Key:   backend.NewKey(hostid.FileName),
+				Value: []byte(hostID),
+			},
+		); err != nil {
+			return trace.Wrap(err, "persisting host ID to state storage")
+		}
+	}
+	if err := hostid.WriteFile(cfg.DataDir, hostID); err != nil {
+		return trace.Wrap(err, "persisting host ID to file")
+	}
+	return nil
 }
 
 // persistHostIDToStorages writes the host ID to local data and to

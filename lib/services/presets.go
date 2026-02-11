@@ -34,17 +34,18 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // NewSystemAutomaticAccessApproverRole creates a new Role that is allowed to
 // approve any Access Request. This is restricted to Teleport Enterprise, and
 // returns nil in non-Enterproise builds.
-func NewSystemAutomaticAccessApproverRole() types.Role {
-	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
-	if !enterprise {
+func NewSystemAutomaticAccessApproverRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
 		return nil
 	}
+
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V7,
@@ -78,9 +79,8 @@ func NewSystemAutomaticAccessApproverRole() types.Role {
 //   - Show up in user lists in WebUI
 //
 // TODO(tcsc): Implement/enforce above restrictions on this user
-func NewSystemAutomaticAccessBotUser() types.User {
-	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
-	if !enterprise {
+func NewSystemAutomaticAccessBotUser(buildType string) types.User {
+	if buildType != modules.BuildEnterprise {
 		return nil
 	}
 
@@ -212,6 +212,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindAutoUpdateVersion, RW()),
 					types.NewRule(types.KindAutoUpdateConfig, RW()),
 					types.NewRule(types.KindAutoUpdateAgentRollout, RO()),
+					types.NewRule(types.KindAutoUpdateAgentReport, RO()),
 					types.NewRule(types.KindAutoUpdateBotInstanceReport, RO()),
 					types.NewRule(types.KindGitServer, RW()),
 					types.NewRule(types.KindWorkloadIdentityX509Revocation, RW()),
@@ -222,6 +223,12 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindInferenceModel, RW()),
 					types.NewRule(types.KindInferenceSecret, RW()),
 					types.NewRule(types.KindInferencePolicy, RW()),
+					types.NewRule(types.KindClientIPRestriction, RW()),
+					types.NewRule(scopedaccess.KindScopedRole, RW()),
+					types.NewRule(scopedaccess.KindScopedRoleAssignment, RW()),
+					types.NewRule(types.KindScopedToken, RW()),
+					types.NewRule(types.KindAppAuthConfig, RW()),
+					types.NewRule(types.KindWorkloadCluster, RW()),
 				},
 			},
 		},
@@ -372,8 +379,8 @@ func NewPresetAuditorRole() types.Role {
 
 // NewPresetReviewerRole returns a new pre-defined role for reviewer. The
 // reviewer will be able to review all access requests.
-func NewPresetReviewerRole() types.Role {
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+func NewPresetReviewerRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
 		return nil
 	}
 
@@ -399,8 +406,8 @@ func NewPresetReviewerRole() types.Role {
 
 // NewPresetRequesterRole returns a new pre-defined role for requester. The
 // requester will be able to request all resources.
-func NewPresetRequesterRole() types.Role {
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+func NewPresetRequesterRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
 		return nil
 	}
 
@@ -426,8 +433,8 @@ func NewPresetRequesterRole() types.Role {
 
 // NewPresetGroupAccessRole returns a new pre-defined role for group access -
 // a role used for requesting and reviewing user group access.
-func NewPresetGroupAccessRole() types.Role {
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+func NewPresetGroupAccessRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
 		return nil
 	}
 
@@ -460,8 +467,8 @@ func NewPresetGroupAccessRole() types.Role {
 // NewPresetDeviceAdminRole returns the preset "device-admin" role, or nil for
 // non-Enterprise builds.
 // The role is used to administer trusted devices.
-func NewPresetDeviceAdminRole() types.Role {
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+func NewPresetDeviceAdminRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
 		return nil
 	}
 
@@ -489,8 +496,8 @@ func NewPresetDeviceAdminRole() types.Role {
 // NewPresetDeviceEnrollRole returns the preset "device-enroll" role, or nil for
 // non-Enterprise builds.
 // The role is used to grant device enrollment powers to users.
-func NewPresetDeviceEnrollRole() types.Role {
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+func NewPresetDeviceEnrollRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
 		return nil
 	}
 
@@ -519,8 +526,8 @@ func NewPresetDeviceEnrollRole() types.Role {
 // role, or nil for non-Enterprise builds.
 // The role is used as a basis for requiring trusted device access to
 // resources.
-func NewPresetRequireTrustedDeviceRole() types.Role {
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+func NewPresetRequireTrustedDeviceRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
 		return nil
 	}
 
@@ -620,6 +627,7 @@ func NewPresetAccessPluginRole() types.Role {
 					types.NewRule(types.KindAccessList, RO()),
 					types.NewRule(types.KindRole, RO()),
 					types.NewRule(types.KindUser, RO()),
+					types.NewRule(types.KindUserLoginState, RO()),
 				},
 				ReviewRequests: &types.AccessReviewConditions{
 					PreviewAsRoles: []string{
@@ -670,8 +678,8 @@ func NewPresetListAccessRequestResourcesRole() types.Role {
 // SystemOktaAccessRoleName is the name of the system role that allows
 // access to Okta resources. This will be used by the Okta requester role to
 // search for Okta resources.
-func NewSystemOktaAccessRole() types.Role {
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+func NewSystemOktaAccessRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
 		return nil
 	}
 
@@ -703,11 +711,11 @@ func NewSystemOktaAccessRole() types.Role {
 	return role
 }
 
-// SystemOktaRequesterRoleName is a name of a system role that allows
+// NewSystemOktaRequesterRole is a system role that allows
 // for requesting access to Okta resources. This differs from the requester role
 // in that it allows for requesting longer lived access.
-func NewSystemOktaRequesterRole() types.Role {
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+func NewSystemOktaRequesterRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
 		return nil
 	}
 
@@ -734,10 +742,11 @@ func NewSystemOktaRequesterRole() types.Role {
 
 // NewSystemIdentityCenterAccessRole creates a role that allows access to AWS
 // IdentityCenter resources via Access Requests
-func NewSystemIdentityCenterAccessRole() types.Role {
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+func NewSystemIdentityCenterAccessRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
 		return nil
 	}
+
 	return &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V7,
@@ -798,6 +807,7 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindClusterNetworkingConfig, RW()),
 					types.NewRule(types.KindDatabase, RW()),
 					types.NewRule(types.KindDevice, RW()),
+					types.NewRule(types.KindDiscoveryConfig, RW()),
 					types.NewRule(types.KindGithub, RW()),
 					types.NewRule(types.KindLoginRule, RW()),
 					types.NewRule(types.KindNode, RW()),
@@ -819,6 +829,11 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindAutoUpdateConfig, RW()),
 					types.NewRule(types.KindAutoUpdateVersion, RW()),
 					types.NewRule(types.KindHealthCheckConfig, RW()),
+					types.NewRule(types.KindIntegration, RW()),
+					types.NewRule(types.KindAppAuthConfig, RW()),
+					types.NewRule(types.KindInferenceModel, RW()),
+					types.NewRule(types.KindInferenceSecret, RW()),
+					types.NewRule(types.KindInferencePolicy, RW()),
 				},
 			},
 		},
@@ -854,24 +869,50 @@ func NewPresetMCPUserRole() types.Role {
 	return role
 }
 
-// NewPresetHealthCheckConfig returns a preset default health_check_config that
-// enables health checks for all resources.
-func NewPresetHealthCheckConfig() *healthcheckconfigv1.HealthCheckConfig {
+// VirtualDefaultHealthCheckConfigDB returns a health_check_config enabling
+// health checks for all databases resources, and is intended to be used as a
+// virtual default resource. Its name is "default" for historical reasons.
+func VirtualDefaultHealthCheckConfigDB() *healthcheckconfigv1.HealthCheckConfig {
 	return &healthcheckconfigv1.HealthCheckConfig{
 		Kind:    types.KindHealthCheckConfig,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
-			Name:        teleport.PresetDefaultHealthCheckConfigName,
-			Description: "Enables all health checks by default",
-			Namespace:   apidefaults.Namespace,
-			Labels: map[string]string{
-				types.TeleportInternalResourceType: types.PresetResource,
-			},
+			Name:        teleport.VirtualDefaultHealthCheckConfigDBName,
+			Description: "Enables health checks for all databases by default",
+			// this revision MUST be changed every time we change the contents
+			// of the preset so that conditional updates can check against it
+			Revision: "af391615-1e42-4237-aa2b-155e6abbd41a",
 		},
 		Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
 			Match: &healthcheckconfigv1.Matcher{
 				// match all databases
 				DbLabels: []*labelv1.Label{{
+					Name:   types.Wildcard,
+					Values: []string{types.Wildcard},
+				}},
+			},
+		},
+	}
+}
+
+// VirtualDefaultHealthCheckConfigKube returns a health_check_config enabling
+// health checks for all Kubernetes resources. It's intended to be used as a
+// virtual default resource.
+func VirtualDefaultHealthCheckConfigKube() *healthcheckconfigv1.HealthCheckConfig {
+	return &healthcheckconfigv1.HealthCheckConfig{
+		Kind:    types.KindHealthCheckConfig,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name:        teleport.VirtualDefaultHealthCheckConfigKubeName,
+			Description: "Enables health checks for all Kubernetes clusters by default.",
+			// this revision MUST be changed every time we change the contents
+			// of the preset so that conditional updates can check against it
+			Revision: "d796f007-e60c-4747-8dde-f479aff6b743",
+		},
+		Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
+			Match: &healthcheckconfigv1.Matcher{
+				// match all kubernetes clusters
+				KubernetesLabels: []*labelv1.Label{{
 					Name:   types.Wildcard,
 					Values: []string{types.Wildcard},
 				}},
@@ -1028,7 +1069,7 @@ func defaultAllowAccountAssignments(enterprise bool) map[string][]types.Identity
 
 // AddRoleDefaults adds default role attributes to a preset role.
 // Only attributes whose resources are not already defined (either allowing or denying) are added.
-func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
+func AddRoleDefaults(ctx context.Context, buildType string, role types.Role) (types.Role, error) {
 	changed := false
 
 	oldLabels := role.GetAllLabels()
@@ -1093,7 +1134,7 @@ func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
 		}
 	}
 
-	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
+	enterprise := buildType == modules.BuildEnterprise
 
 	// Labels
 	defaultLabels, ok := defaultAllowLabels(enterprise)[role.GetName()]

@@ -1,5 +1,6 @@
 ---
-title: Configure access for local Windows users
+title: Configure Access for Local Windows Users
+sidebar_label: Local Windows Users
 description: Use Teleport to configure passwordless access for local Windows users.
 videoBanner: 9DyKQbg4ORc
 tags:
@@ -58,17 +59,19 @@ To prepare a Windows computer:
 1. Open a Command Prompt (`cmd.exe`) window on the Windows computer you want to enroll.
 
 {/*lint ignore ordered-list-marker-value*/}
-2. Export the Teleport user certificate authority by running the following
-   command, assigning <Var name="teleport.example.com"/> to your
-   Teleport cluster address:
+2. Export the Teleport certificate authority by running the following command,
+   assigning <Var name="teleport.example.com"/> to your Teleport cluster
+   address:
 
    ```code
    $ curl.exe -fo teleport.cer https://<Var name="teleport.example.com"/>/webapi/auth/export?type=windows
    ```
 
-   If your Teleport cluster uses HSM or AWS KMS-backed keys, there will be multiple 
-   user CAs (one for each Auth Service instance). You can download a bundle containing
-   all CAs by appending `&format=zip` to the URL.
+   If your Teleport cluster uses HSM or AWS KMS-backed keys, there will be multiple
+   CA certificates (one for each Auth Service instance). You can download a bundle
+   containing all certificates by appending `&format=zip` to the URL.
+
+   (!docs/pages/includes/desktop-access/windows-ca-note.mdx!)
 
 3. Download the Teleport Windows Auth setup program:
 
@@ -271,7 +274,7 @@ To configure a role for desktop access:
 
    Depending on how you configure role-based access controls for Windows, Teleport can create local user logins
    automatically from the `windows_desktop_logins` you specify. For more information about enabling Teleport
-   to create local Windows logins, see [Automatic User Creation](../../reference/agent-services/desktop-access-reference/user-creation.mdx).
+   to create local Windows logins, see [Automatic User Creation](reference/user-creation.mdx).
 
 1. Apply the new role to your cluster by running the following command:
 

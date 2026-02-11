@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 // KubeCommand implements "tctl kube" group of commands.
@@ -108,14 +109,14 @@ func (c *KubeCommand) ListKube(ctx context.Context, clt *authclient.Client) erro
 		return trace.Wrap(err)
 	}
 
-	coll := &kubeServerCollection{servers: kubes}
+	coll := resources.NewKubeServerCollection(kubes)
 	switch c.format {
 	case teleport.Text:
-		return trace.Wrap(coll.writeText(os.Stdout, c.verbose))
+		return trace.Wrap(coll.WriteText(os.Stdout, c.verbose))
 	case teleport.JSON:
-		return trace.Wrap(coll.writeJSON(os.Stdout))
+		return trace.Wrap(writeJSON(coll, os.Stdout))
 	case teleport.YAML:
-		return trace.Wrap(coll.writeYAML(os.Stdout))
+		return trace.Wrap(writeYAML(coll, os.Stdout))
 	default:
 		return trace.BadParameter("unknown format %q", c.format)
 	}
@@ -134,7 +135,7 @@ helm repo update
 > helm install teleport-agent teleport/teleport-kube-agent \
   --set kubeClusterName=cluster ` + "`" + `# Change kubeClusterName variable to your preferred name.` + "`" + ` \
   --set roles="{{.set_roles}}" \
-  --set proxyAddr={{.auth_server}} \
+  --set proxyAddr={{.proxy_server}} \
   --set authToken={{.token}} \
   --set updater.enabled=true \
   --create-namespace \
@@ -144,7 +145,7 @@ helm repo update
 Please note:
 
   - This invitation token will expire in {{.minutes}} minutes.
-  - {{.auth_server}} must be reachable from Kubernetes cluster.
+  - {{.proxy_server}} must be reachable from Kubernetes cluster.
   - The token is usable in a standalone Linux server with kubernetes_service.
   - See https://goteleport.com/docs/kubernetes-access/ for detailed installation information.
 

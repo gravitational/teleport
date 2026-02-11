@@ -71,3 +71,16 @@ export function createMetadataHandler(
       }, 100);
     });
 }
+
+export const MOCK_METADATA: SessionRecordingMetadata = {
+  startTime: 1609459200, // Jan 1, 2021
+  endTime: 1609462800, // Jan 1, 2021
+  duration: 3600000, // 1 hour in milliseconds
+  user: 'testuser',
+  resourceName: 'test-server',
+  clusterName: 'test-cluster',
+  events: [],
+  startCols: 80,
+  startRows: 24,
+  type: 'ssh',
+};

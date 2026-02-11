@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
 // CA is local implementation of Trust service that
@@ -730,27 +731,7 @@ func (s *CA) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, er
 
 // ListTrustedClusters returns a page of Trusted Cluster resources.
 func (s *CA) ListTrustedClusters(ctx context.Context, limit int, startKey string) ([]types.TrustedCluster, string, error) {
-	// Adjust page size, so it can't be too large.
-	if limit <= 0 || limit > defaults.DefaultChunkSize {
-		limit = defaults.DefaultChunkSize
-	}
-
-	var next string
-	var seen int
-	out, err := stream.Collect(
-		stream.TakeWhile(
-			s.RangeTrustedClusters(ctx, startKey, ""),
-			func(cluster types.TrustedCluster) bool {
-				if seen < limit {
-					seen++
-					return true
-				}
-				next = cluster.GetName()
-				return false
-			},
-		),
-	)
-	return out, next, trace.Wrap(err)
+	return generic.CollectPageAndCursor(s.RangeTrustedClusters(ctx, startKey, ""), limit, types.TrustedCluster.GetName)
 }
 
 // RangeTrustedClusters returns Trusted Cluster resources within the range [start, end).

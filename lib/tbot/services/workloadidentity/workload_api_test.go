@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -130,14 +131,19 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 		Logger:     log,
 		Onboarding: *onboarding,
 		Services: []bot.ServiceBuilder{
-			trustBundleCache.BuildService,
-			crlCache.BuildService,
+			trustBundleCache.Builder(),
+			crlCache.Builder(),
 			WorkloadAPIServiceBuilder(
 				&WorkloadAPIConfig{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: workloadIdentity.GetMetadata().GetName(),
 					},
 					Listen: listenAddr.String(),
+					Attestors: workloadattest.Config{
+						Unix: workloadattest.UnixAttestorConfig{
+							BinaryHashMaxSizeBytes: workloadattest.TestBinaryHashMaxBytes,
+						},
+					},
 				},
 				trustBundleCache,
 				crlCache,

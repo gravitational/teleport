@@ -156,7 +156,7 @@ func (m *staticOverrideGetter) GetWorkloadIdentityX509CAOverride(ctx context.Con
 
 // makeBot creates a server-side bot and returns joining parameters.
 func makeBot(t *testing.T, client *authclient.Client, name string, roles ...string) (*onboarding.Config, *machineidv1pb.Bot) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	t.Helper()
 
 	b, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{

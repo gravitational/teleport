@@ -1,0 +1,90 @@
+---
+title: Egress JWT Authentication to MCP Servers
+sidebar_label: Egress JWT Authentication
+sidebar_position: 4
+description: How to use Teleport JWT to authenticate your MCP servers
+tags:
+- conceptual
+- mcp
+- zero-trust
+---
+
+(!docs/pages/includes/application-access/jwt-intro.mdx appType="MCP server" !)
+
+## Classic JWTs
+
+Classic JWTs are Teleport-generated JWTs issued by Teleport JWT CA and validated
+using Teleport's JWKS endpoint at `.well-known/jwks.json`. These tokens are sent
+in the `Teleport-Jwt-Assertion` header by default, but can be injected into any
+header.
+
+### Inject Classic JWTs
+
+(!docs/pages/includes/application-access/jwt-inject.mdx!)
+
+For example:
+
+```yaml
+- name: "my-mcp-server"
+  uri: mcp+http://localhost:4321
+  rewrite:
+    headers:
+    - "Authorization: Bearer {{internal.jwt}}"
+```
+
+### Validate Classic JWTs
+
+(!docs/pages/includes/application-access/jwt-validate.mdx!)
+
+See the example Go program used to validate Teleport's JWT tokens on our
+[GitHub](https://github.com/gravitational/teleport/blob/v(=teleport.version=)/examples/mcp-servers/).
+
+## ID Tokens (OIDC)
+
+ID tokens are Teleport-generated JWTs issued by Teleport OIDC CA and validated
+using Teleport’s OIDC discovery document at `.well-known/openid-configuration`.
+
+### Inject ID Tokens
+
+You can inject an ID token into any header using headers passthrough
+configuration and the `{{internal.id_token}}` template variable. This variable
+will be replaced with ID token signed by Teleport OIDC CA containing user
+identity information like described above.
+
+For example:
+
+```yaml
+- name: "my-mcp-server"
+  uri: mcp+http://localhost:4321
+  rewrite:
+    headers:
+    - "Authorization: Bearer {{internal.id_token}}"
+```
+
+### Validate ID Tokens
+
+Teleport provides an OIDC discovery endpoint to verify that the ID tokens can
+be trusted. This endpoint is `https://[cluster-name]/.well-known/openid-configuration`:
+```
+{
+  "issuer": "https://teleport.example.com",
+  "jwks_uri": "https://teleport.example.com/.well-known/jwks-oidc",
+  "claims": [ "iss", "sub", "obo", "aud", "jti", "iat", "exp", "nbf" ],
+  "id_token_signing_alg_values_supported": [ "RS256" ],
+  "response_types_supported": [ "id_token" ],
+  "scopes_supported": [ "openid" ],
+  "subject_types_supported": [ "public" ]
+}
+```
+
+In ID tokens, the issuer claim `iss` follows the OIDC specification in the form
+`https://[cluster-name]`. All other claims remain the same as in classic JWTs,
+with the audience claim `aud` set to the Teleport application URI.
+
+See the [example](./integration-guides/aws-bedrock-gateway.mdx) for
+configuring an Amazon Bedrock AgentCore MCP Gateway to accept Teleport-generated
+ID tokens.
+
+## Troubleshooting
+
+(!docs/pages/includes/application-access/jwt-configure-claims.mdx appType="MCP server" appScheme="mcp+http" !)

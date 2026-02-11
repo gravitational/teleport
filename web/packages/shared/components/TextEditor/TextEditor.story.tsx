@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useState } from 'react';
+
 import Flex from 'design/Flex';
 
 import TextEditor from './TextEditor';
@@ -25,6 +27,7 @@ export default {
 };
 
 export const Editor = () => {
+  const [content, setContent] = useState(EXAMPLE);
   return (
     <Flex height="600px" width="600px" py={3} pr={3} bg="levels.deep">
       <TextEditor
@@ -35,12 +38,14 @@ export const Editor = () => {
             type: 'yaml',
           },
         ]}
+        onChange={(value: string) => setContent(value)}
       />
     </Flex>
   );
 };
 
 export const ReadOnly = () => {
+  const [content, setContent] = useState(EXAMPLE);
   return (
     <Flex height="600px" width="600px" py={3} pr={3} bg="levels.deep">
       <TextEditor
@@ -52,12 +57,14 @@ export const ReadOnly = () => {
             type: 'yaml',
           },
         ]}
+        onChange={(value: string) => setContent(value)}
       />
     </Flex>
   );
 };
 
 export const WithButtons = () => {
+  const [content, setContent] = useState(EXAMPLE);
   return (
     <Flex height="600px" width="600px" py={3} pr={3} bg="levels.deep">
       <TextEditor
@@ -68,6 +75,7 @@ export const WithButtons = () => {
             type: 'yaml',
           },
         ]}
+        onChange={(value: string) => setContent(value)}
         copyButton
         downloadButton
         downloadFileName="content.yaml"
@@ -76,7 +84,7 @@ export const WithButtons = () => {
   );
 };
 
-const content = `# example
+const EXAMPLE = `# example
 kind: github
 version: v3
 metadata:
@@ -87,7 +95,7 @@ spec:
   display: GitHub
   redirect_url: https://tele.example.com:443/v1/webapi/github/callback
   teams_to_roles:
-    - organization: octocats 
-      team: admin            
+    - organization: octocats
+      team: admin
       roles: ["access"]
 `;

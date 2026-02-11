@@ -19,6 +19,7 @@
 package recordingmetadatav1
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -29,7 +30,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/encoding/protodelim"
 	"google.golang.org/protobuf/proto"
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
@@ -155,8 +155,9 @@ func TestProcessSessionRecording(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			ctx := context.Background()
-			err = service.ProcessSessionRecording(ctx, sessionID)
+			lastEventTime := tt.events[len(tt.events)-1].GetTime()
+
+			err = service.ProcessSessionRecording(t.Context(), sessionID, lastEventTime.Sub(startTime))
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -204,8 +205,7 @@ func TestProcessSessionRecording_StreamError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx := context.Background()
-	err = service.ProcessSessionRecording(ctx, sessionID)
+	err = service.ProcessSessionRecording(t.Context(), sessionID, 10*time.Second)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "stream error")
 }
@@ -227,8 +227,7 @@ func TestProcessSessionRecording_UploadError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx := context.Background()
-	err = service.ProcessSessionRecording(ctx, sessionID)
+	err = service.ProcessSessionRecording(t.Context(), sessionID, 10*time.Second)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "upload failed")
 }
@@ -236,7 +235,7 @@ func TestProcessSessionRecording_UploadError(t *testing.T) {
 func TestProcessSessionRecording_ContextCancellation(t *testing.T) {
 	sessionID := session.NewID()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	streamer := newMockStreamerNeverSends()
@@ -251,7 +250,7 @@ func TestProcessSessionRecording_ContextCancellation(t *testing.T) {
 
 	processDone := make(chan error, 1)
 	go func() {
-		processDone <- service.ProcessSessionRecording(ctx, sessionID)
+		processDone <- service.ProcessSessionRecording(ctx, sessionID, 10*time.Second)
 	}()
 
 	streamer.WaitUntilBlocking()
@@ -313,15 +312,180 @@ func TestProcessSessionRecording_UnsupportedSessionTypes(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			ctx := context.Background()
-			err = service.ProcessSessionRecording(ctx, sessionID)
+			err = service.ProcessSessionRecording(t.Context(), sessionID, 10*time.Second)
 
 			require.NoError(t, err)
 
-			require.Empty(t, uploadHandler.metadata)
-			require.Empty(t, uploadHandler.thumbnails)
+			uploadHandler.mu.Lock()
+			metadataLen := len(uploadHandler.metadata)
+			thumbnailsLen := len(uploadHandler.thumbnails)
+			uploadHandler.mu.Unlock()
+
+			require.Equal(t, 0, metadataLen, "metadata should be empty")
+			require.Equal(t, 0, thumbnailsLen, "thumbnails should be empty")
 		})
 	}
+}
+
+func TestProcessSessionRecording_MalformedResizeEvent(t *testing.T) {
+	startTime := time.Now()
+	sessionID := session.NewID()
+
+	events := []apievents.AuditEvent{
+		&apievents.SessionStart{
+			Metadata: apievents.Metadata{
+				Type: "session.start",
+				Time: startTime,
+			},
+			TerminalSize: "80:24",
+		},
+		&apievents.SessionPrint{
+			Metadata: apievents.Metadata{
+				Type: "print",
+				Time: startTime.Add(1 * time.Second),
+			},
+			Data: []byte("Hello\n"),
+		},
+		&apievents.Resize{
+			Metadata: apievents.Metadata{
+				Type: "resize",
+				Time: startTime.Add(2 * time.Second),
+			},
+			TerminalSize: "invalid:terminal:size",
+		},
+		&apievents.SessionEnd{
+			Metadata: apievents.Metadata{
+				Type: "session.end",
+				Time: startTime.Add(10 * time.Second),
+			},
+			StartTime: startTime,
+			EndTime:   startTime.Add(10 * time.Second),
+		},
+	}
+
+	streamer := &mockStreamer{
+		events:       events,
+		errorOnEvent: -1,
+	}
+	uploadHandler := newMockUploadHandler()
+
+	service, err := NewRecordingMetadataService(RecordingMetadataServiceConfig{
+		Streamer:      streamer,
+		UploadHandler: uploadHandler,
+	})
+	require.NoError(t, err)
+
+	err = service.ProcessSessionRecording(t.Context(), sessionID, 10*time.Second)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "parsing terminal size")
+
+	uploadHandler.mu.Lock()
+	defer uploadHandler.mu.Unlock()
+
+	require.Empty(t, uploadHandler.metadata, "no metadata should be uploaded after cancelUpload")
+}
+
+func TestProcessSessionRecording_UploadFailsDuringProcessing(t *testing.T) {
+	startTime := time.Now()
+	sessionID := session.NewID()
+
+	events := []apievents.AuditEvent{
+		&apievents.SessionStart{
+			Metadata: apievents.Metadata{
+				Type: "session.start",
+				Time: startTime,
+			},
+			TerminalSize: "80:24",
+		},
+		&apievents.SessionPrint{
+			Metadata: apievents.Metadata{
+				Type: "print",
+				Time: startTime.Add(1 * time.Second),
+			},
+			Data: []byte("Hello\n"),
+		},
+		&apievents.SessionPrint{
+			Metadata: apievents.Metadata{
+				Type: "print",
+				Time: startTime.Add(2 * time.Second),
+			},
+			Data: []byte("World\n"),
+		},
+		&apievents.SessionEnd{
+			Metadata: apievents.Metadata{
+				Type: "session.end",
+				Time: startTime.Add(10 * time.Second),
+			},
+			StartTime: startTime,
+			EndTime:   startTime.Add(10 * time.Second),
+		},
+	}
+
+	streamer := &mockStreamer{
+		events:       events,
+		errorOnEvent: -1,
+	}
+
+	uploadHandler := &mockUploadHandlerFailAfterRead{
+		failAfterBytes: 10,
+	}
+
+	service, err := NewRecordingMetadataService(RecordingMetadataServiceConfig{
+		Streamer:      streamer,
+		UploadHandler: uploadHandler,
+	})
+	require.NoError(t, err)
+
+	err = service.ProcessSessionRecording(t.Context(), sessionID, 10*time.Second)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "simulated upload failure")
+}
+
+// mockUploadHandlerFailAfterRead simulates an upload failure after reading some bytes
+type mockUploadHandlerFailAfterRead struct {
+	failAfterBytes int
+	bytesRead      int
+	mu             sync.Mutex
+}
+
+func (m *mockUploadHandlerFailAfterRead) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	buf := make([]byte, 1024)
+	for {
+		select {
+		case <-ctx.Done():
+			// Drain the reader and return the context error
+			_, _ = io.Copy(io.Discard, reader)
+			return "", ctx.Err()
+		default:
+		}
+
+		n, err := reader.Read(buf)
+		if n > 0 {
+			m.mu.Lock()
+			m.bytesRead += n
+			shouldFail := m.bytesRead >= m.failAfterBytes
+			m.mu.Unlock()
+
+			if shouldFail {
+				_, _ = io.Copy(io.Discard, reader)
+				return "", errors.New("simulated upload failure")
+			}
+		}
+
+		if errors.Is(err, io.EOF) {
+			return "metadata/success", nil
+		}
+
+		if err != nil {
+			return "", err
+		}
+	}
+}
+
+func (m *mockUploadHandlerFailAfterRead) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return "thumbnail/success", nil
 }
 
 func generateBasicSessionWithImmediateResize(startTime time.Time) []apievents.AuditEvent {
@@ -510,27 +674,33 @@ func generateSessionWithJoinLeave(startTime time.Time) []apievents.AuditEvent {
 }
 
 func unmarshalMetadata(data []byte) (*pb.SessionRecordingMetadata, []*pb.SessionRecordingThumbnail, error) {
-	reader := bytes.NewReader(data)
+	reader := bufio.NewReader(bytes.NewReader(data))
 
-	metadata := &pb.SessionRecordingMetadata{}
-	err := protodelim.UnmarshalOptions{MaxSize: -1}.UnmarshalFrom(reader, metadata)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
+	var metadata *pb.SessionRecordingMetadata
 	var frames []*pb.SessionRecordingThumbnail
 
 	for {
-		frame := &pb.SessionRecordingThumbnail{}
-		err := protodelim.UnmarshalOptions{MaxSize: -1}.UnmarshalFrom(reader, frame)
-		if errors.Is(err, io.EOF) {
-			break
-		}
+		msgBytes, err := readDelimitedMessage(reader)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			if errors.Is(err, io.EOF) {
+				break
+			}
 		}
 
-		frames = append(frames, frame)
+		var m pb.SessionRecordingMetadata
+		if err := proto.Unmarshal(msgBytes, &m); err == nil {
+			metadata = &m
+
+			continue
+		}
+
+		var f pb.SessionRecordingThumbnail
+		if err := proto.Unmarshal(msgBytes, &f); err == nil {
+			frames = append(frames, &f)
+			continue
+		}
+
+		return nil, nil, trace.BadParameter("failed to parse message as metadata or thumbnail")
 	}
 
 	return metadata, frames, nil
@@ -641,17 +811,23 @@ func (m *mockUploadHandler) UploadSummary(ctx context.Context, sessionID session
 }
 
 func (m *mockUploadHandler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	if m.uploadError != nil {
-		return "", m.uploadError
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	data, err := io.ReadAll(reader)
 	if err != nil {
 		return "", err
 	}
+
+	if m.uploadError != nil {
+		return "", m.uploadError
+	}
+
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	path := "metadata/" + string(sessionID)
 	m.metadata[string(sessionID)] = data
@@ -664,13 +840,19 @@ func (m *mockUploadHandler) UploadThumbnail(ctx context.Context, sessionID sessi
 		return "", m.uploadError
 	}
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	data, err := io.ReadAll(reader)
 	if err != nil {
 		return "", err
 	}
+
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	path := "thumbnail/" + string(sessionID)
 	m.thumbnails[string(sessionID)] = data

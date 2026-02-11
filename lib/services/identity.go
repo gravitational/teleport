@@ -26,6 +26,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
+	"iter"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -186,6 +187,12 @@ type Identity interface {
 	// GetOIDCConnectors returns valid registered connectors, withSecrets adds or removes client secret from return
 	// results.  Invalid Connectors are simply logged but errors are not forwarded.
 	GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
+	// ListOIDCConnectors returns a page of valid registered connectors.
+	// withSecrets adds or removes client secret from return results.
+	ListOIDCConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.OIDCConnector, string, error)
+	// RangeOIDCConnectors returns valid registered connectors within the range [start, end).
+	// withSecrets adds or removes client secret from return results.
+	RangeOIDCConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.OIDCConnector, error]
 
 	// CreateOIDCAuthRequest creates new auth request
 	CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest, ttl time.Duration) error
@@ -214,6 +221,12 @@ type Identity interface {
 	// GetSAMLConnectors returns valid registered connectors, withSecrets adds or removes secret from return results.
 	// Invalid Connectors are simply logged but errors are not forwarded.
 	GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error)
+	// ListSAMLConnectorsWithOptions returns a page of valid registered connectors.
+	// withSecrets adds or removes client secret from return results.
+	ListSAMLConnectorsWithOptions(ctx context.Context, limit int, start string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, string, error)
+	// RangeSAMLConnectorsWithOptions returns valid registered connectors within the range [start, end).
+	// withSecrets adds or removes client secret from return results.
+	RangeSAMLConnectorsWithOptions(ctx context.Context, start, end string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) iter.Seq2[types.SAMLConnector, error]
 
 	// CreateSAMLAuthRequest creates new auth request
 	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest, ttl time.Duration) error
@@ -236,6 +249,12 @@ type Identity interface {
 
 	// GetGithubConnectors returns valid Github connectors, invalid Connectors are simply logged but errors are not forwarded.
 	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
+	// ListGithubConnectors returns a page of valid registered Github connectors.
+	// withSecrets adds or removes client secret from return results.
+	ListGithubConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error)
+	// RangeGithubConnectors returns valid registered Github connectors within the range [start, end).
+	// withSecrets adds or removes client secret from return results.
+	RangeGithubConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.GithubConnector, error]
 
 	// GetGithubConnector returns a Github connector by its name
 	GetGithubConnector(ctx context.Context, name string, withSecrets bool) (types.GithubConnector, error)
@@ -323,6 +342,10 @@ type SnowflakeSession interface {
 	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
 	// GetSnowflakeSessions gets all Snowflake web sessions.
 	GetSnowflakeSessions(context.Context) ([]types.WebSession, error)
+	// ListSnowflakeSessions returns a page of Snowflake web sessions.
+	ListSnowflakeSessions(ctx context.Context, limit int, start string) ([]types.WebSession, string, error)
+	// RangeSnowflakeSessions returns Snowflake web sessions within the range [start, end).
+	RangeSnowflakeSessions(ctx context.Context, start, end string) iter.Seq2[types.WebSession, error]
 	// UpsertSnowflakeSession upserts a Snowflake web session.
 	UpsertSnowflakeSession(context.Context, types.WebSession) error
 	// DeleteSnowflakeSession removes a Snowflake web session.

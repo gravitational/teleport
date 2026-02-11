@@ -40,12 +40,11 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/embeddedtbot"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var (
-	scheme = controllers.Scheme
-)
+var scheme = controllers.Scheme
 
 var extraFields = []string{logutils.LevelField, logutils.ComponentField, logutils.TimestampField}
 
@@ -53,7 +52,7 @@ func main() {
 	ctx := ctrl.SetupSignalHandler()
 
 	// Setup early logger, using INFO level by default.
-	slogLogger, slogLeveler, err := logutils.Initialize(logutils.Config{
+	slogLogger, slogLeveler, _, err := logutils.Initialize(logutils.Config{
 		Severity:    slog.LevelInfo.String(),
 		Format:      "json",
 		ExtraFields: extraFields,
@@ -69,7 +68,7 @@ func main() {
 
 	config := &operatorConfig{}
 	config.BindFlags(flag.CommandLine)
-	botConfig := &embeddedtbot.BotConfig{}
+	botConfig := &embeddedtbot.BotConfig{Kind: bot.KindKubernetesOperator}
 	botConfig.BindFlags(flag.CommandLine)
 	flag.Parse()
 

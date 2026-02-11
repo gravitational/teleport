@@ -43,7 +43,7 @@ func TestMain(m *testing.M) {
 func TestSelfSignedCert(t *testing.T) {
 	t.Parallel()
 
-	creds, err := cert.GenerateSelfSignedCert([]string{"example.com"}, nil)
+	creds, err := cert.GenerateSelfSignedCert([]string{"example.com"}, nil, nil, time.Now)
 	require.NoError(t, err)
 	signer, err := keys.ParsePrivateKey(creds.PrivateKey)
 	require.NoError(t, err)

@@ -48,6 +48,8 @@ func TestLegacyCommand(t *testing.T) {
 				"--data-dir=/foo",
 				"--destination-dir=/bar",
 				"--auth-server=example.com:3024",
+				"--pid-file=/run/tbot.pid",
+				"--diag-socket-for-updater=/var/lib/teleport/bot/debug.sock",
 			},
 			assertConfig: func(t *testing.T, cfg *config.BotConfig) {
 				token, err := cfg.Onboarding.Token()
@@ -61,6 +63,8 @@ func TestLegacyCommand(t *testing.T) {
 				require.True(t, cfg.Oneshot)
 				require.Equal(t, "0.0.0.0:8080", cfg.DiagAddr)
 				require.Equal(t, "example.com:3024", cfg.AuthServer)
+				require.Equal(t, "/run/tbot.pid", cfg.PIDFile)
+				require.Equal(t, "/var/lib/teleport/bot/debug.sock", cfg.DiagSocketForUpdater)
 
 				dir, ok := cfg.Storage.Destination.(*destination.Directory)
 				require.True(t, ok)

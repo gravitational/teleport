@@ -124,6 +124,8 @@ type Identity struct {
 	// ScopePin is an optional pin that ties the certificate to a specific scope and set of scoped roles. When
 	// set, the Groups field must not be set.
 	ScopePin *scopesv1.Pin
+	// AgentScope is the scope this identity belongs to.
+	AgentScope string
 	// Impersonator is a username of a user impersonating this user
 	Impersonator string
 	// Groups is a list of groups (Teleport roles) encoded in the identity
@@ -204,7 +206,12 @@ type Identity struct {
 	JoinToken string
 	// AllowedResourceIDs lists the resources the identity should be allowed to
 	// access.
+	//
+	// Deprecated: Use [Identity.AllowedResourceAccessIDs].
 	AllowedResourceIDs []types.ResourceID
+	// AllowedResourceAccessIDs lists the resources the user should be able to access,
+	// paired with ResourceConstraints or additional information.
+	AllowedResourceAccessIDs []types.ResourceAccessID
 	// PrivateKeyPolicy is the private key policy supported by this identity.
 	PrivateKeyPolicy keys.PrivateKeyPolicy
 
@@ -224,6 +231,10 @@ type Identity struct {
 	// OriginClusterName is the name of the cluster where the identity is
 	// authenticated.
 	OriginClusterName string
+
+	// ImmutableLabelHash is the hash of the immutable labels that have been
+	// applied to the identity.
+	ImmutableLabelHash string
 }
 
 // RouteToApp holds routing information for applications.
@@ -392,12 +403,14 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		GCPServiceAccounts:      id.GCPServiceAccounts,
 		AccessRequests:          id.ActiveRequests,
 		DisallowReissue:         id.DisallowReissue,
-		AllowedResourceIDs:      events.ResourceIDs(id.AllowedResourceIDs),
-		PrivateKeyPolicy:        string(id.PrivateKeyPolicy),
-		DeviceExtensions:        devExts,
-		BotName:                 id.BotName,
-		BotInstanceID:           id.BotInstanceID,
-		JoinToken:               id.JoinToken,
+		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
+		AllowedResourceIDs:       events.ResourceIDs(id.AllowedResourceIDs),
+		AllowedResourceAccessIDs: events.ToEventResourceAccessIDs(id.AllowedResourceAccessIDs),
+		PrivateKeyPolicy:         string(id.PrivateKeyPolicy),
+		DeviceExtensions:         devExts,
+		BotName:                  id.BotName,
+		BotInstanceID:            id.BotInstanceID,
+		JoinToken:                id.JoinToken,
 	}
 }
 
@@ -611,6 +624,17 @@ var (
 	// ScopePinASN1ExtensionOID is an extension OID that contains the scope pin
 	// used to tie the certificate to a specific scope and set of scoped roles.
 	ScopePinASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 24}
+
+	// AgentScopeASN1ExtensionOID is an extension OID that contains the agent scope
+	// used to tie the certificate to a spec
+	AgentScopeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 25}
+
+	// AllowedResourceAccessIDsASN1ExtensionOID is an extension OID used to list the
+	// ResourceAccessIDs which the certificate should be able to grant access to
+	AllowedResourceAccessIDsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 26}
+	// ImmutableLabelHashASN1ExtensionOID is an extension OID that contains the
+	// immuable label hash used to verify immutable labels.
+	ImmutableLabelHashASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 27}
 )
 
 // Device Trust OIDs.
@@ -938,6 +962,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	if id.AgentScope != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AgentScopeASN1ExtensionOID,
+				Value: id.AgentScope,
+			})
+	}
+
 	if id.UserType != "" {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
@@ -947,7 +979,9 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		)
 	}
 
+	//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
 	if len(id.AllowedResourceIDs) > 0 {
+		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
 		allowedResourcesStr, err := types.ResourceIDsToString(id.AllowedResourceIDs)
 		if err != nil {
 			return pkix.Name{}, trace.Wrap(err)
@@ -956,6 +990,36 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  AllowedResourcesASN1ExtensionOID,
 				Value: allowedResourcesStr,
+			},
+		)
+	} else if len(id.AllowedResourceAccessIDs) > 0 {
+		// If an identity is resource-constrained exclusively via AllowedResourceAccessIDs,
+		// we add a non-matching sentinel ResourceID into AllowedResourceIDs.
+		// This prevents authorization paths that only parse AllowedResourceIDs and ignore AllowedResourceAccessIDs
+		// (e.g., older Auths in mixed-version clusters) from interpreting an empty AllowedResourceIDs slice as
+		// "no resource-specific restrictions".
+		// TODO(kiosion): DELETE in 21.0.0
+		sentinelResourceIDStr, err := types.ResourceIDsToString([]types.ResourceID{types.CreateSentinelResourceID()})
+		if err != nil {
+			return pkix.Name{}, trace.Wrap(err)
+		}
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AllowedResourcesASN1ExtensionOID,
+				Value: sentinelResourceIDStr,
+			},
+		)
+	}
+
+	if len(id.AllowedResourceAccessIDs) > 0 {
+		allowedResourceAccessIDsStr, err := types.ResourceAccessIDsToString(id.AllowedResourceAccessIDs)
+		if err != nil {
+			return pkix.Name{}, trace.Wrap(err)
+		}
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AllowedResourceAccessIDsASN1ExtensionOID,
+				Value: allowedResourceAccessIDsStr,
 			},
 		)
 	}
@@ -1016,6 +1080,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		})
 	}
 
+	if id.ImmutableLabelHash != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  ImmutableLabelHashASN1ExtensionOID,
+				Value: id.ImmutableLabelHash,
+			})
+	}
+
 	return subject, nil
 }
 
@@ -1037,6 +1109,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	var (
+		allowedResourceIDs       []types.ResourceID
+		allowedResourceAccessIDs []types.ResourceAccessID
+	)
 
 	for _, attr := range subject.Names {
 		switch {
@@ -1239,14 +1316,37 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 				}
 				id.ScopePin = &pin
 			}
+		case attr.Type.Equal(AgentScopeASN1ExtensionOID):
+			id.AgentScope = attr.Value.(string)
+
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
 			allowedResourcesStr, ok := attr.Value.(string)
 			if ok {
-				allowedResourceIDs, err := types.ResourceIDsFromString(allowedResourcesStr)
+				resourceIDs, err := types.ResourceIDsFromString(allowedResourcesStr)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				id.AllowedResourceIDs = allowedResourceIDs
+				filteredAllowedResourceIDs := make([]types.ResourceID, 0, len(resourceIDs))
+				for _, rid := range resourceIDs {
+					// AllowedResourceIDs may contain a non-matching sentinel whose sole purpose is to prevent
+					// authorization paths (e.g., older versions operating in mixed-version clusters) that ignore
+					// AllowedResourceAccessIDs from treating an otherwise resource-scoped identity as unconstrained.
+					//
+					// It should be filtered out at decoding here, as it's not a real "requested resource".
+					if !types.IsSentinelResourceID(rid) {
+						filteredAllowedResourceIDs = append(filteredAllowedResourceIDs, rid)
+					}
+				}
+				allowedResourceIDs = filteredAllowedResourceIDs
+			}
+		case attr.Type.Equal(AllowedResourceAccessIDsASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				resourceAccessIDs, err := types.ResourceAccessIDsFromString(val)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				allowedResourceAccessIDs = resourceAccessIDs
 			}
 		case attr.Type.Equal(PrivateKeyPolicyASN1ExtensionOID):
 			val, ok := attr.Value.(string)
@@ -1291,7 +1391,15 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 					return nil, trace.Wrap(err)
 				}
 			}
+		case attr.Type.Equal(ImmutableLabelHashASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.ImmutableLabelHash = val
+			}
 		}
+	}
+
+	if len(allowedResourceIDs) > 0 || len(allowedResourceAccessIDs) > 0 {
+		id.AllowedResourceAccessIDs = types.CombineAsResourceAccessIDs(allowedResourceIDs, allowedResourceAccessIDs)
 	}
 
 	if err := id.CheckAndSetDefaults(); err != nil {

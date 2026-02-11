@@ -1,5 +1,6 @@
 ---
 title: Automatically Discover GCP Compute Instances
+sidebar_label: Google Compute Engine
 description: How to configure Teleport to automatically enroll GCP compute instances.
 tags:
  - how-to
@@ -28,7 +29,7 @@ Ubuntu/Debian/RHEL if making use of the default Teleport install script. (For
 other Linux distributions, you can install Teleport manually.)
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/6. Create a GCP invite token
+## Step 1/5. Create a GCP invite token
 
 When discovering GCP compute instances, Teleport makes use of GCP invite tokens for
 authenticating joining SSH Service instances.
@@ -69,7 +70,7 @@ Add the token to the Teleport cluster with:
 $ tctl create -f token.yaml
 ```
 
-## Step 2/6. Configure IAM permissions for Teleport
+## Step 2/5. Configure IAM permissions for Teleport
 
 Create a service account that will give Teleport IAM permissions needed to
 discover instances.
@@ -160,7 +161,7 @@ discover instances.
 </TabItem>
 </Tabs>
 
-## Step 3/6. Configure instances to be discovered
+## Step 3/5. Configure instances to be discovered
 
 Ensure that each instance to be discovered has a service account assigned to
 it. No permissions are required on the service account. To check if an instance
@@ -214,7 +215,7 @@ the host keys to the guest attributes below:
 </TabItem>
 </Tabs>
 
-## Step 4/6. Install the Teleport Discovery Service
+## Step 4/5. Install the Teleport Discovery Service
 
 <Admonition type="tip">
 
@@ -227,7 +228,7 @@ Install Teleport on the virtual machine that will run the Discovery Service.
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 5/6. Configure Teleport to discover GCP compute instances
+## Step 5/5. Configure Teleport to discover GCP compute instances
 
 If you are running the Discovery Service on its own host, the service requires a
 valid invite token to connect to the cluster. Generate one by running the
@@ -240,18 +241,19 @@ $ tctl tokens add --type=discovery
 Save the generated token in `/tmp/token` on the virtual machine that will run
 the Discovery Service.
 
-In order to enable GCP instance discovery the `discovery_service.gcp` section
-of `teleport.yaml` must include at least one entry:
-
 (!docs/pages/includes/discovery/discovery-group.mdx!)
 
+Assign <Var name="teleport.example.com:443" /> to the host and port of the Teleport Proxy Service in your cluster,
+and <Var name="gcp-prod" /> to a name that identifies a group of resources that you will enroll:
+
 ```yaml
+# teleport.yaml
 version: v3
 teleport:
   join_params:
     token_name: "/tmp/token"
     method: token
-  proxy_server: "<Var name="teleport.example.com" />:443"
+  proxy_server: "<Var name="teleport.example.com:443" />"
 auth_service:
   enabled: false
 proxy_service:
@@ -260,41 +262,87 @@ ssh_service:
   enabled: false
 discovery_service:
   enabled: true
-  discovery_group: "gcp-prod"
-  gcp:
-    - types: ["gce"]
-      # The IDs of GCP projects that VMs can join from.
-      project_ids: []
-      # (Optional) The locations that VMs can join from. Note: both regions and
-      # zones are accepted.
-      locations: []
-      # (Optional) The email addresses of service accounts that VMs can join
-      # with.
-      service_accounts: []
-      # (Optional) Labels that joining VMs must have.
-      labels:
-        "env": "prod" # Match virtual machines where label:env=prod
-      install:
-        # Optional: use a non-global teleport installation, allowing for multiple agent installations.
-        # Requires managed updates to be enabled.
-        # Supported characters are alphanumeric characters and `-`.
-        suffix: "<suffix>"
-        # Optional: when using managed updates, set the update group of the installation.
-        # Supported characters are alphanumeric characters and `-`.
-        update_group: "<update-group>"
-        public_proxy_addr: "<Var name="teleport.example.com" />:443"
+  discovery_group: <Var name="gcp-prod" />
 ```
 
-- Edit the `teleport.auth_server` or `teleport.proxy_server` key to match your Auth Service or Proxy Service's domain name
-  and port, respectively.
-- Adjust the keys under `discovery_service.gcp` to match your GCP environment,
+Create a matcher for the resources you want to enroll.
+
+<Admonition type="tip">
+Dynamic configuration uses Discovery Configs which can be managed using Terraform.
+See the [Terraform `discovery_config` reference](../../../reference/infrastructure-as-code/terraform-provider/resources/discovery_config.mdx) for more information.
+
+Static configuration while simpler at first, has less flexibility because enrollment changes require edits to `teleport.yaml` and the restart of the Discovery Service.
+</Admonition>
+
+<Tabs>
+<TabItem label="Dynamic configuration (recommended)">
+  Create a Discovery Config resource, that has the same discovery group you configured earlier, to enable GCP VM discovery.
+
+  Create a file named `discovery-gcp-prod.yaml` with the following content:
+  ```yaml
+  kind: discovery_config
+  version: v1
+  metadata:
+    name: example-discovery-config
+  spec:
+    discovery_group: <Var name="gcp-prod" />
+    gcp:
+      - types: ["gce"]
+        # The IDs of GCP projects that VMs can join from.
+        project_ids: []
+        # (Optional) The locations that VMs can join from. Note: both regions and
+        # zones are accepted.
+        locations: []
+        # (Optional) The email addresses of service accounts that VMs can join
+        # with.
+        service_accounts: []
+        # (Optional) Labels that joining VMs must have.
+        labels:
+          "env": "prod" # Match virtual machines where label:env=prod
+  ```
+  Adjust the keys under `spec.gcp` to match your GCP environment,
+  specifically the project IDs, locations, service accounts and labels you want to associate with the Discovery Service.
+
+  Create the Discovery Config by running the following command:
+  ```code
+  $ tctl create -f discovery-gcp-prod.yaml
+  ```
+
+  Matching instances will be added to the Teleport cluster automatically.
+
+  You can update the Discovery Config at any time, and the service will automatically re-apply the changes.
+</TabItem>
+
+<TabItem label="Static configuration">
+  In order to enable GCP VM discovery the `discovery_service.gcp` section
+  of `teleport.yaml` must include at least one entry:
+
+  ```yaml
+  # teleport.yaml
+  # ...
+  discovery_service:
+    enabled: true
+    discovery_group: <Var name="gcp-prod" />
+    gcp:
+      - types: ["gce"]
+        # The IDs of GCP projects that VMs can join from.
+        project_ids: []
+        # (Optional) The locations that VMs can join from. Note: both regions and
+        # zones are accepted.
+        locations: []
+        # (Optional) The email addresses of service accounts that VMs can join
+        # with.
+        service_accounts: []
+        # (Optional) Labels that joining VMs must have.
+        labels:
+          "env": "prod" # Match virtual machines where label:env=prod
+  ```
+  Adjust the keys under `discovery_service.gcp` to match your GCP environment,
   specifically the projects, locations, service accounts, and tags you want to associate with the Discovery
   Service.
-- Set the `install.suffix` key to install teleport in a non-global location, allowing
-  for multiple, simultaneously installations from different clusters.
-  Requires [agent managed updates](../../../upgrading/agent-managed-updates.mdx).
-- When using [agent managed updates](../../../upgrading/agent-managed-updates.mdx), you can
-  configure the update group by setting the `install.update_group` key.
+
+</TabItem>
+</Tabs>
 
 ### GCP credentials
 
@@ -307,9 +355,13 @@ instance and assign the service account to that instance. Refer to
 [Set Up Application Default Credentials](https://cloud.google.com/docs/authentication/provide-credentials-adc)
 for details on alternate methods.
 
-## Step 6/6. [Optional] Customize the default installer script
+## Auto-discovery labels
 
-(!docs/pages/includes/server-access/custom-installer.mdx matcher="gcp"!)
+(!docs/pages/includes/auto-discovery/auto-discovery-labels.mdx!)
+
+## Advanced configuration
+
+(!docs/pages/includes/auto-discovery/gcp-vm-advanced-config.mdx!)
 
 ## Next steps
 

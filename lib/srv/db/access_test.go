@@ -63,8 +63,11 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
-	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/azure/azuretest"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/cloud/gcp/gcptest"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -384,16 +387,24 @@ func TestAccessMySQL(t *testing.T) {
 
 func TestMySQLServerVersionUpdateOnConnection(t *testing.T) {
 	ctx := context.Background()
-	testCtx := setupTestContext(
-		ctx,
-		t,
-		withSelfHostedMySQL("mysql",
-			// Set an older version in DB spec.
-			withMySQLServerVersionInDBSpec("6.6.6-before"),
-			// Set a newer version in TestServer.
-			withMySQLServerVersion("8.8.8-after"),
-		),
-	)
+	testCtx := setupTestContext(ctx, t)
+	// disable default health check, because health checks will extract and
+	// update the server version before we connect
+	hcc, err := testCtx.authServer.GetHealthCheckConfig(ctx, teleport.VirtualDefaultHealthCheckConfigDBName)
+	require.NoError(t, err)
+	hcc.Spec.Match.Disabled = true
+	_, err = testCtx.authServer.UpsertHealthCheckConfig(ctx, hcc)
+	require.NoError(t, err)
+	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases: types.Databases{
+			withSelfHostedMySQL("mysql",
+				// Set an older version in DB spec.
+				withMySQLServerVersionInDBSpec("6.6.6-before"),
+				// Set a newer version in TestServer.
+				withMySQLServerVersion("8.8.8-after"),
+			)(t, ctx, testCtx),
+		},
+	})
 	go testCtx.startHandlingConnections()
 
 	// Confirm the server version configured in the spec.
@@ -2238,7 +2249,7 @@ func (c *testContext) createUserAndRole(ctx context.Context, t testing.TB, userN
 
 // makeTLSConfig returns tls configuration for the test's tls listener.
 func (c *testContext) makeTLSConfig(t testing.TB) *tls.Config {
-	creds, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil)
+	creds, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil, nil, time.Now)
 	require.NoError(t, err)
 	cert, err := tls.X509KeyPair(creds.Cert, creds.PrivateKey)
 	require.NoError(t, err)
@@ -2451,8 +2462,10 @@ type agentParams struct {
 	OnHeartbeat func(error)
 	// CADownloader defines the CA downloader.
 	CADownloader CADownloader
-	// CloudClients is the cloud API clients for database service.
-	CloudClients clients.Clients
+	// AzureClients provides Azure SDK clients.
+	AzureClients azure.Clients
+	// GCPClients provides GCP SDK clients.
+	GCPClients gcp.Clients
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
 	// AWSDatabaseFetcherFactory provides AWS database fetchers
@@ -2493,11 +2506,16 @@ func (p *agentParams) setDefaults(c *testContext) {
 		}
 	}
 
-	if p.CloudClients == nil {
-		p.CloudClients = &clients.TestCloudClients{
+	if p.GCPClients == nil {
+		p.GCPClients = &gcptest.Clients{
 			GCPSQL: p.GCPSQL,
 		}
 	}
+
+	if p.AzureClients == nil {
+		p.AzureClients = &azuretest.Clients{}
+	}
+
 	if p.AWSConfigProvider == nil {
 		p.AWSConfigProvider = &mocks.AWSConfigProvider{Err: trace.AccessDenied("AWS SDK clients are disabled for tests by default")}
 	}
@@ -2542,7 +2560,8 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	testAuth, err := newTestAuth(common.AuthConfig{
 		AuthClient:        c.authClient,
 		AccessPoint:       c.authClient,
-		Clients:           &clients.TestCloudClients{},
+		AzureClients:      &azuretest.Clients{},
+		GCPClients:        &gcptest.Clients{},
 		Clock:             c.clock,
 		AWSConfigProvider: p.AWSConfigProvider,
 	})
@@ -2618,7 +2637,8 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		OnReconcile:               p.OnReconcile,
 		DatabaseObjects:           p.DatabaseObjects,
 		ConnectionMonitor:         connMonitor,
-		CloudClients:              p.CloudClients,
+		AzureClients:              p.AzureClients,
+		GCPClients:                p.GCPClients,
 		AWSConfigProvider:         p.AWSConfigProvider,
 		AWSDatabaseFetcherFactory: p.AWSDatabaseFetcherFactory,
 		AWSMatchers:               p.AWSMatchers,

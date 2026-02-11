@@ -352,6 +352,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     }
 
     if (cluster.profileStatusError) {
+      // TODO(gzdunek): We should only sync the target cluster, not all of them.
       await this.clustersService.syncRootClustersAndCatchErrors(abortSignal);
       // Update the cluster.
       cluster = this.clustersService.findCluster(clusterUri);
@@ -465,6 +466,18 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     });
   }
 
+  clearWorkspace(clusterUri: RootClusterUri): void {
+    this.setState(draftState => {
+      draftState.workspaces[clusterUri] = getWorkspaceDefaultState(
+        clusterUri,
+        draftState.workspaces
+      );
+    });
+    this.restoredState = produce(this.restoredState, draftState => {
+      delete draftState.workspaces[clusterUri];
+    });
+  }
+
   getConnectedWorkspacesClustersUri() {
     return (Object.keys(this.state.workspaces) as RootClusterUri[]).filter(
       clusterUri => this.clustersService.findCluster(clusterUri)?.connected
@@ -513,6 +526,14 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     this.restoredState = produce(restoredState, () => {});
     const restoredWorkspaces = this.clustersService
       .getRootClusters()
+      // Start restoring clusters from the ones that already have a workspace.
+      // The algorithm that assigns a color in getWorkspaceDefaultState needs
+      // to know all used colors.
+      .toSorted((a, b) => {
+        const hasA = !!this.restoredState.workspaces[a.uri];
+        const hasB = !!this.restoredState.workspaces[b.uri];
+        return hasB === hasA ? 0 : hasA ? -1 : 1;
+      })
       .reduce((workspaces, cluster) => {
         const restoredWorkspace = this.restoredState.workspaces[cluster.uri];
         workspaces[cluster.uri] = getWorkspaceDefaultState(

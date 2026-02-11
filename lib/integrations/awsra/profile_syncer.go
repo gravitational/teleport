@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
@@ -99,7 +100,13 @@ type SyncerCache interface {
 	// GetClusterName returns the current cluster name.
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
 	// GetProxies returns a list of proxy servers registered in the cluster
+	//
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
+	// ListProxyServers returns a paginated list of registered proxy servers.
+	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 	// ListIntegrations returns a paginated list of all integration resources.
 	ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error)
 }
@@ -301,7 +308,10 @@ func truncateErrorMessage(err error) string {
 }
 
 func fetchProxyPublicAddr(cache SyncerCache) (string, error) {
-	proxies, err := cache.GetProxies()
+	proxies, err := clientutils.CollectWithFallback(context.TODO(), cache.ListProxyServers, func(context.Context) ([]types.Server, error) {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		return cache.GetProxies()
+	})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -433,12 +443,14 @@ func syncProfileForIntegration(ctx context.Context, params AWSRolesAnywhereProfi
 	}
 
 	profileNameFilters := integration.GetAWSRolesAnywhereIntegrationSpec().ProfileSyncConfig.ProfileNameFilters
+	profileUsedForProfileSync := integration.GetAWSRolesAnywhereIntegrationSpec().ProfileSyncConfig.ProfileARN
 
 	var nextPage *string
 	for {
 		listReq := listRolesAnywhereProfilesRequest{
-			nextPage: nextPage,
-			filters:  profileNameFilters,
+			nextPage:           nextPage,
+			filters:            profileNameFilters,
+			ignoredProfileARNs: []string{profileUsedForProfileSync},
 		}
 		profilesListResp, respNextToken, err := listRolesAnywhereProfilesPage(ctx, raClient, listReq)
 		if err != nil {
@@ -455,7 +467,7 @@ func syncProfileForIntegration(ctx context.Context, params AWSRolesAnywhereProfi
 				ProxyPublicAddr: proxyPublicAddr,
 			})
 			if err != nil {
-				if errors.Is(err, errDisabledProfile) || errors.Is(err, errProfileIsUsedForSync) {
+				if errors.Is(err, errDisabledProfile) {
 					logger.DebugContext(ctx, "Skipping profile", "profile_name", profile.Name, "error", err.Error())
 					continue
 				}
@@ -478,8 +490,7 @@ func syncProfileForIntegration(ctx context.Context, params AWSRolesAnywhereProfi
 }
 
 var (
-	errDisabledProfile      = errors.New("profile is disabled")
-	errProfileIsUsedForSync = errors.New("profile is used to sync profiles and will not be added as an aws app")
+	errDisabledProfile = errors.New("profile is disabled")
 )
 
 type processProfileRequest struct {
@@ -491,12 +502,6 @@ type processProfileRequest struct {
 }
 
 func processProfile(ctx context.Context, req processProfileRequest) error {
-	profileSyncProfileARN := req.Integration.GetAWSRolesAnywhereIntegrationSpec().ProfileSyncConfig.ProfileARN
-
-	if req.Profile.Arn == profileSyncProfileARN {
-		return errProfileIsUsedForSync
-	}
-
 	if !req.Profile.Enabled {
 		return errDisabledProfile
 	}

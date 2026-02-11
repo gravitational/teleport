@@ -603,8 +603,8 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		awsSTSClient: &fakeAWSSTSClient{
 			account: "123456789012",
 		},
-		kmsClient:         testGCPKMSClient,
-		clockworkOverride: clock,
+		kmsClient: testGCPKMSClient,
+		Clock:     clock,
 		RSAKeyPairSource: func(alg cryptosuites.Algorithm) ([]byte, []byte, error) {
 			switch alg {
 			case cryptosuites.RSA2048:

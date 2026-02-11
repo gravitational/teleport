@@ -102,7 +102,7 @@ For example:
 clusterSelectors:
   - name: my-cluster-1
   - labels:
-    environment: production
+      environment: production
 ```
 
 ### `argocd.secretNamespace`
@@ -131,7 +131,15 @@ names will be prefixed with. Defaults to "teleport.argocd-cluster".
 | `object` | `{}` |
 
 `argocd.secretLabels` provides a set of labels that will be applied
-to cluster secrets.
+to cluster secrets. Label values can be Go template strings (rendered by tbot,
+not Helm) with the following variables:
+
+  - \{\{.ClusterName\}\} - Name of the Teleport cluster
+  - \{\{.KubeName\}\} - Name of the Kubernetes cluster resource
+  - \{\{.Labels\}\} - Map of labels applied to the Kubernetes cluster
+    resource that can be indexed using `\{\{index .Labels "key"\}\}`
+
+If the label value is empty, the label will not be added to the secret.
 
 ### `argocd.secretAnnotations`
 
@@ -140,7 +148,16 @@ to cluster secrets.
 | `object` | `{}` |
 
 `argocd.secretAnnotations` provides a set of annotations that will
-be applied to cluster secrets.
+be applied to cluster secrets. Annotation values can be Go template strings
+(rendered by tbot, not Helm) with the following variables:
+
+  - \{\{.ClusterName\}\} - Name of the Teleport cluster
+  - \{\{.KubeName\}\} - Name of the Kubernetes cluster resource
+  - \{\{.Labels\}\} - Map of labels applied to the Kubernetes cluster
+    resource that can be indexed using `\{\{index .Labels "key"\}\}`
+
+If the annotation value is empty, the annotation will not be added to the
+secret.
 
 ### `argocd.project`
 
@@ -177,10 +194,13 @@ is non-empty).
 | `string` | `""` |
 
 `argocd.clusterNameTemplate` determines the format of cluster names
-in Argo CD. It is a Go template string that supports the following variables:
+in Argo CD. It is a Go template string (rendered by tbot, not Helm) that
+supports the following variables:
 
   - \{\{.ClusterName\}\} - Name of the Teleport cluster
   - \{\{.KubeName\}\} - Name of the Kubernetes cluster resource
+  - \{\{.Labels\}\} - Map of labels applied to the Kubernetes cluster
+    resource that can be indexed using `\{\{index .Labels "key"\}\}`
 
 By default, the following template will be used: "\{\{.ClusterName\}\}-\{\{.KubeName\}\}".
 
@@ -231,7 +251,7 @@ Ignored if `tbotConfig` is set.
 | `string` | `"kubernetes"` |
 
 `joinMethod` describes how tbot joins the Teleport cluster.
-See [the join method reference](../../reference/deployment/join-methods.mdx) for a list fo supported values and detailed explanations.
+See [the join method reference](../../reference/deployment/join-methods.mdx) for a list of supported values and detailed explanations.
 Ignored if `tbotConfig` is set.
 
 ## `token`
@@ -242,6 +262,7 @@ Ignored if `tbotConfig` is set.
 
 `token` is the name of the token used by tbot to join the Teleport cluster.
 This value is not sensitive unless the `joinMethod` is set to `"token"`.
+Defaults to release name.
 Ignored if `tbotConfig` is set.
 
 ## `teleportVersionOverride`
@@ -569,6 +590,18 @@ extraEnv:
 
 `securityContext` sets the container security context for any pods created by the chart.
 See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
+for more details.
+
+By default, this is unset.
+
+## `podSecurityContext`
+
+| Type | Default |
+|------|---------|
+| `object` | `null` |
+
+`podSecurityContext` sets the pod security context for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod)
 for more details.
 
 By default, this is unset.

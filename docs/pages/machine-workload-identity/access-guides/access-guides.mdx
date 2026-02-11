@@ -1,0 +1,35 @@
+---
+title: Access Infrastructure using tbot
+description: How to use Machine & Workload Identity to enable secure access to Teleport resources.
+template: "no-toc"
+tags:
+ - mwi
+ - infrastructure-identity
+---
+
+These guides cover how to configure a deployed `tbot` instance to produce
+credentials that can be used for machine to machine access to different Teleport
+resources.
+
+It is a pre-requisite of these guides that Machine & Workload Identity has been
+configured for your platform, see the
+[Deploy Machine & Workload Identity](../deployment/deployment.mdx) guides for
+information on how to do so.
+
+## Resource Access
+
+- [SSH servers](ssh.mdx): How to use Machine & Workload Identity to access servers via SSH.
+- [Kubernetes clusters](kubernetes.mdx): How to use Machine & Workload Identity to access Kubernetes clusters.
+- [Databases](databases.mdx): How to use Machine & Workload Identity to access database servers.
+- [Applications](applications.mdx): How to use Machine & Workload Identity to access applications.
+- [MCP servers](mcp.mdx): How to use Machine & Workload Identity to access MCP servers.
+
+## Specific Tools
+
+- [tctl](tctl.mdx): How to use Machine & Workload Identity with `tctl` to manage your Teleport configuration.
+- [Teleport Terraform provider](../../zero-trust-access/infrastructure-as-code/terraform-provider/dedicated-server.mdx): How to use Machine & Workload Identity with the Teleport Terraform provider to manage your Teleport configuration as IaC.
+- [Ansible](ansible.mdx): How to use Machine & Workload Identity with Ansible.
+- [Ansible AWX](ansible-awx.mdx): How to use Machine & Workload Identity with Ansible AWX or
+  Ansible Automation Platform.
+- [Argo CD](argocd.mdx): How to use Machine & Workload Identity to enable Argo CD to connect to external Kubernetes clusters.
+- [SPIFFE](../workload-identity/getting-started.mdx): How to use Machine & Workload Identity to issue SPIFFE certificates.

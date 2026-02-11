@@ -19,6 +19,7 @@
 import {
   AddCircle,
   Bots as BotsIcon,
+  CheckCircleDotted,
   CirclePlay,
   ClipboardUser,
   Cluster,
@@ -34,6 +35,7 @@ import {
   Question,
   Server,
   SlidersVertical,
+  Stack,
   Terminal,
   UserCircleGear,
   User as UserIcon,
@@ -41,6 +43,7 @@ import {
 
 import { IntegrationEnroll } from '@gravitational/teleport/src/Integrations/Enroll';
 import cfg, { Cfg } from 'teleport/config';
+import { IaCIntegrationOverview } from 'teleport/Discover/Overview/IaCIntegrationOverview';
 import { IntegrationStatus } from 'teleport/Integrations/IntegrationStatus';
 import {
   NavigationCategory,
@@ -59,10 +62,12 @@ import { BotDetails } from './Bots/Details/BotDetails';
 import { Clusters } from './Clusters';
 import { DeviceTrustLocked } from './DeviceTrust';
 import { Discover } from './Discover';
+import { Instances } from './Instances/Instances';
 import { Integrations } from './Integrations';
 import { JoinTokens } from './JoinTokens/JoinTokens';
 import { Locks } from './LocksV2/Locks';
 import { NewLockView } from './LocksV2/NewLock';
+import { ManagedUpdates } from './ManagedUpdates';
 import { RolesContainer as Roles } from './Roles';
 import { SessionsContainer as Sessions } from './Sessions';
 import { Support } from './Support';
@@ -307,6 +312,40 @@ export class FeatureBotInstances implements TeleportFeature {
 export class FeatureBotInstanceDetails implements TeleportFeature {
   hasAccess() {
     return false;
+  }
+}
+
+export class FeatureInstances implements TeleportFeature {
+  category = NavigationCategory.ZeroTrustAccess;
+
+  route = {
+    title: 'Instance Inventory',
+    path: cfg.routes.instances,
+    exact: true,
+    component: Instances,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    // if feature hiding is enabled, only show
+    // if the user has access
+    if (shouldHideFromNavigation(cfg)) {
+      return flags.listInstances || flags.listBotInstances;
+    }
+    return true;
+  }
+
+  navigationItem = {
+    title: NavTitle.InstanceInventory,
+    icon: Stack,
+    exact: true,
+    getLink() {
+      return cfg.getInstancesRoute();
+    },
+    searchableTags: ['instances', 'instance', 'agents', 'inventory'],
+  };
+
+  getRoute() {
+    return this.route;
   }
 }
 
@@ -607,6 +646,43 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
   }
 }
 
+export class FeatureManagedUpdates implements TeleportFeature {
+  category = NavigationCategory.ZeroTrustAccess;
+
+  route = {
+    title: 'Managed Updates',
+    path: cfg.routes.managedUpdates,
+    exact: true,
+    component: ManagedUpdates,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    const canViewPage =
+      flags.readAutoUpdateConfig ||
+      flags.readAutoUpdateVersion ||
+      flags.readAutoUpdateAgentRollout;
+
+    if (shouldHideFromNavigation(cfg)) {
+      return canViewPage;
+    }
+    return true;
+  }
+
+  navigationItem = {
+    title: NavTitle.ManagedUpdates,
+    icon: CheckCircleDotted,
+    exact: true,
+    getLink() {
+      return cfg.getManagedUpdatesRoute();
+    },
+    searchableTags: ['managed updates', 'updates', 'rollout', 'agents'],
+  };
+
+  getRoute() {
+    return this.route;
+  }
+}
+
 // - Activity
 
 export class FeatureRecordings implements TeleportFeature {
@@ -783,6 +859,20 @@ class FeatureIntegrationStatus implements TeleportFeature {
   }
 }
 
+export class FeatureIntegrationOverview implements TeleportFeature {
+  parent = FeatureIntegrations;
+
+  route = {
+    title: 'Integration Overview',
+    path: cfg.routes.integrationOverview,
+    component: IaCIntegrationOverview,
+  };
+
+  hasAccess() {
+    return true;
+  }
+}
+
 // ****************************
 // Other Features
 // ****************************
@@ -859,14 +949,17 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureBots(),
     new FeatureBotDetails(),
     new FeatureBotInstances(),
+    new FeatureInstances(),
     new FeatureAddBotsShortcut(),
     new FeatureJoinTokens(),
     new FeatureRoles(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
+    new FeatureManagedUpdates(),
     new FeatureClusters(),
     new FeatureTrust(),
     new FeatureIntegrationStatus(),
+    new FeatureIntegrationOverview(),
 
     // - Identity
     new AccessRequests(),

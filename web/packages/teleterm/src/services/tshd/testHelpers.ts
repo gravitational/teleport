@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import {
@@ -24,6 +25,7 @@ import {
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 import {
   ACL,
+  LoggedInUser_UserType,
   ShowResources,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { WindowsDesktop } from 'gen-proto-ts/teleport/lib/teleterm/v1/windows_desktop_pb';
@@ -86,6 +88,9 @@ export const makeApp = (props: Partial<App> = {}): App => ({
   uri: appUri,
   awsRoles: [],
   tcpPorts: [],
+  permissionSets: [],
+  subKind: '',
+  supportedFeatureIds: [],
   ...props,
 });
 
@@ -259,7 +264,8 @@ export const makeLoggedInUser = (
   roles: [],
   requestableRoles: [],
   suggestedReviewers: [],
-  userType: tsh.LoggedInUser_UserType.LOCAL,
+  userType: LoggedInUser_UserType.LOCAL,
+  validUntil: Timestamp.fromDate(new Date()),
   ...props,
 });
 
@@ -376,3 +382,16 @@ export const makeAuthSettings = (
   clientVersionStatus: ClientVersionStatus.OK,
   ...props,
 });
+
+export const makeTshdRpcError = (
+  props: Partial<TshdRpcError> = {}
+): TshdRpcError => {
+  return {
+    name: 'TshdRpcError',
+    isResolvableWithRelogin: false,
+    code: 'UNKNOWN',
+    message: 'Error occurred',
+    toString: () => 'Error occurred',
+    ...props,
+  };
+};

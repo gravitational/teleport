@@ -334,29 +334,11 @@ func (c *fakeDatabaseExecClient) listDatabasesWithFilter(ctx context.Context, re
 }
 
 func matchResources[R types.ResourceWithLabels](req *proto.ListResourcesRequest, s []R) ([]R, error) {
-	filter := services.MatchResourceFilter{
-		ResourceKind:   req.ResourceType,
-		Labels:         req.Labels,
-		SearchKeywords: req.SearchKeywords,
+	filter, err := services.MatchResourceFilterFromListResourceRequest(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	if req.PredicateExpression != "" {
-		expression, err := services.NewResourceExpression(req.PredicateExpression)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		filter.PredicateExpression = expression
-	}
-
-	var filtered []R
-	for _, r := range s {
-		match, err := services.MatchResourceByFilters(r, filter, nil)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		} else if match {
-			filtered = append(filtered, r)
-		}
-	}
-	return filtered, nil
+	return services.MatchResourcesByFilters(s, filter)
 }
 
 func mustMakeDatabaseServer(t *testing.T, db types.Database) types.DatabaseServer {

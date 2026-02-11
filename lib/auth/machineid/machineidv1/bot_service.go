@@ -50,6 +50,7 @@ var SupportedJoinMethods = []types.JoinMethod{
 	types.JoinMethodAzure,
 	types.JoinMethodAzureDevops,
 	types.JoinMethodCircleCI,
+	types.JoinMethodEnv0,
 	types.JoinMethodGCP,
 	types.JoinMethodGitHub,
 	types.JoinMethodGitLab,

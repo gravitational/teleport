@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.join.v1;
 
 import "google/protobuf/timestamp.proto";
+import "teleport/scopes/joining/v1/token.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1;joinv1";
 
@@ -105,6 +106,22 @@ message ClientParams {
 message TokenInit {
   // ClientParams holds parameters for the specific type of client trying to join.
   ClientParams client_params = 1;
+  // The secret value that must be provided when using the token join method.
+  string secret = 2;
+}
+
+// OIDCInit holds the OIDC identity token used for all OIDC-based join methods.
+//
+// The join flow for all OIDC-based join methods is:
+// 1. client->server: ClientInit
+// 2. server->client: ServerInit
+// 3. client->server: OIDCInit
+// 4. server->client: Result
+message OIDCInit {
+  // ClientParams holds parameters for the specific type of client trying to join.
+  ClientParams client_params = 1;
+  // IdToken is the OIDC identity token.
+  bytes id_token = 2;
 }
 
 // BoundKeypairInit is sent from the client in response to the ServerInit
@@ -190,12 +207,222 @@ message BoundKeypairResult {
   bytes public_key = 3;
 }
 
+// IAMInit is sent from the client in response to the ServerInit message for
+// the IAM join method.
+//
+// The IAM method join flow is:
+// 1. client->server: ClientInit
+// 2. server->client: ServerInit
+// 3. client->server: IAMInit
+// 4. server->client: IAMChallenge
+// 5. client->server: IAMChallengeSolution
+// 6. server->client: Result
+message IAMInit {
+  // ClientParams holds parameters for the specific type of client trying to join.
+  ClientParams client_params = 1;
+}
+
+// IAMChallenge is from the server in response to the IAMInit message from the client.
+// The client is expected to respond with a IAMChallengeSolution.
+message IAMChallenge {
+  // Challenge is a a crypto-random string that should be included by the
+  // client in the IAMChallengeSolution message.
+  string challenge = 1;
+}
+
+// IAMChallengeSolution must be sent from the client in response to the
+// IAMChallenge message.
+message IAMChallengeSolution {
+  // STSIdentityRequest is a signed sts:GetCallerIdentity API request used
+  // to prove the AWS identity of a joining node. It must include the
+  // challenge string as a signed header.
+  bytes sts_identity_request = 1;
+}
+
+// EC2Init is sent from the client in response to the ServerInit message for
+// the EC2 join method.
+//
+// The EC2 method join flow is:
+// 1. client->server: ClientInit
+// 2. server->client: ServerInit
+// 3. client->server: EC2Init
+// 4. server->client: Result
+message EC2Init {
+  // ClientParams holds parameters for the specific type of client trying to join.
+  ClientParams client_params = 1;
+  // Document is a signed EC2 Instance Identity Document used to prove the
+  // identity of a joining EC2 instance.
+  bytes document = 2;
+}
+
+// OracleInit is sent from the client in response to the ServerInit message for
+// the Oracle join method.
+//
+// The Oracle method join flow is:
+// 1. client->server: ClientInit
+// 2. client<-server: ServerInit
+// 3. client->server: OracleInit
+// 4. client<-server: OracleChallenge
+// 5. client->server: OracleChallengeSolution
+// 6. client<-server: Result
+message OracleInit {
+  // ClientParams holds parameters for the specific type of client trying to join.
+  ClientParams client_params = 1;
+}
+
+// OracleChallenge is sent from the server in response to the OracleInit message from the client.
+// The client is expected to respond with a OracleChallengeSolution.
+message OracleChallenge {
+  // Challenge is a a crypto-random string that should be included by the
+  // client in the OracleChallengeSolution message.
+  string challenge = 1;
+}
+
+// OracleChallengeSolution must be sent from the client in response to the
+// OracleChallenge message.
+message OracleChallengeSolution {
+  // Cert is the OCI instance identity certificate, an X509 certificate in PEM format.
+  bytes cert = 1;
+  // Intermediate encodes the intermediate CAs that issued the instance
+  // identity certificate, in PEM format.
+  bytes intermediate = 2;
+  // Signature is a signature over the challenge, signed by the private key
+  // matching the instance identity certificate.
+  bytes signature = 3;
+  // SignedRootCaReq is a signed request to the Oracle API for retreiving the
+  // root CAs that issued the instance identity certificate.
+  bytes signed_root_ca_req = 4;
+}
+
+// TPMInit is the message sent from the client in response to the ServerInit
+// message for the TPM join flow.
+// The server is expected to respond with a TPMEncryptedCredential message.
+//
+// The TPM method join flow is:
+// 1. client->server: ClientInit
+// 2. client<-server: ServerInit
+// 3. client->server: TPMInit
+// 4. client<-server: TPMEncryptedCredential
+// 5. client->server: TPMSolution
+// 6. client<-server: Result
+message TPMInit {
+  // ClientParams holds parameters for the specific type of client trying to join.
+  ClientParams client_params = 1;
+  // The encoded TPMT_PUBLIC structure containing the attestation public key
+  // and signing parameters.
+  bytes public = 2;
+  // The properties of the attestation key, encoded as a TPMS_CREATION_DATA
+  // structure.
+  bytes create_data = 3;
+  // An assertion as to the details of the key, encoded as a TPMS_ATTEST
+  // structure.
+  bytes create_attestation = 4;
+  // A signature of create_attestation, encoded as a TPMT_SIGNATURE structure.
+  bytes create_signature = 5;
+  oneof ek {
+    // The device's endorsement certificate in X509, ASN.1 DER form. This
+    // certificate contains the public key of the endorsement key. This is
+    // preferred to ek_key.
+    bytes ek_cert = 6;
+    // The device's public endorsement key in PKIX, ASN.1 DER form. This is
+    // used when a TPM does not contain any endorsement certificates.
+    bytes ek_key = 7;
+  }
+}
+
+// TPMEncryptedCredential is the message sent from the server in response to the
+// TPMInit message.
+// The client is expected to respond with a TPMSolution message.
+message TPMEncryptedCredential {
+  // The `credential_blob` parameter to be used with the `ActivateCredential`
+  // command. This is used with the decrypted value of `secret` in a
+  // cryptographic process to decrypt the solution.
+  bytes credential_blob = 1;
+  // The `secret` parameter to be used with `ActivateCredential`. This is a
+  // seed which can be decrypted with the EK. The decrypted seed is then used
+  // when decrypting `credential_blob`.
+  bytes secret = 2;
+}
+
+// TPMSolution is the message sent from the client in response to the
+// TPMEncryptedCredential message. The server is expected to respond with a
+// Result message.
+message TPMSolution {
+  // The client's solution to TPMEncryptedCredential using ActivateCredential.
+  bytes solution = 1;
+}
+
+// AzureInit is sent from the client in response to the ServerInit message for
+// the Azure join method.
+//
+// The Azure method join flow is:
+// 1. client->server: ClientInit
+// 2. client<-server: ServerInit
+// 3. client->server: AzureInit
+// 4. client<-server: AzureChallenge
+// 5. client->server: AzureChallengeSolution
+// 6. client<-server: Result
+message AzureInit {
+  // ClientParams holds parameters for the specific type of client trying to join.
+  ClientParams client_params = 1;
+}
+
+// AzureChallenge is sent from the server in response to the AzureInit message from the client.
+// The client is expected to respond with a AzureChallengeSolution.
+message AzureChallenge {
+  // Challenge is a a crypto-random string that should be included by the
+  // client in the challenge response message.
+  string challenge = 1;
+}
+
+// AzureChallengeSolution must be sent from the client in response to the
+// AzureChallenge message.
+message AzureChallengeSolution {
+  // AttestedData is a signed JSON document from an Azure VM's attested data
+  // metadata endpoint used to prove the identity of a joining node. It must
+  // include the challenge string as the nonce.
+  bytes attested_data = 1;
+  // Intermediate encodes the intermediate CAs that issued the leaf certificate
+  // used to sign the attested data document, in x509 DER format.
+  bytes intermediate = 2;
+  // AccessToken is a JWT signed by Azure, used to prove the identity of a
+  // joining node.
+  string access_token = 3;
+}
+
 // ChallengeSolution holds a solution to a challenge issued by the server.
 message ChallengeSolution {
   oneof payload {
     BoundKeypairChallengeSolution bound_keypair_challenge_solution = 1;
     BoundKeypairRotationResponse bound_keypair_rotation_response = 2;
+    IAMChallengeSolution iam_challenge_solution = 3;
+    OracleChallengeSolution oracle_challenge_solution = 4;
+    TPMSolution tpm_solution = 5;
+    AzureChallengeSolution azure_challenge_solution = 6;
   }
+}
+
+// GivingUp should be sent by clients that fail to complete the join flow so
+// that the Auth service can log an informative error message.
+message GivingUp {
+  // Reason is the reason the client is giving up.
+  enum Reason {
+    // REASON_UNSPECIFIED is an unspecified reason.
+    REASON_UNSPECIFIED = 0;
+    // REASON_UNSUPPORTED_JOIN_METHOD means the client does not support the
+    // join method sent by the server.
+    REASON_UNSUPPORTED_JOIN_METHOD = 1;
+    // REASON_UNSUPPORTED_MESSAGE_TYPE means the client can not handle a
+    // message type sent by the server.
+    REASON_UNSUPPORTED_MESSAGE_TYPE = 2;
+    // REASON_CHALLENGE_SOLUTION_FAILED means the client failed to solve a
+    // challenge sent by the server.
+    REASON_CHALLENGE_SOLUTION_FAILED = 3;
+  }
+  // Reason is the reason the client is giving up.
+  Reason reason = 1;
+  // Msg is an error message related to the failure.
+  string msg = 2;
 }
 
 // JoinRequest is the message type sent from the joining client to the server.
@@ -205,6 +432,13 @@ message JoinRequest {
     TokenInit token_init = 2;
     BoundKeypairInit bound_keypair_init = 3;
     ChallengeSolution solution = 4;
+    IAMInit iam_init = 5;
+    GivingUp giving_up = 6;
+    EC2Init ec2_init = 7;
+    OIDCInit oidc_init = 8;
+    OracleInit oracle_init = 9;
+    TPMInit tpm_init = 10;
+    AzureInit azure_init = 11;
   }
 }
 
@@ -223,6 +457,10 @@ message Challenge {
   oneof payload {
     BoundKeypairChallenge bound_keypair_challenge = 1;
     BoundKeypairRotationRequest bound_keypair_rotation_request = 2;
+    IAMChallenge iam_challenge = 3;
+    OracleChallenge oracle_challenge = 4;
+    TPMEncryptedCredential tpm_encrypted_credential = 5;
+    AzureChallenge azure_challenge = 6;
   }
 }
 
@@ -256,6 +494,8 @@ message HostResult {
   Certificates certificates = 1;
   // HostId is the unique ID assigned to the host.
   string host_id = 2;
+  // The immutable labels assigned to the host by their join token.
+  teleport.scopes.joining.v1.ImmutableLabels immutable_labels = 3;
 }
 
 // HostResult holds results for bot joining.

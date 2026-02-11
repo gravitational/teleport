@@ -25,6 +25,7 @@ import {
   canUseV2Edit,
   makeBot,
   toApiGitHubTokenSpec,
+  validateGetBotInstanceMetricsResponse,
   validateGetBotInstanceResponse,
   validateListBotInstancesResponse,
 } from 'teleport/services/bot/consts';
@@ -263,4 +264,73 @@ export async function getBotInstance(
   }
 
   return data;
+}
+
+export async function getBotInstanceMetrics(
+  variables: null,
+  signal?: AbortSignal
+) {
+  const path = cfg.getBotInstanceUrl({ action: 'metrics' });
+
+  try {
+    const data = await api.get(path, signal);
+
+    if (!validateGetBotInstanceMetricsResponse(data)) {
+      throw new Error('failed to validate get bot instance metrics response');
+    }
+
+    return data;
+  } catch (err: unknown) {
+    // TODO(nicholasmarais1158) DELETE IN v20.0.0
+    withGenericUnsupportedError(err, '19.0.0');
+  }
+}
+
+export async function generateGhaK8sTemplates(
+  variables: {
+    github: {
+      allow: {
+        repository?: string;
+        owner?: string;
+        workflow?: string;
+        environment?: string;
+        actor?: string;
+        ref?: string;
+        ref_type?: string;
+      }[];
+      enterprise_server_host?: string;
+      enterprise_slug?: string;
+      static_jwks?: string;
+    };
+    kubernetes?: {
+      labels?: Record<string, string[]>;
+      groups?: string[];
+      users?: string[];
+      resources?: {
+        kind: string;
+        namespace: string;
+        name: string;
+        verbs: string[];
+        api_group: string;
+      }[];
+    };
+  },
+  signal?: AbortSignal
+) {
+  const resp = await api.post(
+    cfg.getBotUrl({
+      action: 'gen-wizard-cicd',
+    }),
+    {
+      source_type: 'github',
+      destination_type: 'kubernetes',
+      github: variables.github,
+      kubernetes: variables.kubernetes,
+    },
+    signal
+  );
+
+  return resp as {
+    terraform: string;
+  };
 }

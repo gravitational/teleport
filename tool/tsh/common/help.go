@@ -82,6 +82,9 @@ Examples:
   Print sample configuration for a MCP server app
   $ tsh mcp config my-mcp-server-app
 
+  Print sample configuration for a streamable HTTP MCP server with custom headers
+  $ tsh mcp config my-mcp-server-app -H "Header1: value1" -H "Header2: value2"
+
   Add all MCP servers to Claude Desktop
   $ tsh mcp config --all --client-config=claude
 

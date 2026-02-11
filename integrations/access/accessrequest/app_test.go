@@ -25,10 +25,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 )
 
@@ -53,6 +55,15 @@ func (m *mockTeleportClient) GetUser(ctx context.Context, name string, withSecre
 	return args.Get(0).(types.User), args.Error(1)
 }
 
+func (m *mockTeleportClient) GetUserLoginState(ctx context.Context, name string) (*userloginstate.UserLoginState, error) {
+	args := m.Called(ctx, name)
+	userLoginState, ok := args.Get(0).(*userloginstate.UserLoginState)
+	if ok {
+		return userLoginState, args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 type mockMessagingBot struct {
 	mock.Mock
 	MessagingBot
@@ -63,9 +74,54 @@ func (m *mockMessagingBot) FetchOncallUsers(ctx context.Context, req types.Acces
 	return args.Get(0).([]string), args.Error(1)
 }
 
+func TestGetLoginsByRoleWithUserLoginState(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	t.Cleanup(cancel)
+
+	teleportClient := &mockTeleportClient{}
+
+	teleportClient.On("GetRole", mock.Anything, "admin").
+		Return(&types.RoleV6{
+			Metadata: types.Metadata{Name: "admin"},
+			Spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Logins: []string{"root", "foo", "bar", "{{internal.logins}}"},
+				},
+			},
+		}, nil)
+
+	teleportClient.On("GetUserLoginState", mock.Anything, mock.Anything).
+		Return(&userloginstate.UserLoginState{
+			Spec: userloginstate.Spec{
+				Traits: map[string][]string{
+					"logins": {"buz"},
+				},
+			},
+		}, nil)
+
+	app := App{
+		apiClient: teleportClient,
+	}
+	loginsByRole, err := app.getLoginsByRole(ctx, &types.AccessRequestV3{
+		Spec: types.AccessRequestSpecV3{
+			User:  "admin",
+			Roles: []string{"admin"},
+		},
+	})
+	require.NoError(t, err)
+
+	expected := map[string][]string{
+		"admin": {"root", "foo", "bar", "buz"},
+	}
+	require.Equal(t, expected, loginsByRole)
+}
+
 func TestGetLoginsByRole(t *testing.T) {
 	teleportClient := &mockTeleportClient{}
+	teleportClient.On("GetUserLoginState", mock.Anything, mock.Anything).
+		Return(nil, trace.AccessDenied("test error"))
 	teleportClient.On("GetRole", mock.Anything, "admin").Return(&types.RoleV6{
+		Metadata: types.Metadata{Name: "admin"},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Logins: []string{"root", "foo", "bar", "{{internal.logins}}"},
@@ -73,6 +129,7 @@ func TestGetLoginsByRole(t *testing.T) {
 		},
 	}, (error)(nil))
 	teleportClient.On("GetRole", mock.Anything, "foo").Return(&types.RoleV6{
+		Metadata: types.Metadata{Name: "foo"},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Logins: []string{"foo"},
@@ -80,6 +137,7 @@ func TestGetLoginsByRole(t *testing.T) {
 		},
 	}, (error)(nil))
 	teleportClient.On("GetRole", mock.Anything, "dev").Return(&types.RoleV6{
+		Metadata: types.Metadata{Name: "dev"},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Logins: []string{},
@@ -87,6 +145,7 @@ func TestGetLoginsByRole(t *testing.T) {
 		},
 	}, (error)(nil))
 	teleportClient.On("GetUser", mock.Anything, "admin", mock.Anything).Return(&types.UserV2{
+		Metadata: types.Metadata{Name: "admin"},
 		Spec: types.UserSpecV2{
 			Traits: map[string][]string{
 				"logins": {"buz"},

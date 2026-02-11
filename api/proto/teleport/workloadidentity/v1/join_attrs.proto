@@ -49,6 +49,8 @@ message JoinAttrs {
   JoinAttrsOracle oracle = 13;
   // Attributes that are specific to the Azure Devops (`azure_devops`) join method.
   JoinAttrsAzureDevops azure_devops = 14;
+  // Attributes that are specific to the Env0 (`env0`) join method.
+  JoinAttrsEnv0 env0 = 15;
 }
 
 // The collection of attributes that result from the join process but are not
@@ -357,4 +359,45 @@ message JoinAttrsAzureDevopsPipeline {
   string repository_ref = 10;
   // The ID of the run that is being executed.
   string run_id = 11;
+}
+
+// Attributes that are specific to the Env0 (`env0`) join method.
+message JoinAttrsEnv0 {
+  // The `sub` claim of an Env0 OIDC token.
+  string sub = 1;
+  // The unique organization identifier, corresponding to `organizationId` in an
+  // Env0 OIDC token.
+  string organization_id = 2;
+  // The unique project identifier, corresponding to `projectId` in an Env0 OIDC
+  // token.
+  string project_id = 3;
+  // The name of the project under which the job was run corresponding to
+  // `projectName` in an Env0 OIDC token.
+  string project_name = 4;
+  // The unique identifier of the Env0 template, corresponding to `templateId`
+  // in an Env0 OIDC token.
+  string template_id = 5;
+  // The name of the Env0 template, corresponding to `templateName` in an Env0
+  // OIDC token.
+  string template_name = 6;
+  // The unique identifier of the Env0 environment, corresponding to
+  // `environmentId` in an Env0 OIDC token.
+  string environment_id = 7;
+  // The name of the Env0 environment, corresponding to `environmentName` in an
+  // Env0 OIDC token.
+  string environment_name = 8;
+  // The name of the Env0 workspace, corresponding to `workspaceName` in an Env0
+  // OIDC token.
+  string workspace_name = 9;
+  // A unique ID for this deployment, corresponding to `deploymentLogId` in an
+  // Env0 OIDC token.
+  string deployment_log_id = 10;
+  // The env0 deployment type, such as "deploy", "destroy", etc. Corresponds to
+  // `deploymentType` in an Env0 OIDC token.
+  string deployment_type = 11;
+  // The email of the person that triggered the deployment, corresponding to
+  // `deployerEmail` in an Env0 OIDC token.
+  string deployer_email = 12;
+  // A custom tag value corresponding to `env0Tag` when `ENV0_OIDC_TAG` is set.
+  string env0_tag = 13;
 }

@@ -2,9 +2,6 @@
 title: Reference for the teleport_provision_token Terraform data-source
 sidebar_label: provision_token
 description: This page describes the supported values of the teleport_provision_token data-source of the Teleport Terraform provider.
-tags:
- - reference
- - platform-wide
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -51,9 +48,11 @@ Optional:
 - `bot_name` (String) BotName is the name of the bot this token grants access to, if any
 - `bound_keypair` (Attributes) BoundKeypair allows the configuration of options specific to the "bound_keypair" join method. (see [below for nested schema](#nested-schema-for-specbound_keypair))
 - `circleci` (Attributes) CircleCI allows the configuration of options specific to the "circleci" join method. (see [below for nested schema](#nested-schema-for-speccircleci))
+- `env0` (Attributes) Env0 allows the configuration of options specific to the "env0" join method. (see [below for nested schema](#nested-schema-for-specenv0))
 - `gcp` (Attributes) GCP allows the configuration of options specific to the "gcp" join method. (see [below for nested schema](#nested-schema-for-specgcp))
 - `github` (Attributes) GitHub allows the configuration of options specific to the "github" join method. (see [below for nested schema](#nested-schema-for-specgithub))
 - `gitlab` (Attributes) GitLab allows the configuration of options specific to the "gitlab" join method. (see [below for nested schema](#nested-schema-for-specgitlab))
+- `integration` (String) Integration name which provides credentials for validating join attempts. Currently only in use for validating the AWS Organization ID in the IAM Join method.
 - `join_method` (String) JoinMethod is the joining method required in order to use this token. Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm
 - `kubernetes` (Attributes) Kubernetes allows the configuration of options specific to the "kubernetes" join method. (see [below for nested schema](#nested-schema-for-speckubernetes))
 - `oracle` (Attributes) Oracle allows the configuration of options specific to the "oracle" join method. (see [below for nested schema](#nested-schema-for-specoracle))
@@ -69,6 +68,7 @@ Optional:
 
 - `aws_account` (String) AWSAccount is the AWS account ID.
 - `aws_arn` (String) AWSARN is used for the IAM join method, the AWS identity of joining nodes must match this ARN. Supports wildcards "*" and "?".
+- `aws_organization_id` (String) AWSOrganizationID is used for the IAM join method, the AWS identity of joining nodes must belong to this organization.
 - `aws_regions` (List of String) AWSRegions is used for the EC2 join method and is a list of AWS regions a node is allowed to join from.
 - `aws_role` (String) AWSRole is used for the EC2 join method and is the ARN of the AWS role that the Auth Service will assume in order to call the ec2 API.
 
@@ -168,6 +168,30 @@ Optional:
 
 - `context_id` (String)
 - `project_id` (String)
+
+
+
+### Nested Schema for `spec.env0`
+
+Optional:
+
+- `allow` (Attributes List) Allow is a list of Rules, jobs using this token must match at least one allow rule to use this token. (see [below for nested schema](#nested-schema-for-specenv0allow))
+
+### Nested Schema for `spec.env0.allow`
+
+Optional:
+
+- `deployer_email` (String) DeployerEmail is the email of the person that triggered the deployment, corresponding to `deployerEmail` in an Env0 OIDC token.
+- `deployment_type` (String) DeploymentType is the env0 deployment type, such as "deploy", "destroy", etc. Corresponds to `deploymentType` in an Env0 OIDC token.
+- `env0_tag` (String) Env0Tag is a custom tag value corresponding to `env0Tag` when `ENV0_OIDC_TAG` is set.
+- `environment_id` (String) EnvironmentID is the unique identifier of the Env0 environment, corresponding to `environmentId` in an Env0 OIDC token.
+- `environment_name` (String) EnvironmentName is the name of the Env0 environment, corresponding to `environmentName` in an Env0 OIDC token.
+- `organization_id` (String) OrganizationID is the unique organization identifier, corresponding to `organizationId` in an Env0 OIDC token.
+- `project_id` (String) ProjectID is a unique project identifier, corresponding to `projectId` in an Env0 OIDC token.
+- `project_name` (String) ProjectName is the name of the project under which the job was run corresponding to `projectName` in an Env0 OIDC token.
+- `template_id` (String) TemplateID is the unique identifier of the Env0 template, corresponding to `templateId` in an Env0 OIDC token.
+- `template_name` (String) TemplateName is the name of the Env0 template, corresponding to `templateName` in an Env0 OIDC token.
+- `workspace_name` (String) WorkspaceName is the name of the Env0 workspace, corresponding to `workspaceName` in an Env0 OIDC token.
 
 
 
@@ -284,6 +308,7 @@ Optional:
 
 Optional:
 
+- `instances` (List of String) Instances is a list of the OCIDs of specific instances that are allowed to join. If empty, any instance matching the other fields in the rule is allowed. Limited to 100 instance OCIDs per rule.
 - `parent_compartments` (List of String) ParentCompartments is a list of the OCIDs of compartments an instance is allowed to join from. Only direct parents are allowed, i.e. no nested compartments. If empty, any compartment is allowed.
 - `regions` (List of String) Regions is a list of regions an instance is allowed to join from. Both full region names ("us-phoenix-1") and abbreviations ("phx") are allowed. If empty, any region is allowed.
 - `tenancy` (String) Tenancy is the OCID of the instance's tenancy. Required.

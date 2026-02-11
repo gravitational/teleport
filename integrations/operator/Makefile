@@ -12,17 +12,8 @@ IMG ?= teleport-operator:latest
 # across all builds.
 include ../../build.assets/versions.mk
 
-# Setting SHELL to bash allows bash commands to be executed by recipes.
-# This is a requirement for 'setup-envtest.sh' in the test target.
-# Options are set to exit when a recipe line exits non-zero or a piped command fails.
-SHELL = /usr/bin/env bash -o pipefail
-.SHELLFLAGS = -ec
-
 # include BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables
 include ../../build.assets/images.mk
-
-# include setup-envtest binary
-include ./envtest.mk
 
 # Configure which compiler and buildbox to use
 OS ?= $(shell go env GOOS)
@@ -173,15 +164,8 @@ debug-dump-request:
 	done
 
 .PHONY: test
-test: generate $(ENVTEST) ## Run tests.
-test: export KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
-test:
-	go test ./...
-
-.PHONY: echo-kubebuilder-assets
-echo-kubebuilder-assets:
-	@echo KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
-
+test: generate ## Run tests.
+	gotestsum --junitfile unit-tests-operator.xml --jsonfile unit-tests-operator.json
 
 ##@ Build
 
@@ -213,7 +197,7 @@ $(LOCALBIN):
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 
 ## Tool Versions
-CONTROLLER_TOOLS_VERSION ?= v0.19.0
+CONTROLLER_TOOLS_VERSION ?= v0.20.0
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.

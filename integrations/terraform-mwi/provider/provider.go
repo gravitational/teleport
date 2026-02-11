@@ -114,6 +114,7 @@ func (p *Provider) Configure(ctx context.Context, req provider.ConfigureRequest,
 	botInternalStore := destination.NewMemory()
 	newBotConfig := func() bot.Config {
 		return bot.Config{
+			Kind: bot.KindTerraformProvider,
 			Connection: connection.Config{
 				Address:     data.ProxyServer.ValueString(),
 				AddressKind: connection.AddressKindProxy,

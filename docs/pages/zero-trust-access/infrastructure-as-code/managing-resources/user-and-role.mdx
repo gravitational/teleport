@@ -1,7 +1,9 @@
 ---
 title: Managing Users And Roles With IaC
+sidebar_label: Users and Roles
 description: Use infrastructure-as-code tooling to create Teleport users and roles.
 tags:
+ - infrastructure-as-code
  - how-to
  - zero-trust
  - privileged-access
@@ -490,13 +492,13 @@ resource "teleport_user" "bob" {
 - Allow users with the `manager` role to grant access to production servers to
   some `engineers` via Access Lists. Manager will need to justify and review
   granted access periodically.
-  See [the AccessList documentation](../../../identity-governance/access-lists/access-lists.mdx) for
+  See [the Access List documentation](../../../identity-governance/access-lists/access-lists.mdx) for
   a high-level explanation of the feature,
-  and [the AccessList IaC guide](access-list.mdx) for a step by step IaC
+  and [the Access List IaC guide](access-list.mdx) for a step by step IaC
   AccessList setup.
 - Allow users with the `engineer` role to request temporary access to
   production, and have users with the `manager` role validate the requests.
   See [the Access Requests documentation](../../../identity-governance/access-requests/access-requests.mdx)
 - You can see all supported fields in the references
-  of [the user resource](../../../reference/infrastructure-as-code/resources.mdx)
-  and [the role resource](../../../reference/infrastructure-as-code/resources.mdx).
+  of [the user resource](../../../reference/infrastructure-as-code/teleport-resources/teleport-resources.mdx)
+  and [the role resource](../../../reference/infrastructure-as-code/teleport-resources/teleport-resources.mdx).

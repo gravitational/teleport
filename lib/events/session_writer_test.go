@@ -211,7 +211,7 @@ func TestSessionWriter(t *testing.T) {
 		terminateConnection.Store(1)
 
 		submitEvents := 600
-		hangCtx, hangCancel := context.WithCancel(context.TODO())
+		hangCtx, hangCancel := context.WithCancel(t.Context())
 		defer hangCancel()
 
 		test := newSessionWriterTest(t, func(streamer events.Streamer) (*events.CallbackStreamer, error) {
@@ -352,7 +352,9 @@ func withBackoff(timeout, dur time.Duration) sessionWriterOption {
 
 func newSessionWriterTest(t *testing.T, newStreamer newStreamerFn, opts ...sessionWriterOption) *sessionWriterTest {
 	eventsCh := make(chan events.UploadEvent, 1)
-	uploader := eventstest.NewMemoryUploader(eventsCh)
+	uploader := eventstest.NewMemoryUploader(eventstest.MemoryUploaderConfig{
+		EventsC: eventsCh,
+	})
 	protoStreamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader: uploader,
 	})
@@ -367,7 +369,7 @@ func newSessionWriterTest(t *testing.T, newStreamer newStreamerFn, opts ...sessi
 		streamer = protoStreamer
 	}
 
-	ctx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 
 	sid := session.NewID()
 	preparer, err := events.NewPreparer(events.PreparerConfig{

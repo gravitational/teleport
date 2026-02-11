@@ -191,7 +191,18 @@ export class InputHandler {
       return;
     }
 
+    // Check if AltGraph is being pressed
+    const isAltGraphActive = e.getModifierState('AltGraph');
+
     this.remoteModifierState.forEach((state, modifier) => {
+      // When AltGr is pressed, browsers synthesize ControlLeft+AltRight, but
+      // getModifierState('Control') and getModifierState('Alt') return false
+      // because the physical keys aren't pressed. Skip sync to avoid sending
+      // incorrect UP events while AltGr is active.
+      if (isAltGraphActive && (modifier === 'Control' || modifier === 'Alt')) {
+        return;
+      }
+
       const localState = e.getModifierState(modifier)
         ? ButtonState.DOWN
         : ButtonState.UP;
@@ -200,6 +211,7 @@ export class InputHandler {
         // If the local state is different from the remote state, send the updates.
         cli.sendKeyboardInput(modifier + 'Left', localState);
         cli.sendKeyboardInput(modifier + 'Right', localState);
+
         // Update the remote state to match the local state.
         this.remoteModifierState.set(modifier, localState);
       }

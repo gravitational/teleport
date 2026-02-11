@@ -25,7 +25,59 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 )
+
+// scopedRoleConditionsToRoleConditions converts scoped role conditions to classic role conditions.
+func scopedRoleConditionsToRoleConditions(src *scopedaccessv1.ScopedRoleConditions) types.RoleConditions {
+	var rules []types.Rule
+	for _, r := range src.GetRules() {
+		// as part of this conversion we expand multi-resource rules into multiple single-resource rules.
+		// this is because we need to filter out unsupported resource:verb combinations, which may not be
+		// sound if multiple resources are combined in a single rule.
+		for _, resource := range r.GetResources() {
+			var verbs []string
+			for _, verb := range r.GetVerbs() {
+				if !isAllowedScopedRule(resource, verb) {
+					// skip verbs that are not allowed for the resource kind. note that this differs from
+					// classic teleport role behavior, where we don't worry about unsupported resource:verb
+					// combinations because we theoretically won't have any access checks for unsupported
+					// combinations. scoped roles differ because there may be logic that is abstracting over
+					// scoped and unscoped identities doing access checks for verbs that aren't supported
+					// for scoped roles but *are* supported for classic roles. in such a scenario, if we
+					// decide to introduce scoped support for the verb in the future, we may end up changing
+					// the nature of the access check to better accommodate the scoping model. if we do,
+					// outdated instances running the old access check would behave unsoundly when handling
+					// the new rule.
+					continue
+				}
+				verbs = append(verbs, verb)
+			}
+			if len(verbs) == 0 {
+				// skip rules that have no allowed verbs.
+				continue
+			}
+			rules = append(rules, types.Rule{
+				Resources: []string{resource},
+				Verbs:     verbs,
+			})
+		}
+	}
+
+	var nodeLabels types.Labels
+	for _, label := range src.GetNodeLabels() {
+		if nodeLabels == nil {
+			nodeLabels = make(types.Labels)
+		}
+		nodeLabels[label.GetName()] = apiutils.Strings(label.GetValues())
+	}
+
+	return types.RoleConditions{
+		Rules:      rules,
+		Logins:     src.GetLogins(),
+		NodeLabels: nodeLabels,
+	}
+}
 
 // ScopedRoleToRole converts a scoped role to an equivalent classic role. Scoped roles do not implement their
 // own access-control logic for the most part, and instead rely on converting to classic roles for the final
@@ -34,8 +86,9 @@ import (
 // role evaluation logic.
 func ScopedRoleToRole(sr *scopedaccessv1.ScopedRole, assignedScope string) (types.Role, error) {
 	role, err := types.NewRoleWithVersion(sr.GetMetadata().GetName()+"@"+assignedScope, types.V8, types.RoleSpecV6{
-		// scoped role features are not yet implemented. all scoped roles
-		// are currently effectively an empty role.
+		// scoped roles support allow blocks, but not deny blocks.
+		Allow: scopedRoleConditionsToRoleConditions(sr.GetSpec().GetAllow()),
+		// no scoped role options have been implemented yet. all options blocks are default/placeholder values.
 		Options: types.RoleOptions{
 			// CertificateFormat is always set to "standard" for scoped roles. We don't anticipate needing to change
 			// this in the future, but if we did alternative options for controlling the parameter via some other
@@ -84,6 +137,23 @@ func ScopedRoleToRole(sr *scopedaccessv1.ScopedRole, assignedScope string) (type
 			// per-access lock evaluation specialization possible, but its likely that cert-creation locking behavior will
 			// need special handling of some kind.
 			Lock: "",
+			// ClientIdleTimeout is disabled until we can decide how to handle the cases where client idle timeout is
+			// being used independently of an access check (and therefore independent of a known target scope). It is possible
+			// that the correct way to handle this will be to break compatibility with classic roles and introduce separate
+			// per-protocol idle timeouts, with the global timeout always applying for operations that are not tied to a
+			// specific access check. By setting this value to zero we effectively make the default behavior one where we
+			// are always deferring to the global setting for scoped identities, which aught to be forwards compatible with
+			// whatever solution we eventually land on.
+			ClientIdleTimeout: types.NewDuration(0),
+
+			// DisconnectExpiredCert is disabled until we can decide how to handle the cases where disconnect on expired cert is
+			// being used independently of an access check (and therefore independent of a known target scope). It is possible
+			// that the correct way to handle this will be to break compatibility with classic roles and introduce separate
+			// per-protocol disconnect on expired cert, with the global setting always applying for operations that are not tied to a
+			// specific access check. By setting this value to false we effectively make the default behavior one where we
+			// are always deferring to the global setting for scoped identities, which aught to be forwards compatible with
+			// whatever solution we eventually land on	.
+			DisconnectExpiredCert: types.NewBool(false),
 		},
 	})
 	if err != nil {

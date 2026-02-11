@@ -135,7 +135,7 @@ func (req *FileTransferRequest) checkAndSetDefaults() error {
 	)
 	if req.ProgressWriter != nil && req.ProgressStream == nil {
 		req.ProgressStream = func(fileInfo os.FileInfo) io.ReadWriter {
-			return NewProgressBar(fileInfo.Size(), fileInfo.Name(), req.ProgressWriter)
+			return newProgressBar(fileInfo.Size(), fileInfo.Name(), req.ProgressWriter)
 		}
 	}
 	return nil
@@ -310,7 +310,7 @@ func TransferFiles(ctx context.Context, req *FileTransferRequest) error {
 			return trace.Wrap(err)
 		}
 		for i, srcPath := range req.Sources.Paths {
-			expandedPath, err := expandPath(srcPath)
+			expandedPath, err := ExpandHomeDir(srcPath)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -338,7 +338,7 @@ func TransferFiles(ctx context.Context, req *FileTransferRequest) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		expandedPath, err := expandPath(req.Destination.Path)
+		expandedPath, err := ExpandHomeDir(req.Destination.Path)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -361,27 +361,28 @@ func (p PathExpansionError) Error() string {
 	return fmt.Sprintf("expanding remote ~user paths is not supported, specify an absolute path instead of %q", p.path)
 }
 
-func expandPath(pathStr string) (string, error) {
+// ExpandHomeDir evaluates the home directory ('~') in a path.
+func ExpandHomeDir(pathStr string) (string, error) {
 	pfxLen, ok := homeDirPrefixLen(pathStr)
 	if !ok {
 		return pathStr, nil
 	}
 
-	// Removing the home dir prefix would mean returning an empty string,
-	// which is supported by SFTP but won't be as clear in logs or audit
-	// events. Since the SFTP server will be rooted at the user's home
-	// directory, "." and "" are equivalent in this context.
-	if pathStr == "~" {
-		return ".", nil
-	}
 	if pfxLen == 1 && len(pathStr) > 1 {
 		return "", trace.Wrap(PathExpansionError{path: pathStr})
 	}
 
 	// if an SFTP path is not absolute, it is assumed to start at the user's
 	// home directory so just strip the prefix and let the SFTP server
-	// figure out the correct remote path
-	return pathStr[pfxLen:], nil
+	// figure out the correct remote path.
+	trimmedPath := pathStr[pfxLen:]
+	// Returning an empty string is supported by SFTP but won't be as clear in
+	// logs or audit events. Since the SFTP server will be rooted at the user's
+	// home directory, "." and "" are equivalent in this context.
+	if trimmedPath == "" {
+		return ".", nil
+	}
+	return trimmedPath, nil
 }
 
 // homeDirPrefixLen returns the length of a set of characters that
@@ -607,7 +608,7 @@ func transferFile(ctx context.Context, req *FileTransferRequest, dstPath, srcPat
 			err,
 		)
 	}
-	if n != srcFileInfo.Size() {
+	if n < srcFileInfo.Size() {
 		return trace.Errorf("error copying %s file %q to %s file %q: short write: wrote %d bytes, expected to write %d bytes",
 			req.srcFS.Type(),
 			srcPath,
@@ -694,11 +695,35 @@ func getAtime(fi os.FileInfo) time.Time {
 	return scp.GetAtime(fi)
 }
 
-// NewProgressBar returns a new progress bar that writes to writer.
-func NewProgressBar(size int64, desc string, writer io.Writer) *progressbar.ProgressBar {
+// unboundedProgressBar is a wrapper for a progress bar that increases its max
+// value when its internal count gets too big, instead of failing.
+type unboundedProgressBar struct {
+	pb *progressbar.ProgressBar
+}
+
+func (u *unboundedProgressBar) checkMax(n int) {
+	state := u.pb.State()
+	newNum := state.CurrentNum + int64(n)
+	if newNum > state.Max {
+		u.pb.ChangeMax64(newNum)
+	}
+}
+
+func (u *unboundedProgressBar) Read(p []byte) (int, error) {
+	u.checkMax(len(p))
+	return u.pb.Read(p)
+}
+
+func (u *unboundedProgressBar) Write(p []byte) (int, error) {
+	u.checkMax(len(p))
+	return u.pb.Write(p)
+}
+
+// newProgressBar returns a new progress bar that writes to writer.
+func newProgressBar(size int64, desc string, writer io.Writer) *unboundedProgressBar {
 	// this is necessary because progressbar.DefaultBytes doesn't allow
 	// the caller to specify a writer
-	return progressbar.NewOptions64(
+	return &unboundedProgressBar{pb: progressbar.NewOptions64(
 		size,
 		progressbar.OptionSetDescription(desc),
 		progressbar.OptionSetWriter(writer),
@@ -712,7 +737,7 @@ func NewProgressBar(size int64, desc string, writer io.Writer) *progressbar.Prog
 		progressbar.OptionSpinnerType(14),
 		progressbar.OptionFullWidth(),
 		progressbar.OptionSetRenderBlankState(true),
-	)
+	)}
 }
 
 // NonRecursiveDirectoryTransferError is returned when an attempt is made

@@ -1,5 +1,7 @@
 ---
 title: Troubleshooting MCP Access
+sidebar_label: Troubleshooting
+sidebar_position: 7
 description: Describes common issues and solutions for access to MCP servers protected by Teleport.
 tags:
 - conceptual
@@ -12,7 +14,20 @@ to MCP servers with Teleport and how to work around or resolve them.
 
 ## Disabled MCP server or tools missing from the MCP server
 
-By default, no MCP tools are allowed by your Teleport roles.
+By default, no MCP tools are allowed by your Teleport roles. You can check if
+any tool is allowed by running `tsh mcp ls`:
+
+```code
+$ tsh mcp ls
+Name              Description                                        Type  Allowed Tools Labels
+----------------- -------------------------------------------------- ----- ------------- ------
+teleport-mcp-demo A demo MCP server that shows current user and s... stdio (none) [!]
+
+[!] Warning: you do not have access to any tools on the MCP server.
+Please contact your Teleport administrator to ensure your Teleport role has
+appropriate 'allow.mcp.tools' set. For details on MCP access RBAC, see:
+https://goteleport.com/docs/enroll-resources/mcp-access/rbac/
+```
 
 If a user is assigned the `access` preset role, by default the available MCP
 tools are controlled by the `{{internal.mcp_tools}}` source in the role
@@ -36,8 +51,10 @@ You can configure this user trait with `tctl`, assigning it to the Teleport user
 $ tctl users update <Var name="my_user" /> --set-mcp-tools "*"
 ```
 
-Alternatively you can define a custom role that explicitly specifies the allowed
-MCP tools and assigns them to users. See [RBAC](./rbac.mdx) for more details.
+Alternatively you can assign your Teleport user the preset role `mcp-user` which
+allows access to all MCP servers and their tools. You can also define a custom
+role that explicitly specifies the allowed MCP tools and assigns them to your
+Teleport user. See [RBAC](./rbac.mdx) for more details.
 
 ## Server disconnected when starting the MCP server
 
@@ -76,3 +93,7 @@ server is configured correctly. You can test it by manually running the
 Application Service is running — without using Teleport. Also, make sure the
 host user set for `mcp.run_as_host_user` exists on the host  and has the
 necessary permissions to execute the configured command.
+
+## `tsh` path errors in your MCP clients
+
+(!docs/pages/includes/mcp-access/troubleshoot-tsh-binary-enoent.mdx!)

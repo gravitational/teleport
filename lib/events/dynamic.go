@@ -121,6 +121,24 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AuthAttempt{}
 	case SCPEvent:
 		e = &events.SCP{}
+		if err := utils.FastUnmarshal(data, e); err == nil {
+			return e, nil
+		}
+		// Some SFTP events may have been incorrectly marshaled as SCP events;
+		// check for them and fix.
+		// https://github.com/gravitational/teleport/issues/59469
+		if code := getFieldEmpty(EventCode); code == SCPDisallowedCode {
+			sftpEvent := &events.SFTP{}
+			if err := utils.FastUnmarshal(data, sftpEvent); err != nil {
+				// If that didn't work, leave type/code as-is and return UnknownEvent
+				// down below.
+				e = nil
+				break
+			}
+			sftpEvent.Type = SFTPEvent
+			sftpEvent.Code = SFTPDisallowedCode
+			return sftpEvent, nil
+		}
 	case ResizeEvent:
 		e = &events.Resize{}
 	case SessionCommandEvent:
@@ -479,6 +497,13 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case AutoUpdateVersionDeleteEvent:
 		e = &events.AutoUpdateVersionDelete{}
 
+	case AutoUpdateAgentRolloutTriggerEvent:
+		e = &events.AutoUpdateAgentRolloutTrigger{}
+	case AutoUpdateAgentRolloutForceDoneEvent:
+		e = &events.AutoUpdateAgentRolloutForceDone{}
+	case AutoUpdateAgentRolloutRollbackEvent:
+		e = &events.AutoUpdateAgentRolloutRollback{}
+
 	case ContactCreateEvent:
 		e = &events.ContactCreate{}
 	case ContactDeleteEvent:
@@ -546,29 +571,83 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 
 	case SCIMListingEvent:
 		e = &events.SCIMListingEvent{}
-	case SCIMGetEvent, SCIMCreateEvent, SCIMUpdateEvent, SCIMDeleteEvent:
+	case SCIMGetEvent, SCIMCreateEvent, SCIMUpdateEvent, SCIMDeleteEvent, SCIMPatchEvent:
 		e = &events.SCIMResourceEvent{}
+
+	case ClientIPRestrictionsUpdateEvent:
+		e = &events.ClientIPRestrictionsUpdate{}
+
+	case AppAuthConfigCreateEvent:
+		e = &events.AppAuthConfigCreate{}
+	case AppAuthConfigUpdateEvent:
+		e = &events.AppAuthConfigUpdate{}
+	case AppAuthConfigDeleteEvent:
+		e = &events.AppAuthConfigDelete{}
+	case AppAuthConfigVerifySuccessCode:
+		e = &events.AppAuthConfigVerify{}
+	case AppAuthConfigVerifyFailureEvent:
+		e = &events.AppAuthConfigVerify{}
+	case VnetConfigCreateEvent:
+		e = &events.VnetConfigCreate{}
+	case VnetConfigUpdateEvent:
+		e = &events.VnetConfigUpdate{}
+	case VnetConfigDeleteEvent:
+		e = &events.VnetConfigDelete{}
+
+	case WorkloadClusterCreateEvent:
+		e = &events.WorkloadClusterCreate{}
+	case WorkloadClusterUpdateEvent:
+		e = &events.WorkloadClusterUpdate{}
+	case WorkloadClusterDeleteEvent:
+		e = &events.WorkloadClusterDelete{}
+
+	case InferenceModelCreateEvent:
+		e = &events.InferenceModelCreate{}
+	case InferenceModelUpdateEvent:
+		e = &events.InferenceModelUpdate{}
+	case InferenceModelDeleteEvent:
+		e = &events.InferenceModelDelete{}
+
+	case InferenceSecretCreateEvent:
+		e = &events.InferenceSecretCreate{}
+	case InferenceSecretUpdateEvent:
+		e = &events.InferenceSecretUpdate{}
+	case InferenceSecretDeleteEvent:
+		e = &events.InferenceSecretDelete{}
+
+	case InferencePolicyCreateEvent:
+		e = &events.InferencePolicyCreate{}
+	case InferencePolicyUpdateEvent:
+		e = &events.InferencePolicyUpdate{}
+	case InferencePolicyDeleteEvent:
+		e = &events.InferencePolicyDelete{}
+
+	case SessionSummarizedEvent:
+		e = &events.SessionSummarized{}
 
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
-		unknown := &events.Unknown{}
-		if err := utils.FastUnmarshal(data, unknown); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		unknown.Type = UnknownEvent
-		unknown.Code = UnknownCode
-		unknown.UnknownType = eventType
-		unknown.UnknownCode = getFieldEmpty(EventCode)
-		unknown.Data = string(data)
-		return unknown, nil
 	}
 
-	if err := utils.FastUnmarshal(data, e); err != nil {
+	if e != nil {
+		if err := utils.FastUnmarshal(data, e); err == nil {
+			return e, nil
+		} else {
+			slog.ErrorContext(context.Background(), "failed to unmarshal event", "event_type", eventType, "error", err)
+		}
+	}
+
+	unknown := &events.Unknown{}
+	if err := utils.FastUnmarshal(data, unknown); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return e, nil
+	unknown.Type = UnknownEvent
+	unknown.Code = UnknownCode
+	unknown.UnknownType = eventType
+	unknown.UnknownCode = getFieldEmpty(EventCode)
+	unknown.Data = string(data)
+	return unknown, nil
 }
 
 // GetSessionID pulls the session ID from the events that have a

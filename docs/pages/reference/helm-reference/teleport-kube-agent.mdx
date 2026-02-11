@@ -28,28 +28,10 @@ The `teleport-kube-agent` chart can run any or all of three Teleport services:
 | Teleport service                                                          | Name for `roles` and `tctl tokens add` | Purpose                                                                                      |
 |---------------------------------------------------------------------------|----------------------------------------|----------------------------------------------------------------------------------------------|
 | [`kubernetes_service`](../../enroll-resources/kubernetes-access/introduction.mdx)          | `kube`                                 | Uses Teleport to handle authentication<br/> with and proxy access to a Kubernetes cluster    |
-| [`application_service`](../../enroll-resources/application-access/guides/guides.mdx)              | `app`                                  | Uses Teleport to handle authentication<br/> with and proxy access to web-based applications  |
+| [`application_service`](../../enroll-resources/application-access/application-access.mdx)              | `app`                                  | Uses Teleport to handle authentication<br/> with and proxy access to web-based applications  |
 | [`database_service`](../../enroll-resources/database-access/guides/guides.mdx)                    | `db`                                   | Uses Teleport to handle authentication<br/> with and proxy access to databases               |
 | [`discovery_service`](../../enroll-resources/auto-discovery/auto-discovery.mdx)              | `discovery`                            | Uses Teleport to discover new resources<br/> and dynamically add them to the cluster         |
 | [`jamf_service`](../../identity-governance/device-trust/jamf-integration.mdx) | `jamf`                                 | Uses Teleport to integrate with Jamf Pro<br/> and sync devices with Device Trust inventory   |
-
-### Legacy releases
-
-Releases of this chart installed before version 11 are considered legacy
-releases, which launch the Teleport pod as a `Deployment` if no storage was
-configured.
-
-In version 11 and above, the chart launches the Teleport pod as a `StatefulSet`
-even when the chart is configured not to use external storage, and the Teleport pod
-reads its state from a Kubernetes `Secret`.
-
-While the Teleport pod does not require external storage, you can still use the
-[`storage.enabled`](#storageenabled) field to configure the way the Teleport pod
-reads data from a persistent volume.
-
-To learn how upgrading from a legacy release to version 11 will affect
-resources launched by this chart, see the [resource
-list](#kubernetes-resources).
 
 ### Kubernetes resources
 

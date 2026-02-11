@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
@@ -33,6 +34,10 @@ import (
 // Config contains the core bot's configuration. The tbot binary's configuration
 // file format is handled by the lib/tbot/config package.
 type Config struct {
+	// Kind identifies whether the bot is running in the tbot binary or embedded
+	// in another component.
+	Kind Kind
+
 	// Connection controls how the bot connects to the cluster.
 	Connection connection.Config
 
@@ -87,3 +92,26 @@ func (c *Config) CheckAndSetDefaults() error {
 // dynamically registered (like the Kubernetes Secret Destination, which is only
 // available if you import the k8s package) without maintaining a global registry.
 type UnmarshalConfigContext = internal.UnmarshalConfigContext
+
+// Kind identifies whether the bot is running in the tbot binary or embedded
+// in another component
+type Kind machineidv1.BotKind
+
+const (
+	// KindUnspecified means no bot kind was given.
+	KindUnspecified = Kind(machineidv1.BotKind_BOT_KIND_UNSPECIFIED)
+
+	// KindTbot means the bot is running in the tbot binary.
+	KindTbot = Kind(machineidv1.BotKind_BOT_KIND_TBOT)
+
+	// KindTerraformProvider means the bot is embedded in one of our Terraform
+	// providers.
+	KindTerraformProvider = Kind(machineidv1.BotKind_BOT_KIND_TERRAFORM_PROVIDER)
+
+	// KindKubernetesOperator means the bot is embedded in our Kubernetes
+	// operator.
+	KindKubernetesOperator = Kind(machineidv1.BotKind_BOT_KIND_KUBERNETES_OPERATOR)
+
+	// KindTctl means the bot is embedded in tctl.
+	KindTctl = Kind(machineidv1.BotKind_BOT_KIND_TCTL)
+)

@@ -20,11 +20,14 @@ import (
 	"context"
 	"errors"
 	"io"
+	"iter"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 )
 
 // GetWebSession returns the web session for the specified request.
@@ -51,10 +54,6 @@ func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (
 func (r *webSessions) List(ctx context.Context) ([]types.WebSession, error) {
 	sessions, err := r.listStream(ctx)
 	if err != nil {
-		// TODO(espadolini): DELETE IN 19.0.0
-		if trace.IsNotImplemented(err) {
-			return r.listUnary(ctx)
-		}
 		return nil, trace.Wrap(err)
 	}
 	return sessions, nil
@@ -77,19 +76,6 @@ func (r *webSessions) listStream(ctx context.Context) ([]types.WebSession, error
 		}
 		sessions = append(sessions, session)
 	}
-}
-
-func (r *webSessions) listUnary(ctx context.Context) ([]types.WebSession, error) {
-	//nolint:staticcheck // this rpc is used as a fallback
-	resp, err := r.c.grpc.GetWebSessions(ctx, &emptypb.Empty{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out := make([]types.WebSession, 0, len(resp.Sessions))
-	for _, session := range resp.Sessions {
-		out = append(out, session)
-	}
-	return out, nil
 }
 
 // Upsert not implemented: can only be called locally.
@@ -129,7 +115,9 @@ func (c *Client) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) 
 }
 
 // GetWebTokens returns the list of all web tokens
+// Deprecated: Prefer using [Client.ListWebTokens] or [Client.RangeWebTokens] instead.
 func (c *Client) GetWebTokens(ctx context.Context) ([]types.WebToken, error) {
+	//nolint:staticcheck // TODO(okraport): deprecated, to be removed in v21
 	resp, err := c.grpc.GetWebTokens(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -139,6 +127,29 @@ func (c *Client) GetWebTokens(ctx context.Context) ([]types.WebToken, error) {
 		out = append(out, token)
 	}
 	return out, nil
+}
+
+// ListWebTokens returns a page of web tokens
+func (c *Client) ListWebTokens(ctx context.Context, limit int, start string) ([]types.WebToken, string, error) {
+	resp, err := c.grpc.ListWebTokens(ctx, &proto.ListWebTokensRequest{
+		PageToken: start,
+		PageSize:  int32(limit),
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	tokens := make([]types.WebToken, 0, len(resp.Tokens))
+	for _, token := range resp.Tokens {
+		tokens = append(tokens, token)
+	}
+
+	return tokens, resp.NextPageToken, nil
+}
+
+// RangeWebTokens returns web tokens within the range [start, end).
+func (c *Client) RangeWebTokens(ctx context.Context, start, end string) iter.Seq2[types.WebToken, error] {
+	return clientutils.RangeResources(ctx, start, end, c.ListWebTokens, types.WebToken.GetName)
 }
 
 // UpsertWebToken not implemented: can only be called locally.
@@ -188,7 +199,7 @@ func (r *webTokens) Get(ctx context.Context, req types.GetWebTokenRequest) (type
 //
 // Deprecated: Use [Client.GetWebTokens] instead.
 func (r *webTokens) List(ctx context.Context) ([]types.WebToken, error) {
-	return r.c.GetWebTokens(ctx)
+	return clientutils.CollectWithFallback(ctx, r.c.ListWebTokens, r.c.GetWebTokens)
 }
 
 // Upsert not implemented: can only be called locally.

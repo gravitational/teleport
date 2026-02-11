@@ -92,6 +92,13 @@ teleport:
     # point to a Load Balancer.
     proxy_server: teleport-proxy.example.com:443
 
+    # Relay tunnel address and port to connect to, if set. Used by some services
+    # to open additional tunnels to a Relay group if Teleport is configured to
+    # connect to a Proxy Server. If a Relay group consists of more than one
+    # Relay Service instance, the address should point to a Load Balancer.
+    # Used in Teleport v18.3.0 and later for the SSH service.
+    relay_server: teleport-relay.example.com:3042
+
     # cache:
     #  # The cache is enabled by default, it can be disabled with this flag
     #  enabled: true
@@ -108,6 +115,14 @@ teleport:
     # for each service (SSH, Kubernetes, etc.)
     connection_limits:
         max_connections: 1000
+
+    # Auth Service connection configuration.
+    # These settings can be tweaked to control how aggresively the Proxy or Agent instances will retry to connect. In addition
+    # each instance will apply jitter.
+    # auth_connection_config:
+    #     upper_limit_between_retries: "90s"  # Cannot be lower than 10s
+    #     initial_connection_delay: "9s"      # When unset upper_limit_between_retries / 10
+    #     backoff_step_duration: "18s"        # When unset upper_limit_between_retries / 5
 
     # Logging configuration. Possible output values to disk via
     # '/var/lib/teleport/teleport.log',

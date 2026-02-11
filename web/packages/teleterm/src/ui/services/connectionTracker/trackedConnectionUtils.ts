@@ -183,6 +183,7 @@ export function createGatewayConnection(
     targetUser: document.targetUser,
     targetName: document.targetName,
     targetSubresourceName: document.targetSubresourceName,
+    targetProtocol: document.targetProtocol,
   };
 }
 

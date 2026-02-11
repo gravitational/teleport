@@ -21,14 +21,18 @@ package local
 import (
 	"context"
 	"errors"
+	"iter"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
@@ -169,6 +173,56 @@ func (s *ClusterConfigurationService) DeleteStaticTokens() error {
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("static tokens are not found")
+		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetStaticScopedTokens gets the list of static scoped tokens used to provision nodes.
+func (s *ClusterConfigurationService) GetStaticScopedTokens(ctx context.Context) (*joiningv1.StaticScopedTokens, error) {
+	item, err := s.Get(ctx, backend.NewKey(clusterConfigPrefix, types.MetaNameStaticScopedTokens))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("static scoped tokens not found")
+		}
+		return nil, trace.Wrap(err)
+	}
+	scopedTokens, err := services.UnmarshalProtoResource[*joiningv1.StaticScopedTokens](item.Value)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return scopedTokens, nil
+}
+
+// SetStaticScopedTokens sets the list of static scoped tokens used to provision nodes.
+func (s *ClusterConfigurationService) SetStaticScopedTokens(ctx context.Context, c *joiningv1.StaticScopedTokens) error {
+	if c == nil {
+		return trace.BadParameter("cannot set nil static scoped tokens")
+	}
+	value, err := services.MarshalProtoResource(c)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = s.Put(ctx, backend.Item{
+		Key:      backend.NewKey(clusterConfigPrefix, types.MetaNameStaticScopedTokens),
+		Value:    value,
+		Revision: c.GetMetadata().GetRevision(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// DeleteStaticScopedTokens deletes the list of static scoped tokens.
+func (s *ClusterConfigurationService) DeleteStaticScopedTokens(ctx context.Context) error {
+	err := s.Delete(ctx, backend.NewKey(clusterConfigPrefix, types.MetaNameStaticScopedTokens))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("static scoped tokens are not found")
 		}
 		return trace.Wrap(err)
 	}
@@ -599,6 +653,46 @@ func (s *ClusterConfigurationService) GetInstallers(ctx context.Context) ([]type
 		installers = append(installers, installer)
 	}
 	return installers, nil
+}
+
+// ListInstallers returns a page of installer script resources.
+func (s *ClusterConfigurationService) ListInstallers(ctx context.Context, limit int, start string) ([]types.Installer, string, error) {
+	return generic.CollectPageAndCursor(s.RangeInstallers(ctx, start, ""), limit, types.Installer.GetName)
+}
+
+// RangeInstallers returns installer script resources from the backend within the range [start, end).
+func (s *ClusterConfigurationService) RangeInstallers(ctx context.Context, start, end string) iter.Seq2[types.Installer, error] {
+	mapFn := func(item backend.Item) (types.Installer, bool) {
+		installer, err := services.UnmarshalInstaller(item.Value)
+		if err != nil {
+			slog.WarnContext(ctx, "Failed to unmarshal installer",
+				"key", item.Key,
+				"error", err,
+			)
+			return nil, false
+		}
+		return installer, true
+	}
+
+	startKey := backend.NewKey(clusterConfigPrefix, scriptsPrefix, installerPrefix, start)
+	endKey := backend.RangeEnd(backend.NewKey(clusterConfigPrefix, scriptsPrefix, installerPrefix))
+	if end != "" {
+		endKey = backend.NewKey(clusterConfigPrefix, scriptsPrefix, installerPrefix, end).ExactKey()
+	}
+
+	return stream.TakeWhile(
+		stream.FilterMap(
+			s.Backend.Items(ctx, backend.ItemsParams{
+				StartKey: startKey,
+				EndKey:   endKey,
+			}),
+			mapFn,
+		),
+		func(db types.Installer) bool {
+			// The range is not inclusive of the end key, so return early
+			// if the end has been reached.
+			return end == "" || db.GetName() < end
+		})
 }
 
 func (s *ClusterConfigurationService) GetUIConfig(ctx context.Context) (types.UIConfig, error) {

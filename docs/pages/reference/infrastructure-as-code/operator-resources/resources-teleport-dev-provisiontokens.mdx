@@ -1,10 +1,6 @@
 ---
 title: TeleportProvisionToken
 description: Provides a comprehensive list of fields in the TeleportProvisionToken resource available through the Teleport Kubernetes operator
-tocDepth: 3
-tags:
- - reference
- - platform-wide
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -41,9 +37,11 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |bot_name|string|BotName is the name of the bot this token grants access to, if any|
 |bound_keypair|[object](#specbound_keypair)|BoundKeypair allows the configuration of options specific to the "bound_keypair" join method.|
 |circleci|[object](#speccircleci)|CircleCI allows the configuration of options specific to the "circleci" join method.|
+|env0|[object](#specenv0)|Env0 allows the configuration of options specific to the "env0" join method.|
 |gcp|[object](#specgcp)|GCP allows the configuration of options specific to the "gcp" join method.|
 |github|[object](#specgithub)|GitHub allows the configuration of options specific to the "github" join method.|
 |gitlab|[object](#specgitlab)|GitLab allows the configuration of options specific to the "gitlab" join method.|
+|integration|string|Integration name which provides credentials for validating join attempts. Currently only in use for validating the AWS Organization ID in the IAM Join method.|
 |join_method|string|JoinMethod is the joining method required in order to use this token. Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm|
 |kubernetes|[object](#speckubernetes)|Kubernetes allows the configuration of options specific to the "kubernetes" join method.|
 |oracle|[object](#specoracle)|Oracle allows the configuration of options specific to the "oracle" join method.|
@@ -60,6 +58,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |aws_account|string|AWSAccount is the AWS account ID.|
 |aws_arn|string|AWSARN is used for the IAM join method, the AWS identity of joining nodes must match this ARN. Supports wildcards "*" and "?".|
+|aws_organization_id|string|AWSOrganizationID is used for the IAM join method, the AWS identity of joining nodes must belong to this organization.|
 |aws_regions|[]string|AWSRegions is used for the EC2 join method and is a list of AWS regions a node is allowed to join from.|
 |aws_role|string|AWSRole is used for the EC2 join method and is the ARN of the AWS role that the Auth Service will assume in order to call the ec2 API.|
 
@@ -149,6 +148,28 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |context_id|string||
 |project_id|string||
+
+### spec.env0
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specenv0allow-items)|Allow is a list of Rules, jobs using this token must match at least one allow rule to use this token.|
+
+### spec.env0.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|deployer_email|string||
+|deployment_type|string||
+|env0_tag|string||
+|environment_id|string||
+|environment_name|string||
+|organization_id|string||
+|project_id|string||
+|project_name|string||
+|template_id|string||
+|template_name|string||
+|workspace_name|string||
 
 ### spec.gcp
 
@@ -253,6 +274,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
+|instances|[]string||
 |parent_compartments|[]string||
 |regions|[]string||
 |tenancy|string||

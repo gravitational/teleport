@@ -137,6 +137,11 @@ func GenSchemaHealthCheckConfig(ctx context.Context) (github_com_hashicorp_terra
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"disabled": {
+							Description: "Disabled disables matches for all labels and expressions.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
 						"kubernetes_labels": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"name": {
@@ -569,6 +574,23 @@ func CopyHealthCheckConfigFromTerraform(_ context.Context, tf github_com_hashico
 													t = string(v.Value)
 												}
 												obj.KubernetesLabelsExpression = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["disabled"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"HealthCheckConfig.spec.match.disabled"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"HealthCheckConfig.spec.match.disabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+											} else {
+												var t bool
+												if !v.Null && !v.Unknown {
+													t = bool(v.Value)
+												}
+												obj.Disabled = t
 											}
 										}
 									}
@@ -1244,6 +1266,28 @@ func CopyHealthCheckConfigToTerraform(ctx context.Context, obj *github_com_gravi
 											v.Value = string(obj.KubernetesLabelsExpression)
 											v.Unknown = false
 											tf.Attrs["kubernetes_labels_expression"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["disabled"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"HealthCheckConfig.spec.match.disabled"})
+										} else {
+											v, ok := tf.Attrs["disabled"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"HealthCheckConfig.spec.match.disabled", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"HealthCheckConfig.spec.match.disabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+												}
+												v.Null = bool(obj.Disabled) == false
+											}
+											v.Value = bool(obj.Disabled)
+											v.Unknown = false
+											tf.Attrs["disabled"] = v
 										}
 									}
 								}

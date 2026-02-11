@@ -50,10 +50,13 @@ func Test_handleStreamableHTTP(t *testing.T) {
 	remoteMCPServer := mcpserver.NewStreamableHTTPServer(mcptest.NewServer())
 	remoteMCPHTTPServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case r.URL.Path == "/.well-known/oauth-authorization-server":
+			w.Write([]byte("{}"))
+			w.WriteHeader(http.StatusOK)
 		case r.URL.Path != "/mcp":
 			// Unhappy scenario.
 			w.WriteHeader(http.StatusNotFound)
-		case r.Header.Get("Authorization") != "Bearer app-token-for-ai":
+		case r.Header.Get("Authorization") != "Bearer app-token-for-ai-by-oidc_idp":
 			// Verify rewrite headers.
 			w.WriteHeader(http.StatusUnauthorized)
 		default:
@@ -69,7 +72,7 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		Rewrite: &types.Rewrite{
 			Headers: []*types.Header{{
 				Name:  "Authorization",
-				Value: "Bearer {{internal.jwt}}",
+				Value: "Bearer {{internal.id_token}}",
 			}},
 		},
 	})
@@ -82,7 +85,7 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		HostID:        "my-host-id",
 		AccessPoint:   fakeAccessPoint{},
 		CipherSuites:  utils.DefaultCipherSuites(),
-		AuthClient:    mockAuthClient{},
+		AuthClient:    &mockAuthClient{},
 	})
 	require.NoError(t, err)
 
@@ -102,6 +105,7 @@ func Test_handleStreamableHTTP(t *testing.T) {
 			wg.Go(func() {
 				defer conn.Close()
 				testCtx := setupTestContext(t, withAdminRole(t), withApp(app), withClientConn(conn))
+				testCtx.sessionID = "test-session-id" // use same session id
 				assert.NoError(t, s.HandleSession(t.Context(), testCtx.SessionCtx))
 			})
 		}
@@ -125,9 +129,8 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		getEventCode := func(e apievents.AuditEvent) string {
 			return e.GetCode()
 		}
-		_, err = mcptest.InitializeClient(ctx, client)
-		require.NoError(t, err)
-		mcptest.MustCallServerTool(t, ctx, client)
+		mcptest.MustInitializeClient(t, client)
+		mcptest.MustCallServerTool(t, client)
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			require.ElementsMatch(t, []string{
 				libevents.MCPSessionStartCode,
@@ -137,6 +140,11 @@ func Test_handleStreamableHTTP(t *testing.T) {
 				libevents.MCPSessionRequestCode, // "tools/call"
 			}, sliceutils.Map(emitter.Events(), getEventCode))
 		}, 2*time.Second, time.Millisecond*100, "waiting for events")
+		checkSessionStartAndInitializeEvents(t, emitter.Events(),
+			checkSessionStartWithServerInfo("test-server", "1.0.0"),
+			checkSessionStartHasExternalSessionID(),
+			checkSessionStartWithEgressAuthType(egressAuthTypeAppIDToken),
+		)
 
 		// Close client and wait for end event.
 		require.NoError(t, client.Close())
@@ -151,6 +159,9 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		mcpClientTransport, err := mcpclienttransport.NewStreamableHTTP(
 			"http://memory/notfound",
 			mcpclienttransport.WithHTTPBasicClient(listener.MakeHTTPClient()),
+			mcpclienttransport.WithHTTPHeaders(map[string]string{
+				"test-header": "test-value",
+			}),
 		)
 		require.NoError(t, err)
 
@@ -166,8 +177,36 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, libevents.MCPSessionRequestEvent, lastEvent.GetType())
 		require.Equal(t, libevents.MCPSessionRequestFailureCode, lastEvent.GetCode())
+		require.NotEmpty(t, lastEvent.Headers)
+		require.Equal(t, "test-value", http.Header(lastEvent.Headers).Get("test-header"))
 		require.False(t, lastEvent.Success)
 		require.Equal(t, "HTTP 404 Not Found", lastEvent.Error)
+	})
+
+	t.Run("unsupported method", func(t *testing.T) {
+		emitter.Reset()
+		httpClient := listener.MakeHTTPClient()
+		request, err := http.NewRequestWithContext(t.Context(), http.MethodOptions, "http://localhost/", nil)
+		require.NoError(t, err)
+		response, err := httpClient.Do(request)
+		require.NoError(t, err)
+		defer response.Body.Close()
+		require.Equal(t, http.StatusMethodNotAllowed, response.StatusCode)
+		require.Equal(t, libevents.MCPSessionInvalidHTTPRequest, emitter.LastEvent().GetType())
+	})
+
+	t.Run("passthrough well-known", func(t *testing.T) {
+		emitter.Reset()
+		httpClient := listener.MakeHTTPClient()
+		request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://localhost/.well-known/oauth-authorization-server", nil)
+		require.NoError(t, err)
+		response, err := httpClient.Do(request)
+		require.NoError(t, err)
+		defer response.Body.Close()
+		require.Equal(t, http.StatusOK, response.StatusCode)
+		// No audit events.
+		events := emitter.Events()
+		require.Empty(t, events)
 	})
 }
 
@@ -178,7 +217,7 @@ func Test_handleAuthErrHTTP(t *testing.T) {
 		HostID:        "my-host-id",
 		AccessPoint:   fakeAccessPoint{},
 		CipherSuites:  utils.DefaultCipherSuites(),
-		AuthClient:    mockAuthClient{},
+		AuthClient:    &mockAuthClient{},
 	})
 
 	require.NoError(t, err)

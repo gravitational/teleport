@@ -80,6 +80,18 @@
         --set teleportProxyAddress="${TELEPORT_ADDR?}" \
         --set token="${TELEPORT_TOKEN?}"</pre>
     <br />
+    <pre><b><a href="https://github.com/gravitational/teleport/tree/master/examples/chart/tbot-spiffe-daemon-set">tbot-spiffe-daemon-set:</a></b>
+      # Install the tbot-spiffe-daemon-set chart to deploy tbot into your Kubernetes cluster and configure it for issuing SPIFFE SVIDs to other Kubernetes workloads.
+      # Click the link above to see the README.
+
+      helm install ${RELEASE_NAME?} teleport/tbot-spiffe-daemon-set \
+        --create-namespace \
+        --namespace ${NAMESPACE?} \
+        --set teleportProxyAddress="${TELEPORT_ADDR?}" \
+        --set clusterName="${CLUSTER_NAME?}" \
+        --set workloadIdentitySelector.name="${WORKLOAD_IDENTITY_NAME?}" \
+        --set token="${TELEPORT_TOKEN?}"</pre>
+    <br />
     <h3>Changelog</h3>
     <pre>See the <a href="https://goteleport.com/docs/changelog/">Teleport Changelog</a> for a list of important changes between Helm chart versions.</pre>
   </body>

@@ -186,7 +186,7 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	require.NoError(t, err)
 	caCert, err := tlsca.ParseCertificatePEM(caCertPEM)
 	require.NoError(t, err)
-	jwtCAPublic, jwtCAPrivate, err := testauthority.New().GenerateJWT()
+	jwtCAPublic, jwtCAPrivate, err := testauthority.GenerateJWT()
 	require.NoError(t, err)
 	jwtCA, err := keys.ParsePublicKey(jwtCAPublic)
 	require.NoError(t, err)

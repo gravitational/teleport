@@ -132,6 +132,10 @@ const (
 	// ComponentDatabase is the database proxy service.
 	ComponentDatabase = "db:service"
 
+	// ComponentDatabaseHealth is the endpoint health checking component of the
+	// database proxy service.
+	ComponentDatabaseHealth = "db:health"
+
 	// ComponentDiscovery is the Discovery service.
 	ComponentDiscovery = "discovery:service"
 
@@ -464,9 +468,14 @@ const (
 )
 
 const (
-	// CertExtensionScopePin is used to pin a certificate to a specific scope and
-	// set of scoped roles.
+	// CertExtensionScopePin is used to pin a user certificate to a specific scope and
+	// set of scoped roles. This constrains a user's access to resources based on both
+	// the scoping rules and scoped roles defined.
 	CertExtensionScopePin = "scope-pin@goteleport.com"
+	// CertExtensionAgentScope is used to pin an agent/host certificate to a specific scope.
+	// This constrains other identities' access to the agent itself as well as the agent's
+	// access to other resources based on scoping rules.
+	CertExtensionAgentScope = "agent-scope@goteleport.com"
 	// CertExtensionPermitX11Forwarding allows X11 forwarding for certificate
 	CertExtensionPermitX11Forwarding = "permit-X11-forwarding"
 	// CertExtensionPermitAgentForwarding allows agent forwarding for certificate
@@ -512,6 +521,9 @@ const (
 	// CertExtensionAllowedResources lists the resources which this certificate
 	// should be allowed to access
 	CertExtensionAllowedResources = "teleport-allowed-resources"
+	// CertExtensionAllowedResourceAccessIDs lists the resources which this
+	// certificate should be allowed to access, paired with additional access information.
+	CertExtensionAllowedResourceAccessIDs = "teleport-allowed-resource-access-ids"
 	// CertExtensionConnectionDiagnosticID contains the ID of the ConnectionDiagnostic.
 	// The Node/Agent will append connection traces to this diagnostic instance.
 	CertExtensionConnectionDiagnosticID = "teleport-connection-diagnostic-id"
@@ -546,6 +558,9 @@ const (
 	// CertExtensionGitHubUsername indicates the GitHub username identified by
 	// the GitHub connector.
 	CertExtensionGitHubUsername = "github-login@goteleport.com"
+	// CertExtensionImmutableLabelHash is the hash used to verify immutable
+	// labels against a certificate.
+	CertExtensionImmutableLabelHash = "immutable-label-hash@goteleport.com"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
@@ -775,9 +790,18 @@ const (
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
 
 const (
-	// PresetDefaultHealthCheckConfigName is the name of a preset
-	// default health_check_config that enables health checks for all resources.
-	PresetDefaultHealthCheckConfigName = "default"
+	// VirtualDefaultHealthCheckConfigDBName is the name of a virtual
+	// health_check_config that enables health checks for all database
+	// resources. For historical reasons, it's value is "default" even
+	// though it applies to databases only.
+	VirtualDefaultHealthCheckConfigDBName = "default"
+	// VirtualDefaultHealthCheckConfigKubeName is the name of a virtual
+	// health_check_config that enables health checks for all Kubernetes
+	// resources.
+	VirtualDefaultHealthCheckConfigKubeName = "default-kube"
+	// VirtualDefaultHealthCheckConfigCount is the number of virtual
+	// health_check_config resources.
+	VirtualDefaultHealthCheckConfigCount = 2
 )
 
 const (
@@ -817,8 +841,21 @@ const (
 	CurrentSessionIDRequest = "current-session-id@goteleport.com"
 
 	// SessionIDQueryRequest is sent by clients to ask servers if they
-	// will generate their own session ID when a new session is created.
+	// will generate and share their own session ID when a new session
+	// is started (session and exec/shell channels accepted).
+	//
+	// TODO(Joerger): DELETE IN v20.0.0
+	// All v17+ servers set the session ID. v19+ clients stop checking.
 	SessionIDQueryRequest = "session-id-query@goteleport.com"
+
+	// SessionIDQueryRequestV2 is sent by clients to ask servers if they
+	// will generate and share their own session ID when a new session
+	// channel is accepted, rather than when the shell/exec channel is.
+	//
+	// TODO(Joerger): DELETE IN v21.0.0
+	// all v19+ servers set the session ID directly after accepting the session channel.
+	// clients should stop checking in v21, and servers should stop responding to the query in v22.
+	SessionIDQueryRequestV2 = "session-id-query-v2@goteleport.com"
 
 	// ForceTerminateRequest is an SSH request to forcefully terminate a session.
 	ForceTerminateRequest = "x-teleport-force-terminate"

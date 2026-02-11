@@ -121,7 +121,7 @@ func TestTerminal_KillUnderlyingShell(t *testing.T) {
 	}()
 
 	// Wait for the child process to indicate its completed initialization.
-	require.NoError(t, scx.execRequest.WaitForChild())
+	require.NoError(t, scx.execRequest.WaitForChild(ctx))
 
 	// Continue execution
 	scx.execRequest.Continue()

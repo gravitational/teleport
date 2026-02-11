@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 var (
@@ -145,6 +146,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindSessionRecordingConfig},
 		{Kind: types.KindUIConfig},
 		{Kind: types.KindStaticTokens},
+		{Kind: types.KindStaticScopedTokens},
 		{Kind: types.KindToken},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
@@ -215,6 +217,8 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindRelayServer},
 		{Kind: types.KindBotInstance},
 		{Kind: types.KindRecordingEncryption},
+		{Kind: types.KindAppAuthConfig},
+		{Kind: types.KindWorkloadCluster},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -257,7 +261,6 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindDynamicWindowsDesktop},
 		{Kind: types.KindKubeServer},
-		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindSAMLIdPServiceProvider},
 		{Kind: types.KindUserGroup},
@@ -273,6 +276,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindGitServer},
 		{Kind: types.KindRelayServer},
 		{Kind: types.KindHealthCheckConfig},
+		{Kind: types.KindAppAuthConfig},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -285,6 +289,7 @@ func ForRelay(cfg Config) Config {
 		{Kind: types.KindCertAuthority, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindClusterNetworkingConfig},
+		{Kind: types.KindKubeServer},
 		{Kind: types.KindNode},
 		{Kind: types.KindRelayServer},
 		{Kind: types.KindRole},
@@ -519,6 +524,10 @@ type Cache struct {
 	// fails.
 	initErr error
 
+	// firstTimeInitC is closed on the first successful initialization of the cache
+	firstTimeInitC    chan struct{}
+	firstTimeInitOnce sync.Once
+
 	// ctx is a cache exit context
 	ctx context.Context
 	// cancel triggers exit context closure
@@ -551,10 +560,18 @@ func (c *Cache) setInitError(err error) {
 	})
 
 	if err == nil {
+		c.firstTimeInitOnce.Do(func() {
+			close(c.firstTimeInitC)
+		})
 		cacheHealth.WithLabelValues(c.target).Set(1.0)
 	} else {
 		cacheHealth.WithLabelValues(c.target).Set(0.0)
 	}
+}
+
+// FirstInit returns a channel that is closed when the cache successfully initializes for the first time.
+func (c *Cache) FirstInit() <-chan struct{} {
+	return c.firstTimeInitC
 }
 
 // setReadStatus updates Cache.ok, which determines whether the
@@ -641,6 +658,8 @@ type Config struct {
 	Trust services.Trust
 	// ClusterConfig is a cluster configuration service
 	ClusterConfig services.ClusterConfiguration
+	// StaticScopedToken manages the cluster's static scoped tokens.
+	StaticScopedToken services.StaticScopedTokenService
 	// AutoUpdateService is an autoupdate service.
 	AutoUpdateService services.AutoUpdateServiceGetter
 	// Provisioner is a provisioning service
@@ -774,6 +793,10 @@ type Config struct {
 	RecordingEncryption services.RecordingEncryption
 	// Plugins is the plugin service used to retrieve plugin information.
 	Plugin services.Plugins
+	// AppAuthConfig is a app auth config service.
+	AppAuthConfig services.AppAuthConfigReader
+	// WorkloadClusterService is a workload cluster service
+	WorkloadClusterService services.WorkloadClusterService
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -901,6 +924,7 @@ func New(config Config) (*Cache, error) {
 		cancel:                cancel,
 		Config:                config,
 		initC:                 make(chan struct{}),
+		firstTimeInitC:        make(chan struct{}),
 		fnCache:               fnCache,
 		eventsFanout:          fanout,
 		collections:           collections,
@@ -1270,7 +1294,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 			"duration", fetchAndApplyDuration.String(),
 		)
 	} else {
-		c.Logger.DebugContext(ctx, "fetch and apply",
+		c.Logger.Log(ctx, logutils.TraceLevel, "fetch and apply",
 			"cache_target", c.Config.target,
 			"duration", fetchAndApplyDuration.String(),
 		)
@@ -1675,18 +1699,9 @@ func (c *Cache) listResources(ctx context.Context, req authproto.ListResourcesRe
 	_, span := c.Tracer.Start(ctx, "cache/listResources")
 	defer span.End()
 
-	filter := services.MatchResourceFilter{
-		ResourceKind:   req.ResourceType,
-		Labels:         req.Labels,
-		SearchKeywords: req.SearchKeywords,
-	}
-
-	if req.PredicateExpression != "" {
-		expression, err := services.NewResourceExpression(req.PredicateExpression)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		filter.PredicateExpression = expression
+	filter, err := services.MatchResourceFilterFromListResourceRequest(&req)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Adjust page size, so it can't be empty.
@@ -1826,4 +1841,36 @@ func buildListResourcesResponse[T types.ResourceWithLabels](resources iter.Seq[T
 	}
 
 	return &resp, nil
+}
+
+// GetUnifiedResourcesAndBotsCount returns the combined total number of nodes, app servers, database servers, kube servers, desktops, and bot instances.
+func (c *Cache) GetUnifiedResourcesAndBotsCount() int {
+	c.rw.RLock()
+	defer c.rw.RUnlock()
+
+	if !c.ok {
+		return -1
+	}
+
+	count := 0
+	if c.collections.nodes != nil {
+		count += c.collections.nodes.store.len()
+	}
+	if c.collections.appServers != nil {
+		count += c.collections.appServers.store.len()
+	}
+	if c.collections.dbServers != nil {
+		count += c.collections.dbServers.store.len()
+	}
+	if c.collections.kubeServers != nil {
+		count += c.collections.kubeServers.store.len()
+	}
+	if c.collections.windowsDesktops != nil {
+		count += c.collections.windowsDesktops.store.len()
+	}
+	if c.collections.botInstances != nil {
+		count += c.collections.botInstances.store.len()
+	}
+
+	return count
 }

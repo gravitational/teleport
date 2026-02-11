@@ -25,16 +25,9 @@ import {
 } from 'react';
 import { useHistory } from 'react-router';
 
+import { SortOrder } from 'shared/components/Controls/SortMenu';
+
 import { isIntegrationTag, type IntegrationTag } from './common';
-
-const sortKeys = ['name'] as const;
-
-export type IntegrationPickerSortKey = (typeof sortKeys)[number] | undefined;
-export type IntegrationPickerSortDirection = 'ASC' | 'DESC';
-
-function isValidSortKey(key: string): key is IntegrationPickerSortKey {
-  return sortKeys.includes(key as IntegrationPickerSortKey);
-}
 
 export interface IntegrationPickerFilters {
   tags: IntegrationTag[];
@@ -43,8 +36,8 @@ export interface IntegrationPickerFilters {
 export interface IntegrationPickerState {
   filters: IntegrationPickerFilters;
   search: string;
-  sortKey: IntegrationPickerSortKey;
-  sortDirection: IntegrationPickerSortDirection;
+  sortKey: string | undefined;
+  sortDirection: SortOrder;
 }
 
 export type IntegrationPickerFilterKey = keyof IntegrationPickerFilters;
@@ -60,13 +53,13 @@ export function searchParamsToState(params: URLSearchParams) {
   };
 
   const sortKey = params.get('sort');
-  if (sortKey && isValidSortKey(sortKey)) {
-    state.sortKey = sortKey as IntegrationPickerSortKey;
+  if (sortKey && ['name'].includes(sortKey)) {
+    state.sortKey = sortKey;
   }
 
   const direction = params.get('direction');
   if (direction === 'ASC' || direction === 'DESC') {
-    state.sortDirection = direction as IntegrationPickerSortDirection;
+    state.sortDirection = direction;
   }
 
   const tags = params.getAll('tags');

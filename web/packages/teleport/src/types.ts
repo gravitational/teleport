@@ -59,6 +59,7 @@ export enum NavTitle {
   Users = 'Users',
   Bots = 'Bots',
   BotInstances = 'Bot Instances',
+  InstanceInventory = 'Instance Inventory',
   Roles = 'Roles',
   JoinTokens = 'Join Tokens',
   AuthConnectors = 'Auth Connectors',
@@ -69,6 +70,7 @@ export enum NavTitle {
   NewAccessList = 'Access List',
   NewBot = 'Bot',
   NewBotShortcut = 'Enroll New Bot',
+  ManagedUpdates = 'Managed Updates',
 
   // Identity Governance & Security
   AccessLists = 'Access Lists',
@@ -76,6 +78,7 @@ export enum NavTitle {
   TrustedDevices = 'Trusted Devices',
   AccessMonitoring = 'Access Monitoring',
   WorkloadIdentity = 'Workload Identity',
+  AccessAutomations = 'Access Automations',
 
   // Resources Requests
   NewRequest = 'New Request',
@@ -95,7 +98,11 @@ export enum NavTitle {
   AuditLog = 'Audit Log',
 
   // Billing
+  // Deprecated, safe to remove after https://github.com/gravitational/teleport.e/pull/7952 merges
   BillingSummary = 'Billing Summary',
+
+  // Usage
+  UsageReporting = 'Usage Reporting',
 
   // Clusters
   ManageClusters = 'Manage Clusters',
@@ -209,11 +216,17 @@ export interface FeatureFlags {
   readBots: boolean;
   readBotInstances: boolean;
   listBotInstances: boolean;
+  readInstances: boolean;
+  listInstances: boolean;
   addBots: boolean;
   editBots: boolean;
   removeBots: boolean;
   gitServers: boolean;
   listWorkloadIdentities: boolean;
+  readAutoUpdateConfig: boolean;
+  readAutoUpdateVersion: boolean;
+  readAutoUpdateAgentRollout: boolean;
+  listAutoUpdateAgentReport: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.

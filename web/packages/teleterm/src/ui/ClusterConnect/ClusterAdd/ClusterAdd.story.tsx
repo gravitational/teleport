@@ -85,7 +85,7 @@ function getMockAppContext(
   } = {}
 ) {
   const appContext = new MockAppContext();
-  appContext.clustersService.addRootCluster =
+  appContext.mockMainProcessClient.addCluster =
     args.addRootCluster || (() => Promise.resolve(makeRootCluster()));
   return appContext;
 }

@@ -40,7 +40,10 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
+	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/defaults"
+	sessionpostprocessing "github.com/gravitational/teleport/lib/events/sessionpostprocessing"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -255,6 +258,11 @@ type AuditLogConfig struct {
 
 	// Decrypter wraps session replay with decryption
 	Decrypter DecryptionWrapper
+
+	// SessionSummarizerProvider provides session summarizers
+	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
+	// RecordingMetadataProvider provides recording metadata service
+	RecordingMetadataProvider *recordingmetadata.Provider
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -280,6 +288,12 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 	if a.DirMask == nil {
 		mask := os.FileMode(teleport.DirMaskSharedGroup)
 		a.DirMask = &mask
+	}
+	if a.SessionSummarizerProvider == nil {
+		a.SessionSummarizerProvider = summarizer.NewSessionSummarizerProvider()
+	}
+	if a.RecordingMetadataProvider == nil {
+		a.RecordingMetadataProvider = recordingmetadata.NewProvider()
 	}
 	if (a.GID != nil && a.UID == nil) || (a.UID != nil && a.GID == nil) {
 		return trace.BadParameter("if UID or GID is set, both should be specified")
@@ -648,17 +662,34 @@ func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID strin
 		return trace.Wrap(err, "creating upload")
 	}
 
+	next, stop := iter.Pull2(parts)
+	defer stop()
+
+	part, err, ok := next()
+	if err != nil {
+		return trace.Wrap(err)
+	} else if !ok {
+		return trace.BadParameter("unexpected empty upload")
+	}
+
 	var streamParts []StreamPart
 	// S3 requires that part numbers start at 1, so we do that by default regardless of which uploader is
 	// configured for the auth service
 	var partNumber int64 = 1
-	for part, err := range parts {
+	for {
+		if err := l.UploadHandler.ReserveUploadPart(ctx, *upload, partNumber); err != nil {
+			return trace.Wrap(err, "reserving upload part")
+		}
+
+		nextPart, err, hasNext := next()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if err := l.UploadHandler.ReserveUploadPart(ctx, *upload, partNumber); err != nil {
-			return trace.Wrap(err, "reserving upload part")
+		// If the upload part is not at least the minimum upload part size, and this isn't
+		// the last part, add padding to meet the minimum upload size.
+		if hasNext && len(part) < MinUploadPartSizeBytes {
+			part = PadUploadPart(part, MinUploadPartSizeBytes)
 		}
 
 		streamPart, err := l.UploadHandler.UploadPart(ctx, *upload, partNumber, bytes.NewReader(part))
@@ -666,10 +697,35 @@ func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID strin
 			return trace.Wrap(err, "uploading part")
 		}
 		streamParts = append(streamParts, *streamPart)
+
+		if !hasNext {
+			break
+		}
+
+		part = nextPart
 		partNumber++
 	}
+	err = l.UploadHandler.CompleteUpload(ctx, *upload, streamParts)
+	if err != nil {
+		return trace.Wrap(err, "completing upload")
+	}
 
-	return trace.Wrap(l.UploadHandler.CompleteUpload(ctx, *upload, streamParts), "completing upload")
+	sessionEnd, err := FindSessionEndEvent(ctx, l, session.ID(sessionID))
+	if err != nil || sessionEnd == nil {
+		return nil
+	}
+	if err := sessionpostprocessing.Process(
+		ctx,
+		sessionpostprocessing.Config{
+			SessionEnd:                sessionEnd,
+			SessionID:                 upload.SessionID,
+			SessionSummarizerProvider: l.SessionSummarizerProvider,
+			RecordingMetadataProvider: l.RecordingMetadataProvider,
+		},
+	); err != nil {
+		l.log.WarnContext(ctx, "session post-processing failed", "error", err)
+	}
+	return nil
 }
 
 // getLocalLog returns the local (file based) AuditLogger.
@@ -787,4 +843,21 @@ func sessionStartCallbackFromContext(ctx context.Context) (SessionStartCallback,
 	}
 
 	return cb, nil
+}
+
+// PadUploadPart adds padding to the given upload part to reach the minimum size.
+func PadUploadPart(uploadPart []byte, minSize int) []byte {
+	// Create padding to reach the target size. Note that the padding cannot
+	// be shorter than the header size.
+	paddingBytes := max(minSize-len(uploadPart), ProtoStreamV2PartHeaderSize)
+	paddedPart := make([]byte, paddingBytes)
+
+	paddedPartHeader := PartHeader{
+		ProtoVersion: ProtoStreamV2,
+		PaddingSize:  uint64(paddingBytes - ProtoStreamV2PartHeaderSize),
+		PartSize:     0,
+	}
+	copy(paddedPart, paddedPartHeader.Bytes())
+
+	return append(uploadPart, paddedPart...)
 }

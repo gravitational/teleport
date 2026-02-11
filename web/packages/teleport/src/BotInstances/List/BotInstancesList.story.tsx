@@ -21,6 +21,7 @@ import { QueryClient } from '@tanstack/react-query';
 import { ComponentProps, useRef, useState } from 'react';
 
 import { CardTile } from 'design/CardTile/CardTile';
+import { SortOrder } from 'shared/components/Controls/SortMenu';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
@@ -45,6 +46,13 @@ export const Happy: Story = {};
 export const Empty: Story = {
   args: {
     data: [],
+  },
+};
+
+export const EmptyWithFilter: Story = {
+  args: {
+    data: [],
+    isFiltering: true,
   },
 };
 
@@ -91,7 +99,12 @@ function Wrapper(
   props?: Partial<
     Pick<
       ComponentProps<typeof BotInstancesList>,
-      'error' | 'isLoading' | 'hasNextPage' | 'isFetchingNextPage' | 'data'
+      | 'error'
+      | 'isLoading'
+      | 'hasNextPage'
+      | 'isFetchingNextPage'
+      | 'data'
+      | 'isFiltering'
     >
   >
 ) {
@@ -129,12 +142,13 @@ function Wrapper(
     hasNextPage = true,
     isFetchingNextPage = false,
     isLoading = false,
+    isFiltering = false,
   } = props ?? {};
 
   const [allData, setAllData] = useState(data);
   const [selected, setSelected] = useState<string | null>(null);
   const [sortField, setSortField] = useState<string>('active_at_latest');
-  const [sortDir, setSortDir] = useState<'ASC' | 'DESC'>('ASC');
+  const [sortDir, setSortDir] = useState<SortOrder>('ASC');
 
   const listRef = useRef<BotInstancesListControls | null>(null);
 
@@ -178,6 +192,7 @@ function Wrapper(
           onItemSelected={function (item: BotInstanceSummary | null): void {
             setSelected(item ? `${item.bot_name}/${item.instance_id}` : null);
           }}
+          isFiltering={isFiltering}
         />
       </CardTile>
     </TeleportProviderBasic>

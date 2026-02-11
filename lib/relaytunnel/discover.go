@@ -43,6 +43,7 @@ type StaticDiscoverServiceServer struct {
 
 	RelayGroup            string
 	TargetConnectionCount int32
+	SupportedTunnelTypes  []string
 }
 
 var _ relaytunnelv1alpha.DiscoveryServiceServer = (*StaticDiscoverServiceServer)(nil)
@@ -52,6 +53,7 @@ func (d *StaticDiscoverServiceServer) Discover(ctx context.Context, req *relaytu
 	return &relaytunnelv1alpha.DiscoverResponse{
 		RelayGroup:            d.RelayGroup,
 		TargetConnectionCount: d.TargetConnectionCount,
+		SupportedTunnelTypes:  d.SupportedTunnelTypes,
 	}, nil
 }
 

@@ -428,28 +428,25 @@ version: v1
 	require.NoError(t, os.WriteFile(scopedRoleAssignmentYAMLPath, []byte(scopedRoleAssignmentYAML), 0644))
 
 	// Create the scoped role assignment
-	buff, err := runResourceCommand(t, clt, []string{"create", scopedRoleAssignmentYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", scopedRoleAssignmentYAMLPath})
 	require.NoError(t, err)
-
-	parts := bytes.Split(buff.Bytes(), []byte("\""))
-	require.Len(t, parts, 3)
-
-	assignmentName := string(parts[1])
-
-	_, err = uuid.Parse(assignmentName)
-	require.NoError(t, err, "expected assignment name to be a UUID, got %q (extracted from output %q)", assignmentName, buff.String())
 
 	// wait for cache propagation
 	timeout = time.After(time.Second * 30)
 	var rawAssignment []byte
+	var as []*scopedaccessv1.ScopedRoleAssignment
 	for {
-		// Get the scoped role assignment
-		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/" + assignmentName, "--format=json"})
+		// Get the scoped role assignment.
+		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role_assignment", "--format=json"})
 		if err == nil {
 			rawAssignment = buff.Bytes()
-			break
+			// Unmarshal the response into a ScopedRoleAssignment object
+			as, err = services.UnmarshalProtoResourceArray[*scopedaccessv1.ScopedRoleAssignment](rawAssignment, services.DisallowUnknown())
+			require.NoError(t, err)
+			if len(as) > 0 {
+				break
+			}
 		}
-		require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
 
 		select {
 		case <-timeout:
@@ -458,10 +455,17 @@ version: v1
 		}
 	}
 
-	// Unmarshal the response into a ScopedRoleAssignment object
-	as, err := services.UnmarshalProtoResourceArray[*scopedaccessv1.ScopedRoleAssignment](rawAssignment, services.DisallowUnknown())
-	require.NoError(t, err)
 	require.Len(t, as, 1)
+	assignmentName := as[0].GetMetadata().GetName()
+
+	// Ensure that retrieving the scoped role assignment by name works
+	buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/" + assignmentName, "--format=json"})
+	require.NoError(t, err)
+	var asByName []*scopedaccessv1.ScopedRoleAssignment
+	err = json.Unmarshal(buff.Bytes(), &asByName)
+	require.NoError(t, err)
+	require.Len(t, asByName, 1)
+	require.Equal(t, assignmentName, asByName[0].GetMetadata().GetName())
 
 	// Compare with expected value
 	expectedAssignment := &scopedaccessv1.ScopedRoleAssignment{
@@ -1375,7 +1379,6 @@ func TestDatabaseResource(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, err)
 	test := dynamicResourceTest[*types.DatabaseV3]{
 		kind:                    types.KindDatabase,
 		resourceYAML:            dbYAML,
@@ -1452,113 +1455,6 @@ func TestAppResource(t *testing.T) {
 		fooBar2Resource: appFooBar2,
 	}
 	test.run(t)
-}
-
-func TestGetOneResourceNameToDelete(t *testing.T) {
-	foo1 := mustCreateNewKubeServer(t, "foo-eks", "host-foo1", "foo", nil)
-	foo2 := mustCreateNewKubeServer(t, "foo-eks", "host-foo2", "foo", nil)
-	fooBar1 := mustCreateNewKubeServer(t, "foo-bar-eks-us-west-1", "host-foo-bar1", "foo-bar", nil)
-	fooBar2 := mustCreateNewKubeServer(t, "foo-bar-eks-us-west-2", "host-foo-bar2", "foo-bar", nil)
-	tests := []struct {
-		desc            string
-		refName         string
-		wantErrContains string
-		resources       []types.KubeServer
-		wantName        string
-	}{
-		{
-			desc:      "one resource is ok",
-			refName:   "foo-bar-eks-us-west-1",
-			resources: []types.KubeServer{fooBar1},
-			wantName:  "foo-bar-eks-us-west-1",
-		},
-		{
-			desc:      "multiple resources with same name is ok",
-			refName:   "foo",
-			resources: []types.KubeServer{foo1, foo2},
-			wantName:  "foo-eks",
-		},
-		{
-			desc:            "zero resources is an error",
-			refName:         "xxx",
-			wantErrContains: `kubernetes server "xxx" not found`,
-		},
-		{
-			desc:            "multiple resources with different names is an error",
-			refName:         "foo-bar",
-			resources:       []types.KubeServer{fooBar1, fooBar2},
-			wantErrContains: "matches multiple",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			ref := services.Ref{Kind: types.KindKubeServer, Name: test.refName}
-			resDesc := "kubernetes server"
-			name, err := getOneResourceNameToDelete(test.resources, ref, resDesc)
-			if test.wantErrContains != "" {
-				require.ErrorContains(t, err, test.wantErrContains)
-				return
-			}
-			require.Equal(t, test.wantName, name)
-		})
-	}
-}
-
-func TestFilterByNameOrDiscoveredName(t *testing.T) {
-	foo1 := mustCreateNewKubeServer(t, "foo-eks-us-west-1", "host-foo", "foo", nil)
-	foo2 := mustCreateNewKubeServer(t, "foo-eks-us-west-2", "host-foo", "foo", nil)
-	fooBar1 := mustCreateNewKubeServer(t, "foo-bar", "host-foo-bar1", "", nil)
-	fooBar2 := mustCreateNewKubeServer(t, "foo-bar-eks-us-west-2", "host-foo-bar2", "foo-bar", nil)
-	resources := []types.KubeServer{
-		foo1, foo2, fooBar1, fooBar2,
-	}
-	hostNameGetter := func(ks types.KubeServer) string { return ks.GetHostname() }
-	tests := []struct {
-		desc           string
-		filter         string
-		altNameGetters []altNameFn[types.KubeServer]
-		want           []types.KubeServer
-	}{
-		{
-			desc:   "filters by exact name",
-			filter: "foo-eks-us-west-1",
-			want:   []types.KubeServer{foo1},
-		},
-		{
-			desc:   "filters by exact name over discovered names",
-			filter: "foo-bar",
-			want:   []types.KubeServer{fooBar1},
-		},
-		{
-			desc:   "filters by discovered name",
-			filter: "foo",
-			want:   []types.KubeServer{foo1, foo2},
-		},
-		{
-			desc:           "checks alt names for exact matches",
-			filter:         "host-foo",
-			altNameGetters: []altNameFn[types.KubeServer]{hostNameGetter},
-			want:           []types.KubeServer{foo1, foo2},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			got := filterByNameOrDiscoveredName(resources, test.filter, test.altNameGetters...)
-			require.Empty(t, cmp.Diff(test.want, got))
-		})
-	}
-}
-
-func TestFormatAmbiguousDeleteMessage(t *testing.T) {
-	ref := services.Ref{Kind: types.KindDatabase, Name: "x"}
-	resDesc := "database"
-	names := []string{"xbbb", "xaaa", "xccc", "xb"}
-	got := formatAmbiguousDeleteMessage(ref, resDesc, names)
-	require.Contains(t, got, "db/x matches multiple auto-discovered databases",
-		"should have formatted the ref used and pluralized the resource description")
-	wantSortedNames := strings.Join([]string{"xaaa", "xb", "xbbb", "xccc"}, "\n")
-	require.Contains(t, got, wantSortedNames, "should have sorted the matching names")
-	require.Contains(t, got, "$ tctl rm db/xaaa", "should have contained an example command")
 }
 
 // requireEqual creates an assertion function with a bound `expected` value

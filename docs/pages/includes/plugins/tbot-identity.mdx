@@ -15,7 +15,7 @@ If running `tbot` on a Linux server, use the `directory` output to write
 identity files to the `/opt/machine-id` directory:
 
 ```yaml
-outputs:
+services:
 - type: identity
   destination:
     type: directory
@@ -29,7 +29,7 @@ If running `tbot` on Kubernetes, write the identity file to Kubernetes secret
 instead:
 
 ```yaml
-outputs:
+services:
   - type: identity
     destination:
       type: kubernetes_secret

@@ -20,6 +20,7 @@ package awsra
 
 import (
 	"context"
+	"slices"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rolesanywhere"
@@ -50,6 +51,8 @@ type ListRolesAnywhereProfilesRequest struct {
 	//	^profile.*$
 	//	^.*name.*$
 	ProfileNameFilters []string
+	// IgnoredProfileARNs is a list of profile ARNs that should be ignored.
+	IgnoredProfileARNs []string
 }
 
 // ListRolesAnywhereProfilesResponse contains a page of Roles Anywhere Profiles.
@@ -97,9 +100,10 @@ func ListRolesAnywhereProfiles(ctx context.Context, clt RolesAnywhereProfilesLis
 		nextToken = aws.String(req.NextToken)
 	}
 	listReq := listRolesAnywhereProfilesRequest{
-		nextPage: nextToken,
-		pageSize: req.PageSize,
-		filters:  req.ProfileNameFilters,
+		nextPage:           nextToken,
+		pageSize:           req.PageSize,
+		filters:            req.ProfileNameFilters,
+		ignoredProfileARNs: req.IgnoredProfileARNs,
 	}
 	profiles, nextPageToken, err := listRolesAnywhereProfilesPage(ctx, clt, listReq)
 	if err != nil {
@@ -113,9 +117,10 @@ func ListRolesAnywhereProfiles(ctx context.Context, clt RolesAnywhereProfilesLis
 }
 
 type listRolesAnywhereProfilesRequest struct {
-	nextPage *string
-	pageSize int
-	filters  []string
+	nextPage           *string
+	pageSize           int
+	filters            []string
+	ignoredProfileARNs []string
 }
 
 func listRolesAnywhereProfilesPage(ctx context.Context, raClient RolesAnywhereProfilesLister, req listRolesAnywhereProfilesRequest) (ret []*integrationv1.RolesAnywhereProfile, nextToken *string, err error) {
@@ -157,6 +162,10 @@ func convertRolesAnywhereProfilePageToProto(ctx context.Context, profilesListRes
 	var ret []*integrationv1.RolesAnywhereProfile
 
 	for _, profile := range profilesListResp.Profiles {
+		if slices.Contains(req.ignoredProfileARNs, aws.ToString(profile.ProfileArn)) {
+			continue
+		}
+
 		matches, err := profileNameMatchesFilters(aws.ToString(profile.Name), req.filters)
 		if err != nil {
 			return nil, trace.Wrap(err)

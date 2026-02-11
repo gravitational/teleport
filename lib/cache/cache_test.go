@@ -20,7 +20,6 @@ package cache
 
 import (
 	"context"
-	"crypto/x509/pkix"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -44,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
@@ -61,6 +61,7 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
+	workloadclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -75,14 +76,11 @@ import (
 	"github.com/gravitational/teleport/api/types/userprovisioning"
 	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/api/utils/clientutils"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -90,7 +88,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -174,6 +171,8 @@ type testPack struct {
 	botInstanceService      *local.BotInstanceService
 	recordingEncryption     *local.RecordingEncryptionService
 	plugin                  *local.PluginsService
+	appAuthConfigs          *local.AppAuthConfigService
+	workloadClusters        *local.WorkloadClusterService
 }
 
 // resourceOps contains helpers to modify the state of either types.Resource or types.Resource153  which
@@ -306,29 +305,22 @@ func newPackForAuth(t *testing.T) *testPack {
 }
 
 func newTestPack(t *testing.T, setupConfig SetupConfigFn, opts ...packOption) *testPack {
-	pack, err := newPack(t.TempDir(), setupConfig, opts...)
+	pack, err := newPack(t, setupConfig, opts...)
 	require.NoError(t, err)
 	return pack
 }
 
-func newTestPackWithoutCache(t *testing.T) *testPack {
+func NewTestPackWithoutCache(t *testing.T) *testPack {
 	pack, err := newPackWithoutCache(t.TempDir())
 	require.NoError(t, err)
 	return pack
 }
 
 type packCfg struct {
-	memoryBackend bool
-	ignoreKinds   []types.WatchKind
+	ignoreKinds []types.WatchKind
 }
 
 type packOption func(cfg *packCfg)
-
-func memoryBackend(bool) packOption {
-	return func(cfg *packCfg) {
-		cfg.memoryBackend = true
-	}
-}
 
 // ignoreKinds specifies the list of kinds that should be removed from the watch request by eventsProxy
 // to simulate cache resource type rejection due to version incompatibility.
@@ -349,19 +341,10 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p := &testPack{
 		dataDir: dir,
 	}
-	var bk backend.Backend
-	var err error
-	if cfg.memoryBackend {
-		bk, err = memory.New(memory.Config{
-			Context: ctx,
-			Mirror:  true,
-		})
-	} else {
-		bk, err = lite.NewWithConfig(ctx, lite.Config{
-			Path:             p.dataDir,
-			PollStreamPeriod: 200 * time.Millisecond,
-		})
-	}
+	bk, err := memory.New(memory.Config{
+		Context: ctx,
+		Mirror:  true,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -447,7 +430,10 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.secReports = secReportsSvc
 
-	accessListsSvc, err := local.NewAccessListService(p.backend, p.backend.Clock())
+	accessListsSvc, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: p.backend,
+		Modules: modulestest.EnterpriseModules(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -542,13 +528,26 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.plugin = local.NewPluginsService(p.backend)
 
+	p.appAuthConfigs, err = local.NewAppAuthConfigService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	workloadClusterSvc, err := local.NewWorkloadClusterService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.workloadClusters = workloadClusterSvc
+
 	return p, nil
 }
 
 // newPack returns a new test pack or fails the test on error
-func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) (*testPack, error) {
-	ctx := context.Background()
-	p, err := newPackWithoutCache(dir, opts...)
+func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption) (*testPack, error) {
+	t.Helper()
+
+	ctx := t.Context()
+	p, err := newPackWithoutCache(t.TempDir(), opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -602,20 +601,22 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		Plugin:                  p.plugin,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
+		AppAuthConfig:           p.appAuthConfigs,
+		StaticScopedToken:       p.clusterConfigS,
+		WorkloadClusterService:  p.workloadClusters,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	select {
-	case event := <-p.eventsC:
-
-		if event.Type != WatcherStarted {
-			return nil, trace.CompareFailed("%q != %q %s", event.Type, WatcherStarted, event)
-		}
-	case <-time.After(time.Second):
-		return nil, trace.ConnectionProblem(nil, "wait for the watcher to start")
+	// Wait for the watcher to start. Note that we do not enforce a timeout on this, as depending on the machine
+	// the calling test runs on and CPU/scheduler contention the expected time may vary. If the watcher fails to start we will
+	// timeout due to the top level harness timeout setting instead.
+	event := <-p.eventsC
+	if event.Type != WatcherStarted {
+		return nil, trace.CompareFailed("%q != %q %s", event.Type, WatcherStarted, event)
 	}
+
 	return p, nil
 }
 
@@ -656,7 +657,8 @@ func TestWatchers(t *testing.T) {
 		t.Fatalf("Timeout waiting for event.")
 	}
 
-	ca := NewTestCA(types.UserCA, "example.com")
+	ca, err := authcatest.NewCA(types.UserCA, "example.com")
+	require.NoError(t, err)
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	select {
@@ -715,7 +717,8 @@ func TestWatchers(t *testing.T) {
 
 	// this ca will not be matched by our filter, so the same reasoning applies
 	// as we upsert it and delete it
-	filteredCa := NewTestCA(types.HostCA, "example.net")
+	filteredCa, err := authcatest.NewCA(types.HostCA, "example.net")
+	require.NoError(t, err)
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, filteredCa))
 	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, filteredCa.GetID()))
 
@@ -805,12 +808,13 @@ func TestCompletenessInit(t *testing.T) {
 	ctx := context.Background()
 	const caCount = 100
 	const inits = 20
-	p := newTestPackWithoutCache(t)
+	p := NewTestPackWithoutCache(t)
 	t.Cleanup(p.Close)
 
 	// put lots of CAs in the backend
 	for i := range caCount {
-		ca := NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
+		ca, err := authcatest.NewCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
+		require.NoError(t, err)
 		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
 
@@ -869,6 +873,9 @@ func TestCompletenessInit(t *testing.T) {
 			HealthCheckConfig:       p.healthCheckConfig,
 			BotInstanceService:      p.botInstanceService,
 			Plugin:                  p.plugin,
+			AppAuthConfig:           p.appAuthConfigs,
+			StaticScopedToken:       p.clusterConfigS,
+			WorkloadClusterService:  p.workloadClusters,
 		}))
 		require.NoError(t, err)
 
@@ -897,12 +904,13 @@ func TestCompletenessReset(t *testing.T) {
 	ctx := context.Background()
 	const caCount = 100
 	const resets = 20
-	p := newTestPackWithoutCache(t)
+	p := NewTestPackWithoutCache(t)
 	t.Cleanup(p.Close)
 
 	// put lots of CAs in the backend
 	for i := range caCount {
-		ca := NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
+		ca, err := authcatest.NewCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
+		require.NoError(t, err)
 		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
 
@@ -956,6 +964,9 @@ func TestCompletenessReset(t *testing.T) {
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
+		AppAuthConfig:           p.appAuthConfigs,
+		StaticScopedToken:       p.clusterConfigS,
+		WorkloadClusterService:  p.workloadClusters,
 	}))
 	require.NoError(t, err)
 
@@ -1001,7 +1012,7 @@ cpu: Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz
 BenchmarkListResourcesWithSort-8               1        2351035036 ns/op
 */
 func BenchmarkListResourcesWithSort(b *testing.B) {
-	p, err := newPack(b.TempDir(), ForAuth, memoryBackend(true))
+	p, err := newPack(b, ForAuth)
 	require.NoError(b, err)
 	defer p.Close()
 
@@ -1116,6 +1127,9 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
+		AppAuthConfig:           p.appAuthConfigs,
+		StaticScopedToken:       p.clusterConfigS,
+		WorkloadClusterService:  p.workloadClusters,
 	}))
 	require.NoError(t, err)
 
@@ -1161,7 +1175,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 
 func initStrategy(t *testing.T) {
 	ctx := context.Background()
-	p := newTestPackWithoutCache(t)
+	p := NewTestPackWithoutCache(t)
 	t.Cleanup(p.Close)
 
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is out"))
@@ -1215,13 +1229,17 @@ func initStrategy(t *testing.T) {
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
+		AppAuthConfig:           p.appAuthConfigs,
+		StaticScopedToken:       p.clusterConfigS,
+		WorkloadClusterService:  p.workloadClusters,
 	}))
 	require.NoError(t, err)
 
 	_, err = p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 	require.True(t, trace.IsConnectionProblem(err))
 
-	ca := NewTestCA(types.UserCA, "example.com")
+	ca, err := authcatest.NewCA(types.UserCA, "example.com")
+	require.NoError(t, err)
 	// NOTE 1: this could produce event processed
 	// below, based on whether watcher restarts to get the event
 	// or not, which is normal, but has to be accounted below
@@ -1283,7 +1301,8 @@ func TestRecovery(t *testing.T) {
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 
-	ca := NewTestCA(types.UserCA, "example.com")
+	ca, err := authcatest.NewCA(types.UserCA, "example.com")
+	require.NoError(t, err)
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	select {
@@ -1302,7 +1321,8 @@ func TestRecovery(t *testing.T) {
 	waitForRestart(t, p.eventsC)
 
 	// add modification and expect the resource to recover
-	ca2 := NewTestCA(types.UserCA, "example2.com")
+	ca2, err := authcatest.NewCA(types.UserCA, "example2.com")
+	require.NoError(t, err)
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca2))
 
 	// wait for watcher to receive an event
@@ -1380,6 +1400,11 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 
 // testResources153 is a wrapper for testing resources conforming to types.Resource153
 func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs testFuncs[T], opts ...optionsFunc) {
+	// TODO(rana): Add broader support for virtual resources in list operations.
+	// Virtual resources change the total count returned by list operations,
+	// and is unexpected for the current test. When updated, we can remove virtual
+	// resource filtering and paging from lib/cache/health_check_config_test.go.
+	opts = append(opts, withSkipPaginationTest())
 	funcs.resource = defaultResource153Ops[T]()
 	testResourcesInternal(t, p, funcs, opts...)
 }
@@ -1880,6 +1905,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindSessionRecordingConfig:            types.DefaultSessionRecordingConfig(),
 		types.KindUIConfig:                          &types.UIConfigV1{},
 		types.KindStaticTokens:                      &types.StaticTokensV2{},
+		types.KindStaticScopedTokens:                &types.StaticTokensV2{},
 		types.KindToken:                             &types.ProvisionTokenV2{},
 		types.KindUser:                              &types.UserV2{},
 		types.KindRole:                              &types.RoleV6{Version: types.V4},
@@ -1951,6 +1977,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		scopedaccess.KindScopedRoleAssignment:       types.Resource153ToLegacy(&scopedaccessv1.ScopedRoleAssignment{}),
 		types.KindRelayServer:                       types.ProtoResource153ToLegacy(new(presencev1.RelayServer)),
 		types.KindBotInstance:                       types.ProtoResource153ToLegacy(new(machineidv1.BotInstance)),
+		types.KindAppAuthConfig:                     types.Resource153ToLegacy(new(appauthconfigv1.AppAuthConfig)),
+		types.KindWorkloadCluster:                   types.Resource153ToLegacy(newWorkloadCluster(t, "test")),
 	}
 
 	for name, cfg := range cases {
@@ -2022,6 +2050,10 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*presencev1.RelayServer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*machineidv1.BotInstance]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*machineidv1.BotInstance]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*appauthconfigv1.AppAuthConfig]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*appauthconfigv1.AppAuthConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*workloadclusterv1.WorkloadCluster]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*workloadclusterv1.WorkloadCluster]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				default:
 					require.Empty(t, cmp.Diff(resource, event.Resource))
 				}
@@ -2038,7 +2070,7 @@ func TestPartialHealth(t *testing.T) {
 	ctx := context.Background()
 
 	// setup cache such that role resources wouldn't be recognized by the event source and wouldn't be cached.
-	p, err := newPack(t.TempDir(), ForApps, ignoreKinds([]types.WatchKind{{Kind: types.KindRole}}))
+	p, err := newPack(t, ForApps, ignoreKinds([]types.WatchKind{{Kind: types.KindRole}}))
 	require.NoError(t, err)
 	t.Cleanup(p.Close)
 
@@ -2635,6 +2667,18 @@ func newAutoUpdateBotInstanceReport(t *testing.T) *autoupdate.AutoUpdateBotInsta
 	}
 }
 
+func newWorkloadCluster(t *testing.T, name string) *workloadclusterv1.WorkloadCluster {
+	t.Helper()
+
+	workloadCluster := &workloadclusterv1.WorkloadCluster{
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
+	}
+
+	return workloadCluster
+}
+
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {
 	return func(ctx context.Context, resource T) error {
 		_, err := fn(ctx, resource)
@@ -2799,140 +2843,6 @@ func listResource(ctx context.Context, lister resourcesLister, kind string, page
 		return nil, "", trace.Wrap(err)
 	}
 	return resp.Resources, resp.NextKey, nil
-}
-
-// NewTestCA returns new test authority with a test key as a public and
-// signing key
-func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte) *types.CertAuthorityV2 {
-	return NewTestCAWithConfig(TestCAConfig{
-		Type:        caType,
-		ClusterName: clusterName,
-		PrivateKeys: privateKeys,
-		Clock:       clockwork.NewRealClock(),
-	})
-}
-
-// TestCAConfig defines the configuration for generating
-// a test certificate authority
-type TestCAConfig struct {
-	Type        types.CertAuthType
-	PrivateKeys [][]byte
-	Clock       clockwork.Clock
-	ClusterName string
-	// the below string fields default to ClusterName if left empty
-	ResourceName        string
-	SubjectOrganization string
-}
-
-// NewTestCAWithConfig generates a new certificate authority with the specified
-// configuration
-// Keep this function in-sync with lib/auth/auth.go:newKeySet().
-// TODO(jakule): reuse keystore.KeyStore interface to match newKeySet().
-func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
-	var keyPEM []byte
-	var key *keys.PrivateKey
-
-	if config.ResourceName == "" {
-		config.ResourceName = config.ClusterName
-	}
-	if config.SubjectOrganization == "" {
-		config.SubjectOrganization = config.ClusterName
-	}
-
-	switch config.Type {
-	case types.DatabaseCA, types.SAMLIDPCA, types.OIDCIdPCA:
-		// These CAs only support RSA.
-		keyPEM = fixtures.PEMBytes["rsa"]
-	case types.DatabaseClientCA:
-		// The db client CA also only supports RSA, but some tests rely on it
-		// being different than the DB CA.
-		keyPEM = fixtures.PEMBytes["rsa-db-client"]
-	}
-	if len(config.PrivateKeys) > 0 {
-		// Allow test to override the private key.
-		keyPEM = config.PrivateKeys[0]
-	}
-
-	if keyPEM != nil {
-		var err error
-		key, err = keys.ParsePrivateKey(keyPEM)
-		if err != nil {
-			panic(err)
-		}
-	} else {
-		// If config.PrivateKeys was not set and this CA does not exclusively
-		// support RSA, generate an ECDSA key. Signatures are ~10x faster than
-		// RSA and generating a new key is actually faster than parsing a PEM
-		// fixture.
-		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-		if err != nil {
-			panic(err)
-		}
-		key, err = keys.NewPrivateKey(signer)
-		if err != nil {
-			panic(err)
-		}
-		keyPEM = key.PrivateKeyPEM()
-	}
-
-	ca := &types.CertAuthorityV2{
-		Kind:    types.KindCertAuthority,
-		SubKind: string(config.Type),
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name:      config.ResourceName,
-			Namespace: apidefaults.Namespace,
-		},
-		Spec: types.CertAuthoritySpecV2{
-			Type:        config.Type,
-			ClusterName: config.ClusterName,
-		},
-	}
-
-	// Add SSH keys if necessary.
-	switch config.Type {
-	case types.UserCA, types.HostCA, types.OpenSSHCA:
-		ca.Spec.ActiveKeys.SSH = []*types.SSHKeyPair{{
-			PrivateKey: keyPEM,
-			PublicKey:  key.MarshalSSHPublicKey(),
-		}}
-	}
-
-	// Add TLS keys if necessary.
-	switch config.Type {
-	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
-		cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
-			Signer: key.Signer,
-			Entity: pkix.Name{
-				CommonName:   config.ClusterName,
-				Organization: []string{config.SubjectOrganization},
-			},
-			TTL:   defaults.CATTL,
-			Clock: config.Clock,
-		})
-		if err != nil {
-			panic(err)
-		}
-		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{
-			Key:  keyPEM,
-			Cert: cert,
-		}}
-	}
-
-	// Add JWT keys if necessary.
-	switch config.Type {
-	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA, types.BoundKeypairCA:
-		pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
-		if err != nil {
-			panic(err)
-		}
-		ca.Spec.ActiveKeys.JWT = []*types.JWTKeyPair{{
-			PrivateKey: keyPEM,
-			PublicKey:  pubKeyPEM,
-		}}
-	}
-
-	return ca
 }
 
 // NewServer creates a new server resource

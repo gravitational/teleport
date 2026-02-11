@@ -37,7 +37,7 @@ class JoinTokenService {
   // TODO (avatus) refactor this code to eventually use `createJoinToken`
   fetchJoinTokenV2(
     req: JoinTokenRequest,
-    signal: AbortSignal = null,
+    signal?: AbortSignal,
     mfaResponse?: MfaChallengeResponse
   ): Promise<JoinToken> {
     return (
@@ -66,7 +66,7 @@ class JoinTokenService {
   // replaced by fetchJoinTokenV2 that accepts labels.
   fetchJoinToken(
     req: Omit<JoinTokenRequest, 'suggestedLabels'>,
-    signal: AbortSignal = null,
+    signal?: AbortSignal,
     mfaResponse?: MfaChallengeResponse
   ): Promise<JoinToken> {
     return api
@@ -106,7 +106,7 @@ class JoinTokenService {
 
   async createJoinToken(
     req: CreateJoinTokenRequest,
-    mfaResponse: MfaChallengeResponse
+    mfaResponse?: MfaChallengeResponse
   ) {
     return api
       .post(
@@ -120,7 +120,7 @@ class JoinTokenService {
 
   async editJoinToken(
     req: CreateJoinTokenRequest,
-    mfaResponse: MfaChallengeResponse,
+    mfaResponse?: MfaChallengeResponse,
     abortSignal?: AbortSignal
   ) {
     const json = await api.put(
@@ -132,7 +132,7 @@ class JoinTokenService {
     return makeJoinToken(json);
   }
 
-  async fetchJoinTokens(signal: AbortSignal = null) {
+  async fetchJoinTokens(signal?: AbortSignal) {
     // Fetching all join tokens calls multiple RPCs internally, so we need a
     // reusable mfa response.
     const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(
@@ -148,7 +148,7 @@ class JoinTokenService {
       });
   }
 
-  deleteJoinToken(id: string, signal: AbortSignal = null) {
+  deleteJoinToken(id: string, signal?: AbortSignal) {
     return api.deleteWithHeaders(
       cfg.getJoinTokenUrl({ action: 'list' }),
       { [TeleportTokenNameHeader]: id },

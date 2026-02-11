@@ -68,11 +68,20 @@ type OutputV2Config struct {
 	//
 	// By default, the following template will be used: "{{.ClusterName}}-{{.KubeName}}".
 	ContextNameTemplate string `yaml:"context_name_template,omitempty"`
+
+	// RelayAddress specifies the address of a relay transport server to use in
+	// the generated Kubernetes config file.
+	RelayAddress string `yaml:"relay_server,omitempty"`
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
 func (o *OutputV2Config) GetName() string {
 	return o.Name
+}
+
+// SetName sets the service's name to an automatically generated one.
+func (o *OutputV2Config) SetName(name string) {
+	o.Name = name
 }
 
 func (o *OutputV2Config) CheckAndSetDefaults() error {

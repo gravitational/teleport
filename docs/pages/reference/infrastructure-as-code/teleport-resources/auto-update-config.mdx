@@ -1,0 +1,22 @@
+---
+title: Auto-Update Config Resource Reference
+sidebar_label: Auto-Update Config
+description: Provides a comprehensive list of fields for the Teleport auto-update config resource.
+---
+
+The auto-update config resource contains configuration options for Teleport
+Agent and client tool Managed Updates (v2).
+
+<Admonition type="warning">
+The `autoupdate_config` and `autoupdate_version` resources configure Managed
+Updates v2 and Managed Updates v1.
+
+`cluster_maintenance_config` above configures only Managed Updates v1
+which are currently supported but will be deprecated in a future version.
+</Admonition>
+
+(!docs/pages/includes/reference/resources/autoupdate_config.mdx!)
+
+See [Teleport Client Tool Managed Updates](../../../upgrading/client-tools-managed-updates.mdx) and
+[Teleport Agent Managed Updates](../../../upgrading/agent-managed-updates/agent-managed-updates.mdx) for more details.
+

@@ -37,33 +37,33 @@ func TestVariable(t *testing.T) {
 	var tests = []struct {
 		title string
 		in    string
-		err   error
+		err   any
 		out   string
 	}{
 		{
 			title: "no curly bracket prefix",
 			in:    "external.foo}}",
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "invalid syntax",
 			in:    `{{external.foo("bar")`,
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "invalid variable syntax",
 			in:    "{{internal.}}",
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "invalid dot syntax",
 			in:    "{{external..foo}}",
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "empty variable",
 			in:    "{{}}",
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "string variable",
@@ -73,32 +73,32 @@ func TestVariable(t *testing.T) {
 		{
 			title: "invalid int variable",
 			in:    `{{123}}`,
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "incomplete variables are not allowed",
 			in:    `{{internal}}`,
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "no curly bracket suffix",
 			in:    "{{internal.foo",
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "too many levels of nesting in the variable",
 			in:    "{{internal.foo.bar}}",
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "too many levels of nesting in the variable with property",
 			in:    `{{internal.foo["bar"]}}`,
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "regexp function call not allowed",
 			in:    `{{regexp.match(".*")}}`,
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "valid with brackets",
@@ -148,12 +148,12 @@ func TestVariable(t *testing.T) {
 		{
 			title: "regexp replace with variable expression",
 			in:    `{{regexp.replace(internal.foo, internal.bar, "baz")}}`,
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "regexp replace with variable replacement",
 			in:    `{{regexp.replace(internal.foo, "bar", internal.baz)}}`,
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "regexp replace constant expression",
@@ -163,27 +163,27 @@ func TestVariable(t *testing.T) {
 		{
 			title: "non existing function",
 			in:    `{{regexp.replac("abc", "c", "z")}}`,
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "missing args",
 			in:    `{{regexp.replace("abc", "c")}}`,
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "no args",
 			in:    `{{regexp.replace()}}`,
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "extra args",
 			in:    `{{regexp.replace("abc", "c", "x", "z")}}`,
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "invalid arg type",
 			in:    `{{regexp.replace(regexp.match("a"), "c", "x")}}`,
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 	}
 
@@ -191,7 +191,7 @@ func TestVariable(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			expr, err := NewTraitsTemplateExpression(tt.in)
 			if tt.err != nil {
-				require.IsType(t, tt.err, err)
+				require.ErrorAs(t, err, &tt.err)
 				return
 			}
 			require.NoError(t, err, trace.DebugReport(err))
@@ -386,43 +386,43 @@ func TestMatch(t *testing.T) {
 	tests := []struct {
 		title string
 		in    string
-		err   error
+		err   any
 		out   MatchExpression
 	}{
 		{
 			title: "no curly bracket prefix",
 			in:    `regexp.match(".*")}}`,
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "no curly bracket suffix",
 			in:    `{{regexp.match(".*")`,
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "unknown function",
 			in:    `{{regexp.surprise(".*")}}`,
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "bad regexp",
 			in:    `{{regexp.match("+foo")}}`,
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "unknown namespace",
 			in:    `{{surprise.match(".*")}}`,
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "not a boolean expression",
 			in:    `{{email.local(external.email)}}`,
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "not a boolean variable",
 			in:    `{{external.email}}`,
-			err:   trace.BadParameter(""),
+			err:   &trace.BadParameterError{},
 		},
 		{
 			title: "string literal",
@@ -476,7 +476,7 @@ func TestMatch(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			matcher, err := NewMatcher(tt.in)
 			if tt.err != nil {
-				require.IsType(t, tt.err, err, err)
+				require.ErrorAs(t, err, &tt.err)
 				return
 			}
 			require.NoError(t, err)

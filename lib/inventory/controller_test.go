@@ -26,9 +26,11 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -40,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/inventory/metadata"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -108,6 +111,19 @@ func (a *fakeAuth) UpsertApplicationServer(_ context.Context, server types.AppSe
 	}
 	a.lastServerExpiry = server.Expiry()
 	return &types.KeepAlive{}, a.err
+}
+
+func (a *fakeAuth) UnconditionalUpdateApplicationServer(_ context.Context, server types.AppServer) (types.AppServer, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.keepalives++
+
+	if a.failKeepAlives > 0 {
+		a.failKeepAlives--
+		return nil, trace.Errorf("unconditional update failed as test condition")
+	}
+	a.lastServerExpiry = server.Expiry()
+	return server, a.err
 }
 
 func (a *fakeAuth) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
@@ -200,15 +216,260 @@ func (a *fakeAuth) UpsertInstance(ctx context.Context, instance types.Instance) 
 // TestSSHServerBasics verifies basic expected behaviors for a single control stream heartbeating
 // an ssh service.
 func TestSSHServerBasics(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testSSHServerBasics)
+	synctest.Test(t, testSSHServerScope)
+	synctest.Test(t, testSSHServerImmutableLabels)
+}
+
+func testSSHServerScope(t *testing.T) {
 	const serverID = "test-server"
 	const zeroAddr = "0.0.0.0:123"
 	const peerAddr = "1.2.3.4:456"
 	const wantAddr = "1.2.3.4:123"
 
-	t.Parallel()
+	ctx := t.Context()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{
+		expectAddr: wantAddr,
+	}
+
+	rc := &resourceCounter{}
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withServerKeepAlive(time.Millisecond*200),
+		withTestEventsChannel(events),
+		WithOnConnect(rc.onConnect),
+		WithOnDisconnect(rc.onDisconnect),
+	)
+	defer controller.Close()
+
+	// set up fake in-memory control stream
+	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+	t.Cleanup(func() {
+		controller.Close()
+		downstream.Close()
+		upstream.Close()
+	})
+
+	// launch goroutine to respond to ping requests
+	go func() {
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				downstream.Send(ctx, &proto.UpstreamInventoryPong{
+					ID: msg.(*proto.DownstreamInventoryPing).GetID(),
+				})
+			case <-downstream.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	controller.RegisterControlStream(upstream, &proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: types.SystemRoles{types.RoleNode}.StringSlice(),
+		Scope:    "/aa/bb",
+	})
+
+	// verify that control stream handle is now accessible
+	handle, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	// verify that hb counter has been incremented
+	require.Equal(t, int64(1), controller.instanceHBVariableDuration.Count())
+
+	// send a fake ssh server heartbeat with a scope matching registration
+	err := downstream.Send(ctx, &proto.InventoryHeartbeat{
+		SSHServer: &types.ServerV2{
+			Metadata: types.Metadata{
+				Name: serverID,
+			},
+			Spec: types.ServerSpecV2{
+				Addr: zeroAddr,
+			},
+			Scope: "/aa/bb",
+		},
+	})
+	require.NoError(t, err)
+
+	// verify that heartbeat creates both an upsert and a keepalive
+	awaitEvents(t, events,
+		expect(sshUpsertOk, sshKeepAliveOk),
+		deny(sshUpsertErr, sshKeepAliveErr, handlerClose),
+	)
+
+	// send an ssh server heartbeat with a scope different from registration
+	err = downstream.Send(ctx, &proto.InventoryHeartbeat{
+		SSHServer: &types.ServerV2{
+			Metadata: types.Metadata{
+				Name: serverID,
+			},
+			Spec: types.ServerSpecV2{
+				Addr: zeroAddr,
+			},
+			Scope: "/aa/bb/cc",
+		},
+	})
+	require.NoError(t, err)
+
+	// verify that the handler closes
+	awaitEvents(t, events,
+		expect(handlerClose),
+		deny(sshUpsertOk, sshKeepAliveOk),
+	)
+
+	// verify that closure propagates to server and client side interfaces
+	closeTimeout := time.After(time.Second * 10)
+	select {
+	case <-handle.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+	select {
+	case <-downstream.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+}
+
+func testSSHServerImmutableLabels(t *testing.T) {
+	const serverID = "test-server"
+	const zeroAddr = "0.0.0.0:123"
+	const peerAddr = "1.2.3.4:456"
+	const wantAddr = "1.2.3.4:123"
+
+	ctx := t.Context()
+
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{
+		expectAddr: wantAddr,
+	}
+
+	rc := &resourceCounter{}
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withServerKeepAlive(time.Millisecond*200),
+		withTestEventsChannel(events),
+		WithOnConnect(rc.onConnect),
+		WithOnDisconnect(rc.onDisconnect),
+	)
+	defer controller.Close()
+
+	// set up fake in-memory control stream
+	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+	t.Cleanup(func() {
+		controller.Close()
+		downstream.Close()
+		upstream.Close()
+	})
+
+	// launch goroutine to respond to ping requests
+	go func() {
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				downstream.Send(ctx, &proto.UpstreamInventoryPong{
+					ID: msg.(*proto.DownstreamInventoryPing).GetID(),
+				})
+			case <-downstream.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	immutableLabels := &joiningv1.ImmutableLabels{
+		Ssh: map[string]string{
+			"foo": "bar",
+		},
+	}
+	controller.RegisterControlStream(upstream, &proto.UpstreamInventoryHello{
+		ServerID:        serverID,
+		Version:         teleport.Version,
+		Services:        types.SystemRoles{types.RoleNode}.StringSlice(),
+		ImmutableLabels: immutableLabels,
+	})
+
+	// verify that control stream handle is now accessible
+	handle, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	// verify that hb counter has been incremented
+	require.Equal(t, int64(1), controller.instanceHBVariableDuration.Count())
+
+	// send a fake ssh server heartbeat with a scope matching registration
+	err := downstream.Send(ctx, &proto.InventoryHeartbeat{
+		SSHServer: &types.ServerV2{
+			Metadata: types.Metadata{
+				Name: serverID,
+			},
+			Spec: types.ServerSpecV2{
+				Addr:            zeroAddr,
+				ImmutableLabels: immutableLabels.GetSsh(),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// verify that heartbeat creates both an upsert and a keepalive
+	awaitEvents(t, events,
+		expect(sshUpsertOk, sshKeepAliveOk),
+		deny(sshUpsertErr, sshKeepAliveErr, handlerClose),
+	)
+
+	// send an ssh server heartbeat with immutable labels different from registration
+	err = downstream.Send(ctx, &proto.InventoryHeartbeat{
+		SSHServer: &types.ServerV2{
+			Metadata: types.Metadata{
+				Name: serverID,
+			},
+			Spec: types.ServerSpecV2{
+				Addr: zeroAddr,
+				ImmutableLabels: map[string]string{
+					"foo": "baz",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// verify that the handler closes
+	awaitEvents(t, events,
+		expect(handlerClose),
+		deny(sshUpsertOk, sshKeepAliveOk),
+	)
+
+	// verify that closure propagates to server and client side interfaces
+	closeTimeout := time.After(time.Second * 10)
+	select {
+	case <-handle.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+	select {
+	case <-downstream.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+}
+
+func testSSHServerBasics(t *testing.T) {
+	const serverID = "test-server"
+	const zeroAddr = "0.0.0.0:123"
+	const peerAddr = "1.2.3.4:456"
+	const wantAddr = "1.2.3.4:123"
+
+	ctx := t.Context()
 
 	events := make(chan testEvent, 1024)
 
@@ -322,6 +583,10 @@ func TestSSHServerBasics(t *testing.T) {
 	oldExpiry, expiry := expiry, auth.getLastServerExpiry()
 	require.Greater(t, expiry, oldExpiry)
 
+	auth.mu.Lock()
+	auth.failUpserts = 1
+	auth.mu.Unlock()
+
 	err = downstream.Send(ctx, &proto.InventoryHeartbeat{
 		SSHServer: &types.ServerV2{
 			Metadata: types.Metadata{
@@ -336,10 +601,6 @@ func TestSSHServerBasics(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-
-	auth.mu.Lock()
-	auth.failUpserts = 1
-	auth.mu.Unlock()
 
 	// we should now see an upsert failure, but no additional
 	// keepalive failures, and the upsert should succeed on retry.
@@ -415,13 +676,14 @@ func TestSSHServerBasics(t *testing.T) {
 // TestAppServerBasics verifies basic expected behaviors for a single control stream heartbeating
 // an app service.
 func TestAppServerBasics(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testAppServerBasics)
+}
+func testAppServerBasics(t *testing.T) {
 	const serverID = "test-server"
 	const appCount = 3
 
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	events := make(chan testEvent, 1024)
 
@@ -480,7 +742,7 @@ func TestAppServerBasics(t *testing.T) {
 		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
 			AppServer: &types.AppServerV3{
 				Metadata: types.Metadata{
-					Name: serverID,
+					Name: fmt.Sprintf("app-%d", i),
 				},
 				Spec: types.AppServerSpecV3{
 					HostID: serverID,
@@ -535,7 +797,7 @@ func TestAppServerBasics(t *testing.T) {
 		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
 			AppServer: &types.AppServerV3{
 				Metadata: types.Metadata{
-					Name: serverID,
+					Name: fmt.Sprintf("app-%d", i),
 				},
 				Spec: types.AppServerSpecV3{
 					HostID: serverID,
@@ -544,6 +806,9 @@ func TestAppServerBasics(t *testing.T) {
 						Version: types.V3,
 						Metadata: types.Metadata{
 							Name: fmt.Sprintf("app-%d", i),
+							Labels: map[string]string{
+								"foo": uuid.NewString(),
+							},
 						},
 						Spec: types.AppSpecV3{},
 					},
@@ -596,20 +861,26 @@ func TestAppServerBasics(t *testing.T) {
 	// set up to induce enough consecutive errors to cause stream closure
 	auth.mu.Lock()
 	auth.failUpserts = 5
+	auth.failKeepAlives = 5
 	auth.mu.Unlock()
 
 	err = downstream.Send(ctx, &proto.InventoryHeartbeat{
 		AppServer: &types.AppServerV3{
 			Metadata: types.Metadata{
-				Name: serverID,
+				Name: "app-0",
 			},
 			Spec: types.AppServerSpecV3{
 				HostID: serverID,
 				App: &types.AppV3{
-					Kind:     types.KindApp,
-					Version:  types.V3,
-					Metadata: types.Metadata{},
-					Spec:     types.AppSpecV3{},
+					Kind:    types.KindApp,
+					Version: types.V3,
+					Metadata: types.Metadata{
+						Name: "app-0",
+						Labels: map[string]string{
+							"foo": uuid.NewString(),
+						},
+					},
+					Spec: types.AppSpecV3{},
 				},
 			},
 		},
@@ -648,13 +919,14 @@ func TestAppServerBasics(t *testing.T) {
 // TestDatabaseServerBasics verifies basic expected behaviors for a single control stream heartbeating
 // a database server.
 func TestDatabaseServerBasics(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testDatabaseServerBasics)
+}
+func testDatabaseServerBasics(t *testing.T) {
 	const serverID = "test-server"
 	const dbCount = 3
 
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	events := make(chan testEvent, 1024)
 
@@ -914,6 +1186,10 @@ func TestDatabaseServerBasics(t *testing.T) {
 
 // TestInstanceHeartbeat verifies basic expected behaviors for instance heartbeat.
 func TestInstanceHeartbeat_Disabled(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testInstanceHeartbeat_Disabled)
+}
+func testInstanceHeartbeat_Disabled(t *testing.T) {
 	const serverID = "test-instance"
 	const peerAddr = "1.2.3.4:456"
 
@@ -962,6 +1238,10 @@ func TestInstanceHeartbeatDisabledEnv(t *testing.T) {
 
 // TestInstanceHeartbeat verifies basic expected behaviors for instance heartbeat.
 func TestInstanceHeartbeat(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testInstanceHeartbeat)
+}
+func testInstanceHeartbeat(t *testing.T) {
 	const serverID = "test-instance"
 	const peerAddr = "1.2.3.4:456"
 
@@ -1079,6 +1359,9 @@ func TestInstanceHeartbeat(t *testing.T) {
 // inventory control stream.
 func TestUpdateLabels(t *testing.T) {
 	t.Parallel()
+	synctest.Test(t, testUpdateLabels)
+}
+func testUpdateLabels(t *testing.T) {
 	const serverID = "test-instance"
 	const peerAddr = "1.2.3.4:456"
 
@@ -1106,11 +1389,19 @@ func TestUpdateLabels(t *testing.T) {
 		ServerID: "auth",
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
-	downstreamHandle, err := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
-		return downstream, nil
-	}, func(_ context.Context) (*proto.UpstreamInventoryHello, error) { return upstreamHello, nil })
+	downstreamHandle, err := NewDownstreamHandle(
+		func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+			return downstream, nil
+		},
+		func(_ context.Context) (*proto.UpstreamInventoryHello, error) {
+			return upstreamHello, nil
+		},
+		withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
+			return nil, context.Canceled
+		}),
+	)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, downstreamHandle.Close()) })
 
@@ -1141,7 +1432,9 @@ func TestUpdateLabels(t *testing.T) {
 // inventory control stream.
 func TestAgentMetadata(t *testing.T) {
 	t.Parallel()
-
+	synctest.Test(t, testAgentMetadata)
+}
+func testAgentMetadata(t *testing.T) {
 	const serverID = "test-instance"
 	const peerAddr = "1.2.3.4:456"
 
@@ -1169,13 +1462,15 @@ func TestAgentMetadata(t *testing.T) {
 		ServerID: "auth",
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	inventoryHandle, err := NewDownstreamHandle(
 		func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 			return downstream, nil
 		},
-		func(ctx context.Context) (*proto.UpstreamInventoryHello, error) { return upstreamHello, nil },
+		func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
+			return upstreamHello, nil
+		},
 		withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
 			return &metadata.Metadata{
 				OS:                    "llamaOS",
@@ -1216,8 +1511,6 @@ func TestAgentMetadata(t *testing.T) {
 }
 
 func TestGoodbye(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name            string
 		supportsGoodbye bool
@@ -1246,7 +1539,7 @@ func TestGoodbye(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		inner := func(t *testing.T) {
 			// Test Setup: crafting a controller and an upstream/downstream stream pipe
 			controller := NewController(
 				&fakeAuth{},
@@ -1272,16 +1565,22 @@ func TestGoodbye(t *testing.T) {
 			handle, err := NewDownstreamHandle(
 				func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 					return currentDownstream, nil
-				}, func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
+				},
+				func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
 					return upstreamHello, nil
-				}, WithDownstreamClock(clock))
+				},
+				WithDownstreamClock(clock),
+				withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
+					return nil, context.Canceled
+				}),
+			)
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				require.NoError(t, handle.Close())
 			})
 
 			// Test setup: wait for the downstream handler to finish its startup and respond to its hello
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 			select {
 			case msg := <-upstream.Recv():
@@ -1298,7 +1597,7 @@ func TestGoodbye(t *testing.T) {
 			// Then send a Pong message to indicate the test is done.
 			nonce := rand.Int()
 			go func() {
-				ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+				ctx, cancel = context.WithTimeout(t.Context(), 10*time.Second)
 				defer cancel()
 				handle.SetAndSendGoodbye(ctx, test.deleteResources, test.softReload)
 
@@ -1365,7 +1664,7 @@ func TestGoodbye(t *testing.T) {
 			// Simulating a failure on the old control stream, asking for a reconnection
 			require.NoError(t, downstream.CloseWithError(io.EOF))
 
-			ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel = context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
 			// Wait to hit the handle linear retry, then jump into the future
 			require.NoError(t, clock.BlockUntilContext(ctx, 1))
@@ -1407,18 +1706,23 @@ func TestGoodbye(t *testing.T) {
 				}
 			}
 
+		}
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, inner)
 		})
 	}
 }
 
 func TestKubernetesServerBasics(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testKubernetesServerBasics)
+}
+func testKubernetesServerBasics(t *testing.T) {
 	const serverID = "test-server"
 	const kubeCount = 3
 
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	events := make(chan testEvent, 1024)
 
@@ -1642,6 +1946,10 @@ func TestKubernetesServerBasics(t *testing.T) {
 }
 
 func TestGetSender(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testGetSender)
+}
+func testGetSender(t *testing.T) {
 	controller := NewController(
 		&fakeAuth{},
 		usagereporter.DiscardUsageReporter{},
@@ -1668,9 +1976,17 @@ func TestGetSender(t *testing.T) {
 		Services: types.SystemRoles{types.RoleNode, types.RoleApp}.StringSlice(),
 	}
 
-	handle, err := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
-		return downstream, nil
-	}, func(ctx context.Context) (*proto.UpstreamInventoryHello, error) { return upstreamHello, nil })
+	handle, err := NewDownstreamHandle(
+		func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+			return downstream, nil
+		},
+		func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
+			return upstreamHello, nil
+		},
+		withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
+			return nil, context.Canceled
+		}),
+	)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, handle.Close()) })
 
@@ -1689,7 +2005,7 @@ func TestGetSender(t *testing.T) {
 	}
 	// Send the downstream hello so that the
 	// sender becomes available.
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	require.NoError(t, upstream.Send(ctx, downstreamHello))
 
@@ -1703,11 +2019,15 @@ func TestGetSender(t *testing.T) {
 
 // TestTimeReconciliation verifies basic behavior of the time reconciliation check.
 func TestTimeReconciliation(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testTimeReconciliation)
+}
+func testTimeReconciliation(t *testing.T) {
 	const serverID = "test-server"
 	const peerAddr = "1.2.3.4:456"
 	const wantAddr = "1.2.3.4:123"
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx := t.Context()
 	events := make(chan testEvent, 1024)
 	auth := &fakeAuth{
 		expectAddr: wantAddr,
@@ -1729,7 +2049,6 @@ func TestTimeReconciliation(t *testing.T) {
 		require.NoError(t, downstream.Close())
 		require.NoError(t, upstream.Close())
 		require.NoError(t, controller.Close())
-		cancel()
 	})
 
 	// Launch goroutine to respond to clock request.
@@ -1804,7 +2123,7 @@ func awaitEvents(t *testing.T, ch <-chan testEvent, opts ...eventOption) {
 		opt(&options)
 	}
 
-	timeout := time.After(time.Second * 30)
+	timeout := time.After(time.Second * 300)
 	for {
 		if len(options.expect) == 0 {
 			return

@@ -205,7 +205,7 @@ func TestContinue(t *testing.T) {
 	}
 
 	// Wait for the child process to indicate its completed initialization.
-	require.NoError(t, scx.execRequest.WaitForChild())
+	require.NoError(t, scx.execRequest.WaitForChild(t.Context()))
 
 	// Signal to child that it may execute the requested program.
 	scx.execRequest.Continue()

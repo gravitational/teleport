@@ -60,6 +60,10 @@ spec:
                         identity of joining nodes must match this ARN. Supports wildcards
                         "*" and "?".
                       type: string
+                    aws_organization_id:
+                      description: AWSOrganizationID is used for the IAM join method,
+                        the AWS identity of joining nodes must belong to this organization.
+                      type: string
                     aws_regions:
                       description: AWSRegions is used for the EC2 join method and
                         is a list of AWS regions a node is allowed to join from.
@@ -235,6 +239,42 @@ spec:
                   organization_id:
                     type: string
                 type: object
+              env0:
+                description: Env0 allows the configuration of options specific to
+                  the "env0" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of Rules, jobs using this token must
+                      match at least one allow rule to use this token.
+                    items:
+                      properties:
+                        deployer_email:
+                          type: string
+                        deployment_type:
+                          type: string
+                        env0_tag:
+                          type: string
+                        environment_id:
+                          type: string
+                        environment_name:
+                          type: string
+                        organization_id:
+                          type: string
+                        project_id:
+                          type: string
+                        project_name:
+                          type: string
+                        template_id:
+                          type: string
+                        template_name:
+                          type: string
+                        workspace_name:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                type: object
               gcp:
                 description: GCP allows the configuration of options specific to the
                   "gcp" join method.
@@ -377,6 +417,11 @@ spec:
                       are not reachable by the Teleport Auth Service.
                     type: string
                 type: object
+              integration:
+                description: Integration name which provides credentials for validating
+                  join attempts. Currently only in use for validating the AWS Organization
+                  ID in the IAM Join method.
+                type: string
               join_method:
                 description: 'JoinMethod is the joining method required in order to
                   use this token. Supported joining methods include: azure, circleci,
@@ -431,6 +476,11 @@ spec:
                       must match one allow rule to use this token.
                     items:
                       properties:
+                        instances:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
                         parent_compartments:
                           items:
                             type: string

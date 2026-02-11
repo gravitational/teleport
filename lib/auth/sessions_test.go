@@ -21,7 +21,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -29,7 +30,81 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
+
+func TestCreateWebSession(t *testing.T) {
+	t.Parallel()
+
+	const userLlama = "llama"
+	tenHours := time.Hour * 10
+	eightHours := time.Hour * 8
+
+	testCases := []struct {
+		name                   string
+		webIdleTimeout         *time.Duration
+		sessionTTL             time.Duration
+		expectedBearerTokenTTL time.Duration
+	}{
+		{
+			name:                   "bearerTokenExpiry equal webidletimeout",
+			webIdleTimeout:         &tenHours,
+			expectedBearerTokenTTL: tenHours,
+			sessionTTL:             time.Hour * 12,
+		},
+		{
+			name:                   "bearerTokenExpiry is sessionTTL when shorter than webidletimeout",
+			webIdleTimeout:         &tenHours,
+			sessionTTL:             eightHours,
+			expectedBearerTokenTTL: eightHours,
+		},
+		{
+			name:                   "bearerTokenExpiry defaults to 10 minutes when webidletimeout not configured",
+			webIdleTimeout:         nil,
+			sessionTTL:             time.Hour * 12,
+			expectedBearerTokenTTL: defaults.BearerTokenTTL,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			clusterNetworkConfig := types.DefaultClusterNetworkingConfig()
+			if tc.webIdleTimeout != nil {
+				clusterNetworkConfig.SetWebIdleTimeout(*tc.webIdleTimeout)
+			}
+
+			fakeclock := clockwork.NewFakeClock()
+			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+				Clock:                   fakeclock,
+				Dir:                     t.TempDir(),
+				ClusterNetworkingConfig: clusterNetworkConfig,
+			})
+			require.NoError(t, err, "NewAuthServer failed")
+			t.Cleanup(func() {
+				assert.NoError(t, testAuthServer.Close(), "testAuthServer.Close() errored")
+			})
+
+			authServer := testAuthServer.AuthServer
+			ctx := context.Background()
+
+			_, _, err = authtest.CreateUserAndRole(authServer, userLlama, []string{userLlama} /* logins */, nil /* allowRules */)
+			require.NoError(t, err, "CreateUserAndRole failed")
+
+			session, err := authServer.CreateWebSessionFromReq(ctx, auth.NewWebSessionRequest{
+				User:       userLlama,
+				SessionTTL: tc.sessionTTL,
+			})
+			require.NoError(t, err, "CreateWebSessionFromReq failed")
+
+			bearerTokenExpiry := session.GetBearerTokenExpiryTime()
+			actualTTL := fakeclock.Until(bearerTokenExpiry)
+			require.Equal(t, tc.expectedBearerTokenTTL, actualTTL)
+		})
+	}
+}
 
 func TestServer_CreateWebSessionFromReq_deviceWebToken(t *testing.T) {
 	t.Parallel()
@@ -43,19 +118,23 @@ func TestServer_CreateWebSessionFromReq_deviceWebToken(t *testing.T) {
 	})
 
 	authServer := testAuthServer.AuthServer
-	ctx := context.Background()
 
-	// Wire a fake CreateDeviceWebTokenFunc to authServer.
-	fakeWebToken := &devicepb.DeviceWebToken{
-		Id:    "423f10ed-c3c1-4de7-99dc-3bc5b9ab7fd5",
-		Token: "409d21e4-9563-497f-9393-1209f9e4289c",
-	}
-	wantToken := &types.DeviceWebToken{
-		Id:    fakeWebToken.Id,
-		Token: fakeWebToken.Token,
-	}
+	var storedWebTokens utils.SyncMap[string, *devicepb.DeviceWebToken]
 	authServer.SetCreateDeviceWebTokenFunc(func(ctx context.Context, dwt *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
-		return fakeWebToken, nil
+		if dwt.BrowserMaxTouchPoints > 1 {
+			// Simulate CreateDeviceWebToken not creating tokens for iPads.
+			return nil, nil
+		}
+
+		dwt.Id = uuid.NewString()
+		dwt.Token = uuid.NewString()
+
+		storedWebTokens.Store(dwt.Id, dwt)
+
+		return &devicepb.DeviceWebToken{
+			Id:    dwt.Id,
+			Token: dwt.Token,
+		}, nil
 	})
 
 	const userLlama = "llama"
@@ -66,22 +145,54 @@ func TestServer_CreateWebSessionFromReq_deviceWebToken(t *testing.T) {
 	const loginIP = "40.89.244.232"
 	const loginUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
 
-	t.Run("ok", func(t *testing.T) {
-		session, err := authServer.CreateWebSessionFromReq(ctx, auth.NewWebSessionRequest{
-			User:                 userLlama,
-			LoginIP:              loginIP,
-			LoginUserAgent:       loginUserAgent,
-			Roles:                user.GetRoles(),
-			Traits:               user.GetTraits(),
-			SessionTTL:           1 * time.Minute,
-			LoginTime:            time.Now(),
-			CreateDeviceWebToken: true,
-		})
-		require.NoError(t, err, "CreateWebSessionFromReq failed")
+	tests := []struct {
+		name                string
+		loginMaxTouchPoints int
+		wantWebToken        bool
+	}{
+		{
+			name:                "macOS",
+			loginMaxTouchPoints: 0,
+			wantWebToken:        true,
+		},
+		{
+			name:                "iPadOS",
+			loginMaxTouchPoints: 5,
+			wantWebToken:        false,
+		},
+	}
 
-		gotToken := session.GetDeviceWebToken()
-		if diff := cmp.Diff(wantToken, gotToken); diff != "" {
-			t.Errorf("CreateWebSessionFromReq DeviceWebToken mismatch (-want +got)\n%s", diff)
-		}
-	})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			session, err := authServer.CreateWebSessionFromReq(t.Context(), auth.NewWebSessionRequest{
+				User:                 userLlama,
+				LoginIP:              loginIP,
+				LoginUserAgent:       loginUserAgent,
+				LoginMaxTouchPoints:  test.loginMaxTouchPoints,
+				Roles:                user.GetRoles(),
+				Traits:               user.GetTraits(),
+				SessionTTL:           1 * time.Minute,
+				LoginTime:            time.Now(),
+				CreateDeviceWebToken: true,
+			})
+			require.NoError(t, err, "CreateWebSessionFromReq failed")
+
+			gotToken := session.GetDeviceWebToken()
+			if !test.wantWebToken {
+				require.Nil(t, gotToken, "device web token was created for this session")
+				return
+			}
+
+			require.NotNil(t, gotToken, "device web token was not created for this session")
+			storedWebToken, ok := storedWebTokens.Load(gotToken.Id)
+			require.True(t, ok, "created web token was not found")
+
+			require.Equal(t, storedWebToken.Token, gotToken.Token)
+			require.Equal(t, loginIP, storedWebToken.BrowserIp)
+			require.Equal(t, loginUserAgent, storedWebToken.BrowserUserAgent)
+			require.Equal(t, test.loginMaxTouchPoints, int(storedWebToken.BrowserMaxTouchPoints))
+		})
+	}
 }

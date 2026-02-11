@@ -127,6 +127,15 @@ type KubeCluster struct {
 	KubeGroups []string `json:"kubernetes_groups"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
+	// TargetHealth describes the health of a Kubernetes cluster
+	// reported from an Teleport Kubernetes agent.
+	//
+	// This field will be empty if Kubernetes was not extracted from
+	// a kube_server resource. The following endpoints will set this field
+	// since these endpoints query for kube_server under the hood and then
+	// extract kube from it:
+	// - webapi/sites/:site/resources (unified resources)
+	TargetHealth types.TargetHealth `json:"targetHealth,omitzero"`
 }
 
 // MakeKubeCluster creates a kube cluster object for the web ui

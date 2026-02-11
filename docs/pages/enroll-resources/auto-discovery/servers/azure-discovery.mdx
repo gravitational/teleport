@@ -1,5 +1,6 @@
 ---
 title: Automatically Discover Azure Virtual Machines 
+sidebar_label: Azure Virtual Machines
 description: How to configure Teleport to automatically enroll Azure virtual machines.
 tags:
  - how-to
@@ -29,7 +30,7 @@ Ubuntu/Debian/RHEL if making use of the default Teleport install script. (For
 other Linux distributions, you can install Teleport manually.)
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/6. Create an Azure invite token
+## Step 1/5. Create an Azure invite token
 
 When discovering Azure virtual machines, Teleport makes use of Azure invite tokens for
 authenticating joining SSH Service instances.
@@ -66,7 +67,7 @@ Add the token to the Teleport cluster with:
 $ tctl create -f token.yaml
 ```
 
-## Step 2/6. Configure IAM permissions for Teleport
+## Step 2/5. Configure IAM permissions for Teleport
 
 The Teleport Discovery Service needs Azure IAM permissions to discover and register Azure virtual machines.
 
@@ -202,7 +203,7 @@ and replace the subscription in `assignableScopes` with your own subscription id
 
 (!docs/pages/includes/server-access/azure-assign-service-principal.mdx!)
 
-## Step 3/6. Set up managed identities for discovered nodes
+## Step 3/5. Set up managed identities for discovered nodes
 
 Every Azure VM to be discovered must have a managed identity assigned to it
 with at least the `Microsoft.Compute/virtualMachines/read` permission.
@@ -212,7 +213,7 @@ with at least the `Microsoft.Compute/virtualMachines/read` permission.
 If the VMs to be discovered have more than one managed identity assigned to
 them, save the client ID of the identity you just created for step 5.
 
-## Step 4/6. Install the Teleport Discovery Service
+## Step 4/5. Install the Teleport Discovery Service
 
 <Admonition type="tip">
 
@@ -225,7 +226,7 @@ Install Teleport on the virtual machine that will run the Discovery Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 5/6. Configure Teleport to discover Azure instances
+## Step 5/5. Configure Teleport to discover Azure instances
 
 If you are running the Discovery Service on its own host, the service requires a
 valid invite token to connect to the cluster. Generate one by running the
@@ -238,18 +239,19 @@ $ tctl tokens add --type=discovery
 Save the generated token in `/tmp/token` on the virtual machine that will run
 the Discovery Service.
 
-In order to enable Azure instance discovery the `discovery_service.azure` section
-of `teleport.yaml` must include at least one entry:
-
 (!docs/pages/includes/discovery/discovery-group.mdx!)
 
+Assign <Var name="teleport.example.com:443" /> to the host and port of the Teleport Proxy Service in your cluster,
+and <Var name="azure-prod" /> to a name that identifies a group of resources that you will enroll:
+
 ```yaml
+# teleport.yaml
 version: v3
 teleport:
   join_params:
     token_name: "/tmp/token"
     method: token
-  proxy_server: "teleport.example.com:443"
+  proxy_server: "<Var name="teleport.example.com:443" />"
 auth_service:
   enabled: false
 proxy_service:
@@ -258,46 +260,95 @@ ssh_service:
   enabled: false
 discovery_service:
   enabled: true
-  discovery_group: "azure-prod"
-  azure:
-    - types: ["vm"]
-      subscriptions: ["<subscription>"]
-      resource_groups: ["<resource-group>"]
-      regions: ["<region>"]
-      tags:
-        "env": "prod" # Match virtual machines where tag:env=prod
-      install:
-        # Optional: use a non-global teleport installation, allowing for multiple agent installations.
-        # Requires managed updates to be enabled.
-        # Supported characters are alphanumeric characters and `-`.
-        suffix: "<suffix>"
-        # Optional: when using managed updates, set the update group of the installation.
-        # Supported characters are alphanumeric characters and `-`.
-        update_group: "<update-group>"
-        azure:
-          # Optional: If the VMs to discover have more than one managed
-          # identity assigned to them, set the client ID here to the client
-          # ID of the identity created in step 3.
-          client_id: "<client-id>"
+  discovery_group: <Var name="azure-prod" />
 ```
 
-- Edit the `teleport.auth_servers` key to match your Auth Service or Proxy Service's URI
-  and port.
-- Adjust the keys under `discovery_service.azure` to match your Azure environment,
-  specifically the regions and tags you want to associate with the Discovery
-  Service.
-- Set the `install.suffix` key to install teleport in a non-global location, allowing
-  for multiple, simultaneously installations from different clusters.
-  Requires [agent managed updates](../../../upgrading/agent-managed-updates.mdx).
-- When using [agent managed updates](../../../upgrading/agent-managed-updates.mdx), you can
-  configure the update group by setting the `install.update_group` key.
+Create a matcher for the resources you want to enroll.
 
-## Step 6/6. [Optional] Customize the default installer script
+<Admonition type="tip">
+Dynamic configuration uses Discovery Configs which can be managed using Terraform.
+See the [Terraform `discovery_config` reference](../../../reference/infrastructure-as-code/terraform-provider/resources/discovery_config.mdx) for more information.
 
-(!docs/pages/includes/server-access/custom-installer.mdx matcher="azure"!)
+Static configuration while simpler at first, has less flexibility because enrollment changes require edits to `teleport.yaml` and the restart of the Discovery Service.
+</Admonition>
 
-If `client_id` is set in the Discovery Service config, custom installers will
-also have the `{{ .AzureClientID }}` templating option.
+<Tabs>
+<TabItem label="Dynamic configuration (recommended)">
+  Create a Discovery Config resource, that has the same discovery group you configured earlier, to enable Azure VM discovery.
+
+  Create a file named `discovery-azure-prod.yaml` with the following content:
+  ```yaml
+  kind: discovery_config
+  version: v1
+  metadata:
+    name: example-discovery-config
+  spec:
+    discovery_group: <Var name="azure-prod" />
+    azure:
+      - types: ["vm"]
+        subscriptions: ["<subscription>"]
+        resource_groups: ["<resource-group>"]
+        regions: ["<region>"]
+        tags:
+          "env": "prod" # Match virtual machines where tag:env=prod
+        install:
+          azure:
+            # Optional: If the VMs to discover have more than one managed
+            # identity assigned to them, set the client ID here to the client
+            # ID of the identity created in step 3.
+            client_id: "<client-id>"
+  ```
+  Adjust the keys under `spec.azure` to match your Azure environment,
+  specifically the resource groups, regions and tags you want to associate with the Discovery Service.
+
+  Create the Discovery Config by running the following command:
+  ```code
+  $ tctl create -f discovery-azure-prod.yaml
+  ```
+
+  Matching instances will be added to the Teleport cluster automatically.
+
+  You can update the Discovery Config at any time, and the service will automatically re-apply the changes.
+</TabItem>
+
+<TabItem label="Static configuration">
+  In order to enable Azure VM discovery the `discovery_service.azure` section
+  of `teleport.yaml` must include at least one entry:
+
+  ```yaml
+  # teleport.yaml
+  # ...
+  discovery_service:
+    enabled: true
+    discovery_group: <Var name="azure-prod" />
+    azure:
+      - types: ["vm"]
+        subscriptions: ["<subscription>"]
+        resource_groups: ["<resource-group>"]
+        regions: ["<region>"]
+        tags:
+          "env": "prod" # Match virtual machines where tag:env=prod
+        install:
+          azure:
+            # Optional: If the VMs to discover have more than one managed
+            # identity assigned to them, set the client ID here to the client
+            # ID of the identity created in step 3.
+            client_id: "<client-id>"
+  ```
+  
+  Adjust the keys under `discovery_service.azure` to match your Azure environment, 
+  specifically the regions and tags you want to associate with the Discovery Service.
+</TabItem>
+
+</Tabs>
+
+## Auto-discovery labels
+
+(!docs/pages/includes/auto-discovery/auto-discovery-labels.mdx!)
+
+## Advanced configuration
+
+(!docs/pages/includes/auto-discovery/azure-vm-advanced-config.mdx!)
 
 ## Troubleshooting
 

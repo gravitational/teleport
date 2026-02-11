@@ -27,6 +27,8 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -140,6 +142,8 @@ type AgentPoolConfig struct {
 	LocalAuthAddresses []string
 	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
 	PROXYSigner multiplexer.PROXYHeaderSigner
+	// StaleConnTimeoutDisabled is true if connection timeouts are disabled.
+	StaleConnTimeoutDisabled bool
 }
 
 // CheckAndSetDefaults checks and sets defaults.
@@ -442,6 +446,22 @@ func (p *AgentPool) getStateCallback(agent Agent) AgentStateCallback {
 	}
 }
 
+// isHeartbeatTimeoutDisabledByEnv returns true if the TELEPORT_UNSTABLE_DISABLE_AGENT_STALE_CONN_TIMEOUT
+// environment variable is set.
+//
+// Either "yes" or a "truthy" value (as defined by [strconv.ParseBool]) are
+// considered true.
+func IsAgentStaleConnTimeoutDisabledByEnv() bool {
+	const envVar = "TELEPORT_UNSTABLE_DISABLE_AGENT_STALE_CONN_TIMEOUT"
+
+	if val := os.Getenv(envVar); val != "" {
+		b, _ := strconv.ParseBool(val)
+		return b || val == "yes"
+	}
+
+	return false
+}
+
 // newAgent creates a new agent instance.
 func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease *track.Lease) (Agent, error) {
 	addr, _, err := p.Resolver(ctx)
@@ -460,7 +480,7 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 	}
 
 	dialer := &agentDialer{
-		client:      p.Client,
+		client:      p.AccessPoint,
 		fips:        p.FIPS,
 		authMethods: p.AuthMethods,
 		options:     options,
@@ -470,17 +490,19 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 	}
 
 	agent, err := newAgent(agentConfig{
-		addr:               *addr,
-		keepAlive:          p.runtimeConfig.keepAliveInterval,
-		sshDialer:          dialer,
-		transportHandler:   p,
-		versionGetter:      p,
-		tracker:            tracker,
-		lease:              lease,
-		clock:              p.Clock,
-		logger:             p.logger,
-		localAuthAddresses: p.LocalAuthAddresses,
-		proxySigner:        p.PROXYSigner,
+		addr:                     *addr,
+		keepAlive:                p.runtimeConfig.keepAliveInterval,
+		keepAliveCount:           p.runtimeConfig.keepAliveCount,
+		sshDialer:                dialer,
+		transportHandler:         p,
+		versionGetter:            p,
+		tracker:                  tracker,
+		lease:                    lease,
+		clock:                    p.Clock,
+		logger:                   p.logger,
+		localAuthAddresses:       p.LocalAuthAddresses,
+		proxySigner:              p.PROXYSigner,
+		staleConnTimeoutDisabled: p.StaleConnTimeoutDisabled,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -625,6 +647,9 @@ type agentPoolRuntimeConfig struct {
 	connectionCount int
 	// keepAliveInterval is the interval agents will send heartbeats at.
 	keepAliveInterval time.Duration
+	// keepAliveCount specifies the amount of missed ping heartbeats
+	// to wait for before declaring the connection as broken.
+	keepAliveCount int
 	// isRemoteCluster forces the agent pool to connect to all proxies
 	// regardless of the configured tunnel strategy.
 	isRemoteCluster bool
@@ -652,6 +677,7 @@ func newAgentPoolRuntimeConfig() *agentPoolRuntimeConfig {
 		connectionCount:    defaultAgentConnectionCount,
 		proxyListenerMode:  types.ProxyListenerMode_Separate,
 		keepAliveInterval:  defaults.KeepAliveInterval(),
+		keepAliveCount:     defaults.KeepAliveCountMax,
 		clock:              clockwork.NewRealClock(),
 	}
 }

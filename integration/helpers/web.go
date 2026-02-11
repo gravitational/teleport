@@ -50,6 +50,19 @@ type WebClientPack struct {
 	clusterName string
 }
 
+// Renew Creates a copy of WebClient with renewed credentials.
+// This can be used to assume a particular web session, like in
+// the case of JIT Access Request role assumption.
+func (w *WebClientPack) WithNewCredentials(token, cookie string) *WebClientPack {
+	return &WebClientPack{
+		webCookie:   cookie,
+		bearerToken: token,
+		clt:         w.clt,
+		host:        w.host,
+		clusterName: w.clusterName,
+	}
+}
+
 // LoginWebClient receives the host url, the username and a password.
 // It will login into that host and return a WebClientPack.
 func LoginWebClient(t *testing.T, host, username, password string) *WebClientPack {

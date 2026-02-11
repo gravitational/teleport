@@ -108,6 +108,9 @@ const (
 	// TagUpgrader is a metric tag for upgraders.
 	TagUpgrader = "upgrader"
 
+	// TagUpgraderStatus is propagated status from the upgrader.
+	TagUpgraderStatus = "status"
+
 	// MetricsAccessRequestsCreated provides total number of created access requests.
 	MetricAccessRequestsCreated = "access_requests_created"
 	// TagRoles is a number of roles requested as a part of access request.

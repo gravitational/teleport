@@ -5,10 +5,10 @@ resource "teleport_role" "kube_verbs" {
 
   spec = {
     allow = {
-      logins = ["onev6"]
+      logins = ["onev8"]
       kubernetes_resources = [
         {
-          kind      = "pod"
+          kind      = "pods"
           name      = "*"
           namespace = "myns"
           verbs     = ["get", "watch", "list"]
@@ -17,5 +17,5 @@ resource "teleport_role" "kube_verbs" {
     }
   }
 
-  version = "v7"
+  version = "v8"
 }

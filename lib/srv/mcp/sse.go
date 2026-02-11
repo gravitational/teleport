@@ -48,14 +48,17 @@ func (s *Server) handleStdioToSSE(ctx context.Context, sessionCtx *SessionCtx) e
 	if err != nil {
 		return trace.Wrap(err, "parsing SSE URI")
 	}
-	httpTransport, err := s.makeHTTPTransport(sessionCtx.App)
-	if err != nil {
-		return trace.Wrap(err, "creating HTTP transport")
-	}
-	// TODO(greedy52) support JWT for SSE transport.
+
 	session, err := s.makeSessionHandler(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err, "setting up session handler")
+	}
+	defer session.close()
+
+	// Use custom transport that adds extra headers including JWT.
+	httpTransport, err := s.makeSSEHTTPTransport(session)
+	if err != nil {
+		return trace.Wrap(err, "creating HTTP transport")
 	}
 
 	session.logger.InfoContext(ctx, "Started handling stdio to SSE session", "base_url", logutils.StringerAttr(baseURL))
@@ -69,7 +72,7 @@ func (s *Server) handleStdioToSSE(ctx context.Context, sessionCtx *SessionCtx) e
 	}
 	session.logger.DebugContext(ctx, "Received SSE endpoint", "endpoint_url", sseRequestWriter.GetEndpointURL())
 	if mcpSessionID := sseRequestWriter.GetSessionID(); mcpSessionID != "" {
-		session.mcpSessionID.Store(&mcpSessionID)
+		session.updatePendingSessionStartEventWithExternalSessionID(mcpSessionID)
 	}
 
 	// Setup proxy. The SSE stream and the stdio client connection should
@@ -101,11 +104,6 @@ func (s *Server) handleStdioToSSE(ctx context.Context, sessionCtx *SessionCtx) e
 		return trace.Wrap(err)
 	}
 
-	// TODO(greedy52) capture client info then emit start event with client
-	// information.
-	session.emitStartEvent(s.cfg.ParentContext)
-	defer session.emitEndEvent(s.cfg.ParentContext, nil)
-
 	// Wait until reader finishes.
 	clientRequestReader.Run(ctx)
 	return nil
@@ -127,7 +125,7 @@ func makeSSEBaseURI(app types.Application) (*url.URL, error) {
 	return baseURL, nil
 }
 
-func (s *Server) makeHTTPTransport(app types.Application) (http.RoundTripper, error) {
+func (s *Server) makeBasicHTTPTransport(app types.Application) (http.RoundTripper, error) {
 	// Use similar settings from lib/srv/app/transport.go.
 	tr, err := defaults.Transport()
 	if err != nil {
@@ -140,4 +138,27 @@ func (s *Server) makeHTTPTransport(app types.Application) (http.RoundTripper, er
 	tr.TLSClientConfig = utils.TLSConfig(s.cfg.CipherSuites)
 	tr.TLSClientConfig.InsecureSkipVerify = lib.IsInsecureDevMode() || app.GetInsecureSkipVerify()
 	return tr, nil
+}
+
+type sseHTTPTransport struct {
+	session         *sessionHandler
+	targetTransport http.RoundTripper
+}
+
+func (t *sseHTTPTransport) RoundTrip(r *http.Request) (resp *http.Response, err error) {
+	if err := t.session.rewriteHTTPRequestHeaders(r); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return t.targetTransport.RoundTrip(r)
+}
+
+func (s *Server) makeSSEHTTPTransport(session *sessionHandler) (http.RoundTripper, error) {
+	targetTransport, err := s.makeBasicHTTPTransport(session.App)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &sseHTTPTransport{
+		session:         session,
+		targetTransport: targetTransport,
+	}, nil
 }

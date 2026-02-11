@@ -39,11 +39,9 @@ import {
   AutoUpdatesStatus,
 } from 'teleterm/services/appUpdater';
 import { UnsupportedVersionError } from 'teleterm/services/appUpdater/errors';
-import { RootClusterUri } from 'teleterm/ui/uri';
+import { routing } from 'teleterm/ui/uri';
 
 import {
-  ClusterGetter,
-  clusterNameGetter,
   formatMB,
   getDownloadHost,
   iconMac,
@@ -60,7 +58,6 @@ import {
  * unless there's an issue that prevents autoupdates from working.
  */
 export function WidgetView({
-  clusterGetter,
   onDownload,
   onInstall,
   onMore,
@@ -70,17 +67,15 @@ export function WidgetView({
 }: {
   updateEvent: AppUpdateEvent;
   platform: Platform;
-  clusterGetter: ClusterGetter;
   onMore(): void;
   onDownload(): void;
   onInstall(): void;
 } & SpaceProps) {
-  const getClusterName = clusterNameGetter(clusterGetter);
   const { autoUpdatesStatus } = updateEvent;
 
   const issueRequiringAttention =
     autoUpdatesStatus &&
-    findAutoUpdatesIssuesRequiringAttention(autoUpdatesStatus, getClusterName);
+    findAutoUpdatesIssuesRequiringAttention(autoUpdatesStatus);
 
   if (issueRequiringAttention) {
     return (
@@ -142,16 +137,17 @@ export function WidgetView({
       ? updateEvent.autoUpdatesStatus.options.unreachableClusters
       : [];
   const downloadBaseUrl = getDownloadHost(updateEvent);
+  const requiresUacPrompt = updateEvent.update.requiresUacPrompt;
 
   return (
     <AvailableUpdate
       version={updateEvent.update.version}
       platform={platform}
+      requiresUacPrompt={requiresUacPrompt}
       description={description}
       unreachableClusters={unreachableClusters}
       downloadHost={downloadBaseUrl}
       onMore={onMore}
-      getClusterName={getClusterName}
       primaryButton={
         button ? { name: button.name, onClick: button.action } : undefined
       }
@@ -165,6 +161,7 @@ function AvailableUpdate({
   downloadHost,
   onMore,
   platform,
+  requiresUacPrompt,
   primaryButton,
   unreachableClusters,
   version,
@@ -175,8 +172,8 @@ function AvailableUpdate({
   unreachableClusters: UnreachableCluster[];
   downloadHost: string;
   platform: Platform;
+  requiresUacPrompt: boolean;
   onMore(): void;
-  getClusterName(clusterUri: RootClusterUri): string;
   primaryButton?: {
     name: string;
     onClick(): void;
@@ -228,7 +225,7 @@ function AvailableUpdate({
           </ButtonSecondary>
         </Flex>
       </Flex>
-      {(hasUnreachableClusters || isNonTeleportServer) && (
+      {(hasUnreachableClusters || isNonTeleportServer || requiresUacPrompt) && (
         <Stack ml={1}>
           {hasUnreachableClusters && (
             <IconAndText
@@ -240,6 +237,12 @@ function AvailableUpdate({
             <IconAndText
               Icon={Info}
               text={`Using ${downloadHost} as the update server.`}
+            />
+          )}
+          {requiresUacPrompt && (
+            <IconAndText
+              Icon={Info}
+              text="Update your configuration to enable UAC-free updates."
             />
           )}
         </Stack>
@@ -284,21 +287,14 @@ function makeUpdaterContent({
         description: `Downloaded ${formatMB(updateEvent.progress.transferred)} of ${formatMB(updateEvent.progress.total)}`,
       };
     case 'update-available':
-      const { updateKind } = updateEvent.update;
       if (updateEvent.autoDownload) {
         return {
-          description:
-            updateKind === 'upgrade'
-              ? 'Update available. Starting download…'
-              : 'Downloading required version…',
+          description: 'Update available. Starting download…',
         };
       }
 
       return {
-        description:
-          updateKind === 'upgrade'
-            ? 'Update available'
-            : 'Downgrade to required version',
+        description: 'Update available',
         button: {
           name: 'Download',
           action: onDownload,
@@ -321,8 +317,7 @@ function makeUpdaterContent({
 
 /** Returns issues that need to be resolved to make autoupdates work. */
 function findAutoUpdatesIssuesRequiringAttention(
-  status: AutoUpdatesStatus,
-  getClusterName: (clusterUri: RootClusterUri) => string
+  status: AutoUpdatesStatus
 ): string | undefined {
   if (status.enabled === false && status.reason === 'no-compatible-version') {
     return 'Your clusters require incompatible client versions. Choose one to enable app updates.';
@@ -332,7 +327,7 @@ function findAutoUpdatesIssuesRequiringAttention(
     status.enabled === false &&
     status.reason === 'managing-cluster-unable-to-manage'
   ) {
-    return `The cluster ${getClusterName(status.options.managingClusterUri)} was chosen to manage updates but is not able to provide them.`;
+    return `The cluster ${routing.parseClusterName(status.options.managingClusterUri)} was chosen to manage updates but is not able to provide them.`;
   }
 
   if (
@@ -340,9 +335,6 @@ function findAutoUpdatesIssuesRequiringAttention(
     status.reason === 'no-cluster-with-auto-update' &&
     status.options.unreachableClusters.length
   ) {
-    return makeUnreachableClusterText(
-      status.options.unreachableClusters,
-      getClusterName
-    );
+    return makeUnreachableClusterText(status.options.unreachableClusters);
   }
 }

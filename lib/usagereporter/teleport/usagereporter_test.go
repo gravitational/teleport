@@ -297,6 +297,98 @@ func TestConvertUsageEvent(t *testing.T) {
 			}},
 		},
 		{
+			name: "integration enroll section open event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiIntegrationEnrollSectionOpenEvent{
+				UiIntegrationEnrollSectionOpenEvent: &usageeventsv1.UIIntegrationEnrollSectionOpenEvent{
+					Metadata: &usageeventsv1.IntegrationEnrollMetadata{Id: "someid", Kind: usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES},
+					Step:     usageeventsv1.IntegrationEnrollStep_INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB,
+					Section:  usageeventsv1.IntegrationEnrollSection_INTEGRATION_ENROLL_SECTION_MWIGHAK8S_GITHUB_ADVANCED_OPTIONS,
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiIntegrationEnrollSectionOpenEvent{
+				UiIntegrationEnrollSectionOpenEvent: &prehogv1a.UIIntegrationEnrollSectionOpenEvent{
+					Metadata: &prehogv1a.IntegrationEnrollMetadata{
+						Id:       "someid",
+						UserName: expectedAnonymizedUserString,
+						Kind:     prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES,
+					},
+					Step:    prehogv1a.IntegrationEnrollStep_INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB,
+					Section: prehogv1a.IntegrationEnrollSection_INTEGRATION_ENROLL_SECTION_MWIGHAK8S_GITHUB_ADVANCED_OPTIONS,
+				},
+			}},
+		},
+		{
+			name: "integration enroll field complete event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiIntegrationEnrollFieldCompleteEvent{
+				UiIntegrationEnrollFieldCompleteEvent: &usageeventsv1.UIIntegrationEnrollFieldCompleteEvent{
+					Metadata: &usageeventsv1.IntegrationEnrollMetadata{Id: "someid", Kind: usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES},
+					Step:     usageeventsv1.IntegrationEnrollStep_INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB,
+					Field:    usageeventsv1.IntegrationEnrollField_INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REPOSITORY_URL,
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiIntegrationEnrollFieldCompleteEvent{
+				UiIntegrationEnrollFieldCompleteEvent: &prehogv1a.UIIntegrationEnrollFieldCompleteEvent{
+					Metadata: &prehogv1a.IntegrationEnrollMetadata{
+						Id:       "someid",
+						UserName: expectedAnonymizedUserString,
+						Kind:     prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES,
+					},
+					Step:  prehogv1a.IntegrationEnrollStep_INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB,
+					Field: prehogv1a.IntegrationEnrollField_INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REPOSITORY_URL,
+				},
+			}},
+		},
+		{
+			name: "integration enroll code copy event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiIntegrationEnrollCodeCopyEvent{
+				UiIntegrationEnrollCodeCopyEvent: &usageeventsv1.UIIntegrationEnrollCodeCopyEvent{
+					Metadata: &usageeventsv1.IntegrationEnrollMetadata{Id: "someid", Kind: usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES},
+					Step:     usageeventsv1.IntegrationEnrollStep_INTEGRATION_ENROLL_STEP_MWIGHAK8S_SETUP_WORKFLOW,
+					Type:     usageeventsv1.IntegrationEnrollCodeType_INTEGRATION_ENROLL_CODE_TYPE_TERRAFORM,
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiIntegrationEnrollCodeCopyEvent{
+				UiIntegrationEnrollCodeCopyEvent: &prehogv1a.UIIntegrationEnrollCodeCopyEvent{
+					Metadata: &prehogv1a.IntegrationEnrollMetadata{
+						Id:       "someid",
+						UserName: expectedAnonymizedUserString,
+						Kind:     prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES,
+					},
+					Step: prehogv1a.IntegrationEnrollStep_INTEGRATION_ENROLL_STEP_MWIGHAK8S_SETUP_WORKFLOW,
+					Type: prehogv1a.IntegrationEnrollCodeType_INTEGRATION_ENROLL_CODE_TYPE_TERRAFORM,
+				},
+			}},
+		},
+		{
+			name: "integration enroll link click event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiIntegrationEnrollLinkClickEvent{
+				UiIntegrationEnrollLinkClickEvent: &usageeventsv1.UIIntegrationEnrollLinkClickEvent{
+					Metadata: &usageeventsv1.IntegrationEnrollMetadata{Id: "someid", Kind: usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES},
+					Step:     usageeventsv1.IntegrationEnrollStep_INTEGRATION_ENROLL_STEP_MWIGHAK8S_SETUP_WORKFLOW,
+					Link:     "https://link-to-docs",
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiIntegrationEnrollLinkClickEvent{
+				UiIntegrationEnrollLinkClickEvent: &prehogv1a.UIIntegrationEnrollLinkClickEvent{
+					Metadata: &prehogv1a.IntegrationEnrollMetadata{
+						Id:       "someid",
+						UserName: expectedAnonymizedUserString,
+						Kind:     prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES,
+					},
+					Step: prehogv1a.IntegrationEnrollStep_INTEGRATION_ENROLL_STEP_MWIGHAK8S_SETUP_WORKFLOW,
+					Link: "https://link-to-docs",
+				},
+			}},
+		},
+		{
 			name: "discover deploy service event",
 			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent{
 				UiDiscoverDeployServiceEvent: &usageeventsv1.UIDiscoverDeployServiceEvent{

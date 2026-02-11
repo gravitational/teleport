@@ -304,8 +304,8 @@ func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, para
 
 	var expires time.Time
 	switch req.JoinMethod {
-	case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodOracle, types.JoinMethodGitHub:
-		// IAM, GCP, Oracle and GitHub tokens should never expire.
+	case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodOracle, types.JoinMethodGitHub, types.JoinMethodGitLab:
+		// IAM, GCP, Oracle, GitHub and GitLab tokens should never expire.
 		expires = time.Time{}
 	default:
 		// Set expires time to default node join token TTL.
@@ -376,7 +376,7 @@ func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.R
 
 		if err == nil {
 			// check if the token found has the right rules
-			if t.GetJoinMethod() != types.JoinMethodIAM || !isSameRuleSet(req.Allow, t.GetAllowRules()) {
+			if t.GetJoinMethod() != types.JoinMethodIAM || !isSameRuleSet(req.Allow, t.GetAWSAllowRules()) {
 				return nil, trace.BadParameter("failed to create token: token with name %q already exists and does not have the expected allow rules", tokenName)
 			}
 

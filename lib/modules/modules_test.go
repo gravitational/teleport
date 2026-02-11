@@ -52,6 +52,7 @@ func TestValidateAuthPreferenceOnCloud(t *testing.T) {
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testServer.Close()) })
 
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
@@ -62,17 +63,20 @@ func TestValidateAuthPreferenceOnCloud(t *testing.T) {
 
 	s, err := authtest.NewTestTLSServer(authtest.TLSServerConfig{
 		APIConfig: &auth.APIConfig{
-			AuthServer: testServer.AuthServer,
-			Authorizer: testServer.Authorizer,
-			AuditLog:   testServer.AuditLog,
-			Emitter:    testServer.AuditLog,
+			AuthServer:       testServer.AuthServer,
+			Authorizer:       testServer.Authorizer,
+			ScopedAuthorizer: testServer.ScopedAuthorizer,
+			AuditLog:         testServer.AuditLog,
+			Emitter:          testServer.AuditLog,
 		},
 		AuthServer: testServer,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, s.Close()) })
 
 	clt, err := s.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
 	ap := types.DefaultAuthPreference()
 	ap.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY)
@@ -99,6 +103,7 @@ func TestValidateSessionRecordingConfigOnCloud(t *testing.T) {
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testServer.Close()) })
 
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
@@ -159,6 +164,8 @@ func TestFeatures_ToProto(t *testing.T) {
 			string(entitlements.LicenseAutoUpdate):          {Enabled: true},
 			string(entitlements.AccessGraphDemoMode):        {Enabled: true},
 			string(entitlements.UnrestrictedManagedUpdates): {Enabled: true},
+			string(entitlements.ClientIPRestrictions):       {Enabled: true},
+			string(entitlements.WorkloadClusters):           {Enabled: true},
 		},
 		//	 Legacy Fields; remove in v18
 		Kubernetes:             true,
@@ -236,6 +243,8 @@ func TestFeatures_ToProto(t *testing.T) {
 			entitlements.LicenseAutoUpdate:          {Enabled: true, Limit: 0},
 			entitlements.AccessGraphDemoMode:        {Enabled: true, Limit: 0},
 			entitlements.UnrestrictedManagedUpdates: {Enabled: true, Limit: 0},
+			entitlements.ClientIPRestrictions:       {Enabled: true, Limit: 0},
+			entitlements.WorkloadClusters:           {Enabled: true, Limit: 0},
 		},
 	}
 

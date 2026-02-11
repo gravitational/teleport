@@ -21,7 +21,6 @@ package reexec
 import (
 	"os"
 	"os/exec"
-	"runtime"
 	"syscall"
 
 	"github.com/gravitational/trace"
@@ -34,10 +33,9 @@ func getExecutable() (string, error) {
 }
 
 // configureReexecForOS configures the command with files to inherit and
-// os-specific tweaks.
+// os-specific tweaks. The signaling files should be kept alive until the
+// command is started, then the caller should close them.
 func configureReexecForOS(cmd *exec.Cmd, signal, kill *os.File) (signalFd, killFd uint64) {
-	// Prevent handle from being closed when signal is garbage collected.
-	runtime.SetFinalizer(signal, nil)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		AdditionalInheritedHandles: []syscall.Handle{
 			syscall.Handle(signal.Fd()),

@@ -162,6 +162,13 @@ export default tseslint.config(
       // https://github.com/facebook/react/issues/34289
       // https://github.com/facebook/react/issues/34313
       'react-hooks/preserve-manual-memoization': 'off',
+
+      'preserve-caught-error': [
+        'error',
+        {
+          requireCatchParameter: true,
+        },
+      ],
     },
   },
   {

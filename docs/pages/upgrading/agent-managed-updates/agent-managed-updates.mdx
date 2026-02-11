@@ -1,0 +1,764 @@
+---
+title: Managed Updates for Teleport Agents and Bots
+description: Describes how to set up Managed Updates for Teleport Agents and Bots
+tags:
+  - conceptual
+  - platform-wide
+---
+
+<Admonition type="warning">
+This document describes Managed Updates for Agents and Bots (v2),
+which replaces Managed Updates for Agents (v1).
+
+For Managed Updates v1 instructions, see
+[Managed Updates for Agents (v1)](../agent-managed-updates-v1.mdx).
+</Admonition>
+
+For Managed Updates, a binary called `teleport-update` is distributed in
+all Teleport packages, alongside the `teleport`, `tbot`, and other binaries.
+Admins configure updates by managing the `autoupdate_version` and
+`autoupdate_config` dynamic resources.
+
+This document covers how to use `teleport-update` and the `autoupdate_*`
+resources to manage automated agent and bot updates from Teleport. It describes:
+
+- [The agent architecture](#how-it-works)
+- [How to enroll existing agents](#quick-setup-for-existing-linux-agent-and-bot-installations)
+- [How to enroll new agents](#quick-setup-for-new-linux-agents-and-bot-installations)
+- [How to configure Managed Updates v2](#configuring-managed-agent-and-tbot-updates) (
+  [when updates happen](#configuring-the-schedule) and for self-hosted users,
+  [which version to update to](#setting-the-version-self-hosted-only))
+- [How to migrate to Managed Updates v2](#migrating-agents-on-linux-servers-to-managed-updates)
+
+`teleport-update` supports:
+
+- Teleport Enterprise and Teleport Community Edition
+- Both cloud and self-hosted Teleport Enterprise deployments
+- Regular and FIPS variants of Teleport
+- amd64, arm64, and other supported CPU architectures
+- systemd-based operating systems, regardless of the package manager used
+
+<Admonition type="note" title="Compatibility between Managed Updates v1 and v2">
+The Managed Updates v2 `teleport-update` binary is backwards-compatible with the
+`cluster_maintenance_config` resource. The Managed Updates v1 `teleport-upgrade` script
+is forwards-compatible with the `autoupdate_config` and `autoupdate_version` resources.
+Agents connected to the same cluster will all update to the same version.
+
+If the `autoupdate_config` resource is configured, it takes precedence over
+`cluster_maintenance_config`. This allows for a safe, non-breaking, incremental
+migration between Managed Updates v1 and v2. If `autoupdate_config` is not present
+and `autoupdate_version` is present, the `autoupdate_config` settings are implicitly
+derived from `cluster_maintenance_config`.
+
+Regardless of how the cluster is configured, `teleport-update` is capable of managing
+both Teleport Agent and tbot installations, while `teleport-upgrade` is only capable
+of managing Teleport Agents.
+
+Users of cloud-hosted Teleport Enterprise have been migrated to Managed Updates v2
+and should migrate their agents to `teleport-update` as soon as possible.
+</Admonition>
+
+## How it works
+
+Managed Updates for Agents and Bots are designed to manage long-running, unattended Teleport
+clients, such as Teleport Agents and tbot. This is different from Managed Updates for
+Client Tools, which are designed to manage interactive Teleport clients, such as `tsh` and `tctl`.
+
+When Managed Updates are enabled, a Teleport updater is installed alongside
+each new Teleport Agent or tbot. The updater communicates with the Teleport Proxy
+Service to determine when an update is available and if it should perform the update now.
+
+Each installation belongs to an update group. The update schedule specifies when each
+group is updated. The schedule is stored in the `autoupdate_config` resource and
+can be edited via `tctl`. The `tctl autoupdate agents` subcommands are used to interact
+with the rollout for both Teleport Agents and long-running tbot installations.
+
+For Linux server-based installations, `teleport-update` command configures
+Managed Updates for Teleport Agents and tbot locally on the server.
+
+For Kubernetes-based installations, the `teleport-kube-agent` Helm chart
+deploys a controller that automatically updates the main Teleport container.
+
+Agents and bots that were installed before Managed Updates was enabled on the
+cluster usually need to be manually enrolled into Managed Updates.
+
+## Prerequisites
+
+- Familiarity with the [Upgrading Compatibility Overview](../overview.mdx) guide,
+  which describes the sequence in which to upgrade components in your cluster.
+- Teleport Agent or tbot installations that are not yet enrolled in Managed Updates.
+- (!docs/pages/includes/edition-prereqs-tabs.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
+
+## Quick setup for existing Linux Agent and Bot installations
+
+Users can enable Managed Updates v2 on Linux servers that are already running
+a Teleport Agent by running the following command on every server:
+
+```code
+$ sudo teleport-update enable
+```
+
+<Admonition type="note">
+If this command is not available, update the `teleport` package
+to the latest version that is supported by your cluster.
+</Admonition>
+
+The `teleport-update enable` command will disable (but not remove)
+the v1 updater if present. No other action is necessary.
+
+If everything is working, the v1 updater package can be removed:
+
+```code
+$ sudo apt remove teleport-ent-updater
+```
+
+If the v2 updater does not work, your installation can be reverted
+back to manual updates or the v1 updater (if it has not been removed):
+
+```code
+$ sudo teleport-update uninstall
+```
+
+If Teleport was installed via the apt or yum package,
+`teleport-update uninstall` will revert the running version of Teleport back to
+the version provided by the package.
+
+### Migrating Bots
+
+Existing tbot installations require additional steps to be converted to Managed Updates.
+
+When `teleport-update enable` is run, a disabled systemd service is created at `/etc/systemd/system/tbot.service`
+if a service does not already exist at that location.
+
+If a custom tbot systemd service is already installed at `/etc/systemd/system/tbot.service`,
+a warning will be displayed when `teleport-update enable` is run. To overwrite that custom service
+and replace it with an updater-managed service, run the following command:
+
+```code
+$ sudo teleport-update enable --overwrite
+```
+
+If a custom tbot systemd service is installed with a different name (e.g., `/etc/systemd/system/machineid.service`),
+it must be stopped if it shares the same configuration and data directories as the updater-managed service:
+
+```code
+$ sudo systemctl disable machineid --now
+```
+
+After `teleport-update enable` has successfully created the service, its output will recommend that you run
+the following command to enable `tbot.service`:
+
+```code
+$ sudo systemctl enable tbot --now
+```
+
+Note that you must have a valid `/etc/tbot.yaml` file to use tbot.
+See [Deploying tbot on Linux](../../machine-workload-identity/deployment/linux.mdx) for more information.
+
+## Quick setup for new Linux Agents and Bot installations
+
+The [Web UI onboarding and Install Script](../../installation/linux.mdx) are the
+fastest ways to onboard new Linux servers. However, you may also use
+`teleport-update` by itself to set up a Teleport Agent and/or tbot manually.
+Note that web-based agent enrollment does not automatically configure tbot.
+See the end of this section for information on how to configure and enable tbot.
+
+Users can create a new installation of Teleport using any version of the
+`teleport-update` binary. First, download copy of the `teleport-update` tarball from
+the [Agent Installer & Updater section](https://goteleport.com/download/all-downloads/?kind=agentInstaller&os=linux) of
+the downloads page.
+Next, invoke `teleport-update` to install the correct version for your cluster.
+
+```code
+$ tar xf teleport-update-[version].tgz
+$ cd teleport-update-[version]
+$ sudo ./teleport-update enable --proxy example.teleport.sh
+```
+
+After Teleport is installed, you can create `/etc/teleport.yaml`, either manually
+or using `teleport configure`. After, the Teleport Agent can be enabled and
+started via the `systemctl` command:
+
+```code
+$ sudo systemctl enable teleport --now
+```
+
+Similarly, you can create an `/etc/tbot.yaml` file, either manually or using `tbot configure`.
+See [Deploying tbot on Linux](../../machine-workload-identity/deployment/linux.mdx) for more information.
+
+After, tbot can be enabled and started via the `systemctl` command:
+
+```code
+$ sudo systemctl enable tbot --now
+```
+
+## Configuring managed agent and tbot updates
+
+Managed agent and bot updates are configured via two Teleport resources:
+
+- `autoupdate_config` controls the update schedule
+- `autoupdate_version` controls the desired version
+
+Self-hosted Teleport users must configure both `autoupdate_config` and
+`autoupdate_version`.
+
+Cloud-hosted Teleport Enterprise users can configure the `autoupdate_config`, while the
+`autoupdate_version` is managed by Teleport Cloud. Updates will roll out
+automatically during the first chosen maintenance window that is at least 36
+hours after the cluster version is updated.
+
+To configure Managed Updates in your cluster, you must have access to
+the `autoupdate_config` and `autoupdate_version` resources. By default,
+the `editor` role can modify both resources.
+
+### Configuring the schedule
+
+For both cloud-hosted and self-hosted editions of Teleport, an update schedule
+may be set with the `autoupdate_config` resource. The default resource looks
+like this:
+
+```yaml
+kind: autoupdate_config
+metadata:
+  name: autoupdate-config
+spec:
+  agents:
+    mode: enabled
+    strategy: halt-on-error
+    schedules:
+      regular:
+        - name: default
+          days: [ "Mon", "Tue", "Wed", "Thu" ]
+          # start_hour is in UTC
+          start_hour: 16
+```
+
+This example configures a single group named "default" for all agents.
+All agents will be placed in this group, as agents with missing
+or unknown groups are always placed in the last listed group.
+Currently, only the "regular" schedule is user-configurable.
+
+For example, a Teleport user with staging and production
+environments might create a custom schedule that looks like this:
+
+```yaml
+kind: autoupdate_config
+metadata:
+  name: autoupdate-config
+spec:
+  agents:
+    mode: enabled
+    strategy: halt-on-error
+    schedules:
+      regular:
+        - name: staging
+          days: [ "Mon", "Tue", "Wed", "Thu" ]
+          start_hour: 4
+        - name: production
+          days: [ "Mon", "Tue", "Wed", "Thu" ]
+          start_hour: 5
+          wait_hours: 24
+```
+
+This schedule would update agents and bots in the `staging` group at 4 UTC, and then update
+the `production` group at 5 UTC the next day. The `production` group will not execute
+update until the staging group has updated. The `wait_hours` field sets a minimum
+duration between groups, ensuring that `production` happens the day after `staging`,
+and not one hour after.
+
+Two update rollout strategies are available:
+
+- The `halt-on-error` strategy provides predictable, sequential updates
+  across environments. It's ideal for traditional development pipelines where
+  you want to ensure that development environments are successfully updated
+  before proceeding to staging and production.
+- The `time-based` strategy is designed for environments where update groups
+  are independent of each other, such as geographical regions or different teams.
+  It allows updates to occur whenever the specified maintenance window is active
+  for a group, regardless of the status of other groups. This strategy does not
+  provide ordering guarantees across groups.
+
+With the `halt-on-error` strategy, the `canary_count` field can be set on each group to specify
+a number of randomly selected agents (fewer than five) to update and verify before
+proceeding to the rest of the agents in the group. This can be used to reduce the impact
+of a failed update that might not be caught by earlier groups due to environment differences.
+
+You can find more information
+in [the Managed Updates v2 resource reference](../../reference/deployment/managed-updates-v2.mdx)
+
+Except for `autoupdate_config.agents.mode`, changes to `autoupdate_config` fields
+take effect during the next version rollout. A new rollout happens when
+`autoupdate_version` is changed and targets a new version.
+Version is automatically updated for Cloud-hosted Teleport clusters; for
+self-hosted ones you have to update the version manually, see
+[the dedicated guide section](#setting-the-version-self-hosted-only).
+
+### Setting the version (self-hosted only)
+
+For cloud-hosted Teleport Enterprise, Managed Updates are enabled by default.
+The `autoupdate_version` resource is managed for you and cannot be edited.
+This ensures your agents are always up-to-date and running the best version
+for your Teleport cluster.
+
+<Admonition type="important">
+Self-hosted Teleport users must specify which version their agents and bots should
+update to via the `autoupdate_version` resource.
+If the resource does not exist, agents and bots will not update.
+</Admonition>
+
+Create a file called `autoupdate_version.yaml` containing:
+
+```yaml
+kind: autoupdate_version
+metadata:
+  name: autoupdate-version
+spec:
+  agents:
+    start_version: 17.2.0
+    target_version: 17.2.1
+    schedule: regular
+    mode: enabled
+```
+
+This resource is used to deploy new versions of Teleport to your agents and bots.
+The cluster will update agents and bots to `target_version` according to the update
+schedule specified in the `autoupdate_config`.
+
+The `start_version` is only used to determine the version used for newly
+connected agents and bots when their update window has not occurred yet.
+This is useful to prevent version drift within groups, but some users may
+prefer to set both version fields to the same version.
+
+Run the following command to create or update the resource:
+
+```code
+$ tctl create -f autoupdate_version.yaml
+```
+
+Changes to `autoupdate_version` can take up to a minute to create a new rollout.
+You can observe the current rollout state with the command:
+
+```code
+$ tctl autoupdate agents status
+Agent autoupdate mode: enabled
+Rollout creation date: 2025-03-10 15:01:45
+Start version: 1.2.3
+Target version: 1.2.4
+Rollout state: Active
+Strategy: halt-on-error
+
+Group Name State     Start Time          State Reason
+---------- --------- ------------------- ------------------------
+dev        Active    2025-03-11 12:00:10 can_start
+stage      Unstarted                     previous_groups_not_done
+prod       Unstarted                     previous_groups_not_done
+```
+
+### Monitoring tbot updates
+
+Unlike the Teleport Agent, tbot does not have a persistent connection to the cluster and cannot be monitored directly
+during upgrades.
+
+However, tbot installation failures are still tracked if tbot is installed alongside a running Teleport Agent.
+
+If a tbot upgrade fails and tbot is installed alongside an agent, both tbot and the agent will be rolled back to the
+previous version, and the update group may be marked as failed.
+If tbot is installed without an agent, tbot will still be rolled back to the previous version, but the upgrade may still
+progress to further groups.
+
+Similarly, tbot installations are only considered candidates for canary installations if they are deployed alongside a
+running Teleport Agent.
+
+## Managing Rollouts
+
+Managed Update groups are automatically progressed as configured by the `autoupdate_config` resource.
+However, it is possible to manually trigger or rollback updates for a selection of groups using `tctl autoupdate agents` commands:
+
+```code
+Commands:
+  autoupdate agents status       Prints agents auto update status.
+  autoupdate agents report       Aggregates the agent autoupdate reports and displays agent count per version and per update group.
+  autoupdate agents start-update Starts updating one or many groups.
+  autoupdate agents mark-done    Marks one or many groups as done updating.
+  autoupdate agents rollback     Rolls back one or many groups.
+```
+
+For example, if an earlier group cannot be started, the other groups can be triggered manually:
+```code
+$ tctl autoupdate agents start-update stage prod
+Started updating agents groups: [stage prod].
+New agent rollout status:
+
+Group Name State     Start Time          State Reason
+---------- --------- ------------------- --------------
+dev        Unstarted                     cannot_start
+stage      Active    2025-03-10 15:04:16 manual_trigger
+prod       Active    2025-03-10 15:04:16 manual_trigger
+```
+
+While individual agents will automatically and immediately rollback if they fail health checks during the update,
+regressions or breaking changes in new versions could make it desirable to rollback an agent update to an earlier version.
+The `tctl autoupdate agents rollback` command can be used to rollback one or more groups to the cluster's `start_version`.
+Rollbacks are immediate and do not wait for canaries to complete.
+
+## Migrating agents on Linux servers to Managed Updates
+
+### Finding unmanaged agents
+
+Use the `tctl inventory ls` command to list connected agents along with their current
+version. Use the `--upgrader=none` flag to list agents that are not enrolled in managed
+updates.
+
+```code
+$ tctl inventory ls --upgrader=none
+Server ID                            Hostname      Services Version Upgrader
+------------------------------------ ------------- -------- ------- --------
+00000000-0000-0000-0000-000000000000 ip-10-1-6-130 Node     v14.4.5 none
+...
+```
+
+Use the `--upgrader=unit` flag to list agents that are using Managed Updates v1
+and should be updated to Managed Updates v2:
+
+```code
+$ tctl inventory ls --upgrader=unit
+Server ID                            Hostname      Services Version Upgrader
+------------------------------------ ------------- -------- ------- --------
+00000000-0000-0000-0000-000000000000 ip-10-1-6-131 Node     v14.4.5 unit
+...
+```
+
+Agents enrolled into Managed Updates v2 can be queried with the
+`--upgrader=binary` flag.
+
+Note that it may take several minutes for newly upgraded agents to be reflected
+in the inventory output.
+
+### Enrolling unmanaged agents
+
+1. For each agent ID returned by the `tctl inventory ls` command, copy the ID
+   and run the following `tctl` command to access the host via `tsh`:
+
+   ```code
+   $ HOST=00000000-0000-0000-0000-000000000000
+   $ USER=root
+   $ tsh ssh "${USER?}@${HOST?}"
+   ```
+
+1. Run `teleport-update enable` on each agent you would like
+   to enroll into Managed Updates v2:
+
+   ```code
+   $ sudo teleport-update enable
+   ```
+
+1. Confirm that the version of the `teleport` binary is the one you expect:
+
+   ```code
+   $ teleport version
+   ```
+
+1. Remove the Managed Updates v1 updater if present:
+
+   <Tabs>
+   <TabItem label="DEB">
+
+   ```code
+   $ sudo apt remove teleport-ent-updater
+   ```
+
+   </TabItem>
+   <TabItem label="RPM">
+
+   ```code
+   $ sudo yum remove teleport-ent-updater
+   ```
+
+   </TabItem>
+   </Tabs>
+
+<details>
+<summary>Running the agent as a non-root user</summary>
+
+If you changed the agent user to run as non-root, create
+`/etc/teleport-upgrade.d/schedule` and grant ownership to your Teleport user:
+
+```code
+$ sudo mkdir -p /etc/teleport-upgrade.d/
+$ sudo touch /etc/teleport-upgrade.d/schedule
+$ sudo chown your-teleport-user /etc/teleport-upgrade.d/schedule
+```
+
+While `teleport-update` does not read this file, `teleport` will warn if it
+cannot disable the Managed Update v1 updater using this file.
+
+</details>
+
+## Enroll Kubernetes agents in Managed Updates
+
+This section assumes that the name of your `teleport-kube-agent` release is
+`teleport-agent`, and that you have installed it in the `teleport` namespace.
+
+1. Add the following chart values to the values file for the
+   `teleport-kube-agent` chart:
+
+   ```yaml
+   updater:
+     enabled: true
+   ```
+
+1. Update the Teleport Helm repository to include any new versions of the
+   `teleport-kube-agent` chart:
+
+   ```code
+   $ helm repo update teleport
+   ```
+
+1. Update the Helm chart release with the new values:
+
+   <Tabs>
+   <TabItem label="Cloud-Hosted">
+
+   ```code
+   $ helm -n <Var name="teleport" />  upgrade <Var name="teleport-agent" /> teleport/teleport-kube-agent \
+   --values=values.yaml \
+   --version="(=cloud.version=)"
+   ```
+   </TabItem>
+   <TabItem label="Self-Hosted">
+
+   ```code
+   $ helm -n <Var name="teleport" />  upgrade <Var name="teleport-agent" /> teleport/teleport-kube-agent \
+   --values=values.yaml \
+   --version="(=teleport.version=)"
+   ```
+   </TabItem>
+   </Tabs>
+
+1. You can validate the updater is running properly by checking if its pod is
+   ready:
+
+   ```code
+   $ kubectl -n teleport-agent get pods
+   NAME                               READY   STATUS    RESTARTS   AGE
+   <your-agent-release>-0                         1/1     Running   0          14m
+   <your-agent-release>-1                         1/1     Running   0          14m
+   <your-agent-release>-2                         1/1     Running   0          14m
+   <your-agent-release>-updater-d9f97f5dd-v57g9   1/1     Running   0          16m
+   ```
+
+1. Check for any deployment issues by checking the updater logs:
+
+   ```code
+   $ kubectl -n <Var name="teleport" /> logs deployment/<Var name="teleport-agent" />-updater
+   2023-04-28T13:13:30Z	INFO	StatefulSet is already up-to-date, not updating.	{"controller": "statefulset", "controllerGroup": "apps", "controllerKind": "StatefulSet", "StatefulSet": {"name":"my-agent","namespace":"agent"}, "namespace": "agent", "name": "my-agent", "reconcileID": "10419f20-a4c9-45d4-a16f-406866b7fc05", "namespacedname": "agent/my-agent", "kind": "StatefulSet", "err": "no new version (current: \"v12.2.3\", next: \"v12.2.3\")"}
+   ```
+
+## GitOps tools
+
+Managed updates for Kubernetes agents requires workarounds when used with GitOps tools for
+continuous deployment. The `teleport-kube-agent` Helm chart owns the version of the
+`teleport-agent` resource, so when the `teleport-agent-updater` modifies the
+image version of the `teleport-agent` resource, the GitOps tool will detect a
+drift or a diff in the `teleport-agent` resource.
+
+The sections below describe workarounds for various GitOps tools.
+
+### ArgoCD deployments
+
+After a managed update, ArgoCD reports the `teleport-agent` resource as `OutOfSync`.
+As a workaround to this problem use
+a [Diff Customization](https://argo-cd.readthedocs.io/en/stable/user-guide/diffing/#diffing-customization)
+to ignore the difference in image version. Here is an example deployment using the
+name `teleport-agent` and namespace `teleport`.
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: teleport-agent
+  namespace: teleport
+spec:
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      name: teleport-agent
+      namespace: teleport
+      jqPathExpressions:
+        - .spec.template.spec.containers[] | select(.name == "teleport").image
+...
+```
+
+### FluxCD deployments
+
+After a managed update, FluxCD reports a `DriftDetected` event. As a workaround
+to this problem modify the [drift detection](https://fluxcd.io/flux/components/helm/helmreleases/#drift-detection)
+configuration to ignore the difference in image version. Here is an example deployment
+using the name `teleport-agent` and namespace `teleport`.
+
+```yaml
+apiVersion: helm.toolkit.fluxcd.io/v2beta2
+kind: HelmRelease
+metadata:
+  name: teleport-agent
+  namespace: teleport
+spec:
+  driftDetection:
+    mode: enabled
+    ignore:
+      - paths: [ "/spec/template/spec/containers/0/image" ]
+        target:
+          kind: StatefulSet
+          name: teleport-agent
+          namespace: teleport
+...
+```
+
+## Troubleshooting
+
+You can inspect the current autoupdate status by running:
+
+```code
+$ tctl autoupdate agents status
+
+Agent autoupdate mode: enabled
+Rollout creation date: 2025-02-24 16:01:44
+Start version: 17.2.0
+Target version: 17.2.1
+Rollout state: Unstarted
+Strategy: time-based
+
+Group Name State     Start Time State Reason
+---------- --------- ---------- --------------
+default    Unstarted            outside_window
+```
+
+This rollout state is computed by each Auth Service instance every minute. An `autoupdate_config` or
+`autoupdate_version`
+change might take up to a minute to be reflected and applied.
+
+Teleport Agents are not updated immediately when a new version of Teleport is
+released, and agent updates can lag behind the cluster by a few days.
+
+If the Teleport Agent has not been automatically updating for several weeks, you
+can consult the updater logs as described above to help troubleshoot the problem.
+
+The `teleport-update status` command provides the best UX for determining how an
+agent is being instructed to update. However, if `teleport-update is not available,
+this information can also be queried directly from the Teleport cluster using `curl`:
+
+```code
+$ curl -s https://teleport.example.com/webapi/find | jq .auto_update
+{
+  ...
+  "agent_version": "18.2.7",         # version that the agent should update to (also used for new agents)
+  "agent_auto_update": false,        # true if in window and the agent should update now
+  "agent_update_jitter_seconds": 60  # jitter to reduce load on the cluster and CDN
+}
+```
+
+This may be tuned for a specific agent using the `group` and `update_id` params:
+```code
+$ curl -s https://teleport.example.com/webapi/find?group=staging&update_id=$(</tmp/teleport-update.id) | jq .auto_update
+{
+  ...
+  "agent_version": "18.2.8",
+  "agent_auto_update": true,
+  "agent_update_jitter_seconds": 60
+}
+```
+
+
+### Troubleshooting managed agent upgrades on Kubernetes
+
+The updater is a controller that periodically reconciles expected Kubernetes
+resources with those in the cluster. The updater executes a reconciliation loop
+every 30 minutes or in response to a Kubernetes event. If you don't want to wait
+until the next reconciliation, you can trigger an event.
+
+1. Any deployment update will send an event, so you can trigger the upgrader by
+   annotating the resource:
+
+   ```code
+   $ kubectl -n <Var name="teleport" /> annotate statefulset/<Var name="teleport-agent" /> 'debug.teleport.dev/trigger-event=1'
+   ```
+
+1. To suspend Managed Updates for an agent, annotate the agent deployment
+   with `teleport.dev/skipreconcile: "true"`, either by setting the
+   `annotations.deployment` value in Helm, or by patching the deployment
+   directly with `kubectl`.
+
+### Troubleshooting managed agent upgrades on Linux
+
+1. You can query the updater status by running:
+
+   ```code
+   $ teleport-update status
+   proxy: teleport.example.com:443
+   path: /usr/local/bin
+   base_url: https://cdn.teleport.dev
+   enabled: true
+   pinned: false
+   active:
+       version: 17.2.0
+       flags: [Enterprise]
+   target:
+       version: 17.2.1
+       flags: [Enterprise]
+   in_window: false
+   jitter: 1m0s
+   ```
+
+   Here, the local active version is 17.2.0. The cluster's target version is
+   17.2.1, but we are not in an update window, so the agent is not immediately
+   updated.
+
+1. If an agent is not automatically updated, you can invoke the updater
+   manually and look at its logs:
+
+   ```code
+   $ sudo teleport-update update --now
+   ```
+
+### Using a different CDN URL
+
+If your agents cannot reach the default Teleport CDN URL (`cdn.teleport.dev`), they will be unable to download updates.
+
+Here are a couple of potential solutions to this issue:
+
+#### Use an HTTP CONNECT proxy
+
+If you configure the `HTTPS_PROXY` variable in the `teleport-update` process's environment, it will use this proxy to
+pull updates.
+
+The easiest way to configure a proxy with a default install is to add this variable to
+`/etc/systemd/system/teleport-update.service.d/override.conf`:
+
+```bash
+$ sudo mkdir -p /etc/systemd/system/teleport-update.service.d
+$ sudo tee -a /etc/systemd/system/teleport-update.service.d/override.conf > /dev/null <<'EOF'
+[Service]
+Environment=HTTPS_PROXY=http://proxy-url:3128
+EOF
+```
+
+You can view the `teleport-update` process logs with `sudo journalctl -u teleport-update.service`.
+
+#### Mirror the Teleport tarball packages and change the base-url
+
+If you can mirror the Teleport tarball installers somewhere that your agents are able to access, you can change the
+`base-url`
+used by Teleport updaters so they can pull them directly.
+
+To change the `base-url`, you should add the `-b` or `--base-url` flag to the `teleport-update enable` command:
+
+```bash
+$ sudo teleport-update enable --base-url https://teleport.artifactory.company.local
+```
+
+It is safe to re-run `sudo teleport-update enable` to modify the base URL.
+Existing updater settings will be preserved if not explicitly overridden by flags.
+
+More information about flags that can be used with `teleport-update enable` can be
+found [here](../../reference/cli/teleport-update.mdx#teleport-update-enable)

@@ -257,6 +257,18 @@ func (c *Client) IterateGroupMembers(ctx context.Context, groupID string, f func
 	return trace.Wrap(itErr)
 }
 
+// IterateGroupOwners lists Microsoft Entra ID group owners.
+// Group owners are of User object type and can be either User
+// or Service Principals. Teleport only supports User as group owners.
+// `f` will be called for each object in the result set.
+// if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
+// Ref: [https://learn.microsoft.com/en-us/graph/api/group-list-owners?view=graph-rest-1.0].
+func (c *Client) IterateGroupOwners(ctx context.Context, groupID string, f func(*User) bool, opts ...IterateOpt) error {
+	// Group owners of user type is requested by
+	// using "microsoft.graph.user" OData cast.
+	return iterateSimple(c, ctx, path.Join("groups", groupID, "owners", "microsoft.graph.user"), f, opts...)
+}
+
 const (
 	graphNamespaceGroups         = "microsoft.graph.group"
 	graphNamespaceDirectoryRoles = "microsoft.graph.directoryRole"

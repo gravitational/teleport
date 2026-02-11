@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.scopes.joining.v1;
 
+import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1";
@@ -42,12 +43,171 @@ message ScopedToken {
 
   // Spec is the token specification.
   ScopedTokenSpec spec = 6;
+
+  // The status of a scoped token.
+  ScopedTokenStatus status = 7;
 }
 
 // ScopedTokenSpec is the specification of a scoped token.
 message ScopedTokenSpec {
-  // AssignedScope is the scope to which this token is assigned.
+  // The scope to which this token is assigned.
   string assigned_scope = 1;
 
-  // TODO(fspmarshall): port relevant token features to scoped tokens.
+  // The list of roles associated with the token. They will be converted
+  // to metadata in the SSH and X509 certificates issued to the user of the
+  // token.
+  repeated string roles = 2;
+
+  // The joining method required in order to use this token.
+  // Supported joining methods for scoped tokens only include 'token'.
+  string join_method = 3;
+
+  // The usage mode of the token. Can be "single_use" or "unlimited". Single use
+  // tokens can only be used to provision a single resource. Unlimited tokens
+  // can be be used to provision any number of resources until it expires.
+  string usage_mode = 4;
+
+  // Immutable labels that should be applied to any resulting resources provisioned
+  // using this token.
+  ImmutableLabels immutable_labels = 5;
+
+  // The AWS-specific configuration used with the "ec2" and "iam" join methods.
+  AWS aws = 6;
+
+  // The GCP-specific configuration used with the "gcp" join method.
+  GCP gcp = 7;
+}
+
+// The host certificate parameters that should be cached and leveraged for
+// token reuse
+message HostCertParams {
+  // The host ID generated for the host.
+  string host_id = 1;
+  // The host's name.
+  string node_name = 2;
+  // The system role of the host
+  string role = 3;
+  // The additional principals to include
+  repeated string additional_principals = 4;
+  // The scope to assign the host to.
+  string assigned_scope = 5;
+}
+
+// The usage status of a single use scoped token.
+message SingleUseStatus {
+  // The timestamp representing when a single use token was successfully used for
+  // provisioning.
+  google.protobuf.Timestamp used_at = 1;
+  // The timestamp representing when a single use token should no longer be avaialable
+  // for idempotent retries.
+  google.protobuf.Timestamp reusable_until = 2;
+  // The fingerprint of the public key provided by the host that used the token.
+  bytes used_by_fingerprint = 3;
+  // The relevant host parameters provided while initially using a single use token.
+  HostCertParams host_cert_params = 4;
+}
+
+// The usage status of a scoped token.
+message UsageStatus {
+  // The usage status of a scoped token.
+  oneof status {
+    // The usage status of a single use scoped token.
+    SingleUseStatus single_use = 1;
+  }
+}
+
+// The status of a scoped token.
+message ScopedTokenStatus {
+  // The secret that must be provided as part of the challenge when joining using
+  // the token join method.
+  string secret = 1;
+  // The usage status of the scoped token.
+  UsageStatus usage = 2;
+}
+
+// A set of configurations for immutable labels.
+message ImmutableLabels {
+  // Labels that should be applied to SSH nodes.
+  map<string, string> ssh = 1;
+}
+
+// The resource representing static scoped tokens defined in the auth service file configuration. These are
+// represented as a separate resource so that they can be managed separately from dynamic scoped tokens as
+// a singleton.
+message StaticScopedTokens {
+  // The resource kind.
+  string kind = 1;
+
+  // The resource sub-kind.
+  string sub_kind = 2;
+
+  // The resource version.
+  string version = 3;
+
+  // The resource metadata.
+  teleport.header.v1.Metadata metadata = 4;
+
+  // The scope of the resource.
+  string scope = 5;
+
+  // The resource specification.
+  StaticScopedTokensSpec spec = 6;
+}
+
+// The specification representing the static scoped tokens
+// resource.
+message StaticScopedTokensSpec {
+  // The statically parsed scoped tokens.
+  repeated ScopedToken tokens = 1;
+}
+
+// The AWS-specific configuration used with the "ec2" and "iam" join methods.
+message AWS {
+  // A rule that a joining node must match in order to use the associated token
+  // with AWS join methods.
+  message Rule {
+    // The AWS account ID.
+    string aws_account = 1;
+    // List of AWS regions a node is allowed to join from when using the
+    // EC2 join method.
+    repeated string aws_regions = 2;
+    // The ARN of the role the Auth Service will assume in order to call the
+    // EC2 API when using the EC2 join method.
+    string aws_role = 3;
+    // The ARN of the joining identity for use with the IAM join method.
+    // Supports wildcards "*" and "?".
+    string aws_arn = 4;
+    // The organization ID that the joining AWS identity must belong to
+    // when using the IAM join method.
+    string aws_organization_id = 5;
+  }
+
+  // A list of Rules for allowing use of this token. A node must match at least one
+  // allow rule in order to use this token.
+  repeated Rule allow = 1;
+
+  // The TTL to use for AWS EC2 Instance Identity Documents used
+  // to join the cluster with this token.
+  int64 aws_iid_ttl = 2;
+
+  // Integration name which provides credentials for validating join attempts.
+  // Currently only in use for validating the AWS Organization ID in the IAM Join method.
+  string integration = 3;
+}
+
+// The GCP-specific configuration used with the "gcp" join method.
+message GCP {
+  // A rule that a joining node must match in order to use the associated token
+  // with the "gcp" join method.
+  message Rule {
+    // A list of project IDs (e.g. `<example-id-123456>`).
+    repeated string project_ids = 1;
+    // A list of regions (e.g. "us-west1") and/or zones (e.g. "us-west1-b").
+    repeated string locations = 2;
+    // A list of service account emails (e.g. `<project-number>-compute@developer.gserviceaccount.com`).
+    repeated string service_accounts = 3;
+  }
+  // A list of Rules for allowing use of this token. A node must match at least one
+  // allow rule in order to use this token.
+  repeated Rule allow = 1;
 }

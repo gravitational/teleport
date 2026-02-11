@@ -35,9 +35,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	grpcmetrics "github.com/gravitational/teleport/lib/observability/metrics/grpc"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/config/joinuri"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/diagnostics"
@@ -52,11 +54,12 @@ import (
 	workloadidentitysvc "github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/process"
 )
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot")
 
-var clientMetrics = metrics.CreateGRPCClientMetrics(
+var clientMetrics = grpcmetrics.CreateGRPCClientMetrics(
 	false,
 	prometheus.Labels{},
 )
@@ -170,17 +173,42 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		)
 	}
 
+	if b.cfg.DiagSocketForUpdater != "" {
+		services = append(services,
+			diagnostics.ServiceBuilder(diagnostics.Config{
+				Address: b.cfg.DiagSocketForUpdater,
+				Network: "unix",
+				Logger: b.log.With(
+					teleport.ComponentKey,
+					teleport.Component(teleport.ComponentTBot, "diagnostics-updater"),
+				),
+			}),
+		)
+	}
+
+	// create the new pid file only after started successfully
+	if b.cfg.PIDFile != "" {
+		if err := process.CreateLockedPIDFile(b.cfg.PIDFile); err != nil {
+			return trace.Wrap(err, "creating pidfile")
+		}
+	}
+
 	// This faux service allows us to get the bot's internal identity and client
 	// for tests, without exposing them on the core bot.Bot struct.
-	services = append(services, func(deps bot.ServiceDependencies) (bot.Service, error) {
-		b.mu.Lock()
-		defer b.mu.Unlock()
+	if b.cfg.Testing {
+		services = append(services,
+			bot.NewServiceBuilder("internal/client-fetcher", "client-fetcher",
+				func(deps bot.ServiceDependencies) (bot.Service, error) {
+					b.mu.Lock()
+					defer b.mu.Unlock()
 
-		b.identity = deps.BotIdentity
-		b.client = deps.Client
+					b.identity = deps.BotIdentity
+					b.client = deps.Client
 
-		return bot.NewNopService("client-fetcher"), nil
-	})
+					return bot.NewNopService("client-fetcher"), nil
+				}),
+		)
+	}
 
 	// We only want to create this service if it's needed by a dependent
 	// service.
@@ -193,7 +221,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			return trustBundleCache
 		}
 		trustBundleCache = workloadidentity.NewTrustBundleCacheFacade()
-		services = append(services, trustBundleCache.BuildService)
+		services = append(services, trustBundleCache.Builder())
 		return trustBundleCache
 	}
 
@@ -206,7 +234,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			return crlCache
 		}
 		crlCache = workloadidentity.NewCRLCacheFacade()
-		services = append(services, crlCache.BuildService)
+		services = append(services, crlCache.Builder())
 		return crlCache
 	}
 
@@ -259,6 +287,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	}
 
 	bt, err := bot.New(bot.Config{
+		Kind:               bot.KindTbot,
 		Connection:         b.cfg.ConnectionConfig(),
 		Onboarding:         b.cfg.Onboarding,
 		InternalStorage:    b.cfg.Storage.Destination,
@@ -288,12 +317,12 @@ func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 	defer func() { apitracing.EndSpan(span, err) }()
 
 	if b.cfg.JoinURI != "" {
-		parsed, err := config.ParseJoinURI(b.cfg.JoinURI)
+		parsed, err := joinuri.Parse(b.cfg.JoinURI)
 		if err != nil {
 			return nil, trace.Wrap(err, "parsing joining URI")
 		}
 
-		if err := parsed.ApplyToConfig(b.cfg); err != nil {
+		if err := config.ApplyJoinURIToConfig(parsed, b.cfg); err != nil {
 			return nil, trace.Wrap(err, "applying joining URI to bot config")
 		}
 	}

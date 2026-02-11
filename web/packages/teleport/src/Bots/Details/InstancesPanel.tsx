@@ -27,18 +27,23 @@ import Flex from 'design/Flex/Flex';
 import { SortAscending, SortDescending } from 'design/Icon';
 import { Indicator } from 'design/Indicator/Indicator';
 import Text from 'design/Text';
+import { SortOrder } from 'shared/components/Controls/SortMenu';
 
 import { listBotInstances } from 'teleport/services/bot/bot';
+import { BotInstanceSummary } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
 
 import { Instance } from './Instance';
 import { PanelTitleText } from './Panel';
 
-export function InstancesPanel(props: { botName: string }) {
-  const { botName } = props;
+export function InstancesPanel(props: {
+  botName: string;
+  onItemSelected: (instance: BotInstanceSummary) => void;
+}) {
+  const { botName, onItemSelected } = props;
 
   const [sortField] = useState('active_at_latest');
-  const [sortDir, setSortDir] = useState<'ASC' | 'DESC'>('DESC');
+  const [sortDir, setSortDir] = useState<SortOrder>('DESC');
 
   const contentRef = React.useRef<HTMLDivElement>(null);
 
@@ -83,6 +88,10 @@ export function InstancesPanel(props: { botName: string }) {
   useEffect(() => {
     contentRef.current?.scrollTo({ top: 0, behavior: 'instant' });
   }, [sortField, sortDir]);
+
+  const makeOnSelectedCallback = (instance: BotInstanceSummary) => () => {
+    onItemSelected(instance);
+  };
 
   return (
     <Container>
@@ -138,6 +147,8 @@ export function InstancesPanel(props: { botName: string }) {
                         method: instance.join_method_latest,
                         os: instance.os_latest,
                       }}
+                      isSelectable
+                      onSelected={makeOnSelectedCallback(instance)}
                     />
                   </React.Fragment>
                 ))

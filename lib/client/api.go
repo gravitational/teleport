@@ -539,24 +539,6 @@ type CachePolicy struct {
 	NeverExpires bool
 }
 
-// MakeDefaultConfig returns default client config.
-// If store is not provided, it will default to in-memory storage without
-// hardware key support. This should only be used with static auth methods
-// (TLS and AuthMethods fields).
-func MakeDefaultConfig(store *Store) *Config {
-	if store == nil {
-		store = NewMemClientStore()
-	}
-	return &Config{
-		Stdout:         os.Stdout,
-		Stderr:         os.Stderr,
-		Stdin:          os.Stdin,
-		AddKeysToAgent: AddKeysToAgentAuto,
-		Tracer:         tracing.NoopProvider().Tracer("TeleportClient"),
-		ClientStore:    store,
-	}
-}
-
 func (c *Config) CheckAndSetDefaults() error {
 	if c.ClientStore == nil {
 		if c.TLS == nil && c.AuthMethods == nil {
@@ -1414,38 +1396,12 @@ func (tc *TeleportClient) LoadKeyForCluster(ctx context.Context, clusterName str
 	return nil
 }
 
-// LoadKeyForClusterWithReissue fetches a cluster-specific SSH key and loads it into the
-// SSH agent.  If the key is not found, it is requested to be reissued.
-func (tc *TeleportClient) LoadKeyForClusterWithReissue(ctx context.Context, clusterName string) error {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/LoadKeyForClusterWithReissue",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(attribute.String("cluster", clusterName)),
-	)
-	defer span.End()
-
-	err := tc.LoadKeyForCluster(ctx, clusterName)
-	if err == nil {
-		return nil
-	}
-	if !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	// Reissuing also loads the new key.
-	err = tc.ReissueUserCerts(ctx, CertCacheKeep, ReissueParams{RouteToCluster: clusterName})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 // SignersForClusterWithReissue fetches cluster-specific signers from stored certificates.
 // If the cluster certificates are not found, it is requested to be reissued.
 func (tc *TeleportClient) SignersForClusterWithReissue(ctx context.Context, clusterName string) ([]ssh.Signer, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
-		"teleportClient/LoadKeyForClusterWithReissue",
+		"teleportClient/SignersForClusterWithReissue",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(attribute.String("cluster", clusterName)),
 	)
@@ -1680,7 +1636,7 @@ func (tc *TeleportClient) GetTargetNode(ctx context.Context, clt authclient.Clie
 		Labels:              tc.Labels,
 	})
 	switch {
-	//TODO(tross): DELETE IN v20.0.0
+	// TODO(tross): DELETE IN v20.0.0
 	case trace.IsNotImplemented(err):
 		resources, err := client.GetAllUnifiedResources(ctx, clt, &proto.ListUnifiedResourcesRequest{
 			Kinds:               []string{types.KindNode},
@@ -2421,7 +2377,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 			return trace.Wrap(err)
 		}
 	} else if services.IsRecordAtProxy(recConfig.GetMode()) {
-		return trace.BadParameter("session joining is not supported in proxy recording mode")
+		return trace.BadParameter("session joining is not supported in proxy recording mode. If you are a Teleport administrator, you can learn more about recording modes at: https://goteleport.com/docs/reference/architecture/session-recording")
 	}
 
 	session, err := clt.AuthClient.GetSessionTracker(ctx, string(sessionID))
@@ -2613,7 +2569,7 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 		}
 	}
 
-	if err := player.Err(); err != nil {
+	if err := player.Err(); err != nil && !errors.Is(err, io.EOF) {
 		return trace.Wrap(err)
 	}
 
@@ -2935,7 +2891,7 @@ func (tc *TeleportClient) ListDatabases(ctx context.Context, customFilter *proto
 
 // roleGetter retrieves roles for the current user
 type roleGetter interface {
-	GetRoles(ctx context.Context) ([]types.Role, error)
+	GetCurrentUserRoles(ctx context.Context) ([]types.Role, error)
 }
 
 // commandLimit determines how many commands may be executed in parallel.
@@ -2951,7 +2907,7 @@ func commandLimit(ctx context.Context, getter roleGetter, mfaRequired bool) int 
 		return 1
 	}
 
-	roles, err := getter.GetRoles(ctx)
+	roles, err := getter.GetCurrentUserRoles(ctx)
 	if err != nil {
 		return 1
 	}
@@ -3028,7 +2984,9 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 	resultsCh := make(chan execResult, len(nodes))
 
 	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(commandLimit(ctx, clt.AuthClient, mfaRequiredCheck.Required))
+	cmdLimit := commandLimit(ctx, clt.AuthClient, mfaRequiredCheck.Required)
+	log.DebugContext(ctx, "Applying command limit", "limit", cmdLimit, "mfa_required", mfaRequiredCheck.Required)
+	g.SetLimit(cmdLimit)
 
 	// Get the width of the terminal so we can wrap properly.
 	var width int
@@ -5324,8 +5282,8 @@ func InsecureSkipHostKeyChecking(host string, remote net.Addr, key ssh.PublicKey
 	return nil
 }
 
-// isFIPS returns if the binary was build with BoringCrypto, which implies
-// FedRAMP/FIPS 140-2 mode for tsh.
+// isFIPS returns if the binary was built with a FIPS validated
+// module, which implies FedRAMP/FIPS mode for tsh.
 func isFIPS() bool {
 	return modules.GetModules().IsBoringBinary()
 }
@@ -5596,78 +5554,6 @@ func (tc *TeleportClient) DialALPN(ctx context.Context, clientCert tls.Certifica
 	return tlsConn, nil
 }
 
-// DialMCPServer makes a connection to the remote MCP server.
-func (tc *TeleportClient) DialMCPServer(ctx context.Context, appName string) (net.Conn, error) {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/DialMCPServer",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(
-			attribute.String("app", appName),
-		),
-	)
-	defer span.End()
-
-	apps, err := tc.ListApps(ctx, &proto.ListResourcesRequest{
-		ResourceType:        types.KindAppServer,
-		Namespace:           apidefaults.Namespace,
-		PredicateExpression: fmt.Sprintf("name == %q", strings.TrimSpace(appName)),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	switch len(apps) {
-	case 0:
-		return nil, trace.NotFound("no MCP servers found")
-	case 1:
-	default:
-		log.WarnContext(ctx, "multiple apps found, using the first one")
-	}
-	if !apps[0].IsMCP() {
-		return nil, trace.BadParameter("app %q is not a MCP server", appName)
-	}
-
-	// TODO(greedy52) support streamable HTTP for "tsh mcp connect" before
-	// release.
-	if transport := types.GetMCPServerTransportType(apps[0].GetURI()); transport == types.MCPTransportHTTP {
-		return nil, trace.NotImplemented("MCP support for %s is not yet implemented", transport)
-	}
-
-	cert, err := tc.issueMCPCertWithMFA(ctx, apps[0])
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return tc.DialALPN(ctx, cert, alpncommon.ProtocolMCP)
-}
-
-func (tc *TeleportClient) issueMCPCertWithMFA(ctx context.Context, mcpServer types.Application) (tls.Certificate, error) {
-	profile, err := tc.ProfileStatus()
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
-	appCertParams := ReissueParams{
-		RouteToCluster: tc.SiteName,
-		RouteToApp: proto.RouteToApp{
-			Name:        mcpServer.GetName(),
-			PublicAddr:  mcpServer.GetPublicAddr(),
-			ClusterName: tc.SiteName,
-			URI:         mcpServer.GetURI(),
-		},
-		AccessRequests: profile.ActiveRequests,
-	}
-
-	// Do NOT write the keyring to avoid race condition when AI clients run
-	// multiple tsh at the same time.
-	keyRing, err := tc.IssueUserCertsWithMFA(ctx, appCertParams)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
-	cert, err := keyRing.AppTLSCert(mcpServer.GetName())
-	return cert, trace.Wrap(err)
-}
-
 // DialDatabase makes a remote connection to the database.
 //
 // TODO(gabrielcorado): support acccess requests connections.
@@ -5705,6 +5591,11 @@ func (tc *TeleportClient) DialDatabase(ctx context.Context, route proto.RouteToD
 	}
 
 	return tc.DialALPN(ctx, cert, alpnProtocol)
+}
+
+// GetSiteName returns the cluster name this client instance is targeting.
+func (tc *TeleportClient) GetSiteName() string {
+	return tc.SiteName
 }
 
 // CalculateSSHLogins returns the subset of the allowedLogins that exist in

@@ -20,6 +20,7 @@ package config
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/tls"
 	"encoding/base64"
@@ -38,10 +39,13 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -50,6 +54,8 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -502,9 +508,10 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 
 // JoinParams configures the parameters for Simplified Node Joining.
 type JoinParams struct {
-	TokenName string           `yaml:"token_name"`
-	Method    types.JoinMethod `yaml:"method"`
-	Azure     AzureJoinParams  `yaml:"azure,omitempty"`
+	TokenName   string           `yaml:"token_name"`
+	TokenSecret string           `yaml:"token_secret,omitempty"`
+	Method      types.JoinMethod `yaml:"method"`
+	Azure       AzureJoinParams  `yaml:"azure,omitempty"`
 }
 
 // AzureJoinParams configures the parameters specific to the Azure join method.
@@ -643,6 +650,9 @@ type Global struct {
 
 	// DiagAddr is the address to expose a diagnostics HTTP endpoint.
 	DiagAddr string `yaml:"diag_addr"`
+
+	// AuthConnectionConfig defines the parameters used to connect to the Auth Service.
+	AuthConnectionConfig AuthConnectionConfig `yaml:"auth_connection_config,omitempty"`
 }
 
 // CachePolicy is used to control  local cache
@@ -676,6 +686,30 @@ func (c *CachePolicy) Parse() (*servicecfg.CachePolicy, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &out, nil
+}
+
+// AuthConnectionConfig defines the parameters used to connect to the Auth Service.
+type AuthConnectionConfig struct {
+	// UpperLimitBetweenRetries is the upper limit for how long to wait between retries.
+	UpperLimitBetweenRetries time.Duration `yaml:"upper_limit_between_retries,omitempty"`
+	// InitialConnectionDelay is the initial delay before the first retry attempt.
+	// The retry logic will apply jitter to this duration.
+	InitialConnectionDelay time.Duration `yaml:"initial_connection_delay,omitempty"`
+	// BackoffStepDuration is the amount of time added to the retry delay.
+	BackoffStepDuration time.Duration `yaml:"backoff_step_duration,omitempty"`
+}
+
+// Parse parses [servicecfg.AuthConnectionConfig] from Teleport config
+func (c *AuthConnectionConfig) Parse() (*servicecfg.AuthConnectionConfig, error) {
+	out := &servicecfg.AuthConnectionConfig{
+		UpperLimitBetweenRetries: c.UpperLimitBetweenRetries,
+		InitialConnectionDelay:   c.InitialConnectionDelay,
+		BackoffStepDuration:      c.BackoffStepDuration,
+	}
+	if err := out.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err, "failed to parse auth_connection_config")
+	}
+	return out, nil
 }
 
 // Service is a common configuration of a teleport service
@@ -734,6 +768,9 @@ type Auth struct {
 	// for example: "auth,proxy,node:MTIzNGlvemRmOWE4MjNoaQo"
 	StaticTokens StaticTokens `yaml:"tokens,omitempty"`
 
+	// StaticScopedTokens are pre-defined, scoped host provisioning tokens supplied via config file
+	// for environments where paranoid security is not needed
+	StaticScopedTokens StaticScopedTokens `yaml:"scoped_tokens,omitempty"`
 	// Authentication holds authentication configuration information like authentication
 	// type, second factor type, specific connector information, etc.
 	Authentication *AuthenticationConfig `yaml:"authentication,omitempty"`
@@ -906,6 +943,8 @@ type CAKeyParams struct {
 	// AWSKMS configures AWS Key Management Service to to be used for
 	// all CA private key crypto operations.
 	AWSKMS *AWSKMS `yaml:"aws_kms,omitempty"`
+	// HealthCheck contains configuration for keystore health checking.
+	HealthCheck *servicecfg.KeystoreHealthCheck `yaml:"health_check,omitempty"`
 }
 
 // PKCS11 configures a PKCS#11 HSM to be used for private key generation and
@@ -1019,6 +1058,9 @@ func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if roles.Include(types.RoleBot) {
+		return nil, trace.BadParameter("role %q is not allowed in static token configuration", types.RoleBot)
+	}
 
 	tokenPart, err := utils.TryReadValueAsFile(parts[1])
 	if err != nil {
@@ -1035,6 +1077,104 @@ func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
 		})
 	}
 	return provisionTokens, nil
+}
+
+// StaticScopedTokens is the list of [StaticScopedToken] configurations that
+// should be used to generate the auth service's [joiningv1.StaticScopedTokens]
+// resource.
+type StaticScopedTokens []StaticScopedToken
+
+func (t StaticScopedTokens) Parse() (*joiningv1.StaticScopedTokens, error) {
+	var scopedTokens []*joiningv1.ScopedToken
+	for _, st := range t {
+		if err := st.Validate(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if st.Path != "" {
+			tokenDef, err := os.ReadFile(st.Path)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			if err := yaml.Unmarshal(tokenDef, &st); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		roles, err := types.NewTeleportRoles(st.Roles)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		scopedToken := &joiningv1.ScopedToken{
+			Version: types.V1,
+			Kind:    types.KindScopedToken,
+			Metadata: &headerv1.Metadata{
+				Name:    st.Name,
+				Expires: timestamppb.New(time.Unix(0, 0).UTC()),
+			},
+			Scope: scopes.Root,
+			Spec: &joiningv1.ScopedTokenSpec{
+				Roles:         roles.StringSlice(),
+				AssignedScope: st.Scope,
+				JoinMethod:    string(types.JoinMethodToken),
+				UsageMode:     string(joining.TokenUsageModeUnlimited),
+			},
+			Status: &joiningv1.ScopedTokenStatus{
+				Secret: st.Secret,
+			},
+		}
+
+		if err := joining.StrongValidateToken(scopedToken); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		scopedTokens = append(scopedTokens, scopedToken)
+	}
+
+	return &joiningv1.StaticScopedTokens{
+		Version: types.V1,
+		Kind:    types.KindStaticScopedTokens,
+		Scope:   scopes.Root,
+		Metadata: &headerv1.Metadata{
+			Name: types.MetaNameStaticScopedTokens,
+		},
+		Spec: &joiningv1.StaticScopedTokensSpec{
+			Tokens: scopedTokens,
+		},
+	}, nil
+}
+
+// ImmutableLabels capture yaml configuration used to generate [joiningv1.ImmutableLabels].
+type ImmutableLabels struct {
+	SSH map[string]string `yaml:"ssh"`
+}
+
+// StaticScopedToken is a statically defined scoped token. It is meant to capture
+// yaml configuration that can be used to generate a [joiningv1.ScopedToken].
+type StaticScopedToken struct {
+	Name            string           `yaml:"name"`
+	Secret          string           `yaml:"secret"`
+	Roles           []string         `yaml:"roles"`
+	Scope           string           `yaml:"scope"`
+	Path            string           `yaml:"path"`
+	ImmutableLabels *ImmutableLabels `yaml:"immutable_labels"`
+}
+
+// Validate whether or not a [StaticScopedToken] is well formed.
+//
+// Returns an error if both the "path" field is defined alongside any of
+// the other fields.
+func (s StaticScopedToken) Validate() error {
+	isPathToken := s.Path != ""
+	isDefinedToken := s.Name != "" || s.Secret != "" || s.Roles != nil || s.Scope != ""
+
+	if isPathToken && isDefinedToken {
+		return trace.BadParameter("A static_scoped_token must either define a path to a yaml file describing the token or the token definition itself, but not both")
+	}
+
+	return nil
 }
 
 // AuthenticationConfig describes the auth_service/authentication section of teleport.yaml
@@ -1637,6 +1777,17 @@ type AccessGraphAWSSync struct {
 	// CloudTrailLogs is the configuration for the SQS queue to poll for
 	// CloudTrail logs.
 	CloudTrailLogs *AccessGraphAWSSyncCloudTrailLogs `yaml:"cloud_trail_logs,omitempty"`
+	// EKSAuditLogs is the configuration for fetching audit logs for EKS
+	// clusters discovered.
+	EKSAuditLogs *AccessGraphEKSAuditLogs `yaml:"eks_audit_logs,omitempty"`
+}
+
+// AccessGraphEKSAuditLogs is the configuration for fetching audit logs from
+// clusters discovered for access graph.
+type AccessGraphEKSAuditLogs struct {
+	// Tags are AWS EKS tags to match. Clusters that have tags that match these
+	// will have their audit logs fetched and sent to Access Graph.
+	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 }
 
 // AccessGraphAzureSync represents the configuration for the Azure AccessGraph Sync service.
@@ -1784,6 +1935,8 @@ type AWSMatcher struct {
 	Regions []string `yaml:"regions,omitempty"`
 	// AssumeRoleARN is the AWS role to assume for database discovery.
 	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
+	// AssumeRoleName is the AWS role name to assume for discovery.
+	AssumeRoleName string `yaml:"assume_role_name,omitempty"`
 	// ExternalID is the AWS external ID to use when assuming a role for
 	// database discovery in an external AWS account.
 	ExternalID string `yaml:"external_id,omitempty"`
@@ -1803,6 +1956,34 @@ type AWSMatcher struct {
 	KubeAppDiscovery bool `yaml:"kube_app_discovery"`
 	// SetupAccessForARN is the role that the discovery service should create EKS Access Entries for.
 	SetupAccessForARN string `yaml:"setup_access_for_arn"`
+	// Organization is an AWS Organization matcher for discovering resources across multiple accounts under an Organization.
+	Organization *AWSOrganizationMatcher `yaml:"organization,omitempty"`
+}
+
+// AWSOrganizationMatcher specifies an Organization and rules for discovering accounts under that organization.
+type AWSOrganizationMatcher struct {
+	// OrganizationID is the AWS Organization ID to match against.
+	// Required.
+	OrganizationID string `yaml:"organization_id,omitempty"`
+
+	// OrganizationalUnits contains rules for matchings AWS accounts based on their Organizational Units.
+	OrganizationalUnits AWSOrganizationUnitsMatcher `yaml:"organizational_units,omitempty"`
+}
+
+// AWSOrganizationUnitsMatcher contains rules for matching accounts under an Organization.
+// Accounts that belong to an excluded Organizational Unit, and its children, will be excluded even if they were included.
+type AWSOrganizationUnitsMatcher struct {
+	// Include is a list of AWS Organizational Unit IDs and children OUs to include.
+	// Accounts that belong to these OUs, and their children, will be included.
+	// Only exact matches or wildcard (*) are supported.
+	// Required.
+	Include []string `yaml:"include,omitempty"`
+
+	// Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude.
+	// Accounts that belong to these OUs, and their children, will be excluded, even if they were included.
+	// Only exact matches are supported.
+	// Optional. If empty, no OUs are excluded.
+	Exclude []string `yaml:"exclude,omitempty"`
 }
 
 // InstallParams sets join method to use on discovered nodes
@@ -1834,6 +2015,20 @@ type InstallParams struct {
 	// This value is used to group installations in order to update them in batches.
 	// See --group flag in teleport-update program.
 	UpdateGroup string `yaml:"update_group,omitempty"`
+	// HTTPProxySettings configures HTTP proxy settings for the installation.
+	HTTPProxySettings *HTTPProxySettings `yaml:"http_proxy_settings,omitempty"`
+}
+
+// HTTPProxySettings configures HTTP proxy settings for the installation.
+// When set, the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables will be set when executing the installation script.
+type HTTPProxySettings struct {
+	// HTTPProxy is the HTTP proxy URL.
+	HTTPProxy string `yaml:"http_proxy,omitempty"`
+	// HTTPSProxy is the HTTPS proxy URL.
+	HTTPSProxy string `yaml:"https_proxy,omitempty"`
+	// NoProxy is a comma-separated list of hosts that should be excluded
+	// from proxying.
+	NoProxy string `yaml:"no_proxy,omitempty"`
 }
 
 const (
@@ -1843,7 +2038,7 @@ const (
 
 var validInstallEnrollModes = []string{installEnrollModeEICE, installEnrollModeScript}
 
-func (ip *InstallParams) parse() (*types.InstallerParams, error) {
+func (ip *InstallParams) parse(defaultProxyAddr string) (*types.InstallerParams, error) {
 	install := &types.InstallerParams{
 		JoinMethod:      ip.JoinParams.Method,
 		JoinToken:       ip.JoinParams.TokenName,
@@ -1853,6 +2048,19 @@ func (ip *InstallParams) parse() (*types.InstallerParams, error) {
 		EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED,
 		Suffix:          ip.Suffix,
 		UpdateGroup:     ip.UpdateGroup,
+		PublicProxyAddr: cmp.Or(ip.PublicProxyAddr, defaultProxyAddr),
+	}
+
+	if ip.HTTPProxySettings != nil {
+		install.HTTPProxySettings = &types.HTTPProxySettings{
+			HTTPProxy:  ip.HTTPProxySettings.HTTPProxy,
+			HTTPSProxy: ip.HTTPProxySettings.HTTPSProxy,
+			NoProxy:    ip.HTTPProxySettings.NoProxy,
+		}
+
+		if err := install.HTTPProxySettings.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	switch ip.EnrollMode {
@@ -1864,6 +2072,12 @@ func (ip *InstallParams) parse() (*types.InstallerParams, error) {
 		install.EnrollMode = types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED
 	default:
 		return nil, trace.BadParameter("enroll mode %q is invalid, valid values: %v", ip.EnrollMode, validInstallEnrollModes)
+	}
+
+	if ip.Azure != nil {
+		install.Azure = &types.AzureInstallerParams{
+			ClientID: ip.Azure.ClientID,
+		}
 	}
 
 	if ip.InstallTeleport == "" {
@@ -1904,6 +2118,8 @@ type AzureMatcher struct {
 	Regions []string `yaml:"regions,omitempty"`
 	// ResourceTags are Azure tags on resources to match.
 	ResourceTags map[string]apiutils.Strings `yaml:"tags,omitempty"`
+	// Integration is the Azure Integration name.
+	Integration string `yaml:"integration,omitempty"`
 	// InstallParams sets the join method when installing on
 	// discovered Azure nodes.
 	InstallParams *InstallParams `yaml:"install,omitempty"`
@@ -2009,8 +2225,15 @@ type DatabaseMySQL struct {
 
 // DatabaseOracle are an additional Oracle database options.
 type DatabaseOracle struct {
-	// AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
+	// AuditUser is the name of the Oracle database user that should be used to access
+	// the internal audit trail.
 	AuditUser string `yaml:"audit_user,omitempty"`
+	// RetryCount is the maximum number of times to retry connecting to a
+	// host upon failure.
+	RetryCount int32 `yaml:"retry_count,omitempty"`
+	// ShuffleHostnames, when true, randomizes the order of hosts to connect to from
+	// the provided list.
+	ShuffleHostnames bool `yaml:"shuffle_hostnames,omitempty"`
 }
 
 // SecretStore contains settings for managing secrets.
@@ -2693,6 +2916,9 @@ type LDAPDiscoveryConfig struct {
 	// Filters are additional LDAP filters to apply to the search.
 	// See: https://ldap.com/ldap-filters/
 	Filters []string `yaml:"filters"`
+	// Labels are static labels applied to all hosts discovered via
+	// this policy.
+	Labels map[string]string `yaml:"labels,omitempty"`
 	// LabelAttributes are LDAP attributes to apply to hosts discovered
 	// via LDAP. Teleport labels hosts by prefixing the attribute with
 	// "ldap/" - for example, a value of "location" here would result in

@@ -453,6 +453,25 @@ export interface CurrentUserAssignments {
     membershipType: AccessListUserAssignmentType;
 }
 /**
+ * UserAssignments describes the requested user's ownership and membership assignment types in the access list.
+ *
+ * @generated from protobuf message teleport.accesslist.v1.UserAssignments
+ */
+export interface UserAssignments {
+    /**
+     * ownership_type represents the requested user's ownership type (explicit, inherited, or none) in the access list.
+     *
+     * @generated from protobuf field: teleport.accesslist.v1.AccessListUserAssignmentType ownership_type = 1;
+     */
+    ownershipType: AccessListUserAssignmentType;
+    /**
+     * membership_type represents the requested user's membership type (explicit, inherited, or none) in the access list.
+     *
+     * @generated from protobuf field: teleport.accesslist.v1.AccessListUserAssignmentType membership_type = 2;
+     */
+    membershipType: AccessListUserAssignmentType;
+}
+/**
  * AccessListStatus contains dynamic fields calculated during retrieval.
  *
  * @generated from protobuf message teleport.accesslist.v1.AccessListStatus
@@ -488,6 +507,12 @@ export interface AccessListStatus {
      * @generated from protobuf field: teleport.accesslist.v1.CurrentUserAssignments current_user_assignments = 5;
      */
     currentUserAssignments?: CurrentUserAssignments;
+    /**
+     * user_assignments describes the requested user's ownership and membership assignment types in the access list.
+     *
+     * @generated from protobuf field: teleport.accesslist.v1.UserAssignments user_assignments = 6;
+     */
+    userAssignments?: UserAssignments;
 }
 /**
  * ReviewFrequency is the frequency of reviews.
@@ -1550,6 +1575,61 @@ class CurrentUserAssignments$Type extends MessageType<CurrentUserAssignments> {
  */
 export const CurrentUserAssignments = new CurrentUserAssignments$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class UserAssignments$Type extends MessageType<UserAssignments> {
+    constructor() {
+        super("teleport.accesslist.v1.UserAssignments", [
+            { no: 1, name: "ownership_type", kind: "enum", T: () => ["teleport.accesslist.v1.AccessListUserAssignmentType", AccessListUserAssignmentType, "ACCESS_LIST_USER_ASSIGNMENT_TYPE_"] },
+            { no: 2, name: "membership_type", kind: "enum", T: () => ["teleport.accesslist.v1.AccessListUserAssignmentType", AccessListUserAssignmentType, "ACCESS_LIST_USER_ASSIGNMENT_TYPE_"] }
+        ]);
+    }
+    create(value?: PartialMessage<UserAssignments>): UserAssignments {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.ownershipType = 0;
+        message.membershipType = 0;
+        if (value !== undefined)
+            reflectionMergePartial<UserAssignments>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UserAssignments): UserAssignments {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.accesslist.v1.AccessListUserAssignmentType ownership_type */ 1:
+                    message.ownershipType = reader.int32();
+                    break;
+                case /* teleport.accesslist.v1.AccessListUserAssignmentType membership_type */ 2:
+                    message.membershipType = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UserAssignments, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.accesslist.v1.AccessListUserAssignmentType ownership_type = 1; */
+        if (message.ownershipType !== 0)
+            writer.tag(1, WireType.Varint).int32(message.ownershipType);
+        /* teleport.accesslist.v1.AccessListUserAssignmentType membership_type = 2; */
+        if (message.membershipType !== 0)
+            writer.tag(2, WireType.Varint).int32(message.membershipType);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.accesslist.v1.UserAssignments
+ */
+export const UserAssignments = new UserAssignments$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class AccessListStatus$Type extends MessageType<AccessListStatus> {
     constructor() {
         super("teleport.accesslist.v1.AccessListStatus", [
@@ -1557,7 +1637,8 @@ class AccessListStatus$Type extends MessageType<AccessListStatus> {
             { no: 2, name: "member_list_count", kind: "scalar", opt: true, T: 13 /*ScalarType.UINT32*/ },
             { no: 3, name: "owner_of", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "member_of", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "current_user_assignments", kind: "message", T: () => CurrentUserAssignments }
+            { no: 5, name: "current_user_assignments", kind: "message", T: () => CurrentUserAssignments },
+            { no: 6, name: "user_assignments", kind: "message", T: () => UserAssignments }
         ]);
     }
     create(value?: PartialMessage<AccessListStatus>): AccessListStatus {
@@ -1588,6 +1669,9 @@ class AccessListStatus$Type extends MessageType<AccessListStatus> {
                 case /* teleport.accesslist.v1.CurrentUserAssignments current_user_assignments */ 5:
                     message.currentUserAssignments = CurrentUserAssignments.internalBinaryRead(reader, reader.uint32(), options, message.currentUserAssignments);
                     break;
+                case /* teleport.accesslist.v1.UserAssignments user_assignments */ 6:
+                    message.userAssignments = UserAssignments.internalBinaryRead(reader, reader.uint32(), options, message.userAssignments);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -1615,6 +1699,9 @@ class AccessListStatus$Type extends MessageType<AccessListStatus> {
         /* teleport.accesslist.v1.CurrentUserAssignments current_user_assignments = 5; */
         if (message.currentUserAssignments)
             CurrentUserAssignments.internalBinaryWrite(message.currentUserAssignments, writer.tag(5, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.accesslist.v1.UserAssignments user_assignments = 6; */
+        if (message.userAssignments)
+            UserAssignments.internalBinaryWrite(message.userAssignments, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

@@ -43,7 +43,9 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -216,6 +218,12 @@ type MFAAuthData struct {
 	// AllowReuse determines whether the MFA challenge response used to authenticate
 	// can be reused. AllowReuse MFAAuthData may be denied for specific actions.
 	AllowReuse mfav1.ChallengeAllowReuse
+	// Payload is the optional session identifying payload attached to the MFA authentication.
+	Payload *mfatypes.SessionIdentifyingPayload
+	// SourceCluster is the source cluster name associated with this MFA authentication.
+	SourceCluster string
+	// TargetCluster is the target cluster name associated with this MFA authentication.
+	TargetCluster string
 }
 
 // authorizer creates new local authorizer
@@ -339,9 +347,9 @@ func (c *Context) WithExtraRoles(access services.RoleGetter, clusterName string,
 	}
 
 	accessInfo := &services.AccessInfo{
-		Roles:              newRoleNames,
-		Traits:             c.User.GetTraits(),
-		AllowedResourceIDs: c.Checker.GetAllowedResourceIDs(),
+		Roles:                    newRoleNames,
+		Traits:                   c.User.GetTraits(),
+		AllowedResourceAccessIDs: c.Checker.GetAllowedResourceAccessIDs(),
 	}
 	checker, err := services.NewAccessChecker(accessInfo, clusterName, access)
 	if err != nil {
@@ -403,12 +411,6 @@ func (c *Context) GetDisconnectCertExpiry(authPref readonly.AuthPreference) time
 	return identity.Expires
 }
 
-// ErrScopedIdentity is returned by Authorize when it receives a scoped identity. Methods that implement
-// scoping support may check for this error and fallback to scoped authorization as appropriate.
-var ErrScopedIdentity = &trace.AccessDeniedError{
-	Message: "scoped certificates not supported",
-}
-
 // Authorize authorizes user based on identity supplied via context
 func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error) {
 	defer func() {
@@ -426,7 +428,7 @@ func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error
 	}
 
 	if user, ok := userI.(LocalUser); ok && user.Identity.ScopePin != nil {
-		return nil, ErrScopedIdentity
+		return nil, trace.Errorf("cannot perform standard authz: %w", services.ErrScopedIdentity)
 	}
 
 	authContext, err := a.fromUser(ctx, userI)
@@ -569,7 +571,7 @@ func (a *authorizer) isAdminActionAuthorizationRequired(ctx context.Context, aut
 		// Check that the impersonator matches a host service FQDN - <host-id>.<clustername>
 		if trace.IsNotFound(err) {
 			hostFQDNParts := strings.SplitN(impersonator, ".", 2)
-			if hostFQDNParts[1] == a.clusterName {
+			if len(hostFQDNParts) > 1 && hostFQDNParts[1] == a.clusterName {
 				if _, err := uuid.Parse(hostFQDNParts[0]); err == nil {
 					a.logger.DebugContext(ctx, "Skipping admin action MFA check for admin-impersonated identity", "identity", ident)
 					return false, nil
@@ -626,7 +628,7 @@ func (a *authorizer) convertAuthorizerError(err error) error {
 	case errors.Is(err, ErrIPPinningMissing) || errors.Is(err, ErrIPPinningMismatch) || errors.Is(err, ErrIPPinningNotAllowed):
 		a.logger.WarnContext(context.Background(), "ip pinning requirements not satisfied", "error", err)
 		return trace.Wrap(err)
-	case errors.Is(err, ErrScopedIdentity):
+	case errors.Is(err, services.ErrScopedIdentity):
 		return trace.Wrap(err)
 	case trace.IsAccessDenied(err):
 		a.logger.WarnContext(context.Background(), "access denied", "error", err)
@@ -857,9 +859,9 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 	roles := []string{string(types.RoleRemoteProxy)}
 	user.SetRoles(roles)
 	checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
-		Roles:              roles,
-		Traits:             nil,
-		AllowedResourceIDs: nil,
+		Roles:                    roles,
+		Traits:                   nil,
+		AllowedResourceAccessIDs: nil,
 	}, a.clusterName, roleSet)
 	return &Context{
 		User:                  user,
@@ -947,6 +949,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindRelayServer, services.RO()),
 				types.NewRule(types.KindAccessList, services.RO()),
 				types.NewRule(types.KindHealthCheckConfig, services.RO()),
+				types.NewRule(types.KindAppAuthConfig, services.RO()),
 				// this rule allows cloud proxies to read
 				// plugins of `openai` type, since Assist uses the OpenAI API and runs in Proxy.
 				{
@@ -1039,6 +1042,11 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 						types.NewRule(types.KindStaticHostUser, services.RO()),
 						types.NewRule(types.KindStableUNIXUser, []string{types.VerbCreate, types.VerbRead}),
+						// TODO(fspmarshall/scopes): we eventually want to remove blanket scoped role
+						// access in favor of nodes only being able to read scoped roles that may affect
+						// access decisions for the given node specifically. this verb grant will need to
+						// be revisited as part of that work.
+						types.NewRule(scopedaccess.KindScopedRole, services.RO()),
 					},
 				},
 			})
@@ -1307,6 +1315,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindLock, services.RW()),
 						types.NewRule(types.KindSAML, services.ReadNoSecrets()),
 						types.NewRule(types.KindAccessList, services.RO()),
+						types.NewRule(types.KindAccessListMember, services.RO()),
 						// Okta can read/write access lists and roles it creates.
 						{
 							Resources: []string{types.KindRole},
@@ -1386,9 +1395,9 @@ func ContextForBuiltinRole(r BuiltinRole, recConfig readonly.SessionRecordingCon
 	}
 	user.SetRoles(roles)
 	checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
-		Roles:              roles,
-		Traits:             nil,
-		AllowedResourceIDs: nil,
+		Roles:                    roles,
+		Traits:                   nil,
+		AllowedResourceAccessIDs: nil,
 	}, r.ClusterName, roleSet)
 	return &Context{
 		User:                  user,
@@ -1402,19 +1411,37 @@ func ContextForBuiltinRole(r BuiltinRole, recConfig readonly.SessionRecordingCon
 
 // ContextForLocalUser returns a context with the local user info embedded.
 func ContextForLocalUser(ctx context.Context, u LocalUser, accessPoint AuthorizerAccessPoint, clusterName string, disableDeviceRoleMode bool) (*Context, error) {
-	// User has to be fetched to check if it's a blocked username
-	user, err := accessPoint.GetUser(ctx, u.Username, false)
+	user, accessInfo, err := resolveLocalUser(ctx, u, accessPoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(u.Identity)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName, accessPoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	return &Context{
+		User:                  user,
+		Checker:               accessChecker,
+		Identity:              u,
+		UnmappedIdentity:      u,
+		disableDeviceRoleMode: disableDeviceRoleMode,
+	}, nil
+}
+
+func resolveLocalUser(ctx context.Context, u LocalUser, accessPoint AuthorizerAccessPoint) (types.User, *services.AccessInfo, error) {
+	// User has to be fetched to check if it's a blocked username
+	user, err := accessPoint.GetUser(ctx, u.Username, false)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(u.Identity)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
 	// Override roles and traits from the local user based on the identity roles
 	// and traits, this is done to prevent potential conflict. Imagine a scenario
 	// when SSO user has left the company, but local user entry remained with old
@@ -1425,13 +1452,7 @@ func ContextForLocalUser(ctx context.Context, u LocalUser, accessPoint Authorize
 	user.SetRoles(accessInfo.Roles)
 	user.SetTraits(accessInfo.Traits)
 
-	return &Context{
-		User:                  user,
-		Checker:               accessChecker,
-		Identity:              u,
-		UnmappedIdentity:      u,
-		disableDeviceRoleMode: disableDeviceRoleMode,
-	}, nil
+	return user, accessInfo, nil
 }
 
 type contextKey string

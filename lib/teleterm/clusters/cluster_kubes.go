@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	kubeclient "github.com/gravitational/teleport/lib/client/kube"
@@ -41,19 +42,22 @@ type Kube struct {
 	URI uri.ResourceURI
 
 	KubernetesCluster types.KubeCluster
+
+	// TargetHealth is the health of the Kubernetes cluster.
+	TargetHealth types.TargetHealth
+}
+
+// KubeServer (kube_server) describes a Kubernetes heartbeat signal
+// reported from an agent (kubernetes_service) that is proxying
+// the Kubernetes cluster.
+type KubeServer struct {
+	// URI is the kube_server URI
+	URI uri.ResourceURI
+	types.KubeServer
 }
 
 // reissueKubeCert issue new certificates for kube cluster and saves them to disk.
 func (c *Cluster) reissueKubeCert(ctx context.Context, clusterClient *client.ClusterClient, kubeCluster string) (tls.Certificate, error) {
-	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
-	err := clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
-		RouteToCluster: c.clusterClient.SiteName,
-		AccessRequests: c.status.ActiveRequests,
-	})
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
 	result, err := clusterClient.IssueUserCertsWithMFA(
 		ctx, client.ReissueParams{
 			RouteToCluster:    c.clusterClient.SiteName,
@@ -113,4 +117,30 @@ func (c *Cluster) getKube(ctx context.Context, authClient authclient.ClientI, ku
 		}
 	}
 	return nil, trace.NotFound("kubernetes cluster %q not found", kubeCluster)
+}
+
+// ListKubernetesServers returns a paginated list of Kubernetes servers (resource kind "kube_server").
+func (c *Cluster) ListKubernetesServers(ctx context.Context, params *api.ListResourcesParams, authClient authclient.ClientI) (*ListKubernetesServersResponse, error) {
+	page, err := listResources[types.KubeServer](ctx, params, authClient, types.KindKubeServer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	results := make([]KubeServer, 0, len(page.Resources))
+	for _, server := range page.Resources {
+		results = append(results, KubeServer{
+			URI:        c.URI.AppendKubeServer(server.GetName()),
+			KubeServer: server,
+		})
+	}
+
+	return &ListKubernetesServersResponse{
+		Servers: results,
+		NextKey: page.NextKey,
+	}, nil
+}
+
+type ListKubernetesServersResponse struct {
+	Servers []KubeServer
+	NextKey string
 }

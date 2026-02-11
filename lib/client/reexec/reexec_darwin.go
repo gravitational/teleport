@@ -33,7 +33,8 @@ func getExecutable() (string, error) {
 }
 
 // configureReexecForOS configures the command with files to inherit and
-// os-specific tweaks.
+// os-specific tweaks. The signaling files should be kept alive until the
+// command is started, then the caller should close them.
 func configureReexecForOS(cmd *exec.Cmd, signal, kill *os.File) (signalFd, killFd uint64) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setsid: true,

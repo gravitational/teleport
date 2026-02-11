@@ -51,6 +51,8 @@ type AKSFetcherConfig struct {
 	Logger *slog.Logger
 	// DiscoveryConfigName is the name of the DiscoveryConfig that created this Fetcher.
 	DiscoveryConfigName string
+	// Integration is the name of Azure integration used for auth.
+	Integration string
 }
 
 // CheckAndSetDefaults validates and sets the defaults values.
@@ -155,7 +157,7 @@ func (a *aksFetcher) Cloud() string {
 }
 
 func (a *aksFetcher) IntegrationName() string {
-	return ""
+	return a.Integration
 }
 
 func (a *aksFetcher) GetDiscoveryConfigName() string {

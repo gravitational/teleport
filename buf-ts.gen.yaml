@@ -4,9 +4,11 @@ inputs:
   - directory: .
     paths:
       - api/proto/teleport/userpreferences/
+      - api/proto/teleport/desktop/
       - proto/prehog/
       - proto/teleport/lib/teleterm/
       - proto/teleport/lib/vnet/diag/
+      - proto/teleport/web/
 
 plugins:
   - local:

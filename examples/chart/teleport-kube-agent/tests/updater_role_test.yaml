@@ -1,6 +1,6 @@
 suite: Updater Role
 templates:
-  - updater/role.yaml
+  - updater.yaml
 tests:
   #
   # Basic tests
@@ -18,20 +18,11 @@ tests:
           apiVersion: rbac.authorization.k8s.io/v1
           name: RELEASE-NAME-updater
           namespace: NAMESPACE
-  - it: does not create a Role when updater.enabled is true but rbac creation is disabled
-    values:
-      - ../.lint/updater.yaml
-    set:
-      rbac:
-        create: false
-    asserts:
-      - hasDocuments:
-          count: 0
-
   #
   # Catch-all content test
   #
   - it: sets the correct role rules
+    documentIndex: 1
     values:
       - ../.lint/updater.yaml
     asserts:

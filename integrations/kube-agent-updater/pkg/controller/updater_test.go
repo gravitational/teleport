@@ -60,7 +60,7 @@ func errorIsType(errType any) require.ErrorAssertionFunc {
 	return func(t require.TestingT, err error, i ...any) {
 		require.Error(t, err)
 		err = trace.Unwrap(err)
-		require.IsType(t, errType, err)
+		require.ErrorAs(t, err, &errType)
 	}
 }
 

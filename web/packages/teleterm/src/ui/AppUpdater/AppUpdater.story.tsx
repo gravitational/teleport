@@ -52,7 +52,7 @@ export interface StoryProps {
     | 'Error'
     | 'Update downloaded';
   updateSource: string;
-  envVar: 'Set to "off"' | 'Set to version - v15' | 'Unset';
+  configToolsVersion: 'Set to "off"' | 'Set to version - v15' | 'Unset';
   platform: Platform;
   clusterFoo:
     | 'Does not exist'
@@ -67,18 +67,19 @@ export interface StoryProps {
     | 'Enabled client updates - v16 cluster'
     | 'Disabled client updates - v17 cluster';
   clusterBarSetToManageUpdates: boolean;
-  updateKind: 'Upgrade' | 'Downgrade';
-  nonTeleportCdn: boolean;
+  cdnBaseUrl: 'Unset (OSS build)' | 'Official' | 'Unofficial';
+  updateRequiresUacPrompt: boolean;
 }
 
 const meta: Meta<StoryProps> = {
   title: 'Teleterm/AppUpdater',
   component: WidgetAndDetails,
   argTypes: {
-    envVar: {
+    configToolsVersion: {
       control: { type: 'radio' },
       options: ['Off', 'Set to version - v15', 'Unset'],
-      description: '`TELEPORT_TOOLS_VERSION` value',
+      description:
+        'Tools version from the local config (env var/system registry value)',
     },
     clusterFoo: {
       control: { type: 'select' },
@@ -106,12 +107,6 @@ const meta: Meta<StoryProps> = {
       control: { type: 'boolean' },
       description: 'Whether cluster "bar" is manually set to control updates',
     },
-    updateKind: {
-      control: { type: 'radio' },
-      options: ['Upgrade', 'Downgrade'],
-      description:
-        'Indicates whether the update version is newer or older than the current application version.',
-    },
     step: {
       control: { type: 'radio' },
       options: [
@@ -129,21 +124,26 @@ const meta: Meta<StoryProps> = {
       options: ['win32', 'darwin', 'linux'],
       description: 'Operating system',
     },
-    nonTeleportCdn: {
+    cdnBaseUrl: {
+      control: { type: 'radio' },
+      description: 'CDN Base URL',
+      options: ['Unset (OSS build)', 'Official', 'Unofficial'],
+    },
+    updateRequiresUacPrompt: {
       control: { type: 'boolean' },
       description:
-        'Whether `TELEPORT_CDN_BASE_URL` is set to non-Teleport CDN URL',
+        'Deprecated per‑machine env‑var configuration requires a UAC prompt and prevents use of the privileged updater. Windows only.',
     },
   },
   args: {
-    envVar: 'Unset',
+    configToolsVersion: 'Unset',
     clusterFoo: 'Enabled client updates - v18 cluster',
     clusterBar: 'Does not exist',
     clusterBarSetToManageUpdates: false,
-    updateKind: 'Upgrade',
     step: 'Update available',
     platform: 'darwin',
-    nonTeleportCdn: false,
+    cdnBaseUrl: 'Official',
+    updateRequiresUacPrompt: false,
   },
 };
 
@@ -155,10 +155,16 @@ context.addRootCluster(makeRootCluster({ uri: '/clusters/bar', name: 'bar' }));
 
 async function resolveEvent(storyProps: StoryProps): Promise<AppUpdateEvent> {
   const status = await resolveAutoUpdatesStatus({
-    versionEnvVar:
-      storyProps.envVar === 'Set to version - v15'
+    cdnBaseUrl:
+      storyProps.cdnBaseUrl === 'Unset (OSS build)'
+        ? ''
+        : storyProps.cdnBaseUrl === 'Official'
+          ? 'https://cdn.teleport.dev'
+          : 'https://custom-hosting.local',
+    configToolsVersion:
+      storyProps.configToolsVersion === 'Set to version - v15'
         ? '15.0.0'
-        : storyProps.envVar === 'Unset'
+        : storyProps.configToolsVersion === 'Unset'
           ? undefined
           : 'off',
     managingClusterUri: storyProps.clusterBarSetToManageUpdates
@@ -242,11 +248,16 @@ async function resolveEvent(storyProps: StoryProps): Promise<AppUpdateEvent> {
     },
   });
 
+  const nonTeleportCdn = storyProps.cdnBaseUrl === 'Unofficial';
   const updateInfo = makeUpdateInfo(
-    storyProps.nonTeleportCdn,
+    nonTeleportCdn,
     status.enabled ? status.version : '',
-    storyProps.updateKind === 'Upgrade' ? 'upgrade' : 'downgrade'
+    storyProps.updateRequiresUacPrompt
   );
+
+  if (storyProps.platform !== 'win32' && storyProps.updateRequiresUacPrompt) {
+    return;
+  }
 
   switch (storyProps.step) {
     case 'Checking for update':
@@ -312,9 +323,6 @@ function WidgetAndDetails(storyProps: StoryProps) {
         <WidgetView
           platform={storyProps.platform}
           updateEvent={state}
-          clusterGetter={{
-            findCluster: () => undefined,
-          }}
           onMore={() => {}}
           onDownload={() => {}}
           onInstall={() => {}}
@@ -330,11 +338,9 @@ function WidgetAndDetails(storyProps: StoryProps) {
           </P2>
         </Stack>
         <DetailsView
+          currentVersion="14.7.3"
           platform={storyProps.platform}
           updateEvent={state}
-          clusterGetter={{
-            findCluster: () => undefined,
-          }}
           changeManagingCluster={() => {}}
           onCheckForUpdates={() => {}}
           onDownload={() => {}}
@@ -346,9 +352,9 @@ function WidgetAndDetails(storyProps: StoryProps) {
   );
 }
 
-export const EnabledWithEnvVar: StoryObj<StoryProps> = {
+export const EnabledWithLocalConfigToolsVersion: StoryObj<StoryProps> = {
   args: {
-    envVar: 'Set to version - v15',
+    configToolsVersion: 'Set to version - v15',
   },
 };
 
@@ -434,3 +440,9 @@ export const DisabledBecauseClustersRequireIncompatibleVersions: StoryObj<StoryP
       step: 'Update not available',
     },
   };
+
+export const DisabledNoCdnBaseUrl: StoryObj<StoryProps> = {
+  args: {
+    cdnBaseUrl: 'Unset (OSS build)',
+  },
+};

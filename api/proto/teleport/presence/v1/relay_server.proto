@@ -58,4 +58,7 @@ message RelayServer {
     bool terminating = 6;
   }
   Spec spec = 5;
+  // The advertized scope of the server. A server's scope can not change once assigned, so
+  // heartbeats must include a scope value matching the one declared in the hello message.
+  string scope = 6;
 }

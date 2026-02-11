@@ -497,6 +497,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				{
 					Effect: "Allow",
 					Actions: []string{
+						"account:ListRegions",
 						"ec2:DescribeInstances",
 						"ssm:DescribeInstanceInformation",
 						"ssm:GetCommandInvocation",

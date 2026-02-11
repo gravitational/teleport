@@ -98,6 +98,9 @@ type TestServer struct {
 	// saslConversionTracker map to track which SASL mechanism is being used by
 	// the conversion ID.
 	saslConversationTracker sync.Map
+
+	// fakeUserAuthError maps fake errors to specific users during auth handshake
+	fakeUserAuthError map[string]error
 }
 
 // TestServerOption allows to set test server options.
@@ -117,6 +120,15 @@ func TestServerMaxMessageSize(maxMessageSize uint32) TestServerOption {
 	}
 }
 
+func TestServerSetFakeUserAuthError(user string, fakeErr error) TestServerOption {
+	return func(ts *TestServer) {
+		if !strings.HasPrefix(user, "CN=") {
+			user = "CN=" + user
+		}
+		ts.fakeUserAuthError[user] = fakeErr
+	}
+}
+
 // NewTestServer returns a new instance of a test MongoDB server.
 func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (svr *TestServer, err error) {
 	err = config.CheckAndSetDefaults()
@@ -133,6 +145,7 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	tlsConfig.ClientAuth = tls.VerifyClientCertIfGiven
 	log := logtest.With(teleport.ComponentKey, defaults.ProtocolMongoDB,
 		"name", config.Name,
 	)
@@ -147,6 +160,7 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 			userEventsCh: make(chan UserEvent, 100),
 			users:        make(map[string]userWithTracking),
 		},
+		fakeUserAuthError: map[string]error{},
 	}
 	for _, o := range opts {
 		o(server)
@@ -186,7 +200,7 @@ func (s *TestServer) Serve() error {
 // handleConnection receives Mongo wire messages from the client connection
 // and sends back the response messages.
 func (s *TestServer) handleConnection(conn net.Conn) error {
-	release, err := s.trackUserConnection(conn)
+	username, release, err := s.trackUserConnection(conn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -199,7 +213,7 @@ func (s *TestServer) handleConnection(conn net.Conn) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		reply, err := s.handleMessage(message)
+		reply, err := s.handleMessage(username, message)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -211,7 +225,7 @@ func (s *TestServer) handleConnection(conn net.Conn) error {
 }
 
 // handleMessage makes response for the provided command received from client.
-func (s *TestServer) handleMessage(message protocol.Message) (protocol.Message, error) {
+func (s *TestServer) handleMessage(username string, message protocol.Message) (protocol.Message, error) {
 	command, err := message.GetCommand()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -222,7 +236,7 @@ func (s *TestServer) handleMessage(message protocol.Message) (protocol.Message, 
 	case commandHello:
 		return s.handleHello(message)
 	case commandAuth:
-		return s.handleAuth(message)
+		return s.handleAuth(username, message)
 	case commandPing:
 		return s.handlePing(message)
 	case commandFind:
@@ -252,7 +266,7 @@ func (s *TestServer) handleMessage(message protocol.Message) (protocol.Message, 
 }
 
 // handleAuth makes response to the client's "authenticate" command.
-func (s *TestServer) handleAuth(message protocol.Message) (protocol.Message, error) {
+func (s *TestServer) handleAuth(username string, message protocol.Message) (protocol.Message, error) {
 	// If authentication token is set on the server, it should only use SASL.
 	// This avoid false positives where Teleport uses the wrong authentication
 	// method.
@@ -267,6 +281,9 @@ func (s *TestServer) handleAuth(message protocol.Message) (protocol.Message, err
 	s.logger.DebugContext(context.Background(), "Authenticate", "message", logutils.StringerAttr(message))
 	if command != commandAuth {
 		return nil, trace.BadParameter("expected authenticate command, got: %s", message)
+	}
+	if err, ok := s.fakeUserAuthError[username]; ok && err != nil {
+		return protocol.MakeErrorMessage(message, err)
 	}
 	authReply, err := makeOKReply()
 	if err != nil {
@@ -624,16 +641,16 @@ func (t *usersTracker) UserEventsCh() <-chan UserEvent {
 	return t.userEventsCh
 }
 
-func (t *usersTracker) trackUserConnection(conn net.Conn) (func(), error) {
+func (t *usersTracker) trackUserConnection(conn net.Conn) (string, func(), error) {
 	tlsConn, ok := conn.(*tls.Conn)
 	if !ok {
-		return func() {}, nil
+		return "", func() {}, nil
 	}
 
 	if err := tlsConn.Handshake(); err != nil {
-		return nil, trace.Wrap(err)
+		return "", nil, trace.Wrap(err)
 	} else if len(tlsConn.ConnectionState().PeerCertificates) == 0 {
-		return func() {}, nil
+		return "", func() {}, nil
 	}
 
 	username := "CN=" + tlsConn.ConnectionState().PeerCertificates[0].Subject.CommonName
@@ -644,7 +661,7 @@ func (t *usersTracker) trackUserConnection(conn net.Conn) (func(), error) {
 		user.activeConnections[conn] = struct{}{}
 	}
 
-	return func() {
+	return username, func() {
 		// Untrack per-user active connections.
 		t.usersMu.Lock()
 		defer t.usersMu.Unlock()

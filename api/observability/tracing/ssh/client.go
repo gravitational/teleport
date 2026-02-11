@@ -51,6 +51,24 @@ const (
 	tracingSupported
 )
 
+// NewClientWithTimeout establishes a new client connection, honoring the earliest of the following:
+//
+// - The context's deadline or cancellation
+// - The timeout specified in the config
+// - A default timeout of 30 seconds if config doesn't specify a timeout
+//
+// - If config.Timeout > 0: the specified timeout is applied in addition to any context deadline.
+// - If config.Timeout == 0: a default timeout of 30 seconds is used to prevent indefinite hangs.
+// - If config.Timeout < 0: only the context's deadline or cancellation is respected if any.
+func NewClientWithTimeout(ctx context.Context, conn net.Conn, addr string, config *ssh.ClientConfig, opts ...tracing.Option) (*Client, error) {
+	c, chans, reqs, err := NewClientConnWithTimeout(ctx, conn, addr, config, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewClient(c, chans, reqs, opts...), nil
+}
+
 // NewClient creates a new Client.
 //
 // The server being connected to is probed to determine if it supports

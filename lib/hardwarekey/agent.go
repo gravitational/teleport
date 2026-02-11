@@ -25,6 +25,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
@@ -140,7 +141,7 @@ func newAgentListener(ctx context.Context, keyAgentDir string) (net.Listener, er
 }
 
 func generateServerCert(keyAgentDir string) (tls.Certificate, error) {
-	creds, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil /*ipAddresses*/)
+	creds, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil, nil, time.Now)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "failed to generate the certificate")
 	}

@@ -63,9 +63,9 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
@@ -75,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -93,12 +94,14 @@ func TestRejectedClients(t *testing.T) {
 		Clock:       clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, server.Close()) })
 
 	user, _, err := authtest.CreateUserAndRole(server.AuthServer, "user", []string{"role"}, nil)
 	require.NoError(t, err)
 
 	tlsServer, err := server.NewTestTLSServer()
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 	defer tlsServer.Close()
 
 	tlsConfig, err := tlsServer.ClientTLSConfig(authtest.TestUser(user.GetName()))
@@ -158,6 +161,7 @@ func TestRemoteBuiltinRole(t *testing.T) {
 		Clock:       testSrv.AuthServer.AuthServerConfig.Clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, remoteServer.Close()) })
 
 	certPool, err := testSrv.CertPool()
 	require.NoError(t, err)
@@ -167,6 +171,7 @@ func TestRemoteBuiltinRole(t *testing.T) {
 	remoteProxy, err := remoteServer.NewRemoteClient(
 		authtest.TestBuiltin(types.RoleProxy), testSrv.Addr(), certPool)
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, remoteProxy.Close()) })
 
 	// certificate authority is not recognized, because
 	// the trust has not been established yet
@@ -188,6 +193,8 @@ func TestRemoteBuiltinRole(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = remoteProxy.GetNodes(ctx, apidefaults.Namespace)
+		remoteProxy.Close()
+
 		if err == nil {
 			break
 		}
@@ -199,6 +206,7 @@ func TestRemoteBuiltinRole(t *testing.T) {
 	remoteAuth, err := remoteServer.NewRemoteClient(
 		authtest.TestBuiltin(types.RoleAuth), testSrv.Addr(), certPool)
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, remoteAuth.Close()) })
 
 	_, err = remoteAuth.GetDomainName(ctx)
 	require.True(t, trace.IsAccessDenied(err))
@@ -219,6 +227,7 @@ func TestAcceptedUsage(t *testing.T) {
 		Clock:         clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, server.Close()) })
 
 	user, _, err := authtest.CreateUserAndRole(server.AuthServer, "user", []string{"role"}, nil)
 	require.NoError(t, err)
@@ -282,6 +291,7 @@ func TestRemoteRotation(t *testing.T) {
 		Clock:       testSrv.AuthServer.AuthServerConfig.Clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, remoteServer.Close()) })
 
 	certPool, err := testSrv.CertPool()
 	require.NoError(t, err)
@@ -293,10 +303,20 @@ func TestRemoteRotation(t *testing.T) {
 	remoteProxy, err := remoteServer.NewRemoteClient(
 		authtest.TestBuiltin(types.RoleProxy), testSrv.Addr(), certPool)
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, remoteProxy.Close()) })
 
 	remoteAuth, err := remoteServer.NewRemoteClient(
 		authtest.TestBuiltin(types.RoleAuth), testSrv.Addr(), certPool)
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, remoteAuth.Close()) })
+
+	remoteCA, err := remoteServer.AuthServer.Services.GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: remoteServer.ClusterName,
+		Type:       types.HostCA,
+	}, false)
+	require.NoError(t, err)
+	// a CA that was never rotated has a blank state, which is equal to "standby"
+	require.Contains(t, []string{"", types.RotationStateStandby}, remoteCA.GetRotation().State)
 
 	// remote cluster starts rotation
 	gracePeriod := time.Hour
@@ -321,11 +341,13 @@ func TestRemoteRotation(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	remoteCA, err := remoteServer.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
+	remoteCA, err = remoteServer.AuthServer.Services.GetCertAuthority(ctx, types.CertAuthID{
 		DomainName: remoteServer.ClusterName,
 		Type:       types.HostCA,
 	}, false)
 	require.NoError(t, err)
+	require.Equal(t, types.RotationStateInProgress, remoteCA.GetRotation().State)
+	require.Equal(t, types.RotationPhaseUpdateClients, remoteCA.GetRotation().Phase)
 
 	// remote proxy should be rejected when trying to rotate ca
 	// that is not associated with the remote cluster
@@ -367,8 +389,12 @@ func TestRemoteRotation(t *testing.T) {
 		authtest.TestBuiltin(types.RoleProxy), testSrv.Addr(), certPool)
 	require.NoError(t, err)
 
-	_, err = newRemoteProxy.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	// the testSrv listener needs to wait for a Put event on the CA that has
+	// just rotated to refresh its TLS config
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err = newRemoteProxy.GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+	}, 30*time.Second, 100*time.Millisecond)
 
 	// old proxy client is still trusted
 	_, err = testSrv.CloneClient(t, remoteProxy).GetNodes(ctx, apidefaults.Namespace)
@@ -389,6 +415,7 @@ func TestLocalProxyPermissions(t *testing.T) {
 		Clock:       testSrv.AuthServer.AuthServerConfig.Clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, remoteServer.Close()) })
 
 	// after trust is established, things are good
 	err = testSrv.AuthServer.Trust(ctx, remoteServer, nil)
@@ -402,6 +429,7 @@ func TestLocalProxyPermissions(t *testing.T) {
 
 	proxy, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, proxy.Close()) })
 
 	// local proxy can't update local cert authorities
 	err = proxy.UpsertCertAuthority(ctx, ca)
@@ -1259,6 +1287,7 @@ func TestRemoteUser(t *testing.T) {
 		Clock:       clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, remoteServer.Close()) })
 
 	remoteUser, remoteRole, err := authtest.CreateUserAndRole(remoteServer.AuthServer, "remote-user", []string{"remote-role"}, nil)
 	require.NoError(t, err)
@@ -1280,6 +1309,7 @@ func TestRemoteUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a fresh client now that trust is established.
+	require.NoError(t, remoteClient.Close())
 	remoteClient, err = remoteServer.NewRemoteClient(authtest.TestUser(remoteUser.GetName()), testSrv.Addr(), certPool)
 	require.NoError(t, err)
 
@@ -1573,6 +1603,7 @@ func TestServersCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	// Proxy service.
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = clt.GetProxies()
 	require.NoError(t, err)
 	require.Empty(t, out)
@@ -1581,6 +1612,7 @@ func TestServersCRUD(t *testing.T) {
 	proxy.Spec.Hostname = "proxy.llama"
 	require.NoError(t, clt.UpsertProxy(ctx, proxy))
 
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = clt.GetProxies()
 	require.NoError(t, err)
 	require.Len(t, out, 1)
@@ -1589,11 +1621,13 @@ func TestServersCRUD(t *testing.T) {
 	err = clt.DeleteProxy(ctx, proxy.GetName())
 	require.NoError(t, err)
 
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = clt.GetProxies()
 	require.NoError(t, err)
 	require.Empty(t, out)
 
 	// Auth service.
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = clt.GetAuthServers()
 	require.NoError(t, err)
 	require.Empty(t, out)
@@ -1602,6 +1636,7 @@ func TestServersCRUD(t *testing.T) {
 	auth.Spec.Hostname = "auth.llama"
 	require.NoError(t, clt.UpsertAuthServer(ctx, auth))
 
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = clt.GetAuthServers()
 	require.NoError(t, err)
 	require.Len(t, out, 1)
@@ -1931,7 +1966,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create approved resource request
-	resourceReq, err := services.NewAccessRequestWithResources(username, []string{resourceRequestRoleName}, resourceIDs)
+	resourceReq, err := services.NewAccessRequestWithResources(username, []string{resourceRequestRoleName}, types.ResourceIDsToResourceAccessIDs(resourceIDs))
 	require.NoError(t, err)
 	resourceReq.SetState(types.RequestState_APPROVED)
 	resourceReq, err = clt.CreateAccessRequestV2(ctx, resourceReq)
@@ -1958,7 +1993,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 		ident, err := sshca.DecodeIdentity(sshcert)
 		require.NoError(t, err)
 		assert.ElementsMatch(t, expectRoles, ident.Roles)
-		assert.ElementsMatch(t, expectResources, ident.AllowedResourceIDs)
+		assert.ElementsMatch(t, types.ResourceIDsToResourceAccessIDs(expectResources), ident.AllowedResourceAccessIDs)
 	}
 
 	type extendSessionFunc func(*testing.T, *authclient.Client, types.WebSession) (*authclient.Client, types.WebSession)
@@ -2468,7 +2503,7 @@ func TestPluginData(t *testing.T) {
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
 
-	priv, pub, err := testauthority.New().GenerateKeyPair()
+	priv, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	// make sure we can parse the private and public key
@@ -3070,21 +3105,36 @@ func TestGenerateAppToken(t *testing.T) {
 	authClient, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleAdmin))
 	require.NoError(t, err)
 
-	ca, err := authClient.GetCertAuthority(context.Background(), types.CertAuthID{
-		Type:       types.JWTSigner,
-		DomainName: testSrv.ClusterName(),
-	}, true)
-	require.NoError(t, err)
+	getJWTKey := func(caType types.CertAuthType) *jwt.Key {
+		ca, err := authClient.GetCertAuthority(context.Background(), types.CertAuthID{
+			Type:       caType,
+			DomainName: testSrv.ClusterName(),
+		}, true)
+		require.NoError(t, err)
 
-	signer, err := testSrv.AuthServer.AuthServer.GetKeyStore().GetJWTSigner(ctx, ca)
+		signer, err := testSrv.AuthServer.AuthServer.GetKeyStore().GetJWTSigner(ctx, ca)
+		require.NoError(t, err)
+		key, err := services.GetJWTSigner(signer, ca.GetClusterName(), clock)
+		require.NoError(t, err)
+		return key
+	}
+
+	defaultKey := getJWTKey(types.JWTSigner)
+	oidcKey := getJWTKey(types.OIDCIdPCA)
+
+	proxyServer, err := types.NewServer("proxy-hostname", types.KindProxy, types.ServerSpecV2{
+		PublicAddrs: []string{"https://teleport.example.com"},
+	})
 	require.NoError(t, err)
-	key, err := services.GetJWTSigner(signer, ca.GetClusterName(), clock)
-	require.NoError(t, err)
+	require.NoError(t, authClient.UpsertProxy(ctx, proxyServer))
 
 	tests := []struct {
-		inMachineRole types.SystemRole
-		inComment     string
-		outError      bool
+		inMachineRole   types.SystemRole
+		inComment       string
+		inAuthorityType types.CertAuthType
+		outKey          *jwt.Key
+		outIssuer       string
+		outError        bool
 	}{
 		{
 			inMachineRole: types.RoleNode,
@@ -3097,9 +3147,26 @@ func TestGenerateAppToken(t *testing.T) {
 			outError:      true,
 		},
 		{
-			inMachineRole: types.RoleApp,
-			inComment:     "only apps should have the ability to generate tokens",
-			outError:      false,
+			inMachineRole:   types.RoleApp,
+			inComment:       "only apps should have the ability to generate tokens",
+			inAuthorityType: "", // defaults to "jwt"
+			outKey:          defaultKey,
+			outError:        false,
+		},
+		{
+			inMachineRole:   types.RoleApp,
+			inComment:       "explicit jwt authority",
+			inAuthorityType: types.JWTSigner,
+			outKey:          defaultKey,
+			outError:        false,
+		},
+		{
+			inMachineRole:   types.RoleApp,
+			inComment:       "oidc authority",
+			inAuthorityType: types.OIDCIdPCA,
+			outKey:          oidcKey,
+			outIssuer:       "https://teleport.example.com",
+			outError:        false,
 		},
 	}
 	for _, ts := range tests {
@@ -3116,15 +3183,17 @@ func TestGenerateAppToken(t *testing.T) {
 					"trait2": {"value3", "value4"},
 					"trait3": nil,
 				},
-				URI:     "https://localhost:8080",
-				Expires: clock.Now().Add(1 * time.Minute),
+				URI:           "https://localhost:8080",
+				Expires:       clock.Now().Add(1 * time.Minute),
+				AuthorityType: ts.inAuthorityType,
 			})
 		require.Equal(t, err != nil, ts.outError, ts.inComment)
 		if !ts.outError {
-			claims, err := key.Verify(jwt.VerifyParams{
+			claims, err := ts.outKey.Verify(jwt.VerifyParams{
 				Username: "foo@example.com",
 				RawToken: token,
 				URI:      "https://localhost:8080",
+				Issuer:   ts.outIssuer,
 			})
 			require.NoError(t, err, ts.inComment)
 			require.Equal(t, "foo@example.com", claims.Username, ts.inComment)
@@ -3214,7 +3283,7 @@ func TestClusterConfigContext(t *testing.T) {
 	proxy, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 
-	_, pub, err := testauthority.New().GenerateKeyPair()
+	_, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	// try and generate a host cert, this should succeed because although
@@ -3613,9 +3682,8 @@ func TestTLSFailover(t *testing.T) {
 	}
 }
 
-// TestRegisterCAPin makes sure that registration only works with a valid
-// CA pin.
-func TestRegisterCAPin(t *testing.T) {
+// TestJoinCAPin makes sure that joining only works with a valid CA pin.
+func TestJoinCAPin(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -3639,14 +3707,13 @@ func TestRegisterCAPin(t *testing.T) {
 	require.Len(t, caPins, 1)
 	caPin := caPins[0]
 
-	// Attempt to register with valid CA pin, should work.
-	_, err = join.Register(ctx, join.RegisterParams{
+	// Attempt to join with valid CA pin, should work.
+	_, err = joinclient.Join(ctx, joinclient.JoinParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
-			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     types.RoleProxy,
+			Role:     types.RoleInstance,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		CAPins:               []string{caPin},
@@ -3654,15 +3721,14 @@ func TestRegisterCAPin(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Attempt to register with multiple CA pins where the auth server only
+	// Attempt to join with multiple CA pins where the auth server only
 	// matches one, should work.
-	_, err = join.Register(ctx, join.RegisterParams{
+	_, err = joinclient.Join(ctx, joinclient.JoinParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
-			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     types.RoleProxy,
+			Role:     types.RoleInstance,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		CAPins:               []string{"sha256:123", caPin},
@@ -3670,14 +3736,13 @@ func TestRegisterCAPin(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Attempt to register with invalid CA pin, should fail.
-	_, err = join.Register(ctx, join.RegisterParams{
+	// Attempt to join with invalid CA pin, should fail.
+	_, err = joinclient.Join(ctx, joinclient.JoinParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
-			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     types.RoleProxy,
+			Role:     types.RoleInstance,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		CAPins:               []string{"sha256:123"},
@@ -3685,14 +3750,13 @@ func TestRegisterCAPin(t *testing.T) {
 	})
 	require.Error(t, err)
 
-	// Attempt to register with multiple invalid CA pins, should fail.
-	_, err = join.Register(ctx, join.RegisterParams{
+	// Attempt to join with multiple invalid CA pins, should fail.
+	_, err = joinclient.Join(ctx, joinclient.JoinParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
-			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     types.RoleProxy,
+			Role:     types.RoleInstance,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		CAPins:               []string{"sha256:123", "sha256:456"},
@@ -3719,14 +3783,13 @@ func TestRegisterCAPin(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, caPins, 2)
 
-	// Attempt to register with multiple CA pins, should work
-	_, err = join.Register(ctx, join.RegisterParams{
+	// Attempt to join with multiple CA pins, should work
+	_, err = joinclient.Join(ctx, joinclient.JoinParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
-			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     types.RoleProxy,
+			Role:     types.RoleInstance,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		CAPins:               caPins,
@@ -3735,9 +3798,9 @@ func TestRegisterCAPin(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestRegisterCAPath makes sure registration only works with a valid CA
+// TestJoinCAPath makes sure joining only works with a valid CA
 // file on disk.
-func TestRegisterCAPath(t *testing.T) {
+func TestJoinCAPath(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -3754,14 +3817,13 @@ func TestRegisterCAPath(t *testing.T) {
 		testSrv.Auth(),
 	)
 
-	// Attempt to register with nothing at the CA path, should work.
-	_, err := join.Register(ctx, join.RegisterParams{
+	// Attempt to join with nothing at the CA path, should work.
+	_, err := joinclient.Join(ctx, joinclient.JoinParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
-			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     types.RoleProxy,
+			Role:     types.RoleInstance,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		Clock:                clock,
@@ -3781,14 +3843,13 @@ func TestRegisterCAPath(t *testing.T) {
 	err = os.WriteFile(caPath, certPem, teleport.FileMaskOwnerOnly)
 	require.NoError(t, err)
 
-	// Attempt to register with valid CA path, should work.
-	_, err = join.Register(ctx, join.RegisterParams{
+	// Attempt to join with valid CA path, should work.
+	_, err = joinclient.Join(ctx, joinclient.JoinParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
-			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     types.RoleProxy,
+			Role:     types.RoleInstance,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		CAPath:               caPath,
@@ -4374,7 +4435,8 @@ func TestEvents(t *testing.T) {
 				LoadSecrets: true,
 			},
 			crud: func(context.Context) types.Resource {
-				ca := authtest.NewTestCA(types.UserCA, "example.com")
+				ca, err := authcatest.NewCA(types.UserCA, "example.com")
+				require.NoError(t, err)
 				require.NoError(t, testSrv.Auth().UpsertCertAuthority(ctx, ca))
 
 				out, err := testSrv.Auth().GetCertAuthority(ctx, *ca.ID(), true)
@@ -4395,7 +4457,8 @@ func TestEvents(t *testing.T) {
 				LoadSecrets: false,
 			},
 			crud: func(context.Context) types.Resource {
-				ca := authtest.NewTestCA(types.UserCA, "example.com")
+				ca, err := authcatest.NewCA(types.UserCA, "example.com")
+				require.NoError(t, err)
 				require.NoError(t, testSrv.Auth().UpsertCertAuthority(ctx, ca))
 
 				out, err := testSrv.Auth().GetCertAuthority(ctx, *ca.ID(), false)
@@ -4567,6 +4630,7 @@ func TestEvents(t *testing.T) {
 				err := testSrv.Auth().UpsertProxy(ctx, srv)
 				require.NoError(t, err)
 
+				//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 				out, err := testSrv.Auth().GetProxies()
 				require.NoError(t, err)
 
@@ -5681,6 +5745,8 @@ func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *authtest.TLSSe
 		CacheEnabled: options.cacheEnabled,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+
 	var tlsServerOpts []authtest.TestTLSServerOption
 	if options.accessGraph != nil {
 		tlsServerOpts = append(tlsServerOpts, authtest.WithAccessGraphConfig(*options.accessGraph))
@@ -5742,10 +5808,14 @@ func TestVerifyPeerCert(t *testing.T) {
 		}
 	)
 
-	localHostCA := authtest.NewTestCA(types.HostCA, localClusterName)
-	remoteHostCA := authtest.NewTestCA(types.HostCA, remoteClusterName)
-	localUserCA := authtest.NewTestCA(types.UserCA, localClusterName)
-	remoteUserCA := authtest.NewTestCA(types.UserCA, remoteClusterName)
+	localHostCA, err := authcatest.NewCA(types.HostCA, localClusterName)
+	require.NoError(t, err)
+	remoteHostCA, err := authcatest.NewCA(types.HostCA, remoteClusterName)
+	require.NoError(t, err)
+	localUserCA, err := authcatest.NewCA(types.UserCA, localClusterName)
+	require.NoError(t, err)
+	remoteUserCA, err := authcatest.NewCA(types.UserCA, remoteClusterName)
+	require.NoError(t, err)
 
 	caPool := buildPoolInfo(
 		t,

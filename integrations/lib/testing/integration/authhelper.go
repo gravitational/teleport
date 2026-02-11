@@ -80,11 +80,12 @@ func (a *MinimalAuthHelper) StartServer(t *testing.T) *client.Client {
 
 	server, err := authtest.NewTestTLSServer(authtest.TLSServerConfig{
 		APIConfig: &auth.APIConfig{
-			AuthServer:     authServer.AuthServer,
-			Authorizer:     authServer.Authorizer,
-			AuditLog:       authServer.AuditLog,
-			Emitter:        authServer.AuditLog,
-			PluginRegistry: a.PluginRegistry,
+			AuthServer:       authServer.AuthServer,
+			Authorizer:       authServer.Authorizer,
+			ScopedAuthorizer: authServer.ScopedAuthorizer,
+			AuditLog:         authServer.AuditLog,
+			Emitter:          authServer.AuditLog,
+			PluginRegistry:   a.PluginRegistry,
 		},
 		AuthServer:    authServer,
 		AcceptedUsage: authServer.AcceptedUsage,
@@ -129,7 +130,7 @@ type userCerts struct {
 func (a *MinimalAuthHelper) getUserCerts(t *testing.T, user types.User) userCerts {
 	authServer := a.server.Auth()
 
-	clusterName, err := authServer.GetClusterName(context.TODO())
+	clusterName, err := authServer.GetClusterName(t.Context())
 	require.NoError(t, err)
 	// Get user certs
 	userKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)

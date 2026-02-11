@@ -92,7 +92,7 @@ type Server struct {
 	// they are a valid certificate. Used in tests.
 	insecureSkipHostValidation bool
 
-	// fips means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// fips means Teleport started in a FedRAMP/FIPS compliant
 	// configuration.
 	fips bool
 

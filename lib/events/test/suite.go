@@ -24,6 +24,7 @@ import (
 	"io"
 	"os"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -47,16 +48,22 @@ import (
 // UploadDownload tests uploads and downloads
 func UploadDownload(t *testing.T, handler events.MultipartHandler) {
 	val := "hello, how is it going? this is the uploaded file"
+	ctx := t.Context()
 	id := session.NewID()
-	_, err := handler.Upload(context.TODO(), id, bytes.NewBuffer([]byte(val)))
+
+	_, err := handler.Upload(ctx, id, strings.NewReader(val))
 	require.NoError(t, err)
+
+	// Attempt to overwrite an existing file. This should fail.
+	_, err = handler.Upload(ctx, id, strings.NewReader("impostor"))
+	require.Error(t, err)
 
 	f, err := os.CreateTemp("", string(id))
 	require.NoError(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()
 
-	err = handler.Download(context.TODO(), id, f)
+	err = handler.Download(ctx, id, f)
 	require.NoError(t, err)
 
 	_, err = f.Seek(0, 0)
@@ -64,30 +71,57 @@ func UploadDownload(t *testing.T, handler events.MultipartHandler) {
 
 	data, err := io.ReadAll(f)
 	require.NoError(t, err)
-	require.Equal(t, string(data), val)
+	require.Equal(t, val, string(data))
 }
 
 // UploadDownloadSummary tests summary uploads and downloads
 func UploadDownloadSummary(t *testing.T, handler events.MultipartHandler) {
-	val := "this is the summary file"
+	ctx := t.Context()
 	id := session.NewID()
-	_, err := handler.UploadSummary(t.Context(), id, bytes.NewBuffer([]byte(val)))
+
+	_, err := handler.UploadPendingSummary(ctx, id, strings.NewReader("pending summary"))
 	require.NoError(t, err)
 
-	f, err := os.CreateTemp("", string(id))
+	var pendingBuf events.MemBuffer
+	err = handler.DownloadSummary(ctx, id, &pendingBuf)
 	require.NoError(t, err)
-	defer os.Remove(f.Name())
-	defer f.Close()
+	assert.Equal(t, "pending summary", string(pendingBuf.Bytes()))
 
-	err = handler.DownloadSummary(context.TODO(), id, f)
-	require.NoError(t, err)
-
-	_, err = f.Seek(0, 0)
+	// Override previous pending state.
+	_, err = handler.UploadPendingSummary(ctx, id, strings.NewReader("updated pending summary"))
 	require.NoError(t, err)
 
-	data, err := io.ReadAll(f)
+	// Download the pending version.
+	var pendingBuf2 events.MemBuffer
+	err = handler.DownloadSummary(ctx, id, &pendingBuf2)
 	require.NoError(t, err)
-	require.Equal(t, string(data), val)
+	assert.Equal(t, "updated pending summary", string(pendingBuf2.Bytes()))
+
+	// Upload the final version.
+	_, err = handler.UploadSummary(ctx, id, strings.NewReader("final summary"))
+	require.NoError(t, err)
+
+	// Attempt to overwrite an existing file. This should fail.
+	_, err = handler.UploadSummary(ctx, id, strings.NewReader("impostor"))
+	require.Error(t, err)
+
+	// Download the final version.
+	var finalBuf events.MemBuffer
+	err = handler.DownloadSummary(ctx, id, &finalBuf)
+	require.NoError(t, err)
+	assert.Equal(t, "final summary", string(finalBuf.Bytes()))
+
+	// Upload one more file, this time right to the final state (test if it's
+	// possible to upload one without a pending state).
+	id2 := session.NewID()
+	_, err = handler.UploadSummary(ctx, id2, strings.NewReader("final summary 2"))
+	require.NoError(t, err)
+
+	// Download the final version of the second file.
+	var finalBuf2 events.MemBuffer
+	err = handler.DownloadSummary(ctx, id2, &finalBuf2)
+	require.NoError(t, err)
+	assert.Equal(t, "final summary 2", string(finalBuf2.Bytes()))
 }
 
 // UploadDownloadMetadata tests metadata uploads and downloads
@@ -102,7 +136,7 @@ func UploadDownloadMetadata(t *testing.T, handler events.MultipartHandler) {
 	defer os.Remove(f.Name())
 	defer f.Close()
 
-	err = handler.DownloadMetadata(context.TODO(), id, f)
+	err = handler.DownloadMetadata(t.Context(), id, f)
 	require.NoError(t, err)
 
 	_, err = f.Seek(0, 0)
@@ -125,7 +159,7 @@ func UploadDownloadThumbnail(t *testing.T, handler events.MultipartHandler) {
 	defer os.Remove(f.Name())
 	defer f.Close()
 
-	err = handler.DownloadThumbnail(context.TODO(), id, f)
+	err = handler.DownloadThumbnail(t.Context(), id, f)
 	require.NoError(t, err)
 
 	_, err = f.Seek(0, 0)
@@ -145,7 +179,7 @@ func DownloadNotFound(t *testing.T, handler events.MultipartHandler) {
 	defer os.Remove(f.Name())
 	defer f.Close()
 
-	err = handler.Download(context.TODO(), id, f)
+	err = handler.Download(t.Context(), id, f)
 	require.True(t, trace.IsNotFound(err))
 }
 

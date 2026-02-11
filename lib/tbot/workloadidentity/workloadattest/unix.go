@@ -25,6 +25,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/shirou/gopsutil/v4/process"
@@ -34,6 +35,18 @@ import (
 
 // DefaultBinaryHashMaxBytes is default value for BinaryHashMaxSizeBytes.
 const DefaultBinaryHashMaxBytes = 1 << 30 // 1GiB
+
+// TestBinaryHashMaxBytes is a more suitable value for BinaryHashMaxSizeBytes
+// in tests. Reading `/proc/<pid>/exe` relies on inode stability, and in GitHub
+// Actions we've observed read stalls likely caused by overlayfs or debugfs.
+const TestBinaryHashMaxBytes = 1 << 12 // 4KiB
+
+// BinaryHashReadTimeout is the maximum amount of time we will wait to read
+// a process's executable to calculate its checksum. In normal circumstances
+// we should never reach this timeout, but reading `/proc/<pid>/exe` depends
+// on inode stability, so it's possible to encounter read stalls if there is
+// a network or overlay filesystem involved.
+const BinaryHashReadTimeout = 15 * time.Second
 
 // UnixAttestorConfig holds the configuration for the Unix workload attestor.
 type UnixAttestorConfig struct {
@@ -149,22 +162,51 @@ func (a *UnixAttestor) Attest(ctx context.Context, pid int) (*workloadidentityv1
 		att.BinaryPath = &path
 	}
 
-	exe, err := a.os.OpenExe(ctx, p)
+	if hash := a.hashBinary(ctx, p); hash != "" {
+		att.BinaryHash = &hash
+	}
+
+	return att, nil
+}
+
+func (a *UnixAttestor) hashBinary(ctx context.Context, proc *process.Process) string {
+	exe, err := a.os.OpenExe(ctx, proc)
 	if err != nil {
 		a.log.ErrorContext(ctx, "Failed to open workload executable for hashing", "error", err)
-		return att, nil
+		return ""
 	}
 	defer func() { _ = exe.Close() }()
 
-	hash := sha256.New()
-	if _, err := copyAtMost(hash, exe, a.cfg.BinaryHashMaxSizeBytes); err != nil {
-		a.log.ErrorContext(ctx, "Failed to hash workload executable", "error", err)
-		return att, nil
+	// Read the workload executable to calculate a checksum. We do this in a
+	// goroutine in case of read stalls (e.g. due to the executable being on
+	// a network or overlay filesystem). If this happens, the goroutine will
+	// terminate when we close the file descriptor (see defer statement above).
+	type sumResult struct {
+		sum string
+		err error
 	}
-	sum := hex.EncodeToString(hash.Sum(nil))
-	att.BinaryHash = &sum
+	resCh := make(chan sumResult, 1)
+	go func() {
+		hash := sha256.New()
+		if _, err := copyAtMost(hash, exe, a.cfg.BinaryHashMaxSizeBytes); err == nil {
+			resCh <- sumResult{sum: hex.EncodeToString(hash.Sum(nil))}
+		} else {
+			resCh <- sumResult{err: err}
+		}
+	}()
 
-	return att, nil
+	select {
+	case res := <-resCh:
+		if res.err != nil {
+			a.log.ErrorContext(ctx, "Failed to hash workload executable", "error", err)
+		}
+		return res.sum
+	case <-time.After(BinaryHashReadTimeout):
+		a.log.ErrorContext(ctx, "Timeout reading workload executable. If this happens frequently, it could be due to the workload executable being on a network or overlay filesystem, you may also consider lowering `attestors.unix.binary_hash_max_size_bytes`.")
+	case <-ctx.Done():
+	}
+
+	return ""
 }
 
 // copyAtMost copies at most n bytes from src to dst. If src contains more than

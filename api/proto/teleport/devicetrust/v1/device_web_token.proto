@@ -60,4 +60,11 @@ message DeviceWebToken {
   // Used internally by the Device Trust system.
   // Transient.
   repeated string expected_device_ids = 7;
+
+  // BrowserMaxTouchPoints indicates whether the client device supports touch controls. It is sent
+  // by the frontend app to the proxy service and then forwarded to the auth service. It
+  // differentiates iPadOS from macOS since they both use the same user agent otherwise. This
+  // information is needed to decide whether to show the Device Trust prompt in the Web UI after a
+  // successful login.
+  uint32 browser_max_touch_points = 8;
 }

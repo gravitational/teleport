@@ -19,21 +19,23 @@ and running, but in the long run, we would recommend replacing `sshd` with `tele
 `teleport` SSH servers have support for multiple features that are incompatible with OpenSSH:
 
 - RBAC and resource filtering based on [dynamically updated labels](../../../zero-trust-access/rbac-get-started/labels.mdx)
-- [Session recording without SSH connection termination](../guides/recording-proxy-mode.mdx)
+- [Session recording without SSH connection termination](../../../reference/architecture/session-recording.mdx#record-at-the-proxy-service)
 - [Session sharing](../../../zero-trust-access/authentication/joining-sessions.mdx)
 - [Advanced session recording](../guides/bpf-session-recording.mdx)
 
 ## How it works
 
-Teleport supports OpenSSH by proxying SSH connections through the Proxy Service. When a Teleport user requests to connect to an OpenSSH node, the Proxy Service checks the user's Teleport roles.
+At a high level, Teleport supports OpenSSH servers by proxying SSH connections through the Proxy Service.
+The OpenSSH server will be set up to trust connections from the Proxy Service rather than trusting direct
+connections from users. This ensures that all connections to OpenSSH servers go through the
+Proxy Service, where session IO and audit events can be recorded and RBAC can be enforced.
 
-If the RBAC checks succeed, the Proxy Service authenticates to the OpenSSH node with a dynamically generated certificate signed by a Teleport CA. This allows the
-Proxy Service to record and audit connections to OpenSSH nodes.
-
-The Proxy Service prevents Teleport users from bypassing auditing by requiring
-a certificate signed by a Teleport CA that only the Auth Service possesses.
-
-In this setup, the Teleport SSH Service performs RBAC checks as well as audits and records sessions on its host, which eliminates the need for connection termination when recording SSH sessions.
+For deeper details as to how this works, you may be interested in the [Registered OpenSSH Nodes RFD](https://github.com/gravitational/teleport/blob/master/rfd/0098-registered-openssh-nodes.md)
+Below are some key details from the RFD:
+- The Proxy Service is uniquely able to request certificates signed by the Auth Service with the Teleport OpenSSH CA on behalf of users, and the OpenSSH server is set up to only trust certificates signed by this CA. Therefore, in order to connect to an OpenSSH server, a user must connect through the Proxy Service to request and use an OpenSSH certificate.
+- Before connecting the user to the OpenSSH server, the Proxy Service performs RBAC checks to see if the user should be allowed to access it.
+- In order to record the session and its audit events, the Proxy Service terminates (decrypts) the client SSH connection, and establishes its own connection to the OpenSSH server. It then acts as a pipe between the two connections, recording events and IO as it proceeds.
+  - See [Recording Proxy Mode](../../../reference/architecture/session-recording.mdx#record-at-the-proxy-service) for more details.
 
 <Admonition
   type="tip"
@@ -351,3 +353,21 @@ $ ssh -F ssh_config_teleport ${USER?}@node2.leafcluster.${CLUSTER}
   qualified domain name, rather than an IP address.
 
 </Admonition>
+
+### OpenSSH rate limiting
+
+Be aware of OpenSSH's built-in rate-limiting. On large numbers of Proxy Service connections, you may encounter errors like:
+
+```txt
+channel 0: open failed: connect failed: ssh: handshake failed: EOF
+```
+
+See the `MaxStartups` setting in `man sshd_config`. This setting means that by
+default, OpenSSH only allows 10 unauthenticated connections at a time and starts
+dropping connections 30% of the time when the number of connections goes over 10.
+When it hits 100 authentication connections, all new connections are
+dropped.
+
+To increase the concurrency level, increase the value to something like
+`MaxStartups 50:30:100`. This allows 50 concurrent connections and a max of 100.
+

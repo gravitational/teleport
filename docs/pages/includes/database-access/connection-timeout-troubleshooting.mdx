@@ -29,3 +29,31 @@ For deployments in AWS, it may be helpful to use [AWS Reachability Analyzer](htt
 4. Check the analysis results to identify reachability issues.
 
 </details>
+
+If your database is registered dynamically or via auto-discovery, repeat the
+above connectivity test for *every** Teleport Database Service instance that
+proxies this database. To list all Teleport Database Service instances
+associated with a given database, run the `tctl get db_server/<db_name>`
+command. For example:
+```
+$ tctl get db_server/postgres-instance-1 --format json | jq '.[] | {hostname: .spec.hostname, host_id: .spec.host_id, version: .spec.version, target_health: .status.target_health}'
+{
+  "hostname": "ip-10-0-0-111.ca-central-1.compute.internal",
+  "host_id": "e5e670ac-a7b8-44ef-b373-6296d87f50e8",
+  "version": "18.3.0",
+  "target_health": {
+    "status": "unhealthy",
+    ...
+  }
+}
+{
+  "hostname": "ip-10-0-0-222.ca-central-1.compute.internal",
+  ...
+}
+```
+
+If any of the Database Service instances listed here **should not** proxy the
+database, (for example, a Database Service instance in a different VPC or AWS
+region without connectivity), locate and update their configurations so they
+only receive or discover databases they can reach. In most cases, you can
+achieve this by refining your tag filters, such as adding the a `vpc-id` label.

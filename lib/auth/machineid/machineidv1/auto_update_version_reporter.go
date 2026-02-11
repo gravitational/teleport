@@ -130,36 +130,33 @@ func (r *AutoUpdateVersionReporter) Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	go func() {
-		defer r.logger.DebugContext(ctx, "Shutting down")
+	defer r.logger.DebugContext(ctx, "Shutting down")
 
-		for {
-			started := r.clock.Now()
-			r.runLeader(ctx)
-			leaderFor := r.clock.Now().Sub(started)
+	for {
+		started := r.clock.Now()
+		r.runLeader(ctx)
+		leaderFor := r.clock.Since(started)
 
-			// Context is done, exit immediately.
-			if ctx.Err() != nil {
-				return
-			}
-
-			// If we were leader for a decent amount of time, any previous
-			// backoff likely doesn't apply anymore.
-			if leaderFor > 5*time.Minute {
-				retry.Reset()
-			}
-
-			// Wait for the next retry interval.
-			retry.Inc()
-
-			select {
-			case <-retry.After():
-			case <-ctx.Done():
-				return
-			}
+		// Context is done, exit immediately.
+		if ctx.Err() != nil {
+			return nil
 		}
-	}()
-	return nil
+
+		// If we were leader for a decent amount of time, any previous
+		// backoff likely doesn't apply anymore.
+		if leaderFor > 5*time.Minute {
+			retry.Reset()
+		}
+
+		// Wait for the next retry interval.
+		retry.Inc()
+
+		select {
+		case <-retry.After():
+		case <-ctx.Done():
+			return nil
+		}
+	}
 }
 
 func (r *AutoUpdateVersionReporter) runLeader(ctx context.Context) error {
@@ -225,7 +222,14 @@ func (r *AutoUpdateVersionReporter) Report(ctx context.Context) error {
 		r.logger.DebugContext(ctx, "Not the leader, ignoring trigger to generate report")
 		return nil
 	}
+	if err := r.generateReport(ctx); err != nil {
+		r.logger.ErrorContext(ctx, "Failed to generate bot instance report", "error", err)
+		return trace.Wrap(err)
+	}
+	return nil
+}
 
+func (r *AutoUpdateVersionReporter) generateReport(ctx context.Context) error {
 	r.logger.DebugContext(ctx, "Generating report")
 
 	groups := make(map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroup)

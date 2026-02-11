@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"log/slog"
 	"net"
+	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -112,6 +113,16 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	ctx, cancel := context.WithTimeout(
+		ctx,
+		time.Minute, // default timeout to connect to server
+	)
+	defer cancel()
+	stopFn := context.AfterFunc(ctx, func() {
+		_ = sconn.Close()
+	})
+	defer stopFn()
 
 	// Build a net.Conn over the tunnel. Make this an exclusive connection:
 	// close the net.Conn as well as the channel upon close.

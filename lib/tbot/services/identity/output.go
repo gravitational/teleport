@@ -50,7 +50,7 @@ func OutputServiceBuilder(
 	defaultCredentialLifetime bot.CredentialLifetime,
 	insecure, fips bool,
 ) bot.ServiceBuilder {
-	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -67,11 +67,12 @@ func OutputServiceBuilder(
 			proxyPinger:               deps.ProxyPinger,
 			identityGenerator:         deps.IdentityGenerator,
 			clientBuilder:             deps.ClientBuilder,
+			log:                       deps.Logger,
+			statusReporter:            deps.GetStatusReporter(),
 		}
-		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
 		return svc, nil
 	}
+	return bot.NewServiceBuilder(OutputServiceType, cfg.Name, buildFn)
 }
 
 // OutputService produces credentials which can be used to connect to
@@ -210,7 +211,7 @@ func (s *OutputService) generate(ctx context.Context) error {
 			s.insecure,
 			s.fips,
 		); err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "rendering OpenSSH configuration files")
 		}
 	}
 
@@ -299,13 +300,13 @@ func renderSSHConfig(
 		proxyHost,
 	)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "generating known_hosts")
 	}
 
 	if err := dest.Write(
 		ctx, ssh.KnownHostsName, []byte(knownHosts),
 	); err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "writing known_hosts to destination")
 	}
 
 	// We only want to proceed further if we have a directory destination
@@ -321,7 +322,7 @@ func renderSSHConfig(
 	// Destination backends is left as an exercise to the user.
 	absDestPath, err := filepath.Abs(destDirectory.Path)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "determining absolute path")
 	}
 
 	executablePath, err := getExecutablePath()
@@ -370,7 +371,7 @@ func renderSSHConfig(
 		// be disabled.
 		Resume: true,
 	}); err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "generating global ssh_config")
 	}
 
 	// Generate the per cluster files
@@ -400,10 +401,10 @@ func renderSSHConfig(
 			// be disabled.
 			Resume: true,
 		}); err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "generating ssh_config for cluster %q", clusterName)
 		}
 		if err := destDirectory.Write(ctx, sshConfigName, []byte(sb.String())); err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "writing ssh_config for cluster %q", clusterName)
 		}
 
 		knownHosts, ok := clusterKnownHosts[clusterName]
@@ -416,12 +417,12 @@ func renderSSHConfig(
 			continue
 		}
 		if err := destDirectory.Write(ctx, knownHostsName, []byte(knownHosts)); err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "writing known_hosts for cluster %q", clusterName)
 		}
 	}
 
 	if err := destDirectory.Write(ctx, ssh.ConfigName, []byte(sshConfigBuilder.String())); err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "writing global ssh_config")
 	}
 
 	return nil

@@ -24,13 +24,16 @@ import (
 	"encoding/pem"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -53,6 +56,7 @@ import (
 	dbcommon "github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func registerFakeEnterpriseDBEngines(t *testing.T) {
@@ -163,6 +167,7 @@ func testDatabaseLogin(t *testing.T) {
 				accessRequestorRole,
 				alice,
 			)
+			cfg.SSH.Enabled = false
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			// separate MySQL port with TLS routing.
 			// set the public address to be sure even on v2+, tsh clients will see the separate port.
@@ -705,6 +710,7 @@ func testListDatabase(t *testing.T) {
 			cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Databases.Enabled = true
+			cfg.SSH.Enabled = false
 			cfg.Databases.Databases = []servicecfg.Database{{
 				Name:     fullName,
 				Protocol: defaults.ProtocolPostgres,
@@ -724,6 +730,7 @@ func testListDatabase(t *testing.T) {
 		withLeafCluster(),
 		withLeafConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
+			cfg.SSH.Enabled = false
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{{
 				Name:     "leaf-postgres",
@@ -1595,6 +1602,7 @@ func testDatabaseSelection(t *testing.T) {
 			cfg.Auth.BootstrapResources = append(cfg.Auth.BootstrapResources, alice)
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Databases.Enabled = true
+			cfg.SSH.Enabled = false
 			cfg.Databases.Databases = []servicecfg.Database{
 				fooDB1, fooRDSDB, fooRDSCustomDB,
 				barRDSDB1, barRDSDB2,
@@ -2227,4 +2235,68 @@ func TestDatabaseInfo(t *testing.T) {
 			require.Equal(t, tt.routeOut, dbInfo.RouteToDatabase)
 		})
 	}
+}
+
+// TestMongoDBSeparatePortCommandError given a MongoDB database with cluster
+// using separate port mode ensures `tsh` generates the connect command without
+// errors.
+//
+// See https://github.com/gravitational/teleport/issues/47895
+func TestMongoDBSeparatePortCommandError(t *testing.T) {
+	t.Parallel()
+
+	connector := mockConnector(t)
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetDatabaseUsers([]string{"admin"})
+	alice.SetDatabaseNames([]string{"default"})
+	alice.SetRoles([]string{"access"})
+
+	process, err := testserver.NewTeleportProcess(
+		t.TempDir(),
+		testserver.WithClusterName("root"),
+		testserver.WithBootstrap(connector, alice),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			mongoPublicAddr := localListenerAddr()
+			cfg.Proxy.MongoAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: mongoPublicAddr}
+			cfg.Proxy.MongoPublicAddrs = []utils.NetAddr{{AddrNetwork: "tcp", Addr: mongoPublicAddr}}
+			cfg.Databases.Enabled = true
+			cfg.Databases.Databases = []servicecfg.Database{
+				{
+					Name:     "mongo",
+					Protocol: defaults.ProtocolMongoDB,
+					URI:      "external-mongo:27017",
+				},
+			}
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, process.Close())
+		assert.NoError(t, process.Wait())
+	})
+
+	tshHome, _ := mustLogin(t, process, alice, connector.GetName())
+
+	// cmdExecuted tracks that the MongoDB command was executed.
+	var cmdExecuted atomic.Bool
+
+	// noopCmdRunner is a command runner that does nothing. For this test, we
+	// only need to ensure the command is generated without actually validating
+	// it. This task should be handled in the dbcmd package.
+	noopCmdRunner := func(_ *exec.Cmd) error {
+		cmdExecuted.Store(true)
+		return nil
+	}
+
+	err = Run(context.Background(), []string{
+		"db",
+		"connect",
+		"mongo",
+		"--insecure",
+		"--db-name=test",
+		"--db-user=alice",
+	}, setHomePath(tshHome), setCmdRunner(noopCmdRunner))
+	require.NoError(t, err)
+	require.True(t, cmdExecuted.Load(), "expected the MongoDB command to have executed")
 }

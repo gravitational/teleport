@@ -82,6 +82,8 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
@@ -1535,6 +1537,49 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 	_, err = srv.Auth().UpsertApplicationServer(ctx, appServer)
 	require.NoError(t, err)
 
+	// Roles Anywhere set up.
+	srv.Auth().AWSRolesAnywhereCreateSessionOverride = func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
+		return &createsession.CreateSessionResponse{
+			Version:         1,
+			AccessKeyID:     "aki",
+			SecretAccessKey: "sak",
+			SessionToken:    "st",
+			Expiration:      "2025-06-25T12:07:02.474135Z",
+		}, nil
+	}
+	awsRAIntegration := "ra-integration"
+	ig, err := types.NewIntegrationAWSRA(types.Metadata{Name: awsRAIntegration}, &types.AWSRAIntegrationSpecV1{
+		TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/ExampleTrustAnchor",
+		ProfileSyncConfig: &types.AWSRolesAnywhereProfileSyncConfig{
+			ProfileARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid2",
+			RoleARN:    "arn:aws:iam::123456789012:role/SyncRole",
+		},
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().Integrations.CreateIntegration(ctx, ig)
+	require.NoError(t, err)
+
+	awsAppUsingRolesAnywhere, err := types.NewAppServerV3(types.Metadata{
+		Name: "app-roles-anywhere",
+	}, types.AppServerSpecV3{
+		HostID: srv.Auth().ServerID,
+		App: &types.AppV3{Metadata: types.Metadata{
+			Name: "app-roles-anywhere",
+		}, Spec: types.AppSpecV3{
+			URI:         constants.AWSConsoleURL,
+			Integration: awsRAIntegration,
+			AWS: &types.AppAWS{
+				RolesAnywhereProfile: &types.AppAWSRolesAnywhereProfile{
+					ProfileARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/12345678-1234-1234-1234-123456789012",
+				},
+			},
+			PublicAddr: "example.com",
+		}},
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertApplicationServer(ctx, awsAppUsingRolesAnywhere)
+	require.NoError(t, err)
+
 	leaf, err := types.NewRemoteCluster("leaf")
 	require.NoError(t, err)
 
@@ -2001,6 +2046,36 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, "app-a", identity.RouteToApp.Name)
 					// session ID should be set to a random ID, corresponding to an app session.
 					require.NotEmpty(t, identity.RouteToApp.SessionID)
+				},
+			},
+		},
+		{
+			desc: "aws app using roles anywhere should not limit ttl to 1m",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					// Expiration should be adjusted to user cert ttl, but not to single user cert TTL (1min).
+					Expires: clock.Now().Add(1000 * time.Hour),
+					Usage:   proto.UserCertsRequest_App,
+					RouteToApp: proto.RouteToApp{
+						Name:       "app-roles-anywhere",
+						AWSRoleARN: "arn:aws:iam::123456789012:role/MyRole",
+					},
+					RequesterName: proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS,
+				},
+				authnHandler: registered.webAuthHandler,
+				verifyErr:    require.NoError,
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					cert, err := tlsca.ParseCertificatePEM(c.TLS)
+					require.NoError(t, err)
+					require.Equal(t, userCertExpires, cert.NotAfter)
+					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					require.NoError(t, err)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
+					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
+					require.NotEmpty(t, identity.RouteToApp.AWSCredentialProcessCredentials)
 				},
 			},
 		},
@@ -2962,7 +3037,7 @@ func TestGenerateHostCerts(t *testing.T) {
 	clt, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
-	priv, pub, err := testauthority.New().GenerateKeyPair()
+	priv, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	pubTLS, err := authtest.PrivateKeyToPublicKeyTLS(priv)
@@ -3024,7 +3099,7 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	require.NoError(t, err)
 	defer clt.Close()
 
-	priv, pub, err := testauthority.New().GenerateKeyPair()
+	priv, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	pubTLS, err := authtest.PrivateKeyToPublicKeyTLS(priv)
@@ -3313,11 +3388,11 @@ func TestNodesCRUD(t *testing.T) {
 		// Make sure can't delete with empty namespace or name.
 		err = clt.DeleteNode(ctx, apidefaults.Namespace, "")
 		require.Error(t, err)
-		require.IsType(t, trace.BadParameter(""), err)
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 		err = clt.DeleteNode(ctx, "", node1.GetName())
 		require.Error(t, err)
-		require.IsType(t, trace.BadParameter(""), err)
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 		// Delete node.
 		err = clt.DeleteNode(ctx, apidefaults.Namespace, node1.GetName())
@@ -3325,14 +3400,14 @@ func TestNodesCRUD(t *testing.T) {
 
 		// Expect node not found
 		_, err := clt.GetNode(ctx, apidefaults.Namespace, "node1")
-		require.IsType(t, trace.NotFound(""), err)
+		require.ErrorAs(t, err, new(*trace.NotFoundError))
 	})
 
 	t.Run("DeleteAllNodes", func(t *testing.T) {
 		// Make sure can't delete with empty namespace.
 		err = clt.DeleteAllNodes(ctx, "")
 		require.Error(t, err)
-		require.IsType(t, trace.BadParameter(""), err)
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 		// Delete nodes
 		err = clt.DeleteAllNodes(ctx, apidefaults.Namespace)
@@ -3347,6 +3422,18 @@ func TestNodesCRUD(t *testing.T) {
 
 func TestLocksCRUD(t *testing.T) {
 	t.Parallel()
+
+	newLockFilter := func(inForceOnly bool, targets ...types.LockTarget) *types.LockFilter {
+		filter := &types.LockFilter{
+			InForceOnly: inForceOnly,
+			Targets:     make([]*types.LockTarget, 0, len(targets)),
+		}
+		for _, tgt := range targets {
+			filter.Targets = append(filter.Targets, &tgt)
+		}
+		return filter
+	}
+
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -3398,6 +3485,55 @@ func TestLocksCRUD(t *testing.T) {
 			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
 				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 		})
+		t.Run("ListLocks", func(t *testing.T) {
+			t.Parallel()
+			locks, next, err := clt.ListLocks(ctx, 0, "", nil)
+			require.Empty(t, next)
+			require.NoError(t, err)
+			require.Len(t, locks, 2)
+			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+			page1, page2Start, err := clt.ListLocks(ctx, 1, "", nil)
+			require.NotEmpty(t, page2Start)
+			require.NoError(t, err)
+			require.Len(t, page1, 1)
+			require.Empty(t, cmp.Diff([]types.Lock{lock1}, page1,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+			page2, next, err := clt.ListLocks(ctx, 0, page2Start, nil)
+			require.Empty(t, next)
+			require.NoError(t, err)
+			require.Len(t, page2, 1)
+			require.Empty(t, cmp.Diff([]types.Lock{lock2}, page2,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, append(page1, page2...),
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		})
+		t.Run("RangeLocks", func(t *testing.T) {
+			t.Parallel()
+			locks, err := iterstream.Collect(clt.RangeLocks(ctx, "", "", nil))
+			require.NoError(t, err)
+			require.Len(t, locks, 2)
+			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+			_, page2Start, _ := clt.ListLocks(ctx, 1, "", nil)
+
+			page1, err := iterstream.Collect(clt.RangeLocks(ctx, "", page2Start, nil))
+			require.NoError(t, err)
+			require.Len(t, page1, 1)
+			require.Empty(t, cmp.Diff([]types.Lock{lock1}, page1,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+			page2, err := iterstream.Collect(clt.RangeLocks(ctx, page2Start, "", nil))
+			require.NoError(t, err)
+			require.Len(t, page2, 1)
+			require.Empty(t, cmp.Diff([]types.Lock{lock2}, page2,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+		})
 		t.Run("GetLocks with targets", func(t *testing.T) {
 			t.Parallel()
 			// Match both locks with the targets.
@@ -3417,6 +3553,54 @@ func TestLocksCRUD(t *testing.T) {
 
 			// Match none of the locks.
 			locks, err = clt.GetLocks(ctx, false, roleTarget)
+			require.NoError(t, err)
+			require.Empty(t, locks)
+		})
+
+		t.Run("ListLocks with targets", func(t *testing.T) {
+			t.Parallel()
+			// Match both locks with the targets.
+			locks, next, err := clt.ListLocks(ctx, 0, "", newLockFilter(false, lock1.Target(), lock2.Target()))
+			require.NoError(t, err)
+			require.Empty(t, next)
+			require.Len(t, locks, 2)
+			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+			// Match only one of the locks.
+			roleTarget := types.LockTarget{Role: "role-A"}
+			locks, next, err = clt.ListLocks(ctx, 0, "", newLockFilter(false, lock1.Target(), roleTarget))
+			require.NoError(t, err)
+			require.Empty(t, next)
+			require.Len(t, locks, 1)
+			require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+			// Match none of the locks.
+			locks, next, err = clt.ListLocks(ctx, 0, "", newLockFilter(false, roleTarget))
+			require.NoError(t, err)
+			require.Empty(t, next)
+			require.Empty(t, locks)
+		})
+		t.Run("RangeLocks with targets", func(t *testing.T) {
+			t.Parallel()
+			// Match both locks with the targets.
+			locks, err := iterstream.Collect(clt.RangeLocks(ctx, "", "", newLockFilter(false, lock1.Target(), lock2.Target())))
+			require.NoError(t, err)
+			require.Len(t, locks, 2)
+			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+			// Match only one of the locks.
+			roleTarget := types.LockTarget{Role: "role-A"}
+			locks, err = iterstream.Collect(clt.RangeLocks(ctx, "", "", newLockFilter(false, lock1.Target(), roleTarget)))
+			require.NoError(t, err)
+			require.Len(t, locks, 1)
+			require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+			// Match none of the locks.
+			locks, err = iterstream.Collect(clt.RangeLocks(ctx, "", "", newLockFilter(false, roleTarget)))
 			require.NoError(t, err)
 			require.Empty(t, locks)
 		})
@@ -3616,11 +3800,11 @@ func TestAppsCRUD(t *testing.T) {
 
 	// Try to fetch an app that doesn't exist.
 	_, err = clt.GetApp(ctx, "doesnotexist")
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Try to create the same app.
 	err = clt.CreateApp(ctx, app1)
-	require.IsType(t, trace.AlreadyExists(""), err)
+	require.ErrorAs(t, err, new(*trace.AlreadyExistsError))
 
 	// Update an app.
 	app1.Metadata.Description = "description"
@@ -3659,7 +3843,7 @@ func TestAppsCRUD(t *testing.T) {
 
 	// Try to delete an app that doesn't exist.
 	err = clt.DeleteApp(ctx, "doesnotexist")
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Delete all apps.
 	err = clt.DeleteAllApps(ctx)
@@ -3703,7 +3887,7 @@ func TestAppsCRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		err = clt.CreateApp(ctx, misconfiguredApp)
-		require.ErrorIs(t, err, trace.BadParameter(`Application "misconfigured-app" public address "proxy.example.com" conflicts with the Teleport Proxy public address. Configure the application to use a unique public address that does not match the proxy's public addresses. Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/.`))
+		require.ErrorIs(t, err, trace.BadParameter(`Application "misconfigured-app" public address "proxy.example.com" conflicts with the Teleport Proxy public address. Configure the application to use a unique public address that does not match the proxy's public addresses. Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#customize-public-address.`))
 	})
 
 	t.Run("Updating an app with a public address matching a proxy address should fail", func(t *testing.T) {
@@ -3717,7 +3901,7 @@ func TestAppsCRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		err = clt.UpdateApp(ctx, misconfiguredApp)
-		require.ErrorIs(t, err, trace.BadParameter(`Application "misconfigured-app" public address "proxy.example.com" conflicts with the Teleport Proxy public address. Configure the application to use a unique public address that does not match the proxy's public addresses. Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/.`))
+		require.ErrorIs(t, err, trace.BadParameter(`Application "misconfigured-app" public address "proxy.example.com" conflicts with the Teleport Proxy public address. Configure the application to use a unique public address that does not match the proxy's public addresses. Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#customize-public-address.`))
 	})
 }
 
@@ -3843,7 +4027,7 @@ func TestAppServersCRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = clt.UpsertApplicationServer(ctx, appServer)
-		require.ErrorIs(t, err, trace.BadParameter(`Application "misconfigured-app" public address "proxy.example.com" conflicts with the Teleport Proxy public address. Configure the application to use a unique public address that does not match the proxy's public addresses. Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/.`))
+		require.ErrorIs(t, err, trace.BadParameter(`Application "misconfigured-app" public address "proxy.example.com" conflicts with the Teleport Proxy public address. Configure the application to use a unique public address that does not match the proxy's public addresses. Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#customize-public-address.`))
 	})
 }
 
@@ -3913,11 +4097,11 @@ func TestDatabasesCRUD(t *testing.T) {
 
 	// Try to fetch a database that doesn't exist.
 	_, err = clt.GetDatabase(ctx, "doesnotexist")
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Try to create the same database.
 	err = clt.CreateDatabase(ctx, db1)
-	require.IsType(t, trace.AlreadyExists(""), err)
+	require.ErrorAs(t, err, new(*trace.AlreadyExistsError))
 
 	// Update a database.
 	db1.Metadata.Description = "description"
@@ -3946,7 +4130,7 @@ func TestDatabasesCRUD(t *testing.T) {
 
 	// Try to delete a database that doesn't exist.
 	err = clt.DeleteDatabase(ctx, "doesnotexist")
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Delete all databases.
 	err = clt.DeleteAllDatabases(ctx)
@@ -4070,7 +4254,7 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 
 	// Try to delete a DatabaseService that doesn't exist.
 	err = clt.DeleteDatabaseService(ctx, "doesnotexist")
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Delete all DatabaseServices.
 	err = clt.DeleteAllDatabaseServices(ctx)
@@ -4787,6 +4971,7 @@ func TestExport(t *testing.T) {
 				TraceClient: &tt.mockTraceClient,
 			})
 			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, as.Close()) })
 
 			srv, err := as.NewTestTLSServer()
 			require.NoError(t, err)
@@ -5023,14 +5208,35 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			outputInstallerList, err := grpc.GetInstallers(ctx, &emptypb.Empty{})
-			require.NoError(t, err)
-			outputInstallers := make(map[string]string, len(tc.expectedInstallers))
-			for _, installer := range outputInstallerList.Installers {
-				outputInstallers[installer.GetName()] = installer.GetScript()
-			}
+			t.Run("GetInstallers", func(t *testing.T) {
+				outputInstallerList, err := grpc.GetInstallers(ctx, &emptypb.Empty{})
+				require.NoError(t, err)
+				outputInstallers := make(map[string]string, len(tc.expectedInstallers))
+				for _, installer := range outputInstallerList.Installers {
+					outputInstallers[installer.GetName()] = installer.GetScript()
+				}
 
-			require.Equal(t, tc.expectedInstallers, outputInstallers)
+				require.Equal(t, tc.expectedInstallers, outputInstallers)
+			})
+
+			t.Run("ListInstallers", func(t *testing.T) {
+				// no limits, returns all
+				outputInstallerList, err := grpc.ListInstallers(ctx, &proto.ListInstallersRequest{})
+				require.NoError(t, err)
+				outputInstallers := make(map[string]string, len(tc.expectedInstallers))
+				for _, installer := range outputInstallerList.Installers {
+					outputInstallers[installer.GetName()] = installer.GetScript()
+				}
+
+				require.Equal(t, tc.expectedInstallers, outputInstallers)
+
+				page1Resp, err := grpc.ListInstallers(ctx, &proto.ListInstallersRequest{PageSize: 1})
+				require.NoError(t, err)
+				page2Resp, err := grpc.ListInstallers(ctx, &proto.ListInstallersRequest{PageToken: page1Resp.GetNextPageToken()})
+				require.NoError(t, err)
+
+				require.Equal(t, outputInstallerList.Installers, append(page1Resp.Installers, page2Resp.Installers...))
+			})
 		})
 	}
 }

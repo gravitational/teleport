@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
@@ -269,13 +270,16 @@ func TestClient_DialHost(t *testing.T) {
 					return trail.ToGRPC(trace.Wrap(err))
 				}
 
-				// wait for the first ssh frame
+				// wait for the client to write some data
 				req, err = server.Recv()
 				if err != nil {
+					if errors.Is(err, io.EOF) {
+						return nil
+					}
 					return trail.ToGRPC(trace.Wrap(err))
 				}
 
-				// write too much data to terminate the stream
+				// echo the received payload back to the client
 				switch f := req.Frame.(type) {
 				case *transportv1pb.ProxySSHRequest_Ssh:
 					if err := server.Send(&transportv1pb.ProxySSHResponse{
@@ -287,7 +291,11 @@ func TestClient_DialHost(t *testing.T) {
 				case *transportv1pb.ProxySSHRequest_Agent:
 					return trail.ToGRPC(trace.BadParameter("test expects first frame to be ssh. got an agent frame"))
 				}
-				return nil
+
+				// wait for the client to reply again before exiting the handler
+				// to ensure that the client processed the echo.
+				_, err = server.Recv()
+				return trail.ToGRPC(trace.Wrap(err))
 			case req.DialTarget.Cluster == "forward":
 				// send the initial cluster details
 				if err := server.Send(&transportv1pb.ProxySSHResponse{Details: &transportv1pb.ClusterDetails{FipsEnabled: true}}); err != nil && !errors.Is(err, io.EOF) {
@@ -322,48 +330,53 @@ func TestClient_DialHost(t *testing.T) {
 					return trail.ToGRPC(trace.Wrap(err, "failed constructing ssh agent streamer"))
 				}
 
-				// read in agent frames
-				go func() {
-					for {
-						req, err := server.Recv()
-						if err != nil {
-							if errors.Is(err, io.EOF) {
-								return
-							}
-
-							return
-						}
-
-						switch frame := req.Frame.(type) {
-						case *transportv1pb.ProxySSHRequest_Agent:
-							agentStream.incomingC <- frame.Agent.Payload
-						default:
-							continue
-						}
+				// process agent frames
+				eg, _ := errgroup.WithContext(t.Context())
+				eg.Go(func() error {
+					// create an agent that will communicate over the agent frames
+					// and list the keys from the client
+					clt := agent.NewClient(agentStreamRW)
+					keys, err := clt.List()
+					if err != nil {
+						return trail.ToGRPC(trace.Wrap(err))
 					}
-				}()
 
-				// create an agent that will communicate over the agent frames
-				// and list the keys from the client
-				clt := agent.NewClient(agentStreamRW)
-				keys, err := clt.List()
-				if err != nil {
-					return trail.ToGRPC(trace.Wrap(err))
-				}
+					if len(keys) != 1 {
+						return trail.ToGRPC(fmt.Errorf("expected to receive 1 key. got %v", len(keys)))
+					}
 
-				if len(keys) != 1 {
-					return trail.ToGRPC(fmt.Errorf("expected to receive 1 key. got %v", len(keys)))
-				}
+					// send the key blob back via an ssh frame to alert the
+					// test that we finished listing keys
+					if err := server.Send(&transportv1pb.ProxySSHResponse{
+						Details: nil,
+						Frame:   &transportv1pb.ProxySSHResponse_Ssh{Ssh: &transportv1pb.Frame{Payload: keys[0].Blob}},
+					}); err != nil && !errors.Is(err, io.EOF) {
+						return trail.ToGRPC(trace.Wrap(err))
+					}
 
-				// send the key blob back via an ssh frame to alert the
-				// test that we finished listing keys
-				if err := server.Send(&transportv1pb.ProxySSHResponse{
-					Details: nil,
-					Frame:   &transportv1pb.ProxySSHResponse_Ssh{Ssh: &transportv1pb.Frame{Payload: keys[0].Blob}},
-				}); err != nil && !errors.Is(err, io.EOF) {
-					return trail.ToGRPC(trace.Wrap(err))
+					return nil
+				})
+
+				for {
+					req, err := server.Recv()
+					switch {
+					case errors.Is(err, io.EOF):
+						if err := eg.Wait(); err != nil {
+							return trail.ToGRPC(trace.Wrap(err))
+						}
+
+						return nil
+					case err != nil:
+						return trace.Wrap(err)
+					}
+
+					switch frame := req.Frame.(type) {
+					case *transportv1pb.ProxySSHRequest_Agent:
+						agentStream.incomingC <- frame.Agent.Payload
+					default:
+						continue
+					}
 				}
-				return nil
 			default:
 				return trail.ToGRPC(trace.BadParameter("invalid cluster"))
 			}
@@ -425,17 +438,23 @@ func TestClient_DialHost(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, conn)
 
+				// Write the message and expect it is echoed back.
 				msg := []byte("hello")
 				n, err := conn.Write(msg)
 				require.NoError(t, err)
 				require.Len(t, msg, n)
-
 				out := make([]byte, n)
 				n, err = conn.Read(out)
 				require.NoError(t, err)
 				require.Len(t, msg, n)
 				require.Equal(t, msg, out)
 
+				// Write the same message again to trigger the server to shut down.
+				n, err = conn.Write(msg)
+				require.NoError(t, err)
+				require.Len(t, msg, n)
+
+				// Expect subsequent reads result in an EOF.
 				n, err = conn.Read(out)
 				require.ErrorIs(t, err, io.EOF)
 				require.Zero(t, n)
@@ -473,7 +492,7 @@ func TestClient_DialHost(t *testing.T) {
 
 				// the server performs a remote list of keys
 				// via ssh frames. to prevent the test from terminating
-				// before it can complete it will write the blob of the
+				// before it can complete, it will write the blob of the
 				// listed key back on the ssh frame. verify that the key
 				// it received matches the one from out local keyring.
 				out = make([]byte, len(keys[0].Blob))
@@ -490,7 +509,7 @@ func TestClient_DialHost(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			conn, details, err := pack.Client.DialHost(context.Background(), test.target, test.cluster, nil, test.keyring)
+			conn, details, err := pack.Client.DialHost(t.Context(), test.target, test.cluster, nil, test.keyring)
 			test.assertion(t, conn, details, err)
 		})
 	}
@@ -530,7 +549,7 @@ func newServer(t *testing.T, srv transportv1pb.TransportServiceServer) testPack 
 	}()
 
 	// gRPC client.
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	cc, err := grpc.DialContext(ctx, "unused",
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {

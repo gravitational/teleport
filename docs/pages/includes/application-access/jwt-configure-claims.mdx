@@ -1,0 +1,26 @@
+{{ appType="web application" appScheme="https" }}
+
+By default, Teleport includes a user's roles and traits in the JWT generated for
+application access, and the `Teleport-Jwt-Assertion` header is sent along with
+every request that Teleport makes to an upstream {{ appType }}.
+
+If your {{ appType }} doesn't care about these values, or you are encountering an
+error due to exceeding the size limit of HTTP headers, you can configure
+Teleport to omit this information from the token.
+
+```yaml
+- name: "dashboard"
+  uri: {{ appScheme }}://localhost:4321
+  rewrite:
+    # Specify whether to include roles or traits in the JWT.
+    # Options:
+    # - roles-and-traits: include both roles and traits
+    # - roles: include only roles
+    # - traits: include only traits
+    # - none: exclude both roles and traits from the JWT token
+    # Default: roles-and-traits
+    jwt_claims: roles-and-traits
+    headers:
+    # Inject header with Teleport-signed JWT token.
+    - "Authorization: Bearer {{internal.jwt}}"
+```

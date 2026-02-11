@@ -1074,6 +1074,13 @@ func (m *mockCache) GetProxies() ([]types.Server, error) {
 	return m.proxies, nil
 }
 
+func (m *mockCache) ListProxyServers(context.Context, int, string) ([]types.Server, string, error) {
+	if m.returnErr != nil {
+		return nil, "", m.returnErr
+	}
+	return m.proxies, "", nil
+}
+
 func (m *mockCache) GetToken(ctx context.Context, token string) (types.ProvisionToken, error) {
 	return nil, nil
 }
@@ -1100,8 +1107,7 @@ func (m *mockCache) GetCertAuthority(ctx context.Context, id types.CertAuthID, l
 func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) types.CertAuthority {
 	t.Helper()
 
-	ta := testauthority.New()
-	pub, priv, err := ta.GenerateJWT()
+	pub, priv, err := testauthority.GenerateJWT()
 	require.NoError(t, err)
 
 	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: domain}, nil, time.Minute)
@@ -1206,6 +1212,9 @@ func mustMakeDiscoveryConfig(t *testing.T, ig types.Integration) *discoveryconfi
 					Types:       []string{"ec2"},
 					Regions:     []string{"us-west-2"},
 					Integration: ig.GetName(),
+					Params: &types.InstallerParams{
+						EnrollMode: types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+					},
 				},
 			},
 		},

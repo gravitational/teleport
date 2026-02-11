@@ -154,6 +154,17 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 		RoleARN: roleArn,
 	})
 	require.NoError(t, err)
+
+	// Upsert a fake proxy to ensure we have a public address to use for the
+	// AWS OIDC integration.
+	proxy, err := types.NewServer("proxy", types.KindProxy, types.ServerSpecV2{
+		PublicAddrs: []string{"teleport.example.com"},
+	})
+	require.NoError(t, err)
+
+	err = testAuthServer.AuthServer.UpsertProxy(t.Context(), proxy)
+	require.NoError(t, err)
+
 	testAuthServer.AuthServer.IntegrationsTokenGenerator = &mockIntegrationsTokenGenerator{
 		proxies: nil,
 		integrations: map[string]types.Integration{
@@ -189,8 +200,8 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 		},
 	}
 
-	getDc := func() *discoveryconfig.DiscoveryConfig {
-		dc, _ := discoveryconfig.NewDiscoveryConfig(
+	getDc := func(t *testing.T) *discoveryconfig.DiscoveryConfig {
+		dc, err := discoveryconfig.NewDiscoveryConfig(
 			header.Metadata{Name: uuid.NewString()},
 			discoveryconfig.Spec{
 				DiscoveryGroup: mainDiscoveryGroup,
@@ -203,6 +214,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				},
 			},
 		)
+		require.NoError(t, err)
 		return dc
 	}
 
@@ -254,7 +266,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 		{
 			name: "no clusters in auth server, discover two clusters from EKS",
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
-				return getDc()
+				return getDc(t)
 			},
 			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
@@ -282,7 +294,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			name:                "one cluster in auth server, discover one cluster from EKS and ignore another one",
 			existingKubeServers: []types.KubeServer{mustConvertEKSToKubeServerV1(t, eksMockClusters[0], "resourceID", mainDiscoveryGroup)},
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
-				return getDc()
+				return getDc(t)
 			},
 			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
@@ -312,7 +324,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			name:                "one non-matching cluster in auth server, discover two cluster from EKS",
 			existingKubeServers: []types.KubeServer{mustConvertEKSToKubeServerV1(t, eksMockClusters[2], "resourceID", mainDiscoveryGroup)},
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
-				return getDc()
+				return getDc(t)
 			},
 			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
@@ -402,7 +414,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 						eksClusters:       eksMockClusters[:2],
 					},
 					ClusterFeatures:  func() proto.Features { return proto.Features{} },
-					KubernetesClient: fake.NewSimpleClientset(),
+					KubernetesClient: fake.NewClientset(),
 					AccessPoint:      tc.accessPoint(t, tlsServer.Auth(), authClient),
 					Matchers: Matchers{
 						AWS: tc.awsMatchers,
@@ -518,6 +530,11 @@ func (m *mockIntegrationsTokenGenerator) GetIntegration(ctx context.Context, nam
 // GetProxies returns a list of registered proxies.
 func (m *mockIntegrationsTokenGenerator) GetProxies() ([]types.Server, error) {
 	return m.proxies, nil
+}
+
+// ListProxyServers returns a paginated list of registered proxies.
+func (m *mockIntegrationsTokenGenerator) ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	return m.proxies, "", nil
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.

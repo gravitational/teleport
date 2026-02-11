@@ -18,12 +18,15 @@ package messages
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
+	"github.com/gravitational/teleport/lib/join/joinutils"
 )
 
 // Request is implemented by all join request messages.
@@ -98,6 +101,9 @@ type TokenInit struct {
 
 	// ClientParams holds parameters for the specific type of client trying to join.
 	ClientParams ClientParams
+	// Secret holds the token secret required when using the token join method with
+	// a scoped token.
+	Secret string
 }
 
 func (i *TokenInit) Check() error {
@@ -192,6 +198,22 @@ func (k *PublicKeys) check() error {
 	return nil
 }
 
+// OIDCInit holds the OIDC identity token used for all OIDC-based join methods.
+//
+// The join flow for all OIDC-based join methods is:
+// 1. client->server: ClientInit
+// 2. server->client: ServerInit
+// 3. client->server: OIDCInit
+// 4. server->client: Result
+type OIDCInit struct {
+	embedRequest
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams ClientParams
+	// IDToken is the OIDC identity token.
+	IDToken []byte
+}
+
 // BoundKeypairInit is sent from the client in response to the ServerInit
 // message for the bound keypair join method.
 // The server is expected to respond with a BoundKeypairChallenge.
@@ -284,6 +306,217 @@ type BoundKeypairResult struct {
 	PublicKey []byte
 }
 
+// IAMInit is sent from the client in response to the ServerInit message for
+// the IAM join method.
+//
+// The IAM method join flow is:
+// 1. client->server: ClientInit
+// 2. client<-server: ServerInit
+// 3. client->server: IAMInit
+// 4. client<-server: IAMChallenge
+// 5. client->server: IAMChallengeSolution
+// 6. client<-server: Result
+type IAMInit struct {
+	embedRequest
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams ClientParams
+}
+
+// IAMChallenge is from the server in response to the IAMInit message from the client.
+// The client is expected to respond with a IAMChallengeSolution.
+type IAMChallenge struct {
+	embedResponse
+
+	// Challenge is a a crypto-random string that should be included by the
+	// client in the IAMChallengeSolution message.
+	Challenge string
+}
+
+// IAMChallengeSolution must be sent from the client in response to the
+// IAMChallenge message.
+type IAMChallengeSolution struct {
+	embedRequest
+
+	// STSIdentityRequest is a signed sts:GetCallerIdentity API request used
+	// to prove the AWS identity of a joining node. It must include the
+	// challenge string as a signed header.
+	STSIdentityRequest []byte
+}
+
+// EC2Init is sent from the client in response to the ServerInit message for
+// the EC2 join method.
+//
+// The EC2 method join flow is:
+// 1. client->server: ClientInit
+// 2. client<-server: ServerInit
+// 3. client->server: EC2Init
+// 4. client<-server: Result
+type EC2Init struct {
+	embedRequest
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams ClientParams
+	// Document is a signed EC2 Instance Identity Document used to prove the
+	// identity of a joining EC2 instance.
+	Document []byte
+}
+
+// OracleInit is sent from the client in response to the ServerInit message for
+// the Oracle join method.
+//
+// The Oracle method join flow is:
+// 1. client->server: ClientInit
+// 2. client<-server: ServerInit
+// 3. client->server: OracleInit
+// 4. client<-server: OracleChallenge
+// 5. client->server: OracleChallengeSolution
+// 6. client<-server: Result
+type OracleInit struct {
+	embedRequest
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams ClientParams
+}
+
+// OracleChallenge is from the server in response to the OracleInit message from the client.
+// The client is expected to respond with a OracleChallengeSolution.
+type OracleChallenge struct {
+	embedResponse
+
+	// Challenge is a a crypto-random string that should be signed by the
+	// client and included in the OracleChallengeSolution message.
+	Challenge string
+}
+
+// OracleChallengeSolution must be sent from the client in response to the
+// OracleChallenge message.
+type OracleChallengeSolution struct {
+	embedRequest
+
+	// Cert is the OCI instance identity certificate, an X509 certificate in PEM format.
+	Cert []byte
+	// Intermediate encodes the intermediate CAs that issued the instance
+	// identity certificate, in PEM format.
+	Intermediate []byte
+	// Signature is a signature over the challenge, signed by the private key
+	// matching the instance identity certificate.
+	Signature []byte
+	// SignedRootCaReq is a signed request to the Oracle API for retreiving the
+	// root CAs that issued the instance identity certificate.
+	SignedRootCAReq []byte
+}
+
+// TPMInit is sent from the client in response to the ServerInit message for
+// the TPM join flow.
+//
+// The TPM method join flow is:
+// 1. client->server: ClientInit
+// 2. client<-server: ServerInit
+// 3. client->server: TPMInit
+// 4. client<-server: TPMEncryptedCredential
+// 5. client->server: TPMSolution
+// 6. client<-server: Result
+type TPMInit struct {
+	embedRequest
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams ClientParams
+	// Public is the encoded TPMT_PUBLIC structure containing the attestation
+	// public key and signing parameters.
+	Public []byte
+	// CreateData is the properties of the attestation key, encoded as a
+	// TPMS_CREATION_DATA structure.
+	CreateData []byte
+	// CreateAttestation is an assertion as to the details of the key, encoded
+	// as a TPMS_ATTEST structure.
+	CreateAttestation []byte
+	// CreateSignature is a signature of create_attestation, encoded as a
+	// TPMT_SIGNATURE structure.
+	CreateSignature []byte
+	// EKCert is the device's endorsement certificate in X509, ASN.1 DER form.
+	// This certificate contains the public key of the endorsement key. This is
+	// preferred to ek_key.
+	//
+	// Only one of EKCert and EKKey will be set.
+	EKCert []byte
+	// EKKey is the device's public endorsement key in PKIX, ASN.1 DER form.
+	// This is used when a TPM does not contain any endorsement certificates.
+	//
+	// Only one of EKCert and EKKey will be set.
+	EKKey []byte
+}
+
+// TPMEncryptedCredential is the message sent from the server in response to the
+// TPMInit message.
+type TPMEncryptedCredential struct {
+	embedResponse
+
+	// CredentialBlob is the `credential_blob` parameter to be used with the
+	// `ActivateCredential` command. This is used with the decrypted value of
+	// `secret` in a cryptographic process to decrypt the solution.
+	CredentialBlob []byte
+	// Secret is the `secret` parameter to be used with `ActivateCredential`.
+	// This is a seed which can be decrypted with the EK. The decrypted seed is
+	// then used when decrypting `credential_blob`.
+	Secret []byte
+}
+
+// TPMSolution is the message sent from the client in response to the
+// TPMEncryptedCredential message.
+type TPMSolution struct {
+	embedRequest
+
+	// Solution is the client's solution to TPMEncryptedCredential using
+	// ActivateCredential.
+	Solution []byte
+}
+
+// AzureInit is sent from the client in response to the ServerInit message for
+// the Azure join method.
+//
+// The Azure method join flow is:
+// 1. client->server: ClientInit
+// 2. client<-server: ServerInit
+// 3. client->server: AzureInit
+// 4. client<-server: AzureChallenge
+// 5. client->server: AzureChallengeSolution
+// 6. client<-server: Result
+type AzureInit struct {
+	embedRequest
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams ClientParams
+}
+
+// AzureChallenge is sent from the server in response to the AzureInit message
+// from the client. The client is expected to respond with a
+// AzureChallengeSolution.
+type AzureChallenge struct {
+	embedResponse
+
+	// Challenge is a a crypto-random string that should be included by the
+	// client in the AzureChallengeSolution message.
+	Challenge string
+}
+
+// AzureChallenge message.
+// AzureChallengeSolution must be sent from the client in response to the
+type AzureChallengeSolution struct {
+	embedRequest
+
+	// AttestedData is a signed JSON document from an Azure VM's attested data
+	// metadata endpoint used to prove the identity of a joining node. It must
+	// include the challenge string as the nonce.
+	AttestedData []byte
+	// Intermediate encodes the intermediate CAs that issued the leaf certificate
+	// used to sign the attested data document, in x509 DER format.
+	Intermediate []byte
+	// AccessToken is a JWT signed by Azure, used to prove the identity of a
+	// joining node.
+	AccessToken string
+}
+
 // Response is implemented by all join response messages.
 type Response interface {
 	isResponse()
@@ -315,6 +548,9 @@ type HostResult struct {
 	Certificates Certificates
 	// HostId is the unique ID assigned to the host.
 	HostID string
+	// ImmutableLabels are the immutable labels that have been assigned to
+	// the host.
+	ImmutableLabels *joiningv1.ImmutableLabels
 }
 
 // BotResult holds results for bot joining.
@@ -339,6 +575,65 @@ type Certificates struct {
 	// SSHCAKeys is a list of SSH certificate authority public keys that the client should trust.
 	// Each CA key is encoded in SSH wire format.
 	SSHCAKeys [][]byte
+}
+
+// GivingUpReason is the reason a client is giving up on a join attempt.
+type GivingUpReason int
+
+const (
+	// GivingUpReasonUnspecified is an unspecified reason.
+	GivingUpReasonUnspecified GivingUpReason = iota
+	// GivingUpReasonUnsupportedJoinMethod means the client does not support
+	// the join method sent by the server.
+	GivingUpReasonUnsupportedJoinMethod
+	// GivingUpReasonUnsupportedMessageType means the client can not handle a
+	// message type sent by the server.
+	GivingUpReasonUnsupportedMessageType
+	// GivingUpReasonChallengeSolutionFailed means the client failed to solve a
+	// challenge sent by the server.
+	GivingUpReasonChallengeSolutionFailed
+)
+
+// GivingUp should be sent by clients that fail to complete the join flow so
+// that the Auth service can log an informative error message.
+type GivingUp struct {
+	embedRequest
+
+	// Reason is the reason the client is giving up.
+	Reason GivingUpReason
+	// Msg is an error message related to the failure.
+	Msg string
+}
+
+// ClientGaveUpError is an error type returned when a client explicitly gave up
+// on a join attempt.
+type ClientGaveUpError struct {
+	// Reason is the reason the client is giving up.
+	Reason GivingUpReason
+	// Msg is an error message related to the failure.
+	Msg string
+}
+
+func (e *ClientGaveUpError) Error() string {
+	var msg strings.Builder
+	msg.WriteString("client gave up on join attempt: ")
+	switch e.Reason {
+	case GivingUpReasonUnspecified:
+		msg.WriteString("reason unspecified")
+	case GivingUpReasonUnsupportedJoinMethod:
+		msg.WriteString("unsupported join method")
+	case GivingUpReasonUnsupportedMessageType:
+		msg.WriteString("unsupported message type")
+	case GivingUpReasonChallengeSolutionFailed:
+		msg.WriteString("challenge solution failed")
+	default:
+		msg.WriteString("unhandled reason")
+	}
+	if e.Msg != "" {
+		msg.WriteString(": ")
+		msg.WriteString(joinutils.SanitizeUntrustedString(e.Msg))
+	}
+	return msg.String()
 }
 
 // ClientStream represents the client side of a join request stream.
@@ -379,11 +674,15 @@ func RecvRequest[T Request](ss ServerStream) (T, error) {
 // AssertRequestType performs a type assertion on a request and returns an
 // appropriate error if the request has an unexpected type.
 func AssertRequestType[T Request](req Request) (T, error) {
-	// TODO(nklaassen): add ClientGivingUp request type and return an
-	// appropriate error here.
 	switch typedRequest := req.(type) {
 	case T:
 		return typedRequest, nil
+	case *GivingUp:
+		var nul T
+		return nul, trace.Wrap(&ClientGaveUpError{
+			Reason: typedRequest.Reason,
+			Msg:    typedRequest.Msg,
+		})
 	default:
 		var nul T
 		return nul, trace.BadParameter("expected client to send message of type %T, got %T", nul, req)
@@ -391,8 +690,9 @@ func AssertRequestType[T Request](req Request) (T, error) {
 }
 
 // RecvResponse calls [ClientStream.Recv] and asserts the expected type of
-// the received message, returning an appropriate error if the server sent a
-// message with an unexpected type.
+// the received message. If a message of any type other than T is received a
+// [GivingUp] message will be sent on the client stream and an error will be
+// returned.
 func RecvResponse[T Response](cs ClientStream) (T, error) {
 	var nul T
 	resp, err := cs.Recv()
@@ -401,7 +701,15 @@ func RecvResponse[T Response](cs ClientStream) (T, error) {
 	}
 	typedResp, ok := resp.(T)
 	if !ok {
-		return nul, trace.BadParameter("expected server to send message of type %T, got %T", nul, resp)
+		err = trace.Errorf("expected server to send message of type %T, got %T", nul, resp)
+		sendGivingUpErr := cs.Send(&GivingUp{
+			Reason: GivingUpReasonUnsupportedMessageType,
+			Msg:    err.Error(),
+		})
+		return nul, trace.NewAggregate(
+			err,
+			trace.Wrap(sendGivingUpErr, "sending GivingUp message to server"),
+		)
 	}
 	return typedResp, nil
 }

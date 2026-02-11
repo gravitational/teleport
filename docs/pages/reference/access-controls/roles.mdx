@@ -2,7 +2,6 @@
 title: Teleport Role Reference
 sidebar_label: Roles
 description: Explains the configuration settings that you can include in a Teleport role, which enables you to apply access controls for your infrastructure.
-tocDepth: 3
 tags:
  - reference
  - zero-trust
@@ -75,6 +74,7 @@ user:
 | `record_session` |Defines the [Session recording mode](../deployment/monitoring/audit.mdx).|The strictest value takes precedence.|
 | `desktop_clipboard` | Allow clipboard sharing for desktop sessions | Logical "AND" i.e. evaluates to "yes" if all roles enable clipboard sharing |
 | `desktop_directory_sharing` | Allows sharing local workstation directory to remote desktop | Logical "AND" i.e. evaluates to "yes" if all roles enable directory sharing |
+| `create_desktop_user` | Allows [desktop auto user creation](../../enroll-resources/desktop-access/reference/user-creation.mdx) on a local Windows desktop. |  Logical "AND" i.e. for all roles matching a desktop resource. If all roles that allow access to the resource are set to `true` that will allow user creation. If any are set to `false` user auto creation will be denied. |
 | `pin_source_ip` | Enable source IP pinning for SSH certificates. | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 | `cert_extensions` | Specifies extensions to be included in SSH certificates | |
 | `create_host_user_mode` | Allow users to be automatically created on a host |  Logical "AND" i.e. if all roles matching a server specify host user creation (`off`, `keep`, `insecure-drop`), it will evaluate to the option specified by all of the roles. If some roles specify both `insecure-drop` or `keep` it will evaluate to `keep`|
@@ -662,7 +662,7 @@ session recordings:
 ## RBAC for active sessions
 
 It is possible to further limit access to
-[shared sessions](../../connect-your-client/tsh.mdx).
+[shared sessions](../../connect-your-client/teleport-clients/tsh.mdx).
 The example below illustrates how to restrict access to active SSH sessions
 only for the user who created the session.
 
@@ -757,8 +757,8 @@ Labels for resources enrolled with Teleport:
 
 |Role Field|Teleport Resource|
 |---|---|
-|`app_labels`|[Applications](../../enroll-resources/application-access/controls.mdx)|
-|`cluster_labels`|[Trusted Clusters](../../zero-trust-access/management/admin/trustedclusters.mdx)|
+|`app_labels`|[Applications](../../enroll-resources/application-access/configuration/controls.mdx)|
+|`cluster_labels`|[Trusted Clusters](../../zero-trust-access/deploy-a-cluster/trustedclusters.mdx)|
 |`db_labels`|[Databases](../../enroll-resources/database-access/rbac.mdx)|
 |`db_service_labels`|[Database Service](../../enroll-resources/database-access/database-access.mdx) instances|
 |`kubernetes_labels`|[Kubernetes clusters](../../enroll-resources/kubernetes-access/controls.mdx)|
@@ -813,7 +813,7 @@ sign-on provider.
 |`{{internal.jwt}}`|JWT header used for app access.|
 |`{{internal.kubernetes_groups}}`|List of allowed Kubernetes groups for the user.|
 |`{{internal.kubernetes_users}}`|List of allowed Kubernetes users for the user.|
-|`{{internal.logins}}` | Substituted with a value stored in Teleport's local user database and logins from a root cluster. <br/><br/>For local users, Teleport will substitute this with the "allowed logins" parameter used in the `tctl users add [user] <allowed logins>` command. <br/><br/>If the role is within a leaf cluster in a [trusted cluster](../../zero-trust-access/management/admin/trustedclusters.mdx), Teleport will substitute the logins from the root cluster whether the user is a local user or from an SSO provider. <br/><br/>As an example, if the user has the `ubuntu` login in the root cluster, then `ubuntu` will be substituted in the leaf cluster with this variable. |
+|`{{internal.logins}}` | Substituted with a value stored in Teleport's local user database and logins from a root cluster. <br/><br/>For local users, Teleport will substitute this with the "allowed logins" parameter used in the `tctl users add [user] <allowed logins>` command. <br/><br/>If the role is within a leaf cluster in a [trusted cluster](../../zero-trust-access/deploy-a-cluster/trustedclusters.mdx), Teleport will substitute the logins from the root cluster whether the user is a local user or from an SSO provider. <br/><br/>As an example, if the user has the `ubuntu` login in the root cluster, then `ubuntu` will be substituted in the leaf cluster with this variable. |
 |`{{internal.windows_logins}}`|List of allowed Windows logins for the user.|
 |`{{external.xyz}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, the variable is expanded to the value of the "xyz" claim. See the next section for more information on referring to the `external` variable in Teleport roles. |
 
@@ -822,7 +822,7 @@ sign-on provider.
 The `internal` trait namespace includes only the exact internal trait names
 included in the above table.
 For local Teleport users, these traits can be set in the `spec.traits` field of the
-[user resource](../infrastructure-as-code/resources.mdx#user).
+[user resource](../infrastructure-as-code/teleport-resources/user.mdx).
 These trait names can also be set for SSO users if they are included in an
 attribute or claim from your IdP.
 
@@ -854,7 +854,7 @@ included in the `spec.allow.logins` field of roles the user holds in the root cl
 #### Referring to external traits in Teleport roles
 
 For local Teleport users, the `external` trait namespace includes all values
-from the `spec.traits` field of the [user resource](../infrastructure-as-code/resources.mdx#user).
+from the `spec.traits` field of the [user resource](../infrastructure-as-code/teleport-resources/user.mdx).
 This includes any custom trait names, as well as names matching the `internal`
 traits listed above.
 For example, `{{internal.logins}}` and `{{external.logins}}` are both valid ways

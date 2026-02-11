@@ -225,7 +225,7 @@ func TestSessionCache_watcher(t *testing.T) {
 
 	// Create realistic keys and certificates, newSessionContextFromSession
 	// requires it.
-	creds, err := cert.GenerateSelfSignedCert(nil /* hostNames */, nil /* ipAddresses */)
+	creds, err := cert.GenerateSelfSignedCert(nil, nil, nil, time.Now)
 	require.NoError(t, err, "GenerateSelfSignedCert() failed")
 
 	// Create "fake" sessions with the same sessionID using newSession.

@@ -133,7 +133,7 @@ func TestStaticHostUserHandler(t *testing.T) {
 			select {
 			case events.events <- event:
 			case <-ctx.Done():
-				break
+				return
 			}
 		}
 	}

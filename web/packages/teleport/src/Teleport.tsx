@@ -39,7 +39,7 @@ import { DesktopSessionContainer as DesktopSession } from './DesktopSession';
 import { HeadlessRequest } from './HeadlessRequest';
 import { Login } from './Login';
 import { LoginClose } from './Login/LoginClose';
-import { LoginFailedComponent as LoginFailed } from './Login/LoginFailed';
+import { LoginFailed } from './Login/LoginFailed';
 import { LoginSuccess } from './Login/LoginSuccess';
 import { LoginTerminalRedirect } from './Login/LoginTerminalRedirect';
 import { Main } from './Main';

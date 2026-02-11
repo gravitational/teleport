@@ -18,7 +18,10 @@
 
 import { ipcRenderer } from 'electron';
 
+import Logger from 'teleterm/logger';
+import type { Message, MessageAck } from 'teleterm/mainProcess/awaitableSender';
 import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
+import { deserializeError } from 'teleterm/mainProcess/ipcSerializer';
 import { AppUpdateEvent } from 'teleterm/services/appUpdater';
 import { createFileStorageClient } from 'teleterm/services/fileStorage';
 import { RootClusterUri } from 'teleterm/ui/uri';
@@ -34,6 +37,8 @@ import {
   RendererIpc,
   WindowsManagerIpc,
 } from './types';
+
+const logger = new Logger('MainProcessClient');
 
 export default function createMainProcessClient(): MainProcessClient {
   return {
@@ -97,81 +102,68 @@ export default function createMainProcessClient(): MainProcessClient {
     // TODO(ravicious): Convert the rest of IPC channels to use enums defined in types.ts such as
     // MainProcessIpc rather than hardcoded strings.
     getResolvedChildProcessAddresses(): Promise<ChildProcessAddresses> {
-      return ipcRenderer.invoke(
-        'main-process-get-resolved-child-process-addresses'
-      );
+      return ipcInvoke('main-process-get-resolved-child-process-addresses');
     },
     showFileSaveDialog(filePath: string) {
-      return ipcRenderer.invoke('main-process-show-file-save-dialog', filePath);
+      return ipcInvoke('main-process-show-file-save-dialog', filePath);
     },
     saveTextToFile(args) {
-      return ipcRenderer.invoke(MainProcessIpc.SaveTextToFile, args);
+      return ipcInvoke(MainProcessIpc.SaveTextToFile, args);
     },
     openTerminalContextMenu,
     openTabContextMenu,
     configService: createConfigServiceClient(),
     fileStorage: createFileStorageClient(),
-    removeKubeConfig(options) {
-      return ipcRenderer.invoke('main-process-remove-kube-config', options);
-    },
     forceFocusWindow(args) {
-      return ipcRenderer.invoke(MainProcessIpc.ForceFocusWindow, args);
+      return ipcInvoke(MainProcessIpc.ForceFocusWindow, args);
     },
     symlinkTshMacOs() {
-      return ipcRenderer.invoke('main-process-symlink-tsh-macos');
+      return ipcInvoke('main-process-symlink-tsh-macos');
     },
     removeTshSymlinkMacOs() {
-      return ipcRenderer.invoke('main-process-remove-tsh-symlink-macos');
+      return ipcInvoke('main-process-remove-tsh-symlink-macos');
     },
     openConfigFile() {
-      return ipcRenderer.invoke('main-process-open-config-file');
+      return ipcInvoke('main-process-open-config-file');
     },
     shouldUseDarkColors() {
       return ipcRenderer.sendSync('main-process-should-use-dark-colors');
     },
     downloadAgent() {
-      return ipcRenderer.invoke(MainProcessIpc.DownloadConnectMyComputerAgent);
+      return ipcInvoke(MainProcessIpc.DownloadConnectMyComputerAgent);
     },
     verifyAgent() {
-      return ipcRenderer.invoke(MainProcessIpc.VerifyConnectMyComputerAgent);
+      return ipcInvoke(MainProcessIpc.VerifyConnectMyComputerAgent);
     },
     createAgentConfigFile(args: CreateAgentConfigFileArgs) {
-      return ipcRenderer.invoke(
+      return ipcInvoke(
         'main-process-connect-my-computer-create-agent-config-file',
         args
       );
     },
     isAgentConfigFileCreated(args: { rootClusterUri: RootClusterUri }) {
-      return ipcRenderer.invoke(
+      return ipcInvoke(
         'main-process-connect-my-computer-is-agent-config-file-created',
         args
       );
     },
     removeAgentDirectory(args: { rootClusterUri: RootClusterUri }) {
-      return ipcRenderer.invoke(
+      return ipcInvoke(
         'main-process-connect-my-computer-remove-agent-directory',
         args
       );
     },
     tryRemoveConnectMyComputerAgentBinary() {
-      return ipcRenderer.invoke(
-        MainProcessIpc.TryRemoveConnectMyComputerAgentBinary
-      );
+      return ipcInvoke(MainProcessIpc.TryRemoveConnectMyComputerAgentBinary);
     },
     openAgentLogsDirectory(args: { rootClusterUri: RootClusterUri }) {
-      return ipcRenderer.invoke('main-process-open-agent-logs-directory', args);
+      return ipcInvoke('main-process-open-agent-logs-directory', args);
     },
     killAgent(args: { rootClusterUri: RootClusterUri }) {
-      return ipcRenderer.invoke(
-        'main-process-connect-my-computer-kill-agent',
-        args
-      );
+      return ipcInvoke('main-process-connect-my-computer-kill-agent', args);
     },
     runAgent(args: { rootClusterUri: RootClusterUri }) {
-      return ipcRenderer.invoke(
-        'main-process-connect-my-computer-run-agent',
-        args
-      );
+      return ipcInvoke('main-process-connect-my-computer-run-agent', args);
     },
     getAgentState(args: { rootClusterUri: RootClusterUri }) {
       return ipcRenderer.sendSync(
@@ -188,48 +180,31 @@ export default function createMainProcessClient(): MainProcessClient {
     signalUserInterfaceReadiness(args: { success: boolean }) {
       ipcRenderer.send(WindowsManagerIpc.SignalUserInterfaceReadiness, args);
     },
-    refreshClusterList() {
-      ipcRenderer.send(MainProcessIpc.RefreshClusterList);
-    },
     selectDirectoryForDesktopSession(args: {
       desktopUri: string;
       login: string;
     }) {
-      return ipcRenderer.invoke(
-        MainProcessIpc.SelectDirectoryForDesktopSession,
-        args
-      );
+      return ipcInvoke(MainProcessIpc.SelectDirectoryForDesktopSession, args);
     },
     supportsAppUpdates() {
       return ipcRenderer.sendSync(MainProcessIpc.SupportsAppUpdates);
     },
     checkForAppUpdates() {
-      return ipcRenderer.invoke(MainProcessIpc.CheckForAppUpdates);
+      return ipcInvoke(MainProcessIpc.CheckForAppUpdates);
     },
     downloadAppUpdate() {
-      return ipcRenderer.invoke(MainProcessIpc.DownloadAppUpdate);
+      return ipcInvoke(MainProcessIpc.DownloadAppUpdate);
     },
     cancelAppUpdateDownload() {
-      return ipcRenderer.invoke(MainProcessIpc.CancelAppUpdateDownload);
+      return ipcInvoke(MainProcessIpc.CancelAppUpdateDownload);
     },
     quitAndInstallAppUpdate() {
-      return ipcRenderer.invoke(MainProcessIpc.QuiteAndInstallAppUpdate);
+      return ipcInvoke(MainProcessIpc.QuiteAndInstallAppUpdate);
     },
     changeAppUpdatesManagingCluster(clusterUri) {
-      return ipcRenderer.invoke(
-        MainProcessIpc.ChangeAppUpdatesManagingCluster,
-        {
-          clusterUri,
-        }
-      );
-    },
-    maybeRemoveAppUpdatesManagingCluster(clusterUri) {
-      return ipcRenderer.invoke(
-        MainProcessIpc.MaybeRemoveAppUpdatesManagingCluster,
-        {
-          clusterUri,
-        }
-      );
+      return ipcInvoke(MainProcessIpc.ChangeAppUpdatesManagingCluster, {
+        clusterUri,
+      });
     },
     subscribeToAppUpdateEvents: listener => {
       const ipcListener = (_, updateEvent: AppUpdateEvent) => {
@@ -263,5 +238,110 @@ export default function createMainProcessClient(): MainProcessClient {
           ),
       };
     },
+    subscribeToClusterStore: listener => {
+      const { close } = startAwaitableSenderListener(
+        MainProcessIpc.InitClusterStoreSubscription,
+        listener
+      );
+
+      return {
+        cleanup: close,
+      };
+    },
+    addCluster: async (proxyAddress: string) => {
+      return await ipcInvoke(MainProcessIpc.AddCluster, proxyAddress);
+    },
+    syncRootClusters: async () => {
+      return await ipcInvoke(MainProcessIpc.SyncRootClusters);
+    },
+    syncCluster: (clusterUri: RootClusterUri) => {
+      return ipcInvoke(MainProcessIpc.SyncCluster, { clusterUri });
+    },
+    logout: (clusterUri: RootClusterUri) => {
+      return ipcInvoke(MainProcessIpc.Logout, { clusterUri });
+    },
+    registerClusterLifecycleHandler(listener): {
+      cleanup: () => void;
+    } {
+      const { close } = startAwaitableSenderListener(
+        MainProcessIpc.RegisterClusterLifecycleHandler,
+        listener
+      );
+
+      return { cleanup: close };
+    },
+    subscribeToProfileWatcherErrors: listener => {
+      const ipcListener = (_, error) => {
+        listener(error);
+      };
+
+      ipcRenderer.addListener(RendererIpc.ProfileWatcherError, ipcListener);
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(
+            RendererIpc.ProfileWatcherError,
+            ipcListener
+          ),
+      };
+    },
   };
+}
+
+/**
+ * Sets up a `MessagePort` listener in the renderer process and transfers
+ * the port to the main process via the specified IPC `channel`.
+ *
+ * The main process is expected to create an `AwaitableSender` using the received port,
+ * enabling it to send messages that require acknowledgments from the renderer.
+ */
+function startAwaitableSenderListener<T>(
+  channel: string,
+  listener: (value: T) => void | Promise<void>
+): {
+  close: () => void;
+} {
+  const { port1: localPort, port2: transferablePort } = new MessageChannel();
+
+  localPort.onmessage = async (event: MessageEvent<Message>) => {
+    const msg = event.data;
+    if (msg.type !== 'data') {
+      return;
+    }
+    const ack: MessageAck = { type: 'ack', id: msg.id };
+
+    try {
+      await listener(msg.payload as T);
+    } catch (e) {
+      ack.error = e;
+    }
+
+    localPort.postMessage(ack);
+  };
+
+  localPort.start();
+  ipcRenderer.postMessage(channel, undefined, [transferablePort]);
+
+  return {
+    close: () => {
+      localPort.onmessage = undefined;
+      localPort.close();
+      transferablePort.close();
+    },
+  };
+}
+
+/**
+ * Resolves with the response from the main process.
+ * The main process must register the handler using `ipcHandle` (not `ipcMain.handle`).
+ *
+ * Use this instead of `ipcRenderer.invoke`.
+ */
+async function ipcInvoke(channel: string, ...args: any[]): Promise<any> {
+  const { error, result } = await ipcRenderer.invoke(channel, ...args);
+  if (error) {
+    const deserialized = deserializeError(error);
+    logger.error(`Error invoking remote method ${channel}`, deserialized);
+    throw deserialized;
+  }
+  return result;
 }

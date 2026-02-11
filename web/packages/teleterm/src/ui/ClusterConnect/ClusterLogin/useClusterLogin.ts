@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { AuthProvider } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 import {
@@ -33,7 +33,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useAppUpdaterContext } from 'teleterm/ui/AppUpdater';
 import { IAppContext } from 'teleterm/ui/types';
 import * as uri from 'teleterm/ui/uri';
-import { RootClusterUri } from 'teleterm/ui/uri';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 export type SsoPrompt =
   /**
@@ -185,12 +185,15 @@ export function useClusterLogin(props: Props) {
     configService.set('skipVersionCheck', true);
     setShouldSkipVersionCheck(true);
   }
-  const { platform } = mainProcessClient.getRuntimeSettings();
+  const { platform, appVersion } = useMemo(
+    () => mainProcessClient.getRuntimeSettings(),
+    [mainProcessClient]
+  );
 
   return {
     ssoPrompt,
     passwordlessLoginState,
-    title: cluster?.name,
+    title: routing.parseClusterName(clusterUri),
     loggedInUserName,
     onLoginWithLocal,
     onLoginWithPasswordless,
@@ -204,6 +207,7 @@ export function useClusterLogin(props: Props) {
     shouldSkipVersionCheck,
     disableVersionCheck,
     platform,
+    currentVersion: appVersion,
     appUpdateEvent: appUpdaterContext.updateEvent,
     downloadAppUpdate: mainProcessClient.downloadAppUpdate,
     cancelAppUpdateDownload: mainProcessClient.cancelAppUpdateDownload,
@@ -211,10 +215,6 @@ export function useClusterLogin(props: Props) {
     quitAndInstallAppUpdate: mainProcessClient.quitAndInstallAppUpdate,
     changeAppUpdatesManagingCluster:
       mainProcessClient.changeAppUpdatesManagingCluster,
-    clusterGetter: {
-      findCluster: (clusterUri: RootClusterUri) =>
-        clustersService.findCluster(clusterUri),
-    },
   };
 }
 

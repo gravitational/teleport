@@ -93,6 +93,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -114,6 +115,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/conntest"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/client/sso"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -140,6 +142,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/srv/transport/transportv1"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -235,6 +238,7 @@ type webSuiteConfig struct {
 }
 
 func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
+	t.Helper()
 	mockU2F, err := mocku2f.Create()
 	require.NoError(t, err)
 	require.NotNil(t, mockU2F)
@@ -315,7 +319,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	})
 	require.NoError(t, err)
 
-	priv, pub, err := testauthority.New().GenerateKeyPair()
+	priv, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPub, err := authtest.PrivateKeyToPublicKeyTLS(priv)
@@ -325,12 +329,14 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	// start node
 	certs, err := s.server.Auth().GenerateHostCerts(s.ctx,
-		&authproto.HostCertsRequest{
-			HostID:       hostID,
-			NodeName:     nodeID,
-			Role:         types.RoleNode,
-			PublicSSHKey: pub,
-			PublicTLSKey: tlsPub,
+		auth.HostCertsParams{
+			Req: &authproto.HostCertsRequest{
+				HostID:       hostID,
+				NodeName:     nodeID,
+				Role:         types.RoleNode,
+				PublicSSHKey: pub,
+				PublicTLSKey: tlsPub,
+			},
 		})
 	require.NoError(t, err)
 
@@ -420,7 +426,8 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	})
 	require.NoError(t, err)
 
-	caWatcher, err := services.NewCertAuthorityWatcher(s.ctx, services.CertAuthorityWatcherConfig{
+	//nolint:staticcheck // SA1019 This should be updated to use [services.NewCertAuthorityWatcher]
+	caWatcher, err := services.DeprecatedNewCertAuthorityWatcher(s.ctx, services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
 			Client:    s.proxyClient,
@@ -440,6 +447,15 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	require.NoError(t, err)
 	t.Cleanup(proxyGitServerWatcher.Close)
 
+	appServerWatcher, err := services.NewAppServersWatcher(ctx, services.AppServersWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    s.proxyClient,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(appServerWatcher.Close)
+
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ID:       node.ID(),
 		Listener: revTunListener,
@@ -456,6 +472,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		LockWatcher:           proxyLockWatcher,
 		NodeWatcher:           proxyNodeWatcher,
 		GitServerWatcher:      proxyGitServerWatcher,
+		AppServerWatcher:      appServerWatcher,
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		LocalAuthAddresses:    []string{s.server.TLS.Listener.Addr().String()},
@@ -581,6 +598,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	// Wait for proxy to fully register before starting the test.
 	for start := time.Now(); ; {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 		proxies, err := s.proxyClient.GetProxies()
 		require.NoError(t, err)
 		if len(proxies) != 0 {
@@ -627,7 +645,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 }
 
 func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address string) *regular.Server {
-	priv, pub, err := testauthority.New().GenerateKeyPair()
+	priv, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPub, err := authtest.PrivateKeyToPublicKeyTLS(priv)
@@ -635,12 +653,14 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 
 	// start node
 	certs, err := s.server.Auth().GenerateHostCerts(s.ctx,
-		&authproto.HostCertsRequest{
-			HostID:       uuid,
-			NodeName:     hostname,
-			Role:         types.RoleNode,
-			PublicSSHKey: pub,
-			PublicTLSKey: tlsPub,
+		auth.HostCertsParams{
+			Req: &authproto.HostCertsRequest{
+				HostID:       uuid,
+				NodeName:     hostname,
+				Role:         types.RoleNode,
+				PublicSSHKey: pub,
+				PublicTLSKey: tlsPub,
+			},
 		})
 	require.NoError(t, err)
 
@@ -959,11 +979,13 @@ func Test_clientMetaFromReq(t *testing.T) {
 		http.MethodGet, "https://example.com/webapi/foo", nil,
 	)
 	r.Header.Set("User-Agent", ua)
+	r.Header.Set("Max-Touch-Points", "5")
 
 	got := clientMetaFromReq(r)
 	require.Equal(t, &authclient.ForwardedClientMetadata{
-		UserAgent:  ua,
-		RemoteAddr: "192.0.2.1:1234",
+		UserAgent:      ua,
+		RemoteAddr:     "192.0.2.1:1234",
+		MaxTouchPoints: 5,
 	}, got)
 }
 
@@ -1301,6 +1323,120 @@ func TestUserGroupsGet(t *testing.T) {
 	}})
 }
 
+func TestUnifiedResourcesGet_AppComponentFeatures(t *testing.T) {
+	t.Parallel()
+
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+
+	ctx := t.Context()
+	username := "test-user@example.com"
+
+	u, err := user.Current()
+	require.NoError(t, err)
+	loginUser := u.Username
+
+	role := defaultRoleForNewUser(&types.UserV2{Metadata: types.Metadata{Name: username}}, loginUser)
+	role.SetAppLabels(types.Allow, types.Labels{"env": []string{"prod"}})
+
+	pack := proxy.authPack(t, username, []types.Role{role})
+
+	// - cluster (auth/proxy) support `feature1`
+	// - app has 2 appservers, both support `feature1` + `feature2`
+	// - aggregated appserver features should = {feature1, feature2}
+	// - final app supportedFeatureIDs should = {feature1}
+	feature1 := componentfeatures.FeatureID(9998)
+	feature2 := componentfeatures.FeatureID(9999)
+
+	{
+		for srv := range clientutils.Resources(ctx, env.server.Auth().ListProxyServers) {
+			srv.SetComponentFeatures(componentfeatures.New(feature1))
+			err := env.server.Auth().UpsertProxy(ctx, srv)
+			require.NoError(t, err)
+		}
+	}
+	{
+		for srv := range clientutils.Resources(ctx, env.server.Auth().ListAuthServers) {
+			srv.SetComponentFeatures(componentfeatures.New(feature1))
+			err := env.server.Auth().UpsertAuthServer(ctx, srv)
+			require.NoError(t, err)
+		}
+	}
+
+	// AWS Console app + 2 app servers serving it
+	appName := "aws-console-app"
+	awsApp, err := types.NewAppV3(
+		types.Metadata{
+			Name: appName,
+			Labels: map[string]string{
+				"env": "prod",
+			},
+		},
+		types.AppSpecV3{
+			URI:   "https://console.aws.amazon.com",
+			Cloud: "AWS",
+		},
+	)
+	require.NoError(t, err)
+
+	awsSrv1, err := types.NewAppServerV3FromApp(awsApp, "localhost", "host-1")
+	require.NoError(t, err)
+	awsSrv1.SetComponentFeatures(componentfeatures.New(feature1, feature2))
+	_, err = env.server.Auth().UpsertApplicationServer(ctx, awsSrv1)
+	require.NoError(t, err)
+
+	awsSrv2, err := types.NewAppServerV3FromApp(awsApp, "localhost", "host-2")
+	require.NoError(t, err)
+	awsSrv2.SetComponentFeatures(componentfeatures.New(feature1, feature2))
+	_, err = env.server.Auth().UpsertApplicationServer(ctx, awsSrv2)
+	require.NoError(t, err)
+
+	clusterName := env.server.ClusterName()
+	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
+	query := url.Values{"kinds": []string{types.KindApp}}
+
+	require.Eventually(t, func() bool {
+		return env.server.Auth().UnifiedResourceCache.IsInitialized()
+	}, 5*time.Second, 50*time.Millisecond, "unified resource cache failed to initialize")
+
+	// Ensure aggregated AppServers' features are intersected as expected
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		var got []types.AppServer
+
+		for srv, err := range env.server.Auth().UnifiedResourceCache.AppServers(
+			ctx, services.UnifiedResourcesIterateParams{},
+		) {
+			require.NoError(t, err)
+			if srv.GetApp() == nil || srv.GetApp().GetName() != appName {
+				continue
+			}
+			got = append(got, srv)
+		}
+
+		require.Len(t, got, 1)
+
+		cf := got[0].GetComponentFeatures()
+		require.NotNil(t, cf)
+		require.ElementsMatch(t, componentfeatures.New(feature1, feature2).GetFeatures(), cf.GetFeatures())
+	}, 5*time.Second, 50*time.Millisecond, "unified resource cache did not expose aggregated AppServer")
+
+	// Ensure returned UnifiedResource's features are intersected as expected (against all auth/proxy)
+	re, err := pack.clt.Get(ctx, endpoint, query)
+	require.NoError(t, err)
+
+	var resp struct {
+		Items []webui.App `json:"items"`
+	}
+	err = json.Unmarshal(re.Bytes(), &resp)
+	require.NoError(t, err)
+	require.Len(t, resp.Items, 1)
+
+	app := resp.Items[0]
+	require.True(t, app.AWSConsole)
+
+	require.ElementsMatch(t, []int{int(feature1)}, app.SupportedFeatureIDs)
+}
+
 func TestUnifiedResourcesGet(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
@@ -1552,6 +1688,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 			AppClusterName:        clusterName,
 			RequiresRequest:       false,
 			AllowedAWSRolesLookup: map[string][]string{"my-aws-app": {"arn:aws:iam::999999999999:role/ProdInstance"}},
+			GrantedAWSRolesLookup: map[string][]string{"my-aws-app": {"arn:aws:iam::999999999999:role/ProdInstance"}},
 		}
 
 		expectedApps := []webui.App{
@@ -2432,7 +2569,7 @@ func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server) *windows
 		HostUUID: "windows_server",
 		NodeName: "windows_server",
 	}
-	n, err := authClient.GetClusterName(context.TODO())
+	n, err := authClient.GetClusterName(t.Context())
 	require.NoError(t, err)
 	dns := []string{"localhost", "127.0.0.1", desktop.WildcardServiceDNS}
 	identity, err := auth.LocalRegister(authID, authClient, nil, dns, "", nil)
@@ -2470,7 +2607,7 @@ func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server) *windows
 }
 
 func (w *windowsDesktopServiceMock) handleConn(t *testing.T, conn *tls.Conn) {
-	tdpConn := tdp.NewConn(conn)
+	tdpConn := tdp.NewConn(conn, legacy.Decode)
 
 	// Ensure that incoming connection is MFAVerified.
 	require.NotEmpty(t, conn.ConnectionState().PeerCertificates)
@@ -2481,17 +2618,17 @@ func (w *windowsDesktopServiceMock) handleConn(t *testing.T, conn *tls.Conn) {
 
 	msg, err := tdpConn.ReadMessage()
 	require.NoError(t, err)
-	require.IsType(t, tdp.ClientUsername{}, msg)
+	require.IsType(t, legacy.ClientUsername{}, msg)
 
 	msg, err = tdpConn.ReadMessage()
 	require.NoError(t, err)
-	require.IsType(t, tdp.ClientScreenSpec{}, msg)
+	require.IsType(t, legacy.ClientScreenSpec{}, msg)
 
 	msg, err = tdpConn.ReadMessage()
 	require.NoError(t, err)
-	require.IsType(t, tdp.ClientKeyboardLayout{}, msg, "%v", msg)
+	require.IsType(t, legacy.ClientKeyboardLayout{}, msg, "%v", msg)
 
-	err = tdpConn.WriteMessage(tdp.Alert{Message: "test", Severity: tdp.SeverityWarning})
+	err = tdpConn.WriteMessage(legacy.Alert{Message: "test", Severity: legacy.SeverityWarning})
 	require.NoError(t, err)
 }
 
@@ -2564,49 +2701,49 @@ func TestDesktopAccessMFA(t *testing.T) {
 
 			// Before the session can proceed to the MFA ceremony, the proxy expects the
 			// web UI to send both the screen size and keyboard layout over the websocket.
-			ss, err := tdp.ClientScreenSpec{
+			ss, err := legacy.ClientScreenSpec{
 				Width:  1920,
 				Height: 1080,
 			}.Encode()
 			require.NoError(t, err)
 			require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, ss))
-			kl, err := tdp.ClientKeyboardLayout{}.Encode()
+			kl, err := legacy.ClientKeyboardLayout{}.Encode()
 			require.NoError(t, err)
 			require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, kl))
 
 			tc.mfaHandler(t, ws, dev)
 
-			tdpClient := tdp.NewConn(&WebsocketIO{Conn: ws})
+			tdpClient := tdp.NewConn(&WebsocketIO{Conn: ws}, legacy.Decode)
 
 			msg, err := tdpClient.ReadMessage()
 			require.NoError(t, err)
 
 			// sometimes LatencyStats will be sent before we get Alert, in such case just skip it and get next one
-			if _, ok := msg.(tdp.LatencyStats); ok {
+			if _, ok := msg.(legacy.LatencyStats); ok {
 				msg, err = tdpClient.ReadMessage()
 				require.NoError(t, err)
 			}
-			require.IsType(t, tdp.Alert{}, msg)
+			require.IsType(t, legacy.Alert{}, msg)
 		})
 	}
 }
 
 func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *authtest.Device) {
 	wsrwc := &WebsocketIO{Conn: ws}
-	tdpConn := tdp.NewConn(wsrwc)
+	tdpConn := tdp.NewConn(wsrwc, legacy.Decode)
 
 	br := bufio.NewReader(wsrwc)
 	mt, err := br.ReadByte()
 	require.NoError(t, err)
-	require.Equal(t, tdp.TypeMFA, tdp.MessageType(mt))
+	require.Equal(t, legacy.TypeMFA, legacy.MessageType(mt))
 
-	mfaChallange, err := tdp.DecodeMFAChallenge(br)
+	mfaChallange, err := legacy.DecodeMFAChallenge(br)
 	require.NoError(t, err)
 	res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
 		WebauthnChallenge: wantypes.CredentialAssertionToProto(mfaChallange.WebauthnChallenge),
 	})
 	require.NoError(t, err)
-	err = tdpConn.WriteMessage(tdp.MFA{
+	err = tdpConn.WriteMessage(legacy.MFA{
 		Type: defaults.WebsocketMFAChallenge[0],
 		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_Webauthn{
@@ -4783,6 +4920,8 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 			string(entitlements.LicenseAutoUpdate):          {Enabled: false},
 			string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 			string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
+			string(entitlements.ClientIPRestrictions):       {Enabled: false},
+			string(entitlements.WorkloadClusters):           {Enabled: false},
 		},
 		TunnelPublicAddress:            "",
 		RecoveryCodesEnabled:           false,
@@ -4967,6 +5106,8 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 			string(entitlements.LicenseAutoUpdate):          {Enabled: false},
 			string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 			string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
+			string(entitlements.ClientIPRestrictions):       {Enabled: false},
+			string(entitlements.WorkloadClusters):           {Enabled: false},
 		},
 		PlayableDatabaseProtocols:     player.SupportedDatabaseProtocols,
 		IsPolicyRoleVisualizerEnabled: true,
@@ -6817,7 +6958,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: `Failed to connect to the Node. Ensure teleport service is running using "systemctl status teleport".`,
-					Error:   "direct dialing to nodes not found in inventory is not supported",
+					Error:   "target host notanode is offline or does not exist",
 				},
 			},
 		},
@@ -6835,7 +6976,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: `Failed to connect to the Node. Ensure teleport service is running using "launchctl print 'system/Teleport Service'".`,
-					Error:   "direct dialing to nodes not found in inventory is not supported",
+					Error:   "target host notanode is offline or does not exist",
 				},
 			},
 		},
@@ -6854,7 +6995,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: `Open the Connect My Computer tab in Teleport Connect and make sure that the agent is running.`,
-					Error:   "direct dialing to nodes not found in inventory is not supported",
+					Error:   "target host notanode is offline or does not exist",
 				},
 			},
 		},
@@ -7005,7 +7146,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 					require.Contains(t, returnedTrace.Error, expectedTrace.Error)
 				}
 
-				require.True(t, foundTrace, "expected trace %v was not found", expectedTrace)
+				require.True(t, foundTrace, "expected trace '%v' was not found, got '%v'", expectedTrace, connectionDiagnostic.Traces)
 			}
 			require.Equal(t, expectedFailedTraces, gotFailedTraces)
 		})
@@ -7107,7 +7248,11 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 	}
 	require.NotNil(t, rolesWithoutAccessToKubeCluster)
 
-	env := newWebPack(t, 1)
+	env := newWebPack(t, 1,
+		withWebPackProxyOptions(
+			withKubeProxy(),
+		),
+	)
 
 	rt := http.NewServeMux()
 	rt.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -8307,7 +8452,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 	})
 	require.NoError(t, err)
 
-	priv, pub, err := testauthority.New().GenerateKeyPair()
+	priv, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPub, err := authtest.PrivateKeyToPublicKeyTLS(priv)
@@ -8316,12 +8461,14 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 	const nodeID = "node"
 	// start auth server
 	certs, err := server.Auth().GenerateHostCerts(ctx,
-		&authproto.HostCertsRequest{
-			HostID:       hostID,
-			NodeName:     nodeID,
-			Role:         types.RoleNode,
-			PublicSSHKey: pub,
-			PublicTLSKey: tlsPub,
+		auth.HostCertsParams{
+			Req: &authproto.HostCertsRequest{
+				HostID:       hostID,
+				NodeName:     nodeID,
+				Role:         types.RoleNode,
+				PublicSSHKey: pub,
+				PublicTLSKey: tlsPub,
+			},
 		})
 	require.NoError(t, err)
 
@@ -8395,6 +8542,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 
 	// Wait for proxies to fully register before starting the test.
 	for start := time.Now(); ; {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 		proxies, err := proxies[0].client.GetProxies()
 		require.NoError(t, err)
 		if len(proxies) == numProxies {
@@ -8427,6 +8575,7 @@ func (w *wrappedAuthClient) DevicesClient() devicepb.DeviceTrustServiceClient {
 type proxyConfig struct {
 	minimalHandler        bool
 	devicesClientOverride devicepb.DeviceTrustServiceClient
+	kubeProxy             bool
 }
 
 type proxyOption func(cfg *proxyConfig)
@@ -8437,9 +8586,16 @@ func withDevicesClientOverride(c devicepb.DeviceTrustServiceClient) proxyOption 
 	}
 }
 
+func withKubeProxy() proxyOption {
+	return func(cfg *proxyConfig) {
+		cfg.kubeProxy = true
+	}
+}
+
 func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regular.Server, authServer *authtest.TLSServer,
 	hostSigners []ssh.Signer, clock *clockwork.FakeClock, opts ...proxyOption,
 ) *testProxy {
+	t.Helper()
 	cfg := proxyConfig{}
 	for _, opt := range opts {
 		opt(&cfg)
@@ -8479,7 +8635,8 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(proxyLockWatcher.Close)
 
-	proxyCAWatcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
+	//nolint:staticcheck // SA1019 This should be updated to use [services.NewCertAuthorityWatcher]
+	proxyCAWatcher, err := services.DeprecatedNewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
 			Client:    client,
@@ -8509,6 +8666,15 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(proxyGitServerWatcher.Close)
 
+	appServerWatcher, err := services.NewAppServersWatcher(ctx, services.AppServersWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    client,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(appServerWatcher.Close)
+
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ID:       node.ID(),
 		Listener: revTunListener,
@@ -8526,6 +8692,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		NodeWatcher:           proxyNodeWatcher,
 		GitServerWatcher:      proxyGitServerWatcher,
 		CertAuthorityWatcher:  proxyCAWatcher,
+		AppServerWatcher:      appServerWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		LocalAuthAddresses:    []string{authServer.Listener.Addr().String()},
 		EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
@@ -8578,11 +8745,17 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		}
 	}()
 
-	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: clustername,
-		AccessPoint: authServer.Auth(),
-		LockWatcher: proxyLockWatcher,
-	})
+	authorizerOpts := authz.AuthorizerOpts{
+		ClusterName:      clustername,
+		AccessPoint:      authServer.Auth(),
+		ScopedRoleReader: authServer.Auth().ScopedRoleReader(),
+		LockWatcher:      proxyLockWatcher,
+	}
+
+	authorizer, err := authz.NewAuthorizer(authorizerOpts)
+	require.NoError(t, err)
+
+	scopedAuthorizer, err := authz.NewScopedAuthorizer(authorizerOpts)
 	require.NoError(t, err)
 
 	tlscfg, err := authServer.Identity.TLSConfig(utils.DefaultCipherSuites())
@@ -8611,7 +8784,8 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		UserGetter: &authz.Middleware{
 			ClusterName: authServer.ClusterName(),
 		},
-		Authorizer: authorizer,
+		Authorizer:       authorizer,
+		ScopedAuthorizer: scopedAuthorizer,
 	})
 	require.NoError(t, err)
 
@@ -8637,8 +8811,15 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		FIPS:   false,
 		Logger: logtest.NewLogger(),
 		Dialer: router,
-		SignerFn: func(authzCtx *authz.Context, clusterName string) agentless.SignerCreator {
-			return agentless.SignerFromAuthzContext(authzCtx, client, clusterName)
+		SignerFn: func(authzCtx *authz.ScopedContext, clusterName string) agentless.SignerCreator {
+			if unscopedCtx, ok := authzCtx.UnscopedContext(); ok {
+				return agentless.SignerFromAuthzContext(unscopedCtx, client, clusterName)
+			}
+
+			return func(ctx context.Context, localAccessPoint agentless.LocalAccessPoint, certGen agentless.CertGenerator) (ssh.Signer, error) {
+				// TODO(fspamarshall/scopes): implement agentless transport signer for scoped identities
+				return nil, trace.NotImplemented("agentless transport signer is not implemented for scoped identities")
+			}
 		},
 		ConnectionMonitor: connMonitor,
 		LocalAddr:         proxyListener.Addr(),
@@ -8733,16 +8914,18 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	handler.handler.sshPort = sshPort
 
-	kubeProxyAddr := startKube(
-		ctx,
-		t,
-		startKubeOptions{
-			serviceType: kubeproxy.ProxyService,
-			authServer:  authServer,
-			revTunnel:   revTunServer,
-		},
-	)
-	handler.handler.cfg.ProxyKubeAddr = utils.FromAddr(kubeProxyAddr)
+	if cfg.kubeProxy {
+		kubeProxyAddr := startKube(
+			ctx,
+			t,
+			startKubeOptions{
+				serviceType: kubeproxy.ProxyService,
+				authServer:  authServer,
+				revTunnel:   revTunServer,
+			},
+		)
+		handler.handler.cfg.ProxyKubeAddr = utils.FromAddr(kubeProxyAddr)
+	}
 	handler.handler.cfg.PublicProxyAddr = webServer.Listener.Addr().String()
 	url, err := url.Parse("https://" + webServer.Listener.Addr().String())
 	require.NoError(t, err)
@@ -9279,6 +9462,93 @@ func TestWithLimiterHandlerFunc(t *testing.T) {
 	require.True(t, trace.IsLimitExceeded(err), "WithLimiterHandlerFunc returned err = %T, want trace.LimitExceededError", err)
 }
 
+func TestWitWithAccessDeniedLimiter(t *testing.T) {
+	rateLimiter, err := limiter.NewRateLimiter(limiter.Config{
+		Rates: []limiter.Rate{
+			{Period: time.Minute, Average: 2, Burst: 3},
+		},
+		Clock: clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	h := &Handler{limiter: rateLimiter}
+
+	callCount := 0
+	shouldFail := false
+	handle := h.WithAccessDeniedLimiter(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		callCount++
+		if shouldFail {
+			return nil, trace.AccessDenied("invalid credentials")
+		}
+		return "success", nil
+	})
+
+	r := &http.Request{RemoteAddr: "192.168.1.1:1234"}
+
+	// Make some successful requests - these should not count toward rate limit
+	for i := 0; i < 5; i++ {
+		w := httptest.NewRecorder()
+		handle(w, r, nil)
+		require.Equal(t, http.StatusOK, w.Code)
+	}
+
+	// Now make access denied requests - only these should count
+	shouldFail = true
+	for i := 0; i < 3; i++ {
+		w := httptest.NewRecorder()
+		handle(w, r, nil)
+		require.Equal(t, http.StatusForbidden, w.Code)
+	}
+	require.Equal(t, 8, callCount)
+
+	// Next request should be rate limited (handler not called)
+	w := httptest.NewRecorder()
+	handle(w, r, nil)
+	require.Equal(t, http.StatusTooManyRequests, w.Code)
+
+	require.Equal(t, 8, callCount)
+}
+
+func TestWithUnauthenticatedLimiter(t *testing.T) {
+	rateLimiter, err := limiter.NewRateLimiter(limiter.Config{
+		Rates: []limiter.Rate{
+			{Period: time.Minute, Average: 2, Burst: 3},
+		},
+		Clock: clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	h := &Handler{limiter: rateLimiter}
+
+	callCount := 0
+	handle := h.WithUnauthenticatedLimiter(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		callCount++
+		return "success", nil
+	})
+
+	r := &http.Request{RemoteAddr: "192.168.1.1:1234"}
+
+	// Request should return the error from handler
+	w := httptest.NewRecorder()
+	handle(w, r, nil)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, 1, callCount)
+
+	// Should be able to make more requests (they still count toward rate limit)
+	for range 2 {
+		w := httptest.NewRecorder()
+		handle(w, r, nil)
+		require.Equal(t, http.StatusOK, w.Code)
+	}
+	require.Equal(t, 3, callCount)
+
+	// Next request should be rate limited
+	w = httptest.NewRecorder()
+	handle(w, r, nil)
+	require.Equal(t, http.StatusTooManyRequests, w.Code)
+	require.Equal(t, 3, callCount)
+}
+
 // kubeClusterConfig defines the cluster to be created
 type kubeClusterConfig struct {
 	name        string
@@ -9336,7 +9606,9 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		kubeConfigLocation = newKubeConfigFile(ctx, t, cfg.clusters...)
 	}
 
-	keyGen := tlsutils.New(ctx)
+	keyGen, err := tlsutils.New(tlsutils.Config{BuildType: modules.BuildOSS})
+	require.NoError(t, err)
+
 	hostID := uuid.New().String()
 	// heartbeatsWaitChannel waits for clusters heartbeats to start.
 	heartbeatsWaitChannel := make(chan struct{}, len(cfg.clusters))
@@ -9394,6 +9666,10 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		KubernetesServerGetter: client,
 	})
 	require.NoError(t, err)
+	t.Cleanup(watcher.Close)
+
+	// wait for the watcher to init before continuing
+	require.NoError(t, watcher.WaitInitialization())
 
 	healthCheckManager, err := healthcheck.NewManager(
 		ctx,
@@ -9496,8 +9772,6 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		}
 		errChan <- err
 	}()
-	// wait for the watcher to init or it may race with test cleanup.
-	require.NoError(t, watcher.WaitInitialization())
 
 	// Waits for len(clusters) heartbeats to start
 	heartbeatsToExpect := len(cfg.clusters)
@@ -10784,7 +11058,11 @@ func sshLoginResponseFromCallbackResponse(t *testing.T, responseBody io.Reader, 
 }
 
 func TestGithubConnector(t *testing.T) {
-	ctx := context.Background()
+	// We run this test as a Teleport Enterprise server to bypass the check for whether
+	// the GitHub org uses SSO.
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
@@ -11136,6 +11414,8 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.LicenseAutoUpdate):          {Enabled: true, Limit: 99},
 					string(entitlements.AccessGraphDemoMode):        {Enabled: true, Limit: 99},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: true, Limit: 99},
+					string(entitlements.ClientIPRestrictions):       {Enabled: true, Limit: 99},
+					string(entitlements.WorkloadClusters):           {Enabled: true, Limit: 99},
 				},
 			},
 			expected: &webclient.WebConfig{
@@ -11200,6 +11480,8 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.LicenseAutoUpdate):          {Enabled: true, Limit: 99},
 					string(entitlements.AccessGraphDemoMode):        {Enabled: true, Limit: 99},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: true, Limit: 99},
+					string(entitlements.ClientIPRestrictions):       {Enabled: true, Limit: 99},
+					string(entitlements.WorkloadClusters):           {Enabled: true, Limit: 99},
 				},
 			},
 		},
@@ -11303,6 +11585,8 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.LicenseAutoUpdate):          {Enabled: false},
 					string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
+					string(entitlements.ClientIPRestrictions):       {Enabled: false},
+					string(entitlements.WorkloadClusters):           {Enabled: false},
 
 					// set to equivalent legacy feature
 					string(entitlements.ExternalAuditStorage):   {Enabled: true},
@@ -11433,6 +11717,9 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.SAML):                       {Enabled: true},
 					string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
+					string(entitlements.ClientIPRestrictions):       {Enabled: false},
+					string(entitlements.WorkloadClusters):           {Enabled: false},
+
 					// set to legacy feature "IsIGSEnabled"; false so set value and keep limits
 					string(entitlements.AccessLists):       {Enabled: true, Limit: 88},
 					string(entitlements.AccessMonitoring):  {Enabled: true, Limit: 88},
@@ -11544,6 +11831,8 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.LicenseAutoUpdate):          {Enabled: false},
 					string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
+					string(entitlements.ClientIPRestrictions):       {Enabled: false},
+					string(entitlements.WorkloadClusters):           {Enabled: false},
 				},
 			},
 		},

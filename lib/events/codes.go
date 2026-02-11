@@ -120,6 +120,8 @@ const (
 	SessionDataCode = "T2006I"
 	// AppSessionStartCode is the application session start code.
 	AppSessionStartCode = "T2007I"
+	// AppSessionStartFailureCode is the application session start failure code.
+	AppSessionStartFailureCode = "T2007E"
 	// AppSessionChunkCode is the application session chunk create code.
 	AppSessionChunkCode = "T2008I"
 	// AppSessionRequestCode is the application request/response code.
@@ -794,11 +796,11 @@ const (
 	// SCIMResourceDeleteSuccessCode indicates a resource was successfully
 	// deleted via SCIM
 	SCIMResourceDeleteSuccessCode = "TSCIM003I"
-	// SCIMResourceDeleteFailureCode indicates a indicates a failed attempt to
-	// update a resource via SCIM
+	// SCIMResourceDeleteFailureCode indicates a failed attempt to
+	// delete a resource via SCIM
 	SCIMResourceDeleteFailureCode = "TSCIM003E"
 	// SCIMGetResourceSuccessCode indicates a resource was successfully fetched
-	// fron Teleport via SCIM
+	// from Teleport via SCIM
 	SCIMGetResourceSuccessCode = "TSCIM004I"
 	// SCIMGetResourceFailureCode indicates a failed attempt to fetch a
 	// resource via SCIM
@@ -809,6 +811,74 @@ const (
 	// SCIMListResourcesFailureCode indicates a failed attempt to list resources
 	// via SCIM
 	SCIMListResourcesFailureCode = "TSCIM005E"
+	// SCIMResourcePatchSuccessCode indicates a resource was successfully patched
+	// via SCIM
+	SCIMResourcePatchSuccessCode = "TSCIM006I"
+	// SCIMResourcePatchFailureCode indicates a failed attempt to patch a resource
+	// via SCIM
+	SCIMResourcePatchFailureCode = "TSCIM006E"
+
+	// ClientIPRestrictionsUpdateCode is the Client IP Restriction update event code.
+	ClientIPRestrictionsUpdateCode = "CIR001I"
+
+	// AppAuthConfigCreateCode is the app auth config create event code.
+	AppAuthConfigCreateCode = "TAAC001I"
+	// AppAuthConfigUpdateCode is the app auth config update event code.
+	AppAuthConfigUpdateCode = "TAAC002I"
+	// AppAuthConfigDeleteCode is the app auth config delete event code.
+	AppAuthConfigDeleteCode = "TAAC003I"
+	// AppAuthConfigVerifySuccessCode is the app auth verification success event
+	// code.
+	AppAuthConfigVerifySuccessCode = "TAAC004I"
+	// AppAuthConfigVerifyFailureCode is the app auth verification failure event
+	// code.
+	AppAuthConfigVerifyFailureCode = "TAAC004E"
+
+	// VnetConfigCreateCode is the Vnet config create event code.
+	VnetConfigCreateCode = "TVNET001I"
+	// VnetConfigUpdateCode is the Vnet config update event code.
+	VnetConfigUpdateCode = "TVNET002I"
+	// VnetConfigDeleteCode is the Vnet config delete event code.
+	VnetConfigDeleteCode = "TVNET003I"
+
+	// WorkloadClusterCreateCode is the workload cluster create event code.
+	WorkloadClusterCreateCode = "WC001I"
+	// WorkloadClusterCreateFailureCode is the workload cluster create failure event code.
+	WorkloadClusterCreateFailureCode = "WC001E"
+	// WorkloadClusterUpdateCode is the workload cluster update event code.
+	WorkloadClusterUpdateCode = "WC002I"
+	// WorkloadClusterUpdateFailureCode is the workload cluster update failure event code.
+	WorkloadClusterUpdateFailureCode = "WC002E"
+	// WorkloadClusterDeleteCode is the workload cluster delete event code.
+	WorkloadClusterDeleteCode = "WC003I"
+	// WorkloadClusterDeleteFailureCode is the workload cluster delete failure event code.
+	WorkloadClusterDeleteFailureCode = "WC003E"
+
+	// InferenceModelCreateCode is the inference model create event code.
+	InferenceModelCreateCode = "INF001I"
+	// InferenceModelUpdateCode is the inference model update event code.
+	InferenceModelUpdateCode = "INF002I"
+	// InferenceModelDeleteCode is the inference model delete event code.
+	InferenceModelDeleteCode = "INF003I"
+
+	// InferenceSecretCreateCode is the inference secret create event code.
+	InferenceSecretCreateCode = "INF004I"
+	// InferenceSecretUpdateCode is the inference secret update event code.
+	InferenceSecretUpdateCode = "INF005I"
+	// InferenceSecretDeleteCode is the inference secret delete event code.
+	InferenceSecretDeleteCode = "INF006I"
+
+	// InferencePolicyCreateCode is the inference policy create event code.
+	InferencePolicyCreateCode = "INF007I"
+	// InferencePolicyUpdateCode is the inference policy update event code.
+	InferencePolicyUpdateCode = "INF008I"
+	// InferencePolicyDeleteCode is the inference policy delete event code.
+	InferencePolicyDeleteCode = "INF009I"
+
+	// SessionSummarizedCode is the session summarized event code.
+	SessionSummarizedCode = "INF010I"
+	// SessionSummarizedErrorCode is the session summarized error event code.
+	SessionSummarizedErrorCode = "INF010E"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

@@ -19,6 +19,7 @@ package recordingmetadata
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/teleport/lib/session"
 )
@@ -27,5 +28,5 @@ import (
 type Service interface {
 	// ProcessSessionRecording processes the session recording associated with the
 	// provided session ID.
-	ProcessSessionRecording(ctx context.Context, sessionID session.ID) error
+	ProcessSessionRecording(ctx context.Context, sessionID session.ID, duration time.Duration) error
 }
