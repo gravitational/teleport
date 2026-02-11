@@ -404,8 +404,8 @@ message MFAAuthenticateResponse {
 message BrowserMFAChallenge {
   // request_id is the ID of a browser auth request.
   string request_id = 1;
-  // redirect_url is a redirect URL to initiate the browser MFA flow.
-  string redirect_url = 2;
+  // client_redirect_url is a redirect URL to initiate the browser MFA flow.
+  string client_redirect_url = 2;
 }
 
 // BrowserMFAResponse is a response to BrowserMFAChallenge.
@@ -425,9 +425,9 @@ message ValidateBrowserMFAChallengeRequest {
 // ValidateBrowserMFAChallengeResponse contains the redirect URL to send
 // the user back to after successfully completing browser-based MFA authentication.
 message ValidateBrowserMFAChallengeResponse {
-  // client_redirect_url is the callback URL to tsh's local HTTP server with the encrypted WebAuthn response.
+  // tsh_redirect_url is the callback URL to tsh's local HTTP server with the encrypted WebAuthn response.
   // Format: http://127.0.0.1:[random_port]/callback?response={encrypted_webauthn_response}
-  string client_redirect_url = 1;
+  string tsh_redirect_url = 1;
 }
 
 // AuthService is authentication/authorization service implementation
@@ -446,9 +446,9 @@ service AuthService {
 message CreateAuthenticateChallengeRequest {
   ...
 
-  // browser_mfa_client_redirect_url should be supplied if the client supports Browser MFA checks.
-  // This is used by tsh to provide the callback URL for browser MFA flows.
-  string browser_mfa_client_redirect_url = 9 [(gogoproto.jsontag) = "browser_mfa_client_redirect_url,omitempty"];
+  // browser_mfa_tsh_redirect_url should be supplied if the client supports Browser MFA checks.
+  // This is used by tsh to provide the tsh callback URL for browser MFA flows.
+  string browser_mfa_tsh_redirect_url = 9 [(gogoproto.jsontag) = "browser_mfa_tsh_redirect_url,omitempty"];
 
   // browser_mfa_request_id should be supplied when the browser is generating an MFA challenge
   // for browser MFA. The auth server will look up the SSOMFASession with this ID to retrieve
@@ -486,15 +486,15 @@ message CreateSessionChallengeRequest {
 
   // Used to construct the redirect URL for browser-based MFA flows. If the client supports browser MFA, this field
   // should be set to the URL where the browser should redirect after completing the MFA challenge.
-  string browser_mfa_client_redirect_url = 5;
+  string browser_mfa_tsh_redirect_url = 5;
 }
 
 // BrowserMFAChallenge contains browser auth request details to perform a browser MFA check.
 message BrowserMFAChallenge {
   // RequestId is the ID of a browser auth request.
   string request_id = 1;
-  // RedirectUrl is a redirect URL to initiate the browser MFA flow.
-  string redirect_url = 2;
+  // ClientRedirectUrl is a redirect URL to initiate the browser MFA flow in the browser.
+  string client_redirect_url = 2;
 }
 
 // BrowserMFAResponse is a response to BrowserMFAChallenge.
@@ -518,7 +518,8 @@ message PromptMFARequest {
 
 // BrowserMFAChallenge contains browser challenge details.
 message BrowserMFAChallenge {
-  string redirect_url = 1;
+  // client_redirect_url is the browser URL that the user will be sent to MFA
+  string client_redirect_url = 1;
 }
 ```
 
@@ -556,7 +557,7 @@ containing the MFA token.
 #### `POST /webapi/mfa/login/begin`
 
 This existing endpoint will be updated to optionally take details for a
-Browser MFA request. The extra field is `browser_mfa_client_redirect_url` for
+Browser MFA request. The extra field is `browser_mfa_tsh_redirect_url` for
 the client to send along `tsh`'s local web server address for redirection later.
 
 **Request Payload:**
@@ -565,7 +566,7 @@ the client to send along `tsh`'s local web server address for redirection later.
 {
   "user": "alice",
   "pass": "hunter2",
-  "browser_mfa_client_redirect_url": "http://127.0.0.1:54321/callback?secret_key=abc123def456"
+  "browser_mfa_tsh_redirect_url": "http://127.0.0.1:54321/callback?secret_key=abc123def456"
 }
 ```
 
