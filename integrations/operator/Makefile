@@ -91,7 +91,8 @@ PROTOS = \
 	teleport/machineid/v1/bot.proto \
 	teleport/workloadidentity/v1/resource.proto \
 	teleport/autoupdate/v1/autoupdate.proto \
-	teleport/summarizer/v1/summarizer.proto
+	teleport/summarizer/v1/summarizer.proto \
+	teleport/accessmonitoringrules/v1/access_monitoring_rules.proto
 
 .PHONY: crd-manifests
 crd-manifests: crdgen ## Generates CRD manifests using crdgen.
