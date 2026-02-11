@@ -32,7 +32,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func TestCommand(t *testing.T) {
@@ -275,21 +274,6 @@ func waitForClose(r io.Reader) <-chan struct{} {
 	}()
 
 	return done
-}
-
-func initTestLogger(w io.Writer, cfg LogConfig) {
-	fields, err := logutils.ValidateFields(cfg.ExtraFields)
-	if err != nil {
-		return
-	}
-
-	logger := slog.New(logutils.NewSlogTextHandler(w, logutils.SlogTextHandlerConfig{
-		Level:            cfg.Level,
-		EnableColors:     cfg.EnableColors,
-		ConfiguredFields: fields,
-		Padding:          cfg.Padding,
-	}))
-	slog.SetDefault(logger.With(teleport.ComponentKey, "reexec"))
 }
 
 type safeBuffer struct {
