@@ -1786,7 +1786,8 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 		case result := <-scx.ExecResultCh:
 			scx.Logger.DebugContext(ctx, "Exec request complete", "command", result.Command, "code", result.Code)
 
-			if result.Error != nil {
+			// Avoid broadcasting basic exit errors.
+			if result.Error != nil && !srv.IsExitError(result.Error) {
 				message := utils.FormatErrorWithNewline(result.Error)
 				s.writeStderr(ctx, ch, message)
 			}

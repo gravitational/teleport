@@ -314,8 +314,17 @@ func RunCommand() (code int, err error) {
 	parkerCancel()
 
 	err = waitForShell(terminatefd, cmd)
+	if err == nil {
+		return teleport.RemoteCommandSuccess, nil
+	}
 
-	return exitCode(err), trace.Wrap(err)
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		return exitErr.ExitCode(), trace.Wrap(err)
+	}
+
+	slog.DebugContext(context.Background(), "Unknown error returned when executing command", "error", err)
+	return teleport.RemoteCommandFailure, trace.Wrap(err)
 }
 
 // waitForShell waits either for the command to return or the kill signal from the parent Teleport process.

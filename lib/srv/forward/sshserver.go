@@ -1358,6 +1358,12 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 		case result := <-scx.ExecResultCh:
 			s.logger.DebugContext(ctx, "Exec request complete", "command", result.Command, "code", result.Code)
 
+			// Avoid broadcasting basic exit errors.
+			if result.Error != nil && !srv.IsExitError(result.Error) {
+				message := utils.FormatErrorWithNewline(result.Error)
+				s.stderrWrite(ctx, ch, message)
+			}
+
 			// The exec process has finished and delivered the execution result, send
 			// the result back to the client, and close the session and channel.
 			_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(result.Code)}))
