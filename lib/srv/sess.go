@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os/exec"
 	"slices"
 	"strconv"
 	"sync"
@@ -1690,6 +1691,15 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 }
 
 func (s *session) broadcastResult(r ExecResult) {
+	// Avoid broadcasting basic exit errors to the client, e.g.  "Process exited with status 255"
+	if r.Error != nil {
+		var execExitErr *exec.ExitError
+		var sshExitErr *ssh.ExitError
+		if errors.As(r.Error, &execExitErr) || errors.As(r.Error, &sshExitErr) {
+			r.Error = nil
+		}
+	}
+
 	payload := ssh.Marshal(struct{ C uint32 }{C: uint32(r.Code)})
 	for _, p := range s.getParties() {
 		if r.Error != nil {
