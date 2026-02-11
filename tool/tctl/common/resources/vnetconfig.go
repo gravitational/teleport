@@ -34,9 +34,6 @@ import (
 )
 
 func getVnetConfig(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
-	if ref.Name != "" {
-		return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindVnetConfig)
-	}
 	vnetConfig, err := client.GetVnetConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
