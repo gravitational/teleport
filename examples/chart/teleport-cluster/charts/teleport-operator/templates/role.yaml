@@ -52,6 +52,8 @@ rules:
       - teleportautoupdateconfigsv1/status
       - teleportautoupdateversionsv1
       - teleportautoupdateversionsv1/status
+      - teleportworkloadclusterv1
+      - teleportworkloadclusterv1/status
     verbs:
       - get
       - list
