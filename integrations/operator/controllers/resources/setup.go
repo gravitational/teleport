@@ -57,11 +57,11 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		{"TeleportAutoupdateVersionV1", NewAutoUpdateVersionV1Reconciler},
 		{"TeleportAppV3", NewAppV3Reconciler},
 		{"TeleportDatabaseV3", NewDatabaseV3Reconciler},
-		{"TeleportWorkloadClusterV1", NewWorkloadClusterV1Reconciler},
 	}
 
 	oidc := modules.GetProtoEntitlement(features, entitlements.OIDC)
 	saml := modules.GetProtoEntitlement(features, entitlements.SAML)
+	workloadClusters := modules.GetProtoEntitlement(features, entitlements.WorkloadClusters)
 
 	if oidc.Enabled {
 		reconcilers = append(reconcilers, reconcilerFactory{"TeleportOIDCConnector", NewOIDCConnectorReconciler})
@@ -80,6 +80,14 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		reconcilers = append(reconcilers, reconcilerFactory{"TeleportLoginRule", NewLoginRuleReconciler})
 	} else {
 		log.Info("Login Rules are only available in Teleport Enterprise edition. TeleportLoginRule resources won't be reconciled")
+	}
+
+	if workloadClusters.Enabled {
+		reconcilers = append(reconcilers, reconcilerFactory{"TeleportWorkloadClusterV1", NewWorkloadClusterV1Reconciler})
+	} else if features.Cloud {
+		log.Info("Workload Clusters are only available with the Workload Clusters features - please reach out to our support team at support@goteleport.com to discuss enabling this feature")
+	} else {
+		log.Info("Workload Clusters are only available for Teleport Cloud users")
 	}
 
 	// AccessLists, OktaImports are enterprise-only but there is no specific feature-flag for them.
