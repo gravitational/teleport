@@ -1363,7 +1363,15 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
       <Text>
         <P>
           Integrating with Microsoft Teams allows Teleport to send notifications
-          via Microsoft Teams about incoming access requests.
+          via Microsoft Teams about incoming access requests. For more details,
+          see our docs page about{' '}
+          <Link
+            href="https://goteleport.com/docs/identity-governance/access-requests/plugins/msteams/"
+            target="_blank"
+          >
+            Access Requests with Microsoft Teams
+          </Link>
+          .
         </P>
       </Text>
     ),
@@ -1410,7 +1418,8 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             value={appID}
             onChange={e => setAppID(e.target.value)}
             placeholder="App ID"
-            toolTipContent="The Application ID (the ID for bots must be the underlying app ID, not the bot's ID)"
+            toolTipContent={`The Azure Bot's App ID (Microsoft App ID) \
+              can be found on its "Configuration" page.`}
           />
           <FieldInput
             width="500px"
@@ -1420,7 +1429,8 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             value={tenantID}
             onChange={e => setTenantID(e.target.value)}
             placeholder="Tenant ID"
-            toolTipContent="The Microsoft Tenant ID"
+            toolTipContent={`The Azure Bot's Tenant ID (App Tenant ID) \
+              can be found on its "Configuration" page.`}
           />
           <FieldInput
             width="500px"
@@ -1429,7 +1439,9 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             value={teamsAppID}
             onChange={e => setTeamsAppID(e.target.value)}
             placeholder="Teams App ID "
-            toolTipContent="The ID of the Teams App"
+            toolTipContent={`The Teams App ID (External app ID) \
+              can be found in the Microsoft Teams admin center by navigating to \
+              the "Manage apps" page and viewing your app's details.`}
           />
           <FieldInput
             width="500px"
@@ -1438,7 +1450,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             value={region}
             onChange={e => setRegion(e.target.value)}
             placeholder="Region"
-            toolTipContent="Region to be used by the Microsoft Graph API client"
+            toolTipContent="Deprecated: API region should no longer be specified."
           />
           <FieldInput
             width="500px"
@@ -1449,7 +1461,9 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             type="password"
             onChange={e => setToken(e.target.value)}
             placeholder="abc-def...-123"
-            toolTipContent="App secret is used to authenticate the Azure app"
+            toolTipContent={`The Azure Bot's App secret can be configured by \
+              navigating to its "Configuration" page, selecting "Manage Password", \
+              and creating a client secret.`}
             mb={3}
           />
           <FieldInput
@@ -1459,8 +1473,10 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             rule={requiredField('Default recipient Required')}
             value={defaultRecipient}
             onChange={e => setDefaultRecipient(e.target.value)}
-            placeholder="Default Recipient"
-            toolTipContent="The name of a default channel or a default username that will receive all notifications about access requests"
+            placeholder="https://teams.microsoft.com/l/channel/..."
+            toolTipContent={`The default recipient for access request notifications \
+              must be a Teams user's email or a Teams channel URL, which can be \
+              obtained by opening the channel and selecting "Copy link".`}
           />
         </>
       );

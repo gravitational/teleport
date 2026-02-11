@@ -501,8 +501,10 @@ function getRecipientIconTooltip(pluginName: string) {
   if (lowerCasedName.includes('msteams')) {
     return (
       <>
-        Recipients can be Microsoft Teams user emails/IDs, or channel URL
-        recipients. Make sure to invite the bot to every team/channel.
+        Recipients can be Teams user emails/IDs, or a Teams channel URL, which
+        can be obtained by opening the channel and selecting{' '}
+        <Mark>Copy link</Mark>. Make sure to invite the bot to every
+        team/channel.
       </>
     );
   }
