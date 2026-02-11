@@ -280,8 +280,9 @@ func (c *ScopedTokensCommand) Del(ctx context.Context, client *authclient.Client
 func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Client) error {
 	tokens, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]*joiningv1.ScopedToken, string, error) {
 		res, err := client.ListScopedTokens(ctx, &joiningv1.ListScopedTokensRequest{
-			Limit:  uint32(pageSize),
-			Cursor: pageKey,
+			Limit:       uint32(pageSize),
+			Cursor:      pageKey,
+			WithSecrets: c.withSecrets,
 		})
 		if err != nil {
 			return nil, "", trace.Wrap(err)
