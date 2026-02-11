@@ -3,6 +3,9 @@ run-name: Benchmarks Diff (Root) (Go) - ${{ github.run_id }} - @${{ github.actor
 
 on:
   merge_group:
+  push:
+    branches:
+      - okraport/benchmark-diff-test-run
 
 jobs:
   changes:
