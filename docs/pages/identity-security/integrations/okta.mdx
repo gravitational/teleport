@@ -1,7 +1,7 @@
 ---
 title: Discover Okta Access Patterns with Teleport Identity Security
 sidebar_label: Okta
-description: How to synchronize Okta access patterns and audit logs using Teleport Identity Security.
+description: Describes how to synchronize Okta access patterns and audit logs using Teleport Identity Security.
 tags:
  - how-to
  - identity-security
@@ -34,7 +34,7 @@ The importing process involves three components:
 
 ### Polling Okta APIs
 
-The Teleport cluster periodically scans the configured Okta organization and retrieves the following resources:
+Access Graph and Identity Activity Center periodically scan the configured Okta organization and retrieve the following resources:
 
 - Users
 - Groups
@@ -58,11 +58,10 @@ Access Graph maps the relationships between imported resources, including:
 These relationships are rendered as a navigable graph, allowing you to trace access paths
 from any identity to the resources it can reach.
 
-### Streaming Okta system logs
+### Streaming Okta Audit Logs
 
 Identity Activity Center polls the Okta System Log API on a minute-by-minute basis, retrieving
-audit events and streaming them to the Identity Activity Center. The export uses cursor-based
-pagination, so it resumes from where it left off if interrupted.
+audit events. 
 
 Event types captured include:
 
@@ -94,7 +93,8 @@ creating a new one. See Step 2 for details.
 
 ## Step 1/4. Configure Okta API credentials
 
-Teleport supports two authentication methods for connecting to the Okta API.
+Teleport supports two authentication methods for connecting to the Okta API. 
+Either a SSWS bearer token or OAuth 2.0 client credentials can be used.
 
 ### Option A: SSWS bearer token
 
@@ -122,6 +122,10 @@ role or a custom admin role with equivalent read permissions.
 4. Note the **Client ID**. You will need it in Step 2.
 
 ## Step 2/4. Set up the Okta integration
+
+In this step we'll set up the integration in Teleport. Teleport has a 
+comprehensive Okta integration and as part of this onboarding wizard, teams 
+can choose to enable Identity Security features.
 
 ### New integration
 
@@ -220,14 +224,14 @@ SELECT * FROM access_path WHERE standing_privileges >= 1 AND resource_labels @> 
 ## Step 4/4. View Okta activity in Identity Activity Center
 
 After enabling system log export, Okta audit events appear in the
-[Identity Activity Center](../access-graph/identity-activity-center.mdx).
+[Identity Activity Center](../usage/investigate.mdx).
 Navigate to **Identity Security** > **Activity Center** in the Teleport Web UI to search
 and investigate Okta system log events alongside activity from other connected platforms.
 
 The Identity Activity Center normalizes Okta system logs alongside audit data from AWS,
 GitHub, and Teleport, giving you a single view of identity activity across your organization.
-Use the [Investigate](../usage/investigate.mdx) view to explore related events and trace
-activity across platforms for a specific identity.
+Use the Investigate view to explore related events and trace activity across platforms for 
+a specific identity.
 
 ![Investigating Okta audit logs in the Identity Activity Center](https://goteleport.com/_uploads/okta_audit_logs_54713adcc6.png)
 
@@ -237,36 +241,6 @@ Teleport Identity Security includes pre-built
 [security detections](../usage/alerts.mdx) that automatically create alerts for
 suspicious Okta activity. These detections monitor Okta system log events and
 trigger alerts without any additional configuration.
-
-### Okta alert types
-
-#### High severity
-- Admin MFA disabled
-- All MFA factors reset
-- OAuth token reuse patterns
-- Rate limit violations
-- Sign-on policy evaluations
-- IDP lifecycle changes
-- API token creation or revocation
-- Security threat events
-
-#### Medium severity
-- Excessive MFA failures
-- Multiple password reset attempts
-- Dormant account access
-- Support-initiated password or MFA resets
-
-### Cross-platform detections
-
-Identity Security also correlates Okta events with activity from other platforms:
-
-- **Impossible travel detection** — triggers when login attempts from the same
-  identity occur across geographic locations within a timeframe that makes
-  legitimate travel physically impossible.
-
-To view active alerts, navigate to **Identity Security** > **Alerts** in the
-Teleport Web UI. See [Identity Security Alerts](../usage/alerts.mdx) for the
-full list of detections across all platforms.
 
 ![Okta alerts in Identity Security](https://goteleport.com/_uploads/okta_identity_security_alerts_e565fcafbf.png)
 
