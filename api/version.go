@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "19.0.0-dev.updater.8"
+const Version = "19.0.0-dev.updater.9"
 
 const VersionMajor = 19
 const VersionMinor = 0
 const VersionPatch = 0
-const VersionPreRelease = "dev.updater.8"
+const VersionPreRelease = "dev.updater.9"
 const VersionMetadata = ""
