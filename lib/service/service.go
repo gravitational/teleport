@@ -6806,6 +6806,7 @@ func (process *TeleportProcess) initApps() {
 			ConnectionMonitor: connMonitor,
 			ServiceComponent:  teleport.ComponentApp,
 			Logger:            logger,
+			LimiterConfig:     process.Config.Apps.Limiter,
 			MCPDemoServer:     process.Config.Apps.MCPDemoServer,
 		})
 		if err != nil {

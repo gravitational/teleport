@@ -9,6 +9,12 @@
 The minimum version of macOS required to run Teleport or associated client tools
 is now macOS 12 (Monterey).
 
+#### Application Access connection limits
+
+The `connection_limits` configuration now applies to the Application
+Service. If you have `connection_limits` configured, app access
+connections will be subject to those limits after upgrading to v19.
+
 ## 18.5.0 (12/04/25)
 
 ### Kubernetes support for Relay Service
