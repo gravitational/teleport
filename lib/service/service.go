@@ -6671,7 +6671,7 @@ func (process *TeleportProcess) initApps() {
 		}
 
 		// Loop over each application and create a server.
-		var applications types.Apps
+		var applications []types.Application
 		for _, app := range process.Config.Apps.Apps {
 			publicAddr, err := getPublicAddr(process.ExitContext(), accessPoint, app)
 			if err != nil {

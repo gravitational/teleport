@@ -40,9 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type appServerContextKey string
@@ -72,7 +70,7 @@ type Config struct {
 	GetRotation services.RotationGetter
 
 	// Apps is a list of statically registered apps this agent proxies.
-	Apps types.Apps
+	Apps []types.Application
 
 	// CloudLabels is a service that imports labels from a cloud provider. The labels are shared
 	// between all apps.
@@ -83,9 +81,6 @@ type Config struct {
 
 	// ResourceMatchers is a list of app resource matchers.
 	ResourceMatchers []services.ResourceMatcher
-
-	// OnReconcile is called after each database resource reconciliation.
-	OnReconcile func(types.Apps)
 
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
 	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
@@ -146,40 +141,9 @@ type Server struct {
 	// apps are all apps this server currently proxies. Proxied apps are
 	// reconciled against monitoredApps below.
 	apps map[string]types.Application
-	// monitoredApps contains all cluster apps the proxied apps are
-	// reconciled against.
-	monitoredApps monitoredApps
-	// reconcileCh triggers reconciliation of proxied apps.
-	reconcileCh chan struct{}
 
-	// watcher monitors changes to application resources.
-	watcher *services.GenericWatcher[types.Application, readonly.Application]
-}
-
-// monitoredApps is a collection of applications from different sources
-// like configuration file and dynamic resources.
-//
-// It's updated by respective watchers and is used for reconciling with the
-// currently proxied apps.
-type monitoredApps struct {
-	// static are apps from the agent's YAML configuration.
-	static types.Apps
-	// resources are apps created via CLI or API.
-	resources types.Apps
-	// mu protects access to the fields.
-	mu sync.Mutex
-}
-
-func (m *monitoredApps) setResources(apps types.Apps) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.resources = apps
-}
-
-func (m *monitoredApps) get() map[string]types.Application {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return utils.FromSlice(append(m.static, m.resources...), types.Application.GetName)
+	// monitor watches application resources.
+	monitor *services.ResourceMonitor[types.Application]
 }
 
 // New returns a new application server.
@@ -204,12 +168,8 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		heartbeats:    make(map[string]srv.HeartbeatI),
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		apps:          make(map[string]types.Application),
-		monitoredApps: monitoredApps{
-			static: c.Apps,
-		},
-		reconcileCh:  make(chan struct{}),
-		closeFunc:    closeFunc,
-		closeContext: closeContext,
+		closeFunc:     closeFunc,
+		closeContext:  closeContext,
 	}
 
 	s.c.ConnectionsHandler.SetApplicationsProvider(s.GetAppByPublicAddress)
@@ -411,16 +371,6 @@ func (s *Server) unregisterAndRemoveApp(ctx context.Context, name string) error 
 	return nil
 }
 
-// getApps returns a list of all apps this server is proxying.
-func (s *Server) getApps() (apps types.Apps) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	for _, app := range s.apps {
-		apps = append(apps, app)
-	}
-	return apps
-}
-
 // Start starts proxying all registered apps.
 func (s *Server) Start(ctx context.Context) (err error) {
 	// Register all apps from static configuration.
@@ -430,26 +380,25 @@ func (s *Server) Start(ctx context.Context) (err error) {
 		}
 	}
 
-	// Start reconciler that will be reconciling proxied apps with
-	// application resources.
-	if err := s.startReconciler(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Initialize watcher that will be dynamically (un-)registering
+	// Initialize the monitor to dynamically (un-)register
 	// proxied apps based on the application resources.
-	if s.watcher, err = s.startResourceWatcher(ctx); err != nil {
+	if s.monitor, err = s.startResourceMonitor(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// App uses heartbeat v2, which heartbeats resources but not the server itself
 	// If there are no resources, we will never report ready.
-	// We workaround by reporting ready after the first successful watcher init.
+	// We work around this by reporting ready after the first successful watcher init.
 	// We only need to do this if the watcher is non-nil, because if
 	// it's nil we are advertising some static app and will heartbeat.
-	if s.watcher != nil && s.c.OnHeartbeat != nil {
+	if s.monitor != nil && s.c.OnHeartbeat != nil {
 		go func() {
-			s.c.OnHeartbeat(s.watcher.WaitInitialization())
+			select {
+			case <-s.monitor.Initialized():
+				s.c.OnHeartbeat(nil)
+			case <-ctx.Done():
+				s.c.OnHeartbeat(ctx.Err())
+			}
 		}()
 	}
 
@@ -538,8 +487,11 @@ func (s *Server) close(ctx context.Context) error {
 	s.closeFunc()
 
 	// Stop the database resource watcher.
-	if s.watcher != nil {
-		s.watcher.Close()
+	if s.monitor != nil {
+		if err := s.monitor.Close(); err != nil {
+			s.log.WarnContext(ctx, "closing app resource monitor failed", "error", err)
+		}
+
 	}
 
 	return trace.NewAggregate(errs...)
