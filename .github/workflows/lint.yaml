@@ -28,6 +28,8 @@ jobs:
           base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
           ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
           filters: |
+            has_shell:
+              - '**.sh'
             has_rfd:
               - '.github/workflows/lint.yaml'
               - 'rfd/**.md'
@@ -185,8 +187,11 @@ jobs:
           working-directory: integrations/event-handler
           skip-cache: true
 
-      - name: Run (non-action) linters
-        run: make lint-no-actions
+      - name: Lint shell scripts
+        run: make lint-sh
+
+      - name: Check for license headers
+        run: make lint-license
 
       - name: Check if derived functions are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
@@ -197,6 +202,26 @@ jobs:
 
       - name: Check if test symbols are included in binaries
         run: make lint-test-symbols
+
+  lint-shell:
+    name: Lint (Shell)
+    needs: changes
+    # we run the shell linter in Lint (Go) already, so only run this job if shell scripts have changed and Lint (Go) will not run
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_shell == 'true' && needs.changes.outputs.has_go != 'true' }}
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Lint shell scripts
+        run: make lint-sh
 
   lint-rust:
     name: Lint (Rust)
