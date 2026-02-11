@@ -167,6 +167,7 @@ func testDatabaseLogin(t *testing.T) {
 				accessRequestorRole,
 				alice,
 			)
+			cfg.SSH.Enabled = false
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			// separate MySQL port with TLS routing.
 			// set the public address to be sure even on v2+, tsh clients will see the separate port.
@@ -709,6 +710,7 @@ func testListDatabase(t *testing.T) {
 			cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Databases.Enabled = true
+			cfg.SSH.Enabled = false
 			cfg.Databases.Databases = []servicecfg.Database{{
 				Name:     fullName,
 				Protocol: defaults.ProtocolPostgres,
@@ -728,6 +730,7 @@ func testListDatabase(t *testing.T) {
 		withLeafCluster(),
 		withLeafConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
+			cfg.SSH.Enabled = false
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{{
 				Name:     "leaf-postgres",
@@ -1599,6 +1602,7 @@ func testDatabaseSelection(t *testing.T) {
 			cfg.Auth.BootstrapResources = append(cfg.Auth.BootstrapResources, alice)
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Databases.Enabled = true
+			cfg.SSH.Enabled = false
 			cfg.Databases.Databases = []servicecfg.Database{
 				fooDB1, fooRDSDB, fooRDSCustomDB,
 				barRDSDB1, barRDSDB2,

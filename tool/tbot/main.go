@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/cli"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/config/joinuri"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -131,6 +132,9 @@ func Run(args []string, stdout io.Writer) error {
 		// `start` and `configure` commands
 		cli.NewLegacyCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewLegacyCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
+		cli.NewNoopCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewNoopCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 
 		cli.NewIdentityCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewIdentityCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
@@ -366,7 +370,7 @@ func onConfigure(
 	// Ensure they have provided either a valid joining URI, or a
 	// join method to use in the configuration.
 	if cfg.JoinURI != "" {
-		if _, err := config.ParseJoinURI(cfg.JoinURI); err != nil {
+		if _, err := joinuri.Parse(cfg.JoinURI); err != nil {
 			return trace.Wrap(err, "invalid joining URI")
 		}
 	} else if cfg.Onboarding.JoinMethod == types.JoinMethodUnspecified {

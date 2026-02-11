@@ -2391,15 +2391,17 @@ func newRawNode(t *testing.T, authSrv *auth.Server) *rawNode {
 
 	// Create host key and certificate for node.
 	certs, err := authSrv.GenerateHostCerts(t.Context(),
-		&proto.HostCertsRequest{
-			HostID:               "raw-node",
-			NodeName:             "raw-node",
-			Role:                 types.RoleNode,
-			AdditionalPrincipals: []string{hostname},
-			DNSNames:             []string{hostname},
-			PublicSSHKey:         pub,
-			PublicTLSKey:         tlsPub,
-		}, "")
+		auth.HostCertsParams{
+			Req: &proto.HostCertsRequest{
+				HostID:               "raw-node",
+				NodeName:             "raw-node",
+				Role:                 types.RoleNode,
+				AdditionalPrincipals: []string{hostname},
+				DNSNames:             []string{hostname},
+				PublicSSHKey:         pub,
+				PublicTLSKey:         tlsPub,
+			},
+		})
 	require.NoError(t, err)
 
 	signer, err := sshutils.NewSigner(priv, certs.SSH)
@@ -3273,13 +3275,15 @@ func newSigner(t testing.TB, ctx context.Context, testServer *authtest.Server) s
 	require.NoError(t, err)
 
 	certs, err := testServer.Auth().GenerateHostCerts(ctx,
-		&proto.HostCertsRequest{
-			HostID:       hostID,
-			NodeName:     testServer.ClusterName(),
-			Role:         types.RoleNode,
-			PublicSSHKey: pub,
-			PublicTLSKey: tlsPub,
-		}, "")
+		auth.HostCertsParams{
+			Req: &proto.HostCertsRequest{
+				HostID:       hostID,
+				NodeName:     testServer.ClusterName(),
+				Role:         types.RoleNode,
+				PublicSSHKey: pub,
+				PublicTLSKey: tlsPub,
+			},
+		})
 	require.NoError(t, err)
 
 	// set up user CA and set up a user that has access to the server
