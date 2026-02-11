@@ -20,8 +20,6 @@ package userloginstate
 
 import (
 	"fmt"
-	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -34,9 +32,6 @@ import (
 )
 
 func BenchmarkGenerate(b *testing.B) {
-	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_MICRO")); skip {
-		b.Skip("skipping micro benchmark")
-	}
 	user, err := types.NewUser("alice")
 	if err != nil {
 		b.Fatalf("NewUser: %v", err)

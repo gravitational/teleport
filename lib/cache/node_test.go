@@ -122,7 +122,7 @@ func TestNodes(t *testing.T) {
 }
 
 func BenchmarkGetMaxNodes(b *testing.B) {
-	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_HEAVY")); skip {
+	if heavy, _ := strconv.ParseBool(os.Getenv("BENCH_HEAVY")); !heavy {
 		b.Skip("skipping heavy benchmark")
 	}
 	benchGetNodes(b, 1_000_000)

@@ -1013,7 +1013,7 @@ cpu: Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz
 BenchmarkListResourcesWithSort-8               1        2351035036 ns/op
 */
 func BenchmarkListResourcesWithSort(b *testing.B) {
-	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_HEAVY")); skip {
+	if heavy, _ := strconv.ParseBool(os.Getenv("BENCH_HEAVY")); !heavy {
 		b.Skip("skipping heavy benchmark")
 	}
 

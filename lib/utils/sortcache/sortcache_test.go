@@ -286,7 +286,7 @@ func TestNextKey(t *testing.T) {
 // cpu: Intel(R) Xeon(R) CPU @ 2.80GHz
 // BenchmarkSortCache-4   	      12	 250820820 ns/op
 func BenchmarkSortCache(b *testing.B) {
-	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_HEAVY")); skip {
+	if heavy, _ := strconv.ParseBool(os.Getenv("BENCH_HEAVY")); !heavy {
 		b.Skip("skipping heavy benchmark")
 	}
 	const (

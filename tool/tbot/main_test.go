@@ -44,7 +44,7 @@ func TestMain(m *testing.M) {
 }
 
 func BenchmarkInit(b *testing.B) {
-	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_HEAVY")); skip {
+	if heavy, _ := strconv.ParseBool(os.Getenv("BENCH_HEAVY")); !heavy {
 		b.Skip("skipping heavy benchmark")
 	}
 	executable, err := os.Executable()

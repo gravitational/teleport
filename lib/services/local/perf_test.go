@@ -38,7 +38,7 @@ import (
 // BenchmarkGetNodes verifies the performance of the GetNodes operation
 // on local (sqlite) databases (as used by the cache system).
 func BenchmarkGetNodes(b *testing.B) {
-	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_HEAVY")); skip {
+	if heavy, _ := strconv.ParseBool(os.Getenv("BENCH_HEAVY")); !heavy {
 		b.Skip("skipping heavy benchmark")
 	}
 	ctx := context.Background()

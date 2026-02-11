@@ -45,7 +45,7 @@ BenchmarkPostgresReadLargeTable/size=8000-10       	       3	 215046472 ns/op
 // BenchmarkPostgresReadLargeTable is a benchmark for read-heavy usage of Postgres.
 // Depending on the message size we may get different performance, due to the way the respective engine is written.
 func BenchmarkPostgresReadLargeTable(b *testing.B) {
-	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_HEAVY")); skip {
+	if heavy, _ := strconv.ParseBool(os.Getenv("BENCH_HEAVY")); !heavy {
 		b.Skip("skipping heavy benchmark")
 	}
 	ctx := context.Background()

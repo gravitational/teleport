@@ -21,8 +21,6 @@ package services_test
 import (
 	"bytes"
 	"crypto/x509/pkix"
-	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -457,9 +455,6 @@ func TestValidateCertAuthority(t *testing.T) {
 }
 
 func BenchmarkCertAuthoritiesEquivalent(b *testing.B) {
-	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_MICRO")); skip {
-		b.Skip("skipping micro benchmark")
-	}
 	ca1, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.HostCA,
 		ClusterName: "cluster1",

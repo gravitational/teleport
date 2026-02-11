@@ -1181,9 +1181,6 @@ func TestValidateRole(t *testing.T) {
 // PASS
 // ok      github.com/gravitational/teleport/lib/services  3.030s
 func BenchmarkValidateRole(b *testing.B) {
-	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_MICRO")); skip {
-		b.Skip("skipping micro benchmark")
-	}
 	role, err := types.NewRole("test", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins:               []string{"{{email.local(external.email)}}"},
@@ -7440,7 +7437,7 @@ func TestCheckAccessToUserGroups(t *testing.T) {
 //	go tool pprof --pdf cpu.prof > cpu.pdf
 //	go tool pprof --pdf mem.prof > mem.pdf
 func BenchmarkCheckConditionalAccessToServer(b *testing.B) {
-	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_HEAVY")); skip {
+	if heavy, _ := strconv.ParseBool(os.Getenv("BENCH_HEAVY")); !heavy {
 		b.Skip("skipping heavy benchmark")
 	}
 	servers := make([]*types.ServerV2, 0, 4000)

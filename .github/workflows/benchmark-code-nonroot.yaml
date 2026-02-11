@@ -45,13 +45,11 @@ jobs:
         matrix:
           include:
             - name: heavy
-              BENCH_SKIP_HEAVY: 0
-              BENCH_SKIP_MICRO: 1
+              BENCH_HEAVY: 1
               BENCH_TIME: "2x"
               BENCH_COUNT: 6
             - name: micro
-              BENCH_SKIP_HEAVY: 1
-              BENCH_SKIP_MICRO: 0
+              BENCH_HEAVY: 0
               BENCH_TIME: "1s"
               BENCH_COUNT: 6
         fail-fast: false
