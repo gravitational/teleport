@@ -6,4 +6,34 @@ tags:
  - platform-wide
 ---
 
-<DocCardList />
+This section contains reference guides for Teleport commands, configuration
+options, and other tools for interacting with Teleport.
+
+## Command line tools
+
+Teleport provides a set of command-line tools for running and interacting with a
+cluster. For example, the `teleport` binary runs the Teleport Auth Service,
+Proxy Service, and Teleport Agents, depending on how you configure it. `tbot`
+runs Machine & Workload Identity bots. `tsh` allows you to connect to cluster
+resources, and `tctl` manages cluster configurations. 
+
+[Read the CLI reference.](cli/cli.mdx)
+
+## Teleport configuration
+
+Learn how to configure the Teleport Auth Service, Proxy Service, and Agents,
+which can run on the same host or different hosts, depending how how you
+configure your cluster. 
+
+[Read the configuration reference.](deployment/config.mdx)
+
+## Infrastructure as code resources
+
+See comprehensive descriptions of all available fields in the Teleport resources
+you can manage using the Terraform provider and Kubernetes operator.
+
+[Terraform provider
+reference](infrastructure-as-code/terraform-provider/terraform-provider.mdx)
+
+[Kubernetes operator
+reference](infrastructure-as-code/operator-resources/operator-resources.mdx)
