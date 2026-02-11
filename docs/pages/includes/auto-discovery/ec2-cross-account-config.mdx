@@ -18,6 +18,8 @@ spec:
     tags:
       "env": "prod" # Match EC2 instances where tag:env=prod
     install:
+      enroll_mode: 1
+      install_teleport: true
       join_method: iam
       join_token: aws-discovery-iam-token
     ssm:
@@ -54,6 +56,8 @@ discovery_service:
     tags:
       "env": "prod" # Match EC2 instances where tag:env=prod
     install:
+      enroll_mode: script
+      install_teleport: true
       join_method: iam
       join_token: aws-discovery-iam-token
     ssm:
