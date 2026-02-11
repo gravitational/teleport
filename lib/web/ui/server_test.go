@@ -25,6 +25,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -454,7 +456,7 @@ func TestMakeDesktopHiddenLabel(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	desktop := MakeDesktop(windowsDesktop, nil, false)
+	desktop := MakeWindowsDesktop(windowsDesktop, nil, false)
 	labels := []ui.Label{
 		{
 			Name:  "label3",
@@ -463,6 +465,133 @@ func TestMakeDesktopHiddenLabel(t *testing.T) {
 	}
 
 	require.Equal(t, labels, desktop.Labels)
+}
+
+func TestMakeLinuxDesktop(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		desktop         func(t *testing.T) *linuxdesktopv1.LinuxDesktop
+		logins          []string
+		requiresRequest bool
+		expected        Desktop
+	}{
+		{
+			name: "basic linux desktop",
+			desktop: func(t *testing.T) *linuxdesktopv1.LinuxDesktop {
+				return &linuxdesktopv1.LinuxDesktop{
+					Kind:    types.KindLinuxDesktop,
+					Version: types.V3,
+					Metadata: &headerv1.Metadata{
+						Name: "linux-desktop-1",
+						Labels: map[string]string{
+							"env":    "prod",
+							"region": "us-west",
+						},
+					},
+					Spec: &linuxdesktopv1.LinuxDesktopSpec{
+						Addr:     "10.0.0.1:22",
+						Hostname: "linux-host-1",
+						ProxyIds: []string{"proxy-1"},
+					},
+				}
+			},
+			logins:          []string{"ubuntu", "root"},
+			requiresRequest: false,
+			expected: Desktop{
+				Kind:   types.KindLinuxDesktop,
+				OS:     "linux",
+				Name:   "linux-desktop-1",
+				Addr:   "10.0.0.1:22",
+				HostID: "linux-host-1",
+				Labels: []ui.Label{
+					{Name: "env", Value: "prod"},
+					{Name: "region", Value: "us-west"},
+				},
+				Logins:          []string{"ubuntu", "root"},
+				RequiresRequest: false,
+			},
+		},
+		{
+			name: "linux desktop with internal labels filtered",
+			desktop: func(t *testing.T) *linuxdesktopv1.LinuxDesktop {
+				return &linuxdesktopv1.LinuxDesktop{
+					Kind:    types.KindLinuxDesktop,
+					Version: types.V3,
+					Metadata: &headerv1.Metadata{
+						Name: "linux-desktop-2",
+						Labels: map[string]string{
+							"teleport.internal/resource-id": "12345",
+							"teleport.hidden/secret":        "value",
+							"visible":                       "label",
+						},
+					},
+					Spec: &linuxdesktopv1.LinuxDesktopSpec{
+						Addr:     "192.168.1.100:22",
+						Hostname: "linux-host-2",
+					},
+				}
+			},
+			logins:          []string{"admin"},
+			requiresRequest: true,
+			expected: Desktop{
+				Kind:   types.KindLinuxDesktop,
+				OS:     "linux",
+				Name:   "linux-desktop-2",
+				Addr:   "192.168.1.100:22",
+				HostID: "linux-host-2",
+				Labels: []ui.Label{
+					{Name: "visible", Value: "label"},
+				},
+				Logins:          []string{"admin"},
+				RequiresRequest: true,
+			},
+		},
+		{
+			name: "linux desktop with no labels",
+			desktop: func(t *testing.T) *linuxdesktopv1.LinuxDesktop {
+				return &linuxdesktopv1.LinuxDesktop{
+					Kind:    types.KindLinuxDesktop,
+					Version: types.V3,
+					Metadata: &headerv1.Metadata{
+						Name: "linux-desktop-3",
+					},
+					Spec: &linuxdesktopv1.LinuxDesktopSpec{
+						Addr:     "example.com:2222",
+						Hostname: "linux-host-3",
+					},
+				}
+			},
+			logins:          nil,
+			requiresRequest: false,
+			expected: Desktop{
+				Kind:            types.KindLinuxDesktop,
+				OS:              "linux",
+				Name:            "linux-desktop-3",
+				Addr:            "example.com:2222",
+				HostID:          "linux-host-3",
+				Labels:          []ui.Label{},
+				Logins:          nil,
+				RequiresRequest: false,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			desktop := MakeLinuxDesktop(tt.desktop(t), tt.logins, tt.requiresRequest)
+
+			require.Equal(t, tt.expected.Kind, desktop.Kind)
+			require.Equal(t, tt.expected.OS, desktop.OS)
+			require.Equal(t, tt.expected.Name, desktop.Name)
+			require.Equal(t, tt.expected.Addr, desktop.Addr)
+			require.Equal(t, tt.expected.HostID, desktop.HostID)
+			require.Equal(t, tt.expected.Logins, desktop.Logins)
+			require.Equal(t, tt.expected.RequiresRequest, desktop.RequiresRequest)
+			require.ElementsMatch(t, tt.expected.Labels, desktop.Labels)
+		})
+	}
 }
 
 func TestMakeDesktopServiceHiddenLabel(t *testing.T) {
