@@ -170,8 +170,8 @@ func TestExpiryPendingGracePeriod(t *testing.T) {
 		require.True(t, time.Now().After(approvedRequest.Expiry()))
 
 		// Make sure both are expired within the pending request grace period.
-		require.True(t, time.Since(pendingRequest.Expiry()) < pendingRequestGracePeriod)
-		require.True(t, time.Since(approvedRequest.Expiry()) < pendingRequestGracePeriod)
+		require.Less(t, time.Since(pendingRequest.Expiry()), pendingRequestGracePeriod)
+		require.Less(t, time.Since(approvedRequest.Expiry()), pendingRequestGracePeriod)
 
 		// Check the approved one expired, but the pending one is still within the grace period.
 		require.Len(t, mustListAccessRequests(t, authServer), 1)
@@ -183,7 +183,7 @@ func TestExpiryPendingGracePeriod(t *testing.T) {
 		synctest.Wait()
 
 		// We are after the grace period so check everything is cleared now.
-		require.True(t, testInterval > pendingRequestGracePeriod)
+		require.Greater(t, testInterval, pendingRequestGracePeriod)
 		require.Empty(t, mustListAccessRequests(t, authServer))
 		require.Len(t, emitter.Events(), 2)
 	})
