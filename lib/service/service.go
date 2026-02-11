@@ -5780,6 +5780,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			AccessPoint:   accessPoint,
 			LockWatcher:   lockWatcher,
 			Logger:        process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+			Emitter:       asyncEmitter,
 			PermitCaching: process.Config.CachePolicy.Enabled,
 		})
 		if err != nil {
@@ -5903,6 +5904,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			AccessPoint:   accessPoint,
 			LockWatcher:   lockWatcher,
 			Logger:        process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+			Emitter:       asyncEmitter,
 			PermitCaching: process.Config.CachePolicy.Enabled,
 		})
 		if err != nil {
@@ -6654,6 +6656,16 @@ func (process *TeleportProcess) initApps() {
 			}
 		}
 
+		asyncEmitter, err := process.NewAsyncEmitter(conn.Client)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer func() {
+			if !shouldSkipCleanup {
+				warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
+			}
+		}()
+
 		lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 			ResourceWatcherConfig: services.ResourceWatcherConfig{
 				Component: teleport.ComponentApp,
@@ -6683,16 +6695,6 @@ func (process *TeleportProcess) initApps() {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		asyncEmitter, err := process.NewAsyncEmitter(conn.Client)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer func() {
-			if !shouldSkipCleanup {
-				warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
-			}
-		}()
 
 		proxyGetter := reversetunnel.NewConnectedProxyGetter()
 

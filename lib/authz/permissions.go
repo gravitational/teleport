@@ -413,57 +413,66 @@ func (c *Context) GetDisconnectCertExpiry(authPref readonly.AuthPreference) time
 // Authorize authorizes user based on identity supplied via context
 func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error) {
 	defer func() {
-		if err != nil {
-			if a.emitter != nil {
-				if user, _ := UserFromContext(ctx); user != nil {
-					identity := user.GetIdentity()
-					username := identity.Username
+		if err == nil || a.emitter == nil {
+			return
+		}
 
-					// Filter out failures caused by system components so that we only audit events for real users or bots
-					if len(identity.SystemRoles) > 0 {
-						errorMsg := trace.UserMessage(err)
-						if errorMsg == "" {
-							errorMsg = err.Error()
-						}
+		user, _ := UserFromContext(ctx)
+		if user == nil {
+			return
+		}
 
-						methodName, _ := grpc.Method(ctx)
-						if methodName == "" {
-							methodName = "unknown"
-						}
+		identity := user.GetIdentity()
+		username := identity.Username
 
-						userMsg := fmt.Sprintf("access denied to method %s: %s", methodName, errorMsg)
+		// Filter out failures caused by system components so that we only audit events for real users or bots
+		if len(identity.SystemRoles) == 0 {
+			errorMsg := trace.UserMessage(err)
+			if errorMsg == "" {
+				errorMsg = err.Error()
+			}
 
-						event := &apievents.AuthAttempt{
-							Metadata: apievents.Metadata{
-								Type: events.AuthAttemptEvent,
-								Code: events.AuthAttemptFailureCode,
-							},
-							UserMetadata: apievents.UserMetadata{
-								User: username,
-							},
-							Status: apievents.Status{
-								Success:     false,
-								Error:       errorMsg,
-								UserMessage: userMsg,
-							},
-							ConnectionMetadata: apievents.ConnectionMetadata{},
-							ServerMetadata: apievents.ServerMetadata{
-								ServerVersion: teleport.Version,
-							},
-						}
-
-						if p, _ := peer.FromContext(ctx); p != nil {
-							event.ConnectionMetadata.RemoteAddr = p.Addr.String()
-						}
-
-						if emitErr := a.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
-							a.logger.WarnContext(ctx, "Failed to emit detailed audit event", "error", emitErr)
-						}
-					}
+			methodName, _ := grpc.Method(ctx)
+			if methodName == "" {
+				// If no gRPC method is found in the context, attempt to get the request method from the context
+				// (e.g. for kube requests). If that also fails, default to "unknown".
+				if val := GetRequestMethod(ctx); val != "" {
+					methodName = val
+				} else {
+					methodName = "unknown"
 				}
 			}
-			err = a.convertAuthorizerError(err)
+
+			userMsg := fmt.Sprintf("authorization failed for method %s: %s component", methodName, errorMsg)
+
+			event := &apievents.AuthAttempt{
+				Metadata: apievents.Metadata{
+					Type: events.AuthAttemptEvent,
+					Code: events.AuthAttemptFailureCode,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: username,
+				},
+				Status: apievents.Status{
+					Success:     false,
+					Error:       errorMsg,
+					UserMessage: userMsg,
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{},
+				ServerMetadata: apievents.ServerMetadata{
+					ServerVersion: teleport.Version,
+				},
+			}
+
+			if p, _ := peer.FromContext(ctx); p != nil {
+				event.ConnectionMetadata.RemoteAddr = p.Addr.String()
+			}
+
+			if emitErr := a.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
+				a.logger.WarnContext(ctx, "Failed to emit detailed audit event", "error", emitErr)
+			}
 		}
+		err = a.convertAuthorizerError(err)
 	}()
 
 	if ctx == nil {
@@ -1519,10 +1528,27 @@ const (
 
 	// contextConn is a connection in the context associated with the request
 	contextConn contextKey = "teleport-connection"
+
+	// contextMethod is used to store the request method/path/action for audit logs.
+	contextRequestMethod contextKey = "teleport-request-method"
 )
 
 // WithDelegator alias for backwards compatibility
 var WithDelegator = utils.WithDelegator
+
+// GetRequestMethod returns the request method string from the context.
+func GetRequestMethod(ctx context.Context) string {
+	val, ok := ctx.Value(contextRequestMethod).(string)
+	if !ok {
+		return ""
+	}
+	return val
+}
+
+// WithRequestMethod returns a new context with the request method injected.
+func WithRequestMethod(ctx context.Context, method string) context.Context {
+	return context.WithValue(ctx, contextRequestMethod, method)
+}
 
 // ClientUsername returns the username of a remote HTTP client making the call.
 // If ctx didn't pass through auth middleware or did not come from an HTTP
