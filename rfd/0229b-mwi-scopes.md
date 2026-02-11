@@ -366,6 +366,11 @@ When joining with a scoped token, the following new validation will be enforced:
     compromised - i.e. an admin in scope `/foo` cannot create a join token for
     a scoped bot in `/bar`.
 
+wip: What do we do about the `mode` field on the join token when used for 
+wip: Bots. "single_use" clashes with bot renewal mechanisms. "unlimited" implies
+wip: weird behaviour for bots using the `bound_keypair` join method. Perhaps
+wip: we just require this field is empty for bot scoped join tokens.
+
 In the certificate generation process that occurs upon successful joining,
 there is one key difference: the resulting certificate must be pinned to the
 scope that the scoped Bot exists within.
