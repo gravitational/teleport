@@ -10139,3 +10139,71 @@ message InferencePolicyDelete {
     (gogoproto.jsontag) = ""
   ];
 }
+
+// CertAuthorityOverrideEvent is the payload for all cert_authority_override
+// audit events.
+// Refer to the event Type, Code and Status for its meaning and outcome.
+message CertAuthorityOverrideEvent {
+  // Metadata holds common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // UserMetadata holds metadata about the user performing the event.
+  UserMetadata user = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // ResourceMetadata holds metadata about the resource targeted by the event.
+  ResourceMetadata resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status indicates the outcome of the event.
+  Status status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // The CA override targeted by the event.
+  CertAuthorityOverrideMetadata ca_override = 5 [(gogoproto.jsontag) = "ca_override,omitempty"];
+}
+
+// CertAuthorityOverrideMetadata represents a CertAuthorityOverride resource in
+// audit events.
+message CertAuthorityOverrideMetadata {
+  // CA type of the override.
+  string ca_type = 1 [(gogoproto.jsontag) = "ca_type,omitempty"];
+  // Cluster name.
+  string cluster_name = 2 [(gogoproto.jsontag) = "cluster_name,omitempty"];
+  // Certificate overrides.
+  repeated CertificateOverrideMetadata certificate_overrides = 3 [(gogoproto.jsontag) = "certificate_overrides,omitempty"];
+}
+
+// CertificateOverrideMetadata represents a CertificateOverride within a
+// CertAuthorityOverride.
+//
+// See CertAuthorityOverrideMetadata.
+message CertificateOverrideMetadata {
+  // Certificate presented by the override.
+  X509OverrideMetadata certificate = 1 [(gogoproto.jsontag) = "certificate,omitempty"];
+  // Certificate chain for the override.
+  repeated X509OverrideMetadata chain = 2 [(gogoproto.jsontag) = "chain,omitempty"];
+  // If true the override is disabled.
+  bool disabled = 3 [(gogoproto.jsontag) = "disabled,omitempty"];
+}
+
+// X509OverrideMetadata identifies an X.509 certificate.
+message X509OverrideMetadata {
+  // Issuer.
+  string issuer = 1 [(gogoproto.jsontag) = "issuer,omitempty"];
+  // Subject.
+  string subject = 2 [(gogoproto.jsontag) = "subject,omitempty"];
+  // Serial number.
+  string serial_number = 3 [(gogoproto.jsontag) = "serial_number,omitempty"];
+  // Public key hash, encoded as SHA256(SubjectPublicKeyInfo DER).
+  string public_key_hash = 4 [(gogoproto.jsontag) = "public_key_hash,omitempty"];
+}
