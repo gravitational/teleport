@@ -675,7 +675,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 		}
 
 		_, err = service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: updated})
-		require.ErrorContains(t, err, "cannot modify status of existing scoped token")
+		require.ErrorContains(t, err, "cannot modify usage mode of existing scoped token")
 	})
 
 	t.Run("upsert fails because the secret is changed", func(t *testing.T) {
