@@ -339,9 +339,19 @@ function startAwaitableSenderListener<T>(
 async function ipcInvoke(channel: string, ...args: any[]): Promise<any> {
   const { error, result } = await ipcRenderer.invoke(channel, ...args);
   if (error) {
-    const deserialized = deserializeError(error);
-    logger.error(`Error invoking remote method ${channel}`, deserialized);
-    throw deserialized;
+    // Log the error for debugging purposes, but deserialize only for logging.
+    const deserializedForLogging = deserializeError(error);
+    logger.error(
+      `Error invoking remote method ${channel}`,
+      deserializedForLogging
+    );
+
+    // IMPORTANT: Throw the plain serialized object instead of an Error instance.
+    // When errors cross Electron's context bridge (preload → renderer), custom
+    // properties on Error instances are stripped. By throwing a plain object,
+    // all properties (including isResolvableWithRelogin) are preserved.
+    // The renderer code (isTshdRpcError, retryWithRelogin) handles plain objects.
+    throw error;
   }
   return result;
 }
