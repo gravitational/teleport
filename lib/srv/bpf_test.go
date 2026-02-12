@@ -40,7 +40,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -901,15 +900,6 @@ func handleConnections(l net.Listener) {
 	}
 }
 
-func readChannel(t *testing.T, channel ssh.Channel) []byte {
-	t.Helper()
-
-	output, err := io.ReadAll(channel)
-	require.NoError(t, err)
-
-	return output
-}
-
 // runCommand runs the given command with Enhanced Session Recording
 // enabled and returns the recorded events.
 func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expectedCmdFail bool, recordEvents map[string]struct{}) []apievents.AuditEvent {
@@ -972,12 +962,29 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 
 	t.Log("waiting for command to finish")
 
+	// Read from SSH channel to unblock writes; the mock SSH channel
+	// uses os.Pipe under the hood.
+	go func() {
+		t.Log("output:")
+
+		stdout := make([]byte, 1024)
+		for {
+			_, err := channel.Read(stdout)
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					return
+				}
+				t.Logf("failed to read from channel: %v", err)
+				continue
+			}
+			t.Log(string(stdout))
+		}
+	}()
+
 	// Program should have executed now. If the complete signal has not come
 	// over the context, something failed.
 	select {
 	case <-ctx.Done():
-		t.Logf("output:\n%s", string(readChannel(t, channel)))
-
 		// We're not interested in the error, we just want to clean up the
 		// process.
 		_ = scx.killShellw.Close()
@@ -985,8 +992,6 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 			t.Fatal("Timed out waiting for process to finish.")
 		}
 	case err := <-cmdDone:
-		t.Logf("output:\n%s", string(readChannel(t, channel)))
-
 		if expectedCmdFail {
 			require.Error(t, err)
 			var exitErr *exec.ExitError
