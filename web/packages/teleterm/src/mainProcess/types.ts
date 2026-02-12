@@ -57,6 +57,8 @@ export type RuntimeSettings = {
    * - Starting the app in dev mode with the CONNECT_INSECURE env var.
    */
   insecure: boolean;
+  /** User's home directory. */
+  homeDir: string;
   userDataDir: string;
   sessionDataDir: string;
   tempDataDir: string;
@@ -76,7 +78,7 @@ export type RuntimeSettings = {
   tshd: {
     requestedNetworkAddress: string;
     binaryPath: string;
-    homeDir: string;
+    defaultHomeDir: string;
   };
   sharedProcess: {
     requestedNetworkAddress: string;

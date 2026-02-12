@@ -7,7 +7,13 @@ should match the snapshot:
         timeout = "10s"
         batch = 20
         window-size = "24h"
-        debug = false
+        debug = true
+        start-time = "2025-01-01T00:00:00.000Z"
+        dry-run = true
+        concurrency = 2
+        lock-enabled = true
+        lock-failed-attempts-count = 3
+        lock-period = "1m"
 
         [teleport]
         addr = "teleport.example.com:1234"
@@ -20,6 +26,7 @@ should match the snapshot:
         ca = "/var/lib/teleport/plugins/event-handler/ca.crt"
         cert = "/var/lib/teleport/plugins/event-handler/client.crt"
         key = "/var/lib/teleport/plugins/event-handler/client.key"
+        max-connections = 4
     kind: ConfigMap
     metadata:
       labels:

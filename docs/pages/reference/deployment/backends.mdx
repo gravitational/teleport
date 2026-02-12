@@ -126,13 +126,88 @@ To configure Teleport for using etcd as a storage backend:
 - Follow [etcd's cluster hardware recommendations](https://etcd.io/docs/v3.6/op-guide/hardware/). In particular, leverage
   SSD or high-performance virtualized block device storage for best performance.
 - Install etcd and configure peer and client TLS authentication using the [etcd
-  security guide](https://etcd.io/docs/v3.6/op-guide/security/).
-  - You can use [this script provided by
-    etcd](https://github.com/etcd-io/etcd/tree/master/hack/tls-setup) if you
-    don't already have a TLS setup.
+  security guide](https://etcd.io/docs/v3.6/op-guide/security/). See
+  [Configuring mTLS](#configuring-mtls-authentication-with-etcd) below for
+  details.
 - Configure all Teleport Auth Service instances to use etcd in the "storage" section of the config file as shown below.
 - Deploy several Auth Service instances connected to etcd backend.
 - Deploy several Proxy Service instances that have `auth_server` pointed to the Auth Service to connect to.
+
+### Configuring mTLS authentication with etcd
+
+We recommend using [cfssl](https://github.com/cloudflare/cfssl) and etcd's
+[`tls-setup` script](https://github.com/etcd-io/etcd/tree/main/hack/tls-setup)
+to configure mTLS between Teleport and etcd. It's helpful for creating
+certificates and keys for the entire etcd cluster. After [installing
+cfssl](https://github.com/cloudflare/cfssl?tab=readme-ov-file#installation),
+clone the `tls-setup` repo and follow the `Readme.md` file to customize the
+script configuration. Make sure to tweak the makefile if you change the number
+of etcd nodes (and thus the number of `infra` variables).
+
+After you run `make`, the following files will be generated:
+
+- `tls-setup/certs/ca.pem` is the certificate authority and it should be
+  referenced in Teleport's `tls_ca_file` option (see [Configuring Auth Service
+  instances to use etcd](#configuring-auth-service-instances-to-use-etcd)
+  below).
+- `tls-setup/certs/peer-*` files are used internally by etcd for communicating
+  between nodes.
+- `tls-setup/certs/<host>.pem` and `tls-setup/certs/<host>-key.pem` are the
+  host certificates and their corresponding private keys. Each corresponding
+  etcd host needs to know them, and they are required for providing transport
+  security on the etcd side.
+
+This should be enough to configure mTLS on etcd side.
+
+On the Teleport side, you need to configure client certificates. Here's one way
+to do it:
+
+1. Generate a default CSR:
+   ```code
+   $ cfssl print-defaults csr > client.json`
+   ```
+
+1. Remove all hostnames from the hosts element of the `client.json` file, as
+   this CSR doesn't represent any host, but a client. Also customize any other
+   options if required.
+
+1. For each Auth Service instance, generate the client certificate:
+   ```code
+   $ cfssl gencert -ca=certs/ca.pem \
+     -ca-key=certs/ca-key.pem \
+     -config=config/ca-config.json -profile=client client.json \
+     | cfssljson -bare certs/client
+   ```
+   This assumes that the `tls-setup` tool has been previously run and generated
+   the `certs/ca.pem` and `certs/ca-key.pem` files.
+
+   The following files will be generated:
+
+   - `certs/client.pem`, which will be referenced by the `tls_cert_file` option
+     in Teleport configuration file.
+   - `certs/client-key.pem` which will be referenced by the `tls_key_file`
+     option in Teleport configuration file.
+   
+   Upload these files to the corresponding Auth Service instance, along with
+   `certs/ca.pem`.
+ 
+After generating all the keys and certificates, run etcd using some variation
+of this command, replacing <Var name="etcd-host"/> with your etcd hostname:
+
+```code
+$ etcd --cert-file=certs/host.pem \
+  --key-file=certs/host-key.pem \
+  --client-cert-auth \
+  --trusted-ca-file=certs/ca.pem \
+  --peer-cert-file=certs/peer-host.pem \
+  --peer-cert-file=certs/peer-host-key.pem \
+  --advertise-client-urls=https://<Var name="etcd-host"/>:2379 --listen-client-urls=https://<Var name="etcd-host"/>:2379
+  # ... other applicable options
+ ```
+
+### Configuring Auth Service instances to use etcd
+
+Put these settings into the configuration file of all Auth Service instances:
 
 ```yaml
 teleport:
@@ -142,20 +217,19 @@ teleport:
      # List of etcd peers to connect to:
      peers: ["https://172.17.0.1:4001", "https://172.17.0.2:4001"]
 
-     # Required path to TLS client certificate and key files to connect to etcd.
+     # Required path to TLS client certificate and key files to connect to
+     # etcd.
      #
-     # To create these, follow
-     # https://github.com/coreos/docs/blob/master/os/generate-self-signed-certificates.md
-     # or use the etcd-provided script
-     # https://github.com/etcd-io/etcd/tree/master/hack/tls-setup.
+     # If you used cfssl as described above, these should be the
+     # certs/client.pem and certs/client-key.pem files from the previous steps.
      tls_cert_file: /var/lib/teleport/etcd-cert.pem
      tls_key_file: /var/lib/teleport/etcd-key.pem
 
      # Optional file with trusted CA authority
      # file to authenticate etcd nodes
      #
-     # If you used the script above to generate the client TLS certificate,
-     # this CA certificate should be one of the other generated files
+     # If you used the tls-setup script, this CA certificate should be the
+     # certs/ca.pem file.
      tls_ca_file: /var/lib/teleport/etcd-ca.pem
 
      # Alternative password-based authentication, if not using TLS client
@@ -227,9 +301,6 @@ tctl get <Var name="resource" /> --format=json | awk '{ total += length($0) } EN
 ```
 
 ## PostgreSQL
-
-PostgreSQL cluster state and audit log storage is available starting from
-Teleport `13.3`.
 
 Teleport can use [PostgreSQL](https://www.postgresql.org/) as a storage backend
 to achieve high availability. You must take steps to protect access to
@@ -351,7 +422,7 @@ teleport:
     # use a different user or different settings for the connection used
     # to set up and make use of logical decoding. If specified, Teleport
     # will use the connection string in change_feed_conn_string for that,
-    # instead of the one in conn_string. Available in Teleport 13.4 and later.
+    # instead of the one in conn_string.
     change_feed_conn_string: postgresql://replication_user_name@database-address/teleport_backend?sslmode=verify-full
 
     # An audit_events_uri with a scheme of postgresql:// will use the
@@ -1005,8 +1076,6 @@ Config option priority is applied in the following order:
 </Admonition>
 
 ## Athena
-
-The Athena audit log backend is available starting from Teleport v14.0.
 
 If you are running Teleport on AWS, you can use an
 [Athena](https://aws.amazon.com/athena/)-based audit log system that manages

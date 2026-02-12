@@ -35,6 +35,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -351,8 +352,13 @@ func (s *Server) getServerInfo(app types.Application) (*types.AppServerV3, error
 		App:      copy,
 		ProxyIDs: s.c.ConnectedProxyGetter.GetProxyIDs(),
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return server, trace.Wrap(err)
+	server.SetComponentFeatures(componentfeatures.ForAppServer(server))
+
+	return server, nil
 }
 
 // getRotationState is a helper to return this server's CA rotation state.

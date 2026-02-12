@@ -30,6 +30,7 @@ import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
+import { Timestamp } from "../../../../google/protobuf/timestamp_pb";
 import { TrustedDeviceRequirement } from "../../../legacy/types/trusted_device_requirement_pb";
 /**
  * Cluster describes cluster fields.
@@ -191,6 +192,12 @@ export interface LoggedInUser {
      * @generated from protobuf field: types.TrustedDeviceRequirement trusted_device_requirement = 10;
      */
     trustedDeviceRequirement: TrustedDeviceRequirement;
+    /**
+     * Expiration time of the certificate.
+     *
+     * @generated from protobuf field: google.protobuf.Timestamp valid_until = 11;
+     */
+    validUntil?: Timestamp;
 }
 /**
  * UserType indicates whether the user was created through an SSO provider or in Teleport itself.
@@ -541,7 +548,8 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
             { no: 7, name: "requestable_roles", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 8, name: "user_type", kind: "enum", T: () => ["teleport.lib.teleterm.v1.LoggedInUser.UserType", LoggedInUser_UserType, "USER_TYPE_"] },
             { no: 9, name: "is_device_trusted", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 10, name: "trusted_device_requirement", kind: "enum", T: () => ["types.TrustedDeviceRequirement", TrustedDeviceRequirement, "TRUSTED_DEVICE_REQUIREMENT_"] }
+            { no: 10, name: "trusted_device_requirement", kind: "enum", T: () => ["types.TrustedDeviceRequirement", TrustedDeviceRequirement, "TRUSTED_DEVICE_REQUIREMENT_"] },
+            { no: 11, name: "valid_until", kind: "message", T: () => Timestamp }
         ]);
     }
     create(value?: PartialMessage<LoggedInUser>): LoggedInUser {
@@ -590,6 +598,9 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
                 case /* types.TrustedDeviceRequirement trusted_device_requirement */ 10:
                     message.trustedDeviceRequirement = reader.int32();
                     break;
+                case /* google.protobuf.Timestamp valid_until */ 11:
+                    message.validUntil = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.validUntil);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -629,6 +640,9 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
         /* types.TrustedDeviceRequirement trusted_device_requirement = 10; */
         if (message.trustedDeviceRequirement !== 0)
             writer.tag(10, WireType.Varint).int32(message.trustedDeviceRequirement);
+        /* google.protobuf.Timestamp valid_until = 11; */
+        if (message.validUntil)
+            Timestamp.internalBinaryWrite(message.validUntil, writer.tag(11, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

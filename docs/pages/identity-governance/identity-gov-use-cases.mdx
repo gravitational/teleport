@@ -1,8 +1,11 @@
 ---
 title: Identity Governance in Action
+sidebar_label: Use Cases
 description: Common use cases with Teleport Identity Governance
+sidebar_position: 1
 tags:
  - identity-governance
+enterprise: Identity Governance
 ---
 
 Teleport Identity Governance helps organizations strengthen security and compliance by centralizing 
@@ -36,7 +39,7 @@ so access automatically expires without manual cleanup.
 
 ## Just-in-time Access Request plugins
 
-[Manage requests via third-party tools](./access-request-plugins/access-request-plugins.mdx).
+[Manage requests via third-party tools](access-requests/plugins/plugins.mdx).
 Plugins enforce your reviewer policies, post status updates, and keep a complete, auditable trail. 
 You can receive Access Request notifications where your team already works, such as Slack, Microsoft Teams, PagerDuty, Jira, ServiceNow, and more.
 
@@ -62,6 +65,6 @@ prevent new certificate issuance, and are fully scoped and time-limited for safe
 - Read about all of the ways you can configure Access Requests in the 
 [Access Request Configuration Guide](../identity-governance/access-requests/access-request-configuration.mdx).
 - To read more about the architecture of an Access Request plugin, and start writing your own, 
-read our [Access Request plugin development guide](../identity-governance/access-request-plugins/access-plugin.mdx).
+read our [Access Request plugin development guide](access-requests/plugins/how-to-build.mdx).
 - Learn how [nested Access Lists](../identity-governance/access-lists/nested-access-lists.mdx) grants inheritance work.
 - Learn how [SCIM](integrations/scim/scim.mdx) (System for Cross-domain Identity Management) integration supports automated user management.

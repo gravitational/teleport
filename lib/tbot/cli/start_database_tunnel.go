@@ -49,10 +49,10 @@ func NewDatabaseTunnelCommand(parentCmd *kingpin.CmdClause, action MutatorAction
 	c.sharedStartArgs = newSharedStartArgs(cmd)
 	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
 
-	cmd.Flag("listen", "A socket URI to listen on, such as tcp://0.0.0.0:3306").Required().StringVar(&c.Listen)
-	cmd.Flag("service", "The database service name").Required().StringVar(&c.Service)
-	cmd.Flag("username", "The database user name").Required().StringVar(&c.Username)
-	cmd.Flag("database", "The name of the database available in the requested database service").Required().StringVar(&c.Database)
+	cmd.Flag("listen", "A socket URI to listen on, such as `tcp://0.0.0.0:3306`.").Required().StringVar(&c.Listen)
+	cmd.Flag("service", "The database service name.").Required().StringVar(&c.Service)
+	cmd.Flag("username", "The database user name.").Required().StringVar(&c.Username)
+	cmd.Flag("database", "The name of the database available in the requested database service.").Required().StringVar(&c.Database)
 
 	// Note: excluding roles from the CLI; will default to all available.
 

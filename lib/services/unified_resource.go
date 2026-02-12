@@ -33,9 +33,11 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -954,6 +956,14 @@ func newResourceCollection(r resource) resourceCollection {
 					status:     aggregateHealthStatuses(servers),
 				}
 			})
+	case types.AppServer:
+		return newServerResourceCollection(r,
+			func(srv types.AppServer, servers map[string]types.AppServer) types.AppServer {
+				return &aggregatedAppServer{
+					AppServer: srv,
+					features:  intersectComponentFeaturesForAppServers(servers),
+				}
+			})
 	case serverResource:
 		return newServerResourceCollection(r, nil)
 	default:
@@ -1035,6 +1045,44 @@ func (c *serverResourceCollection[R]) remove(r types.Resource) bool {
 		return false
 	}
 	return true
+}
+
+// aggregatedAppServer wraps an app server with aggregated ComponentFeatures
+// in order to perform an intersection of all features reported by multiple
+// AppServers serving the same app. Only ComponentFeatures supported by *all*
+// AppServers will be reported in the aggregated Resource.
+type aggregatedAppServer struct {
+	types.AppServer
+	features *componentfeaturesv1.ComponentFeatures
+}
+
+// Copy returns a copy of the underlying app server with aggregated
+// [componentfeaturesv1.ComponentFeatures].
+func (a *aggregatedAppServer) Copy() types.AppServer {
+	out := a.AppServer.Copy()
+	out.SetComponentFeatures(a.GetComponentFeatures())
+	return out
+}
+
+// CloneResource returns a copy of the underlying app server with
+// aggregated [componentfeaturesv1.ComponentFeatures].
+func (a *aggregatedAppServer) CloneResource() types.ResourceWithLabels {
+	return a.Copy()
+}
+
+func (a *aggregatedAppServer) GetComponentFeatures() *componentfeaturesv1.ComponentFeatures {
+	if a.features == nil {
+		return nil
+	}
+	return componentfeatures.Join(a.features)
+}
+
+func intersectComponentFeaturesForAppServers(servers map[string]types.AppServer) *componentfeaturesv1.ComponentFeatures {
+	allFeatures := make([]*componentfeaturesv1.ComponentFeatures, 0, len(servers))
+	for _, s := range servers {
+		allFeatures = append(allFeatures, s.GetComponentFeatures())
+	}
+	return componentfeatures.Intersect(allFeatures...)
 }
 
 // aggregatedDatabase wraps a database server with aggregated health status.

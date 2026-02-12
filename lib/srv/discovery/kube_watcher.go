@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -60,6 +61,20 @@ func (s *Server) startKubeWatchers() error {
 				defer mu.Unlock()
 				return utils.FromSlice(kubeResources, types.KubeCluster.GetName)
 			},
+			CompareResources: func(kc1, kc2 types.KubeCluster) int {
+				if res := services.CompareResources(kc1, kc2); res != services.Equal {
+					return res
+				}
+				// Additionally compare Status field using its IsEqual method.
+				// This is needed because CompareResources ignores Status field of KubeCluster and for most
+				// usages of KubeCluster that is acceptable. However, in this context we want to consider Status changes
+				// as significant changes that require reconciliation so we can update resources discovered before this
+				// feature was implemented.
+				if kc1.GetStatus().IsEqual(kc2.GetStatus()) {
+					return services.Equal
+				}
+				return services.Different
+			},
 			Logger:   s.Log.With("kind", types.KindKubernetesCluster),
 			OnCreate: s.onKubeCreate,
 			OnUpdate: s.onKubeUpdate,
@@ -80,6 +95,7 @@ func (s *Server) startKubeWatchers() error {
 		DiscoveryGroup: s.DiscoveryGroup,
 		Interval:       s.PollInterval,
 		Origin:         types.OriginCloud,
+		Clock:          s.clock,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -107,6 +123,10 @@ func (s *Server) startKubeWatchers() error {
 
 				if err := reconciler.Reconcile(s.ctx); err != nil {
 					s.Log.WarnContext(s.ctx, "Unable to reconcile resources", "error", err)
+				}
+
+				if s.onKubernetesClusterReconcile != nil {
+					s.onKubernetesClusterReconcile()
 				}
 
 			case <-s.ctx.Done():
@@ -150,5 +170,17 @@ func (s *Server) onKubeUpdate(ctx context.Context, kubeCluster, _ types.KubeClus
 
 func (s *Server) onKubeDelete(ctx context.Context, kubeCluster types.KubeCluster) error {
 	s.Log.DebugContext(ctx, "Deleting kube_cluster", "kube_cluster_name", kubeCluster.GetName())
+	if err := fetchers.DeleteKubernetesDanglingResources(
+		ctx,
+		fetchers.DeleteKubernetesDanglingResourcesConfig{
+			ClientGetter: s.AWSFetchersClients,
+			Cluster:      kubeCluster,
+			Logger:       s.Log,
+		},
+	); err != nil {
+		s.Log.WarnContext(ctx, "Failed to delete dangling resources for kube_cluster",
+			"kube_cluster_name", kubeCluster.GetName(),
+			"error", err)
+	}
 	return trace.Wrap(s.AccessPoint.DeleteKubernetesCluster(ctx, kubeCluster.GetName()))
 }

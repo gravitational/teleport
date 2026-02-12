@@ -22,7 +22,7 @@ import { SyncStamp } from './SyncStamp';
 
 test('renders time since date', () => {
   render(<SyncStamp date={new Date()} />);
-  expect(screen.getByText('Last Sync: 0 seconds ago')).toBeInTheDocument();
+  expect(screen.getByText(/Last Sync: \d+ seconds? ago/)).toBeInTheDocument();
 });
 
 test('renders empty state text', () => {

@@ -130,7 +130,7 @@ type userCerts struct {
 func (a *MinimalAuthHelper) getUserCerts(t *testing.T, user types.User) userCerts {
 	authServer := a.server.Auth()
 
-	clusterName, err := authServer.GetClusterName(context.TODO())
+	clusterName, err := authServer.GetClusterName(t.Context())
 	require.NoError(t, err)
 	// Get user certs
 	userKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)

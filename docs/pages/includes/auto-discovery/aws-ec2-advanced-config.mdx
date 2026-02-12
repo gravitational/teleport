@@ -58,7 +58,36 @@ version: v3
 # ...
 discovery_service:
   enabled: true
-  {{ matcher }}:
+  aws:
    - ssm:
        document_name: "TeleportDiscoveryInstaller"
+```
+
+### Discover instances in all active regions
+
+The Discovery Service can be configured to scan all active AWS regions for EC2 instances.
+
+Edit the AWS matcher and set the `regions` key to wildcard (`*`):
+
+```yaml
+# teleport.yaml
+version: v3
+# ...
+discovery_service:
+  enabled: true
+  aws:
+   - regions: ["*"]
+     # other fields
+```
+
+Add the necessary IAM permissions to allow the Discovery Service to list regions:
+```json
+{
+    "Effect": "Allow",
+    "Action": [
+        // existing permissions
+        "account:ListRegions"
+    ],
+    "Resource": "*"
+}
 ```

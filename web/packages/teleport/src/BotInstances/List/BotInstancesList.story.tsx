@@ -21,6 +21,7 @@ import { QueryClient } from '@tanstack/react-query';
 import { ComponentProps, useRef, useState } from 'react';
 
 import { CardTile } from 'design/CardTile/CardTile';
+import { SortOrder } from 'shared/components/Controls/SortMenu';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
@@ -147,7 +148,7 @@ function Wrapper(
   const [allData, setAllData] = useState(data);
   const [selected, setSelected] = useState<string | null>(null);
   const [sortField, setSortField] = useState<string>('active_at_latest');
-  const [sortDir, setSortDir] = useState<'ASC' | 'DESC'>('ASC');
+  const [sortDir, setSortDir] = useState<SortOrder>('ASC');
 
   const listRef = useRef<BotInstancesListControls | null>(null);
 

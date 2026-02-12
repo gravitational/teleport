@@ -21,6 +21,7 @@ This page describes the supported values of the teleport_access_list resource of
 ```hcl
 resource "teleport_access_list" "crane-operation" {
   header = {
+    version = "v1"
     metadata = {
       name = "crane-operation"
       labels = {

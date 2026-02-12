@@ -18,8 +18,8 @@
 
 import { delay, http, HttpResponse } from 'msw';
 import { useEffect } from 'react';
-import { withoutQuery } from 'web/packages/build/storybook';
 
+import { withoutQuery } from 'build/storybook';
 import { Info } from 'design/Alert';
 
 import cfg from 'teleport/config';

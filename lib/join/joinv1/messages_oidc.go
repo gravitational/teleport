@@ -24,13 +24,13 @@ import (
 )
 
 func oidcInitToMessage(req *joinv1.OIDCInit) (*messages.OIDCInit, error) {
-	clientParams, err := clientParamsToMessage(req.ClientParams)
+	clientParams, err := clientParamsToMessage(req.GetClientParams())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &messages.OIDCInit{
 		ClientParams: clientParams,
-		IDToken:      req.IdToken,
+		IDToken:      req.GetIdToken(),
 	}, nil
 }
 

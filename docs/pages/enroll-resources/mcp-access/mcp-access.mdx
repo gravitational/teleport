@@ -1,6 +1,6 @@
 ---
 title: MCP Servers
-description: Protect MCP servers with Teleport's access controls and auditing capabilities 
+description: Protect Model Context Protocol (MCP) servers with Teleport's access controls and auditing capabilities 
 template: doc-page
 tags:
  - mcp
@@ -9,9 +9,17 @@ tags:
 
 import DocHero from "@site/src/components/Pages/Landing/DocHero";
 import UseCasesList from "@site/src/components/Pages/Landing/UseCasesList";
+import Resources from "@site/src/components/Pages/Homepage/Resources";
 
 import userCheckSvg from "@site/src/components/Icon/svg/user-check.svg";
 import questionSvg from "@site/src/components/Icon/svg/question2.svg";
+import databaseSvg from "@site/src/components/Icon/teleport-svg/database.svg";
+import kubernetesSvg from "@site/src/components/Icon/svg/kubernetes2.svg";
+import githubSvg from "@site/src/components/Icon/svg/github.svg";
+import vaultSvg from "@site/src/components/Icon/svg/hashicorp-vault.svg";
+import notionSvg from "@site/src/components/Icon/svg/notion.svg";
+import grafanaSvg from "@site/src/components/Icon/svg/grafana.svg";
+import awsSvg from "@site/src/components/Icon/svg/aws.svg";
 
 <DocHero
   title="Enroll your first MCP server"
@@ -52,17 +60,17 @@ Connect an MCP server with the Teleport Application Service, configure and assig
     {
       title: "Enroll a streamable-HTTP MCP server",
       description: "Enroll an MCP server with streamable-HTTP transport into your Teleport cluster and connect to it through Teleport.",
-      href: "./streamable-http/",
+      href: "./enrolling-mcp-servers/streamable-http/",
     },  
     {
       title: "Enroll an stdio MCP server",
       description: "Enroll an MCP server with stdio transport into your Teleport cluster and connect to it through Teleport.",
-      href: "./stdio/",
+      href: "./enrolling-mcp-servers/stdio/",
     },  
     {
       title: "Enroll an SSE MCP server",
       description: "Enroll an MCP server with SSE (Server-Sent Events) transport into your Teleport cluster and connect to it through Teleport.",
-      href: "./sse/",
+      href: "./enrolling-mcp-servers/sse/",
     },  
     {
       title: "JWT authentication to MCP server",
@@ -75,11 +83,6 @@ Connect an MCP server with the Teleport Application Service, configure and assig
       href: "./dynamic-registration/",
     },
     {
-      title: "Access databases over MCP",
-      description: "Configure fine-grained access to a Teleport-protected database for MCP clients such as Claude Desktop or Cursor.",
-      href: "../../connect-your-client/model-context-protocol/database-access/",
-    },  
-    {
       title: "Configure MCP clients",
       description: "Configure MCP clients such as Claude Desktop or Cursor to access MCP servers.",
       href: "../../connect-your-client/model-context-protocol/mcp-access/",
@@ -87,3 +90,53 @@ Connect an MCP server with the Teleport Application Service, configure and assig
   ]}
 />
 {/* vale messaging.protocol-products = YES */}
+
+<Resources
+  title="Integrate MCP with your services"
+  desktopColumnsCount={2}
+  variant="doc"
+  resources={[
+    {
+      title: "Databases",
+      description: "Connect Teleport databases over MCP",
+      href: "../../connect-your-client/model-context-protocol/database-access/",
+      iconComponent: databaseSvg,
+    },
+    {
+      title: "Kubernetes Clusters",
+      description: "Connect Teleport Kubernetes Clusters over MCP",
+      href: "../../connect-your-client/model-context-protocol/kube-access/",
+      iconComponent: kubernetesSvg,
+    },
+    {
+      title: "Amazon Bedrock AgentCore Gateway",
+      description: "Connect Amazon Bedrock AgentCore Gateway",
+      href: "./integration-guides/aws-bedrock-gateway/",
+      iconComponent: awsSvg,
+    },
+    {
+      title: "GitHub",
+      description: "Connect GitHub over MCP",
+      href: "./integration-guides/github/",
+      iconComponent: githubSvg,
+    },
+    {
+      title: "Grafana",
+      description: "Connect Grafana over MCP",
+      href: "./integration-guides/grafana/",
+      iconComponent: grafanaSvg,
+    },
+    {
+      title: "Hashicorp Vault",
+      description: "Connect Hashicorp Vault over MCP",
+      href: "./integration-guides/vault/",
+      iconComponent: vaultSvg,
+    },
+    {
+      title: "Notion",
+      description: "Connect Notion over MCP",
+      href: "./integration-guides/notion/",
+      iconComponent: notionSvg,
+    },
+  ]}
+/>

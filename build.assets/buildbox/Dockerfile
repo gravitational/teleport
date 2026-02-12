@@ -69,7 +69,7 @@ ARG BUILDARCH
 ARG GOLANG_VERSION
 # Set BUILDARCH if not set when not using buildkit. Only works for arm64 and amd64.
 RUN BUILDARCH=${BUILDARCH:-$(uname -m | sed 's/aarch64/arm64/g; s/x86_64/amd64/g')}; \
-	curl -fsSL https://storage.googleapis.com/golang/${GOLANG_VERSION}.linux-${BUILDARCH}.tar.gz | \
+	curl -fsSL https://go.dev/dl/${GOLANG_VERSION}.linux-${BUILDARCH}.tar.gz | \
 	tar -C /opt -xz && \
 	/opt/go/bin/go version
 

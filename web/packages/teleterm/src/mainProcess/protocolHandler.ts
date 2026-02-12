@@ -16,11 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import fs from 'fs';
-import { fileURLToPath } from 'node:url';
+import fs from 'fs/promises';
+import { pathToFileURL } from 'node:url';
 import * as path from 'path';
 
-import { app, protocol } from 'electron';
+import { app, net, protocol } from 'electron';
+
+import { getErrorMessage } from 'shared/utils/error';
 
 import Logger from 'teleterm/logger';
 
@@ -36,45 +38,145 @@ const disabledSchemes = [
   'gopher',
   'javascript',
   'mailto',
+  'file',
 ];
+const APP_FILE_SCHEMA = 'app-file';
+const CONNECT_AUTHORITY = 'connect-app';
 
-// these protocols are not used within the app
+export const DEV_APP_WINDOW_URL = 'http://localhost:8080/';
+export const PACKAGED_APP_WINDOW_URL = buildAppFileUri(
+  'build/app/renderer/index.html'
+);
+
+/**
+ * Builds a URI for the custom 'app-file://' scheme.
+ * The path will be resolved against `app.getAppPath()`.
+ */
+export function buildAppFileUri(relativePath: string) {
+  const baseUrl = `${APP_FILE_SCHEMA}://${CONNECT_AUTHORITY}`;
+
+  const uri = new URL(relativePath, baseUrl);
+  return uri.toString();
+}
+
+/** Disables protocols not used by the app. */
 function disableUnusedProtocols() {
   disabledSchemes.forEach(scheme => {
-    protocol.interceptFileProtocol(scheme, (_request, callback) => {
-      logger.error(`Denying request: Invalid scheme (${scheme})`);
-      callback({ error: -3 });
+    protocol.handle(scheme, () => {
+      const message = `Denying request: Invalid scheme (${scheme})`;
+      logger.error(message);
+      return new Response(message, {
+        status: 403,
+        statusText: 'Forbidden Protocol',
+      });
     });
   });
 }
 
-// intercept, clean, and validate the requested file path.
-function interceptFileProtocol() {
-  const installPath = app.getAppPath();
-
-  protocol.interceptFileProtocol('file', (request, callback) => {
-    const target = path.normalize(fileURLToPath(request.url));
-    const realPath = fs.existsSync(target) ? fs.realpathSync(target) : target;
-
-    if (!path.isAbsolute(realPath)) {
-      logger.error(`Denying request to non-absolute path '${realPath}'`);
-      return callback({ error: -3 });
-    }
-
-    if (!realPath.startsWith(installPath)) {
-      logger.error(
-        `Denying request to path '${realPath}' (not in installPath: '${installPath})'`
-      );
-      return callback({ error: -3 });
-    }
-
-    return callback({
-      path: realPath,
+/**
+ * Registers the 'http://' protocol handler.
+ * Adds cross-origin headers to the document response to enable features requiring
+ * cross-origin isolation.
+ */
+function handleHttpProtocol(): void {
+  protocol.handle('http', async request => {
+    const response = await net.fetch(request, {
+      // Must be true to prevent the handler from calling itself and entering an infinite loop.
+      bypassCustomProtocolHandlers: true,
     });
+    if (request.url === DEV_APP_WINDOW_URL) {
+      setCrossOriginIsolationHeaders(response.headers);
+    }
+    return response;
   });
 }
 
-export function enableWebHandlersProtection() {
-  interceptFileProtocol();
+/**
+ * Registers the 'app-file://' protocol handler.
+ * Serves application files from the build directory and adds
+ * cross-origin header to the document response, enabling features that
+ * require cross-origin isolation.
+ */
+function handleAppFileProtocol(): void {
+  const appPath = app.getAppPath();
+
+  protocol.handle(APP_FILE_SCHEMA, async request => {
+    const filePath = decodeURIComponent(new URL(request.url).pathname).replace(
+      // Remove the leading slash.
+      /^\/+/,
+      ''
+    );
+    const target = path.join(appPath, filePath);
+    let realPath: string;
+    try {
+      realPath = await fs.realpath(target);
+    } catch (error) {
+      logger.error(`Failed to resolve path ${target}'`, error);
+      return new Response(`Failed to resolve path: ${getErrorMessage(error)}`, {
+        status: 400,
+      });
+    }
+
+    const relative = path.relative(appPath, realPath);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      const message = `Denying request to path '${realPath}' (not in installPath: '${appPath})'`;
+      logger.error(message);
+      return new Response(message, {
+        status: 400,
+      });
+    }
+
+    // Use net.fetch to serve local files.
+    // It automatically determines and sets the correct Content-Type (MIME) header,
+    // unlike fs.readFile.
+    const response = await net.fetch(pathToFileURL(realPath).toString(), {
+      // 'file' protocol was disabled in disableUnusedProtocols.
+      // We can bypass it because we performed the path traversal checks.
+      bypassCustomProtocolHandlers: true,
+    });
+    if (request.url === PACKAGED_APP_WINDOW_URL) {
+      setCrossOriginIsolationHeaders(response.headers);
+    }
+    return response;
+  });
+}
+
+/**
+ * To use features like SharedArrayBuffer, the document must be in a secure context
+ * and cross-origin isolated.
+ */
+function setCrossOriginIsolationHeaders(headers: Headers): void {
+  headers.set('Cross-Origin-Opener-Policy', 'same-origin');
+  headers.set('Cross-Origin-Embedder-Policy', 'require-corp');
+}
+
+/**
+ * Registers the 'app-file://' protocol schema.
+ * It's used to serve application files.
+ */
+export function registerAppFileProtocol(): void {
+  protocol.registerSchemesAsPrivileged([
+    {
+      scheme: APP_FILE_SCHEMA,
+      privileges: {
+        standard: true,
+        secure: true,
+        supportFetchAPI: true,
+      },
+    },
+  ]);
+}
+
+/**
+ * Configures protocol handling:
+ * - Disables unused web protocols.
+ * - Registers handlers for `app-file://` and `http://` (for Vite dev server)
+ * to enforce cross-origin isolation, enabling features like `SharedArrayBuffer`.
+ */
+export function setUpProtocolHandlers(dev: boolean): void {
   disableUnusedProtocols();
+  handleAppFileProtocol();
+  if (dev) {
+    handleHttpProtocol();
+  }
 }

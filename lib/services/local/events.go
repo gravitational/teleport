@@ -87,6 +87,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newProvisionTokenParser()
 		case types.KindStaticTokens:
 			parser = newStaticTokensParser()
+		case types.KindStaticScopedTokens:
+			parser = newStaticScopedTokenParser()
 		case types.KindClusterAuditConfig:
 			parser = newClusterAuditConfigParser()
 		case types.KindClusterNetworkingConfig:
@@ -275,6 +277,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newRelayServerParser()
 		case types.KindScopedToken:
 			parser = newScopedTokenParser()
+		case types.KindAppAuthConfig:
+			parser = newAppAuthConfigParser()
+		case types.KindWorkloadCluster:
+			parser = newWorkloadClusterParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue

@@ -86,15 +86,15 @@ After completing the Entra ID setup, copy and paste the following information:
 )
 
 type entraArgs struct {
-	cmd                  *kingpin.CmdClause
-	authConnectorName    string
-	defaultOwners        []string
-	useSystemCredentials bool
-	accessGraph          bool
-	force                bool
-	manualEntraIDSetup   bool
-
-	groupFilters filter.Inputs
+	cmd                    *kingpin.CmdClause
+	authConnectorName      string
+	defaultOwners          []string
+	useSystemCredentials   bool
+	accessGraph            bool
+	force                  bool
+	manualEntraIDSetup     bool
+	groupFilters           filter.Inputs
+	accessListOwnersSource string
 }
 
 func (p *PluginsCommand) initInstallEntra(parent *kingpin.CmdClause) {
@@ -114,10 +114,14 @@ func (p *PluginsCommand) initInstallEntra(parent *kingpin.CmdClause) {
 		Flag("use-system-credentials", "Uses system credentials instead of OIDC.").
 		BoolVar(&p.install.entraID.useSystemCredentials)
 
-	cmd.Flag("default-owner", "List of Teleport users that are default owners for the imported access lists. Multiple flags allowed.").
+	cmd.Flag("default-owner", "List of Teleport users that are default owners for the imported Access Lists. Multiple flags allowed.").
 		Required().
 		StringsVar(&p.install.entraID.defaultOwners)
 
+	cmd.
+		Flag("access-list-owners-source", "Source of the Access List owners.").
+		Default("plugin").
+		StringVar(&p.install.entraID.accessListOwnersSource)
 	cmd.
 		Flag("access-graph", "Enables Access Graph cache build.").
 		Default("true").
@@ -354,6 +358,11 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) 
 		return trace.Wrap(err, "failed to read filters")
 	}
 
+	ownersSource, err := toAccessListOwnersSource(inputs.entraID.accessListOwnersSource)
+	if err != nil {
+		return trace.Wrap(err, "failed to read Access List owners source")
+	}
+
 	req := &pluginspb.CreatePluginRequest{
 		Plugin: &types.PluginV1{
 			Metadata: types.Metadata{
@@ -366,12 +375,13 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) 
 				Settings: &types.PluginSpecV1_EntraId{
 					EntraId: &types.PluginEntraIDSettings{
 						SyncSettings: &types.PluginEntraIDSyncSettings{
-							DefaultOwners:     inputs.entraID.defaultOwners,
-							SsoConnectorId:    inputs.entraID.authConnectorName,
-							CredentialsSource: credentialsSource,
-							TenantId:          settings.tenantID,
-							EntraAppId:        settings.clientID,
-							GroupFilters:      groupFilters,
+							DefaultOwners:          inputs.entraID.defaultOwners,
+							SsoConnectorId:         inputs.entraID.authConnectorName,
+							CredentialsSource:      credentialsSource,
+							TenantId:               settings.tenantID,
+							EntraAppId:             settings.clientID,
+							GroupFilters:           groupFilters,
+							AccessListOwnersSource: ownersSource,
 						},
 						AccessGraphSettings: tagSyncSettings,
 					},
@@ -405,6 +415,20 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) 
 	fmt.Printf("Successfully created EntraID plugin %q\n\n", p.install.name)
 
 	return nil
+}
+
+func toAccessListOwnersSource(in string) (types.EntraIDAccessListOwnersSource, error) {
+	switch in {
+	case "entraid":
+		return types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID, nil
+	case "plugin":
+		return types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN, nil
+	case "plugin-and-entraid":
+		return types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN_AND_ENTRAID, nil
+	default:
+		return types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_UNSPECIFIED,
+			trace.BadParameter(`unknown value %s received for the Access List owners source, expected "plugin", "entraid" or "plugin-and-entraid"`, in)
+	}
 }
 
 func buildScript(proxyPublicAddr string, entraCfg entraArgs) (string, error) {

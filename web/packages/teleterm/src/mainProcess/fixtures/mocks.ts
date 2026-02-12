@@ -232,6 +232,7 @@ export const makeRuntimeSettings = (
   insecure: true,
   userDataDir: '',
   sessionDataDir: '',
+  homeDir: '',
   tempDataDir: '',
   agentBinaryPath: '',
   binDir: '',
@@ -245,7 +246,7 @@ export const makeRuntimeSettings = (
   tshd: {
     requestedNetworkAddress: '',
     binaryPath: '',
-    homeDir: '',
+    defaultHomeDir: '',
   },
   sharedProcess: {
     requestedNetworkAddress: '',

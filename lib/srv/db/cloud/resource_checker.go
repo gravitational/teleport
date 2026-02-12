@@ -26,8 +26,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -46,7 +46,7 @@ type DiscoveryResourceCheckerConfig struct {
 	// ResourceMatchers is a list of database resource matchers.
 	ResourceMatchers []services.ResourceMatcher
 	// AzureClients is an interface for retrieving Azure cloud clients.
-	AzureClients cloud.AzureClients
+	AzureClients azure.Clients
 	// Context is the database server close context.
 	Context context.Context
 	// Logger is used for logging.
@@ -56,11 +56,11 @@ type DiscoveryResourceCheckerConfig struct {
 // CheckAndSetDefaults validates the config and sets default values.
 func (c *DiscoveryResourceCheckerConfig) CheckAndSetDefaults() error {
 	if c.AzureClients == nil {
-		cloudClients, err := cloud.NewClients()
+		azureClients, err := azure.NewClients()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		c.AzureClients = cloudClients
+		c.AzureClients = azureClients
 	}
 	if c.AWSConfigProvider == nil {
 		return trace.BadParameter("missing AWSConfigProvider")

@@ -377,6 +377,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	// We need this to get a random port assigned to it and allow parallel
 	// execution of this test.
 	cfg := servicecfg.MakeDefaultConfig()
+	cfg.DebugService.Enabled = false
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	cfg.Hostname = "localhost"
@@ -418,6 +419,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 
 	// Set up a test proxy service.
 	cfg = servicecfg.MakeDefaultConfig()
+	cfg.DebugService.Enabled = false
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	cfg.Hostname = "localhost"
@@ -459,6 +461,7 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	lib.SetInsecureDevMode(true)
 
 	cfg := servicecfg.MakeDefaultConfig()
+	cfg.DebugService.Enabled = false
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()

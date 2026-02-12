@@ -17,6 +17,7 @@
  */
 
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { ConfigSource } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
 import { ClientVersionStatus } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 
 import {
@@ -74,6 +75,7 @@ export class MockTshClient implements TshdClient {
   login = () => new MockedUnaryCall({});
   loginPasswordless = undefined;
   logout = () => new MockedUnaryCall({});
+  clearStaleClusterClients = () => new MockedUnaryCall({});
   transferFile = undefined;
   reportUsageEvent = () => new MockedUnaryCall({});
   createConnectMyComputerRole = () =>
@@ -128,6 +130,8 @@ export class MockVnetClient implements VnetClient {
         '/Users/user/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config',
     });
   getBackgroundItemStatus = () => new MockedUnaryCall({ status: 0 });
+  checkInstallTimeRequirements = () =>
+    new MockedUnaryCall({ status: { oneofKind: undefined } });
   runDiagnostics() {
     return new MockedUnaryCall({
       report: {
@@ -145,5 +149,11 @@ export class MockAutoUpdateClient implements AutoUpdateClient {
       reachableClusters: [],
       unreachableClusters: [],
     });
-  getDownloadBaseUrl = () => new MockedUnaryCall({ baseUrl: '' });
+  getConfig = () =>
+    new MockedUnaryCall({
+      cdnBaseUrl: { value: '', source: ConfigSource.UNSPECIFIED },
+      toolsVersion: { value: '', source: ConfigSource.UNSPECIFIED },
+    });
+  getInstallationMetadata = () =>
+    new MockedUnaryCall({ isPerMachineInstall: false });
 }

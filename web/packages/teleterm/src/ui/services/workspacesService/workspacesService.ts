@@ -526,6 +526,14 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     this.restoredState = produce(restoredState, () => {});
     const restoredWorkspaces = this.clustersService
       .getRootClusters()
+      // Start restoring clusters from the ones that already have a workspace.
+      // The algorithm that assigns a color in getWorkspaceDefaultState needs
+      // to know all used colors.
+      .toSorted((a, b) => {
+        const hasA = !!this.restoredState.workspaces[a.uri];
+        const hasB = !!this.restoredState.workspaces[b.uri];
+        return hasB === hasA ? 0 : hasA ? -1 : 1;
+      })
       .reduce((workspaces, cluster) => {
         const restoredWorkspace = this.restoredState.workspaces[cluster.uri];
         workspaces[cluster.uri] = getWorkspaceDefaultState(

@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -147,7 +149,7 @@ func TestCertAuthorityEquivalence(t *testing.T) {
 func TestCertAuthorityUTCUnmarshal(t *testing.T) {
 	t.Parallel()
 
-	_, pub, err := testauthority.New().GenerateKeyPair()
+	_, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 	_, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "clustername"}, nil, time.Hour)
 	require.NoError(t, err)
@@ -183,186 +185,271 @@ func TestCertAuthorityUTCUnmarshal(t *testing.T) {
 	require.True(t, CertAuthoritiesEquivalent(caLocal, caUTC))
 }
 
-func TestCheckSAMLIDPCA(t *testing.T) {
-	// Create testing CA.
-	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "cluster1"}, nil, time.Minute)
-	require.NoError(t, err)
+func TestValidateCertAuthority(t *testing.T) {
+	t.Parallel()
 
-	tests := []struct {
-		name             string
-		keyset           types.CAKeySet
-		errAssertionFunc require.ErrorAssertionFunc
-	}{
-		{
-			name:             "no active keys",
-			keyset:           types.CAKeySet{},
-			errAssertionFunc: require.Error,
-		},
-		{
-			name: "multiple active keys",
-			keyset: types.CAKeySet{
-				TLS: []*types.TLSKeyPair{{
-					Cert: cert,
-					Key:  key,
-				}, {
-					Cert: cert,
-					Key:  key,
-				}},
-			},
-			errAssertionFunc: require.NoError,
-		},
-		{
-			name: "empty key",
-			keyset: types.CAKeySet{
-				TLS: []*types.TLSKeyPair{{
-					Cert: cert,
-					Key:  []byte{},
-				}},
-			},
-			errAssertionFunc: require.NoError,
-		},
-		{
-			name: "unparseable key",
-			keyset: types.CAKeySet{
-				TLS: []*types.TLSKeyPair{{
-					Cert: cert,
-					Key:  bytes.Repeat([]byte{49}, 1222),
-				}},
-			},
-			errAssertionFunc: require.Error,
-		},
-		{
-			name: "unparseable cert",
-			keyset: types.CAKeySet{
-				TLS: []*types.TLSKeyPair{{
-					Cert: bytes.Repeat([]byte{49}, 1222),
-					Key:  key,
-				}},
-			},
-			errAssertionFunc: require.Error,
-		},
-		{
-			name: "valid CA",
-			keyset: types.CAKeySet{
-				TLS: []*types.TLSKeyPair{{
-					Cert: cert,
-					Key:  key,
-				}},
-			},
-			errAssertionFunc: require.NoError,
-		},
-		{
-			name: "don't validate non-raw private keys",
-			keyset: types.CAKeySet{
-				TLS: []*types.TLSKeyPair{{
-					Cert:    cert,
-					Key:     bytes.Repeat([]byte{49}, 1222),
-					KeyType: types.PrivateKeyType_PKCS11,
-				}},
-			},
-			errAssertionFunc: require.NoError,
-		},
+	clone := func(spec *types.CertAuthoritySpecV2) *types.CertAuthoritySpecV2 {
+		return proto.Clone(spec).(*types.CertAuthoritySpecV2)
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-				Type:        types.SAMLIDPCA,
-				ClusterName: "cluster1",
-				ActiveKeys:  test.keyset,
-			})
-			require.NoError(t, err)
-			test.errAssertionFunc(t, ValidateCertAuthority(ca))
-		})
-	}
-}
-
-func TestCheckOIDCIdP(t *testing.T) {
-	ta := testauthority.New()
-
-	pub, priv, err := ta.GenerateJWT()
+	const clusterName = "zarquon"
+	keyPEM, certPEM, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		nil,         /* dnsNames */
+		time.Minute, /* ttl */
+	)
 	require.NoError(t, err)
 
-	pub2, priv2, err := ta.GenerateJWT()
+	jwtPubPEM, jwtPrivPEM, err := testauthority.GenerateJWT()
 	require.NoError(t, err)
 
-	tests := []struct {
-		name             string
-		keyset           types.CAKeySet
-		errAssertionFunc require.ErrorAssertionFunc
-	}{
-		{
-			name:             "no active keys",
-			keyset:           types.CAKeySet{},
-			errAssertionFunc: require.Error,
-		},
-		{
-			name: "multiple active keys",
-			keyset: types.CAKeySet{
-				JWT: []*types.JWTKeyPair{
-					{
-						PublicKey:  pub,
-						PrivateKey: priv,
-					},
-					{
-						PublicKey:  pub2,
-						PrivateKey: priv2,
-					},
+	winCA := &types.CertAuthoritySpecV2{
+		Type:        types.WindowsCA,
+		ClusterName: clusterName,
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{
+				{
+					Cert:    certPEM,
+					Key:     keyPEM,
+					KeyType: types.PrivateKeyType_RAW,
 				},
 			},
-			errAssertionFunc: require.NoError,
-		},
-		{
-			name: "empty private key",
-			keyset: types.CAKeySet{
-				JWT: []*types.JWTKeyPair{{
-					PublicKey:  pub,
-					PrivateKey: []byte{},
-				}},
-			},
-			errAssertionFunc: require.NoError,
-		},
-		{
-			name: "unparseable private key",
-			keyset: types.CAKeySet{
-				JWT: []*types.JWTKeyPair{{
-					PublicKey:  pub,
-					PrivateKey: bytes.Repeat([]byte{49}, 1222),
-				}},
-			},
-			errAssertionFunc: require.Error,
-		},
-		{
-			name: "unparseable public key",
-			keyset: types.CAKeySet{
-				JWT: []*types.JWTKeyPair{{
-					PublicKey:  bytes.Repeat([]byte{49}, 1222),
-					PrivateKey: priv,
-				}},
-			},
-			errAssertionFunc: require.Error,
-		},
-		{
-			name: "valid key pair",
-			keyset: types.CAKeySet{
-				JWT: []*types.JWTKeyPair{{
-					PublicKey:  pub,
-					PrivateKey: priv,
-				}},
-			},
-			errAssertionFunc: require.NoError,
 		},
 	}
 
+	samlIDPCA := &types.CertAuthoritySpecV2{
+		Type:        types.SAMLIDPCA,
+		ClusterName: clusterName,
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{
+				{
+					// OK to share cert/keys for this test, the CAs are tested
+					// independently.
+					Cert:    certPEM,
+					Key:     keyPEM,
+					KeyType: types.PrivateKeyType_RAW,
+				},
+			},
+		},
+	}
+
+	oidcIDPCA := &types.CertAuthoritySpecV2{
+		Type:        types.OIDCIdPCA,
+		ClusterName: clusterName,
+		ActiveKeys: types.CAKeySet{
+			JWT: []*types.JWTKeyPair{
+				{
+					PublicKey:      jwtPubPEM,
+					PrivateKey:     jwtPrivPEM,
+					PrivateKeyType: types.PrivateKeyType_RAW,
+				},
+			},
+		},
+	}
+
+	// Add your new CA to the table below!
+	// If you are using checkTLSKeys() you don't need to duplicate every test case
+	// of WindowsCA, just add a single test that exercises that function call.
+
+	tests := []struct {
+		name    string
+		spec    *types.CertAuthoritySpecV2
+		wantErr string
+	}{
+		// WindowsCA.
+		{
+			name: "valid WindowsCA",
+			spec: winCA,
+		},
+		{
+			name: "valid WindowsCA (Cert only)",
+			spec: func() *types.CertAuthoritySpecV2 {
+				spec := clone(winCA)
+				spec.ActiveKeys.TLS = []*types.TLSKeyPair{
+					{Cert: certPEM},
+				}
+				return spec
+			}(),
+		},
+		{
+			name: "valid WindowsCA (multiple active keys)",
+			spec: func() *types.CertAuthoritySpecV2 {
+				key2, cert2, err := tlsca.GenerateSelfSignedCA(
+					pkix.Name{CommonName: clusterName},
+					nil,         /* dnsNames */
+					time.Minute, /* ttl */
+				)
+				require.NoError(t, err)
+
+				spec := clone(winCA)
+				spec.ActiveKeys.TLS = append(spec.ActiveKeys.TLS, &types.TLSKeyPair{
+					Cert: cert2,
+					Key:  key2,
+				})
+				return spec
+			}(),
+		},
+		{
+			name: "valid WindowsCA (non-RAW private key)",
+			spec: func() *types.CertAuthoritySpecV2 {
+				spec := clone(winCA)
+				spec.ActiveKeys.TLS = []*types.TLSKeyPair{
+					{
+						Cert:    certPEM,
+						Key:     []byte(`ceci n'est pas a RAW key`),
+						KeyType: types.PrivateKeyType_PKCS11,
+					},
+				}
+				return spec
+			}(),
+		},
+		{
+			name: "WindowsCA empty TLS keys",
+			spec: func() *types.CertAuthoritySpecV2 {
+				spec := clone(winCA)
+				spec.ActiveKeys.TLS = nil
+				return spec
+			}(),
+			wantErr: "missing TLS",
+		},
+		{
+			name: "WindowsCA TLS key invalid",
+			spec: func() *types.CertAuthoritySpecV2 {
+				spec := clone(winCA)
+				spec.ActiveKeys.TLS = []*types.TLSKeyPair{
+					{
+						Cert: certPEM,
+						Key:  []byte("ceci n'est pas a private key"),
+					},
+				}
+				return spec
+			}(),
+			wantErr: "private key and certificate",
+		},
+		{
+			name: "WindowsCA TLS cert invalid (Cert and Key)",
+			spec: func() *types.CertAuthoritySpecV2 {
+				spec := clone(winCA)
+				spec.ActiveKeys.TLS = []*types.TLSKeyPair{
+					{
+						Cert: []byte("ceci n'est pas a certificate"),
+						Key:  keyPEM,
+					},
+				}
+				return spec
+			}(),
+			wantErr: "private key and certificate",
+		},
+		{
+			name: "WindowsCA TLS cert invalid (Cert only)",
+			spec: func() *types.CertAuthoritySpecV2 {
+				spec := clone(winCA)
+				spec.ActiveKeys.TLS = []*types.TLSKeyPair{
+					{
+						Cert: []byte("ceci n'est pas a certificate"),
+					},
+				}
+				return spec
+			}(),
+			wantErr: "certificate",
+		},
+
+		// SAMLIDPCA.
+		{
+			name: "valid SAMLIDPCA",
+			spec: samlIDPCA,
+		},
+		{
+			// WindowsCA already covers all corner-cases of checkTLSKeys.
+			name: "SAMLIDPCA invalid ActiveKeys",
+			spec: func() *types.CertAuthoritySpecV2 {
+				spec := clone(samlIDPCA)
+				spec.ActiveKeys = types.CAKeySet{}
+				return spec
+			}(),
+			wantErr: "missing TLS",
+		},
+
+		// OIDCIdPCA.
+		{
+			name: "valid OIDCIdPCA",
+			spec: oidcIDPCA,
+		},
+		{
+			name: "valid OIDCIdPCA (multiple active keys)",
+			spec: func() *types.CertAuthoritySpecV2 {
+				// GenerateJWT() returns hard-coded keys, so this set is the same as
+				// jwtPubPEM/jwtPrivPEM.
+				// This is OK for this test and we retain the call to GenerateJWT() in
+				// case it ever returns distinct keys.
+				pub2, priv2, err := testauthority.GenerateJWT()
+				require.NoError(t, err)
+
+				spec := clone(oidcIDPCA)
+				spec.ActiveKeys.JWT = append(spec.ActiveKeys.JWT, &types.JWTKeyPair{
+					PublicKey:      pub2,
+					PrivateKey:     priv2,
+					PrivateKeyType: types.PrivateKeyType_RAW,
+				})
+				return spec
+			}(),
+		},
+		{
+			name: "valid OIDCIdPCA (empty private key)",
+			spec: func() *types.CertAuthoritySpecV2 {
+				spec := clone(oidcIDPCA)
+				spec.ActiveKeys.JWT = []*types.JWTKeyPair{
+					{
+						PublicKey: jwtPubPEM,
+					},
+				}
+				return spec
+			}(),
+		},
+		{
+			name: "OIDCIdPCA JWT PrivateKey invalid",
+			spec: func() *types.CertAuthoritySpecV2 {
+				spec := clone(oidcIDPCA)
+				spec.ActiveKeys.JWT = []*types.JWTKeyPair{
+					{
+						PublicKey:      jwtPubPEM,
+						PrivateKey:     []byte(`ceci n'est pas a private key`),
+						PrivateKeyType: types.PrivateKeyType_RAW,
+					},
+				}
+				return spec
+			}(),
+			wantErr: "private key",
+		},
+		{
+			name: "OIDCIdPCA JWT PublicKey invalid",
+			spec: func() *types.CertAuthoritySpecV2 {
+				spec := clone(oidcIDPCA)
+				spec.ActiveKeys.JWT = []*types.JWTKeyPair{
+					{
+						PublicKey:      []byte(`ceci n'est pas a public key`),
+						PrivateKey:     jwtPrivPEM,
+						PrivateKeyType: types.PrivateKeyType_RAW,
+					},
+				}
+				return spec
+			}(),
+			wantErr: "public key",
+		},
+	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-				Type:        types.OIDCIdPCA,
-				ClusterName: "cluster1",
-				ActiveKeys:  test.keyset,
-			})
+			t.Parallel()
+
+			ca, err := types.NewCertAuthority(*test.spec)
 			require.NoError(t, err)
-			test.errAssertionFunc(t, ValidateCertAuthority(ca))
+
+			err = ValidateCertAuthority(ca)
+			if test.wantErr != "" {
+				assert.ErrorContains(t, err, test.wantErr, "ValidateCertAuthority")
+				return
+			}
+			assert.NoError(t, err, "ValidateCertAuthority")
 		})
 	}
 }

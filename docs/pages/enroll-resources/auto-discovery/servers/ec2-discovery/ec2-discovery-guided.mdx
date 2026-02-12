@@ -1,5 +1,6 @@
 ---
 title: Guided EC2 Auto-Discovery Configuration
+sidebar_label: Guided
 description: How to configure Teleport EC2 auto-discovery using Teleport to configure permissions
 tags:
  - how-to
@@ -22,6 +23,8 @@ enroll EC2 instances as servers in your Teleport cluster.
 
 To manually configure IAM policies and SSM documents instead, read [Manual EC2
 Auto-Discovery Configuration](ec2-discovery-manual.mdx).
+
+If you manage multiple AWS accounts in an AWS Organization, see [Organization-level EC2 Auto-Discovery Configuration](ec2-discovery-organization.mdx).
 
 ## Prerequisites
 
@@ -109,6 +112,7 @@ Reading configuration at "/etc/teleport.yaml"...
 This will add the following additional permissions to the Discovery Service's
 role:
 
+- `account:ListRegions`
 - `ec2:DescribeInstances`
 - `ssm:DescribeInstanceInformation`
 - `ssm:GetCommandInvocation`

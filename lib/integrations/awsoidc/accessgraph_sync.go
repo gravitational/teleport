@@ -63,6 +63,9 @@ type AccessGraphAWSIAMConfigureRequest struct {
 	// KMSKeyARNs is the ARN of the KMS key to use for decrypting the Identity Security Activity Center data.
 	KMSKeyARNs []string
 
+	// EnableEKSAuditLogs enables collection of EKS audit logs from CloudWatch logs.
+	EnableEKSAuditLogs bool
+
 	// stdout is used to override stdout output in tests.
 	stdout io.Writer
 }
@@ -181,6 +184,9 @@ func ConfigureAccessGraphSyncIAM(ctx context.Context, clt AccessGraphIAMConfigur
 		statements = append(statements, awslib.StatementKMSDecrypt(req.KMSKeyARNs))
 	}
 
+	if req.EnableEKSAuditLogs {
+		statements = append(statements, awslib.StatementAccessGraphAWSSyncEKSAuditLogs())
+	}
 	policy := awslib.NewPolicyDocument(
 		statements...,
 	)

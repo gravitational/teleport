@@ -25,7 +25,11 @@ import { ButtonSecondary } from 'design/Button/Button';
 import Flex from 'design/Flex/Flex';
 import { Indicator } from 'design/Indicator/Indicator';
 import Text from 'design/Text';
-import { SortMenu } from 'shared/components/Controls/SortMenu';
+import {
+  SortItem,
+  SortMenu,
+  SortOrder,
+} from 'shared/components/Controls/SortMenu';
 
 import { Instance } from 'teleport/Bots/Details/Instance';
 import { BotInstanceSummary } from 'teleport/services/bot/types';
@@ -44,9 +48,9 @@ function InternalBotInstancesList(
     error: Error | null | undefined;
     hasNextPage: boolean;
     sortField: string;
-    sortDir: 'ASC' | 'DESC';
+    sortDir: SortOrder;
     selectedItem: string | null;
-    onSortChanged: (sortField: string, sortDir: 'ASC' | 'DESC') => void;
+    onSortChanged: (sortField: string, sortDir: SortOrder) => void;
     onLoadNextPage: () => void;
     onItemSelected: (item: BotInstanceSummary) => void;
     isFiltering: boolean;
@@ -92,13 +96,11 @@ function InternalBotInstancesList(
           {isFiltering ? 'Filtered Instances' : 'Active Instances'}
         </TitleText>
         <SortMenu
-          current={{
-            fieldName: sortField,
-            dir: sortDir,
-          }}
-          fields={sortFields}
-          onChange={value => {
-            onSortChanged(value.fieldName, value.dir);
+          selectedKey={sortField}
+          selectedOrder={sortDir}
+          items={sortItems}
+          onChange={(field, order) => {
+            onSortChanged(field, order);
           }}
         />
       </TitleContainer>
@@ -236,21 +238,41 @@ const isUnsupportedSortError = (error: Error | null | undefined) => {
   return !!error && error.message.includes('unsupported sort');
 };
 
-const sortFields = [
+const sortItems: SortItem[] = [
   {
-    value: 'bot_name' as const,
+    key: 'bot_name',
     label: 'Bot name',
+    ascendingLabel: 'Bot name, A - Z',
+    descendingLabel: 'Bot name, Z - A',
+    ascendingOptionLabel: 'Alphabetical, A - Z',
+    descendingOptionLabel: 'Alphabetical, Z - A',
+    defaultOrder: 'ASC',
   },
   {
-    value: 'active_at_latest' as const,
-    label: 'Recent',
+    key: 'active_at_latest',
+    label: 'Activity',
+    ascendingLabel: 'Oldest',
+    descendingLabel: 'Latest',
+    ascendingOptionLabel: 'Oldest',
+    descendingOptionLabel: 'Latest',
+    defaultOrder: 'DESC',
   },
   {
-    value: 'version_latest' as const,
+    key: 'version_latest',
     label: 'Version',
+    ascendingLabel: 'Oldest version',
+    descendingLabel: 'Newest version',
+    ascendingOptionLabel: 'Oldest',
+    descendingOptionLabel: 'Newest',
+    defaultOrder: 'ASC',
   },
   {
-    value: 'host_name_latest' as const,
+    key: 'host_name_latest',
     label: 'Hostname',
+    ascendingLabel: 'Hostname, A - Z',
+    descendingLabel: 'Hostname, Z - A',
+    ascendingOptionLabel: 'Alphabetical, A - Z',
+    descendingOptionLabel: 'Alphabetical, Z - A',
+    defaultOrder: 'ASC',
   },
 ];

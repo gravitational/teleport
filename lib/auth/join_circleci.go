@@ -20,55 +20,37 @@ package auth
 
 import (
 	"context"
-	"slices"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/circleci"
+	"github.com/gravitational/teleport/lib/join/circleci"
 )
+
+// GetCircleCITokenValidate returns the currently configured CircleCI OIDC token
+// validator.
+func (a *Server) GetCircleCITokenValidator() circleci.Validator {
+	return a.circleCITokenValidate
+}
+
+// SetCircleCITokenValidate sets the CircleCI OIDC token validator
+// implementation. Used in tests.
+func (a *Server) SetCircleCITokenValidator(validator circleci.Validator) {
+	a.circleCITokenValidate = validator
+}
 
 func (a *Server) checkCircleCIJoinRequest(
 	ctx context.Context,
 	req *types.RegisterUsingTokenRequest,
 	pt types.ProvisionToken,
 ) (*circleci.IDTokenClaims, error) {
-	if req.IDToken == "" {
-		return nil, trace.BadParameter("IDToken not provided for %q join request", types.JoinMethodCircleCI)
-	}
-	token, ok := pt.(*types.ProvisionTokenV2)
-	if !ok {
-		return nil, trace.BadParameter("%q join method only support ProvisionTokenV2, '%T' was provided", types.JoinMethodCircleCI, pt)
-	}
+	claims, err := circleci.CheckIDToken(ctx, &circleci.CheckIDTokenParams{
+		ProvisionToken: pt,
+		IDToken:        []byte(req.IDToken),
+		Validator:      a.circleCITokenValidate,
+	})
 
-	claims, err := a.circleCITokenValidate(
-		ctx,
-		token.Spec.CircleCI.OrganizationID,
-		req.IDToken,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return claims, trace.Wrap(checkCircleCIAllowRules(token, claims))
-}
-
-func checkCircleCIAllowRules(token *types.ProvisionTokenV2, claims *circleci.IDTokenClaims) error {
-	// If a single rule passes, accept the IDToken
-	for _, rule := range token.Spec.CircleCI.Allow {
-		if rule.ProjectID != "" && claims.ProjectID != rule.ProjectID {
-			continue
-		}
-
-		// If ContextID is specified in rule, it must be contained in the slice
-		// of ContextIDs within the claims.
-		if rule.ContextID != "" && !slices.Contains(claims.ContextIDs, rule.ContextID) {
-			continue
-		}
-
-		// All provided rules met.
-		return nil
-	}
-
-	return trace.AccessDenied("id token claims did not match any allow rules")
+	// Note: try to return claims even if there was an error, they may provide
+	// useful auditing context.
+	return claims, trace.Wrap(err)
 }

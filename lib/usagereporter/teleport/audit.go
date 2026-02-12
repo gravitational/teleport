@@ -50,9 +50,9 @@ const (
 	SAMLIdPSessionType = "saml_idp_session"
 )
 
-// prehogUserKindFromEventKind converts a Teleport UserKind to a prehog
+// PrehogUserKindFromEventKind converts a Teleport UserKind to a prehog
 // UserKind.
-func prehogUserKindFromEventKind(eventsKind apievents.UserKind) prehogv1a.UserKind {
+func PrehogUserKindFromEventKind(eventsKind apievents.UserKind) prehogv1a.UserKind {
 	switch eventsKind {
 	case apievents.UserKind_USER_KIND_BOT:
 		return prehogv1a.UserKind_USER_KIND_BOT
@@ -124,7 +124,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: string(sessionType),
-			UserKind:    prehogUserKindFromEventKind(e.UserKind),
+			UserKind:    PrehogUserKindFromEventKind(e.UserKind),
 		}
 	case *apievents.PortForward:
 		sessionType := PortSSHSessionType
@@ -134,7 +134,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: sessionType,
-			UserKind:    prehogUserKindFromEventKind(e.UserKind),
+			UserKind:    PrehogUserKindFromEventKind(e.UserKind),
 		}
 	case *apievents.DatabaseSessionStart:
 		return &SessionStartEvent{
@@ -146,7 +146,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 				DbOrigin:   e.DatabaseOrigin,
 				UserAgent:  e.UserAgent,
 			},
-			UserKind: prehogUserKindFromEventKind(e.UserKind),
+			UserKind: PrehogUserKindFromEventKind(e.UserKind),
 		}
 	case *apievents.AppSessionStart:
 		var app *prehogv1a.SessionStartAppMetadata
@@ -163,7 +163,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: sessionType,
-			UserKind:    prehogUserKindFromEventKind(e.UserKind),
+			UserKind:    PrehogUserKindFromEventKind(e.UserKind),
 			App:         app,
 		}
 	case *apievents.WindowsDesktopSessionStart:
@@ -184,7 +184,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 
 			// Note: Unlikely for this to ever be a bot session, but included
 			// for completeness.
-			UserKind: prehogUserKindFromEventKind(e.UserKind),
+			UserKind: PrehogUserKindFromEventKind(e.UserKind),
 		}
 
 	case *apievents.GithubConnectorCreate:
@@ -209,14 +209,14 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 	case *apievents.KubeRequest:
 		return &KubeRequestEvent{
 			UserName: e.User,
-			UserKind: prehogUserKindFromEventKind(e.UserKind),
+			UserKind: PrehogUserKindFromEventKind(e.UserKind),
 		}
 
 	case *apievents.SFTP:
 		return &SFTPEvent{
 			UserName: e.User,
 			Action:   int32(e.Action),
-			UserKind: prehogUserKindFromEventKind(e.UserKind),
+			UserKind: PrehogUserKindFromEventKind(e.UserKind),
 		}
 
 	case *apievents.BotJoin:
@@ -306,7 +306,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 	case *apievents.SPIFFESVIDIssued:
 		return &SPIFFESVIDIssuedEvent{
 			UserName:      e.User,
-			UserKind:      prehogUserKindFromEventKind(e.UserKind),
+			UserKind:      PrehogUserKindFromEventKind(e.UserKind),
 			SpiffeId:      e.SPIFFEID,
 			IpSansCount:   int32(len(e.IPSANs)),
 			DnsSansCount:  int32(len(e.DNSSANs)),
@@ -359,7 +359,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: string(types.GitSessionKind),
-			UserKind:    prehogUserKindFromEventKind(e.UserKind),
+			UserKind:    PrehogUserKindFromEventKind(e.UserKind),
 			Git: &prehogv1a.SessionStartGitMetadata{
 				GitType:    e.ServerSubKind,
 				GitService: e.Service,
@@ -378,7 +378,15 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: MCPAppSessionType,
-			UserKind:    prehogUserKindFromEventKind(e.UserKind),
+			UserKind:    PrehogUserKindFromEventKind(e.UserKind),
+			Mcp: &prehogv1a.SessionStartMCPMetadata{
+				Transport:       types.GetMCPServerTransportType(e.AppURI),
+				ProtocolVersion: e.ProtocolVersion,
+				IngressAuthType: e.IngressAuthType,
+				EgressAuthType:  e.EgressAuthType,
+				ClientName:      e.ClientInfo,
+				ServerName:      e.ServerInfo,
+			},
 		}
 	}
 

@@ -95,8 +95,8 @@ func TestUpdater_Disable(t *testing.T) {
 		{
 			name: "enabled",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Enabled: true,
 				},
@@ -105,8 +105,8 @@ func TestUpdater_Disable(t *testing.T) {
 		{
 			name: "already disabled",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Enabled: false,
 				},
@@ -132,7 +132,7 @@ func TestUpdater_Disable(t *testing.T) {
 			ns := &Namespace{installDir: dir}
 			_, err := ns.Init()
 			require.NoError(t, err)
-			cfgPath := filepath.Join(ns.Dir(), updateConfigName)
+			cfgPath := filepath.Join(ns.Dir(), UpdateConfigName)
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
 				InsecureSkipVerify: true,
 			}, ns)
@@ -182,8 +182,8 @@ func TestUpdater_Unpin(t *testing.T) {
 		{
 			name: "pinned",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Pinned: true,
 				},
@@ -192,8 +192,8 @@ func TestUpdater_Unpin(t *testing.T) {
 		{
 			name: "not pinned",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Pinned: false,
 				},
@@ -219,7 +219,7 @@ func TestUpdater_Unpin(t *testing.T) {
 			ns := &Namespace{installDir: dir}
 			_, err := ns.Init()
 			require.NoError(t, err)
-			cfgPath := filepath.Join(ns.Dir(), updateConfigName)
+			cfgPath := filepath.Join(ns.Dir(), UpdateConfigName)
 
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
 				InsecureSkipVerify: true,
@@ -290,8 +290,8 @@ func TestUpdater_Update(t *testing.T) {
 		{
 			name: "updates enabled during window",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path:    defaultPathDir,
 					Group:   "group",
@@ -315,8 +315,8 @@ func TestUpdater_Update(t *testing.T) {
 		{
 			name: "updates enabled now",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path:    defaultPathDir,
 					Group:   "group",
@@ -340,8 +340,8 @@ func TestUpdater_Update(t *testing.T) {
 		{
 			name: "updates enabled now, not started or enabled",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path:    defaultPathDir,
 					Group:   "group",
@@ -367,8 +367,8 @@ func TestUpdater_Update(t *testing.T) {
 		{
 			name: "updates disabled during window",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path:    defaultPathDir,
 					Group:   "group",
@@ -384,8 +384,8 @@ func TestUpdater_Update(t *testing.T) {
 		{
 			name: "missing path during window",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Group:   "group",
 					BaseURL: "https://example.com",
@@ -401,8 +401,8 @@ func TestUpdater_Update(t *testing.T) {
 		{
 			name: "updates enabled outside of window",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path:    defaultPathDir,
 					Group:   "group",
@@ -418,8 +418,8 @@ func TestUpdater_Update(t *testing.T) {
 		{
 			name: "updates disabled outside of window",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path:    defaultPathDir,
 					Group:   "group",
@@ -434,8 +434,8 @@ func TestUpdater_Update(t *testing.T) {
 		{
 			name: "insecure URL",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path:    defaultPathDir,
 					BaseURL: "http://example.com",
@@ -449,8 +449,8 @@ func TestUpdater_Update(t *testing.T) {
 		{
 			name: "install error",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path:    defaultPathDir,
 					Enabled: true,
@@ -467,8 +467,8 @@ func TestUpdater_Update(t *testing.T) {
 		{
 			name: "version already installed in window",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path:    defaultPathDir,
 					BaseURL: "https://example.com",
@@ -484,8 +484,8 @@ func TestUpdater_Update(t *testing.T) {
 		{
 			name: "version already installed outside of window",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path:    defaultPathDir,
 					BaseURL: "https://example.com",
@@ -500,8 +500,8 @@ func TestUpdater_Update(t *testing.T) {
 		{
 			name: "version detects as linked",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path:    defaultPathDir,
 					BaseURL: "https://example.com",
@@ -527,8 +527,8 @@ func TestUpdater_Update(t *testing.T) {
 		{
 			name: "backup version removed on install",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path:    defaultPathDir,
 					BaseURL: "https://example.com",
@@ -555,8 +555,8 @@ func TestUpdater_Update(t *testing.T) {
 		{
 			name: "backup version is linked",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path:    defaultPathDir,
 					BaseURL: "https://example.com",
@@ -583,8 +583,8 @@ func TestUpdater_Update(t *testing.T) {
 		{
 			name: "backup version kept when no change",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path:    defaultPathDir,
 					BaseURL: "https://example.com",
@@ -604,8 +604,8 @@ func TestUpdater_Update(t *testing.T) {
 		{
 			name: "FIPS and Enterprise flags",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path:    defaultPathDir,
 					BaseURL: "https://example.com",
@@ -638,8 +638,8 @@ func TestUpdater_Update(t *testing.T) {
 		{
 			name: "setup fails",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path:    defaultPathDir,
 					BaseURL: "https://example.com",
@@ -669,8 +669,8 @@ func TestUpdater_Update(t *testing.T) {
 		{
 			name: "agpl requires base URL",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path:    defaultPathDir,
 					Enabled: true,
@@ -692,8 +692,8 @@ func TestUpdater_Update(t *testing.T) {
 		{
 			name: "skip version",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path:    defaultPathDir,
 					BaseURL: "https://example.com",
@@ -711,8 +711,8 @@ func TestUpdater_Update(t *testing.T) {
 		{
 			name: "pinned version",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path:    defaultPathDir,
 					BaseURL: "https://example.com",
@@ -762,7 +762,7 @@ func TestUpdater_Update(t *testing.T) {
 				}
 				_, err := ns.Init()
 				require.NoError(t, err)
-				cfgPath := filepath.Join(ns.Dir(), updateConfigName)
+				cfgPath := filepath.Join(ns.Dir(), UpdateConfigName)
 
 				updater, err := NewLocalUpdater(LocalUpdaterConfig{
 					InsecureSkipVerify: true,
@@ -933,8 +933,8 @@ func TestUpdater_LinkPackage(t *testing.T) {
 		{
 			name: "updates enabled",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Enabled: true,
 				},
@@ -946,8 +946,8 @@ func TestUpdater_LinkPackage(t *testing.T) {
 		{
 			name: "pinned",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Pinned: true,
 				},
@@ -959,8 +959,8 @@ func TestUpdater_LinkPackage(t *testing.T) {
 		{
 			name: "updates disabled",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Enabled: false,
 				},
@@ -972,8 +972,8 @@ func TestUpdater_LinkPackage(t *testing.T) {
 		{
 			name: "already linked",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Enabled: false,
 				},
@@ -986,8 +986,8 @@ func TestUpdater_LinkPackage(t *testing.T) {
 		{
 			name: "link error",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Enabled: false,
 				},
@@ -1012,8 +1012,8 @@ func TestUpdater_LinkPackage(t *testing.T) {
 		{
 			name: "systemd is not installed, already linked",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Enabled: false,
 				},
@@ -1025,8 +1025,8 @@ func TestUpdater_LinkPackage(t *testing.T) {
 		{
 			name: "SELinux blocks service from being read",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Enabled: false,
 				},
@@ -1044,7 +1044,7 @@ func TestUpdater_LinkPackage(t *testing.T) {
 			ns := &Namespace{installDir: dir}
 			_, err := ns.Init()
 			require.NoError(t, err)
-			cfgPath := filepath.Join(ns.Dir(), updateConfigName)
+			cfgPath := filepath.Join(ns.Dir(), UpdateConfigName)
 
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{
 				InsecureSkipVerify: true,
@@ -1125,16 +1125,16 @@ func TestUpdater_Remove(t *testing.T) {
 		{
 			name: "no active version",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 			},
 			teardownCalls: 1,
 		},
 		{
 			name: "no conflicting system links, process disabled, force",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Status: UpdateStatus{
 					Active: NewRevision(version, 0),
 				},
@@ -1146,8 +1146,8 @@ func TestUpdater_Remove(t *testing.T) {
 		{
 			name: "no system links, process active, force",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path: defaultPathDir,
 				},
@@ -1164,8 +1164,8 @@ func TestUpdater_Remove(t *testing.T) {
 		{
 			name: "no system links, process disabled, force",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path: defaultPathDir,
 				},
@@ -1182,8 +1182,8 @@ func TestUpdater_Remove(t *testing.T) {
 		{
 			name: "no system links, process disabled, no force",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path: defaultPathDir,
 				},
@@ -1198,8 +1198,8 @@ func TestUpdater_Remove(t *testing.T) {
 		{
 			name: "no system links, process disabled, no systemd, force",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path: defaultPathDir,
 				},
@@ -1217,8 +1217,8 @@ func TestUpdater_Remove(t *testing.T) {
 		{
 			name: "no system links, process disabled, custom path, force",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path: "custom",
 				},
@@ -1233,8 +1233,8 @@ func TestUpdater_Remove(t *testing.T) {
 		{
 			name: "no system links, process disabled, custom path, no force",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path: "custom",
 				},
@@ -1247,8 +1247,8 @@ func TestUpdater_Remove(t *testing.T) {
 		{
 			name: "no system links, process disabled, custom path, no force, custom service",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path: "custom",
 				},
@@ -1264,8 +1264,8 @@ func TestUpdater_Remove(t *testing.T) {
 		{
 			name: "active version",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path: defaultPathDir,
 				},
@@ -1281,8 +1281,8 @@ func TestUpdater_Remove(t *testing.T) {
 		{
 			name: "active version with tbot",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path: defaultPathDir,
 				},
@@ -1298,8 +1298,8 @@ func TestUpdater_Remove(t *testing.T) {
 		{
 			name: "active version, no systemd",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path: defaultPathDir,
 				},
@@ -1317,8 +1317,8 @@ func TestUpdater_Remove(t *testing.T) {
 		{
 			name: "active version, no reload",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path: defaultPathDir,
 				},
@@ -1334,8 +1334,8 @@ func TestUpdater_Remove(t *testing.T) {
 		{
 			name: "active version, sync error",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path: defaultPathDir,
 				},
@@ -1352,8 +1352,8 @@ func TestUpdater_Remove(t *testing.T) {
 		{
 			name: "active version, reload error",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Path: defaultPathDir,
 				},
@@ -1377,7 +1377,7 @@ func TestUpdater_Remove(t *testing.T) {
 				ns := &Namespace{installDir: dir}
 				_, err := ns.Init()
 				require.NoError(t, err)
-				cfgPath := filepath.Join(ns.Dir(), updateConfigName)
+				cfgPath := filepath.Join(ns.Dir(), UpdateConfigName)
 
 				updater, err := NewLocalUpdater(LocalUpdaterConfig{
 					InsecureSkipVerify: true,
@@ -1514,8 +1514,8 @@ func TestUpdater_Install(t *testing.T) {
 		{
 			name: "config from file",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Enabled: true,
 					Group:   "group",
@@ -1537,8 +1537,8 @@ func TestUpdater_Install(t *testing.T) {
 		{
 			name: "config from user",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					Group:   "old-group",
 					BaseURL: "https://example.com/old",
@@ -1567,8 +1567,8 @@ func TestUpdater_Install(t *testing.T) {
 		{
 			name: "defaults",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Status: UpdateStatus{
 					Active: NewRevision("old-version", 0),
 				},
@@ -1584,8 +1584,8 @@ func TestUpdater_Install(t *testing.T) {
 		{
 			name: "override skip",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Status: UpdateStatus{
 					Active: NewRevision("old-version", 0),
 					Skip:   toPtr(NewRevision("16.3.0", 0)),
@@ -1602,8 +1602,8 @@ func TestUpdater_Install(t *testing.T) {
 		{
 			name: "insecure URL",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					BaseURL: "http://example.com",
 				},
@@ -1614,8 +1614,8 @@ func TestUpdater_Install(t *testing.T) {
 		{
 			name: "install error",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 			},
 			installErr: errors.New("install error"),
 
@@ -1627,8 +1627,8 @@ func TestUpdater_Install(t *testing.T) {
 		{
 			name: "agpl requires base URL",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 			},
 			agpl:         true,
 			requestGroup: "default",
@@ -1637,8 +1637,8 @@ func TestUpdater_Install(t *testing.T) {
 		{
 			name: "version already installed",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Status: UpdateStatus{
 					Active: NewRevision("16.3.0", 0),
 				},
@@ -1654,8 +1654,8 @@ func TestUpdater_Install(t *testing.T) {
 		{
 			name: "backup version removed on install",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Status: UpdateStatus{
 					Active: NewRevision("old-version", 0),
 					Backup: toPtr(NewRevision("backup-version", 0)),
@@ -1673,8 +1673,8 @@ func TestUpdater_Install(t *testing.T) {
 		{
 			name: "backup version kept for validation",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Status: UpdateStatus{
 					Active: NewRevision("16.3.0", 0),
 					Backup: toPtr(NewRevision("backup-version", 0)),
@@ -1730,8 +1730,8 @@ func TestUpdater_Install(t *testing.T) {
 		{
 			name: "setup fails already installed",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Status: UpdateStatus{
 					Active: NewRevision("16.3.0", 0),
 				},
@@ -1771,8 +1771,8 @@ func TestUpdater_Install(t *testing.T) {
 		{
 			name: "install selinux from file",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					SELinuxSSH: true,
 				},
@@ -1793,8 +1793,8 @@ func TestUpdater_Install(t *testing.T) {
 		{
 			name: "install selinux from user",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					SELinuxSSH: false,
 				},
@@ -1835,7 +1835,7 @@ func TestUpdater_Install(t *testing.T) {
 				}
 				_, err := ns.Init()
 				require.NoError(t, err)
-				cfgPath := filepath.Join(ns.Dir(), updateConfigName)
+				cfgPath := filepath.Join(ns.Dir(), UpdateConfigName)
 
 				updater, err := NewLocalUpdater(LocalUpdaterConfig{
 					InsecureSkipVerify: true,
@@ -2148,8 +2148,8 @@ func TestUpdater_Setup(t *testing.T) {
 		{
 			name: "install selinux false in file",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					SELinuxSSH: false,
 				},
@@ -2161,8 +2161,8 @@ func TestUpdater_Setup(t *testing.T) {
 		{
 			name: "remove selinux",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					SELinuxSSH: true,
 				},
@@ -2175,8 +2175,8 @@ func TestUpdater_Setup(t *testing.T) {
 		{
 			name: "selinux no-op",
 			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
+				Version: UpdateConfigV1,
+				Kind:    UpdateConfigKind,
 				Spec: UpdateSpec{
 					SELinuxSSH: false,
 				},
@@ -2196,7 +2196,7 @@ func TestUpdater_Setup(t *testing.T) {
 			}
 			_, err := ns.Init()
 			require.NoError(t, err)
-			cfgPath := filepath.Join(ns.Dir(), updateConfigName)
+			cfgPath := filepath.Join(ns.Dir(), UpdateConfigName)
 
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{}, ns)
 			require.NoError(t, err)

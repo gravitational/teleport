@@ -36,8 +36,8 @@ import (
 
 const (
 	k8sKindPrefix     = "Teleport"
-	statusPackagePath = "github.com/gravitational/teleport/integrations/operator/apis"
-	statusPackageName = "resources"
+	statusPackagePath = "github.com/gravitational/teleport/integrations/operator/apis/resources"
+	statusPackageName = "teleportcr"
 	statusPackage     = statusPackagePath + "/" + statusPackageName
 	statusTypeName    = "Status"
 )
@@ -413,6 +413,8 @@ func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSON
 	case field.IsInt64() || field.IsUint64():
 		prop.Type = "integer"
 		prop.Format = "int64"
+	case field.IsFloat() || field.IsDouble():
+		prop.Type = "number"
 	case field.TypeName() == ".wrappers.LabelValues":
 		prop.Type = "object"
 		prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{
@@ -573,7 +575,7 @@ func getStatusSchema(parser *crdtools.Parser) (apiextv1.JSONSchemaProps, error) 
 	}
 	var statusType crdtools.TypeIdent
 	for _, pkg := range pkgs {
-		if pkg.Name == "resources" {
+		if pkg.Name == statusPackageName {
 			parser.NeedPackage(pkg)
 			statusType = crdtools.TypeIdent{
 				Package: pkg,

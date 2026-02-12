@@ -184,16 +184,17 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	agentPool, err := reversetunnel.NewAgentPool(
 		process.ExitContext(),
 		reversetunnel.AgentPoolConfig{
-			Component:            teleport.ComponentDatabase,
-			HostUUID:             conn.HostID(),
-			Resolver:             tunnelAddrResolver,
-			Client:               conn.Client,
-			Server:               dbService,
-			AccessPoint:          conn.Client,
-			AuthMethods:          conn.ClientAuthMethods(),
-			Cluster:              clusterName,
-			FIPS:                 process.Config.FIPS,
-			ConnectedProxyGetter: proxyGetter,
+			Component:                teleport.ComponentDatabase,
+			HostUUID:                 conn.HostID(),
+			Resolver:                 tunnelAddrResolver,
+			Client:                   conn.Client,
+			Server:                   dbService,
+			AccessPoint:              conn.Client,
+			AuthMethods:              conn.ClientAuthMethods(),
+			Cluster:                  clusterName,
+			FIPS:                     process.Config.FIPS,
+			ConnectedProxyGetter:     proxyGetter,
+			StaleConnTimeoutDisabled: reversetunnel.IsAgentStaleConnTimeoutDisabledByEnv(),
 		})
 	if err != nil {
 		return trace.Wrap(err)

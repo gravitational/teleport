@@ -154,6 +154,8 @@ type Database interface {
 	// IsAutoUsersEnabled returns true if the database has auto user
 	// provisioning enabled.
 	IsAutoUsersEnabled() bool
+	// IsEqual determines if two database resources are equivalent to one another.
+	IsEqual(Database) bool
 }
 
 // NewDatabaseV3 creates a new database resource.
@@ -274,7 +276,7 @@ func (d *DatabaseV3) GetLabel(key string) (value string, ok bool) {
 
 // GetAllLabels returns the database combined static and dynamic labels.
 func (d *DatabaseV3) GetAllLabels() map[string]string {
-	return CombineLabels(d.Metadata.Labels, d.Spec.DynamicLabels)
+	return CombineLabels(nil, d.Metadata.Labels, d.Spec.DynamicLabels)
 }
 
 // GetDescription returns the database description.

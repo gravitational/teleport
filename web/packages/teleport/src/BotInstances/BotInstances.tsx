@@ -24,6 +24,7 @@ import styled, { css } from 'styled-components';
 import { Alert } from 'design/Alert/Alert';
 import { CardTile } from 'design/CardTile/CardTile';
 import Flex from 'design/Flex/Flex';
+import { SortOrder } from 'shared/components/Controls/SortMenu';
 import { SearchPanel } from 'shared/components/Search';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
 
@@ -123,7 +124,7 @@ export function BotInstances() {
   );
 
   const handleSortChanged = useCallback(
-    (sortField: string, sortDir: string) => {
+    (sortField: string, sortDir: SortOrder) => {
       const search = new URLSearchParams(location.search);
       search.set('sort_field', sortField);
       search.set('sort_dir', sortDir);

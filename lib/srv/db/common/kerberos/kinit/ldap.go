@@ -138,7 +138,6 @@ func (s *ldapConnector) tlsConfigForLDAP(ctx context.Context, clusterName string
 
 	req := &winpki.GenerateCredentialsRequest{
 		Username:           user,
-		CAType:             types.DatabaseClientCA,
 		TTL:                time.Hour,
 		ClusterName:        clusterName,
 		Domain:             s.ldapConfig.domain,

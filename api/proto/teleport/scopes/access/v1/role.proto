@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.scopes.access.v1;
 
 import "teleport/header/v1/metadata.proto";
+import "teleport/label/v1/label.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1";
 
@@ -56,6 +57,13 @@ message ScopedRoleSpec {
 message ScopedRoleConditions {
   // Rules describe basic resource:verb permissions.
   repeated ScopedRule rules = 1;
+
+  // Logins is the list of host logins this role allows.
+  repeated string logins = 2;
+
+  // NodeLabels is a map of node labels (used to dynamically grant access to
+  // nodes).
+  repeated teleport.label.v1.Label node_labels = 3;
 }
 
 // Rule maps resources to verbs. This is the underlying type used to describe

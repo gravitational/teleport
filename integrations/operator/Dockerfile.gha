@@ -34,7 +34,7 @@ EOT
 # Install Go.
 RUN GOLANG_VERSION=$(make -s -C /tmp/v print-go-version) && \
     mkdir -p /opt && \
-    curl -fsSL https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | \
+    curl -fsSL https://go.dev/dl/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | \
       tar xz -C /opt && \
     chmod a+w /var/lib && \
     chmod a-w /

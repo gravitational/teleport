@@ -26,18 +26,36 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
+	"gopkg.in/yaml.v3"
 )
 
-// formatThreeColMarkdownTable formats the provided row data into a three-column
-// Markdown table, minus the header.
-func formatThreeColMarkdownTable(rows [][3]string) string {
-	var buf bytes.Buffer
+var nonLetters = regexp.MustCompile(`\W`)
 
-	for _, r := range rows {
+// lowerWordChars returns only the word characters (\w) from in, in lowercase,
+// so we can sort short-format flags alongside long-format flags in tables.
+func lowerWordChars(in string) string {
+	return strings.ToLower(nonLetters.ReplaceAllString(in, ""))
+}
+
+// formatThreeColMarkdownTable formats the provided row data into a three-column
+// Markdown table, minus the header, sorted lexicographically by the values of
+// the first column.
+func formatThreeColMarkdownTable(rows [][3]string) string {
+	newRows := slices.Clone(rows)
+	slices.SortFunc(newRows, func(a, b [3]string) int {
+		return strings.Compare(
+			lowerWordChars(a[0]),
+			lowerWordChars(b[0]),
+		)
+	})
+
+	var buf bytes.Buffer
+	for _, r := range newRows {
 		fmt.Fprintf(&buf, "\n|%v|%v|%v|", r[0], r[1], r[2])
 	}
 	return buf.String()
@@ -49,7 +67,9 @@ func flagsToRows(f []*kingpin.FlagModel) [][3]string {
 	rows := [][3]string{}
 
 	for _, flag := range f {
-		if flag.Hidden {
+		// Skip hidden flags and flags whose only purpose is to expose
+		// YAML-based default env variables.
+		if flag.Hidden || flag.Name == flag.Envar {
 			continue
 		}
 		flagString := ""
@@ -84,9 +104,9 @@ func anyVisibleFlags(f []*kingpin.FlagModel) bool {
 // provided exposes an environment variable for configuration.
 func anyEnvVarsForCmd(args []*kingpin.ArgModel, flags []*kingpin.FlagModel) bool {
 	return slices.ContainsFunc(args, func(arg *kingpin.ArgModel) bool {
-		return arg.Envar != ""
+		return arg.Envar != "" && !arg.Hidden
 	}) || slices.ContainsFunc(flags, func(flag *kingpin.FlagModel) bool {
-		return flag.Envar != ""
+		return flag.Envar != "" && !flag.Hidden
 	})
 }
 
@@ -231,10 +251,18 @@ func formatUsageArg(arg *kingpin.ArgModel) string {
 }
 
 // formatHelp prints help text to include in a Markdown table cell. It escapes
-// curly braces to avoid breaking the MDX parser, and it escapes pipes to
-// avoid breaking the cell.
+// curly, angle, and square braces to avoid breaking the MDX parser, and it
+// escapes pipes to avoid breaking the cell.
 func formatHelp(help string) string {
-	return strings.NewReplacer("{", `\{`, "}", `\}`, "|", `\|`).Replace(help)
+	return strings.NewReplacer(
+		"{", `\{`,
+		"}", `\}`,
+		"|", `\|`,
+		"[", `\[`,
+		"]", `\]`,
+		"<", `\<`,
+		">", `\>`,
+	).Replace(help)
 }
 
 // docsUsageTemplatePath points to a help text template for CLI reference
@@ -243,12 +271,47 @@ func formatHelp(help string) string {
 var docsUsageTemplatePath = filepath.Join("lib", "utils", "docs-usage.md.tmpl")
 
 // updateAppUsageTemplatePath updates the app usage template to print a reference
-// guide for the CLI application. It reads the template from r.
-func updateAppUsageTemplate(r io.Reader, app *kingpin.Application) {
+// guide for the CLI application. It reads the template from r and uses the
+// config to add an introductory paragraph and entries for environment variables
+// that are not available to kingpin.
+func updateAppUsageTemplate(r io.Reader, config generatorConfig, app *kingpin.Application) {
 	var buf bytes.Buffer
 	if _, err := buf.ReadFrom(r); err != nil {
 		panic(fmt.Sprintf("unable to read from the docs usage template: %v", err))
 	}
+
+	existingEnvVars := make(map[string]struct{})
+	for _, flag := range app.Model().Flags {
+		if flag.Envar != "" {
+			existingEnvVars[flag.Envar] = struct{}{}
+		}
+	}
+
+	for envVarName, envVar := range config.EnvVars {
+		// Check if the flag already exists in the app model to avoid
+		// duplicate flag errors.
+		if _, flagExists := existingEnvVars[envVarName]; flagExists {
+			continue
+		}
+
+		// If the flag does not exist, create it with the default value
+		// and description from the YAML file.
+		flag := app.Flag(envVarName, envVar.Description).
+			Envar(envVarName).
+			Default(envVar.Default)
+		if envVar.Type == "bool" {
+			flag.Bool()
+		} else {
+			flag.String()
+		}
+	}
+
+	replaceFlagDefaults := makeDefaultFlagValueOverrider(config.FlagDefaultOverrides)
+	replaceArgDefaults := makeDefaultArgValueOverrider(config.ArgDefaultOverrides)
+
+	// We override the default app description with a custom description
+	// that is better suited to the docs.
+	app.Help = config.Introduction
 
 	app.UsageFuncs(map[string]any{
 		"AnyEnvVarsForCmd":            anyEnvVarsForCmd,
@@ -258,21 +321,149 @@ func updateAppUsageTemplate(r io.Reader, app *kingpin.Application) {
 		"FlagsToRows":                 flagsToRows,
 		"FormatThreeColMarkdownTable": formatThreeColMarkdownTable,
 		"FormatUsageArg":              formatUsageArg,
+		"ReplaceFlagDefaults":         replaceFlagDefaults,
+		"ReplaceArgDefaults":          replaceArgDefaults,
 		"SortCommandsByName":          sortCommandsByName,
 	})
 	app.UsageTemplate(buf.String())
 }
 
-// UpdateAppUsageTemplate updates the app usage template to print a reference
-// guide for the CLI application.
-func UpdateAppUsageTemplate(app *kingpin.Application, _ []string) {
-	// Panic when failing to open or read from the docs usage template since
-	// we need to keep the signature of UpdateAppUsageTemplate consistent
-	// with the one included without build tags, i.e., with no return value.
-	f, err := os.Open(docsUsageTemplatePath)
+// envVarDefault represents the structure of environment variable defaults in YAML files.
+type envVarDefault struct {
+	Description string `yaml:"description"`
+	Default     string `yaml:"default"`
+	Type        string `yaml:"type"`
+}
+
+type generatorConfig struct {
+	Introduction         string                   `yaml:"introduction"`
+	EnvVars              map[string]envVarDefault `yaml:"env_vars"`
+	FlagDefaultOverrides []flagDefaultOverride    `yaml:"flag_default_overrides"`
+	ArgDefaultOverrides  []argDefaultOverride     `yaml:"arg_default_overrides"`
+}
+
+type flagDefaultOverride struct {
+	FullCommand string `yaml:"full_command"`
+	Flag        string `yaml:"flag"`
+	Value       string `yaml:"value"`
+}
+
+type argDefaultOverride struct {
+	FullCommand string `yaml:"full_command"`
+	Arg         string `yaml:"arg"`
+	Value       string `yaml:"value"`
+}
+
+// loadConfig loads possible default environment variables defined in a YAML file
+// that matches the application name.
+func loadConfig(appName string) (generatorConfig, error) {
+	pathname := filepath.Join("lib", "utils", "docsconfigs", appName+".yaml")
+	f, err := os.Open(pathname)
 	if err != nil {
-		panic(fmt.Sprintf("unable to open the docs usage template at %v: %v", docsUsageTemplatePath, err))
+		return generatorConfig{}, fmt.Errorf("unable to open CLI doc generation config file at %v: %w", pathname, err)
 	}
 
-	updateAppUsageTemplate(f, app)
+	var conf generatorConfig
+	if err = yaml.NewDecoder(f).Decode(&conf); err != nil {
+		return generatorConfig{}, fmt.Errorf("unable to parse the CLI doc generation config file at %v: %w", pathname, err)
+	}
+
+	if conf.Introduction == "" {
+		return generatorConfig{}, fmt.Errorf(`CLI doc generation config file at %v must have an 'introduction' field`, pathname)
+	}
+
+	for envVar, def := range conf.EnvVars {
+		if def.Description == "" || def.Default == "" || def.Type == "" {
+			return generatorConfig{}, fmt.Errorf("invalid YAML structure in %s: entry %q is missing one of required fields 'description', 'default' or 'type'", pathname, envVar)
+		}
+	}
+
+	return conf, nil
+}
+
+// makeDefaultFlagValueOverrider returns a template function that overrides the
+// configured default values in kingpin flag models.
+func makeDefaultFlagValueOverrider(overrides []flagDefaultOverride) func(fullCommand string, f []*kingpin.FlagModel) []*kingpin.FlagModel {
+	// maps full commands to flags to new default values
+	cmdToOverride := make(map[string]map[string]string)
+	for _, o := range overrides {
+		if _, ok := cmdToOverride[o.FullCommand]; !ok {
+			cmdToOverride[o.FullCommand] = make(map[string]string)
+		}
+		cmdToOverride[o.FullCommand][o.Flag] = o.Value
+	}
+
+	return func(fullCommand string, allFlags []*kingpin.FlagModel) []*kingpin.FlagModel {
+		if allFlags == nil || len(allFlags) == 0 {
+			return allFlags
+		}
+
+		flagsToDefaults, ok := cmdToOverride[fullCommand]
+		if !ok {
+			return allFlags
+		}
+
+		for _, fl := range allFlags {
+			d, ok := flagsToDefaults[fl.Name]
+			if !ok {
+				continue
+			}
+			fl.Default = []string{d}
+		}
+		return allFlags
+	}
+}
+
+// makeDefaultArgValueOverrider returns a template function that overrides the
+// configured default values in kingpin arg models.
+func makeDefaultArgValueOverrider(overrides []argDefaultOverride) func(fullCommand string, f []*kingpin.ArgModel) []*kingpin.ArgModel {
+	// maps full commands to args to new default values
+	cmdToOverride := make(map[string]map[string]string)
+	for _, o := range overrides {
+		if _, ok := cmdToOverride[o.FullCommand]; !ok {
+			cmdToOverride[o.FullCommand] = make(map[string]string)
+		}
+		cmdToOverride[o.FullCommand][o.Arg] = o.Value
+	}
+
+	return func(fullCommand string, allArgs []*kingpin.ArgModel) []*kingpin.ArgModel {
+		if allArgs == nil || len(allArgs) == 0 {
+			return allArgs
+		}
+
+		argsToDefaults, ok := cmdToOverride[fullCommand]
+		if !ok {
+			return allArgs
+		}
+
+		for _, fl := range allArgs {
+			d, ok := argsToDefaults[fl.Name]
+			if !ok {
+				continue
+			}
+			fl.Default = []string{d}
+		}
+		return allArgs
+	}
+}
+
+// UpdateAppUsageTemplate updates the app usage template to print a reference
+// guide for the CLI application. Exits on errors since we need to keep the
+// signature of UpdateAppUsageTemplate consistent with the one included without
+// build tags, i.e., with no return value. Writes error messages to stdout to
+// separate them from the help text, which kingpin writes to stderr.
+func UpdateAppUsageTemplate(app *kingpin.Application, _ []string) {
+	config, err := loadConfig(app.Name)
+	if err != nil {
+		fmt.Fprintf(os.Stdout, "Unable to load the docs generator configuration for %v: %v", app.Name, err)
+		os.Exit(1)
+	}
+
+	f, err := os.Open(docsUsageTemplatePath)
+	if err != nil {
+		fmt.Fprintf(os.Stdout, "Unable to open the docs usage template at %v: %v", docsUsageTemplatePath, err)
+		os.Exit(1)
+	}
+
+	updateAppUsageTemplate(f, config, app)
 }

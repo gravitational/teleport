@@ -5,9 +5,10 @@
 #
 # Plugin specific options
 #
+
+# teleport -- contains the configuration describing how the plugin connects to
+# your Teleport cluster.
 teleport:
-  # When the address is empty, `tbot.teleportProxyAddress`
-  # or `tbot.teleportAuthAddress` will be used if they are set.
   # teleport.address(string) -- is the address of the Teleport cluster the plugin
   # connects to. The address must contain both the domain name and the port of
   # the Teleport cluster. It can be either the address of the auth servers or the
@@ -30,13 +31,13 @@ teleport:
   # kind: Secret
   # type: Opaque
   # metadata:
-  #   name: teleport-plugin-event-handeler-identity
+  #   name: teleport-plugin-event-handler-identity
   # data:
   #   auth_id: #...
   # ```
   #
-  # Check out the [Export Events with Fluentd]
-  # (../../zero-trust-access/export-audit-events/fluentd.mdx) guide
+  # Check out the [Export Events with Fluentd
+  # ](../../zero-trust-access/export-audit-events/fluentd.mdx) guide
   # for more information about how to acquire these credentials.
   identitySecretName: ""
   # teleport.identitySecretPath(string) -- is the key in the Kubernetes secret
@@ -45,33 +46,72 @@ teleport:
   # `"auth_id"`, you can omit this field.
   identitySecretPath: "auth_id"
 
+# eventHandler -- contains the configuration used by the plugin to forward Teleport events.
 eventHandler:
+  # eventHandler.storagePath(string) -- is the storage directory for the event handler.
   storagePath: "/var/lib/teleport/plugins/event-handler/storage"
+  # eventHandler.timeout(string) -- is the polling timeout.
   timeout: "10s"
+  # eventHandler.batch(int) -- is the fetch batch size.
   batch: 20
-  # The window size configures the duration of the time window for the event handler
+  # eventHandler.windowSize(string) -- configures the duration of the time window for the event handler
   # to request events from Teleport. By default, this is set to 24 hours.
   # Reduce the window size if the events backend cannot manage the event volume
   # for the default window size.
   # The window size should be specified as a duration string, parsed by Go's time.ParseDuration.
   windowSize: "24h"
-  # Optional setting to enable debug logging
-  # debug: true
-  # Optional setting for event types to forward
-  # types: ["TYPE1", "TYPE2"]
-  # Optional setting for audit event types to skip
-  # skipEventTypes: ["TYPE1"]
-  # Optional setting for session recording event types to skip
-  # skipSessionTypes: ["TYPE1"]
+  # eventHandler.debug(bool) -- enables debug logging.
+  debug: false
+  # eventHandler.types(list) -- is the list of event types to forward.
+  # When unset, the event handler forwards all events.
+  types: []
+  # eventHandler.skipEventTypes(list) -- is the list of audit event types to skip.
+  skipEventTypes: []
+  # eventHandler.skipSessionTypes(list) -- is the list of session recording event types to skip.
+  # When unset, the event handler skips noisy and binary events.
+  #
+  # See the [Teleport-event-handler README](https://github.com/gravitational/teleport/blob/1d2bd5eb8fc3500deb7d7108f6835efde98b7b24/integrations/event-handler/README.md)
+  # for a list of default skipped events.
+  skipSessionTypes: []
+  # eventHandler.startTime(string) -- is the start time to start ingestion from (RFC3339 format).
+  startTime: ""
+  # eventHandler.dryRun(bool) -- enables dry run without sending events to Fluentd.
+  dryRun: false
+  # eventHandler.concurrency(int) -- is the number of concurrent sessions to process. By default, this is set to 5.
+  concurrency: 5
+  lock:
+    # eventHandler.lock.enabled(bool) -- controls whether user auto-locking is enabled.
+    enabled: false
+    # eventHandler.lock.failedAttemptsCount(int) -- is the number of failed attempts in the `lockPeriod` which
+    # triggers locking. By default, this is set to 3.
+    failedAttemptsCount: 3
+    # eventHandler.lock.period(string) -- is the time period where `lock-failed-attempts-count` failed attempts
+    # will trigger locking. By default, this is set to 1 minute.
+    period: "1m"
+    # eventHandler.lock.for(string) -- is the time period for which user gets lock.
+    for: ""
 
+# fluentd -- contains the configuration for the Fluentd forwarder.
 fluentd:
+  # fluentd.url(string) -- is the Fluentd URL where the events will be sent.
   url: ""
+  # fluentd.sessionUrl(string) -- is the Fluentd URL where the session logs will be sent.
   sessionUrl: ""
+  # fluentd.certificate -- contains the configuration for the plugin's Fluentd client certificates.
+  # When `certManager.enabled` is true, `cert-manager` will use its own secrets, so this section is unused.
   certificate:
+    # fluentd.certificate.secretName(string) -- is the secret containing the credentials to connect to Fluentd.
+    # It must contain the CA certificate, the client key and the client certificate.
     secretName: ""
+    # fluentd.certificate.caPath(string) -- is the name of the key which contains the CA certificate inside the secret.
     caPath: "ca.crt"
+    # fluentd.certificate.certPath(string) -- is the name of the key which contains the client's certificate inside the secret.
     certPath: "client.crt"
+    # fluentd.certificate.keyPath(string) -- is the name of the key which contains the client's private key inside the secret.
     keyPath: "client.key"
+  # fluentd.maxConnections(int) -- is the maximum number of connections to Fluentd. By default, or when set to 0,
+  # this becomes `eventHandler.concurrency` * 2.
+  maxConnections: 0
 
 # tbot -- controls the optional tbot deployment that obtains and renews
 # credentials for the plugin to connect to Teleport.
@@ -111,8 +151,12 @@ tbot:
   teleportAuthAddress: ""
 
   # tbot.joinMethod(string) -- describes how tbot joins the Teleport cluster.
-  # See [the join method reference](../../reference/deployment/join-methods.mdx) for a list fo supported values and detailed explanations.
+  # See [the join method reference](../../reference/deployment/join-methods.mdx) for a list of supported values and detailed explanations.
   joinMethod: "kubernetes"
+  # tbot.token(string) -- is the name of the token used by tbot to join the Teleport cluster.
+  # This value is not sensitive unless the `joinMethod` is set to `"token"`.
+  # If unset, defaults to `[release name]-tbot`.
+  # If `crd.create` is set to true, then a TeleportProvisionToken will be created with the provided token name.
   token: ""
 
   # Don't touch the tbot values below, this will break the chart.
@@ -121,6 +165,127 @@ tbot:
   defaultOutput:
     enabled: true
 
+# crd -- controls whether the chart creates custom resources managed by the Teleport Kubernetes Operator.
+# If enabled, the chart will create TeleportRoleV8, TeleportBotV1, and TeleportProvisionToken
+# resources to automatically connect the plugin to Teleport.
+#
+# <Admonition type="warning" title="Interaction with Teleport Kubernetes Operator">
+# The Teleport Kubernetes Operator must already be enabled in the Teleport cluster
+# for the custom resources to be applied successfully. In addition,
+# the custom resources must be deployed in the same namespace as the Teleport Kubernetes Operator.
+# </Admonition>
+crd:
+  # crd.create(bool) -- controls if the chart should create
+  # the Operator custom resources to automatically bootstrap the plugin.
+  create: false
+  # crd.namespace(string) -- optionally overrides the Kubernetes namespace that the
+  # custom resources are created in. This should match the namespace in which the
+  # Teleport Kubernetes Operator is running. Defaults to the release namespace.
+  namespace: ""
+  # crd.tokenSpecOverride -- optionally overrides the join token spec for tbot to use to join the Teleport cluster.
+  #
+  # When tbot is enabled, the default configuration uses the `kubernetes` in_cluster join method.
+  # By default, the service account for tbot will be allowed for all `kubernetes` join types: in_cluster, JWKS, OIDC.
+  #
+  # You can also configure the token to use other supported join methods. The token specification
+  # must match `tbot.joinMethod` for the plugin to correctly join the cluster.
+  # See [the join method reference](../../reference/deployment/join-methods.mdx) for a list of supported values and detailed explanations.
+  #
+  # <Admonition type="warning" title="Other Join Methods">
+  # When not using the `kubernetes` join method, or when tbot is not enabled, you must specify `join_method`.
+  # Ensure all necessary fields for the join token are present for the Operator
+  # to correctly create the Teleport token resource.
+  # </Admonition>
+  #
+  # Example (Kubernetes JWKS join method):
+  # ```yaml
+  # tokenSpecOverride:
+  #   join_method: kubernetes
+  #   kubernetes:
+  #     type: static_jwks
+  #     static_jwks:
+  #       jwks: |
+  #         # Place the kubernetes JWKS here (`kubectl get --raw /openid/v1/jwks`)
+  #         {"keys":[--snip--]}
+  # ```
+  #
+  # Example (Kubernetes OIDC join method):
+  # ```yaml
+  # tokenSpecOverride:
+  #   join_method: kubernetes
+  #   kubernetes:
+  #     type: oidc
+  #     oidc:
+  #       # Insert the OIDC issuer value here, it will vary depending on your
+  #       # cluster and cloud provider.
+  #       issuer: https://oidc.eks.us-west-2.amazonaws.com/id/my-cluster
+  # ```
+  tokenSpecOverride: {}
+
+# certManager -- controls whether the chart uses `cert-manager` to provision TLS certificates
+# for mTLS connection between the plugin and Fluentd. If enabled, `cert-manager` will create two
+# Kubernetes secrets in the plugin's release namespace:
+# the Fluentd server credentials (CA cert, server cert, server key)
+# and the plugin client credentials (CA cert, client cert, client key).
+# The TLS certificates use PKCS#8 encoding and ECDSA encryption.
+#
+# <Admonition type="note" title="Installing cert manager">
+# You must install and configure `cert-manager` in your Kubernetes cluster yourself.
+#
+# See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/helm/)
+# for more information.
+# </Admonition>
+certManager:
+  # certManager.enabled(bool) -- controls if `cert-manager` should be used to provision TLS certificates for the plugin.
+  enabled: false
+  # certManager.issuer -- is the `cert-manager` `Issuer` or `ClusterIssuer` that will issue
+  # the Fluentd server and client certificates.
+  issuer:
+    # certManager.issuer.create(bool) -- controls if the chart should create
+    # a private CA issuer to issue the Fluentd server and client certificates.
+    #
+    # See the [cert-manager Bootstrapping CA Issuers documentation
+    # ](https://cert-manager.io/docs/configuration/selfsigned/#bootstrapping-ca-issuers) for more information.
+    #
+    # <Admonition type="warning" title="Creating the CA Issuer with the Chart">
+    # If `certManager.issuer.create` is true, the chart will create a new private CA issuer.
+    # This means existing Fluentd deployments may need to be restarted to load the new certificates.
+    # As such, it is recommended to use your own issuer in production.
+    #
+    # See the [cert-manager Issuers documentation
+    # ](https://cert-manager.io/docs/configuration/issuers/) for more information.
+    # </Admonition>
+    create: true
+    # certManager.issuer.name(string) -- is the `Name` of the issuer. Unused if `certManager.issuer.create` is true.
+    #
+    # <Admonition type="note" title="Configuring your own Issuer">
+    # If `certManager.issuer.create` is false, you must install and
+    # configure an appropriate issuer yourself.
+    # If configuring an `Issuer` resource, it should be in the same namespace as the plugin's release namespace.
+    # Alternatively, you can use `ClusterIssuer` for a cluster-wide issuer.
+    #
+    # See the [cert-manager Issuers documentation
+    # ](https://cert-manager.io/docs/configuration/issuers/) for more information.
+    # </Admonition>
+    name: ""
+    # certManager.issuer.kind(string) -- is the `Kind` of the issuer. Unused if `certManager.issuer.create` is true.
+    # Defaults to 'Issuer' to keep permissions scoped to the plugin's release namespace.
+    kind: Issuer
+    # certManager.issuer.group(string) -- is the `Group` of the issuer. Unused if `certManager.issuer.create` is true.
+    # Defaults to 'cert-manager.io' to use built-in issuers.
+    group: cert-manager.io
+  # certManager.dnsNames(list) -- is the DNS names for the Fluentd forwarder, populating the SANs extension of the server certificate.
+  dnsNames: []
+  # certManager.ipAddresses(list) -- is the IP addresses for the Fluentd forwarder, populating the SANs extension of the server certificate.
+  ipAddresses: []
+  # certManager.ttl(string) -- is the time-to-live duration for the TLS certificates. Defaults to 87600 hours (10 years).
+  ttl: "87600h"
+  # certManager.renewBefore(string) -- is the time before `certManager.ttl` to renew the TLS certificates.
+  # This must be less than `certManager.ttl`. When empty, defaults to 1/3 of the issued
+  # certificate's time-to-live duration. For example, if a certificate is valid for 60 minutes,
+  # `cert-manager` will renew the certificate 20 minutes before expiration.
+  renewBefore: ""
+
 persistentVolumeClaim:
   enabled: false
   size: 1Gi
@@ -128,27 +293,101 @@ persistentVolumeClaim:
   existingClaim: ""
   volumeName: "storage"
 
+# annotations -- contains annotations to apply to the different Kubernetes
+# objects created by the chart. See [the Kubernetes annotation
+# documentation](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+# for more details.
+annotations:
+  # annotations.config(object) -- are annotations to set on the ConfigMap.
+  config: {}
+  # annotations.deployment(object) -- are annotations to set on the Deployment.
+  deployment: {}
+  # annotations.pod(object) -- are annotations to set on the Pods.
+  pod: {}
+  # annotations.certSecret(object) --  are annotations to set on the certificate secrets
+  # generated by cert-manager v1.5+ when `certManager.enabled` is true
+  certSecret: {}
+  
+# extraLabels -- contains additional Kubernetes labels to apply on the resources
+# created by the chart. See [the Kubernetes label documentation
+# ](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
+# for more information.
+extraLabels:
+  # extraLabels.config(object) -- are labels to set on the ConfigMap.
+  config: {}
+  # extraLabels.deployment(object) -- are labels to set on the Deployment.
+  deployment: {}
+  # extraLabels.pod(object) -- are labels to set on the Pods.
+  pod: {}
+  # extraLabels.certSecret(object) -- are labels to set on the certificate secrets
+  # generated by cert-manager v1.5+ when `certManager.enabled` is true.
+  certSecret: {}
+
 #
 # Deployment
 #
+# image -- sets the container image used for plugin pods created by the chart.
+#
+# You can override this to use your own plugin image rather than a Teleport-published image.
 image:
+  # image.repository(string) -- is the image repository.
   repository: public.ecr.aws/gravitational/teleport-plugin-event-handler
+  # image.pullPolicy(string) -- is the [Kubernetes image pull policy](https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy).
   pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
+  # image.tag(string) -- Overrides the image tag whose default is the chart appVersion.
+  #
+  # Normally, the version of the Teleport plugin matches the
+  # version of the chart. If you install chart version 15.0.0, you'll use
+  # the plugin version 15.0.0. Upgrading the plugin is done by upgrading the chart.
+  #
+  # <Admonition type="warning">
+  # `image.tag` is intended for development and custom tags. This MUST NOT be
+  # used to control the plugin version in a typical deployment. This
+  # chart is designed to run a specific plugin version. You will face
+  # compatibility issues trying to run a different version with it.
+  #
+  # If you want to run the Teleport plugin version `X.Y.Z`, you should use
+  # `helm install --version X.Y.Z` instead.
+  # </Admonition>
   tag: ""
 
+# imagePullSecrets(list) -- is a list of secrets containing authorization tokens
+# which can be optionally used to access a private Docker registry.
+#
+# See the [Kubernetes reference](https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod) for more details.
 imagePullSecrets: []
+
+# nameOverride(string) -- optionally overrides the name of the chart, used
+# together with the release name when giving a name to resources.
 nameOverride: ""
+# fullnameOverride(string) -- optionally overrides the full name of resources.
 fullnameOverride: ""
 
+# Deprecated way to set pod annotations. `annotations.pod` should be preferred.
 podAnnotations: {}
 
+# podSecurityContext(object) -- sets the pod security context for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod)
+# for more details.
+#
+# To unset the security context, set it to `null` or `~`.
 podSecurityContext: {}
 
+# securityContext(object) -- sets the container security context for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
+# for more details.
+#
+# To unset the security context, set it to `null` or `~`.
 securityContext: {}
 
+# resources(object) -- sets the resource requests/limits for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+# for more details.
 resources: {}
 
+# nodeSelector(object) -- sets the node selector for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector)
+# for more details.
 nodeSelector: {}
 
 # tls -- contains settings for mounting your own TLS material in the event-handler pod.
@@ -161,20 +400,60 @@ tls:
   #
   # You must create a secret containing the CA certs in the same namespace as Teleport using a command like:
   #
+  # ```code
   # $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
-  #
-  #   The key containing the root CA in the secret must be `ca.pem`.
+  # ```
   existingCASecretName: ""
+  # tls.existingCASecretKeyName(string) -- determines which key in the CA secret
+  # will be used as a trusted CA bundle file.
+  existingCASecretKeyName: "ca.pem"
 
+# tolerations(list) -- sets the tolerations for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/)
+# for more details.
 tolerations: []
 
+# affinity(object) -- sets the affinities for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity)
+# for more details.
 affinity: {}
 
+# volumes(list) -- sets the volumes mounted into the main event-handler pod.
+# See [the Kubernetes volume
+# documentation](https://kubernetes.io/docs/concepts/storage/volumes/) for more
+# details.
+#
+# For example:
+# ```yaml
+# - name: storage
+#   persistentVolumeClaim:
+#     claimName: teleport-plugin-event-handler
+# ```
 volumes: []
-  # - name: storage
-  #   persistentVolumeClaim:
-  #     claimName: teleport-plugin-event-handler
 
+# volumeMounts(list) -- sets the volume mounts for the main event-handler container.
+# See [the Kubernetes volume
+# documentation](https://kubernetes.io/docs/concepts/storage/volumes/) for more
+# details.
+#
+# For example:
+# ```yaml
+# - name: storage
+#   mountPath: "/var/lib/teleport/plugins/event-handler/storage"
+# ```
 volumeMounts: []
-  # - name: storage
-  #   mountPath: "/var/lib/teleport/plugins/event-handler/storage"
+
+# extraArgs(list) -- contains extra arguments to pass to `teleport-plugin start` for
+# the main event-handler container.
+extraArgs: []
+
+# extraEnv(list) -- contains extra environment variables to set in the main
+# event-handler container.
+#
+# For example:
+# ```yaml
+# extraEnv:
+#   - name: HTTPS_PROXY
+#     value: "http://username:password@my.proxy.host:3128"
+# ```
+extraEnv: []

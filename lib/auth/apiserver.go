@@ -123,8 +123,10 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Servers and presence heartbeat
 	srv.POST("/:version/namespaces/:namespace/nodes/keepalive", srv.WithAuth(srv.keepAliveNode))
 	srv.POST("/:version/authservers", srv.WithAuth(srv.upsertAuthServer))
+	// TODO(kiosion) DELETE IN 21.0.0
 	srv.GET("/:version/authservers", srv.WithScopedAuth(srv.getAuthServers))
 	srv.POST("/:version/proxies", srv.WithAuth(srv.upsertProxy))
+	// TODO(kiosion) DELETE IN 21.0.0
 	srv.GET("/:version/proxies", srv.WithScopedAuth(srv.getProxies))
 	srv.DELETE("/:version/proxies", srv.WithAuth(srv.deleteAllProxies))
 	srv.DELETE("/:version/proxies/:name", srv.WithAuth(srv.deleteProxy))
@@ -306,7 +308,10 @@ func (s *APIServer) upsertProxy(auth *ServerWithRoles, w http.ResponseWriter, r 
 }
 
 // getProxies returns registered proxies
+//
+// TODO(kiosion) DELETE IN 21.0.0
 func (s *APIServer) getProxies(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	servers, err := auth.GetProxies()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -342,7 +347,10 @@ func (s *APIServer) upsertAuthServer(auth *ServerWithRoles, w http.ResponseWrite
 }
 
 // getAuthServers returns registered auth servers
+//
+// TODO(kiosion) DELETE IN 21.0.0
 func (s *APIServer) getAuthServers(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	servers, err := auth.GetAuthServers()
 	if err != nil {
 		return nil, trace.Wrap(err)

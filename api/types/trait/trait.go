@@ -34,3 +34,15 @@ func (t Traits) Clone() Traits {
 	}
 	return out
 }
+
+// Merge src traits into dst. If you don't want the dst to be mutated do a Clone() first.
+// Duplicated values are removed, but the order of values for a given trait is not guaranteed.
+func Merge(dst, src Traits) {
+	for key, values := range src {
+		dst[key] = append(dst[key], values...)
+	}
+	for key, values := range dst {
+		slices.Sort(values)
+		dst[key] = slices.Compact(values)
+	}
+}

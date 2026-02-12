@@ -156,6 +156,10 @@ export const Support = ({
                 url={docs.changeLog}
               />
               <ExternalSupportLink
+                title="Upcoming Releases"
+                url={docs.upcomingReleases}
+              />
+              <ExternalSupportLink
                 title="Teleport Blog"
                 url="https://goteleport.com/blog/"
               />
@@ -274,7 +278,7 @@ const DataItemFlex = styled(Flex)`
 `;
 
 /**
- * getDocUrls returns an object of URL's appended with
+ * getDocUrls returns an object of URLs appended with
  * UTM, version, and type of teleport.
  *
  * @param version teleport version retrieved from cluster info.
@@ -303,8 +307,9 @@ const getDocUrls = (version = '', isEnterprise: boolean) => {
       `https://goteleport.com/docs/admin-guides/management/admin/troubleshooting/`
     ),
 
-    // there isn't a version-specific changelog page
+    // these pages aren't verison-specific
     changeLog: withUTM('https://goteleport.com/docs/changelog'),
+    upcomingReleases: withUTM('https://goteleport.com/docs/upcoming-releases'),
   };
 };
 

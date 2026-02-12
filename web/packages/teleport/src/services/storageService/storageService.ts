@@ -46,6 +46,7 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.REMEMBERED_SSO_USERNAME,
   KeysEnum.SESSION_RECORDINGS_VIEW_MODE,
   KeysEnum.SESSION_RECORDINGS_DENSITY,
+  KeysEnum.ENABLE_TELEMETRY,
   KeysEnum.SESSION_RECORDINGS_DISMISSED_CTA,
 ];
 
@@ -263,6 +264,10 @@ export const storageService = {
 
   getAccessGraphEnabled(): boolean {
     return this.getParsedJSONValue(KeysEnum.ACCESS_GRAPH_ENABLED, false);
+  },
+
+  resetAccessGraphEnabled() {
+    window.localStorage.removeItem(KeysEnum.ACCESS_GRAPH_ENABLED);
   },
 
   getAccessGraphIacEnabled(): boolean {

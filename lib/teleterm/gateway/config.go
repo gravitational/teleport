@@ -69,6 +69,9 @@ type Config struct {
 	Username string
 	// WebProxyAddr
 	WebProxyAddr string
+	// RelayAddr, if set, is the address of the Relay service that should be
+	// used by protocols that support using a Relay.
+	RelayAddr string
 	// Logger is a component logger
 	Logger *slog.Logger
 	// TCPPortAllocator creates listeners on the given ports. This interface lets us avoid occupying

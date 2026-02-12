@@ -21,10 +21,10 @@ package mcp
 import (
 	"slices"
 
-	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils/mcputils"
 )
 
 var (
@@ -89,17 +89,17 @@ var (
 	// The list is obtained by searching these in addition to mcp-go:
 	// - https://github.com/modelcontextprotocol/modelcontextprotocol
 	// - https://github.com/modelcontextprotocol/typescript-sdk/blob/main/src/server/index.ts
-	knownNotificationMethods = []mcp.MCPMethod{
+	knownNotificationMethods = []string{
 		//nolint:misspell // "cancelled" is "UK" spelling but our linter is set to use US locale
 		"notifications/cancelled",
 		"notifications/initialized",
 		"notifications/message",
 		"notifications/progress",
-		mcp.MethodNotificationPromptsListChanged,   // notifications/prompts/list_changed
-		mcp.MethodNotificationResourcesListChanged, // notifications/resources/list_changed
-		mcp.MethodNotificationResourceUpdated,      // notifications/resources/updated
-		mcp.MethodNotificationToolsListChanged,     // notifications/tools/list_changed
-		"notifications/roots/list_changed",
+		mcputils.MethodNotificationPromptsListChanged,   // notifications/prompts/list_changed
+		mcputils.MethodNotificationResourcesListChanged, // notifications/resources/list_changed
+		mcputils.MethodNotificationResourceUpdated,      // notifications/resources/updated
+		mcputils.MethodNotificationToolsListChanged,     // notifications/tools/list_changed
+		mcputils.MethodNotificationRootsListChanged,     // notifications/roots/list_changed
 	}
 
 	// knownRequestMethods is a list of known method names for requests.
@@ -107,33 +107,33 @@ var (
 	// The list is obtained by searching these in addition to mcp-go:
 	// - https://github.com/modelcontextprotocol/modelcontextprotocol
 	// - https://github.com/modelcontextprotocol/typescript-sdk/blob/main/src/server/index.ts
-	knownRequestMethods = []mcp.MCPMethod{
-		mcp.MethodInitialize,             // initialize
-		mcp.MethodPing,                   // ping
-		mcp.MethodResourcesList,          // resources/list
-		mcp.MethodResourcesTemplatesList, // resources/templates/list
-		mcp.MethodResourcesRead,          // resources/read
-		mcp.MethodPromptsList,            // prompts/list
-		mcp.MethodPromptsGet,             // prompts/get
-		mcp.MethodToolsList,              // tools/list
-		mcp.MethodToolsCall,              // tools/call
-		mcp.MethodSetLogLevel,            // logging/setLevel
-		mcp.MethodElicitationCreate,      // elicitation/create
-		"roots/list",
-		"sampling/createMessage",
+	knownRequestMethods = []string{
+		mcputils.MethodInitialize,             // initialize
+		mcputils.MethodPing,                   // ping
+		mcputils.MethodResourcesList,          // resources/list
+		mcputils.MethodResourcesTemplatesList, // resources/templates/list
+		mcputils.MethodResourcesRead,          // resources/read
+		mcputils.MethodPromptsList,            // prompts/list
+		mcputils.MethodPromptsGet,             // prompts/get
+		mcputils.MethodToolsList,              // tools/list
+		mcputils.MethodToolsCall,              // tools/call
+		mcputils.MethodSetLogLevel,            // logging/setLevel
+		mcputils.MethodElicitationCreate,      // elicitation/create
+		mcputils.MethodListRoots,              // roots/list
+		mcputils.MethodSamplingCreateMessage,  // sampling/createMessage
 	}
 )
 
-func reportNotificationMethod(method mcp.MCPMethod) string {
+func reportNotificationMethod(method string) string {
 	if slices.Contains(knownNotificationMethods, method) {
-		return string(method)
+		return method
 	}
 	return "unknown"
 }
 
-func reportRequestMethod(method mcp.MCPMethod) string {
+func reportRequestMethod(method string) string {
 	if slices.Contains(knownRequestMethods, method) {
-		return string(method)
+		return method
 	}
 	return "unknown"
 }

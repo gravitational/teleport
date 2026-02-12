@@ -24,6 +24,11 @@ with any labels they like. Similarly, a user with role creation permissions can 
 to anything. This poses a significant challenge when trying to delegate any meaningful responsibility and/or to
 apply the principal of least privilege to users that need to administer resources/permissions in an meaningful way.
 
+In addition to administrative privileges being global, individual controls within teleport tend to be global in
+nature (or at least, global in how they apply to a given user). For example, a user's `client_idle_timeout`
+is always determined by the most restrictive value across *all* of their roles, making it difficult to reasonably
+model user privileges with a mix of more and less restrictive controls depending on context.
+
 Similarly, teleport user credentials tend to be all or nothing. There isn't a good way to get credentials that
 are only useable for the specific task at hand. Instead, if a user is logged into a teleport cluster they always
 have all their available permissions applied. This increases blast radius, both in terms of compromise and accidental
@@ -31,7 +36,8 @@ misuse.
 
 We would like to provide a mechanism for organizing resources and permissions in a manner that allows for both
 isolation and hierarchy. This system should support admins that have powerful control over provisioning of, and
-access to, resources within their domain of influence. Said admin privileges must not be able to affect resources
+access to, resources within their domain of influence. Including the ability to create a mix of more and less
+permissive environments/contexts. Said admin privileges must not be able to affect resources
 and permissions outside the scope of their domain(s). We would also like to provide means of limiting the blast
 radius of compromise/misuse as part of this organizational system. Finally, we require that this organizational
 system be backwards compatible with existing teleport resources, permissions, and usage patterns to the greatest
@@ -130,6 +136,9 @@ first performing any kind of scope setup/creation/configuration ceremony.
 
 **Hierarchical Isolation**: Permissions within a given scope cannot be used to "reach up" and affect resources/access defined
 in parent scopes or "reach across" and affect resources/access defined in orthogonal scopes.
+
+**Mixed Permissiveness**: Scopes will allow for a mix of more and less permissive controls to be applied to the same user
+depending on context.
 
 **Blast Radius Reduction**: Scoping will be a robust tool for further reducing the blast radius of compromised or misused
 credentials.
@@ -263,9 +272,9 @@ check does not pass, access is denied without the need to load or evaluate any o
 
 ### A Scoped Access Check
 
-In order to conform to our core isolation and hierarchy goals, the form of scoped access checking will need to diverge
-somewhat from classic teleport access checks.  Ordinarily, in teleport code, an access check is a one-off decision, the
-pseudocode of which would look something like this:
+In order to conform to our core isolation and hierarchy goals, and to support mixed permissiveness across scopes, the form of
+scoped access checking will need to diverge from classic teleport access checks.  Ordinarily, in teleport code, an access check
+is a one-off decision based on the user's full role set, the pseudocode of which would look something like this:
 
 ```go
 roles := LoadRolesForUser(cert)
@@ -279,23 +288,26 @@ if CanAccessResource(roles, resource) {
 ```
 
 Note that allow decisions are not binary. There are often parameters that affect the nature of allowed access. (e.g. allowed
-ssh access may come with or without X11 forwarding enabled). 
+ssh access may come with or without X11 forwarding enabled). These parameters tend to be determined by the most restrictive
+value across all roles. Though certain teleport controls actually use the opposite approach, instead taking the least restrictive
+value across all roles. Neither approach works well when a user needs to access resources in different environments with different
+access control requirements.
 
-Per our scoping design goals, one of our key criteria is that administrative permissions assigned at a child scope cannot
-be used to affect the nature of resources/permissions at a parent scope.  This means that we cannot allow permissions in
-a child scope to modify the parameters of access that is permitted at a parent scope. We therefore end up with an access
-check flow that looks something like this:
+Per our scoping design goals, one of our key criteria is that administrative permissions assigned by a child scope cannot
+be used to affect the nature of resources/permissions assigned by a parent scope. This means that we cannot allow permissions in
+a child scope to modify the parameters of access that is permitted at a parent scope. Additionally, we want to allow for
+specialization of controls s.t. different access parameters can be applied based on the specific nature of the access
+being attempted. At a very high level, we will be aiming for an access check flow that looks like this:
+
 
 ```go
 if !PinScopeAllowsAccessToResourceScope(cert.ScopePin, resource.GetScope()) {
     return Denial
 }
 
-var roles []Role
-for scope := range DescendScopeHierarchy(resource.GetScope()) { // "/staging/west" -> ["/", "/staging", "/staging/west"]
-    roles = append(roles, LoadRolesForUserAtScope(cert, scope)...)
-    if CanAccessResource(roles, resource) {
-        parameters := GetAccessConstraints(roles, resource)
+for role := range RolesApplicableToResourceScope(cert, resource.GetScope()) {
+    if CanAccessResource(role, resource) {
+        parameters := GetAccessConstraints(role, resource)
         return Permit(parameters)
     }
 }
@@ -303,15 +315,26 @@ for scope := range DescendScopeHierarchy(resource.GetScope()) { // "/staging/wes
 return Denial
 ```
 
-Note that we start from the uppermost parent scope, and iteratively descend. At the first scope where access is allowed,
-we determine the full parameters of access *at that scope*. Assignment of additional roles/permissions at child scopes
-have no effect per scope isolation rules.
+The key points of the model are these:
 
-As an example, say that alice has role `parent` at `/staging` which permits ssh access but does not permit X11 forwarding,
-and role `child` at `/staging/west` which permits ssh access with X11 forwarding. If alice attempts to access an ssh agent
-at `/staging/west`, alice will be granted ssh access *without* X11 forwarding enabled, even though she has a role at the
-child scope that would permit it. This is because the `parent` role at `/staging` is what first grants access, and evaluation
-must halt at that point per scope isolation rules.
+- When a role is evaluated and permits access, it "wins" and determines all access parameters (except where overridden
+by external configuration). No other roles affect the access decision once a role has permitted access. So, for example,
+if a role permits access *with* X11 forwarding enabled, no other role that denies X11 forwarding can override that decision.
+
+- An access check will never consider roles that are assigned/applicable at an orthogonal or child scope of the resource
+being accessed. For an access attempt against a resource at `/staging/west`, only roles assigned at `/`, `/staging`, or `/staging/west`
+will be considered. Roles at `/prod`, `/staging/east`, or `/staging/west/testbed` will be ignored.
+
+- Role assignments managed by higher level admins will always be evaluated before those managed by lower level admins (i.e. a role
+assignment that is managed at `/staging` will be evaluated before one managed at `/staging/west`). This will ensure that hierarchical
+isolation is preserved.
+
+Note that in this model, the *order* in which roles are evaluated is of supreme importance. We are deliberately eliding ordering
+details in the above as it is a complex topic that deserves its own dedicated discussion. The salient point for this section is
+that ordering will preserve hierarchical isolation by evaluating the role assignments managed by higher level
+admins before those managed by lower level admins. A more in-depth discussion of ordering can be found
+in the [Access Control Evaluation Details](#access-control-evaluation-details) section later in this document.
+
 
 ### Scoped Roles and Assignments
 
@@ -578,6 +601,266 @@ permissions.
 
 Long term, we may want to introduce some additional visualization tools to improve comprehension of scope hierarchy. Given
 the format of scopes as file-like paths, a tree-like visualization would likely be a good fit.
+
+
+## Access Control Evaluation Details
+
+The manner in which access controls are determined for scoped identities differs meaningfully from classic teleport
+role evaluation. The most obvious difference is scope hierarchy itself.  However, there are other more subtle differences
+that are important to understand. Notably:
+
+- Scoped role evaluation considers only a single role when determining the parameters/controls to enforce for a given
+access. This means that scoped roles do not have cross-role side-effects (see the preceding [A Scoped Access Check](#a-scoped-access-check)
+discussion for details).
+
+- *Order* of scoped role evaluation matters. Because we halt on the first allow decision and pull all parameters from
+  the allowing role, the order in which roles are evaluated becomes critical.
+
+- Scoped roles cannot be used as a source of truth for controls which must be enforced globally.
+
+- Scoped roles cannot express controls that must be enforced in contexts where the target resource/scope is not known.
+
+
+### Scope of Origin and Effect
+
+In order for scoped role evaluation order to fully make sense, we first need to step back a bit and think about how scoping
+intersects with access control in a philosophical sense.
+
+When a scoped administrator authors and applies a policy, two different scopes are at play. The first is the scope of the
+resource that is the policy definition. This is the top level `scope` resource field, and is common to all scoped types.
+For a scoped type that effectuates a policy/permission, however, there is also a scope (or scopes) at which the granted
+permissions are intended to apply. Consider this example of a scoped role assignment:
+
+```yaml
+kind: scoped_role_assignment
+metadata:
+  name: some-assignment
+scope: /staging
+spec:
+  user: alice
+  assignments:
+    - role: access
+      scope: /staging/west
+version: v1
+```
+
+In the above example, the top-level `scope` field indicates the scope of the assignment resource itself. This scope determines
+what admins are able to modify the assignment. The `spec.assignments.scope` field indicates the scope at which the assigned role's
+permissions are intended to apply. Despite the assignment resource living at `/staging`, the assigned role's permissions only apply
+when accessing resources at `/staging/west`. In other words, we can think of the permissions implied by the assignment as having
+both a scope that they are applied *from* and a scope that they are applied *to*. This separation of concerns is critical as it
+allows us to express the ownership/authority of the policy separately from the intended target of the policy.
+
+Going forward, we will refer to these two different kinds of scope as the *Scope of Origin* and the *Scope of Effect*: 
+
+- *Scope of Origin*: The scope of the resource that describes the policy to be applied by. This scope informs us of
+the authority from which the policy originates. It is, in effect, a representation of the *provenance* of the policy. A higher
+level scope of origin represents a policy that expresses the intent of higher level admins, and therefore carries
+greater weight. In particular, it should not be possible for a policy with a higher/ancestral scope of origin
+to be overridden or negated by a policy with a lower/descendant scope of origin.
+
+- *Scope of Effect*: This is the scope at which the policy is intended to apply. This scope represents the intended target of
+the policy. A policy with a narrower scope of effect is more specific, and a policy with a broader scope of effect is more general.
+The scope of effect *must* be equivalent to or descendant from the scope of origin in order to ensure that policies cannot "reach up"
+and affect resources/access outside of the authority of the admins that defined/assigned the policy. Scope of effect is otherwise
+independent of scope of origin, and it may be appropriate in some circumstances for the most *specific* scope of effect to take
+precedence, something that we cannot do with *Scope of Origin*, which must always respect hierarchical isolation.
+
+
+### Role Evaluation Order
+
+As discussed previously, scoped roles will disallow cross-role side effects. Instead of trying to "sum" controls/parameters, the nature of an
+access attempt will be determined by the first role that permits the attempted access.  In order to ensure correct and flexible behavior, we must
+therefore decide on a role evaluation order that respects scoping principles, supports flexibility and expressiveness, and is deterministic.
+
+In order to achieve our role ordering goals, we will be using a three-tiered approach to ordering. A long-form example is discussed
+below but, in short, the three determinants are (in order): scope of the originating assignment resource (*Scope of Origin*),
+scope of the role's effective privilege assignment (*Scope of Effect*), and lexicographic order of the role name.
+
+Consider the example of a user with the following role assignment state:
+
+```
+Scope of Origin Scope of Effect Role Name
+--------------- --------------- -----------------
+/staging        /staging        staging-auditor
+/staging        /staging/west   staging-owner
+/staging/west   /staging/west   staging-west-dev
+/staging/west   /staging/west   staging-west-user
+```
+
+In plain words, the user has been assigned four roles:
+- The `staging-auditor` role is assigned by an admin from `/staging` and applies when accessing resources across all of `/staging`.
+- The `staging-owner` role is assigned by an admin from `/staging` and applies when accessing resources at `/staging/west`.
+- The `staging-west-dev` role is assigned by an admin from `/staging/west` and applies when accessing resources at `/staging/west`.
+- The `staging-west-user` role is assigned by an admin from `/staging/west` and applies when accessing resources at `/staging/west`.
+
+The question now is, what order should these roles be evaluated in (i.e. if multiple roles allow a given action, which should take precedence)?
+
+The first thing we do is order by *Scope of Origin*. The two roles assigned from `/staging` must be evaluated before the two roles assigned
+from `/staging/west`. This is because the former represent the intent of higher level admins, and so must take precedence
+in order to preserve hierarchical isolation. So we know that `staging-auditor` and `staging-owner` must be evaluated before `staging-west-dev`
+and `staging-west-user`.
+
+Ordering by *Scope of Origin* does not fully resolve ambiguity, as we still need to determine the relative order of roles assigned from the
+same *Scope of Origin*. To resolve this, we will use the *Scope of Effect* as a secondary ordering determinant. Here, we will use specificity
+preference. If two role assignments originate from the same scope, the one with the more specific scope of effect will be evaluated first.
+This allows admins to express specialized intent at narrower scopes without violating hierarchical isolation principles. With this rule in place,
+we can determine that `staging-owner` must be evaluated before `staging-auditor`, since both originate from `/staging`, but `staging-owner` has a
+more specific *Scope of Effect*.
+
+Finally, in the cases where both the *Scope of Origin* and *Scope of Effect* are the same for two roles, we will fall back to lexicographic
+order of the role name. This is somewhat arbitrary, but it is simple, deterministic, and easy to understand. With this last principle in place,
+we can conclusively determine the order of role evaluation in all cases. In our above example, the final order of role evaluation will be:
+
+1. `staging-owner`, due to having the highest *Scope of Origin* and most specific *Scope of Effect*.
+2. `staging-auditor`, due to having a higher *Scope of Origin* than the remaining roles.
+3. `staging-west-dev`, due to having a lexicographic precedence over `staging-west-user`.
+4. `staging-west-user`, due to being the last remaining role.
+
+We see that with the above ordering, the intent of higher level admins is preserved, while still allowing for a given admin to
+specialize the policies they author at narrower scopes. Admins of `/staging` can confidently write policies with a *most specific rule wins*
+philosophy, without worrying about the policies written by admins of `/staging/west` interfering with their intent.
+
+Considered another way, recall the example pseudocode from the [A Scoped Access Check](#a-scoped-access-check) section:
+
+```go
+if !PinScopeAllowsAccessToResourceScope(cert.ScopePin, resource.GetScope()) {
+    return Denial
+}
+
+for role := range RolesApplicableToResourceScope(cert, resource.GetScope()) {
+    if CanAccessResource(role, resource) {
+        parameters := GetAccessConstraints(role, resource)
+        return Permit(parameters)
+    }
+}
+return Denial
+```
+
+We can now expand the pseudocode to include role ordering:
+
+```go
+if !PinScopeAllowsAccessToResourceScope(cert.ScopePin, resource.GetScope()) {
+    return Denial
+}
+
+for scopeOfOrigin := range DescendScopeHierarchy(resource.GetScope()) { // "/staging/west" -> ["/", "/staging", "/staging/west"]
+    for scopeOfEffect := range AscendScopeHierarchy(resource.GetScope()) { // "/staging/west" -> ["/staging/west", "/staging", "/"]
+        for role := range GetMatchingRoles(cert, AssignedFrom(scopeOfOrigin), AssignedTo(scopeOfEffect)) {
+            if CanAccessResource(role, resource) {
+                parameters := GetAccessConstraints(role, resource)
+                return Permit(parameters)
+            }
+        }
+    }
+}
+
+return Denial
+```
+
+Note that the function of the check is essentially unchanged, except that it is now expanded to reveal the way in which scopes
+are used to order the roles being evaluated.
+
+
+### Global and Scope-Bound Controls
+
+Because of the limitations imposed by scope isolation and single-role evaluation, certain access controls that teleport
+traditionally implements via roles are not suitable for scoped roles, or need to function differently. This is an artifact
+of the change in how the role as a concept associates/binds a control with an action. Scoped roles always bind a control
+to a specific action based on scope and the nature of the action itself (e.g. in the case of ssh access, the controls
+are bound by a combination of the role being assigned to the user, the scope of the target node, and the labels of the
+target node). This presents a challenge, as some existing teleport controls are intended to be enforced independent of
+knowledge of the target resource.
+
+As an example, consider the `client_idle_timeout` control. In classic teleport roles, each user has a single possible
+client idle timeout, determined by the least permissive value across all of their roles and the global cluster networking
+config. This allows the proxy networking stack to enforce client idle timeout using only the user's certificate, without
+needing to know the target resource being accessed. In a scoped context, this doesn't work. A role-level `client_idle_timeout` 
+control cannot be enforced without knowledge of which role is granting access to the target resource (to do otherwise would
+violate hierarchical isolation).
+
+It is infeasible at this time to make all teleport access controls resource-aware. We can solve this problem, in part,
+by simply enforcing global controls. In the `client_idle_timeout` example, the proxying layer can enforce the global
+maximum client idle timeout defined in cluster networking config. Then, if a specific access attempt merits a more
+strict timeout, the resource-aware layer can enforce that as needed. This approach works well for many usecases,
+but may not be suitable for users with particularly permissive sub-environments, or for controls that don't lend
+themselves well to "double enforcement".
+
+In order to ensure that highly permissive sub-environments can coexist with more restrictive global controls, we will
+introduce the concept of "scope-bound" controls. These will work similarly to the global controls teleport already
+supports, but will be definable at the scope level. Say, for example, that we needed to define different client idle
+timeouts for different scopes. We could do this via a `scopes_networking_config` resource like so:
+
+```yaml
+kind: scopes_networking_config
+# ...
+spec:
+  rules:
+    - scope: /prod
+      client_idle_timeout: 15m
+    - scope: /staging/west
+      client_idle_timeout: 1h
+    - scope: /staging/east
+      client_idle_timeout: 45m
+    - scope: /dev
+      client_idle_timeout: 6h
+version: v1
+```
+
+In contexts where controls are enforced without knowledge of the target resource (e.g. certain networking/routing layers),
+the scope of the user's login session can be used to determine which per-scope settings to apply. This will allow
+more permissive environments to be set up without requiring significant refactoring of existing components.
+For example, given the above configuration, a user who has run `tsh login --scope=/dev` can be safely granted the 6 hour
+client idle timeout even in contexts where the target resource is not known, because their credentials are pinned to the
+target scope, and so the networking stack can statically know that the user will not be able to use their credentials to
+access resources outside of the `/dev` scope.
+
+Scope-bound controls of this kind are powerful, but they do come with a limitation that is important to understand.
+In order to obey the principle of least privilege, we must enforce the strictest applicable control from within the
+pinned scope hierarchy. In the above example, this means that if a user is pinned to `/staging`, they will be subject
+to the 45m client idle timeout defined in `/staging/east` even if they are accessing a resource in `/staging/west`.
+This is because the pinned scope of `/staging` includes both `/staging/east` and `/staging/west`, and so resource-agnostic
+enforcement points must assume the strictest control across all children of the pinned scope.
+
+The effect of the above limitation is that most scope-bound controls will need to be editable only by global/root admins.
+If we allowed scoped admins to edit scope-bound controls, we would be unable to prevent them from affecting access outside
+of their scopes. We do not believe this will be a significant limitation. Scoped admins should generally be managing access
+within their scopes via scoped roles and assignments. Very few controls actually *require* resource-agnostic enforcement,
+and those that do tend to be simple controls like `client_idle_timeout` that do not require frequent modification or fine-grained
+delegation.
+
+
+### Benefits and Implications of Single Role Evaluation
+
+As we see in the discussion above, the decision to embrace single role evaluation puts some limitations on the power and
+flexibility of scoped roles.  However, there are also a number of interesting implications/benefits, above beyond simply
+improving scope isolation and enabling more permissive sub-environments. A few of the key highlights:
+
+- Each role fully communicates and preserves administrator intent (except where overridden by global/scope-bound controls),
+  greatly simplifying the process of tracing and reasoning about access control decisions.
+- It is safe to skip/ignore a role that is malformed since it cannot affect the evaluation of other roles (solving many
+  issues faced today, such as users getting locked out due to malformed assignments/connectors).
+- Role evaluation has the potential to be more performant since we can short-circuit on the first allow.
+- It is safe to allocate credentials with one or more roles omitted (potentially very powerful when users want
+to delegate their access to tooling/agents).
+- If/when we introduce scoped access requests, we will be able to do many additional things that are not possible
+with standard teleport access requests:
+    - Create credentials with *only* the requested roles.
+    - Allow users to selectively assume only a subset of requested roles at a time.
+    - Eliminate side-effects in resource requests, and allow certs with resource request grants to continue to
+    be usable for other access.
+    - Allocate a single credential that contains multiple separate role+resource bindings for resource-based requests.
+- The ability to safely ignore missing roles improves/enables many powerful patterns/features:
+    - Meta policies can be introduced that safely invalidate individual roles without risking breaking general access.
+    - Validation can be relaxed for many types, namely assignment resources, making it easier to automate creation of
+    resources without worrying about ordering.
+    - It becomes much safer to introduce features that indirectly manage role life cycles (we are currently very very wary
+    about anything that automatically deletes a role).
+- It will become possible for bots to output credentials with a *subset* of their privileges assigned to them.
+- We can introduce simple flows to allow admins to "test drive" individual roles without needing to worry about their
+  existing role set introducing side-effects (though traits still make this kind of test-driving imperfect).
+- Audit logs can be updated to include the specific role that granted access, greatly improving traceability.
+
 
 ## Beyond Initial MVP
 

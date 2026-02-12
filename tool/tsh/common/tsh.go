@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -64,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
+	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -72,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/api/utils/prompt"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -190,6 +193,8 @@ type CLIConf struct {
 	AssumeStartTimeRaw string
 	// ResourceKind is the resource kind to search for
 	ResourceKind string
+	// RequestableRoles allows users to search for requestable roles.
+	RequestableRoles bool
 	// Username is the Teleport user's username (to login into proxies)
 	Username string
 	// ExplicitUsername is true if Username was initially set by the end-user
@@ -968,8 +973,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("reason", "The purpose of the session.").StringVar(&cf.Reason)
 	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.displayParticipantRequirements)
 	ssh.Flag("request-reason", "Reason for requesting access.").StringVar(&cf.RequestReason)
-	ssh.Flag("request-mode", fmt.Sprintf("Type of automatic access request to make (%s).", strings.Join(accessRequestModes, ", "))).Envar(requestModeEnvVar).Default(accessRequestModeResource).EnumVar(&cf.RequestMode, accessRequestModes...)
-	ssh.Flag("disable-access-request", "Disable automatic resource access requests (DEPRECATED: use --request-mode=off).").BoolVar(&cf.disableAccessRequest)
+	ssh.Flag("request-mode", fmt.Sprintf("Type of automatic Access Request to make (%s).", strings.Join(accessRequestModes, ", "))).Envar(requestModeEnvVar).Default(accessRequestModeResource).EnumVar(&cf.RequestMode, accessRequestModes...)
+	ssh.Flag("disable-access-request", "Disable automatic resource Access Requests (DEPRECATED: use --request-mode=off).").BoolVar(&cf.disableAccessRequest)
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
 	ssh.Flag("no-resume", "Disable SSH connection resumption.").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command.").Default("true").BoolVar(&cf.Relogin)
@@ -1086,7 +1091,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyDB.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	proxyDB.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	proxyDB.Flag("request-reason", "Reason for requesting access.").StringVar(&cf.RequestReason)
-	proxyDB.Flag("disable-access-request", "Disable automatic resource access requests.").BoolVar(&cf.disableAccessRequest)
+	proxyDB.Flag("disable-access-request", "Disable automatic resource Access Requests.").BoolVar(&cf.disableAccessRequest)
 
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode.")
 	proxyApp.Arg("app", "The name of the application to start local proxy for.").Required().StringVar(&cf.AppName)
@@ -1138,7 +1143,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbLogin.Flag("db-name", "Database name to configure as default.").Short('n').StringVar(&cf.DatabaseName)
 	dbLogin.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
 	dbLogin.Flag("request-reason", "Reason for requesting access.").StringVar(&cf.RequestReason)
-	dbLogin.Flag("disable-access-request", "Disable automatic resource access requests.").BoolVar(&cf.disableAccessRequest)
+	dbLogin.Flag("disable-access-request", "Disable automatic resource Access Requests.").BoolVar(&cf.disableAccessRequest)
 	dbLogout := db.Command("logout", "Remove database credentials.")
 	dbLogout.Arg("db", "Database to remove credentials for.").StringVar(&cf.DatabaseService)
 	dbLogout.Flag("labels", labelHelp).StringVar(&cf.Labels)
@@ -1166,7 +1171,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbConnect.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	dbConnect.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	dbConnect.Flag("request-reason", "Reason for requesting access.").StringVar(&cf.RequestReason)
-	dbConnect.Flag("disable-access-request", "Disable automatic resource access requests.").BoolVar(&cf.disableAccessRequest)
+	dbConnect.Flag("disable-access-request", "Disable automatic resource Access Requests.").BoolVar(&cf.disableAccessRequest)
 	dbConnect.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate.").Hidden().BoolVar(&cf.LocalProxyTunnel)
 	dbExec := db.Command("exec", "Execute database commands on target database services.")
 	dbExec.Flag("db-user", "Database user to log in as.").Short('u').StringVar(&cf.DatabaseUser)
@@ -1333,9 +1338,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	environment.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	environment.Flag("unset", "Print commands to clear Teleport session environment variables.").BoolVar(&cf.unsetEnvironment)
 
-	req := app.Command("request", "Manage access requests.").Alias("requests")
+	req := app.Command("request", "Manage Access Requests.").Alias("requests")
 
-	reqList := req.Command("ls", "List access requests.").Alias("list")
+	reqList := req.Command("ls", "List Access Requests.").Alias("list")
 	reqList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	reqList.Flag("reviewable", "Only show requests reviewable by current user.").BoolVar(&cf.ReviewableRequests)
 	reqList.Flag("suggested", "Only show requests that suggest current user as reviewer.").BoolVar(&cf.SuggestedRequests)
@@ -1348,18 +1353,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// Note: The "tsh request new" subcommand should not be used anymore. It
 	// will be kept around for users that built automation around it, but all
 	// public facing documentation should now refer to "tsh request create".
-	reqCreate := req.Command("create", "Create a new access request.").Alias("new")
+	reqCreate := req.Command("create", "Create a new Access Request.").Alias("new")
 	reqCreate.Flag("roles", "Roles to be requested.").StringVar(&cf.DesiredRoles)
 	reqCreate.Flag("reason", "Reason for requesting.").StringVar(&cf.RequestReason)
 	reqCreate.Flag("reviewers", "Suggested reviewers.").StringVar(&cf.SuggestedReviewers)
 	reqCreate.Flag("nowait", "Finish without waiting for request resolution.").BoolVar(&cf.NoWait)
 	reqCreate.Flag("resource", "Resource ID to be requested.").StringsVar(&cf.RequestedResourceIDs)
-	reqCreate.Flag("request-ttl", "Expiration time for the access request.").DurationVar(&cf.RequestTTL)
+	reqCreate.Flag("request-ttl", "Expiration time for the Access Request.").DurationVar(&cf.RequestTTL)
 	reqCreate.Flag("session-ttl", "Expiration time for the elevated certificate.").DurationVar(&cf.SessionTTL)
 	reqCreate.Flag("max-duration", "How long the access should be granted for.").DurationVar(&cf.MaxDuration)
 	reqCreate.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z).").StringVar(&cf.AssumeStartTimeRaw)
 
-	reqReview := req.Command("review", "Review an access request.")
+	reqReview := req.Command("review", "Review an Access Request.")
 	reqReview.Arg("request-id", "ID of target request.").Required().StringVar(&cf.RequestID)
 	reqReview.Flag("approve", "Review proposes approval.").BoolVar(&cf.Approve)
 	reqReview.Flag("deny", "Review proposes denial.").BoolVar(&cf.Deny)
@@ -1367,10 +1372,24 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqReview.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z).").StringVar(&cf.AssumeStartTimeRaw)
 
 	reqSearch := req.Command("search", "Search for resources to request access to.")
-	reqSearch.Flag("kind", fmt.Sprintf("Resource kind to search for (%s).", strings.Join(types.RequestableResourceKinds, ", "))).Required().StringVar(&cf.ResourceKind)
+	reqSearch.Flag("kind", fmt.Sprintf("Resource kind to search for (%s).  Mutually exclusive with --roles.", strings.Join(types.RequestableResourceKinds, ", "))).StringVar(&cf.ResourceKind)
+	reqSearch.Flag("roles", "List requestable roles instead of searching for resources. Mutually exclusive with --kind.").BoolVar(&cf.RequestableRoles)
 	reqSearch.Flag("kube-kind", fmt.Sprintf("Kubernetes resource kind name (plural) to search for. Required with --kind=%q Ex: pods, deployments, namespaces, etc.", types.KindKubernetesResource)).StringVar(&cf.kubeResourceKind)
 	reqSearch.Flag("kube-api-group", "Kubernetes API group to search for resources.").StringVar(&cf.kubeAPIGroup)
+	reqSearch.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	reqSearch.PreAction(func(*kingpin.ParseContext) error {
+		if cf.RequestableRoles && cf.ResourceKind != "" {
+			return trace.BadParameter("only one of --kind and --roles may be specified")
+		}
+		if !cf.RequestableRoles && cf.ResourceKind == "" {
+			return trace.BadParameter("one of --kind and --roles is required")
+		}
+
+		// in --roles mode we don't care about resource kinds or kube flags.
+		if cf.RequestableRoles {
+			return nil
+		}
+
 		// TODO(@creack): DELETE IN v20.0.0. Allow legacy kinds with a warning for now.
 		if slices.Contains(types.LegacyRequestableKubeResourceKinds, cf.ResourceKind) {
 			cf.kubeAPIGroup = types.KubernetesResourcesV7KindGroups[cf.ResourceKind]
@@ -1423,7 +1442,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	headlessApprove.Arg("request id", "Headless authentication request ID.").StringVar(&cf.HeadlessAuthenticationID)
 	headlessApprove.Flag("skip-confirm", "Skip confirmation and prompt for MFA immediately.").Envar(headlessSkipConfirmEnvVar).BoolVar(&cf.headlessSkipConfirm)
 
-	reqDrop := req.Command("drop", "Drop one more access requests from current identity.")
+	reqDrop := req.Command("drop", "Drop one more Access Requests from current identity.")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests).").Default("*").StringsVar(&cf.RequestIDs)
 	kubectl := app.Command("kubectl", "Runs a kubectl command on a Kubernetes cluster.").Interspersed(false)
 	// This hack is required in order to accept any args for tsh kubectl.
@@ -1434,6 +1453,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	mfa := newMFACommand(app)
 	// SCAN subcommands.
 	scan := newScanCommand(app)
+	// scopes subcommands.
+	scopes := newScopesCommand(app)
 
 	config := app.Command("config", "Print OpenSSH configuration details.")
 	config.Flag("port", "SSH port on a remote host.").Short('p').Int32Var(&cf.NodePort)
@@ -1800,6 +1821,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = kube.join.run(&cf)
 	case scan.keys.FullCommand():
 		err = scan.keys.run(&cf)
+	case scopes.ls.FullCommand():
+		err = scopes.ls.run(&cf)
 	case proxySSH.FullCommand():
 		err = onProxyCommandSSH(&cf, wrapInitClientWithUpdateCheck(makeClient, args))
 	case proxyDB.FullCommand():
@@ -1949,6 +1972,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		return handleUnimplementedError(ctx, err, cf)
 	}
 
+	// A FIPS build of tsh is attempting to use a non-FIPS key returned by the cluster.
+	var fipsErr *sshutils.FIPSError
+	if moduleCfg.IsBoringBinary() && errors.As(err, &fipsErr) {
+		return trace.Wrap(err,
+			"tsh is running in FIPS mode, but the cluster is not FIPS-compliant. Use a non-FIPS tsh binary to connect to the cluster.",
+		)
+	}
+
 	return trace.Wrap(err)
 }
 
@@ -1973,23 +2004,20 @@ func initializeTracing(cf *CLIConf) func() {
 		}
 	}
 
+	var propContext apitracing.PropagationContext
+	if traceContext := os.Getenv(tshTraceContextEnvVar); traceContext != "" {
+		logger.DebugContext(cf.Context, "found tracing context in environment", "context", traceContext)
+		if err := json.Unmarshal([]byte(traceContext), &propContext); err == nil {
+			logger.DebugContext(cf.Context, "tracing context was valid", "context", propContext)
+		}
+	}
+
 	// A default sampling rate of 1 ensures that all spans for this invocation of
 	// tsh are guaranteed to be recorded. Since Teleport honors the sampling rate
 	// of remote spans this will also cause Teleport to sample any spans it generates
 	// in response to the client request.
 	const samplingRate = 1.0
-
 	switch {
-	// kubectl is a special case because it is the only command that we re-execute
-	// in order to be able to access the exit code and stdout/stderr of the command
-	// that was run and determine if we should create a new access request from
-	// the output data.
-	// We don't want to enable tracing for the master invocation of tsh kubectl
-	// because the data that we would be tracing would be the tsh kubectl command.
-	// Instead, we want to enable tracing for the re-executed kubectl command and
-	// we do that in the kubectl command handler.
-	case cf.command == "kubectl":
-		return func() {}
 	// The user explicitly asked for traces to be sent to a particular exporter
 	// instead of forwarding them to Auth. Proceed with creating the provider.
 	case cf.SampleTraces && cf.TraceExporter != "":
@@ -2010,7 +2038,7 @@ func initializeTracing(cf *CLIConf) func() {
 		cf.tracer = provider.Tracer(teleport.ComponentTSH)
 		// Start the root span for the command and update the config context so
 		// that all spans created in the future will be rooted at this span.
-		cf.Context, rootSpan = cf.tracer.Start(cf.Context, cf.command)
+		cf.Context, rootSpan = cf.tracer.Start(apitracing.WithPropagationContext(cf.Context, propContext), cf.command)
 		return flush(provider)
 	// All commands besides ssh are only traced if the user explicitly requested
 	// tracing. For ssh, a random number of spans may be sampled if the Proxy is
@@ -2037,7 +2065,7 @@ func initializeTracing(cf *CLIConf) func() {
 	cf.tracer = provider.Tracer(teleport.ComponentTSH)
 	// Start the root span for the command and update the config context so
 	// that all spans created in the future will be rooted at this span.
-	cf.Context, rootSpan = cf.tracer.Start(cf.Context, cf.command)
+	cf.Context, rootSpan = cf.tracer.Start(apitracing.WithPropagationContext(cf.Context, propContext), cf.command)
 
 	if cf.command == "login" {
 		// Don't call RetryWithRelogin below if the user is trying to log in.
@@ -2632,6 +2660,16 @@ func onLogout(cf *CLIConf) error {
 		}
 
 		// Remove Teleport related entries from kubeconfig.
+
+		if profile != nil {
+			logger.DebugContext(cf.Context, "Removing Teleport related entries from kubeconfig", "profile", profile.Name)
+			err = kubeconfig.RemoveByProfileName("", profile.Name)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		// TODO(espadolini): DELETE IN v20 (maybe, files could be left over from really old versions)
 		logger.DebugContext(cf.Context, "Removing Teleport related entries from kubeconfig", "cluster_addr", tc.KubeClusterAddr())
 		err = kubeconfig.RemoveByServerAddr("", tc.KubeClusterAddr())
 		if err != nil {
@@ -2641,10 +2679,27 @@ func onLogout(cf *CLIConf) error {
 		fmt.Fprintf(cf.Stdout(), "Logged out %v from %v.\n", cf.Username, proxyHost)
 	// Remove all keys.
 	case proxyHost == "" && cf.Username == "":
-		tc, err := makeClient(cf)
+		proxy, err := cf.getClientStore().CurrentProfile()
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+
+		if proxy == "" {
+			// If there's no current profile, try to use the first profile.
+			if len(profiles) > 0 {
+				proxy = profiles[0].ProxyURL.Host
+			} else {
+				fmt.Printf("All users logged out.\n")
+				return nil
+			}
+		}
+
+		tc, err := makeClientForProxy(cf, proxy)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		// TODO(espadolini): DELETE IN v20 (maybe, files could be left over from really old versions)
 		logger.DebugContext(cf.Context, "Removing Teleport related entries from kubeconfig", "cluster_addr", tc.KubeClusterAddr())
 		if err = kubeconfig.RemoveByServerAddr("", tc.KubeClusterAddr()); err != nil {
 			return trace.Wrap(err)
@@ -2652,8 +2707,8 @@ func onLogout(cf *CLIConf) error {
 
 		// Remove Teleport related entries from kubeconfig for all clusters.
 		for _, profile := range profiles {
-			logger.DebugContext(cf.Context, "Removing Teleport related entries from kubeconfig", "cluster", profile.Cluster)
-			err = kubeconfig.RemoveByClusterName("", profile.Cluster)
+			logger.DebugContext(cf.Context, "Removing Teleport related entries from kubeconfig", "profile", profile.Name)
+			err = kubeconfig.RemoveByProfileName("", profile.Name)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -2982,14 +3037,31 @@ func listNodesAllClusters(cf *CLIConf) error {
 
 func printNodesWithClusters(nodes []nodeListing, verbose bool, output io.Writer) error {
 	var rows [][]string
+	var withScope bool
 	for _, n := range nodes {
-		rows = append(rows, getNodeRow(n.Proxy, n.Cluster, n.Node, verbose))
+		if n.Node.GetScope() != "" {
+			withScope = true
+			break
+		}
 	}
+
+	for _, n := range nodes {
+		rows = append(rows, getNodeRow(n.Proxy, n.Cluster, n.Node, withScope, verbose))
+	}
+
 	var t asciitable.Table
 	if verbose {
-		t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Node Name", "Node ID", "Address", "Labels"}, rows...)
+		if withScope {
+			t = asciitable.MakeTable([]string{"Scope", "Proxy", "Cluster", "Node Name", "Node ID", "Address", "Labels"}, rows...)
+		} else {
+			t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Node Name", "Node ID", "Address", "Labels"}, rows...)
+		}
 	} else {
-		t = asciitable.MakeTableWithTruncatedColumn([]string{"Proxy", "Cluster", "Node Name", "Address", "Labels"}, rows, "Labels")
+		if withScope {
+			t = asciitable.MakeTableWithTruncatedColumn([]string{"Scope", "Proxy", "Cluster", "Node Name", "Address", "Labels"}, rows, "Labels")
+		} else {
+			t = asciitable.MakeTableWithTruncatedColumn([]string{"Proxy", "Cluster", "Node Name", "Address", "Labels"}, rows, "Labels")
+		}
 	}
 	if _, err := fmt.Fprintln(output, t.AsBuffer().String()); err != nil {
 		return trace.Wrap(err)
@@ -3035,7 +3107,7 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	req, err := services.NewAccessRequestWithResources(cf.Username, roles, requestedResourceIDs)
+	req, err := services.NewAccessRequestWithResources(cf.Username, roles, types.ResourceIDsToResourceAccessIDs(requestedResourceIDs))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3116,6 +3188,9 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 			if strings.Contains(err.Error(), services.InvalidKubernetesKindAccessRequest) {
 				return trace.BadParameter("%s\nTry searching for specific kinds with:\n> tsh request search --kube-cluster=KUBE_CLUSTER_NAME --kind=KIND", err.Error())
 			}
+			if strings.Contains(err.Error(), services.CannotRequestRole) {
+				return trace.BadParameter("%s\nHint: run \"tsh request search --roles\" to list requestable roles.", err.Error())
+			}
 			return trace.Wrap(err)
 		}
 		cf.RequestID = req.GetName()
@@ -3193,7 +3268,7 @@ func serializeNodes(nodes []types.Server, format string) (string, error) {
 	return string(out), trace.Wrap(err)
 }
 
-func getNodeRow(proxy, cluster string, node types.Server, verbose bool) []string {
+func getNodeRow(proxy, cluster string, node types.Server, withScope bool, verbose bool) []string {
 	// Reusable function to get addr or tunnel for each node
 	getAddr := func(n types.Server) string {
 		switch {
@@ -3207,6 +3282,11 @@ func getNodeRow(proxy, cluster string, node types.Server, verbose bool) []string
 	}
 
 	row := make([]string, 0)
+
+	if withScope {
+		row = append(row, node.GetScope())
+	}
+
 	if proxy != "" && cluster != "" {
 		row = append(row, proxy, cluster)
 	}
@@ -3222,19 +3302,34 @@ func getNodeRow(proxy, cluster string, node types.Server, verbose bool) []string
 
 func printNodesAsText[T types.Server](output io.Writer, nodes []T, verbose bool) error {
 	var rows [][]string
+	var withScope bool
 	for _, n := range nodes {
-		rows = append(rows, getNodeRow("", "", n, verbose))
+		if n.GetScope() != "" {
+			withScope = true
+			break
+		}
+	}
+	for _, n := range nodes {
+		rows = append(rows, getNodeRow("", "", n, withScope, verbose))
 	}
 	var t asciitable.Table
 	switch verbose {
 	// In verbose mode, print everything on a single line and include the Node
 	// ID (UUID). Useful for machines that need to parse the output of "tsh ls".
 	case true:
-		t = asciitable.MakeTable([]string{"Node Name", "Node ID", "Address", "Labels"}, rows...)
+		if withScope {
+			t = asciitable.MakeTable([]string{"Scope", "Node Name", "Node ID", "Address", "Labels"}, rows...)
+		} else {
+			t = asciitable.MakeTable([]string{"Node Name", "Node ID", "Address", "Labels"}, rows...)
+		}
 	// In normal mode chunk the labels and print two per line and allow multiple
 	// lines per node.
 	case false:
-		t = asciitable.MakeTableWithTruncatedColumn([]string{"Node Name", "Address", "Labels"}, rows, "Labels")
+		if withScope {
+			t = asciitable.MakeTableWithTruncatedColumn([]string{"Scope", "Node Name", "Address", "Labels"}, rows, "Labels")
+		} else {
+			t = asciitable.MakeTableWithTruncatedColumn([]string{"Node Name", "Address", "Labels"}, rows, "Labels")
+		}
 	}
 	if _, err := fmt.Fprintln(output, t.AsBuffer().String()); err != nil {
 		return trace.Wrap(err)
@@ -3957,7 +4052,7 @@ func accessRequestForSSH(ctx context.Context, cf *CLIConf, tc *client.TeleportCl
 
 func getAutoResourceRequest(ctx context.Context, tc *client.TeleportClient, requestResourceIDs []types.ResourceID) (types.AccessRequest, error) {
 	// Roles to request will be automatically determined on the backend.
-	req, err := services.NewAccessRequestWithResources(tc.Username, nil, requestResourceIDs)
+	req, err := services.NewAccessRequestWithResources(tc.Username, nil, types.ResourceIDsToResourceAccessIDs(requestResourceIDs))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5081,7 +5176,7 @@ func (c *CLIConf) ProfileStatus() (*client.ProfileStatus, error) {
 }
 
 func (c *CLIConf) FullProfileStatus() (*client.ProfileStatus, []*client.ProfileStatus, error) {
-	currentProfile, profiles, err := c.getClientStore().FullProfileStatus()
+	currentProfile, profiles, err := c.getClientStore().FullProfileStatus(c.Proxy)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -5307,7 +5402,7 @@ func humanFriendlyValidUntilDuration(validUntil time.Time, clock clockwork.Clock
 }
 
 // printStatus prints the status of the profile.
-func printStatus(debug bool, p *profileInfo, env map[string]string, isActive bool) {
+func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string, isActive bool) {
 	clock := clockwork.NewRealClock()
 	var prefix string
 	proxyURL := p.getProxyURLLine(isActive, env)
@@ -5319,40 +5414,40 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 		prefix = "  "
 	}
 
-	fmt.Printf("%vProfile URL:        %v\n", prefix, proxyURL)
+	fmt.Fprintf(w, "%vProfile URL:        %v\n", prefix, proxyURL)
 	if debug {
 		switch {
 		case p.RelayAddr == "" && p.DefaultRelayAddr != "":
-			fmt.Printf("  Relay address:      %v (default)\n", p.DefaultRelayAddr)
+			fmt.Fprintf(w, "  Relay address:      %v (default)\n", p.DefaultRelayAddr)
 		case p.RelayAddr != "" && p.DefaultRelayAddr != "":
-			fmt.Printf("  Relay address:      %v (default: %v)\n", p.RelayAddr, p.DefaultRelayAddr)
+			fmt.Fprintf(w, "  Relay address:      %v (default: %v)\n", p.RelayAddr, p.DefaultRelayAddr)
 		case p.RelayAddr != "" && p.DefaultRelayAddr == "":
-			fmt.Printf("  Relay address:      %v (no default)\n", p.RelayAddr)
+			fmt.Fprintf(w, "  Relay address:      %v (no default)\n", p.RelayAddr)
 		default:
-			fmt.Printf("  Relay address:      (none)\n")
+			fmt.Fprintf(w, "  Relay address:      (none)\n")
 		}
 	} else if relayAddr := cmp.Or(p.RelayAddr, p.DefaultRelayAddr); relayAddr != "" {
-		fmt.Printf("  Relay address:      %v\n", relayAddr)
+		fmt.Fprintf(w, "  Relay address:      %v\n", relayAddr)
 	}
-	fmt.Printf("  Logged in as:       %v\n", p.Username)
+	fmt.Fprintf(w, "  Logged in as:       %v\n", p.Username)
 	if len(p.ActiveRequests) != 0 {
-		fmt.Printf("  Active requests:    %v\n", strings.Join(p.ActiveRequests, ", "))
+		fmt.Fprintf(w, "  Active requests:    %v\n", strings.Join(p.ActiveRequests, ", "))
 	}
 
 	if cluster != "" {
-		fmt.Printf("  Cluster:            %v\n", cluster)
+		fmt.Fprintf(w, "  Cluster:            %v\n", cluster)
 	}
 	if p.Scope != "" {
-		fmt.Printf("  Scope:              %v\n", p.Scope)
-		fmt.Printf("  Scoped Roles:\n")
+		fmt.Fprintf(w, "  Scope:              %v\n", p.Scope)
+		fmt.Fprintf(w, "  Scoped Roles:\n")
 
 		assignedScopes := slices.Collect(maps.Keys(p.ScopedRoles))
 		slices.Sort(assignedScopes)
 		for _, scope := range assignedScopes {
-			fmt.Printf("    %s: %v\n", scope, rolesToString(debug, p.ScopedRoles[scope]))
+			fmt.Fprintf(w, "    %s: %v\n", scope, rolesToString(debug, p.ScopedRoles[scope]))
 		}
 	} else {
-		fmt.Printf("  Roles:              %v\n", rolesToString(debug, p.Roles))
+		fmt.Fprintf(w, "  Roles:              %v\n", rolesToString(debug, p.Roles))
 	}
 	if debug {
 		var count int
@@ -5361,60 +5456,60 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 				continue
 			}
 			if count == 0 {
-				fmt.Printf("  Traits:             %v: %v\n", k, v)
+				fmt.Fprintf(w, "  Traits:             %v: %v\n", k, v)
 			} else {
-				fmt.Printf("                      %v: %v\n", k, v)
+				fmt.Fprintf(w, "                      %v: %v\n", k, v)
 			}
 			count = count + 1
 		}
 	}
 	if len(p.Logins) > 0 {
-		fmt.Printf("  Logins:             %v\n", strings.Join(p.Logins, ", "))
+		fmt.Fprintf(w, "  Logins:             %v\n", strings.Join(p.Logins, ", "))
 	}
 	if p.KubernetesEnabled {
-		fmt.Printf("  Kubernetes:         enabled\n")
+		fmt.Fprintf(w, "  Kubernetes:         enabled\n")
 		if kubeCluster != "" {
-			fmt.Printf("  Kubernetes cluster: %q\n", kubeCluster)
+			fmt.Fprintf(w, "  Kubernetes cluster: %q\n", kubeCluster)
 		}
 		if len(p.KubernetesUsers) > 0 {
-			fmt.Printf("  Kubernetes users:   %v\n", strings.Join(p.KubernetesUsers, ", "))
+			fmt.Fprintf(w, "  Kubernetes users:   %v\n", strings.Join(p.KubernetesUsers, ", "))
 		}
 		if len(p.KubernetesGroups) > 0 {
-			fmt.Printf("  Kubernetes groups:  %v\n", strings.Join(p.KubernetesGroups, ", "))
+			fmt.Fprintf(w, "  Kubernetes groups:  %v\n", strings.Join(p.KubernetesGroups, ", "))
 		}
 	} else {
-		fmt.Printf("  Kubernetes:         disabled\n")
+		fmt.Fprintf(w, "  Kubernetes:         disabled\n")
 	}
 	if len(p.Databases) != 0 {
-		fmt.Printf("  Databases:          %v\n", strings.Join(p.Databases, ", "))
+		fmt.Fprintf(w, "  Databases:          %v\n", strings.Join(p.Databases, ", "))
 	}
-	if len(p.AllowedResourceIDs) > 0 {
-		allowedResourcesStr, err := types.ResourceIDsToString(p.AllowedResourceIDs)
+	if len(p.AllowedResourceAccessIDs) > 0 {
+		allowedResourcesStr, err := types.ResourceIDsToString(types.RiskyExtractResourceIDs(p.AllowedResourceAccessIDs))
 		if err != nil {
 			logger.WarnContext(context.Background(), "failed to marshal allowed resource IDs to string", "error", err)
 		} else {
-			fmt.Printf("  Allowed Resources:  %s\n", allowedResourcesStr)
+			fmt.Fprintf(w, "  Allowed Resources:  %s\n", allowedResourcesStr)
 		}
 	}
 	if p.GitHubIdentity != nil {
-		fmt.Printf("  GitHub username:    %s\n", p.GitHubIdentity.Username)
+		fmt.Fprintf(w, "  GitHub username:    %s\n", p.GitHubIdentity.Username)
 	}
-	fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanFriendlyValidUntilDuration(p.ValidUntil, clock))
-	fmt.Printf("  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
+	fmt.Fprintf(w, "  Valid until:        %v [%v]\n", p.ValidUntil, humanFriendlyValidUntilDuration(p.ValidUntil, clock))
+	fmt.Fprintf(w, "  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
 
 	if debug {
 		first := true
 		for k, v := range p.CriticalOptions {
 			if first {
-				fmt.Printf("  Critical options:   %v: %v\n", k, v)
+				fmt.Fprintf(w, "  Critical options:   %v: %v\n", k, v)
 			} else {
-				fmt.Printf("                      %v: %v\n", k, v)
+				fmt.Fprintf(w, "                      %v: %v\n", k, v)
 			}
 			first = false
 		}
 	}
 
-	fmt.Printf("\n")
+	fmt.Fprintf(w, "\n")
 }
 
 func isOktaRole(role string) bool {
@@ -5466,12 +5561,12 @@ func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles 
 
 		// Print the active profile.
 		if profile != nil {
-			printStatus(cf.Debug, active, env, true)
+			printStatus(cf.Stdout(), cf.Debug, active, env, true)
 		}
 
 		// Print all other profiles.
 		for _, p := range others {
-			printStatus(cf.Debug, p, env, false)
+			printStatus(cf.Stdout(), cf.Debug, p, env, false)
 		}
 
 		// Print relevant active env vars, if they are set.
@@ -5502,6 +5597,22 @@ func onStatus(cf *CLIConf) error {
 		}
 		return trace.Wrap(err)
 	}
+	if profile == nil && len(profiles) == 0 {
+		return trace.NotFound("Not logged in.")
+	}
+
+	if err = printLoginInformation(cf, profile, profiles); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if profile == nil {
+		return trace.NotFound("No active profile.")
+	}
+
+	duration := time.Until(profile.ValidUntil)
+	if !profile.ValidUntil.IsZero() && duration.Nanoseconds() <= 0 {
+		return trace.NotFound("Active profile expired.")
+	}
 
 	// make the teleport client and retrieve the certificate from the proxy:
 	tc, err := makeClient(cf)
@@ -5514,19 +5625,6 @@ func onStatus(cf *CLIConf) error {
 	// To achieve this, we avoid remote calls that might prompt for
 	// hardware key touch or require a PIN.
 	hardwareKeyInteractionRequired := tc.PrivateKeyPolicy.MFAVerified()
-
-	if err := printLoginInformation(cf, profile, profiles); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if profile == nil {
-		return trace.NotFound("Not logged in.")
-	}
-
-	duration := time.Until(profile.ValidUntil)
-	if !profile.ValidUntil.IsZero() && duration.Nanoseconds() <= 0 {
-		return trace.NotFound("Active profile expired.")
-	}
 
 	if hardwareKeyInteractionRequired {
 		logger.DebugContext(cf.Context, "Skipping cluster alerts due to Hardware Key PIN/Touch requirement")
@@ -5541,27 +5639,27 @@ func onStatus(cf *CLIConf) error {
 }
 
 type profileInfo struct {
-	ProxyURL           string                 `json:"profile_url"`
-	RelayAddr          string                 `json:"relay_addr,omitempty"`
-	DefaultRelayAddr   string                 `json:"default_relay_addr,omitempty"`
-	Username           string                 `json:"username"`
-	ActiveRequests     []string               `json:"active_requests,omitempty"`
-	Cluster            string                 `json:"cluster"`
-	Roles              []string               `json:"roles,omitempty"`
-	Scope              string                 `json:"scope,omitempty"`
-	ScopedRoles        map[string][]string    `json:"scoped_roles,omitempty"`
-	Traits             wrappers.Traits        `json:"traits,omitempty"`
-	Logins             []string               `json:"logins,omitempty"`
-	KubernetesEnabled  bool                   `json:"kubernetes_enabled"`
-	KubernetesCluster  string                 `json:"kubernetes_cluster,omitempty"`
-	KubernetesUsers    []string               `json:"kubernetes_users,omitempty"`
-	KubernetesGroups   []string               `json:"kubernetes_groups,omitempty"`
-	Databases          []string               `json:"databases,omitempty"`
-	ValidUntil         time.Time              `json:"valid_until"`
-	Extensions         []string               `json:"extensions,omitempty"`
-	CriticalOptions    map[string]string      `json:"critical_options,omitempty"`
-	AllowedResourceIDs []types.ResourceID     `json:"allowed_resources,omitempty"`
-	GitHubIdentity     *client.GitHubIdentity `json:"github_identity,omitempty"`
+	ProxyURL                 string                   `json:"profile_url"`
+	RelayAddr                string                   `json:"relay_addr,omitempty"`
+	DefaultRelayAddr         string                   `json:"default_relay_addr,omitempty"`
+	Username                 string                   `json:"username"`
+	ActiveRequests           []string                 `json:"active_requests,omitempty"`
+	Cluster                  string                   `json:"cluster"`
+	Roles                    []string                 `json:"roles,omitempty"`
+	Scope                    string                   `json:"scope,omitempty"`
+	ScopedRoles              map[string][]string      `json:"scoped_roles,omitempty"`
+	Traits                   wrappers.Traits          `json:"traits,omitempty"`
+	Logins                   []string                 `json:"logins,omitempty"`
+	KubernetesEnabled        bool                     `json:"kubernetes_enabled"`
+	KubernetesCluster        string                   `json:"kubernetes_cluster,omitempty"`
+	KubernetesUsers          []string                 `json:"kubernetes_users,omitempty"`
+	KubernetesGroups         []string                 `json:"kubernetes_groups,omitempty"`
+	Databases                []string                 `json:"databases,omitempty"`
+	ValidUntil               time.Time                `json:"valid_until"`
+	Extensions               []string                 `json:"extensions,omitempty"`
+	CriticalOptions          map[string]string        `json:"critical_options,omitempty"`
+	AllowedResourceAccessIDs []types.ResourceAccessID `json:"allowed_resources,omitempty"`
+	GitHubIdentity           *client.GitHubIdentity   `json:"github_identity,omitempty"`
 }
 
 func makeAllProfileInfo(active *client.ProfileStatus, others []*client.ProfileStatus, env map[string]string) (*profileInfo, []*profileInfo) {
@@ -5595,27 +5693,27 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 
 	selectedKubeCluster, _ := kubeconfig.SelectedKubeCluster("", p.Cluster)
 	out := &profileInfo{
-		ProxyURL:           p.ProxyURL.String(),
-		RelayAddr:          p.RelayAddr,
-		DefaultRelayAddr:   p.DefaultRelayAddr,
-		Username:           p.Username,
-		ActiveRequests:     p.ActiveRequests,
-		Cluster:            p.Cluster,
-		Roles:              p.Roles,
-		Scope:              p.Scope,
-		ScopedRoles:        p.ScopedRoles,
-		Traits:             p.Traits,
-		Logins:             logins,
-		KubernetesEnabled:  p.KubeEnabled,
-		KubernetesCluster:  selectedKubeCluster,
-		KubernetesUsers:    p.KubeUsers,
-		KubernetesGroups:   p.KubeGroups,
-		Databases:          p.DatabaseServices(),
-		ValidUntil:         p.ValidUntil,
-		Extensions:         p.Extensions,
-		CriticalOptions:    p.CriticalOptions,
-		AllowedResourceIDs: p.AllowedResourceIDs,
-		GitHubIdentity:     p.GitHubIdentity,
+		ProxyURL:                 p.ProxyURL.String(),
+		RelayAddr:                p.RelayAddr,
+		DefaultRelayAddr:         p.DefaultRelayAddr,
+		Username:                 p.Username,
+		ActiveRequests:           p.ActiveRequests,
+		Cluster:                  p.Cluster,
+		Roles:                    p.Roles,
+		Scope:                    p.Scope,
+		ScopedRoles:              p.ScopedRoles,
+		Traits:                   p.Traits,
+		Logins:                   logins,
+		KubernetesEnabled:        p.KubeEnabled,
+		KubernetesCluster:        selectedKubeCluster,
+		KubernetesUsers:          p.KubeUsers,
+		KubernetesGroups:         p.KubeGroups,
+		Databases:                p.DatabaseServices(),
+		ValidUntil:               p.ValidUntil,
+		Extensions:               p.Extensions,
+		CriticalOptions:          p.CriticalOptions,
+		AllowedResourceAccessIDs: p.AllowedResourceAccessIDs,
+		GitHubIdentity:           p.GitHubIdentity,
 	}
 
 	// update active profile info from env
@@ -6191,7 +6289,8 @@ func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient) error {
 	if len(cf.KubernetesCluster) == 0 {
 		return nil
 	}
-	kubeStatus, err := fetchKubeStatus(cf.Context, tc)
+	const ignoreRelayFalse = false
+	kubeStatus, err := fetchKubeStatus(cf.Context, tc, ignoreRelayFalse)
 	if err != nil {
 		return trace.Wrap(err)
 	}

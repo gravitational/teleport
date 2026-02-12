@@ -44,17 +44,7 @@ export function AdditionalOptions({
 
   return (
     <>
-      <Flex
-        mt={1}
-        mb={2}
-        pb={2}
-        justifyContent="space-between"
-        alignItems="center"
-        height="34px"
-        css={`
-          border-color: ${props => props.theme.colors.spotBackground[1]};
-        `}
-      >
+      <Flex justifyContent="space-between" alignItems="center">
         <Text mr={2} typography="body3">
           Additional Options
         </Text>
@@ -69,7 +59,7 @@ export function AdditionalOptions({
         <Box data-testid="reviewers">
           {pendingRequestTtlOptions.length > 0 && (
             <LabelInput color="text.slightlyMuted" mb={3}>
-              <Flex alignItems="center">
+              <Flex alignItems="center" mb={1}>
                 <Text mr={1}>Request expires if not reviewed in</Text>
                 <IconTooltip>
                   The request TTL which is the amount of time this request will

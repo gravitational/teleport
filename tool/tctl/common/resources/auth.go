@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -36,7 +37,12 @@ func authHandler() Handler {
 }
 
 func getAuth(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
-	servers, err := client.GetAuthServers()
+	servers, err := clientutils.CollectWithFallback(
+		ctx,
+		client.ListAuthServers,
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		func(context.Context) ([]types.Server, error) { return client.GetAuthServers() },
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

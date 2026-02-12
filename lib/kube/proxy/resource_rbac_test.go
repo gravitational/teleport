@@ -397,11 +397,13 @@ func TestListPodRBAC(t *testing.T) {
 				namespace: metav1.NamespaceDefault,
 				opts: []GenTestKubeClientTLSCertOptions{
 					WithResourceAccessRequests(
-						types.ResourceID{
-							ClusterName:     testCtx.ClusterName,
-							Kind:            types.KindKubePod,
-							Name:            kubeCluster,
-							SubResourceName: "default/nginx-1",
+						types.ResourceAccessID{
+							Id: types.ResourceID{
+								ClusterName:     testCtx.ClusterName,
+								Kind:            types.KindKubePod,
+								Name:            kubeCluster,
+								SubResourceName: "default/nginx-1",
+							},
 						},
 					),
 				},
@@ -429,11 +431,13 @@ func TestListPodRBAC(t *testing.T) {
 				namespace: metav1.NamespaceDefault,
 				opts: []GenTestKubeClientTLSCertOptions{
 					WithResourceAccessRequests(
-						types.ResourceID{
-							ClusterName:     testCtx.ClusterName,
-							Kind:            types.KindKubePod,
-							Name:            kubeCluster,
-							SubResourceName: fmt.Sprintf("%s/%s", metav1.NamespaceDefault, testPodName),
+						types.ResourceAccessID{
+							Id: types.ResourceID{
+								ClusterName:     testCtx.ClusterName,
+								Kind:            types.KindKubePod,
+								Name:            kubeCluster,
+								SubResourceName: fmt.Sprintf("%s/%s", metav1.NamespaceDefault, testPodName),
+							},
 						},
 					),
 				},
@@ -465,11 +469,13 @@ func TestListPodRBAC(t *testing.T) {
 				namespace: metav1.NamespaceDefault,
 				opts: []GenTestKubeClientTLSCertOptions{
 					WithResourceAccessRequests(
-						types.ResourceID{
-							ClusterName:     testCtx.ClusterName,
-							Kind:            types.AccessRequestPrefixKindKubeNamespaced + "pods",
-							Name:            kubeCluster,
-							SubResourceName: fmt.Sprintf("%s/%s", metav1.NamespaceDefault, testPodName),
+						types.ResourceAccessID{
+							Id: types.ResourceID{
+								ClusterName:     testCtx.ClusterName,
+								Kind:            types.AccessRequestPrefixKindKubeNamespaced + "pods",
+								Name:            kubeCluster,
+								SubResourceName: fmt.Sprintf("%s/%s", metav1.NamespaceDefault, testPodName),
+							},
 						},
 					),
 				},
@@ -1399,11 +1405,13 @@ func TestListClusterRoleRBAC(t *testing.T) {
 				user: userWithLimitedAccess,
 				opts: []GenTestKubeClientTLSCertOptions{
 					WithResourceAccessRequests(
-						types.ResourceID{
-							ClusterName:     testCtx.ClusterName,
-							Kind:            types.KindKubePod,
-							Name:            kubeCluster,
-							SubResourceName: fmt.Sprintf("%s/%s", metav1.NamespaceDefault, testClusterRoleName),
+						types.ResourceAccessID{
+							Id: types.ResourceID{
+								ClusterName:     testCtx.ClusterName,
+								Kind:            types.KindKubePod,
+								Name:            kubeCluster,
+								SubResourceName: fmt.Sprintf("%s/%s", metav1.NamespaceDefault, testClusterRoleName),
+							},
 						},
 					),
 				},
@@ -1654,11 +1662,13 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 				user: userWithLimitedAccess,
 				opts: []GenTestKubeClientTLSCertOptions{
 					WithResourceAccessRequests(
-						types.ResourceID{
-							ClusterName:     testCtx.ClusterName,
-							Kind:            types.KindKubeNamespace,
-							Name:            kubeCluster,
-							SubResourceName: "default",
+						types.ResourceAccessID{
+							Id: types.ResourceID{
+								ClusterName:     testCtx.ClusterName,
+								Kind:            types.KindKubeNamespace,
+								Name:            kubeCluster,
+								SubResourceName: "default",
+							},
 						},
 					),
 				},
@@ -1690,11 +1700,13 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 				user: userWithFullAccess,
 				opts: []GenTestKubeClientTLSCertOptions{
 					WithResourceAccessRequests(
-						types.ResourceID{
-							ClusterName:     testCtx.ClusterName,
-							Kind:            "kube:ns:*.*",
-							Name:            kubeCluster,
-							SubResourceName: "dev/*",
+						types.ResourceAccessID{
+							Id: types.ResourceID{
+								ClusterName:     testCtx.ClusterName,
+								Kind:            "kube:ns:*.*",
+								Name:            kubeCluster,
+								SubResourceName: "dev/*",
+							},
 						},
 					),
 				},

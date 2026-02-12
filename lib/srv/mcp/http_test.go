@@ -56,7 +56,7 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		case r.URL.Path != "/mcp":
 			// Unhappy scenario.
 			w.WriteHeader(http.StatusNotFound)
-		case r.Header.Get("Authorization") != "Bearer app-token-for-ai":
+		case r.Header.Get("Authorization") != "Bearer app-token-for-ai-by-oidc_idp":
 			// Verify rewrite headers.
 			w.WriteHeader(http.StatusUnauthorized)
 		default:
@@ -72,7 +72,7 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		Rewrite: &types.Rewrite{
 			Headers: []*types.Header{{
 				Name:  "Authorization",
-				Value: "Bearer {{internal.jwt}}",
+				Value: "Bearer {{internal.id_token}}",
 			}},
 		},
 	})
@@ -85,7 +85,7 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		HostID:        "my-host-id",
 		AccessPoint:   fakeAccessPoint{},
 		CipherSuites:  utils.DefaultCipherSuites(),
-		AuthClient:    mockAuthClient{},
+		AuthClient:    &mockAuthClient{},
 	})
 	require.NoError(t, err)
 
@@ -105,6 +105,7 @@ func Test_handleStreamableHTTP(t *testing.T) {
 			wg.Go(func() {
 				defer conn.Close()
 				testCtx := setupTestContext(t, withAdminRole(t), withApp(app), withClientConn(conn))
+				testCtx.sessionID = "test-session-id" // use same session id
 				assert.NoError(t, s.HandleSession(t.Context(), testCtx.SessionCtx))
 			})
 		}
@@ -139,6 +140,11 @@ func Test_handleStreamableHTTP(t *testing.T) {
 				libevents.MCPSessionRequestCode, // "tools/call"
 			}, sliceutils.Map(emitter.Events(), getEventCode))
 		}, 2*time.Second, time.Millisecond*100, "waiting for events")
+		checkSessionStartAndInitializeEvents(t, emitter.Events(),
+			checkSessionStartWithServerInfo("test-server", "1.0.0"),
+			checkSessionStartHasExternalSessionID(),
+			checkSessionStartWithEgressAuthType(egressAuthTypeAppIDToken),
+		)
 
 		// Close client and wait for end event.
 		require.NoError(t, client.Close())
@@ -211,7 +217,7 @@ func Test_handleAuthErrHTTP(t *testing.T) {
 		HostID:        "my-host-id",
 		AccessPoint:   fakeAccessPoint{},
 		CipherSuites:  utils.DefaultCipherSuites(),
-		AuthClient:    mockAuthClient{},
+		AuthClient:    &mockAuthClient{},
 	})
 
 	require.NoError(t, err)

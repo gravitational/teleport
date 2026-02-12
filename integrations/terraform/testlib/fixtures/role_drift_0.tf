@@ -1,5 +1,5 @@
 resource "teleport_role" "splitbrain" {
-  version = "v7"
+  version = "v8"
   metadata = {
     name = "splitbrain"
   }

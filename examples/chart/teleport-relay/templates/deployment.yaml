@@ -146,6 +146,11 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           env:
+            {{- $gomemlimit := include "teleport-relay.gomemlimit" . }}
+            {{- if $gomemlimit }}
+            - name: GOMEMLIMIT
+              value: {{ $gomemlimit | quote }}
+            {{- end }}
             {{- /* This variable is set for telemetry purposes.
               Telemetry is opt-in and controlled at the auth level. */}}
             - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
@@ -156,7 +161,7 @@ spec:
             {{- end }}
             {{- if .Values.tls.existingCASecretName }}
             - name: SSL_CERT_FILE
-              value: /etc/teleport-tls-ca.pem
+              value: "/etc/teleport-tls-ca/{{ required "tls.existingCASecretKeyName must be set if tls.existingCASecretName is set in chart values" .Values.tls.existingCASecretKeyName }}" 
             {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
@@ -215,9 +220,9 @@ spec:
               name: join-sa-token
             {{- end }}
             {{- if .Values.tls.existingCASecretName }}
-            - mountPath: /etc/teleport-tls-ca.pem
+            - mountPath: /etc/teleport-tls-ca
               name: teleport-tls-ca
-              subPath: {{ required "tls.existingCASecretKeyName must be set if tls.existingCASecretName is set in chart values" .Values.tls.existingCASecretKeyName | quote }}
+              readOnly: true
             {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}

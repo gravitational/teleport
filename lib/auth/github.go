@@ -683,6 +683,7 @@ func (a *Server) makeGithubAuthResponse(
 			LoginUserAgent:       req.ClientUserAgent,
 			AttestWebSession:     true,
 			CreateDeviceWebToken: true,
+			Scope:                req.Scope,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create web session.")
@@ -704,6 +705,7 @@ func (a *Server) makeGithubAuthResponse(
 			RouteToCluster:          req.RouteToCluster,
 			KubernetesCluster:       req.KubernetesCluster,
 			LoginIP:                 req.ClientLoginIP,
+			Scope:                   req.Scope,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create session certificate.")

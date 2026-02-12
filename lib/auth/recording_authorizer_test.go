@@ -135,10 +135,9 @@ func newTestTLSServerForRecording(t testing.TB) *authtest.TLSServer {
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
-	srv, err := as.NewTestTLSServer(func(cfg *authtest.TLSServerConfig) {
-		require.NoError(t, err)
-	})
+	srv, err := as.NewTestTLSServer()
 	require.NoError(t, err)
 
 	t.Cleanup(func() {

@@ -68,3 +68,53 @@ func Test_headersForAudit(t *testing.T) {
 		})
 	}
 }
+
+func Test_guessEgressAuthType(t *testing.T) {
+	tests := []struct {
+		name                string
+		inputHeader         http.Header
+		inputRewriteDetails rewriteAuthDetails
+		expect              string
+	}{
+		{
+			name:   "no header or rewrite",
+			expect: egressAuthTypeUnknown,
+		},
+		{
+			name: "user defined",
+			inputHeader: http.Header{
+				"Authorization": []string{"Bearer secret"},
+			},
+			inputRewriteDetails: rewriteAuthDetails{},
+			expect:              egressAuthTypeUserDefined,
+		},
+		{
+			name: "app defined",
+			inputRewriteDetails: rewriteAuthDetails{
+				rewriteAuthHeader: true,
+			},
+			expect: egressAuthTypeAppDefined,
+		},
+		{
+			name: "app defined with Teleport JWT",
+			inputRewriteDetails: rewriteAuthDetails{
+				hasJWTTrait: true,
+			},
+			expect: egressAuthTypeAppJWT,
+		},
+		{
+			name: "app defined with Teleport OIDC token",
+			inputRewriteDetails: rewriteAuthDetails{
+				rewriteAuthHeader: true,
+				hasJWTTrait:       true,
+				hasIDTokenTrait:   true,
+			},
+			expect: egressAuthTypeAppIDToken,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expect, guessEgressAuthType(tt.inputHeader, tt.inputRewriteDetails))
+		})
+	}
+}

@@ -337,6 +337,7 @@ func CreateFirestoreClients(ctx context.Context, projectID, database string, end
 			option.WithGRPCDialOption(grpc.WithPerRPCCredentials(ownerCredentials{})),
 		)
 	} else if credentialsFile != "" {
+		//nolint:staticcheck // SA1019. option.WithCredentialsFile kept for backwards compatibility.
 		args = append(args, option.WithCredentialsFile(credentialsFile))
 	}
 

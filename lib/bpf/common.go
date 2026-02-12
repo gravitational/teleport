@@ -84,7 +84,7 @@ type SessionContext struct {
 
 	// Events is the set of events (command, disk, or network) to record for
 	// this session.
-	Events map[string]bool
+	Events map[string]struct{}
 
 	// UserRoles are the roles assigned to the user.
 	UserRoles []string
@@ -93,8 +93,7 @@ type SessionContext struct {
 }
 
 // NOP is used on either non-Linux systems or when BPF support is not enabled.
-type NOP struct {
-}
+type NOP struct{}
 
 // Close closes the NOP service. Note this function does nothing.
 func (s *NOP) Close(bool) error {

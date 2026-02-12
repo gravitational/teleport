@@ -177,7 +177,7 @@ func (p *Profile) TLSConfig() (*tls.Config, error) {
 
 // Expiry returns the credential expiry.
 func (p *Profile) Expiry() (time.Time, bool) {
-	certPEMBlock, err := os.ReadFile(p.TLSCertPath())
+	certPEMBlock, err := p.TLSCert()
 	if err != nil {
 		return time.Time{}, false
 	}
@@ -186,6 +186,12 @@ func (p *Profile) Expiry() (time.Time, bool) {
 		return time.Time{}, false
 	}
 	return cert.NotAfter, true
+}
+
+// TLSCert returns the profile's TLS certificate.
+func (p *Profile) TLSCert() ([]byte, error) {
+	certPEMBlock, err := os.ReadFile(p.TLSCertPath())
+	return certPEMBlock, trace.Wrap(err)
 }
 
 // RequireKubeLocalProxy returns true if this profile indicates a local proxy
@@ -386,6 +392,10 @@ func profileFromFile(filePath string) (*Profile, error) {
 	// Older versions of tsh did not always store the cluster name in the
 	// profile. If no cluster name is found, fallback to the name of the profile
 	// for backward compatibility.
+	//
+	// TODO(gzdunek): A profile name is not the same thing as a site name, and they differ when the proxy hostname is different
+	// from the cluster name.
+	// Instead, tsh should be able to handle an empty site name, or this default should be changed.
 	if p.SiteName == "" {
 		p.SiteName = p.Name()
 	}

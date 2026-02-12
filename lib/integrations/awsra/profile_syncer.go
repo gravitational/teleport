@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
@@ -99,7 +100,13 @@ type SyncerCache interface {
 	// GetClusterName returns the current cluster name.
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
 	// GetProxies returns a list of proxy servers registered in the cluster
+	//
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
+	// ListProxyServers returns a paginated list of registered proxy servers.
+	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 	// ListIntegrations returns a paginated list of all integration resources.
 	ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error)
 }
@@ -301,7 +308,10 @@ func truncateErrorMessage(err error) string {
 }
 
 func fetchProxyPublicAddr(cache SyncerCache) (string, error) {
-	proxies, err := cache.GetProxies()
+	proxies, err := clientutils.CollectWithFallback(context.TODO(), cache.ListProxyServers, func(context.Context) ([]types.Server, error) {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		return cache.GetProxies()
+	})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

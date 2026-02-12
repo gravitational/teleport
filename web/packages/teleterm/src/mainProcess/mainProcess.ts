@@ -27,6 +27,7 @@ import {
   app,
   dialog,
   ipcMain,
+  IpcMainInvokeEvent,
   Menu,
   MenuItemConstructorOptions,
   nativeTheme,
@@ -51,11 +52,7 @@ import {
   TSH_AUTOUPDATE_ENV_VAR,
   TSH_AUTOUPDATE_OFF,
 } from 'teleterm/node/tshAutoupdate';
-import {
-  AppUpdater,
-  AppUpdaterStorage,
-  TELEPORT_TOOLS_VERSION_ENV_VAR,
-} from 'teleterm/services/appUpdater';
+import { AppUpdater, AppUpdaterStorage } from 'teleterm/services/appUpdater';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
 import * as grpcCreds from 'teleterm/services/grpcCredentials';
 import {
@@ -192,22 +189,27 @@ export default class MainProcess {
     this.initResolvingChildProcessAddressesAndTshdClients();
     this.initIpc();
 
-    const getClusterVersions = async () => {
-      const { autoUpdateService } = await this.tshdClients;
-      const { response } = await autoUpdateService.getClusterVersions({});
-      return response;
-    };
-    const getDownloadBaseUrl = async () => {
-      const { autoUpdateService } = await this.tshdClients;
-      const {
-        response: { baseUrl },
-      } = await autoUpdateService.getDownloadBaseUrl({});
-      return baseUrl;
-    };
     this.appUpdater = new AppUpdater(
       makeAppUpdaterStorage(this.appStateFileStorage),
-      getClusterVersions,
-      getDownloadBaseUrl,
+      {
+        getConfig: async () => {
+          const { autoUpdateService } = await this.tshdClients;
+          const { response } = await autoUpdateService.getConfig({});
+          return response;
+        },
+        getClusterVersions: async () => {
+          const { autoUpdateService } = await this.tshdClients;
+          const { response } = await autoUpdateService.getClusterVersions({});
+          return response;
+        },
+        getInstallationMetadata: async () => {
+          const { autoUpdateService } = await this.tshdClients;
+          const { response } = await autoUpdateService.getInstallationMetadata(
+            {}
+          );
+          return response;
+        },
+      },
       event => {
         if (event.kind === 'error') {
           event.error = serializeError(event.error);
@@ -215,15 +217,14 @@ export default class MainProcess {
         this.windowsManager
           .getWindow()
           .webContents.send(RendererIpc.AppUpdateEvent, event);
-      },
-      process.env[TELEPORT_TOOLS_VERSION_ENV_VAR]
+      }
     );
     this.clusterStore = new ClusterStore(
       () => this.tshdClients.then(c => c.terminalService),
       this.windowsManager
     );
     const watcher = watchProfiles({
-      tshDirectory: this.settings.tshd.homeDir,
+      tshDirectory: this.configService.get('tshHome').value,
       tshClient: {
         listRootClusters: async () => {
           const { terminalService } = await this.tshdClients;
@@ -262,7 +263,7 @@ export default class MainProcess {
   }
 
   private initTshd() {
-    const { binaryPath, homeDir } = this.settings.tshd;
+    const { binaryPath } = this.settings.tshd;
     this.logger.info(`Starting tsh daemon from ${binaryPath}`);
 
     // spawn might either fail immediately by throwing an error or cause the error event to be emitted
@@ -282,8 +283,9 @@ export default class MainProcess {
         windowsHide: true,
         env: {
           ...process.env,
-          TELEPORT_HOME: homeDir,
+          TELEPORT_HOME: this.configService.get('tshHome').value,
           [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
+          FORWARDED_TELEPORT_TOOLS_VERSION: process.env[TSH_AUTOUPDATE_ENV_VAR],
         },
       }
     );
@@ -415,17 +417,17 @@ export default class MainProcess {
       event.returnValue = nativeTheme.shouldUseDarkColors;
     });
 
-    ipcMain.handle('main-process-get-resolved-child-process-addresses', () => {
+    ipcHandle('main-process-get-resolved-child-process-addresses', () => {
       return this.resolvedChildProcessAddresses;
     });
 
-    ipcMain.handle('main-process-show-file-save-dialog', (_, filePath) =>
+    ipcHandle('main-process-show-file-save-dialog', (_, filePath) =>
       dialog.showSaveDialog({
         defaultPath: path.basename(filePath),
       })
     );
 
-    ipcMain.handle(
+    ipcHandle(
       MainProcessIpc.SaveTextToFile,
       async (
         _,
@@ -464,7 +466,7 @@ export default class MainProcess {
       }
     );
 
-    ipcMain.handle(
+    ipcHandle(
       MainProcessIpc.ForceFocusWindow,
       async (
         _,
@@ -485,7 +487,7 @@ export default class MainProcess {
     // Used in the `tsh install` command on macOS to make the bundled tsh available in PATH.
     // Returns true if tsh got successfully installed, false if the user closed the osascript
     // prompt. Throws an error when osascript fails.
-    ipcMain.handle('main-process-symlink-tsh-macos', async () => {
+    ipcHandle('main-process-symlink-tsh-macos', async () => {
       const source = this.settings.tshd.binaryPath;
       const target = '/usr/local/bin/tsh';
       const prompt =
@@ -507,7 +509,7 @@ export default class MainProcess {
       }
     });
 
-    ipcMain.handle('main-process-remove-tsh-symlink-macos', async () => {
+    ipcHandle('main-process-remove-tsh-symlink-macos', async () => {
       const target = '/usr/local/bin/tsh';
       const prompt =
         'Teleport Connect wants to remove a symlink for tsh from /usr/local/bin.';
@@ -528,21 +530,21 @@ export default class MainProcess {
       }
     });
 
-    ipcMain.handle('main-process-open-config-file', async () => {
+    ipcHandle('main-process-open-config-file', async () => {
       const path = this.configFileStorage.getFilePath();
       await shell.openPath(path);
       return path;
     });
 
-    ipcMain.handle(MainProcessIpc.DownloadConnectMyComputerAgent, () =>
+    ipcHandle(MainProcessIpc.DownloadConnectMyComputerAgent, () =>
       this.downloadAgentShared()
     );
 
-    ipcMain.handle(MainProcessIpc.VerifyConnectMyComputerAgent, async () => {
+    ipcHandle(MainProcessIpc.VerifyConnectMyComputerAgent, async () => {
       await verifyAgent(this.settings.agentBinaryPath);
     });
 
-    ipcMain.handle(
+    ipcHandle(
       'main-process-connect-my-computer-create-agent-config-file',
       (_, args: CreateAgentConfigFileArgs) =>
         createAgentConfigFile(this.settings, {
@@ -553,7 +555,7 @@ export default class MainProcess {
         })
     );
 
-    ipcMain.handle(
+    ipcHandle(
       'main-process-connect-my-computer-is-agent-config-file-created',
       async (
         _,
@@ -563,7 +565,7 @@ export default class MainProcess {
       ) => isAgentConfigFileCreated(this.settings, args.rootClusterUri)
     );
 
-    ipcMain.handle(
+    ipcHandle(
       'main-process-connect-my-computer-kill-agent',
       async (
         _,
@@ -575,7 +577,7 @@ export default class MainProcess {
       }
     );
 
-    ipcMain.handle(
+    ipcHandle(
       'main-process-connect-my-computer-remove-agent-directory',
       (
         _,
@@ -585,11 +587,11 @@ export default class MainProcess {
       ) => removeAgentDirectory(this.settings, args.rootClusterUri)
     );
 
-    ipcMain.handle(MainProcessIpc.TryRemoveConnectMyComputerAgentBinary, () =>
+    ipcHandle(MainProcessIpc.TryRemoveConnectMyComputerAgentBinary, () =>
       this.agentRunner.tryRemoveAgentBinary()
     );
 
-    ipcMain.handle(
+    ipcHandle(
       'main-process-connect-my-computer-run-agent',
       async (
         _,
@@ -625,7 +627,7 @@ export default class MainProcess {
       }
     );
 
-    ipcMain.handle(
+    ipcHandle(
       'main-process-open-agent-logs-directory',
       async (
         _,
@@ -644,7 +646,7 @@ export default class MainProcess {
       }
     );
 
-    ipcMain.handle(
+    ipcHandle(
       MainProcessIpc.SelectDirectoryForDesktopSession,
       async (_, args: { desktopUri: string; login: string }) => {
         const value = await dialog.showOpenDialog({
@@ -673,11 +675,11 @@ export default class MainProcess {
       event.returnValue = this.appUpdater.supportsUpdates();
     });
 
-    ipcMain.handle(MainProcessIpc.CheckForAppUpdates, () =>
+    ipcHandle(MainProcessIpc.CheckForAppUpdates, () =>
       this.appUpdater.checkForUpdates()
     );
 
-    ipcMain.handle(
+    ipcHandle(
       MainProcessIpc.ChangeAppUpdatesManagingCluster,
       (
         event,
@@ -687,31 +689,31 @@ export default class MainProcess {
       ) => this.appUpdater.changeManagingCluster(args.clusterUri)
     );
 
-    ipcMain.handle(MainProcessIpc.DownloadAppUpdate, () =>
+    ipcHandle(MainProcessIpc.DownloadAppUpdate, () =>
       this.appUpdater.download()
     );
 
-    ipcMain.handle(MainProcessIpc.CancelAppUpdateDownload, () =>
+    ipcHandle(MainProcessIpc.CancelAppUpdateDownload, () =>
       this.appUpdater.cancelDownload()
     );
 
-    ipcMain.handle(MainProcessIpc.QuiteAndInstallAppUpdate, () =>
+    ipcHandle(MainProcessIpc.QuiteAndInstallAppUpdate, () =>
       this.appUpdater.quitAndInstall()
     );
 
-    ipcMain.handle(MainProcessIpc.AddCluster, (ev, proxyAddress) =>
+    ipcHandle(MainProcessIpc.AddCluster, (ev, proxyAddress) =>
       this.clusterLifecycleManager.addCluster(proxyAddress)
     );
 
-    ipcMain.handle(MainProcessIpc.SyncRootClusters, () =>
+    ipcHandle(MainProcessIpc.SyncRootClusters, () =>
       this.clusterLifecycleManager.syncRootClustersAndStartProfileWatcher()
     );
 
-    ipcMain.handle(MainProcessIpc.SyncCluster, (_, args) =>
-      this.clusterStore.sync(args.clusterUri)
+    ipcHandle(MainProcessIpc.SyncCluster, (_, args) =>
+      this.clusterLifecycleManager.syncCluster(args.clusterUri)
     );
 
-    ipcMain.handle(MainProcessIpc.Logout, async (_, args) => {
+    ipcHandle(MainProcessIpc.Logout, async (_, args) => {
       await this.clusterLifecycleManager.logoutAndRemoveCluster(
         args.clusterUri
       );
@@ -1009,4 +1011,24 @@ function makeAppUpdaterStorage(fs: FileStorage): AppUpdaterStorage {
       fs.put(APP_UPDATER_STATE_KEY, { ...state, ...value });
     },
   };
+}
+
+/**
+ * Handles requests sent via `ipcInvoke`.
+ * The renderer must send requests using `ipcInvoke` (not `ipcRenderer.invoke`).
+ *
+ * Use this instead of `ipcMain.handle`. It ensures full error serialization
+ * and prevents Electron from adding the generic message "Error invoking remote method".
+ */
+function ipcHandle(
+  channel: string,
+  listener: (event: IpcMainInvokeEvent, ...args: any[]) => Promise<any> | any
+): void {
+  ipcMain.handle(channel, async (...args) => {
+    try {
+      return { result: await Promise.try(listener, ...args) };
+    } catch (e) {
+      return { error: serializeError(e) };
+    }
+  });
 }

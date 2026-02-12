@@ -111,6 +111,7 @@ To mitigate this, you should explicitly set the resource version.
   - v12 default role version is `v5`
   - v13 default role version is `v6`
   - v14 default role version is `v7`
+  - v18+ default role version is `v8`
 
   For example, before upgrading from v12 to v13, edit every unversioned role
   to pin the `v5` version:
@@ -1649,7 +1650,7 @@ resource "teleport_provision_token" "iam-token" {
 | metadata | object |          | Metadata is resource metadata                                                                              |
 | spec     | object |          | Spec is a role specification                                                                               |
 | sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources                                           |
-| version  | string | *        | Version is the resource version. It must be specified. Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`. |
+| version  | string | *        | Version is the resource version. It must be specified. Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`. |
 
 ### metadata
 

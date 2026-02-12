@@ -34,6 +34,9 @@ export function ListView({
   pinningSupport,
   isProcessing,
   expandAllLabels,
+  visibleInputFields,
+  showResourcesSelectedIcon,
+  resourceLabelConfig,
 }: ResourceViewProps) {
   return (
     <Flex className="ListContainer">
@@ -51,6 +54,9 @@ export function ListView({
             expandAllLabels={expandAllLabels}
             onShowStatusInfo={onShowStatusInfo}
             showingStatusInfo={showingStatusInfo}
+            visibleInputFields={visibleInputFields}
+            resourceLabelConfig={resourceLabelConfig}
+            showResourceSelectedIcon={showResourcesSelectedIcon}
           />
         )
       )}

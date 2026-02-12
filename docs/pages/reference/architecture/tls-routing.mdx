@@ -18,9 +18,6 @@ To implement TLS routing, Teleport uses SNI ([Server Name Indication](https://en
 and ALPN ([Application-Level Protocol Negotiation](https://en.wikipedia.org/wiki/Application-Layer_Protocol_Negotiation))
 TLS extensions.
 
-Support for TLS Routing behind layer 7 (HTTP/HTTPS) load balancers and reverse
-proxies is available starting from Teleport `13.0`.
-
 ## How it works
 
 The Teleport Proxy Service listens for all client connections on its `web_listen_addr` by default:
@@ -130,7 +127,7 @@ Teleport provides a `tsh proxy db` command to launch a local database proxy:
 $ tsh proxy db example-db
 ```
 
-See [GUI clients](../../connect-your-client/gui-clients.mdx) guide for a usage
+See [GUI clients](../../connect-your-client/third-party/gui-clients.mdx) guide for a usage
 example.
 
 ## Web UI, apps and desktops
@@ -269,6 +266,6 @@ behind layer 7 load balancers.
 
 ## Next steps
 
-- See [migration guide](../../zero-trust-access/management/operations/tls-routing.mdx) to learn how to
+- See [migration guide](../../zero-trust-access/deploy-a-cluster/tls-routing.mdx) to learn how to
   upgrade an existing cluster to use TLS routing.
 - Read through TLS routing design document [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0039-sni-alpn-teleport-proxy-routing.md).

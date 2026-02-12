@@ -103,6 +103,7 @@ export function mergeClusterProfileWithDetails({
       activeRequests: profile.loggedInUser.activeRequests,
       roles: profile.loggedInUser.roles,
       isDeviceTrusted: profile.loggedInUser.isDeviceTrusted,
+      validUntil: profile.loggedInUser.validUntil,
       userType:
         details.loggedInUser?.userType || LoggedInUser_UserType.UNSPECIFIED,
       trustedDeviceRequirement:

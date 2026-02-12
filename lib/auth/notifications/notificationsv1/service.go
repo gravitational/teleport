@@ -170,7 +170,7 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 	if !found && req.PageToken != "" {
 		return nil, trace.BadParameter("invalid page token provided")
 	}
-	pageSize := int(req.PageSize)
+
 	userNotifsStream := stream.Slice[*notificationsv1.Notification](nil)
 	if userKey != "" || !found {
 		userNotifsStream = stream.FilterMap(
@@ -191,6 +191,7 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 				return n, true
 			})
 	}
+
 	globalNotifsStream := stream.Slice[*notificationsv1.GlobalNotification](nil)
 	if globalKey != "" || !found {
 		globalNotifsStream = stream.FilterMap(
@@ -211,6 +212,7 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 				return gn, true
 			})
 	}
+
 	notifStream := stream.MergeStreams(
 		userNotifsStream,
 		globalNotifsStream,
@@ -224,6 +226,7 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 			return notification
 		},
 	)
+
 	var notifications []*notificationsv1.Notification
 	var nextGlobalKey, nextUserKey string
 	for notifStream.Next() {
@@ -231,9 +234,10 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 		if item != nil {
 			notifications = append(notifications, item)
 		}
-		if len(notifications) == pageSize {
+		if len(notifications) == int(req.PageSize) {
 			// The nextKeys should represent the next unconsumed items in their respective lists.
-			// If the last item in this page (ie. the current item in the stream) was a user-specific notification, then the userNotificationsNextKey should be the next item in the userNotifsStream, and
+			// If the last item in this page (ie. the current item in the stream) was a user-specific notification,
+			// then the userNotificationsNextKey should be the next item in the userNotifsStream, and
 			// the globalNotificationsNextKey should be the current (and unconsumed) item in the globalNotifsStream. And vice-versa.
 			if item.GetMetadata().GetLabels()[types.NotificationScope] == "user" {
 				// If the provided globalKey was "", then return that as the nextGlobalKey again.

@@ -370,6 +370,38 @@ progress to further groups.
 Similarly, tbot installations are only considered candidates for canary installations if they are deployed alongside a
 running Teleport Agent.
 
+## Managing Rollouts
+
+Managed Update groups are automatically progressed as configured by the `autoupdate_config` resource.
+However, it is possible to manually trigger or rollback updates for a selection of groups using `tctl autoupdate agents` commands:
+
+```code
+Commands:
+  autoupdate agents status       Prints agents auto update status.
+  autoupdate agents report       Aggregates the agent autoupdate reports and displays agent count per version and per update group.
+  autoupdate agents start-update Starts updating one or many groups.
+  autoupdate agents mark-done    Marks one or many groups as done updating.
+  autoupdate agents rollback     Rolls back one or many groups.
+```
+
+For example, if an earlier group cannot be started, the other groups can be triggered manually:
+```code
+$ tctl autoupdate agents start-update stage prod
+Started updating agents groups: [stage prod].
+New agent rollout status:
+
+Group Name State     Start Time          State Reason
+---------- --------- ------------------- --------------
+dev        Unstarted                     cannot_start
+stage      Active    2025-03-10 15:04:16 manual_trigger
+prod       Active    2025-03-10 15:04:16 manual_trigger
+```
+
+While individual agents will automatically and immediately rollback if they fail health checks during the update,
+regressions or breaking changes in new versions could make it desirable to rollback an agent update to an earlier version.
+The `tctl autoupdate agents rollback` command can be used to rollback one or more groups to the cluster's `start_version`.
+Rollbacks are immediate and do not wait for canaries to complete.
+
 ## Migrating agents on Linux servers to Managed Updates
 
 ### Finding unmanaged agents

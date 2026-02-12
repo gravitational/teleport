@@ -1,11 +1,13 @@
 ---
 title: Advanced Entra ID Integration Options
+sidebar_label: Advanced Options
 description: Advanced Teleport Entra ID integration configuration options.
-sidebar_position: 5
+sidebar_position: 4
 tags:
  - identity-governance
  - azure
  - privileged-access
+enterprise: Identity Governance
 ---
 
 This page lists advanced configuration options related to the
@@ -82,3 +84,70 @@ version: v1
 ```
 
 The plugin spec can be edited using the `tctl edit plugins/entra-id` command.
+
+## Access List owners
+
+Access List owners have a permission to manage Access Lists in Teleport and are 
+analogous to the Microsoft Entra ID group owners.
+
+You can configure the source of Access List owners to control how the Teleport 
+Entra ID plugin chooses owners for the Access Lists created for the Microsoft Entra 
+ID groups.
+
+The following options are supported:
+
+1. Source `plugin`: Use default owners configured in the plugin sync settings.
+   This is the default option.
+2. Source `entraid`: Use Microsoft Entra ID group owners as Access List owners. 
+  Only the group owner of user type is supported. Service principals as group owners
+  are not supported and will be filtered. Teleport may fall back to using 
+  `plugin` source on the following conditions:
+   - Microsoft Entra ID group has zero configured owners.
+   - Microsoft Entra ID group owner is not supported, resulting in a zero supported 
+   owners.
+3. Source `plugin-and-entraid`: Use both the `plugin` and `entraid` source to 
+   configure Access List owners.  
+
+
+### Configuring source during installation
+
+Example to configure the source of Access List owners during installation:
+```code
+$ tctl plugins install entraid \
+    --name entra-id-default \
+    --auth-connector-name entra-id \
+    --default-owner admin \
+    --no-access-graph \
+    --use-system-credentials \
+    --manual-setup \
+    --access-list-owners-source entraid
+```
+
+- `--access-list-owners-source` flag configures source for the Access List owners. 
+  Value can be `plugin`, `entraid`, or `plugin-and-entraid`.
+
+### Updating the source of Access List owners
+
+You can update the source of the Access List owners using `access_list_owners_source` 
+field, which is available in the `sync_settings` of the Teleport Entra ID plugin 
+resource spec. 
+
+The `access_list_owners_source` field supports one of the following values: 
+- Integer value `1` to configure "plugin" source. 
+- Integer value `2` to configure "entraid" source.
+- Integer value `3` to configure "plugin-and-entraid" source.
+
+You can use the `tctl edit plugins/entra-id` command to update the plugin spec.
+A reference to the plugin resource spec is provided below:
+```yaml
+kind: plugin
+metadata:
+  name: entra-id
+spec:
+  Settings:
+    entra_id:
+      sync_settings:
+        ... # other settings omitted for brevity
+        access_list_owners_source: 3
+version: v1
+```

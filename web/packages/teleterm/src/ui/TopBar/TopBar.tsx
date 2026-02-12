@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MutableRefObject } from 'react';
+import { RefObject } from 'react';
 import styled from 'styled-components';
 
 import { Flex } from 'design';
@@ -28,8 +28,8 @@ import { Connections } from './Connections';
 import { Identity } from './Identity';
 
 export function TopBar(props: {
-  connectMyComputerRef: MutableRefObject<HTMLDivElement>;
-  accessRequestRef: MutableRefObject<HTMLDivElement>;
+  connectMyComputerRef: RefObject<HTMLDivElement>;
+  accessRequestRef: RefObject<HTMLDivElement>;
 }) {
   return (
     <Grid>
@@ -72,15 +72,21 @@ const CentralContainer = styled(Flex).attrs({ gap: 3 })`
   max-width: calc(${props => props.theme.space[10]}px * 9);
 `;
 
+// Reserve space for dynamic icons (Connect My Computer and access requests)
+// to prevent layout shift. Side containers must be of equal width to keep the
+// search bar input centered, so that it is completely hidden when the search
+// is open.
+const SIDE_CONTAINER_WIDTH = '128px';
+
 const JustifyLeft = styled(Flex).attrs({ gap: 3 })`
+  width: ${SIDE_CONTAINER_WIDTH};
   align-items: center;
-  min-width: 80px; // reserves space for Connect My Computer icon to prevent layout shifting
   height: 100%;
 `;
 
 const JustifyRight = styled(Flex).attrs({ gap: 2 })`
+  width: ${SIDE_CONTAINER_WIDTH};
   justify-content: end;
   align-items: center;
-  min-width: 128px; // reserves space for access requests icon to prevent layout shifting
   height: 100%;
 `;

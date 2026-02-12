@@ -9,7 +9,6 @@ tests:
         tag: v98.76.54
     asserts:
       - matchSnapshot: {}
-
   - it: uses the recreate strategy if a PV is mounted
     set:
       persistentVolumeClaim:
@@ -39,6 +38,132 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: SSL_CERT_FILE
-            value: /etc/teleport-tls-ca/ca.pem
+            value: /etc/teleport-tls-ca/helm-lint-existing-tls-secret-key-name
       - matchSnapshot:
           path: spec.template.spec
+  - it: should not contain deployment or pod annotations when not defined
+    asserts:
+      - isNull:
+          path: metadata.annotations
+      - isNull:
+          path: spec.template.metadata.annotations
+  - it: should contain deployment annotations when defined
+    set:
+      annotations:
+        deployment:
+          keyA: valA
+          keyB: valB
+    asserts:
+      - equal:
+          path: metadata.annotations
+          value:
+            keyA: valA
+            keyB: valB
+      - isNull:
+          path: spec.template.metadata.annotations
+  - it: should contain pod annotations when defined
+    set:
+      annotations:
+        pod:
+          keyA: valA
+          keyB: valB
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations
+          value:
+            keyA: valA
+            keyB: valB
+      - isNull:
+          path: metadata.annotations
+  - it: should contain both annotations when defined
+    set:
+      annotations:
+        deployment:
+          keyA: valA
+          keyB: valB
+        pod:
+          keyA: valA'
+          keyC: valC
+    asserts:
+      - equal:
+          path: metadata.annotations
+          value:
+            keyA: valA
+            keyB: valB
+      - equal:
+          path: spec.template.metadata.annotations
+          value:
+            keyA: valA'
+            keyC: valC
+  - it: sets extraLabels when set in values
+    set:
+      extraLabels:
+        deployment:
+          test-key: test-label-deployment
+        pod:
+          test-key: test-label-pod
+    asserts:
+      - isSubset:
+          path: metadata.labels
+          content:
+            test-key: test-label-deployment
+      - isSubset:
+          path: spec.template.metadata.labels
+          content:
+            test-key: test-label-pod
+  - it: sets extraArgs when set in values
+    set:
+      extraArgs:
+        - --extra-arg
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --extra-arg
+  - it: sets extraEnv when set in values
+    set:
+      extraEnv:
+        - name: TEST_ENV
+          value: test-value
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TEST_ENV
+            value: test-value
+  - it: should not mount cert-manager TLS secrets when certManager.enabled is false
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls
+            secret:
+              secretName: teleport-tls
+              defaultMode: 0600
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls
+            name: teleport-tls
+  - it: should mount cert-manager TLS secrets when certManager.enabled is true
+    values:
+      - ../.lint/cert-manager-enabled.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: certificate
+            secret:
+              secretName: RELEASE-NAME-teleport-plugin-event-handler-client-tls
+              items:
+                - key: ca.crt
+                  path: ca.crt
+                - key: tls.crt
+                  path: client.crt
+                - key: tls.key
+                  path: client.key
+              defaultMode: 0600
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/lib/teleport/plugins/event-handler
+            name: certificate

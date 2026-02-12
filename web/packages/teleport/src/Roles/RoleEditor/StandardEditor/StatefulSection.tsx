@@ -26,15 +26,17 @@ import { StandardModelDispatcher, useStandardModel } from './useStandardModel';
 import { withDefaults } from './withDefaults';
 
 /** A helper for testing editor section components. */
-export function StatefulSection<Model, ValidationResult>({
+export function StatefulSection<Model, ValidationResult, InputFields>({
   defaultValue,
   component: Component,
   onChange,
   validatorRef,
   validate,
+  visibleInputFields,
+  readOnly = false,
 }: {
   defaultValue: Model;
-  component: React.ComponentType<SectionProps<Model, any>>;
+  component: React.ComponentType<SectionProps<Model, any, any>>;
   onChange(model: Model): void;
   validatorRef?(v: Validator): void;
   validate(
@@ -42,6 +44,8 @@ export function StatefulSection<Model, ValidationResult>({
     previousModel: Model,
     previousResult: ValidationResult
   ): ValidationResult;
+  visibleInputFields?: InputFields;
+  readOnly?: boolean;
 }) {
   const [{ model, validationResult }, dispatch] = useReducer(
     (
@@ -69,6 +73,8 @@ export function StatefulSection<Model, ValidationResult>({
               dispatch(newModel);
               onChange(newModel);
             }}
+            visibleInputFields={visibleInputFields}
+            readOnly={readOnly}
           />
         );
       }}

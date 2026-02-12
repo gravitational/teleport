@@ -1,5 +1,6 @@
 ---
 title: Automatically Discover GCP Compute Instances
+sidebar_label: Google Compute Engine
 description: How to configure Teleport to automatically enroll GCP compute instances.
 tags:
  - how-to
@@ -240,18 +241,19 @@ $ tctl tokens add --type=discovery
 Save the generated token in `/tmp/token` on the virtual machine that will run
 the Discovery Service.
 
-In order to enable GCP instance discovery the `discovery_service.gcp` section
-of `teleport.yaml` must include at least one entry:
-
 (!docs/pages/includes/discovery/discovery-group.mdx!)
 
+Assign <Var name="teleport.example.com:443" /> to the host and port of the Teleport Proxy Service in your cluster,
+and <Var name="gcp-prod" /> to a name that identifies a group of resources that you will enroll:
+
 ```yaml
+# teleport.yaml
 version: v3
 teleport:
   join_params:
     token_name: "/tmp/token"
     method: token
-  proxy_server: "<Var name="teleport.example.com" />:443"
+  proxy_server: "<Var name="teleport.example.com:443" />"
 auth_service:
   enabled: false
 proxy_service:
@@ -260,29 +262,87 @@ ssh_service:
   enabled: false
 discovery_service:
   enabled: true
-  discovery_group: "gcp-prod"
-  gcp:
-    - types: ["gce"]
-      # The IDs of GCP projects that VMs can join from.
-      project_ids: []
-      # (Optional) The locations that VMs can join from. Note: both regions and
-      # zones are accepted.
-      locations: []
-      # (Optional) The email addresses of service accounts that VMs can join
-      # with.
-      service_accounts: []
-      # (Optional) Labels that joining VMs must have.
-      labels:
-        "env": "prod" # Match virtual machines where label:env=prod
-      install:
-        public_proxy_addr: "<Var name="teleport.example.com" />:443"
+  discovery_group: <Var name="gcp-prod" />
 ```
 
-- Edit the `teleport.auth_server` or `teleport.proxy_server` key to match your Auth Service or Proxy Service's domain name
-  and port, respectively.
-- Adjust the keys under `discovery_service.gcp` to match your GCP environment,
+Create a matcher for the resources you want to enroll.
+
+<Admonition type="tip">
+Dynamic configuration uses Discovery Configs which can be managed using Terraform.
+See the [Terraform `discovery_config` reference](../../../reference/infrastructure-as-code/terraform-provider/resources/discovery_config.mdx) for more information.
+
+Static configuration while simpler at first, has less flexibility because enrollment changes require edits to `teleport.yaml` and the restart of the Discovery Service.
+</Admonition>
+
+<Tabs>
+<TabItem label="Dynamic configuration (recommended)">
+  Create a Discovery Config resource, that has the same discovery group you configured earlier, to enable GCP VM discovery.
+
+  Create a file named `discovery-gcp-prod.yaml` with the following content:
+  ```yaml
+  kind: discovery_config
+  version: v1
+  metadata:
+    name: example-discovery-config
+  spec:
+    discovery_group: <Var name="gcp-prod" />
+    gcp:
+      - types: ["gce"]
+        # The IDs of GCP projects that VMs can join from.
+        project_ids: []
+        # (Optional) The locations that VMs can join from. Note: both regions and
+        # zones are accepted.
+        locations: []
+        # (Optional) The email addresses of service accounts that VMs can join
+        # with.
+        service_accounts: []
+        # (Optional) Labels that joining VMs must have.
+        labels:
+          "env": "prod" # Match virtual machines where label:env=prod
+  ```
+  Adjust the keys under `spec.gcp` to match your GCP environment,
+  specifically the project IDs, locations, service accounts and labels you want to associate with the Discovery Service.
+
+  Create the Discovery Config by running the following command:
+  ```code
+  $ tctl create -f discovery-gcp-prod.yaml
+  ```
+
+  Matching instances will be added to the Teleport cluster automatically.
+
+  You can update the Discovery Config at any time, and the service will automatically re-apply the changes.
+</TabItem>
+
+<TabItem label="Static configuration">
+  In order to enable GCP VM discovery the `discovery_service.gcp` section
+  of `teleport.yaml` must include at least one entry:
+
+  ```yaml
+  # teleport.yaml
+  # ...
+  discovery_service:
+    enabled: true
+    discovery_group: <Var name="gcp-prod" />
+    gcp:
+      - types: ["gce"]
+        # The IDs of GCP projects that VMs can join from.
+        project_ids: []
+        # (Optional) The locations that VMs can join from. Note: both regions and
+        # zones are accepted.
+        locations: []
+        # (Optional) The email addresses of service accounts that VMs can join
+        # with.
+        service_accounts: []
+        # (Optional) Labels that joining VMs must have.
+        labels:
+          "env": "prod" # Match virtual machines where label:env=prod
+  ```
+  Adjust the keys under `discovery_service.gcp` to match your GCP environment,
   specifically the projects, locations, service accounts, and tags you want to associate with the Discovery
   Service.
+
+</TabItem>
+</Tabs>
 
 ### GCP credentials
 

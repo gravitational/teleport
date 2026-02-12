@@ -41,7 +41,11 @@ import { TerminalsService } from 'teleterm/ui/services/terminals';
 import { TshdNotificationsService } from 'teleterm/ui/services/tshdNotifications/tshdNotificationService';
 import { UsageService } from 'teleterm/ui/services/usage';
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService/workspacesService';
-import { IAppContext, UnexpectedVnetShutdownListener } from 'teleterm/ui/types';
+import {
+  IAppContext,
+  ResourceRefreshListener,
+  UnexpectedVnetShutdownListener,
+} from 'teleterm/ui/types';
 
 import { CommandLauncher } from './commandLauncher';
 import { createTshdEventsContextBridgeService } from './tshdEvents';
@@ -82,6 +86,7 @@ export default class AppContext implements IAppContext {
   private _unexpectedVnetShutdownListener:
     | UnexpectedVnetShutdownListener
     | undefined;
+  private _resourceRefreshListener: ResourceRefreshListener | undefined;
 
   constructor(config: ElectronGlobals) {
     const { tshClient, ptyServiceClient, mainProcessClient } = config;
@@ -201,6 +206,20 @@ export default class AppContext implements IAppContext {
     return this._unexpectedVnetShutdownListener;
   }
 
+  /** Sets the listener and returns a cleanup function which removes the listener. */
+  addResourceRefreshListener(listener: ResourceRefreshListener): () => void {
+    this._resourceRefreshListener = listener;
+
+    return () => {
+      this._resourceRefreshListener = undefined;
+    };
+  }
+
+  /** Gets called when `ClusterLifecycleManager` requests resource refresh. */
+  get resourceRefreshListener(): ResourceRefreshListener {
+    return this._resourceRefreshListener;
+  }
+
   private registerClusterLifecycleHandler(): void {
     // Queue chain ensures sequential processing.
     let processingQueue = Promise.resolve();
@@ -211,6 +230,12 @@ export default class AppContext implements IAppContext {
         switch (op) {
           case 'did-add-cluster':
             return this.workspacesService.addWorkspace(uri);
+          case 'did-change-access':
+            if (!this.clustersService.findCluster(uri).connected) {
+              // Only refresh resources when the cluster is connected.
+              return;
+            }
+            return this.resourceRefreshListener(uri);
           case 'will-logout':
             return cleanUpBeforeLogout(this, uri, { removeWorkspace: false });
           case 'will-logout-and-remove':

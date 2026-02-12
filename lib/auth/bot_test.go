@@ -23,10 +23,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/tls"
-	"crypto/x509"
-	"encoding/base64"
-	"encoding/json"
-	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -35,10 +32,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/digitorus/pkcs7"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -57,16 +52,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/cloud/azure"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/kube/token"
@@ -77,6 +69,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
+
+var errMockInvalidToken = errors.New("invalid token")
 
 func renewBotCerts(
 	ctx context.Context,
@@ -738,89 +732,6 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 		require.NoError(t, err)
 		checkCertLoginIP(t, certs.TLS, remoteAddr)
 	})
-
-	t.Run("Azure method", func(t *testing.T) {
-		subID := uuid.NewString()
-		resourceGroup := "rg"
-		rsID := vmResourceID(subID, resourceGroup, "test-vm")
-		vmID := "vmID"
-
-		accessToken, err := makeToken(rsID, "", a.GetClock().Now())
-		require.NoError(t, err)
-
-		// add token to auth server
-		azureTokenName := "azure-test-token"
-		azureToken, err := types.NewProvisionTokenFromSpec(
-			azureTokenName,
-			time.Now().Add(time.Minute),
-			types.ProvisionTokenSpecV2{
-				Roles:      []types.SystemRole{types.RoleBot},
-				Azure:      &types.ProvisionTokenSpecV2Azure{Allow: []*types.ProvisionTokenSpecV2Azure_Rule{{Subscription: subID}}},
-				BotName:    botName,
-				JoinMethod: types.JoinMethodAzure,
-			})
-		require.NoError(t, err)
-		require.NoError(t, a.UpsertToken(ctx, azureToken))
-
-		vmClient := &mockAzureVMClient{
-			vms: map[string]*azure.VirtualMachine{
-				rsID: {
-					ID:            rsID,
-					Name:          "test-vm",
-					Subscription:  subID,
-					ResourceGroup: resourceGroup,
-					VMID:          vmID,
-				},
-			},
-		}
-		getVMClient := makeVMClientGetter(map[string]*mockAzureVMClient{
-			subID: vmClient,
-		})
-
-		tlsConfig, err := fixtures.LocalTLSConfig()
-		require.NoError(t, err)
-
-		block, _ := pem.Decode(fixtures.LocalhostKey)
-		pkey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-		require.NoError(t, err)
-
-		certs, err := a.RegisterUsingAzureMethodWithOpts(context.Background(), func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
-			ad := auth.AttestedData{
-				Nonce:          challenge,
-				SubscriptionID: subID,
-				ID:             vmID,
-			}
-			adBytes, err := json.Marshal(&ad)
-			require.NoError(t, err)
-			s, err := pkcs7.NewSignedData(adBytes)
-			require.NoError(t, err)
-			require.NoError(t, s.AddSigner(tlsConfig.Certificate, pkey, pkcs7.SignerInfoConfig{}))
-			signature, err := s.Finish()
-			require.NoError(t, err)
-			signedAD := auth.SignedAttestedData{
-				Encoding:  "pkcs7",
-				Signature: base64.StdEncoding.EncodeToString(signature),
-			}
-			signedADBytes, err := json.Marshal(&signedAD)
-			require.NoError(t, err)
-
-			req := &proto.RegisterUsingAzureMethodRequest{
-				RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
-					Token:        azureTokenName,
-					HostID:       "test-node",
-					Role:         types.RoleBot,
-					PublicSSHKey: sshPubKey,
-					PublicTLSKey: tlsPubKey,
-					RemoteAddr:   remoteAddr,
-				},
-				AttestedData: signedADBytes,
-				AccessToken:  accessToken,
-			}
-			return req, nil
-		}, auth.WithAzureCerts([]*x509.Certificate{tlsConfig.Certificate}), auth.WithAzureVerifyFunc(mockVerifyToken(nil)), auth.WithAzureVMClientGetter(getVMClient))
-		require.NoError(t, err)
-		checkCertLoginIP(t, certs.TLS, remoteAddr)
-	})
 }
 
 func responseFromAWSIdentity(id iamjoin.AWSIdentity) string {
@@ -989,7 +900,7 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 	k8sReadFileFunc := func(name string) ([]byte, error) {
 		return []byte(k8sTokenName), nil
 	}
-	a.SetJWKSValidator(func(_ time.Time, _ []byte, _ string, tkn string) (*token.ValidationResult, error) {
+	a.SetK8sJWKSValidator(func(_ time.Time, _ []byte, _ string, tkn string) (*token.ValidationResult, error) {
 		if tkn == k8sTokenName {
 			return &token.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
 		}
@@ -1144,7 +1055,7 @@ func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
 
 	botName := "bot"
 	k8sTokenName := "jwks-matching-service-account"
-	a.SetJWKSValidator(func(_ time.Time, _ []byte, _ string, tkn string) (*token.ValidationResult, error) {
+	a.SetK8sJWKSValidator(func(_ time.Time, _ []byte, _ string, tkn string) (*token.ValidationResult, error) {
 		if tkn == k8sTokenName {
 			return &token.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
 		}
@@ -1187,7 +1098,7 @@ func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
 	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
-	privateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
+	privateKey, sshPublicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
 	require.NoError(t, err)
