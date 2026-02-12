@@ -175,6 +175,7 @@ build: generate ## Build manager binary.
 	go build -trimpath -tags "kustomize_disable_go_plugin_support" -o bin/manager main.go namespace.go config.go
 
 .PHONY: docker-build
+docker-build: OS = linux
 docker-build: ## Build docker image with the manager.
 	docker buildx build --platform="$(OS)/$(ARCH)" \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
@@ -204,3 +205,36 @@ CONTROLLER_TOOLS_VERSION ?= v0.20.0
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
 $(CONTROLLER_GEN): $(LOCALBIN)
 	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
+
+# The target below is used to create an operator build, a local test cluster and run it.
+# This uses k3d, if you want to use kind, feel free to contribute an alternative taget.
+# To use it you must set `TELEPORT_VERSION=X.Y.Z`, with "X.Y.Z" being an existing release.
+K3D_CLUSTER_NAME ?= k3s-default
+GIT_HASH := $(shell git rev-parse --short HEAD)
+GIT_DIRTY := $(shell git diff-index --quiet HEAD -- || echo "dirty")
+TIMESTAMP := $(shell date +%Y%m%d%H%M%S)
+TELEPORT_VERSION?=19.0.0-dev
+
+.PHONY: k3d-deploy
+k3d-deploy: VERSION := $(TELEPORT_VERSION)-$(GIT_HASH)$(if $(GIT_DIRTY),-$(TIMESTAMP))
+k3d-deploy: IMG := public.ecr.aws/gravitational-staging/teleport-operator:$(VERSION)
+k3d-deploy: export KUBECONFIG := $(shell mktemp)
+k3d-deploy: generate docker-build
+	echo "Using KUBECONFIG: $(KUBECONFIG)"
+	# check that the cluster exists and build a kubeconfig
+	k3d kubeconfig get $(K3D_CLUSTER_NAME) > "$(KUBECONFIG)"
+	#
+	cat "$(KUBECONFIG)"
+	# Import container image
+	k3d image import -c $(K3D_CLUSTER_NAME) $(IMG)
+	# deploy a teleport cluster with the operator
+	KUBECONFIG=$(KUBECONFIG) helm upgrade \
+		--install --create-namespace --namespace=test \
+		teleport-cluster ../../examples/chart/teleport-cluster \
+		--set "clusterName=test" \
+		--set "operator.enabled=true" \
+		--set "teleportVersionOverride=18.6.4" \
+		--set "operator.teleportVersionOverride=$(VERSION)" \
+		--set "operator.image=$(subst :$(VERSION),,$(IMG))"
+
+	rm $$KUBECONFIG
