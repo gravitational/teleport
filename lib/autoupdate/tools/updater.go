@@ -399,8 +399,10 @@ func (u *Updater) update(ctx context.Context, ctc *ClientToolsConfig, pkg packag
 	return nil
 }
 
-// ToolPath loads full path from config file to specific tool and version.
-func (u *Updater) ToolPath(toolName, toolVersion string) (path string, err error) {
+// SelectTool loads full path from config file to specific tool and version,
+// moving the selected tool to the most used position in the local
+// configuration.
+func (u *Updater) SelectTool(toolName, toolVersion string) (path string, err error) {
 	var tool *Tool
 	if err := UpdateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
 		tool = ctc.SelectVersion(u.toolsDir, toolVersion, runtime.GOOS, runtime.GOARCH)
@@ -411,6 +413,13 @@ func (u *Updater) ToolPath(toolName, toolVersion string) (path string, err error
 	if tool == nil {
 		return "", trace.NotFound("tool version %q not found", toolVersion)
 	}
+	return u.toolPath(toolName, tool)
+}
+
+func (u *Updater) toolPath(toolName string, tool *Tool) (string, error) {
+	if tool == nil {
+		return "", trace.NotFound("tool %q not found", toolName)
+	}
 	relPath, ok := tool.PathMap[toolName]
 	if !ok {
 		return "", trace.NotFound("tool %q not found", toolName)
@@ -419,17 +428,35 @@ func (u *Updater) ToolPath(toolName, toolVersion string) (path string, err error
 	return filepath.Join(u.toolsDir, relPath), nil
 }
 
-// Exec re-executes tool command with same arguments and environ variables.
+// Exec re-executes the tool with the given version with same arguments and
+// environ variables.
 func (u *Updater) Exec(ctx context.Context, toolsVersion string, args []string) (int, error) {
 	executablePath, err := os.Executable()
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
-	path, err := u.ToolPath(filepath.Base(executablePath), toolsVersion)
+	toolPath, err := u.SelectTool(filepath.Base(executablePath), toolsVersion)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
+	return u.exec(ctx, executablePath, toolPath, args)
+}
 
+// ExecTool re-executes the given tool with the same arguments and environ as
+// the current process.
+func (u *Updater) ExecTool(ctx context.Context, tool *Tool, args []string) (int, error) {
+	executablePath, err := os.Executable()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	toolPath, err := u.toolPath(filepath.Base(executablePath), tool)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	return u.exec(ctx, executablePath, toolPath, args)
+}
+
+func (u *Updater) exec(ctx context.Context, executablePath, path string, args []string) (int, error) {
 	env := filterEnvs(os.Environ(), []string{
 		teleportToolsVersionReExecEnv,
 		teleportToolsDirsEnv,
