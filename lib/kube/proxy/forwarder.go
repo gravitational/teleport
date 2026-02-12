@@ -953,7 +953,7 @@ func (f *Forwarder) emitAuditEvent(req *http.Request, sess *clusterSession, stat
 	}
 
 	r.populateEvent(event)
-	if err := f.cfg.AuthClient.EmitAuditEvent(f.ctx, event); err != nil {
+	if err := f.cfg.Emitter.EmitAuditEvent(f.ctx, event); err != nil {
 		f.log.WarnContext(f.ctx, "Failed to emit event", "error", err)
 	}
 }
