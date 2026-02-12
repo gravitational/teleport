@@ -77,7 +77,11 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 	uploadLatencies.Observe(time.Since(start).Seconds())
 	uploadRequests.Inc()
 	if err != nil {
-		return nil, convertGCSError(err)
+		gcsErr := convertGCSError(err)
+		if errors.As(gcsErr, &gcsPreconditionError{}) {
+			return nil, trace.AlreadyExists("upload at %q already exists", uploadPath)
+		}
+		return nil, gcsErr
 	}
 	return &upload, nil
 }
@@ -100,7 +104,11 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 	uploadLatencies.Observe(time.Since(start).Seconds())
 	uploadRequests.Inc()
 	if err != nil {
-		return nil, convertGCSError(err)
+		gcsErr := convertGCSError(err)
+		if errors.As(gcsErr, &gcsPreconditionError{}) {
+			return nil, trace.AlreadyExists("part at %q already exists", partPath)
+		}
+		return nil, gcsErr
 	}
 	return &events.StreamPart{Number: partNumber, LastModified: writer.Attrs().Created}, nil
 }
@@ -144,14 +152,22 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		composer := mergeObject.If(storage.Conditions{DoesNotExist: true}).ComposerFrom(objectsToMerge...)
 		_, err = h.OnComposerRun(ctx, composer)
 		if err != nil {
-			return convertGCSError(err)
+			gcsErr := convertGCSError(err)
+			if errors.As(gcsErr, &gcsPreconditionError{}) {
+				return trace.AlreadyExists("merge object at %q already exists", mergePath)
+			}
+			return gcsErr
 		}
 		objects = append([]*storage.ObjectHandle{mergeObject}, objects[maxParts:]...)
 	}
 	composer := sessionObject.If(storage.Conditions{DoesNotExist: true}).ComposerFrom(objects...)
 	_, err = h.OnComposerRun(ctx, composer)
 	if err != nil {
-		return convertGCSError(err)
+		gcsErr := convertGCSError(err)
+		if errors.As(gcsErr, &gcsPreconditionError{}) {
+			return trace.AlreadyExists("recording at %q already exists", h.recordingPath(upload.SessionID))
+		}
+		return gcsErr
 	}
 	h.logger.DebugContext(ctx, "Completed upload after merging multiple objects", "objects", len(objects), "upload", upload)
 	return h.cleanupUpload(ctx, upload)

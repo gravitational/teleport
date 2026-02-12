@@ -24,12 +24,14 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"path"
 	"strings"
 	"time"
 
 	"cloud.google.com/go/storage"
+	"github.com/googleapis/gax-go/v2/apierror"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/api/option"
@@ -457,14 +459,24 @@ func (h *Handler) ensureBucket() error {
 	return nil
 }
 
+type gcsPreconditionError struct {
+	error
+}
+
 func convertGCSError(err error) error {
 	if err == nil {
 		return nil
 	}
 
+	var ae *apierror.APIError
 	switch {
 	case errors.Is(err, storage.ErrBucketNotExist), errors.Is(err, storage.ErrObjectNotExist):
 		return trace.NotFound("%s", err)
+	case errors.As(err, &ae):
+		if ae.HTTPCode() == http.StatusPreconditionFailed {
+			return gcsPreconditionError{error: err}
+		}
+		return trace.ReadError(ae.HTTPCode(), []byte(ae.Error()))
 	default:
 		return trace.Wrap(err)
 	}

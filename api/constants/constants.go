@@ -295,6 +295,9 @@ const (
 	LockingModeBestEffort = LockingMode("best_effort")
 )
 
+// MaxProtoMessageSizeBytes is maximum protobuf marshaled message size
+const MaxProtoMessageSizeBytes = 64 * 1024
+
 // DeviceTrustMode is the mode of verification for trusted devices.
 // DeviceTrustMode is always "off" for OSS.
 // Defaults to "optional" for Enterprise.

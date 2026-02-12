@@ -31,6 +31,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/session"
@@ -141,8 +142,8 @@ func bytesToSessionPrintEvents(b []byte) []apievents.AuditEvent {
 			},
 			Data: b,
 		}
-		if printEvent.Size() > MaxProtoMessageSizeBytes {
-			extraBytes := printEvent.Size() - MaxProtoMessageSizeBytes
+		if printEvent.Size() > constants.MaxProtoMessageSizeBytes {
+			extraBytes := printEvent.Size() - constants.MaxProtoMessageSizeBytes
 			printEvent.Data = b[:extraBytes]
 			printEvent.Bytes = int64(len(printEvent.Data))
 			b = b[extraBytes:]
@@ -539,8 +540,9 @@ func (a *SessionWriter) completeStream(stream apievents.Stream) {
 
 func (a *SessionWriter) tryResumeStream() (apievents.Stream, error) {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		Step: NetworkRetryDuration,
-		Max:  NetworkBackoffDuration,
+		First: NetworkRetryDuration,
+		Step:  NetworkRetryDuration,
+		Max:   NetworkBackoffDuration,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -548,6 +550,13 @@ func (a *SessionWriter) tryResumeStream() (apievents.Stream, error) {
 	var resumedStream apievents.Stream
 	start := time.Now()
 	for i := range FastAttempts {
+		select {
+		case <-retry.After():
+			a.log.DebugContext(a.closeCtx, "Retrying to resume stream after backoff.", "error", err)
+		case <-a.closeCtx.Done():
+			return nil, trace.ConnectionProblem(a.closeCtx.Err(), "operation has been canceled")
+		}
+
 		var streamType string
 		if a.lastStatus == nil {
 			// The stream was either never created or has failed to receive the
@@ -587,13 +596,6 @@ func (a *SessionWriter) tryResumeStream() (apievents.Stream, error) {
 
 		if isUnrecoverableError(err) {
 			return nil, trace.ConnectionProblem(err, "stream cannot be recovered")
-		}
-
-		select {
-		case <-retry.After():
-			a.log.DebugContext(a.closeCtx, "Retrying to resume stream after backoff.", "error", err)
-		case <-a.closeCtx.Done():
-			return nil, trace.ConnectionProblem(a.closeCtx.Err(), "operation has been canceled")
 		}
 	}
 	return nil, trace.LimitExceeded("audit stream resume attempts exhausted, last error: %v", err)

@@ -25,6 +25,7 @@ import (
 	ggzip "google.golang.org/grpc/encoding/gzip"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types/events"
 )
 
@@ -107,8 +108,16 @@ func (s *auditStreamer) Status() <-chan events.StreamStatus {
 }
 
 // RecordEvent records adds an event to a session recording.
-func (s *auditStreamer) RecordEvent(ctx context.Context, event events.PreparedSessionEvent) error {
-	oneof, err := events.ToOneOf(event.GetAuditEvent())
+func (s *auditStreamer) RecordEvent(ctx context.Context, pe events.PreparedSessionEvent) error {
+	event := pe.GetAuditEvent()
+	messageSize := event.Size()
+	if messageSize > constants.MaxProtoMessageSizeBytes {
+		event = event.TrimToMaxSize(constants.MaxProtoMessageSizeBytes)
+		if event.Size() > constants.MaxProtoMessageSizeBytes {
+			return trace.BadParameter("record size %v exceeds max message size of %v bytes", messageSize, constants.MaxProtoMessageSizeBytes)
+		}
+	}
+	oneof, err := events.ToOneOf(pe.GetAuditEvent())
 	if err != nil {
 		return trace.Wrap(err)
 	}
