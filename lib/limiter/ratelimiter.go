@@ -33,12 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const (
-	// defaultRate is the maximum number of requests per second that the limiter
-	// will allow when no rate limits are configured
-	defaultRate = 100_000_000
-)
-
 // RateLimiter controls connection rate using the token bucket algorithm.
 // See: https://en.wikipedia.org/wiki/Token_bucket
 type RateLimiter struct {
@@ -67,12 +61,6 @@ func NewRateLimiter(config Config) (*RateLimiter, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	if len(config.Rates) == 0 {
-		err := limiter.rates.Add(time.Second, defaultRate, defaultRate)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
 
 	if config.Clock == nil {
 		config.Clock = clockwork.NewRealClock()
@@ -90,8 +78,8 @@ func NewRateLimiter(config Config) (*RateLimiter, error) {
 	}
 
 	limiter.rateLimits, err = utils.NewFnCache(utils.FnCacheConfig{
-		// The default TTL here is not super important because we set the
-		// TTL explicitly for each entry we insert.
+		// The default TTL here is not super important because we set
+		// the TTL explicitly for each entry we insert.
 		TTL:   10 * time.Second,
 		Clock: config.Clock,
 	})
@@ -119,13 +107,20 @@ func (l *RateLimiter) IsRateLimited(token string) bool {
 	return bucket.IsRateLimited()
 }
 
-// RegisterRequest increases number of requests for the provided token
-// Returns error if there are too many requests with the provided token.
+// RegisterRequest increases number of requests for the provided token.
+// If neither the default rates nor a custom rate are configured, the
+// request passes through without any limiting.
 func (l *RateLimiter) RegisterRequest(token string, customRate *ratelimit.RateSet) error {
+	// cmp.Or returns the first non-zero value. A non-nil RateSet
+	// with zero entries is still selected over l.rates, which is
+	// fine because Len() == 0 catches that case below.
+	rate := cmp.Or(customRate, l.rates)
+	if rate.Len() == 0 {
+		return nil
+	}
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
-
-	rate := cmp.Or(customRate, l.rates)
 
 	// We set the TTL as 10 times the rate period. E.g. if rate is 100 requests/second
 	// per client IP, the counters for this IP will expire after 10 seconds of inactivity.
@@ -162,7 +157,7 @@ func (l *RateLimiter) RegisterRequestFromAddr(addr net.Addr, customRate *ratelim
 	return l.RegisterRequest(token, customRate)
 }
 
-// Add rate limiter to the handle
+// WrapHandle wraps the given HTTP handler with the rate limiter.
 func (l *RateLimiter) WrapHandle(h http.Handler) {
 	l.TokenLimiter.Wrap(h)
 }
