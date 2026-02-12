@@ -107,6 +107,12 @@ var computerAttributes = []string{
 	attrPrimaryGroupID,
 }
 
+// certificateStoreClient is a stand in interface for
+// winpki.certificateStoreClient.
+type certificateStoreClient interface {
+	Update(ctx context.Context, tc *tls.Config) error
+}
+
 // WindowsService implements the RDP-based Windows desktop access service.
 //
 // This service accepts mTLS connections from the proxy, establishes RDP
@@ -116,7 +122,7 @@ type WindowsService struct {
 	cfg        WindowsServiceConfig
 	middleware *auth.Middleware
 
-	ca *winpki.CertificateStoreClient
+	ca certificateStoreClient
 
 	// lastDiscoveryResults stores the results of the most recent LDAP search
 	// when desktop discovery is enabled.
@@ -1360,27 +1366,167 @@ func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
 	return len(s), nil
 }
 
-// runCRLUpdateLoop publishes the Certificate Revocation List to the given
-// LDAP server. It continues to do so every 5 minutes (by default) to make sure it is present
-// and in the correct location.
+// runCRLUpdateLoop publishes the Certificate Revocation List to the given LDAP
+// server.
+//
+// It publishes all known CRLs of the WindowsCA:
+//   - Immediately, once called,
+//   - Periodically, as defined by PublishCRLInterval; and
+//   - Whenever the CA is updated, using a types.Watcher.
 func (s *WindowsService) runCRLUpdateLoop() {
 	t := s.cfg.Clock.NewTicker(retryutils.SeventhJitter(s.cfg.PublishCRLInterval))
 	defer t.Stop()
 
+	ctx := s.closeCtx
+	logger := s.cfg.Logger
+
+	caEvent := make(chan struct{}, 1)
+	go func() {
+		if err := s.watchCAEvents(ctx, caEvent); err != nil {
+			logger.WarnContext(ctx, "CA watcher loop exited", "error", err)
+		}
+	}()
+
 	for {
 		tlsConfig, err := s.loadTLSConfigForLDAP()
 		if err != nil {
-			s.cfg.Logger.ErrorContext(s.closeCtx, "failed to get TLS config for CRL update", "error", err)
+			logger.ErrorContext(ctx, "failed to get TLS config for CRL update", "error", err)
 		}
-		if err := s.ca.Update(s.closeCtx, tlsConfig); err != nil && !errors.Is(err, context.Canceled) {
-			s.cfg.Logger.ErrorContext(s.closeCtx, "failed to publish CRL", "error", err)
+		if err := s.ca.Update(ctx, tlsConfig); err != nil && !errors.Is(err, context.Canceled) {
+			logger.ErrorContext(ctx, "failed to publish CRL", "error", err)
 		}
 
 		select {
-		case <-s.closeCtx.Done():
+		case <-ctx.Done():
 			return
 		case <-t.Chan():
 			continue
+		case <-caEvent:
+			continue
+		}
+	}
+}
+
+// watchCAEvents watches for WindowsCA updates, signaling those in the received
+// channel.
+// watchCAEvents runs until ctx is closed.
+func (s *WindowsService) watchCAEvents(
+	ctx context.Context,
+	signalCAEvent chan<- struct{},
+) error {
+	logger := s.cfg.Logger
+
+	timeC := make(chan time.Time, 1)
+	timeC <- time.Time{} // tick immediately
+	var afterC <-chan time.Time = timeC
+
+	resetTimer := func() {
+		const watcherCreatePeriod = 5 * time.Minute
+		afterC = time.After(watcherCreatePeriod)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		case <-afterC:
+		}
+
+		watcher, err := s.cfg.AccessPoint.NewWatcher(ctx, types.Watch{
+			Name: teleport.ComponentWindowsDesktop + "-ca-watcher",
+			Kinds: []types.WatchKind{
+				{
+					Kind:        types.KindCertAuthority,
+					LoadSecrets: false,
+					// Only watch the WindowsCA.
+					Filter: map[string]string{
+						string(types.WindowsCA): types.Wildcard,
+					},
+				},
+			},
+		})
+		if err != nil {
+			logger.WarnContext(ctx,
+				"Failed to create CA watcher. Service will be unable to react to CA rotation events.",
+				"error", err,
+			)
+			resetTimer()
+			continue
+		}
+		logger.DebugContext(ctx, "Initialized CA watcher")
+
+		// Handle events until we either:
+		//   1. Abort with an error (ctx is done); or
+		//   2. Need to re-create the watcher (watcher is done, first event is not
+		//      OpInit, etc)
+		err = runCAWatcherLoop(ctx, signalCAEvent, logger, watcher)
+		if closeErr := watcher.Close(); closeErr != nil {
+			logger.DebugContext(ctx, "Error closing CA watcher", "error", closeErr)
+		}
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		resetTimer()
+	}
+}
+
+func runCAWatcherLoop(
+	ctx context.Context,
+	signalCAEvent chan<- struct{},
+	logger *slog.Logger,
+	watcher types.Watcher,
+) error {
+	isFirstEvent := true
+	for {
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+
+		case <-watcher.Done():
+			logger.DebugContext(ctx, "CA watcher closed prematurely. Attempting to re-create.")
+			return nil
+
+		case e := <-watcher.Events():
+			eLog := logger.With("op", e.Type)
+			if e.Resource != nil {
+				eLog = eLog.With(
+					"kind", e.Resource.GetKind(),
+					"sub_kind", e.Resource.GetSubKind(),
+					"name", e.Resource.GetName(),
+					"revision", e.Resource.GetRevision(),
+				)
+			}
+			eLog.DebugContext(ctx, "Received CA event")
+
+			// The first event MUST be an OpInit event, as dictated by the secret
+			// rules of watchers. If it's not then we must fail.
+			//
+			// * lib/services/watcher.go:336
+			// * https://github.com/gravitational/teleport/blob/1f0ca9e4ae66a47f39d10c40f35e55d5ac5e15ac/lib/services/watcher.go#L336-L338
+			switch {
+			case e.Type == types.OpInit && isFirstEvent:
+				isFirstEvent = false
+				continue // OK, expected.
+
+			case isFirstEvent:
+				logger.WarnContext(ctx,
+					"Received non-init event as the first event. Will attempt to re-create the watcher.",
+					"op", e.Type,
+				)
+				return nil
+
+			case e.Type != types.OpPut:
+				continue // OK, we only care about mutating events.
+			}
+
+			logger.InfoContext(ctx,
+				"Received mutating WindowsCA event, signaling CRL update",
+				"op", e.Type,
+			)
+			select {
+			case signalCAEvent <- struct{}{}:
+			default:
+			}
 		}
 	}
 }
