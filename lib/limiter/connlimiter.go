@@ -63,6 +63,11 @@ func (l *ConnectionsLimiter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if l.maxConnections == 0 {
+		l.next.ServeHTTP(w, r)
+		return
+	}
+
 	clientIP, err := ratelimit.ExtractClientIP(r)
 	if err != nil {
 		l.log.WarnContext(context.Background(), "failed to extract source IP", "remote_addr", r.RemoteAddr)
