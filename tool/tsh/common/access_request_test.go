@@ -62,6 +62,7 @@ func TestAccessRequestSearch(t *testing.T) {
 			cfg.Auth.ClusterName.SetClusterName(rootClusterName)
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Kube.Enabled = true
+			cfg.SSH.Enabled = false
 			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
 			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, rootKubeCluster)
 		}),
@@ -71,6 +72,7 @@ func TestAccessRequestSearch(t *testing.T) {
 				cfg.Auth.ClusterName.SetClusterName(leafClusterName)
 				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				cfg.Kube.Enabled = true
+				cfg.SSH.Enabled = false
 				cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
 				cfg.Kube.KubeconfigPath = newKubeConfigFile(t, leafKubeCluster)
 			},
@@ -275,6 +277,69 @@ func TestShowRequestTable(t *testing.T) {
 			},
 			wantPresent: []string{"someName", "someUser", "role1,role2", assumeStartTime.UTC().Format(time.RFC822)},
 		},
+		{
+			name: "Access Requests with constrained resources",
+			reqs: []types.AccessRequest{
+				&types.AccessRequestV3{
+					Metadata: types.Metadata{
+						Name:    "constrainedRequest",
+						Expires: &expiresTime,
+					},
+					Spec: types.AccessRequestSpecV3{
+						User:       "someUser",
+						Roles:      []string{"aws-access"},
+						Expires:    expiresTime,
+						SessionTTL: expiresTime,
+						Created:    createdAtTime,
+						RequestedResourceAccessIDs: []types.ResourceAccessID{
+							{
+								Id: types.ResourceID{
+									ClusterName: "test-cluster",
+									Kind:        types.KindApp,
+									Name:        "awsconsole",
+								},
+								Constraints: &types.ResourceConstraints{
+									Version: types.V1,
+									Details: &types.ResourceConstraints_AwsConsole{
+										AwsConsole: &types.AWSConsoleResourceConstraints{
+											RoleArns: []string{"arn:aws:iam::123456789012:role/Admin"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantPresent: []string{"constrainedRequest", "someUser", "aws-access"},
+		},
+		{
+			name: "Access Requests with namespace resources",
+			reqs: []types.AccessRequest{
+				&types.AccessRequestV3{
+					Metadata: types.Metadata{
+						Name:    "namespaceRequest",
+						Expires: &expiresTime,
+					},
+					Spec: types.AccessRequestSpecV3{
+						User:       "someUser",
+						Roles:      []string{"kube-access"},
+						Expires:    expiresTime,
+						SessionTTL: expiresTime,
+						Created:    createdAtTime,
+						RequestedResourceIDs: []types.ResourceID{
+							{
+								ClusterName:     "test-cluster",
+								Kind:            types.KindKubeNamespace,
+								Name:            "my-kube-cluster",
+								SubResourceName: "production",
+							},
+						},
+					},
+				},
+			},
+			wantPresent: []string{"namespaceRequest", "someUser", "kube-access"},
+		},
 	}
 
 	for _, tc := range tests {
@@ -288,6 +353,196 @@ func TestShowRequestTable(t *testing.T) {
 			require.NoError(t, err)
 			for _, wanted := range tc.wantPresent {
 				require.Contains(t, captureStdout.String(), wanted)
+			}
+		})
+	}
+}
+
+func TestPrintRequest(t *testing.T) {
+	t.Parallel()
+
+	createdAtTime := time.Now()
+	expiresTime := time.Now().Add(time.Hour)
+
+	tests := []struct {
+		name        string
+		req         types.AccessRequest
+		wantPresent []string
+		wantAbsent  []string
+	}{
+		{
+			name: "basic request without resources",
+			req: &types.AccessRequestV3{
+				Metadata: types.Metadata{
+					Name:    "basic-request",
+					Expires: &expiresTime,
+				},
+				Spec: types.AccessRequestSpecV3{
+					User:       "testuser",
+					Roles:      []string{"admin", "developer"},
+					Expires:    expiresTime,
+					SessionTTL: expiresTime,
+					Created:    createdAtTime,
+				},
+			},
+			wantPresent: []string{
+				"Request ID:",
+				"basic-request",
+				"Username:",
+				"testuser",
+				"Roles:",
+				"admin, developer",
+			},
+			wantAbsent: []string{"Resources:"},
+		},
+		{
+			name: "request with constrained AWS console resources",
+			req: &types.AccessRequestV3{
+				Metadata: types.Metadata{
+					Name:    "aws-request",
+					Expires: &expiresTime,
+				},
+				Spec: types.AccessRequestSpecV3{
+					User:       "testuser",
+					Roles:      []string{"aws-access"},
+					Expires:    expiresTime,
+					SessionTTL: expiresTime,
+					Created:    createdAtTime,
+					RequestedResourceAccessIDs: []types.ResourceAccessID{
+						{
+							Id: types.ResourceID{
+								ClusterName: "test-cluster",
+								Kind:        types.KindApp,
+								Name:        "awsconsole",
+							},
+							Constraints: &types.ResourceConstraints{
+								Version: types.V1,
+								Details: &types.ResourceConstraints_AwsConsole{
+									AwsConsole: &types.AWSConsoleResourceConstraints{
+										RoleArns: []string{
+											"arn:aws:iam::123456789012:role/Admin",
+											"arn:aws:iam::123456789012:role/ReadOnly",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantPresent: []string{
+				"Request ID:",
+				"aws-request",
+				"Username:",
+				"testuser",
+				"Roles:",
+				"aws-access",
+				"Resources:",
+				"/test-cluster/app/awsconsole",
+				"role_arns=",
+				"arn:aws:iam::123456789012:role/Admin",
+				"arn:aws:iam::123456789012:role/ReadOnly",
+			},
+		},
+		{
+			name: "request with kubernetes namespace resources",
+			req: &types.AccessRequestV3{
+				Metadata: types.Metadata{
+					Name:    "kube-request",
+					Expires: &expiresTime,
+				},
+				Spec: types.AccessRequestSpecV3{
+					User:       "testuser",
+					Roles:      []string{"kube-access"},
+					Expires:    expiresTime,
+					SessionTTL: expiresTime,
+					Created:    createdAtTime,
+					RequestedResourceIDs: []types.ResourceID{
+						{
+							ClusterName:     "test-cluster",
+							Kind:            types.KindKubeNamespace,
+							Name:            "my-kube-cluster",
+							SubResourceName: "production",
+						},
+					},
+				},
+			},
+			wantPresent: []string{
+				"Request ID:",
+				"kube-request",
+				"Username:",
+				"testuser",
+				"Roles:",
+				"kube-access",
+				"Resources:",
+				"/test-cluster/namespace/my-kube-cluster/production",
+			},
+		},
+		{
+			name: "request with mixed resources and constraints",
+			req: &types.AccessRequestV3{
+				Metadata: types.Metadata{
+					Name:    "mixed-request",
+					Expires: &expiresTime,
+				},
+				Spec: types.AccessRequestSpecV3{
+					User:       "testuser",
+					Roles:      []string{"multi-access"},
+					Expires:    expiresTime,
+					SessionTTL: expiresTime,
+					Created:    createdAtTime,
+					RequestedResourceIDs: []types.ResourceID{
+						{
+							ClusterName: "test-cluster",
+							Kind:        types.KindNode,
+							Name:        "my-server",
+						},
+					},
+					RequestedResourceAccessIDs: []types.ResourceAccessID{
+						{
+							Id: types.ResourceID{
+								ClusterName: "test-cluster",
+								Kind:        types.KindApp,
+								Name:        "awsconsole",
+							},
+							Constraints: &types.ResourceConstraints{
+								Version: types.V1,
+								Details: &types.ResourceConstraints_AwsConsole{
+									AwsConsole: &types.AWSConsoleResourceConstraints{
+										RoleArns: []string{"arn:aws:iam::123456789012:role/Admin"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantPresent: []string{
+				"Request ID:",
+				"mixed-request",
+				"Resources:",
+				"/test-cluster/node/my-server",
+				"/test-cluster/app/awsconsole",
+				"role_arns=",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			captureStdout := new(bytes.Buffer)
+			cf := &CLIConf{
+				OverrideStdout: captureStdout,
+			}
+			err := printRequest(cf, tc.req)
+			require.NoError(t, err)
+			output := captureStdout.String()
+			for _, wanted := range tc.wantPresent {
+				require.Contains(t, output, wanted, "expected output to contain %q", wanted)
+			}
+			for _, unwanted := range tc.wantAbsent {
+				require.NotContains(t, output, unwanted, "expected output to not contain %q", unwanted)
 			}
 		})
 	}
