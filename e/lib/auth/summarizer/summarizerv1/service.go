@@ -120,7 +120,6 @@ func (s *Service) encodeResourcePayload(msg proto.Message) *apievents.Struct {
 	data, err := apievents.Resource153ToStruct(msg)
 	if err != nil {
 		s.logger.WarnContext(context.Background(), "Failed to marshal resource for audit event", "error", err)
-
 	}
 	return data
 }
@@ -910,8 +909,13 @@ func (s *Service) IsEnabled(
 		return nil, trace.Wrap(err)
 	}
 
+	policies, _, err := s.backend.ListInferencePolicies(ctx, 1, "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &pb.IsEnabledResponse{
-		Enabled: len(models) > 0,
+		Enabled: len(models) > 0 && len(policies) > 0,
 	}, nil
 }
 

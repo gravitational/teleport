@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -33,14 +34,29 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/summarizer"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/session"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
+
+func TestMain(m *testing.M) {
+	modules.SetModules(&modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Policy: {Enabled: true},
+			},
+		},
+	})
+	os.Exit(m.Run())
+}
 
 type testPlugin struct{}
 
@@ -1523,6 +1539,132 @@ func TestService_TestInferenceModel(t *testing.T) {
 			if tt.messageContains != "" {
 				assert.Contains(t, resp.Message, tt.messageContains)
 			}
+		})
+	}
+}
+
+func TestService_IsEnabled(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	proxyClientCreator := func(t *testing.T, srv *authtest.TLSServer) summarizerv1pb.SummarizerServiceClient {
+		proxyClt, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
+		require.NoError(t, err)
+		t.Cleanup(func() { proxyClt.Close() })
+		return proxyClt.SummarizerServiceClient()
+	}
+
+	tests := []struct {
+		name             string
+		setup            func(*testing.T, *authtest.TLSServer)
+		createClient     func(*testing.T, *authtest.TLSServer) summarizerv1pb.SummarizerServiceClient
+		errAssertionFunc require.ErrorAssertionFunc
+		expectResult     bool
+	}{
+		{
+			name: "not authorized - non-proxy client",
+			createClient: func(t *testing.T, srv *authtest.TLSServer) summarizerv1pb.SummarizerServiceClient {
+				user := createTestUser(t, srv, "test-user")
+				userClt, err := srv.NewClient(authtest.TestUser(user.GetName()))
+				require.NoError(t, err)
+				t.Cleanup(func() { userClt.Close() })
+				return userClt.SummarizerServiceClient()
+			},
+			setup: func(_ *testing.T, _ *authtest.TLSServer) {},
+			errAssertionFunc: func(t require.TestingT, err error, i ...any) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
+			},
+		},
+		{
+			name:             "disabled when no models or policies exist",
+			setup:            func(_ *testing.T, _ *authtest.TLSServer) {},
+			createClient:     proxyClientCreator,
+			errAssertionFunc: require.NoError,
+			expectResult:     false,
+		},
+		{
+			name: "disabled when only models exist",
+			setup: func(t *testing.T, srv *authtest.TLSServer) {
+				secret, model, _ := newTestResources(t, "isenabled1")
+				_, err := srv.AuthServer.AuthServer.CreateInferenceSecret(ctx, secret)
+				require.NoError(t, err)
+				_, err = srv.AuthServer.AuthServer.CreateInferenceModel(ctx, model)
+				require.NoError(t, err)
+			},
+			createClient:     proxyClientCreator,
+			errAssertionFunc: require.NoError,
+			expectResult:     false,
+		},
+		{
+			name: "disabled when only policies exist",
+			setup: func(t *testing.T, srv *authtest.TLSServer) {
+				secret, model, policy := newTestResources(t, "isenabled2")
+				_, err := srv.AuthServer.AuthServer.CreateInferenceSecret(ctx, secret)
+				require.NoError(t, err)
+				_, err = srv.AuthServer.AuthServer.CreateInferenceModel(ctx, model)
+				require.NoError(t, err)
+				_, err = srv.AuthServer.AuthServer.CreateInferencePolicy(ctx, policy)
+				require.NoError(t, err)
+
+				// delete the model so only the policy remains
+				err = srv.AuthServer.AuthServer.DeleteInferenceModel(ctx, model.GetMetadata().GetName())
+				require.NoError(t, err)
+			},
+			createClient:     proxyClientCreator,
+			errAssertionFunc: require.NoError,
+			expectResult:     false,
+		},
+		{
+			name: "enabled when both models and policies exist",
+			setup: func(t *testing.T, srv *authtest.TLSServer) {
+				secret, model, policy := newTestResources(t, "isenabled3")
+				_, err := srv.AuthServer.AuthServer.CreateInferenceSecret(ctx, secret)
+				require.NoError(t, err)
+				_, err = srv.AuthServer.AuthServer.CreateInferenceModel(ctx, model)
+				require.NoError(t, err)
+				_, err = srv.AuthServer.AuthServer.CreateInferencePolicy(ctx, policy)
+				require.NoError(t, err)
+			},
+			createClient:     proxyClientCreator,
+			errAssertionFunc: require.NoError,
+			expectResult:     true,
+		},
+		{
+			name: "enabled with multiple models and policies",
+			setup: func(t *testing.T, srv *authtest.TLSServer) {
+				secret1, model1, policy1 := newTestResources(t, "isenabled4")
+				secret2, model2, policy2 := newTestResources(t, "isenabled5")
+
+				_, err := srv.AuthServer.AuthServer.CreateInferenceSecret(ctx, secret1)
+				require.NoError(t, err)
+				_, err = srv.AuthServer.AuthServer.CreateInferenceModel(ctx, model1)
+				require.NoError(t, err)
+				_, err = srv.AuthServer.AuthServer.CreateInferencePolicy(ctx, policy1)
+				require.NoError(t, err)
+
+				_, err = srv.AuthServer.AuthServer.CreateInferenceSecret(ctx, secret2)
+				require.NoError(t, err)
+				_, err = srv.AuthServer.AuthServer.CreateInferenceModel(ctx, model2)
+				require.NoError(t, err)
+				_, err = srv.AuthServer.AuthServer.CreateInferencePolicy(ctx, policy2)
+				require.NoError(t, err)
+			},
+			createClient:     proxyClientCreator,
+			errAssertionFunc: require.NoError,
+			expectResult:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := newTestTLSServer(t)
+			tt.setup(t, srv)
+			resp, err := tt.createClient(t, srv).IsEnabled(ctx, &summarizerv1pb.IsEnabledRequest{})
+			tt.errAssertionFunc(t, err)
+			assert.Equal(t, tt.expectResult, resp.GetEnabled())
 		})
 	}
 }
