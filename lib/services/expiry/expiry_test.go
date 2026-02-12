@@ -236,9 +236,7 @@ func mustListAccessRequests(t *testing.T, auth *auth.Server) []*types.AccessRequ
 	t.Helper()
 	ctx := t.Context()
 
-	resp, err := auth.Services.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{
-		IncludeExpired: true,
-	})
+	resp, err := auth.Services.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{})
 	require.NoError(t, err)
 	require.Empty(t, resp.NextKey)
 
