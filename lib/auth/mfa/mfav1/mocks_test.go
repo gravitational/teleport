@@ -178,3 +178,11 @@ func (m *mockMFAService) GetValidatedMFAChallenge(
 
 	return m.chal, nil
 }
+
+func (m *mockMFAService) ListValidatedMFAChallenges(
+	_ context.Context,
+	_ int32,
+	_ string,
+) ([]*mfav1.ValidatedMFAChallenge, string, error) {
+	return nil, "", trace.NotImplemented("ListValidatedMFAChallenges")
+}

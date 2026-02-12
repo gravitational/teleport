@@ -37,6 +37,7 @@ import (
 // MFAService implements the storage layer for MFA resources.
 type MFAService struct {
 	logger  *slog.Logger
+	backend backend.Backend
 	service *generic.ServiceWrapper[*validatedMFAChallenge]
 }
 
@@ -57,6 +58,7 @@ func NewMFAService(b backend.Backend) (*MFAService, error) {
 
 	return &MFAService{
 		logger:  slog.With(teleport.ComponentKey, "mfa.backend"),
+		backend: b,
 		service: svc,
 	}, nil
 }
@@ -116,6 +118,26 @@ func (s *MFAService) GetValidatedMFAChallenge(
 	}
 
 	return (*mfav1.ValidatedMFAChallenge)(res), nil
+}
+
+// ListValidatedMFAChallenges lists all ValidatedMFAChallenge resources across all users sessions.
+func (s *MFAService) ListValidatedMFAChallenges(
+	ctx context.Context,
+	pageSize int32,
+	pageToken string,
+) ([]*mfav1.ValidatedMFAChallenge, string, error) {
+	internalChallenges, nextPageToken, err := s.service.ListResources(ctx, int(pageSize), pageToken)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	challenges := make([]*mfav1.ValidatedMFAChallenge, 0, len(internalChallenges))
+
+	for _, chal := range internalChallenges {
+		challenges = append(challenges, (*mfav1.ValidatedMFAChallenge)(chal))
+	}
+
+	return challenges, nextPageToken, nil
 }
 
 // validatedMFAChallenge wraps mfav1.ValidatedMFAChallenge in order to implement the generic.ResourceMetadata interface.

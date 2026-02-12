@@ -75,6 +75,12 @@ func TestMFAService_CRUD(t *testing.T) {
 		cmp.Diff(created, got),
 		"GetValidatedMFAChallenge mismatch (-want +got)",
 	)
+
+	challenges, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 10, "")
+	require.NoError(t, err)
+	require.Empty(t, nextPageToken)
+	require.Len(t, challenges, 1)
+	require.Empty(t, cmp.Diff(created, challenges[0]))
 }
 
 func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
@@ -231,6 +237,7 @@ func newValidatedMFAChallenge() *mfav1.ValidatedMFAChallenge {
 			},
 			SourceCluster: "src",
 			TargetCluster: "tgt",
+			Username:      "alice",
 		},
 	}
 }

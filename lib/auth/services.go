@@ -114,4 +114,11 @@ type MFAService interface {
 		username string,
 		challengeName string,
 	) (*mfav1.ValidatedMFAChallenge, error)
+
+	// ListValidatedMFAChallenges lists ValidatedMFAChallenge resources for all users.
+	ListValidatedMFAChallenges(
+		ctx context.Context,
+		pageSize int32,
+		pageToken string,
+	) ([]*mfav1.ValidatedMFAChallenge, string, error)
 }

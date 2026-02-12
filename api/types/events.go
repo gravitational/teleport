@@ -21,8 +21,6 @@ import (
 	"fmt"
 
 	"github.com/gravitational/trace"
-
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 )
 
 // String returns text description of this event
@@ -147,10 +145,6 @@ func (kind WatchKind) Matches(e Event) (bool, error) {
 			return filter.Match(res), nil
 		case *HeadlessAuthentication:
 			var filter HeadlessAuthenticationFilter
-			filter.FromMap(kind.Filter)
-			return filter.Match(res), nil
-		case *mfav1.ValidatedMFAChallenge:
-			var filter ValidatedMFAChallengeFilter
 			filter.FromMap(kind.Filter)
 			return filter.Match(res), nil
 		default:
