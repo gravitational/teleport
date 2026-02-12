@@ -150,7 +150,7 @@ func RunCommand() (code int, err error) {
 		shellStdio.in = tty
 		shellStdio.out = tty
 		shellStdio.err = tty
-	} else if c.Command == teleport.SFTPSubCommand {
+	} else if c.IsSFTPRequest {
 		// std{in/out} is not used by the SFTP sub process, just collect stderr.
 		shellStdio = stdio{
 			in:  bytes.NewReader([]byte{}),
