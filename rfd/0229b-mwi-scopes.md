@@ -399,9 +399,9 @@ wip: Bots. "single_use" clashes with bot renewal mechanisms. "unlimited" implies
 wip: weird behaviour for bots using the `bound_keypair` join method. Perhaps
 wip: we just require this field is empty for bot scoped join tokens.
 
-In the certificate generation process that occurs upon successful joining,
-there is one key difference: the resulting certificate must be pinned to the
-scope that the scoped Bot exists within.
+Upon successfully joining, the generation of certificates for the scoped Bot 
+should follow the process outlined under
+[Calculating and encoding of authorization for scoped Bots.](#calculating-and-encoding-of-authorization-for-scoped-bots).
 
 #### Auditing
 
@@ -453,7 +453,12 @@ the scoping of bots.
 wip: Lightly remark on how scoped roles are encoded, and the meaning of this,
 wip: and how this clashes with the way role assumption works today.
 
-#### Calculating Scoped Role Assignments
+#### Calculating and encoding of authorization for scoped Bots
+
+This section sets out the process for calculating and encoding the authorization
+for scoped Bots into certificates. This should be followed when a scoped Bot
+joins, renews or requests certificates be issued for use in an output or
+service.
 
 wip: Re-iterate rules that must be followed when calculating the roles that
 wip: should be encoded for a bot.
