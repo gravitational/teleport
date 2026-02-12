@@ -262,7 +262,7 @@ func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBacke
 	}
 
 	eventFanout := backend.NewEventFanout(
-		backend.BufferCapacity(cfg.BufferSize),
+		backend.WithCapacity(cfg.BufferSize),
 	)
 	closeCtx, cancel := context.WithCancel(ctx)
 

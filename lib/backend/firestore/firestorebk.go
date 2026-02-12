@@ -409,7 +409,7 @@ func New(ctx context.Context, params backend.Params, options Options) (*Backend,
 	defer firestoreAdminClient.Close()
 
 	eventFanout := backend.NewEventFanout(
-		backend.BufferCapacity(cfg.BufferSize),
+		backend.WithCapacity(cfg.BufferSize),
 	)
 
 	b := &Backend{

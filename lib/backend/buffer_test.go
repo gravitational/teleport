@@ -35,7 +35,7 @@ import (
 func TestWatcherSimple(t *testing.T) {
 	ctx := context.Background()
 	b := NewEventFanout(
-		BufferCapacity(3),
+		WithCapacity(3),
 	)
 	defer b.Close()
 	b.SetInit()
@@ -80,10 +80,10 @@ func TestWatcherCapacity(t *testing.T) {
 
 	ctx := context.Background()
 	b := NewEventFanout(
-		BufferCapacity(1),
-		BufferClock(clock),
-		BacklogGracePeriod(gracePeriod),
-		CreationGracePeriod(time.Nanosecond),
+		WithCapacity(1),
+		WithClock(clock),
+		WithBacklogGracePeriod(gracePeriod),
+		WithCreationGracePeriod(time.Nanosecond),
 	)
 	defer b.Close()
 	b.SetInit()
@@ -154,10 +154,10 @@ func TestWatcherCreationGracePeriod(t *testing.T) {
 
 	ctx := context.Background()
 	b := NewEventFanout(
-		BufferCapacity(1),
-		BufferClock(clock),
-		BacklogGracePeriod(backlogGracePeriod),
-		CreationGracePeriod(creationGracePeriod),
+		WithCapacity(1),
+		WithClock(clock),
+		WithBacklogGracePeriod(backlogGracePeriod),
+		WithCreationGracePeriod(creationGracePeriod),
 	)
 	defer b.Close()
 	b.SetInit()
@@ -216,7 +216,7 @@ func TestWatcherCreationGracePeriod(t *testing.T) {
 func TestWatcherClose(t *testing.T) {
 	ctx := context.Background()
 	b := NewEventFanout(
-		BufferCapacity(3),
+		WithCapacity(3),
 	)
 	defer b.Close()
 	b.SetInit()
@@ -274,7 +274,7 @@ func TestRemoveRedundantPrefixes(t *testing.T) {
 func TestWatcherMulti(t *testing.T) {
 	ctx := context.Background()
 	b := NewEventFanout(
-		BufferCapacity(3),
+		WithCapacity(3),
 	)
 	defer b.Close()
 	b.SetInit()
@@ -306,7 +306,7 @@ func TestWatcherMulti(t *testing.T) {
 func TestWatcherReset(t *testing.T) {
 	ctx := context.Background()
 	b := NewEventFanout(
-		BufferCapacity(3),
+		WithCapacity(3),
 	)
 	defer b.Close()
 	b.SetInit()

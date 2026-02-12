@@ -54,8 +54,8 @@ type BufferOption = EventFanoutOption
 // Deprecated: Use EventFanout instead.
 type CircularBuffer = EventFanout
 
-// BufferCapacity sets the event capacity of the event fanout.
-func BufferCapacity(c int) EventFanoutOption {
+// WithCapacity sets the event capacity of the event fanout.
+func WithCapacity(c int) EventFanoutOption {
 	return func(cfg *eventFanoutConfig) {
 		if c > 0 {
 			cfg.capacity = c
@@ -63,8 +63,8 @@ func BufferCapacity(c int) EventFanoutOption {
 	}
 }
 
-// BacklogGracePeriod sets the amount of time a watcher with a backlog will be tolerated.
-func BacklogGracePeriod(d time.Duration) EventFanoutOption {
+// WithBacklogGracePeriod sets the amount of time a watcher with a backlog will be tolerated.
+func WithBacklogGracePeriod(d time.Duration) EventFanoutOption {
 	return func(cfg *eventFanoutConfig) {
 		if d > 0 {
 			cfg.gracePeriod = d
@@ -72,9 +72,9 @@ func BacklogGracePeriod(d time.Duration) EventFanoutOption {
 	}
 }
 
-// CreationGracePeriod sets the amount of time delay after watcher creation before
+// WithCreationGracePeriod sets the amount of time delay after watcher creation before
 // it will be considered for removal due to backlog.
-func CreationGracePeriod(d time.Duration) EventFanoutOption {
+func WithCreationGracePeriod(d time.Duration) EventFanoutOption {
 	return func(cfg *eventFanoutConfig) {
 		if d > 0 {
 			cfg.creationGracePeriod = d
@@ -82,8 +82,8 @@ func CreationGracePeriod(d time.Duration) EventFanoutOption {
 	}
 }
 
-// BufferClock sets a custom clock for the event fanout (used in tests).
-func BufferClock(c clockwork.Clock) EventFanoutOption {
+// WithClock sets a custom clock for the event fanout (used in tests).
+func WithClock(c clockwork.Clock) EventFanoutOption {
 	return func(cfg *eventFanoutConfig) {
 		if c != nil {
 			cfg.clock = c

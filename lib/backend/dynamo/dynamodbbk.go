@@ -334,7 +334,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		logger:      l,
 		Config:      *cfg,
 		clock:       clockwork.NewRealClock(),
-		eventFanout: backend.NewEventFanout(backend.BufferCapacity(cfg.BufferSize)),
+		eventFanout: backend.NewEventFanout(backend.WithCapacity(cfg.BufferSize)),
 		svc:         dynamoClient,
 		streams:     streamsClient,
 	}

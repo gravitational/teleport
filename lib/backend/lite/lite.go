@@ -245,7 +245,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	// and in-memory go locks are faster than sqlite locks
 	db.SetMaxOpenConns(1)
 	eventFanout := backend.NewEventFanout(
-		backend.BufferCapacity(cfg.BufferSize),
+		backend.WithCapacity(cfg.BufferSize),
 	)
 	closeCtx, cancel := context.WithCancel(ctx)
 	l := &Backend{
