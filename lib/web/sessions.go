@@ -639,6 +639,7 @@ type sessionCacheOptions struct {
 	// See [sessionCache.sessionWatcherEventProcessedChannel]. Used for testing.
 	sessionWatcherEventProcessedChannel chan struct{}
 	logger                              *slog.Logger
+	buildType                           string
 }
 
 // newSessionCache creates a [sessionCache] from the provided [config] and
@@ -673,6 +674,7 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 		proxySigner:                         config.proxySigner,
 		sessionWatcherStartImmediately:      config.sessionWatcherStartImmediately,
 		sessionWatcherEventProcessedChannel: config.sessionWatcherEventProcessedChannel,
+		buildType:                           config.buildType,
 	}
 
 	// periodically close expired and unused sessions
@@ -699,6 +701,7 @@ type sessionCache struct {
 	sessionLingeringThreshold time.Duration
 	// cipherSuites is the list of supported TLS cipher suites.
 	cipherSuites []uint16
+	buildType    string
 
 	mu sync.RWMutex
 	// sessions maps user/sessionID to an active web session value between renewals.
@@ -775,7 +778,7 @@ func (s *sessionCache) clearExpiredSessions(ctx context.Context) {
 // It only stops when ctx is done.
 func (s *sessionCache) watchWebSessions(ctx context.Context) {
 	// Watcher not necessary for OSS.
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+	if s.buildType != modules.BuildEnterprise {
 		return
 	}
 

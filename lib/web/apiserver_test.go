@@ -234,6 +234,9 @@ type webSuiteConfig struct {
 
 	// trustXForwardedFor enables NewXForwardedForMiddleware.
 	trustXForwardedFor bool
+
+	// modules to inject into components.
+	modules *modulestest.Modules
 }
 
 func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
@@ -246,6 +249,13 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	if cfg.clock == nil {
 		cfg.clock = clockwork.NewFakeClock()
+	}
+
+	if cfg.modules == nil {
+		cfg.modules = modulestest.OSSModules()
+	} else {
+		// TODO(tross) remove this when modules are injected into the auth server
+		modulestest.SetTestModules(t, *cfg.modules)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -511,7 +521,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	// Expired sessions are purged immediately
 	var sessionLingeringThreshold time.Duration
 
-	features := *modules.GetModules().Features().ToProto() // safe to dereference because ToProto creates a struct and return a pointer to it
+	features := *cfg.modules.Features().ToProto() // safe to dereference because ToProto creates a struct and return a pointer to it
 	if cfg.ClusterFeatures != nil {
 		features = *cfg.ClusterFeatures
 	}
@@ -527,6 +537,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	handlerConfig := Config{
 		ClusterFeatures:                 features,
+		Modules:                         cfg.modules,
 		Proxy:                           revTunServer,
 		AuthServers:                     utils.FromAddr(s.server.TLS.Addr()),
 		ProxyClient:                     s.proxyClient,
@@ -2754,10 +2765,7 @@ func TestWebAgentForward(t *testing.T) {
 }
 
 func TestActiveSessions(t *testing.T) {
-	// Use enterprise license (required for moderated sessions).
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-
-	s := newWebSuite(t)
+	s := newWebSuiteWithConfig(t, webSuiteConfig{modules: modulestest.EnterpriseModules()})
 	pack := s.authPack(t, "foo")
 
 	start := time.Now()
@@ -2905,13 +2913,14 @@ type httpErrorResponse struct {
 }
 
 func TestLogin_PrivateKeyEnabledError(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		MockAttestationData: &keys.AttestationData{
-			PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+	s := newWebSuiteWithConfig(t, webSuiteConfig{
+		modules: &modulestest.Modules{
+			TestBuildType: modules.BuildOSS,
+			MockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+			},
 		},
 	})
-
-	s := newWebSuite(t)
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:           constants.Local,
 		SecondFactor:   constants.SecondFactorOff,
@@ -3084,13 +3093,15 @@ func TestMotD(t *testing.T) {
 // TestPingAutomaticUpgrades ensures /webapi/ping returns whether AutomaticUpgrades are enabled.
 func TestPingAutomaticUpgrades(t *testing.T) {
 	t.Run("Automatic Upgrades are enabled", func(t *testing.T) {
-		// Enable Automatic Upgrades
-		modulestest.SetTestModules(t, modulestest.Modules{TestFeatures: modules.Features{
-			AutomaticUpgrades: true,
-		}})
-
 		// Set up
-		s := newWebSuite(t)
+		m := modulestest.Modules{
+			TestBuildType: modules.BuildOSS,
+			TestFeatures: modules.Features{
+				AutomaticUpgrades: true,
+			},
+		}
+
+		s := newWebSuiteWithConfig(t, webSuiteConfig{modules: &m})
 		wc := s.client(t)
 		var pingResponse *webclient.PingResponse
 
@@ -3102,13 +3113,15 @@ func TestPingAutomaticUpgrades(t *testing.T) {
 		require.True(t, pingResponse.AutomaticUpgrades, "expected automatic upgrades to be enabled")
 	})
 	t.Run("Automatic Upgrades are disabled", func(t *testing.T) {
-		// Disable Automatic Upgrades
-		modulestest.SetTestModules(t, modulestest.Modules{TestFeatures: modules.Features{
-			AutomaticUpgrades: false,
-		}})
-
 		// Set up
-		s := newWebSuite(t)
+		m := modulestest.Modules{
+			TestBuildType: modules.BuildOSS,
+			TestFeatures: modules.Features{
+				AutomaticUpgrades: false,
+			},
+		}
+
+		s := newWebSuiteWithConfig(t, webSuiteConfig{modules: &m})
 		wc := s.client(t)
 		var pingResponse *webclient.PingResponse
 
@@ -3124,18 +3137,18 @@ func TestPingAutomaticUpgrades(t *testing.T) {
 // TestInstallerRepoChannel ensures the returned installer script has the proper repo channel
 func TestInstallerRepoChannel(t *testing.T) {
 	t.Run("cloud with automatic upgrades", func(t *testing.T) {
-		modulestest.SetTestModules(t, modulestest.Modules{
-			TestFeatures: modules.Features{
-				Cloud:             true,
-				AutomaticUpgrades: true,
-			},
-		})
-
 		s := newWebSuiteWithConfig(t, webSuiteConfig{
 			authPreferenceSpec: &types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
 				SecondFactor: constants.SecondFactorOn,
 				Webauthn:     &types.Webauthn{RPID: "localhost"},
+			},
+			modules: &modulestest.Modules{
+				TestBuildType: modules.BuildEnterprise,
+				TestFeatures: modules.Features{
+					Cloud:             true,
+					AutomaticUpgrades: true,
+				},
 			},
 		})
 
@@ -3198,18 +3211,18 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 	})
 
 	t.Run("cloud without automatic upgrades", func(t *testing.T) {
-		modulestest.SetTestModules(t, modulestest.Modules{
-			TestFeatures: modules.Features{
-				Cloud:             true,
-				AutomaticUpgrades: false,
-			},
-		})
-
 		s := newWebSuiteWithConfig(t, webSuiteConfig{
 			authPreferenceSpec: &types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
 				SecondFactor: constants.SecondFactorOn,
 				Webauthn:     &types.Webauthn{RPID: "localhost"},
+			},
+			modules: &modulestest.Modules{
+				TestBuildType: modules.BuildOSS,
+				TestFeatures: modules.Features{
+					Cloud:             true,
+					AutomaticUpgrades: false,
+				},
 			},
 		})
 
@@ -3255,19 +3268,18 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 	})
 
 	t.Run("oss or enterprise with automatic upgrades", func(t *testing.T) {
-		modulestest.SetTestModules(t, modulestest.Modules{
-			TestBuildType: modules.BuildOSS,
-			TestFeatures: modules.Features{
-				Cloud:             false,
-				AutomaticUpgrades: true,
-			},
-		})
-
 		s := newWebSuiteWithConfig(t, webSuiteConfig{
 			authPreferenceSpec: &types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
 				SecondFactor: constants.SecondFactorOn,
 				Webauthn:     &types.Webauthn{RPID: "localhost"},
+			},
+			modules: &modulestest.Modules{
+				TestBuildType: modules.BuildOSS,
+				TestFeatures: modules.Features{
+					Cloud:             false,
+					AutomaticUpgrades: true,
+				},
 			},
 		})
 
@@ -4003,7 +4015,6 @@ func TestKnownWebPathsWithAndWithoutV1Prefix(t *testing.T) {
 
 func TestInstallDatabaseScriptGeneration(t *testing.T) {
 	const username = "test-user@example.com"
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildCommunity})
 
 	// Users should be able to create Tokens even if they can't update them
 	roleTokenCRD, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
@@ -4016,7 +4027,7 @@ func TestInstallDatabaseScriptGeneration(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	env := newWebPack(t, 1)
+	env := newWebPack(t, 1, withModules(&modulestest.Modules{TestBuildType: modules.BuildCommunity}))
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, username, []types.Role{roleTokenCRD})
 
@@ -4600,15 +4611,16 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 // TestApplicationAccessDisabled makes sure application access can be disabled
 // via modules.
 func TestApplicationAccessDisabled(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.App: {Enabled: false},
+	env := newWebPack(t, 1,
+		withModules(&modulestest.Modules{
+			TestBuildType: modules.BuildOSS,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.App: {Enabled: false},
+				},
 			},
-		},
-	})
-
-	env := newWebPack(t, 1)
+		}),
+	)
 
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "foo@example.com", nil /* roles */)
@@ -4816,7 +4828,8 @@ func TestGetAppDetails(t *testing.T) {
 
 func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	ctx := context.Background()
-	env := newWebPack(t, 1)
+	testModules := modulestest.OSSModules()
+	env := newWebPack(t, 1, withModules(testModules))
 	handler := env.proxies[0].handler.handler
 
 	// Set auth preference with passwordless.
@@ -4872,7 +4885,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 		IsCloud:            false,
 		AutomaticUpgrades:  false,
 		JoinActiveSessions: true,
-		Edition:            modules.BuildOSS, // testBuildType is empty
+		Edition:            testModules.BuildType(),
 		Entitlements: map[string]webclient.EntitlementInfo{
 			string(entitlements.AccessLists):                {Enabled: false},
 			string(entitlements.AccessMonitoring):           {Enabled: false},
@@ -4933,6 +4946,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	require.Equal(t, expectedCfg, cfg)
 
 	// update features and assert that it is properly updated on the config object
+	// TODO(tross): remove when auth modules can be injected
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud:               true,
@@ -4963,7 +4977,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	expectedCfg.AutomaticUpgrades = true
 	expectedCfg.AutomaticUpgradesTargetVersion = "v" + teleport.Version
 	expectedCfg.JoinActiveSessions = false
-	expectedCfg.Edition = "" // testBuildType is empty
+	expectedCfg.Edition = testModules.BuildType()
 	expectedCfg.TrustedDevices = true
 	expectedCfg.Entitlements[string(entitlements.App)] = webclient.EntitlementInfo{Enabled: false}
 	expectedCfg.Entitlements[string(entitlements.DB)] = webclient.EntitlementInfo{Enabled: true, Limit: 22}
@@ -5001,6 +5015,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	expectedCfg.Entitlements[string(entitlements.DeviceTrust)] = webclient.EntitlementInfo{Enabled: false}
 
 	// update modules but NOT the expected config
+	// TODO(tross): remove when auth modules can be injected
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud:               false,
@@ -5026,9 +5041,8 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 
 func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 	ctx := context.Background()
-	env := newWebPack(t, 1)
-
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
+		TestBuildType: modules.BuildOSS,
 		TestFeatures: modules.Features{
 			ProductType:         modules.ProductTypeTeam,
 			IsUsageBasedBilling: true,
@@ -5040,9 +5054,8 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 				entitlements.AccessMonitoring: {Enabled: true, Limit: 10},
 			},
 		},
-	})
-	// start the feature watcher so the web config gets new features
-	env.clock.Advance(DefaultFeatureWatchInterval * 2)
+	}
+	env := newWebPack(t, 1, withModules(testModules))
 
 	expectedCfg := webclient.WebConfig{
 		Auth: webclient.WebConfigAuthSettings{
@@ -5052,6 +5065,7 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 			PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
 		},
 		CanJoinSessions:  true,
+		Edition:          testModules.TestBuildType,
 		ProxyClusterName: env.server.ClusterName(),
 		FeatureLimits: webclient.FeatureLimits{
 			AccessListCreateLimit:               5,
@@ -5097,24 +5111,20 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 	}
 
 	clt := env.proxies[0].newClient(t)
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		// Make a request.
-		endpoint := clt.Endpoint("web", "config.js")
-		re, err := clt.Get(ctx, endpoint, nil)
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
+	// Make a request.
+	endpoint := clt.Endpoint("web", "config.js")
+	re, err := clt.Get(ctx, endpoint, nil)
+	require.NoError(t, err)
+	require.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
 
-		// Response is type application/javascript, we need to strip off the variable name
-		// and the semicolon at the end, then we are left with json like object.
-		var cfg webclient.WebConfig
-		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
-		err = json.Unmarshal(res[:len(res)-1], &cfg)
-		assert.NoError(t, err)
-		diff := cmp.Diff(expectedCfg, cfg)
-		assert.Empty(t, diff)
-	}, time.Second*5, time.Millisecond*50)
+	// Response is type application/javascript, we need to strip off the variable name
+	// and the semicolon at the end, then we are left with json like object.
+	var cfg webclient.WebConfig
+	res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
+	err = json.Unmarshal(res[:len(res)-1], &cfg)
+	require.NoError(t, err)
+	diff := cmp.Diff(expectedCfg, cfg)
+	require.Empty(t, diff)
 }
 
 func TestCreatePrivilegeToken(t *testing.T) {
@@ -6034,7 +6044,12 @@ func TestWebSessionsRenewAllowsOldBearerTokenToLinger(t *testing.T) {
 // - Recovery codes are not returned for usernames that are not emails
 // - Recovery codes are returned for usernames that are valid emails
 func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
-	env := newWebPack(t, 1)
+	env := newWebPack(t, 1, withModules(&modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			RecoveryCodes: true,
+		},
+	}))
 	ctx := context.Background()
 
 	// Enable second factor.
@@ -6045,13 +6060,6 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertAuthPreference(ctx, ap)
 	require.NoError(t, err)
-
-	// Enable cloud feature.
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: modules.Features{
-			RecoveryCodes: true,
-		},
-	})
 
 	// Creaet a username that is not a valid email format for recovery.
 	teleUser, err := types.NewUser("invalid-name-for-recovery")
@@ -6123,7 +6131,15 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 // a non error response with recovery codes and a privacy policy
 // flag set to true.
 func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
-	env := newWebPack(t, 1)
+	env := newWebPack(t, 1, withModules(&modulestest.Modules{
+		TestFeatures: modules.Features{
+			RecoveryCodes: true,
+		},
+		MockAttestationData: &keys.AttestationData{
+			PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+		},
+	}),
+	)
 	ctx := context.Background()
 
 	// Enable second factor required by cloud and a privacy policy.
@@ -6137,14 +6153,6 @@ func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
 	require.NoError(t, err)
 
 	// Enable cloud feature.
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: modules.Features{
-			RecoveryCodes: true,
-		},
-		MockAttestationData: &keys.AttestationData{
-			PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
-		},
-	})
 
 	// Create a user that is valid for recovery.
 	teleUser, err := types.NewUser("valid-username@example.com")
@@ -6239,12 +6247,6 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			modulestest.SetTestModules(t, modulestest.Modules{
-				TestFeatures: modules.Features{
-					Cloud: tc.cloud,
-				},
-			})
-
 			const RPID = "localhost"
 
 			s := newWebSuiteWithConfig(t, webSuiteConfig{
@@ -6254,6 +6256,12 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 					SecondFactor:  constants.SecondFactorOn,
 					Webauthn: &types.Webauthn{
 						RPID: RPID,
+					},
+				},
+				modules: &modulestest.Modules{
+					TestBuildType: modules.BuildEnterprise,
+					TestFeatures: modules.Features{
+						Cloud: tc.cloud,
 					},
 				},
 			})
@@ -8381,6 +8389,7 @@ func decodeSessionCookie(t *testing.T, value string) (sessionID string) {
 type WebPackOptions struct {
 	proxyOptions    []proxyOption
 	enableAuthCache bool
+	modules         *modulestest.Modules
 }
 
 type webPackOptions func(*WebPackOptions)
@@ -8397,11 +8406,24 @@ func withWebPackAuthCacheEnabled(enable bool) webPackOptions {
 	}
 }
 
+func withModules(m *modulestest.Modules) webPackOptions {
+	return func(cfg *WebPackOptions) {
+		cfg.modules = m
+	}
+}
+
 func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 	options := &WebPackOptions{}
 
 	for _, opt := range opts {
 		opt(options)
+	}
+
+	if options.modules == nil {
+		options.modules = modulestest.OSSModules()
+	} else {
+		// TODO(tross) remove this when modules are injected into the auth server
+		modulestest.SetTestModules(t, *options.modules)
 	}
 
 	ctx := context.Background()
@@ -8423,7 +8445,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 	// that runs in the background introduces races with test cleanup
 	recConfig := types.DefaultSessionRecordingConfig()
 	recConfig.SetMode(types.RecordAtNodeSync)
-	_, err = server.AuthServer.AuthServer.UpsertSessionRecordingConfig(context.Background(), recConfig)
+	_, err = server.AuthServer.AuthServer.UpsertSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	// Register the auth server, since test auth server doesn't start its own
@@ -8527,7 +8549,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 	var proxies []*testProxy
 	for p := 0; p < numProxies; p++ {
 		proxyID := fmt.Sprintf("proxy%v", p)
-		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, options.proxyOptions...))
+		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, options.modules, options.proxyOptions...))
 	}
 
 	// Wait for proxies to fully register before starting the test.
@@ -8583,7 +8605,7 @@ func withKubeProxy() proxyOption {
 }
 
 func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regular.Server, authServer *authtest.TLSServer,
-	hostSigners []ssh.Signer, clock *clockwork.FakeClock, opts ...proxyOption,
+	hostSigners []ssh.Signer, clock *clockwork.FakeClock, m *modulestest.Modules, opts ...proxyOption,
 ) *testProxy {
 	cfg := proxyConfig{}
 	for _, opt := range opts {
@@ -8866,6 +8888,8 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		},
 		IntegrationAppHandler: &mockIntegrationAppHandler{},
 		DatabaseREPLRegistry:  &mockDatabaseREPLRegistry{repl: map[string]dbrepl.REPLNewFunc{}},
+		Modules:               m,
+		ClusterFeatures:       *m.TestFeatures.ToProto(),
 	}, SetClock(clock))
 	require.NoError(t, err)
 
@@ -10488,9 +10512,10 @@ func (m mockedPingTestProxy) Ping(ctx context.Context) (authproto.PingResponse, 
 // is allowed to access the host and start entering input and receiving
 // output until the moderator terminates the session.
 func TestModeratedSession(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-
-	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
+	s := newWebSuiteWithConfig(t, webSuiteConfig{
+		disableDiskBasedRecording: true,
+		modules:                   modulestest.EnterpriseModules(),
+	})
 
 	peerRole, err := types.NewRole("moderated", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -10570,8 +10595,6 @@ func TestModeratedSession(t *testing.T) {
 // presence checks are performed by the moderator. When presence checks are not performed
 // the session is aborted.
 func TestModeratedSessionWithMFA(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-
 	const RPID = "localhost"
 
 	presenceClock := clockwork.NewFakeClock()
@@ -10590,6 +10613,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 		presenceChecker: func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaCeremony *mfa.Ceremony, opts ...client.PresenceOption) error {
 			return trace.Wrap(client.RunPresenceTask(ctx, term, maintainer, sessionID, mfaCeremony, client.WithPresenceClock(presenceClock)))
 		},
+		modules: modulestest.EnterpriseModules(),
 	})
 
 	peerRole, err := types.NewRole("moderated", types.RoleSpecV6{
@@ -11031,11 +11055,8 @@ func sshLoginResponseFromCallbackResponse(t *testing.T, responseBody io.Reader, 
 func TestGithubConnector(t *testing.T) {
 	// We run this test as a Teleport Enterprise server to bypass the check for whether
 	// the GitHub org uses SSO.
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-
 	ctx := t.Context()
-	env := newWebPack(t, 1)
-
+	env := newWebPack(t, 1, withModules(modulestest.EnterpriseModules()))
 	proxy := env.proxies[0]
 
 	// Authenticate to get a session token and cookies.

@@ -5398,6 +5398,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			HostUUID:                  conn.HostUUID(),
 			Context:                   process.GracefulExitContext(),
 			StaticFS:                  fs,
+			Modules:                   modules.GetModules(), // TODO(tross) replace modules.GetModules with cfg.Modules
 			ClusterFeatures:           process.GetClusterFeatures(),
 			GetProxyClientCertificate: conn.ClientGetCertificate,
 			UI:                        cfg.Proxy.UI,
