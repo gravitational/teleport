@@ -73,10 +73,7 @@ const history = {
     }
 
     if (rememberLocation) {
-      const { search, pathname } = _nav?.getLocation() || {
-        search: '',
-        pathname: '',
-      };
+      const { search, pathname } = this.getLocation();
       const knownRoute = this.ensureKnownRoute(pathname);
       const knownRedirect = this.ensureBaseUrl(knownRoute);
       const query = search ? encodeURIComponent(search) : '';
@@ -124,7 +121,19 @@ const history = {
   },
 
   getLocation() {
-    return _nav?.getLocation() || { pathname: '', search: '', hash: '' };
+    if (_nav) {
+      return _nav.getLocation();
+    }
+
+    if (typeof window !== 'undefined' && window.location) {
+      return {
+        pathname: window.location.pathname,
+        search: window.location.search,
+        hash: window.location.hash,
+      };
+    }
+
+    return { pathname: '', search: '', hash: '' };
   },
 
   _canPush(route: string) {

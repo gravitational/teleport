@@ -16,7 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { createContext, ReactNode, useContext, useEffect } from 'react';
+import React, {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+} from 'react';
 import {
   createBrowserRouter,
   matchPath,
@@ -410,7 +416,7 @@ function NavigationInitializer({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     // Initialize history service with navigation functions
     history.init({
       navigate,

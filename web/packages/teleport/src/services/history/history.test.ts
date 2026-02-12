@@ -179,5 +179,25 @@ describe('services/history', () => {
         '/web/login?access_changed&redirect_uri=http://localhost/current-location%3Ftest%3Dvalue';
       expect(history._pageRefresh).toHaveBeenCalledWith(expected);
     });
+
+    it('should preserve query params when router navigation is not initialized yet', () => {
+      jest
+        .spyOn(history, 'getRoutes')
+        .mockReturnValue(['/web/login', '/current-location']);
+
+      history.init(null as unknown as Parameters<typeof history.init>[0]);
+      window.history.replaceState({}, '', '/current-location?test=value');
+
+      history.goToLogin({
+        rememberLocation: true,
+        withAccessChangedMessage: true,
+      });
+
+      const expected =
+        '/web/login?access_changed&redirect_uri=http://localhost/current-location%3Ftest%3Dvalue';
+      expect(history._pageRefresh).toHaveBeenCalledWith(expected);
+
+      window.history.replaceState({}, '', '/');
+    });
   });
 });
