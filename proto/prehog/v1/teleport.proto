@@ -146,6 +146,8 @@ message UserActivityRecord {
   uint64 saml_idp_sessions = 24;
   // counter of session summaries accessed by this user per session type and resource name.
   repeated SessionSummariesAccessedRecord session_summaries_accessed = 25;
+  // counter of access graph queries by this user.
+  uint64 access_graph_queries = 26;
 }
 
 // UserOrigin is the origin of a user account.
@@ -346,6 +348,64 @@ message SessionSummariesGeneratedRecord {
   uint64 total_output_tokens = 5;
 }
 
+// IdentitySecurityReport is a report of Identity Security non-user usage. It currently
+// includes the size of the access graph by provider and count of audit logs ingested
+// by provider.
+message IdentitySecurityReport {
+  // randomly generated UUID for this specific report, 16 bytes (in string order)
+  //
+  // PostHog property: tp.report_uuid (in 8-4-4-4-12 string form)
+  bytes report_uuid = 1;
+
+  // cluster name, anonymized, 32 bytes (HMAC-SHA-256)
+  //
+  // PostHog property: tp.cluster_name (in base64)
+  bytes cluster_name = 2;
+
+  // hostid of the auth that collected this report, anonymized, 32 bytes (HMAC-SHA-256)
+  //
+  // PostHog property: tp.reporter_hostid (in base64)
+  bytes reporter_hostid = 3;
+
+  // beginning of the time window for this data; ending is not specified but is
+  // intended to be at most 60 minutes
+  //
+  // PostHog timestamp (not a property, the ingest time is tp.report_time instead)
+  google.protobuf.Timestamp start_time = 4;
+
+  // graph_size contains the size of each provider's graph: count of identities and
+  // count of resources.
+  repeated IdentitySecurityGraphSize graph_size_records = 5;
+
+  // audit_logs contains the counts of audit logs ingested from each provider.
+  repeated IdentitySecurityAuditLogsIngested audit_log_records = 6;
+}
+
+// IdentitySecurityGraphSize is submitted by Access Graph for each provider
+// for which it has a graph.
+message IdentitySecurityGraphSize {
+  // provider is the system containing the identities and resources being counted.
+  // It is one of teleport, aws, azure, entra, gitlab, github, netiq or okta.
+  string provider = 1;
+
+  // total_identities is the number of identities in the graph.
+  uint64 total_identities = 2;
+
+  // total_resources is the number of resources in the graph.
+  uint64 total_resources = 3;
+}
+
+// IdentitySecurityAuditLogsIngested tracks the count of log entries ingested by
+// identity activity center.
+message IdentitySecurityAuditLogsIngested {
+  // provider is the system emitting audit logs. It is one of
+  // teleport, cloudtrail, kubernetes, github or okta.
+  string provider = 1;
+
+  // logs_ingested is a count of log entries ingested into Identity Security.
+  uint64 logs_ingested = 2;
+}
+
 message SubmitUsageReportsRequest {
   // at most 10 reports of all kinds in a single RPC, each shouldn't exceed 128KiB or so
   //
@@ -357,6 +417,8 @@ message SubmitUsageReportsRequest {
   repeated BotInstanceActivityReport bot_instance_activity = 3;
   // encoded as a separate tp.identity_security.summaries_generated PostHog event
   repeated IdentitySecuritySummariesGeneratedReport identity_security_summaries_report = 4;
+  // encoded as a separate tp.identity_security.usage PostHog event
+  repeated IdentitySecurityReport identity_security_report = 5;
 }
 
 message SubmitUsageReportsResponse {
