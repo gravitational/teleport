@@ -2034,6 +2034,8 @@ type InstallParams struct {
 	UpdateGroup string `yaml:"update_group,omitempty"`
 	// HTTPProxySettings configures HTTP proxy settings for the installation.
 	HTTPProxySettings *HTTPProxySettings `yaml:"http_proxy_settings,omitempty"`
+	// InstallConcurrencyLimit overrides the default limit for concurrent Teleport agent installations.
+	InstallConcurrencyLimit uint32 `yaml:"install_concurrency_limit,omitempty"`
 }
 
 // HTTPProxySettings configures HTTP proxy settings for the installation.
@@ -2057,15 +2059,16 @@ var validInstallEnrollModes = []string{installEnrollModeEICE, installEnrollModeS
 
 func (ip *InstallParams) parse(defaultProxyAddr string) (*types.InstallerParams, error) {
 	install := &types.InstallerParams{
-		JoinMethod:      ip.JoinParams.Method,
-		JoinToken:       ip.JoinParams.TokenName,
-		ScriptName:      ip.ScriptName,
-		InstallTeleport: true,
-		SSHDConfig:      ip.SSHDConfig,
-		EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED,
-		Suffix:          ip.Suffix,
-		UpdateGroup:     ip.UpdateGroup,
-		PublicProxyAddr: cmp.Or(ip.PublicProxyAddr, defaultProxyAddr),
+		JoinMethod:              ip.JoinParams.Method,
+		JoinToken:               ip.JoinParams.TokenName,
+		ScriptName:              ip.ScriptName,
+		InstallTeleport:         true,
+		SSHDConfig:              ip.SSHDConfig,
+		EnrollMode:              types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED,
+		Suffix:                  ip.Suffix,
+		UpdateGroup:             ip.UpdateGroup,
+		PublicProxyAddr:         cmp.Or(ip.PublicProxyAddr, defaultProxyAddr),
+		InstallConcurrencyLimit: ip.InstallConcurrencyLimit,
 	}
 
 	if ip.HTTPProxySettings != nil {
