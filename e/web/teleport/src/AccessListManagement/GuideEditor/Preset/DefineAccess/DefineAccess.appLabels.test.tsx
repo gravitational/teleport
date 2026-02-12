@@ -283,21 +283,6 @@ test(`typing, clicking, and deleting labels`, async () => {
   expect(spiedUnifiedResource).toHaveBeenCalledTimes(0);
 
   /**
-   * Typing a another invalid formatted label result in error
-   */
-  await user.type(reactSelectInput, 'invalid:invalid');
-  await selectEvent.select(reactSelectInput, /invalid:invalid/i);
-
-  screen.getByText(/label "invalid:invalid" is invalid/i);
-  expect(
-    within(inputWrapper).getByText(/env: test OR test2 OR test3/i)
-  ).toBeInTheDocument();
-  expect(within(inputWrapper).getByText(/test: apple/i)).toBeInTheDocument();
-  expect(within(inputWrapper).getAllByText('AND')).toHaveLength(1);
-
-  expect(spiedUnifiedResource).toHaveBeenCalledTimes(0);
-
-  /**
    * Using a wildcard for a label value with an existing key, replaces
    * its value with wildcard eg: `env: test OR test2 OR test3` should be
    * replaced with just `env: *`

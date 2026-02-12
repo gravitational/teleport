@@ -202,17 +202,35 @@ function makeLabelOptions(labelLookup: Labels): LabelOption[] {
   });
 }
 
-function getLabelFromInput(labelStr: string): ResourceLabel {
-  // Split at the first instance of `: ` and then combine the rest
-  // back to its original form. It's safe to split with `: ` as backend
-  // does not allow a label key to contain a `: `.
-  // eg:
-  //   - `env: staging` = `labelKey = env` and `labelVal = staging`
-  //   - `env: dev: apple` = `labelKey = env` and `labelVal = dev: apple`
-  let [labelKey, ...rest] = labelStr.split(': ');
-  const labelVal = rest.join(': ');
+/**
+ * Splits the `labelStr` by the first instance of `: ` (colon, space), and if
+ * that fails, by the first instance of colon alone. This allows us to support
+ * keys that contain colons, while still supporting a simple `key:value`
+ * syntax.
+ *
+ * Examples:
+ *   - `env:staging` = `labelKey = env` and `labelVal = staging`
+ *   - `env: staging` = `labelKey = env` and `labelVal = staging`
+ *   - `env: dev: apple` = `labelKey = env` and `labelVal = dev: apple`
+ *   - `env:dev: apple` = `labelKey = env:dev` and `labelVal = apple`
+ */
+export function getLabelFromInput(labelStr: string): ResourceLabel {
+  const label = splitLabelBy(labelStr, ': ');
+  if (label.value !== '') {
+    return label;
+  }
+  return splitLabelBy(labelStr, ':');
+}
 
-  return { name: labelKey, value: labelVal };
+/**
+ * Attempts to split label using a given separator and trims the results.
+ */
+function splitLabelBy(str: string, separator: string): ResourceLabel {
+  const [head, ...rest] = str.split(separator);
+  return {
+    name: head.trim(),
+    value: rest.join(separator).trim(),
+  };
 }
 
 function validateLabelInput(labelInput: string) {
