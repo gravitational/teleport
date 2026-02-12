@@ -38,19 +38,31 @@ const cache = {
   userContext: null as UserContext,
 };
 
+let pendingUserContext: Promise<UserContext> = null;
+
 const service = {
   fetchUserContext(fromCache = true) {
     if (fromCache && cache['userContext']) {
       return Promise.resolve(cache['userContext']);
     }
 
-    return api
-      .get(cfg.getUserContextUrl())
-      .then(makeUserContext)
-      .then(userContext => {
-        cache['userContext'] = userContext;
-        return cache['userContext'];
-      });
+    // Keep track of any in-flight fetch so that we don't make this request multiple times.
+    if (!pendingUserContext) {
+      pendingUserContext = api
+        .get(cfg.getUserContextUrl())
+        .then(makeUserContext)
+        .then(userContext => {
+          cache['userContext'] = userContext;
+          pendingUserContext = null;
+          return userContext;
+        })
+        .catch(err => {
+          pendingUserContext = null;
+          throw err;
+        });
+    }
+
+    return pendingUserContext;
   },
 
   fetchAccessGraphFeatures(): Promise<object> {

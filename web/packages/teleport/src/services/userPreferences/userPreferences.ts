@@ -48,12 +48,20 @@ export interface BackendUserPreferences {
   keyboardLayout: number;
 }
 
-export async function getUserPreferences(): Promise<UserPreferences> {
-  const res: BackendUserPreferences = await api.get(
-    cfg.api.userPreferencesPath
-  );
+let cachedPreferences: Promise<UserPreferences> = null;
 
-  return convertBackendUserPreferences(res);
+export function getUserPreferences(): Promise<UserPreferences> {
+  // If we already have the preferences cached, return those instead of making another request to the backend.
+  if (!cachedPreferences) {
+    cachedPreferences = api
+      .get(cfg.api.userPreferencesPath)
+      .then(convertBackendUserPreferences)
+      .catch(err => {
+        cachedPreferences = null;
+        throw err;
+      });
+  }
+  return cachedPreferences;
 }
 
 export async function getUserClusterPreferences(
