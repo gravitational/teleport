@@ -627,6 +627,53 @@ Scoped RBAC (and Scoped MWI by extension). Whilst this is not currently the
 case, there are ongoing discussions about whether namespacing should be added
 to scopes.
 
+##### Confused Deputy Privilege Escalation
+
+Let's consider an automation which leverages a bot in `/security`. This 
+automation polls a list of SSH nodes it has access to and then connects to them
+and transfers some sensitive data to them.
+
+The creators of this bot assigned it privileges using a Scoped Role and Scoped
+Role Assignment in the `/security` scope, and intend it to only perform this
+action against the SSH nodes in the `/security` scope.
+
+In an implementation where a bot's scope of origin does not constrain its
+privileges, this opens up the door to an interesting attack that leverages 
+granting the bot additional privileges in an orthogonal scope:
+
+1. A bad actor has compromised the `/staging` scope admin.
+2. They onboard a new SSH agent into the `/staging` scope to which they have 
+   access.
+3. They create a Scoped Role that grants access to this SSH agent.
+4. They create a Scoped Role Assignment that assigns this role in `/staging`
+   to the Bot that exists in `/security`.
+5. The automation, upon fetching a list of nodes, discovers this new node it
+   has access to and transfers the sensitive data to it.
+6. The attacker leverages their privilege within `/staging` to exfiltrate the
+   data that has now been transferred to this node by the automation.
+
+This exploit depends on the fact that the automation has been written to rely on
+the bounds of privilege for filtering the nodes on which it should act. An
+implementation of the automation that explicitly filtered by scope or by
+node uuid would prevent this kind of attack.
+
+However, this foot gun is far too easy of a trap to fall into, and considering
+the kinds of automations that are in common use with MWI this poses a
+significant risk.
+
+The primary mitigation we propose here is to by-default constrain a Bot's 
+privileges to its scope of origin and require explicit action to relax this 
+constraint. We would implement a configuration option within `tbot` that allows
+the operator to choose the scope to which the bot's credentials are pinned.
+They may then explicitly choose to pin the bot's credentials to the root scope,
+in order to generate credentials that leverage any privileges assigned to the
+bot regardless of scope, or may choose some other orthogonal or parent scope.
+
+In addition to this mitigation, we should publish recommendations that encourage
+users to implement explicit filters in their automations and to avoid relying on
+the bounds of privilege for filtering where the automation performs sensitive
+actions.
+
 ##### Direction
 
 Whilst it seems clear that there are use-cases that require bots to have
