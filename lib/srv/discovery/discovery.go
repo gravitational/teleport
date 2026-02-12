@@ -438,8 +438,9 @@ type Server struct {
 	dynamicKubeFetchers   map[string][]common.Fetcher
 	muDynamicKubeFetchers sync.RWMutex
 
-	dynamicDiscoveryConfig   map[string]*discoveryconfig.DiscoveryConfig
-	dynamicDiscoveryConfigMu sync.RWMutex
+	discoveryConfigStatusUpdater *discoveryConfigStatusUpdater
+	dynamicDiscoveryConfig       map[string]*discoveryconfig.DiscoveryConfig
+	dynamicDiscoveryConfigMu     sync.RWMutex
 
 	tagSyncStatus         *tagSyncStatus
 	awsEC2ResourcesStatus awsResourcesStatus
@@ -473,19 +474,20 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 
 	localCtx, cancelfn := context.WithCancel(ctx)
 	s := &Server{
-		Config:                  cfg,
-		ctx:                     localCtx,
-		cancelfn:                cancelfn,
-		usageEventCache:         make(map[string]struct{}),
-		dynamicKubeFetchers:     make(map[string][]common.Fetcher),
-		dynamicDatabaseFetchers: make(map[string][]common.Fetcher),
-		dynamicTAGAWSFetchers:   make(map[string][]*aws_sync.Fetcher),
-		dynamicTAGAzureFetchers: make(map[string][]*azure_sync.Fetcher),
-		dynamicDiscoveryConfig:  make(map[string]*discoveryconfig.DiscoveryConfig),
-		tagSyncStatus:           newTagSyncStatus(),
-		awsEC2ResourcesStatus:   newAWSResourceStatusCollector(types.AWSMatcherEC2),
-		awsRDSResourcesStatus:   newAWSResourceStatusCollector(types.AWSMatcherRDS),
-		awsEKSResourcesStatus:   newAWSResourceStatusCollector(types.AWSMatcherEKS),
+		Config:                       cfg,
+		ctx:                          localCtx,
+		cancelfn:                     cancelfn,
+		usageEventCache:              make(map[string]struct{}),
+		dynamicKubeFetchers:          make(map[string][]common.Fetcher),
+		dynamicDatabaseFetchers:      make(map[string][]common.Fetcher),
+		dynamicTAGAWSFetchers:        make(map[string][]*aws_sync.Fetcher),
+		dynamicTAGAzureFetchers:      make(map[string][]*azure_sync.Fetcher),
+		dynamicDiscoveryConfig:       make(map[string]*discoveryconfig.DiscoveryConfig),
+		tagSyncStatus:                newTagSyncStatus(),
+		awsEC2ResourcesStatus:        newAWSResourceStatusCollector(types.AWSMatcherEC2),
+		awsRDSResourcesStatus:        newAWSResourceStatusCollector(types.AWSMatcherRDS),
+		awsEKSResourcesStatus:        newAWSResourceStatusCollector(types.AWSMatcherEKS),
+		discoveryConfigStatusUpdater: newDiscoveryConfigStatusUpdater(cfg),
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 

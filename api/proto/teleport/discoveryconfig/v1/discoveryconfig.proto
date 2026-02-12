@@ -72,6 +72,10 @@ message DiscoveryConfigStatus {
 
   // IntegrationDiscoveredResources maps an integration to discovered resources summary.
   map<string, IntegrationDiscoveredSummary> integration_discovered_resources = 6;
+
+  // IntegrationDiscoveredSummaryHistory maps an integration to the history of discovered resources summary.
+  // Each entry has up to 5 summaries of the past iterations.
+  map<string, IntegrationDiscoveredSummaryHistory> integration_discovered_resources_history = 7;
 }
 
 // DiscoveryConfigState is the state of the discovery config resource.
@@ -87,6 +91,13 @@ enum DiscoveryConfigState {
   DISCOVERY_CONFIG_STATE_SYNCING = 3;
 }
 
+// IntegrationDiscoveredSummaryHistory contains the a summary for each resource type that was discovered at a specific time in the past.
+message IntegrationDiscoveredSummaryHistory {
+  // List of summaries for past iterations.
+  // Contains at most 5 summaries of the past iterations, ordered from the most recent to the oldest.
+  repeated IntegrationDiscoveredSummary summaries = 1;
+}
+
 // IntegrationDiscoveredSummary contains the a summary for each resource type that was discovered.
 message IntegrationDiscoveredSummary {
   // AWSEC2 contains the summary for the AWS EC2 discovered instances.
@@ -100,6 +111,9 @@ message IntegrationDiscoveredSummary {
 
   // The summary for the Azure VM discovered instances.
   ResourcesDiscoveredSummary azure_vms = 4;
+
+  // Timestmap of when the discovery iteration ended.
+  google.protobuf.Timestamp sync_end = 5;
 }
 
 // ResourcesDiscoveredSummary represents the AWS resources that were discovered.

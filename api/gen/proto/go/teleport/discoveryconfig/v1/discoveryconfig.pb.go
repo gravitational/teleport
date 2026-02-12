@@ -269,8 +269,11 @@ type DiscoveryConfigStatus struct {
 	LastSyncTime *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
 	// IntegrationDiscoveredResources maps an integration to discovered resources summary.
 	IntegrationDiscoveredResources map[string]*IntegrationDiscoveredSummary `protobuf:"bytes,6,rep,name=integration_discovered_resources,json=integrationDiscoveredResources,proto3" json:"integration_discovered_resources,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields                  protoimpl.UnknownFields
-	sizeCache                      protoimpl.SizeCache
+	// IntegrationDiscoveredSummaryHistory maps an integration to the history of discovered resources summary.
+	// Each entry has up to 5 summaries of the past iterations.
+	IntegrationDiscoveredResourcesHistory map[string]*IntegrationDiscoveredSummaryHistory `protobuf:"bytes,7,rep,name=integration_discovered_resources_history,json=integrationDiscoveredResourcesHistory,proto3" json:"integration_discovered_resources_history,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields                         protoimpl.UnknownFields
+	sizeCache                             protoimpl.SizeCache
 }
 
 func (x *DiscoveryConfigStatus) Reset() {
@@ -338,6 +341,60 @@ func (x *DiscoveryConfigStatus) GetIntegrationDiscoveredResources() map[string]*
 	return nil
 }
 
+func (x *DiscoveryConfigStatus) GetIntegrationDiscoveredResourcesHistory() map[string]*IntegrationDiscoveredSummaryHistory {
+	if x != nil {
+		return x.IntegrationDiscoveredResourcesHistory
+	}
+	return nil
+}
+
+// IntegrationDiscoveredSummaryHistory contains the a summary for each resource type that was discovered at a specific time in the past.
+type IntegrationDiscoveredSummaryHistory struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// List of summaries for past iterations.
+	// Contains at most 5 summaries of the past iterations, ordered from the most recent to the oldest.
+	Summaries     []*IntegrationDiscoveredSummary `protobuf:"bytes,1,rep,name=summaries,proto3" json:"summaries,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IntegrationDiscoveredSummaryHistory) Reset() {
+	*x = IntegrationDiscoveredSummaryHistory{}
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IntegrationDiscoveredSummaryHistory) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IntegrationDiscoveredSummaryHistory) ProtoMessage() {}
+
+func (x *IntegrationDiscoveredSummaryHistory) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IntegrationDiscoveredSummaryHistory.ProtoReflect.Descriptor instead.
+func (*IntegrationDiscoveredSummaryHistory) Descriptor() ([]byte, []int) {
+	return file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *IntegrationDiscoveredSummaryHistory) GetSummaries() []*IntegrationDiscoveredSummary {
+	if x != nil {
+		return x.Summaries
+	}
+	return nil
+}
+
 // IntegrationDiscoveredSummary contains the a summary for each resource type that was discovered.
 type IntegrationDiscoveredSummary struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -348,14 +405,16 @@ type IntegrationDiscoveredSummary struct {
 	// AWSEKS contains the summary for the AWS EKS discovered clusters.
 	AwsEks *ResourcesDiscoveredSummary `protobuf:"bytes,3,opt,name=aws_eks,json=awsEks,proto3" json:"aws_eks,omitempty"`
 	// The summary for the Azure VM discovered instances.
-	AzureVms      *ResourcesDiscoveredSummary `protobuf:"bytes,4,opt,name=azure_vms,json=azureVms,proto3" json:"azure_vms,omitempty"`
+	AzureVms *ResourcesDiscoveredSummary `protobuf:"bytes,4,opt,name=azure_vms,json=azureVms,proto3" json:"azure_vms,omitempty"`
+	// Timestmap of when the discovery iteration ended.
+	SyncEnd       *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=sync_end,json=syncEnd,proto3" json:"sync_end,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *IntegrationDiscoveredSummary) Reset() {
 	*x = IntegrationDiscoveredSummary{}
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[3]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -367,7 +426,7 @@ func (x *IntegrationDiscoveredSummary) String() string {
 func (*IntegrationDiscoveredSummary) ProtoMessage() {}
 
 func (x *IntegrationDiscoveredSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[3]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -380,7 +439,7 @@ func (x *IntegrationDiscoveredSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IntegrationDiscoveredSummary.ProtoReflect.Descriptor instead.
 func (*IntegrationDiscoveredSummary) Descriptor() ([]byte, []int) {
-	return file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDescGZIP(), []int{3}
+	return file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *IntegrationDiscoveredSummary) GetAwsEc2() *ResourcesDiscoveredSummary {
@@ -411,6 +470,13 @@ func (x *IntegrationDiscoveredSummary) GetAzureVms() *ResourcesDiscoveredSummary
 	return nil
 }
 
+func (x *IntegrationDiscoveredSummary) GetSyncEnd() *timestamppb.Timestamp {
+	if x != nil {
+		return x.SyncEnd
+	}
+	return nil
+}
+
 // ResourcesDiscoveredSummary represents the AWS resources that were discovered.
 type ResourcesDiscoveredSummary struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -427,7 +493,7 @@ type ResourcesDiscoveredSummary struct {
 
 func (x *ResourcesDiscoveredSummary) Reset() {
 	*x = ResourcesDiscoveredSummary{}
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[4]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -439,7 +505,7 @@ func (x *ResourcesDiscoveredSummary) String() string {
 func (*ResourcesDiscoveredSummary) ProtoMessage() {}
 
 func (x *ResourcesDiscoveredSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[4]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -452,7 +518,7 @@ func (x *ResourcesDiscoveredSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResourcesDiscoveredSummary.ProtoReflect.Descriptor instead.
 func (*ResourcesDiscoveredSummary) Descriptor() ([]byte, []int) {
-	return file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDescGZIP(), []int{4}
+	return file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ResourcesDiscoveredSummary) GetFound() uint64 {
@@ -491,22 +557,29 @@ const file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDesc = "" +
 	"\x05azure\x18\x03 \x03(\v2\x13.types.AzureMatcherR\x05azure\x12#\n" +
 	"\x03gcp\x18\x04 \x03(\v2\x11.types.GCPMatcherR\x03gcp\x12,\n" +
 	"\x04kube\x18\x05 \x03(\v2\x18.types.KubernetesMatcherR\x04kube\x129\n" +
-	"\faccess_graph\x18\x06 \x01(\v2\x16.types.AccessGraphSyncR\vaccessGraph\"\xe7\x04\n" +
+	"\faccess_graph\x18\x06 \x01(\v2\x16.types.AccessGraphSyncR\vaccessGraph\"\xbd\a\n" +
 	"\x15DiscoveryConfigStatus\x12G\n" +
 	"\x05state\x18\x01 \x01(\x0e21.teleport.discoveryconfig.v1.DiscoveryConfigStateR\x05state\x12(\n" +
 	"\rerror_message\x18\x02 \x01(\tH\x00R\ferrorMessage\x88\x01\x01\x121\n" +
 	"\x14discovered_resources\x18\x03 \x01(\x04R\x13discoveredResources\x12@\n" +
 	"\x0elast_sync_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime\x12\xa0\x01\n" +
-	" integration_discovered_resources\x18\x06 \x03(\v2V.teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesEntryR\x1eintegrationDiscoveredResources\x1a\x8c\x01\n" +
+	" integration_discovered_resources\x18\x06 \x03(\v2V.teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesEntryR\x1eintegrationDiscoveredResources\x12\xb6\x01\n" +
+	"(integration_discovered_resources_history\x18\a \x03(\v2].teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesHistoryEntryR%integrationDiscoveredResourcesHistory\x1a\x8c\x01\n" +
 	"#IntegrationDiscoveredResourcesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12O\n" +
-	"\x05value\x18\x02 \x01(\v29.teleport.discoveryconfig.v1.IntegrationDiscoveredSummaryR\x05value:\x028\x01B\x10\n" +
-	"\x0e_error_messageJ\x04\b\x05\x10\x06R\x1caws_ec2_instances_discovered\"\xea\x02\n" +
+	"\x05value\x18\x02 \x01(\v29.teleport.discoveryconfig.v1.IntegrationDiscoveredSummaryR\x05value:\x028\x01\x1a\x9a\x01\n" +
+	"*IntegrationDiscoveredResourcesHistoryEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12V\n" +
+	"\x05value\x18\x02 \x01(\v2@.teleport.discoveryconfig.v1.IntegrationDiscoveredSummaryHistoryR\x05value:\x028\x01B\x10\n" +
+	"\x0e_error_messageJ\x04\b\x05\x10\x06R\x1caws_ec2_instances_discovered\"~\n" +
+	"#IntegrationDiscoveredSummaryHistory\x12W\n" +
+	"\tsummaries\x18\x01 \x03(\v29.teleport.discoveryconfig.v1.IntegrationDiscoveredSummaryR\tsummaries\"\xa1\x03\n" +
 	"\x1cIntegrationDiscoveredSummary\x12P\n" +
 	"\aaws_ec2\x18\x01 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\x06awsEc2\x12P\n" +
 	"\aaws_rds\x18\x02 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\x06awsRds\x12P\n" +
 	"\aaws_eks\x18\x03 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\x06awsEks\x12T\n" +
-	"\tazure_vms\x18\x04 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\bazureVms\"f\n" +
+	"\tazure_vms\x18\x04 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\bazureVms\x125\n" +
+	"\bsync_end\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\asyncEnd\"f\n" +
 	"\x1aResourcesDiscoveredSummary\x12\x14\n" +
 	"\x05found\x18\x01 \x01(\x04R\x05found\x12\x1a\n" +
 	"\benrolled\x18\x02 \x01(\x04R\benrolled\x12\x16\n" +
@@ -530,45 +603,51 @@ func file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDescGZIP() []byte
 }
 
 var file_teleport_discoveryconfig_v1_discoveryconfig_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_teleport_discoveryconfig_v1_discoveryconfig_proto_goTypes = []any{
-	(DiscoveryConfigState)(0),            // 0: teleport.discoveryconfig.v1.DiscoveryConfigState
-	(*DiscoveryConfig)(nil),              // 1: teleport.discoveryconfig.v1.DiscoveryConfig
-	(*DiscoveryConfigSpec)(nil),          // 2: teleport.discoveryconfig.v1.DiscoveryConfigSpec
-	(*DiscoveryConfigStatus)(nil),        // 3: teleport.discoveryconfig.v1.DiscoveryConfigStatus
-	(*IntegrationDiscoveredSummary)(nil), // 4: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary
-	(*ResourcesDiscoveredSummary)(nil),   // 5: teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
-	nil,                                  // 6: teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesEntry
-	(*v1.ResourceHeader)(nil),            // 7: teleport.header.v1.ResourceHeader
-	(*types.AWSMatcher)(nil),             // 8: types.AWSMatcher
-	(*types.AzureMatcher)(nil),           // 9: types.AzureMatcher
-	(*types.GCPMatcher)(nil),             // 10: types.GCPMatcher
-	(*types.KubernetesMatcher)(nil),      // 11: types.KubernetesMatcher
-	(*types.AccessGraphSync)(nil),        // 12: types.AccessGraphSync
-	(*timestamppb.Timestamp)(nil),        // 13: google.protobuf.Timestamp
+	(DiscoveryConfigState)(0),                   // 0: teleport.discoveryconfig.v1.DiscoveryConfigState
+	(*DiscoveryConfig)(nil),                     // 1: teleport.discoveryconfig.v1.DiscoveryConfig
+	(*DiscoveryConfigSpec)(nil),                 // 2: teleport.discoveryconfig.v1.DiscoveryConfigSpec
+	(*DiscoveryConfigStatus)(nil),               // 3: teleport.discoveryconfig.v1.DiscoveryConfigStatus
+	(*IntegrationDiscoveredSummaryHistory)(nil), // 4: teleport.discoveryconfig.v1.IntegrationDiscoveredSummaryHistory
+	(*IntegrationDiscoveredSummary)(nil),        // 5: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary
+	(*ResourcesDiscoveredSummary)(nil),          // 6: teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
+	nil,                                         // 7: teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesEntry
+	nil,                                         // 8: teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesHistoryEntry
+	(*v1.ResourceHeader)(nil),                   // 9: teleport.header.v1.ResourceHeader
+	(*types.AWSMatcher)(nil),                    // 10: types.AWSMatcher
+	(*types.AzureMatcher)(nil),                  // 11: types.AzureMatcher
+	(*types.GCPMatcher)(nil),                    // 12: types.GCPMatcher
+	(*types.KubernetesMatcher)(nil),             // 13: types.KubernetesMatcher
+	(*types.AccessGraphSync)(nil),               // 14: types.AccessGraphSync
+	(*timestamppb.Timestamp)(nil),               // 15: google.protobuf.Timestamp
 }
 var file_teleport_discoveryconfig_v1_discoveryconfig_proto_depIdxs = []int32{
-	7,  // 0: teleport.discoveryconfig.v1.DiscoveryConfig.header:type_name -> teleport.header.v1.ResourceHeader
+	9,  // 0: teleport.discoveryconfig.v1.DiscoveryConfig.header:type_name -> teleport.header.v1.ResourceHeader
 	2,  // 1: teleport.discoveryconfig.v1.DiscoveryConfig.spec:type_name -> teleport.discoveryconfig.v1.DiscoveryConfigSpec
 	3,  // 2: teleport.discoveryconfig.v1.DiscoveryConfig.status:type_name -> teleport.discoveryconfig.v1.DiscoveryConfigStatus
-	8,  // 3: teleport.discoveryconfig.v1.DiscoveryConfigSpec.aws:type_name -> types.AWSMatcher
-	9,  // 4: teleport.discoveryconfig.v1.DiscoveryConfigSpec.azure:type_name -> types.AzureMatcher
-	10, // 5: teleport.discoveryconfig.v1.DiscoveryConfigSpec.gcp:type_name -> types.GCPMatcher
-	11, // 6: teleport.discoveryconfig.v1.DiscoveryConfigSpec.kube:type_name -> types.KubernetesMatcher
-	12, // 7: teleport.discoveryconfig.v1.DiscoveryConfigSpec.access_graph:type_name -> types.AccessGraphSync
+	10, // 3: teleport.discoveryconfig.v1.DiscoveryConfigSpec.aws:type_name -> types.AWSMatcher
+	11, // 4: teleport.discoveryconfig.v1.DiscoveryConfigSpec.azure:type_name -> types.AzureMatcher
+	12, // 5: teleport.discoveryconfig.v1.DiscoveryConfigSpec.gcp:type_name -> types.GCPMatcher
+	13, // 6: teleport.discoveryconfig.v1.DiscoveryConfigSpec.kube:type_name -> types.KubernetesMatcher
+	14, // 7: teleport.discoveryconfig.v1.DiscoveryConfigSpec.access_graph:type_name -> types.AccessGraphSync
 	0,  // 8: teleport.discoveryconfig.v1.DiscoveryConfigStatus.state:type_name -> teleport.discoveryconfig.v1.DiscoveryConfigState
-	13, // 9: teleport.discoveryconfig.v1.DiscoveryConfigStatus.last_sync_time:type_name -> google.protobuf.Timestamp
-	6,  // 10: teleport.discoveryconfig.v1.DiscoveryConfigStatus.integration_discovered_resources:type_name -> teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesEntry
-	5,  // 11: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.aws_ec2:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
-	5,  // 12: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.aws_rds:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
-	5,  // 13: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.aws_eks:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
-	5,  // 14: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.azure_vms:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
-	4,  // 15: teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesEntry.value:type_name -> teleport.discoveryconfig.v1.IntegrationDiscoveredSummary
-	16, // [16:16] is the sub-list for method output_type
-	16, // [16:16] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	15, // 9: teleport.discoveryconfig.v1.DiscoveryConfigStatus.last_sync_time:type_name -> google.protobuf.Timestamp
+	7,  // 10: teleport.discoveryconfig.v1.DiscoveryConfigStatus.integration_discovered_resources:type_name -> teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesEntry
+	8,  // 11: teleport.discoveryconfig.v1.DiscoveryConfigStatus.integration_discovered_resources_history:type_name -> teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesHistoryEntry
+	5,  // 12: teleport.discoveryconfig.v1.IntegrationDiscoveredSummaryHistory.summaries:type_name -> teleport.discoveryconfig.v1.IntegrationDiscoveredSummary
+	6,  // 13: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.aws_ec2:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
+	6,  // 14: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.aws_rds:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
+	6,  // 15: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.aws_eks:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
+	6,  // 16: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.azure_vms:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
+	15, // 17: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.sync_end:type_name -> google.protobuf.Timestamp
+	5,  // 18: teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesEntry.value:type_name -> teleport.discoveryconfig.v1.IntegrationDiscoveredSummary
+	4,  // 19: teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesHistoryEntry.value:type_name -> teleport.discoveryconfig.v1.IntegrationDiscoveredSummaryHistory
+	20, // [20:20] is the sub-list for method output_type
+	20, // [20:20] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_teleport_discoveryconfig_v1_discoveryconfig_proto_init() }
@@ -583,7 +662,7 @@ func file_teleport_discoveryconfig_v1_discoveryconfig_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDesc), len(file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   6,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

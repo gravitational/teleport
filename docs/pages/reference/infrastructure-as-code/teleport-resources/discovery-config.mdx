@@ -715,6 +715,10 @@ integration_discovered_resources:
   "string": # See description
   "string": # See description
   "string": # See description
+integration_discovered_resources_history: 
+  "string": # See description
+  "string": # See description
+  "string": # See description
 ```
 
 |Field Name|Description|Type|
@@ -722,6 +726,7 @@ integration_discovered_resources:
 |discovered_resources|Holds the count of the discovered resources in the previous iteration.|number|
 |error_message|Holds the error message when state is DISCOVERY_CONFIG_STATE_ERROR.|string|
 |integration_discovered_resources|Maps an integration to a summary of resources that were found using that integration.|map[string]|
+|integration_discovered_resources_history|Maps an integration to a summary of resources that were found using that integration. Only the most recent 5 summaries are kept for each integration.|map[string]|
 |last_sync_time|The timestamp when the Discovery Config was last sync.||
 |state|The current state of the discovery config.|string|
 
