@@ -843,3 +843,6 @@ need to be introduced:
   scopes.
 - Namespace bots by scope of origin, or, require SRAs to reference the bot's
   name and scope of origin to mitigate name reuse attacks.
+- By default, continue to constrain a scoped Bot's credentials to its scope of
+  origin unless explicitly configured otherwise on a per-`tbot` basis. This 
+  mitigates the confused deputy attack vector.
