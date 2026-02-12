@@ -21,7 +21,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -689,15 +688,7 @@ func TestValidateSessionChallenge_WebauthnFailedStorage(t *testing.T) {
 func TestListValidatedMFAChallenges_Success(t *testing.T) {
 	t.Parallel()
 
-	authServer, service, _, firstUser := setupAuthServer(t, nil)
-
-	secondRole, err := authtest.CreateRole(t.Context(), authServer.Auth(), "test-second-role", types.RoleSpecV6{})
-	require.NoError(t, err)
-
-	secondUser, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-second-user", secondRole)
-	require.NoError(t, err)
-
-	ctx := authz.ContextWithUser(t.Context(), authtest.TestRemoteBuiltin(types.RoleProxy, targetCluster).I)
+	authServer, _, _, user := setupAuthServer(t, nil)
 
 	challenges := []*mfav1.ValidatedMFAChallenge{
 		{
@@ -710,7 +701,7 @@ func TestListValidatedMFAChallenges_Success(t *testing.T) {
 				Payload:       payload,
 				SourceCluster: sourceCluster,
 				TargetCluster: targetCluster,
-				Username:      firstUser.GetName(),
+				Username:      user.GetName(),
 			},
 		},
 		{
@@ -723,7 +714,7 @@ func TestListValidatedMFAChallenges_Success(t *testing.T) {
 				Payload:       payload,
 				SourceCluster: sourceCluster,
 				TargetCluster: targetCluster,
-				Username:      firstUser.GetName(),
+				Username:      user.GetName(),
 			},
 		},
 		{
@@ -736,38 +727,45 @@ func TestListValidatedMFAChallenges_Success(t *testing.T) {
 				Payload:       payload,
 				SourceCluster: sourceCluster,
 				TargetCluster: targetCluster,
-				Username:      secondUser.GetName(),
+				Username:      user.GetName(),
 			},
 		},
 	}
-	for _, chal := range challenges {
-		_, err := authServer.Auth().MFAService.CreateValidatedMFAChallenge(t.Context(), chal.GetSpec().GetUsername(), chal)
-		require.NoError(t, err)
+
+	mfaService := &mockMFAService{
+		listValidatedMFAChallenges: challenges,
 	}
+	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
+		Authorizer: authServer.AuthServer.Authorizer,
+		AuthServer: authServer,
+		Cache:      authServer.Auth().Cache,
+		Emitter:    authServer.Auth(),
+		Identity:   authServer.Auth().Identity,
+		Storage:    mfaService,
+	})
+	require.NoError(t, err)
+
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestRemoteBuiltin(types.RoleProxy, targetCluster).I)
 
 	resp, err := service.ListValidatedMFAChallenges(
 		ctx,
 		&mfav1.ListValidatedMFAChallengesRequest{
-			PageSize: 10,
+			PageSize: 3,
 		},
 	)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	require.Len(t, resp.GetValidatedChallenges(), len(challenges), "expected number of challenges in response does not match")
 
 	wantResp := &mfav1.ListValidatedMFAChallengesResponse{
 		ValidatedChallenges: challenges,
 	}
 
-	diff := cmp.Diff(
-		wantResp,
-		resp,
-		cmpopts.SortSlices(func(a, b *mfav1.ValidatedMFAChallenge) bool {
-			return a.GetMetadata().GetName() < b.GetMetadata().GetName()
-		}),
-		cmpopts.IgnoreFields(types.Metadata{}, "Expires"),
-	)
-	require.Empty(t, diff, "ListValidatedMFAChallenges mismatch (-want +got):\n%s", diff)
+	require.Empty(
+		t,
+		cmp.Diff(
+			wantResp,
+			resp,
+		), "ListValidatedMFAChallenges mismatch (-want +got)")
 }
 
 func TestListValidatedMFAChallenges_NonRemoteProxyDenied(t *testing.T) {

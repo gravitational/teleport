@@ -31,7 +31,6 @@ import "teleport/legacy/types/types.proto";
 import "teleport/linuxdesktop/v1/linux_desktop.proto";
 import "teleport/machineid/v1/bot_instance.proto";
 import "teleport/machineid/v1/federation.proto";
-import "teleport/mfa/v1/validated_challenge.proto";
 import "teleport/notifications/v1/notifications.proto";
 import "teleport/presence/v1/relay_server.proto";
 import "teleport/provisioning/v1/provisioning.proto";
@@ -244,7 +243,5 @@ message Event {
     teleport.linuxdesktop.v1.LinuxDesktop LinuxDesktop = 87;
     // WorkloadCluster is a resource for defining workload clusters.
     teleport.workloadcluster.v1.WorkloadCluster WorkloadCluster = 88;
-    // ValidatedMFAChallenge is a resource for representing a validated MFA challenge.
-    teleport.mfa.v1.ValidatedMFAChallenge ValidatedMFAChallenge = 89;
   }
 }
