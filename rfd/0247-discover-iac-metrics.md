@@ -11,23 +11,25 @@ state: draft
 
 ## Purpose
 
-Complete instrumentation of the IaC discovery flow by adding new events (ResourceDiscoveredEvent, DiscoveryConfigCreateEvent) and IAC flow UI events to measure adoption growth, setup success rates, and enable future product analysis.
+Complete instrumentation of the IaC discovery flow by adding new usage events to measure adoption growth, funnel success rates, and enable future product analysis.
 
 ## Goals
 
 1. **Track adoption and growth**
-   - Current adoption: What % of active clusters use discovery?
-   - Growth trajectory: What is the week-over-week adoption rate?
-   - New adopters: How many clusters adopt discovery each week?
+   - Current adoption: How many clusters are enrolling resources using discovery?
+   - New adopters: How many clusters setup discovery each month?
+   - Growth trajectory: What is the month-over-month adoption rate?
 
 2. **Measure setup success and identify blockers**
-   - Success rate: What % complete the full funnel (config → resources → no errors)?
-   - Drop-off analysis: Where in the funnel do users fail?
-   - Common issues: What errors block users from successful setup?
+   - Success rate: What % complete the full funnel?:
 
-3. **Ensure complete instrumentation**
-   - Instrument all key discovery events (config creation, resource enrollment, failures)
-   - Enable answering future product questions without requiring new events
+     [start] → [copy terraform] → configure discovery → [check integration] → resources discovered → [no issues]
+
+   - Drop-off analysis: Where in the funnel do users fail?
+   - Common issues: What issues block users from successful setup?
+
+3. **Ensure enough event coverage for follow-up analysis**
+   - Instrument all key discovery events throughout the IAC funnel and integration management
    - Establish baseline metrics for ongoing discovery feature development
 
 ## Background
@@ -36,40 +38,53 @@ There are three ways resources get enrolled in Teleport through discovery:
 
 1. **IAC flow** -- Users start in the web UI at Integrations, configure resource discovery options, and receive generated Terraform HCL. They run `terraform apply` which creates an Integration and DiscoveryConfig via the Teleport Terraform provider. The official Terraform module applies the `teleport.dev/iac-tool` label to the DiscoveryConfig resource. The discovery service then polls cloud providers and enrolls matching resources.
 
-2. **Guided Discover flow** -- Users start in the web UI at Discover, select a resource type, and walk through a multi-step setup. The UI creates a DiscoveryConfig directly via API. Available for EC2 auto-enrollment, RDS auto-enrollment, and EKS auto-enrollment.
+2. **Guided Discover flow** -- Users start in the web UI on the Enroll new Resource page, select a resource type, and walk through a multi-step setup. The UI creates a DiscoveryConfig directly via API. Available for EC2 auto-enrollment, RDS auto-enrollment, and EKS auto-enrollment.
 
 3. **Static configuration** -- Matchers defined in `teleport.yaml`. No DiscoveryConfig resource is created. The discovery service reads matchers directly from its config file.
 
 Resources created outside of discovery are considered manually enrolled.
 
-## Existing Instrumentation
+## Events Needed
 
-### Guided Discover flow events -- no changes needed
+### Event-to-Goal Mapping
 
-The Guided Discover flow already emits a full step-by-step funnel via `tp.ui.discover.*` events, including resource selection, service deployment, discovery config creation, test connection, completion, and abort/error at each step. These events include resource type, discovery config method, and error messages.
+| Goal                                   | Events Used                                                                                                                               |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **Goal 1: Adoption and Growth**        | ResourceCreateEvent, DiscoveryConfigEvent                                                                                                 |
+| **Goal 2: Setup Success and Blockers** | UIIntegrationEnrollStartEvent, UIIntegrationEnrollCodeCopyEvent, DiscoveryConfigEvent, UIIntegrationEnrollVerifyEvent, UserTaskStateEvent |
+| **Goal 3: Complete Instrumentation**   | All of the above                                                                                                                          |
 
-### UserTaskStateEvent -- no changes needed
+### UserTaskStateEvent — (Already exists, no changes needed)
 
-Already emitted with all required fields: `task_type`, `issue_type`, `state`, `instances_count`.
+UserTaskStateEvents will be used to track common issues users run into when setting up Discovery, and will be used at the end of the IAC setup funnel to evaluate success.
 
-### Integration enrollment events -- require instrumentation in IAC flow
+A `UserTaskStateEvent` is emitted by the UserTask gRPC service (`lib/auth/usertasks/usertasksv1/service.go`) whenever a user task is created, updated, or upserted. User tasks are created by the discovery service when resource enrollment fails. Each event captures `task_type` (`discover-ec2`, `discover-eks`, `discover-rds`), `issue_type`, `state` (`OPEN` or `RESOLVED`), and `instances_count`.
 
-The `UIIntegrationEnroll*` event types exist and are used by other integration flows (AWS OIDC, AWS Identity Center, GitHub). The IAC flow at `Integrations/Enroll/Cloud/Aws/EnrollAws.tsx` does not emit these events. A new `IntegrationEnrollKind` value is needed for the AWS Cloud IAC flow.
+### IntegrationEnroll Events — (Partially exist, requires instrumentation in IAC flow)
 
-### ResourceCreateEvent -- requires changes
+The `UIIntegrationEnroll*` event types exist and are used by other integration flows (AWS OIDC, AWS Identity Center, GitHub). The IAC flow does not currently emit any of these events.
 
-Currently emitted only by the discovery service via `emitUsageEvents()` when it discovers cloud resources. Auth does not emit `ResourceCreateEvent`; it emits `ResourceHeartbeatEvent` on every resource heartbeat/upsert. There is no event that fires exactly once when a resource is first created, which makes it impossible to query for resources created in a time window.
+The IAC enrollment flow has the following user actions:
 
-Changes needed:
+1. **Land on page** — User navigates to the AWS Cloud enrollment page.
+2. **Configure** — User sets integration name, selects resource types (EC2), configures tag filters, and chooses regions.
+3. **Copy Terraform** — User clicks the copy button for the generated Terraform module.
+4. **Apply Terraform** — User runs `terraform apply` outside the UI, which creates the Integration and DiscoveryConfig.
+5. **Check Integration** — User clicks "Check Integration" to verify the integration was created.
 
-- Auth must emit `ResourceCreateEvent` once per resource on first creation for all resource types (nodes, databases, kubernetes clusters, apps, windows desktops).
-- The discovery service's current `ResourceCreateEvent` emission will be replaced by the new `ResourceDiscoveredEvent`.
+   \*\* Each of these steps may or may not happen, as Users can potentially skip them and use Terraform directly without going through the UI flow.
 
-## Event Specifications
+To fully instrument this flow, the following events are needed:
 
-### Changes to Existing Events
+| Action                    | Event type                                | Status                                    |
+| ------------------------- | ----------------------------------------- | ----------------------------------------- |
+| Land on page              | `tp.ui.integrationEnroll.start`           | Exists, needs new `AWS_CLOUD` kind        |
+| Integration Configuration | - (Assumed when next steps are accounted) |                                           |
+| Copy Terraform            | `tp.ui.integrationEnroll.codeCopy`        | Exists, needs new `AWS_CLOUD` kind        |
+| Apply Terraform           | - (DiscoveryConfigEvent)                  | Described in DiscoveryConfigEvent section |
+| Check Integration         | `tp.ui.integrationEnroll.verify`          | New event required                        |
 
-#### IntegrationEnrollKind
+#### Changes required
 
 Add a new enum value for the AWS Cloud IAC flow:
 
@@ -86,15 +101,32 @@ Add corresponding frontend value in `IntegrationEnrollKind`:
 AwsCloud = 'INTEGRATION_ENROLL_KIND_AWS_CLOUD',
 ```
 
-#### ResourceCreateEvent
+Instrument `Integrations/Enroll/Cloud/Aws/EnrollAws.tsx` to emit `UIIntegrationEnroll*` events with `kind = INTEGRATION_ENROLL_KIND_AWS_CLOUD`:
 
-Currently only emitted by the discovery service. Auth emits `ResourceHeartbeatEvent` on every heartbeat but has no event for first resource creation. This means there is no way to query for resources created in a time window.
+| Action                        | Event type                         | Fields                                                              |
+| ----------------------------- | ---------------------------------- | ------------------------------------------------------------------- |
+| User lands on enroll page     | `tp.ui.integrationEnroll.start`    | `kind = AWS_CLOUD`                                                  |
+| User copies Terraform HCL     | `tp.ui.integrationEnroll.codeCopy` | `kind = AWS_CLOUD`, `type = INTEGRATION_ENROLL_CODE_TYPE_TERRAFORM` |
+| User clicks Check Integration | `tp.ui.integrationEnroll.verify`   | `kind = AWS_CLOUD`                                                  |
 
-Add `ResourceCreateEvent` emission from auth on first resource creation. For initial implementation we will attempt to get the resource before the `Put` call to check if the resource is new. Where a resource is new, emit `ResourceCreateEvent` with:
+`tp.ui.integrationEnroll.verify` is a new event type. Add a `UIIntegrationEnrollVerifyEvent` proto with the same `metadata` and `kind` fields as the existing `UIIntegrationEnrollStartEvent`.
+
+### ResourceCreateEvent — (Already exists, requires changes)
+
+ResourceCreateEvents will be used at the end of the IAC funnel to signal a working setup.
+
+`ResourceCreateEvent` is emitted by the discovery service when a resource is enrolled through discovery. Each event captures `resource_type`, `resource_origin`, `cloud_provider`, and database metadata.
+
+One new field is needed: `discovery_config_name` to determine which resources were discovered and created for a specific integration setup. This will allow us to correlate the end of the funnel correctly in case clusters already have other discovery flows running.
+
+#### Changes required
+
+Add `discovery_config_name` anonymized field to the existing `ResourceCreateEvent` proto for joining in the funnel:
 
 ```protobuf
 // ResourceCreateEvent is emitted when a resource is created.
 message ResourceCreateEvent {
+  // EXISTING
   // resource_type is the type of resource ("node", "node.openssh", "db", "k8s", "app").
   string resource_type = 1;
   // resource_origin is the origin of the resource ("cloud", "kubernetes").
@@ -104,113 +136,49 @@ message ResourceCreateEvent {
   string cloud_provider = 3;
   // database contains additional database information if resource_type == "db".
   DiscoveredDatabaseMetadata database = 4;
+
+  // NEW
+  // discovery_config_name is the anonymized name of the DiscoveryConfig that triggered discovery.
+  // Empty for teleport.yaml matcher configuration.
+  string discovery_config_name = 6;
 }
 ```
 
-No proto changes are needed — the existing message is sufficient. The change is to emit this event from auth in the following code paths:
-
-| Resource type       | Auth method                                     |
-| ------------------- | ----------------------------------------------- |
-| Nodes               | `UpsertNode` (when `GetNode` returns not found) |
-| Databases           | `CreateDatabase`                                |
-| Kubernetes clusters | `CreateKubernetesCluster`                       |
-| Apps                | `CreateApplicationServer`                       |
-| Windows desktops    | `CreateWindowsDesktop`                          |
-
-The discovery service's current `ResourceCreateEvent` emission will be removed and replaced by `ResourceDiscoveredEvent`.
+**`discovery_config_name`:** anonymized name of the DiscoveryConfig that triggered discovery. Empty for static configuration. Enables joining with `DiscoveryConfigEvent` to ensure attribution to the correct funnel when resources are discovered.
 
 **Athena event type:** `'tp.resource.create'`
 
-### New Events
+### DiscoveryConfigEvent — (New Event)
 
-#### ResourceDiscoveredEvent
-
-Emitted by the discovery service when it discovers a resource from a cloud provider. Replaces the current `ResourceCreateEvent` emission in `emitUsageEvents()`, avoiding the duplicate event bug where both the discovery service and auth emit `ResourceCreateEvent` for the same resource.
+Emitted when a DiscoveryConfig resource is created, updated, or deleted. Used as a step in the IAC setup funnel and to track integration lifecycle.
 
 ```protobuf
-message ResourceDiscoveredEvent {
-  string resource_type = 1;
-  string resource_name = 2;
-  string cloud_provider = 3;
-  string discovery_config_name = 4;
-  string discovery_method = 5;
+enum DiscoveryConfigAction {
+  DISCOVERY_CONFIG_ACTION_UNSPECIFIED = 0;
+  DISCOVERY_CONFIG_ACTION_CREATE = 1;
+  DISCOVERY_CONFIG_ACTION_UPDATE = 2;
+  DISCOVERY_CONFIG_ACTION_DELETE = 3;
+}
+
+message DiscoveryConfigEvent {
+  // action is the operation performed on the DiscoveryConfig.
+  DiscoveryConfigAction action = 1;
+  // discovery_config_name is the anonymized name of the DiscoveryConfig.
+  string discovery_config_name = 2;
+  // resource_types is the list of resource types configured for discovery (e.g., "ec2", "rds", "eks").
+  repeated string resource_types = 3;
 }
 ```
 
-**`discovery_method` values:**
+**`discovery_config_name`:** anonymized name of the DiscoveryConfig, for correlation with `ResourceCreateEvent.discovery_config_name` and the other funnel events.
 
-| Value      | Meaning                                                                                 |
-| ---------- | --------------------------------------------------------------------------------------- |
-| `"static"` | Discovered via matchers defined in `teleport.yaml`. No DiscoveryConfig resource exists. |
-| `"guided"` | Discovered via a DiscoveryConfig created in the Guided Discover flow.                   |
-| `"iac"`    | Discovered via a DiscoveryConfig created by the IAC flow.                               |
+**`resource_types`:** extracted from the DiscoveryConfig's matchers. Supports multiple types for future multi-resource setups.
 
-**How `discovery_method` is resolved:**
+Emitted in `CreateDiscoveryConfig()`, `UpdateDiscoveryConfig()`, and `DeleteDiscoveryConfig()` in the discoveryconfig service.
 
-The discovery service resolves the method centrally in `emitUsageEvents()` before submitting each event. It looks up the DiscoveryConfig by name from its in-memory cache and checks for the `teleport.dev/iac-tool` label:
+**Athena event type:** `'tp.discovery.config'`
 
-- No DiscoveryConfig name present: `"static"`
-- DiscoveryConfig exists with `teleport.dev/iac-tool` label: `"iac"`
-- DiscoveryConfig exists without that label: `"guided"`
-
-**`resource_name`:** anonymized name of the discovered resource. Enables joining with `ResourceCreateEvent` to determine which created resources came from discovery.
-
-**`discovery_config_name`:** anonymized name of the DiscoveryConfig that triggered discovery. Empty for static configuration. Enables joining with `DiscoveryConfigCreateEvent`.
-
-**Emission points:**
-
-| Path                | File                                    | discovery_config_name source                         |
-| ------------------- | --------------------------------------- | ---------------------------------------------------- |
-| EC2 instances       | `lib/srv/discovery/discovery.go`        | From `EC2Instances.DiscoveryConfigName`              |
-| Azure VMs           | `lib/srv/discovery/discovery.go`        | From `AzureInstances.DiscoveryConfigName`            |
-| GCP VMs             | `lib/srv/discovery/discovery.go`        | From `GCPInstances.DiscoveryConfigName`              |
-| Kubernetes clusters | `lib/srv/discovery/kube_watcher.go`     | From `teleport.internal/discovery-config-name` label |
-| Databases           | `lib/srv/discovery/database_watcher.go` | From `teleport.internal/discovery-config-name` label |
-
-**Athena event type:** `'tp.resource.discovered'`
-
-#### DiscoveryConfigCreateEvent
-
-Emitted when a DiscoveryConfig resource is created, regardless of creation method. This captures all discovery paths: IAC flow, Guided Discover flow, and API/tctl.
-
-```protobuf
-message DiscoveryConfigCreateEvent {
-  string discovery_config_name = 1;
-  string creation_method = 2;
-}
-```
-
-**`creation_method` values:**
-
-| Value      | Meaning                                                             |
-| ---------- | ------------------------------------------------------------------- |
-| `"iac"`    | DiscoveryConfig has `teleport.dev/iac-tool` label at creation time. |
-| `"guided"` | DiscoveryConfig created without `teleport.dev/iac-tool` label.      |
-
-**`discovery_config_name`:** anonymized name of the DiscoveryConfig, for correlation with `ResourceDiscoveredEvent.discovery_config_name`.
-
-Emitted in `CreateDiscoveryConfig()` in the discoveryconfig service. The creation method is resolved by checking for the `teleport.dev/iac-tool` label on the resource being created.
-
-**Athena event type:** `'tp.discovery.config.create'`
-
-### IAC Flow UI Instrumentation
-
-Instrument `Integrations/Enroll/Cloud/Aws/EnrollAws.tsx` to emit existing `UIIntegrationEnroll*` events with `kind = INTEGRATION_ENROLL_KIND_AWS_CLOUD`:
-
-| Action                    | Event type                         | Fields                                                              |
-| ------------------------- | ---------------------------------- | ------------------------------------------------------------------- |
-| User lands on page        | `tp.ui.integrationEnroll.start`    | `kind = AWS_CLOUD`                                                  |
-| User copies Terraform HCL | `tp.ui.integrationEnroll.codeCopy` | `kind = AWS_CLOUD`, `type = INTEGRATION_ENROLL_CODE_TYPE_TERRAFORM` |
-
-## Event-to-Goal Mapping
-
-| Goal                                   | Events Used                                                                                                                              |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| **Goal 1: Adoption and Growth**        | ResourceCreateEvent, ResourceDiscoveredEvent, DiscoveryConfigCreateEvent                                                                 |
-| **Goal 2: Setup Success and Blockers** | UIIntegrationEnrollStartEvent, UIIntegrationEnrollCodeCopyEvent, DiscoveryConfigCreateEvent, ResourceDiscoveredEvent, UserTaskStateEvent |
-| **Goal 3: Complete Instrumentation**   | All of the above                                                                                                                         |
-
-## Queries
+## Initial Draft Queries (unverified)
 
 **Table:** `prehog_events_v1`
 
@@ -297,19 +265,6 @@ ORDER BY 1 DESC
 LIMIT 12;
 ```
 
-#### What is the adoption split across discovery methods?
-
-```sql
-SELECT
-  json_extract_scalar(event_data, '$.properties["tp.discovery_method"]') AS discovery_method,
-  COUNT(DISTINCT json_extract_scalar(event_data, '$.properties["tp.cluster_name"]')) AS clusters,
-  COUNT(*) AS resources_discovered
-FROM prehog_events_v1
-WHERE event_type = 'tp.resource.discovered'
-  AND event_date >= current_date - interval '30' day
-GROUP BY 1;
-```
-
 ### Goal 2: Measure Setup Success and Identify Blockers
 
 #### IAC funnel
@@ -319,7 +274,7 @@ The IAC discovery funnel has five stages:
 1. **Start IAC integration configuration** -- user lands on the IAC enrollment page
 2. **Configure** -- user enters integration name, selects resources, regions, and tag filters
 3. **Copy Terraform** -- user copies the generated Terraform HCL
-4. **Create DiscoveryConfig** -- user runs `terraform apply`, which creates the Integration and DiscoveryConfig
+4. **Create Integration** -- user runs `terraform apply`, which creates the Integration and DiscoveryConfig
 5. **First resource discovered** -- the discovery service finds a matching resource
 
 Stages 1-3 happen in the web UI at `Integrations/Enroll/Cloud/Aws/EnrollAws.tsx`. Stages 4-5 are backend events.
@@ -329,7 +284,7 @@ Stages 1-3 happen in the web UI at `Integrations/Enroll/Cloud/Aws/EnrollAws.tsx`
 | 1. Start IAC configuration   | `tp.ui.integrationEnroll.start` with `kind = AWS_CLOUD`    |
 | 2. Configure                 | Implied by reaching stage 3                                |
 | 3. Copy Terraform            | `tp.ui.integrationEnroll.codeCopy` with `kind = AWS_CLOUD` |
-| 4. Create DiscoveryConfig    | `tp.discovery.config.create`                               |
+| 4. Create Integration        | `tp.discovery.config` with `action = 'CREATE'`             |
 | 5. First resource discovered | `tp.resource.discovered` with `discovery_method = 'iac'`   |
 
 #### What percentage of clusters that start the IAC flow go on to discover resources?
@@ -352,8 +307,8 @@ stage3_copy AS (
 stage4_config AS (
   SELECT DISTINCT json_extract_scalar(event_data, '$.properties["tp.cluster_name"]') AS cluster_name
   FROM prehog_events_v1
-  WHERE event_type = 'tp.discovery.config.create'
-    AND json_extract_scalar(event_data, '$.properties["tp.creation_method"]') = 'iac'
+  WHERE event_type = 'tp.discovery.config'
+    AND json_extract_scalar(event_data, '$.properties["tp.action"]') = 'CREATE'
     AND event_date >= current_date - interval '30' day
 ),
 stage5_discovered AS (
@@ -399,7 +354,6 @@ ORDER BY affected_resources DESC;
 
 ```sql
 SELECT
-  json_extract_scalar(event_data, '$.properties["tp.discovery_method"]') AS discovery_method,
   json_extract_scalar(event_data, '$.properties["tp.resource_type"]') AS resource_type,
   json_extract_scalar(event_data, '$.properties["tp.cloud_provider"]') AS cloud_provider,
   COUNT(*) AS resources_discovered,
@@ -420,7 +374,8 @@ WITH config_created AS (
     json_extract_scalar(event_data, '$.properties["tp.discovery_config_name"]') AS config_name,
     MIN(from_iso8601_timestamp(json_extract_scalar(event_data, '$.timestamp'))) AS config_time
   FROM prehog_events_v1
-  WHERE event_type = 'tp.discovery.config.create'
+  WHERE event_type = 'tp.discovery.config'
+    AND json_extract_scalar(event_data, '$.properties["tp.action"]') = 'CREATE'
     AND event_date >= current_date - interval '30' day
   GROUP BY 1, 2
 ),
