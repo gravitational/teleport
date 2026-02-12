@@ -1,9 +1,12 @@
+{{ forwarder="fluentd.fluentd.svc.cluster.local" }}
+
 Run the `configure` command to generate a sample configuration. Assign
 <Var name="teleport.example.com:443" /> to the DNS name and port of your Teleport Auth
-Service or Proxy Service:
+Service or Proxy Service.
+Assign <Var name={{ forwarder }} /> to the DNS name of your log forwarder.
 
 ```code
-$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.version=) configure . <Var name="teleport.example.com:443" />
+$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.version=) configure . <Var name="teleport.example.com:443" /> --dns-names=<Var name={{ forwarder }} />
 ```
 
 In order to export audit events, you'll need to have the root certificate and the

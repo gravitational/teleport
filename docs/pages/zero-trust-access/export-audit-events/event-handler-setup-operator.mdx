@@ -29,7 +29,7 @@ Operator, see [Set up the Event Handler with tctl](event-handler-setup.mdx).
 The Event Handler plugin is a binary that runs independently of your Teleport
 cluster. It authenticates to your Teleport cluster using mutual TLS to begin forwarding events.
 
-The Teleport Kubernetes Operator is a Teleport Auth Service client that you
+The Teleport Kubernetes Operator is a Teleport client that you
 install using the `teleport-operator` Helm chart. It is responsible for managing
 the Teleport resources to set up Machine & Workload Identity, `tbot`, for the
 `teleport-plugin-event-handler` Helm chart. This will generate the credentials to establish

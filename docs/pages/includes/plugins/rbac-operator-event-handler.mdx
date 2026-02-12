@@ -29,18 +29,30 @@ Ensure the `teleport` section is removed, since `tbot` is performing the authent
 This will generate the Event Handler role and bot user for the Machine & Workload Identity bot, `tbot`,
 to authenticate as when connecting to your Teleport cluster.
 
-### Specifying a join method for tbot
+### Specify a join token for tbot
 
-The `tbot` deployment authenticates to the Teleport cluster using a `TeleportProvisionToken` custom resource.
-By default, the chart configures the `TeleportProvisionToken` custom resource to the `kubernetes`
-in_cluster join method.
+The `tbot` deployment authenticates to the Teleport cluster using a join token
+created by the `crd` section. Depending on where you deploy the Event Handler plugin
+relative to your Teleport cluster, you may need to modify the join token specification.
 
-Optionally, you can override the token specification for other join methods
-using the `crd.tokenSpecOverride` field.
+<Tabs>
+<TabItem label="Same Kubernetes cluster as Teleport cluster">
+
+When running {{ plugin }} in the same Kubernetes cluster
+as the Teleport cluster (eg. the `teleport-cluster` Helm chart),
+we can use the default join token specification: `kubernetes` in_cluster
+join method. This will automatically connect `tbot` to Teleport.
+
+</TabItem>
+<TabItem label="External Teleport cluster">
+
+When running {{ plugin }} against an external Teleport cluster not in Kubernetes,
+you must modify the join token specification using `crd.tokenSpecOverride`. We
+recommend either the `kubernetes` JWKS join method or the `kubernetes` OIDC join method.
 
 <details>
 <summary>Example (Kubernetes JWKS join method)</summary>
-You can override the TeleportProvisionToken specification to use the `kubernetes` JWKS join method.
+You can override the join token specification to use the `kubernetes` JWKS join method.
 
 ```yaml
 # values.yaml
@@ -57,7 +69,7 @@ tokenSpecOverride:
 
 <details>
 <summary>Example (Kubernetes OIDC join method)</summary>
-You can override the TeleportProvisionToken specification to use the `kubernetes` OIDC join method.
+You can override the join token specification to use the `kubernetes` OIDC join method.
 
 ```yaml
 # values.yaml
@@ -71,6 +83,9 @@ tokenSpecOverride:
       issuer: https://oidc.eks.us-west-2.amazonaws.com/id/my-cluster
 ```
 </details>
+
+</TabItem>
+</Tabs>
 
 Consult the [Helm chart reference
 guide](../../reference/helm-reference/teleport-plugin-event-handler.mdx)

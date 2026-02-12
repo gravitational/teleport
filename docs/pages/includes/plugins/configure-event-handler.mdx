@@ -1,39 +1,45 @@
+{{ forwarder="localhost" }}
 {/* this comment is here to make the includes below render */}
 
 <Tabs>
 <TabItem scope={["cloud","team"]} label="Cloud-Hosted">
 
-Run the `configure` command to generate a sample configuration. Replace
-<Var name="teleport.example.com:443" /> with the DNS name of your Teleport Enterprise Cloud
-account:
+Run the `configure` command to generate a sample configuration. Assign
+<Var name="teleport.example.com:443" /> to the DNS name and port of your Teleport Enterprise Cloud
+account.
+Assign <Var name={{ forwarder }}/> to the DNS name of your log forwarder.
 
 ```code
-$ teleport-event-handler configure . <Var name="teleport.example.com:443" />
+$ teleport-event-handler configure . <Var name="teleport.example.com:443" /> --dns-names=<Var name={{ forwarder }}/>
 ```
 
 </TabItem>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
-Run the `configure` command to generate a sample configuration. Replace
-<Var name="teleport.example.com:443" /> with the DNS name and HTTPS port of Teleport's Proxy
-Service:
+Run the `configure` command to generate a sample configuration. Assign
+<Var name="teleport.example.com:443" /> to the DNS name and port of your Teleport Auth
+Service or Proxy Service.
+Assign <Var name={{ forwarder }}/> to the DNS name of your log forwarder.
 
 ```code
-$ teleport-event-handler configure . <Var name="teleport.example.com:443" />
+$ teleport-event-handler configure . <Var name="teleport.example.com:443" /> --dns-names=<Var name={{ forwarder }}/>
 ```
 
 </TabItem>
 <TabItem scope={["oss", "enterprise", "cloud"]} label="Helm Chart">
 
-(!docs/pages/includes/plugins/configure-event-handler-helm.mdx!)
+(!docs/pages/includes/plugins/configure-event-handler-helm.mdx forwarder="fluentd.fluentd.svc.cluster.local"!)
 
 </TabItem>
 <TabItem label="Local Docker test">
 
-Run the `configure` command to generate a sample configuration:
+Run the `configure` command to generate a sample configuration. Assign
+<Var name="teleport.example.com:443" /> to the DNS name and port of your Teleport Auth
+Service or Proxy Service.
+Assign <Var name={{ forwarder }}/> to the DNS name of your log forwarder.
 
 ```code
-$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.version=) configure .
+$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.version=) configure . <Var name="teleport.example.com:443" /> --dns-names=<Var name={{ forwarder }}/>
 ```
 
 </TabItem>
