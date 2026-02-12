@@ -90,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
+	libevents "github.com/gravitational/teleport/lib/events"
 	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
@@ -548,6 +549,18 @@ type CLIConf struct {
 
 	// recordingsSince is a duration which sets the time into the past in which to list session recordings
 	recordingsSince string
+
+	// discoveryTroubleshootFromUTC is the start of time range used by `tsh discovery troubleshoot`.
+	discoveryTroubleshootFromUTC string
+
+	// discoveryTroubleshootToUTC is the end of time range used by `tsh discovery troubleshoot`.
+	discoveryTroubleshootToUTC string
+
+	// discoveryTroubleshootSince is a duration into the past used by `tsh discovery troubleshoot`.
+	discoveryTroubleshootSince string
+
+	// discoveryTroubleshootLimit is the maximum number of events to return from `tsh discovery troubleshoot`.
+	discoveryTroubleshootLimit int
 
 	// command is the selected command (and subcommands) parsed from command
 	// line args. Note that this command does not contain the binary (e.g. tsh).
@@ -1069,6 +1082,16 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	exportRecordings := recordings.Command("export", "Export recorded desktop sessions to video.")
 	exportRecordings.Flag("out", "Override output file name.").StringVar(&cf.OutFile)
 	exportRecordings.Arg("session-id", "ID of the session to export.").Required().StringVar(&cf.SessionID)
+
+	// Discovery.
+	discovery := app.Command("discovery", "View and troubleshoot discovery.")
+	discoveryTroubleshoot := discovery.Command("troubleshoot", "Fetch recent EC2 discovery SSM run events.")
+	discoveryTroubleshoot.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	discoveryTroubleshoot.Flag("from-utc", fmt.Sprintf("Start of time range in which events are listed. Format %s. Defaults to 7 days ago when --from-utc/--to-utc/--last are unset.", defaults.TshTctlSessionListTimeFormat)).StringVar(&cf.discoveryTroubleshootFromUTC)
+	discoveryTroubleshoot.Flag("to-utc", fmt.Sprintf("End of time range in which events are listed. Format %s. Defaults to current time when --from-utc/--to-utc/--last are unset.", defaults.TshTctlSessionListTimeFormat)).StringVar(&cf.discoveryTroubleshootToUTC)
+	discoveryTroubleshoot.Flag("limit", fmt.Sprintf("Maximum number of events to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&cf.discoveryTroubleshootLimit)
+	discoveryTroubleshoot.Flag("last", "Duration into the past from which events should be listed. Format \"5h30m40s\".").StringVar(&cf.discoveryTroubleshootSince)
+	discoveryTroubleshoot.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+". Defaults to 'json'.").Short('f').Default(teleport.JSON).EnumVar(&cf.Format, defaults.DefaultFormats...)
 
 	// Local TLS proxy.
 	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode.")
@@ -1801,6 +1824,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onRecordings(&cf)
 	case exportRecordings.FullCommand():
 		err = onExportRecording(&cf)
+	case discoveryTroubleshoot.FullCommand():
+		err = onDiscoveryTroubleshoot(&cf)
 	case appLogin.FullCommand():
 		err = onAppLogin(&cf)
 	case appLogout.FullCommand():
@@ -6136,6 +6161,130 @@ func onRecordings(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func onDiscoveryTroubleshoot(cf *CLIConf) error {
+	since := cf.discoveryTroubleshootSince
+	if cf.discoveryTroubleshootFromUTC == "" && cf.discoveryTroubleshootToUTC == "" && since == "" {
+		since = (7 * 24 * time.Hour).String()
+	}
+
+	fromUTC, toUTC, err := defaults.SearchSessionRange(
+		clockwork.NewRealClock(),
+		cf.discoveryTroubleshootFromUTC,
+		cf.discoveryTroubleshootToUTC,
+		since,
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if cf.discoveryTroubleshootLimit <= 0 {
+		return trace.BadParameter("limit must be greater than zero")
+	}
+
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var events []apievents.AuditEvent
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		startKey := ""
+		for len(events) < cf.discoveryTroubleshootLimit {
+			limit := min(apidefaults.DefaultChunkSize, cf.discoveryTroubleshootLimit-len(events))
+			nextEvents, nextStartKey, err := clusterClient.AuthClient.SearchEvents(cf.Context, libevents.SearchEventsRequest{
+				From:       fromUTC,
+				To:         toUTC,
+				EventTypes: []string{libevents.SSMRunEvent},
+				Limit:      limit,
+				Order:      types.EventOrderDescending,
+				StartKey:   startKey,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			events = append(events, nextEvents...)
+			if nextStartKey == "" {
+				break
+			}
+			startKey = nextStartKey
+		}
+
+		return nil
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(events) == 0 {
+		if strings.EqualFold(cf.Format, teleport.Text) {
+			fmt.Fprintln(cf.Stdout(), "No ssm.run events found in the specified time range.")
+			return nil
+		}
+		if strings.EqualFold(cf.Format, teleport.YAML) {
+			out, err := yaml.Marshal(events)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			_, err = fmt.Fprintln(cf.Stdout(), string(out))
+			return trace.Wrap(err)
+		}
+		out, err := json.MarshalIndent(events, "", "  ")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		_, err = fmt.Fprintln(cf.Stdout(), string(out))
+		return trace.Wrap(err)
+	}
+
+	switch strings.ToLower(cf.Format) {
+	case teleport.Text:
+		table := asciitable.MakeTable([]string{"Time", "Account ID", "Region", "Instance ID", "Status"})
+		for _, event := range events {
+			accountID := ""
+			region := ""
+			instanceID := ""
+			status := ""
+			if ssmRun, ok := event.(*apievents.SSMRun); ok {
+				accountID = ssmRun.AccountID
+				region = ssmRun.Region
+				instanceID = ssmRun.InstanceID
+				status = ssmRun.Status
+			}
+			table.AddRow([]string{
+				event.GetTime().Format(time.RFC3339),
+				accountID,
+				region,
+				instanceID,
+				status,
+			})
+		}
+		_, err := fmt.Fprintln(cf.Stdout(), table.AsBuffer().String())
+		return trace.Wrap(err)
+	case teleport.YAML:
+		out, err := yaml.Marshal(events)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		_, err = fmt.Fprintln(cf.Stdout(), string(out))
+		return trace.Wrap(err)
+	case teleport.JSON, "":
+		out, err := json.MarshalIndent(events, "", "  ")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		_, err = fmt.Fprintln(cf.Stdout(), string(out))
+		return trace.Wrap(err)
+	default:
+		return trace.BadParameter("unsupported format %q", cf.Format)
+	}
+
 }
 
 // onEnvironment handles "tsh env" command.
