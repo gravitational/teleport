@@ -32,7 +32,7 @@ import (
 // httprouter.Handler handler.
 func (h *Handler) withRouterAuth(handler routerAuthFunc) httprouter.Handle {
 	return makeRouterHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
-		session, err := h.authenticate(r.Context(), r, nil /* appServer */)
+		session, err := h.authenticate(r.Context(), r)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -48,7 +48,7 @@ func (h *Handler) withRouterAuth(handler routerAuthFunc) httprouter.Handle {
 func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 	return makeHandler(func(w http.ResponseWriter, r *http.Request) error {
 		// If the caller fails to authenticate, redirect the caller to Teleport.
-		session, err := h.authenticate(r.Context(), r, nil /* appServer */)
+		session, err := h.authenticate(r.Context(), r)
 		if err != nil {
 			if redirectErr := h.redirectToLauncher(w, r, launcherURLParams{}); redirectErr == nil {
 				return nil
@@ -78,9 +78,9 @@ type extracAppParamsFunc func(p httprouter.Params) requestedAppParams
 // receiving the request.
 type appQualifierFunc func(app types.Application) bool
 
-// withAuthAndAppResolver resolves app based on request then authenticate the
+// withAppAuthConfig resolves app based on request then authenticate the
 // request before handling to a http.HandlerFunc.
-func (h *Handler) withAuthAndAppResolver(handler handlerAuthFunc, extractFunc extracAppParamsFunc, appFunc appQualifierFunc) httprouter.Handle {
+func (h *Handler) withAppAuthConfig(handler handlerWithAppAuthFunc, extractFunc extracAppParamsFunc, appFunc appQualifierFunc) httprouter.Handle {
 	return makeRouterHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
 		params := extractFunc(p)
 		appName := params.appName
@@ -108,7 +108,10 @@ func (h *Handler) withAuthAndAppResolver(handler handlerAuthFunc, extractFunc ex
 			return trace.NotFound("app not found")
 		}
 
-		session, err := h.authenticate(r.Context(), r, &withAppServer{clusterName: site, appServer: appServer})
+		session, err := h.authenticateWithAppAuth(r.Context(), r, &withAppServer{
+			clusterName: site,
+			appServer:   appServer,
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -205,6 +208,8 @@ type routerFunc func(http.ResponseWriter, *http.Request, httprouter.Params) erro
 type routerAuthFunc func(http.ResponseWriter, *http.Request, httprouter.Params, *session) error
 
 type handlerAuthFunc func(http.ResponseWriter, *http.Request, *session) error
+
+type handlerWithAppAuthFunc func(http.ResponseWriter, *http.Request, *sessionWithAppAuth) error
 
 type handlerFunc func(http.ResponseWriter, *http.Request) error
 

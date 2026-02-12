@@ -908,7 +908,7 @@ func TestHandlerAuthenticate(t *testing.T) {
 		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
 		addValidSessionCookiesToRequest(authClient.appSession, request)
 
-		_, err = appHandler.authenticate(ctx, request, nil /* appServer */)
+		_, err = appHandler.authenticate(ctx, request)
 		require.NoError(t, err)
 	})
 
@@ -922,13 +922,13 @@ func TestHandlerAuthenticate(t *testing.T) {
 		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
 		request.TLS.PeerCertificates = []*x509.Certificate{x509Cert}
 
-		_, err = appHandler.authenticate(ctx, request, nil /* appServer */)
+		_, err = appHandler.authenticate(ctx, request)
 		require.NoError(t, err)
 	})
 
 	t.Run("without cookie or client cert", func(t *testing.T) {
 		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
-		_, err := appHandler.authenticate(ctx, request, nil /* appServer */)
+		_, err := appHandler.authenticate(ctx, request)
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err))
 	})
@@ -938,7 +938,7 @@ func TestHandlerAuthenticate(t *testing.T) {
 		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
 		addValidSessionCookiesToRequest(authClient.appSession, request)
 
-		_, err := appHandler.authenticate(ctx, request, nil /* appServer */)
+		_, err := appHandler.authenticate(ctx, request)
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err))
 	})

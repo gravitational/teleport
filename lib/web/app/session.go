@@ -41,12 +41,10 @@ type session struct {
 	ws types.WebSession
 	// transport allows to dial an application server.
 	tr *transport
-	// appAuthConfig represents the app auth config to serve the session.
-	appAuthConfig *appauthconfigv1.AppAuthConfig
 }
 
 // newSession creates a new session.
-func (h *Handler) newSession(ctx context.Context, ws types.WebSession, appAuthConfig *appauthconfigv1.AppAuthConfig) (*session, error) {
+func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session, error) {
 	// Extract the identity of the user.
 	certificate, err := tlsca.ParseCertificatePEM(ws.GetTLSCert())
 	if err != nil {
@@ -127,9 +125,27 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession, appAuthCo
 		return nil, trace.Wrap(err)
 	}
 	return &session{
-		fwd:           fwd,
-		ws:            ws,
-		tr:            transport,
-		appAuthConfig: appAuthConfig,
+		fwd: fwd,
+		ws:  ws,
+		tr:  transport,
 	}, nil
+}
+
+// sessionWithAppAuth holds a session that was authenticated with app auth
+// config.
+type sessionWithAppAuth struct {
+	*session
+
+	// appAuthConfig represents the app auth config to serve the session.
+	appAuthConfig *appauthconfigv1.AppAuthConfig
+}
+
+// newSessionWithAppAuth creates a new session with app auth config.
+func (h *Handler) newSessionWithAppAuth(ctx context.Context, ws types.WebSession, appAuthConfig *appauthconfigv1.AppAuthConfig) (*sessionWithAppAuth, error) {
+	sess, err := h.newSession(ctx, ws)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &sessionWithAppAuth{session: sess, appAuthConfig: appAuthConfig}, nil
 }
