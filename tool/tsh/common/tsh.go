@@ -2768,6 +2768,9 @@ func onLogout(cf *CLIConf) error {
 // onListNodes executes 'tsh ls' command.
 func onListNodes(cf *CLIConf) error {
 	if cf.ListAll {
+		if cf.Headless || cf.AuthConnector == constants.HeadlessConnector {
+			return trace.BadParameter("--all cannot be specified with --headless/--auth=headless")
+		}
 		return trace.Wrap(listNodesAllClusters(cf))
 	}
 
