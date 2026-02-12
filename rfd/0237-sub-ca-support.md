@@ -477,22 +477,6 @@ If customization of the O= field is desired then cluster name is recorded using
 OID "1.3.9999.4.1". If any Subject customization is at play then the system
 favors the alternate OID to the O= field.
 
-In an attempt to make CA certificate requirements clearer and more maintainable
-in code, the tlsca.ClusterName() function is to be removed and replaced by the
-following:
-
-```go
-package tlsca // lib/tlsca
-
-func CAInfoFromSubject(subject pkix.Name) (*CAInfo, error) {
-	// (...)
-}
-
-type CAInfo struct {
-	ClusterName string
-}
-```
-
 Managed Subjects may have, at the system's discretion, the certificate serial
 number added to their Subject. Customized Subjects are not changed in this
 regard.
