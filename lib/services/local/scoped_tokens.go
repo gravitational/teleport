@@ -336,7 +336,7 @@ func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, req *joining
 			return nil, trace.Wrap(err)
 		}
 
-		// Use conditional update with revision to ensure the token hasn't changed since we validated it.
+		// Use conditional update with revision checking to ensure the token hasn't changed since we validated it.
 		// This prevents race conditions where the token could be deleted and recreated with
 		// different properties between our validation check and the write.
 		upsertedToken, err := s.svc.ConditionalUpdateResource(ctx, tokenUpsert)

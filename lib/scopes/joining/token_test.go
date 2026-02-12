@@ -378,3 +378,64 @@ func TestImmutableLabelHashing(t *testing.T) {
 	labels.Ssh["three"] = "3"
 	require.False(t, joining.VerifyImmutableLabelsHash(labels, initialHash))
 }
+
+func TestValidateTokenUpdate(t *testing.T) {
+	baseToken := &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "test-token",
+		},
+		Scope: "/test",
+		Spec: &joiningv1.ScopedTokenSpec{
+			AssignedScope: "/test/one",
+			JoinMethod:    string(types.JoinMethodToken),
+			Roles:         []string{types.RoleNode.String()},
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
+		},
+		Status: &joiningv1.ScopedTokenStatus{
+			Secret: "secret-value",
+		},
+	}
+
+	t.Run("check scope change", func(t *testing.T) {
+		modified := proto.CloneOf(baseToken)
+		modified.Scope = "/other"
+		modified.Spec.AssignedScope = "/other/one"
+
+		err := joining.ValidateTokenUpdate(baseToken, modified)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "cannot modify scope of existing scoped token")
+		assert.ErrorContains(t, err, "/test")
+		assert.ErrorContains(t, err, "/other")
+	})
+
+	t.Run("check usage mode change", func(t *testing.T) {
+		modified := proto.CloneOf(baseToken)
+		modified.Spec.UsageMode = string(joining.TokenUsageModeSingle)
+
+		err := joining.ValidateTokenUpdate(baseToken, modified)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "cannot modify usage mode of existing scoped token")
+		assert.ErrorContains(t, err, string(joining.TokenUsageModeUnlimited))
+		assert.ErrorContains(t, err, string(joining.TokenUsageModeSingle))
+	})
+
+	t.Run("check secret change", func(t *testing.T) {
+		modified := proto.CloneOf(baseToken)
+		modified.Status.Secret = "new-secret-value"
+
+		err := joining.ValidateTokenUpdate(baseToken, modified)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "cannot modify secret of existing scoped token")
+	})
+
+	t.Run("valid update", func(t *testing.T) {
+		modified := proto.CloneOf(baseToken)
+		modified.Metadata.Labels = map[string]string{"env": "production"}
+		modified.Spec.AssignedScope = "/test/one/two"
+
+		err := joining.ValidateTokenUpdate(baseToken, modified)
+		require.NoError(t, err)
+	})
+}
