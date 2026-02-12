@@ -147,26 +147,36 @@ func NewUpdater(toolsDir, localVersion string, options ...Option) *Updater {
 }
 
 // CheckLocal is run at client tool startup and will only perform local checks.
-// Returns the version needs to be updated and re-executed, by re-execution flag we
-// understand that update and re-execute is required.
-func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *UpdateResponse, err error) {
+// Returns the version needs to be updated and re-executed, by re-execution flag
+// we understand that update and re-execute is required. If the tool that should
+// be re-executed is known to be locally available as the most recently launched
+// tool, it is also returned.
+func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *UpdateResponse, readyTool *Tool, err error) {
 	// Check if the user has requested a specific version of client tools.
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
 	switch requestedVersion {
 	// The user has turned off any form of automatic updates.
 	case teleportToolsVersionEnvDisabled:
-		return &UpdateResponse{Version: "", ReExec: false}, nil
+		return &UpdateResponse{Version: "", ReExec: false}, nil, nil
 	// Requested version already the same as client version.
 	case u.localVersion:
-		return &UpdateResponse{Version: u.localVersion, ReExec: false}, nil
+		return &UpdateResponse{Version: u.localVersion, ReExec: false}, nil, nil
 	// No requested version, we continue.
 	case "":
 	// Requested version that is not the local one.
 	default:
 		if _, err := semver.NewVersion(requestedVersion); err != nil {
-			return nil, trace.Wrap(err, "checking that request version is semantic")
+			return nil, nil, trace.Wrap(err, "checking that request version is semantic")
 		}
-		return &UpdateResponse{Version: requestedVersion, ReExec: true}, nil
+		// if a specific version is selected, it's worth to read the local
+		// configuration just in case the tool is already available
+		var readyTool *Tool
+		if ctc, err := GetToolsConfig(u.toolsDir); err != nil {
+			slog.DebugContext(ctx, "Failed to read local configuration", "error", err)
+		} else {
+			readyTool = ctc.SelectVersionIfMostRecent(u.toolsDir, requestedVersion, runtime.GOOS, runtime.GOARCH)
+		}
+		return &UpdateResponse{Version: requestedVersion, ReExec: true}, readyTool, nil
 	}
 
 	// We should acquire and release the lock before checking the version
@@ -174,13 +184,14 @@ func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *Upd
 	// check is completed, which can take several seconds.
 	ctc, err := GetToolsConfig(u.toolsDir)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	if config, ok := ctc.Configs[profileName]; ok {
 		if config.Disabled || config.Version == u.localVersion {
-			return &UpdateResponse{Version: config.Version, ReExec: false}, nil
+			return &UpdateResponse{Version: config.Version, ReExec: false}, nil, nil
 		} else {
-			return &UpdateResponse{Version: config.Version, ReExec: true}, nil
+			readyTool := ctc.SelectVersionIfMostRecent(u.toolsDir, config.Version, runtime.GOOS, runtime.GOARCH)
+			return &UpdateResponse{Version: config.Version, ReExec: true}, readyTool, nil
 		}
 	}
 
@@ -189,10 +200,10 @@ func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *Upd
 	// might block execution or a broken version may already exist in the tools' directory.
 	toolsVersion, err := CheckExecutedToolVersion(u.toolsDir)
 	if trace.IsNotFound(err) || errors.Is(err, ErrVersionCheck) || toolsVersion == u.localVersion {
-		return &UpdateResponse{Version: u.localVersion, ReExec: false}, nil
+		return &UpdateResponse{Version: u.localVersion, ReExec: false}, nil, nil
 	}
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	if !ctc.HasVersion(u.toolsDir, toolsVersion, runtime.GOOS, runtime.GOARCH) {
@@ -203,7 +214,7 @@ func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *Upd
 		}
 	}
 
-	return &UpdateResponse{Version: toolsVersion, ReExec: false}, nil
+	return &UpdateResponse{Version: toolsVersion, ReExec: false}, nil, nil
 }
 
 // CheckRemote first checks the version set by the environment variable. If not set or disabled,
