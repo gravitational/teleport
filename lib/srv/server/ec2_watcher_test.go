@@ -882,7 +882,7 @@ func TestSSMRunCommandParameters(t *testing.T) {
 			},
 			errCheck: require.NoError,
 			expectedParams: map[string]string{
-				"commands": "curl -s -L https://proxy.example.com/v1/webapi/scripts/installer/default-installer | bash -s my-token",
+				"commands": `bash -c "set -o pipefail; curl --silent --show-error --location https://proxy.example.com/v1/webapi/scripts/installer/default-installer | bash -s my-token"`,
 			},
 		},
 		{
@@ -905,7 +905,7 @@ func TestSSMRunCommandParameters(t *testing.T) {
 			},
 			errCheck: require.NoError,
 			expectedParams: map[string]string{
-				"commands": "export TELEPORT_INSTALL_SUFFIX=cluster-green; curl -s -L https://proxy.example.com/v1/webapi/scripts/installer/default-installer | bash -s my-token",
+				"commands": `export TELEPORT_INSTALL_SUFFIX=cluster-green; bash -c "set -o pipefail; curl --silent --show-error --location https://proxy.example.com/v1/webapi/scripts/installer/default-installer | bash -s my-token"`,
 			},
 		},
 		{
