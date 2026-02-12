@@ -189,7 +189,7 @@ func (r *remoteSFTPSubsystem) Start(ctx context.Context, channel ssh.Channel) er
 
 	go func() {
 		defer r.subsystem.serverContext.RemoteSession.Close()
-		errCh := make(chan error)
+		errCh := make(chan error, 1)
 		go func() {
 			errCh <- proxy.Serve()
 			close(errCh)
