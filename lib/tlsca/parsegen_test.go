@@ -20,7 +20,7 @@ import (
 	"crypto/x509/pkix"
 	"testing"
 
-	"gotest.tools/v3/assert"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/gravitational/teleport/lib/tlsca"
 )
