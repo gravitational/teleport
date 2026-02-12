@@ -239,7 +239,15 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 				withVersionOverride(types.V1),
 				withVersionInKindOverride(),
 				withNameOverride("AutoupdateVersion"),
-			}},
+			},
+		},
+		{
+			name: "WorkloadCluster",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withVersionInKindOverride(),
+			},
+		},
 	}
 
 	for _, resource := range resources {
