@@ -416,66 +416,9 @@ func (c *Context) GetDisconnectCertExpiry(authPref readonly.AuthPreference) time
 // Authorize authorizes user based on identity supplied via context
 func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error) {
 	defer func() {
-		if err == nil || a.emitter == nil {
-			return
+		if err != nil {
+			err = a.convertAuthorizerError(err)
 		}
-
-		user, _ := UserFromContext(ctx)
-		if user == nil {
-			return
-		}
-
-		identity := user.GetIdentity()
-		username := identity.Username
-
-		// Filter out failures caused by system components so that we only audit events for real users or bots
-		if len(identity.SystemRoles) == 0 {
-			errorMsg := trace.UserMessage(err)
-			if errorMsg == "" {
-				errorMsg = err.Error()
-			}
-
-			methodName, _ := grpc.Method(ctx)
-			if methodName == "" {
-				// If no gRPC method is found in the context, attempt to get the request method from the context
-				// (e.g. for kube requests). If that also fails, default to "unknown".
-				if val := GetRequestMethod(ctx); val != "" {
-					methodName = val
-				} else {
-					methodName = "unknown"
-				}
-			}
-
-		userMsg := fmt.Sprintf("authorization failed for method %s: %s component %s", methodName, errorMsg, a.TEST)
-
-			event := &apievents.AuthAttempt{
-				Metadata: apievents.Metadata{
-					Type: events.AuthAttemptEvent,
-					Code: events.AuthAttemptFailureCode,
-				},
-				UserMetadata: apievents.UserMetadata{
-					User: username,
-				},
-				Status: apievents.Status{
-					Success:     false,
-					Error:       errorMsg,
-					UserMessage: userMsg,
-				},
-				ConnectionMetadata: apievents.ConnectionMetadata{},
-				ServerMetadata: apievents.ServerMetadata{
-					ServerVersion: teleport.Version,
-				},
-			}
-
-			if p, _ := peer.FromContext(ctx); p != nil {
-				event.ConnectionMetadata.RemoteAddr = p.Addr.String()
-			}
-
-			if emitErr := a.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
-				a.logger.WarnContext(ctx, "Failed to emit detailed audit event", "error", emitErr)
-			}
-		}
-		err = a.convertAuthorizerError(err)
 	}()
 
 	if ctx == nil {
@@ -496,6 +439,7 @@ func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error
 	}
 
 	if err := CheckIPPinning(ctx, authContext.Identity.GetIdentity(), authContext.Checker.PinSourceIP(), a.logger); err != nil {
+		a.emitAuthorizeFailure(ctx, authContext.Identity, err)
 		return nil, trace.Wrap(err)
 	}
 
@@ -507,26 +451,86 @@ func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error
 	if lockErr := a.lockWatcher.CheckLockInForce(
 		authContext.Checker.LockingMode(authPref.GetLockingMode()),
 		authContext.LockTargets()...); lockErr != nil {
+		a.emitAuthorizeFailure(ctx, authContext.Identity, lockErr)
 		return nil, trace.Wrap(lockErr)
 	}
 
 	// Enforce required private key policy if set.
 	if err := a.enforcePrivateKeyPolicy(ctx, authContext, authPref); err != nil {
+		a.emitAuthorizeFailure(ctx, authContext.Identity, err)
 		return nil, trace.Wrap(err)
 	}
 
 	// Device Trust: authorize device extensions.
 	if !a.disableGlobalDeviceMode {
 		if err := dtauthz.VerifyTLSUser(ctx, authPref.GetDeviceTrust(), authContext.Identity.GetIdentity()); err != nil {
+			a.emitAuthorizeFailure(ctx, authContext.Identity, err)
 			return nil, trace.Wrap(err)
 		}
 	}
 
 	if err := a.checkAdminActionVerification(ctx, authContext); err != nil {
+		a.emitAuthorizeFailure(ctx, authContext.Identity, err)
 		return nil, trace.Wrap(err)
 	}
 
 	return authContext, nil
+}
+
+func (a *authorizer) emitAuthorizeFailure(ctx context.Context, user IdentityGetter, err error) {
+	if a.emitter == nil {
+		return
+	}
+	identity := user.GetIdentity()
+	username := identity.Username
+
+	// Filter out failures caused by system components so that we only audit events for real users or bots
+	if len(identity.SystemRoles) == 0 {
+		errorMsg := trace.UserMessage(err)
+		if errorMsg == "" {
+			errorMsg = err.Error()
+		}
+
+		methodName, _ := grpc.Method(ctx)
+		if methodName == "" {
+			// If no gRPC method is found in the context, attempt to get the request method from the context
+			// (e.g. for kube requests). If that also fails, default to "unknown".
+			if val := GetRequestMethod(ctx); val != "" {
+				methodName = val
+			} else {
+				methodName = "unknown"
+			}
+		}
+
+		userMsg := fmt.Sprintf("authorization failed for method %s: %s component %s", methodName, errorMsg, a.TEST)
+
+		event := &apievents.AuthAttempt{
+			Metadata: apievents.Metadata{
+				Type: events.AuthAttemptEvent,
+				Code: events.AuthAttemptFailureCode,
+			},
+			UserMetadata: apievents.UserMetadata{
+				User: username,
+			},
+			Status: apievents.Status{
+				Success:     false,
+				Error:       errorMsg,
+				UserMessage: userMsg,
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{},
+			ServerMetadata: apievents.ServerMetadata{
+				ServerVersion: teleport.Version,
+			},
+		}
+
+		if p, _ := peer.FromContext(ctx); p != nil {
+			event.ConnectionMetadata.RemoteAddr = p.Addr.String()
+		}
+
+		if emitErr := a.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
+			a.logger.WarnContext(ctx, "Failed to emit detailed audit event", "error", emitErr)
+		}
+	}
 }
 
 func (a *authorizer) enforcePrivateKeyPolicy(ctx context.Context, authContext *Context, authPref readonly.AuthPreference) error {
