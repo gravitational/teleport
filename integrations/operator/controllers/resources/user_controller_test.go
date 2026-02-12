@@ -334,6 +334,10 @@ func TestUserUpdate(t *testing.T) {
 	// Wait for the user to enter the cache
 	testlib.FastEventually(t, func() bool {
 		tUser, err = setup.TeleportClient.GetUser(ctx, tUser.GetName(), false)
+		// Fail if we see an unknown error
+		if err != nil {
+			require.True(t, trace.IsNotFound(err))
+		}
 		return !trace.IsNotFound(err)
 	})
 	require.NoError(t, err)
@@ -369,10 +373,7 @@ func TestUserUpdate(t *testing.T) {
 	if trace.IsCompareFailed(err) {
 		unexpectedUser, err := setup.TeleportClient.GetUser(ctx, tUser.GetName(), false)
 		require.NoError(t, err, "Retrieving the user after an unexpected conflict")
-		require.Failf(t, `
-An unexpected conflict happened. The resource changed since the last time it was edited.
-Either the test is not waiting properly for changes to propagate in cache, or there is another resource editor messing with the test.`,
-			cmp.Diff(tUser, unexpectedUser))
+		require.Failf(t, testlib.ConflictErrorMessage, cmp.Diff(tUser, unexpectedUser))
 	}
 	require.NoError(t, err)
 
@@ -413,7 +414,4 @@ Either the test is not waiting properly for changes to propagate in cache, or th
 func k8sCreateUser(ctx context.Context, t *testing.T, kc kclient.Client, user *v2.TeleportUser) {
 	err := kc.Create(ctx, user)
 	require.NoError(t, err)
-}
-
-func unexpectedChange(t *testing.T, before, after any) {
 }

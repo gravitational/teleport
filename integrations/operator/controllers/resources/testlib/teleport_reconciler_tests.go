@@ -23,18 +23,19 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
-	resources "github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	resources "github.com/gravitational/teleport/integrations/operator/controllers/resources"
 )
 
-const ConflictErrorMessage = ` An unexpected conflict happened. The resource changed since the last time it was edited.
+const ConflictErrorMessage = `An unexpected conflict happened. The resource changed since the last time it was edited.
 Either the test is not waiting properly for changes to propagate in cache, or there is another resource editor messing with the test.`
 
 type ResourceTestingPrimitives[T reconcilers.Resource, K reconcilers.KubernetesCR[T]] interface {
@@ -121,7 +122,7 @@ func ResourceUpdateTestSynchronous[T reconcilers.Resource, K reconcilers.Kuberne
 		require.NoError(t, err)
 
 		// Kubernetes and Teleport resources are in-sync
-		equal, diff := test.CompareTeleportAndKubernetesResource(tResource, kubeResource)
+		equal, diff := test.CompareTeleportAndKubernetesResource(reconciledResource, kubeResource)
 		require.True(t, equal, "Kubernetes and Teleport resources not sync-ed yet: %s", diff)
 	})
 
