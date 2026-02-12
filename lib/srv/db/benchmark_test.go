@@ -21,8 +21,6 @@ package db
 import (
 	"context"
 	"fmt"
-	"os"
-	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -45,7 +43,7 @@ BenchmarkPostgresReadLargeTable/size=8000-10       	       3	 215046472 ns/op
 // BenchmarkPostgresReadLargeTable is a benchmark for read-heavy usage of Postgres.
 // Depending on the message size we may get different performance, due to the way the respective engine is written.
 func BenchmarkPostgresReadLargeTable(b *testing.B) {
-	if heavy, _ := strconv.ParseBool(os.Getenv("BENCH_HEAVY")); !heavy {
+	if testing.Short() {
 		b.Skip("skipping heavy benchmark")
 	}
 	ctx := context.Background()

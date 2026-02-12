@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"os"
 	"slices"
 	"sort"
 	"strconv"
@@ -7437,7 +7436,7 @@ func TestCheckAccessToUserGroups(t *testing.T) {
 //	go tool pprof --pdf cpu.prof > cpu.pdf
 //	go tool pprof --pdf mem.prof > mem.pdf
 func BenchmarkCheckConditionalAccessToServer(b *testing.B) {
-	if heavy, _ := strconv.ParseBool(os.Getenv("BENCH_HEAVY")); !heavy {
+	if testing.Short() {
 		b.Skip("skipping heavy benchmark")
 	}
 	servers := make([]*types.ServerV2, 0, 4000)

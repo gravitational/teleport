@@ -25,7 +25,6 @@ import (
 	"log/slog"
 	"os"
 	"slices"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -1013,7 +1012,7 @@ cpu: Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz
 BenchmarkListResourcesWithSort-8               1        2351035036 ns/op
 */
 func BenchmarkListResourcesWithSort(b *testing.B) {
-	if heavy, _ := strconv.ParseBool(os.Getenv("BENCH_HEAVY")); !heavy {
+	if testing.Short() {
 		b.Skip("skipping heavy benchmark")
 	}
 

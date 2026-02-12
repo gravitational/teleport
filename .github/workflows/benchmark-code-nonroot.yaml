@@ -45,11 +45,11 @@ jobs:
         matrix:
           include:
             - name: heavy
-              BENCH_HEAVY: 1
+              BENCH_ARGS: ""
               BENCH_TIME: "2x"
               BENCH_COUNT: 6
             - name: micro
-              BENCH_HEAVY: 0
+              BENCH_ARGS: "-short"
               BENCH_TIME: "1s"
               BENCH_COUNT: 6
         fail-fast: false
@@ -59,7 +59,6 @@ jobs:
       env:
         TELEPORT_XAUTH_TEST: yes
         WEBASSETS_SKIP_BUILD: 1
-        BENCH_HEAVY: ${{ matrix.BENCH_HEAVY }}
         BENCH_TIME: ${{ matrix.BENCH_TIME }}
         BENCH_COUNT: ${{ matrix.BENCH_COUNT }}
 
@@ -98,7 +97,7 @@ jobs:
       - name: Run head benchmarks
         timeout-minutes: 30
         run: |
-          make test-go-bench OUT_FILE=test-logs/bench-${{ github.sha }}.txt
+          make test-go-bench ARGS=${{ matrix.BENCH_ARGS }} OUT_FILE=test-logs/bench-${{ github.sha }}.txt
 
       - name: Checkout base commit
         uses: actions/checkout@v6
@@ -109,7 +108,7 @@ jobs:
       - name: Run base benchmarks
         timeout-minutes: 30
         run: |
-          make test-go-bench OUT_FILE=test-logs/bench-${{ steps.base.outputs.sha }}.txt
+          make test-go-bench ARGS=${{ matrix.BENCH_ARGS }} OUT_FILE=test-logs/bench-${{ steps.base.outputs.sha }}.txt
 
       - name: Generate benchstat output
         shell: bash

@@ -18,8 +18,6 @@ package cache
 
 import (
 	"context"
-	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -122,7 +120,7 @@ func TestNodes(t *testing.T) {
 }
 
 func BenchmarkGetMaxNodes(b *testing.B) {
-	if heavy, _ := strconv.ParseBool(os.Getenv("BENCH_HEAVY")); !heavy {
+	if testing.Short() {
 		b.Skip("skipping heavy benchmark")
 	}
 	benchGetNodes(b, 1_000_000)

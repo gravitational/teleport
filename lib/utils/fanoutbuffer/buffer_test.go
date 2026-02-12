@@ -21,9 +21,7 @@ package fanoutbuffer
 import (
 	"context"
 	"fmt"
-	"os"
 	"runtime"
-	"strconv"
 	"testing"
 	"time"
 
@@ -45,7 +43,7 @@ BenchmarkBuffer/100000-events-10000-cursors-4       	       1	12335906365 ns/op
 // levels of concurrency. Note that these scenarios are very contrived and may not reflect real-world
 // performance (e.g. benchmarks append to the buffer with a fixed chunk size).
 func BenchmarkBuffer(b *testing.B) {
-	if heavy, _ := strconv.ParseBool(os.Getenv("BENCH_HEAVY")); !heavy {
+	if testing.Short() {
 		b.Skip("skipping heavy benchmark")
 	}
 	bbs := []struct {

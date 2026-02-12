@@ -1010,6 +1010,7 @@ endif
 test-go-bench: BENCHMARK_SKIP_PATTERN = "^BenchmarkRoot"
 test-go-bench: BENCH_TIME ?= "1x"
 test-go-bench: BENCH_COUNT ?= 1
+test-go-bench: ARGS ?=
 test-go-bench: OUT_FILE ?= $(TEST_LOG_DIR)/bench.txt
 test-go-bench: $(BENCHFIND) | $(TEST_LOG_DIR)
 	@PKGS=$$($(BENCHFIND) --tags=$(BUILD_TAGS)) ; \
@@ -1017,7 +1018,7 @@ test-go-bench: $(BENCHFIND) | $(TEST_LOG_DIR)
 		echo "No benchmark packages found"; \
 		exit 1; \
 	fi ; \
-	go test -run ^$$ -bench . -skip $(BENCHMARK_SKIP_PATTERN) -benchtime $(BENCH_TIME) -count $(BENCH_COUNT) $$PKGS \
+	go test -run ^$$ -bench . -skip $(BENCHMARK_SKIP_PATTERN) -benchtime $(BENCH_TIME) -count $(BENCH_COUNT) $(ARGS) $$PKGS \
 		| tee $(OUT_FILE)
 
 .PHONY: test-go-bench-root
@@ -1025,6 +1026,7 @@ test-go-bench-root: BENCHMARK_PATTERN = "^BenchmarkRoot"
 test-go-bench-root: BENCHMARK_SKIP_PATTERN = ""
 test-go-bench-root: BENCH_TIME ?= "1x"
 test-go-bench-root: BENCH_COUNT ?= 1
+test-go-bench-root: ARGS ?=
 test-go-bench-root: OUT_FILE ?= $(TEST_LOG_DIR)/bench.txt
 test-go-bench-root: $(BENCHFIND) | $(TEST_LOG_DIR)
 	@PKGS=$$($(BENCHFIND) --tags=$(BUILD_TAGS)) ; \
@@ -1032,7 +1034,7 @@ test-go-bench-root: $(BENCHFIND) | $(TEST_LOG_DIR)
 		echo "No benchmark packages found"; \
 		exit 1; \
 	fi ; \
-	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -skip $(BENCHMARK_SKIP_PATTERN) -benchtime $(BENCH_TIME) -count $(BENCH_COUNT) $$PKGS \
+	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -skip $(BENCHMARK_SKIP_PATTERN) -benchtime $(BENCH_TIME) -count $(BENCH_COUNT) $(ARGS) $$PKGS \
 		| tee $(OUT_FILE)
 
 # Make sure untagged vnetdaemon code build/tests.

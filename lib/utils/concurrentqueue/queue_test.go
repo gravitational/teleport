@@ -20,8 +20,6 @@ package concurrentqueue
 
 import (
 	"math/rand/v2"
-	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -174,7 +172,7 @@ cpu: Intel(R) Core(TM) i9-9880H CPU @ 2.30GHz
 BenchmarkQueue-16    	     156	   7342841 ns/op
 */
 func BenchmarkQueue(b *testing.B) {
-	if heavy, _ := strconv.ParseBool(os.Getenv("BENCH_HEAVY")); !heavy {
+	if testing.Short() {
 		b.Skip("skipping heavy benchmark")
 	}
 	const workers = 16

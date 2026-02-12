@@ -27,8 +27,6 @@ import (
 	"fmt"
 	"math/big"
 	"net"
-	"os"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -439,7 +437,7 @@ func TestProxySSHConfig(t *testing.T) {
 // fast to avoid adding latency to all kubectl calls. It should tolerate being
 // called many times in parallel.
 func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
-	if heavy, _ := strconv.ParseBool(os.Getenv("BENCH_HEAVY")); !heavy {
+	if testing.Short() {
 		b.Skip("skipping heavy benchmark")
 	}
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
