@@ -627,3 +627,6 @@ func TestReporterIdentitySecuritySummariesGenerated(t *testing.T) {
 		}
 	})
 }
+
+func TestReporterIdentitySecurity(t *testing.T) {
+}

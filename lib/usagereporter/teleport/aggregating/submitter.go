@@ -124,13 +124,19 @@ func RunSubmitter(ctx context.Context, cfg SubmitterConfig) {
 func submitOnce(ctx context.Context, c SubmitterConfig) {
 	svc := reportService{c.Backend}
 
-	userActivityReports, err := svc.listUserActivityReports(ctx, submitBatchSize)
-	if err != nil {
-		c.Logger.ErrorContext(ctx, "Failed to load usage reports for submission.", "error", err)
-		return
+	freeBatchSize := submitBatchSize
+	var err error
+
+	var userActivityReports []*prehogv1.UserActivityReport
+	if freeBatchSize > 0 {
+		userActivityReports, err = svc.listUserActivityReports(ctx, freeBatchSize)
+		if err != nil {
+			c.Logger.ErrorContext(ctx, "Failed to load usage reports for submission.", "error", err)
+			return
+		}
+		freeBatchSize -= len(userActivityReports)
 	}
 
-	freeBatchSize := submitBatchSize - len(userActivityReports)
 	var resourcePresenceReports []*prehogv1.ResourcePresenceReport
 	if freeBatchSize > 0 {
 		resourcePresenceReports, err = svc.listResourcePresenceReports(ctx, freeBatchSize)
@@ -138,9 +144,9 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 			c.Logger.ErrorContext(ctx, "Failed to load resource counts reports for submission.", "error", err)
 			return
 		}
+		freeBatchSize -= len(resourcePresenceReports)
 	}
 
-	freeBatchSize = submitBatchSize - len(userActivityReports) - len(resourcePresenceReports)
 	var botInstanceActivityReports []*prehogv1.BotInstanceActivityReport
 	if freeBatchSize > 0 {
 		botInstanceActivityReports, err = svc.listBotInstanceActivityReports(ctx, freeBatchSize)
@@ -148,9 +154,9 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 			c.Logger.ErrorContext(ctx, "Failed to load bot instance activity reports for submission.", "error", err)
 			return
 		}
+		freeBatchSize -= len(botInstanceActivityReports)
 	}
 
-	freeBatchSize = submitBatchSize - len(userActivityReports) - len(resourcePresenceReports) - len(botInstanceActivityReports)
 	var identitySecuritySummariesReports []*prehogv1.IdentitySecuritySummariesGeneratedReport
 	if freeBatchSize > 0 {
 		identitySecuritySummariesReports, err = svc.listIdentitySecuritySummariesGeneratedReports(ctx, freeBatchSize)
@@ -158,9 +164,20 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 			c.Logger.ErrorContext(ctx, "Failed to load identity security summaries reports for submission.", "error", err)
 			return
 		}
+		freeBatchSize -= len(identitySecuritySummariesReports)
 	}
 
-	totalReportCount := len(userActivityReports) + len(resourcePresenceReports) + len(botInstanceActivityReports) + len(identitySecuritySummariesReports)
+	var identitySecurityReports []*prehogv1.IdentitySecurityReport
+	if freeBatchSize > 0 {
+		identitySecurityReports, err = svc.listIdentitySecurityReports(ctx, freeBatchSize)
+		if err != nil {
+			c.Logger.ErrorContext(ctx, "Failed to load identity security reports for submission.", "error", err)
+			return
+		}
+		freeBatchSize -= len(identitySecurityReports)
+	}
+
+	totalReportCount := submitBatchSize - freeBatchSize
 
 	if totalReportCount < 1 {
 		err := ClearAlert(ctx, c.Status)
@@ -207,6 +224,15 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 		}
 	}
 
+	if len(identitySecurityReports) > 0 {
+		if t := identitySecurityReports[0].GetStartTime().AsTime(); t.Before(oldest) {
+			oldest = t
+		}
+		if t := identitySecurityReports[len(identitySecurityReports)-1].GetStartTime().AsTime(); t.After(newest) {
+			newest = t
+		}
+	}
+
 	debugPayload := fmt.Sprintf("%v %q", time.Now().Round(0), c.HostID)
 	if err := svc.createUsageReportingLock(ctx, submitLockDuration, []byte(debugPayload)); err != nil {
 		if trace.IsAlreadyExists(err) {
@@ -225,6 +251,7 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 		ResourcePresence:                resourcePresenceReports,
 		BotInstanceActivity:             botInstanceActivityReports,
 		IdentitySecuritySummariesReport: identitySecuritySummariesReports,
+		IdentitySecurityReport:          identitySecurityReports,
 	})
 	if err != nil {
 		c.Logger.ErrorContext(ctx, "Failed to send usage reports.",
@@ -281,6 +308,11 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	}
 	for _, report := range identitySecuritySummariesReports {
 		if err := svc.deleteIdentitySecuritySummariesGeneratedReport(ctx, report); err != nil {
+			lastErr = err
+		}
+	}
+	for _, report := range identitySecurityReports {
+		if err := svc.deleteIdentitySecurityReport(ctx, report); err != nil {
 			lastErr = err
 		}
 	}
