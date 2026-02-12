@@ -753,17 +753,18 @@ message CertAuthorityOverrideEvent {
 
 message CertAuthorityOverrideMetadata {
   string ca_type = 1;
-  repeated CertAuthorityCertificateOverrideMetadata certificate_overrides = 2;
+  string cluster_name = 2; // for clarity
+  repeated CertificateOverrideMetadata  certificate_overrides = 3;
 }
 
-message CertAuthorityCertificateOverrideMetadata {
-  CertificateOverrideMetadata certificate = 1;
-  repeated CertificateOverrideMetadata chain = 2;
+message CertificateOverrideMetadata  {
+  X509OverrideMetadata certificate = 1;
+  repeated X509OverrideMetadata chain = 2;
   bool disabled = 3;
   // Note: entry delete tracked by the event code.
 }
 
-message CertificateOverrideMetadata {
+message X509OverrideMetadata {
   string issuer = 1;
   string subject = 2;
   string serial_number = 3;
