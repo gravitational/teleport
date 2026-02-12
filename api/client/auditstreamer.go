@@ -117,7 +117,7 @@ func (s *auditStreamer) RecordEvent(ctx context.Context, pe events.PreparedSessi
 			return trace.BadParameter("record size %v exceeds max message size of %v bytes", messageSize, constants.MaxProtoMessageSizeBytes)
 		}
 	}
-	oneof, err := events.ToOneOf(pe.GetAuditEvent())
+	oneof, err := events.ToOneOf(event)
 	if err != nil {
 		return trace.Wrap(err)
 	}
