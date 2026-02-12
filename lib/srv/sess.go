@@ -1470,7 +1470,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 	go func() {
 		result := s.term.Wait()
 		if result.Error != nil {
-			s.logger.ErrorContext(ctx, "Received error waiting for the interactive session to finish.", "error", err)
+			s.logger.ErrorContext(ctx, "Received error waiting for the interactive session to finish.", "error", result.Error)
 		}
 
 		// wait for copying from the pty to be complete or a timeout before

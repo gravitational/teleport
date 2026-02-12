@@ -140,6 +140,8 @@ func NewProcess(ctx context.Context, cmd *reexec.Command) (*Process, error) {
 	select {
 	case <-ready:
 		return proc, nil
+	case <-ctx.Done():
+		return nil, trace.Wrap(ctx.Err(), "networking process failed to signal ready")
 	case <-proc.cmd.Done():
 		return nil, proc.cmd.ExitError()
 	}
