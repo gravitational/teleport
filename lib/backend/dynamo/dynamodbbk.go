@@ -105,6 +105,9 @@ type Config struct {
 	EnableContinuousBackups bool `json:"continuous_backups,omitempty"`
 	// EnableAutoScaling is used to enable auto scaling policy.
 	EnableAutoScaling bool `json:"auto_scaling,omitempty"`
+	// HTTPClient is an optional HTTP client to use for AWS API calls.
+	// If not provided, a default client will be created.
+	HTTPClient *http.Client `json:"-"`
 }
 
 type billingMode string
@@ -141,7 +144,15 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.RetryPeriod == 0 {
 		cfg.RetryPeriod = defaults.HighResPollingPeriod
 	}
-
+	if cfg.HTTPClient == nil {
+		cfg.HTTPClient = &http.Client{
+			Transport: &http.Transport{
+				Proxy:               http.ProxyFromEnvironment,
+				MaxIdleConns:        defaults.HTTPMaxIdleConns,
+				MaxIdleConnsPerHost: defaults.HTTPMaxIdleConnsPerHost,
+			},
+		}
+	}
 	return nil
 }
 
@@ -235,15 +246,21 @@ var _ backend.Backend = &Backend{}
 // New returns new instance of DynamoDB backend.
 // It's an implementation of backend API's NewFunc
 func New(ctx context.Context, params backend.Params) (*Backend, error) {
-	l := slog.With(teleport.ComponentKey, BackendName)
-
 	var cfg *Config
 	if err := utils.ObjectToStruct(params, &cfg); err != nil {
 		return nil, trace.BadParameter("DynamoDB configuration is invalid: %v", err)
 	}
+	b, err := NewFromConfig(ctx, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return b, nil
+}
 
+// NewFromConfig returns new instance of DynamoDB backend based on provided Config struct.
+func NewFromConfig(ctx context.Context, cfg *Config) (*Backend, error) {
+	l := slog.With(teleport.ComponentKey, BackendName)
 	defer l.DebugContext(ctx, "AWS session is created.")
-
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -252,13 +269,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 
 	opts := []func(*config.LoadOptions) error{
 		config.WithRegion(cfg.Region),
-		config.WithHTTPClient(&http.Client{
-			Transport: &http.Transport{
-				Proxy:               http.ProxyFromEnvironment,
-				MaxIdleConns:        defaults.HTTPMaxIdleConns,
-				MaxIdleConnsPerHost: defaults.HTTPMaxIdleConnsPerHost,
-			},
-		}),
+		config.WithHTTPClient(cfg.HTTPClient),
 		config.WithAPIOptions(awsmetrics.MetricsMiddleware()),
 		config.WithAPIOptions(dynamometrics.MetricsMiddleware(dynamometrics.Backend)),
 	}
