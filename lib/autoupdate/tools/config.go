@@ -184,7 +184,7 @@ func (t *Tool) IsEqual(toolsDir, version, os, arch string) bool {
 // GetToolsConfig reads the configuration file for client tools managed updates,
 // and acquires a filesystem lock until the configuration is read and deserialized.
 func GetToolsConfig(toolsDir string) (ctc *ClientToolsConfig, err error) {
-	unlock, err := utils.FSWriteLock(filepath.Join(toolsDir, lockFileName))
+	unlock, err := utils.FSReadLock(filepath.Join(toolsDir, lockFileName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
