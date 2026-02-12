@@ -635,6 +635,17 @@ var (
 	// ImmutableLabelHashASN1ExtensionOID is an extension OID that contains the
 	// immuable label hash used to verify immutable labels.
 	ImmutableLabelHashASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 27}
+
+	// CAClusterNameExtensionOID records the cluster name in a Teleport CA
+	// certificate.
+	//
+	// Historically the cluster name is recorded in the certificate's "O=" field.
+	// This OID makes it possible to customize O= and still record the cluster
+	// name.
+	//
+	// Takes precedence, as the cluster name, over the O= field if both are
+	// present.
+	CAClusterNameExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 4, 1}
 )
 
 // Device Trust OIDs.
