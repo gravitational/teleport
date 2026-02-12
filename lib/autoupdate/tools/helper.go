@@ -102,7 +102,7 @@ func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecA
 	}
 
 	slog.DebugContext(ctx, "Attempting to local update", "current_profile_name", currentProfileName)
-	resp, err := updater.CheckLocal(ctx, currentProfileName)
+	resp, _, err := updater.CheckLocal(ctx, currentProfileName)
 	if err != nil {
 		slog.WarnContext(ctx, "Failed to check local teleport versions, client tools updates are disabled", "error", err)
 		return nil

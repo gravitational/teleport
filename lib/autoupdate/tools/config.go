@@ -107,6 +107,19 @@ func (ctc *ClientToolsConfig) SelectVersion(toolsDir, version, os, arch string) 
 	return nil
 }
 
+// SelectVersion returns the tool with the given version if it's the most
+// recently used.
+func (ctc *ClientToolsConfig) SelectVersionIfMostRecent(toolsDir, version, os, arch string) *Tool {
+	if len(ctc.Tools) == 0 {
+		return nil
+	}
+	if !ctc.Tools[0].IsEqual(toolsDir, version, os, arch) {
+		return nil
+	}
+	tool := ctc.Tools[0]
+	return &tool
+}
+
 // HasVersion check that specific version present in collection.
 func (ctc *ClientToolsConfig) HasVersion(toolsDir, version, os, arch string) bool {
 	return slices.ContainsFunc(ctc.Tools, func(tool Tool) bool {
