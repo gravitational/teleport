@@ -2082,6 +2082,145 @@ func TestNoRelogin(t *testing.T) {
 	}
 }
 
+func TestSSHStderrorPropagation(t *testing.T) {
+	ctx := t.Context()
+	connector := mockConnector(t)
+
+	createAgent(t)
+	mockX11Display(t)
+
+	// Use a non-existent OS user to force reexec failures in the node.
+	missingLogin := "does-not-exist"
+	sshHostname := "test-ssh-server"
+
+	nodeAccess, err := types.NewRole("node-access-missing-login", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			ForwardAgent:        types.NewBool(true),
+			PermitX11Forwarding: types.NewBool(true),
+		},
+		Allow: types.RoleConditions{
+			Logins:     []string{missingLogin},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{nodeAccess.GetName()})
+
+	rootServerOpts := []testserver.TestServerOptFunc{
+		testserver.WithBootstrap(connector, nodeAccess, alice),
+		testserver.WithHostname(sshHostname),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.SSH.Enabled = true
+			cfg.SSH.X11 = &x11.ServerConfig{
+				Enabled:       true,
+				DisplayOffset: x11.DefaultDisplayOffset,
+				MaxDisplay:    x11.DefaultMaxDisplays,
+			}
+		}),
+	}
+	rootServer, err := testserver.NewTeleportProcess(t.TempDir(), rootServerOpts...)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, rootServer.Close())
+		require.NoError(t, rootServer.Wait())
+	})
+
+	authServer := rootServer.GetAuthServer()
+	proxyAddr, err := rootServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rootNodes, err := rootServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Len(t, rootNodes, 1)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	tmpHomePath := t.TempDir()
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
+	require.NoError(t, err)
+
+	tests := []struct {
+		name          string
+		remoteCommand []string
+	}{
+		{
+			name: "ssh shell",
+		},
+		{
+			name:          "ssh command",
+			remoteCommand: []string{"echo", "hello"},
+		},
+	}
+
+	forwardingCases := []struct {
+		name        string
+		extraArgs   []string
+		expectAgent bool
+		expectX11   bool
+	}{
+		{
+			name: "no forwarding",
+		},
+		{
+			name:        "agent forwarding",
+			extraArgs:   []string{"-A"},
+			expectAgent: true,
+		},
+		{
+			name:      "x11 forwarding",
+			extraArgs: []string{"-Y"}, // We use trusted forwarding so that xauth is not required.
+			expectX11: true,
+		},
+		{
+			name:        "agent and x11 forwarding",
+			extraArgs:   []string{"-A", "-Y"},
+			expectAgent: true,
+			expectX11:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, ft := range forwardingCases {
+				t.Run(ft.name, func(t *testing.T) {
+					stderr := &output{buf: bytes.Buffer{}}
+
+					args := []string{"ssh", "--insecure"}
+					args = append(args, ft.extraArgs...)
+					args = append(args, fmt.Sprintf("%s@%s", missingLogin, sshHostname))
+					args = append(args, tt.remoteCommand...)
+
+					err := Run(ctx, args,
+						setHomePath(tmpHomePath),
+						func(conf *CLIConf) error {
+							conf.overrideStderr = stderr
+							return nil
+						},
+					)
+
+					expectErr := "Failed to launch: " + user.UnknownUserError(missingLogin).Error()
+					require.Error(t, err)
+
+					require.Contains(t, stderr.String(), expectErr)
+					if ft.expectAgent {
+						require.Contains(t, stderr.String(), "Agent forwarding request failed: "+expectErr)
+					}
+					if ft.expectX11 {
+						require.Contains(t, stderr.String(), "X11 forwarding request failed: "+expectErr)
+					}
+				})
+			}
+		})
+	}
+}
+
 // TestSSHAccessRequest tests that a user can automatically request access to a
 // ssh server using a resource access request when "tsh ssh" fails with
 // AccessDenied.

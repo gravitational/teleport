@@ -57,11 +57,10 @@ func NewSFTPProxy(
 		logger = slog.With(teleport.ComponentKey, "SFTP")
 	}
 
-	client, err := sftp.NewClient(scx.RemoteClient.Client)
+	remoteFS, err := sftputils.OpenRemoteFilesystem(scx.CancelContext(), scx.RemoteClient, "" /*moderatedSessionID*/)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	remoteFS := sftputils.NewRemoteFilesystem(client)
 	wd, err := remoteFS.Getwd()
 	if err != nil {
 		logger.WarnContext(scx.CancelContext(), `Unable to get working directory, defaulting to "/"`)
@@ -114,7 +113,9 @@ func (p *SFTPProxy) Serve() error {
 		p.handlers.logger.WarnContext(scx.CancelContext(), "Failed to emit SFTP summary event", "error", err)
 	}
 
-	return trace.Wrap(serveErr)
+	// Close the backend remote filesystem to propagate session completion gracefully.
+	closeErr := p.handlers.remoteFS.Close()
+	return trace.NewAggregate(serveErr, closeErr)
 }
 
 // Close closes the SFTP proxy.

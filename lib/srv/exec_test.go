@@ -19,11 +19,14 @@
 package srv
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/user"
+	"reflect"
 	"strconv"
 	"testing"
+	"unsafe"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -81,48 +84,90 @@ func TestEmitExecAuditEvent(t *testing.T) {
 	}
 
 	tests := []struct {
-		inCommand  string
-		inError    error
-		outCommand string
-		outCode    string
+		name     string
+		inResult ExecResult
 	}{
-		// Successful execution.
 		{
-			inCommand:  "exit 0",
-			inError:    nil,
-			outCommand: "exit 0",
-			outCode:    strconv.Itoa(teleport.RemoteCommandSuccess),
+			name: "success",
+			inResult: ExecResult{
+				Command: "exit 0",
+				Error:   nil,
+				Code:    teleport.RemoteCommandSuccess,
+			},
 		},
-		// Exited with error.
 		{
-			inCommand:  "exit 255",
-			inError:    fmt.Errorf("unknown error"),
-			outCommand: "exit 255",
-			outCode:    strconv.Itoa(teleport.RemoteCommandFailure),
+			name: "exit with error",
+			inResult: ExecResult{
+				Command: "exit 255",
+				Error:   fmt.Errorf("unknown error"),
+				Code:    teleport.RemoteCommandFailure,
+			},
 		},
-		// Command injection.
 		{
-			inCommand:  "/bin/teleport scp --remote-addr=127.0.0.1:50862 --local-addr=127.0.0.1:54895 -f ~/file.txt && touch /tmp/new.txt",
-			inError:    fmt.Errorf("unknown error"),
-			outCommand: "/bin/teleport scp --remote-addr=127.0.0.1:50862 --local-addr=127.0.0.1:54895 -f ~/file.txt && touch /tmp/new.txt",
-			outCode:    strconv.Itoa(teleport.RemoteCommandFailure),
+			name: "command injection",
+			inResult: ExecResult{
+				Command: "/bin/teleport scp --remote-addr=127.0.0.1:50862 --local-addr=127.0.0.1:54895 -f ~/file.txt && touch /tmp/new.txt",
+				Error:   fmt.Errorf("unknown error"),
+				Code:    teleport.RemoteCommandFailure,
+			},
 		},
 	}
 	for _, tt := range tests {
-		emitExecAuditEvent(scx, tt.inCommand, tt.inError)
-		execEvent := rec.emitter.LastEvent().(*apievents.Exec)
-		require.Equal(t, tt.outCommand, execEvent.Command)
-		require.Equal(t, tt.outCode, execEvent.ExitCode)
-		require.Equal(t, expectedMeta, execEvent.UserMetadata)
-		require.Equal(t, "123", execEvent.ServerID)
-		require.Equal(t, "abc", execEvent.ForwardedBy)
-		require.Equal(t, expectedHostname, execEvent.ServerHostname)
-		require.Equal(t, "testNamespace", execEvent.ServerNamespace)
-		require.Equal(t, "xxx", execEvent.SessionID)
-		require.Equal(t, "10.0.0.5:4817", execEvent.RemoteAddr)
-		require.Equal(t, "127.0.0.1:3022", execEvent.LocalAddr)
-		require.NotEmpty(t, events.EventID)
+		t.Run(tt.name, func(t *testing.T) {
+			emitExecAuditEvent(scx, tt.inResult)
+			execEvent := rec.emitter.LastEvent().(*apievents.Exec)
+			require.Equal(t, tt.inResult.Command, execEvent.Command)
+			if tt.inResult.Error != nil {
+				require.Equal(t, tt.inResult.Error.Error(), execEvent.Error)
+			} else {
+				require.Empty(t, execEvent.Error)
+			}
+			require.Equal(t, strconv.Itoa(tt.inResult.Code), execEvent.ExitCode)
+			require.Equal(t, expectedMeta, execEvent.UserMetadata)
+			require.Equal(t, "123", execEvent.ServerID)
+			require.Equal(t, "abc", execEvent.ForwardedBy)
+			require.Equal(t, expectedHostname, execEvent.ServerHostname)
+			require.Equal(t, "testNamespace", execEvent.ServerNamespace)
+			require.Equal(t, "xxx", execEvent.SessionID)
+			require.Equal(t, "10.0.0.5:4817", execEvent.RemoteAddr)
+			require.Equal(t, "127.0.0.1:3022", execEvent.LocalAddr)
+			require.NotEmpty(t, events.EventID)
+		})
 	}
+}
+
+func TestRemoteExecResultFromWaitErr(t *testing.T) {
+	t.Parallel()
+
+	code, err := remoteExecResultFromWaitErr(nil)
+	require.NoError(t, err)
+	require.Equal(t, teleport.RemoteCommandSuccess, code)
+
+	exitErr := newSSHExitErrorWithStatus(t, 42)
+	code, err = remoteExecResultFromWaitErr(exitErr)
+	require.Same(t, exitErr, err)
+	require.Equal(t, 42, code)
+
+	otherErr := errors.New("boom")
+	code, err = remoteExecResultFromWaitErr(otherErr)
+	require.Same(t, otherErr, err)
+	require.Equal(t, teleport.RemoteCommandFailure, code)
+}
+
+func newSSHExitErrorWithStatus(t *testing.T, status int64) error {
+	t.Helper()
+
+	exitErr := &ssh.ExitError{}
+
+	v := reflect.ValueOf(exitErr).Elem()
+	waitMsgField := v.FieldByName("Waitmsg")
+	require.True(t, waitMsgField.IsValid())
+	statusField := waitMsgField.FieldByName("status")
+	require.True(t, statusField.IsValid())
+
+	reflect.NewAt(statusField.Type(), unsafe.Pointer(statusField.UnsafeAddr())).Elem().SetInt(status)
+
+	return exitErr
 }
 
 func TestLoginDefsParser(t *testing.T) {

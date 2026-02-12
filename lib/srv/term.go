@@ -20,11 +20,9 @@ package srv
 
 import (
 	"context"
-	"errors"
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"os/user"
 	"strconv"
 	"sync"
@@ -58,7 +56,7 @@ type Terminal interface {
 	Run(ctx context.Context) error
 
 	// Wait will block until the terminal is complete.
-	Wait() (*ExecResult, error)
+	Wait() ExecResult
 
 	// WaitForChild blocks until the child process has completed any required
 	// setup operations before proceeding with execution.
@@ -201,19 +199,18 @@ func (t *terminal) Run(ctx context.Context) error {
 }
 
 // Wait will block until the terminal is complete.
-func (t *terminal) Wait() (*ExecResult, error) {
-	err := t.reexecCmd.Wait()
-	if err != nil {
-		var exitErr *exec.ExitError
-		if !errors.As(err, &exitErr) {
-			return nil, err
-		}
+func (t *terminal) Wait() ExecResult {
+	var command string
+	if execRequest, err := t.serverContext.GetExecRequest(); err == nil {
+		command = execRequest.GetCommand()
 	}
 
-	return &ExecResult{
-		Code:    t.reexecCmd.ExitCode(),
-		Command: t.reexecCmd.Path(),
-	}, nil
+	exitCode, exitErr := t.reexecCmd.Wait()
+	return ExecResult{
+		Code:    exitCode,
+		Command: command,
+		Error:   exitErr,
+	}
 }
 
 func (t *terminal) WaitForChild(ctx context.Context) error {
@@ -501,32 +498,18 @@ func (t *remoteTerminal) Run(ctx context.Context) error {
 	return nil
 }
 
-func (t *remoteTerminal) Wait() (*ExecResult, error) {
-	execRequest, err := t.ctx.GetExecRequest()
-	if err != nil {
-		return nil, trace.Wrap(err)
+func (t *remoteTerminal) Wait() ExecResult {
+	var execCmd string
+	if execRequest, err := t.ctx.GetExecRequest(); err == nil {
+		execCmd = execRequest.GetCommand()
 	}
 
-	err = t.session.Wait()
-	if err != nil {
-		var exitErr *ssh.ExitError
-		if errors.As(err, &exitErr) {
-			return &ExecResult{
-				Code:    exitErr.ExitStatus(),
-				Command: execRequest.GetCommand(),
-			}, err
-		}
-
-		return &ExecResult{
-			Code:    teleport.RemoteCommandFailure,
-			Command: execRequest.GetCommand(),
-		}, err
+	exitCode, exitErr := WaitRemoteExecResult(t.session)
+	return ExecResult{
+		Command: execCmd,
+		Code:    exitCode,
+		Error:   exitErr,
 	}
-
-	return &ExecResult{
-		Code:    teleport.RemoteCommandSuccess,
-		Command: execRequest.GetCommand(),
-	}, nil
 }
 
 func (t *remoteTerminal) WaitForChild(context.Context) error {

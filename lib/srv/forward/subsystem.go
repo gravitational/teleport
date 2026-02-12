@@ -72,7 +72,7 @@ func parseRemoteSubsystem(ctx context.Context, subsystemName string, serverConte
 			subsystem: r,
 		}
 	}
-	r.errorCh = make(chan error, 3) // one error each for stdin, stdout, and stderr
+	r.errorCh = make(chan error, 2) // one error each for stdin and stdout
 	return r
 }
 
@@ -89,17 +89,13 @@ func (r *remoteSubsystem) Start(ctx context.Context, channel ssh.Channel) error 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	stderr, err := session.StderrPipe()
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	stdin, err := session.StdinPipe()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// request the subsystem from the remote node. if successful, the user can
-	// interact with the remote subsystem with stdin, stdout, and stderr.
+	// interact with the remote subsystem with stdin and stdout.
 	err = session.RequestSubsystem(ctx, r.subsystemName)
 	if err != nil {
 		// emit an event to the audit log with the reason remote execution failed
@@ -108,17 +104,11 @@ func (r *remoteSubsystem) Start(ctx context.Context, channel ssh.Channel) error 
 		return trace.Wrap(err)
 	}
 
-	// copy back and forth between stdin, stdout, and stderr and the SSH channel.
+	// copy back and forth between stdin and stdout and the SSH channel.
 	go func() {
 		defer session.Close()
 
 		_, err := io.Copy(channel, stdout)
-		r.errorCh <- err
-	}()
-	go func() {
-		defer session.Close()
-
-		_, err := io.Copy(channel.Stderr(), stderr)
 		r.errorCh <- err
 	}()
 	go func() {
@@ -135,7 +125,7 @@ func (r *remoteSubsystem) Start(ctx context.Context, channel ssh.Channel) error 
 func (r *remoteSubsystem) Wait() error {
 	var lastErr error
 
-	for range 3 {
+	for range 2 {
 		select {
 		case err := <-r.errorCh:
 			if err != nil && !errors.Is(err, io.EOF) {
@@ -199,7 +189,7 @@ func (r *remoteSFTPSubsystem) Start(ctx context.Context, channel ssh.Channel) er
 
 	go func() {
 		defer r.subsystem.serverContext.RemoteSession.Close()
-		errCh := make(chan error)
+		errCh := make(chan error, 1)
 		go func() {
 			errCh <- proxy.Serve()
 			close(errCh)
@@ -242,7 +232,8 @@ func (r *remoteSFTPSubsystem) Wait() error {
 		exitStatus = 1
 	}
 	r.subsystem.serverContext.SendExecResult(r.subsystem.ctx, srv.ExecResult{
-		Code: exitStatus,
+		Command: teleport.SFTPSubCommand,
+		Code:    exitStatus,
 	})
 
 	// emit an event to the audit log with the result of execution

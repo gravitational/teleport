@@ -1468,9 +1468,9 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 	// once it is received wait for the io.Copy above to finish, then broadcast
 	// the "exit-status" to the client.
 	go func() {
-		result, err := s.term.Wait()
-		if err != nil {
-			s.logger.ErrorContext(ctx, "Received error waiting for the interactive session to finish.", "error", err)
+		result := s.term.Wait()
+		if result.Error != nil {
+			s.logger.ErrorContext(ctx, "Received error waiting for the interactive session to finish.", "error", result.Error)
 		}
 
 		// wait for copying from the pty to be complete or a timeout before
@@ -1482,14 +1482,12 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		case <-s.doneCh:
 		}
 
-		if result != nil {
-			if err := s.registry.broadcastResult(s.id, *result); err != nil {
-				s.logger.WarnContext(ctx, "Failed to broadcast session result.", "error", err)
-			}
+		if err := s.registry.broadcastResult(s.id, result); err != nil {
+			s.logger.WarnContext(ctx, "Failed to broadcast session result.", "error", err)
 		}
 
-		if execRequest, err := scx.GetExecRequest(); err == nil && execRequest.GetCommand() != "" {
-			emitExecAuditEvent(scx, execRequest.GetCommand(), err)
+		if result.Command != "" {
+			emitExecAuditEvent(scx, result)
 		}
 
 		s.emitSessionEndEvent()
@@ -1687,6 +1685,12 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 func (s *session) broadcastResult(r ExecResult) {
 	payload := ssh.Marshal(struct{ C uint32 }{C: uint32(r.Code)})
 	for _, p := range s.getParties() {
+		// Avoid broadcasting basic exit errors.
+		if r.Error != nil && !IsExitError(r.Error) {
+			if _, err := io.WriteString(p.ch.Stderr(), fmt.Sprintf("%v\r\n", r.Error)); err != nil {
+				s.logger.WarnContext(s.serverCtx, "Failed writing to stderr of SSH channel", "error", err)
+			}
+		}
 		if _, err := p.ch.SendRequest("exit-status", false, payload); err != nil {
 			s.logger.InfoContext(
 				s.serverCtx, "Failed to send exit status",

@@ -216,7 +216,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 				s.logger.WarnContext(ctx, "Unknown event type received from SFTP server process", "error", err, "event_type", event.GetType())
 			}
 
-			if err := serverCtx.GetServer().EmitAuditEvent(ctx, event); err != nil {
+			if err := serverCtx.GetServer().EmitAuditEvent(context.WithoutCancel(ctx), event); err != nil {
 				s.logger.WarnContext(ctx, "Failed to emit SFTP event", "error", err)
 			}
 		}
@@ -226,16 +226,23 @@ func (s *sftpSubsys) Start(ctx context.Context,
 }
 
 func (s *sftpSubsys) Wait() error {
-	ctx := context.Background()
-	waitErr := s.reexecCmd.Wait()
+	ctx := s.serverCtx.GetServer().Context()
+
+	exitCode, exitErr := s.reexecCmd.Wait()
 	s.logger.DebugContext(ctx, "SFTP process finished")
 
+	command := teleport.SFTPSubCommand
+	if execRequest, err := s.serverCtx.GetExecRequest(); err == nil {
+		command = execRequest.GetCommand()
+	}
+
 	s.serverCtx.SendExecResult(ctx, srv.ExecResult{
-		Command: s.reexecCmd.Command(),
-		Code:    s.reexecCmd.ExitCode(),
+		Command: command,
+		Code:    exitCode,
+		Error:   exitErr,
 	})
 
-	errs := []error{waitErr}
+	errs := []error{exitErr}
 	for range copyingGoroutines {
 		err := <-s.errCh
 		if err != nil && !utils.IsOKNetworkError(err) {
