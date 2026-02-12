@@ -290,7 +290,7 @@ the following scoped role assignments:
 kind: scoped_role_assignment
 sub_kind: materialized
 metadata:
-  name: acl-west-admins-alice@example.com
+  name: acl-AAPNguHLcuy8snJ8vO0YbXj1rGGleXuKhbN8Yw
 scope: /
 spec:
   user: alice@example.com
@@ -303,13 +303,12 @@ status:
   origin:
     creator: access_list
     creator_name: west-admins
-    date_created: "2025-12-18T04:00:00Z"
 version: v1
 ---
 kind: scoped_role_assignment
 sub_kind: materialized
 metadata:
-  name: acl-west-admins-bob@example.com
+  name: acl-dBC_S6bIUGqMzbvVn_uHTN-NNAiI2q7KreU9gw
 scope: /
 spec:
   user: bob@example.com
@@ -322,7 +321,6 @@ status:
   origin:
     creator: access_list
     creator_name: west-admins
-    date_created: "2025-12-18T04:00:00Z"
 version: v1
 ```
 
@@ -334,10 +332,17 @@ assignments as usual.
 
 We will introduce `sub_kind: materialized` to distinguish materialized
 scoped_role_assignments from user-created ones and prevent name collisions.
-Materialized assignments will be named `acl-<list-name>-<user-name>`, but this
-will not be guaranteed to be stable into the future.
-Scoped role assignments with a sub_kind will use `<name>/<sub_kind>` as a
-primary key in the backend and the scoped access cache.
+We will use `sub_kind: static` for the current user or automation-created
+scoped_role_assignments (this will be a breaking change that has been deemed
+acceptable at this early stage).
+Scoped role assignments will use `<name>/<sub_kind>` as a primary key in the
+backend and the scoped access cache.
+
+Materialized assignments will be named `acl-<hash>` where `hash` is an
+unambiguous deterministic hash of the username, listname pair.
+Specifically it will be a Base64URL encoded SHA224 hash over
+`(len(username) || username || listname)`
+
 
 ### Inherited list membership
 
