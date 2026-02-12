@@ -237,6 +237,8 @@ type Config struct {
 	// FIPS mode means Teleport started in a FedRAMP/FIPS compliant
 	// configuration.
 	FIPS bool
+	// Modules define the build type, entitlements and licensed features.
+	Modules modules.Modules
 
 	// AccessPoint holds a cache to the Auth Server.
 	AccessPoint authclient.ProxyAccessPoint
@@ -346,6 +348,11 @@ func (c *Config) SetDefaults() {
 
 	if c.AutomaticUpgradesChannels == nil {
 		c.AutomaticUpgradesChannels = automaticupgrades.Channels{}
+	}
+
+	// TODO(tross): remove this when modules are injected properly.
+	if c.Modules == nil {
+		c.Modules = modules.GetModules()
 	}
 
 	c.ProxyGroupID = cmp.Or(c.ProxyGroupID, os.Getenv("TELEPORT_UNSTABLE_PROXYGROUP_ID"))
@@ -529,6 +536,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		sessionLingeringThreshold: sessionLingeringThreshold,
 		proxySigner:               cfg.PROXYSigner,
 		logger:                    h.logger,
+		buildType:                 cfg.Modules.BuildType(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1387,7 +1395,7 @@ func (h *Handler) AccessGraphAddr() utils.NetAddr {
 	return h.cfg.AccessGraphAddr
 }
 
-func localSettings(ctx context.Context, cap types.AuthPreference, logger *slog.Logger) (webclient.AuthenticationSettings, error) {
+func localSettings(ctx context.Context, cap types.AuthPreference, m modules.Modules, logger *slog.Logger) (webclient.AuthenticationSettings, error) {
 	as := webclient.AuthenticationSettings{
 		Type:                    constants.Local,
 		SecondFactor:            types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
@@ -1398,7 +1406,7 @@ func localSettings(ctx context.Context, cap types.AuthPreference, logger *slog.L
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
 		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
-		DeviceTrust:             deviceTrustSettings(cap, modules.GetModules()),
+		DeviceTrust:             deviceTrustSettings(cap, m),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 
@@ -1428,7 +1436,7 @@ func localSettings(ctx context.Context, cap types.AuthPreference, logger *slog.L
 	return as, nil
 }
 
-func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webclient.AuthenticationSettings {
+func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference, m modules.Modules) webclient.AuthenticationSettings {
 	return webclient.AuthenticationSettings{
 		Type: constants.OIDC,
 		OIDC: &webclient.OIDCSettings{
@@ -1442,12 +1450,12 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
 		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
-		DeviceTrust:             deviceTrustSettings(cap, modules.GetModules()),
+		DeviceTrust:             deviceTrustSettings(cap, m),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 }
 
-func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webclient.AuthenticationSettings {
+func samlSettings(connector types.SAMLConnector, cap types.AuthPreference, m modules.Modules) webclient.AuthenticationSettings {
 	return webclient.AuthenticationSettings{
 		Type: constants.SAML,
 		SAML: &webclient.SAMLSettings{
@@ -1465,12 +1473,12 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
 		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
-		DeviceTrust:             deviceTrustSettings(cap, modules.GetModules()),
+		DeviceTrust:             deviceTrustSettings(cap, m),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 }
 
-func githubSettings(connector types.GithubConnector, cap types.AuthPreference) webclient.AuthenticationSettings {
+func githubSettings(connector types.GithubConnector, cap types.AuthPreference, m modules.Modules) webclient.AuthenticationSettings {
 	return webclient.AuthenticationSettings{
 		Type: constants.Github,
 		Github: &webclient.GithubSettings{
@@ -1484,7 +1492,7 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
 		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
-		DeviceTrust:             deviceTrustSettings(cap, modules.GetModules()),
+		DeviceTrust:             deviceTrustSettings(cap, m),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 }
@@ -1503,7 +1511,7 @@ func deviceTrustDisabled(cap types.AuthPreference, m modules.Modules) bool {
 	return dtconfig.GetEffectiveMode(cap.GetDeviceTrust(), m) == constants.DeviceTrustModeOff
 }
 
-func getAuthSettings(ctx context.Context, authClient authclient.ClientI, logger *slog.Logger) (webclient.AuthenticationSettings, error) {
+func getAuthSettings(ctx context.Context, authClient authclient.ClientI, m modules.Modules, logger *slog.Logger) (webclient.AuthenticationSettings, error) {
 	authPreference, err := authClient.GetAuthPreference(ctx)
 	if err != nil {
 		return webclient.AuthenticationSettings{}, trace.Wrap(err)
@@ -1513,7 +1521,7 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI, logger 
 
 	switch authPreference.GetType() {
 	case constants.Local:
-		as, err = localSettings(ctx, authPreference, logger)
+		as, err = localSettings(ctx, authPreference, m, logger)
 		if err != nil {
 			return webclient.AuthenticationSettings{}, trace.Wrap(err)
 		}
@@ -1524,7 +1532,7 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI, logger 
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
-			as = oidcSettings(oidcConnector, authPreference)
+			as = oidcSettings(oidcConnector, authPreference, m)
 		} else {
 			// TODO(okraport): DELETE IN v21.0.0, remove GetOIDCConnectors
 			oidcConnectors, err := clientutils.CollectWithFallback(ctx,
@@ -1542,7 +1550,7 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI, logger 
 				return webclient.AuthenticationSettings{}, trace.BadParameter("no oidc connectors found")
 			}
 
-			as = oidcSettings(oidcConnectors[0], authPreference)
+			as = oidcSettings(oidcConnectors[0], authPreference, m)
 		}
 	case constants.SAML:
 		if authPreference.GetConnectorName() != "" {
@@ -1551,7 +1559,7 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI, logger 
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
-			as = samlSettings(samlConnector, authPreference)
+			as = samlSettings(samlConnector, authPreference, m)
 		} else {
 			// TODO(okraport): DELETE IN v21.0.0, remove GetSAMLConnectorsWithValidationOptions
 			samlConnectors, err := clientutils.CollectWithFallback(ctx,
@@ -1569,7 +1577,7 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI, logger 
 				return webclient.AuthenticationSettings{}, trace.BadParameter("no saml connectors found")
 			}
 
-			as = samlSettings(samlConnectors[0], authPreference)
+			as = samlSettings(samlConnectors[0], authPreference, m)
 		}
 	case constants.Github:
 		if authPreference.GetConnectorName() != "" {
@@ -1577,7 +1585,7 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI, logger 
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
-			as = githubSettings(githubConnector, authPreference)
+			as = githubSettings(githubConnector, authPreference, m)
 		} else {
 			// TODO(okraport): DELETE IN v21.0.0, remove GetGithubConnectors
 			githubConnectors, err := clientutils.CollectWithFallback(ctx,
@@ -1594,7 +1602,7 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI, logger 
 			if len(githubConnectors) == 0 {
 				return webclient.AuthenticationSettings{}, trace.BadParameter("no github connectors found")
 			}
-			as = githubSettings(githubConnectors[0], authPreference)
+			as = githubSettings(githubConnectors[0], authPreference, m)
 		}
 	default:
 		return webclient.AuthenticationSettings{}, trace.BadParameter("unknown type %v", authPreference.GetType())
@@ -1682,7 +1690,7 @@ func (h *Handler) traces(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 
 func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var err error
-	authSettings, err := getAuthSettings(r.Context(), h.cfg.ProxyClient, h.logger)
+	authSettings, err := getAuthSettings(r.Context(), h.cfg.ProxyClient, h.cfg.Modules, h.logger)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1708,8 +1716,8 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		ClusterName:       h.auth.clusterName,
 		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
 		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, updaterID),
-		Edition:           modules.GetModules().BuildType(),
-		FIPS:              modules.IsBoringBinary(),
+		Edition:           h.cfg.Modules.BuildType(),
+		FIPS:              h.cfg.Modules.IsBoringBinary(),
 	}, nil
 }
 
@@ -1738,8 +1746,8 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 			ServerVersion:    teleport.Version,
 			MinClientVersion: teleport.MinClientSemVer().String(),
 			ClusterName:      h.auth.clusterName,
-			Edition:          modules.GetModules().BuildType(),
-			FIPS:             modules.IsBoringBinary(),
+			Edition:          h.cfg.Modules.BuildType(),
+			FIPS:             h.cfg.Modules.IsBoringBinary(),
 			AutoUpdate:       h.automaticUpdateSettings184(ctx, group, "" /* updater UUID */),
 		}, nil
 	})
@@ -1785,7 +1793,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 
 	hasMessageOfTheDay := cap.GetMessageOfTheDay() != ""
 	if slices.Contains(constants.SystemConnectors, connectorName) {
-		response.Auth, err = localSettings(r.Context(), cap, h.logger)
+		response.Auth, err = localSettings(r.Context(), cap, h.cfg.Modules, h.logger)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1805,7 +1813,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		for index, value := range oidcConnectors {
 			collectorNames = append(collectorNames, value.GetMetadata().Name)
 			if value.GetMetadata().Name == connectorName {
-				response.Auth = oidcSettings(oidcConnectors[index], cap)
+				response.Auth = oidcSettings(oidcConnectors[index], cap, h.cfg.Modules)
 				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 				response.Auth.LoadAllCAs = loadAllCAs
 				return response, nil
@@ -1819,7 +1827,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		for index, value := range samlConnectors {
 			collectorNames = append(collectorNames, value.GetMetadata().Name)
 			if value.GetMetadata().Name == connectorName {
-				response.Auth = samlSettings(samlConnectors[index], cap)
+				response.Auth = samlSettings(samlConnectors[index], cap, h.cfg.Modules)
 				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 				response.Auth.LoadAllCAs = loadAllCAs
 				return response, nil
@@ -1833,7 +1841,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		for index, value := range githubConnectors {
 			collectorNames = append(collectorNames, value.GetMetadata().Name)
 			if value.GetMetadata().Name == connectorName {
-				response.Auth = githubSettings(githubConnectors[index], cap)
+				response.Auth = githubSettings(githubConnectors[index], cap, h.cfg.Modules)
 				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
 				response.Auth.LoadAllCAs = loadAllCAs
 				return response, nil
@@ -1994,7 +2002,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	webCfg := webclient.WebConfig{
-		Edition:                        modules.GetModules().BuildType(),
+		Edition:                        h.cfg.Modules.BuildType(),
 		Auth:                           authSettings,
 		CanJoinSessions:                canJoinSessions,
 		IsCloud:                        clusterFeatures.GetCloud(),
@@ -2527,9 +2535,8 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 		return nil, trace.Wrap(err)
 	}
 
-	feats := modules.GetModules().Features()
 	teleportPackage := types.PackageNameOSS
-	if modules.GetModules().BuildType() == modules.BuildEnterprise || feats.Cloud {
+	if h.cfg.Modules.BuildType() == modules.BuildEnterprise || h.cfg.Modules.Features().Cloud {
 		teleportPackage = types.PackageNameEnt
 		if h.cfg.FIPS {
 			teleportPackage = types.PackageNameEntFIPS
@@ -2542,7 +2549,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	// If the updater must be installed, then change the repo to stable/cloud
 	// It must also install the version specified in
 	// https://updates.releases.teleport.dev/v1/stable/cloud/version
-	installUpdater := automaticUpgrades(*ping.ServerFeatures)
+	installUpdater := ping.ServerFeatures.AutomaticUpgrades && ping.ServerFeatures.Cloud
 	if installUpdater {
 		repoChannel = automaticupgrades.DefaultCloudChannelName
 	}
@@ -4077,6 +4084,7 @@ func (h *Handler) siteNodeConnect(
 		PresenceChecker:    h.cfg.PresenceChecker,
 		WebsocketConn:      ws,
 		SSHDialTimeout:     dialTimeout,
+		FIPSBuild:          h.cfg.Modules.IsBoringBinary(),
 		HostNameResolver: func(serverID string) (string, error) {
 			matches, err := nw.CurrentResourcesWithFilter(r.Context(), func(n readonly.Server) bool {
 				return n.GetName() == serverID
