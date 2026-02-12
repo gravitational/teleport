@@ -25,6 +25,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/exec"
 	"sync"
 	"testing"
 	"time"
@@ -41,7 +42,7 @@ func TestCommand(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		t.Parallel()
 
-		reexecCmd, stdin, stdout := newTestReexecCommand(t)
+		reexecCmd, stdin, stdout := newTestReexecCommand(t, "-test.run=TestReexecEchoProcess")
 
 		// Start the command and go through the ready signal flow.
 		require.NoError(t, reexecCmd.Start())
@@ -63,7 +64,7 @@ func TestCommand(t *testing.T) {
 	t.Run("continue", func(t *testing.T) {
 		t.Parallel()
 
-		reexecCmd, stdin, stdout := newTestReexecCommand(t)
+		reexecCmd, stdin, stdout := newTestReexecCommand(t, "-test.run=TestReexecEchoProcess")
 
 		// Start the command.
 		require.NoError(t, reexecCmd.Start())
@@ -90,7 +91,7 @@ func TestCommand(t *testing.T) {
 	t.Run("never ready", func(t *testing.T) {
 		t.Parallel()
 
-		reexecCmd, _, _ := newTestReexecCommand(t, "REEXEC_SKIP_READY=1")
+		reexecCmd, _, _ := newTestReexecCommand(t, "-test.run=TestReexecEchoProcess", "REEXEC_SKIP_READY=1")
 
 		// Start the command.
 		require.NoError(t, reexecCmd.Start())
@@ -106,7 +107,7 @@ func TestCommand(t *testing.T) {
 	t.Run("graceful termination", func(t *testing.T) {
 		t.Parallel()
 
-		reexecCmd, _, stdout := newTestReexecCommand(t)
+		reexecCmd, _, stdout := newTestReexecCommand(t, "-test.run=TestReexecEchoProcess")
 
 		// Start the command and go through the ready signal flow.
 		require.NoError(t, reexecCmd.Start())
@@ -127,7 +128,7 @@ func TestCommand(t *testing.T) {
 
 		// Purposely don't handle the terminate signal since graceful termination
 		// is always attempted first.
-		reexecCmd, _, stdout := newTestReexecCommand(t, "REEXEC_IGNORE_TERMINATE=1")
+		reexecCmd, _, stdout := newTestReexecCommand(t, "-test.run=TestReexecEchoProcess", "REEXEC_IGNORE_TERMINATE=1")
 
 		// Start the command and go through the ready signal flow.
 		require.NoError(t, reexecCmd.Start())
@@ -146,7 +147,7 @@ func TestCommand(t *testing.T) {
 	t.Run("extra pipe", func(t *testing.T) {
 		t.Parallel()
 
-		reexecCmd, stdin, stdout := newTestReexecCommand(t, "REEXEC_USE_EXTRA=1")
+		reexecCmd, stdin, stdout := newTestReexecCommand(t, "-test.run=TestReexecEchoProcess", "REEXEC_USE_EXTRA=1")
 
 		echoPipe, err := reexecCmd.AddParentToChildPipe()
 		require.NoError(t, err)
@@ -167,50 +168,6 @@ func TestCommand(t *testing.T) {
 		require.Zero(t, exitCode)
 		require.Equal(t, echoString, stdout.String())
 	})
-}
-
-func TestCommandCloseIdempotent(t *testing.T) {
-	t.Parallel()
-
-	reexecCmd, err := NewCommand(newBasicConfig(t))
-	require.NoError(t, err)
-
-	require.NoError(t, reexecCmd.Close())
-	require.NoError(t, reexecCmd.Close())
-}
-
-func newTestReexecCommand(t *testing.T, env ...string) (cmd *Command, stdin io.WriteCloser, stdout *safeBuffer) {
-	t.Helper()
-
-	reexecCmd, err := NewCommand(newBasicConfig(t))
-	require.NoError(t, err)
-
-	reexecCmd.cmd.Env = append(reexecCmd.cmd.Env, "GO_WANT_HELPER_PROCESS=1")
-	reexecCmd.cmd.Env = append(reexecCmd.cmd.Env, env...)
-
-	stdout = &safeBuffer{}
-	reexecCmd.cmd.Stdout = stdout
-	reexecCmd.cmd.Stderr = io.Discard
-
-	stdin, err = reexecCmd.cmd.StdinPipe()
-	require.NoError(t, err)
-	t.Cleanup(func() { stdin.Close() })
-
-	return reexecCmd, stdin, stdout
-}
-
-func newBasicConfig(t *testing.T) *Config {
-	t.Helper()
-
-	return &Config{
-		ReexecCommand: "-test.run=TestReexecEchoProcess",
-		LogConfig: LogConfig{
-			ExtraFields: []string{
-				teleport.ComponentKey, "echo-process",
-			},
-		},
-		LogWriter: os.Stderr,
-	}
 }
 
 func TestReexecEchoProcess(t *testing.T) {
@@ -263,6 +220,130 @@ func TestReexecEchoProcess(t *testing.T) {
 
 	slog.DebugContext(t.Context(), "stdin closed, exiting")
 	os.Exit(0)
+}
+func TestCommandCloseIdempotent(t *testing.T) {
+	t.Parallel()
+
+	reexecCmd, err := NewCommand(newConfigForReexec(t, ""))
+	require.NoError(t, err)
+
+	require.NoError(t, reexecCmd.Close())
+	require.NoError(t, reexecCmd.Close())
+}
+
+func TestCommandStderrHandling(t *testing.T) {
+	t.Parallel()
+
+	t.Run("normal stderr", func(t *testing.T) {
+		t.Parallel()
+
+		reexecCmd, _, _ := newTestReexecCommand(t, "-test.run=TestReexecErrorProcess")
+		stderrEchoPipe, err := reexecCmd.AddParentToChildPipe()
+		require.NoError(t, err)
+		require.NoError(t, reexecCmd.Start())
+
+		errMsg := "Failed to launch: big bad bug\n"
+		_, err = io.WriteString(stderrEchoPipe, errMsg)
+		require.NoError(t, err)
+		stderrEchoPipe.Close()
+
+		exitCode, exitErr := reexecCmd.Wait()
+		require.Equal(t, 7, exitCode)
+		require.Error(t, exitErr)
+		require.ErrorContains(t, exitErr, errMsg)
+	})
+
+	t.Run("empty stderr", func(t *testing.T) {
+		t.Parallel()
+
+		reexecCmd, _, _ := newTestReexecCommand(t, "-test.run=TestReexecErrorProcess")
+		stderrEchoPipe, err := reexecCmd.AddParentToChildPipe()
+		require.NoError(t, err)
+		require.NoError(t, reexecCmd.Start())
+
+		// End the process without any stderr.
+		stderrEchoPipe.Close()
+
+		exitCode, err := reexecCmd.Wait()
+		require.Equal(t, 7, exitCode)
+		require.Error(t, err)
+		var exitErr *exec.ExitError
+		require.ErrorAs(t, err, &exitErr)
+	})
+
+	t.Run("malformed stderr", func(t *testing.T) {
+		t.Parallel()
+
+		reexecCmd, _, _ := newTestReexecCommand(t, "-test.run=TestReexecErrorProcess")
+		stderrEchoPipe, err := reexecCmd.AddParentToChildPipe()
+		require.NoError(t, err)
+		require.NoError(t, reexecCmd.Start())
+
+		errMsg := "malformed stderr\n"
+		_, err = io.WriteString(stderrEchoPipe, errMsg)
+		require.NoError(t, err)
+		stderrEchoPipe.Close()
+
+		exitCode, err := reexecCmd.Wait()
+		require.Equal(t, 7, exitCode)
+		require.Error(t, err)
+		var exitErr *exec.ExitError
+		require.ErrorAs(t, err, &exitErr)
+	})
+}
+
+func TestReexecErrorProcess(t *testing.T) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		return
+	}
+
+	cfg := os.NewFile(ConfigFile, "config")
+	echoStderr := os.NewFile(FirstExtraFile, "stderr")
+
+	var cfgPayload Config
+	_ = json.NewDecoder(cfg).Decode(&cfgPayload)
+	_ = cfg.Close()
+
+	InitLogger("echo-reexec", cfgPayload.LogConfig)
+
+	if _, err := io.Copy(os.Stderr, echoStderr); err != nil {
+		slog.DebugContext(t.Context(), "Stderr copy loop ended with error", "err", err)
+	}
+
+	os.Exit(7)
+}
+
+func newTestReexecCommand(t *testing.T, reexecCommand string, env ...string) (cmd *Command, stdin io.WriteCloser, stdout *safeBuffer) {
+	t.Helper()
+
+	reexecCmd, err := NewCommand(newConfigForReexec(t, reexecCommand))
+	require.NoError(t, err)
+
+	reexecCmd.cmd.Env = append(reexecCmd.cmd.Env, "GO_WANT_HELPER_PROCESS=1")
+	reexecCmd.cmd.Env = append(reexecCmd.cmd.Env, env...)
+
+	stdout = &safeBuffer{}
+	reexecCmd.cmd.Stdout = stdout
+
+	stdin, err = reexecCmd.cmd.StdinPipe()
+	require.NoError(t, err)
+	t.Cleanup(func() { stdin.Close() })
+
+	return reexecCmd, stdin, stdout
+}
+
+func newConfigForReexec(t *testing.T, reexecCommand string) *Config {
+	t.Helper()
+
+	return &Config{
+		ReexecCommand: reexecCommand,
+		LogConfig: LogConfig{
+			ExtraFields: []string{
+				teleport.ComponentKey, "reexec-logs",
+			},
+		},
+		LogWriter: os.Stderr,
+	}
 }
 
 func waitForClose(r io.Reader) <-chan struct{} {

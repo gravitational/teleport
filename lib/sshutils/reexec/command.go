@@ -197,7 +197,7 @@ func (c *Command) Start(closerOnExit ...io.Closer) error {
 		childErr, err := readChildError(context.Background(), stderrR)
 		if err != nil {
 			c.logger.WarnContext(context.Background(), "Failed to read child process stderr", "error", err)
-		} else {
+		} else if childErr != nil {
 			c.exitErr = childErr
 		}
 
@@ -452,7 +452,7 @@ func readChildError(ctx context.Context, stderr io.Reader) (childErr error, err 
 
 	// It should be empty or include an error message like "Failed to launch: ..."
 	if !strings.HasPrefix(errMsg.String(), "Failed to launch: ") {
-		return nil, trace.Wrap(err, "Unexpected error message from child process: %s", errMsg.String())
+		return nil, trace.BadParameter("Unexpected error message from child process: %s", errMsg.String())
 	}
 
 	// TODO(Joerger): Process the err msg from stderr to provide deeper insights into
