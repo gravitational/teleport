@@ -31,6 +31,10 @@
     EnVar::SetHKLM
     EnVar::AddValue "Path" $INSTDIR\resources\bin
 
+    # Disable client tools managed updates for the bundled tsh.exe commands below.
+    # This function has no effect on the system environment variables or the environment variables of other processes.
+    System::Call 'kernel32::SetEnvironmentVariable(t, t)i("TELEPORT_TOOLS_VERSION", "off").r0'
+
     nsExec::ExecToStack '"$INSTDIR\resources\bin\tsh.exe" vnet-install-service'
     Pop $0 # ExitCode
     Pop $1 # Output
@@ -54,6 +58,10 @@
     # Fortunately, electron-builder puts the uninstaller directly into the actual installation dir.
     # https://nsis.sourceforge.io/Docs/Chapter4.html#varother
     EnVar::DeleteValue "Path" $INSTDIR\resources\bin
+
+    # Disable client tools managed updates for the bundled tsh.exe commands below.
+    # This function has no effect on the system environment variables or the environment variables of other processes.
+    System::Call 'kernel32::SetEnvironmentVariable(t, t)i("TELEPORT_TOOLS_VERSION", "off").r0'
 
     nsExec::ExecToStack '"$INSTDIR\resources\bin\tsh.exe" vnet-uninstall-service'
     Pop $0 # ExitCode
