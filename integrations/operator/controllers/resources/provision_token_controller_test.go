@@ -151,17 +151,22 @@ func (g *tokenTestingPrimitives) CompareTeleportAndKubernetesResource(tResource 
 
 func TestProvisionTokenCreation(t *testing.T) {
 	test := &tokenTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest[types.ProvisionToken, *resourcesv2.TeleportProvisionToken](t, resources.NewProvisionTokenReconciler, test)
+	testlib.ResourceCreationSynchronousTest(t, resources.NewProvisionTokenReconciler, test)
+}
+
+func TestProvisionTokenDeletion(t *testing.T) {
+	test := &tokenTestingPrimitives{}
+	testlib.ResourceDeletionSynchronousTest(t, resources.NewProvisionTokenReconciler, test)
 }
 
 func TestProvisionTokenDeletionDrift(t *testing.T) {
 	test := &tokenTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest[types.ProvisionToken, *resourcesv2.TeleportProvisionToken](t, resources.NewProvisionTokenReconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewProvisionTokenReconciler, test)
 }
 
 func TestProvisionTokenUpdate(t *testing.T) {
 	test := &tokenTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous[types.ProvisionToken, *resourcesv2.TeleportProvisionToken](t, resources.NewProvisionTokenReconciler, test)
+	testlib.ResourceUpdateTestSynchronous(t, resources.NewProvisionTokenReconciler, test)
 }
 
 // This test checks the operator can create Token resources in Teleport for a

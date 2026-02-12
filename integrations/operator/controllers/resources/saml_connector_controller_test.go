@@ -184,15 +184,20 @@ func (g *samlTestingPrimitives) DebugDrifts(t *testing.T, name string) {
 
 func TestSAMLConnectorCreation(t *testing.T) {
 	test := &samlTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest[types.SAMLConnector, *resourcesv2.TeleportSAMLConnector](t, resources.NewSAMLConnectorReconciler, test)
+	testlib.ResourceCreationSynchronousTest(t, resources.NewSAMLConnectorReconciler, test)
+}
+
+func TestSAMLConnectorDeletion(t *testing.T) {
+	test := &samlTestingPrimitives{}
+	testlib.ResourceDeletionSynchronousTest(t, resources.NewSAMLConnectorReconciler, test)
 }
 
 func TestSAMLConnectorDeletionDrift(t *testing.T) {
 	test := &samlTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest[types.SAMLConnector, *resourcesv2.TeleportSAMLConnector](t, resources.NewSAMLConnectorReconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewSAMLConnectorReconciler, test)
 }
 
 func TestSAMLConnectorUpdate(t *testing.T) {
 	test := &samlTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous[types.SAMLConnector, *resourcesv2.TeleportSAMLConnector](t, resources.NewSAMLConnectorReconciler, test)
+	testlib.ResourceUpdateTestSynchronous(t, resources.NewSAMLConnectorReconciler, test)
 }
