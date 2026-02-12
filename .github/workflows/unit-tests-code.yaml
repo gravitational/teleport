@@ -6,6 +6,7 @@ on:
     branches:
       - master
       - branch/*
+      - okraport/enable-s3-test-metrics-upload-test
   pull_request:
     paths:
       - '.github/workflows/unit-tests-code.yaml'
