@@ -47,8 +47,8 @@ type TokenLimiterConfig struct {
 }
 
 func (t *TokenLimiterConfig) CheckAndSetDefaults() error {
-	if len(t.Rates.m) == 0 {
-		return trace.BadParameter("missing required rates")
+	if t.Rates == nil {
+		t.Rates = &RateSet{m: make(map[time.Duration]*rate)}
 	}
 
 	if t.Clock == nil {
@@ -71,17 +71,22 @@ func New(config TokenLimiterConfig) (*TokenLimiter, error) {
 		log: slog.With(teleport.ComponentKey, "ratelimiter"),
 	}
 
-	bucketSets, err := utils.NewFnCache(utils.FnCacheConfig{
-		// The default TTL here is not super important because we set the
-		// TTL explicitly for each entry we insert.
-		TTL:   10 * time.Second,
-		Clock: config.Clock,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// Skip FnCache creation when no rates are configured. FnCache
+	// spawns a background goroutine for cleanup, and the noop path
+	// in ServeHTTP never touches bucketSets.
+	if config.Rates.Len() > 0 {
+		bucketSets, err := utils.NewFnCache(utils.FnCacheConfig{
+			// The default TTL here is not super important because we
+			// set the TTL explicitly for each entry we insert.
+			TTL:   10 * time.Second,
+			Clock: config.Clock,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tl.bucketSets = bucketSets
 	}
 
-	tl.bucketSets = bucketSets
 	return tl, nil
 }
 
@@ -90,6 +95,11 @@ func (tl *TokenLimiter) Wrap(next http.Handler) {
 }
 
 func (tl *TokenLimiter) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if tl.defaultRates.Len() == 0 {
+		tl.next.ServeHTTP(w, req)
+		return
+	}
+
 	clientIP, err := ExtractClientIP(req)
 	if err != nil {
 		ServeHTTPError(w, req, err)
@@ -166,6 +176,15 @@ func (rs *RateSet) Add(period time.Duration, average int64, burst int64) error {
 	}
 	rs.m[period] = &rate{period, average, burst}
 	return nil
+}
+
+// Len returns the number of rates in the set. It is safe to call on a
+// nil receiver.
+func (rs *RateSet) Len() int {
+	if rs == nil {
+		return 0
+	}
+	return len(rs.m)
 }
 
 // MaxPeriod returns the maximum period in the rate set.

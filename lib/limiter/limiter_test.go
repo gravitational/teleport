@@ -34,6 +34,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
 
+	"github.com/gravitational/teleport/lib/limiter/internal/ratelimit"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -392,6 +393,174 @@ func mustServeAndReceiveStatusCode(t *testing.T, handler http.Handler, wantStatu
 	require.Equal(t, wantStatusCode, response.StatusCode)
 }
 
+func TestNoRates_RegisterRequest(t *testing.T) {
+	t.Parallel()
+
+	limiter, err := NewLimiter(Config{})
+	require.NoError(t, err)
+
+	// With no rates configured, RegisterRequest should never reject.
+	for range 100 {
+		require.NoError(t, limiter.RegisterRequest("token1"))
+	}
+}
+
+func TestNoRates_Middleware(t *testing.T) {
+	t.Parallel()
+
+	limiter, err := NewLimiter(Config{})
+	require.NoError(t, err)
+
+	middleware := MakeMiddleware(limiter)
+	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	}))
+
+	// With no rates and no max connections, every request should pass through.
+	for range 100 {
+		mustServeAndReceiveStatusCode(t, handler, http.StatusAccepted)
+	}
+}
+
+func TestNoRates_CustomRateStillApplied(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+	limiter, err := NewLimiter(Config{Clock: clock})
+	require.NoError(t, err)
+
+	customRate := ratelimit.NewRateSet()
+	err = customRate.Add(time.Minute, 1, 2)
+	require.NoError(t, err)
+
+	// Default rate path should be a noop (no rates configured).
+	for range 100 {
+		require.NoError(t, limiter.RegisterRequest("token1"))
+	}
+
+	// Custom rate should still be enforced even without default rates.
+	require.NoError(t, limiter.RegisterRequestWithCustomRate("token1", customRate))
+	require.NoError(t, limiter.RegisterRequestWithCustomRate("token1", customRate))
+	require.Error(t, limiter.RegisterRequestWithCustomRate("token1", customRate))
+}
+
+func TestNoRates_IsRateLimited(t *testing.T) {
+	t.Parallel()
+
+	limiter, err := NewRateLimiter(Config{})
+	require.NoError(t, err)
+
+	// With no rates configured, IsRateLimited should always return false.
+	require.False(t, limiter.IsRateLimited("token1"))
+
+	// RegisterRequest is a no-op, so even after many calls the token
+	// should not appear rate-limited.
+	for range 100 {
+		require.NoError(t, limiter.RegisterRequest("token1", nil))
+	}
+	require.False(t, limiter.IsRateLimited("token1"))
+}
+
+func TestNoRates_UnaryServerInterceptor(t *testing.T) {
+	t.Parallel()
+
+	limiter, err := NewLimiter(Config{})
+	require.NoError(t, err)
+
+	ctx := peer.NewContext(t.Context(), &peer.Peer{Addr: mockAddr{}})
+	serverInfo := &grpc.UnaryServerInfo{FullMethod: "/method"}
+	handler := func(context.Context, any) (any, error) { return "ok", nil }
+
+	interceptor := limiter.UnaryServerInterceptor()
+
+	// With no rates, the interceptor should never reject.
+	for range 100 {
+		resp, err := interceptor(ctx, "request", serverInfo, handler)
+		require.NoError(t, err)
+		require.Equal(t, "ok", resp)
+	}
+}
+
+func TestNoRates_StreamServerInterceptor(t *testing.T) {
+	t.Parallel()
+
+	limiter, err := NewLimiter(Config{})
+	require.NoError(t, err)
+
+	ctx := peer.NewContext(t.Context(), &peer.Peer{Addr: mockAddr{}})
+	ss := mockServerStream{ctx: ctx}
+	info := &grpc.StreamServerInfo{}
+	handler := func(srv any, stream grpc.ServerStream) error { return nil }
+
+	// With no rates, the interceptor should never reject.
+	for range 100 {
+		require.NoError(t, limiter.StreamServerInterceptor(nil, ss, info, handler))
+	}
+}
+
+func TestNoRates_RegisterRequestAndConnection(t *testing.T) {
+	t.Parallel()
+
+	limiter, err := NewLimiter(Config{})
+	require.NoError(t, err)
+
+	// With no rates and no max connections, should never reject.
+	for range 100 {
+		release, err := limiter.RegisterRequestAndConnection("127.0.0.1")
+		require.NoError(t, err)
+		release()
+	}
+}
+
+func TestNoRates_WithMaxConnections(t *testing.T) {
+	t.Parallel()
+
+	limiter, err := NewLimiter(Config{MaxConnections: 2})
+	require.NoError(t, err)
+
+	// Rate limiting should pass through (no rates), but connection
+	// limiting should still enforce.
+	for range 100 {
+		require.NoError(t, limiter.RegisterRequest("token1"))
+	}
+
+	// Connection limit should still work.
+	release1, err := limiter.RegisterRequestAndConnection("127.0.0.1")
+	require.NoError(t, err)
+	release2, err := limiter.RegisterRequestAndConnection("127.0.0.1")
+	require.NoError(t, err)
+
+	// Third connection should be rejected.
+	_, err = limiter.RegisterRequestAndConnection("127.0.0.1")
+	require.Error(t, err)
+	require.True(t, trace.IsLimitExceeded(err))
+
+	// Release one, then the third should succeed.
+	release1()
+	release3, err := limiter.RegisterRequestAndConnection("127.0.0.1")
+	require.NoError(t, err)
+	release2()
+	release3()
+}
+
+func TestNoRates_MiddlewareWithMaxConnections(t *testing.T) {
+	t.Parallel()
+
+	limiter, err := NewLimiter(Config{MaxConnections: 1})
+	require.NoError(t, err)
+
+	// Verify rate limiting passes through in HTTP path by sending
+	// many sequential requests (no concurrent connections).
+	middleware := MakeMiddleware(limiter)
+	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	}))
+
+	for range 100 {
+		mustServeAndReceiveStatusCode(t, handler, http.StatusAccepted)
+	}
+}
+
 func TestRateLimiter_IsRateLimited(t *testing.T) {
 	t.Parallel()
 
@@ -411,19 +580,19 @@ func TestRateLimiter_IsRateLimited(t *testing.T) {
 
 	// Consume some tokens but not all
 	for range 5 {
-		require.NoError(t, limiter.RegisterRequest("token1"))
+		require.NoError(t, limiter.RegisterRequest("token1", nil))
 	}
 
 	require.False(t, limiter.IsRateLimited("token1"))
 
 	// Consume the rest of the tokens
 	for range 4 {
-		require.NoError(t, limiter.RegisterRequest("token1"))
+		require.NoError(t, limiter.RegisterRequest("token1", nil))
 	}
 	require.False(t, limiter.IsRateLimited("token1"))
 
 	// Consume the last token
-	require.NoError(t, limiter.RegisterRequest("token1"))
+	require.NoError(t, limiter.RegisterRequest("token1", nil))
 	// Now token1 should be rate limited
 	require.True(t, limiter.IsRateLimited("token1"))
 	// token2 should not be rate limited

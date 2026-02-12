@@ -72,7 +72,11 @@ func (l *Limiter) GetNumConnection(token string) (int64, error) {
 }
 
 func (l *Limiter) RegisterRequest(token string) error {
-	return l.rateLimiter.RegisterRequest(token)
+	return l.rateLimiter.RegisterRequest(token, nil)
+}
+
+func (l *Limiter) RegisterRequestWithCustomRate(token string, customRate *ratelimit.RateSet) error {
+	return l.rateLimiter.RegisterRequest(token, customRate)
 }
 
 func (l *Limiter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -110,7 +114,7 @@ func (l *Limiter) RegisterRequestAndConnection(token string) (func(), error) {
 
 type RateSet = ratelimit.RateSet
 
-// NewRateSet creates an empty RateSet instance.
+// NewRateSet creates an empty RateSet.
 func NewRateSet() *RateSet { return ratelimit.NewRateSet() }
 
 // UnaryServerInterceptor returns a gRPC unary interceptor which
