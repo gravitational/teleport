@@ -415,9 +415,12 @@ roles defined in the spec of that list (for members, owners, or both depending
 on the user's relationship with the list).
 
 The scope of the materialized assignment will be the root scope `/`.
-Since access lists currently don't have their own scope associated with the
-access list resource itself, the root scope is the only scope that makes sense
-for assignments derived from access lists.
+As an unscoped policy resource, access lists have an authority/provenance
+equivalent to the `/` (root) scope.
+If we materialized assignments s.t. they were owned by a scope lower than root,
+that would permit assignment editing permissions in child scopes to "reach up"
+and change the intent/effect of the higher level access list policy, which
+would violate scope isolation/hierarchy.
 
 For example, if alice is an explicit member of listA, and listA is an explicit
 member of listB, then alice is member of both listA and listB.
