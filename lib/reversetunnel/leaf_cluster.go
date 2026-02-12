@@ -1044,26 +1044,46 @@ func (s *leafCluster) SyncValidatedMFAChallenges(
 					return trace.Wrap(err)
 				}
 
+				s.logger.DebugContext(
+					ctx,
+					"Watching for ValidatedMFAChallenge changes in root cluster to replicate to leaf cluster",
+					"cluster", s.GetName(),
+				)
+
 				for {
 					select {
 					case <-ctx.Done():
 						return nil
 
 					case <-watcher.Done():
-						s.logger.InfoContext(ctx, "ValidatedMFAChallenge watcher subscription has closed")
-						return nil
+						return retryutils.PermanentRetryError(trace.Errorf("watcher done"))
 
 					case <-watcher.ResourcesC:
+						s.logger.DebugContext(
+							ctx,
+							"Received ValidatedMFAChallenge event, syncing resources to leaf cluster",
+							"cluster", s.GetName(),
+						)
+
 						// Resources have changed, sync to ensure the leaf cluster has all the latest resources.
-						if err := s.syncValidatedMFAChallenges(ctx); err != nil {
-							s.logger.ErrorContext(
+						count, err := s.syncValidatedMFAChallenges(ctx)
+						if err != nil {
+							s.logger.WarnContext(
 								ctx,
-								"Failed to sync ValidatedMFAChallenges resources, will retry",
+								"Failed to sync ValidatedMFAChallenge resources to leaf cluster, will retry",
 								"cluster", s.GetName(),
-								"retry_backoff", retry.Duration(),
+								"backoff_duration", retry.Duration(),
 								"error", err,
 							)
+							return trace.Wrap(err)
 						}
+
+						s.logger.DebugContext(
+							ctx,
+							"Successfully synced ValidatedMFAChallenge resources to leaf cluster",
+							"cluster", s.GetName(),
+							"challenge_count", count,
+						)
 
 						// Sync was successful, reset the retry to clear any accumulated backoff.
 						retry.Reset()
@@ -1076,7 +1096,7 @@ func (s *leafCluster) SyncValidatedMFAChallenges(
 
 // syncValidatedMFAChallenges performs a one-time synchronization of ValidatedMFAChallenge resources from the root
 // cluster to the leaf cluster.
-func (s *leafCluster) syncValidatedMFAChallenges(ctx context.Context) error {
+func (s *leafCluster) syncValidatedMFAChallenges(ctx context.Context) (int, error) {
 	challenges, err := s.validatedMFAChallengeWatcher.CurrentResourcesWithFilter(
 		ctx,
 		func(r *mfav1.ValidatedMFAChallenge) bool {
@@ -1085,9 +1105,10 @@ func (s *leafCluster) syncValidatedMFAChallenges(ctx context.Context) error {
 		},
 	)
 	if err != nil {
-		return trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 
+	count := 0
 	for _, challenge := range challenges {
 		// If the resource has already expired, skip it as there's no need to replicate it.
 		if challenge.GetMetadata().Expiry().Before(s.clock.Now()) {
@@ -1104,9 +1125,11 @@ func (s *leafCluster) syncValidatedMFAChallenges(ctx context.Context) error {
 				Username:      challenge.GetSpec().GetUsername(),
 			},
 		); err != nil && !trace.IsAlreadyExists(err) {
-			return trace.Wrap(err)
+			return 0, trace.Wrap(err)
 		}
+
+		count++
 	}
 
-	return nil
+	return count, nil
 }
