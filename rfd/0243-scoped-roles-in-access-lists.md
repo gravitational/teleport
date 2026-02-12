@@ -580,6 +580,16 @@ the effect of the materialized scoped role assignments).
 * Access lists can only assign roles defined in the root scope
 * Access lists can only assign roles to an assignable_scope of the role
 
+These invariants will be enforced at two levels:
+* first is enforcement at the backend/storage layer, as described below,
+  skipped for forced writes (Upserts).
+* second is the materialized scoped_role_assignments are always checked for
+  these invariants when building an access checker for user login or resource
+  access checks. This does not actually enforce the invariant on access lists,
+  but enforces that the assignments that result from any access list can only
+  assign a scoped role that exists in the root scope at an assignable_scope of
+  that role.
+
 The scoped access backend already has an AtomicWrite strategy for handling
 writes to scoped_roles and/or scoped_role_assignments while enforcing this kind
 of invariant.
