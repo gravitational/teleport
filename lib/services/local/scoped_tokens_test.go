@@ -85,7 +85,7 @@ func TestScopedTokenService(t *testing.T) {
 	updatedToken.Spec.AssignedScope = "/test/test"
 
 	updated, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{
-		Token: updatedToken,
+		Token: created.GetToken(),
 	})
 	require.NoError(t, err)
 
