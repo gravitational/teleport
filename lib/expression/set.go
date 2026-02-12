@@ -19,6 +19,8 @@
 package expression
 
 import (
+	"strings"
+
 	"github.com/gravitational/teleport/lib/utils/set"
 )
 
@@ -53,6 +55,17 @@ func (s Set) remove(elements ...string) any {
 
 func (s Set) contains(element string) bool {
 	return s.s.Contains(element)
+}
+
+func (s Set) withPrefix(prefix string) Set {
+	out := NewSet()
+	for element := range s.s {
+		if strings.HasPrefix(element, prefix) {
+			out.s.Add(element)
+		}
+	}
+
+	return out
 }
 
 func (s Set) clone() Set {

@@ -182,6 +182,10 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 				func(s Set, str string) (bool, error) {
 					return s.contains(str), nil
 				}),
+			"withprefix": typical.BinaryFunction[evaluationEnv](
+				func(s Set, prefix string) (Set, error) {
+					return s.withPrefix(prefix), nil
+				}),
 			"put": typical.TernaryFunction[evaluationEnv](
 				func(d Dict, key string, value Set) (Dict, error) {
 					return d.put(key, value), nil
