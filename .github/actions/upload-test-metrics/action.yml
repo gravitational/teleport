@@ -24,4 +24,4 @@ runs:
       with:
         s3-bucket: "s3://tp-278576220453-ci-test-artifacts-storage/ci-metrics"
         junit-files: "$GITHUB_WORKSPACE/test-logs/*.xml"
-        tool-version: v0.0.1
+        tool-version: v0.0.3
