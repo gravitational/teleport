@@ -421,19 +421,29 @@ fields:
 
 ### Bot Identity Representation and Certificate Issuance
 
-wip, wip, wip
+Bots have some significant differences from users when it comes to how roles
+are assigned to them. Roles are not directly assigned to the Bot, and instead
+they are leveraged via the impersonation mechanism. The creation of a Bot
+results in the creation of two resources:
 
-wip: Remark on how bot identities work today - internal and assumed roles.
+- The Bot User, which holds a single role of the same name (the Bot Role).
+- The Bot Role, which permits the Bot User to impersonate the roles that the Bot
+  is assigned.
+
+Certificates issued to a Bot fall into one of two categories:
+
+- Internal identity, where the encoded role in the certificate is the Bot Role.
+- Impersonated identity, where the encoded roles in the certificate are those
+  that the operator has assigned.
 
 We issue certificates for bot instances via three different paths:
 
-- `tbot` successfully calling of a Join RPC, we issue the Bot's "internal"
-  credentials. These "internal" credentials reflect the internal Bot Role rather
-  than any roles which are assigned to the Bot.
-- `tbot` calling the GenerateUserCerts RPC to generate certificates intended for
-  services/outputs. This RPC is called using the bot's internal credentials and
-  the resulting certificate reflects the Bot's assigned roles via the role 
-  impersonation mechanism.
+- `tbot` successfully calling of a Join RPC, we issue certificates for the bot's
+  internal identity.
+- `tbot` calling the GenerateUserCerts RPC to generate impersonated identity
+  certificates intended for services/outputs. This RPC is called using the bot's
+  internal identity and the resulting certificate reflects the Bot's assigned
+  roles via the role impersonation mechanism.
 - Special case - renewal for `token` join method bot instances. `tbot` calls the
   GenerateUserCerts RPC using the bot's internal credentials with the intent of
   producing internal credentials that expire at a later time than the current
