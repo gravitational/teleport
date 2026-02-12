@@ -665,14 +665,8 @@ func TestScopedTokenUpsert(t *testing.T) {
 		require.NoError(t, err)
 
 		updated := proto.CloneOf(token)
-		updated.Status = proto.CloneOf(token.Status)
-		updated.Status.Usage = &joiningv1.UsageStatus{
-			Status: &joiningv1.UsageStatus_SingleUse{
-				SingleUse: &joiningv1.SingleUseStatus{
-					UsedAt: timestamppb.Now(),
-				},
-			},
-		}
+		updated.Spec = proto.CloneOf(token.Spec)
+		updated.Spec.UsageMode = string(joining.TokenUsageModeSingle)
 
 		_, err = service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: updated})
 		require.ErrorContains(t, err, "cannot modify usage mode of existing scoped token")
@@ -690,5 +684,39 @@ func TestScopedTokenUpsert(t *testing.T) {
 
 		_, err = service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: updated})
 		require.ErrorContains(t, err, "cannot modify secret of existing scoped token")
+	})
+
+	t.Run("upsert fails when revisions don't match - simulating concurrent upserts", func(t *testing.T) {
+		service, ctx := newService(t)
+		token := newToken("concurrent-test")
+
+		_, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: token})
+		require.NoError(t, err)
+
+		fetched1, err := service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+			Name:       token.GetMetadata().GetName(),
+			WithSecret: true,
+		})
+		require.NoError(t, err)
+
+		update1 := proto.CloneOf(fetched1.GetToken())
+		update1.Metadata.Labels = map[string]string{"env": "production"}
+		_, err = service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: update1})
+		require.NoError(t, err)
+
+		// This should fail because the token was modified by update1
+		update2 := proto.CloneOf(fetched1.GetToken())
+		update2.Metadata.Labels = map[string]string{"env": "staging"}
+		_, err = service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: update2})
+		require.Error(t, err, "expected concurrent modification to fail")
+		require.True(t, trace.IsCompareFailed(err), "expected compare failed error, got: %v", err)
+
+		// Verify the first update succeeded and the second was rejected
+		final, err := service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+			Name:       token.GetMetadata().GetName(),
+			WithSecret: true,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "production", final.GetToken().GetMetadata().GetLabels()["env"])
 	})
 }

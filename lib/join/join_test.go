@@ -384,16 +384,15 @@ func TestJoinToken(t *testing.T) {
 		name string
 		// updateTokenFunc modifies the token after the initial join.
 		updateTokenFunc func(token *joiningv1.ScopedToken)
-		// rejoinShouldFail is true when the rejoin is expected to fail because
-		// the upsert changed the assigned scope.
-		assertExpectation func(t *testing.T, identity *state.Identity, err error)
+		// assertRejoinExpectation is used at the end to assert whether rejoining has failed or not
+		assertRejoinExpectation func(t *testing.T, identity *state.Identity, err error)
 	}{
 		{
 			name: "join after upsert modifies assigned scope",
 			updateTokenFunc: func(token *joiningv1.ScopedToken) {
 				token.Spec.AssignedScope = "/aa/cc"
 			},
-			assertExpectation: func(t *testing.T, identity *state.Identity, err error) {
+			assertRejoinExpectation: func(t *testing.T, identity *state.Identity, err error) {
 				require.Error(t, err)
 			},
 		},
@@ -402,7 +401,7 @@ func TestJoinToken(t *testing.T) {
 			updateTokenFunc: func(token *joiningv1.ScopedToken) {
 				token.Metadata.Labels = map[string]string{"env": "updated"}
 			},
-			assertExpectation: func(t *testing.T, identity *state.Identity, err error) {
+			assertRejoinExpectation: func(t *testing.T, identity *state.Identity, err error) {
 				require.NoError(t, err)
 				require.Equal(t, "/aa/bb", identity.AgentScope)
 				require.Equal(t, identity.ID.HostUUID, identity.ID.HostUUID)
@@ -468,7 +467,7 @@ func TestJoinToken(t *testing.T) {
 				token.GetStatus().GetSecret(),
 				authClient,
 			)
-			tc.assertExpectation(t, newIdentity, err)
+			tc.assertRejoinExpectation(t, newIdentity, err)
 		})
 	}
 }

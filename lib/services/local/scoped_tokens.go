@@ -316,12 +316,13 @@ func (s *ScopedTokenService) DeleteScopedToken(ctx context.Context, req *joining
 
 // UpsertScopedToken updates or creates a scoped token. If updating an existing token, the scope and status must not be modified.
 func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, req *joiningv1.UpsertScopedTokenRequest) (*joiningv1.UpsertScopedTokenResponse, error) {
-	if err := joining.StrongValidateToken(req.GetToken()); err != nil {
+	tokenUpsert := req.GetToken()
+
+	if err := joining.StrongValidateToken(tokenUpsert); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	tokenUpsert := req.GetToken()
-	existingToken, err := s.svc.GetResource(ctx, req.GetToken().GetMetadata().GetName())
+	existingToken, err := s.svc.GetResource(ctx, tokenUpsert.GetMetadata().GetName())
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
@@ -329,25 +330,32 @@ func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, req *joining
 	}
 
 	if existingToken != nil {
-		if existingToken.GetScope() != tokenUpsert.GetScope() {
-			return nil, trace.BadParameter("cannot modify scope of existing scoped token")
+		// We enforce this validating the updates here in order for the access-control layer's checks to be sound.
+		// Changing this would require rethinking or additional changes to the access-control checks.
+		if err := joining.ValidateTokenUpdate(existingToken, tokenUpsert); err != nil {
+			return nil, trace.Wrap(err)
 		}
 
-		if !proto.Equal(existingToken.GetStatus().GetUsage(), tokenUpsert.GetStatus().GetUsage()) {
-			return nil, trace.BadParameter("cannot modify usage mode of existing scoped token")
+		// Use conditional update with revision to ensure the token hasn't changed since we validated it.
+		// This prevents race conditions where the token could be deleted and recreated with
+		// different properties between our validation check and the write.
+		upsertedToken, err := s.svc.ConditionalUpdateResource(ctx, tokenUpsert)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
-		if tokenUpsert.GetStatus().GetSecret() != existingToken.GetStatus().GetSecret() {
-			return nil, trace.BadParameter("cannot modify secret of existing scoped token")
-		}
+		return &joiningv1.UpsertScopedTokenResponse{
+			Token: upsertedToken,
+		}, nil
 	}
-	upsertedToken, err := s.svc.UpsertResource(ctx, tokenUpsert)
+
+	createdToken, err := s.svc.CreateResource(ctx, tokenUpsert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &joiningv1.UpsertScopedTokenResponse{
-		Token: upsertedToken,
+		Token: createdToken,
 	}, nil
 }
 

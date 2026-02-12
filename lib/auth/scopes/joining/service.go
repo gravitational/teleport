@@ -298,6 +298,7 @@ func (s *Server) UpsertScopedToken(ctx context.Context, req *scopedjoiningv1.Ups
 		return nil, trace.Wrap(err)
 	}
 
+	// We rely on the backend guarantee that scoped tokens updates won't overwrite an existing token if it has a different scope, usage mode, or secret.
 	ruleCtx := authzContext.RuleContext()
 	if err := authzContext.CheckerContext.Decision(ctx, req.GetToken().GetScope(), func(checker *services.SplitAccessChecker) error {
 		return checker.Common().CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbUpdate, types.VerbCreate)
