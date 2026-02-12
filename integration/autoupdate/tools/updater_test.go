@@ -51,7 +51,7 @@ var (
 // an update to a newer version, expecting it to re-execute with the updated version.
 func TestUpdate(t *testing.T) {
 	t.Setenv(types.HomeEnvVar, t.TempDir())
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Verify that the installed version is equal to requested one.
 	cmd := exec.CommandContext(ctx, tctlPath, "version")
@@ -79,7 +79,7 @@ func TestUpdate(t *testing.T) {
 func TestUpdateDifferentOSArch(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv(types.HomeEnvVar, home)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Execute version command with setting the new version which must trigger update and
 	// re-execution of the same command after downloading requested version.
@@ -132,7 +132,7 @@ func TestUpdateDifferentOSArch(t *testing.T) {
 // the command with the updated version without any new downloads.
 func TestParallelUpdate(t *testing.T) {
 	t.Setenv(types.HomeEnvVar, t.TempDir())
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tCtx, cancel := context.WithTimeout(ctx, time.Minute)
 	t.Cleanup(cancel)
@@ -181,8 +181,6 @@ func TestParallelUpdate(t *testing.T) {
 
 // TestUpdateInterruptSignal verifies the interrupt signal send to the process must stop downloading.
 func TestUpdateInterruptSignal(t *testing.T) {
-	t.Setenv(types.HomeEnvVar, t.TempDir())
-
 	var output bytes.Buffer
 	multiOut := io.MultiWriter(&output, os.Stdout)
 	cmd := newCommand(tshPath, "version")
@@ -244,7 +242,7 @@ func TestUpdateInterruptSignal(t *testing.T) {
 // base URL environment variable.
 func TestUpdateForOSSBuild(t *testing.T) {
 	t.Setenv(types.HomeEnvVar, t.TempDir())
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Enable OSS build.
 	t.Setenv(updater.TestBuild, modules.BuildOSS)

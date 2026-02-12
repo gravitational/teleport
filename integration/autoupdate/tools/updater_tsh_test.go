@@ -21,7 +21,6 @@
 package tools_test
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -39,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/integration/autoupdate/tools/updater"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -56,7 +56,7 @@ import (
 // $ tsh version
 // Teleport v2.0.0
 func TestAliasLoginWithUpdater(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rootServer, homeDir := bootstrapTestServer(t)
 	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeEnabled, testVersions[1])
@@ -83,15 +83,11 @@ func TestAliasLoginWithUpdater(t *testing.T) {
 	// in the test cluster, we have to update client tools to new version.
 	cmd := exec.CommandContext(ctx, tshPath, "loginalice")
 	cmd.Env = os.Environ()
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 	require.NoError(t, cmd.Run())
 
 	// Verify tctl status after login.
 	cmd = exec.CommandContext(ctx, tctlPath, "status", "--insecure")
 	cmd.Env = os.Environ()
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 	require.NoError(t, cmd.Run())
 
 	// Run version command to verify that login command executed auto update and
@@ -108,7 +104,7 @@ func TestAliasLoginWithUpdater(t *testing.T) {
 // TestSequentialUpdate runs test cluster with sequential changing version required for
 // client tools for managed updates. After each new login we should receive updated version.
 func TestSequentialUpdate(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rootServer, _ := bootstrapTestServer(t)
 
@@ -123,8 +119,6 @@ func TestSequentialUpdate(t *testing.T) {
 		cmd := exec.CommandContext(ctx, tshPath,
 			"login", "--proxy", proxyAddr.String(), "--insecure", "--user", "alice", "--auth", constants.LocalConnector)
 		cmd.Env = os.Environ()
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
 		require.NoError(t, cmd.Run())
 
 		// Run version command to verify that login command executed auto update and
@@ -145,7 +139,7 @@ func TestSequentialUpdate(t *testing.T) {
 // $ tsh version
 // Teleport v2.0.0
 func TestLoginWithUpdaterAndProfile(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rootServer, _ := bootstrapTestServer(t)
 	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeDisabled, testVersions[1])
@@ -154,15 +148,10 @@ func TestLoginWithUpdaterAndProfile(t *testing.T) {
 	require.NoError(t, err)
 
 	// First login with set version during login process
-	t.Setenv("TELEPORT_TOOLS_VERSION", testVersions[1])
 	cmd := exec.CommandContext(ctx, tshPath,
 		"login", "--proxy", proxyAddr.String(), "--insecure", "--user", "alice", "--auth", constants.LocalConnector)
-	cmd.Env = os.Environ()
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Env = append(os.Environ(), "TELEPORT_TOOLS_VERSION="+testVersions[1])
 	require.NoError(t, cmd.Run())
-	// Unset the version after update process.
-	require.NoError(t, os.Unsetenv("TELEPORT_TOOLS_VERSION"))
 
 	// Run version command to verify that login command executed auto update and
 	// tsh was upgraded to [v2.0.0].
@@ -182,7 +171,7 @@ func TestLoginWithUpdaterAndProfile(t *testing.T) {
 // $ tsh version
 // Teleport v1.0.0
 func TestLoginWithDisabledUpdateInProfile(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rootServer, _ := bootstrapTestServer(t)
 	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeDisabled, testVersions[1])
@@ -190,23 +179,17 @@ func TestLoginWithDisabledUpdateInProfile(t *testing.T) {
 	proxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 
-	// Set env variable to forcibly request update on version command.
-	t.Setenv("TELEPORT_TOOLS_VERSION", testVersions[1])
 	cmd := exec.CommandContext(ctx, tshPath, "version")
-	cmd.Env = os.Environ()
+	cmd.Env = append(os.Environ(), "TELEPORT_TOOLS_VERSION="+testVersions[1])
 	out, err := cmd.Output()
 	require.NoError(t, err)
 	// Check the version.
 	matchVersion(t, string(out), testVersions[1])
-	// Unset the version after update process.
-	require.NoError(t, os.Unsetenv("TELEPORT_TOOLS_VERSION"))
 
 	// Second login has to update profile and disable further managed updates.
 	cmd = exec.CommandContext(ctx, tshPath,
 		"login", "--proxy", proxyAddr.String(), "--insecure", "--user", "alice", "--auth", constants.LocalConnector)
 	cmd.Env = os.Environ()
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 	require.NoError(t, cmd.Run())
 
 	// Run version command to verify that login command executed auto update and
@@ -228,7 +211,7 @@ func TestLoginWithDisabledUpdateInProfile(t *testing.T) {
 // $ tsh version
 // Teleport v1.0.0
 func TestLoginWithDisabledUpdateForcedByEnv(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rootServer, _ := bootstrapTestServer(t)
 	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeDisabled, testVersions[1])
@@ -240,20 +223,15 @@ func TestLoginWithDisabledUpdateForcedByEnv(t *testing.T) {
 	cmd := exec.CommandContext(ctx, tshPath,
 		"login", "--proxy", proxyAddr.String(), "--insecure", "--user", "alice", "--auth", constants.LocalConnector)
 	cmd.Env = os.Environ()
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 	require.NoError(t, cmd.Run())
 
 	// Trying to forcibly use specific version not during login.
-	t.Setenv("TELEPORT_TOOLS_VERSION", testVersions[1])
 	cmd = exec.CommandContext(ctx, tshPath, "version")
-	cmd.Env = os.Environ()
+	cmd.Env = append(os.Environ(), "TELEPORT_TOOLS_VERSION="+testVersions[1])
 	out, err := cmd.Output()
 	require.NoError(t, err)
 	// Check that version is used that requested from env variable.
 	matchVersion(t, string(out), testVersions[1])
-	// Unset the version after update process.
-	require.NoError(t, os.Unsetenv("TELEPORT_TOOLS_VERSION"))
 
 	// Run version command to verify that login command executed auto update and
 	// tsh is version [v1.0.0] since it was requested not during login and cluster
@@ -269,7 +247,7 @@ func TestLoginWithDisabledUpdateForcedByEnv(t *testing.T) {
 func TestMigratedUpdateNotReExec(t *testing.T) {
 	testToolsDir := t.TempDir()
 	t.Setenv(types.HomeEnvVar, testToolsDir)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	require.NoError(t, os.MkdirAll(filepath.Join(testToolsDir, "bin"), 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(testToolsDir, "bin", "tsh"), []byte("#!/bin/sh\n echo 'Teleport v5.5.5 git'\n"), 0755))
@@ -287,8 +265,7 @@ func TestMigratedUpdateNotReExec(t *testing.T) {
 // TestUpdateConfigReExecPath verifies that after update and re-execution we preserve the original
 // path of the executed binary, because `tsh config` is referencing this path for execution.
 func TestUpdateConfigReExecPath(t *testing.T) {
-	t.Setenv(types.HomeEnvVar, t.TempDir())
-	ctx := context.Background()
+	ctx := t.Context()
 
 	rootServer, _ := bootstrapTestServer(t)
 	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeEnabled, testVersions[1])
@@ -299,8 +276,6 @@ func TestUpdateConfigReExecPath(t *testing.T) {
 	cmd := exec.CommandContext(ctx, tshPath,
 		"login", "--proxy", proxyAddr.String(), "--insecure", "--user", "alice", "--auth", constants.LocalConnector)
 	cmd.Env = os.Environ()
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 	require.NoError(t, cmd.Run())
 
 	// Execute version command again with setting the new version which must
@@ -320,6 +295,79 @@ func TestUpdateConfigReExecPath(t *testing.T) {
 	// Ensure that original path of tsh before update is present in configuration generated by
 	// config command.
 	require.Contains(t, string(out), `ProxyCommand "`+tshPath+`" `)
+}
+
+// TestUpdateConfigAfterCancelUpdate verifies that after an update is canceled,
+// the version is not recorded or forced to install, and the previously
+// installed version is reused.
+func TestUpdateConfigAfterCancelUpdate(t *testing.T) {
+	ctx := t.Context()
+
+	rootServer, homeDir := bootstrapTestServer(t)
+	configPath := filepath.Join(homeDir, "bin")
+	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeEnabled, testVersions[1])
+
+	proxyAddr, err := rootServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	cmd := exec.CommandContext(ctx, tshPath,
+		"login", "--proxy", proxyAddr.String(), "--insecure", "--user", "alice", "--auth", constants.LocalConnector)
+	cmd.Env = os.Environ()
+	require.NoError(t, cmd.Run())
+
+	cmd = exec.CommandContext(ctx, tshPath, "version")
+	cmd.Env = os.Environ()
+	out, err := cmd.Output()
+	require.NoError(t, err)
+	matchVersion(t, string(out), testVersions[1])
+
+	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeEnabled, testVersions[2])
+
+	// Once `limitRequest` is set on the underlying test CDN HTTP server writer,
+	// all subsequent requests to download an update package are blocked until
+	// a signal is sent to the `lock` channel. This allows the download to be paused
+	// so an interruption signal can be sent to test update cancellation.
+	lock := make(chan struct{})
+	limitedWriter.SetLimitRequest(limitRequest{
+		limit: 1024,
+		lock:  lock,
+	})
+
+	cmd = exec.CommandContext(ctx, tshPath,
+		"login", "--proxy", proxyAddr.String(), "--insecure", "--user", "alice", "--auth", constants.LocalConnector)
+	cmd.Env = os.Environ()
+	require.NoError(t, cmd.Start())
+
+	pid := cmd.Process.Pid
+	errChan := make(chan error)
+	go func() {
+		errChan <- cmd.Wait()
+	}()
+
+	select {
+	case err := <-errChan:
+		require.Fail(t, "we shouldn't receive any error", err)
+	case <-time.After(10 * time.Second):
+		require.Fail(t, "login didn't complete in time")
+	case <-lock:
+		time.Sleep(100 * time.Millisecond)
+		t.Logf("sending signal to updater, pid: %d, test pid: %d", pid, os.Getpid())
+		err := sendInterrupt(pid)
+		require.NoError(t, err, "failed to send signal to updater")
+		time.Sleep(100 * time.Millisecond)
+		lock <- struct{}{}
+	}
+
+	cmd = exec.CommandContext(ctx, tshPath, "version")
+	cmd.Env = os.Environ()
+	out, err = cmd.Output()
+	require.NoError(t, err)
+
+	matchVersion(t, string(out), testVersions[1])
+
+	ctc, err := tools.GetToolsConfig(configPath)
+	require.NoError(t, err)
+	require.Equal(t, testVersions[1], ctc.Configs["127.0.0.1"].Version)
 }
 
 func bootstrapTestServer(t *testing.T) (*service.TeleportProcess, string) {
@@ -371,7 +419,7 @@ func bootstrapTestServer(t *testing.T) (*service.TeleportProcess, string) {
 
 func setupManagedUpdates(t *testing.T, server *auth.Server, muMode string, muVersion string) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
 		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
 			Mode: muMode,
