@@ -253,6 +253,12 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 				withVersionOverride(types.V1),
 			},
 		},
+		{
+			name: "InferenceSecret",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+			},
+		},
 	}
 
 	for _, resource := range resources {

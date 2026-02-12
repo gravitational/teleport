@@ -212,6 +212,14 @@ data:
               - read
               - update
               - delete
+          - resources:
+              - inference_secret
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
       deny: {}
     version: v7
     ---
