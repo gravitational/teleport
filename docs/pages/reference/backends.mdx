@@ -302,9 +302,6 @@ tctl get <Var name="resource" /> --format=json | awk '{ total += length($0) } EN
 
 ## PostgreSQL
 
-PostgreSQL cluster state and audit log storage is available starting from
-Teleport `13.3`.
-
 Teleport can use [PostgreSQL](https://www.postgresql.org/) as a storage backend
 to achieve high availability. You must take steps to protect access to
 PostgreSQL in this configuration because that is where Teleport secrets like
@@ -1079,8 +1076,6 @@ Config option priority is applied in the following order:
 </Admonition>
 
 ## Athena
-
-The Athena audit log backend is available starting from Teleport v14.0.
 
 If you are running Teleport on AWS, you can use an
 [Athena](https://aws.amazon.com/athena/)-based audit log system that manages
