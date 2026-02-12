@@ -369,9 +369,11 @@ browser authentication in the `MFA Authentication Success` audit event:
     "mfa_device": {
         // The name of the device used to MFA in the browser
         "mfa_device_name": "1Password",
-        "mfa_device_type": "browser",
+        "mfa_device_type": "webauthn",
         // The UUID of the device used to MFA in the browser
         "mfa_device_uuid": "aec27285-dcfd-4c19-92ad-9241624c264f",
+        // Mark this event as browser-delegated MFA
+        "mfa_via_browser": true,
     },
 }
 ```
