@@ -402,10 +402,9 @@ message MFAAuthenticateResponse {
 
 // BrowserMFAChallenge contains browser auth request details to perform a browser MFA check.
 message BrowserMFAChallenge {
-  // request_id is the ID of a browser auth request.
+  // request_id is the ID of a browser auth request. This is used to construct
+  // the client's browser redirect URL
   string request_id = 1;
-  // client_redirect_url is a redirect URL to initiate the browser MFA flow.
-  string client_redirect_url = 2;
 }
 
 // BrowserMFAResponse is a response to BrowserMFAChallenge.
