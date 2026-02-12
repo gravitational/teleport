@@ -2399,3 +2399,52 @@ func TestDatabaseListHeadless(t *testing.T) {
 	stdoutStr := captureStdout.String()
 	require.Contains(t, stdoutStr, "test-db", "database should appear in output")
 }
+
+func TestDatabaseListCLIFlags(t *testing.T) {
+	testCases := []struct {
+		Description string
+		Args        []string
+		ErrTestFunc func(e error) bool
+	}{
+		{
+			Description: "should return bad parameter error when --headless and --all are specified",
+			Args: []string{
+				"db",
+				"ls",
+				"--proxy", "test-proxy",
+				"--user", "test-user",
+				"--headless",
+				"--all",
+			},
+			ErrTestFunc: trace.IsBadParameter,
+		},
+		{
+			Description: "should return bad parameter error when --auth=headless and --all are specified",
+			Args: []string{
+				"db",
+				"ls",
+				"--proxy", "test-proxy",
+				"--user", "test-user",
+				"--auth", "headless",
+				"--all",
+			},
+			ErrTestFunc: trace.IsBadParameter,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.Description, func(t *testing.T) {
+			done := make(chan struct{})
+			var err error
+			go func() {
+				err = Run(t.Context(), testCase.Args)
+				close(done)
+			}()
+			select {
+			case <-done:
+				require.True(t, testCase.ErrTestFunc(err))
+			case <-time.After(200 * time.Millisecond):
+				t.Fatal("timed out")
+			}
+		})
+	}
+}
