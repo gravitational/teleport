@@ -80,6 +80,7 @@ type DeviceAuthorizationOpts struct {
 
 // AuthorizerOpts holds creation options for [NewAuthorizer].
 type AuthorizerOpts struct {
+	TEST                string
 	ClusterName         string
 	AccessPoint         AuthorizerAccessPoint
 	ReadOnlyAccessPoint ReadOnlyAuthorizerAccessPoint
@@ -133,6 +134,7 @@ func newAuthorizer(opts AuthorizerOpts) (*authorizer, error) {
 	}
 
 	return &authorizer{
+		TEST:                    opts.TEST,
 		clusterName:             opts.ClusterName,
 		accessPoint:             opts.AccessPoint,
 		readOnlyAccessPoint:     opts.ReadOnlyAccessPoint,
@@ -226,6 +228,7 @@ type MFAAuthData struct {
 
 // authorizer creates new local authorizer
 type authorizer struct {
+	TEST                string
 	clusterName         string
 	accessPoint         AuthorizerAccessPoint
 	readOnlyAccessPoint ReadOnlyAuthorizerAccessPoint
@@ -443,7 +446,7 @@ func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error
 				}
 			}
 
-			userMsg := fmt.Sprintf("authorization failed for method %s: %s component", methodName, errorMsg)
+		userMsg := fmt.Sprintf("authorization failed for method %s: %s component %s", methodName, errorMsg, a.TEST)
 
 			event := &apievents.AuthAttempt{
 				Metadata: apievents.Metadata{
