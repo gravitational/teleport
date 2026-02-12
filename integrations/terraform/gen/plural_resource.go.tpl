@@ -24,7 +24,7 @@ import (
     "encoding/hex"
 {{- end }}
 	"fmt"
-{{- if .StatePath }}
+{{- if .StatePoll }}
 	"time"
 {{- end }}
 {{- range $i, $a := .ExtraImports }}
@@ -43,7 +43,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-{{- if .StatePath }}
+{{- if .StatePoll }}
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 {{- end }}
 {{- if .Namespaced }}
@@ -254,21 +254,21 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	if resp.Diagnostics.HasError() {
 		return
 	}
-{{- if .StatePath }}
+{{- if .StatePoll }}
 
 	stateConf := resource.StateChangeConf{
 		Pending: []string{
-		{{- range $state := .PendingStates }}
+		{{- range $state := .StatePoll.PendingStates }}
 			"{{ $state }}",
 		{{- end }}
 		},
 		Target:  []string{
-		{{- range $state := .TargetStates }}
+		{{- range $state := .StatePoll.TargetStates }}
 			"{{ $state }}",
 		{{- end }}
 		},
-		Timeout:      {{ .StateTimeoutSeconds }} * time.Second,
-		PollInterval: {{ .StatePollIntervalSeconds }} * time.Second,
+		Timeout:      {{ .StatePoll.StateTimeoutSeconds }} * time.Second,
+		PollInterval: {{ .StatePoll.StatePollIntervalSeconds }} * time.Second,
 		Refresh: func() (any, string, error) {
 			{{ .VarName }}, err := r.p.Client.{{ .GetMethod }}(ctx, id)
 			if err != nil {
@@ -281,11 +281,11 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 
 			{{- $root := . }}
 			{{- $lastIndex := -1 }}
-			{{- range $i, $p := .StatePath }}
+			{{- range $i, $p := .StatePoll.StatePath }}
 				{{- $lastIndex = $i }}
 			{{- end }}
 			{{- $currentPath := "" }}
-			{{- range $i, $p := .StatePath }}
+			{{- range $i, $p := .StatePoll.StatePath }}
 				{{- if eq $i $lastIndex }}
 					{{- break }}
 				{{- end }}
@@ -295,7 +295,7 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 			}
 			{{- end }}
 
-			return {{ .VarName }}, {{ .VarName }}{{ range $p := .StatePath }}. {{- $p }}{{ end }}, nil
+			return {{ .VarName }}, {{ .VarName }}{{ range $p := .StatePoll.StatePath }}. {{- $p }}{{ end }}, nil
 		},
 	}
 
@@ -491,21 +491,21 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 	if resp.Diagnostics.HasError() {
 		return
 	}
-{{- if .StatePath }}
+{{- if .StatePoll }}
 
 	stateConf := resource.StateChangeConf{
 		Pending: []string{
-		{{- range $state := .PendingStates }}
+		{{- range $state := .StatePoll.PendingStates }}
 			"{{ $state }}",
 		{{- end }}
 		},
 		Target:  []string{
-		{{- range $state := .TargetStates }}
+		{{- range $state := .StatePoll.TargetStates }}
 			"{{ $state }}",
 		{{- end }}
 		},
-		Timeout:      {{ .StateTimeoutSeconds }} * time.Second,
-		PollInterval: {{ .StatePollIntervalSeconds }} * time.Second,
+		Timeout:      {{ .StatePoll.StateTimeoutSeconds }} * time.Second,
+		PollInterval: {{ .StatePoll.StatePollIntervalSeconds }} * time.Second,
 		Refresh: func() (any, string, error) {
 			{{ .VarName }}, err := r.p.Client.{{ .GetMethod }}(ctx, name)
 			if err != nil {
@@ -518,11 +518,11 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 
 			{{- $root := . }}
 			{{- $lastIndex := -1 }}
-			{{- range $i, $p := .StatePath }}
+			{{- range $i, $p := .StatePoll.StatePath }}
 				{{- $lastIndex = $i }}
 			{{- end }}
 			{{- $currentPath := "" }}
-			{{- range $i, $p := .StatePath }}
+			{{- range $i, $p := .StatePoll.StatePath }}
 				{{- if eq $i $lastIndex }}
 					{{- break }}
 				{{- end }}
@@ -532,7 +532,7 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 			}
 			{{- end }}
 
-			return {{ .VarName }}, {{ .VarName }}{{ range $p := .StatePath }}. {{- $p }}{{ end }}, nil
+			return {{ .VarName }}, {{ .VarName }}{{ range $p := .StatePoll.StatePath }}. {{- $p }}{{ end }}, nil
 		},
 	}
 

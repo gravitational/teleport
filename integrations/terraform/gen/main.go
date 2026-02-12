@@ -131,6 +131,12 @@ type payload struct {
 	// WithoutImportState skips generating the ImportState function, which may be
 	// not supported for resources with write-only fields.
 	WithoutImportState bool
+	// StatePoll optionally configures polling for state changes when creating or updating resources.
+	StatePoll *statePoll
+}
+
+// statePoll configures polling for state changes when creating or updating resources.
+type statePoll struct {
 	// StatePath is the object path to the current state to observe from the object returned from the provided GetMethod.
 	// StatePath provides a path to lookup the current state from the returned object from GetMethod.
 	// Each string is treated as a field name for a nested object. It's expected
@@ -167,21 +173,25 @@ func (p *payload) CheckAndSetDefaults() error {
 	if p.SchemaPackagePath == "" {
 		p.SchemaPackagePath = "github.com/gravitational/teleport/integrations/terraform/tfschema"
 	}
-	if len(p.StatePath) != 0 {
-		if len(p.PendingStates) == 0 {
-			return errors.New("PendingStates must be provided when StatePath is set")
+	if p.StatePoll != nil {
+		if len(p.StatePoll.StatePath) == 0 {
+			return errors.New("StatePath must be provided when StatePoll is set")
 		}
 
-		if len(p.TargetStates) == 0 {
-			return errors.New("TargetStates must be provided when StatePath is set")
+		if len(p.StatePoll.PendingStates) == 0 {
+			return errors.New("PendingStates must be provided when StatePoll is set")
 		}
 
-		if p.StatePollIntervalSeconds == 0 {
-			return errors.New("StatePollIntervalSeconds must be provided when StatePath is set")
+		if len(p.StatePoll.TargetStates) == 0 {
+			return errors.New("TargetStates must be provided when StatePoll is set")
 		}
 
-		if p.StateTimeoutSeconds == 0 {
-			return errors.New("StateTimeoutSeconds must be provided when StatePath is set")
+		if p.StatePoll.StatePollIntervalSeconds == 0 {
+			return errors.New("StatePollIntervalSeconds must be provided when StatePoll is set")
+		}
+
+		if p.StatePoll.StateTimeoutSeconds == 0 {
+			return errors.New("StateTimeoutSeconds must be provided when StatePoll is set")
 		}
 	}
 	return nil
