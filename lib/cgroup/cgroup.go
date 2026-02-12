@@ -114,15 +114,6 @@ func (s *Service) Close(skipUnmount bool) error {
 	return nil
 }
 
-// Create will create a cgroup for a given session.
-func (s *Service) Create(sessionID string) error {
-	err := os.Mkdir(filepath.Join(s.teleportRoot, sessionID), fileMode)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 // Remove will remove the cgroup for a session. An existing processes will be
 // moved to the root controller.
 func (s *Service) Remove(sessionID string) error {
