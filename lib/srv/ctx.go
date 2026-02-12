@@ -418,9 +418,9 @@ type ServerContext struct {
 	// logw is used to send logs from the child process to the parent process.
 	logw *os.File
 
-	// ready{r,w} are used to send the unique audit session ID of the
-	// process that will be used to correlate audit events to the SSH session
-	// for sessions with Enhanced Session Recording enabled.
+	// ready{r,w} is used to send the ready signal from the child process
+	// to the parent process. If ESR is enabled, the child signals after
+	// the audit session login ID (auid) is received.
 	readyr *os.File
 	readyw *os.File
 

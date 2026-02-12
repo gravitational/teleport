@@ -188,7 +188,9 @@ func (s *Service) Close(restarting bool) error {
 func (s *Service) OpenSession(ctx *SessionContext) error {
 	auditSessID := ctx.AuditSessionID
 
-	// Sanity check the audit session ID just in case.
+	// Sanity check the audit session ID just in case. If the auid is
+	// MaxUint32 that means its unset; Linux uses -1 to indicate unset
+	// which underflows to MaxUint32.
 	if auditSessID == math.MaxUint32 {
 		return trace.NotFound("audit session ID not set")
 	}

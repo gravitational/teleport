@@ -295,11 +295,9 @@ func RunCommand() (code int, err error) {
 	// ID actually being changed to unblock the parent process.
 	if c.RecordWithBPF {
 		defer func() {
-			if readyfd == nil {
-				return
+			if readyfd != nil {
+				_ = readyfd.Close()
 			}
-
-			_ = readyfd.Close()
 		}()
 	}
 
