@@ -1,6 +1,6 @@
 {{ plugin="plugin" }}
 
-### Generate credentials for the Event Handler plugin
+### Configure tbot for the Event Handler plugin
 
 In the generated configuration file `{{ plugin }}-values.yaml`,
 replace the `teleport` section with the `crd` and `tbot` sections.
@@ -14,7 +14,6 @@ port of your Teleport Proxy Service:
 crd:
   create: true
   namespace: <Var name="operator-namespace" />
-  tokenSpecOverride: {}
 
 tbot:
   enabled: true
@@ -29,52 +28,65 @@ Ensure the `teleport` section is removed, since `tbot` is performing the authent
 This will generate the Event Handler role and bot user for the Machine & Workload Identity bot, `tbot`,
 to authenticate as when connecting to your Teleport cluster.
 
-### Specifying a join method for tbot
+### Specify a join token for tbot
 
-The `tbot` deployment authenticates to the Teleport cluster using a `TeleportProvisionToken` custom resource.
-By default, the chart configures the `TeleportProvisionToken` custom resource to the `kubernetes`
-in_cluster join method.
+The `tbot` deployment authenticates to the Teleport cluster using a join token
+created by the `crd` section. Depending on where you deploy the Event Handler plugin
+relative to your Teleport cluster, you may need to modify the join token specification for `tbot`
+to properly authenticate.
 
-Optionally, you can override the token specification for other join methods
-using the `crd.tokenSpecOverride` field.
+<Tabs>
+<TabItem label="Same Kubernetes cluster as Teleport cluster">
 
-<details>
-<summary>Example (Kubernetes JWKS join method)</summary>
-You can override the TeleportProvisionToken specification to use the `kubernetes` JWKS join method.
+When running `{{ plugin }}` in the same Kubernetes cluster
+as the Teleport cluster (eg. via the `teleport-cluster` Helm chart),
+we can use the default join token specification: `kubernetes` in_cluster
+join method.
 
+</TabItem>
+<TabItem label="External Teleport cluster">
+
+When running `{{ plugin }}` against an external Teleport cluster not in Kubernetes,
+you must modify the join token specification using `crd.tokenSpecOverride`. We
+recommend either the `kubernetes` JWKS join method or the `kubernetes` OIDC join method.
+
+<Tabs>
+<TabItem label="Kubernetes JWKS">
 ```yaml
 # values.yaml
-tokenSpecOverride:
-  join_method: kubernetes
-  kubernetes:
-    type: static_jwks
-    static_jwks:
-      jwks: |
-        # Place the kubernetes JWKS here (`kubectl get --raw /openid/v1/jwks`)
-        {"keys":[--snip--]}
+crd:
+  create: true
+  namespace: <Var name="operator-namespace" />
+  tokenSpecOverride:
+    join_method: kubernetes
+    kubernetes:
+      type: static_jwks
+      static_jwks:
+        jwks: |
+          # Place the kubernetes JWKS here (`kubectl get --raw /openid/v1/jwks`)
+          {"keys":[--snip--]}
 ```
-</details>
-
-<details>
-<summary>Example (Kubernetes OIDC join method)</summary>
-You can override the TeleportProvisionToken specification to use the `kubernetes` OIDC join method.
-
+</TabItem>
+<TabItem label="Kubernetes OIDC">
 ```yaml
 # values.yaml
-tokenSpecOverride:
-  join_method: kubernetes
-  kubernetes:
-    type: oidc
-    oidc:
-      # Insert the OIDC issuer URL here, it will vary depending on your
-      # cluster and cloud provider.
-      issuer: https://oidc.eks.us-west-2.amazonaws.com/id/my-cluster
+crd:
+  create: true
+  namespace: <Var name="operator-namespace" />
+  tokenSpecOverride:
+    join_method: kubernetes
+    kubernetes:
+      type: oidc
+      oidc:
+        # Insert the OIDC issuer URL here, it will vary depending on your
+        # cluster and cloud provider.
+        issuer: https://oidc.eks.us-west-2.amazonaws.com/id/my-cluster
 ```
-</details>
+</TabItem>
+</Tabs>
 
-Consult the [Helm chart reference
-guide](../../reference/helm-reference/teleport-plugin-event-handler.mdx)
-for more information on the `crd` and `tbot` sections.
+</TabItem>
+</Tabs>
 
 ### Example configuration file
 
@@ -83,3 +95,7 @@ contain settings similar to the following. We will configure the `fluentd` secti
 to your log management solution of choice in the following guide.
 
 (!docs/pages/includes/plugins/helm-operator-config.mdx!)
+
+Consult the [Helm chart reference
+guide](../../reference/helm-reference/teleport-plugin-event-handler.mdx)
+for more information on the `crd` and `tbot` sections.

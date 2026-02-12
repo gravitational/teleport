@@ -1,4 +1,4 @@
-{{ forwarder="fluentd.example.com" }}
+{{ forwarder="fluentd.fluentd.svc.cluster.local" }}
 
 The plugin generates several setup files:
 
@@ -7,8 +7,7 @@ The plugin generates several setup files:
 | `ca.crt` and `ca.key`              | Self-signed CA certificate and private key for Fluentd              |
 | `server.crt` and `server.key`      | Fluentd server certificate and key                                  |
 | `client.crt` and `client.key`      | Fluentd client certificate and key, all signed by the generated CA  |
-| `teleport-event-handler-role.yaml` | `user` and `role` resource definitions for Teleport's event handler |
-| `teleport-event-handler.toml`      | Example event handler configuration                                 |
+| `teleport-plugin-event-handler-values.yaml` | Example event handler helm configuration                   |
 | `fluent.conf`                      | Fluentd plugin configuration                                        |
 
 <details>
