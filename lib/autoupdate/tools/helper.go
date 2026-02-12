@@ -19,6 +19,7 @@
 package tools
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"log/slog"
@@ -210,7 +211,7 @@ func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string,
 	code, err := updater.Exec(ctx, toolsVersion, args)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		slog.DebugContext(ctx, "Failed to re-exec client tool", "error", err, "code", code)
-		os.Exit(code)
+		os.Exit(cmp.Or(code, 1))
 	} else if err == nil {
 		os.Exit(code)
 	}
