@@ -145,10 +145,6 @@ type mockMFAService struct {
 
 	createValidatedMFAChallengeError error
 	getValidatedMFAChallengeError    error
-
-	listValidatedMFAChallenges      []*mfav1.ValidatedMFAChallenge
-	listValidatedMFAChallengesToken string
-	listValidatedMFAChallengesError error
 }
 
 func (m *mockMFAService) CreateValidatedMFAChallenge(
@@ -188,12 +184,5 @@ func (m *mockMFAService) ListValidatedMFAChallenges(
 	_ int32,
 	_ string,
 ) ([]*mfav1.ValidatedMFAChallenge, string, error) {
-	if m.listValidatedMFAChallengesError != nil {
-		return nil, "", m.listValidatedMFAChallengesError
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	return m.listValidatedMFAChallenges, m.listValidatedMFAChallengesToken, nil
+	return nil, "", trace.NotImplemented("ListValidatedMFAChallenges")
 }

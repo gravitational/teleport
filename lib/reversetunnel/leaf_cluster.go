@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -91,6 +92,9 @@ type leafCluster struct {
 
 	// appServerWatcher is a app server watcher.
 	appServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
+
+	// validatedMFAChallengeWatcher is a ValidatedMFAChallenge resource watcher.
+	validatedMFAChallengeWatcher *services.GenericWatcher[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge]
 
 	// remoteCA is the last remote certificate authority recorded by the client.
 	// It is used to detect CA rotation status changes. If the rotation
@@ -1016,4 +1020,93 @@ func (s *leafCluster) chanTransportConn(req *sshutils.DialReq) (*sshutils.ChConn
 	}
 
 	return conn, nil
+}
+
+// SyncValidatedMFAChallenges monitors for ValidatedMFAChallenge resources in the root cluster and replicates them to
+// the leaf cluster. This is needed to support MFA challenges in leaf clusters, as the challenges are created in the
+// root cluster but need to be validated in the leaf cluster.
+func (s *leafCluster) SyncValidatedMFAChallenges(
+	ctx context.Context,
+	cfg retryutils.LinearConfig,
+	watcher *services.GenericWatcher[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge],
+) error {
+	retry, err := retryutils.NewLinear(cfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(
+		retry.For(
+			ctx,
+			func() error {
+				// Ensure the watcher is fully initialized before processing events.
+				if err := watcher.WaitInitialization(); err != nil {
+					return trace.Wrap(err)
+				}
+
+				for {
+					select {
+					case <-ctx.Done():
+						return nil
+
+					case <-watcher.Done():
+						s.logger.InfoContext(ctx, "ValidatedMFAChallenge watcher subscription has closed")
+						return nil
+
+					case <-watcher.ResourcesC:
+						// Resources have changed, sync to ensure the leaf cluster has all the latest resources.
+						if err := s.syncValidatedMFAChallenges(ctx); err != nil {
+							s.logger.ErrorContext(
+								ctx,
+								"Failed to sync ValidatedMFAChallenges resources, will retry",
+								"cluster", s.GetName(),
+								"retry_backoff", retry.Duration(),
+								"error", err,
+							)
+						}
+
+						// Sync was successful, reset the retry to clear any accumulated backoff.
+						retry.Reset()
+					}
+				}
+			},
+		),
+	)
+}
+
+// syncValidatedMFAChallenges performs a one-time synchronization of ValidatedMFAChallenge resources from the root
+// cluster to the leaf cluster.
+func (s *leafCluster) syncValidatedMFAChallenges(ctx context.Context) error {
+	challenges, err := s.validatedMFAChallengeWatcher.CurrentResourcesWithFilter(
+		ctx,
+		func(r *mfav1.ValidatedMFAChallenge) bool {
+			// Only sync challenges that are intended for this leaf cluster.
+			return r.Spec.GetTargetCluster() == s.GetName()
+		},
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, challenge := range challenges {
+		// If the resource has already expired, skip it as there's no need to replicate it.
+		if challenge.GetMetadata().Expiry().Before(s.clock.Now()) {
+			continue
+		}
+
+		if _, err := s.leafClient.MFAServiceClient().ReplicateValidatedMFAChallenge(
+			ctx,
+			&mfav1.ReplicateValidatedMFAChallengeRequest{
+				Name:          challenge.GetMetadata().GetName(),
+				Payload:       challenge.GetSpec().GetPayload(),
+				SourceCluster: challenge.GetSpec().GetSourceCluster(),
+				TargetCluster: challenge.GetSpec().GetTargetCluster(),
+				Username:      challenge.GetSpec().GetUsername(),
+			},
+		); err != nil && !trace.IsAlreadyExists(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
 }
