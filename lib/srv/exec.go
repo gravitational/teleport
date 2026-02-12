@@ -71,9 +71,6 @@ type Exec interface {
 	// GetCommand returns the command to be executed.
 	GetCommand() string
 
-	// SetCommand sets the command to be executed.
-	SetCommand(string)
-
 	// Start will start the execution of the command.
 	Start(ctx context.Context, channel ssh.Channel) (*ExecResult, error)
 
@@ -136,11 +133,6 @@ type localExec struct {
 // GetCommand returns the command string.
 func (e *localExec) GetCommand() string {
 	return e.Command
-}
-
-// SetCommand gets the command string.
-func (e *localExec) SetCommand(command string) {
-	e.Command = command
 }
 
 // Start launches the given command returns (nil, nil) if successful.
@@ -336,11 +328,6 @@ func (e *remoteExec) String() string {
 // GetCommand returns the command string.
 func (e *remoteExec) GetCommand() string {
 	return e.command
-}
-
-// SetCommand gets the command string.
-func (e *remoteExec) SetCommand(command string) {
-	e.command = command
 }
 
 // Start launches the given command returns (nil, nil) if successful.

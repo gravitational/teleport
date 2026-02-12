@@ -200,10 +200,15 @@ func (t *terminal) Run(ctx context.Context) error {
 
 // Wait will block until the terminal is complete.
 func (t *terminal) Wait() ExecResult {
+	var command string
+	if execRequest, err := t.serverContext.GetExecRequest(); err == nil {
+		command = execRequest.GetCommand()
+	}
+
 	exitCode, exitErr := t.reexecCmd.Wait()
 	return ExecResult{
 		Code:    exitCode,
-		Command: t.reexecCmd.Path(),
+		Command: command,
 		Error:   exitErr,
 	}
 }

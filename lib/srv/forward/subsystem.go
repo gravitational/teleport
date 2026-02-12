@@ -242,7 +242,8 @@ func (r *remoteSFTPSubsystem) Wait() error {
 		exitStatus = 1
 	}
 	r.subsystem.serverContext.SendExecResult(r.subsystem.ctx, srv.ExecResult{
-		Code: exitStatus,
+		Command: teleport.SFTPSubCommand,
+		Code:    exitStatus,
 	})
 
 	// emit an event to the audit log with the result of execution

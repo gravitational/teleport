@@ -231,8 +231,13 @@ func (s *sftpSubsys) Wait() error {
 	exitCode, exitErr := s.reexecCmd.Wait()
 	s.logger.DebugContext(ctx, "SFTP process finished")
 
+	command := teleport.SFTPSubCommand
+	if execRequest, err := s.serverCtx.GetExecRequest(); err == nil {
+		command = execRequest.GetCommand()
+	}
+
 	s.serverCtx.SendExecResult(ctx, srv.ExecResult{
-		Command: s.reexecCmd.Command(),
+		Command: command,
 		Code:    exitCode,
 		Error:   exitErr,
 	})
