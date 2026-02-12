@@ -71,10 +71,7 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	profile, err := tc.ProfileStatus()
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	tc.AllowHeadless = true
 
 	var clusterClient *client.ClusterClient
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
@@ -87,6 +84,11 @@ func onListDatabases(cf *CLIConf) error {
 	defer clusterClient.Close()
 
 	servers, err := apiclient.GetAllResources[types.DatabaseServer](cf.Context, clusterClient.AuthClient, tc.ResourceFilter(types.KindDatabaseServer))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
