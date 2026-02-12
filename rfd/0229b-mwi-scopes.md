@@ -260,8 +260,6 @@ spec:
 
 ## Implementation Details
 
-**wip wip wip**
-
 ### Bot Resource
 
 **wip wip wip**
