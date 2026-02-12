@@ -97,7 +97,7 @@ jobs:
       - name: Run head benchmarks
         timeout-minutes: 30
         run: |
-          make test-go-bench ARGS=${{ matrix.BENCH_ARGS }} OUT_FILE=test-logs/bench-${{ github.sha }}.txt
+          make test-go-bench "BENCH_ARGS=${{ matrix.BENCH_ARGS }}" OUT_FILE=test-logs/bench-${{ github.sha }}.txt
 
       - name: Checkout base commit
         uses: actions/checkout@v6
@@ -108,7 +108,7 @@ jobs:
       - name: Run base benchmarks
         timeout-minutes: 30
         run: |
-          make test-go-bench ARGS=${{ matrix.BENCH_ARGS }} OUT_FILE=test-logs/bench-${{ steps.base.outputs.sha }}.txt
+          make test-go-bench "BENCH_ARGS=${{ matrix.BENCH_ARGS }}" OUT_FILE=test-logs/bench-${{ steps.base.outputs.sha }}.txt
 
       - name: Generate benchstat output
         shell: bash
