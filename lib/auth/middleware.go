@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/trace"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -617,12 +616,7 @@ func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
 
 // StreamInterceptors returns the gRPC stream interceptor chain.
 func (a *Middleware) StreamInterceptors() []grpc.StreamServerInterceptor {
-	is := []grpc.StreamServerInterceptor{
-		//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-		// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-		otelgrpc.StreamServerInterceptor(),
-	}
-
+	var is []grpc.StreamServerInterceptor
 	if a.GRPCMetrics != nil {
 		is = append(is, a.GRPCMetrics.StreamServerInterceptor())
 	}
