@@ -143,3 +143,28 @@ func (a *AccessListMember) IsExpired(t time.Time) bool {
 func (a *AccessListMember) IsUser() bool {
 	return isMembershipKindUser(a.Spec.MembershipKind)
 }
+
+// EqualAccessListMembers compares two AccessListMembers for semantic equality.
+// The input members are cloned prior to comparison to avoid modifying the originals.
+// This function ignores ephemeral fields that are managed by reconcilers or the backend:
+//   - Spec.Title
+//   - Spec.IneligibleStatus
+//   - Metadata.Revision
+func EqualAccessListMembers(a, b *AccessListMember) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+
+	a = a.Clone()
+	b = b.Clone()
+
+	// Clear ephemeral fields
+	a.Spec.Title = ""
+	b.Spec.Title = ""
+	a.Metadata.Revision = ""
+	b.Metadata.Revision = ""
+	a.Spec.IneligibleStatus = ""
+	b.Spec.IneligibleStatus = ""
+
+	return deriveTeleportEqualAccessListMember(a, b)
+}
