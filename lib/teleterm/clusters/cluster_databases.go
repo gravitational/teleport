@@ -135,6 +135,26 @@ func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, authClient authcl
 	return dbUsers.Allowed(), nil
 }
 
+// GetDatabaseAutoUserInfo returns whether auto-user provisioning is enabled for a database.
+// Auto-user provisioning is enabled when both the database resource supports it AND the user's
+// Teleport role allows it.
+func (c *Cluster) GetDatabaseAutoUserInfo(ctx context.Context, authClient authclient.ClientI, db Database) (bool, error) {
+	accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, c.status.AccessInfo(), c.clusterClient.SiteName, authClient)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	autoUser, err := accessChecker.DatabaseAutoUserMode(db.Database)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	dbAutoUsersEnabled := db.IsAutoUsersEnabled()
+	autoUsersEnabled := dbAutoUsersEnabled && autoUser.IsEnabled()
+
+	return autoUsersEnabled, nil
+}
+
 // ListDatabaseServers returns a paginated list of database servers (resource kind "db_server").
 func (c *Cluster) ListDatabaseServers(ctx context.Context, params *api.ListResourcesParams, authClient authclient.ClientI) (*GetDatabaseServersResponse, error) {
 	page, err := listResources[types.DatabaseServer](ctx, params, authClient, types.KindDatabaseServer)

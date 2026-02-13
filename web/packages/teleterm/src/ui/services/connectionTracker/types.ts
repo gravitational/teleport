@@ -45,6 +45,8 @@ export interface TrackedGatewayConnection extends TrackedConnectionBase {
   port?: string;
   targetSubresourceName?: string;
   targetProtocol?: string;
+  databaseRoles?: string[];
+  autoUsersEnabled?: boolean;
 }
 
 export interface TrackedKubeConnection extends TrackedConnectionBase {

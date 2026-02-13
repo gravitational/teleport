@@ -83,6 +83,8 @@ type Database interface {
 	// The tlsca.RouteToDatabase.Database field is skipped, as it's an optional field and gateways can
 	// change their Config.TargetSubresourceName at any moment.
 	RouteToDatabase() tlsca.RouteToDatabase
+	// DatabaseRoles returns the database roles that the auto-provisioned user will be assigned.
+	DatabaseRoles() []string
 }
 
 // Kube defines a kube gateway.
