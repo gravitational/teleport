@@ -38,7 +38,7 @@ import (
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport"
@@ -256,7 +256,7 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 	return server, nil
 }
 
-func (t *TLSServer) SetServingStatus(service string, servingStatus healthpb.HealthCheckResponse_ServingStatus) {
+func (t *TLSServer) SetServingStatus(service string, servingStatus grpc_health_v1.HealthCheckResponse_ServingStatus) {
 	t.grpcServer.SetServingStatus(service, servingStatus)
 }
 

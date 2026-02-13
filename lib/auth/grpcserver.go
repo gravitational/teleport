@@ -43,7 +43,7 @@ import (
 	"google.golang.org/grpc/codes"
 	_ "google.golang.org/grpc/encoding/gzip" // gzip compressor for gRPC.
 	"google.golang.org/grpc/health"
-	healthgrpc "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
@@ -226,7 +226,7 @@ type GRPCServer struct {
 	createAuditStreamSemaphore chan struct{}
 }
 
-func (g *GRPCServer) SetServingStatus(service string, servingStatus healthgrpc.HealthCheckResponse_ServingStatus) {
+func (g *GRPCServer) SetServingStatus(service string, servingStatus grpc_health_v1.HealthCheckResponse_ServingStatus) {
 	if g.healthcheck == nil {
 		return
 	}
@@ -6253,7 +6253,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 
 	authpb.RegisterAuthServiceServer(server, authServer)
-	healthgrpc.RegisterHealthServer(server, authServer.healthcheck)
+	grpc_health_v1.RegisterHealthServer(server, authServer.healthcheck)
 	collectortracepb.RegisterTraceServiceServer(server, authServer)
 	auditlogpb.RegisterAuditLogServiceServer(server, authServer)
 
