@@ -50,7 +50,7 @@ func RunServiceAndInstallUpdateFromClient(ctx context.Context, path string, forc
 		if installErr := runInstaller(path, forceRun); installErr != nil {
 			return trace.Wrap(installErr, "fallback install failed after service start error: %v", err)
 		}
-		return trace.Wrap(err, "service start failed, executed fallback installer")
+		return nil
 	}
 
 	err := InstallUpdateFromClient(ctx, path, forceRun, version)
@@ -155,10 +155,10 @@ func ensureServiceRunning(ctx context.Context) error {
 		if err != nil {
 			return retryutils.PermanentRetryError(trace.Wrap(err))
 		}
-		if status.State == svc.Running {
-			return nil
+		if status.State != svc.Running {
+			return trace.LimitExceeded("service not running yet")
 		}
-		return trace.LimitExceeded("service not running yet")
+		return nil
 	})
 	return trace.Wrap(err)
 }

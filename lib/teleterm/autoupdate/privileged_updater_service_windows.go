@@ -77,7 +77,7 @@ type PrivilegedServiceTestConfig struct {
 	UpdateBaseDir string
 	// PolicyToolsVersion overrides ToolsVersion in HKLM\SOFTWARE\Policies\Teleport\TeleportConnect.
 	PolicyToolsVersion string
-	// PolicyToolsVersion overrides CdnBaseUrl in HKLM\SOFTWARE\Policies\Teleport\TeleportConnect.
+	// PolicyCDNBaseURL overrides CdnBaseUrl in HKLM\SOFTWARE\Policies\Teleport\TeleportConnect.
 	PolicyCDNBaseURL string
 }
 
@@ -314,10 +314,8 @@ func ensureDirIsSecure(dir string, sa *windows.SecurityAttributes) error {
 
 	// Try to create the directory with the secure ACLs immediately.
 	err = windows.CreateDirectory(namePtr, sa)
-	if err == nil {
-		return nil
-	}
-	if !errors.Is(err, windows.ERROR_ALREADY_EXISTS) {
+	// If the directory exists, continue with verification and reapply the ACLs.
+	if err != nil && !errors.Is(err, windows.ERROR_ALREADY_EXISTS) {
 		return trace.Wrap(err, "creating directory")
 	}
 
@@ -399,7 +397,7 @@ func cleanupOldUpdates(baseDir string) error {
 
 		err = os.RemoveAll(fullPath)
 		if err != nil {
-			log.Error("Failed to remove old update file", fullPath)
+			log.Error("Failed to remove old update file", "path", fullPath, "error", err)
 		}
 	}
 	return nil
@@ -408,7 +406,7 @@ func cleanupOldUpdates(baseDir string) error {
 func ensureIsUpgrade(updateVersion string) error {
 	updateSemver, err := semver.NewVersion(updateVersion)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "invalid update version %q", updateVersion)
 	}
 	current := teleport.SemVer()
 	if current == nil {
@@ -449,7 +447,7 @@ func downloadChecksum(ctx context.Context, baseUrl string, version string) ([]by
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return hexBytes, trace.Wrap(err)
+	return hexBytes, nil
 }
 
 func verifyUpdateChecksum(updatePath string, expectedHash []byte) error {
