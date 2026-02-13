@@ -57,14 +57,13 @@ Static configuration while simpler at first, has less flexibility because enroll
     aws:
     - types: ["ec2"]
       regions: ["us-east-1", "us-west-1"]
+      tags:
+        "env": "prod" # Match EC2 instances where tag:env=prod
       ssm:
         document_name: "AWS-RunShellScript"
       install:
-        join_params:
-          token_name: aws-discovery-iam-token
-          method: iam
-      tags:
-        "env": "prod" # Match EC2 instances where tag:env=prod
+        join_method: iam
+        join_token: aws-discovery-iam-token
   ```
   Adjust the keys under `spec.aws` to match your EC2 environment,
   specifically the regions and tags you want to associate with the Discovery Service.
@@ -91,15 +90,15 @@ Static configuration while simpler at first, has less flexibility because enroll
     discovery_group: <Var name="aws-prod" />
     aws:
     - types: ["ec2"]
-      regions: ["us-east-1","us-west-1"]
+      regions: ["us-east-1", "us-west-1"]
+      tags:
+        "env": "prod" # Match EC2 instances where tag:env=prod
       ssm:
         document_name: "AWS-RunShellScript"
       install:
           join_params:
             token_name: aws-discovery-iam-token
             method: iam
-      tags:
-        "env": "prod" # Match EC2 instances where tag:env=prod
   ```
   
   Adjust the keys under `discovery_service.aws` to match your EC2 environment, 

@@ -59,6 +59,10 @@ func convertRequestFailureErrorFromStatusCode(statusCode int, requestErr error) 
 			return trace.AccessDenied("%s", requestErr)
 		}
 
+		if strings.Contains(requestErr.Error(), "TooManyRequestsException") {
+			return trace.LimitExceeded("%s", requestErr)
+		}
+
 		if strings.Contains(requestErr.Error(), ecsClusterNotFoundException.ErrorCode()) {
 			return trace.NotFound("%s", requestErr)
 		}

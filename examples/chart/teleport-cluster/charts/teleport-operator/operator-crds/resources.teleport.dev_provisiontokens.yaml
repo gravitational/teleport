@@ -61,6 +61,10 @@ spec:
                         identity of joining nodes must match this ARN. Supports wildcards
                         "*" and "?".
                       type: string
+                    aws_organization_id:
+                      description: AWSOrganizationID is used for the IAM join method,
+                        the AWS identity of joining nodes must belong to this organization.
+                      type: string
                     aws_regions:
                       description: AWSRegions is used for the EC2 join method and
                         is a list of AWS regions a node is allowed to join from.
@@ -414,6 +418,11 @@ spec:
                       are not reachable by the Teleport Auth Service.
                     type: string
                 type: object
+              integration:
+                description: Integration name which provides credentials for validating
+                  join attempts. Currently only in use for validating the AWS Organization
+                  ID in the IAM Join method.
+                type: string
               join_method:
                 description: 'JoinMethod is the joining method required in order to
                   use this token. Supported joining methods include: azure, circleci,
