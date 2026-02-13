@@ -7494,6 +7494,10 @@ message PluginEntraIDSyncSettings {
 
   // Source of the Access List owners.
   EntraIDAccessListOwnersSource access_list_owners_source = 7;
+
+  // IncludeUsersAssignedToApp indicates to import users accounts assigned to the
+  // referenced enterprise application [entra_app_id] either by direct or group membership.
+  bool include_users_assigned_to_app = 8;
 }
 
 // PluginSyncFilter can specify inclusion or exclusion of a resource.
