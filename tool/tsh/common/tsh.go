@@ -846,6 +846,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		DTAutoEnroll:       dtenroll.AutoEnroll,
 	}
 
+	// run early to enable debug logging if env var is set.
+	// this makes it possible to debug early startup functionality, particularly command aliases.
+	if _, err := initLogger(&cf, utils.LoggingForCLI, parseLoggingOptsFromEnv()); err != nil {
+		printInitLoggerError(err)
+	}
+
 	// We need to parse the arguments before executing managed updates to identify
 	// the profile name and the required version for the current cluster.
 	// All other commands and flags may change between versions, so full parsing
@@ -861,12 +867,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	name := utils.TryHost(strings.TrimPrefix(strings.ToLower(proxyArg), "https://"))
 	if err := autoupdatetools.CheckAndUpdateLocal(ctx, name, args); err != nil {
 		return trace.Wrap(err)
-	}
-
-	// run early to enable debug logging if env var is set.
-	// this makes it possible to debug early startup functionality, particularly command aliases.
-	if _, err := initLogger(&cf, utils.LoggingForCLI, parseLoggingOptsFromEnv()); err != nil {
-		printInitLoggerError(err)
 	}
 
 	moduleCfg := modules.GetModules()
