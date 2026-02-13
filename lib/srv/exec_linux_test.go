@@ -162,8 +162,8 @@ func TestConfigureCommand(t *testing.T) {
 	require.NotContains(t, cmd.Env, unexpectedKey+"="+unexpectedValue)
 }
 
-// TestContinue tests if the process hangs if a continue signal is not sent
-// and makes sure the process continues once it has been sent.
+// TestContinue tests if the process continues once the continue signal
+// has been sent.
 func TestContinue(t *testing.T) {
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
@@ -192,14 +192,6 @@ func TestContinue(t *testing.T) {
 
 		cmdDone <- cmd.Wait()
 	}()
-
-	// Wait for the process. Since the continue pipe has not been closed, the
-	// process should not have exited yet.
-	select {
-	case err := <-cmdDone:
-		t.Fatalf("Process exited before continue with error %v", err)
-	case <-time.After(5 * time.Second):
-	}
 
 	// Signal to child that it may execute the requested program.
 	scx.execRequest.Continue()

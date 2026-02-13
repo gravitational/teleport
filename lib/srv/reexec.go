@@ -76,11 +76,12 @@ const (
 	LogFile
 	// ContinueFile is used to communicate to the child process that
 	// it can continue after the parent process starts monitoring the
-	// child's audit login session ID.
+	// child's audit login session ID when Enhanced Session Recording
+	// is enabled. Otherwise it isn't used.
 	ContinueFile
 	// ReadyFile is used to communicate to the parent process that the
 	// child has changed its auid and is ready to be monitored when
-	// Enhanced Session Recording is enabled.
+	// Enhanced Session Recording is enabled. Otherwise it isn't used.
 	ReadyFile
 	// TerminateFile is used to communicate to the child process that
 	// the interactive terminal should be killed as the client ended the
