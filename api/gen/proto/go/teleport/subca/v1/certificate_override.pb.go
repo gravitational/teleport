@@ -43,8 +43,7 @@ const (
 // self-signed root).
 type CertificateOverride struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// SHA256(SubjectPublicKeyInfo DER), printed as a colon separated hex string.
-	// Eg: "AB:CD:EF:...".
+	// SHA256(SubjectPublicKeyInfo DER) printed as hex string.
 	//
 	// Informative if certificate is present.
 	PublicKey string `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`

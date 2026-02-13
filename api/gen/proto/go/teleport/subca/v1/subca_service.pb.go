@@ -561,13 +561,11 @@ func (x *GetCertAuthorityOverrideResponse) GetCaOverride() *CertificateOverride 
 // Request for ListCertAuthorityOverride.
 type ListCertAuthorityOverrideRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// CA override to target.
-	CaId *CertAuthorityOverrideID `protobuf:"bytes,1,opt,name=ca_id,json=caId,proto3" json:"ca_id,omitempty"`
 	// The maximum number of items to return.
 	// The server may impose a different page size at its discretion.
-	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// The next_page_token value returned from a previous List request, if any.
-	PageToken     string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	PageToken     string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -600,13 +598,6 @@ func (x *ListCertAuthorityOverrideRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use ListCertAuthorityOverrideRequest.ProtoReflect.Descriptor instead.
 func (*ListCertAuthorityOverrideRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{10}
-}
-
-func (x *ListCertAuthorityOverrideRequest) GetCaId() *CertAuthorityOverrideID {
-	if x != nil {
-		return x.CaId
-	}
-	return nil
 }
 
 func (x *ListCertAuthorityOverrideRequest) GetPageSize() int32 {
@@ -807,12 +798,11 @@ const file_teleport_subca_v1_subca_service_proto_rawDesc = "" +
 	"\x05ca_id\x18\x01 \x01(\v2*.teleport.subca.v1.CertAuthorityOverrideIDR\x04caId\"k\n" +
 	" GetCertAuthorityOverrideResponse\x12G\n" +
 	"\vca_override\x18\x01 \x01(\v2&.teleport.subca.v1.CertificateOverrideR\n" +
-	"caOverride\"\x9f\x01\n" +
-	" ListCertAuthorityOverrideRequest\x12?\n" +
-	"\x05ca_id\x18\x01 \x01(\v2*.teleport.subca.v1.CertAuthorityOverrideIDR\x04caId\x12\x1b\n" +
-	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"caOverride\"^\n" +
+	" ListCertAuthorityOverrideRequest\x12\x1b\n" +
+	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x03 \x01(\tR\tpageToken\"\x96\x01\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\"\x96\x01\n" +
 	"!ListCertAuthorityOverrideResponse\x12I\n" +
 	"\fca_overrides\x18\x01 \x03(\v2&.teleport.subca.v1.CertificateOverrideR\vcaOverrides\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x9b\x01\n" +
@@ -877,28 +867,27 @@ var file_teleport_subca_v1_subca_service_proto_depIdxs = []int32{
 	20, // 8: teleport.subca.v1.RemoveCertificateOverrideRequest.certificate_override_id:type_name -> teleport.subca.v1.CertificateOverrideID
 	18, // 9: teleport.subca.v1.GetCertAuthorityOverrideRequest.ca_id:type_name -> teleport.subca.v1.CertAuthorityOverrideID
 	19, // 10: teleport.subca.v1.GetCertAuthorityOverrideResponse.ca_override:type_name -> teleport.subca.v1.CertificateOverride
-	18, // 11: teleport.subca.v1.ListCertAuthorityOverrideRequest.ca_id:type_name -> teleport.subca.v1.CertAuthorityOverrideID
-	19, // 12: teleport.subca.v1.ListCertAuthorityOverrideResponse.ca_overrides:type_name -> teleport.subca.v1.CertificateOverride
-	18, // 13: teleport.subca.v1.DeleteCertAuthorityOverrideRequest.ca_id:type_name -> teleport.subca.v1.CertAuthorityOverrideID
-	0,  // 14: teleport.subca.v1.SubCAService.CreateCSR:input_type -> teleport.subca.v1.CreateCSRRequest
-	2,  // 15: teleport.subca.v1.SubCAService.UpsertCertAuthorityOverride:input_type -> teleport.subca.v1.UpsertCertAuthorityOverrideRequest
-	4,  // 16: teleport.subca.v1.SubCAService.AddCertificateOverride:input_type -> teleport.subca.v1.AddCertificateOverrideRequest
-	6,  // 17: teleport.subca.v1.SubCAService.RemoveCertificateOverride:input_type -> teleport.subca.v1.RemoveCertificateOverrideRequest
-	8,  // 18: teleport.subca.v1.SubCAService.GetCertAuthorityOverride:input_type -> teleport.subca.v1.GetCertAuthorityOverrideRequest
-	10, // 19: teleport.subca.v1.SubCAService.ListCertAuthorityOverride:input_type -> teleport.subca.v1.ListCertAuthorityOverrideRequest
-	12, // 20: teleport.subca.v1.SubCAService.DeleteCertAuthorityOverride:input_type -> teleport.subca.v1.DeleteCertAuthorityOverrideRequest
-	1,  // 21: teleport.subca.v1.SubCAService.CreateCSR:output_type -> teleport.subca.v1.CreateCSRResponse
-	3,  // 22: teleport.subca.v1.SubCAService.UpsertCertAuthorityOverride:output_type -> teleport.subca.v1.UpsertCertAuthorityOverrideResponse
-	5,  // 23: teleport.subca.v1.SubCAService.AddCertificateOverride:output_type -> teleport.subca.v1.AddCertificateOverrideResponse
-	7,  // 24: teleport.subca.v1.SubCAService.RemoveCertificateOverride:output_type -> teleport.subca.v1.RemoveCertificateOverrideResponse
-	9,  // 25: teleport.subca.v1.SubCAService.GetCertAuthorityOverride:output_type -> teleport.subca.v1.GetCertAuthorityOverrideResponse
-	11, // 26: teleport.subca.v1.SubCAService.ListCertAuthorityOverride:output_type -> teleport.subca.v1.ListCertAuthorityOverrideResponse
-	13, // 27: teleport.subca.v1.SubCAService.DeleteCertAuthorityOverride:output_type -> teleport.subca.v1.DeleteCertAuthorityOverrideResponse
-	21, // [21:28] is the sub-list for method output_type
-	14, // [14:21] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	19, // 11: teleport.subca.v1.ListCertAuthorityOverrideResponse.ca_overrides:type_name -> teleport.subca.v1.CertificateOverride
+	18, // 12: teleport.subca.v1.DeleteCertAuthorityOverrideRequest.ca_id:type_name -> teleport.subca.v1.CertAuthorityOverrideID
+	0,  // 13: teleport.subca.v1.SubCAService.CreateCSR:input_type -> teleport.subca.v1.CreateCSRRequest
+	2,  // 14: teleport.subca.v1.SubCAService.UpsertCertAuthorityOverride:input_type -> teleport.subca.v1.UpsertCertAuthorityOverrideRequest
+	4,  // 15: teleport.subca.v1.SubCAService.AddCertificateOverride:input_type -> teleport.subca.v1.AddCertificateOverrideRequest
+	6,  // 16: teleport.subca.v1.SubCAService.RemoveCertificateOverride:input_type -> teleport.subca.v1.RemoveCertificateOverrideRequest
+	8,  // 17: teleport.subca.v1.SubCAService.GetCertAuthorityOverride:input_type -> teleport.subca.v1.GetCertAuthorityOverrideRequest
+	10, // 18: teleport.subca.v1.SubCAService.ListCertAuthorityOverride:input_type -> teleport.subca.v1.ListCertAuthorityOverrideRequest
+	12, // 19: teleport.subca.v1.SubCAService.DeleteCertAuthorityOverride:input_type -> teleport.subca.v1.DeleteCertAuthorityOverrideRequest
+	1,  // 20: teleport.subca.v1.SubCAService.CreateCSR:output_type -> teleport.subca.v1.CreateCSRResponse
+	3,  // 21: teleport.subca.v1.SubCAService.UpsertCertAuthorityOverride:output_type -> teleport.subca.v1.UpsertCertAuthorityOverrideResponse
+	5,  // 22: teleport.subca.v1.SubCAService.AddCertificateOverride:output_type -> teleport.subca.v1.AddCertificateOverrideResponse
+	7,  // 23: teleport.subca.v1.SubCAService.RemoveCertificateOverride:output_type -> teleport.subca.v1.RemoveCertificateOverrideResponse
+	9,  // 24: teleport.subca.v1.SubCAService.GetCertAuthorityOverride:output_type -> teleport.subca.v1.GetCertAuthorityOverrideResponse
+	11, // 25: teleport.subca.v1.SubCAService.ListCertAuthorityOverride:output_type -> teleport.subca.v1.ListCertAuthorityOverrideResponse
+	13, // 26: teleport.subca.v1.SubCAService.DeleteCertAuthorityOverride:output_type -> teleport.subca.v1.DeleteCertAuthorityOverrideResponse
+	20, // [20:27] is the sub-list for method output_type
+	13, // [13:20] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_teleport_subca_v1_subca_service_proto_init() }

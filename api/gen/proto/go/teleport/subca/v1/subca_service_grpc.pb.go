@@ -71,7 +71,8 @@ type SubCAServiceClient interface {
 	// specified CA, in preparation for the creation of a CertAuthorityOverride.
 	//
 	// On clusters that use HSMs this must be called on every Auth server
-	// instance, so it may reach every private key.
+	// instance, so it every private key is covered. Each Auth issues CSRs for all
+	// the private keys it holds.
 	//
 	// CreateCSR requires cert_authority_override:read+list permissions.
 	CreateCSR(ctx context.Context, in *CreateCSRRequest, opts ...grpc.CallOption) (*CreateCSRResponse, error)
@@ -226,7 +227,8 @@ type SubCAServiceServer interface {
 	// specified CA, in preparation for the creation of a CertAuthorityOverride.
 	//
 	// On clusters that use HSMs this must be called on every Auth server
-	// instance, so it may reach every private key.
+	// instance, so it every private key is covered. Each Auth issues CSRs for all
+	// the private keys it holds.
 	//
 	// CreateCSR requires cert_authority_override:read+list permissions.
 	CreateCSR(context.Context, *CreateCSRRequest) (*CreateCSRResponse, error)
