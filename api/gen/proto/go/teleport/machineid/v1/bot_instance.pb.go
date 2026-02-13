@@ -325,8 +325,8 @@ func (x *BotInstanceSpec) GetPreviousInstanceId() string {
 // trusted.
 type BotInstanceStatusHeartbeat struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The timestamp that the heartbeat was recorded by the Auth Server. Any
-	// value submitted by `tbot` for this field will be ignored.
+	// The timestamp that the heartbeat was recorded by the Teleport Auth Service.
+	// Any value submitted by `tbot` for this field will be ignored.
 	RecordedAt *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=recorded_at,json=recordedAt,proto3" json:"recorded_at,omitempty"`
 	// Indicates whether this is the heartbeat submitted by `tbot` on startup.
 	IsStartup bool `protobuf:"varint,2,opt,name=is_startup,json=isStartup,proto3" json:"is_startup,omitempty"`
@@ -482,11 +482,12 @@ func (x *BotInstanceStatusHeartbeat) GetKind() BotKind {
 }
 
 // BotInstanceStatusAuthentication contains information about a join or renewal.
-// Ths information is entirely sourced by the Auth Server and can be trusted.
+// Ths information is entirely sourced by the Teleport Auth Service and can be
+// trusted.
 type BotInstanceStatusAuthentication struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The timestamp that the join or renewal was authenticated by the Auth
-	// Server.
+	// The timestamp that the join or renewal was authenticated by the Teleport
+	// Auth Service.
 	AuthenticatedAt *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=authenticated_at,json=authenticatedAt,proto3" json:"authenticated_at,omitempty"`
 	// The join method used for this join or renewal.
 	// Deprecated: prefer using join_attrs.meta.join_method
