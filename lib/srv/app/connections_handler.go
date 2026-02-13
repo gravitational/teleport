@@ -40,13 +40,14 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/events"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -75,7 +76,7 @@ type ConnectionsHandlerConfig struct {
 	DataDir string
 
 	// Emitter is an event emitter.
-	Emitter events.Emitter
+	Emitter apievents.Emitter
 
 	// Authorizer is used to authorize requests.
 	Authorizer authz.Authorizer
@@ -562,6 +563,38 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Conte
 		})
 	}
 
+	// Audit fields used for both success and failure
+	remoteAddr, err := authz.ClientSrcAddrFromContext(ctx)
+	if err != nil {
+		c.log.WarnContext(c.closeContext, "Failed to extract client source address from context", "error", err)
+	}
+
+	sessionStartEvent := &apievents.AppSessionStart{
+		Metadata: apievents.Metadata{
+			Type:        events.AppSessionStartEvent,
+			ClusterName: identity.RouteToApp.ClusterName,
+		},
+		UserMetadata: identity.GetUserMetadata(),
+		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   teleport.Version,
+			ServerID:        c.cfg.HostID,
+			ServerNamespace: apidefaults.Namespace,
+		},
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: remoteAddr.String(),
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppURI:        app.GetURI(),
+			AppPublicAddr: app.GetPublicAddr(),
+			AppName:       app.GetName(),
+			AppTargetPort: uint32(identity.RouteToApp.TargetPort),
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: identity.RouteToApp.SessionID,
+			WithMFA:   identity.MFAVerified,
+		},
+	}
+
 	state := authContext.GetAccessState(authPref)
 	switch err := authContext.Checker.CheckAccess(
 		app,
@@ -570,6 +603,14 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Conte
 	case errors.Is(err, services.ErrTrustedDeviceRequired) || errors.Is(err, services.ErrSessionMFARequired):
 		// When access is denied due to trusted device or session MFA requirements, these specific errors
 		// are returned directly to provide clarity to the client about the additional authentication steps needed.
+		errMsg := "requires a trusted device or session MFA Required"
+		sessionStartEvent.Metadata.SetCode(events.AppSessionStartFailureCode)
+		sessionStartEvent.Error = err.Error()
+		sessionStartEvent.UserMessage = errMsg
+
+		if err := c.cfg.Emitter.EmitAuditEvent(c.closeContext, sessionStartEvent); err != nil {
+			c.log.WarnContext(c.closeContext, "Failed to emit app session start event", "error", err)
+		}
 		return nil, nil, trace.Wrap(err)
 	case err != nil:
 		// Other access denial errors are wrapped and obfuscated to prevent leaking sensitive details.
@@ -577,7 +618,20 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Conte
 			"app", app.GetName(),
 			"error", err,
 		)
+		errMsg := "access denied"
+		sessionStartEvent.Metadata.SetCode(events.AppSessionStartFailureCode)
+		sessionStartEvent.Error = err.Error()
+		sessionStartEvent.UserMessage = errMsg
+
+		if err := c.cfg.Emitter.EmitAuditEvent(c.closeContext, sessionStartEvent); err != nil {
+			c.log.WarnContext(c.closeContext, "Failed to emit app session start event", "error", err)
+		}
 		return nil, nil, utils.OpaqueAccessDenied(err)
+	}
+
+	sessionStartEvent.Metadata.SetCode(events.AppSessionStartCode)
+	if err := c.cfg.Emitter.EmitAuditEvent(c.closeContext, sessionStartEvent); err != nil {
+		c.log.WarnContext(c.closeContext, "Failed to emit app session start event", "error", err)
 	}
 
 	return authContext, app, nil

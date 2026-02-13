@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto"
 	"crypto/rsa"
-	"errors"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -35,7 +34,6 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
@@ -43,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -558,93 +555,6 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		return nil, trace.Wrap(err)
 	}
 
-	// Audit fields used for both success and failure
-	sessionStartEvent := &apievents.AppSessionStart{
-		Metadata: apievents.Metadata{
-			Type:        events.AppSessionStartEvent,
-			ClusterName: req.ClusterName,
-		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerVersion:   teleport.Version,
-			ServerID:        a.ServerID,
-			ServerNamespace: apidefaults.Namespace,
-		},
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: req.ClientAddr,
-		},
-		AppMetadata: apievents.AppMetadata{
-			AppURI:        req.AppURI,
-			AppPublicAddr: req.PublicAddr,
-			AppName:       req.AppName,
-			AppTargetPort: uint32(req.AppTargetPort),
-		},
-	}
-
-	app, err := a.GetApp(ctx, req.AppName)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			a.logger.WarnContext(ctx, "Failed to retrieve application metadata", "error", err, "app_name", req.AppName)
-			return nil, trace.AccessDenied("application metadata not found")
-		}
-		// In the case of a static app, we can't check labels here, so we skip the early check and let the app agent handle it.
-		a.logger.DebugContext(ctx, "App not found, assuming static app and deferring check to agent", "app_name", req.AppName)
-	}
-
-	// Enforce device trust early via the AccessChecker.
-	if app != nil {
-		if err = checker.CheckAccess(
-			app,
-			services.AccessState{
-				DeviceVerified:           dtauthz.IsTLSDeviceVerified((*tlsca.DeviceExtensions)(&req.DeviceExtensions)),
-				EnableDeviceVerification: true,
-				IsBot:                    req.BotName != "",
-			},
-		); errors.Is(err, services.ErrTrustedDeviceRequired) {
-
-			userKind := apievents.UserKind_USER_KIND_HUMAN
-			if req.BotName != "" {
-				userKind = apievents.UserKind_USER_KIND_BOT
-			}
-
-			userMetadata := apievents.UserMetadata{
-				User:            req.User,
-				BotName:         req.BotName,
-				BotInstanceID:   req.BotInstanceID,
-				UserKind:        userKind,
-				UserRoles:       req.Roles,
-				UserClusterName: req.ClusterName,
-				UserTraits:      req.Traits,
-				AWSRoleARN:      req.AWSRoleARN,
-			}
-
-			if req.DeviceExtensions.DeviceID != "" {
-				userMetadata.TrustedDevice = &apievents.DeviceMetadata{
-					DeviceId:     req.DeviceExtensions.DeviceID,
-					AssetTag:     req.DeviceExtensions.AssetTag,
-					CredentialId: req.DeviceExtensions.CredentialID,
-				}
-			}
-			errMsg := "requires a trusted device"
-
-			sessionStartEvent.Metadata.SetCode(events.AppSessionStartFailureCode)
-			sessionStartEvent.UserMetadata = userMetadata
-			sessionStartEvent.SessionMetadata = apievents.SessionMetadata{
-				WithMFA: req.MFAVerified,
-			}
-			sessionStartEvent.Error = err.Error()
-			sessionStartEvent.UserMessage = errMsg
-
-			if err := a.emitter.EmitAuditEvent(a.closeCtx, sessionStartEvent); err != nil {
-				a.logger.WarnContext(ctx, "Failed to emit app session start event", "error", err)
-			}
-			// err swallowed/obscured on purpose.
-			return nil, trace.AccessDenied("%s", errMsg)
-		} else if err != nil {
-			a.logger.WarnContext(ctx, "Failed to create app session", "error", err)
-			return nil, trace.AccessDenied("access denied")
-		}
-	}
-
 	sessionID := req.SuggestedSessionID
 	if sessionID == "" {
 		// Create services.WebSession for this session.
@@ -741,32 +651,6 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	// connections.
 	if types.IsAppMCP(req.AppURI) {
 		return session, nil
-	}
-
-	// Extract the identity of the user from the certificate, this will include metadata from any actively assumed access requests.
-	certificate, err := tlsca.ParseCertificatePEM(session.GetTLSCert())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	userMetadata := identity.GetUserMetadata()
-	userMetadata.User = session.GetUser()
-	userMetadata.AWSRoleARN = req.AWSRoleARN
-
-	sessionStartEvent.Metadata.SetCode(events.AppSessionStartCode)
-	sessionStartEvent.UserMetadata = userMetadata
-	sessionStartEvent.SessionMetadata = apievents.SessionMetadata{
-		SessionID:        session.GetName(),
-		WithMFA:          req.MFAVerified,
-		PrivateKeyPolicy: string(identity.PrivateKeyPolicy),
-	}
-
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, sessionStartEvent); err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit app session start event", "error", err)
 	}
 
 	return session, nil
