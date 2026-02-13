@@ -94,7 +94,7 @@ The service must be extremely careful and must not implicitly trust any input da
 
 #### Security Considerations
 
-Even tough the update service will only allow installing binaries singed by the same organization as the service itself
+Even though the update service will only allow installing binaries signed by the same organization as the service itself
 (enforced if the service is signed), an attacker could force it to install an older, vulnerable version of the VNet
 service.
 
