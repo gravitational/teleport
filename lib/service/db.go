@@ -89,6 +89,16 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		databases = append(databases, database)
 	}
 
+	asyncEmitter, err := process.NewAsyncEmitter(conn.Client)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer func() {
+		if retErr != nil {
+			warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
+		}
+	}()
+
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentDatabase,
@@ -106,6 +116,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
 		Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
+		Emitter:     asyncEmitter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -114,16 +125,6 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	asyncEmitter, err := process.NewAsyncEmitter(conn.Client)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer func() {
-		if retErr != nil {
-			warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
-		}
-	}()
 
 	connLimiter, err := limiter.NewLimiter(process.Config.Databases.Limiter)
 	if err != nil {

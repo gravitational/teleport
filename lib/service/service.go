@@ -2631,6 +2631,7 @@ func (process *TeleportProcess) initAuthService() error {
 	// client based on their certificate (user, server, admin, etc)
 
 	authorizerOpts := authz.AuthorizerOpts{
+		TEST:                "initauth",
 		ClusterName:         clusterName,
 		AccessPoint:         authServer,
 		ReadOnlyAccessPoint: authServer,
@@ -2641,6 +2642,7 @@ func (process *TeleportProcess) initAuthService() error {
 		// Auth Server does explicit device authorization.
 		// Various Auth APIs must allow access to unauthorized devices, otherwise it
 		// is not possible to acquire device-aware certificates in the first place.
+		Emitter: checkingEmitter,
 		DeviceAuthorization: authz.DeviceAuthorizationOpts{
 			DisableGlobalMode: true,
 			DisableRoleMode:   true,
@@ -5371,10 +5373,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 
 		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
+			TEST:          "initproxyapp",
 			ClusterName:   cn.GetClusterName(),
 			AccessPoint:   accessPoint,
 			LockWatcher:   lockWatcher,
 			Logger:        process.logger,
+			Emitter:       asyncEmitter,
 			PermitCaching: process.Config.CachePolicy.Enabled,
 		})
 		if err != nil {
@@ -5861,10 +5865,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	if listeners.kube != nil && !process.Config.Proxy.DisableReverseTunnel {
 		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
+			TEST:          "initproxykub",
 			ClusterName:   clusterName,
 			AccessPoint:   accessPoint,
 			LockWatcher:   lockWatcher,
 			Logger:        process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+			Emitter:       asyncEmitter,
 			PermitCaching: process.Config.CachePolicy.Enabled,
 		})
 		if err != nil {
@@ -5984,10 +5990,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// framework.
 	if (!listeners.db.Empty() || alpnRouter != nil) && !process.Config.Proxy.DisableReverseTunnel {
 		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
+			TEST:          "initproxydb",
 			ClusterName:   clusterName,
 			AccessPoint:   accessPoint,
 			LockWatcher:   lockWatcher,
 			Logger:        process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+			Emitter:       asyncEmitter,
 			PermitCaching: process.Config.CachePolicy.Enabled,
 		})
 		if err != nil {
@@ -6738,6 +6746,16 @@ func (process *TeleportProcess) initApps() {
 			}
 		}
 
+		asyncEmitter, err := process.NewAsyncEmitter(conn.Client)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer func() {
+			if !shouldSkipCleanup {
+				warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
+			}
+		}()
+
 		lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 			ResourceWatcherConfig: services.ResourceWatcherConfig{
 				Component: teleport.ComponentApp,
@@ -6749,6 +6767,7 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
+			TEST:        "initapps",
 			ClusterName: clusterName,
 			AccessPoint: accessPoint,
 			LockWatcher: lockWatcher,
@@ -6758,6 +6777,7 @@ func (process *TeleportProcess) initApps() {
 				// settings to be applied.
 				DisableGlobalMode: true,
 			},
+			Emitter:       asyncEmitter,
 			PermitCaching: process.Config.CachePolicy.Enabled,
 		})
 		if err != nil {
@@ -6767,16 +6787,6 @@ func (process *TeleportProcess) initApps() {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		asyncEmitter, err := process.NewAsyncEmitter(conn.Client)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer func() {
-			if !shouldSkipCleanup {
-				warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
-			}
-		}()
 
 		proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
@@ -7318,10 +7328,12 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 	}
 
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
+		TEST:          "initsecureGRPCServer",
 		ClusterName:   clusterName,
 		AccessPoint:   cfg.accessPoint,
 		LockWatcher:   cfg.lockWatcher,
 		Logger:        process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentProxySecureGRPC, process.id)),
+		Emitter:       cfg.emitter,
 		PermitCaching: process.Config.CachePolicy.Enabled,
 	})
 	if err != nil {

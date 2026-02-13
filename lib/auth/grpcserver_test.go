@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -66,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/autoupdate"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/api/utils"
@@ -82,6 +84,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
@@ -6511,4 +6514,57 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSessionRejectedAudit(t *testing.T) {
+	t.Parallel()
+	server := newTestTLSServer(t)
+	ctx := context.Background()
+	username := "locked-user"
+
+	role, _ := types.NewRole("allow-all", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Namespaces: []string{"*"},
+			Rules:      []types.Rule{{Resources: []string{"*"}, Verbs: []string{"*"}}},
+		},
+	})
+	server.Auth().UpsertRole(ctx, role)
+
+	user, _ := types.NewUser(username)
+	user.SetRoles([]string{"allow-all"})
+	server.Auth().UpsertUser(ctx, user)
+
+	lock, _ := types.NewLock("test-lock", types.LockSpecV2{
+		Target: types.LockTarget{User: username},
+	})
+	server.Auth().UpsertLock(ctx, lock)
+
+	client, err := server.NewClient(authtest.TestUser(username))
+	require.NoError(t, err)
+	defer client.Close()
+
+	_, err = client.GetClusterName(ctx)
+
+	require.Error(t, err)
+	require.True(t,
+		strings.Contains(err.Error(), "lock") || strings.Contains(err.Error(), "access denied"),
+		"Expected lock error, got: %v", err)
+
+	require.Eventually(t, func() bool {
+		events, _, _ := server.Auth().SearchEvents(ctx, events.SearchEventsRequest{
+			From:       time.Now().Add(-time.Minute),
+			To:         time.Now().Add(time.Minute),
+			EventTypes: []string{events.AuthAttemptEvent},
+			Limit:      100,
+		})
+
+		for _, e := range events {
+			if attempt, ok := e.(*apievents.AuthAttempt); ok {
+				if attempt.UserMetadata.User == username && !attempt.Status.Success {
+					return true
+				}
+			}
+		}
+		return false
+	}, 5*time.Second, 100*time.Millisecond, "Expected AuthAttempt event for %v not found", username)
 }
