@@ -1,4 +1,12 @@
-# SSM Script failure
-Teleport was able to reach the SSM Agent inside the EC2 instance, however the install script returned an error.
+# SSM - Teleport Agent installation failure
 
-You can click below in the Invocation URL and get further details on why the script failed.
+Teleport reached the EC2 instance via AWS SSM, but the Teleport agent installation failed.
+
+Common causes:
+
+- The instance already has an agent configured for a different Teleport cluster
+- The Teleport binary could not be downloaded
+- The SSM Agent version is below 3.1
+
+Below you'll find two links: the Resource Name links to the EC2 instance details, and the Invocation URL provides details on the cause of the failure.
+
