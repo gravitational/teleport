@@ -112,23 +112,26 @@ And a new step value for verifying the integration:
 ```protobuf
 enum IntegrationEnrollStep {
   // ... existing values ...
-  INTEGRATION_ENROLL_STEP_AWSCLOUD_VERIFY = 13;
+  INTEGRATION_ENROLL_STEP_VERIFY_INTEGRATION = 13;
 }
 ```
 
 Add corresponding frontend value in `userEvent/types.ts`:
 
 ```typescript
-AwsCloudVerify = 'INTEGRATION_ENROLL_STEP_AWSCLOUD_VERIFY',
+export enum IntegrationEnrollStep {
+  // ... existing values ...
+  VerifyIntegration = 'INTEGRATION_ENROLL_STEP_VERIFY_INTEGRATION',
+}
 ```
 
 Instrument `Integrations/Enroll/Cloud/Aws/EnrollAws.tsx` to emit `UIIntegrationEnroll*` events with `kind = INTEGRATION_ENROLL_KIND_AWS_CLOUD`:
 
-| Action                        | Event type                         | Fields                                                               |
-| ----------------------------- | ---------------------------------- | -------------------------------------------------------------------- |
-| User lands on enroll page     | `tp.ui.integrationEnroll.start`    | `kind = AWS_CLOUD`                                                   |
-| User copies Terraform HCL     | `tp.ui.integrationEnroll.codeCopy` | `kind = AWS_CLOUD`, `type = INTEGRATION_ENROLL_CODE_TYPE_TERRAFORM`  |
-| User clicks Check Integration | `tp.ui.integrationEnroll.step`     | `kind = AWS_CLOUD`, `step = INTEGRATION_ENROLL_STEP_AWSCLOUD_VERIFY` |
+| Action                        | Event type                         | Fields                                                                                          |
+| ----------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------- |
+| User lands on enroll page     | `tp.ui.integrationEnroll.start`    | `kind = INTEGRATION_ENROLL_KIND_AWS_CLOUD`                                                      |
+| User copies Terraform HCL     | `tp.ui.integrationEnroll.codeCopy` | `kind = INTEGRATION_ENROLL_KIND_AWS_CLOUD`, `type = INTEGRATION_ENROLL_CODE_TYPE_TERRAFORM`     |
+| User clicks Check Integration | `tp.ui.integrationEnroll.step`     | `kind = INTEGRATION_ENROLL_KIND_AWS_CLOUD`, `step = INTEGRATION_ENROLL_STEP_VERIFY_INTEGRATION` |
 
 ### ResourceCreateEvent — (Already exists, requires changes)
 
