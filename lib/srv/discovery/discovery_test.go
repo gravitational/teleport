@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"maps"
 	"net/http"
 	"net/url"
@@ -32,6 +33,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -43,6 +45,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v3"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/account"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
@@ -50,6 +53,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 	"github.com/aws/aws-sdk-go-v2/service/memorydb"
 	"github.com/aws/aws-sdk-go-v2/service/opensearch"
+	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
@@ -110,6 +114,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/server"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	libutils "github.com/gravitational/teleport/lib/utils"
+	liborganizations "github.com/gravitational/teleport/lib/utils/aws/organizations"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -178,10 +183,41 @@ func (m *mockUsageReporter) DiscoveryFetchEventCount() int {
 
 type mockEC2Client struct {
 	output *ec2.DescribeInstancesOutput
+	err    error
 }
 
 func (m *mockEC2Client) DescribeInstances(ctx context.Context, input *ec2.DescribeInstancesInput, opts ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
 	return m.output, nil
+}
+
+type mockRegionsLister struct {
+	err error
+}
+
+func (m *mockRegionsLister) ListRegions(ctx context.Context, input *account.ListRegionsInput, opts ...func(*account.Options)) (*account.ListRegionsOutput, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return &account.ListRegionsOutput{}, nil
+}
+
+type mockOrganizationsClient struct {
+	err error
+}
+
+func (m *mockOrganizationsClient) ListRoots(ctx context.Context, input *organizations.ListRootsInput, opts ...func(*organizations.Options)) (*organizations.ListRootsOutput, error) {
+	return nil, m.err
+}
+
+func (m *mockOrganizationsClient) ListChildren(ctx context.Context, input *organizations.ListChildrenInput, opts ...func(*organizations.Options)) (*organizations.ListChildrenOutput, error) {
+	return nil, m.err
+}
+
+func (m *mockOrganizationsClient) ListAccountsForParent(ctx context.Context, input *organizations.ListAccountsForParentInput, opts ...func(*organizations.Options)) (*organizations.ListAccountsForParentOutput, error) {
+	return nil, m.err
 }
 
 func genEC2InstanceIDs(n int) []string {
@@ -340,12 +376,84 @@ func TestDiscoveryServer(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	dcForEC2IAMErrorTestName := uuid.NewString()
+	dcForEC2IAMErrorTest, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: dcForEC2IAMErrorTestName},
+		discoveryconfig.Spec{
+			DiscoveryGroup: defaultDiscoveryGroup,
+			AWS: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"us-west-2"},
+				Tags:    map[string]utils.Strings{"*": {"*"}},
+				SSM:     &types.AWSSSM{DocumentName: "document"},
+				Params: &types.InstallerParams{
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+				Integration: "my-integration",
+			}},
+		},
+	)
+	require.NoError(t, err)
+
+	dcForEC2IAMListRegionsErrorName := uuid.NewString()
+	dcForEC2IAMListRegionsError, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: dcForEC2IAMListRegionsErrorName},
+		discoveryconfig.Spec{
+			DiscoveryGroup: defaultDiscoveryGroup,
+			AWS: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"*"},
+				Tags:    map[string]utils.Strings{"*": {"*"}},
+				SSM:     &types.AWSSSM{DocumentName: "document"},
+				Params: &types.InstallerParams{
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+				Integration: "my-integration",
+			}},
+		},
+	)
+	require.NoError(t, err)
+
+	dcForEC2IAMOrganizationsErrorName := uuid.NewString()
+	dcForEC2IAMOrganizationsError, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: dcForEC2IAMOrganizationsErrorName},
+		discoveryconfig.Spec{
+			DiscoveryGroup: defaultDiscoveryGroup,
+			AWS: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"us-east-1"},
+				Tags:    map[string]utils.Strings{"*": {"*"}},
+				SSM:     &types.AWSSSM{DocumentName: "document"},
+				Params: &types.InstallerParams{
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+				Integration: "my-integration",
+				AssumeRole: &types.AssumeRole{
+					RoleName: "TeleportDiscovery",
+				},
+				Organization: &types.AWSOrganizationMatcher{
+					OrganizationID: "o-1234567890",
+					OrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+						Include: []string{"*"},
+					},
+				},
+			}},
+		},
+	)
+	require.NoError(t, err)
+
 	tcs := []struct {
 		name          string
 		requiresProxy bool
 		// presentInstances is a list of servers already present in teleport.
 		presentInstances          []types.Server
 		foundEC2Instances         []ec2types.Instance
+		ec2ClientErr              error
+		regionsListerErr          error
+		organizationsClientErr    error
 		ssm                       *mockSSMClient
 		emitter                   *mockEmitter
 		discoveryConfig           *discoveryconfig.DiscoveryConfig
@@ -786,6 +894,64 @@ func TestDiscoveryServer(t *testing.T) {
 				require.Equal(t, defaultDiscoveryGroup, taskInstance.DiscoveryGroup)
 			},
 		},
+		{
+			name:              "IAM permission error creates UserTask for ec2:DescribeInstances",
+			presentInstances:  []types.Server{},
+			foundEC2Instances: []ec2types.Instance{},
+			ec2ClientErr:      trace.AccessDenied("User is not authorized to perform: ec2:DescribeInstances"),
+			emitter:           &mockEmitter{},
+			discoveryConfig:   dcForEC2IAMErrorTest,
+			staticMatchers:    Matchers{},
+			userTasksDiscoverCheck: func(t *testing.T, userTasksClt services.UserTasks) {
+				existingTasks := fetchAllUserTasks(t, userTasksClt, 1, 0)
+				existingTask := existingTasks[0]
+
+				require.Equal(t, "OPEN", existingTask.GetSpec().State)
+				require.Equal(t, "my-integration", existingTask.GetSpec().Integration)
+				require.Equal(t, "ec2-perm-account-denied", existingTask.GetSpec().IssueType)
+				require.Equal(t, "us-west-2", existingTask.GetSpec().GetDiscoverEc2().GetRegion())
+			},
+		},
+		{
+			name:              "IAM permission error creates UserTask for account:ListRegions",
+			presentInstances:  []types.Server{},
+			foundEC2Instances: []ec2types.Instance{},
+			regionsListerErr:  trace.AccessDenied("User is not authorized to perform: account:ListRegions"),
+			emitter:           &mockEmitter{},
+			discoveryConfig:   dcForEC2IAMListRegionsError,
+			staticMatchers:    Matchers{},
+			userTasksDiscoverCheck: func(t *testing.T, userTasksClt services.UserTasks) {
+				existingTasks := fetchAllUserTasks(t, userTasksClt, 1, 0)
+				existingTask := existingTasks[0]
+
+				require.Equal(t, "OPEN", existingTask.GetSpec().State)
+				require.Equal(t, "my-integration", existingTask.GetSpec().Integration)
+				require.Equal(t, "ec2-perm-account-denied", existingTask.GetSpec().IssueType)
+				// ListRegions errors occur at the account level, before we know which regions
+				// are available, so the region should be empty.
+				require.Empty(t, existingTask.GetSpec().GetDiscoverEc2().GetRegion())
+			},
+		},
+		{
+			name:                   "IAM permission error creates UserTask for organizations APIs",
+			presentInstances:       []types.Server{},
+			foundEC2Instances:      []ec2types.Instance{},
+			organizationsClientErr: trace.AccessDenied("User is not authorized to perform: organizations:ListRoots"),
+			emitter:                &mockEmitter{},
+			discoveryConfig:        dcForEC2IAMOrganizationsError,
+			staticMatchers:         Matchers{},
+			userTasksDiscoverCheck: func(t *testing.T, userTasksClt services.UserTasks) {
+				existingTasks := fetchAllUserTasks(t, userTasksClt, 1, 0)
+				existingTask := existingTasks[0]
+
+				require.Equal(t, "OPEN", existingTask.GetSpec().State)
+				require.Equal(t, "my-integration", existingTask.GetSpec().Integration)
+				require.Equal(t, "ec2-perm-org-denied", existingTask.GetSpec().IssueType)
+				// Organization-level errors occur before we know which regions to discover,
+				// so the region should be empty.
+				require.Empty(t, existingTask.GetSpec().GetDiscoverEc2().GetRegion())
+			},
+		},
 	}
 
 	for _, tc := range tcs {
@@ -802,6 +968,7 @@ func TestDiscoveryServer(t *testing.T) {
 						},
 					},
 				},
+				err: tc.ec2ClientErr,
 			}
 
 			// Create and start test auth server.
@@ -877,6 +1044,12 @@ func TestDiscoveryServer(t *testing.T) {
 				},
 				GetSSMClient: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (server.SSMClient, error) {
 					return tc.ssm, nil
+				},
+				GetAWSRegionsLister: func(ctx context.Context, opts ...awsconfig.OptionsFn) (account.ListRegionsAPIClient, error) {
+					return &mockRegionsLister{err: tc.regionsListerErr}, nil
+				},
+				GetAWSOrganizationsClient: func(ctx context.Context, opts ...awsconfig.OptionsFn) (liborganizations.OrganizationsClient, error) {
+					return &mockOrganizationsClient{err: tc.organizationsClientErr}, nil
 				},
 				AWSConfigProvider: &fakeConfigProvider,
 				AWSFetchersClients: &mockFetchersClients{
@@ -4188,4 +4361,84 @@ func TestGenInstancesLogStr(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+// countingHandler is a slog.Handler that counts how many times Handle is called.
+type countingHandler struct {
+	count atomic.Int32
+}
+
+func (h *countingHandler) Enabled(context.Context, slog.Level) bool { return true }
+func (h *countingHandler) Handle(context.Context, slog.Record) error {
+	h.count.Add(1)
+	return nil
+}
+func (h *countingHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h *countingHandler) WithGroup(string) slog.Handler      { return h }
+
+func TestReportEC2IAMPermissionError_LogDeduplication(t *testing.T) {
+	t.Parallel()
+
+	handler := &countingHandler{}
+	logger := slog.New(handler)
+
+	s := &Server{
+		Config: &Config{
+			DiscoveryGroup: "test-group",
+			Log:            logger,
+			clock:          clockwork.NewFakeClock(),
+		},
+		awsEC2Tasks: awsEC2Tasks{
+			instancesIssues: make(map[awsEC2TaskKey]*usertasksv1.DiscoverEC2),
+			issuesSyncQueue: make(map[awsEC2TaskKey]struct{}),
+		},
+	}
+
+	ctx := context.Background()
+	testErr := &server.EC2IAMPermissionError{
+		IssueType:           usertasks.AutoDiscoverEC2IssuePermAccountDenied,
+		Integration:         "my-integration",
+		AccountID:           "123456789012",
+		Region:              "us-east-1",
+		DiscoveryConfigName: "test-config",
+		Err:                 errors.New("AccessDenied"),
+	}
+
+	// Call multiple times with the same error - simulates multiple discovery cycles
+	for range 5 {
+		s.reportEC2IAMPermissionError(ctx, testErr)
+	}
+
+	// Should only log once despite 5 calls
+	assert.Equal(t, int32(1), handler.count.Load(), "expected only 1 log entry for repeated identical errors")
+
+	// Different error should log again
+	differentErr := &server.EC2IAMPermissionError{
+		IssueType:           usertasks.AutoDiscoverEC2IssuePermAccountDenied,
+		Integration:         "my-integration",
+		AccountID:           "123456789012",
+		Region:              "us-west-2", // Different region
+		DiscoveryConfigName: "test-config",
+		Err:                 errors.New("AccessDenied"),
+	}
+	s.reportEC2IAMPermissionError(ctx, differentErr)
+
+	// Now should have 2 log entries (one per unique error key)
+	assert.Equal(t, int32(2), handler.count.Load(), "expected 2 log entries for different errors")
+
+	// Org-level errors have empty region - verify they still deduplicate correctly
+	orgErr := &server.EC2IAMPermissionError{
+		IssueType:           usertasks.AutoDiscoverEC2IssuePermOrgDenied,
+		Integration:         "my-integration",
+		AccountID:           "", // Empty for org-level errors
+		Region:              "", // Empty for org-level errors
+		DiscoveryConfigName: "test-config",
+		Err:                 errors.New("AccessDenied"),
+	}
+	for range 3 {
+		s.reportEC2IAMPermissionError(ctx, orgErr)
+	}
+
+	// Should have 3 total: original, different region, and org error (only once despite 3 calls)
+	assert.Equal(t, int32(3), handler.count.Load(), "expected 3 log entries total with org-level dedup")
 }

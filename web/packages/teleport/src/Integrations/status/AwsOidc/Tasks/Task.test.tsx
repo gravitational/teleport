@@ -75,6 +75,17 @@ test('renders ec2 impacts', async () => {
 
   await screen.findByText('Details');
 
+  // Verify IAM permissions are rendered in description.
+  expect(screen.getByText(/account:ListRegions/)).toBeInTheDocument();
+  expect(screen.getByText(/ec2:DescribeInstances/)).toBeInTheDocument();
+  // Verify SSM permissions are rendered in description.
+  expect(
+    screen.getByText(/ssm:DescribeInstanceInformation/)
+  ).toBeInTheDocument();
+  expect(screen.getByText(/ssm:GetCommandInvocation/)).toBeInTheDocument();
+  expect(screen.getByText(/ssm:ListCommandInvocations/)).toBeInTheDocument();
+  expect(screen.getByText(/ssm:SendCommand/)).toBeInTheDocument();
+
   expect(getTableCellContents()).toEqual({
     header: ['Instances', 'Invocation Link'],
     rows: [['i-016e32a5882f5ee81', ''], ['i-065818031835365ccaws-test']],

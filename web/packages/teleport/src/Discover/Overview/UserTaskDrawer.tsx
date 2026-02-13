@@ -206,12 +206,17 @@ function DetailsTab({ task }: { task: UserTaskDetail }) {
       <H3 mt={3}>Details</H3>
       <Markdown text={task.description || ''} enableLinks />
 
-      <H3 mt={4}>Impacted resources ({impacted.count})</H3>
-      <Table
-        data={impactsTable.data}
-        columns={impactsTable.columns}
-        emptyText="No impacted resources"
-      />
+      {impacted.count > 0 && (
+        <>
+          <H3 mt={4}>Impacted resources ({impacted.count})</H3>
+          <Table
+            data={impactsTable.data}
+            columns={impactsTable.columns}
+            emptyText="No impacted resources"
+          />
+        </>
+      )}
+
       <H3 mt={4}>Mark as Resolved</H3>
       <P>
         This issue will reappear if the underlying problem is not fixed.

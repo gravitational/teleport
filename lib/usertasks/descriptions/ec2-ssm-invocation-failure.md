@@ -1,4 +1,5 @@
 # SSM Invocation failed
+
 Teleport failed to access the SSM Agent to auto enroll the instance.
 Some instances failed to communicate with the AWS Systems Manager service to execute the install script.
 
@@ -8,6 +9,7 @@ Usually this happens when:
 
 The IAM Role used by the integration might be missing some required permissions.
 Ensure the following actions are allowed in the IAM Role used by the integration:
+
 - `account:ListRegions`
 - `ec2:DescribeInstances`
 - `ssm:DescribeInstanceInformation`
