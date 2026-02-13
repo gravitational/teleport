@@ -1349,6 +1349,33 @@ func newLeafCluster(srv *server, domainName string, sconn ssh.Conn) (*leafCluste
 	}
 
 	go leaf.updateLocks(lockRetry)
+
+	mfaRetry := retryutils.LinearConfig{
+		First:  retryutils.HalfJitter(srv.Config.PollingPeriod),
+		Step:   srv.Config.PollingPeriod / 5,
+		Max:    srv.Config.PollingPeriod,
+		Jitter: retryutils.HalfJitter,
+		Clock:  srv.Clock,
+	}
+
+	validatedMFAChallengeWatcher, err := services.NewValidatedMFAChallengeWatcher(
+		srv.ctx,
+		services.ValidatedMFAChallengeWatcherConfig{
+			ValidatedMFAChallengeLister: leaf.localClient.MFAServiceClient(),
+			ResourceWatcherConfig: &services.ResourceWatcherConfig{
+				Clock:     srv.Clock,
+				Component: teleport.ComponentProxy,
+				Logger:    srv.Logger,
+				Client:    leaf.localClient,
+			},
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	go leaf.SyncValidatedMFAChallenges(srv.ctx, mfaRetry, validatedMFAChallengeWatcher)
+
 	return leaf, nil
 }
 
