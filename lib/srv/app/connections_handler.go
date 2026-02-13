@@ -193,6 +193,11 @@ type ConnectionsHandler struct {
 	// This will force the HTTP server to serve an error and close the connection.
 	connAuth map[net.Conn]error
 
+	authFailuresMu sync.Mutex
+	// authFailures maps session IDs to the time of their most recent authentication failure.
+	// This is used for deduplicating redudant failed audit events
+	authFailures map[string]time.Time
+
 	awsHandler   http.Handler
 	azureHandler http.Handler
 	gcpHandler   http.Handler
@@ -244,6 +249,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		azureHandler: azureHandler,
 		gcpHandler:   gcpHandler,
 		connAuth:     make(map[net.Conn]error),
+		authFailures: make(map[string]time.Time),
 		log:          slog.With(teleport.ComponentKey, cfg.ServiceComponent),
 		getAppByPublicAddress: func(ctx context.Context, s string) (types.Application, error) {
 			return nil, trace.NotFound("no applications are being proxied")
@@ -563,38 +569,6 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Conte
 		})
 	}
 
-	// Audit fields used for both success and failure
-	remoteAddr, err := authz.ClientSrcAddrFromContext(ctx)
-	if err != nil {
-		c.log.WarnContext(c.closeContext, "Failed to extract client source address from context", "error", err)
-	}
-
-	sessionStartEvent := &apievents.AppSessionStart{
-		Metadata: apievents.Metadata{
-			Type:        events.AppSessionStartEvent,
-			ClusterName: identity.RouteToApp.ClusterName,
-		},
-		UserMetadata: identity.GetUserMetadata(),
-		ServerMetadata: apievents.ServerMetadata{
-			ServerVersion:   teleport.Version,
-			ServerID:        c.cfg.HostID,
-			ServerNamespace: apidefaults.Namespace,
-		},
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: remoteAddr.String(),
-		},
-		AppMetadata: apievents.AppMetadata{
-			AppURI:        app.GetURI(),
-			AppPublicAddr: app.GetPublicAddr(),
-			AppName:       app.GetName(),
-			AppTargetPort: uint32(identity.RouteToApp.TargetPort),
-		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: identity.RouteToApp.SessionID,
-			WithMFA:   identity.MFAVerified,
-		},
-	}
-
 	state := authContext.GetAccessState(authPref)
 	switch err := authContext.Checker.CheckAccess(
 		app,
@@ -603,14 +577,6 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Conte
 	case errors.Is(err, services.ErrTrustedDeviceRequired) || errors.Is(err, services.ErrSessionMFARequired):
 		// When access is denied due to trusted device or session MFA requirements, these specific errors
 		// are returned directly to provide clarity to the client about the additional authentication steps needed.
-		errMsg := "requires a trusted device or session MFA Required"
-		sessionStartEvent.Metadata.SetCode(events.AppSessionStartFailureCode)
-		sessionStartEvent.Error = err.Error()
-		sessionStartEvent.UserMessage = errMsg
-
-		if err := c.cfg.Emitter.EmitAuditEvent(c.closeContext, sessionStartEvent); err != nil {
-			c.log.WarnContext(c.closeContext, "Failed to emit app session start event", "error", err)
-		}
 		return nil, nil, trace.Wrap(err)
 	case err != nil:
 		// Other access denial errors are wrapped and obfuscated to prevent leaking sensitive details.
@@ -618,20 +584,7 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Conte
 			"app", app.GetName(),
 			"error", err,
 		)
-		errMsg := "access denied"
-		sessionStartEvent.Metadata.SetCode(events.AppSessionStartFailureCode)
-		sessionStartEvent.Error = err.Error()
-		sessionStartEvent.UserMessage = errMsg
-
-		if err := c.cfg.Emitter.EmitAuditEvent(c.closeContext, sessionStartEvent); err != nil {
-			c.log.WarnContext(c.closeContext, "Failed to emit app session start event", "error", err)
-		}
 		return nil, nil, utils.OpaqueAccessDenied(err)
-	}
-
-	sessionStartEvent.Metadata.SetCode(events.AppSessionStartCode)
-	if err := c.cfg.Emitter.EmitAuditEvent(c.closeContext, sessionStartEvent); err != nil {
-		c.log.WarnContext(c.closeContext, "Failed to emit app session start event", "error", err)
 	}
 
 	return authContext, app, nil
@@ -659,6 +612,71 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 	ctx = authz.ContextWithUser(ctx, user)
 	ctx = authz.ContextWithClientSrcAddr(ctx, conn.RemoteAddr())
 	authCtx, _, err := c.authorizeContext(ctx)
+
+	identity := user.GetIdentity()
+	sessionID := identity.RouteToApp.SessionID
+
+	uniqueEvent := true
+	if err != nil {
+		c.authFailuresMu.Lock()
+		lastSeen, exists := c.authFailures[sessionID]
+
+		if exists && time.Since(lastSeen) < 2*time.Second {
+			uniqueEvent = false
+		} else {
+			c.authFailures[sessionID] = time.Now()
+		}
+		c.authFailuresMu.Unlock()
+	}
+
+	// If there has not been a recent logged authentication failure for this session,
+	// emit an audit event for this connection attempt.
+	if uniqueEvent {
+		// Audit fields used for both success and failure
+		remoteAddr, addrErr := authz.ClientSrcAddrFromContext(ctx)
+		if addrErr != nil {
+			c.log.WarnContext(c.closeContext, "Failed to extract client source address from context", "error", err)
+		}
+
+		sessionStartEvent := &apievents.AppSessionStart{
+			Metadata: apievents.Metadata{
+				Type:        events.AppSessionStartEvent,
+				ClusterName: identity.RouteToApp.ClusterName,
+			},
+			UserMetadata: identity.GetUserMetadata(),
+			ServerMetadata: apievents.ServerMetadata{
+				ServerVersion:   teleport.Version,
+				ServerID:        c.cfg.HostID,
+				ServerNamespace: apidefaults.Namespace,
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				RemoteAddr: remoteAddr.String(),
+			},
+			AppMetadata: apievents.AppMetadata{
+				AppURI:        app.GetURI(),
+				AppPublicAddr: app.GetPublicAddr(),
+				AppName:       app.GetName(),
+				AppTargetPort: uint32(identity.RouteToApp.TargetPort),
+			},
+			SessionMetadata: apievents.SessionMetadata{
+				SessionID: identity.RouteToApp.SessionID,
+				WithMFA:   identity.MFAVerified,
+			},
+		}
+
+		if err != nil {
+			errMsg := "requires a trusted device or session MFA Required"
+			sessionStartEvent.Metadata.SetCode(events.AppSessionStartFailureCode)
+			sessionStartEvent.Error = err.Error()
+			sessionStartEvent.UserMessage = errMsg
+		} else {
+			sessionStartEvent.Metadata.SetCode(events.AppSessionStartCode)
+		}
+
+		if err := c.cfg.Emitter.EmitAuditEvent(c.closeContext, sessionStartEvent); err != nil {
+			c.log.WarnContext(c.closeContext, "Failed to emit app session start event", "error", err)
+		}
+	}
 
 	// The behavior here is a little hard to track. To be clear here, if authorization fails
 	// the following will occur:
