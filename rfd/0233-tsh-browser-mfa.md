@@ -676,6 +676,20 @@ browser, instead of being redirected to the login page, she is immediately
 presented with the MFA prompt. She completes the MFA challenge with her passkey,
 and `tsh` receives the MFA token to continue the connection.
 
+### Simplify the in-band flow
+
+In the proposed [In-band MFA](#in-band-mfa) flow, the WebAuthn response is
+returned from the browser to the client, the client then decrypts the response
+and forwards it on to `rpc ValidateSessionChallenge` to approve the `ssh`
+connection.
+
+However, In-band MFA doesn't require that a short-lived MFA certificate is
+returned to the client. Taking advantage of this, instead of returning the
+WebAuthn response to the client to have it call `rpc ValidateSessionChallenge`,
+`rpc ValidateBrowserMFAChallenge` could validate the session itself with the
+WebAuthn it receives from the browser and return a redirect to `tsh` that sends
+the user straight to the `/web/success` page.
+
 ## Other Considerations
 
 ### Use OS Native WebAuthn APIs
