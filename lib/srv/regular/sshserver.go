@@ -1374,10 +1374,8 @@ func (s *Server) HandleRequest(ctx context.Context, ccx *sshutils.ConnectionCont
 		}
 		return
 	default:
-		if r.WantReply {
-			if err := r.Reply(false, nil); err != nil {
-				s.logger.WarnContext(ctx, "Failed to reply to ssh request", "request_type", r.Type, "error", err)
-			}
+		if err := r.Reply(false, nil); err != nil {
+			s.logger.WarnContext(ctx, "Failed to reply to ssh request", "request_type", r.Type, "error", err)
 		}
 		s.logger.DebugContext(ctx, "Discarding global request", "request_type", r.Type)
 	}

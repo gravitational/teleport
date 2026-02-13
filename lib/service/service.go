@@ -3639,16 +3639,17 @@ func (process *TeleportProcess) initSSH() error {
 			agentPool, err = reversetunnel.NewAgentPool(
 				process.ExitContext(),
 				reversetunnel.AgentPoolConfig{
-					Component:            teleport.ComponentNode,
-					HostUUID:             conn.HostID(),
-					Resolver:             conn.TunnelProxyResolver(),
-					Client:               conn.Client,
-					AccessPoint:          authClient,
-					AuthMethods:          conn.ClientAuthMethods(),
-					Cluster:              conn.ClusterName(),
-					Server:               serverHandler,
-					FIPS:                 process.Config.FIPS,
-					ConnectedProxyGetter: proxyGetter,
+					Component:                teleport.ComponentNode,
+					HostUUID:                 conn.HostID(),
+					Resolver:                 conn.TunnelProxyResolver(),
+					Client:                   conn.Client,
+					AccessPoint:              authClient,
+					AuthMethods:              conn.ClientAuthMethods(),
+					Cluster:                  conn.ClusterName(),
+					Server:                   serverHandler,
+					FIPS:                     process.Config.FIPS,
+					ConnectedProxyGetter:     proxyGetter,
+					StaleConnTimeoutDisabled: reversetunnel.IsAgentStaleConnTimeoutDisabledByEnv(),
 				})
 			if err != nil {
 				return trace.Wrap(err)
@@ -6779,16 +6780,17 @@ func (process *TeleportProcess) initApps() {
 		agentPool, err := reversetunnel.NewAgentPool(
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
-				Component:            teleport.ComponentApp,
-				HostUUID:             conn.HostID(),
-				Resolver:             tunnelAddrResolver,
-				Client:               conn.Client,
-				Server:               appServer,
-				AccessPoint:          accessPoint,
-				AuthMethods:          conn.ClientAuthMethods(),
-				Cluster:              clusterName,
-				FIPS:                 process.Config.FIPS,
-				ConnectedProxyGetter: proxyGetter,
+				Component:                teleport.ComponentApp,
+				HostUUID:                 conn.HostID(),
+				Resolver:                 tunnelAddrResolver,
+				Client:                   conn.Client,
+				Server:                   appServer,
+				AccessPoint:              accessPoint,
+				AuthMethods:              conn.ClientAuthMethods(),
+				Cluster:                  clusterName,
+				FIPS:                     process.Config.FIPS,
+				ConnectedProxyGetter:     proxyGetter,
+				StaleConnTimeoutDisabled: reversetunnel.IsAgentStaleConnTimeoutDisabledByEnv(),
 			})
 		if err != nil {
 			return trace.Wrap(err)

@@ -28,14 +28,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestObeyIdleTimeout(t *testing.T) {
-	clock := clockwork.NewFakeClock()
-	t.Cleanup(func() { clock.Advance(time.Hour) })
-
-	c1, c2 := net.Pipe()
-	c1 = obeyIdleTimeoutClock(c1, time.Minute, clock)
-	t.Cleanup(func() { c1.Close() })
-	t.Cleanup(func() { c2.Close() })
+func testIdleTimeoutClock(t *testing.T, c1, c2 net.Conn, clock *clockwork.FakeClock) {
+	t.Helper()
 
 	go func() {
 		c2.Write([]byte{0})
@@ -55,7 +49,7 @@ func TestObeyIdleTimeout(t *testing.T) {
 	err1 := <-errC
 	// wait for the writing goroutine to be waiting as well (the watchdog counts
 	// as a waiter)
-	clock.BlockUntil(2)
+	clock.BlockUntilContext(t.Context(), 2)
 	clock.Advance(30 * time.Second)
 	err2 := <-errC
 	clock.Advance(30 * time.Second)
@@ -72,4 +66,93 @@ func TestObeyIdleTimeout(t *testing.T) {
 	// this should be net.ErrClosed, but net.Pipe uses io.ErrClosedPipe and it
 	// can't be changed
 	require.ErrorIs(t, err3, io.ErrClosedPipe)
+}
+
+func TestObeyIdleTimeout(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+	t.Cleanup(func() { clock.Advance(time.Hour) })
+
+	c1, c2 := net.Pipe()
+	c1 = obeyIdleTimeoutClock(c1, time.Minute, clock)
+	t.Cleanup(func() { c1.Close() })
+	t.Cleanup(func() { c2.Close() })
+
+	testIdleTimeoutClock(t, c1, c2, clock)
+}
+
+func TestObeyIdleTimeoutDisarmed(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+	t.Cleanup(func() { clock.Advance(24 * time.Hour) })
+
+	c1, c2 := net.Pipe()
+	c1, enableWatchdog := obeyIdleTimeoutDisarmed(c1, clock)
+
+	// Enabling it here is functionally identical to obeyIdleTimeoutClock
+	enableWatchdog(time.Minute)
+
+	t.Cleanup(func() { c1.Close() })
+	t.Cleanup(func() { c2.Close() })
+
+	testIdleTimeoutClock(t, c1, c2, clock)
+}
+
+func TestObeyIdleTimeoutDisarmedNeverEnabled(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+	ctx := t.Context()
+	t.Cleanup(func() { clock.Advance(24 * time.Hour) })
+
+	c1, c2 := net.Pipe()
+	c1, _ = obeyIdleTimeoutDisarmed(c1, clock)
+
+	t.Cleanup(func() { c1.Close() })
+	t.Cleanup(func() { c2.Close() })
+
+	errC := make(chan error, 1)
+
+	go func() {
+		var b [1]byte
+		_, err := io.ReadFull(c1, b[:])
+		select {
+		case <-ctx.Done():
+		case errC <- err:
+		}
+	}()
+
+	clock.Advance(24 * time.Hour)
+
+	select {
+	case err := <-errC:
+		require.FailNow(t, "expected Read to block", "got err %v", err)
+	case <-time.After(50 * time.Millisecond):
+		// We expect the read to still be blocked.
+	}
+}
+
+func TestObeyIdleTimeoutArmingAfterClose(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+	t.Cleanup(func() { clock.Advance(24 * time.Hour) })
+
+	c1, _ := net.Pipe()
+	c1, arm := obeyIdleTimeoutDisarmed(c1, clock)
+
+	c1.Close()
+	clock.Advance(24 * time.Hour)
+
+	var b [1]byte
+	_, err := io.ReadFull(c1, b[:])
+	require.ErrorContains(t, err, "read/write on closed pipe", "expected read to fail after close")
+
+	require.NotPanics(t, func() {
+		// Arming after close should be a no-op and not panic.
+		arm(time.Minute)
+		clock.Advance(24 * time.Hour)
+	})
 }

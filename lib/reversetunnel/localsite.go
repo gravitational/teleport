@@ -893,6 +893,9 @@ func (s *localSite) handleHeartbeat(ctx context.Context, rconn *remoteConn, ch s
 
 			rconn.setLastHeartbeat(s.clock.Now().UTC())
 			rconn.markValid()
+			if err := req.Reply(true, nil); err != nil {
+				log.DebugContext(ctx, "Failed to respond to ping request", "remote_addr", logutils.StringerAttr(rconn.conn.RemoteAddr()), "error", err)
+			}
 		case t := <-offlineThresholdTimer.Chan():
 			rconn.markInvalid(trace.ConnectionProblem(nil, "no heartbeats for %v", s.offlineThreshold))
 
