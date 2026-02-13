@@ -88,7 +88,7 @@ type AttributeTypeAndValue struct {
 	// OID of the ATV.
 	Oid []int32 `protobuf:"varint,1,rep,packed,name=oid,proto3" json:"oid,omitempty"`
 	// Value of the ATV. Only string values are supported.
-	Value         string `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	Value         *string `protobuf:"bytes,2,opt,name=value,proto3,oneof" json:"value,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -131,8 +131,8 @@ func (x *AttributeTypeAndValue) GetOid() []int32 {
 }
 
 func (x *AttributeTypeAndValue) GetValue() string {
-	if x != nil {
-		return x.Value
+	if x != nil && x.Value != nil {
+		return *x.Value
 	}
 	return ""
 }
@@ -143,10 +143,11 @@ const file_teleport_subca_v1_distinguished_name_proto_rawDesc = "" +
 	"\n" +
 	"*teleport/subca/v1/distinguished_name.proto\x12\x11teleport.subca.v1\"S\n" +
 	"\x11DistinguishedName\x12>\n" +
-	"\x05names\x18\x01 \x03(\v2(.teleport.subca.v1.AttributeTypeAndValueR\x05names\"?\n" +
+	"\x05names\x18\x01 \x03(\v2(.teleport.subca.v1.AttributeTypeAndValueR\x05names\"N\n" +
 	"\x15AttributeTypeAndValue\x12\x10\n" +
-	"\x03oid\x18\x01 \x03(\x05R\x03oid\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05valueBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1;subcav1b\x06proto3"
+	"\x03oid\x18\x01 \x03(\x05R\x03oid\x12\x19\n" +
+	"\x05value\x18\x02 \x01(\tH\x00R\x05value\x88\x01\x01B\b\n" +
+	"\x06_valueBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1;subcav1b\x06proto3"
 
 var (
 	file_teleport_subca_v1_distinguished_name_proto_rawDescOnce sync.Once
@@ -179,6 +180,7 @@ func file_teleport_subca_v1_distinguished_name_proto_init() {
 	if File_teleport_subca_v1_distinguished_name_proto != nil {
 		return
 	}
+	file_teleport_subca_v1_distinguished_name_proto_msgTypes[1].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
