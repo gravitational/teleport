@@ -2043,22 +2043,11 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Apps.Enabled = true
 
 	// Warn if proxy_service is enabled in the same config but has no
-	// public_addr and at least one static app lacks its own
-	// public_addr. Without either, app FQDNs fall back to the
-	// cluster name and app access URLs may not resolve.
+	// public_addr. Without it, app access does not work.
 	if fc.Proxy.Enabled() && len(fc.Proxy.PublicAddr) == 0 {
-		var appsWithoutAddr []string
-		for _, app := range fc.Apps.Apps {
-			if app.PublicAddr == "" {
-				appsWithoutAddr = append(appsWithoutAddr, app.Name)
-			}
-		}
-		if len(appsWithoutAddr) > 0 {
-			slog.WarnContext(context.Background(),
-				"Apps may not be reachable: no public_addr on proxy_service or on the apps themselves",
-				"apps", appsWithoutAddr,
-			)
-		}
+		slog.WarnContext(context.Background(),
+			"app_service requires proxy_service.public_addr to route requests; app access will not work until it is set",
+		)
 	}
 
 	// Enable debugging application if requested.
