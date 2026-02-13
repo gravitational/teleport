@@ -61,7 +61,7 @@ func TestGetServiceConfigEnvVar(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.env != nil {
-				require.NoError(t, os.Setenv(serviceConfigEnvVar, *tt.env))
+				t.Setenv(serviceConfigEnvVar, *tt.env)
 			}
 			service, err := NewService()
 			require.NoError(t, err)
