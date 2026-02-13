@@ -10,8 +10,8 @@ tags:
 
 Teleport handles both authentication and authorization.
 
-- Authentication is about proving an identity of a user or a service.
-- Authorization is proving access rights to something.
+- Authentication is about proving the identity of a user or a service.
+- Authorization is about proving access rights to something.
 
 This article explains authorization of users and services with RBAC.
 
@@ -22,24 +22,24 @@ Teleport supports several types of user accounts:
 - Interactive and non-interactive.
 - Local and external.
 
-Each user is associated with one or several roles after successful authentication.
+Each user is associated with one or more roles after successful authentication.
 
 ### Interactive users
 
 Interactive users can be local or external.
-Local user accounts store login credentials - password hash and MFA device data in Teleport's backend.
+Local user accounts store login credentials (the password hash and MFA device data) in Teleport's backend.
 External user accounts authenticate with a third-party identity provider using SSO protocols - OAuth 2.0, OIDC or SAML.
 
 #### External users from SSO providers
 
-Let's review the example Alice who is authenticating using SSO provider of her organization
+Let's review the example of Alice, who is authenticating using the SSO provider of her organization
 with Teleport:
 
 ![Role mapping](../../../img/architecture/role-mapping@1.5x.svg)
 
 <Admonition type="tip">
-Every time SSO user logs in, Teleport creates a temporary user account record
-that automatically expires with SSO session and logs audit log entries.
+Every time an SSO user logs in, Teleport creates a temporary user account record
+that automatically expires with the SSO session and logs audit log entries.
 
 Teleport creates this record to avoid name collisions with local users.
 </Admonition>
@@ -53,10 +53,10 @@ that this cluster trusts. In this case, Teleport activates [trusted cluster mapp
 
 Local interactive users have a record in Teleport's backend with credentials.
 
-A cluster administrator have to create account entries for every Teleport user with
+A cluster administrator has to create account entries for every Teleport user with
 [`tctl users add`](../cli/cli.mdx) or API call.
 
-Every local Teleport User must be associated with a list of one or more roles.
+Every local Teleport user must be associated with a list of one or more roles.
 This list is called "role mappings".
 
 ### Non-interactive users
@@ -76,10 +76,10 @@ of non-interactive users:
 
 #### External non-interactive users
 
-External non-interactive users behave just like local ones, but it is another
-cluster or certificate authority that issues certificates for them.
+External non-interactive users behave like local ones, except their certificates
+are issued by another cluster or certificate authority.
 
-They do not have local user records in Teleport backend. Teleport activates
+They do not have local user records in the Teleport backend. Teleport activates
 [trusted cluster mapping logic](./trustedclusters.mdx#role-mapping) to support this use case.
 
 ## Role Based Access Control
@@ -88,13 +88,13 @@ Every Teleport user is assigned one or several roles that govern access to resou
 
 ### Allow and Deny Rules
 
-Each Teleport role works by having two lists of rules: `allow` rules and `deny` rules:
+Each Teleport role may have a list of `allow` rules, and/or a list of `deny` rules:
 
 - Everything is denied by default.
 - Deny rules get evaluated first and take priority.
-- A rule consists of two parts: the resources and verbs.
+- A rule consists of two parts: resources and verbs.
 
-Here's an example of an allow rule describing a list verb applied to the sessions resource.
+Here's an example of an `allow` rule that permits the `list` action on the `session` resource.
 It means "allow users of this role to see a list of recorded SSH or Kubernetes sessions".
 
 ```yaml
@@ -117,7 +117,7 @@ spec:
     kubernetes_groups: [viewer]
 ```
 
-In case if a user has many roles, the list of principals is merged in one set.
+If a user has many roles, the list of principals is merged into one set.
 
 ### Labels
 
@@ -141,15 +141,15 @@ spec:
 
 Here is how labels, allow rules and principals are applied:
 
-- For `allow` rule to match, all labels in the rule should match,
-for example, in the Kubernetes rule above, both `region` and `cluster_name` should match.
-- For `deny` rule to match, any label in the rule could match.
+- For an `allow` rule to match, all labels in the rule must match. For example,
+in the Kubernetes rule above, both `region` and `cluster_name` must match.
+- For a `deny` rule to match, any label in the rule could match.
 
 **Principals and labels**
 
 Let's assume Alice is assigned two roles: `dev` and `prod`:
 
-Dev role allows SSH access as `root` and unrestricted access to kubernetes as `system:masters` for
+The `dev` role allows SSH access as `root` and unrestricted access to Kubernetes as `system:masters` for
 any kubernetes cluster or node with labels matching 'test' or 'stage'.
 
 ```yaml
@@ -230,10 +230,10 @@ Any role that uses variable interpolation is treated as a role template.
 You can add interpolation to any role spec.
 </Admonition>
 
-**Variable interpolation rules*
+**Variable interpolation rules**
 
 - If `external.groups` is a list that contains `["dev", "prod"]` the expression `["{{external.groups}}"]`
-will interpolate to list `["dev", "prod"]`.
+will interpolate to the list `["dev", "prod"]`.
 - If `external.groups` is a variable that equals `"dev"` the expression `["{{external.groups}}"]`
 will interpolate to `["dev"]`.
 - If `external.groups` is missing, the expression `"{{external.groups}}"` will evaluate into empty string `""`.
@@ -250,7 +250,7 @@ Reference](../access-controls/roles.mdx).
 **How role templates are evaluated**
 
 Every Teleport component - whether a Proxy Service instance, Auth Service
-instance, or Agent -has up to date copy of all roles.  Teleport components
+instance, or Agent - has an up-to-date copy of all roles. Teleport components
 evaluate role templates at the time of access to any resource. 
 
 Let's review a case with the following role template:
@@ -279,7 +279,7 @@ env: ["stage"]
 
 These variables get encoded in the X.509 certificate as extensions.
 
-When proxy authorizes the attempt to connect to the Kubernetes cluster it interpolates
+When the Proxy Service authorizes the attempt to connect to the Kubernetes cluster it interpolates
 the role template and the variables, and gets:
 
 ```yaml
@@ -297,12 +297,12 @@ spec:
 ```
 
 Finally, the proxy applies the resulting role to the kubernetes cluster Alice tries to
-access and checks it against cluster. If the cluster has labels  `"env": "stage"`
-the attempt succeeds, otherwise it fails.
+access and checks it against the cluster. If the cluster has labels `"env": "stage"`
+the attempt succeeds; otherwise it fails.
 
 ### Role conditions
 
-The example below illustrate how to restrict session access only for the user who created the session
+The example below illustrates how to restrict session access only for the user who created the session
 using role conditions:
 
 ```yaml
@@ -320,12 +320,12 @@ spec:
 ```
 
 <Admonition type="tip">
-You can use `where` fields in all resource rules. Check out [the full role reference](../access-controls/roles.mdx) contains full role spec for details.
+You can use `where` fields in all resource rules. Check out [the full role reference](../access-controls/roles.mdx) for more details.
 </Admonition>
 
 ### Role options
 
-Alongside `allow` and `deny` rules, roles control a variety of options, for example:
+Alongside `allow` and `deny` rules, roles control a variety of options. For example:
 
 ```
 kind: role
@@ -344,9 +344,10 @@ spec:
     lock: strict
 ```
 
-In case if user has multiple roles that specify conflicting options, for example,
-role `relaxed` sets the `max_session_ttl` to `8h` and `restricted` that sets `max_session_ttl`
-to `4h`, most secure value will be used, in this case Teleport will choose to limit sessions to 4 hours.
+If a user has multiple roles that specify conflicting options, the most secure
+value will be used. For example, if the `relaxed` role sets `max_session_ttl`
+to `8h` and the `restricted` role sets `max_session_ttl` to `4h`, Teleport will
+use the `4h` value.
 
 Teleport applies the same logic to other values, for example if two roles specify both `strict` and `best_effort`
 options, Teleport will choose `strict` option.
@@ -373,7 +374,7 @@ spec:
     review_requests:
       roles: ['dbadmin']
 
-    # request allows a user user request roles matching
+    # request allows a user to request roles matching
     # expressions below
     request:
       # the `roles` list can be a mixture of literals and wildcard matchers
