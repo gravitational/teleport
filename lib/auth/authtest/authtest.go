@@ -739,18 +739,19 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 		}
 
 		_, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
-			SSHPubKey:        sshPublicKeyPEM,
-			TLSPubKey:        tlsPublicKeyPEM,
-			Username:         id.Username,
-			TTL:              identity.TTL,
-			RouteToCluster:   identity.RouteToCluster,
-			PinnedIP:         id.Identity.PinnedIP,
-			MFAVerified:      id.Identity.MFAVerified,
-			DeviceExtensions: auth.DeviceExtensions(id.Identity.DeviceExtensions),
-			Generation:       id.Identity.Generation,
-			Renewable:        identity.Renewable,
-			Usage:            identity.AcceptedUsage,
-			Scope:            identity.Scope,
+			SSHPubKey:                sshPublicKeyPEM,
+			TLSPubKey:                tlsPublicKeyPEM,
+			Username:                 id.Username,
+			TTL:                      identity.TTL,
+			RouteToCluster:           identity.RouteToCluster,
+			PinnedIP:                 id.Identity.PinnedIP,
+			MFAVerified:              id.Identity.MFAVerified,
+			DeviceExtensions:         auth.DeviceExtensions(id.Identity.DeviceExtensions),
+			Generation:               id.Identity.Generation,
+			AllowedResourceAccessIDs: id.Identity.AllowedResourceAccessIDs,
+			Renewable:                identity.Renewable,
+			Usage:                    identity.AcceptedUsage,
+			Scope:                    identity.Scope,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
