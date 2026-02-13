@@ -987,6 +987,10 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 			t.Log(string(stdout))
 		}
 	})
+	defer func() {
+		_ = channel.CloseWrite()
+		wg.Wait()
+	}()
 
 	// Program should have executed now. If the complete signal has not come
 	// over the context, something failed.
@@ -1007,9 +1011,6 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 			require.NoError(t, err)
 		}
 	}
-
-	require.NoError(t, channel.CloseWrite())
-	wg.Wait()
 
 	return emitter.Events()
 }
