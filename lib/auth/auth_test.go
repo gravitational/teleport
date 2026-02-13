@@ -107,6 +107,7 @@ type testPack struct {
 type testPackOptions struct {
 	DataDir    string
 	Clock      clockwork.Clock
+	Modules    *modulestest.Modules
 	MutateAuth func(server *auth.Server) error
 }
 
@@ -122,6 +123,10 @@ func newTestPack(ctx context.Context, opts testPackOptions) (p testPack, err err
 		return testPack{}, trace.Wrap(err)
 	}
 
+	if opts.Modules == nil {
+		opts.Modules = modulestest.OSSModules()
+	}
+
 	p.versionStorage = authtest.NewFakeTeleportVersion()
 
 	identityService, err := local.NewTestIdentityService(p.bk)
@@ -130,8 +135,7 @@ func newTestPack(ctx context.Context, opts testPackOptions) (p testPack, err err
 	}
 
 	clock := cmp.Or(opts.Clock, clockwork.NewRealClock())
-	// TODO(tross): replace modules.GetModules with opts.Modules
-	keygen, err := testauthority.NewKeygen(modules.GetModules().BuildType(), clock.Now)
+	keygen, err := testauthority.NewKeygen(opts.Modules.BuildType(), clock.Now)
 	if err != nil {
 		return testPack{}, trace.Wrap(err)
 	}
@@ -140,6 +144,7 @@ func newTestPack(ctx context.Context, opts testPackOptions) (p testPack, err err
 	authConfig := &auth.InitConfig{
 		DataDir:        opts.DataDir,
 		Backend:        p.bk,
+		Modules:        opts.Modules,
 		VersionStorage: p.versionStorage,
 		ClusterName:    p.clusterName,
 		Authority:      keygen,
@@ -518,14 +523,22 @@ func TestAuthenticateWebUser_deviceWebToken(t *testing.T) {
 }
 
 func TestAuthenticateWebUser_trustedDeviceRequirement(t *testing.T) {
-	// Can't t.Parallel because of modules.SetTestModules.
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
+	t.Parallel()
+
+	s, err := newTestPack(t.Context(),
+		testPackOptions{
+			DataDir: t.TempDir(),
+			Modules: modulestest.EnterpriseModules(),
+		})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if s.bk != nil {
+			s.bk.Close()
+		}
 	})
 
-	s := newAuthSuite(t)
 	authServer := s.a
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const user1 = "llama"
 	const pass1 = "supersecretpassword!!1!"
@@ -535,7 +548,7 @@ func TestAuthenticateWebUser_trustedDeviceRequirement(t *testing.T) {
 	// Create the require-trusted-device role.
 	rtdRole := services.NewPresetRequireTrustedDeviceRole(modules.BuildEnterprise)
 	require.NotNil(t, rtdRole, "require-trusted-device role is nil, are the modules set to Enterprise?")
-	_, err := authServer.UpsertRole(ctx, rtdRole)
+	_, err = authServer.UpsertRole(ctx, rtdRole)
 	require.NoError(t, err, "UpsertRole(%q) failed", rtdRole.GetName())
 
 	// Create users.
@@ -643,7 +656,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Register the leaf cluster.
 	leaf, err := types.NewRemoteCluster("leaf.localhost")
@@ -1260,14 +1273,14 @@ func TestUpdateConfig(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// TODO(tross): replace modules.GetModules with auth server Modules
-	keygen, err := testauthority.NewKeygen(modules.GetModules().BuildType(), s.a.GetClock().Now)
+	keygen, err := testauthority.NewKeygen(modules.BuildOSS, s.a.GetClock().Now)
 	require.NoError(t, err)
 
 	// use same backend but start a new auth server with different config.
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterName,
 		Backend:                s.bk,
+		Modules:                modulestest.OSSModules(),
 		VersionStorage:         s.versionStorage,
 		Authority:              keygen,
 		SkipPeriodicOperations: true,
@@ -2512,18 +2525,27 @@ func setupUserForAugmentWebSessionCertificatesTest(t *testing.T, authServer *aut
 }
 
 func TestGenerateUserCertIPPinning(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+	t.Parallel()
 
-	s := newAuthSuite(t)
-
-	ctx := context.Background()
+	ctx := t.Context()
+	s, err := newTestPack(ctx,
+		testPackOptions{
+			DataDir: t.TempDir(),
+			Modules: modulestest.EnterpriseModules(),
+		})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if s.bk != nil {
+			s.bk.Close()
+		}
+	})
 
 	const pinnedUser = "pinnedUser"
 	const unpinnedUser = "unpinnedUser"
 	pass := []byte("abcdef123456")
 
 	// Create the user without IP pinning
-	_, _, err := authtest.CreateUserAndRole(s.a, unpinnedUser, []string{unpinnedUser}, nil)
+	_, _, err = authtest.CreateUserAndRole(s.a, unpinnedUser, []string{unpinnedUser}, nil)
 	require.NoError(t, err)
 	err = s.a.UpsertPassword(unpinnedUser, pass)
 	require.NoError(t, err)
@@ -2851,8 +2873,7 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	p := newAuthSuite(t)
 
 	hostID := uuid.New().String()
-	// TODO(tross): replace modules.GetModules with auth server modules
-	keygen, err := testauthority.NewKeygen(modules.GetModules().BuildType(), p.a.GetClock().Now)
+	keygen, err := testauthority.NewKeygen(modules.BuildOSS, p.a.GetClock().Now)
 	require.NoError(t, err)
 
 	_, pub, err := keygen.GenerateKeyPair()
@@ -2976,8 +2997,21 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 }
 
 func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
-	p := newAuthSuite(t)
+
+	testModules := modulestest.OSSModules()
+
+	p, err := newTestPack(ctx, testPackOptions{
+		DataDir: t.TempDir(),
+		Modules: testModules,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if p.bk != nil {
+			p.bk.Close()
+		}
+	})
 
 	user, _, err := authtest.CreateUserAndRole(p.a, "test-user", []string{}, nil)
 	require.NoError(t, err)
@@ -3124,9 +3158,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			modulestest.SetTestModules(t, modulestest.Modules{
-				MockAttestationData: tt.mockAttestationData,
-			})
+			testModules.MockAttestationData = tt.mockAttestationData
 
 			authPref, err := types.NewAuthPreference(tt.cap)
 			require.NoError(t, err)
@@ -4760,10 +4792,8 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 func testCreateAccessListReminderNotifications(t *testing.T) {
 	ctx := context.Background()
 
-	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
-
 	// Setup test auth server
-	testServer := newTestTLSServer(t, withBufconnListener())
+	testServer := newTestTLSServer(t, withBufconnListener(), withModules(modulestest.EnterpriseModules()))
 	authServer := testServer.Auth()
 	defer testServer.Close()
 
@@ -4949,12 +4979,15 @@ func createAccessList(t *testing.T, authServer *auth.Server, name string, opts .
 }
 
 func TestCreateAccessListReminderNotifications_LargeOverdueSet(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 
-	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
-
 	// Setup test auth server
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir(), CacheEnabled: true})
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir:          t.TempDir(),
+		CacheEnabled: true,
+		Modules:      modulestest.EnterpriseModules(),
+	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
 	authServer := as.AuthServer
@@ -5022,6 +5055,8 @@ func collectAllUniqueNotificationIdentifiers(t *testing.T, ctx context.Context, 
 }
 
 func TestServer_GetAnonymizationKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		testModules modulestest.Modules
@@ -5060,10 +5095,12 @@ func TestServer_GetAnonymizationKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir:       t.TempDir(),
 				Clock:     clockwork.NewFakeClock(),
 				ClusterID: "cluster-id",
+				Modules:   &tt.testModules,
 			})
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
@@ -5071,8 +5108,6 @@ func TestServer_GetAnonymizationKey(t *testing.T) {
 			testTLSServer, err := testAuthServer.NewTestTLSServer()
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, testTLSServer.Close()) })
-
-			modulestest.SetTestModules(t, tt.testModules)
 
 			testTLSServer.AuthServer.AuthServer.SetLicense(tt.license)
 
@@ -5323,6 +5358,8 @@ func TestValidServerHostname(t *testing.T) {
 }
 
 func TestCreateAuthPreference(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name       string
 		modules    *modulestest.Modules
@@ -5330,7 +5367,8 @@ func TestCreateAuthPreference(t *testing.T) {
 		assertion  func(t *testing.T, created types.AuthPreference, err error)
 	}{
 		{
-			name: "creation prevented when hardware key policy is set in open source",
+			name:    "creation prevented when hardware key policy is set in open source",
+			modules: modulestest.OSSModules(),
 			preference: func(p types.AuthPreference) {
 				pp := p.(*types.AuthPreferenceV2)
 				pp.Spec.RequireMFAType = types.RequireMFAType_HARDWARE_KEY_PIN
@@ -5342,7 +5380,7 @@ func TestCreateAuthPreference(t *testing.T) {
 		},
 		{
 			name:    "creation allowed when hardware key policy is set in enterprise",
-			modules: &modulestest.Modules{TestBuildType: modules.BuildEnterprise},
+			modules: modulestest.EnterpriseModules(),
 			preference: func(p types.AuthPreference) {
 				pp := p.(*types.AuthPreferenceV2)
 				pp.Spec.RequireMFAType = types.RequireMFAType_HARDWARE_KEY_PIN
@@ -5353,7 +5391,8 @@ func TestCreateAuthPreference(t *testing.T) {
 			},
 		},
 		{
-			name: "creation prevented when hardware key policy is set in open source",
+			name:    "creation prevented when hardware key policy is set in open source",
+			modules: modulestest.OSSModules(),
 			preference: func(p types.AuthPreference) {
 				p.SetDeviceTrust(&types.DeviceTrust{
 					Mode: constants.DeviceTrustModeRequired,
@@ -5368,11 +5407,7 @@ func TestCreateAuthPreference(t *testing.T) {
 
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			buildType := modules.BuildOSS
-			if test.modules != nil {
-				buildType = test.modules.BuildType()
-				modulestest.SetTestModules(t, *test.modules)
-			}
+			t.Parallel()
 
 			bk, err := memory.New(memory.Config{})
 			require.NoError(t, err)
@@ -5386,13 +5421,13 @@ func TestCreateAuthPreference(t *testing.T) {
 			clusterConfigService, err := local.NewClusterConfigurationService(bk)
 			require.NoError(t, err)
 
-			// TODO(tross): replace modules.GetModules with auth server modules
-			keygen, err := testauthority.NewKeygen(buildType, time.Now)
+			keygen, err := testauthority.NewKeygen(test.modules.BuildType(), time.Now)
 			require.NoError(t, err)
 
 			server, err := auth.NewServer(&auth.InitConfig{
 				DataDir:                t.TempDir(),
 				Backend:                bk,
+				Modules:                test.modules,
 				ClusterName:            clusterName,
 				VersionStorage:         authtest.NewFakeTeleportVersion(),
 				Authority:              keygen,
@@ -5408,7 +5443,7 @@ func TestCreateAuthPreference(t *testing.T) {
 				test.preference(pref)
 			}
 
-			created, err := server.CreateAuthPreference(context.Background(), pref)
+			created, err := server.CreateAuthPreference(t.Context(), pref)
 			test.assertion(t, created, err)
 		})
 	}

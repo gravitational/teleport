@@ -45,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -65,7 +64,8 @@ type accessRequestTestPack struct {
 
 func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestTestPack {
 	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir: t.TempDir(),
+		Dir:     t.TempDir(),
+		Modules: modulestest.EnterpriseModules(),
 	})
 	require.NoError(t, err, "%s", trace.DebugReport(err))
 	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
@@ -187,9 +187,8 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 }
 
 func TestAccessRequest(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	t.Parallel()
+	ctx := t.Context()
 
 	testPack := newAccessRequestTestPack(ctx, t)
 	t.Run("single", func(t *testing.T) { testSingleAccessRequests(t, testPack) })
@@ -1448,9 +1447,8 @@ func TestCreateSuggestions(t *testing.T) {
 }
 
 func TestPromotedRequest(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	t.Parallel()
+	ctx := t.Context()
 
 	testPack := newAccessRequestTestPack(ctx, t)
 
@@ -1548,8 +1546,7 @@ func TestPromotedRequest(t *testing.T) {
 }
 
 func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
-	testModules := modulestest.EnterpriseModules()
-	modulestest.SetTestModules(t, *testModules)
+	t.Parallel()
 
 	mustRequest := func(suggestedReviewers ...string) types.AccessRequest {
 		req, err := services.NewAccessRequest("test-user", "admins")
@@ -1753,9 +1750,7 @@ type accessRequestWithStartTime struct {
 func createAccessRequestWithStartTime(t *testing.T) accessRequestWithStartTime {
 	t.Helper()
 
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	ctx := t.Context()
 
 	testPack := newAccessRequestTestPack(ctx, t)
 
