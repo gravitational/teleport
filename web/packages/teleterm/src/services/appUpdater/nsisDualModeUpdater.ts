@@ -20,7 +20,13 @@ import path from 'node:path';
 
 import { shell } from 'electron';
 import { NsisUpdater } from 'electron-updater';
+import { DownloadUpdateOptions } from 'electron-updater/out/AppUpdater';
 import { InstallOptions } from 'electron-updater/out/BaseUpdater';
+
+import {
+  TSH_AUTOUPDATE_ENV_VAR,
+  TSH_AUTOUPDATE_OFF,
+} from 'teleterm/node/tshAutoupdate';
 
 export interface NsisDualModeUpdaterOptions {
   /**
@@ -31,12 +37,25 @@ export interface NsisDualModeUpdaterOptions {
 }
 
 /**
- * Extends the standard NSIS to ensure that a per-user installation won't attempt
- * to update the per-machine one.
+ * Extends the standard NSIS updater to support per-machine updates via the privileged
+ * TeleportConnectUpdater service, enabling updates without prompting for admin credentials.
+ * For per-user installs, the updater is executed directly.
  */
 export class NsisDualModeUpdater extends NsisUpdater {
-  constructor(private options: NsisDualModeUpdaterOptions) {
+  private updateVersion: string;
+  constructor(
+    private options: NsisDualModeUpdaterOptions,
+    private tshPath: string
+  ) {
     super();
+  }
+
+  protected override doDownloadUpdate(
+    downloadUpdateOptions: DownloadUpdateOptions
+  ): Promise<Array<string>> {
+    this.updateVersion =
+      downloadUpdateOptions.updateInfoAndProvider.info.version;
+    return super.doDownloadUpdate(downloadUpdateOptions);
   }
 
   protected override doInstall(options: InstallOptions): boolean {
@@ -48,8 +67,24 @@ export class NsisDualModeUpdater extends NsisUpdater {
       return this.doInstallPerScope(options, 'machine');
     }
 
-    // TODO(gzdunek): Call the privileged update service.
-    return super.doInstall(options);
+    if (!this.installerPath) {
+      this.dispatchError(
+        new Error("No update filepath provided, can't quit and install")
+      );
+      return false;
+    }
+    const args = [
+      'connect-updater-install-update',
+      `--path=${this.installerPath}`,
+      `--update-version=${this.updateVersion}`,
+    ];
+    if (options.isForceRunAfter) {
+      args.push('--force-run');
+    }
+    void this.spawnLog(this.tshPath, args, {
+      [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
+    });
+    return true;
   }
 
   /**
