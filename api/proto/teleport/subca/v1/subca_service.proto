@@ -57,8 +57,20 @@ service SubCAService {
   // CreateCSR requires cert_authority_override:read+list permissions.
   rpc CreateCSR(CreateCSRRequest) returns (CreateCSRResponse);
 
-  // UpsertCertAuthorityOverride creates or fully updates a
-  // CertAuthorityOverride resource.
+  // CreateCertAuthorityOverride creates a CertAuthorityOverride resource.
+  //
+  // Created certificate overrides may take effect immediately depending on the
+  // value of CertificateOverride.disabled. See it for reference.
+  rpc CreateCertAuthorityOverride(CreateCertAuthorityOverrideRequest) returns (CreateCertAuthorityOverrideResponse);
+
+  // UpdateCertAuthorityOverride updates a CertAuthorityOverride resource.
+  //
+  // Disabling an active override is disallowed. See
+  // UpdateCertAuthorityOverrideRequest.force_immediate_disable.
+  rpc UpdateCertAuthorityOverride(UpdateCertAuthorityOverrideRequest) returns (UpdateCertAuthorityOverrideResponse);
+
+  // UpsertCertAuthorityOverride creates or updates a CertAuthorityOverride
+  // resource.
   //
   // Disabling an active override is disallowed. See
   // UpsertCertAuthorityOverrideRequest.force_immediate_disable.
@@ -67,18 +79,22 @@ service SubCAService {
   // value of CertificateOverride.disabled. See it for reference.
   rpc UpsertCertAuthorityOverride(UpsertCertAuthorityOverrideRequest) returns (UpsertCertAuthorityOverrideResponse);
 
-  // AddCertificateOverride adds or updates a single CertiticateOverride inside
-  // a CertAuthorityOverride resource.
+  // AddCertificateOverride adds a single CertiticateOverride to a
+  // CertAuthorityOverride resource.
   //
-  // The CertAuthorityOverride resource is created as a consequence of this RPC,
-  // if it doesn't yet exist.
-  //
-  // Disabling an active override is disallowed. See
-  // AddCertificateOverrideRequest.force_immediate_disable.
+  // The CertAuthorityOverride resource may be created as a consequence of this
+  // RPC.
   //
   // Added certificate overrides may take effect immediately depending on the
   // value of CertificateOverride.disabled. See it for reference.
   rpc AddCertificateOverride(AddCertificateOverrideRequest) returns (AddCertificateOverrideResponse);
+
+  // UpdateCertificateOverride updates a single CertiticateOverride in a
+  // CertAuthorityOverride resource.
+  //
+  // Disabling an active override is disallowed. See
+  // UpdateCertificateOverrideRequest.force_immediate_disable.
+  rpc UpdateCertificateOverride(UpdateCertificateOverrideRequest) returns (UpdateCertificateOverrideResponse);
 
   // RemoveCertificateOverride removes a single CertiticateOverride inside a
   // CertAuthorityOverride resource.
@@ -132,6 +148,38 @@ message CreateCSRResponse {
   repeated CertificateSigningRequest csrs = 1;
 }
 
+// Request for CreateCertAuthorityOverride.
+message CreateCertAuthorityOverrideRequest {
+  // CA override to create.
+  // Required.
+  CertAuthorityOverride ca_override = 1;
+}
+
+// Response for CreateCertAuthorityOverride.
+message CreateCertAuthorityOverrideResponse {
+  // Created CA override.
+  CertAuthorityOverride ca_override = 1;
+}
+
+// Request for UpdateCertAuthorityOverride.
+message UpdateCertAuthorityOverrideRequest {
+  // CA override to update.
+  // Required.
+  CertAuthorityOverride ca_override = 1;
+
+  // If true the server will allow disable of an active override.
+  // Active overrides are defined as overrides of certificates that are used to
+  // mint certificate (see CertAuthoritySpecV2.ActiveKeys and
+  // CertAuthoritySpecV2.AdditionalTrustedKeys).
+  bool force_immediate_disable = 2;
+}
+
+// Response for UpdateCertAuthorityOverride.
+message UpdateCertAuthorityOverrideResponse {
+  // Updated CA override.
+  CertAuthorityOverride ca_override = 1;
+}
+
 // Request for UpsertCertAuthorityOverride.
 message UpsertCertAuthorityOverrideRequest {
   // CA override to upsert.
@@ -156,7 +204,7 @@ message AddCertificateOverrideRequest {
   // CA override to target.
   CertAuthorityOverrideID ca_id = 1;
 
-  // Certificate override to add or update.
+  // Certificate override to add.
   CertificateOverride certificate_override = 2;
 
   // If true the server will allow disable of an active override.
@@ -168,7 +216,28 @@ message AddCertificateOverrideRequest {
 
 // Response for AddCertificateOverride.
 message AddCertificateOverrideResponse {
-  // Added or updated certificate override.
+  // Added certificate override.
+  CertificateOverride certificate_override = 1;
+}
+
+// Request for UpdateCertificateOverride.
+message UpdateCertificateOverrideRequest {
+  // CA override to target.
+  CertAuthorityOverrideID ca_id = 1;
+
+  // Certificate override to update.
+  CertificateOverride certificate_override = 2;
+
+  // If true the server will allow disable of an active override.
+  // Active overrides are defined as overrides of certificates that are used to
+  // mint certificate (see CertAuthoritySpecV2.ActiveKeys and
+  // CertAuthoritySpecV2.UpdateitionalTrustedKeys).
+  bool force_immediate_disable = 3;
+}
+
+// Response for UpdateCertificateOverride.
+message UpdateCertificateOverrideResponse {
+  // Updated certificate override.
   CertificateOverride certificate_override = 1;
 }
 
