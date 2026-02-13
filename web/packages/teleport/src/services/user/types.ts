@@ -113,6 +113,7 @@ export interface Acl {
   gitServers: Access;
   accessGraphSettings: Access;
   botInstances: Access;
+  instances: Access;
   workloadIdentity: Access;
   clientIpRestriction: Access;
 }

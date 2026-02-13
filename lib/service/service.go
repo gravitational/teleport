@@ -112,6 +112,7 @@ import (
 	_ "github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
+	inventorycache "github.com/gravitational/teleport/lib/cache/inventory"
 	myrepl "github.com/gravitational/teleport/lib/client/db/mysql/repl"
 	pgrepl "github.com/gravitational/teleport/lib/client/db/postgres/repl"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
@@ -728,7 +729,7 @@ type TeleportProcess struct {
 	//
 	// Both the metricsRegistry and the default global registry are gathered by
 	// Teleport's metric service.
-	metricsRegistry *prometheus.Registry
+	metricsRegistry *metrics.Registry
 
 	// We gather metrics both from the in-process registry (preferred metrics registration method)
 	// and the global registry (used by some Teleport services and many dependencies).
@@ -1122,7 +1123,11 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	// We must create the registry in NewTeleport, as opposed to the config,
 	// because some tests are running multiple Teleport instances from the same
 	// config and reusing the same registry causes them to fail.
-	metricsRegistry := prometheus.NewRegistry()
+	rootMetricRegistry := prometheus.NewRegistry()
+	metricsRegistry, err := metrics.NewRegistry(rootMetricRegistry, teleport.MetricNamespace, "")
+	if err != nil {
+		return nil, trace.Wrap(err, "creating metrics registry")
+	}
 
 	// If FIPS mode was requested make sure binary is build against BoringCrypto.
 	if cfg.FIPS {
@@ -1329,7 +1334,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		TracingProvider:        tracing.NoopProvider(),
 		metricsRegistry:        metricsRegistry,
 		SyncGatherers: metrics.NewSyncGatherers(
-			metricsRegistry,
+			rootMetricRegistry,
 			prometheus.DefaultGatherer,
 		),
 	}
@@ -2476,6 +2481,20 @@ func (process *TeleportProcess) initAuthService() error {
 			}
 			as.Cache = cache
 			recordingEncryptionManager.SetCache(cache)
+
+			// Create the inventory cache. This will wait for the primary cache to be ready before starting.
+			invCache, err := inventorycache.NewInventoryCache(inventorycache.InventoryCacheConfig{
+				PrimaryCache:       cache,
+				Events:             as.Services,
+				Inventory:          as.Services,
+				BotInstanceBackend: as.Services,
+				Logger:             process.logger.With(teleport.ComponentKey, "inventory.cache"),
+				MetricsRegistry:    process.metricsRegistry.Wrap("inventory_cache"),
+			})
+			if err != nil {
+				return trace.Wrap(err, "creating inventory cache")
+			}
+			as.SetInventoryCache(invCache)
 
 			return nil
 		})
