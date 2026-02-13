@@ -34,8 +34,11 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	SubCAService_CreateCSR_FullMethodName                   = "/teleport.subca.v1.SubCAService/CreateCSR"
+	SubCAService_CreateCertAuthorityOverride_FullMethodName = "/teleport.subca.v1.SubCAService/CreateCertAuthorityOverride"
+	SubCAService_UpdateCertAuthorityOverride_FullMethodName = "/teleport.subca.v1.SubCAService/UpdateCertAuthorityOverride"
 	SubCAService_UpsertCertAuthorityOverride_FullMethodName = "/teleport.subca.v1.SubCAService/UpsertCertAuthorityOverride"
 	SubCAService_AddCertificateOverride_FullMethodName      = "/teleport.subca.v1.SubCAService/AddCertificateOverride"
+	SubCAService_UpdateCertificateOverride_FullMethodName   = "/teleport.subca.v1.SubCAService/UpdateCertificateOverride"
 	SubCAService_RemoveCertificateOverride_FullMethodName   = "/teleport.subca.v1.SubCAService/RemoveCertificateOverride"
 	SubCAService_GetCertAuthorityOverride_FullMethodName    = "/teleport.subca.v1.SubCAService/GetCertAuthorityOverride"
 	SubCAService_ListCertAuthorityOverride_FullMethodName   = "/teleport.subca.v1.SubCAService/ListCertAuthorityOverride"
@@ -76,8 +79,18 @@ type SubCAServiceClient interface {
 	//
 	// CreateCSR requires cert_authority_override:read+list permissions.
 	CreateCSR(ctx context.Context, in *CreateCSRRequest, opts ...grpc.CallOption) (*CreateCSRResponse, error)
-	// UpsertCertAuthorityOverride creates or fully updates a
-	// CertAuthorityOverride resource.
+	// CreateCertAuthorityOverride creates a CertAuthorityOverride resource.
+	//
+	// Created certificate overrides may take effect immediately depending on the
+	// value of CertificateOverride.disabled. See it for reference.
+	CreateCertAuthorityOverride(ctx context.Context, in *CreateCertAuthorityOverrideRequest, opts ...grpc.CallOption) (*CreateCertAuthorityOverrideResponse, error)
+	// UpdateCertAuthorityOverride updates a CertAuthorityOverride resource.
+	//
+	// Disabling an active override is disallowed. See
+	// UpdateCertAuthorityOverrideRequest.force_immediate_disable.
+	UpdateCertAuthorityOverride(ctx context.Context, in *UpdateCertAuthorityOverrideRequest, opts ...grpc.CallOption) (*UpdateCertAuthorityOverrideResponse, error)
+	// UpsertCertAuthorityOverride creates or updates a CertAuthorityOverride
+	// resource.
 	//
 	// Disabling an active override is disallowed. See
 	// UpsertCertAuthorityOverrideRequest.force_immediate_disable.
@@ -85,18 +98,21 @@ type SubCAServiceClient interface {
 	// Added certificate overrides may take effect immediately depending on the
 	// value of CertificateOverride.disabled. See it for reference.
 	UpsertCertAuthorityOverride(ctx context.Context, in *UpsertCertAuthorityOverrideRequest, opts ...grpc.CallOption) (*UpsertCertAuthorityOverrideResponse, error)
-	// AddCertificateOverride adds or updates a single CertiticateOverride inside
-	// a CertAuthorityOverride resource.
+	// AddCertificateOverride adds a single CertiticateOverride to a
+	// CertAuthorityOverride resource.
 	//
-	// The CertAuthorityOverride resource is created as a consequence of this RPC,
-	// if it doesn't yet exist.
-	//
-	// Disabling an active override is disallowed. See
-	// AddCertificateOverrideRequest.force_immediate_disable.
+	// The CertAuthorityOverride resource may be created as a consequence of this
+	// RPC.
 	//
 	// Added certificate overrides may take effect immediately depending on the
 	// value of CertificateOverride.disabled. See it for reference.
 	AddCertificateOverride(ctx context.Context, in *AddCertificateOverrideRequest, opts ...grpc.CallOption) (*AddCertificateOverrideResponse, error)
+	// UpdateCertificateOverride updates a single CertiticateOverride in a
+	// CertAuthorityOverride resource.
+	//
+	// Disabling an active override is disallowed. See
+	// UpdateCertificateOverrideRequest.force_immediate_disable.
+	UpdateCertificateOverride(ctx context.Context, in *UpdateCertificateOverrideRequest, opts ...grpc.CallOption) (*UpdateCertificateOverrideResponse, error)
 	// RemoveCertificateOverride removes a single CertiticateOverride inside a
 	// CertAuthorityOverride resource.
 	//
@@ -138,6 +154,26 @@ func (c *subCAServiceClient) CreateCSR(ctx context.Context, in *CreateCSRRequest
 	return out, nil
 }
 
+func (c *subCAServiceClient) CreateCertAuthorityOverride(ctx context.Context, in *CreateCertAuthorityOverrideRequest, opts ...grpc.CallOption) (*CreateCertAuthorityOverrideResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateCertAuthorityOverrideResponse)
+	err := c.cc.Invoke(ctx, SubCAService_CreateCertAuthorityOverride_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *subCAServiceClient) UpdateCertAuthorityOverride(ctx context.Context, in *UpdateCertAuthorityOverrideRequest, opts ...grpc.CallOption) (*UpdateCertAuthorityOverrideResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateCertAuthorityOverrideResponse)
+	err := c.cc.Invoke(ctx, SubCAService_UpdateCertAuthorityOverride_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *subCAServiceClient) UpsertCertAuthorityOverride(ctx context.Context, in *UpsertCertAuthorityOverrideRequest, opts ...grpc.CallOption) (*UpsertCertAuthorityOverrideResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpsertCertAuthorityOverrideResponse)
@@ -152,6 +188,16 @@ func (c *subCAServiceClient) AddCertificateOverride(ctx context.Context, in *Add
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AddCertificateOverrideResponse)
 	err := c.cc.Invoke(ctx, SubCAService_AddCertificateOverride_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *subCAServiceClient) UpdateCertificateOverride(ctx context.Context, in *UpdateCertificateOverrideRequest, opts ...grpc.CallOption) (*UpdateCertificateOverrideResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateCertificateOverrideResponse)
+	err := c.cc.Invoke(ctx, SubCAService_UpdateCertificateOverride_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -232,8 +278,18 @@ type SubCAServiceServer interface {
 	//
 	// CreateCSR requires cert_authority_override:read+list permissions.
 	CreateCSR(context.Context, *CreateCSRRequest) (*CreateCSRResponse, error)
-	// UpsertCertAuthorityOverride creates or fully updates a
-	// CertAuthorityOverride resource.
+	// CreateCertAuthorityOverride creates a CertAuthorityOverride resource.
+	//
+	// Created certificate overrides may take effect immediately depending on the
+	// value of CertificateOverride.disabled. See it for reference.
+	CreateCertAuthorityOverride(context.Context, *CreateCertAuthorityOverrideRequest) (*CreateCertAuthorityOverrideResponse, error)
+	// UpdateCertAuthorityOverride updates a CertAuthorityOverride resource.
+	//
+	// Disabling an active override is disallowed. See
+	// UpdateCertAuthorityOverrideRequest.force_immediate_disable.
+	UpdateCertAuthorityOverride(context.Context, *UpdateCertAuthorityOverrideRequest) (*UpdateCertAuthorityOverrideResponse, error)
+	// UpsertCertAuthorityOverride creates or updates a CertAuthorityOverride
+	// resource.
 	//
 	// Disabling an active override is disallowed. See
 	// UpsertCertAuthorityOverrideRequest.force_immediate_disable.
@@ -241,18 +297,21 @@ type SubCAServiceServer interface {
 	// Added certificate overrides may take effect immediately depending on the
 	// value of CertificateOverride.disabled. See it for reference.
 	UpsertCertAuthorityOverride(context.Context, *UpsertCertAuthorityOverrideRequest) (*UpsertCertAuthorityOverrideResponse, error)
-	// AddCertificateOverride adds or updates a single CertiticateOverride inside
-	// a CertAuthorityOverride resource.
+	// AddCertificateOverride adds a single CertiticateOverride to a
+	// CertAuthorityOverride resource.
 	//
-	// The CertAuthorityOverride resource is created as a consequence of this RPC,
-	// if it doesn't yet exist.
-	//
-	// Disabling an active override is disallowed. See
-	// AddCertificateOverrideRequest.force_immediate_disable.
+	// The CertAuthorityOverride resource may be created as a consequence of this
+	// RPC.
 	//
 	// Added certificate overrides may take effect immediately depending on the
 	// value of CertificateOverride.disabled. See it for reference.
 	AddCertificateOverride(context.Context, *AddCertificateOverrideRequest) (*AddCertificateOverrideResponse, error)
+	// UpdateCertificateOverride updates a single CertiticateOverride in a
+	// CertAuthorityOverride resource.
+	//
+	// Disabling an active override is disallowed. See
+	// UpdateCertificateOverrideRequest.force_immediate_disable.
+	UpdateCertificateOverride(context.Context, *UpdateCertificateOverrideRequest) (*UpdateCertificateOverrideResponse, error)
 	// RemoveCertificateOverride removes a single CertiticateOverride inside a
 	// CertAuthorityOverride resource.
 	//
@@ -287,11 +346,20 @@ type UnimplementedSubCAServiceServer struct{}
 func (UnimplementedSubCAServiceServer) CreateCSR(context.Context, *CreateCSRRequest) (*CreateCSRResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateCSR not implemented")
 }
+func (UnimplementedSubCAServiceServer) CreateCertAuthorityOverride(context.Context, *CreateCertAuthorityOverrideRequest) (*CreateCertAuthorityOverrideResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateCertAuthorityOverride not implemented")
+}
+func (UnimplementedSubCAServiceServer) UpdateCertAuthorityOverride(context.Context, *UpdateCertAuthorityOverrideRequest) (*UpdateCertAuthorityOverrideResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateCertAuthorityOverride not implemented")
+}
 func (UnimplementedSubCAServiceServer) UpsertCertAuthorityOverride(context.Context, *UpsertCertAuthorityOverrideRequest) (*UpsertCertAuthorityOverrideResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertCertAuthorityOverride not implemented")
 }
 func (UnimplementedSubCAServiceServer) AddCertificateOverride(context.Context, *AddCertificateOverrideRequest) (*AddCertificateOverrideResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddCertificateOverride not implemented")
+}
+func (UnimplementedSubCAServiceServer) UpdateCertificateOverride(context.Context, *UpdateCertificateOverrideRequest) (*UpdateCertificateOverrideResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateCertificateOverride not implemented")
 }
 func (UnimplementedSubCAServiceServer) RemoveCertificateOverride(context.Context, *RemoveCertificateOverrideRequest) (*RemoveCertificateOverrideResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RemoveCertificateOverride not implemented")
@@ -344,6 +412,42 @@ func _SubCAService_CreateCSR_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SubCAService_CreateCertAuthorityOverride_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateCertAuthorityOverrideRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SubCAServiceServer).CreateCertAuthorityOverride(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SubCAService_CreateCertAuthorityOverride_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SubCAServiceServer).CreateCertAuthorityOverride(ctx, req.(*CreateCertAuthorityOverrideRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SubCAService_UpdateCertAuthorityOverride_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateCertAuthorityOverrideRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SubCAServiceServer).UpdateCertAuthorityOverride(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SubCAService_UpdateCertAuthorityOverride_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SubCAServiceServer).UpdateCertAuthorityOverride(ctx, req.(*UpdateCertAuthorityOverrideRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _SubCAService_UpsertCertAuthorityOverride_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpsertCertAuthorityOverrideRequest)
 	if err := dec(in); err != nil {
@@ -376,6 +480,24 @@ func _SubCAService_AddCertificateOverride_Handler(srv interface{}, ctx context.C
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(SubCAServiceServer).AddCertificateOverride(ctx, req.(*AddCertificateOverrideRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SubCAService_UpdateCertificateOverride_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateCertificateOverrideRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SubCAServiceServer).UpdateCertificateOverride(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SubCAService_UpdateCertificateOverride_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SubCAServiceServer).UpdateCertificateOverride(ctx, req.(*UpdateCertificateOverrideRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -464,12 +586,24 @@ var SubCAService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _SubCAService_CreateCSR_Handler,
 		},
 		{
+			MethodName: "CreateCertAuthorityOverride",
+			Handler:    _SubCAService_CreateCertAuthorityOverride_Handler,
+		},
+		{
+			MethodName: "UpdateCertAuthorityOverride",
+			Handler:    _SubCAService_UpdateCertAuthorityOverride_Handler,
+		},
+		{
 			MethodName: "UpsertCertAuthorityOverride",
 			Handler:    _SubCAService_UpsertCertAuthorityOverride_Handler,
 		},
 		{
 			MethodName: "AddCertificateOverride",
 			Handler:    _SubCAService_AddCertificateOverride_Handler,
+		},
+		{
+			MethodName: "UpdateCertificateOverride",
+			Handler:    _SubCAService_UpdateCertificateOverride_Handler,
 		},
 		{
 			MethodName: "RemoveCertificateOverride",

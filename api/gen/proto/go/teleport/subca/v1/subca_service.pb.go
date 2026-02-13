@@ -153,6 +153,204 @@ func (x *CreateCSRResponse) GetCsrs() []*CertificateSigningRequest {
 	return nil
 }
 
+// Request for CreateCertAuthorityOverride.
+type CreateCertAuthorityOverrideRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// CA override to create.
+	// Required.
+	CaOverride    *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3" json:"ca_override,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateCertAuthorityOverrideRequest) Reset() {
+	*x = CreateCertAuthorityOverrideRequest{}
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateCertAuthorityOverrideRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateCertAuthorityOverrideRequest) ProtoMessage() {}
+
+func (x *CreateCertAuthorityOverrideRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateCertAuthorityOverrideRequest.ProtoReflect.Descriptor instead.
+func (*CreateCertAuthorityOverrideRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *CreateCertAuthorityOverrideRequest) GetCaOverride() *CertAuthorityOverride {
+	if x != nil {
+		return x.CaOverride
+	}
+	return nil
+}
+
+// Response for CreateCertAuthorityOverride.
+type CreateCertAuthorityOverrideResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Created CA override.
+	CaOverride    *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3" json:"ca_override,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateCertAuthorityOverrideResponse) Reset() {
+	*x = CreateCertAuthorityOverrideResponse{}
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateCertAuthorityOverrideResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateCertAuthorityOverrideResponse) ProtoMessage() {}
+
+func (x *CreateCertAuthorityOverrideResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateCertAuthorityOverrideResponse.ProtoReflect.Descriptor instead.
+func (*CreateCertAuthorityOverrideResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *CreateCertAuthorityOverrideResponse) GetCaOverride() *CertAuthorityOverride {
+	if x != nil {
+		return x.CaOverride
+	}
+	return nil
+}
+
+// Request for UpdateCertAuthorityOverride.
+type UpdateCertAuthorityOverrideRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// CA override to update.
+	// Required.
+	CaOverride *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3" json:"ca_override,omitempty"`
+	// If true the server will allow disable of an active override.
+	// Active overrides are defined as overrides of certificates that are used to
+	// mint certificate (see CertAuthoritySpecV2.ActiveKeys and
+	// CertAuthoritySpecV2.AdditionalTrustedKeys).
+	ForceImmediateDisable bool `protobuf:"varint,2,opt,name=force_immediate_disable,json=forceImmediateDisable,proto3" json:"force_immediate_disable,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *UpdateCertAuthorityOverrideRequest) Reset() {
+	*x = UpdateCertAuthorityOverrideRequest{}
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateCertAuthorityOverrideRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateCertAuthorityOverrideRequest) ProtoMessage() {}
+
+func (x *UpdateCertAuthorityOverrideRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateCertAuthorityOverrideRequest.ProtoReflect.Descriptor instead.
+func (*UpdateCertAuthorityOverrideRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *UpdateCertAuthorityOverrideRequest) GetCaOverride() *CertAuthorityOverride {
+	if x != nil {
+		return x.CaOverride
+	}
+	return nil
+}
+
+func (x *UpdateCertAuthorityOverrideRequest) GetForceImmediateDisable() bool {
+	if x != nil {
+		return x.ForceImmediateDisable
+	}
+	return false
+}
+
+// Response for UpdateCertAuthorityOverride.
+type UpdateCertAuthorityOverrideResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Updated CA override.
+	CaOverride    *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3" json:"ca_override,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateCertAuthorityOverrideResponse) Reset() {
+	*x = UpdateCertAuthorityOverrideResponse{}
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateCertAuthorityOverrideResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateCertAuthorityOverrideResponse) ProtoMessage() {}
+
+func (x *UpdateCertAuthorityOverrideResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateCertAuthorityOverrideResponse.ProtoReflect.Descriptor instead.
+func (*UpdateCertAuthorityOverrideResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *UpdateCertAuthorityOverrideResponse) GetCaOverride() *CertAuthorityOverride {
+	if x != nil {
+		return x.CaOverride
+	}
+	return nil
+}
+
 // Request for UpsertCertAuthorityOverride.
 type UpsertCertAuthorityOverrideRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -170,7 +368,7 @@ type UpsertCertAuthorityOverrideRequest struct {
 
 func (x *UpsertCertAuthorityOverrideRequest) Reset() {
 	*x = UpsertCertAuthorityOverrideRequest{}
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[2]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -182,7 +380,7 @@ func (x *UpsertCertAuthorityOverrideRequest) String() string {
 func (*UpsertCertAuthorityOverrideRequest) ProtoMessage() {}
 
 func (x *UpsertCertAuthorityOverrideRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[2]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -195,7 +393,7 @@ func (x *UpsertCertAuthorityOverrideRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use UpsertCertAuthorityOverrideRequest.ProtoReflect.Descriptor instead.
 func (*UpsertCertAuthorityOverrideRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{2}
+	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *UpsertCertAuthorityOverrideRequest) GetCaOverride() *CertAuthorityOverride {
@@ -223,7 +421,7 @@ type UpsertCertAuthorityOverrideResponse struct {
 
 func (x *UpsertCertAuthorityOverrideResponse) Reset() {
 	*x = UpsertCertAuthorityOverrideResponse{}
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[3]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -235,7 +433,7 @@ func (x *UpsertCertAuthorityOverrideResponse) String() string {
 func (*UpsertCertAuthorityOverrideResponse) ProtoMessage() {}
 
 func (x *UpsertCertAuthorityOverrideResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[3]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -248,7 +446,7 @@ func (x *UpsertCertAuthorityOverrideResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use UpsertCertAuthorityOverrideResponse.ProtoReflect.Descriptor instead.
 func (*UpsertCertAuthorityOverrideResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{3}
+	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *UpsertCertAuthorityOverrideResponse) GetCaOverride() *CertAuthorityOverride {
@@ -263,7 +461,7 @@ type AddCertificateOverrideRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// CA override to target.
 	CaId *CertAuthorityOverrideID `protobuf:"bytes,1,opt,name=ca_id,json=caId,proto3" json:"ca_id,omitempty"`
-	// Certificate override to add or update.
+	// Certificate override to add.
 	CertificateOverride *CertificateOverride `protobuf:"bytes,2,opt,name=certificate_override,json=certificateOverride,proto3" json:"certificate_override,omitempty"`
 	// If true the server will allow disable of an active override.
 	// Active overrides are defined as overrides of certificates that are used to
@@ -276,7 +474,7 @@ type AddCertificateOverrideRequest struct {
 
 func (x *AddCertificateOverrideRequest) Reset() {
 	*x = AddCertificateOverrideRequest{}
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[4]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -288,7 +486,7 @@ func (x *AddCertificateOverrideRequest) String() string {
 func (*AddCertificateOverrideRequest) ProtoMessage() {}
 
 func (x *AddCertificateOverrideRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[4]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -301,7 +499,7 @@ func (x *AddCertificateOverrideRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddCertificateOverrideRequest.ProtoReflect.Descriptor instead.
 func (*AddCertificateOverrideRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{4}
+	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *AddCertificateOverrideRequest) GetCaId() *CertAuthorityOverrideID {
@@ -328,7 +526,7 @@ func (x *AddCertificateOverrideRequest) GetForceImmediateDisable() bool {
 // Response for AddCertificateOverride.
 type AddCertificateOverrideResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Added or updated certificate override.
+	// Added certificate override.
 	CertificateOverride *CertificateOverride `protobuf:"bytes,1,opt,name=certificate_override,json=certificateOverride,proto3" json:"certificate_override,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
@@ -336,7 +534,7 @@ type AddCertificateOverrideResponse struct {
 
 func (x *AddCertificateOverrideResponse) Reset() {
 	*x = AddCertificateOverrideResponse{}
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[5]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -348,7 +546,7 @@ func (x *AddCertificateOverrideResponse) String() string {
 func (*AddCertificateOverrideResponse) ProtoMessage() {}
 
 func (x *AddCertificateOverrideResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[5]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -361,10 +559,123 @@ func (x *AddCertificateOverrideResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddCertificateOverrideResponse.ProtoReflect.Descriptor instead.
 func (*AddCertificateOverrideResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{5}
+	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *AddCertificateOverrideResponse) GetCertificateOverride() *CertificateOverride {
+	if x != nil {
+		return x.CertificateOverride
+	}
+	return nil
+}
+
+// Request for UpdateCertificateOverride.
+type UpdateCertificateOverrideRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// CA override to target.
+	CaId *CertAuthorityOverrideID `protobuf:"bytes,1,opt,name=ca_id,json=caId,proto3" json:"ca_id,omitempty"`
+	// Certificate override to update.
+	CertificateOverride *CertificateOverride `protobuf:"bytes,2,opt,name=certificate_override,json=certificateOverride,proto3" json:"certificate_override,omitempty"`
+	// If true the server will allow disable of an active override.
+	// Active overrides are defined as overrides of certificates that are used to
+	// mint certificate (see CertAuthoritySpecV2.ActiveKeys and
+	// CertAuthoritySpecV2.UpdateitionalTrustedKeys).
+	ForceImmediateDisable bool `protobuf:"varint,3,opt,name=force_immediate_disable,json=forceImmediateDisable,proto3" json:"force_immediate_disable,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *UpdateCertificateOverrideRequest) Reset() {
+	*x = UpdateCertificateOverrideRequest{}
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateCertificateOverrideRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateCertificateOverrideRequest) ProtoMessage() {}
+
+func (x *UpdateCertificateOverrideRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateCertificateOverrideRequest.ProtoReflect.Descriptor instead.
+func (*UpdateCertificateOverrideRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *UpdateCertificateOverrideRequest) GetCaId() *CertAuthorityOverrideID {
+	if x != nil {
+		return x.CaId
+	}
+	return nil
+}
+
+func (x *UpdateCertificateOverrideRequest) GetCertificateOverride() *CertificateOverride {
+	if x != nil {
+		return x.CertificateOverride
+	}
+	return nil
+}
+
+func (x *UpdateCertificateOverrideRequest) GetForceImmediateDisable() bool {
+	if x != nil {
+		return x.ForceImmediateDisable
+	}
+	return false
+}
+
+// Response for UpdateCertificateOverride.
+type UpdateCertificateOverrideResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Updated certificate override.
+	CertificateOverride *CertificateOverride `protobuf:"bytes,1,opt,name=certificate_override,json=certificateOverride,proto3" json:"certificate_override,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *UpdateCertificateOverrideResponse) Reset() {
+	*x = UpdateCertificateOverrideResponse{}
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateCertificateOverrideResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateCertificateOverrideResponse) ProtoMessage() {}
+
+func (x *UpdateCertificateOverrideResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateCertificateOverrideResponse.ProtoReflect.Descriptor instead.
+func (*UpdateCertificateOverrideResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *UpdateCertificateOverrideResponse) GetCertificateOverride() *CertificateOverride {
 	if x != nil {
 		return x.CertificateOverride
 	}
@@ -387,7 +698,7 @@ type RemoveCertificateOverrideRequest struct {
 
 func (x *RemoveCertificateOverrideRequest) Reset() {
 	*x = RemoveCertificateOverrideRequest{}
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[6]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -399,7 +710,7 @@ func (x *RemoveCertificateOverrideRequest) String() string {
 func (*RemoveCertificateOverrideRequest) ProtoMessage() {}
 
 func (x *RemoveCertificateOverrideRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[6]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -412,7 +723,7 @@ func (x *RemoveCertificateOverrideRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveCertificateOverrideRequest.ProtoReflect.Descriptor instead.
 func (*RemoveCertificateOverrideRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{6}
+	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *RemoveCertificateOverrideRequest) GetCertificateOverrideId() *CertificateOverrideID {
@@ -438,7 +749,7 @@ type RemoveCertificateOverrideResponse struct {
 
 func (x *RemoveCertificateOverrideResponse) Reset() {
 	*x = RemoveCertificateOverrideResponse{}
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[7]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -450,7 +761,7 @@ func (x *RemoveCertificateOverrideResponse) String() string {
 func (*RemoveCertificateOverrideResponse) ProtoMessage() {}
 
 func (x *RemoveCertificateOverrideResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[7]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -463,7 +774,7 @@ func (x *RemoveCertificateOverrideResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use RemoveCertificateOverrideResponse.ProtoReflect.Descriptor instead.
 func (*RemoveCertificateOverrideResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{7}
+	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{13}
 }
 
 // Request for GetCertAuthorityOverride.
@@ -477,7 +788,7 @@ type GetCertAuthorityOverrideRequest struct {
 
 func (x *GetCertAuthorityOverrideRequest) Reset() {
 	*x = GetCertAuthorityOverrideRequest{}
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[8]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -489,7 +800,7 @@ func (x *GetCertAuthorityOverrideRequest) String() string {
 func (*GetCertAuthorityOverrideRequest) ProtoMessage() {}
 
 func (x *GetCertAuthorityOverrideRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[8]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -502,7 +813,7 @@ func (x *GetCertAuthorityOverrideRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCertAuthorityOverrideRequest.ProtoReflect.Descriptor instead.
 func (*GetCertAuthorityOverrideRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{8}
+	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GetCertAuthorityOverrideRequest) GetCaId() *CertAuthorityOverrideID {
@@ -523,7 +834,7 @@ type GetCertAuthorityOverrideResponse struct {
 
 func (x *GetCertAuthorityOverrideResponse) Reset() {
 	*x = GetCertAuthorityOverrideResponse{}
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[9]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -535,7 +846,7 @@ func (x *GetCertAuthorityOverrideResponse) String() string {
 func (*GetCertAuthorityOverrideResponse) ProtoMessage() {}
 
 func (x *GetCertAuthorityOverrideResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[9]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -548,7 +859,7 @@ func (x *GetCertAuthorityOverrideResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCertAuthorityOverrideResponse.ProtoReflect.Descriptor instead.
 func (*GetCertAuthorityOverrideResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{9}
+	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *GetCertAuthorityOverrideResponse) GetCaOverride() *CertificateOverride {
@@ -572,7 +883,7 @@ type ListCertAuthorityOverrideRequest struct {
 
 func (x *ListCertAuthorityOverrideRequest) Reset() {
 	*x = ListCertAuthorityOverrideRequest{}
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[10]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -584,7 +895,7 @@ func (x *ListCertAuthorityOverrideRequest) String() string {
 func (*ListCertAuthorityOverrideRequest) ProtoMessage() {}
 
 func (x *ListCertAuthorityOverrideRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[10]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -597,7 +908,7 @@ func (x *ListCertAuthorityOverrideRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCertAuthorityOverrideRequest.ProtoReflect.Descriptor instead.
 func (*ListCertAuthorityOverrideRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{10}
+	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ListCertAuthorityOverrideRequest) GetPageSize() int32 {
@@ -628,7 +939,7 @@ type ListCertAuthorityOverrideResponse struct {
 
 func (x *ListCertAuthorityOverrideResponse) Reset() {
 	*x = ListCertAuthorityOverrideResponse{}
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[11]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -640,7 +951,7 @@ func (x *ListCertAuthorityOverrideResponse) String() string {
 func (*ListCertAuthorityOverrideResponse) ProtoMessage() {}
 
 func (x *ListCertAuthorityOverrideResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[11]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -653,7 +964,7 @@ func (x *ListCertAuthorityOverrideResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use ListCertAuthorityOverrideResponse.ProtoReflect.Descriptor instead.
 func (*ListCertAuthorityOverrideResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{11}
+	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ListCertAuthorityOverrideResponse) GetCaOverrides() []*CertificateOverride {
@@ -687,7 +998,7 @@ type DeleteCertAuthorityOverrideRequest struct {
 
 func (x *DeleteCertAuthorityOverrideRequest) Reset() {
 	*x = DeleteCertAuthorityOverrideRequest{}
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[12]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -699,7 +1010,7 @@ func (x *DeleteCertAuthorityOverrideRequest) String() string {
 func (*DeleteCertAuthorityOverrideRequest) ProtoMessage() {}
 
 func (x *DeleteCertAuthorityOverrideRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[12]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -712,7 +1023,7 @@ func (x *DeleteCertAuthorityOverrideRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use DeleteCertAuthorityOverrideRequest.ProtoReflect.Descriptor instead.
 func (*DeleteCertAuthorityOverrideRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{12}
+	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *DeleteCertAuthorityOverrideRequest) GetCaId() *CertAuthorityOverrideID {
@@ -738,7 +1049,7 @@ type DeleteCertAuthorityOverrideResponse struct {
 
 func (x *DeleteCertAuthorityOverrideResponse) Reset() {
 	*x = DeleteCertAuthorityOverrideResponse{}
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[13]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -750,7 +1061,7 @@ func (x *DeleteCertAuthorityOverrideResponse) String() string {
 func (*DeleteCertAuthorityOverrideResponse) ProtoMessage() {}
 
 func (x *DeleteCertAuthorityOverrideResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[13]
+	mi := &file_teleport_subca_v1_subca_service_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -763,7 +1074,7 @@ func (x *DeleteCertAuthorityOverrideResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use DeleteCertAuthorityOverrideResponse.ProtoReflect.Descriptor instead.
 func (*DeleteCertAuthorityOverrideResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{13}
+	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{19}
 }
 
 var File_teleport_subca_v1_subca_service_proto protoreflect.FileDescriptor
@@ -776,7 +1087,20 @@ const file_teleport_subca_v1_subca_service_proto_rawDesc = "" +
 	"\x0fpublic_key_hash\x18\x02 \x01(\v2 .teleport.subca.v1.PublicKeyHashR\rpublicKeyHash\x12K\n" +
 	"\x0ecustom_subject\x18\x03 \x01(\v2$.teleport.subca.v1.DistinguishedNameR\rcustomSubject\"U\n" +
 	"\x11CreateCSRResponse\x12@\n" +
-	"\x04csrs\x18\x01 \x03(\v2,.teleport.subca.v1.CertificateSigningRequestR\x04csrs\"\xa7\x01\n" +
+	"\x04csrs\x18\x01 \x03(\v2,.teleport.subca.v1.CertificateSigningRequestR\x04csrs\"o\n" +
+	"\"CreateCertAuthorityOverrideRequest\x12I\n" +
+	"\vca_override\x18\x01 \x01(\v2(.teleport.subca.v1.CertAuthorityOverrideR\n" +
+	"caOverride\"p\n" +
+	"#CreateCertAuthorityOverrideResponse\x12I\n" +
+	"\vca_override\x18\x01 \x01(\v2(.teleport.subca.v1.CertAuthorityOverrideR\n" +
+	"caOverride\"\xa7\x01\n" +
+	"\"UpdateCertAuthorityOverrideRequest\x12I\n" +
+	"\vca_override\x18\x01 \x01(\v2(.teleport.subca.v1.CertAuthorityOverrideR\n" +
+	"caOverride\x126\n" +
+	"\x17force_immediate_disable\x18\x02 \x01(\bR\x15forceImmediateDisable\"p\n" +
+	"#UpdateCertAuthorityOverrideResponse\x12I\n" +
+	"\vca_override\x18\x01 \x01(\v2(.teleport.subca.v1.CertAuthorityOverrideR\n" +
+	"caOverride\"\xa7\x01\n" +
 	"\"UpsertCertAuthorityOverrideRequest\x12I\n" +
 	"\vca_override\x18\x01 \x01(\v2(.teleport.subca.v1.CertAuthorityOverrideR\n" +
 	"caOverride\x126\n" +
@@ -789,6 +1113,12 @@ const file_teleport_subca_v1_subca_service_proto_rawDesc = "" +
 	"\x14certificate_override\x18\x02 \x01(\v2&.teleport.subca.v1.CertificateOverrideR\x13certificateOverride\x126\n" +
 	"\x17force_immediate_disable\x18\x03 \x01(\bR\x15forceImmediateDisable\"{\n" +
 	"\x1eAddCertificateOverrideResponse\x12Y\n" +
+	"\x14certificate_override\x18\x01 \x01(\v2&.teleport.subca.v1.CertificateOverrideR\x13certificateOverride\"\xf6\x01\n" +
+	" UpdateCertificateOverrideRequest\x12?\n" +
+	"\x05ca_id\x18\x01 \x01(\v2*.teleport.subca.v1.CertAuthorityOverrideIDR\x04caId\x12Y\n" +
+	"\x14certificate_override\x18\x02 \x01(\v2&.teleport.subca.v1.CertificateOverrideR\x13certificateOverride\x126\n" +
+	"\x17force_immediate_disable\x18\x03 \x01(\bR\x15forceImmediateDisable\"~\n" +
+	"!UpdateCertificateOverrideResponse\x12Y\n" +
 	"\x14certificate_override\x18\x01 \x01(\v2&.teleport.subca.v1.CertificateOverrideR\x13certificateOverride\"\xba\x01\n" +
 	" RemoveCertificateOverrideRequest\x12`\n" +
 	"\x17certificate_override_id\x18\x01 \x01(\v2(.teleport.subca.v1.CertificateOverrideIDR\x15certificateOverrideId\x124\n" +
@@ -809,11 +1139,15 @@ const file_teleport_subca_v1_subca_service_proto_rawDesc = "" +
 	"\"DeleteCertAuthorityOverrideRequest\x12?\n" +
 	"\x05ca_id\x18\x01 \x01(\v2*.teleport.subca.v1.CertAuthorityOverrideIDR\x04caId\x124\n" +
 	"\x16force_immediate_delete\x18\x02 \x01(\bR\x14forceImmediateDelete\"%\n" +
-	"#DeleteCertAuthorityOverrideResponse2\x9b\a\n" +
+	"#DeleteCertAuthorityOverrideResponse2\xc2\n" +
+	"\n" +
 	"\fSubCAService\x12V\n" +
 	"\tCreateCSR\x12#.teleport.subca.v1.CreateCSRRequest\x1a$.teleport.subca.v1.CreateCSRResponse\x12\x8c\x01\n" +
+	"\x1bCreateCertAuthorityOverride\x125.teleport.subca.v1.CreateCertAuthorityOverrideRequest\x1a6.teleport.subca.v1.CreateCertAuthorityOverrideResponse\x12\x8c\x01\n" +
+	"\x1bUpdateCertAuthorityOverride\x125.teleport.subca.v1.UpdateCertAuthorityOverrideRequest\x1a6.teleport.subca.v1.UpdateCertAuthorityOverrideResponse\x12\x8c\x01\n" +
 	"\x1bUpsertCertAuthorityOverride\x125.teleport.subca.v1.UpsertCertAuthorityOverrideRequest\x1a6.teleport.subca.v1.UpsertCertAuthorityOverrideResponse\x12}\n" +
 	"\x16AddCertificateOverride\x120.teleport.subca.v1.AddCertificateOverrideRequest\x1a1.teleport.subca.v1.AddCertificateOverrideResponse\x12\x86\x01\n" +
+	"\x19UpdateCertificateOverride\x123.teleport.subca.v1.UpdateCertificateOverrideRequest\x1a4.teleport.subca.v1.UpdateCertificateOverrideResponse\x12\x86\x01\n" +
 	"\x19RemoveCertificateOverride\x123.teleport.subca.v1.RemoveCertificateOverrideRequest\x1a4.teleport.subca.v1.RemoveCertificateOverrideResponse\x12\x83\x01\n" +
 	"\x18GetCertAuthorityOverride\x122.teleport.subca.v1.GetCertAuthorityOverrideRequest\x1a3.teleport.subca.v1.GetCertAuthorityOverrideResponse\x12\x86\x01\n" +
 	"\x19ListCertAuthorityOverride\x123.teleport.subca.v1.ListCertAuthorityOverrideRequest\x1a4.teleport.subca.v1.ListCertAuthorityOverrideResponse\x12\x8c\x01\n" +
@@ -831,63 +1165,82 @@ func file_teleport_subca_v1_subca_service_proto_rawDescGZIP() []byte {
 	return file_teleport_subca_v1_subca_service_proto_rawDescData
 }
 
-var file_teleport_subca_v1_subca_service_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_teleport_subca_v1_subca_service_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_teleport_subca_v1_subca_service_proto_goTypes = []any{
 	(*CreateCSRRequest)(nil),                    // 0: teleport.subca.v1.CreateCSRRequest
 	(*CreateCSRResponse)(nil),                   // 1: teleport.subca.v1.CreateCSRResponse
-	(*UpsertCertAuthorityOverrideRequest)(nil),  // 2: teleport.subca.v1.UpsertCertAuthorityOverrideRequest
-	(*UpsertCertAuthorityOverrideResponse)(nil), // 3: teleport.subca.v1.UpsertCertAuthorityOverrideResponse
-	(*AddCertificateOverrideRequest)(nil),       // 4: teleport.subca.v1.AddCertificateOverrideRequest
-	(*AddCertificateOverrideResponse)(nil),      // 5: teleport.subca.v1.AddCertificateOverrideResponse
-	(*RemoveCertificateOverrideRequest)(nil),    // 6: teleport.subca.v1.RemoveCertificateOverrideRequest
-	(*RemoveCertificateOverrideResponse)(nil),   // 7: teleport.subca.v1.RemoveCertificateOverrideResponse
-	(*GetCertAuthorityOverrideRequest)(nil),     // 8: teleport.subca.v1.GetCertAuthorityOverrideRequest
-	(*GetCertAuthorityOverrideResponse)(nil),    // 9: teleport.subca.v1.GetCertAuthorityOverrideResponse
-	(*ListCertAuthorityOverrideRequest)(nil),    // 10: teleport.subca.v1.ListCertAuthorityOverrideRequest
-	(*ListCertAuthorityOverrideResponse)(nil),   // 11: teleport.subca.v1.ListCertAuthorityOverrideResponse
-	(*DeleteCertAuthorityOverrideRequest)(nil),  // 12: teleport.subca.v1.DeleteCertAuthorityOverrideRequest
-	(*DeleteCertAuthorityOverrideResponse)(nil), // 13: teleport.subca.v1.DeleteCertAuthorityOverrideResponse
-	(*PublicKeyHash)(nil),                       // 14: teleport.subca.v1.PublicKeyHash
-	(*DistinguishedName)(nil),                   // 15: teleport.subca.v1.DistinguishedName
-	(*CertificateSigningRequest)(nil),           // 16: teleport.subca.v1.CertificateSigningRequest
-	(*CertAuthorityOverride)(nil),               // 17: teleport.subca.v1.CertAuthorityOverride
-	(*CertAuthorityOverrideID)(nil),             // 18: teleport.subca.v1.CertAuthorityOverrideID
-	(*CertificateOverride)(nil),                 // 19: teleport.subca.v1.CertificateOverride
-	(*CertificateOverrideID)(nil),               // 20: teleport.subca.v1.CertificateOverrideID
+	(*CreateCertAuthorityOverrideRequest)(nil),  // 2: teleport.subca.v1.CreateCertAuthorityOverrideRequest
+	(*CreateCertAuthorityOverrideResponse)(nil), // 3: teleport.subca.v1.CreateCertAuthorityOverrideResponse
+	(*UpdateCertAuthorityOverrideRequest)(nil),  // 4: teleport.subca.v1.UpdateCertAuthorityOverrideRequest
+	(*UpdateCertAuthorityOverrideResponse)(nil), // 5: teleport.subca.v1.UpdateCertAuthorityOverrideResponse
+	(*UpsertCertAuthorityOverrideRequest)(nil),  // 6: teleport.subca.v1.UpsertCertAuthorityOverrideRequest
+	(*UpsertCertAuthorityOverrideResponse)(nil), // 7: teleport.subca.v1.UpsertCertAuthorityOverrideResponse
+	(*AddCertificateOverrideRequest)(nil),       // 8: teleport.subca.v1.AddCertificateOverrideRequest
+	(*AddCertificateOverrideResponse)(nil),      // 9: teleport.subca.v1.AddCertificateOverrideResponse
+	(*UpdateCertificateOverrideRequest)(nil),    // 10: teleport.subca.v1.UpdateCertificateOverrideRequest
+	(*UpdateCertificateOverrideResponse)(nil),   // 11: teleport.subca.v1.UpdateCertificateOverrideResponse
+	(*RemoveCertificateOverrideRequest)(nil),    // 12: teleport.subca.v1.RemoveCertificateOverrideRequest
+	(*RemoveCertificateOverrideResponse)(nil),   // 13: teleport.subca.v1.RemoveCertificateOverrideResponse
+	(*GetCertAuthorityOverrideRequest)(nil),     // 14: teleport.subca.v1.GetCertAuthorityOverrideRequest
+	(*GetCertAuthorityOverrideResponse)(nil),    // 15: teleport.subca.v1.GetCertAuthorityOverrideResponse
+	(*ListCertAuthorityOverrideRequest)(nil),    // 16: teleport.subca.v1.ListCertAuthorityOverrideRequest
+	(*ListCertAuthorityOverrideResponse)(nil),   // 17: teleport.subca.v1.ListCertAuthorityOverrideResponse
+	(*DeleteCertAuthorityOverrideRequest)(nil),  // 18: teleport.subca.v1.DeleteCertAuthorityOverrideRequest
+	(*DeleteCertAuthorityOverrideResponse)(nil), // 19: teleport.subca.v1.DeleteCertAuthorityOverrideResponse
+	(*PublicKeyHash)(nil),                       // 20: teleport.subca.v1.PublicKeyHash
+	(*DistinguishedName)(nil),                   // 21: teleport.subca.v1.DistinguishedName
+	(*CertificateSigningRequest)(nil),           // 22: teleport.subca.v1.CertificateSigningRequest
+	(*CertAuthorityOverride)(nil),               // 23: teleport.subca.v1.CertAuthorityOverride
+	(*CertAuthorityOverrideID)(nil),             // 24: teleport.subca.v1.CertAuthorityOverrideID
+	(*CertificateOverride)(nil),                 // 25: teleport.subca.v1.CertificateOverride
+	(*CertificateOverrideID)(nil),               // 26: teleport.subca.v1.CertificateOverrideID
 }
 var file_teleport_subca_v1_subca_service_proto_depIdxs = []int32{
-	14, // 0: teleport.subca.v1.CreateCSRRequest.public_key_hash:type_name -> teleport.subca.v1.PublicKeyHash
-	15, // 1: teleport.subca.v1.CreateCSRRequest.custom_subject:type_name -> teleport.subca.v1.DistinguishedName
-	16, // 2: teleport.subca.v1.CreateCSRResponse.csrs:type_name -> teleport.subca.v1.CertificateSigningRequest
-	17, // 3: teleport.subca.v1.UpsertCertAuthorityOverrideRequest.ca_override:type_name -> teleport.subca.v1.CertAuthorityOverride
-	17, // 4: teleport.subca.v1.UpsertCertAuthorityOverrideResponse.ca_override:type_name -> teleport.subca.v1.CertAuthorityOverride
-	18, // 5: teleport.subca.v1.AddCertificateOverrideRequest.ca_id:type_name -> teleport.subca.v1.CertAuthorityOverrideID
-	19, // 6: teleport.subca.v1.AddCertificateOverrideRequest.certificate_override:type_name -> teleport.subca.v1.CertificateOverride
-	19, // 7: teleport.subca.v1.AddCertificateOverrideResponse.certificate_override:type_name -> teleport.subca.v1.CertificateOverride
-	20, // 8: teleport.subca.v1.RemoveCertificateOverrideRequest.certificate_override_id:type_name -> teleport.subca.v1.CertificateOverrideID
-	18, // 9: teleport.subca.v1.GetCertAuthorityOverrideRequest.ca_id:type_name -> teleport.subca.v1.CertAuthorityOverrideID
-	19, // 10: teleport.subca.v1.GetCertAuthorityOverrideResponse.ca_override:type_name -> teleport.subca.v1.CertificateOverride
-	19, // 11: teleport.subca.v1.ListCertAuthorityOverrideResponse.ca_overrides:type_name -> teleport.subca.v1.CertificateOverride
-	18, // 12: teleport.subca.v1.DeleteCertAuthorityOverrideRequest.ca_id:type_name -> teleport.subca.v1.CertAuthorityOverrideID
-	0,  // 13: teleport.subca.v1.SubCAService.CreateCSR:input_type -> teleport.subca.v1.CreateCSRRequest
-	2,  // 14: teleport.subca.v1.SubCAService.UpsertCertAuthorityOverride:input_type -> teleport.subca.v1.UpsertCertAuthorityOverrideRequest
-	4,  // 15: teleport.subca.v1.SubCAService.AddCertificateOverride:input_type -> teleport.subca.v1.AddCertificateOverrideRequest
-	6,  // 16: teleport.subca.v1.SubCAService.RemoveCertificateOverride:input_type -> teleport.subca.v1.RemoveCertificateOverrideRequest
-	8,  // 17: teleport.subca.v1.SubCAService.GetCertAuthorityOverride:input_type -> teleport.subca.v1.GetCertAuthorityOverrideRequest
-	10, // 18: teleport.subca.v1.SubCAService.ListCertAuthorityOverride:input_type -> teleport.subca.v1.ListCertAuthorityOverrideRequest
-	12, // 19: teleport.subca.v1.SubCAService.DeleteCertAuthorityOverride:input_type -> teleport.subca.v1.DeleteCertAuthorityOverrideRequest
-	1,  // 20: teleport.subca.v1.SubCAService.CreateCSR:output_type -> teleport.subca.v1.CreateCSRResponse
-	3,  // 21: teleport.subca.v1.SubCAService.UpsertCertAuthorityOverride:output_type -> teleport.subca.v1.UpsertCertAuthorityOverrideResponse
-	5,  // 22: teleport.subca.v1.SubCAService.AddCertificateOverride:output_type -> teleport.subca.v1.AddCertificateOverrideResponse
-	7,  // 23: teleport.subca.v1.SubCAService.RemoveCertificateOverride:output_type -> teleport.subca.v1.RemoveCertificateOverrideResponse
-	9,  // 24: teleport.subca.v1.SubCAService.GetCertAuthorityOverride:output_type -> teleport.subca.v1.GetCertAuthorityOverrideResponse
-	11, // 25: teleport.subca.v1.SubCAService.ListCertAuthorityOverride:output_type -> teleport.subca.v1.ListCertAuthorityOverrideResponse
-	13, // 26: teleport.subca.v1.SubCAService.DeleteCertAuthorityOverride:output_type -> teleport.subca.v1.DeleteCertAuthorityOverrideResponse
-	20, // [20:27] is the sub-list for method output_type
-	13, // [13:20] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	20, // 0: teleport.subca.v1.CreateCSRRequest.public_key_hash:type_name -> teleport.subca.v1.PublicKeyHash
+	21, // 1: teleport.subca.v1.CreateCSRRequest.custom_subject:type_name -> teleport.subca.v1.DistinguishedName
+	22, // 2: teleport.subca.v1.CreateCSRResponse.csrs:type_name -> teleport.subca.v1.CertificateSigningRequest
+	23, // 3: teleport.subca.v1.CreateCertAuthorityOverrideRequest.ca_override:type_name -> teleport.subca.v1.CertAuthorityOverride
+	23, // 4: teleport.subca.v1.CreateCertAuthorityOverrideResponse.ca_override:type_name -> teleport.subca.v1.CertAuthorityOverride
+	23, // 5: teleport.subca.v1.UpdateCertAuthorityOverrideRequest.ca_override:type_name -> teleport.subca.v1.CertAuthorityOverride
+	23, // 6: teleport.subca.v1.UpdateCertAuthorityOverrideResponse.ca_override:type_name -> teleport.subca.v1.CertAuthorityOverride
+	23, // 7: teleport.subca.v1.UpsertCertAuthorityOverrideRequest.ca_override:type_name -> teleport.subca.v1.CertAuthorityOverride
+	23, // 8: teleport.subca.v1.UpsertCertAuthorityOverrideResponse.ca_override:type_name -> teleport.subca.v1.CertAuthorityOverride
+	24, // 9: teleport.subca.v1.AddCertificateOverrideRequest.ca_id:type_name -> teleport.subca.v1.CertAuthorityOverrideID
+	25, // 10: teleport.subca.v1.AddCertificateOverrideRequest.certificate_override:type_name -> teleport.subca.v1.CertificateOverride
+	25, // 11: teleport.subca.v1.AddCertificateOverrideResponse.certificate_override:type_name -> teleport.subca.v1.CertificateOverride
+	24, // 12: teleport.subca.v1.UpdateCertificateOverrideRequest.ca_id:type_name -> teleport.subca.v1.CertAuthorityOverrideID
+	25, // 13: teleport.subca.v1.UpdateCertificateOverrideRequest.certificate_override:type_name -> teleport.subca.v1.CertificateOverride
+	25, // 14: teleport.subca.v1.UpdateCertificateOverrideResponse.certificate_override:type_name -> teleport.subca.v1.CertificateOverride
+	26, // 15: teleport.subca.v1.RemoveCertificateOverrideRequest.certificate_override_id:type_name -> teleport.subca.v1.CertificateOverrideID
+	24, // 16: teleport.subca.v1.GetCertAuthorityOverrideRequest.ca_id:type_name -> teleport.subca.v1.CertAuthorityOverrideID
+	25, // 17: teleport.subca.v1.GetCertAuthorityOverrideResponse.ca_override:type_name -> teleport.subca.v1.CertificateOverride
+	25, // 18: teleport.subca.v1.ListCertAuthorityOverrideResponse.ca_overrides:type_name -> teleport.subca.v1.CertificateOverride
+	24, // 19: teleport.subca.v1.DeleteCertAuthorityOverrideRequest.ca_id:type_name -> teleport.subca.v1.CertAuthorityOverrideID
+	0,  // 20: teleport.subca.v1.SubCAService.CreateCSR:input_type -> teleport.subca.v1.CreateCSRRequest
+	2,  // 21: teleport.subca.v1.SubCAService.CreateCertAuthorityOverride:input_type -> teleport.subca.v1.CreateCertAuthorityOverrideRequest
+	4,  // 22: teleport.subca.v1.SubCAService.UpdateCertAuthorityOverride:input_type -> teleport.subca.v1.UpdateCertAuthorityOverrideRequest
+	6,  // 23: teleport.subca.v1.SubCAService.UpsertCertAuthorityOverride:input_type -> teleport.subca.v1.UpsertCertAuthorityOverrideRequest
+	8,  // 24: teleport.subca.v1.SubCAService.AddCertificateOverride:input_type -> teleport.subca.v1.AddCertificateOverrideRequest
+	10, // 25: teleport.subca.v1.SubCAService.UpdateCertificateOverride:input_type -> teleport.subca.v1.UpdateCertificateOverrideRequest
+	12, // 26: teleport.subca.v1.SubCAService.RemoveCertificateOverride:input_type -> teleport.subca.v1.RemoveCertificateOverrideRequest
+	14, // 27: teleport.subca.v1.SubCAService.GetCertAuthorityOverride:input_type -> teleport.subca.v1.GetCertAuthorityOverrideRequest
+	16, // 28: teleport.subca.v1.SubCAService.ListCertAuthorityOverride:input_type -> teleport.subca.v1.ListCertAuthorityOverrideRequest
+	18, // 29: teleport.subca.v1.SubCAService.DeleteCertAuthorityOverride:input_type -> teleport.subca.v1.DeleteCertAuthorityOverrideRequest
+	1,  // 30: teleport.subca.v1.SubCAService.CreateCSR:output_type -> teleport.subca.v1.CreateCSRResponse
+	3,  // 31: teleport.subca.v1.SubCAService.CreateCertAuthorityOverride:output_type -> teleport.subca.v1.CreateCertAuthorityOverrideResponse
+	5,  // 32: teleport.subca.v1.SubCAService.UpdateCertAuthorityOverride:output_type -> teleport.subca.v1.UpdateCertAuthorityOverrideResponse
+	7,  // 33: teleport.subca.v1.SubCAService.UpsertCertAuthorityOverride:output_type -> teleport.subca.v1.UpsertCertAuthorityOverrideResponse
+	9,  // 34: teleport.subca.v1.SubCAService.AddCertificateOverride:output_type -> teleport.subca.v1.AddCertificateOverrideResponse
+	11, // 35: teleport.subca.v1.SubCAService.UpdateCertificateOverride:output_type -> teleport.subca.v1.UpdateCertificateOverrideResponse
+	13, // 36: teleport.subca.v1.SubCAService.RemoveCertificateOverride:output_type -> teleport.subca.v1.RemoveCertificateOverrideResponse
+	15, // 37: teleport.subca.v1.SubCAService.GetCertAuthorityOverride:output_type -> teleport.subca.v1.GetCertAuthorityOverrideResponse
+	17, // 38: teleport.subca.v1.SubCAService.ListCertAuthorityOverride:output_type -> teleport.subca.v1.ListCertAuthorityOverrideResponse
+	19, // 39: teleport.subca.v1.SubCAService.DeleteCertAuthorityOverride:output_type -> teleport.subca.v1.DeleteCertAuthorityOverrideResponse
+	30, // [30:40] is the sub-list for method output_type
+	20, // [20:30] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_teleport_subca_v1_subca_service_proto_init() }
@@ -908,7 +1261,7 @@ func file_teleport_subca_v1_subca_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_subca_v1_subca_service_proto_rawDesc), len(file_teleport_subca_v1_subca_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   14,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
