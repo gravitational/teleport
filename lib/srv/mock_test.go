@@ -52,6 +52,7 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/clocki"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -104,28 +105,7 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 
 	err = scx.SetExecRequest(&localExec{Ctx: scx})
 	require.NoError(t, err)
-
-	scx.cmdr, scx.cmdw, err = os.Pipe()
-	require.NoError(t, err)
-
-	_, scx.logw, err = os.Pipe()
-	require.NoError(t, err)
-
-	scx.contr, scx.contw, err = os.Pipe()
-	require.NoError(t, err)
-
-	scx.readyr, scx.readyw, err = os.Pipe()
-	require.NoError(t, err)
-
-	scx.killShellr, scx.killShellw, err = os.Pipe()
-	require.NoError(t, err)
-	scx.AddCloser(scx.killShellw)
-
-	// TODO (joerger): check the error coming from Close once the logic around
-	// closing open files has been fixed to fail with "close |1: file already closed".
-	// Note that outside of tests, we never check the error form scx.Close because this
-	// error is a part of normal execution currently.
-	t.Cleanup(func() { scx.Close() })
+	t.Cleanup(func() { require.NoError(t, scx.Close()) })
 
 	return scx
 }
@@ -337,13 +317,15 @@ func (m *mockServer) GetSELinuxEnabled() bool {
 	return false
 }
 
-// ChildLogConfig returns a noop log configuration.
+// ChildLogConfig returns stderr log config for testing.
 func (m *mockServer) ChildLogConfig() ChildLogConfig {
+	level := new(slog.LevelVar)
+	level.Set(slog.LevelDebug)
 	return ChildLogConfig{
-		ExecLogConfig: ExecLogConfig{
-			Level: &slog.LevelVar{},
+		LogConfig: reexec.LogConfig{
+			Level: level,
 		},
-		Writer: io.Discard,
+		Writer: os.Stderr,
 	}
 }
 

@@ -81,6 +81,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -190,7 +191,7 @@ func setChildLogConfigForTest() ServerOption {
 		level := new(slog.LevelVar)
 		level.Set(slog.LevelDebug)
 		s.childLogConfig = &srv.ChildLogConfig{
-			ExecLogConfig: srv.ExecLogConfig{
+			LogConfig: reexec.LogConfig{
 				Level: level,
 			},
 			Writer: os.Stderr,
@@ -513,6 +514,9 @@ func TestSessionAuditLog(t *testing.T) {
 	se, err := f.ssh.clt.NewSession(ctx)
 	require.NoError(t, err)
 
+	stdin, err := se.StdinPipe()
+	require.NoError(t, err)
+
 	// start interactive SSH session (new shell):
 	err = se.Shell(ctx)
 	require.NoError(t, err)
@@ -614,6 +618,9 @@ func TestSessionAuditLog(t *testing.T) {
 	require.Equal(t, listener.Addr().String(), remoteForwardStop.Addr)
 
 	// End the session. Session leave, data, and end events should be emitted.
+	_, err = stdin.Write([]byte("exit\n"))
+	require.NoError(t, err)
+	require.NoError(t, stdin.Close())
 	se.Close()
 
 	e = <-emitter.C()
@@ -3702,6 +3709,96 @@ func TestSessionParams(t *testing.T) {
 				})
 			}
 		})
+	}
+}
+
+func TestExecSessionCloseTerminatesChild(t *testing.T) {
+	f := newFixtureWithoutDiskBasedLogging(t)
+	ctx := t.Context()
+
+	client, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+
+	session, err := client.NewSession(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	sleepPath, err := exec.LookPath("sleep")
+	if err != nil {
+		t.Skip("sleep not found")
+	}
+
+	require.NoError(t, session.Start(ctx, fmt.Sprintf("%s 60", sleepPath)))
+
+	waitErr := make(chan error, 1)
+	go func() {
+		waitErr <- session.Wait()
+	}()
+
+	require.NoError(t, client.Close())
+
+	select {
+	case <-waitErr:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for exec session to exit")
+	}
+}
+
+func TestShellSessionCloseTerminatesChild(t *testing.T) {
+	f := newFixtureWithoutDiskBasedLogging(t)
+	ctx := t.Context()
+
+	client, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+
+	session, err := client.NewSession(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	require.NoError(t, session.RequestPty(ctx, "xterm", 40, 80, ssh.TerminalModes{}))
+	require.NoError(t, session.Shell(ctx))
+
+	waitErr := make(chan error, 1)
+	go func() {
+		waitErr <- session.Wait()
+	}()
+
+	require.NoError(t, client.Close())
+
+	select {
+	case <-waitErr:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for shell session to exit")
+	}
+}
+
+func TestSFTPSubsystemDisconnectTerminatesProcess(t *testing.T) {
+	f := newFixtureWithoutDiskBasedLogging(t, SetAllowFileCopying(true))
+	ctx := t.Context()
+
+	client, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+
+	session, err := client.NewSession(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	require.NoError(t, session.RequestSubsystem(ctx, teleport.SFTPSubsystem))
+
+	waitErr := make(chan error, 1)
+	go func() {
+		waitErr <- session.Wait()
+	}()
+
+	require.NoError(t, client.Close())
+
+	select {
+	case <-waitErr:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for sftp subsystem to exit")
 	}
 }
 

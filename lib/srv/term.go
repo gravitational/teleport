@@ -28,8 +28,6 @@ import (
 	"os/user"
 	"strconv"
 	"sync"
-	"syscall"
-	"time"
 
 	"github.com/creack/pty"
 	"github.com/gravitational/trace"
@@ -39,6 +37,7 @@ import (
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 )
 
 // LookupUser is used to mock the value returned by user.Lookup(string).
@@ -68,12 +67,6 @@ type Terminal interface {
 	// Continue will resume execution of the process after it completes its
 	// pre-processing routine (placed in a cgroup).
 	Continue()
-
-	// KillUnderlyingShell tries to gracefully stop the terminal process.
-	KillUnderlyingShell(ctx context.Context) error
-
-	// Kill will force kill the terminal.
-	Kill(ctx context.Context) error
 
 	// PTY returns the PTY backing the terminal.
 	PTY() io.ReadWriter
@@ -131,18 +124,12 @@ type terminal struct {
 
 	log *slog.Logger
 
-	cmd           *exec.Cmd
+	reexecCmd     *reexec.Command
 	serverContext *ServerContext
 
 	pty     *os.File
 	tty     *os.File
 	ttyName string
-
-	// terminateFD when closed informs the terminal that
-	// the process running in the shell should be killed.
-	terminateFD *os.File
-
-	pid int
 
 	termType string
 	params   rsession.TerminalParams
@@ -162,7 +149,6 @@ func newLocalTerminal(ctx *ServerContext) (*terminal, error) {
 	t := &terminal{
 		log:           logger,
 		serverContext: ctx,
-		terminateFD:   ctx.killShellw,
 		pty:           pty,
 		tty:           tty,
 		ttyName:       tty.Name(),
@@ -192,125 +178,52 @@ func (t *terminal) Run(ctx context.Context) error {
 	default:
 	}
 
-	var err error
 	// Create the command that will actually execute.
-	t.cmd, err = ConfigureCommand(t.serverContext)
+	cmd, err := t.serverContext.ConfigureCommand()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// we need the lock here to protect from concurrent calls to Close()
-	t.mu.Lock()
-	tty := t.tty
-	t.mu.Unlock()
+	t.reexecCmd = cmd
 
 	// Intentionally passing a nil value instead of the PTY. The child
 	// process does not need the PTY, but for compatibility purposes the
 	// first ExtraFiles is left for the PTY descriptor.
-	t.cmd.ExtraFiles = append(t.cmd.ExtraFiles, nil)
+	t.reexecCmd.AddChildPipe(nil)
 	// Pass the TTY to the child since a terminal is attached.
-	t.cmd.ExtraFiles = append(t.cmd.ExtraFiles, tty)
-
-	// Close the TTY before returning to ensure that our half of the pipe is
-	// closed. This ensures that reading from the PTY will unblock when the
-	// child process exits.
-	defer t.closeTTY()
+	t.reexecCmd.AddChildPipe(t.takeTTY())
 
 	// Start the process.
-	if err := t.cmd.Start(); err != nil {
+	if err := t.reexecCmd.Start(); err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Close our half of the write pipe since it is only to be used by the child process.
-	// Not closing prevents being signaled when the child closes its half.
-	if err := t.serverContext.readyw.Close(); err != nil {
-		t.log.WarnContext(ctx, "Failed to close parent process ready signal write fd", "error", err)
-	}
-	t.serverContext.readyw = nil
-
-	// Save off the PID of the Teleport process under which the shell is executing.
-	t.pid = t.cmd.Process.Pid
 
 	return nil
 }
 
 // Wait will block until the terminal is complete.
 func (t *terminal) Wait() (*ExecResult, error) {
-	err := t.cmd.Wait()
+	err := t.reexecCmd.Wait()
 	if err != nil {
 		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			status := exitErr.Sys().(syscall.WaitStatus)
-			return &ExecResult{Code: status.ExitStatus(), Command: t.cmd.Path}, nil
+		if !errors.As(err, &exitErr) {
+			return nil, err
 		}
-		return nil, err
-	}
-
-	status, ok := t.cmd.ProcessState.Sys().(syscall.WaitStatus)
-	if !ok {
-		return nil, trace.Errorf("unknown exit status: %T(%v)", t.cmd.ProcessState.Sys(), t.cmd.ProcessState.Sys())
 	}
 
 	return &ExecResult{
-		Code:    status.ExitStatus(),
-		Command: t.cmd.Path,
+		Code:    t.reexecCmd.ExitCode(),
+		Command: t.reexecCmd.Path(),
 	}, nil
 }
 
 func (t *terminal) WaitForChild(ctx context.Context) error {
-	return t.serverContext.WaitForChild(ctx)
+	return t.serverContext.WaitForChild(ctx, t.reexecCmd)
 }
 
 // Continue will resume execution of the process after it completes its
 // pre-processing routine (placed in a cgroup).
 func (t *terminal) Continue() {
-	if err := t.serverContext.contw.Close(); err != nil {
-		t.log.WarnContext(t.serverContext.CancelContext(), "failed to close server context")
-	}
-}
-
-// KillUnderlyingShell tries to kill the shell/bash process and waits for the process PID to be released.
-func (t *terminal) KillUnderlyingShell(ctx context.Context) error {
-	if err := t.terminateFD.Close(); err != nil {
-		if !errors.Is(err, os.ErrClosed) {
-			t.log.DebugContext(t.serverContext.CancelContext(), "Failed to close the shell file descriptor", "error", err)
-		}
-	}
-
-	pid := t.PID()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		proc, err := os.FindProcess(pid)
-		if err != nil {
-			return trace.Errorf("failed to find the shell process: %w", err)
-		}
-
-		if err := proc.Signal(syscall.Signal(0)); errors.Is(err, os.ErrProcessDone) {
-			t.log.DebugContext(t.serverContext.CancelContext(), "Terminal child process has been stopped")
-			return nil
-		}
-
-		time.Sleep(10 * time.Millisecond)
-	}
-}
-
-// Kill will force kill the child Teleport process.
-func (t *terminal) Kill(_ context.Context) error {
-	if t.cmd != nil && t.cmd.Process != nil {
-		if err := t.cmd.Process.Kill(); err != nil {
-			if err.Error() != "os: process already finished" {
-				return trace.Wrap(err)
-			}
-		}
-	}
-
-	return nil
+	t.reexecCmd.Continue()
 }
 
 // PTY returns the PTY backing the terminal.
@@ -327,37 +240,40 @@ func (t *terminal) TTYName() string {
 
 // PID returns the PID of the Teleport process that was re-execed.
 func (t *terminal) PID() int {
-	return t.pid
+	if t.reexecCmd == nil {
+		return 0
+	}
+	return t.reexecCmd.PID()
 }
 
 // Close will free resources associated with the terminal.
 func (t *terminal) Close() error {
-	err := t.closeTTY()
+	var errs []error
+	if t.reexecCmd != nil {
+		if err := t.reexecCmd.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if tty := t.takeTTY(); tty != nil {
+		if err := tty.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
 	// note, pty is closed in the copying goroutine,
 	// not here to avoid data races
 	go t.closePTY()
-	return trace.Wrap(err)
+
+	return trace.NewAggregate(errs...)
 }
 
-func (t *terminal) closeTTY() error {
+func (t *terminal) takeTTY() *os.File {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-
-	if t.tty == nil {
-		t.log.DebugContext(t.serverContext.CancelContext(), "TTY already closed")
-		return nil
-	}
-
-	t.log.DebugContext(t.serverContext.CancelContext(), "Closing TTY")
-	defer t.log.DebugContext(t.serverContext.CancelContext(), "Closed TTY")
-	err := t.tty.Close()
+	tty := t.tty
 	t.tty = nil
-
-	if err != nil {
-		t.log.WarnContext(t.serverContext.CancelContext(), "Failed to close TTY", "error", err)
-	}
-
-	return trace.Wrap(err)
+	return tty
 }
 
 func (t *terminal) closePTY() {
@@ -619,20 +535,6 @@ func (t *remoteTerminal) WaitForChild(context.Context) error {
 
 // Continue does nothing for remote command execution.
 func (t *remoteTerminal) Continue() {}
-
-// Terminate does nothing for remote command execution.
-func (t *remoteTerminal) KillUnderlyingShell(_ context.Context) error {
-	return nil
-}
-
-func (t *remoteTerminal) Kill(ctx context.Context) error {
-	err := t.session.Signal(ctx, ssh.SIGKILL)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
 
 func (t *remoteTerminal) PTY() io.ReadWriter {
 	return t.ptyBuffer

@@ -41,6 +41,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -123,8 +124,8 @@ type localExec struct {
 	// Command is the command that will be executed.
 	Command string
 
-	// Cmd holds an *exec.Cmd which will be used for local execution.
-	Cmd *exec.Cmd
+	// reexecCmd holds the reexec command used for local execution.
+	reexecCmd *reexec.Command
 
 	// Ctx holds the *ServerContext.
 	Ctx *ServerContext
@@ -152,23 +153,20 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	}
 
 	// Create the command that will actually execute.
-	e.Cmd, err = ConfigureCommand(e.Ctx)
+	e.reexecCmd, err = e.Ctx.ConfigureCommand()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	e.Ctx.AddCloser(e.reexecCmd)
 
-	// Connect stdout and stderr to the channel so the user can interact with the command.
-	e.Cmd.Stderr = channel.Stderr()
-	e.Cmd.Stdout = channel
-
-	// Copy from the channel (client input) into stdin of the process.
-	inputWriter, err := e.Cmd.StdinPipe()
+	// Connect stdio to the channel so the user can interact with the command.
+	inputWriter, err := e.reexecCmd.WithStdio(channel, channel.Stderr())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Start the command.
-	err = e.Cmd.Start()
+	err = e.reexecCmd.Start()
 	if err != nil {
 		logger.WarnContext(ctx, "Local command failed to start", "error", err)
 
@@ -180,12 +178,6 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 			Code:    exitCode(err),
 		}, trace.ConvertSystemError(err)
 	}
-	// Close our half of the write pipe since it is only to be used by the child process.
-	// Not closing prevents being signaled when the child closes its half.
-	if err := e.Ctx.readyw.Close(); err != nil {
-		logger.WarnContext(ctx, "Failed to close parent process ready signal write fd", "error", err)
-	}
-	e.Ctx.readyw = nil
 
 	go func() {
 		if _, err := io.Copy(inputWriter, channel); err != nil {
@@ -201,12 +193,13 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 
 // Wait will block while the command executes.
 func (e *localExec) Wait() *ExecResult {
-	if e.Cmd.Process == nil {
+	if e.reexecCmd == nil {
 		e.Ctx.Logger.ErrorContext(e.Ctx.CancelContext(), "No process")
+		return nil
 	}
 
 	// Block until the command is finished executing.
-	err := e.Cmd.Wait()
+	err := e.reexecCmd.Wait()
 	if err != nil {
 		e.Ctx.Logger.DebugContext(e.Ctx.CancelContext(), "Local command failed", "error", err)
 	} else {
@@ -218,28 +211,25 @@ func (e *localExec) Wait() *ExecResult {
 
 	execResult := &ExecResult{
 		Command: e.GetCommand(),
-		Code:    exitCode(err),
+		Code:    e.reexecCmd.ExitCode(),
 	}
 
 	return execResult
 }
 
 func (e *localExec) WaitForChild(ctx context.Context) error {
-	return e.Ctx.WaitForChild(ctx)
+	return e.Ctx.WaitForChild(ctx, e.reexecCmd)
 }
 
 // Continue will resume execution of the process after it completes its
 // pre-processing routine (placed in a cgroup).
 func (e *localExec) Continue() {
-	e.Ctx.contw.Close()
-
-	// Set to nil so the close in the context doesn't attempt to re-close.
-	e.Ctx.contw = nil
+	e.reexecCmd.Continue()
 }
 
 // PID returns the PID of the Teleport process that was re-execed.
 func (e *localExec) PID() int {
-	return e.Cmd.Process.Pid
+	return e.reexecCmd.PID()
 }
 
 func (e *localExec) String() string {

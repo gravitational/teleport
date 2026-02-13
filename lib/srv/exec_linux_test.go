@@ -91,10 +91,10 @@ func TestOSCommandPrep(t *testing.T) {
 	}
 
 	// Empty command (simple shell).
-	execCmd, err := scx.ExecCommand()
+	reexecCfg, err := scx.ReexecConfig()
 	require.NoError(t, err)
 
-	cmd, err := buildCommand(execCmd, usr, nil, nil)
+	cmd, err := buildCommand(reexecCfg, usr, nil, nil)
 	require.NoError(t, err)
 
 	require.NotNil(t, cmd)
@@ -106,10 +106,10 @@ func TestOSCommandPrep(t *testing.T) {
 
 	// Non-empty command (exec a prog).
 	scx.execRequest.SetCommand("ls -lh /etc")
-	execCmd, err = scx.ExecCommand()
+	reexecCfg, err = scx.ReexecConfig()
 	require.NoError(t, err)
 
-	cmd, err = buildCommand(execCmd, usr, nil, nil)
+	cmd, err = buildCommand(reexecCfg, usr, nil, nil)
 	require.NoError(t, err)
 
 	require.NotNil(t, cmd)
@@ -121,10 +121,10 @@ func TestOSCommandPrep(t *testing.T) {
 
 	// Command without args.
 	scx.execRequest.SetCommand("top")
-	execCmd, err = scx.ExecCommand()
+	reexecCfg, err = scx.ReexecConfig()
 	require.NoError(t, err)
 
-	cmd, err = buildCommand(execCmd, usr, nil, nil)
+	cmd, err = buildCommand(reexecCfg, usr, nil, nil)
 	require.NoError(t, err)
 
 	require.Equal(t, "/bin/sh", cmd.Path)
@@ -137,7 +137,7 @@ func TestOSCommandPrep(t *testing.T) {
 	usr.HomeDir = "/wrong/place"
 	root := string(os.PathSeparator)
 	expectedEnv[2] = "HOME=/wrong/place"
-	cmd, err = buildCommand(execCmd, usr, nil, nil)
+	cmd, err = buildCommand(reexecCfg, usr, nil, nil)
 	require.NoError(t, err)
 
 	require.Equal(t, root, cmd.Dir)
@@ -155,12 +155,12 @@ func TestConfigureCommand(t *testing.T) {
 	// environment values in the server context should not be forwarded
 	scx.SetEnv(unexpectedKey, unexpectedValue)
 
-	cmd, err := ConfigureCommand(scx)
+	cmd, err := scx.ConfigureCommand()
 	require.NoError(t, err)
 
 	require.NotNil(t, cmd)
-	require.Equal(t, "/proc/self/exe", cmd.Path)
-	require.NotContains(t, cmd.Env, unexpectedKey+"="+unexpectedValue)
+	require.Equal(t, "/proc/self/exe", cmd.Path())
+	require.NotContains(t, cmd.Env(), unexpectedKey+"="+unexpectedValue)
 }
 
 // TestContinue tests if the process hangs if a continue signal is not sent
@@ -178,7 +178,7 @@ func TestContinue(t *testing.T) {
 	scx.execRequest.SetCommand(lsPath)
 
 	// Create an exec.Cmd to execute through Teleport.
-	cmd, err := ConfigureCommand(scx)
+	cmd, err := scx.ConfigureCommand()
 	require.NoError(t, err)
 
 	// Create a channel that will be used to signal that execution is complete.
@@ -189,11 +189,9 @@ func TestContinue(t *testing.T) {
 	go func() {
 		if err := cmd.Start(); err != nil {
 			cmdDone <- err
+			return
 		}
-
-		// Close the read half of the pipe to unblock the ready signal.
-		closeErr := scx.readyw.Close()
-		cmdDone <- trace.NewAggregate(closeErr, cmd.Wait())
+		cmdDone <- trace.Wrap(cmd.Wait())
 	}()
 
 	// Wait for the process. Since the continue pipe has not been closed, the
@@ -208,7 +206,7 @@ func TestContinue(t *testing.T) {
 	require.NoError(t, scx.execRequest.WaitForChild(t.Context()))
 
 	// Signal to child that it may execute the requested program.
-	scx.execRequest.Continue()
+	cmd.Continue()
 
 	// Program should have executed now. If the complete signal has not come
 	// over the context, something failed.

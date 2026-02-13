@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -742,7 +743,7 @@ func (s *ForwardServer) GetSELinuxEnabled() bool {
 // does not spawn child processes.
 func (s *ForwardServer) ChildLogConfig() srv.ChildLogConfig {
 	return srv.ChildLogConfig{
-		ExecLogConfig: srv.ExecLogConfig{
+		LogConfig: reexec.LogConfig{
 			Level: &slog.LevelVar{},
 		},
 		Writer: io.Discard,

@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/networking"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -369,7 +370,7 @@ func (s *Server) ChildLogConfig() srv.ChildLogConfig {
 
 	// return a noop log configuration
 	return srv.ChildLogConfig{
-		ExecLogConfig: srv.ExecLogConfig{
+		LogConfig: reexec.LogConfig{
 			Level: &slog.LevelVar{},
 		},
 		Writer: io.Discard,
@@ -819,7 +820,7 @@ func SetImmutableLabels(labels map[string]string) ServerOption {
 func SetChildLogConfig(cfg *servicecfg.Config) ServerOption {
 	return func(s *Server) error {
 		s.childLogConfig = &srv.ChildLogConfig{
-			ExecLogConfig: srv.ExecLogConfig{
+			LogConfig: reexec.LogConfig{
 				Level:        cfg.LoggerLevel,
 				Format:       strings.ToLower(cfg.LogConfig.Format),
 				ExtraFields:  cfg.LogConfig.ExtraFields,
@@ -1304,13 +1305,17 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 	// Create command to re-exec Teleport which will handle networking requests. The
 	// reason it's not done directly is because the PAM stack needs to be called
 	// from the child process.
-	cmd, err := srv.ConfigureCommand(nsctx)
+	cmd, err := nsctx.ConfigureCommand()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	proc, err := networking.NewProcess(nsctx.CancelContext(), cmd)
-	return proc, trace.Wrap(err)
+	if err != nil {
+		cmd.Close()
+		return nil, trace.Wrap(err)
+	}
+	return proc, nil
 }
 
 // HandleRequest processes global out-of-band requests. Global out-of-band
