@@ -37,7 +37,6 @@ import (
 // MFAService implements the storage layer for MFA resources.
 type MFAService struct {
 	logger  *slog.Logger
-	backend backend.Backend
 	service *generic.ServiceWrapper[*validatedMFAChallenge]
 }
 
@@ -58,7 +57,6 @@ func NewMFAService(b backend.Backend) (*MFAService, error) {
 
 	return &MFAService{
 		logger:  slog.With(teleport.ComponentKey, "mfa.backend"),
-		backend: b,
 		service: svc,
 	}, nil
 }
