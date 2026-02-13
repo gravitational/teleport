@@ -280,6 +280,15 @@ type CommandLineFlags struct {
 	// ProfileSeconds defines the time the pprof will be collected.
 	ProfileSeconds int
 
+	// ProcessTop enables top-like refresh mode for `teleport debug process`.
+	ProcessTop bool
+
+	// ProcessShowConfig includes service config content in `teleport debug process` output.
+	ProcessShowConfig bool
+
+	// ProcessService filters `teleport debug process` output to one service group/name.
+	ProcessService string
+
 	// DisableDebugService disables the debug service.
 	DisableDebugService bool
 

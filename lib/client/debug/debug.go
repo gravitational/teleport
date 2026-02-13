@@ -26,6 +26,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/gravitational/trace"
 	dto "github.com/prometheus/client_model/go"
@@ -215,8 +216,62 @@ func (c *Client) GetRawMetrics(ctx context.Context) (io.ReadCloser, error) {
 type ProcessInfo struct {
 	// PID is the process PID.
 	PID int `json:"pid"`
+	// CollectedAt is when this process snapshot was collected.
+	CollectedAt time.Time `json:"collected_at"`
+	// OverallState is the process readiness state (ok/recovering/degraded/starting).
+	OverallState string `json:"overall_state,omitempty"`
 	// ServiceDebugInfo is service specific debug info, if available.
-	ServiceDebugInfo map[string]bool
+	ServiceDebugInfo map[string]ServiceDebugInfo `json:"service_debug_info"`
+	// HeartbeatTimeline captures per-component heartbeat state transitions.
+	HeartbeatTimeline map[string]HeartbeatInfo `json:"heartbeat_timeline,omitempty"`
+	// Signals contains a compact health snapshot for process debugging.
+	Signals ProcessHealthSignals `json:"signals"`
+}
+
+// ServiceDebugInfo captures service specific debug information from /process.
+type ServiceDebugInfo struct {
+	// ServiceName is the internal Teleport service identifier.
+	ServiceName string `json:"service_name"`
+	// IsCritical indicates whether this service is critical for process liveness.
+	IsCritical bool `json:"is_critical"`
+	// RunningSince is when this service started running.
+	RunningSince time.Time `json:"running_since,omitempty"`
+	// HasInfo indicates whether the service exposes debug information.
+	HasInfo bool `json:"has_info"`
+	// ServiceConfig is the service's effective configuration encoded as YAML.
+	ServiceConfig string `json:"service_config,omitempty"`
+	// Error is set if collecting debug information failed.
+	Error string `json:"error,omitempty"`
+}
+
+// HeartbeatInfo captures process heartbeat state for a Teleport component.
+type HeartbeatInfo struct {
+	State                      string    `json:"state"`
+	LastEvent                  string    `json:"last_event,omitempty"`
+	LastTransition             time.Time `json:"last_transition,omitempty"`
+	LastHeartbeatOK            time.Time `json:"last_heartbeat_ok,omitempty"`
+	LastHeartbeatError         time.Time `json:"last_heartbeat_error,omitempty"`
+	ConsecutiveHeartbeatErrors int       `json:"consecutive_heartbeat_errors,omitempty"`
+}
+
+// ProcessHealthSignals contains lightweight process/service health signals.
+type ProcessHealthSignals struct {
+	ControlPlaneConnectivity Signal `json:"control_plane_connectivity"`
+	WatcherCacheLag          Signal `json:"watcher_cache_lag"`
+	MetricDigest             Signal `json:"metric_digest"`
+	DegradedStateRegistry    Signal `json:"degraded_state_registry"`
+
+	// Honorable mentions.
+	BackendLockContention Signal `json:"backend_lock_contention"`
+	RotationCAStatus      Signal `json:"rotation_ca_status"`
+	StartupReadyDurations Signal `json:"startup_ready_durations"`
+}
+
+// Signal is a compact status/summarization payload for a health signal.
+type Signal struct {
+	Status  string            `json:"status"`
+	Summary string            `json:"summary"`
+	Details map[string]string `json:"details,omitempty"`
 }
 
 // GetProcessInfo returns internal process info for debugging.

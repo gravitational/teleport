@@ -67,8 +67,13 @@ type processState struct {
 }
 
 type componentState struct {
-	recoveryTime time.Time
-	state        componentStateEnum
+	recoveryTime      time.Time
+	lastTransition    time.Time
+	lastEvent         string
+	lastHeartbeatOK   time.Time
+	lastHeartbeatErr  time.Time
+	consecutiveErrors int
+	state             componentStateEnum
 }
 
 type updateResult int
@@ -97,16 +102,26 @@ func (f *processState) update(now time.Time, event, component string) updateResu
 			f.states = make(map[string]*componentState)
 		}
 		// Register a new component.
-		s = &componentState{recoveryTime: now, state: stateStarting}
+		s = &componentState{
+			recoveryTime:   now,
+			lastTransition: now,
+			lastEvent:      TeleportStartingEvent,
+			state:          stateStarting,
+		}
 		f.states[component] = s
 	}
 
 	switch event {
 	case TeleportStartingEvent:
+		s.lastEvent = event
 		return updateStarting
 	// If a degraded event was received, always change the state to degraded.
 	case TeleportDegradedEvent:
 		s.state = stateDegraded
+		s.lastEvent = event
+		s.lastTransition = now
+		s.lastHeartbeatErr = now
+		s.consecutiveErrors++
 		return updateDegraded
 	// If the current state is degraded, and a OK event has been
 	// received, change the state to recovering. If the current state is
@@ -114,22 +129,63 @@ func (f *processState) update(now time.Time, event, component string) updateResu
 	// than the recovery time (2 time the server keep alive ttl), change
 	// state to OK.
 	case TeleportOKEvent:
+		s.lastEvent = event
+		s.lastHeartbeatOK = now
 		switch s.state {
 		case stateStarting:
 			s.state = stateOK
+			s.lastTransition = now
+			s.consecutiveErrors = 0
 			return updateStarted
 		case stateDegraded:
 			s.state = stateRecovering
 			s.recoveryTime = now
+			s.lastTransition = now
 			return updateRecovering
 		case stateRecovering:
 			if now.Sub(s.recoveryTime) > defaults.HeartbeatCheckPeriod*2 {
 				s.state = stateOK
+				s.lastTransition = now
+				s.consecutiveErrors = 0
 				return updateRecovered
 			}
 		}
 	}
 	return 0
+}
+
+func componentStateToString(state componentStateEnum) string {
+	switch state {
+	case stateOK:
+		return "ok"
+	case stateRecovering:
+		return "recovering"
+	case stateDegraded:
+		return "degraded"
+	case stateStarting:
+		return "starting"
+	default:
+		return "unknown"
+	}
+}
+
+func (f *processState) snapshot() (string, map[string]debug.HeartbeatInfo) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	timeline := make(map[string]debug.HeartbeatInfo, len(f.states))
+	for component, state := range f.states {
+		timeline[component] = debug.HeartbeatInfo{
+			State:                      componentStateToString(state.state),
+			LastEvent:                  state.lastEvent,
+			LastTransition:             state.lastTransition,
+			LastHeartbeatOK:            state.lastHeartbeatOK,
+			LastHeartbeatError:         state.lastHeartbeatErr,
+			ConsecutiveHeartbeatErrors: state.consecutiveErrors,
+		}
+	}
+
+	return componentStateToString(f.getStateLocked()), timeline
 }
 
 // getStateLocked returns the overall process state based on the state of

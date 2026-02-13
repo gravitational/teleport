@@ -222,10 +222,19 @@ func onMetrics(ctx context.Context, configPath string) error {
 }
 
 // onProcessInfo prints Teleport process info for debugging.
-func onProcessInfo(ctx context.Context, configPath string) error {
+func onProcessInfo(ctx context.Context, configPath string, top bool, showConfig bool, serviceFilter string) error {
 	clt, dataDir, err := newDebugClient(configPath)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	opts := processInfoOutputOptions{
+		showConfig:    showConfig,
+		serviceFilter: strings.TrimSpace(serviceFilter),
+	}
+
+	if top {
+		return runTopProcessInfo(ctx, clt, dataDir, opts)
 	}
 
 	info, err := clt.GetProcessInfo(ctx)
@@ -234,15 +243,236 @@ func onProcessInfo(ctx context.Context, configPath string) error {
 	}
 
 	// TODO: support text, json, binary, tar, etc. formats
-	printProcessInfo(info)
+	return printProcessInfo(info, opts)
+}
+
+type processInfoOutputOptions struct {
+	showConfig    bool
+	serviceFilter string
+}
+
+type serviceGroup struct {
+	name         string
+	services     []string
+	hasConfig    bool
+	critical     bool
+	runningSince time.Time
+	config       string
+	errors       map[string]string
+}
+
+func printProcessInfo(info debugclient.ProcessInfo, opts processInfoOutputOptions) error {
+	groups := buildServiceGroups(info, opts)
+	if opts.serviceFilter != "" && len(groups) == 0 {
+		return trace.NotFound("service %q not found in process info", opts.serviceFilter)
+	}
+
+	fmt.Printf("PID: %d\n", info.PID)
+	fmt.Printf("Collected At: %s\n", formatTopTime(info.CollectedAt))
+	fmt.Printf("Overall State: %s\n", info.OverallState)
+
+	fmt.Println("")
+	fmt.Println("Health Signals")
+	printSignal("control_plane_connectivity", info.Signals.ControlPlaneConnectivity)
+	printSignal("watcher_cache_lag", info.Signals.WatcherCacheLag)
+	printSignal("metric_digest", info.Signals.MetricDigest)
+	printSignal("degraded_state_registry", info.Signals.DegradedStateRegistry)
+	printSignal("backend_lock_contention", info.Signals.BackendLockContention)
+	printSignal("rotation_ca_status", info.Signals.RotationCAStatus)
+	printSignal("startup_ready_durations", info.Signals.StartupReadyDurations)
+
+	if len(info.HeartbeatTimeline) > 0 {
+		fmt.Println("")
+		fmt.Println("Heartbeat Timeline")
+		components := make([]string, 0, len(info.HeartbeatTimeline))
+		for component := range info.HeartbeatTimeline {
+			components = append(components, component)
+		}
+		slices.Sort(components)
+		for _, component := range components {
+			hb := info.HeartbeatTimeline[component]
+			fmt.Printf("- %s: state=%s consecutive_errors=%d last_event=%s last_error=%s last_ok=%s\n",
+				component, hb.State, hb.ConsecutiveHeartbeatErrors, hb.LastEvent,
+				formatTopTime(hb.LastHeartbeatError), formatTopTime(hb.LastHeartbeatOK))
+		}
+	}
+
+	fmt.Println("")
+	fmt.Println("Services")
+	for _, group := range groups {
+		fmt.Printf("- %s: has config: %v critical: %v running_since: %s subservices: %d\n",
+			group.name, group.hasConfig, group.critical, formatTopTime(group.runningSince), len(group.services))
+
+		if len(group.services) > 1 {
+			for _, serviceName := range group.services {
+				fmt.Printf("  - %s\n", serviceName)
+			}
+		}
+
+		if len(group.errors) > 0 {
+			errorKeys := make([]string, 0, len(group.errors))
+			for serviceName := range group.errors {
+				errorKeys = append(errorKeys, serviceName)
+			}
+			slices.Sort(errorKeys)
+			for _, serviceName := range errorKeys {
+				fmt.Printf("  error[%s]=%s\n", serviceName, group.errors[serviceName])
+			}
+		}
+
+		if opts.showConfig && group.config != "" {
+			fmt.Printf("  config:\n%s\n", group.config)
+		}
+	}
 	return nil
 }
 
-func printProcessInfo(info debugclient.ProcessInfo) {
-	fmt.Printf("PID: %d\n", info.PID)
-	for serviceName, info := range info.ServiceDebugInfo {
-		fmt.Printf("Service %s has info: %v\n", serviceName, info)
+func buildServiceGroups(info debugclient.ProcessInfo, opts processInfoOutputOptions) []serviceGroup {
+	useExactMatch := strings.Contains(opts.serviceFilter, ".")
+	groupByName := make(map[string]*serviceGroup)
+
+	serviceNames := make([]string, 0, len(info.ServiceDebugInfo))
+	for serviceName := range info.ServiceDebugInfo {
+		serviceNames = append(serviceNames, serviceName)
 	}
+	slices.Sort(serviceNames)
+
+	for _, serviceName := range serviceNames {
+		serviceInfo := info.ServiceDebugInfo[serviceName]
+		root := topLevelServiceName(serviceName)
+
+		if !matchesServiceFilter(opts.serviceFilter, useExactMatch, root, serviceName) {
+			continue
+		}
+
+		groupKey := root
+		if useExactMatch {
+			groupKey = serviceName
+		}
+
+		group, ok := groupByName[groupKey]
+		if !ok {
+			group = &serviceGroup{
+				name:   groupKey,
+				errors: make(map[string]string),
+			}
+			groupByName[groupKey] = group
+		}
+
+		group.services = append(group.services, serviceName)
+		if serviceInfo.HasInfo {
+			group.hasConfig = true
+		}
+		if serviceInfo.IsCritical {
+			group.critical = true
+		}
+		if !serviceInfo.RunningSince.IsZero() && (group.runningSince.IsZero() || serviceInfo.RunningSince.Before(group.runningSince)) {
+			group.runningSince = serviceInfo.RunningSince
+		}
+		if serviceInfo.Error != "" {
+			group.errors[serviceName] = serviceInfo.Error
+		}
+		if group.config == "" && serviceInfo.ServiceConfig != "" {
+			group.config = serviceInfo.ServiceConfig
+		}
+	}
+
+	groups := make([]serviceGroup, 0, len(groupByName))
+	for _, group := range groupByName {
+		slices.Sort(group.services)
+		groups = append(groups, *group)
+	}
+	slices.SortFunc(groups, func(a, b serviceGroup) int {
+		return strings.Compare(a.name, b.name)
+	})
+	return groups
+}
+
+func matchesServiceFilter(filter string, useExactMatch bool, rootService, fullService string) bool {
+	if filter == "" {
+		return true
+	}
+	if useExactMatch {
+		return fullService == filter
+	}
+	return rootService == filter || fullService == filter
+}
+
+func topLevelServiceName(serviceName string) string {
+	root, _, hasChild := strings.Cut(serviceName, ".")
+	if hasChild {
+		return root
+	}
+	return serviceName
+}
+
+func runTopProcessInfo(ctx context.Context, clt DebugClient, dataDir string, opts processInfoOutputOptions) error {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		info, err := clt.GetProcessInfo(ctx)
+		if err != nil {
+			return convertToReadableErr(err, dataDir, clt.SocketPath())
+		}
+		renderTopProcessInfo(info, opts)
+
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+		}
+	}
+}
+
+func renderTopProcessInfo(info debugclient.ProcessInfo, opts processInfoOutputOptions) {
+	groups := buildServiceGroups(info, opts)
+	// ANSI clear screen + move cursor to top-left.
+	fmt.Print("\033[2J\033[H")
+	fmt.Printf("teleport debug process --top | pid=%d | state=%s | collected=%s\n",
+		info.PID, info.OverallState, formatTopTime(info.CollectedAt))
+	fmt.Println("Press Ctrl+C to exit.")
+	fmt.Println("")
+
+	printSignal("control_plane_connectivity", info.Signals.ControlPlaneConnectivity)
+	printSignal("watcher_cache_lag", info.Signals.WatcherCacheLag)
+	printSignal("metric_digest", info.Signals.MetricDigest)
+	printSignal("degraded_state_registry", info.Signals.DegradedStateRegistry)
+	printSignal("backend_lock_contention", info.Signals.BackendLockContention)
+	printSignal("rotation_ca_status", info.Signals.RotationCAStatus)
+	printSignal("startup_ready_durations", info.Signals.StartupReadyDurations)
+
+	fmt.Println("")
+	fmt.Println("Top Services")
+	for _, group := range groups {
+		fmt.Printf("- %-24s critical=%-5v has_config=%-5v running_since=%s subservices=%d\n",
+			group.name, group.critical, group.hasConfig, formatTopTime(group.runningSince), len(group.services))
+		if len(group.errors) > 0 {
+			fmt.Printf("  errors=%d\n", len(group.errors))
+		}
+	}
+}
+
+func printSignal(name string, signal debugclient.Signal) {
+	fmt.Printf("- %s: status=%s summary=%s\n", name, signal.Status, signal.Summary)
+	if len(signal.Details) == 0 {
+		return
+	}
+	keys := make([]string, 0, len(signal.Details))
+	for key := range signal.Details {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	for _, key := range keys {
+		fmt.Printf("  %s=%s\n", key, signal.Details[key])
+	}
+}
+
+func formatTopTime(t time.Time) string {
+	if t.IsZero() {
+		return "n/a"
+	}
+	return t.Format(time.RFC3339)
 }
 
 // newDebugClient initializes the debug client based on the Teleport

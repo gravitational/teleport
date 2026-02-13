@@ -48,6 +48,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
+	"github.com/ghodss/yaml"
 	"github.com/google/renameio/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -784,6 +785,121 @@ func (process *TeleportProcess) OnHeartbeat(component string) func(err error) {
 			process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: component})
 		}
 	}
+}
+
+// RegisterFunc creates a service from function spec and registers it with
+// the process supervisor, attaching a default debug-info hook.
+func (process *TeleportProcess) RegisterFunc(name string, fn Func, opts ...ServiceOpt) {
+	opts = append(opts, process.withServiceConfigDebugInfo(name))
+	process.Supervisor.RegisterFunc(name, fn, opts...)
+}
+
+// RegisterCriticalFunc creates a critical service from function spec and
+// registers it with the process supervisor, attaching a default debug-info
+// hook.
+func (process *TeleportProcess) RegisterCriticalFunc(name string, fn Func, opts ...ServiceOpt) {
+	opts = append(opts, process.withServiceConfigDebugInfo(name))
+	process.Supervisor.RegisterCriticalFunc(name, fn, opts...)
+}
+
+func (process *TeleportProcess) withServiceConfigDebugInfo(serviceName string) ServiceOpt {
+	return WithDebugInfo(func(ctx context.Context) (string, error) {
+		return process.getServiceConfigYAML(ctx, serviceName)
+	})
+}
+
+func (process *TeleportProcess) getServiceConfigYAML(ctx context.Context, serviceName string) (string, error) {
+	rootService := serviceName
+	if idx := strings.Index(serviceName, "."); idx != -1 {
+		rootService = serviceName[:idx]
+	}
+
+	var cfg any
+	switch rootService {
+	case "auth":
+		cfg = process.getAuthServiceDebugConfig(ctx)
+	case "proxy":
+		if strings.HasPrefix(serviceName, "proxy.db.") {
+			cfg = map[string]any{
+				"proxy_service": process.Config.Proxy,
+				"db_service":    process.Config.Databases,
+			}
+			break
+		}
+		cfg = map[string]any{"proxy_service": process.Config.Proxy}
+	case "ssh":
+		cfg = map[string]any{"ssh_service": process.Config.SSH}
+	case "apps":
+		cfg = map[string]any{"app_service": process.Config.Apps}
+	case "metrics":
+		cfg = map[string]any{"metrics_service": process.Config.Metrics}
+	case "relay":
+		cfg = map[string]any{"relay_service": process.Config.Relay}
+	case "discovery":
+		cfg = map[string]any{"discovery_service": process.Config.Discovery}
+	case "okta":
+		cfg = map[string]any{"okta_service": process.Config.Okta}
+	case "jamf":
+		cfg = map[string]any{"jamf_service": process.Config.Jamf}
+	case "debug":
+		cfg = map[string]any{"debug_service": process.Config.DebugService}
+	case "kube":
+		cfg = map[string]any{"kubernetes_service": process.Config.Kube}
+	case "db":
+		cfg = map[string]any{"db_service": process.Config.Databases}
+	case "windows_desktop":
+		cfg = map[string]any{"windows_desktop_service": process.Config.WindowsDesktop}
+	default:
+		// Most sub-services are orchestration/maintenance workers and don't map
+		// to a user-facing static config section.
+		return "", nil
+	}
+
+	out, err := yaml.Marshal(cfg)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(out), nil
+}
+
+func (process *TeleportProcess) getAuthServiceDebugConfig(ctx context.Context) map[string]any {
+	authConfig := process.Config.Auth
+	localAuth := process.getLocalAuth()
+	if localAuth == nil {
+		return map[string]any{"auth_service": authConfig}
+	}
+
+	dynamicErrors := make(map[string]string)
+
+	if pref, err := localAuth.GetAuthPreference(ctx); err != nil {
+		dynamicErrors["auth_preference"] = err.Error()
+	} else {
+		authConfig.Preference = pref
+	}
+
+	if cfg, err := localAuth.GetClusterAuditConfig(ctx); err != nil {
+		dynamicErrors["cluster_audit_config"] = err.Error()
+	} else {
+		authConfig.AuditConfig = cfg
+	}
+
+	if cfg, err := localAuth.GetClusterNetworkingConfig(ctx); err != nil {
+		dynamicErrors["cluster_networking_config"] = err.Error()
+	} else {
+		authConfig.NetworkingConfig = cfg
+	}
+
+	if cfg, err := localAuth.GetSessionRecordingConfig(ctx); err != nil {
+		dynamicErrors["session_recording_config"] = err.Error()
+	} else {
+		authConfig.SessionRecordingConfig = cfg
+	}
+
+	out := map[string]any{"auth_service": authConfig}
+	if len(dynamicErrors) > 0 {
+		out["dynamic_config_errors"] = dynamicErrors
+	}
+	return out
 }
 
 // ExpectService is used to advertise a service that should be running in the process.

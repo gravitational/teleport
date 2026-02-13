@@ -25,7 +25,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"runtime"
 	"slices"
+	"strconv"
 	"sync"
 	"time"
 
@@ -157,6 +159,7 @@ type LocalSupervisor struct {
 	sync.Mutex
 	wg           *sync.WaitGroup
 	services     []Service
+	serviceStart map[string]time.Time
 	events       map[string]Event
 	eventsC      chan Event
 	eventWaiters map[string][]*waiter
@@ -211,6 +214,7 @@ func NewSupervisor(id string, parentLog *slog.Logger, clock clockwork.Clock) (*L
 		state:        stateCreated,
 		id:           id,
 		services:     []Service{},
+		serviceStart: map[string]time.Time{},
 		wg:           &sync.WaitGroup{},
 		events:       map[string]Event{},
 		eventsC:      make(chan Event, 1024),
@@ -283,6 +287,7 @@ func (s *LocalSupervisor) RemoveService(srv Service) error {
 	for i, el := range s.services {
 		if el == srv {
 			s.services = slices.Delete(s.services, i, i+1)
+			delete(s.serviceStart, srv.Name())
 			l.Log(s.closeContext, logutils.TraceLevel, "Service is completed and removed")
 			return nil
 		}
@@ -344,6 +349,7 @@ func (s *LocalSupervisor) serve(srv Service) {
 		s.log.WarnContext(s.closeContext, "Not starting new service, process is shutting down")
 		return
 	}
+	s.serviceStart[srv.Name()] = s.clock.Now()
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
@@ -442,18 +448,146 @@ func (s *LocalSupervisor) HandleReadiness(w http.ResponseWriter, r *http.Request
 // HandleProcessInfo implements [Supervisor]
 func (s *LocalSupervisor) HandleProcessInfo(w http.ResponseWriter, r *http.Request) {
 	s.Lock()
-	defer s.Unlock()
-
-	serviceDebugInfo := make(map[string]bool)
-	for _, service := range s.services {
-		serviceDebugInfo[service.Name()] = service.DebugInfo()
+	services := slices.Clone(s.services)
+	serviceStart := make(map[string]time.Time, len(s.serviceStart))
+	for serviceName, start := range s.serviceStart {
+		serviceStart[serviceName] = start
 	}
+	s.Unlock()
+
+	now := s.clock.Now()
+
+	serviceDebugInfo := make(map[string]debug.ServiceDebugInfo, len(services))
+	for _, service := range services {
+		info := service.DebugInfo(r.Context())
+		if info.ServiceName == "" {
+			info.ServiceName = service.Name()
+		}
+		info.IsCritical = service.IsCritical()
+		if start, ok := serviceStart[service.Name()]; ok {
+			info.RunningSince = start
+		}
+		serviceDebugInfo[service.Name()] = info
+	}
+
+	overallState, heartbeatTimeline := s.processState.snapshot()
 
 	info := debug.ProcessInfo{
-		PID:              os.Getpid(),
-		ServiceDebugInfo: serviceDebugInfo,
+		PID:               os.Getpid(),
+		CollectedAt:       now,
+		OverallState:      overallState,
+		ServiceDebugInfo:  serviceDebugInfo,
+		HeartbeatTimeline: heartbeatTimeline,
+		Signals:           buildProcessSignals(now, overallState, heartbeatTimeline, serviceStart),
 	}
 	roundtrip.ReplyJSON(w, http.StatusOK, info)
+}
+
+func buildProcessSignals(
+	now time.Time,
+	overallState string,
+	heartbeatTimeline map[string]debug.HeartbeatInfo,
+	serviceStart map[string]time.Time,
+) debug.ProcessHealthSignals {
+	degraded := 0
+	recovering := 0
+	for _, heartbeat := range heartbeatTimeline {
+		switch heartbeat.State {
+		case "degraded":
+			degraded++
+		case "recovering":
+			recovering++
+		}
+	}
+
+	connectivityStatus := "ok"
+	switch overallState {
+	case "degraded":
+		connectivityStatus = "error"
+	case "recovering", "starting":
+		connectivityStatus = "warn"
+	}
+
+	var mem runtime.MemStats
+	runtime.ReadMemStats(&mem)
+
+	degradedRegistryStatus := "ok"
+	degradedSummary := "no degraded components reported"
+	if degraded > 0 {
+		degradedRegistryStatus = "error"
+		degradedSummary = fmt.Sprintf("%d degraded component(s)", degraded)
+	} else if recovering > 0 {
+		degradedRegistryStatus = "warn"
+		degradedSummary = fmt.Sprintf("%d recovering component(s)", recovering)
+	}
+	degradedDetails := make(map[string]string)
+	for componentName, heartbeat := range heartbeatTimeline {
+		if heartbeat.State != "degraded" && heartbeat.State != "recovering" {
+			continue
+		}
+		degradedDetails[componentName] = fmt.Sprintf(
+			"state=%s consecutive_errors=%d last_error=%s",
+			heartbeat.State,
+			heartbeat.ConsecutiveHeartbeatErrors,
+			formatHealthTime(heartbeat.LastHeartbeatError),
+		)
+	}
+
+	startupDurationDetails := make(map[string]string, len(serviceStart))
+	for serviceName, startedAt := range serviceStart {
+		startupDurationDetails[serviceName] = now.Sub(startedAt).Round(time.Second).String()
+	}
+
+	return debug.ProcessHealthSignals{
+		ControlPlaneConnectivity: debug.Signal{
+			Status:  connectivityStatus,
+			Summary: fmt.Sprintf("process state=%s", overallState),
+			Details: map[string]string{
+				"degraded_components":   strconv.Itoa(degraded),
+				"recovering_components": strconv.Itoa(recovering),
+				"tracked_components":    strconv.Itoa(len(heartbeatTimeline)),
+			},
+		},
+		WatcherCacheLag: debug.Signal{
+			Status:  "unknown",
+			Summary: "watcher/cache lag signal is not wired yet in this prototype",
+		},
+		MetricDigest: debug.Signal{
+			Status:  "ok",
+			Summary: "runtime metric digest",
+			Details: map[string]string{
+				"goroutines":       strconv.Itoa(runtime.NumGoroutine()),
+				"heap_alloc_bytes": strconv.FormatUint(mem.HeapAlloc, 10),
+				"heap_objects":     strconv.FormatUint(mem.HeapObjects, 10),
+				"services_running": strconv.Itoa(len(serviceStart)),
+			},
+		},
+		DegradedStateRegistry: debug.Signal{
+			Status:  degradedRegistryStatus,
+			Summary: degradedSummary,
+			Details: degradedDetails,
+		},
+		BackendLockContention: debug.Signal{
+			Status:  "unknown",
+			Summary: "backend lock contention signal is not wired yet in this prototype",
+		},
+		RotationCAStatus: debug.Signal{
+			Status:  "unknown",
+			Summary: "rotation/CA lifecycle signal is not wired yet in this prototype",
+		},
+		StartupReadyDurations: debug.Signal{
+			Status:  "ok",
+			Summary: fmt.Sprintf("tracked running durations for %d service(s)", len(startupDurationDetails)),
+			Details: startupDurationDetails,
+		},
+	}
+}
+
+func formatHealthTime(t time.Time) string {
+	if t.IsZero() {
+		return "n/a"
+	}
+	return t.Format(time.RFC3339)
 }
 
 // BroadcastEvent generates event and broadcasts it to all
@@ -658,7 +792,7 @@ type Service interface {
 	// and program can't continue without it
 	IsCritical() bool
 	// DebugInfo returns service debug info if available
-	DebugInfo() bool
+	DebugInfo(context.Context) debug.ServiceDebugInfo
 }
 
 // ServiceConfig provides optional configuration for a service
@@ -668,7 +802,7 @@ type ServiceConfig struct {
 	// without it
 	Critical bool
 	// DebugInfo returns service debug info if available
-	GetDebugInfo func()
+	GetDebugInfo func(context.Context) (string, error)
 }
 
 // ServiceOpt sets an optional configuration for a service
@@ -683,7 +817,7 @@ func WithCritical() ServiceOpt {
 }
 
 // WithDebugInfo sets a function to get service debug info
-func WithDebugInfo(getDebugInfo func()) ServiceOpt {
+func WithDebugInfo(getDebugInfo func(context.Context) (string, error)) ServiceOpt {
 	return func(o *ServiceConfig) {
 		o.GetDebugInfo = getDebugInfo
 	}
@@ -732,11 +866,32 @@ func (l *LocalService) Name() string {
 }
 
 // DebugInfo returns service debug info if available
-func (l *LocalService) DebugInfo() bool {
+func (l *LocalService) DebugInfo(ctx context.Context) debug.ServiceDebugInfo {
 	if l.Config.GetDebugInfo != nil {
-		return true
+		cfg, err := l.Config.GetDebugInfo(ctx)
+		if err != nil {
+			return debug.ServiceDebugInfo{
+				ServiceName: l.ServiceName,
+				HasInfo:     false,
+				Error:       err.Error(),
+			}
+		}
+		if cfg == "" {
+			return debug.ServiceDebugInfo{
+				ServiceName: l.ServiceName,
+				HasInfo:     false,
+			}
+		}
+		return debug.ServiceDebugInfo{
+			ServiceName:   l.ServiceName,
+			HasInfo:       true,
+			ServiceConfig: cfg,
+		}
 	}
-	return false
+	return debug.ServiceDebugInfo{
+		ServiceName: l.ServiceName,
+		HasInfo:     false,
+	}
 }
 
 // Func is a service function

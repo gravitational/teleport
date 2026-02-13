@@ -631,6 +631,9 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	readyzCmd := debugCmd.Command("readyz", "Checks if the instance is ready to serve requests.")
 	metricsCmd := debugCmd.Command("metrics", "Fetches the cluster's Prometheus metrics.")
 	processInfoCmd := debugCmd.Command("process", "Shows local process info for debugging")
+	processInfoCmd.Flag("top", "Display process info in a live top-style view (refreshes every second).").BoolVar(&ccf.ProcessTop)
+	processInfoCmd.Flag("show-config", "Include service config in output.").BoolVar(&ccf.ProcessShowConfig)
+	processInfoCmd.Flag("service", "Filter output to a service group (e.g. auth) or full service name.").StringVar(&ccf.ProcessService)
 
 	selinuxCmd := app.Command("selinux-ssh", "Commands related to SSH SELinux module.").Hidden()
 	selinuxCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
@@ -831,7 +834,7 @@ Examples:
 	case metricsCmd.FullCommand():
 		err = onMetrics(ctx, ccf.ConfigFile)
 	case processInfoCmd.FullCommand():
-		err = onProcessInfo(ctx, ccf.ConfigFile)
+		err = onProcessInfo(ctx, ccf.ConfigFile, ccf.ProcessTop, ccf.ProcessShowConfig, ccf.ProcessService)
 	case moduleSourceCmd.FullCommand():
 		if runtime.GOOS != "linux" {
 			break
