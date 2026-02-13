@@ -1322,8 +1322,19 @@ func TestInventoryCacheSorting(t *testing.T) {
 		synctest.Wait()
 		require.True(t, inventoryCache.IsHealthy())
 
-		// Test sort by name ascending
+		// Version predicate filter should work whether the instance's version has "v" prefix or not
 		resp, err := inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+			PageSize: 100,
+			Filter: &inventoryv1.ListUnifiedInstancesFilter{
+				PredicateExpression: `version == "18.0.0"`,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Items, 2)
+		require.ElementsMatch(t, []string{"v18.0.0", "18.0.0"}, libslices.Map(resp.Items, getItemVersion))
+
+		// Test sort by name ascending
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
 			PageSize: 100,
 			Sort:     inventoryv1.UnifiedInstanceSort_UNIFIED_INSTANCE_SORT_NAME,
 			Order:    inventoryv1.SortOrder_SORT_ORDER_ASCENDING,
