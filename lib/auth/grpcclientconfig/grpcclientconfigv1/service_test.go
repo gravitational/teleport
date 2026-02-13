@@ -66,7 +66,7 @@ func TestGetServiceConfigEnvVar(t *testing.T) {
 			service, err := NewService()
 			require.NoError(t, err)
 
-			resp, err := service.GetServiceConfig(context.Background(), &grpcv1.GetServiceConfigRequest{})
+			resp, err := service.GetServiceConfig(t.Context(), &grpcv1.GetServiceConfigRequest{})
 			require.NoError(t, err)
 			require.EqualExportedValues(t, tt.expected, resp.GetConfig())
 		})
