@@ -26,6 +26,7 @@ import (
 	"encoding/asn1"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"maps"
 	"net"
@@ -504,6 +505,16 @@ func (s *WindowsService) issueNewTLSConfigForLDAP() (*tls.Config, error) {
 		return nil, trace.Wrap(err, "parsing key DER")
 	}
 
+	// If a file path is set via 'SSLKEYLOGFILE', create a file writer and
+	// add it to our TLS config. This key should only be set in debugging contexts.
+	var keyLogWriter io.Writer
+	if path := os.Getenv("SSLKEYLOGFILE"); path != "" {
+		// We don't really know when to close the file, so use a fileDemandWriter
+		// which will open and close the keylog file for each write. It's also safe
+		// for concurrent writes.
+		keyLogWriter = newFileDemandWriter(path, 0o640)
+	}
+
 	tc := &tls.Config{
 		Certificates: []tls.Certificate{
 			{
@@ -513,6 +524,7 @@ func (s *WindowsService) issueNewTLSConfigForLDAP() (*tls.Config, error) {
 		},
 		InsecureSkipVerify: s.cfg.InsecureSkipVerify,
 		ServerName:         s.cfg.ServerName,
+		KeyLogWriter:       keyLogWriter,
 	}
 
 	if s.cfg.CA != nil {
@@ -1625,4 +1637,40 @@ func (s *WindowsService) loadTLSConfigForLDAP() (*tls.Config, error) {
 	s.ldapTLSConfigExpiresAt = s.cfg.Clock.Now().Add(tlsConfigCacheTTL)
 
 	return cfg, nil
+}
+
+// fileDemandWriter implements io.Writer.
+// Each Write opens the file in append-only mode,
+// writes the data, then closes the file.
+type fileDemandWriter struct {
+	path string
+	mu   sync.Mutex
+	perm os.FileMode
+}
+
+// newFileDemandWriter constructs a new fileDemandWriter
+// targeting the given file path.
+func newFileDemandWriter(path string, perm os.FileMode) *fileDemandWriter {
+	return &fileDemandWriter{
+		path: path,
+		perm: perm,
+	}
+}
+
+// Write implements io.Writer.
+func (w *fileDemandWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	f, err := os.OpenFile(
+		w.path,
+		os.O_CREATE|os.O_WRONLY|os.O_APPEND,
+		w.perm,
+	)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	defer f.Close()
+
+	return f.Write(p)
 }
