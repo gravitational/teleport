@@ -1,0 +1,322 @@
+---
+title: Configure PingFederate as an OIDC Provider
+description: How to configure Teleport access using PingFederate as an OIDC Provider
+sidebar_label: PingFederate
+tags:
+ - sso
+ - how-to
+ - zero-trust
+ - privileged-access
+---
+
+# Configure PingFederate OIDC with Teleport
+
+This guide explains how to configure PingFederate as a single sign-on (SSO) identity provider for Teleport using OpenID Connect (OIDC).
+
+Teleport acts as the OIDC client, PingFederate acts as the identity provider, and user attributes returned in the ID token are mapped to Teleport roles.
+
+## Prerequisites
+
+- **Teleport Enterprise cluster**. OIDC connectors require an Enterprise license.
+- Administrative access to PingFederate.
+- Administrative access to Teleport (Web UI or `tctl`).
+
+## Overview
+
+The integration has two parts:
+
+1. Configure PingFederate as an OIDC provider.
+2. Create an OIDC connector in Teleport.
+
+## Part 1: Configure PingFederate
+
+### Before you begin
+
+Before creating an OIDC client, complete the following PingFederate setup steps as described in the official PingFederate documentation:
+
+https://docs.pingidentity.com/solution-guides/customer_use_cases/htg_oidc_app_setup_pf.html
+
+- Install PingFederate.
+- Configure an access token manager.
+- Configure an OIDC policy (optional if using the default).
+- Map authentication sources to persistent grants.
+- Map persistent grants to token attribute contracts.
+
+<Admonition
+ type="note"
+ title="Note">
+ Teleport reads user attributes from the ID token, not the access token. Ensure required attributes are included in the ID token.
+</Admonition>
+
+### Step 1: Create an OIDC client
+
+1. In the PingFederate administrative console, navigate to **Applications** > **OAuth** > **Clients**.
+2. Select **Add Client**.
+
+### Step 2: Configure client settings
+
+Configure the following settings for the new OIDC client.
+
+**Client ID**  
+Generate or specify a client ID.
+
+Example:
+
+```
+teleport-prod-client
+```
+
+**Client secret**  
+Generate a client secret and store it securely.
+
+<Admonition
+ type="warning"
+ title="Important">
+ You cannot retrieve the client secret after creation.
+</Admonition>
+
+**Client authentication**  
+Select **Client Secret**.
+
+**Redirect URIs**  
+Add the Teleport OIDC callback URL:
+
+```
+https://<your-teleport-domain>/v1/webapi/oidc/callback
+```
+
+Example:
+
+```
+https://teleport.example.com/v1/webapi/oidc/callback
+```
+
+**Grant types**
+
+- Authorization Code.
+- Refresh Token (optional).
+
+**Scopes**
+
+- `openid` (required).
+- `email` (required).
+- `profile` (recommended).
+- `groups` (optional; typically requires a custom scope).
+
+<Admonition
+type="note"
+title="Note">
+PingFederate does not provide a standard `groups` scope by default. If you plan to map groups to Teleport roles, configure a custom scope and attribute mapping.
+</Admonition>
+
+
+### Step 3: Configure attribute mappings
+
+Ensure the following attributes are included in the ID token:
+
+- `sub`: unique user identifier.
+- `email`: user email address.
+- `groups`: group memberships (optional).
+
+Configure attribute mappings as follows:
+
+- Map `sub` to a unique identifier, such as email or username.
+- Map `email` to the user's email attribute.
+- Map `groups` to group membership attributes.
+
+<Admonition
+ type="note"
+ title="Note">
+ Decide which attribute Teleport should treat as the username. You will reference this value later using `username_claim`.
+</Admonition>
+
+### Step 4: Determine the issuer URL
+
+Teleport requires the issuer URL to exactly match the `issuer` value published by PingFederate.
+
+You can find this value at:
+
+```
+https://<pingfederate-hostname>/pf/.well-known/openid-configuration
+```
+
+A common issuer format is:
+
+```
+https://<pingfederate-hostname>/as
+```
+
+<Admonition
+ type="warning"
+ title="Important">
+ Do not use authorization or token endpoints as the issuer URL. Always use the `issuer` value from the OIDC discovery document.
+</Admonition>
+
+### Step 5: Enable the client
+
+Ensure the OIDC client is active and accessible to users.
+
+## Part 2: Configure Teleport
+
+### Step 1: Create Teleport roles
+
+Before creating the OIDC connector, create the Teleport roles that users will be mapped to.
+
+Example role:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: developer
+spec:
+  allow:
+    logins: ['ubuntu', 'ec2-user', '{{internal.username}}']
+    node_labels:
+      env: dev
+    kubernetes_groups: ['developers']
+    kubernetes_labels:
+      env: dev
+  options:
+    max_session_ttl: 8h
+```
+
+Create the role:
+
+```bash
+tctl create -f developer-role.yaml
+```
+
+<Admonition
+ type="note"
+ title="Note">
+ Any roles referenced later in `claims_to_roles` must exist in your cluster.
+</Admonition>
+
+### Step 2: Create the OIDC connector
+
+Create a file named `pingfederate-connector.yaml` with the following content:
+
+```yaml
+kind: oidc
+version: v3
+metadata:
+  name: pingfederate
+spec:
+  client_id: "teleport-prod-client"
+  client_secret: "<your-client-secret>"
+
+  issuer_url: "https://pingfed.example.com/as"
+  redirect_url: "https://teleport.example.com/v1/webapi/oidc/callback"
+
+  provider: ping
+  display: "PingFederate SSO"
+
+  prompt: none
+
+  scope:
+    - openid
+    - email
+    - profile
+
+  username_claim: sub
+
+  claims_to_roles:
+    - claim: groups
+      value: developers
+      roles:
+        - developer
+```
+
+<Admonition
+ type="warning"
+ title="Important">
+ If you omit the `prompt` field, Teleport defaults to `select_account`, which may cause authentication failures with PingFederate.
+</Admonition>
+
+### Step 3: Apply the connector
+
+Using `tctl`:
+
+```bash
+tctl create -f pingfederate-connector.yaml
+```
+
+Using the Teleport Web UI:
+
+1. Log in to the Teleport Web UI.
+2. Navigate to **Zero Trust Access** > **Auth Connectors**.
+3. Select **Add Auth Connector** > **OIDC**.
+4. Paste the connector YAML.
+5. Select **Create**.
+
+### Step 4: Test authentication
+
+Test the connector before making it the default authentication method:
+
+```bash
+tsh login --auth=pingfederate
+```
+
+After a successful login, verify the assigned username and roles:
+
+```bash
+tsh status
+```
+
+### Step 5: (Optional) Make OIDC the default authentication method
+
+Update the Auth service configuration:
+
+```yaml
+auth_service:
+  authentication:
+    type: oidc
+    connector_name: pingfederate
+```
+
+Restart the Auth service for changes to take effect.
+
+## Troubleshooting
+
+### Inspect received claims
+
+Review Teleport audit logs for `SSO Login` events. The `attributes` section lists all claims received from PingFederate.
+
+### Common issues
+
+#### Invalid prompt parameter
+
+**Error**
+
+```
+OAuth2 error code=invalid_request
+```
+
+**Resolution**
+
+- Explicitly set `prompt: none`.
+- PingFederate may not support `select_account`.
+
+#### Failed to calculate user attributes
+
+- Ensure `username_claim` exists in the ID token.
+- Common values include `sub`, `email`, and `preferred_username`.
+- Verify attribute mappings in PingFederate.
+
+#### No roles mapped for user
+
+- Verify group membership in PingFederate.
+- Ensure claim names and values are case-sensitive matches.
+- Confirm group attributes are included in the ID token.
+- Verify referenced Teleport roles exist.
+
+#### Redirect URI mismatch
+
+- Ensure the redirect URI matches exactly in both systems.
+- Check for trailing slashes and protocol mismatches.
+
+#### Invalid client credentials
+
+- Verify the client ID and client secret.
+- Regenerate the client secret if necessary.
