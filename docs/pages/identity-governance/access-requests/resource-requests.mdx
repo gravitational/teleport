@@ -42,7 +42,7 @@ Resource Access Requests can optionally include **Resource Constraints**,
 which narrow which principals — such as AWS Role ARNs, SSH logins, or database
 users — a user can assume on a resource when using an approved Access Request.
 The requester selects the specific principals they need when they create a request
-using the Web UI or Teleport Connect, and these constraints are encoded
+using the Web UI, and these constraints are encoded
 in the resulting short-lived certificates and enforced at authorization time,
 independent of any subsequent role changes.
 
@@ -81,8 +81,8 @@ database, Kubernetes, and others) is planned.
 
 ### Availability
 
-Constrained resource requests can only be created through the Teleport Web UI
-and Teleport Connect. The Teleport CLI (`tsh`) supports reviewing and assuming
+Constrained resource requests can only be created through the Teleport Web UI.
+The Teleport CLI (`tsh`) and Teleport Connect support reviewing and assuming
 these requests, but not yet creating them.
 
 All Teleport components in the request path (Auth Service, Proxy Service, and
