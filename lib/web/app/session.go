@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/srv/app/common"
@@ -128,4 +129,23 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		ws:  ws,
 		tr:  transport,
 	}, nil
+}
+
+// sessionWithAppAuth holds a session that was authenticated with app auth
+// config.
+type sessionWithAppAuth struct {
+	*session
+
+	// appAuthConfig represents the app auth config to serve the session.
+	appAuthConfig *appauthconfigv1.AppAuthConfig
+}
+
+// newSessionWithAppAuth creates a new session with app auth config.
+func (h *Handler) newSessionWithAppAuth(ctx context.Context, ws types.WebSession, appAuthConfig *appauthconfigv1.AppAuthConfig) (*sessionWithAppAuth, error) {
+	sess, err := h.newSession(ctx, ws)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &sessionWithAppAuth{session: sess, appAuthConfig: appAuthConfig}, nil
 }

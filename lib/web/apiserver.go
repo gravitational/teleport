@@ -763,6 +763,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		if h.healthCheckAppServer == nil {
 			h.healthCheckAppServer = appHandler.HealthCheckAppServer
 		}
+
+		appHandler.BindMCPEndpoints(&h.Router, h.WithUnauthenticatedLimiter)
 	}
 
 	go h.startFeatureWatcher()

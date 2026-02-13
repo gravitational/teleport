@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -52,6 +53,66 @@ func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 			if redirectErr := h.redirectToLauncher(w, r, launcherURLParams{}); redirectErr == nil {
 				return nil
 			}
+			return trace.Wrap(err)
+		}
+		if err := handler(w, r, session); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	})
+}
+
+// requestedAppParams contains information about the requested app.
+type requestedAppParams struct {
+	// appName is the application name.
+	appName string
+	// clusterName is the cluster name the application is part of.
+	clusterName string
+}
+
+// extractAppParamsFunc function used to extract the requested app params from
+// a request.
+type extractAppParamsFunc func(p httprouter.Params) requestedAppParams
+
+// appQualifierFunc function used to check if the resolved app qualifies for
+// receiving the request.
+type appQualifierFunc func(app types.Application) bool
+
+// withAppAuthConfig resolves app based on request then authenticate the
+// request before handling to a http.HandlerFunc.
+func (h *Handler) withAppAuthConfig(handler handlerWithAppAuthFunc, extractFunc extractAppParamsFunc, appFunc appQualifierFunc) httprouter.Handle {
+	return makeRouterHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
+		params := extractFunc(p)
+		appName := params.appName
+		site := params.clusterName
+
+		if site == "" {
+			cluster, err := h.c.AccessPoint.GetClusterName(r.Context())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			site = cluster.GetClusterName()
+		}
+
+		clusterClient, err := h.c.ClusterGetter.Cluster(r.Context(), site)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		appServer, err := ResolveByName(r.Context(), clusterClient, appName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !appFunc(appServer.GetApp()) {
+			return trace.NotFound("app not found")
+		}
+
+		session, err := h.authenticateWithAppAuth(r.Context(), r, &withAppServer{
+			clusterName: site,
+			appServer:   appServer,
+		})
+		if err != nil {
 			return trace.Wrap(err)
 		}
 		if err := handler(w, r, session); err != nil {
@@ -147,6 +208,8 @@ type routerFunc func(http.ResponseWriter, *http.Request, httprouter.Params) erro
 type routerAuthFunc func(http.ResponseWriter, *http.Request, httprouter.Params, *session) error
 
 type handlerAuthFunc func(http.ResponseWriter, *http.Request, *session) error
+
+type handlerWithAppAuthFunc func(http.ResponseWriter, *http.Request, *sessionWithAppAuth) error
 
 type handlerFunc func(http.ResponseWriter, *http.Request) error
 
