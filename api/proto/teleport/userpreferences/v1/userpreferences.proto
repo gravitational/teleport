@@ -50,6 +50,10 @@ message UserPreferences {
   // keyboard layout identifiers can be found here:
   // https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
   uint32 keyboard_layout = 9;
+  // SkipSummarizerOnboardingModal controls whether the user will see the modal
+  // if other conditions are met. Set to true if the user dismissed the dialog
+  // so that it doesn't appear every time.
+  bool skip_summarizer_onboarding_modal = 10;
 }
 
 // GetUserPreferencesRequest is a request to get the user preferences.
