@@ -61,6 +61,6 @@ message CertAuthorityOverrideSpec {
 // CertAuthorityOverrideStatus is the dynamic, system-managed state of a
 // CertAuthorityOverride resource.
 message CertAuthorityOverrideStatus {
-  // CLRs generated for each certificate override.
+  // CRLs generated for each certificate override.
   map<string, CertificateRevocationList> public_key_hash_to_crl = 1;
 }

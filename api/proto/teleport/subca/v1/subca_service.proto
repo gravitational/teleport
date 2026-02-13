@@ -231,7 +231,7 @@ message UpdateCertificateOverrideRequest {
   // If true the server will allow disable of an active override.
   // Active overrides are defined as overrides of certificates that are used to
   // mint certificate (see CertAuthoritySpecV2.ActiveKeys and
-  // CertAuthoritySpecV2.UpdateitionalTrustedKeys).
+  // CertAuthoritySpecV2.AdditionalTrustedKeys).
   bool force_immediate_disable = 3;
 }
 
@@ -265,7 +265,7 @@ message GetCertAuthorityOverrideRequest {
 // Response for GetCertAuthorityOverride.
 message GetCertAuthorityOverrideResponse {
   // The CA override.
-  CertificateOverride ca_override = 1;
+  CertAuthorityOverride ca_override = 1;
 }
 
 // Request for ListCertAuthorityOverride.
@@ -280,7 +280,7 @@ message ListCertAuthorityOverrideRequest {
 // Response for ListCertAuthorityOverride.
 message ListCertAuthorityOverrideResponse {
   // The CA overrides.
-  repeated CertificateOverride ca_overrides = 1;
+  repeated CertAuthorityOverride ca_overrides = 1;
 
   // Token to retrieve the next page of results, or empty if there are no more
   // results in the list.
