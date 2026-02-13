@@ -97,3 +97,8 @@ jobs:
         timeout-minutes: 10
         run: |
           runuser -u ci -g ci make e2e-aws RDPCLIENT_SKIP_BUILD=1
+
+      - name: Upload test metrics
+        if: always()
+        continue-on-error: true # Do not fail the workflow
+        uses: ./.github/actions/upload-test-metrics
