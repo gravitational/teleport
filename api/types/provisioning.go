@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/utils"
 )
 
@@ -146,6 +147,9 @@ type ProvisionToken interface {
 	GetAllowRules() []*TokenRule
 	// SetAllowRules sets the allow rules
 	SetAllowRules([]*TokenRule)
+	// GetIntegration returns the integration name that provides credentials to validate allow rules.
+	// Currently, this is only used to validate the AWS Organization.
+	GetIntegration() string
 	// GetGCPRules will return the GCP rules within this token.
 	GetGCPRules() *ProvisionTokenSpecV2GCP
 	// GetGithubRules will return the GitHub rules within this token.
@@ -186,6 +190,10 @@ type ProvisionToken interface {
 	// GetSecret returns the token's secret value and a bool representing whether
 	// or not the token had a secret..
 	GetSecret() (string, bool)
+
+	// GetImmutableLabels returns labels that must be applied to resources
+	// provisioned with this token.
+	GetImmutableLabels() *joiningv1.ImmutableLabels
 
 	// Clone creates a copy of the token.
 	Clone() ProvisionToken
@@ -301,6 +309,9 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 			if allowRule.AWSARN != "" {
 				return trace.BadParameter(`the %q join method does not support the "aws_arn" parameter`, JoinMethodEC2)
 			}
+			if allowRule.AWSOrganizationID != "" {
+				return trace.BadParameter(`the %q join method does not support the "aws_organization_id" parameter`, JoinMethodEC2)
+			}
 			if allowRule.AWSAccount == "" && allowRule.AWSRole == "" {
 				return trace.BadParameter(`allow rule for %q join method must set "aws_account" or "aws_role"`, JoinMethodEC2)
 			}
@@ -320,8 +331,8 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 			if len(allowRule.AWSRegions) != 0 {
 				return trace.BadParameter(`the %q join method does not support the "aws_regions" parameter`, JoinMethodIAM)
 			}
-			if allowRule.AWSAccount == "" && allowRule.AWSARN == "" {
-				return trace.BadParameter(`allow rule for %q join method must set "aws_account" or "aws_arn"`, JoinMethodEC2)
+			if allowRule.AWSAccount == "" && allowRule.AWSARN == "" && allowRule.AWSOrganizationID == "" {
+				return trace.BadParameter(`allow rule for %q join method must set "aws_account", "aws_arn", or "aws_organization"`, JoinMethodIAM)
 			}
 		}
 	case JoinMethodGitHub:
@@ -604,6 +615,12 @@ func (p *ProvisionTokenV2) GetSuggestedAgentMatcherLabels() Labels {
 	return p.Spec.SuggestedAgentMatcherLabels
 }
 
+// GetIntegration returns the integration name that provides credentials to validate allow rules.
+// Currently, this is only used to validate the AWS Organization.
+func (p *ProvisionTokenV2) GetIntegration() string {
+	return p.Spec.Integration
+}
+
 // V1 returns V1 version of the resource
 func (p *ProvisionTokenV2) V1() *ProvisionTokenV1 {
 	return &ProvisionTokenV1{
@@ -671,6 +688,12 @@ func (p *ProvisionTokenV2) GetAssignedScope() string {
 // dedicated secret value. The name itself is the secret for the "token" join method.
 func (p *ProvisionTokenV2) GetSecret() (string, bool) {
 	return "", false
+}
+
+// GetImmutableLabels always returns nil labels because a [ProvisionTokenV2] can not assign
+// immutable labels
+func (p *ProvisionTokenV2) GetImmutableLabels() *joiningv1.ImmutableLabels {
+	return nil
 }
 
 // String returns the human readable representation of a provisioning token.

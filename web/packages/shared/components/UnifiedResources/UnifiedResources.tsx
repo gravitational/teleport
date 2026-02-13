@@ -193,6 +193,7 @@ export interface UnifiedResourcesProps {
    * regardless of internal "no result" checks.
    */
   forceNoResources?: boolean;
+  noResultCustomText?: string;
   /**
    * If pinning is supported, the functions to get and update pinned resources
    * can be passed here.
@@ -258,6 +259,12 @@ export interface UnifiedResourcesProps {
    * Applies to row item elements (CardView or ListView).
    */
   visibleResourceItemFields?: VisibleResourceItemFields;
+  /**
+   * If true, renders a check icon at the top right corner of cards
+   * or right next to resource name for list view rows for all
+   * resources.
+   */
+  showResourcesSelectedIcon?: boolean;
 }
 
 export function UnifiedResources(props: UnifiedResourcesProps) {
@@ -282,6 +289,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     resourceLabelConfig,
     className,
     forceNoResources,
+    noResultCustomText,
+    showResourcesSelectedIcon,
   } = props;
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -539,6 +548,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         <NoResults
           isPinnedTab={params.pinnedOnly}
           query={params?.query || params?.search}
+          customText={noResultCustomText}
         />
       );
     }
@@ -685,6 +695,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                   query: makeAdvancedSearchQueryForLabel(label, params),
                 })
         }
+        showResourcesSelectedIcon={showResourcesSelectedIcon}
+        resourceLabelConfig={resourceLabelConfig}
         pinnedResources={pinnedResources}
         selectedResources={selectedResources}
         onSelectResource={handleSelectResource}
@@ -720,7 +732,6 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                       availabilityFilter?.mode === 'requestable',
                   },
                 }),
-                resourceLabelConfig,
                 key: generateUnifiedResourceKey(resource),
                 onShowStatusInfo: () => onShowStatusInfo(resource),
                 showingStatusInfo:
@@ -803,9 +814,11 @@ function NoPinned() {
 function NoResults({
   query,
   isPinnedTab,
+  customText,
 }: {
   query: string;
   isPinnedTab: boolean;
+  customText?: string;
 }) {
   if (query) {
     return (
@@ -821,19 +834,25 @@ function NoResults({
         as={Flex}
       >
         <Magnifier mr={2} />
-        No {isPinnedTab ? 'pinned ' : ''}resources were found for&nbsp;
-        <Text
-          as="span"
-          bold
-          css={`
-            max-width: 270px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-          `}
-        >
-          {query}
-        </Text>
+        {customText ? (
+          <>{customText}</>
+        ) : (
+          <>
+            No {isPinnedTab ? 'pinned ' : ''}resources were found for&nbsp;
+            <Text
+              as="span"
+              bold
+              css={`
+                max-width: 270px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+              `}
+            >
+              {query}
+            </Text>
+          </>
+        )}
       </Text>
     );
   }

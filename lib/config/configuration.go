@@ -950,6 +950,12 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			return trace.Wrap(err)
 		}
 	}
+	if fc.Auth.StaticScopedTokens != nil {
+		cfg.Auth.StaticScopedTokens, err = fc.Auth.StaticScopedTokens.Parse()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	// read in and set authentication preferences
 	if fc.Auth.Authentication != nil {
 		cfg.Auth.Preference, err = fc.Auth.Authentication.Parse()
@@ -1082,6 +1088,7 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.Auth.CAKeyParams.AWSKMS != nil {
 		return trace.Wrap(applyAWSKMSConfig(fc.Auth.CAKeyParams.AWSKMS, cfg))
 	}
+	cfg.Auth.KeyStore.HealthCheck = fc.Auth.CAKeyParams.HealthCheck
 	return nil
 }
 
@@ -1589,9 +1596,10 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		var assumeRole *types.AssumeRole
-		if matcher.AssumeRoleARN != "" || matcher.ExternalID != "" {
+		if matcher.AssumeRoleARN != "" || matcher.ExternalID != "" || matcher.AssumeRoleName != "" {
 			assumeRole = &types.AssumeRole{
 				RoleARN:    matcher.AssumeRoleARN,
+				RoleName:   matcher.AssumeRoleName,
 				ExternalID: matcher.ExternalID,
 			}
 		}
@@ -1611,6 +1619,17 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			}
 		}
 
+		var organizationMatcher *types.AWSOrganizationMatcher
+		if matcher.Organization != nil {
+			organizationMatcher = &types.AWSOrganizationMatcher{
+				OrganizationID: matcher.Organization.OrganizationID,
+				OrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+					Include: matcher.Organization.OrganizationalUnits.Include,
+					Exclude: matcher.Organization.OrganizationalUnits.Exclude,
+				},
+			}
+		}
+
 		serviceMatcher := types.AWSMatcher{
 			Types:             matcher.Types,
 			Regions:           matcher.Regions,
@@ -1621,6 +1640,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			Integration:       matcher.Integration,
 			KubeAppDiscovery:  matcher.KubeAppDiscovery,
 			SetupAccessForARN: matcher.SetupAccessForARN,
+			Organization:      organizationMatcher,
 		}
 		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
@@ -2235,6 +2255,19 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
 			}
 		}
+		for k := range discoveryConfig.Labels {
+			if !types.IsValidLabelKey(k) {
+				return trace.BadParameter("WindowsDesktopService specifies label %q which is not a valid label key", k)
+			}
+		}
+		for _, attributeName := range discoveryConfig.LabelAttributes {
+			if !types.IsValidLabelKey(attributeName) {
+				return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
+			}
+		}
+		if p := discoveryConfig.RDPPort; p < 0 || p > 65535 {
+			return trace.BadParameter("WindowsDesktopService specifies invalid RDP port %d", p)
+		}
 	}
 
 	// append the old (singular) discovery config to the new format that supports multiple configs
@@ -2251,6 +2284,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			servicecfg.LDAPDiscoveryConfig{
 				BaseDN:          dc.BaseDN,
 				Filters:         dc.Filters,
+				Labels:          dc.Labels,
 				LabelAttributes: dc.LabelAttributes,
 				RDPPort:         cmp.Or(dc.RDPPort, int(defaults.RDPListenPort)),
 			},
@@ -2881,10 +2915,15 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 	lib.SetInsecureDevMode(clf.InsecureMode)
 
 	// Apply command line --debug flag to override logger severity.
+	level := slog.LevelError
 	if clf.Debug {
 		cfg.SetLogLevel(slog.LevelDebug)
+		level = slog.LevelDebug
 		cfg.Debug = clf.Debug
 	}
+
+	// Ensure that the logging level is respected by the logger.
+	utils.InitLogger(utils.LoggingForDaemon, level)
 
 	if clf.AuthToken != "" {
 		// store the value of the --token flag:
@@ -2894,6 +2933,11 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 	if clf.TokenSecret != "" {
 		// store the value of the --token-secret flag:
 		cfg.SetTokenSecret(clf.TokenSecret)
+	}
+
+	// apply --skip-version-check flag.
+	if clf.SkipVersionCheck {
+		cfg.SkipVersionCheck = clf.SkipVersionCheck
 	}
 
 	slog.DebugContext(context.Background(), "Disabling all services, only the Teleport OpenSSH service can run during the `teleport join openssh` command")

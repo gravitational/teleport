@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=18.6.5
+VERSION=18.7.0-dev.marco.1
 
 DOCKER_IMAGE ?= teleport
 
@@ -327,8 +327,8 @@ endif
 
 ifeq ("$(OS)","darwin")
 # Set the minimum version for macOS builds for Go, Rust and Xcode builds.
-# (as of Go 1.23 we require macOS 11)
-MINIMUM_SUPPORTED_MACOS_VERSION = 11.0
+# (as of Go 1.25 we require macOS 12)
+MINIMUM_SUPPORTED_MACOS_VERSION = 12.0
 MACOSX_VERSION_MIN_FLAG = -mmacosx-version-min=$(MINIMUM_SUPPORTED_MACOS_VERSION)
 
 # Go
@@ -1148,7 +1148,7 @@ test-go-flaky: GO_BUILD_TAGS ?= $(PAM_TAG) $(FIPS_TAG) $(RDPCLIENT_TAG) $(BPF_TA
 test-go-flaky: RENDER_FLAGS ?= -report-by flakiness -summary-file $(FLAKY_SUMMARY_FILE) -top $(FLAKY_TOP_N)
 test-go-flaky: test-go-prepare $(RENDER_TESTS) $(RERUN)
 	$(CGOFLAG) $(RERUN) -n $(FLAKY_RUNS) -t $(FLAKY_TIMEOUT) \
-		go test -count=1 -cover -json -tags "$(GO_BUILD_TAGS)" $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+		go test -count=1 -json -tags "$(GO_BUILD_TAGS)" $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| $(RENDER_TESTS) $(RENDER_FLAGS)
 
 #
@@ -1716,6 +1716,15 @@ terraform-resources-up-to-date: must-start-clean/host
 		exit 1; \
 	fi
 
+# terraform-module-docs-up-to-date checks if the generated Terraform module documentation is up to date.
+.PHONY: terraform-module-docs-up-to-date
+terraform-module-docs-up-to-date: must-start-clean/host
+	$(MAKE) -C integrations/terraform-modules docs
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "TF module docs" "make -C integrations/terraform-modules docs"; \
+		exit 1; \
+	fi
+
 # icons-up-to-date checks if icons were pre-processed before being added to the repo.
 .PHONY: icons-up-to-date
 icons-up-to-date: must-start-clean/host
@@ -2037,6 +2046,14 @@ cli-docs-teleport:
 	go build -o $(BUILDDIR)/teleportdocs -tags docs ./tool/teleport && \
 	$(BUILDDIR)/teleportdocs help 2>docs/pages/reference/cli/teleport.mdx && \
 	rm $(BUILDDIR)/teleportdocs
+
+.PHONY: cli-docs-tctl
+cli-docs-tctl:
+# Executing go build instead of go run since we don't want to redirect
+# irrelevant output along with the docs page content.
+	go build -o $(BUILDDIR)/tctldocs -tags docs ./tool/tctl && \
+	$(BUILDDIR)/tctldocs help 2>docs/pages/reference/cli/tctl.mdx && \
+	rm $(BUILDDIR)/tctldocs
 
 # audit-event-reference generates audit event reference docs using the Web UI
 # source.

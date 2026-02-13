@@ -2635,7 +2635,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	logger := rbacLogger
 	isLoggingEnabled := logger.Handler().Enabled(ctx, logutils.TraceLevel)
 	if isLoggingEnabled {
-		logger.With("resource_kind", r.GetKind(), "resource_name", r.GetName())
+		logger = logger.With("resource_kind", r.GetKind(), "resource_name", r.GetName())
 	}
 
 	if !state.MFAVerified && state.MFARequired == MFARequiredAlways {

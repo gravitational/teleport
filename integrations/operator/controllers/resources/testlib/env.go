@@ -24,6 +24,7 @@ import (
 	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"testing"
 	"time"
@@ -34,11 +35,11 @@ import (
 	"github.com/stretchr/testify/require"
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -48,10 +49,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
-	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
-	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
-	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
-	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
+	apiresources "github.com/gravitational/teleport/integrations/operator/apis/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/lib/modules"
@@ -63,14 +61,6 @@ import (
 // scheme is our own test-specific scheme to avoid using the global
 // unprotected scheme.Scheme that triggers the race detector
 var scheme = controllers.Scheme
-
-func init() {
-	utilruntime.Must(core.AddToScheme(scheme))
-	utilruntime.Must(resourcesv1.AddToScheme(scheme))
-	utilruntime.Must(resourcesv2.AddToScheme(scheme))
-	utilruntime.Must(resourcesv3.AddToScheme(scheme))
-	utilruntime.Must(resourcesv5.AddToScheme(scheme))
-}
 
 func createNamespaceForTest(t *testing.T, kc kclient.Client) *core.Namespace {
 	ns := &core.Namespace{
@@ -195,6 +185,9 @@ type TestSetup struct {
 	OperatorName             string
 	stepByStepReconciliation bool
 	log                      *slog.Logger
+	TeleportServer           *helpers.TeleInstance
+	ResourceName             string
+	Context                  context.Context
 }
 
 // StartKubernetesOperator creates and start a new operator
@@ -204,6 +197,9 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 		s.StopKubernetesOperator()
 	}
 
+	if s.K8sRestConfig == nil {
+		require.FailNow(t, "K8sRestConfig is required to start the operator, you cannot run a full test against a fake cluster.")
+	}
 	k8sManager, err := ctrl.NewManager(s.K8sRestConfig, ctrl.Options{
 		Scheme:  scheme,
 		Metrics: metricsserver.Options{BindAddress: "0"},
@@ -262,6 +258,7 @@ func setupTeleportClient(t *testing.T, setup *TestSetup) {
 	// Start a Teleport server for the test and set up a client connected to
 	// that server.
 	teleportServer, operatorName := defaultTeleportServiceConfig(t)
+	setup.TeleportServer = teleportServer
 	require.NoError(t, teleportServer.Start())
 	setup.TeleportClient = clientForTeleport(t, teleportServer, operatorName)
 	setup.OperatorName = operatorName
@@ -286,6 +283,56 @@ func WithTeleportClient(clt *client.Client) TestOption {
 
 func StepByStep(setup *TestSetup) {
 	setup.stepByStepReconciliation = true
+}
+
+// WithResourceName makes the test resource name static instead of letting the test generate a random one.
+// This is used if the resource name much match a specific pattern, or a fixture that was created beforehand
+// (e.g. trusted cluster).
+func WithResourceName(resourceName string) TestOption {
+	return func(setup *TestSetup) {
+		setup.ResourceName = resourceName
+	}
+}
+
+// SetupFakeKubeTestEnv is like SetupTestEnv but creates a fake Kubernetes
+// cluster by using controller-runtime's fake package.
+// This is way faster than using testEnv to spin up a full kube test cluster
+// on every test.
+// This does not support tests starting a full controller manager and can only be
+// used with Synchronous tests.
+func SetupFakeKubeTestEnv(t *testing.T, opts ...TestOption) *TestSetup {
+	builder := fake.NewClientBuilder()
+	builder.WithScheme(scheme)
+	// Every CR kind must be registered as "WithStatusSubresource" so he fake client implements
+	// the status updates properly.
+	customScheme, err := apiresources.NewScheme()
+	require.NoError(t, err)
+	knownTypes := customScheme.AllKnownTypes()
+	for _, reflectType := range knownTypes {
+		reflectValue := reflect.New(reflectType).Interface()
+		obj, ok := reflectValue.(kclient.Object)
+		if !ok {
+			continue
+		}
+		builder.WithStatusSubresource(obj)
+	}
+	k8sClient := builder.Build()
+	ns := createNamespaceForTest(t, k8sClient)
+
+	setup := &TestSetup{
+		Context:      t.Context(),
+		K8sClient:    k8sClient,
+		Namespace:    ns,
+		ResourceName: ValidRandomResourceName("resource-"),
+	}
+
+	for _, opt := range opts {
+		opt(setup)
+	}
+
+	setupTeleportClient(t, setup)
+
+	return setup
 }
 
 // SetupTestEnv creates a Kubernetes server, a teleport server and starts the operator
@@ -316,9 +363,11 @@ func SetupTestEnv(t *testing.T, opts ...TestOption) *TestSetup {
 	})
 
 	setup := &TestSetup{
+		Context:       t.Context(),
 		K8sClient:     k8sClient,
 		Namespace:     ns,
 		K8sRestConfig: cfg,
+		ResourceName:  ValidRandomResourceName("resource-"),
 	}
 
 	for _, opt := range opts {

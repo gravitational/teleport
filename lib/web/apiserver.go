@@ -701,7 +701,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			session.XCSRF = csrfToken
 
 			httplib.SetNoCacheHeaders(w.Header())
-			httplib.SetIndexContentSecurityPolicy(w.Header(), cfg.ClusterFeatures, r.URL.Path)
+			httplib.SetIndexContentSecurityPolicy(w.Header(), r.URL.Path)
 
 			if err := indexPage.Execute(w, session); err != nil {
 				h.logger.ErrorContext(r.Context(), "Failed to execute index page template", "error", err)
@@ -860,6 +860,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	// get nodes
 	h.GET("/webapi/sites/:site/nodes", h.WithClusterAuth(h.clusterNodesGet))
 	h.POST("/webapi/sites/:site/nodes", h.WithClusterAuth(h.handleNodeCreate))
+
+	h.GET("/webapi/sites/:site/instances", h.WithClusterAuth(h.clusterUnifiedInstancesGet))
 
 	// get login alerts
 	h.GET("/webapi/sites/:site/alerts", h.WithClusterAuth(h.clusterLoginAlertsGet))
@@ -1404,7 +1406,7 @@ func localSettings(ctx context.Context, cap types.AuthPreference, logger *slog.L
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
 		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
-		DeviceTrust:             deviceTrustSettings(cap),
+		DeviceTrust:             deviceTrustSettings(cap, modules.GetModules()),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 
@@ -1448,7 +1450,7 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
 		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
-		DeviceTrust:             deviceTrustSettings(cap),
+		DeviceTrust:             deviceTrustSettings(cap, modules.GetModules()),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 }
@@ -1471,7 +1473,7 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
 		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
-		DeviceTrust:             deviceTrustSettings(cap),
+		DeviceTrust:             deviceTrustSettings(cap, modules.GetModules()),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 }
@@ -1490,23 +1492,23 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
 		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
-		DeviceTrust:             deviceTrustSettings(cap),
+		DeviceTrust:             deviceTrustSettings(cap, modules.GetModules()),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 }
 
-func deviceTrustSettings(cap types.AuthPreference) webclient.DeviceTrustSettings {
+func deviceTrustSettings(cap types.AuthPreference, m modules.Modules) webclient.DeviceTrustSettings {
 	dt := cap.GetDeviceTrust()
 	return webclient.DeviceTrustSettings{
-		Disabled:   deviceTrustDisabled(cap),
+		Disabled:   deviceTrustDisabled(cap, m),
 		AutoEnroll: dt != nil && dt.AutoEnroll,
 	}
 }
 
 // deviceTrustDisabled is used to set its namesake field in
 // [webclient.PingResponse.Auth].
-func deviceTrustDisabled(cap types.AuthPreference) bool {
-	return dtconfig.GetEffectiveMode(cap.GetDeviceTrust()) == constants.DeviceTrustModeOff
+func deviceTrustDisabled(cap types.AuthPreference, m modules.Modules) bool {
+	return dtconfig.GetEffectiveMode(cap.GetDeviceTrust(), m) == constants.DeviceTrustModeOff
 }
 
 func getAuthSettings(ctx context.Context, authClient authclient.ClientI, logger *slog.Logger) (webclient.AuthenticationSettings, error) {
@@ -1994,6 +1996,11 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		sessionSummarizerEnabled = isEnabledRes.Enabled
 	}
 
+	rsp, err := h.cfg.ProxyClient.GetClusterAccessGraphConfig(r.Context())
+	if err != nil && !trace.IsNotImplemented(err) {
+		h.logger.ErrorContext(r.Context(), "Cannot retrieve Access Graph config from auth server", "error", err)
+	}
+
 	webCfg := webclient.WebConfig{
 		Edition:                        modules.GetModules().BuildType(),
 		Auth:                           authSettings,
@@ -2016,6 +2023,11 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		SessionSummarizerEnabled:       sessionSummarizerEnabled,
 		// Entitlements are reset/overridden in setEntitlementsWithLegacyLogic until setEntitlementsWithLegacyLogic is removed in v18
 		Entitlements: GetWebCfgEntitlements(clusterFeatures.GetEntitlements()),
+		IdentitySecurity: webclient.IdentitySecurity{
+			IsClusterLicensed:           modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy).Enabled,
+			AccessGraphConfigSet:        rsp.GetEnabled() && rsp.GetAddress() != "",
+			SessionSummarizationEnabled: sessionSummarizerEnabled,
+		},
 	}
 
 	// Set entitlements with backwards field compatibility
@@ -2060,7 +2072,8 @@ func globMatch(pattern, str string) (bool, error) {
 // userMatchesConnector is a helper function to check if a user matches any of a connector's user matchers.
 func userMatchesConnector(username string, connector interface {
 	GetUserMatchers() []string
-}) (isMatch bool, isFallback bool, err error) {
+},
+) (isMatch bool, isFallback bool, err error) {
 	matchers := connector.GetUserMatchers()
 	for _, pattern := range matchers {
 		matched, err := globMatch(pattern, username)

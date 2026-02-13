@@ -24,6 +24,8 @@ includes manually editing IAM policies and SSM documents.
 To automatically bootstrap IAM policies instead, read [Guided EC2 Auto-Discovery
 Configuration](ec2-discovery-guided.mdx).
 
+If you manage multiple AWS accounts in an AWS Organization, see [Organization-level EC2 Auto-Discovery Configuration](ec2-discovery-organization.mdx).
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -236,3 +238,5 @@ and view its logs with `journalctl -fu teleport`.
 ## Next steps
 
 (!docs/pages/includes/auto-discovery/ec2-next-steps.mdx!)
+
+- Follow the [Terraform EC2 Auto-Discovery Configuration guide](./ec2-discovery-terraform.mdx) to manage these steps as Infrastructure as Code (IaC)

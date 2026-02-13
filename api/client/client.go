@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
+	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -82,6 +83,7 @@ import (
 	gitserverpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
 	joinv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -106,6 +108,7 @@ import (
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertaskv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
+	workloadclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -922,6 +925,11 @@ func (c *Client) PresenceServiceClient() presencepb.PresenceServiceClient {
 // identity service.
 func (c *Client) WorkloadIdentityServiceClient() machineidv1pb.WorkloadIdentityServiceClient {
 	return machineidv1pb.NewWorkloadIdentityServiceClient(c.conn)
+}
+
+// InventoryServiceClient returns an unadorned client for the inventory service.
+func (c *Client) InventoryServiceClient() inventoryv1.InventoryServiceClient {
+	return inventoryv1.NewInventoryServiceClient(c.conn)
 }
 
 // NotificationServiceClient returns a notification service client that can be used to fetch notifications.
@@ -4295,6 +4303,15 @@ func (c *Client) CreateRegisterChallenge(ctx context.Context, in *proto.CreateRe
 // GenerateCertAuthorityCRL generates an empty CRL for a CA.
 func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, req *proto.CertAuthorityRequest) (*proto.CRL, error) {
 	resp, err := c.grpc.GenerateCertAuthorityCRL(ctx, req)
+
+	// TODO(codingllama): DELETE IN 20.
+	if shouldFallbackToUserCA(err, req.Type) {
+		slog.WarnContext(ctx, "WindowsCA not available, falling back to UserCA")
+		req2 := gogoproto.Clone(req).(*proto.CertAuthorityRequest)
+		req2.Type = types.UserCA
+		resp, err = c.grpc.GenerateCertAuthorityCRL(ctx, req2)
+	}
+
 	return resp, trace.Wrap(err)
 }
 
@@ -5463,31 +5480,91 @@ func (c *Client) StableUNIXUsersClient() stableunixusersv1.StableUNIXUsersServic
 
 // GetCertAuthority retrieves a CA by type and domain.
 func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
-	ca, err := c.TrustClient().GetCertAuthority(ctx, &trustpb.GetCertAuthorityRequest{
+	trust := c.TrustClient()
+	req := &trustpb.GetCertAuthorityRequest{
 		Type:       string(id.Type),
 		Domain:     id.DomainName,
 		IncludeKey: loadKeys,
-	})
+	}
+
+	ca, err := trust.GetCertAuthority(ctx, req)
+
+	// TODO(codingllama): DELETE IN 20.
+	if shouldFallbackToUserCA(err, id.Type) {
+		slog.WarnContext(ctx, "WindowsCA not available, falling back to UserCA")
+		req.Type = string(types.UserCA)
+		ca, err = trust.GetCertAuthority(ctx, req)
+	}
 
 	return ca, trace.Wrap(err)
 }
 
 // GetCertAuthorities retrieves CAs by type.
 func (c *Client) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error) {
-	resp, err := c.TrustClient().GetCertAuthorities(ctx, &trustpb.GetCertAuthoritiesRequest{
+	trust := c.TrustClient()
+	req := &trustpb.GetCertAuthoritiesRequest{
 		Type:       string(caType),
 		IncludeKey: loadKeys,
-	})
+	}
+
+	resp, err := trust.GetCertAuthorities(ctx, req)
+
+	// TODO(codingllama): DELETE IN 20.
+	if shouldFallbackToUserCA(err, caType) ||
+		// Reads through the cache don't error on unknown types, instead they return
+		// empty. For example, "tctl get cas/windows" against an older binary.
+		(err == nil &&
+			len(resp.CertAuthoritiesV2) == 0 &&
+			c.shouldFallbackEmptyListToUserCA(ctx, caType)) {
+		slog.WarnContext(ctx, "WindowsCA not available, falling back to UserCA")
+		req.Type = string(types.UserCA)
+		resp, err = trust.GetCertAuthorities(ctx, req)
+	}
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cas := make([]types.CertAuthority, 0, len(resp.CertAuthoritiesV2))
-	for _, ca := range resp.CertAuthoritiesV2 {
-		cas = append(cas, ca)
+	cas := make([]types.CertAuthority, len(resp.CertAuthoritiesV2))
+	for i, ca := range resp.CertAuthoritiesV2 {
+		cas[i] = ca
+	}
+	return cas, nil
+}
+
+// shouldFallbackEmptyListToUserCA is used by GetCertAuthorities to decide if a
+// fallback query with UserCA is necessary.
+//
+// Cached responses of GetCertAuthorities don't error on unknown CA types,
+// instead they swallow the errors and return empty. This method detects that.
+//
+// Don't use this fallback in other scenarios unless you really know what you
+// are doing.
+func (c *Client) shouldFallbackEmptyListToUserCA(ctx context.Context, caType types.CertAuthType) bool {
+	if caType != types.WindowsCA {
+		return false
 	}
 
-	return cas, nil
+	cn, err := c.GetClusterName(ctx)
+	if err != nil {
+		slog.WarnContext(ctx, "Failed to fetch cluster name", "error", err)
+		return false
+	}
+
+	// Attempt to fetch a windows CA. If it returns an "unsupported authority"
+	// error this means we should fallback.
+	_, err = c.TrustClient().GetCertAuthority(ctx, &trustpb.GetCertAuthorityRequest{
+		Type:       string(caType),
+		Domain:     cn.GetClusterName(),
+		IncludeKey: false,
+	})
+	return shouldFallbackToUserCA(err, caType)
+}
+
+func shouldFallbackToUserCA(err error, caType types.CertAuthType) bool {
+	return err != nil &&
+		caType == types.WindowsCA &&
+		types.IsUnsupportedAuthorityErr(err)
 }
 
 // DeleteCertAuthority removes a CA matching the type and domain.
@@ -5925,4 +6002,74 @@ func (c *Client) CreateScopedToken(ctx context.Context, token *joiningv1.ScopedT
 		Token: token,
 	})
 	return res.GetToken(), trace.Wrap(err)
+}
+
+// WorkloadClustersClient returns an [workloadclusterv1.WorkloadClusterServiceClient].
+func (c *Client) WorkloadClustersClient() workloadclusterv1.WorkloadClusterServiceClient {
+	return workloadclusterv1.NewWorkloadClusterServiceClient(c.conn)
+}
+
+// ListWorkloadClusters returns a list of WorkloadClusters.
+func (c *Client) ListWorkloadClusters(ctx context.Context, pageSize int, nextToken string) ([]*workloadclusterv1.WorkloadCluster, string, error) {
+	resp, err := c.WorkloadClustersClient().ListWorkloadClusters(ctx, &workloadclusterv1.ListWorkloadClustersRequest{
+		PageSize:  int32(pageSize),
+		PageToken: nextToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return resp.Clusters, resp.NextPageToken, nil
+}
+
+// CreateWorkloadCluster creates a new WorkloadCluster.
+func (c *Client) CreateWorkloadCluster(ctx context.Context, req *workloadclusterv1.WorkloadCluster) (*workloadclusterv1.WorkloadCluster, error) {
+	resp, err := c.WorkloadClustersClient().CreateWorkloadCluster(ctx, &workloadclusterv1.CreateWorkloadClusterRequest{
+		Cluster: req,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// GetWorkloadCluster returns a WorkloadCluster by name.
+func (c *Client) GetWorkloadCluster(ctx context.Context, name string) (*workloadclusterv1.WorkloadCluster, error) {
+	resp, err := c.WorkloadClustersClient().GetWorkloadCluster(ctx, &workloadclusterv1.GetWorkloadClusterRequest{
+		Name: name,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpdateWorkloadCluster updates an existing WorkloadCluster.
+func (c *Client) UpdateWorkloadCluster(ctx context.Context, req *workloadclusterv1.WorkloadCluster) (*workloadclusterv1.WorkloadCluster, error) {
+	resp, err := c.WorkloadClustersClient().UpdateWorkloadCluster(ctx, &workloadclusterv1.UpdateWorkloadClusterRequest{
+		Cluster: req,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpsertWorkloadCluster upserts a WorkloadCluster.
+func (c *Client) UpsertWorkloadCluster(ctx context.Context, req *workloadclusterv1.WorkloadCluster) (*workloadclusterv1.WorkloadCluster, error) {
+	resp, err := c.WorkloadClustersClient().UpsertWorkloadCluster(ctx, &workloadclusterv1.UpsertWorkloadClusterRequest{
+		Cluster: req,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// DeleteWorkloadCluster deletes a WorkloadCluster.
+func (c *Client) DeleteWorkloadCluster(ctx context.Context, name string) error {
+	_, err := c.WorkloadClustersClient().DeleteWorkloadCluster(ctx, &workloadclusterv1.DeleteWorkloadClusterRequest{
+		Name: name,
+	})
+	return trace.Wrap(err)
 }

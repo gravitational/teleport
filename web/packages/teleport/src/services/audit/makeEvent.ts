@@ -613,6 +613,14 @@ export const formatters: Formatters = {
       return `User [${user}] has connected to application [${app_name}]`;
     },
   },
+  [eventCodes.APP_SESSION_START_FAILURE]: {
+    type: 'app.session.start',
+    desc: 'App Session Start Failed',
+    format: event => {
+      const { user, app_name, message } = event;
+      return `User [${user}] failed to connect to application [${app_name}]: ${message}`;
+    },
+  },
   [eventCodes.APP_SESSION_END]: {
     type: 'app.session.end',
     desc: 'App Session Ended',
@@ -2448,17 +2456,89 @@ export const formatters: Formatters = {
     format: ({ name, user }) =>
       `Workload Cluster [${name}] was created by [${user}]`,
   },
+  [eventCodes.WORKLOAD_CLUSTER_CREATE_FAILURE]: {
+    type: 'workload_cluster.create',
+    desc: 'Workload Cluster Create Failed',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] create failed by [${user}]`,
+  },
   [eventCodes.WORKLOAD_CLUSTER_UPDATE]: {
     type: 'workload_cluster.update',
     desc: 'Workload Cluster Updated',
     format: ({ name, user }) =>
       `Workload Cluster [${name}] was updated by [${user}]`,
   },
+  [eventCodes.WORKLOAD_CLUSTER_UPDATE_FAILURE]: {
+    type: 'workload_cluster.update',
+    desc: 'Workload Cluster Update Failed',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] update failed by [${user}]`,
+  },
   [eventCodes.WORKLOAD_CLUSTER_DELETE]: {
     type: 'workload_cluster.delete',
     desc: 'Workload Cluster Deleted',
     format: ({ name, user }) =>
       `Workload Cluster [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.WORKLOAD_CLUSTER_DELETE_FAILURE]: {
+    type: 'workload_cluster.delete',
+    desc: 'Workload Cluster Delete Failed',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] delete failed by [${user}]`,
+  },
+  [eventCodes.INFERENCE_MODEL_CREATE]: {
+    type: 'inference_model.create',
+    desc: 'Inference Model Created',
+    format: ({ name, user }) =>
+      `Inference Model [${name}] was created by [${user}]`,
+  },
+  [eventCodes.INFERENCE_MODEL_UPDATE]: {
+    type: 'inference_model.update',
+    desc: 'Inference Model Updated',
+    format: ({ name, user }) =>
+      `Inference Model [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.INFERENCE_MODEL_DELETE]: {
+    type: 'inference_model.delete',
+    desc: 'Inference Model Deleted',
+    format: ({ name, user }) =>
+      `Inference Model [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.INFERENCE_SECRET_CREATE]: {
+    type: 'inference_secret.create',
+    desc: 'Inference Secret Created',
+    format: ({ name, user }) =>
+      `Inference Secret [${name}] was created by [${user}]`,
+  },
+  [eventCodes.INFERENCE_SECRET_UPDATE]: {
+    type: 'inference_secret.update',
+    desc: 'Inference Secret Updated',
+    format: ({ name, user }) =>
+      `Inference Secret [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.INFERENCE_SECRET_DELETE]: {
+    type: 'inference_secret.delete',
+    desc: 'Inference Secret Deleted',
+    format: ({ name, user }) =>
+      `Inference Secret [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.INFERENCE_POLICY_CREATE]: {
+    type: 'inference_policy.create',
+    desc: 'Inference Policy Created',
+    format: ({ name, user }) =>
+      `Inference Policy [${name}] was created by [${user}]`,
+  },
+  [eventCodes.INFERENCE_POLICY_UPDATE]: {
+    type: 'inference_policy.update',
+    desc: 'Inference Policy Updated',
+    format: ({ name, user }) =>
+      `Inference Policy [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.INFERENCE_POLICY_DELETE]: {
+    type: 'inference_policy.delete',
+    desc: 'Inference Policy Deleted',
+    format: ({ name, user }) =>
+      `Inference Policy [${name}] was deleted by [${user}]`,
   },
 };
 
@@ -2478,6 +2558,7 @@ export default function makeEvent(json: any): Event {
     message: formatter.format(json as any),
     id: getId(json),
     code: json.code,
+    eventIndex: json.ei,
     user: json.user,
     time: new Date(json.time),
     raw: json,

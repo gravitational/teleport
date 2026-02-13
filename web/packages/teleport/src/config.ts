@@ -107,7 +107,7 @@ const cfg = {
   // terraform contains terraform related configuration
   terraform: {
     registry: 'terraform.releases.teleport.dev',
-    stagingRegistry: 'terraform-staging.releases.teleport.dev',
+    stagingRegistry: 'terraform-staging.releases.development.teleport.dev',
   },
 
   // enterprise non-exact routes will be merged into this
@@ -195,6 +195,7 @@ const cfg = {
     bots: '/web/bots',
     bot: '/web/bot/:botName',
     botInstances: '/web/bots/instances',
+    instances: '/web/instances',
     botsNew: '/web/bots/new/:type?',
     workloadIdentities: '/web/workloadidentities',
     console: '/web/cluster/:clusterId/console',
@@ -299,6 +300,8 @@ const cfg = {
     databaseServer: {
       list: `/v1/webapi/sites/:clusterId/databaseservers?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?`,
     },
+
+    instancesPath: `/v1/webapi/sites/:clusterId/instances?limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?&types=:types?&services=:services?&upgraders=:upgraders?`,
 
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
@@ -925,6 +928,10 @@ const cfg = {
     return generatePath(`${cfg.routes.botInstances}?${search.toString()}`);
   },
 
+  getInstancesRoute() {
+    return generatePath(cfg.routes.instances);
+  },
+
   getWorkloadIdentitiesRoute() {
     return generatePath(cfg.routes.workloadIdentities);
   },
@@ -1196,6 +1203,13 @@ const cfg = {
 
   getDatabaseServerUrl(clusterId: string, params?: UrlResourcesParams) {
     return generateResourcePath(cfg.api.databaseServer.list, {
+      clusterId,
+      ...params,
+    });
+  },
+
+  getInstancesUrl(clusterId: string, params?: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.instancesPath, {
       clusterId,
       ...params,
     });

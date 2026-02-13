@@ -32,7 +32,8 @@ We plan to release the following versions in the coming months:
 
 | Version | Date                       |
 |---------|----------------------------|
-| 18.7.0  | Week of January 26, 2026   |
+| 18.7.0  | Week of February 16, 2026  |
+| 18.8.0  | Week of March 02, 2026     |
 | 19.0.0  | August 2026                |
 
 ### 18.7.0
@@ -72,6 +73,24 @@ principal selection to access requests for other resource types as well.
 Teleport users will be able to see status of the configured Entra ID integration in the
 web UI.
 
+#### Inventory UI
+
+Teleport's web UI will include a new page showing the complete inventory of all instances
+and bots connected to the cluster.
+
+#### Managed Updates UI
+
+Teleport's web UI will include new functionality for working with managed updates.
+The UI will offer the ability to view and manage the updater configuration as well
+as monitor the progress of update rollouts.
+
+#### Split Windows CA
+
+Teleport will introduce a new Windows CA responsible for issuing user certificates for 
+Windows Desktop access. Currently the User CA issues those certificates, as they are end-user certs. 
+Splitting the CAs improves Teleport's security posture by introducing a more specialized CA
+and allows both CAs to be rotated independently.
+
 ### 18.8.0
 
 #### VNet for Linux
@@ -88,14 +107,20 @@ access to resources.
 
 *Delayed from 18.7.0.*
 
+#### `tsh` MFA via browser
+
+`tsh` will be able to delegate MFA checks (both on login and for per-session MFA) to the
+browser, enabling the use of browser based passkeys or password managers with `tsh`.
+
+
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
 | Week of            | Description                                                  |
 |--------------------|--------------------------------------------------------------|
-| February 2, 2026   | Teleport 18.7 will begin rollout on Cloud.                   |
-| February 2, 2026   | Teleport 18.7 agents will begin rollout to eligible tenants. |
+| February 9, 2026   | Teleport 18.7 will begin rollout on Cloud.                   |
+| February 9, 2026   | Teleport 18.7 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 

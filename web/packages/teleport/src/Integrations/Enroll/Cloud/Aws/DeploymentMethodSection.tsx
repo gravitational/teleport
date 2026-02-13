@@ -16,41 +16,65 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useState } from 'react';
 import { Link as InternalLink } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { Alert, Box, Button, ButtonText, Flex, Text } from 'design';
 import { Check, Copy, Notification, Spinner } from 'design/Icon';
 import { rotate360 } from 'design/keyframes';
-import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import { useValidation } from 'shared/components/Validation';
 
 import cfg from 'teleport/config';
+import { IntegrationKind } from 'teleport/services/integrations';
 
 import { CircleNumber } from './EnrollAws';
 
+export function CopyTerraformButton({
+  onClick,
+}: {
+  onClick: (e: React.SyntheticEvent) => void;
+}) {
+  const [configCopied, setConfigCopied] = useState(false);
+
+  const handleClick = (e: React.SyntheticEvent) => {
+    onClick(e);
+
+    if (!e.defaultPrevented) {
+      setConfigCopied(true);
+      setTimeout(() => setConfigCopied(false), 1000);
+    }
+  };
+
+  return (
+    <Button fill="border" intent="primary" onClick={handleClick} gap={2}>
+      {configCopied ? <Check size="small" /> : <Copy size="small" />}
+      Copy Terraform Module
+    </Button>
+  );
+}
+
 type DeploymentMethodSectionProps = {
   terraformConfig?: string;
-  copyConfigButtonRef?: React.RefObject<HTMLButtonElement>;
+  handleCopy: () => void;
   integrationExists?: boolean;
   integrationName?: string;
-  onCheckIntegration?: () => void;
+  handleCheckIntegration?: () => void;
+  handleCancelCheckIntegration?: () => void;
+  checkIntegrationError?: boolean;
   isCheckingIntegration?: boolean;
-  configCopied: boolean;
-  onConfigCopy: () => void;
   showVerificationStep?: boolean;
 };
 
 export function DeploymentMethodSection({
-  terraformConfig,
-  copyConfigButtonRef,
+  handleCopy,
   integrationExists,
   integrationName,
-  onCheckIntegration,
+  handleCheckIntegration,
   isCheckingIntegration,
-  configCopied = false,
-  onConfigCopy,
+  checkIntegrationError,
+  handleCancelCheckIntegration,
   showVerificationStep = true,
 }: DeploymentMethodSectionProps) {
   const validator = useValidation();
@@ -87,23 +111,17 @@ export function DeploymentMethodSection({
             configuration.
           </Text>
           <Box>
-            <Button
-              setRef={copyConfigButtonRef}
-              fill="border"
-              intent="primary"
-              disabled={!terraformConfig}
-              onClick={() => {
-                if (validator.validate() && terraformConfig) {
-                  copyToClipboard(terraformConfig);
-                  onConfigCopy?.();
+            <CopyTerraformButton
+              onClick={e => {
+                const isValid = validator.validate();
+                if (!isValid) {
+                  e.preventDefault();
+                } else {
+                  handleCopy();
                 }
               }}
-              gap={2}
-            >
-              {configCopied ? <Check size="small" /> : <Copy size="small" />}
-              Copy Terraform Module
-            </Button>
-            {!validator.state.valid && (
+            />
+            {validator.state.validating && !validator.state.valid && (
               <Text color="error.main" mt={2} fontSize={1}>
                 Please complete the required fields
               </Text>
@@ -112,22 +130,43 @@ export function DeploymentMethodSection({
           <Text bold={true} fontSize="14px">
             2. Initialize and apply the configuration
           </Text>
-          <Text>
-            Run the following commands in your terminal. <br />
-            Initialize Terraform to download the module, then apply the
-            configuration to create the integration and configure the discovery
-            service.
-          </Text>
-          <TextSelectCopyMulti
-            lines={[{ text: `terraform init` }, { text: `terraform apply` }]}
-          />
+          <DeploymentList>
+            <li>
+              <Text>
+                In your terminal, initialize Terraform to download the Teleport
+                discovery module.
+              </Text>
+              <TextSelectCopyMulti lines={[{ text: `terraform init` }]} />
+            </li>
+            <li>
+              <Text>Verify your changes.</Text>
+              <TextSelectCopyMulti lines={[{ text: `terraform plan` }]} />
+            </li>
+            <li>
+              <Text>
+                Apply the configuration to create the integration and configure
+                the discovery service.
+              </Text>
+              <TextSelectCopyMulti lines={[{ text: `terraform apply` }]} />
+            </li>
+          </DeploymentList>
           {showVerificationStep && (
             <Box>
               <Text bold={true} fontSize="14px" mb={2}>
                 3. Verify the integration
               </Text>
               {integrationExists ? (
-                <Alert kind="success" mb={2}>
+                <Alert
+                  kind="success"
+                  mb={2}
+                  primaryAction={{
+                    content: 'View Integration',
+                    linkTo: cfg.getIaCIntegrationRoute(
+                      IntegrationKind.AwsOidc,
+                      integrationName
+                    ),
+                  }}
+                >
                   Integration Detected
                   <Text fontWeight="regular">
                     Amazon Web Services successfully added
@@ -137,35 +176,49 @@ export function DeploymentMethodSection({
                 <>
                   <Box mb={3}>
                     {isCheckingIntegration ? (
-                      <Button
-                        fill="filled"
-                        intent="primary"
-                        disabled={true}
-                        onClick={onCheckIntegration}
-                        gap={2}
+                      <Alert
+                        kind="info"
+                        icon={AnimatedSpinner}
+                        primaryAction={{
+                          content: 'Cancel',
+                          onClick: handleCancelCheckIntegration,
+                        }}
+                        mb={0}
                       >
-                        <AnimatedSpinner size="small" />
-                        Checking...
-                      </Button>
-                    ) : (
-                      <Button
-                        fill="filled"
-                        intent="primary"
-                        disabled={false}
-                        onClick={onCheckIntegration}
-                        gap={2}
+                        <Text fontWeight="regular" color="text.slightlyMuted">
+                          Checking for integration{' '}
+                          <Text as="span" fontWeight="bold">
+                            {integrationName}
+                          </Text>
+                          ...
+                        </Text>
+                      </Alert>
+                    ) : checkIntegrationError ? (
+                      <Alert
+                        kind="danger"
+                        mb={0}
+                        primaryAction={{
+                          content: 'Check Integration',
+                          onClick: handleCheckIntegration,
+                        }}
                       >
-                        Check Integration
-                      </Button>
-                    )}
-                  </Box>
-                  <Box mb={3}>
-                    {isCheckingIntegration ? (
-                      <Alert kind="info" icon={Notification} mb={0}>
-                        Checking for integration '{integrationName}'...
+                        Failed to detect integration
+                        <Text fontWeight="regular" color="text.slightlyMuted">
+                          Unable to detect the AWS integration "
+                          {integrationName}". Please check your Terraform
+                          configuration and try again.
+                        </Text>
                       </Alert>
                     ) : (
-                      <Alert kind="neutral" icon={Notification} mb={0}>
+                      <Alert
+                        kind="neutral"
+                        icon={Notification}
+                        mb={0}
+                        primaryAction={{
+                          content: 'Check Integration',
+                          onClick: handleCheckIntegration,
+                        }}
+                      >
                         <Text fontWeight="regular" color="text.slightlyMuted">
                           After applying your Terraform configuration, verify
                           your integration was created successfully.
@@ -208,4 +261,14 @@ export function DeploymentMethodSection({
 
 const AnimatedSpinner = styled(Spinner)`
   animation: ${rotate360} 1.5s linear infinite;
+`;
+
+const DeploymentList = styled.ul`
+  padding-left: 0px;
+  list-style-type: none;
+  margin-top: 0;
+
+  li > * {
+    margin-bottom: ${p => p.theme.space[2]}px;
+  }
 `;

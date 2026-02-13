@@ -1,5 +1,49 @@
 # Changelog
 
+## 18.6.8 (02/10/26)
+
+* Added `--exec-cmd` and `--exec-arg` flags to `tsh proxy kube` to allow launching custom commands like k9s directly without requiring environment variable workarounds. [#63066](https://github.com/gravitational/teleport/pull/63066)
+
+Enterprise:
+* Fixes a panic that occurred when External Audit Storage was available but not enabled in Teleport Cloud while Access Monitoring was enabled.
+
+## 18.6.7 (02/09/26)
+
+* Revised help messages for event handler CLI commands. [#63620](https://github.com/gravitational/teleport/pull/63620)
+* Fixed `tsh ssh user@foo=bar uptime` from running serially if users did not have `role:read` permissions. [#63612](https://github.com/gravitational/teleport/pull/63612)
+* The minimum version of macOS required to run Teleport or associated client tools is now macOS 12 (Monterey). [#63587](https://github.com/gravitational/teleport/pull/63587)
+* The minimal macOS version required by Teleport Connect is now macOS 12. [#63569](https://github.com/gravitational/teleport/pull/63569)
+* Fixed bug where event handler would throw an error on Athena backend when handling large events. [#63550](https://github.com/gravitational/teleport/pull/63550)
+* Updated Go to 1.25.7. [#63539](https://github.com/gravitational/teleport/pull/63539)
+* Fixed an issue where a role requiring a trusted device could incorrectly block access to all applications. [#63527](https://github.com/gravitational/teleport/pull/63527)
+* Fixed bug where event handler would get stuck on DynamoDB backend when handling large events. [#63526](https://github.com/gravitational/teleport/pull/63526)
+* Updated tsh/Linux to correctly capture the OS login user for device trust. [#63452](https://github.com/gravitational/teleport/pull/63452)
+* Fixed a server error when rejecting a headless authentication request in the Web UI. [#63431](https://github.com/gravitational/teleport/pull/63431)
+* Added opt-in support to use `cert-manager` certificates for `teleport-plugin-event-handler` helm chart. [#63420](https://github.com/gravitational/teleport/pull/63420)
+* Modified `tbot` helm chart with default `token` value to simplify deployment. [#63360](https://github.com/gravitational/teleport/pull/63360)
+* Improved GitHub + Kubernetes guide experience. [#63185](https://github.com/gravitational/teleport/pull/63185)
+* Fixed `teleport join openssh` on recent versions of Ubuntu. [#63040](https://github.com/gravitational/teleport/pull/63040)
+
+Enterprise:
+* Extend Access Monitoring feature to Teleport Cloud customers using External Audit Storage.
+* Added recording and validation for the fixed OS login user values from tsh.
+* Mitigated a race in the Slack token refresh logic.
+
+## 18.6.6 (02/02/26)
+
+* Fixed tsh/Linux sending a too-large username for device trust. [#63387](https://github.com/gravitational/teleport/pull/63387)
+* Fixed an issue where MCP JSON-RPC messages with mixed-case field names could be parsed inconsistently and re-serialized to lower cases. Teleport now enforces canonical lowercase JSON-RPC fields. [#63364](https://github.com/gravitational/teleport/pull/63364)
+* Improved robustness of the Slack hosted plugin to reduce the likeliness of failed token refresh when experiencing external disruption. [#63344](https://github.com/gravitational/teleport/pull/63344)
+* Fixed a bug affecting access list review queries for lists where the name is a prefix of another list name. [#63337](https://github.com/gravitational/teleport/pull/63337)
+* Updated the OCI SDK to support new regions. [#63265](https://github.com/gravitational/teleport/pull/63265)
+* Ensure application session rejections for untrusted devices are consistently audited as AppSessionStart failures after MFA. [#63149](https://github.com/gravitational/teleport/pull/63149)
+* Added Helm chart support to the `teleport-event-handler configure` command. [#63147](https://github.com/gravitational/teleport/pull/63147)
+* Added `tctl` support for removing `okta_assignment` internal resource should it be needed. [#62698](https://github.com/gravitational/teleport/pull/62698)
+
+Enterprise:
+* Prevented manual membership changes to SCIM-type access lists while enabling support for their reviews.
+* Fixed the issue where Okta integration may not remove previously synced apps after plugin restart.
+
 ## 18.6.5 (01/29/26)
 
 * Fixed a `CredentialContainer` error when attempting to log in to the Web UI with a hardware key using Firefox >=147.0.2. [#63245](https://github.com/gravitational/teleport/pull/63245)

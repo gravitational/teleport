@@ -52,6 +52,7 @@ export const eventCodes = {
   ACCESS_REQUEST_EXPIRED: 'T5005I',
   APP_SESSION_CHUNK: 'T2008I',
   APP_SESSION_START: 'T2007I',
+  APP_SESSION_START_FAILURE: 'T2007E',
   APP_SESSION_END: 'T2011I',
   APP_SESSION_DYNAMODB_REQUEST: 'T2013I',
   APP_CREATED: 'TAP03I',
@@ -363,8 +364,20 @@ export const eventCodes = {
   VNET_CONFIG_UPDATE: 'TVNET002I',
   VNET_CONFIG_DELETE: 'TVNET003I',
   WORKLOAD_CLUSTER_CREATE: 'WC001I',
+  WORKLOAD_CLUSTER_CREATE_FAILURE: 'WC001E',
   WORKLOAD_CLUSTER_UPDATE: 'WC002I',
+  WORKLOAD_CLUSTER_UPDATE_FAILURE: 'WC002E',
   WORKLOAD_CLUSTER_DELETE: 'WC003I',
+  WORKLOAD_CLUSTER_DELETE_FAILURE: 'WC003E',
+  INFERENCE_MODEL_CREATE: 'INF001I',
+  INFERENCE_MODEL_UPDATE: 'INF002I',
+  INFERENCE_MODEL_DELETE: 'INF003I',
+  INFERENCE_SECRET_CREATE: 'INF004I',
+  INFERENCE_SECRET_UPDATE: 'INF005I',
+  INFERENCE_SECRET_DELETE: 'INF006I',
+  INFERENCE_POLICY_CREATE: 'INF007I',
+  INFERENCE_POLICY_UPDATE: 'INF008I',
+  INFERENCE_POLICY_DELETE: 'INF009I',
 } as const;
 
 /**
@@ -627,6 +640,14 @@ export type RawEvents = {
       sid: string;
       aws_role_arn: string;
       app_name: string;
+    }
+  >;
+  [eventCodes.APP_SESSION_START_FAILURE]: RawEvent<
+    typeof eventCodes.APP_SESSION_START_FAILURE,
+    {
+      app_name: string;
+      error: string;
+      message: string;
     }
   >;
   [eventCodes.APP_SESSION_END]: RawEvent<
@@ -2137,12 +2158,60 @@ export type RawEvents = {
     typeof eventCodes.WORKLOAD_CLUSTER_CREATE,
     HasName
   >;
+  [eventCodes.WORKLOAD_CLUSTER_CREATE_FAILURE]: RawEvent<
+    typeof eventCodes.WORKLOAD_CLUSTER_CREATE_FAILURE,
+    HasName
+  >;
   [eventCodes.WORKLOAD_CLUSTER_UPDATE]: RawEvent<
     typeof eventCodes.WORKLOAD_CLUSTER_UPDATE,
     HasName
   >;
+  [eventCodes.WORKLOAD_CLUSTER_UPDATE_FAILURE]: RawEvent<
+    typeof eventCodes.WORKLOAD_CLUSTER_UPDATE_FAILURE,
+    HasName
+  >;
   [eventCodes.WORKLOAD_CLUSTER_DELETE]: RawEvent<
     typeof eventCodes.WORKLOAD_CLUSTER_DELETE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_CLUSTER_DELETE_FAILURE]: RawEvent<
+    typeof eventCodes.WORKLOAD_CLUSTER_DELETE_FAILURE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_MODEL_CREATE]: RawEvent<
+    typeof eventCodes.INFERENCE_MODEL_CREATE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_MODEL_UPDATE]: RawEvent<
+    typeof eventCodes.INFERENCE_MODEL_UPDATE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_MODEL_DELETE]: RawEvent<
+    typeof eventCodes.INFERENCE_MODEL_DELETE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_SECRET_CREATE]: RawEvent<
+    typeof eventCodes.INFERENCE_SECRET_CREATE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_SECRET_UPDATE]: RawEvent<
+    typeof eventCodes.INFERENCE_SECRET_UPDATE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_SECRET_DELETE]: RawEvent<
+    typeof eventCodes.INFERENCE_SECRET_DELETE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_POLICY_CREATE]: RawEvent<
+    typeof eventCodes.INFERENCE_POLICY_CREATE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_POLICY_UPDATE]: RawEvent<
+    typeof eventCodes.INFERENCE_POLICY_UPDATE,
+    HasName
+  >;
+  [eventCodes.INFERENCE_POLICY_DELETE]: RawEvent<
+    typeof eventCodes.INFERENCE_POLICY_DELETE,
     HasName
   >;
 };
@@ -2402,6 +2471,7 @@ export type Events = {
     code: key;
     codeDesc: string;
     raw: RawEvents[key];
+    eventIndex: number;
   };
 };
 

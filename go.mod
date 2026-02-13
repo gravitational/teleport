@@ -1,6 +1,16 @@
 module github.com/gravitational/teleport
 
-go 1.24.12
+go 1.25.7
+
+ignore (
+	./build
+	./docs
+	./web
+	./webassets
+	node_modules
+	rfd
+	target
+)
 
 require (
 	cloud.google.com/go/alloydb v1.16.1
@@ -73,7 +83,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.71.2
 	github.com/aws/aws-sdk-go-v2/service/memorydb v1.27.0
 	github.com/aws/aws-sdk-go-v2/service/opensearch v1.46.3
-	github.com/aws/aws-sdk-go-v2/service/organizations v1.38.3
+	github.com/aws/aws-sdk-go-v2/service/organizations v1.45.0
 	github.com/aws/aws-sdk-go-v2/service/rds v1.95.0
 	github.com/aws/aws-sdk-go-v2/service/redshift v1.54.3
 	github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.27.1
@@ -272,6 +282,7 @@ require (
 	k8s.io/kubectl v0.33.3
 	k8s.io/metrics v0.33.3
 	k8s.io/utils v0.0.0-20241210054802-24370beab758
+	rsc.io/ordered v1.1.1
 	sigs.k8s.io/controller-runtime v0.20.4
 	sigs.k8s.io/controller-tools v0.17.1
 	sigs.k8s.io/yaml v1.6.0

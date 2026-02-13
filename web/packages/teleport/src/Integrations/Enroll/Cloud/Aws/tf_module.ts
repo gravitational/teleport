@@ -31,7 +31,7 @@ export type AwsDiscoverTerraformModuleConfig = {
   version: string;
 };
 
-const TF_MODULE = '/teleport/discover/aws';
+const TF_MODULE = '/teleport/discovery/aws';
 
 const isStaging = (version: string): boolean => {
   const parsed = parseVersion(version);
@@ -90,7 +90,6 @@ module "aws_discovery" {
   teleport_proxy_public_addr    = ${cfg.proxyCluster + ':443'}
   teleport_discovery_group_name = "cloud-discovery-group"
   teleport_integration_name	    = ${integrationNameOrNull}
-
 
   match_aws_resource_types = ${matchAwsTypes}
 

@@ -50,6 +50,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	"github.com/google/uuid"
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
@@ -104,12 +106,15 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cache"
+	inventorycache "github.com/gravitational/teleport/lib/cache/inventory"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/inventory"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
@@ -124,6 +129,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/gcp"
 	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/join/gitlab"
+	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/join/spacelift"
 	"github.com/gravitational/teleport/lib/join/terraformcloud"
 	"github.com/gravitational/teleport/lib/join/tpmjoin"
@@ -574,6 +580,17 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
 	}
 
+	if cfg.AWSOrganizationsClientGetter == nil {
+		organizationsClientFromSDK := func(c aws.Config) iamjoin.OrganizationsAPI {
+			return organizations.NewFromConfig(c)
+		}
+
+		cfg.AWSOrganizationsClientGetter, err = awsOrganizationsClientGetter(closeCtx, cfg.Clock, organizationsClientFromSDK)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	limiter := limiter.NewConnectionsLimiter(defaults.LimiterMaxConcurrentSignatures)
 
 	if cfg.KubeWaitingContainers == nil {
@@ -601,6 +618,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		cfg.ScopedTokenService, err = local.NewScopedTokenService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+	}
+
+	if cfg.WorkloadClusterService == nil {
+		cfg.WorkloadClusterService, err = local.NewWorkloadClusterService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating WorkloadClusterService")
 		}
 	}
 
@@ -671,33 +695,35 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Summarizer:                      cfg.Summarizer,
 		RecordingEncryptionManager:      cfg.RecordingEncryption,
 		ScopedTokenService:              cfg.ScopedTokenService,
+		WorkloadClusterService:          cfg.WorkloadClusterService,
 	}
 
 	as = &Server{
-		bk:                        cfg.Backend,
-		clock:                     cfg.Clock,
-		limiter:                   limiter,
-		Authority:                 cfg.Authority,
-		AuthServiceName:           cfg.AuthServiceName,
-		ServerID:                  cfg.HostUUID,
-		cancelFunc:                cancelFunc,
-		closeCtx:                  closeCtx,
-		emitter:                   cfg.Emitter,
-		Streamer:                  cfg.Streamer,
-		Unstable:                  local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
-		Services:                  services,
-		Cache:                     services,
-		scopedAccessBackend:       cfg.ScopedAccess,
-		ScopedAccessCache:         scopedAccessCache,
-		keyStore:                  cfg.KeyStore,
-		traceClient:               cfg.TraceClient,
-		fips:                      cfg.FIPS,
-		loadAllCAs:                cfg.LoadAllCAs,
-		httpClientForAWSSTS:       cfg.HTTPClientForAWSSTS,
-		accessMonitoringEnabled:   cfg.AccessMonitoringEnabled,
-		logger:                    cfg.Logger,
-		sessionSummarizerProvider: cfg.SessionSummarizerProvider,
-		recordingMetadataProvider: cfg.RecordingMetadataProvider,
+		bk:                           cfg.Backend,
+		clock:                        cfg.Clock,
+		limiter:                      limiter,
+		Authority:                    cfg.Authority,
+		AuthServiceName:              cfg.AuthServiceName,
+		ServerID:                     cfg.HostUUID,
+		cancelFunc:                   cancelFunc,
+		closeCtx:                     closeCtx,
+		emitter:                      cfg.Emitter,
+		Streamer:                     cfg.Streamer,
+		Unstable:                     local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
+		Services:                     services,
+		Cache:                        services,
+		scopedAccessBackend:          cfg.ScopedAccess,
+		ScopedAccessCache:            scopedAccessCache,
+		keyStore:                     cfg.KeyStore,
+		traceClient:                  cfg.TraceClient,
+		fips:                         cfg.FIPS,
+		loadAllCAs:                   cfg.LoadAllCAs,
+		httpClientForAWSSTS:          cfg.HTTPClientForAWSSTS,
+		accessMonitoringEnabled:      cfg.AccessMonitoringEnabled,
+		logger:                       cfg.Logger,
+		sessionSummarizerProvider:    cfg.SessionSummarizerProvider,
+		recordingMetadataProvider:    cfg.RecordingMetadataProvider,
+		awsOrganizationsClientGetter: cfg.AWSOrganizationsClientGetter,
 	}
 	as.inventory = inventory.NewController(as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
@@ -944,6 +970,89 @@ type Services struct {
 	services.Summarizer
 	RecordingEncryptionManager
 	services.ScopedTokenService
+	services.WorkloadClusterService
+}
+
+// awsOrganizationsClientGetter returns an AWS Organizations client getter.
+func awsOrganizationsClientGetter(ctx context.Context, clock clockwork.Clock, organizationsClientFromConfig func(aws.Config) iamjoin.OrganizationsAPI) (*organizationsClientGetter, error) {
+	awsConfigProvider, err := awsconfig.NewCache()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Adding a cache layer for the DescribeAccount calls allows us to avoid being rate limited when thousands of EC2 instances try to join at once.
+	describeAccountAPICache, err := utils.NewFnCache(utils.FnCacheConfig{
+		// Organizations data doesn't change often, so we can cache it for a long period.
+		TTL:     1 * time.Minute,
+		Clock:   clock,
+		Context: ctx,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &organizationsClientGetter{
+		describeAccountAPICache:       describeAccountAPICache,
+		awsConfig:                     awsConfigProvider,
+		organizationsClientFromConfig: organizationsClientFromConfig,
+	}, nil
+}
+
+type organizationsClientGetter struct {
+	describeAccountAPICache       *utils.FnCache
+	awsConfig                     awsconfig.Provider
+	organizationsClientFromConfig func(aws.Config) iamjoin.OrganizationsAPI
+	// Only used in tests to prevent hitting real AWS endpoints.
+	stsClientFromConfig func(aws.Config) awsconfig.STSClient
+}
+
+func (o *organizationsClientGetter) Get(ctx context.Context, integration string, awsOIDCIntegrationClient awsconfig.OIDCIntegrationClient) (iamjoin.OrganizationsAPI, error) {
+	// For IAM Join flow, the join token might allow instances under an Organization to join the cluster.
+	// In order to validate the organization ID of the joining identity, a call to organizations:DescribeAccount is performed.
+	// This requires AWS credentials to be accessible to the Auth Service.
+	//
+	// The credentials can come from an integration or from ambient credentials, when an integration is not specified in the join token.
+	//
+	// Using ambient credentials when the Auth Service is running within Teleport Cloud is not supported.
+	// In that scenario a NotImplemented error is returned.
+	if integration == "" && modules.GetModules().Features().Cloud {
+		return nil, trace.NotImplemented("IAM Joins based on AWS Organization ID require an integration")
+	}
+
+	awsConfigOptions := []awsconfig.OptionsFn{
+		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{
+			Name: integration,
+		}),
+		awsconfig.WithOIDCIntegrationClient(awsOIDCIntegrationClient),
+	}
+	if o.stsClientFromConfig != nil {
+		awsConfigOptions = append(awsConfigOptions, awsconfig.WithSTSClientProvider(o.stsClientFromConfig))
+	}
+
+	// Organizations API is global, so we use an empty string for region.
+	const noRegion = ""
+	awsConfig, err := o.awsConfig.GetConfig(ctx, noRegion, awsConfigOptions...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &organizationsClient{
+		describeAccountAPICache: o.describeAccountAPICache,
+		remoteAPI:               o.organizationsClientFromConfig(awsConfig),
+	}, nil
+}
+
+type organizationsClient struct {
+	describeAccountAPICache *utils.FnCache
+	remoteAPI               iamjoin.OrganizationsAPI
+}
+
+func (o *organizationsClient) DescribeAccount(ctx context.Context, params *organizations.DescribeAccountInput, optFns ...func(*organizations.Options)) (*organizations.DescribeAccountOutput, error) {
+	describeAccountOutput, err := utils.FnCacheGet(ctx, o.describeAccountAPICache, aws.ToString(params.AccountId), func(ctx context.Context) (*organizations.DescribeAccountOutput, error) {
+		remoteDescribeAccountOutput, err := o.remoteAPI.DescribeAccount(ctx, params, optFns...)
+		return remoteDescribeAccountOutput, trace.Wrap(err)
+	})
+
+	return describeAccountOutput, trace.Wrap(err)
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1250,6 +1359,9 @@ type Server struct {
 	// GlobalNotificationCache is a cache of global notifications.
 	GlobalNotificationCache *services.GlobalNotificationCache
 
+	// inventoryCache is a cache of unified instances (teleport instances and bot instances).
+	inventoryCache *inventorycache.InventoryCache
+
 	// workloadIdentityX509CAOverrideGetter is a getter for CA overrides for
 	// SPIFFE X.509 certificate issuance. Optional, set in enterprise code.
 	workloadIdentityX509CAOverrideGetter services.WorkloadIdentityX509CAOverrideGetter
@@ -1390,6 +1502,10 @@ type Server struct {
 	// AWSRolesAnywhereCreateSessionOverride overrides the AWS Roles Anywhere Create Session API wrapper with a mocked one.
 	// Used for testing.
 	AWSRolesAnywhereCreateSessionOverride func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error)
+
+	// awsOrganizationsClientGetter provides an AWS client that can call Organizations APIs.
+	// This is used to allow the IAM join method to validate that an AWS account belongs to a specific AWS Organization.
+	awsOrganizationsClientGetter iamjoin.OrganizationsAPIGetter
 
 	// sigstorePolicyEvaluator checks workload signatures and attestations
 	// against Sigstore policies.
@@ -1572,6 +1688,20 @@ func (a *Server) SetGlobalNotificationCache(globalNotificationCache *services.Gl
 	a.GlobalNotificationCache = globalNotificationCache
 }
 
+// SetInventoryCache sets the inventory cache.
+func (a *Server) SetInventoryCache(inventoryCache *inventorycache.InventoryCache) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.inventoryCache = inventoryCache
+}
+
+// GetInventoryCache returns the inventory cache.
+func (a *Server) GetInventoryCache() *inventorycache.InventoryCache {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
+	return a.inventoryCache
+}
+
 func (a *Server) SetLockWatcher(lockWatcher *services.LockWatcher) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
@@ -1617,6 +1747,20 @@ func (a *Server) GetDeviceAssertionServer() CreateDeviceAssertionFunc {
 		}
 	}
 	return a.deviceAssertionServer
+}
+
+// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
+func (a *Server) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
+	token, err := awsoidc.GenerateAWSOIDCToken(ctx, a, a.GetKeyStore(), awsoidc.GenerateAWSOIDCTokenRequest{
+		Integration: integration,
+		Username:    a.ServerID,
+		Subject:     types.IntegrationAWSOIDCSubjectAuth,
+		Clock:       a.clock,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return token, nil
 }
 
 func (a *Server) SetCreateDeviceWebTokenFunc(f CreateDeviceWebTokenFunc) {
@@ -2332,6 +2476,12 @@ func (a *Server) Close() error {
 
 	if err := a.inventory.Close(); err != nil {
 		errs = append(errs, err)
+	}
+
+	if inventoryCache := a.GetInventoryCache(); inventoryCache != nil {
+		if err := inventoryCache.Close(); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	if a.Services.AuditLogSessionStreamer != nil {
@@ -5191,9 +5341,21 @@ func ExtractHostID(hostName string, clusterName string) (string, error) {
 	return strings.TrimSuffix(hostName, suffix), nil
 }
 
+// HostCertsParams attaches additional parameters to a [proto.HostCertsRequest] that should not be
+// exposed by the request itself.
+type HostCertsParams struct {
+	// Req is the original request to generate host certificates.
+	Req *proto.HostCertsRequest
+	// The AgentScope that should be encoded into the resulting certificates.
+	AgentScope string
+	// The ImmutableLabelHash that should be encoded into the resulting certificates.
+	ImmutableLabelHash string
+}
+
 // GenerateHostCerts generates new host certificates (signed
 // by the host certificate authority) for a node.
-func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest, scope string) (*proto.Certs, error) {
+func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) (*proto.Certs, error) {
+	req := params.Req
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5323,10 +5485,11 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		HostID:        req.HostID,
 		NodeName:      req.NodeName,
 		Identity: sshca.Identity{
-			ClusterName: clusterName.GetClusterName(),
-			SystemRole:  req.Role,
-			Principals:  req.AdditionalPrincipals,
-			AgentScope:  scope,
+			ClusterName:        clusterName.GetClusterName(),
+			SystemRole:         req.Role,
+			Principals:         req.AdditionalPrincipals,
+			AgentScope:         params.AgentScope,
+			ImmutableLabelHash: params.ImmutableLabelHash,
 		},
 	})
 	if err != nil {
@@ -5344,11 +5507,12 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 
 	// generate host TLS certificate
 	identity := tlsca.Identity{
-		Username:        utils.HostFQDN(req.HostID, clusterName.GetClusterName()),
-		Groups:          []string{req.Role.String()},
-		TeleportCluster: clusterName.GetClusterName(),
-		SystemRoles:     systemRoles,
-		AgentScope:      scope,
+		Username:           utils.HostFQDN(req.HostID, clusterName.GetClusterName()),
+		Groups:             []string{req.Role.String()},
+		TeleportCluster:    clusterName.GetClusterName(),
+		SystemRoles:        systemRoles,
+		AgentScope:         params.AgentScope,
+		ImmutableLabelHash: params.ImmutableLabelHash,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -8263,8 +8427,29 @@ func (a *Server) addAdditionalTrustedKeysAtomic(ctx context.Context, ca types.Ce
 }
 
 // newKeySet generates a new sets of keys for a given CA type.
-// Keep this function in sync with lib/services/suite/suite.go:NewTestCAWithConfig().
+// Keep this function in sync with lib/auth/authcatest.NewCAWithConfig().
 func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertAuthID) (types.CAKeySet, error) {
+	switch caID.Type {
+	case
+		types.HostCA,
+		types.UserCA,
+		types.DatabaseCA,
+		types.DatabaseClientCA,
+		types.OpenSSHCA,
+		types.JWTSigner,
+		types.SAMLIDPCA,
+		types.OIDCIdPCA,
+		types.SPIFFECA,
+		types.OktaCA,
+		types.AWSRACA,
+		types.BoundKeypairCA,
+		types.WindowsCA:
+		// OK, known CA type.
+	default:
+		return types.CAKeySet{}, trace.BadParameter(
+			"cannot generate new key set for unknown CA type %q", caID.Type)
+	}
+
 	var keySet types.CAKeySet
 
 	// Add SSH keys if necessary.
@@ -8279,7 +8464,14 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 
 	// Add TLS keys if necessary.
 	switch caID.Type {
-	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
+	case types.UserCA,
+		types.HostCA,
+		types.DatabaseCA,
+		types.DatabaseClientCA,
+		types.SAMLIDPCA,
+		types.SPIFFECA,
+		types.AWSRACA,
+		types.WindowsCA:
 		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName, tlsCAKeyPurpose(caID.Type))
 		if err != nil {
 			return keySet, trace.Wrap(err)
@@ -8295,6 +8487,11 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 			return keySet, trace.Wrap(err)
 		}
 		keySet.JWT = append(keySet.JWT, jwtKeyPair)
+	}
+
+	// Sanity check that the key set has at least one key.
+	if keySet.Empty() {
+		return types.CAKeySet{}, trace.BadParameter("no keys generated for CA type %q", caID.Type)
 	}
 
 	return keySet, nil
@@ -8328,6 +8525,8 @@ func tlsCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
 		return cryptosuites.SPIFFECATLS
 	case types.AWSRACA:
 		return cryptosuites.AWSRACATLS
+	case types.WindowsCA:
+		return cryptosuites.WindowsCARDP
 	}
 	return cryptosuites.KeyPurposeUnspecified
 }

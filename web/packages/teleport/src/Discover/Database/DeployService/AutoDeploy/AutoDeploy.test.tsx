@@ -136,7 +136,7 @@ describe('test AutoDeploy.tsx', () => {
     await waitForSubnetsAndSecurityGroups();
 
     expect(
-      screen.queryByText(/name can only contain/i)
+      screen.queryByText(/name must only contain/i)
     ).not.toBeInTheDocument();
 
     // add invalid characters in role name
@@ -144,12 +144,12 @@ describe('test AutoDeploy.tsx', () => {
     fireEvent.change(inputEl, { target: { value: 'invalidname!@#!$!%' } });
 
     fireEvent.click(screen.getByText(/generate command/i));
-    expect(screen.getByText(/name can only contain/i)).toBeInTheDocument();
+    expect(screen.getByText(/name must only contain/i)).toBeInTheDocument();
 
     // change back to valid name
     fireEvent.change(inputEl, { target: { value: 'llama' } });
     expect(
-      screen.queryByText(/name can only contain/i)
+      screen.queryByText(/name must only contain/i)
     ).not.toBeInTheDocument();
   });
 

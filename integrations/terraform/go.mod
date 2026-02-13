@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/integrations/terraform
 
-go 1.24.12
+go 1.25.7
 
 // TF provider dependencies
 require (
@@ -122,7 +122,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/kms v1.44.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/memorydb v1.27.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/opensearch v1.46.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/organizations v1.38.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/organizations v1.45.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/rds v1.95.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/redshift v1.54.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.27.1 // indirect
@@ -523,6 +523,7 @@ require (
 	k8s.io/utils v0.0.0-20241210054802-24370beab758 // indirect
 	mvdan.cc/sh/v3 v3.7.0 // indirect
 	oras.land/oras-go/v2 v2.6.0 // indirect
+	rsc.io/ordered v1.1.1 // indirect
 	sigs.k8s.io/controller-runtime v0.20.4 // indirect
 	sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3 // indirect
 	sigs.k8s.io/kustomize/api v0.19.0 // indirect

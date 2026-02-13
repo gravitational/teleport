@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { LocationDescriptor } from 'history';
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled, { useTheme } from 'styled-components';
@@ -47,7 +48,8 @@ export type AlertKind =
   | 'success'
   | 'outline-danger'
   | 'outline-info'
-  | 'outline-warn';
+  | 'outline-warn'
+  | 'cta';
 
 const alertBorder = (
   props: ThemedAlertProps
@@ -77,6 +79,11 @@ const alertBorder = (
       return {
         border: theme.borders[1],
         borderColor: theme.colors.text.disabled,
+      };
+    case 'cta':
+      return {
+        border: theme.borders[2],
+        borderColor: theme.colors.interactive.solid.primary.default,
       };
   }
 };
@@ -108,6 +115,10 @@ const backgroundColor = (
     case 'neutral':
       return {
         background: theme.colors.interactive.tonal.neutral[0],
+      };
+    case 'cta':
+      return {
+        background: 'inherit',
       };
   }
 };
@@ -145,7 +156,7 @@ export interface Action {
   /**
    * a link that takes you to a different route within the app
    */
-  linkTo?: string;
+  linkTo?: LocationDescriptor;
   onClick?: (event: React.MouseEvent) => void;
 }
 
@@ -327,6 +338,12 @@ const iconContainerStyles = ({
         background: theme.colors.interactive.tonal.neutral[0],
         padding: `${theme.space[2]}px`,
       };
+    case 'cta':
+      return {
+        color: theme.colors.text.primaryInverse,
+        background: theme.colors.interactive.solid.primary.default,
+        padding: `${theme.space[2]}px`,
+      };
   }
 };
 
@@ -353,7 +370,7 @@ const IconContainer = styled.div<{ kind: AlertKind; wrapContents?: boolean }>`
 const primaryButtonProps = (
   kind: AlertKind | BannerKind
 ): { fill: ButtonFill; intent: ButtonIntent } => {
-  return kind === 'neutral'
+  return kind === 'neutral' || kind === 'cta'
     ? { fill: 'filled', intent: 'primary' }
     : { fill: 'border', intent: 'neutral' };
 };
@@ -585,6 +602,7 @@ const iconKind = (kind: AlertKind | BannerKind): StatusKind => {
     case 'outline-info':
       return 'info';
     case 'primary':
+    case 'cta':
       return 'neutral';
     default:
       return kind;

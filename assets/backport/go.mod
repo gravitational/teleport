@@ -1,6 +1,6 @@
 module github.com/teleport/assets/backport
 
-go 1.24.12
+go 1.25.7
 
 require (
 	github.com/google/go-github/v41 v41.0.0

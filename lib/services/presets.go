@@ -41,18 +41,7 @@ import (
 // NewSystemAutomaticAccessApproverRole creates a new Role that is allowed to
 // approve any Access Request. This is restricted to Teleport Enterprise, and
 // returns nil in non-Enterproise builds.
-func NewSystemAutomaticAccessApproverRole(buildTypes ...string) types.Role {
-	// TODO(tross): make this take a single buildType after all uses are updated.
-	var buildType string
-	switch len(buildTypes) {
-	case 0:
-		buildType = modules.GetModules().BuildType()
-	case 1:
-		buildType = buildTypes[0]
-	default:
-		return nil
-	}
-
+func NewSystemAutomaticAccessApproverRole(buildType string) types.Role {
 	if buildType != modules.BuildEnterprise {
 		return nil
 	}
@@ -90,18 +79,7 @@ func NewSystemAutomaticAccessApproverRole(buildTypes ...string) types.Role {
 //   - Show up in user lists in WebUI
 //
 // TODO(tcsc): Implement/enforce above restrictions on this user
-func NewSystemAutomaticAccessBotUser(buildTypes ...string) types.User {
-	// TODO(tross): make this take a single buildType after all uses are updated.
-	var buildType string
-	switch len(buildTypes) {
-	case 0:
-		buildType = modules.GetModules().BuildType()
-	case 1:
-		buildType = buildTypes[0]
-	default:
-		return nil
-	}
-
+func NewSystemAutomaticAccessBotUser(buildType string) types.User {
 	if buildType != modules.BuildEnterprise {
 		return nil
 	}
@@ -249,6 +227,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(scopedaccess.KindScopedRole, RW()),
 					types.NewRule(scopedaccess.KindScopedRoleAssignment, RW()),
 					types.NewRule(types.KindScopedToken, RW()),
+					types.NewRule(types.KindWorkloadCluster, RW()),
 				},
 			},
 		},
@@ -426,18 +405,7 @@ func NewPresetReviewerRole(buildType string) types.Role {
 
 // NewPresetRequesterRole returns a new pre-defined role for requester. The
 // requester will be able to request all resources.
-func NewPresetRequesterRole(buildTypes ...string) types.Role {
-	// TODO(tross): make this take a single buildType after all uses are updated.
-	var buildType string
-	switch len(buildTypes) {
-	case 0:
-		buildType = modules.GetModules().BuildType()
-	case 1:
-		buildType = buildTypes[0]
-	default:
-		return nil
-	}
-
+func NewPresetRequesterRole(buildType string) types.Role {
 	if buildType != modules.BuildEnterprise {
 		return nil
 	}
@@ -709,18 +677,7 @@ func NewPresetListAccessRequestResourcesRole() types.Role {
 // SystemOktaAccessRoleName is the name of the system role that allows
 // access to Okta resources. This will be used by the Okta requester role to
 // search for Okta resources.
-func NewSystemOktaAccessRole(buildTypes ...string) types.Role {
-	// TODO(tross): make this take a single buildType after all uses are updated.
-	var buildType string
-	switch len(buildTypes) {
-	case 0:
-		buildType = modules.GetModules().BuildType()
-	case 1:
-		buildType = buildTypes[0]
-	default:
-		return nil
-	}
-
+func NewSystemOktaAccessRole(buildType string) types.Role {
 	if buildType != modules.BuildEnterprise {
 		return nil
 	}
@@ -753,21 +710,10 @@ func NewSystemOktaAccessRole(buildTypes ...string) types.Role {
 	return role
 }
 
-// SystemOktaRequesterRoleName is a name of a system role that allows
+// NewSystemOktaRequesterRole is a system role that allows
 // for requesting access to Okta resources. This differs from the requester role
 // in that it allows for requesting longer lived access.
-func NewSystemOktaRequesterRole(buildTypes ...string) types.Role {
-	// TODO(tross): make this take a single buildType after all uses are updated.
-	var buildType string
-	switch len(buildTypes) {
-	case 0:
-		buildType = modules.GetModules().BuildType()
-	case 1:
-		buildType = buildTypes[0]
-	default:
-		return nil
-	}
-
+func NewSystemOktaRequesterRole(buildType string) types.Role {
 	if buildType != modules.BuildEnterprise {
 		return nil
 	}

@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"net"
 	"strings"
 	"testing"
@@ -41,12 +40,12 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -56,11 +55,12 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cache"
+	inventorycache "github.com/gravitational/teleport/lib/cache/inventory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -100,6 +100,9 @@ type AuthServerConfig struct {
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 	// RecordingMetadataProvider allows a test to configure its own recording
 	RecordingMetadataProvider *recordingmetadata.Provider
+	// AWSOrganizationsClientGetter provides an AWS client that can call Organizations APIs.
+	// This is used to allow the IAM join method to validate that an AWS account belongs to a specific AWS Organization.
+	AWSOrganizationsClientGetter iamjoin.OrganizationsAPIGetter
 	// TraceClient allows a test to configure the trace client
 	TraceClient otlptrace.Client
 	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
@@ -342,26 +345,27 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	}
 
 	srv.AuthServer, err = auth.NewServer(&auth.InitConfig{
-		DataDir:                   cfg.Dir,
-		Backend:                   srv.Backend,
-		VersionStorage:            NewFakeTeleportVersion(),
-		Authority:                 authority,
-		Access:                    access,
-		Identity:                  identity,
-		AuditLog:                  srv.AuditLog,
-		Streamer:                  cfg.Streamer,
-		SkipPeriodicOperations:    true,
-		Emitter:                   emitter,
-		TraceClient:               cfg.TraceClient,
-		Clock:                     cfg.Clock,
-		ClusterName:               clusterName,
-		HostUUID:                  uuid.New().String(),
-		AccessLists:               accessLists,
-		FIPS:                      cfg.FIPS,
-		KeyStoreConfig:            cfg.KeystoreConfig,
-		MultipartHandler:          cfg.UploadHandler,
-		SessionSummarizerProvider: cfg.SessionSummarizerProvider,
-		RecordingMetadataProvider: cfg.RecordingMetadataProvider,
+		DataDir:                      cfg.Dir,
+		Backend:                      srv.Backend,
+		VersionStorage:               NewFakeTeleportVersion(),
+		Authority:                    authority,
+		Access:                       access,
+		Identity:                     identity,
+		AuditLog:                     srv.AuditLog,
+		Streamer:                     cfg.Streamer,
+		SkipPeriodicOperations:       true,
+		Emitter:                      emitter,
+		TraceClient:                  cfg.TraceClient,
+		Clock:                        cfg.Clock,
+		ClusterName:                  clusterName,
+		HostUUID:                     uuid.New().String(),
+		AccessLists:                  accessLists,
+		FIPS:                         cfg.FIPS,
+		KeyStoreConfig:               cfg.KeystoreConfig,
+		MultipartHandler:             cfg.UploadHandler,
+		SessionSummarizerProvider:    cfg.SessionSummarizerProvider,
+		RecordingMetadataProvider:    cfg.RecordingMetadataProvider,
+		AWSOrganizationsClientGetter: cfg.AWSOrganizationsClientGetter,
 	},
 		WithClock(cfg.Clock),
 		// Reduce auth.Server bcrypt costs when testing.
@@ -444,11 +448,15 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 
 	// Setup certificate and signing authorities.
 	for _, caType := range types.CertAuthTypes {
-		if err = srv.AuthServer.UpsertCertAuthority(ctx, NewTestCAWithConfig(TestCAConfig{
+		ca, err := authcatest.NewCAWithConfig(authcatest.CAConfig{
 			Type:        caType,
 			ClusterName: srv.ClusterName,
 			Clock:       cfg.Clock,
-		})); err != nil {
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err = srv.AuthServer.UpsertCertAuthority(ctx, ca); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -612,11 +620,26 @@ func InitAuthCache(p AuthCacheParams) error {
 		BotInstance:             p.AuthServer.Services.BotInstance,
 		Plugin:                  p.AuthServer.Services.Plugins,
 		RecordingEncryption:     p.AuthServer.Services.RecordingEncryptionManager,
+		StaticScopedToken:       p.AuthServer.Services.ClusterConfigurationInternal,
+		WorkloadClusterService:  p.AuthServer.Services.WorkloadClusterService,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	p.AuthServer.Cache = c
+
+	// Create and set the inventory cache
+	invCache, err := inventorycache.NewInventoryCache(inventorycache.InventoryCacheConfig{
+		PrimaryCache:       c,
+		Events:             p.AuthServer.Services,
+		Inventory:          p.AuthServer.Services,
+		BotInstanceBackend: p.AuthServer.Services,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	p.AuthServer.SetInventoryCache(invCache)
+
 	return nil
 }
 
@@ -712,28 +735,30 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 
 		return tlsCert, privateKeyPEM, nil
 	case authz.BuiltinRole:
-		certs, err := authServer.GenerateHostCerts(ctx,
-			&proto.HostCertsRequest{
+		certs, err := authServer.GenerateHostCerts(ctx, auth.HostCertsParams{
+			Req: &proto.HostCertsRequest{
 				HostID:       id.Username,
 				NodeName:     id.Username,
 				Role:         id.Role,
 				PublicTLSKey: tlsPublicKeyPEM,
 				PublicSSHKey: sshPublicKeyPEM,
 				SystemRoles:  id.AdditionalSystemRoles,
-			}, "")
+			},
+		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 		return certs.TLS, privateKeyPEM, nil
 	case authz.RemoteBuiltinRole:
-		certs, err := authServer.GenerateHostCerts(ctx,
-			&proto.HostCertsRequest{
+		certs, err := authServer.GenerateHostCerts(ctx, auth.HostCertsParams{
+			Req: &proto.HostCertsRequest{
 				HostID:       id.Username,
 				NodeName:     id.Username,
 				Role:         id.Role,
 				PublicTLSKey: tlsPublicKeyPEM,
 				PublicSSHKey: sshPublicKeyPEM,
-			}, "")
+			},
+		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -1356,14 +1381,15 @@ func NewServerIdentity(clt *auth.Server, hostID string, role types.SystemRole) (
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := clt.GenerateHostCerts(context.Background(),
-		&proto.HostCertsRequest{
+	certs, err := clt.GenerateHostCerts(context.Background(), auth.HostCertsParams{
+		Req: &proto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     hostID,
 			Role:         role,
 			PublicSSHKey: ssh.MarshalAuthorizedKey(sshPubKey),
 			PublicTLSKey: tlsPubKey,
-		}, "")
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1632,138 +1658,4 @@ func FlushCache(t *testing.T, clt Flusher) {
 			t.Fatal("Time out waiting for role to be replicated")
 		}
 	}
-}
-
-// TestCAConfig defines the configuration for generating
-// a test certificate authority
-type TestCAConfig struct {
-	Type        types.CertAuthType
-	PrivateKeys [][]byte
-	Clock       clockwork.Clock
-	ClusterName string
-	// the below string fields default to ClusterName if left empty
-	ResourceName        string
-	SubjectOrganization string
-}
-
-// NewTestCA returns new test authority with a test key as a public and
-// signing key
-func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte) *types.CertAuthorityV2 {
-	return NewTestCAWithConfig(TestCAConfig{
-		Type:        caType,
-		ClusterName: clusterName,
-		PrivateKeys: privateKeys,
-		Clock:       clockwork.NewRealClock(),
-	})
-}
-
-// NewTestCAWithConfig generates a new certificate authority with the specified
-// configuration
-// Keep this function in-sync with lib/auth/auth.go:newKeySet().
-// TODO(jakule): reuse keystore.KeyStore interface to match newKeySet().
-func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
-	var keyPEM []byte
-	var key *keys.PrivateKey
-
-	if config.ResourceName == "" {
-		config.ResourceName = config.ClusterName
-	}
-	if config.SubjectOrganization == "" {
-		config.SubjectOrganization = config.ClusterName
-	}
-
-	switch config.Type {
-	case types.DatabaseCA, types.SAMLIDPCA, types.OIDCIdPCA:
-		// These CAs only support RSA.
-		keyPEM = fixtures.PEMBytes["rsa"]
-	case types.DatabaseClientCA:
-		// The db client CA also only supports RSA, but some tests rely on it
-		// being different than the DB CA.
-		keyPEM = fixtures.PEMBytes["rsa-db-client"]
-	}
-	if len(config.PrivateKeys) > 0 {
-		// Allow test to override the private key.
-		keyPEM = config.PrivateKeys[0]
-	}
-
-	if keyPEM != nil {
-		var err error
-		key, err = keys.ParsePrivateKey(keyPEM)
-		if err != nil {
-			panic(err)
-		}
-	} else {
-		// If config.PrivateKeys was not set and this CA does not exclusively
-		// support RSA, generate an ECDSA key. Signatures are ~10x faster than
-		// RSA and generating a new key is actually faster than parsing a PEM
-		// fixture.
-		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-		if err != nil {
-			panic(err)
-		}
-		key, err = keys.NewPrivateKey(signer)
-		if err != nil {
-			panic(err)
-		}
-		keyPEM = key.PrivateKeyPEM()
-	}
-
-	ca := &types.CertAuthorityV2{
-		Kind:    types.KindCertAuthority,
-		SubKind: string(config.Type),
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name:      config.ResourceName,
-			Namespace: apidefaults.Namespace,
-		},
-		Spec: types.CertAuthoritySpecV2{
-			Type:        config.Type,
-			ClusterName: config.ClusterName,
-		},
-	}
-
-	// Add SSH keys if necessary.
-	switch config.Type {
-	case types.UserCA, types.HostCA, types.OpenSSHCA:
-		ca.Spec.ActiveKeys.SSH = []*types.SSHKeyPair{{
-			PrivateKey: keyPEM,
-			PublicKey:  key.MarshalSSHPublicKey(),
-		}}
-	}
-
-	// Add TLS keys if necessary.
-	switch config.Type {
-	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
-		cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
-			Signer: key.Signer,
-			Entity: pkix.Name{
-				CommonName:   config.ClusterName,
-				Organization: []string{config.SubjectOrganization},
-			},
-			TTL:   defaults.CATTL,
-			Clock: config.Clock,
-		})
-		if err != nil {
-			panic(err)
-		}
-		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{
-			Key:  keyPEM,
-			Cert: cert,
-		}}
-	}
-
-	// Add JWT keys if necessary.
-	switch config.Type {
-	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA, types.BoundKeypairCA:
-		pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
-		if err != nil {
-			panic(err)
-		}
-		ca.Spec.ActiveKeys.JWT = []*types.JWTKeyPair{{
-			PrivateKey: keyPEM,
-			PublicKey:  pubKeyPEM,
-		}}
-	}
-
-	return ca
 }
