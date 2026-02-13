@@ -39,13 +39,8 @@ import (
 
 func TestAWSOrganizationsClientGetter(t *testing.T) {
 	t.Run("when running in cloud, the client getter returns an error (ambient credentials can't be used in cloud)", func(t *testing.T) {
-		modulestest.SetTestModules(t, modulestest.Modules{
-			TestFeatures: modules.Features{
-				Cloud: true,
-			},
-		})
-
-		clientGetter, err := awsOrganizationsClientGetter(t.Context(), clockwork.NewFakeClock(), nil)
+		modules := &modulestest.Modules{TestFeatures: modules.Features{Cloud: true}}
+		clientGetter, err := awsOrganizationsClientGetter(t.Context(), clockwork.NewFakeClock(), modules, nil)
 		require.NoError(t, err)
 
 		const noIntegration = ""
@@ -54,11 +49,11 @@ func TestAWSOrganizationsClientGetter(t *testing.T) {
 	})
 
 	t.Run("when running in cloud and using an integration, the getter returns a valid client", func(t *testing.T) {
-		modulestest.SetTestModules(t, modulestest.Modules{
+		modules := &modulestest.Modules{
 			TestFeatures: modules.Features{
 				Cloud: true,
 			},
-		})
+		}
 
 		const exampleIntegration = "my-integration"
 		awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(
@@ -79,7 +74,7 @@ func TestAWSOrganizationsClientGetter(t *testing.T) {
 
 		fakeClock := clockwork.NewFakeClock()
 		mockOrganizationsAPI := &mockOrganizationsAPI{}
-		clientGetter, err := awsOrganizationsClientGetter(t.Context(), fakeClock, func(c aws.Config) iamjoin.OrganizationsAPI {
+		clientGetter, err := awsOrganizationsClientGetter(t.Context(), fakeClock, modules, func(c aws.Config) iamjoin.OrganizationsAPI {
 			return mockOrganizationsAPI
 		})
 		require.NoError(t, err)
@@ -118,16 +113,16 @@ func TestAWSOrganizationsClientGetter(t *testing.T) {
 	})
 
 	t.Run("when running in non-cloud with ambient credentials, the getter returns a valid client", func(t *testing.T) {
-		modulestest.SetTestModules(t, modulestest.Modules{
+		modules := &modulestest.Modules{
 			TestFeatures: modules.Features{
 				Cloud: false,
 			},
-		})
+		}
 
 		fakeClock := clockwork.NewFakeClock()
 		mockOrganizationsAPI := &mockOrganizationsAPI{}
 
-		clientGetter, err := awsOrganizationsClientGetter(t.Context(), fakeClock, func(c aws.Config) iamjoin.OrganizationsAPI {
+		clientGetter, err := awsOrganizationsClientGetter(t.Context(), fakeClock, modules, func(c aws.Config) iamjoin.OrganizationsAPI {
 			return mockOrganizationsAPI
 		})
 		require.NoError(t, err)
