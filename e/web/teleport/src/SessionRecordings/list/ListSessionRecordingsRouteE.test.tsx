@@ -15,14 +15,20 @@ import { ContextProvider } from 'teleport';
 import { createTeleportContext, fullAccess } from 'teleport/mocks/contexts';
 import { eventCodes } from 'teleport/services/audit';
 import type { SessionRecordingThumbnail } from 'teleport/services/recordings';
-import { storageService } from 'teleport/services/storageService';
 import type { Acl } from 'teleport/services/user';
 import { makeAcl } from 'teleport/services/user/makeAcl';
 
 const server = setupServer();
 
+let originalSessionSummarizerEnabled: boolean;
+let originalIdentitySecurityLicensed: boolean;
+
 beforeAll(() => server.listen());
 beforeEach(() => {
+  // backup original flag values
+  originalSessionSummarizerEnabled = cfg.oss.sessionSummarizerEnabled;
+  originalIdentitySecurityLicensed = cfg.oss.identitySecurity.licensed;
+
   server.use(
     getThumbnail(MOCK_THUMBNAIL),
     http.get(cfg.oss.api.clustersPath, () => {
@@ -43,6 +49,10 @@ afterEach(async () => {
   server.resetHandlers();
 
   testQueryClient.clear();
+
+  // restore original flag values
+  cfg.oss.sessionSummarizerEnabled = originalSessionSummarizerEnabled;
+  cfg.oss.identitySecurity.licensed = originalIdentitySecurityLicensed;
 });
 afterAll(() => server.close());
 
@@ -53,12 +63,21 @@ const listRecordingsUrl = generatePath(
   }
 );
 
-function setupTest(summarizerEnabled: boolean, acl?: Partial<Acl>) {
+function setupTest({
+  summarizerEnabled,
+  acl,
+  identitySecurityLicensed = false,
+}: {
+  summarizerEnabled: boolean;
+  acl?: Partial<Acl>;
+  identitySecurityLicensed?: boolean;
+}) {
   const ctx = createTeleportContext({
     customAcl: makeAcl(acl),
   });
 
   cfg.oss.sessionSummarizerEnabled = summarizerEnabled;
+  cfg.oss.identitySecurity.licensed = identitySecurityLicensed;
 
   return render(
     <MemoryRouter>
@@ -78,7 +97,7 @@ test('should not show a view summary button when the feature is disabled', async
     })
   );
 
-  setupTest(false);
+  setupTest({ summarizerEnabled: false });
 
   await screen.findByText('server-01');
 
@@ -94,7 +113,7 @@ test('should show a view summary button when the feature is enabled', async () =
     })
   );
 
-  setupTest(true);
+  setupTest({ summarizerEnabled: true });
 
   await screen.findByText('server-01');
 
@@ -114,7 +133,7 @@ test('should show the CTA when identity security is disabled', async () => {
     })
   );
 
-  setupTest(false);
+  setupTest({ summarizerEnabled: false });
 
   await screen.findByText('server-01');
 
@@ -132,10 +151,12 @@ test('should show the session summaries status as enabled when identity security
     })
   );
 
-  jest.spyOn(storageService, 'getAccessGraphEnabled').mockReturnValue(true);
-
-  setupTest(true, {
-    accessGraph: fullAccess,
+  setupTest({
+    summarizerEnabled: true,
+    acl: {
+      accessGraph: fullAccess,
+    },
+    identitySecurityLicensed: true,
   });
 
   await screen.findByText('server-01');
@@ -152,10 +173,12 @@ test('should show a link to set up session summaries when identity security is e
     })
   );
 
-  jest.spyOn(storageService, 'getAccessGraphEnabled').mockReturnValue(true);
-
-  setupTest(false, {
-    accessGraph: fullAccess,
+  setupTest({
+    summarizerEnabled: false,
+    acl: {
+      accessGraph: fullAccess,
+    },
+    identitySecurityLicensed: true,
   });
 
   await screen.findByText('server-01');
@@ -172,10 +195,12 @@ test('session summaries setup link should be dismissible', async () => {
     })
   );
 
-  jest.spyOn(storageService, 'getAccessGraphEnabled').mockReturnValue(true);
-
-  setupTest(false, {
-    accessGraph: fullAccess,
+  setupTest({
+    summarizerEnabled: false,
+    acl: {
+      accessGraph: fullAccess,
+    },
+    identitySecurityLicensed: true,
   });
 
   await screen.findByText('server-01');

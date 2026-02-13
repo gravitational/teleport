@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 
 import cfg from 'e-teleport/config';
 import { useTeleport } from 'teleport';
-import { storageService } from 'teleport/services/storageService';
 import { ListSessionRecordings } from 'teleport/SessionRecordings/list/ListSessionRecordingsRoute';
 import { SessionSummariesCta } from 'teleport/SessionRecordings/list/SessionSummariesCta';
 
@@ -13,13 +12,9 @@ export function ListSessionRecordingsRouteE() {
   const ctx = useTeleport();
   const flags = ctx.getFeatureFlags();
 
-  const identitySecurityEnabled = storageService.getAccessGraphEnabled();
+  const identitySecurityEnabled = cfg.oss.identitySecurity.licensed;
 
   const headerSlot = useMemo(() => {
-    if (identitySecurityEnabled && !flags.accessGraph) {
-      return null; // the user does not have access to Identity Security
-    }
-
     if (identitySecurityEnabled) {
       return <SessionSummariesStatus />;
     }
