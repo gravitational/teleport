@@ -153,7 +153,7 @@ func TestCreateAccessRequest_ConstrainedResource(t *testing.T) {
 }
 
 func TestCreateAccessRequest_LongTerm(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			AdvancedAccessWorkflows: true,
@@ -163,10 +163,11 @@ func TestCreateAccessRequest_LongTerm(t *testing.T) {
 		},
 		GenerateAccessRequestPromotionsFn:  accessrequest.GenerateAccessRequestPromotions,
 		GenerateLongTermResourceGroupingFn: accessrequest.GenerateLongTermResourceGrouping,
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
 	clock := clockwork.NewRealClock()
-	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond))
+	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond), withModules(testModules))
 	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
 	t.Cleanup(cancel)
 
@@ -362,7 +363,7 @@ func TestCreateAccessRequest_LongTerm(t *testing.T) {
 }
 
 func TestCreateAccessRequest_LongTerm_ValidationErrors(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			AdvancedAccessWorkflows: true,
@@ -372,10 +373,11 @@ func TestCreateAccessRequest_LongTerm_ValidationErrors(t *testing.T) {
 		},
 		GenerateAccessRequestPromotionsFn:  accessrequest.GenerateAccessRequestPromotions,
 		GenerateLongTermResourceGroupingFn: accessrequest.GenerateLongTermResourceGrouping,
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
 	clock := clockwork.NewRealClock()
-	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond))
+	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond), withModules(testModules))
 	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
 	t.Cleanup(cancel)
 
@@ -494,7 +496,7 @@ func TestCreateAccessRequest_LongTerm_ValidationErrors(t *testing.T) {
 }
 
 func TestCreateAccessRequest_LongTerm_ConflictingResources(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			AdvancedAccessWorkflows: true,
@@ -504,10 +506,11 @@ func TestCreateAccessRequest_LongTerm_ConflictingResources(t *testing.T) {
 		},
 		GenerateAccessRequestPromotionsFn:  accessrequest.GenerateAccessRequestPromotions,
 		GenerateLongTermResourceGroupingFn: accessrequest.GenerateLongTermResourceGrouping,
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
 	clock := clockwork.NewRealClock()
-	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond))
+	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond), withModules(testModules))
 	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
 	t.Cleanup(cancel)
 
@@ -619,7 +622,7 @@ func TestCreateAccessRequest_LongTerm_ConflictingResources(t *testing.T) {
 }
 
 func TestCreateAccessRequest_LongTerm_OptimalSelection(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			AdvancedAccessWorkflows: true,
@@ -629,10 +632,11 @@ func TestCreateAccessRequest_LongTerm_OptimalSelection(t *testing.T) {
 		},
 		GenerateAccessRequestPromotionsFn:  accessrequest.GenerateAccessRequestPromotions,
 		GenerateLongTermResourceGroupingFn: accessrequest.GenerateLongTermResourceGrouping,
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
 	clock := clockwork.NewRealClock()
-	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond))
+	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond), withModules(testModules))
 	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
 	t.Cleanup(cancel)
 
@@ -797,7 +801,7 @@ func TestCreateAccessRequest_LongTerm_OptimalSelection(t *testing.T) {
 }
 
 func TestCreateAccessRequest_LongTerm_InheritedAccessListMembership(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			AdvancedAccessWorkflows: true,
@@ -807,10 +811,11 @@ func TestCreateAccessRequest_LongTerm_InheritedAccessListMembership(t *testing.T
 		},
 		GenerateAccessRequestPromotionsFn:  accessrequest.GenerateAccessRequestPromotions,
 		GenerateLongTermResourceGroupingFn: accessrequest.GenerateLongTermResourceGrouping,
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
 	clock := clockwork.NewRealClock()
-	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond))
+	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond), withModules(testModules))
 	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
 	t.Cleanup(cancel)
 
@@ -1433,7 +1438,7 @@ func (m *mockedAccessRequestAPIGetter) SubmitAccessReview(ctx context.Context, p
 }
 
 func TestSuggestAccessLists(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -1441,13 +1446,15 @@ func TestSuggestAccessLists(t *testing.T) {
 			},
 		},
 		GenerateAccessRequestPromotionsFn: accessrequest.GenerateAccessRequestPromotions,
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
 	ctx := context.Background()
 	s := newWebSuite(t,
 		// Disable retry interval to prevent test from hanging
 		// because it uses the fake clock.
 		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+		withModules(testModules),
 	)
 	authServer := s.testAuthServer.AuthServer.AuthServer
 
@@ -1587,7 +1594,7 @@ func TestSuggestAccessLists(t *testing.T) {
 }
 
 func TestPromoteAccessRequest(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			AdvancedAccessWorkflows: true,
@@ -1596,13 +1603,15 @@ func TestPromoteAccessRequest(t *testing.T) {
 			},
 		},
 		GenerateAccessRequestPromotionsFn: accessrequest.GenerateAccessRequestPromotions,
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
 	ctx := context.Background()
 	s := newWebSuite(t,
 		// Disable retry interval to prevent test from hanging
 		// because it uses the fake clock.
 		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+		withModules(testModules),
 	)
 
 	authServer := s.testAuthServer.AuthServer.AuthServer

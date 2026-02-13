@@ -483,14 +483,7 @@ type entraIDTEnv struct {
 
 func createEntraIDTEnv(t *testing.T) entraIDTEnv {
 	t.Helper()
-	s := newWebSuite(t)
-	// Set entitlements
-	features := s.webPlugin.h.GetClusterFeatures()
-	features.Entitlements = map[string]*proto.EntitlementInfo{
-		string(entitlements.Identity): {Enabled: true},
-	}
-	s.webPlugin.h.SetClusterFeatures(features)
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -498,7 +491,16 @@ func createEntraIDTEnv(t *testing.T) entraIDTEnv {
 				entitlements.SAML:     {Enabled: true},
 			},
 		},
-	})
+	}
+
+	modulestest.SetTestModules(t, *testModules)
+	s := newWebSuite(t, withModules(testModules))
+	// Set entitlements
+	features := s.webPlugin.h.GetClusterFeatures()
+	features.Entitlements = map[string]*proto.EntitlementInfo{
+		string(entitlements.Identity): {Enabled: true},
+	}
+	s.webPlugin.h.SetClusterFeatures(features)
 
 	cfg := entraIDPluginDescriptor{testEntityDescriptor: testEntityDescriptor}
 	s.webPlugin.pluginDescriptors[types.PluginTypeEntraID] = cfg

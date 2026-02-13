@@ -266,10 +266,10 @@ func TestOAuthPluginStart(t *testing.T) {
 }
 
 func TestPluginUpdate(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-	})
-	s := newWebSuite(t)
+	testModules := modulestest.EnterpriseModules()
+	modulestest.SetTestModules(t, *testModules)
+
+	s := newWebSuite(t, withModules(testModules))
 	webPack := s.newAuthWebPack(t, "foo")
 	endpoint := webPack.clt.Endpoint("enterprise", "plugin")
 	cases := []struct {
@@ -310,14 +310,17 @@ func TestPluginUpdate(t *testing.T) {
 }
 
 func TestPluginCleanup(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-	})
+	testModules := modulestest.EnterpriseModules()
+	modulestest.SetTestModules(t, *testModules)
 
 	// We define a real clock here, so we don't run into cases of
 	// `backend.RunWhileLocked()` never retrying lock acquisition.
 	clock := clockwork.NewRealClock()
-	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond))
+	s := newWebSuite(t,
+		withClock(clock),
+		withRunWhileLockedRetryInterval(100*time.Millisecond),
+		withModules(testModules),
+	)
 	webPack := s.newAuthWebPack(t, "foo")
 
 	_, err := s.testAuthServer.AuthServer.AuthServer.UpsertRole(s.ctx, services.NewSystemOktaAccessRole(modules.BuildEnterprise))

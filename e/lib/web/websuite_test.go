@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -127,6 +128,7 @@ type webSuiteOptions struct {
 	roundTripper                http.RoundTripper
 	accessGraphHTTPValidation   func(*testing.T, *http.Request)
 	uploadHandler               events.MultipartHandler
+	modules                     modules.Modules
 }
 
 func withAccessGraphFeatures(features string) webSuiteOption {
@@ -165,6 +167,12 @@ func withUploadHandler(h events.MultipartHandler) webSuiteOption {
 	}
 }
 
+func withModules(m modules.Modules) webSuiteOption {
+	return func(o *webSuiteOptions) {
+		o.modules = m
+	}
+}
+
 func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 	var options webSuiteOptions
 	for _, v := range opts {
@@ -175,6 +183,11 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 		// explicitly as a quick fix.
 		options.clock = clockwork.NewFakeClockAt(time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC))
 	}
+
+	if options.modules == nil {
+		options.modules = modules.GetModules()
+	}
+
 	u, err := user.Current()
 	require.NoError(t, err)
 
@@ -298,6 +311,7 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 		GetProxyClientCertificate: func() (*tls.Certificate, error) {
 			return nil, nil
 		},
+		Modules: options.modules,
 		ClusterFeatures: proto.Features{
 			// Turn on the enterprise features which impact the endpoint registration.
 			Cloud:         true,

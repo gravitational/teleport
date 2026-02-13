@@ -34,18 +34,20 @@ var (
 )
 
 func TestGetAccessLists(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.Identity: {Enabled: true},
 			},
 		},
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
 	s := newWebSuite(t,
 		// Disable retry interval to prevent test from hanging
 		// because it uses the fake clock.
 		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+		withModules(testModules),
 	)
 	webPack := s.newAuthWebPack(t, "foo")
 	authClient := s.newAdminAuthClient(s.ctx, t)
@@ -108,18 +110,20 @@ func TestGetAccessLists(t *testing.T) {
 }
 
 func TestCreateAccessList(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.Identity: {Enabled: true},
 			},
 		},
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
 	s := newWebSuite(t,
 		// Disable retry interval to prevent test from hanging
 		// because it uses the fake clock.
 		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+		withModules(testModules),
 	)
 	webPack := s.newAuthWebPack(t, "foo")
 
@@ -148,20 +152,21 @@ func TestCreateAccessList(t *testing.T) {
 }
 
 func TestUpdateAccessList(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
+	ctx := context.Background()
+	testModules := &modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.Identity: {Enabled: true},
 			},
 		},
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
-	ctx := context.Background()
 	s := newWebSuite(t,
 		// Disable retry interval to prevent test from hanging
 		// because it uses the fake clock.
 		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+		withModules(testModules),
 	)
 	owner := createUser(t, s, "llama")
 	ownerWebClt := s.newAuthWebPack(t, owner.GetName(), skipUserCreation()).clt
@@ -242,19 +247,20 @@ func TestUpdateAccessList(t *testing.T) {
 }
 
 func TestGetAccessList(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
+	testModules := &modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.Identity: {Enabled: true},
 			},
 		},
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
 	s := newWebSuite(t,
 		// Disable retry interval to prevent test from hanging
 		// because it uses the fake clock.
 		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+		withModules(testModules),
 	)
 	webPack := s.newAuthWebPack(t, "foo")
 	authClient := s.newAdminAuthClient(s.ctx, t)
@@ -306,14 +312,15 @@ func TestGetAccessList(t *testing.T) {
 }
 
 func TestDeleteAccessList(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.Identity: {Enabled: true},
 			},
 		},
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
 	ctx := context.Background()
 
@@ -321,6 +328,7 @@ func TestDeleteAccessList(t *testing.T) {
 		// Disable retry interval to prevent test from hanging
 		// because it uses the fake clock.
 		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+		withModules(testModules),
 	)
 	webPack := s.newAuthWebPack(t, "foo")
 	authClient := s.newAdminAuthClient(s.ctx, t)
@@ -364,19 +372,21 @@ func TestDeleteAccessList(t *testing.T) {
 }
 
 func TestAddMemberToAccessList(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.Identity: {Enabled: true},
 			},
 		},
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
 	s := newWebSuite(t,
 		// Disable retry interval to prevent test from hanging
 		// because it uses the fake clock.
 		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+		withModules(testModules),
 	)
 	webPack := s.newAuthWebPack(t, "foo")
 
@@ -560,18 +570,20 @@ func testDeleteAccessListRequireOK(t *testing.T, clt *TestWebClient, accessListI
 }
 
 func TestListAccessLists(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.Identity: {Enabled: true},
 			},
 		},
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
 	s := newWebSuite(t,
 		// Disable retry interval to prevent test from hanging
 		// because it uses the fake clock.
 		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+		withModules(testModules),
 	)
 	webPack := s.newAuthWebPack(t, "foo")
 	authClient := s.newAdminAuthClient(s.ctx, t)

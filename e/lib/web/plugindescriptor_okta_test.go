@@ -130,17 +130,18 @@ var _ pluginUpdateHandler = testOktaDescriptor{}
 // newTestOktaPluginFixture creates a set of related
 func newTestOktaPluginFixture(t *testing.T, opts ...webSuiteOption) (*webSuite, *authWebPack) {
 	// Enable SAML/SSO for testing
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.SAML: {Enabled: true},
 			},
 		},
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
 	// Set up a test version of the UI web handler and auth service
-	s := newWebSuite(t, opts...)
+	s := newWebSuite(t, append(opts, withModules(testModules))...)
 	webPack := s.newAuthWebPack(t, "foo")
 
 	// And add the Role that we will want to assign to Okta users
@@ -218,7 +219,28 @@ func TestOktaPluginUpdate(t *testing.T) {
 		}
 	})
 
-	s, webPack := newTestOktaPluginFixture(t, withRoundTripper(mockta))
+	testModules := &modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.OktaSCIM: {Enabled: true},
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+	}
+	modulestest.SetTestModules(t, *testModules)
+
+	// Set up a test version of the UI web handler and auth service
+	s := newWebSuite(t, withRoundTripper(mockta), withModules(testModules))
+	webPack := s.newAuthWebPack(t, "foo")
+
+	// And add the Role that we will want to assign to Okta users
+	_, err := s.testAuthServer.Auth().CreateRole(t.Context(), services.NewPresetRequesterRole(testModules.TestBuildType))
+	require.NoError(t, err)
+
+	// Patch the Web Plugin's plugin descriptor map so that any request for the
+	// Okta descriptor will use our test descriptor instead
+	s.webPlugin.pluginDescriptors[types.PluginTypeOkta] = testOktaDescriptor{}
 
 	pluginsSvc := s.authPlugin.PluginsService()
 	pluginCredsSvc := s.authPlugin.PluginStaticCredentialsService()
@@ -238,18 +260,8 @@ func TestOktaPluginUpdate(t *testing.T) {
 		string(entitlements.Identity): {Enabled: true},
 	}
 	s.webPlugin.h.SetClusterFeatures(features)
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.OktaSCIM: {Enabled: true},
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-	})
-
 	// Set up okta-requester role
-	_, err := authSvc.UpsertRole(s.ctx, services.NewSystemOktaAccessRole(modules.BuildEnterprise))
+	_, err = authSvc.UpsertRole(s.ctx, services.NewSystemOktaAccessRole(modules.BuildEnterprise))
 	require.NoError(t, err)
 	_, err = authSvc.UpsertRole(s.ctx, services.NewSystemOktaRequesterRole(modules.BuildEnterprise))
 	require.NoError(t, err)
@@ -943,7 +955,28 @@ func TestOktaPluginInstallFailsWithInvalidFormValues(t *testing.T) {
 			return nil, fmt.Errorf("unmatched HTTP call method=%q url=%q req=%v", req.Method, req.URL, req)
 		}
 	})
-	s, webPack := newTestOktaPluginFixture(t, withRoundTripper(mockta))
+	testModules := &modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.OktaSCIM: {Enabled: true},
+			},
+		},
+	}
+	modulestest.SetTestModules(t, *testModules)
+
+	// Set up a test version of the UI web handler and auth service
+	s := newWebSuite(t, withRoundTripper(mockta), withModules(testModules))
+	webPack := s.newAuthWebPack(t, "foo")
+
+	// And add the Role that we will want to assign to Okta users
+	_, err := s.testAuthServer.Auth().CreateRole(t.Context(), services.NewPresetRequesterRole(testModules.TestBuildType))
+	require.NoError(t, err)
+
+	// Patch the Web Plugin's plugin descriptor map so that any request for the
+	// Okta descriptor will use our test descriptor instead
+	s.webPlugin.pluginDescriptors[types.PluginTypeOkta] = testOktaDescriptor{}
+
 	installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugins", "staticauth")
 
 	features := s.webPlugin.h.GetClusterFeatures()
@@ -951,14 +984,6 @@ func TestOktaPluginInstallFailsWithInvalidFormValues(t *testing.T) {
 		string(entitlements.OktaSCIM): {Enabled: true},
 	}
 	s.webPlugin.h.SetClusterFeatures(features)
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.OktaSCIM: {Enabled: true},
-			},
-		},
-	})
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {

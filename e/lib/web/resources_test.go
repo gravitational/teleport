@@ -147,15 +147,15 @@ func TestGetAuthConnectors(t *testing.T) {
 
 func TestSAMLConnector(t *testing.T) {
 	ctx := context.Background()
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.SAML: {Enabled: true},
 			},
 		},
-	})
-
-	s := newWebSuite(t)
+	}
+	modulestest.SetTestModules(t, *testModules)
+	s := newWebSuite(t, withModules(testModules))
 	pack := s.newAuthWebPack(t, "foo")
 
 	expected, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{
@@ -318,15 +318,15 @@ func (m *mockedResourceAPIGetter) GetOIDCConnectors(ctx context.Context, withSec
 
 func TestOIDCConnector(t *testing.T) {
 	ctx := context.Background()
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.OIDC: {Enabled: true},
 			},
 		},
-	})
-
-	s := newWebSuite(t)
+	}
+	modulestest.SetTestModules(t, *testModules)
+	s := newWebSuite(t, withModules(testModules))
 	pack := s.newAuthWebPack(t, "foo")
 
 	expected, err := types.NewOIDCConnector("github", types.OIDCConnectorSpecV3{

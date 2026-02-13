@@ -15,16 +15,28 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	"github.com/gravitational/teleport/e/lib/web/ui"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 func TestSecurityReports(t *testing.T) {
-	setDeviceTrustFeatures(t)
+	testModules := &modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.DeviceTrust: {Enabled: true},
+			},
+		},
+	}
+	modulestest.SetTestModules(t, *testModules)
+
 	svcMock := &mockSecurityReportsService{}
 	plug := &mockPlugin{
 		service: svcMock,
 	}
-	s := newWebSuite(t, withPlugin(plug))
+	s := newWebSuite(t, withPlugin(plug), withModules(testModules))
 	webPack := s.newAuthWebPack(t, "alice")
 
 	t.Run("GetReportState", func(t *testing.T) {

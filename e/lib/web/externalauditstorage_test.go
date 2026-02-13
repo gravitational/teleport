@@ -48,7 +48,8 @@ func setupPreconditions(t *testing.T, auth *auth.Server) {
 }
 
 func TestGenerateDraftExternalAuditStorage(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	ctx := context.Background()
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Cloud: true,
@@ -56,10 +57,9 @@ func TestGenerateDraftExternalAuditStorage(t *testing.T) {
 				entitlements.ExternalAuditStorage: {Enabled: true},
 			},
 		},
-	})
-
-	ctx := context.Background()
-	s := newWebSuite(t)
+	}
+	modulestest.SetTestModules(t, *testModules)
+	s := newWebSuite(t, withModules(testModules))
 	webPack := s.newAuthWebPack(t, "foo")
 	clusterName := s.testAuthServer.ClusterName()
 
@@ -86,7 +86,8 @@ func TestGenerateDraftExternalAuditStorage(t *testing.T) {
 }
 
 func TestBuildExternalAuditStorageBootstrapScript(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	ctx := context.Background()
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Cloud: true,
@@ -94,10 +95,9 @@ func TestBuildExternalAuditStorageBootstrapScript(t *testing.T) {
 				entitlements.ExternalAuditStorage: {Enabled: true},
 			},
 		},
-	})
-
-	ctx := context.Background()
-	s := newWebSuite(t)
+	}
+	modulestest.SetTestModules(t, *testModules)
+	s := newWebSuite(t, withModules(testModules))
 
 	publicClt := s.client(t)
 	scriptEndpoint := publicClt.Endpoint(
@@ -268,7 +268,8 @@ func TestBuildExternalAuditStorageBootstrapScript(t *testing.T) {
 }
 
 func TestExternalAuditStoragePromote(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	ctx := context.Background()
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Cloud: true,
@@ -276,10 +277,9 @@ func TestExternalAuditStoragePromote(t *testing.T) {
 				entitlements.ExternalAuditStorage: {Enabled: true},
 			},
 		},
-	})
-
-	ctx := context.Background()
-	s := newWebSuite(t)
+	}
+	modulestest.SetTestModules(t, *testModules)
+	s := newWebSuite(t, withModules(testModules))
 	webPack := s.newAuthWebPack(t, "foo")
 	clusterName := s.testAuthServer.ClusterName()
 
@@ -307,7 +307,8 @@ func TestExternalAuditStoragePromote(t *testing.T) {
 }
 
 func TestExternalAuditStorageGetCluster(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	ctx := context.Background()
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Cloud: true,
@@ -315,10 +316,9 @@ func TestExternalAuditStorageGetCluster(t *testing.T) {
 				entitlements.ExternalAuditStorage: {Enabled: true},
 			},
 		},
-	})
-
-	ctx := context.Background()
-	s := newWebSuite(t)
+	}
+	modulestest.SetTestModules(t, *testModules)
+	s := newWebSuite(t, withModules(testModules))
 	webPack := s.newAuthWebPack(t, "foo")
 	clusterName := s.testAuthServer.ClusterName()
 
@@ -353,7 +353,8 @@ func TestExternalAuditStorageGetCluster(t *testing.T) {
 }
 
 func TestExternalAuditStorageGetDraft(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	ctx := context.Background()
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Cloud: true,
@@ -361,10 +362,9 @@ func TestExternalAuditStorageGetDraft(t *testing.T) {
 				entitlements.ExternalAuditStorage: {Enabled: true},
 			},
 		},
-	})
-
-	ctx := context.Background()
-	s := newWebSuite(t)
+	}
+	modulestest.SetTestModules(t, *testModules)
+	s := newWebSuite(t, withModules(testModules))
 	webPack := s.newAuthWebPack(t, "foo")
 	clusterName := s.testAuthServer.ClusterName()
 
@@ -397,7 +397,8 @@ func TestExternalAuditStorageGetDraft(t *testing.T) {
 }
 
 func TestExternalAuditStorageDeleteCluster(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	ctx := context.Background()
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Cloud: true,
@@ -405,10 +406,9 @@ func TestExternalAuditStorageDeleteCluster(t *testing.T) {
 				entitlements.ExternalAuditStorage: {Enabled: true},
 			},
 		},
-	})
-
-	ctx := context.Background()
-	s := newWebSuite(t)
+	}
+	modulestest.SetTestModules(t, *testModules)
+	s := newWebSuite(t, withModules(testModules))
 	webPack := s.newAuthWebPack(t, "foo")
 	clusterName := s.testAuthServer.ClusterName()
 
@@ -443,7 +443,8 @@ func TestExternalAuditStorageDeleteCluster(t *testing.T) {
 }
 
 func TestExternalAuditStorageDeleteDraft(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	ctx := context.Background()
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Cloud: true,
@@ -451,10 +452,9 @@ func TestExternalAuditStorageDeleteDraft(t *testing.T) {
 				entitlements.ExternalAuditStorage: {Enabled: true},
 			},
 		},
-	})
-
-	ctx := context.Background()
-	s := newWebSuite(t)
+	}
+	modulestest.SetTestModules(t, *testModules)
+	s := newWebSuite(t, withModules(testModules))
 	webPack := s.newAuthWebPack(t, "foo")
 	clusterName := s.testAuthServer.ClusterName()
 

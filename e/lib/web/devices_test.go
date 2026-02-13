@@ -17,9 +17,17 @@ import (
 )
 
 func TestListDevices_byAssetTag(t *testing.T) {
-	setDeviceTrustFeatures(t)
+	testModules := &modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.DeviceTrust: {Enabled: true},
+			},
+		},
+	}
+	modulestest.SetTestModules(t, *testModules)
 
-	s := newWebSuite(t)
+	s := newWebSuite(t, withModules(testModules))
 	webPack := s.newAuthWebPack(t, "foo")
 	endpoint := webPack.clt.Endpoint("enterprise", "devices")
 	authClient := s.newAdminAuthClient(s.ctx, t)
@@ -88,9 +96,17 @@ func TestListDevices_byAssetTag(t *testing.T) {
 }
 
 func TestListDevices_paginated(t *testing.T) {
-	setDeviceTrustFeatures(t)
+	testModules := &modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.DeviceTrust: {Enabled: true},
+			},
+		},
+	}
+	modulestest.SetTestModules(t, *testModules)
 
-	s := newWebSuite(t)
+	s := newWebSuite(t, withModules(testModules))
 	webPack := s.newAuthWebPack(t, "foo")
 	endpoint := webPack.clt.Endpoint("enterprise", "devices")
 	authClient := s.newAdminAuthClient(s.ctx, t)
@@ -208,9 +224,17 @@ func unmarshalWebResponse(t *testing.T, resp []byte) *ui.ListDevicesResponse {
 }
 
 func TestListDevices_errors(t *testing.T) {
-	setDeviceTrustFeatures(t)
+	testModules := &modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.DeviceTrust: {Enabled: true},
+			},
+		},
+	}
+	modulestest.SetTestModules(t, *testModules)
 
-	s := newWebSuite(t)
+	s := newWebSuite(t, withModules(testModules))
 	webPack := s.newAuthWebPack(t, "foo")
 	endpoint := webPack.clt.Endpoint("enterprise", "devices")
 
@@ -259,15 +283,4 @@ func TestListDevices_errors(t *testing.T) {
 			}
 		})
 	}
-}
-
-func setDeviceTrustFeatures(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.DeviceTrust: {Enabled: true},
-			},
-		},
-	})
 }

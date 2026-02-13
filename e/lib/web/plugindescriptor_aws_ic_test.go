@@ -223,9 +223,6 @@ func TestAWSICPluginValidatePermissions(t *testing.T) {
 }
 
 func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
-	// TODO(tross): Forward enterprise module via config instead of using global variable.
-	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
-
 	wSuite, aPack, testServer := newAWSIdentityCenterPluginTestSuite(t)
 	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
 	ctx := wSuite.ctx
@@ -360,7 +357,7 @@ func withICClient(c icsdk.Client) icSuitOpt {
 func newAWSIdentityCenterPluginTestSuite(t *testing.T, opts ...icSuitOpt) (*webSuite, *authWebPack, *httptest.Server) {
 	t.Helper()
 
-	testModules := modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -369,13 +366,13 @@ func newAWSIdentityCenterPluginTestSuite(t *testing.T, opts ...icSuitOpt) (*webS
 			Cloud: true,
 		},
 	}
-
-	modulestest.SetTestModules(t, testModules)
+	modulestest.SetTestModules(t, *testModules)
 
 	s := newWebSuite(t,
 		// Disable retry interval to prevent test from hanging
 		// because it uses the fake clock.
 		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+		withModules(testModules),
 	)
 	webPack := s.newAuthWebPack(t, "foo")
 	testSCIMServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

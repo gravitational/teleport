@@ -44,13 +44,14 @@ var (
 )
 
 func TestSAML(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.SAML: {Enabled: true},
 			},
 		},
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
 	tests := []struct {
 		name                string
@@ -75,7 +76,10 @@ func TestSAML(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := t.Context()
-			s := newWebSuite(t, withClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC))))
+			s := newWebSuite(t,
+				withClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC))),
+				withModules(testModules),
+			)
 			input := tc.rawConnector
 
 			connector := prepareSSOConnectorSetup(t, input, ctx, s)
@@ -98,15 +102,19 @@ func TestSAML(t *testing.T) {
 }
 
 func TestSAMLNoEphemeralUser(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.SAML: {Enabled: true},
 			},
 		},
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 	ctx := t.Context()
-	s := newWebSuite(t, withClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC))))
+	s := newWebSuite(t,
+		withClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC))),
+		withModules(testModules),
+	)
 	input := fixtures.SAMLOktaConnectorV2
 
 	oktaUserTraits := map[string][]string{"okta/org": {"dev"}}
