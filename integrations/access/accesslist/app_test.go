@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -483,6 +484,8 @@ func newTestAuth(t *testing.T) *auth.Server {
 		Auth: authtest.AuthServerConfig{
 			Dir:   t.TempDir(),
 			Clock: clockwork.NewFakeClock(),
+			// TODO(tross): Inject this as a dependency
+			Modules: modules.GetModules(),
 			AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
 				SecondFactor: constants.SecondFactorOn,
 				Webauthn: &types.Webauthn{

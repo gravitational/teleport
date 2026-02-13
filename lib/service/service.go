@@ -2259,15 +2259,15 @@ func (process *TeleportProcess) initAuthService() error {
 
 	switch {
 	case cfg.Auth.KeyStore.PKCS11 != servicecfg.PKCS11Config{}:
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+		if !cfg.Modules.Features().GetEntitlement(entitlements.HSM).Enabled {
 			return trace.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", auth.ErrRequiresEnterprise)
 		}
 	case cfg.Auth.KeyStore.GCPKMS != servicecfg.GCPKMSConfig{}:
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+		if !cfg.Modules.Features().GetEntitlement(entitlements.HSM).Enabled {
 			return trace.Errorf("GCP KMS support requires a license with the HSM feature enabled: %w", auth.ErrRequiresEnterprise)
 		}
 	case cfg.Auth.KeyStore.AWSKMS != nil:
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+		if !cfg.Modules.Features().GetEntitlement(entitlements.HSM).Enabled {
 			return trace.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", auth.ErrRequiresEnterprise)
 		}
 	}
@@ -2433,6 +2433,7 @@ func (process *TeleportProcess) initAuthService() error {
 		process.ExitContext(),
 		auth.InitConfig{
 			Backend:                     b,
+			Modules:                     cfg.Modules,
 			VersionStorage:              process.storage,
 			SkipVersionCheck:            cfg.SkipVersionCheck || skipVersionCheckFromEnv,
 			Authority:                   cfg.Keygen,

@@ -144,7 +144,6 @@ import (
 	"github.com/gravitational/teleport/lib/join"
 	"github.com/gravitational/teleport/lib/join/joinv1"
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -6395,8 +6394,9 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		SignatureAlgorithmSuiteParams: types.SignatureAlgorithmSuiteParams{
 			FIPS:          cfg.AuthServer.fips,
 			UsingHSMOrKMS: cfg.AuthServer.keyStore.UsingHSMOrKMS(),
-			Cloud:         modules.GetModules().Features().Cloud,
+			Cloud:         cfg.AuthServer.modules.Features().Cloud,
 		},
+		Modules: cfg.AuthServer.modules,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6575,7 +6575,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	appauthconfigv1pb.RegisterAppAuthConfigSessionsServiceServer(server, appAuthConfigSessionsSvc)
 
 	// start a workload cluster service that returns errors for all RPCs when not running on Teleport Cloud
-	if !modules.GetModules().Features().Cloud {
+	if !cfg.AuthServer.modules.Features().Cloud {
 		workloadclusterv1pb.RegisterWorkloadClusterServiceServer(server, workloadclusterv1.NewService())
 	}
 
