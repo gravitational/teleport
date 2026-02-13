@@ -116,16 +116,17 @@ func (process *TeleportProcess) initLinuxDesktopServiceRegistered(logger *slog.L
 		agentPool, err = reversetunnel.NewAgentPool(
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
-				Component:            teleport.ComponentLinuxDesktop,
-				HostUUID:             conn.HostID(),
-				Resolver:             conn.TunnelProxyResolver(),
-				Client:               conn.Client,
-				AccessPoint:          accessPoint,
-				AuthMethods:          conn.ClientAuthMethods(),
-				Cluster:              conn.ClusterName(),
-				Server:               shtl,
-				FIPS:                 process.Config.FIPS,
-				ConnectedProxyGetter: proxyGetter,
+				Component:                teleport.ComponentLinuxDesktop,
+				HostUUID:                 conn.HostID(),
+				Resolver:                 conn.TunnelProxyResolver(),
+				Client:                   conn.Client,
+				AccessPoint:              accessPoint,
+				AuthMethods:              conn.ClientAuthMethods(),
+				Cluster:                  conn.ClusterName(),
+				Server:                   shtl,
+				FIPS:                     process.Config.FIPS,
+				ConnectedProxyGetter:     proxyGetter,
+				StaleConnTimeoutDisabled: reversetunnel.IsAgentStaleConnTimeoutDisabledByEnv(),
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -175,6 +176,7 @@ func (process *TeleportProcess) initLinuxDesktopServiceRegistered(logger *slog.L
 		return trace.Wrap(err)
 	}
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	tlsConfig.NextProtos = []string{"teleport-tdpb-1.0"}
 	// Populate the correct CAs for the incoming client connection.
 	tlsConfig.GetConfigForClient = func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string

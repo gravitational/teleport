@@ -4399,12 +4399,21 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, h
 		}
 	case types.RoleApp, types.RoleOkta:
 		principals = append(principals, hostUUID)
-	case types.RoleWindowsDesktop, types.RoleLinuxDesktop:
+	case types.RoleWindowsDesktop:
 		addrs = append(addrs,
 			utils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
 			utils.NetAddr{Addr: reversetunnelclient.LocalWindowsDesktop},
+			utils.NetAddr{Addr: desktop.WildcardServiceDNS},
+		)
+		addrs = append(addrs, process.Config.WindowsDesktop.PublicAddrs...)
+	case types.RoleLinuxDesktop:
+		addrs = append(addrs,
+			utils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
+			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
+			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
+			utils.NetAddr{Addr: reversetunnelclient.LocalLinuxDesktop},
 			utils.NetAddr{Addr: desktop.WildcardServiceDNS},
 		)
 		addrs = append(addrs, process.Config.WindowsDesktop.PublicAddrs...)

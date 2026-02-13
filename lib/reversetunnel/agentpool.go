@@ -623,7 +623,7 @@ func (p *AgentPool) handleLocalTransport(ctx context.Context, channel ssh.Channe
 
 	dialReq := parseDialReq(req.Payload)
 	switch dialReq.Address {
-	case reversetunnelclient.LocalNode, reversetunnelclient.LocalKubernetes, reversetunnelclient.LocalWindowsDesktop:
+	case reversetunnelclient.LocalNode, reversetunnelclient.LocalKubernetes, reversetunnelclient.LocalWindowsDesktop, reversetunnelclient.LocalLinuxDesktop:
 	default:
 		p.logger.WarnContext(ctx, "Received dial request for unexpected address, routing to the local service anyway",
 			"dial_addr", dialReq.Address,

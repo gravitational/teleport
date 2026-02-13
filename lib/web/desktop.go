@@ -463,7 +463,7 @@ func (h *Handler) createDesktopConnection(r *http.Request, desktopName string, c
 	default:
 		err = trace.BadParameter("Unknown desktop agent protocol %v", serverProtocol)
 	}
-	log.InfoContext(ctx, "Connected to windows_desktop_service", "agent_protocol", serverProtocol)
+	log.InfoContext(ctx, "Connected to agent", "protocol", serverProtocol)
 
 	if err != nil {
 		return handshaker.sendError(ctx, log, err)
@@ -787,9 +787,13 @@ func (p desktopWebsocketProxy) run(ctx context.Context) error {
 		p.wds.Close()
 	}()
 
-	latencySupported, err := utils.MinVerWithoutPreRelease(p.version, "17.5.0")
-	if err != nil {
-		return trace.Wrap(err)
+	var err error
+	latencySupported := p.serverProtocol == protocolTDPB
+	if !latencySupported {
+		latencySupported, err = utils.MinVerWithoutPreRelease(p.version, "17.5.0")
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Create a single pair of legacy.Conn instances. legacy.Conn protects the underlying

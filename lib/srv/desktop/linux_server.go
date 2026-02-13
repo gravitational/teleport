@@ -242,6 +242,8 @@ func (s *LinuxService) Serve(plainLis net.Listener) error {
 func (s *LinuxService) handleConnection(conn net.Conn) {
 	tdpConn := tdp.NewConn(conn, tdp.DecoderAdapter(tdpb.DecodePermissive))
 	defer tdpConn.Close()
+	msg, err := tdpConn.ReadMessage()
+	s.cfg.Logger.InfoContext(s.closeCtx, "Received message", "message", msg, "error", trace.DebugReport(err))
 	tdpConn.WriteMessage(&tdpb.Alert{
 		Message:  "Connection closed gracefully",
 		Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_INFO,
