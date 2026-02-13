@@ -85,7 +85,7 @@ will be added later.
 
 Linux Desktop Service will create a `LinuxDesktop` resource with its UUID as its name. These resources will be presented
 in the UI as one of the unified resources, the same way we present Windows desktops. The service will use the inventory
-stream to provide efficient heartbeats.
+stream to provide efficient heartbeats. Service will support goodbyes from the beginning.
 
 After the user selects a username to log in, the UI will redirect to
 `/web/cluster/:cluster/linux_desktops/:uuid/:login`.
