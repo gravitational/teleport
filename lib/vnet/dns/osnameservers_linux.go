@@ -23,21 +23,9 @@ import (
 
 	"github.com/godbus/dbus/v5"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/vnet/systemdresolved"
 )
-
-const (
-	systemdResolvedService    = "org.freedesktop.resolve1"
-	systemdResolvedObjectPath = "/org/freedesktop/resolve1"
-	systemdResolvedManager    = "org.freedesktop.resolve1.Manager"
-
-	systemdResolvedDNSProperty = "DNS"
-)
-
-type systemdResolvedDNS struct {
-	InterfaceIndex int32
-	Family         int32
-	Address        []byte
-}
 
 // platformLoadUpstreamNameservers returns the list of DNS upstreams configured in systemd-resolved.
 func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
@@ -46,32 +34,13 @@ func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
 		return nil, trace.NotFound("system D-Bus is unavailable: %v", err)
 	}
 	defer conn.Close()
+	if err := systemdresolved.CheckAvailability(ctx, conn); err != nil {
+		return nil, err
+	}
 
-	var hasOwner bool
-	err = conn.Object("org.freedesktop.DBus", "/org/freedesktop/DBus").
-		CallWithContext(ctx, "org.freedesktop.DBus.NameHasOwner", 0, systemdResolvedService).
-		Store(&hasOwner)
+	dns, err := systemdresolved.LoadConfiguredDNSServers(ctx, conn)
 	if err != nil {
-		return nil, trace.Wrap(err, "checking systemd-resolved D-Bus service owner")
-	}
-	if !hasOwner {
-		return nil, trace.Errorf("systemd-resolved D-Bus service %s is not available", systemdResolvedService)
-	}
-
-	obj := conn.Object(systemdResolvedService, dbus.ObjectPath(systemdResolvedObjectPath))
-	call := obj.CallWithContext(ctx, "org.freedesktop.DBus.Properties.Get", 0, systemdResolvedManager, systemdResolvedDNSProperty)
-	if call.Err != nil {
-		return nil, trace.Wrap(call.Err, "getting systemd-resolved property %s", systemdResolvedDNSProperty)
-	}
-
-	var variant dbus.Variant
-	if err := call.Store(&variant); err != nil {
-		return nil, trace.Wrap(err, "decoding systemd-resolved property %s", systemdResolvedDNSProperty)
-	}
-
-	var dns []systemdResolvedDNS
-	if err := dbus.Store([]any{variant.Value()}, &dns); err != nil {
-		return nil, trace.Wrap(err, "decoding systemd-resolved property %s", systemdResolvedDNSProperty)
+		return nil, err
 	}
 
 	nameservers := make([]string, 0, len(dns))
