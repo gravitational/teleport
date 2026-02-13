@@ -18,10 +18,12 @@ package joining_test
 
 import (
 	"fmt"
+	"maps"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
@@ -672,15 +674,15 @@ func TestImmutableLabelHashing(t *testing.T) {
 
 	// assert that the same labels match with their hash
 	initialHash := joining.HashImmutableLabels(labels)
-	require.True(t, joining.VerifyImmutableLabelsHash(labels, initialHash))
+	require.True(t, joining.VerifyImmutableLabelsHash(proto.CloneOf(labels), initialHash))
 
 	// assert that changing a label value fails the hash check
 	labels.Ssh["hello"] = "other"
-	require.False(t, joining.VerifyImmutableLabelsHash(labels, initialHash))
+	require.False(t, joining.VerifyImmutableLabelsHash(proto.CloneOf(labels), initialHash))
 
 	// assert that adding a label fails the hash check
 	labels.Ssh["three"] = "3"
-	require.False(t, joining.VerifyImmutableLabelsHash(labels, initialHash))
+	require.False(t, joining.VerifyImmutableLabelsHash(proto.CloneOf(labels), initialHash))
 }
 
 func TestImmutableLabelHashCollision(t *testing.T) {
@@ -755,7 +757,7 @@ func TestImmutableLabelHashGolden(t *testing.T) {
 			hash: "5dd8fad69587f17535a4dea3ab41400914c3fbecd1972d4e194b1c18c0f4c4ff",
 		},
 		{
-			name: "multiple ssh label",
+			name: "multiple ssh labels",
 			labels: &joiningv1.ImmutableLabels{
 				Ssh: map[string]string{
 					"aaa": "bbb",
@@ -782,4 +784,46 @@ func TestImmutableLabelHashGolden(t *testing.T) {
 			assert.Equal(t, c.hash, hash)
 		})
 	}
+}
+
+func FuzzImmutableLabelHash(f *testing.F) {
+	f.Add("hello", "world", "foo", "bar", "baz", "qux", true)   // base case
+	f.Add("aaa", "bbbcccddd", "aaa", "bbb", "ccc", "ddd", true) // split label concatenation
+	f.Add("aaa", "bbb", "aaab", "bb", "", "", false)            // single label concatenation
+
+	f.Fuzz(func(t *testing.T, key1, value1, key2, value2, key3, value3 string, multiLabel bool) {
+		labelsA := &joiningv1.ImmutableLabels{
+			Ssh: map[string]string{
+				key1: value1,
+			},
+		}
+		labelsB := &joiningv1.ImmutableLabels{
+			Ssh: map[string]string{
+				key2: value2,
+			},
+		}
+		// assign a second label only if multiLabel is true
+		if multiLabel {
+			labelsB.Ssh[key3] = value3
+		}
+
+		// assert we can generate hashes for both labels without panicking
+		hashA := joining.HashImmutableLabels(labelsA)
+		require.NotEmpty(t, hashA)
+		hashB := joining.HashImmutableLabels(labelsB)
+		require.NotEmpty(t, hashB)
+
+		// assert that hashes are verified against their own labels
+		assert.True(t, joining.VerifyImmutableLabelsHash(proto.CloneOf(labelsA), hashA))
+		assert.True(t, joining.VerifyImmutableLabelsHash(proto.CloneOf(labelsB), hashB))
+
+		// assert that the same labels always result in the same hash and different labels always result in different hashes
+		assertFn := assert.False
+		if maps.Equal(labelsA.Ssh, labelsB.Ssh) {
+			assertFn = assert.True
+		}
+
+		assertFn(t, joining.VerifyImmutableLabelsHash(proto.CloneOf(labelsA), hashB))
+		assertFn(t, joining.VerifyImmutableLabelsHash(proto.CloneOf(labelsB), hashA))
+	})
 }
