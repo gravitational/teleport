@@ -36,9 +36,11 @@ import (
 	"time"
 
 	"github.com/Microsoft/go-winio"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/teleterm/autoupdate"
 )
@@ -59,11 +61,10 @@ func TestPrivilegedUpdateServiceRejectsDowngrade(t *testing.T) {
 		binary:  []byte("payload"),
 	}
 	err := runPrivilegedUpdaterFlow(t, up)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "checking if update is upgrade")
+	require.ErrorIs(t, err, trace.BadParameter("update version 0.0.1 is not newer than current version %s", teleport.SemVer()))
 }
 
-func TestPrivilegedUpdateServiceDisallowRejectsChecksumMismatch(t *testing.T) {
+func TestPrivilegedUpdateServiceRejectsChecksumMismatch(t *testing.T) {
 	up := update{
 		version: "999.0.0",
 		binary:  []byte("payload"),
@@ -74,8 +75,7 @@ func TestPrivilegedUpdateServiceDisallowRejectsChecksumMismatch(t *testing.T) {
 		_, err := w.Write([]byte(hex.EncodeToString(otherHash[:])))
 		require.NoError(t, err)
 	}))
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "verifying update checksum")
+	require.ErrorIs(t, err, trace.BadParameter("hash of the update does not match downloaded checksum"))
 }
 
 func TestPrivilegedUpdateServiceRejectsInvalidVersionFormat(t *testing.T) {
@@ -85,7 +85,7 @@ func TestPrivilegedUpdateServiceRejectsInvalidVersionFormat(t *testing.T) {
 	}
 	err := runPrivilegedUpdaterFlow(t, up)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "checking if update is upgrade")
+	require.Contains(t, err.Error(), `invalid update version "not-a-semver"`)
 }
 
 func TestPrivilegedUpdateServiceRejectsChecksumRequestFailure(t *testing.T) {
@@ -109,7 +109,7 @@ func TestPrivilegedUpdateServicePolicyOffRejectsUpdate(t *testing.T) {
 	}
 	err := runPrivilegedUpdaterFlow(t, up, withServiceTestPolicyToolsVersion("off"))
 	require.Error(t, err)
-	require.Contains(t, err.Error(), `ToolsVersion in HKLM\SOFTWARE\Policies\Teleport\TeleportConnect is "off", the update will not be installed`)
+	require.ErrorIs(t, err, trace.BadParameter(`ToolsVersion in HKLM\SOFTWARE\Policies\Teleport\TeleportConnect is "off", the update will not be installed`))
 }
 
 func TestPrivilegedUpdateServicePolicyVersionMismatch(t *testing.T) {
@@ -118,8 +118,7 @@ func TestPrivilegedUpdateServicePolicyVersionMismatch(t *testing.T) {
 		binary:  []byte("payload"),
 	}
 	err := runPrivilegedUpdaterFlow(t, up, withServiceTestPolicyToolsVersion("999.0.1"))
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "does not match policy version")
+	require.ErrorIs(t, err, trace.BadParameter("update version 999.0.0 does not match policy version 999.0.1"))
 }
 
 func TestPrivilegedUpdateServiceRejectsMalformedMetadata(t *testing.T) {
@@ -134,16 +133,20 @@ func TestPrivilegedUpdateServiceRejectsMalformedMetadata(t *testing.T) {
 	defer conn.Close()
 
 	// Send malformed JSON metadata.
-	require.NoError(t, binary.Write(conn, binary.LittleEndian, uint32(1)))
-	_, err := conn.Write([]byte("{"))
+	malformedMetadata := []byte("{")
+	require.NoError(t, binary.Write(conn, binary.LittleEndian, uint32(len(malformedMetadata))))
+	n, err := conn.Write(malformedMetadata)
 	require.NoError(t, err)
+	require.Len(t, malformedMetadata, n)
 	require.NoError(t, conn.Close())
 
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
 	select {
 	case err := <-serviceErr:
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "failed to unmarshal update metadata")
-	case <-t.Context().Done():
+	case <-ctx.Done():
 		t.Fatal("timed out")
 	}
 }
@@ -158,8 +161,7 @@ func TestPrivilegedUpdateServiceRejectsUpdateBaseDirFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(baseDir, []byte("x"), 0o600))
 
 	err := runPrivilegedUpdaterFlow(t, up, withServiceTestUpdateBaseDir(baseDir))
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "securing TeleportConnectUpdater directory")
+	require.ErrorIs(t, err, trace.BadParameter("security violation: %s exists but is not a directory", baseDir))
 }
 
 func TestPrivilegedUpdateServiceRejectsUpdateBaseDirReparsePoint(t *testing.T) {
@@ -173,8 +175,7 @@ func TestPrivilegedUpdateServiceRejectsUpdateBaseDirReparsePoint(t *testing.T) {
 	createJunction(t, baseDir, targetDir)
 
 	err := runPrivilegedUpdaterFlow(t, up, withServiceTestUpdateBaseDir(baseDir))
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "securing TeleportConnectUpdater directory")
+	require.ErrorIs(t, err, trace.BadParameter("security violation: %s is a reparse point", baseDir))
 }
 
 func TestPrivilegedUpdateServiceSafelyCleanupOldUpdates(t *testing.T) {
@@ -248,10 +249,12 @@ func TestPrivilegedUpdateServiceAllowOnlyOneClientConnection(t *testing.T) {
 
 	// Let the service exit cleanly from the blocked read path.
 	require.NoError(t, firstConn.Close())
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
 	select {
 	case err := <-serviceErr:
 		require.Error(t, err)
-	case <-t.Context().Done():
+	case <-ctx.Done():
 		t.Fatal("timed out")
 	}
 }
