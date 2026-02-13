@@ -494,7 +494,7 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 		outWindowsLogins = filterInvalidWindowsLogins(outWindowsLogins)
 		r.SetWindowsLogins(condition, apiutils.Deduplicate(outWindowsLogins))
 
-		inLinuxDesktopLogins := r.GetWindowsLogins(condition)
+		inLinuxDesktopLogins := r.GetLinuxDesktopLogins(condition)
 		outLinuxDesktopLogins := applyValueTraitsSlice(inLinuxDesktopLogins, traits, "linux_desktop_login")
 		outLinuxDesktopLogins = filterInvalidUnixLogins(outLinuxDesktopLogins)
 		r.SetLinuxDesktopLogins(condition, apiutils.Deduplicate(outLinuxDesktopLogins))
