@@ -32,6 +32,13 @@ func TestAnnounceTTLFromEnv(t *testing.T) {
 		fn    func() time.Duration
 	}{
 		{
+			name:  "set proxy announce ttl empty",
+			env:   "TELEPORT_UNSTABLE_PROXY_ANNOUNCE_TTL",
+			value: "",
+			want:  ServerAnnounceTTL,
+			fn:    ProxyAnnounceTTL,
+		},
+		{
 			name:  "set proxy announce ttl 30s",
 			env:   "TELEPORT_UNSTABLE_PROXY_ANNOUNCE_TTL",
 			value: "30s",
@@ -44,6 +51,13 @@ func TestAnnounceTTLFromEnv(t *testing.T) {
 			value: "1m",
 			want:  time.Minute,
 			fn:    ProxyAnnounceTTL,
+		},
+		{
+			name:  "set auth announce ttl empty",
+			env:   "TELEPORT_UNSTABLE_AUTH_ANNOUNCE_TTL",
+			value: "",
+			want:  ServerAnnounceTTL,
+			fn:    AuthAnnounceTTL,
 		},
 		{
 			name:  "set auth announce ttl 30s",

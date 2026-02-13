@@ -105,8 +105,8 @@ var (
 // ProxyAnnounceTTL is announce ttl used for proxy presence.
 // This defaults to [ServerAnnounceTTL].
 func ProxyAnnounceTTL() time.Duration {
-	v, ok := os.LookupEnv("TELEPORT_UNSTABLE_PROXY_ANNOUNCE_TTL")
-	if d, err := time.ParseDuration(v); ok && err == nil {
+	v := os.Getenv("TELEPORT_UNSTABLE_PROXY_ANNOUNCE_TTL")
+	if d, err := time.ParseDuration(v); err == nil {
 		return d
 	}
 	return ServerAnnounceTTL
@@ -115,8 +115,8 @@ func ProxyAnnounceTTL() time.Duration {
 // AuthAnnounceTTL is announce ttl used for auth presence.
 // This defaults to [ServerAnnounceTTL].
 func AuthAnnounceTTL() time.Duration {
-	v, ok := os.LookupEnv("TELEPORT_UNSTABLE_AUTH_ANNOUNCE_TTL")
-	if d, err := time.ParseDuration(v); ok && err == nil {
+	v := os.Getenv("TELEPORT_UNSTABLE_AUTH_ANNOUNCE_TTL")
+	if d, err := time.ParseDuration(v); err == nil {
 		return d
 	}
 	return ServerAnnounceTTL
