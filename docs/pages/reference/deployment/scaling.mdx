@@ -156,3 +156,58 @@ your resource usage, and then scaling resources based on measured outcomes.
 
 Note that you are not limited to a single `windows_desktop_service`, and can connect multiple to your cluster in order to
 spread resources out over multiple logical machines.
+
+## Teleport SSH Service resource utilization
+
+The SSH Service resource utilization can vary significantly based on workload, user behavior, and environment. For this reason it is challenging to provide absolute CPU and RAM requirements. This worked example is an illustration of one potential approach in determining the resource limits for a given SSH Service.
+
+There are three primary factors that influence resource utilization by the SSH Service:
+1. User workload.
+1. Number of concurrent sessions.
+1. Number of new sessions per second.
+
+<Admonition
+  type="note"
+  title="Note"
+>
+  The figures listed in this guide are illustrative only using a synthetic workload. Always measure your specific workload in a representative environment before setting production limits.
+</Admonition>
+
+### Long lived sessions
+
+| concurrent sessions | RAM usage (MiB)  |
+| ------------------ | ---------------- |
+| 1                  | 292              |
+| 2                  | 355              |
+| 4                  | 480              |
+| 8                  | 730              |
+| 16                 | 1239             |
+| 32                 | 2232             |
+| 64                 | 4260             |
+| 128                | 8233             |
+
+For a typical agent RAM usage increases linearly with the number of concurrent sessions.
+
+### New session requests
+
+| sessions per second |  CPU peak (millicores) |
+| ------------------ |  -------------------- |
+| 1                  |  207                  |
+| 2                  |  410                  |
+| 4                  |  903                  |
+| 8                  |  1770                 |
+| 16                 |  3780                 |
+| 32                 |  8500                 |
+
+The primary driver of CPU usage by the SSH Service is the burst usage when new sessions are established.
+
+### Estimating resource requirements
+
+To estimate the resource requirements for the SSH Service:
+1. Determine the worst case resource requirements of a typical user workload.
+1. Determine the maximum number of concurrent sessions.
+1. Determine the maximum number of new sessions per second.
+
+Using `tsh ssh` and `tsh bench ssh`, simulate session activity to measure resource usage under expected conditions.
+Use the findings to set resource limits with an added margin (e.g., 20-50%) for safety.
+
