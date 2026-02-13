@@ -686,7 +686,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 		require.ErrorContains(t, err, "cannot modify secret of existing scoped token")
 	})
 
-	t.Run("upsert fails when revisions don't match - simulating concurrent upserts", func(t *testing.T) {
+	t.Run("upsert succeeds with when revisions don't match", func(t *testing.T) {
 		service, ctx := newService(t)
 		token := newToken("concurrent-test")
 
@@ -704,19 +704,19 @@ func TestScopedTokenUpsert(t *testing.T) {
 		_, err = service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: update1})
 		require.NoError(t, err)
 
-		// This should fail because the token was modified by update1
+		// This should succeed as we set the revision before comparing
 		update2 := proto.CloneOf(fetched1.GetToken())
+		update2.GetMetadata().Revision = "somerev"
 		update2.Metadata.Labels = map[string]string{"env": "staging"}
 		_, err = service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: update2})
-		require.Error(t, err, "expected concurrent modification to fail")
-		require.True(t, trace.IsCompareFailed(err), "expected compare failed error, got: %v", err)
+		require.NoError(t, err, "upsert should succeed with retry on modification with stale revision")
 
-		// Verify the first update succeeded and the second was rejected
+		// Verify that update2 succeeded and overwrote update1's label
 		final, err := service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
 			Name:       token.GetMetadata().GetName(),
 			WithSecret: true,
 		})
 		require.NoError(t, err)
-		require.Equal(t, "production", final.GetToken().GetMetadata().GetLabels()["env"])
+		require.Equal(t, "staging", final.GetToken().GetMetadata().GetLabels()["env"])
 	})
 }
