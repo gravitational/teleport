@@ -39,6 +39,7 @@ import {
   Regions,
 } from 'teleport/services/integrations';
 import type { KubeResourceKind } from 'teleport/services/kube/types';
+import type { GroupAction } from 'teleport/services/managedUpdates';
 import type { RecordingType } from 'teleport/services/recordings';
 import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
@@ -103,6 +104,12 @@ const cfg = {
 
   baseUrl: window.location.origin,
 
+  // terraform contains terraform related configuration
+  terraform: {
+    registry: 'terraform.releases.teleport.dev',
+    stagingRegistry: 'terraform-staging.releases.development.teleport.dev',
+  },
+
   // enterprise non-exact routes will be merged into this
   // see `getNonExactRoutes` for details about non-exact routes
   nonExactRoutes: [],
@@ -153,6 +160,12 @@ const cfg = {
   },
 
   defaultDatabaseTTL: '2190h',
+
+  identitySecurity: {
+    accessGraphConfigSet: false,
+    licensed: false,
+    sessionSummarizationEnabled: false,
+  },
 
   routes: {
     root: '/web',
@@ -228,6 +241,7 @@ const cfg = {
     requests: '/web/requests/:requestId?',
 
     downloadCenter: '/web/downloads',
+    managedUpdates: '/web/managedupdates',
 
     // sso routes
     ssoConnector: {
@@ -301,7 +315,7 @@ const cfg = {
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
     desktopWsAddr:
-      'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect/ws?username=:username',
+      'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect/ws?username=:username&tdpb=:version',
     desktopPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid/ws',
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
@@ -551,6 +565,11 @@ const cfg = {
         '/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/playback/ws',
       thumbnail: '/v1/webapi/sites/:clusterId/sessionthumbnail/:sessionId',
     },
+
+    managedUpdates: {
+      details: '/v1/webapi/managedupdates',
+      groupAction: '/v1/webapi/managedupdates/groups/:groupName/:action',
+    },
   },
 
   playable_db_protocols: [],
@@ -711,6 +730,21 @@ const cfg = {
 
   getAuditRoute(clusterId: string) {
     return generatePath(cfg.routes.audit, { clusterId });
+  },
+
+  getManagedUpdatesRoute() {
+    return cfg.routes.managedUpdates;
+  },
+
+  getManagedUpdatesUrl() {
+    return cfg.api.managedUpdates.details;
+  },
+
+  getManagedUpdatesGroupActionUrl(groupName: string, action: GroupAction) {
+    return generatePath(cfg.api.managedUpdates.groupAction, {
+      groupName,
+      action,
+    });
   },
 
   /**
@@ -1418,13 +1452,17 @@ const cfg = {
     });
   },
 
-  getIntegrationsUrl(integrationName?: string) {
+  getIntegrationsUrl(integrationName?: string, withSummaries: boolean = false) {
     // Currently you can only create integrations at the root cluster.
     const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.integrationsPath, {
+    let url = generatePath(cfg.api.integrationsPath, {
       clusterId,
       name: integrationName,
     });
+    if (withSummaries) {
+      url += `?withSummaries=true`;
+    }
+    return url;
   },
 
   getDeleteIntegrationUrlV2(req: IntegrationDeleteRequest) {

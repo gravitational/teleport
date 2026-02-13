@@ -887,6 +887,10 @@ DIFF_TEST := $(TOOLINGDIR)/bin/difftest
 $(DIFF_TEST): $(wildcard $(TOOLINGDIR)/cmd/difftest/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/difftest
 
+BENCHFIND := $(TOOLINGDIR)/bin/benchfind
+$(BENCHFIND): $(wildcard $(TOOLINGDIR)/cmd/benchfind/*.go)
+	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/benchfind
+
 RERUN := $(TOOLINGDIR)/bin/rerun
 $(RERUN): $(wildcard $(TOOLINGDIR)/cmd/rerun/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/rerun
@@ -942,7 +946,7 @@ test-helm-update-snapshots: helmunit/installed
 # Runs all Go tests except integration, called by CI/CD.
 #
 .PHONY: test-go
-test-go: test-go-prepare test-go-unit test-go-touch-id test-go-vnet-daemon test-go-tsh test-go-chaos
+test-go: test-go-unit test-go-touch-id test-go-vnet-daemon test-go-tsh test-go-chaos
 
 #
 # Runs a test to ensure no environment variable leak into build binaries.
@@ -976,7 +980,7 @@ test-go-prepare: ensure-webassets rdpclient $(TEST_LOG_DIR) $(VERSRC)
 test-go-unit: rdpclient
 test-go-unit: FLAGS ?= -race -shuffle on
 test-go-unit: SUBJECT ?= $(shell go list ./... | grep -vE 'teleport/(e2e|integration|tool/tsh|integrations/operator|integrations/access|integrations/lib)')
-test-go-unit:
+test-go-unit: test-go-prepare
 	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(RDPCLIENT_TAG) $(FIPS_TAG) $(BPF_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG) $(ADDTAGS)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| go tool gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests.xml --jsonfile $(TEST_LOG_DIR)/unit-tests.json --raw-command -- cat
 
@@ -991,7 +995,7 @@ test-go-unit-tbot:
 .PHONY: test-go-touch-id
 test-go-touch-id: FLAGS ?= -race -shuffle on
 test-go-touch-id: SUBJECT ?= ./lib/auth/touchid/...
-test-go-touch-id:
+test-go-touch-id: test-go-prepare
 ifneq ("$(TOUCHID_TAG)", "")
 	$(CGOFLAG) go test -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| go tool gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-touchid.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-touchid.json --raw-command -- cat
@@ -1003,24 +1007,33 @@ endif
 # Race detection is not enabled because it significantly slows down benchmarks.
 # todo: Use gotestsum when it is compatible with benchmark output. Currently will consider all benchmarks failed.
 .PHONY: test-go-bench
-test-go-bench: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr testing.B .  | xargs dirname | xargs go list | sort -u)
 test-go-bench: BENCHMARK_SKIP_PATTERN = "^BenchmarkRoot"
-test-go-bench: | $(TEST_LOG_DIR)
-	go test -run ^$$ -bench . -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $(PACKAGES) \
+test-go-bench: $(BENCHFIND) | $(TEST_LOG_DIR)
+	@PKGS=$$($(BENCHFIND) --tags=$(BUILD_TAGS)) ; \
+	if [ -z "$$PKGS" ]; then \
+		echo "No benchmark packages found"; \
+		exit 1; \
+	fi ; \
+	go test -run ^$$ -bench . -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $$PKGS \
 		| tee $(TEST_LOG_DIR)/bench.txt
 
-test-go-bench-root: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr BenchmarkRoot .  | xargs dirname | xargs go list | sort -u)
+.PHONY: test-go-bench-root
 test-go-bench-root: BENCHMARK_PATTERN = "^BenchmarkRoot"
 test-go-bench-root: BENCHMARK_SKIP_PATTERN = ""
-test-go-bench-root: | $(TEST_LOG_DIR)
-	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $(PACKAGES) \
+test-go-bench-root: $(BENCHFIND) | $(TEST_LOG_DIR)
+	@PKGS=$$($(BENCHFIND) --tags=$(BUILD_TAGS)) ; \
+	if [ -z "$$PKGS" ]; then \
+		echo "No benchmark packages found"; \
+		exit 1; \
+	fi ; \
+	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $$PKGS \
 		| tee $(TEST_LOG_DIR)/bench.txt
 
 # Make sure untagged vnetdaemon code build/tests.
 .PHONY: test-go-vnet-daemon
 test-go-vnet-daemon: FLAGS ?= -race -shuffle on
 test-go-vnet-daemon: SUBJECT ?= ./lib/vnet/daemon/...
-test-go-vnet-daemon:
+test-go-vnet-daemon: test-go-prepare
 ifneq ("$(VNETDAEMON_TAG)", "")
 	$(CGOFLAG) go test -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| go tool gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-vnet.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-vnet.json --raw-command -- cat
@@ -1030,14 +1043,14 @@ endif
 .PHONY: test-go-tsh
 test-go-tsh: FLAGS ?= -race -shuffle on
 test-go-tsh: SUBJECT ?= github.com/gravitational/teleport/tool/tsh/...
-test-go-tsh:
+test-go-tsh: test-go-prepare
 	$(CGOFLAG_TSH) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| go tool gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-tsh.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-tsh.json --raw-command -- cat
 
 # Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
 .PHONY: test-go-chaos
 test-go-chaos: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
-test-go-chaos:
+test-go-chaos: test-go-prepare
 	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
 		| go tool gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-chaos.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-chaos.json --raw-command -- cat
 
@@ -1686,6 +1699,15 @@ terraform-resources-up-to-date: must-start-clean/host
 		exit 1; \
 	fi
 
+# terraform-module-docs-up-to-date checks if the generated Terraform module documentation is up to date.
+.PHONY: terraform-module-docs-up-to-date
+terraform-module-docs-up-to-date: must-start-clean/host
+	$(MAKE) -C integrations/terraform-modules docs
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "TF module docs" "make -C integrations/terraform-modules docs"; \
+		exit 1; \
+	fi
+
 # icons-up-to-date checks if icons were pre-processed before being added to the repo.
 .PHONY: icons-up-to-date
 icons-up-to-date: must-start-clean/host
@@ -2014,6 +2036,22 @@ cli-docs-tbot:
 	go build -o $(BUILDDIR)/tbotdocs -tags docs ./tool/tbot && \
 	$(BUILDDIR)/tbotdocs help 2>docs/pages/reference/cli/tbot.mdx && \
 	rm $(BUILDDIR)/tbotdocs
+
+.PHONY: cli-docs-teleport
+cli-docs-teleport:
+# Executing go build instead of go run since we don't want to redirect
+# irrelevant output along with the docs page content.
+	go build -o $(BUILDDIR)/teleportdocs -tags docs ./tool/teleport && \
+	$(BUILDDIR)/teleportdocs help 2>docs/pages/reference/cli/teleport.mdx && \
+	rm $(BUILDDIR)/teleportdocs
+
+.PHONY: cli-docs-tctl
+cli-docs-tctl:
+# Executing go build instead of go run since we don't want to redirect
+# irrelevant output along with the docs page content.
+	go build -o $(BUILDDIR)/tctldocs -tags docs ./tool/tctl && \
+	$(BUILDDIR)/tctldocs help 2>docs/pages/reference/cli/tctl.mdx && \
+	rm $(BUILDDIR)/tctldocs
 
 # audit-event-reference generates audit event reference docs using the Web UI
 # source.

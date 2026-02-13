@@ -106,9 +106,9 @@ func (l *LogLimiter) Handle(ctx context.Context, record slog.Record) error {
 						delete(l.windows, key)
 					}
 				}
+				l.lastSweep = l.config.Clock.Now()
 			}
 
-			l.lastSweep = l.config.Clock.Now()
 			l.mu.Unlock()
 		}()
 		lastSeen, ok := l.windows[messageSubstring]

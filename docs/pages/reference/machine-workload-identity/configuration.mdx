@@ -153,23 +153,22 @@ storage:
   type: directory
   path: /var/lib/teleport/bot
 
-# outputs specifies what artifacts `tbot` should generate and renew when it
-# runs.
-#
-# See the full list of supported outputs and their configuration options
-# under the Outputs section of this reference page.
-outputs:
-  - type: identity
-    destination:
-      type: directory
-      path: /opt/machine-id
-
 # services specify which `tbot` sub-services should be enabled and how they
 # should be configured.
 #
 # See the full list of supported services and their configuration options
 # under the Services section of this reference page.
 services:
+  - type: identity
+    destination:
+      type: directory
+      path: /opt/machine-id
+
+# outputs is synonymous to `services` and exists for legacy compatibility. All
+# services specified in both `services` and `outputs` will be enabled. You
+# should not duplicate any entries between the two fields, and should prefer to
+# keep configuration within the `services` field where possible.
+outputs:
   - type: example
 ```
 
@@ -207,18 +206,18 @@ services:
       path: ./tbot-user
 ```
 
-## Outputs
+## Output Services
 
-Outputs define what actions `tbot` should take when it runs. They describe
-the format of the certificates to be generated, the roles used to generate the certificates, and the
-destination where they should be written.
+Output services define what actions `tbot` should take when it runs. They
+describe the format of the certificates to be generated, the roles used to
+generate the certificates, and the destination where they should be written.
 
 There are multiple types of output. Select the one that is most appropriate for
 your intended use-case.
 
 ### `identity`
 
-The `identity` output can be used to authenticate:
+The `identity` output service can be used to authenticate:
 
 - SSH access to your Teleport servers, using `tsh`, openssh and tools like
   ansible.
@@ -249,8 +248,8 @@ allow_reissue: false
 
 ### `application`
 
-The `application` output is used to generate credentials that can be used to
-access applications that have been configured with Teleport.
+The `application` output service is used to generate credentials that can be
+used to access applications that have been configured with Teleport.
 
 See the [Machine & Workload Identity with Applications guide](../../machine-workload-identity/access-guides/applications.mdx)
 to see the `application` output used in context.
@@ -269,8 +268,8 @@ app_name: grafana
 
 ### `database`
 
-The `database` output is used to generate credentials that can be used to
-access databases that have been configured with Teleport.
+The `database` output service is used to generate credentials that can be used
+to access databases that have been configured with Teleport.
 
 See the [Machine & Workload Identity with Databases guide](../../machine-workload-identity/access-guides/databases.mdx)
 to see the `database` output used in context.
@@ -342,8 +341,8 @@ disable_exec_plugin: false
 
 ### `kubernetes/v2`
 
-The `kubernetes/v2` output type can be used to access many Kubernetes clusters
-as individual contexts within the same `kubeconfig.yaml`.
+The `kubernetes/v2` output service can be used to access many Kubernetes
+clusters as individual contexts within the same `kubeconfig.yaml`.
 
 ```yaml
 type: kubernetes/v2
@@ -436,8 +435,8 @@ by restarting `tbot`, or signaling it with `pkill -usr1 tbot`.
 
 ### `kubernetes/argo-cd`
 
-The `kubernetes/argo-cd` output type can be used to enable Argo CD to securely
-connect to external Kubernetes clusters.
+The `kubernetes/argo-cd` output service can be used to enable Argo CD to
+securely connect to external Kubernetes clusters.
 
 It works by "declaratively" managing cluster credentials
 [using Kubernetes secrets](https://argo-cd.readthedocs.io/en/release-1.8/operator-manual/declarative-setup/#clusters).
@@ -563,11 +562,11 @@ name: my-service-name
 
 ### `ssh_host`
 
-The `ssh_host` output is used to generate the artifacts required to configure
-an OpenSSH server with Teleport in order to allow Teleport users to connect to
-it.
+The `ssh_host` output service is used to generate the artifacts required to
+configure an OpenSSH server with Teleport in order to allow Teleport users to
+connect to it.
 
-The output generates the following artifacts:
+The output service generates the following artifacts:
 - `ssh_host-cert.pub`: an SSH certificate signed by the Teleport host certificate authority.
 - `ssh_host`: the private key associated with the SSH host certificate.
 - `ssh_host-user-ca.pub`: an export of the Teleport user certificate authority in an OpenSSH compatible format.
@@ -586,8 +585,8 @@ principals:
 
 ### `workload-identity-x509`
 
-The `workload-identity-x509` output is used to issue an X509 workload identity
-credential and write this to a configured destination.
+The `workload-identity-x509` output service is used to issue an X509 workload
+identity credential and write this to a configured destination.
 
 The output generates the following artifacts:
 
@@ -608,7 +607,7 @@ type: workload-identity-x509
 
 ### `workload-identity-jwt`
 
-The `workload-identity-jwt` output is used to issue a JWT workload identity
+The `workload-identity-jwt` output service used to issue a JWT workload identity
 credential and write this to a configured destination.
 
 The JWT workload identity credential is compatible with the [SPIFFE JWT SVID
@@ -639,14 +638,14 @@ audiences:
 
 ### `workload-identity-aws-roles-anywhere`
 
-The `workload-identity-aws-roles-anywhere` output is used to issue an X509
+The `workload-identity-aws-roles-anywhere` output service used to issue an X509
 workload identity credential, exchange this for short-lived AWS credentials
 using Roles Anywhere, and write these to a configured destination.
 
 The credentials are written in the [AWS shared credentials file format](https://docs.aws.amazon.com/sdkref/latest/guide/file-format.html#file-format-creds),
 which is compatible with the AWS CLI and SDKs.
 
-The output generates the following artifacts:
+The output service generates the following artifacts:
 
 - `aws_credentials`: the CLI and SDK compatible AWS shared credentials file.
 
@@ -769,9 +768,9 @@ svid:
 ## Services
 
 Services are configurable long-lived components that run within `tbot`. Unlike
-Outputs, they may not necessarily generate artifacts. Typically, services
-provide supporting functionality for machine to machine access, for example,
-opening tunnels or providing APIs.
+Output Services, they may not necessarily generate artifacts. Typically,
+services provide supporting functionality for machine to machine access, for
+example, opening tunnels or providing APIs.
 
 ### `workload-identity-api`
 
@@ -1559,22 +1558,38 @@ The `kubernetes_secret` destination type stores artifacts in a Kubernetes
 secret. This allows them to be mounted into other containers deployed in
 Kubernetes.
 
-Prerequisites:
+There is no requirement that the secret already exists, one will be created
+if it does not exist. If a secret already exists, `tbot` will overwrite any
+other keys within the secret.
 
-- `tbot` must be running in Kubernetes with at most one replica. If using a
+By default, the `kubernetes_secret` destination operates against the Kubernetes
+cluster that `tbot` itself is running against. In this mode, very little
+configuration is required. However, you must ensure that:
+
+- `tbot` is running in Kubernetes with at most one replica. If using a
   `deployment`, then the `Recreate` strategy must be used to ensure only one
   instance exists at any time. This is because multiple `tbot` agents configured
   with the same secret will compete to write to the secret and it may be left
   in an inconsistent state or the `tbot` agents may fail to write.
-- The `tbot` pod must be configured with a service account that allows it to
+- The `tbot` pod is configured with a service account that allows it to
   read and write from the configured secret.
-- The `POD_NAMESPACE` environment variable must be configured with the
-  name of the namespace that `tbot` is running in. This is best achieved with
+- The `POD_NAMESPACE` environment variable is configured with the name of the
+  namespace that `tbot` is running in. This is best achieved with
   the [Downward API](https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information/).
 
-There is no requirement that the secret already exists, one will be created
-if it does not exist. If a secret already exists, `tbot` will overwrite any
-other keys within the secret.
+Using the `tbot` helm chart is the easiest way to ensure that all of these
+requirements are fulfilled.
+
+It is also possible for `tbot` to write to a secret in a Kubernetes cluster it
+is not running in. It may be running in a different Kubernetes cluster or
+running completely external to a Kubernetes cluster. To configure this:
+
+- Set `kubeconfig_path` to the path of a kubeconfig file that contains the
+  configuration necessary for `tbot` to connect and authenticate to the
+  Kubernetes cluster.
+- If your kubeconfig file contains multiple contexts, use `kubeconfig_context`
+  to select the desired one. If this is unset, the default context will be used.
+- Set `namespace` to the namespace that the secret should be written into.
 
 Configuration:
 
@@ -1596,6 +1611,28 @@ namespace: default
 # optional.
 labels:
   example: "foo"
+# kubeconfig_path is the path to a kubeconfig to use for connecting to and
+# authenticating to the Kubernetes API server. When running tbot inside a
+# Kubernetes cluster, configuring this is unnecessary as the in-cluster
+# credentials can be used.
+#
+# This can be useful when running tbot outside a Kubernetes cluster or
+# when tbot needs to write secrets to a Kubernetes cluster that differs
+# from the one it is running in.
+#
+# This may also be set using the KUBECONFIG environment variable. The value
+# here within the configuration file will take precedence over the
+# environment variable.
+kubeconfig_path: /opt/kube.yaml
+# kubeconfig_context overrides which context to use from the kubeconfig.
+#
+# This has no effect when relying on the default in-cluster config and can
+# only be used when the KUBECONFIG environment variable or the
+# `kubeconfig_path` field has been set.
+#
+# When unspecified, the context currently set within the Kubernetes config
+# file will be used.
+kubeconfig_context: my-cluster
 ```
 
 ## Bot resource

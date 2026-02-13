@@ -1006,12 +1006,6 @@ message GetWebSessionResponse {
   types.WebSessionV2 Session = 1 [(gogoproto.jsontag) = "session"];
 }
 
-// GetWebSessionsResponse contains all the requested web sessions.
-message GetWebSessionsResponse {
-  // Sessions is a list of web sessions.
-  repeated types.WebSessionV2 Sessions = 1 [(gogoproto.jsontag) = "sessions"];
-}
-
 // GetWebTokenResponse contains the requested web token.
 message GetWebTokenResponse {
   // Token is the web token being requested.
@@ -2723,6 +2717,12 @@ message GetAlertAcksResponse {
   ];
 }
 
+// DeleteClustAlertRequest specifies an alert or multiple alerts to delete.
+message DeleteClusterAlertRequest {
+  // The identifier of the alert to delete.
+  string alert_id = 1;
+}
+
 // ClearAlertAcksRequest specifies alerts acknowledgements to clear.
 message ClearAlertAcksRequest {
   // AlertID deletes an acknowledgement by ID. Deletes all acknowledgements if
@@ -2993,6 +2993,9 @@ service AuthService {
   // UpsertClusterAlert creates a cluster alert.
   rpc UpsertClusterAlert(UpsertClusterAlertRequest) returns (google.protobuf.Empty);
 
+  // DeleteClusterAlert deletes a cluster alert.
+  rpc DeleteClusterAlert(DeleteClusterAlertRequest) returns (google.protobuf.Empty);
+
   // CreateAlertAck marks a cluster alert as acknowledged.
   rpc CreateAlertAck(types.AlertAcknowledgement) returns (google.protobuf.Empty);
 
@@ -3229,10 +3232,6 @@ service AuthService {
 
   // GetWebSession gets a web session.
   rpc GetWebSession(types.GetWebSessionRequest) returns (GetWebSessionResponse);
-  // GetWebSessions gets all web sessions.
-  rpc GetWebSessions(google.protobuf.Empty) returns (GetWebSessionsResponse) {
-    option deprecated = true;
-  }
   // StreamWebSessions gets all web sessions in a stream.
   rpc StreamWebSessions(google.protobuf.Empty) returns (stream types.WebSessionV2);
   // DeleteWebSession deletes a web session.

@@ -240,14 +240,15 @@ func NewForwardServer(cfg *ForwardServerConfig) (*ForwardServer, error) {
 	// TODO(greedy52) extract common parts from srv.NewAuthHandlers like
 	// CreateIdentityContext and UserKeyAuth to a common package.
 	s.auth, err = srv.NewAuthHandlers(&srv.AuthHandlerConfig{
-		Server:        s,
-		Component:     teleport.ComponentForwardingGit,
-		Emitter:       s.cfg.Emitter,
-		AccessPoint:   cfg.AccessPoint,
-		TargetServer:  cfg.TargetServer,
-		FIPS:          cfg.FIPS,
-		Clock:         cfg.Clock,
-		OnRBACFailure: s.onRBACFailure,
+		Server:                        s,
+		Component:                     teleport.ComponentForwardingGit,
+		Emitter:                       s.cfg.Emitter,
+		AccessPoint:                   cfg.AccessPoint,
+		TargetServer:                  cfg.TargetServer,
+		FIPS:                          cfg.FIPS,
+		Clock:                         cfg.Clock,
+		OnRBACFailure:                 s.onRBACFailure,
+		ValidatedMFAChallengeVerifier: s.cfg.AuthClient.MFAServiceClient(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -246,12 +246,13 @@ Static configuration while simpler at first, has less flexibility because enroll
     aws:
     - types: ["ec2"]
       regions: ["*"]
+      tags:
+        "env": "prod" # Match EC2 instances where tag:env=prod
       ssm:
         document_name: "AWS-RunShellScript"
       install:
-        join_params:
-          token_name: aws-discovery-iam-token
-          method: iam
+        join_method: iam
+        join_token: aws-discovery-iam-token
       assume_role:
         role_name: <Var name="DiscoverEC2AssumedRole" />
       organization:
@@ -267,8 +268,6 @@ Static configuration while simpler at first, has less flexibility because enroll
             # Only exact matches are supported.
             # Optional. If empty, no OUs are excluded.
             exclude: []
-        tags:
-            "env": "prod" # Match EC2 instances where tag:env=prod
   ```
   Adjust the keys under `spec.aws` to match your EC2 environment,
   specifically the tags you want to associate with the Discovery Service.
@@ -294,12 +293,13 @@ Static configuration while simpler at first, has less flexibility because enroll
     aws:
     - types: ["ec2"]
       regions: ["*"]
+      tags:
+        "env": "prod" # Match EC2 instances where tag:env=prod
       ssm:
         document_name: "AWS-RunShellScript"
       install:
-          join_params:
-            token_name: aws-discovery-iam-token
-            method: iam
+        join_method: iam
+        join_token: aws-discovery-iam-token
       assume_role_name: <Var name="DiscoverEC2AssumedRole" />
       organization:
         organization_id: <Var name="o-organisation" />
@@ -314,10 +314,6 @@ Static configuration while simpler at first, has less flexibility because enroll
             # Only exact matches are supported.
             # Optional. If empty, no OUs are excluded.
             exclude: []
-        tags:
-            "env": "prod" # Match EC2 instances where tag:env=prod
-      tags:
-        "env": "prod" # Match EC2 instances where tag:env=prod
   ```
   
   Adjust the keys under `discovery_service.aws` to match your EC2 environment, 

@@ -3414,6 +3414,44 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			},
 			errMessage: "must set keyring in ca_key_params.gcp_kms",
 		},
+		{
+			name: "enable health checking",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					HealthCheck: &servicecfg.KeystoreHealthCheck{
+						Active: &servicecfg.KeystoreActiveHealthCheck{
+							Enabled: true,
+						},
+					},
+				},
+			},
+			want: servicecfg.KeystoreConfig{
+				HealthCheck: &servicecfg.KeystoreHealthCheck{
+					Active: &servicecfg.KeystoreActiveHealthCheck{
+						Enabled: true,
+					},
+				},
+			},
+		},
+		{
+			name: "disable health checking",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					HealthCheck: &servicecfg.KeystoreHealthCheck{
+						Active: &servicecfg.KeystoreActiveHealthCheck{
+							Enabled: false,
+						},
+					},
+				},
+			},
+			want: servicecfg.KeystoreConfig{
+				HealthCheck: &servicecfg.KeystoreHealthCheck{
+					Active: &servicecfg.KeystoreActiveHealthCheck{
+						Enabled: false,
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

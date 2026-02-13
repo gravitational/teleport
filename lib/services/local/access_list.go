@@ -29,7 +29,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -173,22 +172,6 @@ func NewAccessListServiceV2(cfg AccessListServiceConfig) (*AccessListService, er
 	}, nil
 }
 
-// NewAccessListService creates a new AccessListService.
-// Deprecated: Prefer using NewAccessListServiceV2
-// TODO(tross): Delete when everything is using V2.
-func NewAccessListService(b backend.Backend, clock clockwork.Clock, opts ...ServiceOption) (*AccessListService, error) {
-	var opt serviceOptions
-	for _, o := range opts {
-		o(&opt)
-	}
-
-	return NewAccessListServiceV2(AccessListServiceConfig{
-		Backend:                     b,
-		Modules:                     modules.GetModules(),
-		RunWhileLockedRetryInterval: opt.runWhileLockedRetryInterval,
-	})
-}
-
 // GetAccessLists returns a list of all access lists.
 func (a *AccessListService) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error) {
 	accessLists, err := a.service.GetResources(ctx)
@@ -278,24 +261,11 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 		return accesslists.ValidateAccessListWithMembers(ctx, existingAccessList, accessList, listMembers, &accessListAndMembersGetter{a.service, a.memberService})
 	}
 
-	updateAccessList := func() error {
-		var err error
-		upserted, err = opFn(ctx, accessList)
-		return trace.Wrap(err)
-	}
-
-	reconcileOwners := func() error {
+	reconcileOldOwners := func() error {
 		currentOwnersMap := make(map[string]struct{})
 		for _, owner := range accessList.Spec.Owners {
 			if owner.MembershipKind == accesslist.MembershipKindList {
 				currentOwnersMap[owner.Name] = struct{}{}
-			}
-		}
-
-		// update references for new owners
-		for ownerName := range currentOwnersMap {
-			if err := a.updateAccessListOwnerOf(ctx, accessList.GetName(), ownerName, true); err != nil {
-				return trace.Wrap(err)
 			}
 		}
 
@@ -318,6 +288,23 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 		return nil
 	}
 
+	updateAccessList := func() error {
+		var err error
+		upserted, err = opFn(ctx, accessList)
+		return trace.Wrap(err)
+	}
+
+	reconcileNewOwners := func() error {
+		for _, owner := range accessList.Spec.Owners {
+			if owner.MembershipKind == accesslist.MembershipKindList {
+				if err := a.updateAccessListOwnerOf(ctx, accessList.GetName(), owner.Name, true); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+		}
+		return nil
+	}
+
 	var actions []func() error
 
 	// If IGS is not enabled for this cluster we need to wrap the whole
@@ -328,7 +315,12 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 		actions = append(actions, func() error { return a.VerifyAccessListCreateLimit(ctx, accessList.GetName()) })
 	}
 
-	actions = append(actions, validateAccessList, updateAccessList, reconcileOwners)
+	// Note we need to reconcile the old owners (clean status.owner_of for the owner lists
+	// which are removed with this request) first, then update the access list and then
+	// reconcile the new owners (set status.owner_of of the owner lists that are added with
+	// this request). This is to make sure the operation doesn't escalate privileges if
+	// interrupted as we user status.owner_of to calculate hierarchy.
+	actions = append(actions, validateAccessList, reconcileOldOwners, updateAccessList, reconcileNewOwners)
 
 	err := a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, accessListLockTTL,
 		func(ctx context.Context, _ backend.Backend) error {
@@ -731,8 +723,11 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 		}
 	}
 
+	var existingAccessList *accesslist.AccessList
+
 	validateAccessList := func() error {
-		existingAccessList, err := a.service.GetResource(ctx, accessList.GetName())
+		var err error
+		existingAccessList, err = a.service.GetResource(ctx, accessList.GetName())
 		if err != nil {
 			// a not found error is totally legal for an upsert operation, but
 			// fatal for an update.
@@ -826,12 +821,18 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 		return nil
 	}
 
-	reconcileOwners := func() error {
-		// update references for new owners
-		for _, owner := range accessList.Spec.Owners {
-			if owner.MembershipKind == accesslist.MembershipKindList {
-				if err := a.updateAccessListOwnerOf(ctx, accessList.GetName(), owner.Name, true); err != nil {
-					return trace.Wrap(err)
+	reconcileOldOwners := func() error {
+		if existingAccessList == nil {
+			return nil
+		}
+		for _, existingOwner := range existingAccessList.Spec.Owners {
+			if existingOwner.MembershipKind == accesslist.MembershipKindList {
+				if !slices.ContainsFunc(accessList.Spec.Owners, func(owner accesslist.Owner) bool {
+					return owner.Name == existingOwner.Name
+				}) {
+					if err := a.updateAccessListOwnerOf(ctx, existingAccessList.GetName(), existingOwner.Name, false); err != nil {
+						return trace.Wrap(err)
+					}
 				}
 			}
 		}
@@ -844,6 +845,17 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 		return trace.Wrap(err)
 	}
 
+	reconcileNewOwners := func() error {
+		for _, owner := range accessList.Spec.Owners {
+			if owner.MembershipKind == accesslist.MembershipKindList {
+				if err := a.updateAccessListOwnerOf(ctx, accessList.GetName(), owner.Name, true); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+		}
+		return nil
+	}
+
 	var actions []func() error
 
 	// If IGS is not enabled for this cluster we need to wrap the whole update and
@@ -854,7 +866,12 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 		actions = append(actions, func() error { return a.VerifyAccessListCreateLimit(ctx, accessList.GetName()) })
 	}
 
-	actions = append(actions, validateAccessList, reconcileMembers, writeAccessList, reconcileOwners)
+	// Note we need to reconcile the old owners (clean status.owner_of for the owner lists
+	// which are removed with this request) first, then update the access list and then
+	// reconcile the new owners (set status.owner_of of the owner lists that are added with
+	// this request). This is to make sure the operation doesn't escalate privileges if
+	// interrupted as we use status.owner_of to calculate hierarchy.
+	actions = append(actions, validateAccessList, reconcileMembers, reconcileOldOwners, writeAccessList, reconcileNewOwners)
 
 	if err := a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {

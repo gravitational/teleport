@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
@@ -134,15 +135,15 @@ func (g *roleV6TestingPrimitives) CompareTeleportAndKubernetesResource(tResource
 
 func TestTeleportRoleV6Creation(t *testing.T) {
 	test := &roleV6TestingPrimitives{}
-	testlib.ResourceCreationTest[types.Role, *resourcesv1.TeleportRoleV6](t, test)
+	testlib.ResourceCreationSynchronousTest[types.Role, *resourcesv1.TeleportRoleV6](t, resources.NewRoleV6Reconciler, test)
 }
 
 func TestTeleportRoleV6DeletionDrift(t *testing.T) {
 	test := &roleV6TestingPrimitives{}
-	testlib.ResourceDeletionDriftTest[types.Role, *resourcesv1.TeleportRoleV6](t, test)
+	testlib.ResourceDeletionDriftSynchronousTest[types.Role, *resourcesv1.TeleportRoleV6](t, resources.NewRoleV6Reconciler, test)
 }
 
 func TestTeleportRoleV6Update(t *testing.T) {
 	test := &roleV6TestingPrimitives{}
-	testlib.ResourceUpdateTest[types.Role, *resourcesv1.TeleportRoleV6](t, test)
+	testlib.ResourceUpdateTestSynchronous[types.Role, *resourcesv1.TeleportRoleV6](t, resources.NewRoleV6Reconciler, test)
 }

@@ -17,6 +17,7 @@ package main
 import (
 	"bytes"
 	_ "embed"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -29,13 +30,15 @@ import (
 
 // payload represents template payload
 type payload struct {
-	// Name represents resource name (capitalized)
+	// Name represents resource name (PascalCase)
 	Name string
-	// VarName represents resource variable name (underscored)
+	// VarName represents resource variable name (camelCase)
 	VarName string
 	// TypeName represents api/types resource type name
 	TypeName string
-	// IfaceName represents api/types interface for the (usually this is the same as Name)
+	// IfaceName represents the name of the api/types interface. Relevant only if
+	// the API methods used operate on interfaces instead of concrete types;
+	// otherwise, this should be empty.
 	IfaceName string
 	// GetMethod represents API get method name
 	GetMethod string
@@ -71,14 +74,14 @@ type payload struct {
 	// ProtoPackagePath is the path of the package where the protobuf type of
 	// the resource is defined.
 	ProtoPackagePath string
-	// ProtoPackagePath is the name of the package where the protobuf type of
-	// the resource is defined.
+	// ProtoPackage is the local name alias of the package where the protobuf
+	// type of the resource is defined.
 	ProtoPackage string
 	// SchemaPackagePath is the path of the package where the resource schema
 	// definitions are defined.
 	SchemaPackagePath string
-	// SchemaPackagePath is the name of the package where the resource schema
-	// definitions are defined.
+	// SchemaPackage is the local name alias of the package where the resource
+	// schema definitions are defined.
 	SchemaPackage string
 	// IsPlainStruct states whether the resource type used by the API methods
 	// for this resource is a plain struct, rather than an interface.
@@ -108,14 +111,53 @@ type payload struct {
 	// Namespaced indicates that the resource get and delete methods need the
 	// deprecated namespace parameter (always the default namespace).
 	Namespaced bool
-	// ForceSetKind indicates that the resource kind must be forcefully set by the provider.
-	// This is required for some special resources (ServerV2) that support multiple kinds.
-	// For those resources, we must set the kind, and don't want to have the user do it.
+	// ForceSetKind indicates that the resource kind must be forcefully set by
+	// the provider. This is required for some special resources (ServerV2) that
+	// support multiple kinds or for [RFD 153] resources. For those resources, we
+	// must set the kind, and don't want to have the user do it.
+	//
+	// [RFD 153]: https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md
 	ForceSetKind string
 	// GetCanReturnNil is used to check for nil returned value when doing a Get<Resource>.
 	GetCanReturnNil bool
 	// DefaultName is the default singleton resource name. This is currently only supported for 153 resources.
 	DefaultName string
+	// SaveSpecStateFromPlan indicates whether the spec field state should be
+	// taken from plan (true) or from the value returned by the GetMethod after
+	// the resource has been created. This is needed if the resource contains
+	// write-only fields that the server never returns. (We can't use Terraform's
+	// built-in write-only fields, since these require Terraform v1.11.)
+	SaveSpecStateFromPlan bool
+	// WithoutImportState skips generating the ImportState function, which may be
+	// not supported for resources with write-only fields.
+	WithoutImportState bool
+	// StatePoll optionally configures polling for state changes when creating or updating resources.
+	StatePoll *statePoll
+}
+
+// statePoll configures polling for state changes when creating or updating resources.
+type statePoll struct {
+	// StatePath is the object path to the current state to observe from the object returned from the provided GetMethod.
+	// StatePath provides a path to lookup the current state from the returned object from GetMethod.
+	// Each string is treated as a field name for a nested object. It's expected
+	// the combined path points to a string value. All other paths along the way must be pointers
+	// to structs.
+	// Example: []string{"Status", "State"} would expect the object returned from GetMethod to have a Status
+	// field that is a pointer to a struct. That struct must have a State field. The State field must
+	// be a string.
+	// TODO(dustinspecker): this is only supported for Create methods. Consider adding for Update methods in the future.
+	// TODO(dustinspecker): support slices and other types besides pointers to structs
+	StatePath []string
+	// PendingStates is a list of states that are valid while polling the resource to reach a target state. Any state
+	// that is found that is not in PendingStates or TargetStates is considered a terminal error.
+	PendingStates []string
+	// TargetStates is a list of possible states that indicate a resource is ready for usage while polling. Any state
+	// that is found that is not in PendingStates or TargetStates is considered a terminal error.
+	TargetStates []string
+	// StatePollIntervalSeconds is how long to wait before polling the pending resource again.
+	StatePollIntervalSeconds int
+	// StateTimeoutSeconds is the maximum amount of seconds to wait for a resource to reach a target state.
+	StateTimeoutSeconds int
 }
 
 func (p *payload) CheckAndSetDefaults() error {
@@ -130,6 +172,27 @@ func (p *payload) CheckAndSetDefaults() error {
 	}
 	if p.SchemaPackagePath == "" {
 		p.SchemaPackagePath = "github.com/gravitational/teleport/integrations/terraform/tfschema"
+	}
+	if p.StatePoll != nil {
+		if len(p.StatePoll.StatePath) == 0 {
+			return errors.New("StatePath must be provided when StatePoll is set")
+		}
+
+		if len(p.StatePoll.PendingStates) == 0 {
+			return errors.New("PendingStates must be provided when StatePoll is set")
+		}
+
+		if len(p.StatePoll.TargetStates) == 0 {
+			return errors.New("TargetStates must be provided when StatePoll is set")
+		}
+
+		if p.StatePoll.StatePollIntervalSeconds == 0 {
+			return errors.New("StatePollIntervalSeconds must be provided when StatePoll is set")
+		}
+
+		if p.StatePoll.StateTimeoutSeconds == 0 {
+			return errors.New("StateTimeoutSeconds must be provided when StatePoll is set")
+		}
 	}
 	return nil
 }
@@ -730,6 +793,93 @@ var (
 		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
 		ForceSetKind: "apitypes.KindAppAuthConfig",
 	}
+
+	inferenceModel = payload{
+		Name:                  "InferenceModel",
+		VarName:               "inferenceModel",
+		TypeName:              "InferenceModel",
+		GetMethod:             "SummarizerClient().GetInferenceModel",
+		CreateMethod:          "SummarizerClient().CreateInferenceModel",
+		UpdateMethod:          "SummarizerClient().UpsertInferenceModel",
+		UpsertMethodArity:     2,
+		DeleteMethod:          "SummarizerClient().DeleteInferenceModel",
+		ID:                    "inferenceModel.Metadata.Name",
+		Kind:                  "inference_model",
+		HasStaticID:           false,
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1",
+		ProtoPackage:          "summarizerv1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/summarizer/v1",
+		SchemaPackage:         "schemav1",
+		TerraformResourceType: "teleport_inference_model",
+		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+		// resources are plain structs
+		IsPlainStruct: true,
+		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+		// We import the package containing kinds, then use ForceSetKind.
+		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind: "apitypes.KindInferenceModel",
+	}
+
+	inferenceSecret = payload{
+		Name:                  "InferenceSecret",
+		VarName:               "inferenceSecret",
+		TypeName:              "InferenceSecret",
+		GetMethod:             "SummarizerClient().GetInferenceSecret",
+		CreateMethod:          "SummarizerClient().CreateInferenceSecret",
+		UpdateMethod:          "SummarizerClient().UpsertInferenceSecret",
+		UpsertMethodArity:     2,
+		DeleteMethod:          "SummarizerClient().DeleteInferenceSecret",
+		ID:                    "inferenceSecret.Metadata.Name",
+		Kind:                  "inference_secret",
+		HasStaticID:           false,
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1",
+		ProtoPackage:          "summarizerv1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/summarizer/v1",
+		SchemaPackage:         "schemav1",
+		TerraformResourceType: "teleport_inference_secret",
+		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+		// resources are plain structs
+		IsPlainStruct: true,
+		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+		// We import the package containing kinds, then use ForceSetKind.
+		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		// ExtraImports: []string{
+		// 	"apitypes \"github.com/gravitational/teleport/api/types\"",
+		// 	"\"github.com/hashicorp/terraform-plugin-framework/attr\"",
+		// },
+		ForceSetKind: "apitypes.KindInferenceSecret",
+		// This resource's spec can't be fetched from the server, so its spec state
+		// is save from the plan. It also means we can't support importing the
+		// state from an existing configuration.
+		SaveSpecStateFromPlan: true,
+		WithoutImportState:    true,
+	}
+
+	inferencePolicy = payload{
+		Name:                  "InferencePolicy",
+		VarName:               "inferencePolicy",
+		TypeName:              "InferencePolicy",
+		GetMethod:             "SummarizerClient().GetInferencePolicy",
+		CreateMethod:          "SummarizerClient().CreateInferencePolicy",
+		UpdateMethod:          "SummarizerClient().UpsertInferencePolicy",
+		UpsertMethodArity:     2,
+		DeleteMethod:          "SummarizerClient().DeleteInferencePolicy",
+		ID:                    "inferencePolicy.Metadata.Name",
+		Kind:                  "inference_policy",
+		HasStaticID:           false,
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1",
+		ProtoPackage:          "summarizerv1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/summarizer/v1",
+		SchemaPackage:         "schemav1",
+		TerraformResourceType: "teleport_inference_policy",
+		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+		// resources are plain structs
+		IsPlainStruct: true,
+		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+		// We import the package containing kinds, then use ForceSetKind.
+		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind: "apitypes.KindInferencePolicy",
+	}
 )
 
 func main() {
@@ -797,6 +947,12 @@ func genTFSchema() {
 	generateDataSource(integration, pluralDataSource)
 	generateResource(appAuthConfig, pluralResource)
 	generateDataSource(appAuthConfig, pluralDataSource)
+	generateResource(inferenceModel, pluralResource)
+	generateDataSource(inferenceModel, pluralDataSource)
+	generateResource(inferenceSecret, pluralResource)
+	generateDataSource(inferenceSecret, pluralDataSource)
+	generateResource(inferencePolicy, pluralResource)
+	generateDataSource(inferencePolicy, pluralDataSource)
 }
 
 func generateResource(p payload, tpl string) {

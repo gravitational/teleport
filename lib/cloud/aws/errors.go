@@ -97,5 +97,10 @@ func ConvertIAMError(err error) error {
 		return trace.BadParameter("%s", *malformedPolicyDocument.Message)
 	}
 
+	var limitExceededErr *iamtypes.LimitExceededException
+	if errors.As(err, &limitExceededErr) {
+		return trace.LimitExceeded("%s", *limitExceededErr.Message)
+	}
+
 	return ConvertRequestFailureError(err)
 }

@@ -51,10 +51,21 @@ export const Labels = () => (
       <Label kind="primary" css={{ visibility: 'hidden' }}>
         Primary
       </Label>
-      <Label kind="outline-primary">outline-primary</Label>
-      <Label kind="outline-secondary">outline-secondary</Label>
-      <Label kind="outline-warning">outline-warning</Label>
-      <Label kind="outline-danger">outline-danger</Label>
+      <Label kind="outline-primary" withHoverState>
+        outline-primary
+      </Label>
+      <Label kind="outline-secondary" withHoverState>
+        outline-secondary
+      </Label>
+      <Label kind="outline-success" withHoverState>
+        outline-success
+      </Label>
+      <Label kind="outline-warning" withHoverState>
+        outline-warning
+      </Label>
+      <Label kind="outline-danger" withHoverState>
+        outline-danger
+      </Label>
       <Label kind="success" css={{ visibility: 'hidden' }}>
         Success
       </Label>

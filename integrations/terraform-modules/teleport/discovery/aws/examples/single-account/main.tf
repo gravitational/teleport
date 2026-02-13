@@ -19,7 +19,6 @@ module "aws_discovery" {
   aws_iam_policy_document = data.aws_iam_policy_document.teleport_discovery_service_single_account.json
 }
 
-
 data "aws_iam_policy_document" "teleport_discovery_service_single_account" {
   # read-only discovery
   statement {

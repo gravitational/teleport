@@ -580,7 +580,7 @@ func (a *App) getLoginsByRole(ctx context.Context, req types.AccessRequest) (map
 }
 
 func (a *App) getResourceNames(ctx context.Context, req types.AccessRequest) ([]string, error) {
-	resourceNames := make([]string, 0, len(req.GetRequestedResourceIDs()))
+	resourceNames := make([]string, 0, len(req.GetAllRequestedResourceIDs()))
 	resourcesByCluster := accessrequest.GetResourceIDsByCluster(req)
 
 	for cluster, resources := range resourcesByCluster {

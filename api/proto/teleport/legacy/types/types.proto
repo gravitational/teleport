@@ -23,6 +23,7 @@ import "teleport/attestation/v1/attestation.proto";
 import "teleport/componentfeatures/v1/component_features.proto";
 import "teleport/legacy/types/metadata.proto";
 import "teleport/legacy/types/mfa_device.proto";
+import "teleport/legacy/types/resources.proto";
 import "teleport/legacy/types/trusted_device_requirement.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
@@ -445,7 +446,8 @@ message AWS {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "rdsproxy,omitempty"
   ];
-  // RedshiftServerless contains Amazon Redshift Serverless-specific metadata.
+  // RedshiftServerless contains metatada specific to Amazon Redshift
+  // Serverless.
   RedshiftServerless RedshiftServerless = 9 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "redshift_serverless,omitempty"
@@ -492,7 +494,7 @@ message SecretStore {
   string KMSKeyID = 2 [(gogoproto.jsontag) = "kms_key_id,omitempty"];
 }
 
-// Redshift contains AWS Redshift specific database metadata.
+// Redshift contains metadata specific to Amazon Redshift.
 message Redshift {
   // ClusterID is the Redshift cluster identifier.
   string ClusterID = 1 [(gogoproto.jsontag) = "cluster_id,omitempty"];
@@ -950,6 +952,9 @@ message ServerSpecV2 {
   // component_features represents features supported by this server
   teleport.componentfeatures.v1.ComponentFeatures component_features = 18;
 
+  // The immutable labels assigned to the server when joining. The hash of these labels
+  // is expected to match the hash included in the server's certificate.
+  map<string, string> immutable_labels = 19;
   reserved 8;
   reserved 10;
   reserved "KubernetesClusters";
@@ -3216,7 +3221,7 @@ message AccessRequestSpecV3 {
   // that is not a requirement.
   repeated string SuggestedReviewers = 13 [(gogoproto.jsontag) = "suggested_reviewers,omitempty"];
 
-  // RequestedResourceIDs is a set of resources to which access is being requested.
+  // RequestedResourceIDs is the set of resources to which access is being requested.
   repeated ResourceID RequestedResourceIDs = 14 [
     (gogoproto.jsontag) = "resource_ids,omitempty",
     (gogoproto.nullable) = false
@@ -3275,6 +3280,17 @@ message AccessRequestSpecV3 {
   // LongTermResourceGrouping contains information about how resources can be grouped
   // based on Access List promotions for long-term Access Requests.
   LongTermResourceGrouping LongTermGrouping = 25 [(gogoproto.jsontag) = "long_term_grouping,omitempty"];
+
+  // The set of resources to which access is being requested,
+  // paired with additional information such as ResourceConstraints.
+  // Differs from RequestedResourceIDs, which only identifies resources and cannot be used
+  // to express additional information per-resource such as ResourceConstraints.
+  // When present, RequestedResourceAccessIDs should be treated as authoritative
+  // (ResourceIDs can be derived by mapping to ResourceAccessID.id).
+  repeated ResourceAccessID RequestedResourceAccessIDs = 26 [
+    (gogoproto.jsontag) = "resource_access_ids,omitempty",
+    (gogoproto.nullable) = false
+  ];
 }
 
 // AccessRequestKind represents the kind of Access Request being made (short/long-term).
@@ -3403,23 +3419,6 @@ message RequestKubernetesResource {
   string kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
   // APIGroup specifies the Kubernetes Resource API group.
   string APIGroup = 2 [(gogoproto.jsontag) = "api_group,omitempty"];
-}
-
-// ResourceID is a unique identifier for a teleport resource.
-// Must be kept in sync with teleport.decision.v1alpha1.ResourceId.
-message ResourceID {
-  // ClusterName is the name of the cluster the resource is in.
-  string ClusterName = 1 [(gogoproto.jsontag) = "cluster"];
-  // Kind is the resource kind.
-  string Kind = 2 [(gogoproto.jsontag) = "kind"];
-  // Name is the name of the specific resource.
-  string Name = 3 [(gogoproto.jsontag) = "name"];
-  // SubResourceName is the resource belonging to resource identified by "Name"
-  // that the user is allowed to access to.
-  // When granting access to a subresource, access to other resources is limited.
-  // Currently it just supports resources of Kind=pod and the format is the following
-  // "<kube_namespace>/<kube_pod>".
-  string SubResourceName = 4 [(gogoproto.jsontag) = "sub_resource,omitempty"];
 }
 
 // PluginData stores a collection of values associated with a specific resource.
@@ -4041,6 +4040,20 @@ message RoleConditions {
 
   // MCPPermissions defines MCP servers related permissions.
   MCPPermissions MCP = 46 [(gogoproto.jsontag) = "mcp,omitempty"];
+
+  // LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.
+  repeated string LinuxDesktopLogins = 47 [(gogoproto.jsontag) = "linux_desktop_logins,omitempty"];
+
+  // LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.
+  wrappers.LabelValues LinuxDesktopLabels = 48 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "linux_desktop_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+
+  // LinuxDesktopLabelsExpression is a predicate expression used to allow/deny
+  // access to Linux desktops.
+  string LinuxDesktopLabelsExpression = 49 [(gogoproto.jsontag) = "linux_desktop_labels_expression,omitempty"];
 }
 
 // IdentityCenterAccountAssignment captures an AWS Identity Center account
@@ -7416,6 +7429,13 @@ message PluginOktaSyncSettings {
   // groups to teleport. This doesn't affect how quickly Teleport changes are propagated to Okta if
   // bidirectional sync is enabled. The default value is 30m.
   string time_between_imports = 14;
+
+  // TimeBetweenAssignmentProcessLoops controls the time between periodic iterations of the Okta assignment
+  // processor loop. Teleport reacts asynchronously to Okta permission changes and responds to changes immediately.
+  // This also implements a periodic fallback sync that is triggered periodically to reconcile to the desired state.
+  // For most use cases the default value should NOT be changed.
+  // A blank string results in the default value of 5min.
+  string time_between_assignment_process_loops = 15;
 }
 
 // Defines a set of discord channel IDs

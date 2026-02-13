@@ -209,10 +209,15 @@ func TestIntegrationsCRUDRolesAnywhere(t *testing.T) {
 
 type mockUserTasksLister struct {
 	defaultPageSize int64
+	err             error
 	userTasks       []*usertasksv1.UserTask
 }
 
 func (m *mockUserTasksLister) ListUserTasks(ctx context.Context, pageSize int64, nextToken string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error) {
+	if m.err != nil {
+		return nil, "", m.err
+	}
+
 	var ret []*usertasksv1.UserTask
 	if pageSize == 0 {
 		pageSize = m.defaultPageSize
@@ -975,7 +980,6 @@ func TestGitHubIntegration(t *testing.T) {
 				Integration: uiIntegration,
 			})
 			require.Error(t, err)
-
 		})
 		t.Run("success", func(t *testing.T) {
 			createResp, err := authPack.clt.PostJSON(ctx, endpoint, ui.CreateIntegrationRequest{
@@ -1084,4 +1088,205 @@ func TestGitHubIntegration(t *testing.T) {
 			require.True(t, trace.IsNotFound(err))
 		})
 	})
+}
+
+func TestBuildBriefSummaries(t *testing.T) {
+	mockAwsInt := newMockAWSOIDCIntegration(t, "aws-oidc-1")
+	mockGithubInt := newMockGitHubIntegration(t, "gh")
+
+	mockUserTasks := []*usertasksv1.UserTask{
+		{
+			Spec: &usertasksv1.UserTaskSpec{
+				Integration: mockAwsInt.GetName(),
+				TaskType:    usertasks.TaskTypeDiscoverEC2,
+				State:       usertasks.TaskStateOpen,
+			},
+		},
+		{
+			Spec: &usertasksv1.UserTaskSpec{
+				Integration: mockAwsInt.GetName(),
+				TaskType:    usertasks.TaskTypeDiscoverEKS,
+				State:       usertasks.TaskStateOpen,
+			},
+		},
+	}
+
+	mockDC1 := &discoveryconfig.DiscoveryConfig{
+		Status: discoveryconfig.Status{
+			IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+				mockAwsInt.GetName(): {
+					AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 0},
+					AwsEks: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 3, Enrolled: 0, Failed: 1},
+					AwsRds: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 5, Enrolled: 2, Failed: 2},
+				},
+			},
+		},
+	}
+	mockDC2 := &discoveryconfig.DiscoveryConfig{
+		Status: discoveryconfig.Status{
+			IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+				mockAwsInt.GetName(): {
+					AzureVms: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 0},
+				},
+			},
+		},
+	}
+
+	mockErr := errors.New("test error")
+
+	tests := []struct {
+		name         string
+		utLister     *mockUserTasksLister
+		dcLister     *mockDiscoveryConfigLister
+		integrations []types.Integration
+		expected     map[string]*ui.BriefSummary
+		error        error
+	}{
+		{"Empty Input", &mockUserTasksLister{}, &mockDiscoveryConfigLister{}, nil, map[string]*ui.BriefSummary{}, nil},
+		{
+			"Skips Integrations With No Support",
+			&mockUserTasksLister{},
+			&mockDiscoveryConfigLister{},
+			[]types.Integration{
+				mockAwsInt,
+				mockGithubInt,
+			},
+			map[string]*ui.BriefSummary{
+				mockAwsInt.GetName(): {
+					UnresolvedUserTasks: []ui.UserTask{},
+				},
+			},
+			nil,
+		},
+		{
+			"Collects User Tasks",
+			&mockUserTasksLister{
+				userTasks:       mockUserTasks,
+				defaultPageSize: 100,
+			},
+			&mockDiscoveryConfigLister{},
+			[]types.Integration{
+				mockAwsInt,
+				mockGithubInt,
+			},
+			map[string]*ui.BriefSummary{
+				mockAwsInt.GetName(): {
+					UnresolvedUserTasks: ui.MakeUserTasks(mockUserTasks),
+				},
+			},
+			nil,
+		},
+		{
+			"Counts Discovered Resources",
+			&mockUserTasksLister{},
+			&mockDiscoveryConfigLister{
+				configs: [][]*discoveryconfig.DiscoveryConfig{{mockDC1}, {mockDC2}},
+			},
+			[]types.Integration{
+				mockAwsInt,
+				mockGithubInt,
+			},
+			map[string]*ui.BriefSummary{
+				mockAwsInt.GetName(): {
+					UnresolvedUserTasks: []ui.UserTask{},
+					ResourcesCount: &ui.ResourcesCount{
+						Found:    12,
+						Enrolled: 4,
+						Failed:   3,
+					},
+				},
+			},
+			nil,
+		},
+		{
+			"Error From User Task Lister",
+			&mockUserTasksLister{err: mockErr},
+			&mockDiscoveryConfigLister{},
+			[]types.Integration{
+				mockAwsInt,
+			},
+			nil,
+			mockErr,
+		},
+		{
+			"Error From Discovery Config Lister",
+			&mockUserTasksLister{},
+			&mockDiscoveryConfigLister{err: mockErr},
+			[]types.Integration{
+				mockAwsInt,
+			},
+			nil,
+			mockErr,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual, err := buildBriefSummaries(context.Background(), tt.integrations, tt.utLister, tt.dcLister)
+			require.Equal(t, tt.expected, actual)
+			require.Equal(t, tt.error, trace.Unwrap(err))
+		})
+	}
+}
+
+type mockDiscoveryConfigLister struct {
+	configs [][]*discoveryconfig.DiscoveryConfig
+	err     error
+
+	calls int
+}
+
+func (m *mockDiscoveryConfigLister) ListDiscoveryConfigs(ctx context.Context, pageSize int, nextToken string) ([]*discoveryconfig.DiscoveryConfig, string, error) {
+	m.calls++
+	if m.err != nil {
+		return nil, "", m.err
+	}
+	if len(m.configs) == 0 {
+		return nil, "", nil
+	}
+
+	var page int
+	if nextToken != "" {
+		switch nextToken {
+		case "1":
+			page = 1
+		case "2":
+			page = 2
+		default:
+			page = 0
+		}
+	}
+
+	if page >= len(m.configs) {
+		return nil, "", nil
+	}
+	next := ""
+	if page+1 < len(m.configs) {
+		next = string(rune('0' + (page + 1)))
+	}
+	return m.configs[page], next, nil
+}
+
+func newMockAWSOIDCIntegration(t *testing.T, name string) types.Integration {
+	t.Helper()
+	ig, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: name},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN:     "arn:aws:iam::123456789012:role/test",
+			IssuerS3URI: "s3://bucket/prefix",
+			Audience:    "aws-identity-center",
+		},
+	)
+	require.NoError(t, err)
+	return ig
+}
+
+func newMockGitHubIntegration(t *testing.T, name string) types.Integration {
+	t.Helper()
+	ig, err := types.NewIntegrationGitHub(
+		types.Metadata{Name: name},
+		&types.GitHubIntegrationSpecV1{Organization: "test"},
+	)
+	require.NoError(t, err)
+	return ig
 }

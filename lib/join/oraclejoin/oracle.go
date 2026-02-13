@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
+	"github.com/gravitational/teleport/lib/join/oraclejoin/oraclejoincommon"
 	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -275,7 +276,7 @@ func regionFromInstanceID(instanceID string) (common.Region, error) {
 		return "", trace.BadParameter("instance ID does not have expected format, got %s", instanceID)
 	}
 	regionShortName := chunks[3]
-	region := common.StringToRegion(regionShortName)
+	region := oraclejoincommon.StringToRegion(regionShortName)
 	if _, err := region.RealmID(); err != nil {
 		// StringToRegion always returns something, RealmID will return an
 		// error if it's not a real region.

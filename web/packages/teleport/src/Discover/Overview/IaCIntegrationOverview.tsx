@@ -31,11 +31,9 @@ import {
   ArrowLeft,
   ArrowRight,
   ChevronRight,
-  CircleCheck,
   CircleCross,
   Warning,
 } from 'design/Icon';
-import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
 import { TabBorder, useSlidingBottomBorderTabs } from 'design/Tabs';
 import { HoverTooltip } from 'design/Tooltip';
 import { pluralize } from 'shared/utils/text';
@@ -43,12 +41,20 @@ import { pluralize } from 'shared/utils/text';
 import { FeatureBox } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
 import {
+  ContentWithSidePanel,
+  InfoGuideSwitch,
+  type InfoGuideTab,
+} from 'teleport/Integrations/Enroll/Cloud/Aws/InfoGuide';
+import { SummaryStatusLabel } from 'teleport/Integrations/shared/StatusLabel';
+import { useNoMinWidth } from 'teleport/Main';
+import {
   IntegrationKind,
   integrationService,
   IntegrationWithSummary,
 } from 'teleport/services/integrations';
 
 import { ActivityTab } from './ActivityTab';
+import { SETTINGS_PANEL_WIDTH, SettingsTab } from './SettingsTab';
 import { SmallTab, SmallTabsContainer } from './SmallTabs';
 
 export function formatRelativeDate(value?: string | Date): string {
@@ -67,11 +73,12 @@ export function formatRelativeDate(value?: string | Date): string {
     return displayDateTime(date);
   }
 }
-type TabId = 'overview' | 'activity';
+type TabId = 'overview' | 'activity' | 'settings';
 
 const TABS = [
   { id: 'overview', label: 'Overview' },
-  { id: 'activity', label: 'Activity' },
+  { id: 'activity', label: 'Issues' },
+  { id: 'settings', label: 'Settings' },
 ] as const;
 
 export function IaCIntegrationOverview() {
@@ -89,7 +96,11 @@ export function IaCIntegrationOverview() {
   });
 
   const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [activeInfoGuideTab, setActiveInfoGuideTab] = useState<InfoGuideTab>(
+    'terraform' as const
+  );
   const { borderRef, parentRef } = useSlidingBottomBorderTabs({ activeTab });
+  useNoMinWidth();
 
   if (isLoading) {
     return (
@@ -109,41 +120,62 @@ export function IaCIntegrationOverview() {
     );
   }
 
+  const isPanelOpen = activeTab === 'settings' && activeInfoGuideTab !== null;
+
   return (
     <FeatureBox maxWidth="1400px" pt={3}>
-      <Flex alignItems="center" justifyContent="space-between" mb={3}>
-        <Flex alignItems="center">
-          <HoverTooltip placement="bottom" tipContent="Back to Integrations">
-            <ButtonIcon as={RouterLink} to={cfg.routes.integrations} mr={2}>
-              <ArrowLeft size="medium" />
-            </ButtonIcon>
-          </HoverTooltip>
-          <Text bold fontSize={6} mr={2}>
-            {stats.name}
-          </Text>
+      <ContentWithSidePanel
+        isPanelOpen={isPanelOpen}
+        panelWidth={SETTINGS_PANEL_WIDTH}
+      >
+        <Flex alignItems="center" justifyContent="space-between" mb={3}>
+          <Flex alignItems="center">
+            <HoverTooltip placement="bottom" tipContent="Back to Integrations">
+              <ButtonIcon as={RouterLink} to={cfg.routes.integrations} mr={2}>
+                <ArrowLeft size="medium" />
+              </ButtonIcon>
+            </HoverTooltip>
+            <Text bold fontSize={6} mr={2}>
+              {stats.name}
+            </Text>
+          </Flex>
+          {activeTab === 'settings' && (
+            <InfoGuideSwitch
+              isPanelOpen={activeInfoGuideTab !== null}
+              activeTab={activeInfoGuideTab}
+              onSwitch={setActiveInfoGuideTab}
+            />
+          )}
         </Flex>
-      </Flex>
-      <SmallTabsContainer ref={parentRef} mb={4}>
-        {TABS.map(t => (
-          <SmallTab
-            key={t.id}
-            data-tab-id={t.id}
-            selected={activeTab === t.id}
-            onClick={() => setActiveTab(t.id)}
-          >
-            {t.label}
-          </SmallTab>
-        ))}
-        <TabBorder ref={borderRef} />
-      </SmallTabsContainer>
+        <SmallTabsContainer ref={parentRef} mb={4}>
+          {TABS.map(t => (
+            <SmallTab
+              key={t.id}
+              data-tab-id={t.id}
+              selected={activeTab === t.id}
+              onClick={() => setActiveTab(t.id)}
+            >
+              {t.label}
+            </SmallTab>
+          ))}
+          <TabBorder ref={borderRef} />
+        </SmallTabsContainer>
 
-      {activeTab === 'overview' && (
-        <OverviewTab
-          stats={stats}
-          onViewIssues={() => setActiveTab('activity')}
-        />
-      )}
-      {activeTab === 'activity' && <ActivityTab stats={stats} />}
+        {activeTab === 'overview' && (
+          <OverviewTab
+            stats={stats}
+            onViewIssues={() => setActiveTab('activity')}
+          />
+        )}
+        {activeTab === 'activity' && <ActivityTab stats={stats} />}
+        {activeTab === 'settings' && (
+          <SettingsTab
+            stats={stats}
+            activeInfoGuideTab={activeInfoGuideTab}
+            onInfoGuideTabChange={setActiveInfoGuideTab}
+          />
+        )}
+      </ContentWithSidePanel>
     </FeatureBox>
   );
 }
@@ -186,12 +218,7 @@ function IntegrationHealthCard({
       <Flex flexDirection="column" gap={2}>
         <StatusRow label="Status:">
           <Flex alignItems="center" gap={2} flexWrap="wrap">
-            <LabelButtonWithIcon
-              IconLeft={hasIssues ? Warning : CircleCheck}
-              kind={hasIssues ? 'outline-warning' : 'outline-success'}
-            >
-              {hasIssues ? 'Issues' : 'Healthy'}
-            </LabelButtonWithIcon>
+            <SummaryStatusLabel summary={stats} />
             {hasIssues && (
               <>
                 <Text typography="body3">

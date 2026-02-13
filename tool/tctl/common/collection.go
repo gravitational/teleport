@@ -34,8 +34,6 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
-	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/label"
@@ -51,11 +49,18 @@ import (
 )
 
 func printMetadataLabels(labels map[string]string) string {
-	pairs := []string{}
+	var sb strings.Builder
+	sb.Grow(len(labels) * 4)
+	i := 0
 	for key, value := range labels {
-		pairs = append(pairs, fmt.Sprintf("%v=%v", key, value))
+		sb.WriteString(key + "=" + value)
+
+		if i < len(labels)-1 {
+			sb.WriteRune(',')
+		}
+		i++
 	}
-	return strings.Join(pairs, ",")
+	return sb.String()
 }
 
 type reverseTunnelCollection struct {
@@ -169,37 +174,6 @@ func (c *semaphoreCollection) WriteText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
-type maintenanceWindowCollection struct {
-	cmc types.ClusterMaintenanceConfig
-}
-
-func (c *maintenanceWindowCollection) Resources() (r []types.Resource) {
-	if c.cmc == nil {
-		return nil
-	}
-	return []types.Resource{c.cmc}
-}
-
-func (c *maintenanceWindowCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Type", "Params"})
-
-	agentUpgradeParams := "none"
-
-	if c.cmc != nil {
-		if win, ok := c.cmc.GetAgentUpgradeWindow(); ok {
-			agentUpgradeParams = fmt.Sprintf("utc_start_hour=%d", win.UTCStartHour)
-			if len(win.Weekdays) != 0 {
-				agentUpgradeParams = fmt.Sprintf("%s, weekdays=%s", agentUpgradeParams, strings.Join(win.Weekdays, ","))
-			}
-		}
-	}
-
-	t.AddRow([]string{"Agent Upgrades", agentUpgradeParams})
-
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
 type netRestrictionsCollection struct {
 	netRestricts types.NetworkRestrictions
 }
@@ -282,54 +256,6 @@ func (c *databaseServerCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, c.servers)
 }
 
-type kubeServerCollection struct {
-	servers []types.KubeServer
-}
-
-func (c *kubeServerCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.servers {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *kubeServerCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, server := range c.servers {
-		kube := server.GetCluster()
-		if kube == nil {
-			continue
-		}
-		labels := common.FormatLabels(kube.GetAllLabels(), verbose)
-		rows = append(rows, []string{
-			common.FormatResourceName(kube, verbose),
-			labels,
-			server.GetTeleportVersion(),
-		})
-
-	}
-	headers := []string{"Cluster", "Labels", "Version"}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-	// stable sort by cluster name.
-	t.SortRowsBy([]int{0}, true)
-
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-func (c *kubeServerCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, c.servers)
-}
-
-func (c *kubeServerCollection) writeJSON(w io.Writer) error {
-	return utils.WriteJSONArray(w, c.servers)
-}
-
 type crownJewelCollection struct {
 	items []*crownjewelv1.CrownJewel
 }
@@ -351,47 +277,6 @@ func (c *crownJewelCollection) WriteText(w io.Writer, verbose bool) error {
 		rows = append(rows, []string{item.Metadata.GetName(), item.GetSpec().String(), labels})
 	}
 	headers := []string{"Name", "Spec", "Labels"}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-	// stable sort by name.
-	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type kubeClusterCollection struct {
-	clusters []types.KubeCluster
-}
-
-func (c *kubeClusterCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.clusters {
-		r = append(r, resource)
-	}
-	return r
-}
-
-// writeText formats the dynamic kube clusters into a table and writes them into w.
-// Name          Labels
-// ------------- ----------------------------------------------------------------------------------------------------------
-// cluster1      region=eastus,resource-group=cluster1,subscription-id=subID
-// cluster2      region=westeurope,resource-group=cluster2,subscription-id=subID
-// cluster3      region=northcentralus,resource-group=cluster3,subscription-id=subID
-// cluster4      owner=cluster4,region=southcentralus,resource-group=cluster4,subscription-id=subID
-// If verbose is disabled, labels column can be truncated to fit into the console.
-func (c *kubeClusterCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, cluster := range c.clusters {
-		labels := common.FormatLabels(cluster.GetAllLabels(), verbose)
-		rows = append(rows, []string{
-			common.FormatResourceName(cluster, verbose),
-			labels,
-		})
-	}
-	headers := []string{"Name", "Labels"}
 	var t asciitable.Table
 	if verbose {
 		t = asciitable.MakeTable(headers, rows...)
@@ -636,27 +521,6 @@ func (c *userGroupCollection) WriteText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
-type auditQueryCollection struct {
-	auditQueries []*secreports.AuditQuery
-}
-
-func (c *auditQueryCollection) Resources() []types.Resource {
-	r := make([]types.Resource, len(c.auditQueries))
-	for i, resource := range c.auditQueries {
-		r[i] = resource
-	}
-	return r
-}
-
-func (c *auditQueryCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name", "Title", "Query", "Description"})
-	for _, v := range c.auditQueries {
-		t.AddRow([]string{v.GetName(), v.Spec.Title, v.Spec.Query, v.Spec.Description})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
 type securityReportCollection struct {
 	items []*secreports.Report
 }
@@ -678,28 +542,6 @@ func (c *securityReportCollection) WriteText(w io.Writer, verbose bool) error {
 		}
 		t.AddRow([]string{v.GetName(), v.Spec.Title, strings.Join(auditQueriesNames, ", "), v.Spec.Description})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type vnetConfigCollection struct {
-	vnetConfig *vnet.VnetConfig
-}
-
-func (c *vnetConfigCollection) Resources() []types.Resource {
-	return []types.Resource{types.Resource153ToLegacy(c.vnetConfig)}
-}
-
-func (c *vnetConfigCollection) WriteText(w io.Writer, verbose bool) error {
-	var dnsZoneSuffixes []string
-	for _, dnsZone := range c.vnetConfig.Spec.CustomDnsZones {
-		dnsZoneSuffixes = append(dnsZoneSuffixes, dnsZone.Suffix)
-	}
-	t := asciitable.MakeTable([]string{"IPv4 CIDR range", "Custom DNS Zones"})
-	t.AddRow([]string{
-		c.vnetConfig.GetSpec().GetIpv4CidrRange(),
-		strings.Join(dnsZoneSuffixes, ", "),
-	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
@@ -897,70 +739,6 @@ func (c *healthCheckConfigCollection) WriteText(w io.Writer, verbose bool) error
 
 	// stable sort by name.
 	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type scopedRoleCollection struct {
-	items []*scopedaccessv1.ScopedRole
-}
-
-func (c *scopedRoleCollection) Resources() []types.Resource {
-	out := make([]types.Resource, 0, len(c.items))
-	for _, item := range c.items {
-		out = append(out, types.Resource153ToLegacy(item))
-	}
-	return out
-}
-
-func (c *scopedRoleCollection) WriteText(w io.Writer, verbose bool) error {
-	headers := []string{"Scope", "Name"}
-	var rows [][]string
-	for _, item := range c.items {
-		rows = append(rows, []string{
-			item.GetScope(),
-			item.GetMetadata().GetName(),
-		})
-	}
-
-	t := asciitable.MakeTable(headers, rows...)
-
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type scopedRoleAssignmentCollection struct {
-	items []*scopedaccessv1.ScopedRoleAssignment
-}
-
-func (c *scopedRoleAssignmentCollection) Resources() []types.Resource {
-	out := make([]types.Resource, 0, len(c.items))
-	for _, item := range c.items {
-		out = append(out, types.Resource153ToLegacy(item))
-	}
-	return out
-}
-
-func (c *scopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) error {
-	headers := []string{"Scope", "Name", "User", "Assigns"}
-	var rows [][]string
-
-	for _, item := range c.items {
-		var assigns []string
-		for _, subAssignment := range item.GetSpec().GetAssignments() {
-			assigns = append(assigns, fmt.Sprintf("%s -> %s", subAssignment.GetRole(), subAssignment.GetScope()))
-		}
-
-		rows = append(rows, []string{
-			item.GetScope(),
-			item.GetMetadata().GetName(),
-			item.GetSpec().GetUser(),
-			strings.Join(assigns, ", "),
-		})
-	}
-
-	t := asciitable.MakeTable(headers, rows...)
-
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

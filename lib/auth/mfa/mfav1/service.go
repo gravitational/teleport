@@ -17,6 +17,7 @@
 package mfav1
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"log/slog"
@@ -80,10 +81,17 @@ type Identity interface {
 }
 
 // MFAService defines the interface for managing MFA resources.
+// See lib/auth.MFAService.
 type MFAService interface {
 	CreateValidatedMFAChallenge(ctx context.Context,
 		username string,
 		chal *mfav1.ValidatedMFAChallenge,
+	) (*mfav1.ValidatedMFAChallenge, error)
+
+	GetValidatedMFAChallenge(
+		ctx context.Context,
+		username string,
+		challengeName string,
 	) (*mfav1.ValidatedMFAChallenge, error)
 }
 
@@ -349,7 +357,7 @@ func (s *Service) ValidateSessionChallenge(
 		username,
 		&mfav1.ValidatedMFAChallenge{
 			Kind:    types.KindValidatedMFAChallenge,
-			Version: "v1",
+			Version: types.V1,
 			Metadata: &types.Metadata{
 				Name: req.GetMfaResponse().GetName(),
 			},
@@ -377,14 +385,107 @@ func (s *Service) ValidateSessionChallenge(
 	return &mfav1.ValidateSessionChallengeResponse{}, nil
 }
 
-func validateCreateSessionChallengeRequest(req *mfav1.CreateSessionChallengeRequest) error {
-	payload := req.GetPayload()
-	if payload == nil {
-		return trace.BadParameter("missing CreateSessionChallengeRequest payload")
+// ReplicateValidatedMFAChallenge implements the mfav1.MFAServiceServer.ReplicateValidatedMFAChallenge method.
+func (s *Service) ReplicateValidatedMFAChallenge(
+	ctx context.Context,
+	req *mfav1.ReplicateValidatedMFAChallengeRequest,
+) (*mfav1.ReplicateValidatedMFAChallengeResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	if len(payload.GetSshSessionId()) == 0 {
-		return trace.BadParameter("empty SshSessionId in payload")
+	if !isRemoteProxy(*authCtx) {
+		return nil, trace.AccessDenied("only remote proxy identities can replicate validated MFA challenges")
+	}
+
+	if err := checkReplicateValidatedMFAChallengeRequest(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	currentCluster, err := s.cache.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.GetTargetCluster() != currentCluster.GetClusterName() {
+		return nil,
+			trace.BadParameter(
+				"target cluster %q does not match current cluster %q",
+				req.GetTargetCluster(),
+				currentCluster.GetClusterName(),
+			)
+	}
+
+	chal := &mfav1.ValidatedMFAChallenge{
+		Kind:    types.KindValidatedMFAChallenge,
+		Version: types.V1,
+		Metadata: &types.Metadata{
+			Name: req.GetName(),
+		},
+		Spec: &mfav1.ValidatedMFAChallengeSpec{
+			Payload:       req.GetPayload(),
+			SourceCluster: req.GetSourceCluster(),
+			TargetCluster: req.GetTargetCluster(),
+		},
+	}
+
+	created, err := s.storage.CreateValidatedMFAChallenge(ctx, req.GetUsername(), chal)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &mfav1.ReplicateValidatedMFAChallengeResponse{
+		ReplicatedChallenge: created,
+	}, nil
+}
+
+func (s *Service) VerifyValidatedMFAChallenge(
+	ctx context.Context,
+	req *mfav1.VerifyValidatedMFAChallengeRequest,
+) (*mfav1.VerifyValidatedMFAChallengeResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if b, ok := authCtx.Identity.(authz.BuiltinRole); !ok || (ok && !b.IsServer()) {
+		return nil, trace.AccessDenied("only server identities can verify validated MFA challenges")
+	}
+
+	if err := checkVerifyValidatedMFAChallengeRequest(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	chal, err := s.storage.GetValidatedMFAChallenge(ctx, req.GetUsername(), req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Ensure the source cluster that was initially used to create the challenge matches the source cluster provided in
+	// the request. Performed first to reduce unnecessary information leakage.
+	if req.GetSourceCluster() != chal.GetSpec().GetSourceCluster() {
+		return nil, trace.AccessDenied("request source cluster does not match validated challenge source cluster")
+	}
+
+	// Ensure the payload in the request matches the stored challenge payload for the same type.
+	switch reqPayload := req.GetPayload().GetPayload().(type) {
+	case *mfav1.SessionIdentifyingPayload_SshSessionId:
+		storedSshSessionId := chal.GetSpec().GetPayload().GetSshSessionId()
+		if !bytes.Equal(reqPayload.SshSessionId, storedSshSessionId) {
+			return nil, trace.AccessDenied("request payload does not match validated challenge payload")
+		}
+
+	default:
+		return nil, trace.AccessDenied("unsupported or mismatched payload type in request for this validated challenge")
+	}
+
+	return &mfav1.VerifyValidatedMFAChallengeResponse{}, nil
+}
+
+func validateCreateSessionChallengeRequest(req *mfav1.CreateSessionChallengeRequest) error {
+	if err := checkPayload(req.GetPayload()); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// If either SSO challenge field is set, both must be set.
@@ -604,4 +705,71 @@ func mfaPreferences(pref types.AuthPreference) (*types.U2F, *types.Webauthn, err
 	}
 
 	return u2f, webauthn, nil
+}
+
+func checkReplicateValidatedMFAChallengeRequest(req *mfav1.ReplicateValidatedMFAChallengeRequest) error {
+	switch {
+	case req.GetName() == "":
+		return trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest name")
+
+	case req.GetSourceCluster() == "":
+		return trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest source_cluster")
+
+	case req.GetTargetCluster() == "":
+		return trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest target_cluster")
+
+	case req.GetUsername() == "":
+		return trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest username")
+	}
+
+	if err := checkPayload(req.GetPayload()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func checkVerifyValidatedMFAChallengeRequest(req *mfav1.VerifyValidatedMFAChallengeRequest) error {
+	switch {
+	case req.GetUsername() == "":
+		return trace.BadParameter("missing VerifyValidatedMFAChallengeRequest username")
+
+	case req.GetName() == "":
+		return trace.BadParameter("missing VerifyValidatedMFAChallengeRequest name")
+	}
+
+	if err := checkPayload(req.GetPayload()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func checkPayload(sip *mfav1.SessionIdentifyingPayload) error {
+	switch payload := sip.GetPayload().(type) {
+	case *mfav1.SessionIdentifyingPayload_SshSessionId:
+		if len(payload.SshSessionId) == 0 {
+			return trace.BadParameter("empty SshSessionId in payload")
+		}
+
+	case nil:
+		return trace.NotImplemented("missing or unsupported SessionIdentifyingPayload in request")
+
+	default:
+		return trace.BadParameter("unexpected SessionIdentifyingPayload type %T (this is a bug)", payload)
+	}
+
+	return nil
+}
+
+func isRemoteProxy(authContext authz.Context) bool {
+	if _, ok := authContext.UnmappedIdentity.(authz.RemoteBuiltinRole); !ok {
+		return false
+	}
+
+	if !authContext.Checker.HasRole(string(types.RoleRemoteProxy)) {
+		return false
+	}
+
+	return true
 }
