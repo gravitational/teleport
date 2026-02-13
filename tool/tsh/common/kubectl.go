@@ -535,3 +535,32 @@ func overwriteKubeconfigInEnv(env []string, newPath string) (output []string) {
 	output = append(output, kubeConfigEnvPrefix+newPath)
 	return
 }
+
+// insertDoubleDashAfterKubectl returns a copy of args with "--" inserted immediately after "kubectl"
+// when kubectl flags would otherwise be misinterpreted as tsh flags by kingpin.
+// The "--" is only inserted when "kubectl" is the tsh subcommand (first non-flag argument)
+// and the argument immediately following it starts with "-".
+// See https://github.com/gravitational/teleport/issues/63621 for more details.
+func insertDoubleDashAfterKubectl(args []string) []string {
+	for i, arg := range args {
+		// Skip flags to find the subcommand position.
+		if strings.HasPrefix(arg, "-") {
+			continue
+		}
+		// First non-flag argument is the subcommand.
+		// If it's not "kubectl", then "kubectl" is not the subcommand (e.g. "ssh jake@foo kubectl").
+		if arg != "kubectl" {
+			return args
+		}
+		// Only insert "--" when the next arg starts with "-" to prevent kingpin from parsing it as a tsh flag.
+		if i+1 >= len(args) || !strings.HasPrefix(args[i+1], "-") || args[i+1] == "--" {
+			return args
+		}
+		result := make([]string, 0, len(args)+1)
+		result = append(result, args[:i+1]...)
+		result = append(result, "--")
+		result = append(result, args[i+1:]...)
+		return result
+	}
+	return args
+}
