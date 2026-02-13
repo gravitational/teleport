@@ -20,10 +20,12 @@ import { Link } from 'react-router-dom';
 
 import {
   Box,
-  ButtonBorder,
   ButtonPrimary,
+  ButtonPrimaryBorder,
+  Card,
   Flex,
   H1,
+  H2,
   ResourceIcon,
   Text,
 } from 'design';
@@ -33,7 +35,7 @@ import cfg from 'teleport/config';
 export default function Empty(props: Props) {
   const { canCreate, clusterId, emptyStateInfo } = props;
 
-  const { byline, docsURL, readOnly, title } = emptyStateInfo;
+  const { readOnly, title } = emptyStateInfo;
 
   // always show the welcome for enterprise users who have access to create an app
   if (!canCreate) {
@@ -58,61 +60,91 @@ export default function Empty(props: Props) {
     );
   }
 
+  const showCloud = cfg.isCloud;
+
   return (
-    <Box
-      p={8}
-      pt={5}
-      as={Flex}
-      width="100%"
-      mx="auto"
-      alignItems="center"
-      justifyContent="center"
-    >
-      <Box maxWidth={600}>
-        <Box mb={4} textAlign="center">
-          <ResourceIcon name="server" mx="auto" mb={4} height="160px" />
-          <H1 mb={2}>{title}</H1>
-          <Text fontWeight={400} fontSize={14} style={{ opacity: '0.6' }}>
-            {byline}
-          </Text>
+    <Box p={8} pt={5} width="100%">
+      <Card
+        p={4}
+        maxWidth={showCloud ? '780px' : '390px'}
+        minWidth={showCloud ? '593px' : '390px'}
+        mx="auto"
+      >
+        <Box mb={showCloud ? 4 : 2} textAlign="center">
+          <ResourceIcon name="server" mx="auto" mb={4} height="150px" />
+          <H1>{title}</H1>
         </Box>
-        <Box textAlign="center">
-          <Link
-            to={{
-              pathname: `${cfg.routes.root}/discover`,
-              state: {
-                entity: 'unified_resource',
-              },
-            }}
-            style={{ textDecoration: 'none' }}
-          >
-            <ButtonPrimary width="224px" textTransform="none">
-              Add Resource
-            </ButtonPrimary>
-          </Link>
-          {docsURL && (
-            <ButtonBorder
-              textTransform="none"
-              size="medium"
-              as="a"
-              href={docsURL}
-              target="_blank"
-              width="224px"
-              ml={4}
-              rel="noreferrer"
-            >
-              View Documentation
-            </ButtonBorder>
+        <Flex>
+          {showCloud && (
+            <Pane
+              title="Automatically Discover"
+              text="Use Terraform to connect your AWS, Azure, or GCP accounts to Teleport and automatically discover your resources."
+              button={
+                <ButtonPrimary
+                  as={Link}
+                  to={cfg.getIntegrationsEnrollRoute({ tags: ['terraform'] })}
+                  width="100%"
+                >
+                  Connect Cloud Account
+                </ButtonPrimary>
+              }
+            />
           )}
-        </Box>
-      </Box>
+
+          {showCloud && <Divider />}
+
+          <Pane
+            title={showCloud ? 'Manually Enter' : undefined}
+            text="Browse and add individual servers, databases, or apps one at a time."
+            button={
+              <ButtonPrimaryBorder
+                as={Link}
+                to={{
+                  pathname: cfg.routes.discover,
+                  state: { entity: 'unified_resource' },
+                }}
+                width="100%"
+              >
+                Enroll New Resource
+              </ButtonPrimaryBorder>
+            }
+          />
+        </Flex>
+      </Card>
     </Box>
   );
 }
 
+function Pane({ title, text, button }) {
+  return (
+    <Flex p={4} flex={1} textAlign="left" flexDirection="column">
+      {title && <H2>{title}</H2>}
+      <Text mb={2}>{text}</Text>
+      <Box mt="auto">{button}</Box>
+    </Flex>
+  );
+}
+
+function Divider() {
+  const height = '54px';
+  return (
+    <Flex
+      width="48px"
+      flexDirection="column"
+      alignItems="center"
+      justifyContent="center"
+      flexShrink={0}
+    >
+      <Box width="1px" height={height} bg="text.muted" />
+      <Text my={2} color="text.muted">
+        or
+      </Text>
+      <Box width="1px" height={height} bg="text.muted" />
+    </Flex>
+  );
+}
+
 export type EmptyStateInfo = {
-  byline: string;
-  docsURL?: string;
   readOnly: {
     title: string;
     resource: string;
