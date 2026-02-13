@@ -350,6 +350,9 @@ func (h *Handler) handleStreamableMCP(w http.ResponseWriter, r *http.Request, se
 	}
 
 	r.URL.Path = "/"
+	// We need to reset the `RequestURI` to indicate the reverse proxy to use
+	// the URL (which have the path reset).
+	r.RequestURI = ""
 	return h.handleHttp(w, r, session.session)
 }
 
