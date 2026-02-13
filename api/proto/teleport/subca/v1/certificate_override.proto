@@ -25,8 +25,7 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 // authority, effectively making the Teleport CA into a Sub CA (instead of a
 // self-signed root).
 message CertificateOverride {
-  // SHA256(SubjectPublicKeyInfo DER), printed as a colon separated hex string.
-  // Eg: "AB:CD:EF:...".
+  // SHA256(SubjectPublicKeyInfo DER) printed as hex string.
   //
   // Informative if certificate is present.
   string public_key = 1;
