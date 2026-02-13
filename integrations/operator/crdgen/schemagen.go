@@ -413,6 +413,8 @@ func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSON
 	case field.IsInt64() || field.IsUint64():
 		prop.Type = "integer"
 		prop.Format = "int64"
+	case field.IsFloat() || field.IsDouble():
+		prop.Type = "number"
 	case field.TypeName() == ".wrappers.LabelValues":
 		prop.Type = "object"
 		prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{

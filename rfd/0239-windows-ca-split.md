@@ -1,6 +1,6 @@
 ---
 authors: Alan Parra (alan.parra@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0239 - Windows CA split
@@ -223,8 +223,11 @@ CA rotation.
   - [ ] `tctl status`
   - [ ] `tctl auth export`
   - [ ] `tctl auth sign`
-  - [ ] `tctl auth rotate`
+  - [ ] `tctl auth rotate` (interactive)
+  - [ ] `tctl auth rotate` (non-interactive)
   - [ ] `tctl auth crl`
 - [ ] /webapi/auth/export endpoint
 - [ ] Test plan executed against software keys
+  - [ ] Tested full CA rotation
 - [ ] Test plan executed against Cloud/HSM-backed keys
+  - [ ] Tested full CA rotation

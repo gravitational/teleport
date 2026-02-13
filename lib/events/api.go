@@ -1019,6 +1019,9 @@ const (
 	InferencePolicyUpdateEvent = "inference_policy.update"
 	// InferencePolicyDeleteEvent is emitted when an inference policy resource is deleted.
 	InferencePolicyDeleteEvent = "inference_policy.delete"
+
+	// SessionSummarizedEvent is emitted when a session summary is created.
+	SessionSummarizedEvent = "session.summarized"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

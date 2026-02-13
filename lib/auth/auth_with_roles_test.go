@@ -54,6 +54,7 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/metadata"
@@ -84,6 +85,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/okta/oktatest"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
@@ -11228,4 +11230,207 @@ func TestClusterAlertOperations(t *testing.T) {
 			require.ErrorContains(t, err, "access denied")
 		})
 	})
+}
+
+type inventoryControlStreamHarness struct {
+	server     *auth.ServerWithRoles
+	upstream   apiclient.UpstreamInventoryControlStream
+	downstream apiclient.DownstreamInventoryControlStream
+}
+
+func newInventoryControlStreamHarness(t *testing.T, srv *authtest.AuthServer, serverID, scope, labelHash string, role types.SystemRole) inventoryControlStreamHarness {
+	t.Helper()
+
+	username := serverID + "." + srv.ClusterName
+	identity := authz.BuiltinRole{
+		Role:                  types.RoleInstance,
+		AdditionalSystemRoles: types.SystemRoles{role},
+		Username:              username,
+		ClusterName:           srv.ClusterName,
+		Identity: tlsca.Identity{
+			Username:           username,
+			AgentScope:         scope,
+			ImmutableLabelHash: labelHash,
+		},
+	}
+
+	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(t.Context(), identity))
+	require.NoError(t, err)
+
+	authWithRole := auth.NewServerWithRoles(
+		srv.AuthServer,
+		srv.AuditLog,
+		*authContext,
+	)
+	upstream, downstream := apiclient.InventoryControlStreamPipe()
+
+	t.Cleanup(func() {
+		_ = upstream.Close()
+		_ = downstream.Close()
+	})
+
+	return inventoryControlStreamHarness{
+		server:     authWithRole,
+		upstream:   upstream,
+		downstream: downstream,
+	}
+}
+
+func TestRegisterInventoryControlStreamScopes(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+
+	const serverID = "test-server"
+	const agentScope = "/test/one"
+
+	cases := []struct {
+		name        string
+		helloScope  string
+		expectScope string
+		expectErr   func(error) bool
+	}{
+		{
+			name:        "empty scope defaults to agent scope",
+			helloScope:  "",
+			expectScope: agentScope,
+			expectErr:   nil,
+		},
+		{
+			name:        "matching scope accepted",
+			helloScope:  agentScope,
+			expectScope: agentScope,
+			expectErr:   nil,
+		},
+		{
+			name:       "mismatched scope denied",
+			helloScope: "/test/two",
+			expectErr:  trace.IsAccessDenied,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			h := newInventoryControlStreamHarness(t, srv.AuthServer, serverID, agentScope, "", types.RoleNode)
+			type registerResult struct {
+				hello *proto.UpstreamInventoryHello
+				err   error
+			}
+			resultCh := make(chan registerResult)
+			go func() {
+				hello, err := h.server.RegisterInventoryControlStream(h.upstream)
+				resultCh <- registerResult{hello: hello, err: err}
+			}()
+
+			err := h.downstream.Send(ctx, &proto.UpstreamInventoryHello{
+				ServerID: serverID,
+				Scope:    c.helloScope,
+			})
+			require.NoError(t, err)
+
+			if c.expectErr != nil {
+				result := <-resultCh
+				require.True(t, c.expectErr(result.err), "expected error")
+				return
+			}
+
+			msg := <-h.downstream.Recv()
+			require.IsType(t, *new(*proto.DownstreamInventoryHello), msg)
+
+			result := <-resultCh
+			require.NoError(t, result.err)
+			require.NotNil(t, result.hello)
+			require.Equal(t, c.expectScope, result.hello.GetScope())
+		})
+	}
+}
+
+func TestRegisterInventoryControlStreamImmutableLabels(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	const serverID = "test-server"
+	helloLabels := &joiningv1.ImmutableLabels{
+		Ssh: map[string]string{
+			"test":  "label",
+			"test2": "label2",
+		},
+	}
+	helloHash := joining.HashImmutableLabels(helloLabels)
+
+	srv := newTestTLSServer(t)
+	t.Cleanup(func() { srv.Close() })
+
+	cases := []struct {
+		name        string
+		helloLabels *joiningv1.ImmutableLabels
+		identHash   string
+		expectErr   func(error) bool
+	}{
+		{
+			name:        "matching immutable labels accepted",
+			helloLabels: helloLabels,
+			identHash:   helloHash,
+			expectErr:   nil,
+		},
+		{
+			name:        "no labels with no hash accepted",
+			helloLabels: nil,
+			identHash:   "",
+			expectErr:   nil,
+		},
+		{
+			name:        "immutable labels with different hash denied",
+			helloLabels: helloLabels,
+			identHash:   "some-other-hash",
+			expectErr:   trace.IsAccessDenied,
+		},
+		{
+			name:        "immutable labels with empty hash denied",
+			helloLabels: helloLabels,
+			identHash:   "",
+			expectErr:   trace.IsAccessDenied,
+		},
+		{
+			name:      "nil immutable labels with provided hash denied",
+			identHash: helloHash,
+			expectErr: trace.IsAccessDenied,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			h := newInventoryControlStreamHarness(t, srv.AuthServer, serverID, "", c.identHash, types.RoleNode)
+			type registerResult struct {
+				hello *proto.UpstreamInventoryHello
+				err   error
+			}
+			resultCh := make(chan registerResult)
+			go func() {
+				hello, err := h.server.RegisterInventoryControlStream(h.upstream)
+				resultCh <- registerResult{hello: hello, err: err}
+			}()
+
+			err := h.downstream.Send(ctx, &proto.UpstreamInventoryHello{
+				ServerID:        serverID,
+				ImmutableLabels: c.helloLabels,
+			})
+			require.NoError(t, err)
+
+			if c.expectErr != nil {
+				result := <-resultCh
+				require.True(t, c.expectErr(result.err), "expected error")
+				return
+			}
+
+			msg := <-h.downstream.Recv()
+			require.IsType(t, *new(*proto.DownstreamInventoryHello), msg)
+
+			result := <-resultCh
+			require.NoError(t, result.err)
+			require.NotNil(t, result.hello)
+		})
+	}
 }

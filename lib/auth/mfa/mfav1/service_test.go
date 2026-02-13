@@ -130,7 +130,7 @@ func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
 
 	wantedChallenge := &mfav1.ValidatedMFAChallenge{
 		Kind:    types.KindValidatedMFAChallenge,
-		Version: "v1",
+		Version: types.V1,
 		Metadata: &types.Metadata{
 			Name: challengeResp.GetMfaChallenge().GetName(),
 		},
@@ -253,7 +253,7 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 
 	wantedChallenge := &mfav1.ValidatedMFAChallenge{
 		Kind:    types.KindValidatedMFAChallenge,
-		Version: "v1",
+		Version: types.V1,
 		Metadata: &types.Metadata{
 			Name: challengeResp.GetMfaChallenge().GetName(),
 		},
@@ -316,19 +316,23 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 	for _, testCase := range []struct {
 		name          string
 		req           *mfav1.CreateSessionChallengeRequest
-		expectedError string
+		expectedError error
 	}{
 		{
 			name:          "missing payload",
 			req:           &mfav1.CreateSessionChallengeRequest{Payload: nil},
-			expectedError: "missing CreateSessionChallengeRequest payload",
+			expectedError: trace.NotImplemented("missing or unsupported SessionIdentifyingPayload in request"),
 		},
 		{
 			name: "missing SshSessionId in payload",
 			req: &mfav1.CreateSessionChallengeRequest{
-				Payload: &mfav1.SessionIdentifyingPayload{Payload: nil},
+				Payload: &mfav1.SessionIdentifyingPayload{
+					Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+						SshSessionId: []byte{},
+					},
+				},
 			},
-			expectedError: "empty SshSessionId in payload",
+			expectedError: trace.BadParameter("empty SshSessionId in payload"),
 		},
 		{
 			name: "empty SshSessionId in payload",
@@ -339,7 +343,7 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 					},
 				},
 			},
-			expectedError: "empty SshSessionId in payload",
+			expectedError: trace.BadParameter("empty SshSessionId in payload"),
 		},
 		{
 			name: "SSO challenge missing SsoClientRedirectUrl",
@@ -352,7 +356,7 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 				SsoClientRedirectUrl: "", // missing
 				ProxyAddressForSso:   "proxy.example.com",
 			},
-			expectedError: "missing SsoClientRedirectUrl for SSO challenge",
+			expectedError: trace.BadParameter("missing SsoClientRedirectUrl for SSO challenge"),
 		},
 		{
 			name: "SSO challenge missing ProxyAddressForSso",
@@ -365,13 +369,12 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 				SsoClientRedirectUrl: "https://client/redirect",
 				ProxyAddressForSso:   "", // missing
 			},
-			expectedError: "missing ProxyAddressForSso for SSO challenge",
+			expectedError: trace.BadParameter("missing ProxyAddressForSso for SSO challenge"),
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			resp, err := service.CreateSessionChallenge(ctx, testCase.req)
-			require.True(t, trace.IsBadParameter(err))
-			require.ErrorContains(t, err, testCase.expectedError)
+			require.ErrorIs(t, err, testCase.expectedError)
 			require.Nil(t, resp)
 		})
 	}
@@ -722,6 +725,197 @@ func TestValidateSessionChallenge_WebauthnFailedStorage(t *testing.T) {
 	require.Contains(t, e.Error, "MOCKED TEST ERROR FROM STORAGE LAYER")
 }
 
+func TestReplicateValidatedMFAChallenge_Success(t *testing.T) {
+	t.Parallel()
+
+	_, service, _, user := setupAuthServer(t, nil)
+
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestRemoteBuiltin(types.RoleProxy, targetCluster).I)
+
+	payload := &mfav1.SessionIdentifyingPayload{
+		Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+			SshSessionId: []byte("test-session-id"),
+		},
+	}
+
+	gotResp, err := service.ReplicateValidatedMFAChallenge(ctx, &mfav1.ReplicateValidatedMFAChallengeRequest{
+		Name:          chalName,
+		Payload:       payload,
+		SourceCluster: sourceCluster,
+		TargetCluster: targetCluster,
+		Username:      user.GetName(),
+	})
+	require.NoError(t, err)
+
+	wantedResp := &mfav1.ReplicateValidatedMFAChallengeResponse{
+		ReplicatedChallenge: &mfav1.ValidatedMFAChallenge{
+			Kind:    types.KindValidatedMFAChallenge,
+			Version: types.V1,
+			Metadata: &types.Metadata{
+				Name: chalName,
+			},
+			Spec: &mfav1.ValidatedMFAChallengeSpec{
+				Payload:       payload,
+				SourceCluster: sourceCluster,
+				TargetCluster: targetCluster,
+			},
+		},
+	}
+	require.Empty(
+		t,
+		cmp.Diff(
+			wantedResp,
+			gotResp,
+			cmp.FilterPath(
+				// Ignore expiration time in comparison.
+				func(p cmp.Path) bool {
+					return p.String() == "ReplicatedChallenge.Metadata.Expires"
+				},
+				cmp.Ignore(),
+			),
+		),
+		"ReplicateValidatedMFAChallenge(%s) mismatch (-want +got)", chalName,
+	)
+}
+
+func TestReplicateValidatedMFAChallenge_NonRemoteProxyDenied(t *testing.T) {
+	t.Parallel()
+
+	_, service, _, user := setupAuthServer(t, nil)
+
+	// Use a context with a non-server role.
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
+
+	resp, err := service.ReplicateValidatedMFAChallenge(ctx, &mfav1.ReplicateValidatedMFAChallengeRequest{
+		Name: chalName,
+		Payload: &mfav1.SessionIdentifyingPayload{
+			Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+				SshSessionId: []byte("test-session-id"),
+			},
+		},
+		SourceCluster: sourceCluster,
+		TargetCluster: targetCluster,
+		Username:      "test-user",
+	})
+	require.Error(t, err)
+	require.ErrorIs(t, err, trace.AccessDenied("only remote proxy identities can replicate validated MFA challenges"))
+	require.Nil(t, resp)
+}
+
+func TestReplicateValidatedMFAChallenge_TargetClusterMismatch(t *testing.T) {
+	t.Parallel()
+
+	_, service, _, _ := setupAuthServer(t, nil)
+
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestRemoteBuiltin(types.RoleProxy, targetCluster).I)
+
+	resp, err := service.ReplicateValidatedMFAChallenge(ctx, &mfav1.ReplicateValidatedMFAChallengeRequest{
+		Name: chalName,
+		Payload: &mfav1.SessionIdentifyingPayload{
+			Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+				SshSessionId: []byte("test-session-id"),
+			},
+		},
+		SourceCluster: sourceCluster,
+		TargetCluster: "different-cluster",
+		Username:      "test-user",
+	})
+	require.Error(t, err)
+	require.ErrorIs(t, err, trace.BadParameter(`target cluster "different-cluster" does not match current cluster "test-cluster"`))
+	require.Nil(t, resp)
+}
+
+func TestReplicateValidatedMFAChallenge_InvalidRequest(t *testing.T) {
+	t.Parallel()
+
+	_, service, _, _ := setupAuthServer(t, nil)
+
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestRemoteBuiltin(types.RoleProxy, targetCluster).I)
+
+	validReq := &mfav1.ReplicateValidatedMFAChallengeRequest{
+		Name: chalName,
+		Payload: &mfav1.SessionIdentifyingPayload{
+			Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+				SshSessionId: []byte("test-session-id"),
+			},
+		},
+		SourceCluster: sourceCluster,
+		TargetCluster: targetCluster,
+		Username:      "test-user",
+	}
+
+	for _, testCase := range []struct {
+		name          string
+		req           *mfav1.ReplicateValidatedMFAChallengeRequest
+		expectedError error
+	}{
+		{
+			name: "missing Name",
+			req: func() *mfav1.ReplicateValidatedMFAChallengeRequest {
+				req := *validReq
+				req.Name = ""
+				return &req
+			}(),
+			expectedError: trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest name"),
+		},
+		{
+			name: "missing Payload",
+			req: func() *mfav1.ReplicateValidatedMFAChallengeRequest {
+				req := *validReq
+				req.Payload = nil
+				return &req
+			}(),
+			expectedError: trace.NotImplemented("missing or unsupported SessionIdentifyingPayload in request"),
+		},
+		{
+			name: "missing SourceCluster",
+			req: func() *mfav1.ReplicateValidatedMFAChallengeRequest {
+				req := *validReq
+				req.SourceCluster = ""
+				return &req
+			}(),
+			expectedError: trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest source_cluster"),
+		},
+		{
+			name: "missing TargetCluster",
+			req: func() *mfav1.ReplicateValidatedMFAChallengeRequest {
+				req := *validReq
+				req.TargetCluster = ""
+				return &req
+			}(),
+			expectedError: trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest target_cluster"),
+		},
+		{
+			name: "missing Username",
+			req: func() *mfav1.ReplicateValidatedMFAChallengeRequest {
+				req := *validReq
+				req.Username = ""
+				return &req
+			}(),
+			expectedError: trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest username"),
+		},
+		{
+			name: "empty SshSessionId in Payload",
+			req: func() *mfav1.ReplicateValidatedMFAChallengeRequest {
+				req := *validReq
+				req.Payload = &mfav1.SessionIdentifyingPayload{
+					Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+						SshSessionId: []byte{},
+					},
+				}
+				return &req
+			}(),
+			expectedError: trace.BadParameter("empty SshSessionId in payload"),
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			resp, err := service.ReplicateValidatedMFAChallenge(ctx, testCase.req)
+			require.ErrorIs(t, err, testCase.expectedError)
+			require.Nil(t, resp)
+		})
+	}
+}
+
 func TestVerifyValidatedMFAChallenge_Success(t *testing.T) {
 	t.Parallel()
 
@@ -737,7 +931,7 @@ func TestVerifyValidatedMFAChallenge_Success(t *testing.T) {
 
 	chal := &mfav1.ValidatedMFAChallenge{
 		Kind:    types.KindValidatedMFAChallenge,
-		Version: "v1",
+		Version: types.V1,
 		Metadata: &types.Metadata{
 			Name: chalName,
 		},
@@ -772,7 +966,7 @@ func TestVerifyValidatedMFAChallenge_PayloadMismatch(t *testing.T) {
 
 	chal := &mfav1.ValidatedMFAChallenge{
 		Kind:    types.KindValidatedMFAChallenge,
-		Version: "v1",
+		Version: types.V1,
 		Metadata: &types.Metadata{
 			Name: chalName,
 		},
@@ -820,7 +1014,7 @@ func TestVerifyValidatedMFAChallenge_SourceClusterMismatch(t *testing.T) {
 
 	chal := &mfav1.ValidatedMFAChallenge{
 		Kind:    types.KindValidatedMFAChallenge,
-		Version: "v1",
+		Version: types.V1,
 		Metadata: &types.Metadata{
 			Name: chalName,
 		},
@@ -879,13 +1073,8 @@ func TestVerifyValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 	for _, tc := range []struct {
 		name          string
 		req           *mfav1.VerifyValidatedMFAChallengeRequest
-		expectedError string
+		expectedError error
 	}{
-		{
-			name:          "Nil request",
-			req:           nil,
-			expectedError: "param VerifyValidatedMFAChallengeRequest is nil",
-		},
 		{
 			name: "Missing user",
 			req: &mfav1.VerifyValidatedMFAChallengeRequest{
@@ -894,7 +1083,7 @@ func TestVerifyValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 				Payload:       &mfav1.SessionIdentifyingPayload{Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("test-session-id")}},
 				SourceCluster: sourceCluster,
 			},
-			expectedError: "missing VerifyValidatedMFAChallengeRequest username",
+			expectedError: trace.BadParameter("missing VerifyValidatedMFAChallengeRequest username"),
 		},
 		{
 			name: "Missing name",
@@ -904,7 +1093,7 @@ func TestVerifyValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 				Payload:       &mfav1.SessionIdentifyingPayload{Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("test-session-id")}},
 				SourceCluster: sourceCluster,
 			},
-			expectedError: "missing VerifyValidatedMFAChallengeRequest name",
+			expectedError: trace.BadParameter("missing VerifyValidatedMFAChallengeRequest name"),
 		},
 		{
 			name: "Missing payload",
@@ -914,7 +1103,7 @@ func TestVerifyValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 				Payload:       nil,
 				SourceCluster: sourceCluster,
 			},
-			expectedError: "missing VerifyValidatedMFAChallengeRequest payload",
+			expectedError: trace.NotImplemented("missing or unsupported SessionIdentifyingPayload in request"),
 		},
 		{
 			name: "Empty SshSessionId",
@@ -924,14 +1113,13 @@ func TestVerifyValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 				Payload:       &mfav1.SessionIdentifyingPayload{Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte{}}},
 				SourceCluster: sourceCluster,
 			},
-			expectedError: "empty SshSessionId in payload",
+			expectedError: trace.BadParameter("empty SshSessionId in payload"),
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			resp, err := service.VerifyValidatedMFAChallenge(ctx, tc.req)
 			require.Error(t, err)
-			require.True(t, trace.IsBadParameter(err))
-			require.ErrorContains(t, err, tc.expectedError)
+			require.ErrorIs(t, err, tc.expectedError)
 			require.Nil(t, resp)
 		})
 	}
@@ -983,7 +1171,7 @@ func TestVerifyValidatedMFAChallenge_WebauthnFailedStorage(t *testing.T) {
 
 	chal := &mfav1.ValidatedMFAChallenge{
 		Kind:    types.KindValidatedMFAChallenge,
-		Version: "v1",
+		Version: types.V1,
 		Metadata: &types.Metadata{
 			Name: chalName,
 		},

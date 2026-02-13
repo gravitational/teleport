@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/sshagent"
@@ -216,7 +215,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		req.serverID+":0",
 		req.serverID,
 		tc,
-		modules.GetModules().IsBoringBinary(),
+		h.cfg.Modules.IsBoringBinary(),
 	)
 	if err != nil {
 		// The close error is ignored instead of using [trace.NewAggregate] because
