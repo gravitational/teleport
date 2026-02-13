@@ -60,6 +60,14 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 		if len(token.GetSpec().GetGcp().GetAllow()) == 0 {
 			return trace.BadParameter("gcp configuration must be defined for a scoped token when using the gcp join method")
 		}
+	case types.JoinMethodAzure:
+		if len(token.GetSpec().GetAzure().GetAllow()) == 0 {
+			return trace.BadParameter("azure configuration must be defined for a scoped token when using the azure join method")
+		}
+	case types.JoinMethodAzureDevops:
+		if len(token.GetSpec().GetAzureDevops().GetAllow()) == 0 {
+			return trace.BadParameter("azure_devops configuration must be defined for a scoped token when using the azure_devops join method")
+		}
 	default:
 		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
 	}
@@ -332,6 +340,43 @@ func (t *Token) GetGCPRules() *types.ProvisionTokenSpecV2GCP {
 
 	return &types.ProvisionTokenSpecV2GCP{
 		Allow: allow,
+	}
+}
+
+// GetAzure returns the Azure-specific configuration for this token.
+func (t *Token) GetAzure() *types.ProvisionTokenSpecV2Azure {
+	allow := make([]*types.ProvisionTokenSpecV2Azure_Rule, len(t.scoped.GetSpec().GetAzure().GetAllow()))
+	for i, rule := range t.scoped.GetSpec().GetAzure().GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2Azure_Rule{
+			Subscription:   rule.GetSubscription(),
+			ResourceGroups: rule.GetResourceGroups(),
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2Azure{
+		Allow: allow,
+	}
+}
+
+// GetAzureDevops returns the AzureDevops-specific configuration for this token.
+func (t *Token) GetAzureDevops() *types.ProvisionTokenSpecV2AzureDevops {
+	allow := make([]*types.ProvisionTokenSpecV2AzureDevops_Rule, len(t.scoped.GetSpec().GetAzureDevops().GetAllow()))
+	for i, rule := range t.scoped.GetSpec().GetAzureDevops().GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2AzureDevops_Rule{
+			Sub:               rule.GetSub(),
+			ProjectName:       rule.GetProjectName(),
+			PipelineName:      rule.GetPipelineName(),
+			ProjectID:         rule.GetProjectId(),
+			DefinitionID:      rule.GetDefinitionId(),
+			RepositoryURI:     rule.GetRepositoryUri(),
+			RepositoryVersion: rule.GetRepositoryVersion(),
+			RepositoryRef:     rule.GetRepositoryRef(),
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2AzureDevops{
+		Allow:          allow,
+		OrganizationID: t.scoped.GetSpec().GetAzureDevops().GetOrganizationId(),
 	}
 }
 
