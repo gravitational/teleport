@@ -51,7 +51,8 @@ service SubCAService {
   // specified CA, in preparation for the creation of a CertAuthorityOverride.
   //
   // On clusters that use HSMs this must be called on every Auth server
-  // instance, so it may reach every private key.
+  // instance, so it every private key is covered. Each Auth issues CSRs for all
+  // the private keys it holds.
   //
   // CreateCSR requires cert_authority_override:read+list permissions.
   rpc CreateCSR(CreateCSRRequest) returns (CreateCSRResponse);
