@@ -87,11 +87,7 @@ type AttributeTypeAndValue struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// OID of the ATV.
 	Oid []int32 `protobuf:"varint,1,rep,packed,name=oid,proto3" json:"oid,omitempty"`
-	// Value of the ATV.
-	//
-	// Only string values are supported, similarly to Go's
-	// pkix.AttributeTypeAndValue (see
-	// https://cs.opensource.google/go/go/+/refs/tags/go1.26.0:src/crypto/x509/pkix/pkix.go;l=152).
+	// Value of the ATV. Only string values are supported.
 	Value         string `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

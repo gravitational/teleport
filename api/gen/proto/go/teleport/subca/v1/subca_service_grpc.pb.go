@@ -70,6 +70,9 @@ type SubCAServiceClient interface {
 	// CreateCSR creates certificate signing requests for all certificates of the
 	// specified CA, in preparation for the creation of a CertAuthorityOverride.
 	//
+	// On clusters that use HSMs this must be called on every Auth server
+	// instance, so it may reach every private key.
+	//
 	// CreateCSR requires cert_authority_override:read+list permissions.
 	CreateCSR(ctx context.Context, in *CreateCSRRequest, opts ...grpc.CallOption) (*CreateCSRResponse, error)
 	// UpsertCertAuthorityOverride creates or fully updates a
@@ -221,6 +224,9 @@ func (c *subCAServiceClient) DeleteCertAuthorityOverride(ctx context.Context, in
 type SubCAServiceServer interface {
 	// CreateCSR creates certificate signing requests for all certificates of the
 	// specified CA, in preparation for the creation of a CertAuthorityOverride.
+	//
+	// On clusters that use HSMs this must be called on every Auth server
+	// instance, so it may reach every private key.
 	//
 	// CreateCSR requires cert_authority_override:read+list permissions.
 	CreateCSR(context.Context, *CreateCSRRequest) (*CreateCSRResponse, error)

@@ -35,7 +35,9 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// A certificate public key hash, encoded as SHA256(SubjectPublicKeyInfo DER).
+// A certificate public key hash, encoded as SHA256(SubjectPublicKeyInfo DER),
+// printed as a colon separated hex string.
+// Eg: "AB:CD:EF:...".
 type PublicKeyHash struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Value         string                 `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
