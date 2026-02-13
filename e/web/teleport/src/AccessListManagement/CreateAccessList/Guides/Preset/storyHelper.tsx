@@ -41,6 +41,26 @@ export const Provider = props => {
   );
 };
 
+export const ProviderWithOktaOrigin = props => {
+  const ctx = createTeleportContextE({ customAcl: props.customAcl });
+
+  return (
+    <MemoryRouter
+      initialEntries={[
+        { pathname: '/', state: { oktaOrgUrl: 'https://example.okta.com' } },
+      ]}
+    >
+      <ContextProvider ctx={ctx}>
+        <AccessListManagementContextProvider>
+          <CreateAccessListContextProvider>
+            {props.children}
+          </CreateAccessListContextProvider>
+        </AccessListManagementContextProvider>
+      </ContextProvider>
+    </MemoryRouter>
+  );
+};
+
 export const sharedHandlers: HttpHandler[] = [
   http.get(cfg.oss.api.usersPath, () => {
     return HttpResponse.json([{ name: 'alice' }]);

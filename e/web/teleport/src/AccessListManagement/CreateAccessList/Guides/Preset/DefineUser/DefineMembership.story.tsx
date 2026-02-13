@@ -3,7 +3,12 @@ import { useEffect } from 'react';
 
 import cfg from 'e-teleport/config';
 
-import { ComponentWithPreset, Provider, sharedHandlers } from '../storyHelper';
+import {
+  ComponentWithPreset,
+  Provider,
+  ProviderWithOktaOrigin,
+  sharedHandlers,
+} from '../storyHelper';
 import { DefineMembership } from './DefineMembership';
 
 const defaultIsEnterprise = cfg.oss.isEnterprise;
@@ -59,6 +64,23 @@ export const ShortTerm: StoryObj = {
           <DefineMembership />
         </ComponentWithPreset>
       </Provider>
+    );
+  },
+};
+
+export const OktaOriginNoAccessLists: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: sharedHandlers,
+    },
+  },
+  render() {
+    return (
+      <ProviderWithOktaOrigin>
+        <ComponentWithPreset preset="long-term">
+          <DefineMembership />
+        </ComponentWithPreset>
+      </ProviderWithOktaOrigin>
     );
   },
 };

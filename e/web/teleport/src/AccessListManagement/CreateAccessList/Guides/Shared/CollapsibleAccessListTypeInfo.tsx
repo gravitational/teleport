@@ -5,16 +5,19 @@ import { CollapsibleInfoSection } from 'design/CollapsibleInfoSection';
 import { OktaIntegrationStepType } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
 import cfg from 'teleport/config';
 
+import { ResumableCreateAccessListState } from '../../route';
 import { UserTypeOption } from '../../types';
 import { Okta, UserCategory } from './types';
 
 export function CollapsibleAccessListTypeInfo({
   userTypeOption,
   userCategory,
+  resumableState,
   okta,
 }: {
   userTypeOption: UserTypeOption;
   userCategory: UserCategory;
+  resumableState: ResumableCreateAccessListState;
   okta?: Okta;
 }) {
   let Info;
@@ -42,7 +45,13 @@ export function CollapsibleAccessListTypeInfo({
 
   if (userTypeOption.value === 'access-lists') {
     label = `What is ${userCategory} type Access Lists?`;
-    Info = <NestedAccessListInfo userCategory={userCategory} okta={okta} />;
+    Info = (
+      <NestedAccessListInfo
+        userCategory={userCategory}
+        okta={okta}
+        resumableState={resumableState}
+      />
+    );
   }
 
   if (userTypeOption.value === 'okta-access-lists') {
@@ -59,7 +68,10 @@ export function CollapsibleAccessListTypeInfo({
           </ExternalLink>{' '}
           groups and applications with assignments.{' '}
         </Text>
-        <NestedAccessListInfo userCategory={userCategory} />
+        <NestedAccessListInfo
+          userCategory={userCategory}
+          resumableState={resumableState}
+        />
       </Stack>
     );
   }
@@ -82,9 +94,11 @@ const nestedAccessListDoc =
 function NestedAccessListInfo({
   userCategory,
   okta,
+  resumableState,
 }: {
   userCategory: UserCategory;
   okta?: Okta;
+  resumableState: ResumableCreateAccessListState;
 }) {
   let oktaInfo;
   if (okta && !okta.hasPlugin) {
@@ -95,7 +109,10 @@ function NestedAccessListInfo({
         wrapContents
         primaryAction={{
           content: 'Enroll Okta Integration',
-          linkTo: cfg.getIntegrationEnrollRoute('okta'),
+          linkTo: {
+            pathname: cfg.getIntegrationEnrollRoute('okta'),
+            state: resumableState,
+          },
         }}
         details={
           <>
@@ -127,7 +144,10 @@ function NestedAccessListInfo({
         wrapContents
         primaryAction={{
           content: 'Enable Okta Apps and Groups Sync',
-          linkTo: cfg.getIntegrationEnrollRoute('okta', step),
+          linkTo: {
+            pathname: cfg.getIntegrationEnrollRoute('okta', step),
+            state: resumableState,
+          },
         }}
         details={
           <>

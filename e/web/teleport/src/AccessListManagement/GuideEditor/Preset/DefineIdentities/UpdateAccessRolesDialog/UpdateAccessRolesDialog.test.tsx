@@ -68,6 +68,9 @@ function mockGuideEditor() {
         definedAccessInAnyRoleCondition: jest.fn().mockReturnValue(false),
         undoEditRoleChanges: jest.fn(),
         isEditing: false,
+        getResumableState: jest.fn(),
+        originatedFromOkta: false,
+        removeLocationState: jest.fn(),
       } as GuideEditorState,
     } as any);
 

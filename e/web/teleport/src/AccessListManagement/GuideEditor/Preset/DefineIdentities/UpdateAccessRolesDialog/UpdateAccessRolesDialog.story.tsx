@@ -131,6 +131,9 @@ const mockGuideEditor: GuideEditorState = {
   undoEditRoleChanges: () => {},
   isEditing: false,
   getRolesToSave: () => [],
+  removeLocationState: () => null,
+  getResumableState: () => null,
+  originatedFromOkta: false,
 };
 
 const mockContextValue: AccessListManagementContextValue = {

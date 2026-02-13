@@ -13,17 +13,33 @@ import { AccessListManagementContextProvider } from 'e-teleport/AccessListManage
 import cfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { AccessGraphDemoProvider } from 'e-teleport/Roles/AccessGraphDemoContext';
+import {
+  AccessListMemberKind,
+  ReviewDayOfMonth,
+  ReviewFrequency,
+} from 'e-teleport/services/accessmanagement';
 import TeleportEContext from 'e-teleport/teleportContextE';
 import { ContextProvider } from 'teleport';
 import { InfoGuideSidePanel } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import { UserContextProvider } from 'teleport/User';
 
 import {
+  AwsIcAppLabel,
+  AwsIcRoleConditions,
+} from '../GuideEditor/Preset/role/conditions/awsic';
+import {
+  defaultStandardRoleConditions,
+  StandardRoleConditions,
+} from '../GuideEditor/Preset/role/conditions/standard';
+import { emptyRequiredAppIdentitiesWithFetchResult } from '../GuideEditor/Preset/role/resources/app';
+import {
   fetchUnifiedResources,
   makeHandlers,
 } from '../GuideEditor/Preset/TestHelper/mocks';
+import { reviewDayOfMonthOpts, reviewFrequencyOpts } from '../Shared/Audit';
 import { CreateAccessList } from './CreateAccessList';
 import { CreateAccessListContextProvider } from './CreateAccessListContextProvider';
+import { ResumableCreateAccessListState } from './route';
 
 const defaultIsEnterpriseFlag = cfg.oss.isEnterprise;
 const defaultAccessListentitlement = cfg.oss.entitlements.AccessLists;
@@ -461,11 +477,205 @@ describe('going through different guides', () => {
       accessRoles: [],
     });
   });
+
+  test('resumability from last step via URL location state', async () => {
+    const user = userEvent.setup({ delay: null });
+
+    let createAccessListRequest: unknown;
+    const createdAccessListId = 'created-access-list-id';
+    server.use(
+      http.post(accessListPresetPath, async ({ request }) => {
+        createAccessListRequest = await request.json();
+        return HttpResponse.json({
+          accessList: {
+            spec: {
+              ...getExpectedRequest(),
+              title: 'Resumed Access List',
+              description: 'Testing resumability',
+            },
+            metadata: { name: createdAccessListId },
+          },
+          members: [],
+        });
+      })
+    );
+
+    const ctx = createTeleportContextE();
+
+    const resumableStandardConditions: StandardRoleConditions = {
+      ...defaultStandardRoleConditions(),
+      app_labels: { env: 'prod', team: 'engineering' },
+      db_labels: { tier: 'primary' },
+      node_labels: { region: 'us-west-2' },
+      aws_role_arns: ['arn:aws:iam::123456789:role/admin'],
+      azure_identities: ['/subscriptions/sub-id/providers/Microsoft.Compute'],
+      logins: ['root', 'ubuntu'],
+      db_names: ['postgres', 'mysql'],
+      db_users: ['admin'],
+    };
+
+    const resumableAwsIcDontidions: AwsIcRoleConditions = {
+      labels: AwsIcAppLabel,
+      account: new Map([
+        ['111122223333', new Set(['arn:aws:sso:::permissionSet/ps-admin'])],
+        [
+          '444455556666',
+          new Set([
+            'arn:aws:sso:::permissionSet/ps-readonly',
+            'arn:aws:sso:::permissionSet/ps-developer',
+          ]),
+        ],
+      ]),
+    };
+
+    const resumableState: ResumableCreateAccessListState = {
+      oktaOrgUrl: '',
+      preset: 'short-term',
+      resumeStep: 4,
+      standardRoleConditions: resumableStandardConditions,
+      requiredAppIdentities: emptyRequiredAppIdentitiesWithFetchResult(),
+      awsIcRoleConditions: resumableAwsIcDontidions,
+
+      spec: {
+        title: 'Resumed Access List',
+        description: 'Testing resumability',
+        reviewDayOfMonth: reviewDayOfMonthOpts.find(
+          o => o.value === ReviewDayOfMonth.FifteenthDayOfMonth
+        ),
+        reviewFrequency: reviewFrequencyOpts.find(
+          o => o.value === ReviewFrequency.OneYear
+        ),
+        auditStartDate: new Date('2025-01-20T00:00:00.000Z'),
+      },
+      owners: {
+        selectedRolesRequired: [{ value: 'admin', label: 'admin' }],
+        eligibleOwners: [],
+        selectedOwners: [
+          {
+            value: {
+              name: 'bob',
+              membershipKind: AccessListMemberKind.User,
+            },
+            label: 'bob',
+          },
+        ],
+        traitLabels: [],
+        traitLookup: {},
+      },
+      ownerGrant: {
+        rolesToGrant: [],
+        traitsToGrant: [],
+      },
+      members: {
+        selectedRolesRequired: [{ value: 'developer', label: 'developer' }],
+        eligibleMembers: [],
+        selectedMembers: [
+          {
+            value: {
+              name: '1',
+              membershipKind: AccessListMemberKind.List,
+            },
+            label: 'All Employees',
+          },
+        ],
+        traitLabels: [],
+        traitLookup: {},
+      },
+      memberGrant: {
+        rolesToGrant: [],
+        traitsToGrant: [],
+      },
+    };
+
+    renderComponent(ctx, resumableState);
+
+    // Should start at Define Ownership step
+    await screen.findByText(/who should review access requests/i);
+
+    // Complete the flow
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByText(/Resumed Access List successfully created/i);
+
+    // Verify the request contains the resumed state data including role conditions
+    expect(createAccessListRequest).toEqual(
+      expect.objectContaining({
+        presetType: 'short-term',
+        accessList: expect.objectContaining({
+          spec: expect.objectContaining({
+            title: 'Resumed Access List',
+            description: 'Testing resumability',
+            audit: expect.objectContaining({
+              next_audit_date: '2025-01-20T00:00:00.000Z',
+              recurrence: expect.objectContaining({
+                day_of_month: '15',
+                frequency: '12m',
+              }),
+            }),
+            ownership_requires: expect.objectContaining({
+              roles: ['admin'],
+            }),
+            owners: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'bob',
+                membership_kind: 'MEMBERSHIP_KIND_USER',
+              }),
+            ]),
+            membership_requires: expect.objectContaining({
+              roles: ['developer'],
+            }),
+          }),
+          members: expect.arrayContaining([
+            expect.objectContaining({
+              name: '1',
+              membership_kind: 'MEMBERSHIP_KIND_LIST',
+            }),
+          ]),
+        }),
+        accessRoles: expect.arrayContaining([
+          expect.objectContaining({
+            metadata: expect.objectContaining({ name: 'access-standard' }),
+            spec: expect.objectContaining({
+              allow: expect.objectContaining(resumableStandardConditions),
+            }),
+          }),
+          expect.objectContaining({
+            metadata: expect.objectContaining({ name: 'access-awsic' }),
+            spec: expect.objectContaining({
+              allow: expect.objectContaining({
+                app_labels: AwsIcAppLabel,
+                account_assignments: expect.arrayContaining([
+                  {
+                    account: '111122223333',
+                    permission_set: 'arn:aws:sso:::permissionSet/ps-admin',
+                  },
+                  {
+                    account: '444455556666',
+                    permission_set: 'arn:aws:sso:::permissionSet/ps-readonly',
+                  },
+                  {
+                    account: '444455556666',
+                    permission_set: 'arn:aws:sso:::permissionSet/ps-developer',
+                  },
+                ]),
+              }),
+            }),
+          }),
+        ]),
+      })
+    );
+  });
 });
 
-function renderComponent(ctx: TeleportEContext) {
+function renderComponent(
+  ctx: TeleportEContext,
+  locationState?: ResumableCreateAccessListState
+) {
   return render(
-    <MemoryRouter>
+    <MemoryRouter
+      initialEntries={[
+        { pathname: cfg.routes.accessListNew, state: locationState },
+      ]}
+    >
       <QueryClientProvider client={testQueryClient}>
         <InfoGuidePanelProvider>
           <AccessGraphDemoProvider>

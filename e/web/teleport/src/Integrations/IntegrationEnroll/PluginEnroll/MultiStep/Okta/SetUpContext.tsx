@@ -4,8 +4,11 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useState,
 } from 'react';
+import { useLocation } from 'react-router';
 
+import { ResumableCreateAccessListState } from 'e-teleport/AccessListManagement/CreateAccessList/route';
 import {
   OktaIntegrationStepType,
   type OktaIntegrationLevelStep,
@@ -28,6 +31,7 @@ interface OktaIntegrationSetUpContextValue extends OktaIntegrationSetUpContextPr
   getPreviousStep: (
     currentStepType: OktaIntegrationStepType
   ) => OktaIntegrationLevelStep | undefined;
+  preservedLocationState: ResumableCreateAccessListState | undefined;
 }
 
 const OktaIntegrationSetUpContext =
@@ -38,12 +42,23 @@ const OktaIntegrationSetUpContext =
     startFrom: undefined,
     getNextStep: () => undefined,
     getPreviousStep: () => undefined,
+    preservedLocationState: undefined,
   });
 
 export const OktaIntegrationSetUpContextProvider = (
   props: PropsWithChildren<OktaIntegrationSetUpContextProviderProps>
 ) => {
   const { steps } = props;
+
+  const loc = useLocation<ResumableCreateAccessListState>();
+
+  /**
+   * Saves location state on initial render.
+   * Navigating between steps uses history.push that
+   * loses this location state that is needed after
+   * a user completes the flow.
+   */
+  const [preservedLocationState] = useState(loc.state);
 
   const enabledSteps = useMemo(
     () => steps.filter(step => step.enabled),
@@ -96,6 +111,7 @@ export const OktaIntegrationSetUpContextProvider = (
         ...props,
         getNextStep,
         getPreviousStep,
+        preservedLocationState,
       }}
     >
       {props.children}

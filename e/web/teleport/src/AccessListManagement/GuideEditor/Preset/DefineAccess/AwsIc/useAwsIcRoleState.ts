@@ -4,9 +4,11 @@ import {
   UseQueryResult,
 } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useLocation } from 'react-router';
 
 import { UnifiedResourceApp } from 'shared/components/UnifiedResources';
 
+import { ResumableAwsIcRoleState } from 'e-teleport/AccessListManagement/CreateAccessList/route';
 import cfg from 'teleport/config';
 import { PermissionSet } from 'teleport/services/apps';
 import ResourceService, { Role } from 'teleport/services/resources';
@@ -107,10 +109,12 @@ export type AwsIcRoleState = {
  * AWS IC applications.
  */
 export function useAwsIcRoleState(): AwsIcRoleState {
+  const loc = useLocation<ResumableAwsIcRoleState>();
+
   const [roleEditState, setRoleEditState] = useState<RoleEditState | null>();
 
-  const [roleConditions, setRoleConditions] = useState(() =>
-    defaultAwsIcRoleConditions()
+  const [roleConditions, setRoleConditions] = useState(
+    () => loc.state?.awsIcRoleConditions ?? defaultAwsIcRoleConditions()
   );
 
   const fetchedApps = useQuery({

@@ -62,6 +62,7 @@ export function AccessListTypeInfo(props: StoryProps) {
       <CollapsibleAccessListTypeInfo
         userCategory={props.userCategory}
         userTypeOption={userTypeOption}
+        resumableState={{} as any} // not used
         okta={{
           hasPlugin: props.hasOktaPlugin,
           hasAppGroupSyncEnabled: props.hasOktaAppGroupSyncEnabled,

@@ -1,6 +1,7 @@
+import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 
-import { Alert, Box, ButtonIcon, Flex, H1, Text } from 'design';
+import { Alert, Box, ButtonIcon, Flex, H1, Indicator, Text } from 'design';
 import { ChevronDown, ChevronRight } from 'design/Icon';
 import { FieldSelect } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
@@ -18,7 +19,12 @@ import {
   TraitsCreator,
 } from 'e-teleport/AccessListManagement/Traits';
 import { useFetch } from 'e-teleport/AccessListManagement/useFetch';
-import { AccessListMemberKind } from 'e-teleport/services/accessmanagement';
+import {
+  AccessListMemberKind,
+  AccessListOrigin,
+  accessManagementService,
+} from 'e-teleport/services/accessmanagement';
+import cfg from 'teleport/config';
 
 import { useCreateAccessList } from '../../../CreateAccessListContextProvider';
 import {
@@ -41,15 +47,34 @@ export function DefineUserTemplate({
 }) {
   const { fetchUsersOptions, fetchAccessListsOptions } = useFetch();
 
-  const { onCreate, createAttempt, owners, setOwners, members, setMembers } =
-    useCreateAccessList();
+  const {
+    onCreate,
+    createAttempt,
+    owners,
+    setOwners,
+    members,
+    setMembers,
+    getResumableAccessListState,
+  } = useCreateAccessList();
 
   const { guideEditor, oktaPluginAttempt } = useAccessListManagementContext();
-  const { nextStep, preset, currentStep } = guideEditor;
+  const {
+    nextStep,
+    preset,
+    currentStep,
+    originatedFromOkta,
+    removeLocationState,
+  } = guideEditor;
 
   const [userType, setUserType] = useState<UserTypeOption>(() => {
     return userTypeOptions.find(m => m.value === 'access-lists');
   });
+
+  /**
+   * When unique, triggers the react select async component to
+   * re-load it's initial options.
+   */
+  const [rerenderKey, setRerenderKey] = useState('');
 
   const [expanded, setExpanded] = useState(false);
   const ArrowIcon = expanded ? ChevronDown : ChevronRight;
@@ -250,6 +275,59 @@ export function DefineUserTemplate({
     nextStep();
   }
 
+  const oktaOriginatedAccessLists = useQuery({
+    queryKey: ['get', 'okta', 'access-lists'],
+    queryFn: async () => {
+      const resp = await accessManagementService.fetchAccessListsV2({
+        origin: 'okta',
+        /**
+         * TODO(kimlisa): Remove "search: okta" field by v20. The origin
+         * filter param was added to proxy v18.7 and should be the standard
+         * when querying for okta originated access lists.
+         */
+        search: 'okta',
+        /**
+         * TODO(kimlisa): Remove limit by v20. Limit was increased to
+         * increase the chance that the access lists returned includes okta
+         * originated access lists from proxy version <18.7 (where origin is
+         * not supported). This is an attempt to handle the edge case where an
+         * access list can have "search keywords" that includes okta but is NOT
+         * originated from okta (unlikely that all 100 lists will end up not
+         * okta origin)
+         */
+        limit: 100,
+      });
+      const gotAccessLists = resp.agents;
+      /**
+       * TODO(kimlisa): Remove "if" by v20. Unnecessary check since by v20 the
+       * origin query filter has full support.
+       */
+      if (gotAccessLists.some(al => al.origin === AccessListOrigin.Okta)) {
+        setRerenderKey(crypto.randomUUID());
+        removeLocationState();
+        return gotAccessLists;
+      }
+      return [];
+    },
+    gcTime: 0,
+    enabled: originatedFromOkta,
+  });
+
+  // Render loader only on the first query.
+  if (originatedFromOkta && oktaOriginatedAccessLists.isLoading) {
+    return (
+      <GuideContent withMaxWidth>
+        <H1>
+          Step {currentStep + 1}: {headerText}
+        </H1>
+        {HeaderDesc}
+        <Box textAlign="center" m={10}>
+          <Indicator />
+        </Box>
+      </GuideContent>
+    );
+  }
+
   return (
     <Validation>
       {({ validator }) => (
@@ -260,6 +338,39 @@ export function DefineUserTemplate({
             </H1>
 
             {HeaderDesc}
+
+            {originatedFromOkta &&
+              oktaOriginatedAccessLists.isSuccess &&
+              !oktaOriginatedAccessLists.data?.length && (
+                <Alert
+                  mb={6}
+                  kind="info"
+                  wrapContents
+                  secondaryAction={{
+                    content: 'Go back to Okta Status Page',
+                    linkTo: cfg.getIntegrationStatusRoute('okta', 'okta'),
+                  }}
+                  primaryAction={{
+                    content: 'Reload List',
+                    onClick: () => oktaOriginatedAccessLists.refetch(),
+                  }}
+                >
+                  Either your Okta integration has not finished syncing Apps and
+                  User Groups as access lists or there was nothing to sync. The
+                  sync can take about a minute.
+                </Alert>
+              )}
+
+            {oktaOriginatedAccessLists.error && (
+              <Alert
+                primaryAction={{
+                  content: 'Retry',
+                  onClick: () => oktaOriginatedAccessLists.refetch(),
+                }}
+              >
+                {oktaOriginatedAccessLists.error.message}
+              </Alert>
+            )}
 
             {createAttempt.status === 'failed' && (
               <Alert>{createAttempt.statusText}</Alert>
@@ -276,13 +387,20 @@ export function DefineUserTemplate({
                 mb={3}
               />
               <Box width="71%">
-                <EligibleUsersFieldSelect {...eligibleUsersProps} />
+                <EligibleUsersFieldSelect
+                  key={rerenderKey}
+                  {...eligibleUsersProps}
+                />
               </Box>
             </Flex>
 
             <CollapsibleAccessListTypeInfo
               userTypeOption={userType}
               userCategory={userKind}
+              resumableState={{
+                ...guideEditor.getResumableState(),
+                ...getResumableAccessListState(),
+              }}
               okta={{
                 hasPlugin: Boolean(oktaPluginAttempt?.data),
                 hasAppGroupSyncEnabled:

@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { useLocation } from 'react-router';
 
 import { AppSubKind } from 'shared/services';
 
+import { ResumableStandardRoleState } from 'e-teleport/AccessListManagement/CreateAccessList/route';
 import { App, CloudInstance } from 'teleport/services/apps';
 import { Labels, Role } from 'teleport/services/resources';
 
@@ -201,15 +203,19 @@ export type StandardRoleState = {
  * Manages role condition state for standard resources.
  */
 export function useStandardRoleState(): StandardRoleState {
+  const loc = useLocation<ResumableStandardRoleState>();
+
   const [roleEditState, setRoleEditState] = useState<RoleEditState | null>();
 
-  const [roleConditions, setRoleConditions] = useState(() =>
-    defaultStandardRoleConditions()
+  const [roleConditions, setRoleConditions] = useState(
+    () => loc.state?.standardRoleConditions ?? defaultStandardRoleConditions()
   );
 
   const [requiredAppIdentities, setRequiredAppIdentities] =
-    useState<RequiredAppIdentitiesWithFetchResult>(() =>
-      emptyRequiredAppIdentitiesWithFetchResult()
+    useState<RequiredAppIdentitiesWithFetchResult>(
+      () =>
+        loc.state?.requiredAppIdentities ??
+        emptyRequiredAppIdentitiesWithFetchResult()
     );
 
   function reset() {

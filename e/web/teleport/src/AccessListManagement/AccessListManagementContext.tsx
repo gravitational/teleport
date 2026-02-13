@@ -153,6 +153,9 @@ export const AccessListManagementContext =
       undoEditRoleChanges: () => {},
       isEditing: false,
       getRolesToSave: () => [],
+      getResumableState: () => null,
+      removeLocationState: () => null,
+      originatedFromOkta: false,
     },
     oktaPluginAttempt: undefined,
   });

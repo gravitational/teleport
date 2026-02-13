@@ -1,8 +1,13 @@
 import { useState } from 'react';
+import { useHistory, useLocation } from 'react-router';
 
 import { AccessListPreset } from 'e-teleport/services/accessmanagement/preset';
 import { Role, RoleVersion } from 'teleport/services/resources';
 
+import {
+  ResumableGuideEditorState,
+  ResumableGuideState,
+} from '../CreateAccessList/route';
 import {
   AwsIcRoleState,
   useAwsIcRoleState,
@@ -88,6 +93,20 @@ export type GuideEditorState = {
    * Returns a list of roles to update.
    */
   getRolesToSave(): Role[];
+  /**
+   * Returns the current editor state that can be passed to location state.
+   * Used to support resuming a flow when navigating away from guide and
+   * coming back to it (e.g: enroll okta integration -> resume guide).
+   */
+  getResumableState(): ResumableGuideState;
+  /**
+   * True if user came from okta integration.
+   */
+  originatedFromOkta: boolean;
+  /**
+   * Removes location state.
+   */
+  removeLocationState(): void;
 };
 
 /**
@@ -104,8 +123,15 @@ export type GuideEditorState = {
  *   access list
  */
 export function useGuideEditor(): GuideEditorState {
-  const [preset, setPreset] = useState<AccessListPreset>();
-  const [currentStep, setCurrentStep] = useState(0);
+  const history = useHistory();
+  const loc = useLocation<ResumableGuideEditorState>();
+
+  const [preset, setPreset] = useState<AccessListPreset>(
+    () => loc.state?.preset ?? null
+  );
+  const [currentStep, setCurrentStep] = useState(
+    () => loc.state?.resumeStep ?? 0
+  );
 
   const awsIcRoleState = useAwsIcRoleState();
   const standardRoleState = useStandardRoleState();
@@ -116,6 +142,14 @@ export function useGuideEditor(): GuideEditorState {
 
     awsIcRoleState.reset();
     standardRoleState.reset();
+
+    removeLocationState();
+  }
+
+  function removeLocationState() {
+    if (loc.state) {
+      history.replace({ pathname: loc.pathname });
+    }
   }
 
   function undoEditRoleChanges() {
@@ -185,6 +219,17 @@ export function useGuideEditor(): GuideEditorState {
     return accessRoles;
   }
 
+  function getResumableState(): ResumableGuideState {
+    return {
+      preset,
+      resumeStep: currentStep,
+      standardRoleConditions: standardRoleState.roleConditions,
+      requiredAppIdentities: standardRoleState.requiredAppIdentities,
+      awsIcRoleConditions: awsIcRoleState.roleConditions,
+      oktaOrgUrl: '',
+    };
+  }
+
   return {
     reset,
     preset,
@@ -193,6 +238,8 @@ export function useGuideEditor(): GuideEditorState {
     setCurrentStep,
     prevStep,
     nextStep,
+    originatedFromOkta: !!loc.state?.oktaOrgUrl,
+    removeLocationState,
 
     awsIcRoleState,
     standardRoleState,
@@ -201,6 +248,8 @@ export function useGuideEditor(): GuideEditorState {
     definedAccessInAnyRoleCondition,
 
     getRolesToSave,
+
+    getResumableState,
 
     undoEditRoleChanges,
     isEditing:

@@ -6,6 +6,7 @@ import {
   useEffect,
   useState,
 } from 'react';
+import { useLocation } from 'react-router';
 
 import { Validator } from 'shared/components/Validation';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
@@ -33,6 +34,7 @@ import {
 import { reviewDayOfMonthOpts, reviewFrequencyOpts } from '../Shared/Audit';
 import { HybridUserOption } from '../Shared/Shared';
 import { convertTraitLabelsToAllUserTraits } from '../Traits';
+import { ResumableAccessListState } from './route';
 import { Grant, Members, Owners, Spec } from './types';
 
 type State = {
@@ -64,6 +66,7 @@ type State = {
    * Only set after a successful call to onCreate func.
    */
   createdAccessList: AccessList;
+  getResumableAccessListState(): ResumableAccessListState;
 };
 
 const CreateAccessListContext = createContext<State>(null);
@@ -71,6 +74,8 @@ const CreateAccessListContext = createContext<State>(null);
 export const CreateAccessListContextProvider: FC<
   PropsWithChildren & { mockCreatedAccessList?: AccessList }
 > = props => {
+  const loc = useLocation<ResumableAccessListState>();
+
   const ctx = useTeleport();
 
   const {
@@ -89,11 +94,22 @@ export const CreateAccessListContextProvider: FC<
 
   const [featureLimitReached, setFeatureLimitReached] = useState(false);
 
-  const [spec, setSpec] = useState<Spec>(() => defaultSpec);
-  const [owners, setOwners] = useState<Owners>(defaultOwners);
-  const [ownerGrant, setOwnerGrant] = useState<Grant>(defaultGrants);
-  const [members, setMembers] = useState<Members>(defaultMembers);
-  const [memberGrant, setMemberGrant] = useState<Grant>(defaultGrants);
+  const [spec, setSpec] = useState<Spec>(() => loc.state?.spec ?? defaultSpec);
+
+  const [owners, setOwners] = useState<Owners>(
+    () => loc.state?.owners ?? defaultOwners
+  );
+  const [ownerGrant, setOwnerGrant] = useState<Grant>(
+    () => loc.state?.ownerGrant ?? defaultGrants
+  );
+
+  const [members, setMembers] = useState<Members>(
+    () => loc.state?.members ?? defaultMembers
+  );
+  const [memberGrant, setMemberGrant] = useState<Grant>(
+    () => loc.state?.memberGrant ?? defaultGrants
+  );
+
   const [createdAccessList, setCreatedAccessList] = useState<AccessList>(
     props.mockCreatedAccessList
   );
@@ -108,6 +124,16 @@ export const CreateAccessListContextProvider: FC<
     setCreatedAccessList(undefined);
 
     checkFeatureLimit();
+  }
+
+  function getResumableAccessListState(): ResumableAccessListState {
+    return {
+      spec,
+      owners,
+      ownerGrant,
+      members,
+      memberGrant,
+    };
   }
 
   function checkFeatureLimit() {
@@ -261,6 +287,7 @@ export const CreateAccessListContextProvider: FC<
         canCreateAccessList,
         reset,
         createdAccessList,
+        getResumableAccessListState,
       }}
     >
       {props.children}

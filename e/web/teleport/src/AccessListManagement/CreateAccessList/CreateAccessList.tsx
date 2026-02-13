@@ -84,7 +84,15 @@ export function CreateAccessList() {
       {preset && currentStep < presetGuideViews.length - 1 && (
         <Prompt
           message={nextLocation => {
-            if (nextLocation.pathname === cfg.routes.accessListNew) return true;
+            if (
+              nextLocation.pathname === cfg.routes.accessListNew ||
+              // Don't show prompt since going to okta will allow user to
+              // resume this flow at the same spot and state they left it at.
+              nextLocation.pathname.startsWith(
+                cfg.oss.getIntegrationEnrollRoute('okta')
+              )
+            )
+              return true;
             return 'Are you sure you want to exit the "Create New Access List" workflow? You’ll have to start from the beginning next time.';
           }}
         />

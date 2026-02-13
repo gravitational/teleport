@@ -69,7 +69,8 @@ export const OktaSetupStepComplete = ({
 }: {
   config: OktaIntegrationLevelStep;
 }) => {
-  const { steps, getNextStep, plugin } = useOktaIntegrationSetUpContext();
+  const { steps, getNextStep, plugin, preservedLocationState } =
+    useOktaIntegrationSetUpContext();
 
   const nextStep = getNextStep(config.type);
 
@@ -85,9 +86,16 @@ export const OktaSetupStepComplete = ({
           >
             <ButtonPrimary
               as={Link}
-              to={goToCreateAccessListFromOktaRoute(plugin.spec.orgUrl)}
+              to={goToCreateAccessListFromOktaRoute(
+                plugin.spec.orgUrl,
+                preservedLocationState?.preset
+                  ? preservedLocationState
+                  : undefined
+              )}
             >
-              Set Up Access
+              {preservedLocationState?.preset
+                ? 'Finish setting up access'
+                : 'Set Up Access'}
             </ButtonPrimary>
           </HoverTooltip>
           <ButtonSecondary
