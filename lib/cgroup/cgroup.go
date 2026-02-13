@@ -19,7 +19,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// REMOVE IN v20: We only keep this package around so we can cleanup and unmount
+// TODO(capnspacehook) REMOVE IN v20: We only keep this package around so we can cleanup and unmount
 // the cgroup filesystem after an upgrade if necessary. Once v19 should
 // never mount the cgroup filesystem so we won't need to clean it up in v20.
 package cgroup

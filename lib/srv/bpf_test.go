@@ -702,6 +702,12 @@ func testBPFMonitoring(t *testing.T, srv Server, bpfSrv bpf.BPF) {
 
 	// Run curl commands that the bpf programs should ignore.
 	for range 5 {
+		select {
+		case <-eventsCh:
+			t.Fatal("monitored command finished before curl command(s) did")
+		default:
+		}
+
 		cmd := exec.CommandContext(t.Context(), "curl", "-4", lis.Addr().String())
 		// curl should exit with 56 since the server will reset the connection.
 		var exitErr *exec.ExitError
@@ -964,7 +970,8 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 
 	// Read from SSH channel to unblock writes; the mock SSH channel
 	// uses os.Pipe under the hood.
-	go func() {
+	var wg sync.WaitGroup
+	wg.Go(func() {
 		t.Log("output:")
 
 		stdout := make([]byte, 1024)
@@ -979,7 +986,7 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 			}
 			t.Log(string(stdout))
 		}
-	}()
+	})
 
 	// Program should have executed now. If the complete signal has not come
 	// over the context, something failed.
@@ -1000,6 +1007,9 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 			require.NoError(t, err)
 		}
 	}
+
+	require.NoError(t, channel.CloseWrite())
+	wg.Wait()
 
 	return emitter.Events()
 }
