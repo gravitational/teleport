@@ -128,6 +128,19 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 			Allow:          allow,
 			OrganizationId: base.AzureDevops.OrganizationID,
 		}
+	case types.JoinMethodOracle:
+		allow := make([]*joiningv1.Oracle_Rule, len(base.Oracle.Allow))
+		for i, rule := range base.Oracle.Allow {
+			allow[i] = &joiningv1.Oracle_Rule{
+				Tenancy:            rule.Tenancy,
+				ParentCompartments: rule.ParentCompartments,
+				Regions:            rule.Regions,
+				Instances:          rule.Instances,
+			}
+		}
+		scopedToken.Spec.Oracle = &joiningv1.Oracle{
+			Allow: allow,
+		}
 	default:
 		return nil, trace.BadParameter("unsupported join method %q", base.JoinMethod)
 	}
