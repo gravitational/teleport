@@ -32,12 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const (
-	// defaultRate is the maximum number of requests per second that the limiter
-	// will allow when no rate limits are configured
-	defaultRate = 100_000_000
-)
-
 // RateLimiter controls connection rate using the token bucket algorithm.
 // See: https://en.wikipedia.org/wiki/Token_bucket
 type RateLimiter struct {
@@ -62,12 +56,6 @@ func NewRateLimiter(config Config) (*RateLimiter, error) {
 	limiter.rates = ratelimit.NewRateSet()
 	for _, rate := range config.Rates {
 		err := limiter.rates.Add(rate.Period, rate.Average, rate.Burst)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	if len(config.Rates) == 0 {
-		err := limiter.rates.Add(time.Second, defaultRate, defaultRate)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -125,6 +113,9 @@ func (l *RateLimiter) RegisterRequest(token string, customRate *ratelimit.RateSe
 	defer l.mu.Unlock()
 
 	rate := cmp.Or(customRate, l.rates)
+	if rate.Len() == 0 {
+		return nil
+	}
 
 	// We set the TTL as 10 times the rate period. E.g. if rate is 100 requests/second
 	// per client IP, the counters for this IP will expire after 10 seconds of inactivity.
