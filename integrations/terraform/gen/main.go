@@ -880,6 +880,42 @@ var (
 		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
 		ForceSetKind: "apitypes.KindInferencePolicy",
 	}
+
+	workloadCluster = payload{
+		Name:                  "WorkloadCluster",
+		TypeName:              "WorkloadCluster",
+		VarName:               "workloadcluster",
+		GetMethod:             "GetWorkloadCluster",
+		CreateMethod:          "CreateWorkloadCluster",
+		UpsertMethodArity:     2,
+		UpdateMethod:          "UpsertWorkloadCluster",
+		DeleteMethod:          "DeleteWorkloadCluster",
+		ID:                    "workloadcluster.Metadata.Name",
+		Kind:                  "workload_cluster",
+		HasStaticID:           false,
+		ProtoPackage:          "workloadclusterv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/workloadcluster/v1",
+		TerraformResourceType: "teleport_workload_cluster",
+		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+		// resources are plain structs
+		IsPlainStruct: true,
+		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+		// We import the package containing kinds, then use ForceSetKind.
+		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind: "apitypes.KindWorkloadCluster",
+		StatePoll: &statePoll{
+			StatePath: []string{
+				"Status",
+				"State",
+			},
+			PendingStates:            []string{"creating"},
+			TargetStates:             []string{"active"},
+			StatePollIntervalSeconds: 30,
+			StateTimeoutSeconds:      15 * 60,
+		},
+	}
 )
 
 func main() {
@@ -953,6 +989,8 @@ func genTFSchema() {
 	generateDataSource(inferenceSecret, pluralDataSource)
 	generateResource(inferencePolicy, pluralResource)
 	generateDataSource(inferencePolicy, pluralDataSource)
+	generateResource(workloadCluster, pluralResource)
+	generateDataSource(workloadCluster, pluralDataSource)
 }
 
 func generateResource(p payload, tpl string) {
