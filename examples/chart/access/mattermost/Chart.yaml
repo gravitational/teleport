@@ -1,4 +1,4 @@
-.version: &version "18.7.0-dev.marco.1"
+.version: &version "18.7.0"
 
 apiVersion: v2
 name: teleport-plugin-mattermost
