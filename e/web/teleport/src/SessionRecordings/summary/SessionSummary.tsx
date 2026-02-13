@@ -130,7 +130,7 @@ export function SessionSummary({
     }
 
     return (
-      <MarkdownContainer>
+      <MarkdownContainer data-scrollbar="default">
         <Markdown text={data.content} />
 
         <SummaryInfo>
@@ -207,6 +207,11 @@ export function SessionSummaryLoading() {
 }
 
 export const MarkdownContainer = styled.div`
+  overflow-y: auto;
+  min-height: 0;
+  padding: ${p => p.theme.space[3]}px;
+  border-top: 1px solid ${p => p.theme.colors.spotBackground[1]};
+
   p {
     margin: 0 0 ${p => p.theme.space[3]}px 0;
   }
