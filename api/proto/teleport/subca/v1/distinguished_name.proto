@@ -29,10 +29,6 @@ message DistinguishedName {
 message AttributeTypeAndValue {
   // OID of the ATV.
   repeated int32 oid = 1;
-  // Value of the ATV.
-  //
-  // Only string values are supported, similarly to Go's
-  // pkix.AttributeTypeAndValue (see
-  // https://cs.opensource.google/go/go/+/refs/tags/go1.26.0:src/crypto/x509/pkix/pkix.go;l=152).
+  // Value of the ATV. Only string values are supported.
   string value = 2;
 }
