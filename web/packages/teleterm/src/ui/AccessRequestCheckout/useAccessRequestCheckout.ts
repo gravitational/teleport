@@ -19,7 +19,6 @@
 import { useEffect, useState } from 'react';
 
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
-import { AccessRequestKind } from 'gen-proto-ts/teleport/legacy/types/access_requests_pb';
 import {
   getDryRunMaxDuration,
   isKubeClusterWithNamespaces,
@@ -30,6 +29,7 @@ import {
 import { useSpecifiableFields } from 'shared/components/AccessRequests/NewRequest/useSpecifiableFields';
 import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import { RequestKind } from 'shared/services/accessRequests';
 
 import {
   CreateAccessRequestRequest,
@@ -75,6 +75,8 @@ export default function useAccessRequestCheckout() {
     reset: resetSpecifiableFields,
     reasonMode,
     reasonPrompts,
+    requestKind,
+    setRequestKind,
   } = useSpecifiableFields();
 
   const [showCheckout, setShowCheckout] = useState(false);
@@ -122,6 +124,7 @@ export default function useAccessRequestCheckout() {
     pendingAccessRequestRequest,
     requestedCount,
     isCreatingRequest,
+    requestKind,
   ]);
 
   useEffect(() => {
@@ -164,6 +167,7 @@ export default function useAccessRequestCheckout() {
       clearCreateAttempt();
       setRequestedCount(0);
       onDryRunChange(null /* set dryRunResponse to null */);
+      setRequestKind(RequestKind.ShortTerm);
     }
   }, [showCheckout, hasExited, createRequestAttempt.status]);
 
@@ -257,6 +261,15 @@ export default function useAccessRequestCheckout() {
     );
   }
 
+  async function toggleResources(
+    pendingListItems: PendingListItemWithOriginalItem[]
+  ) {
+    // Called serially as toggleResource may open a confirmation
+    for (const pendingListItem of pendingListItems) {
+      await toggleResource(pendingListItem);
+    }
+  }
+
   function updateNamespacesForKubeCluster(
     items: PendingKubeResourceItem[],
     kubeCluster: PendingListKubeClusterWithOriginalItem
@@ -298,7 +311,7 @@ export default function useAccessRequestCheckout() {
       assumeStartTime: req.start && Timestamp.fromDate(req.start),
       maxDuration: req.maxDuration && Timestamp.fromDate(req.maxDuration),
       requestTtl: req.requestTTL && Timestamp.fromDate(req.requestTTL),
-      requestKind: AccessRequestKind.SHORT_TERM,
+      requestKind: req.requestKind.valueOf(),
       resourceAccessIds: [],
     };
 
@@ -335,6 +348,7 @@ export default function useAccessRequestCheckout() {
         reason: 'placeholder-reason',
         dryRun: true,
         maxDuration: getDryRunMaxDuration(),
+        requestKind,
       });
       teletermAccessRequest = accessRequest;
     } catch {
@@ -427,6 +441,7 @@ export default function useAccessRequestCheckout() {
     showCheckout,
     isCollapsed,
     toggleResource,
+    toggleResources,
     pendingAccessRequests,
     shouldShowClusterNameColumn,
     createRequest,
@@ -457,6 +472,8 @@ export default function useAccessRequestCheckout() {
     updateNamespacesForKubeCluster,
     reasonMode,
     reasonPrompts,
+    requestKind,
+    setRequestKind,
   };
 }
 

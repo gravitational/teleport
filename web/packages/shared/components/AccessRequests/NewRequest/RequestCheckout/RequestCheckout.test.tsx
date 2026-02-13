@@ -17,7 +17,7 @@
  */
 
 import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
-import { RequestState } from 'shared/services/accessRequests';
+import { RequestKind, RequestState } from 'shared/services/accessRequests';
 
 import { dryRunResponse } from '../../fixtures';
 import { useSpecifiableFields } from '../useSpecifiableFields';
@@ -156,7 +156,7 @@ const props: RequestCheckoutWithSliderProps = {
   pendingAccessRequests: [],
   clearAttempt: () => null,
   onClose: () => null,
-  toggleResource: () => null,
+  toggleResources: () => null,
   reset: () => null,
   transitionState: 'entered',
   numRequestedResources: 4,
@@ -175,6 +175,8 @@ const props: RequestCheckoutWithSliderProps = {
   onStartTimeChange: () => null,
   fetchKubeNamespaces: () => null,
   updateNamespacesForKubeCluster: () => null,
+  requestKind: RequestKind.ShortTerm,
+  setRequestKind: () => null,
   addedResourceConstraints: {},
   setResourceConstraints: () => null,
 };
