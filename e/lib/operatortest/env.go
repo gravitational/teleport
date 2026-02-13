@@ -25,8 +25,9 @@ func startAuthServer(t *testing.T) *client.Client {
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.OIDC: {Enabled: true},
-				entitlements.SAML: {Enabled: true},
+				entitlements.OIDC:   {Enabled: true},
+				entitlements.SAML:   {Enabled: true},
+				entitlements.Policy: {Enabled: true},
 			},
 			AdvancedAccessWorkflows: true,
 		},
