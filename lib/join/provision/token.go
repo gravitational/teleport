@@ -60,4 +60,8 @@ type Token interface {
 	GetIntegration() string
 	// GetGCPRules returns the GCP-specific configuration for this token.
 	GetGCPRules() *types.ProvisionTokenSpecV2GCP
+	// GetAzure returns the Azure-specific configuration for this token.
+	GetAzure() *types.ProvisionTokenSpecV2Azure
+	// GetAzureDevops returns the AzureDevops-specific configuration for this token.
+	GetAzureDevops() *types.ProvisionTokenSpecV2AzureDevops
 }

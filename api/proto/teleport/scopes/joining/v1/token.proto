@@ -76,6 +76,12 @@ message ScopedTokenSpec {
 
   // The GCP-specific configuration used with the "gcp" join method.
   GCP gcp = 7;
+
+  // The Azure-specific configuration used with the "azure" join method.
+  Azure azure = 8;
+
+  // The Azure Devops-specific configuration used with the "azure_devops" join method.
+  AzureDevops azure_devops = 9;
 }
 
 // The host certificate parameters that should be cached and leveraged for
@@ -210,4 +216,66 @@ message GCP {
   // A list of Rules for allowing use of this token. A node must match at least one
   // allow rule in order to use this token.
   repeated Rule allow = 1;
+}
+
+// The Azure-specific configuration used with the "azure" join method.
+message Azure {
+  // A rule that a joining node must match in order to use the associated token
+  // with the "azure" join method.
+  message Rule {
+    // The Azure subscription.
+    string subscription = 1;
+    // A list of Azure resource groups the node is allowed to join from.
+    repeated string resource_groups = 2;
+  }
+  // A list of Rules for allowing use of this token. A node must match at least one
+  // allow rule in order to use this token.
+  repeated Rule allow = 1;
+}
+
+// The Azure Devops-specific configuration used with the "azure_devops" join method.
+message AzureDevops {
+  // A rule that a joining node must match in order to use the associated token
+  // with the "azure_devops" join method.
+  message Rule {
+    // The subject string that roughly uniquely identifies the workload. Example:
+    // `p://my-organization/my-project/my-pipeline`
+    // Mapped from the `sub` claim.
+    string sub = 1;
+    // The name of the AZDO project. Example:
+    // `my-project`.
+    // Mapped out of the `sub` claim.
+    string project_name = 2;
+    // The name of the AZDO pipeline. Example:
+    // `my-pipeline`.
+    // Mapped out of the `sub` claim.
+    string pipeline_name = 3;
+    // The ID of the AZDO pipeline. Example:
+    // `271ef6f7-0000-0000-0000-4b54d9129990`
+    // Mapped from the `prj_id` claim.
+    string project_id = 4;
+    // The ID of the AZDO pipeline definition. Example:
+    // `1`
+    // Mapped from the `def_id` claim.
+    string definition_id = 5;
+    // The URI of the repository the pipeline is using. Example:
+    // `https://github.com/gravitational/teleport.git`.
+    // Mapped from the `rpo_uri` claim.
+    string repository_uri = 6;
+    // The individual commit of the repository the pipeline is using. Example:
+    // `e6b9eb29a288b27a3a82cc19c48b9d94b80aff36`.
+    // Mapped from the `rpo_ver` claim.
+    string repository_version = 7;
+    // The reference of the repository the pipeline is using. Example:
+    // `refs/heads/main`.
+    // Mapped from the `rpo_ref` claim.
+    string repository_ref = 8;
+  }
+  // A list of Rules for allowing use of this token. A node must match at least one
+  // allow rule in order to use this token.
+  repeated Rule allow = 1;
+  // The UUID of the Azure DevOps organization that this join token will grant access to.
+  // This is used to identify the correct issuer verification of the ID token.
+  // This is a required field.
+  string organization_id = 2;
 }
