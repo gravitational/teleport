@@ -220,6 +220,14 @@ data:
               - read
               - update
               - delete
+          - resources:
+              - access_monitoring_rule
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
       deny: {}
     version: v7
     ---
