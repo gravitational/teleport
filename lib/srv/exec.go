@@ -79,11 +79,13 @@ type Exec interface {
 
 	// ReadAuditSessionID reads the unique audit session ID of the process
 	// that will be used to correlate audit events to the SSH session for
-	// sessions with Enhanced Session Recording enabled.
+	// sessions with Enhanced Session Recording enabled. Otherwise, this
+	// method is a no-op.
 	ReadAuditSessionID() (uint32, error)
 
 	// Continue will resume execution of the process after it completes its
-	// pre-processing routine.
+	// pre-processing routine if Enhanced Session Recording is enabled.
+	// Otherwise, this method is a no-op.
 	Continue()
 
 	// PID returns the PID of the Teleport process that was re-execed.
@@ -232,7 +234,8 @@ func (e *localExec) Wait() *ExecResult {
 
 // ReadAuditSessionID reads the unique audit session ID of the process
 // that will be used to correlate audit events to the SSH session for
-// sessions with Enhanced Session Recording enabled.
+// sessions with Enhanced Session Recording enabled. Otherwise, this
+// method is a no-op.
 func (e *localExec) ReadAuditSessionID() (uint32, error) {
 	if !e.Ctx.recordWithBPF() {
 		return 0, nil
@@ -246,7 +249,8 @@ func (e *localExec) ReadAuditSessionID() (uint32, error) {
 }
 
 // Continue will resume execution of the process after it completes its
-// pre-processing routine.
+// pre-processing routine if Enhanced Session Recording is enabled.
+// Otherwise, this method is a no-op.
 func (e *localExec) Continue() {
 	e.Ctx.contw.Close()
 

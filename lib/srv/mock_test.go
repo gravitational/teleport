@@ -111,10 +111,10 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 	_, scx.logw, err = os.Pipe()
 	require.NoError(t, err)
 
-	scx.readyr, scx.readyw, err = os.Pipe()
+	scx.contr, scx.contw, err = os.Pipe()
 	require.NoError(t, err)
 
-	scx.contr, scx.contw, err = os.Pipe()
+	scx.readyr, scx.readyw, err = os.Pipe()
 	require.NoError(t, err)
 
 	scx.killShellr, scx.killShellw, err = os.Pipe()

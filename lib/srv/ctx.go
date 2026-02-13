@@ -418,16 +418,16 @@ type ServerContext struct {
 	// logw is used to send logs from the child process to the parent process.
 	logw *os.File
 
+	// cont{r,w} is used to send the continue signal from the parent process
+	// to the child process.
+	contr *os.File
+	contw *os.File
+
 	// ready{r,w} is used to send the ready signal from the child process
 	// to the parent process. If ESR is enabled, the child signals after
 	// the audit session login ID (auid) is received.
 	readyr *os.File
 	readyw *os.File
-
-	// cont{r,w} is used to send the continue signal from the parent process
-	// to the child process.
-	contr *os.File
-	contw *os.File
 
 	// killShell{r,w} are used to send kill signal to the child process
 	// to terminate the shell.
@@ -579,14 +579,6 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	child.AddCloser(child.cmdr)
 	child.AddCloser(child.cmdw)
 
-	child.readyr, child.readyw, err = os.Pipe()
-	if err != nil {
-		childErr := child.Close()
-		return nil, trace.NewAggregate(err, childErr)
-	}
-	child.AddCloser(child.readyr)
-	child.AddCloser(child.readyw)
-
 	// Create pipe used to signal continue to child process.
 	child.contr, child.contw, err = os.Pipe()
 	if err != nil {
@@ -595,6 +587,15 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	}
 	child.AddCloser(child.contr)
 	child.AddCloser(child.contw)
+
+	// Create pipe used to signal continue to parent process.
+	child.readyr, child.readyw, err = os.Pipe()
+	if err != nil {
+		childErr := child.Close()
+		return nil, trace.NewAggregate(err, childErr)
+	}
+	child.AddCloser(child.readyr)
+	child.AddCloser(child.readyw)
 
 	child.killShellr, child.killShellw, err = os.Pipe()
 	if err != nil {

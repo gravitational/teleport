@@ -63,11 +63,13 @@ type Terminal interface {
 
 	// ReadAuditSessionID reads the unique audit session ID of the process
 	// that will be used to correlate audit events to the SSH session for
-	// sessions with Enhanced Session Recording enabled.
+	// sessions with Enhanced Session Recording enabled. Otherwise, this
+	// method is a no-op.
 	ReadAuditSessionID() (uint32, error)
 
 	// Continue will resume execution of the process after it completes its
-	// pre-processing routine.
+	// pre-processing routine if Enhanced Session Recording is enabled.
+	// Otherwise, this method is a no-op.
 	Continue()
 
 	// KillUnderlyingShell tries to gracefully stop the terminal process.
@@ -259,7 +261,8 @@ func (t *terminal) Wait() (*ExecResult, error) {
 
 // ReadAuditSessionID reads the unique audit session ID of the process
 // that will be used to correlate audit events to the SSH session for
-// sessions with Enhanced Session Recording enabled.
+// sessions with Enhanced Session Recording enabled. Otherwise, this
+// method is a no-op.
 func (t *terminal) ReadAuditSessionID() (uint32, error) {
 	if !t.serverContext.recordWithBPF() {
 		return 0, nil
@@ -273,7 +276,8 @@ func (t *terminal) ReadAuditSessionID() (uint32, error) {
 }
 
 // Continue will resume execution of the process after it completes its
-// pre-processing routine.
+// pre-processing routine if Enhanced Session Recording is enabled.
+// Otherwise, this method is a no-op.
 func (t *terminal) Continue() {
 	if err := t.serverContext.contw.Close(); err != nil {
 		t.log.WarnContext(t.serverContext.CancelContext(), "failed to close server context")

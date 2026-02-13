@@ -270,13 +270,13 @@ func RunCommand() (code int, err error) {
 	if logfd == nil {
 		return teleport.RemoteCommandFailure, trace.BadParameter("log pipe not found")
 	}
-	readyfd := os.NewFile(ReadyFile, fdName(ReadyFile))
-	if readyfd == nil {
-		return teleport.RemoteCommandFailure, trace.BadParameter("ready pipe not found")
-	}
 	contfd := os.NewFile(ContinueFile, fdName(ContinueFile))
 	if contfd == nil {
 		return teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
+	}
+	readyfd := os.NewFile(ReadyFile, fdName(ReadyFile))
+	if readyfd == nil {
+		return teleport.RemoteCommandFailure, trace.BadParameter("ready pipe not found")
 	}
 	terminatefd := os.NewFile(TerminateFile, fdName(TerminateFile))
 	if terminatefd == nil {
@@ -289,8 +289,6 @@ func RunCommand() (code int, err error) {
 		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	initLogger("reexec", logfd, c.LogConfig)
-
 	// If BPF is enabled, ensure that the ready file is closed if a
 	// failure causes execution to terminate prior to the audit session
 	// ID actually being changed to unblock the parent process.
@@ -301,6 +299,8 @@ func RunCommand() (code int, err error) {
 			}
 		}()
 	}
+
+	initLogger("reexec", logfd, c.LogConfig)
 
 	// If a terminal was requested, file descriptor 10 always points to the
 	// TTY. Extract it and set the controlling TTY. Otherwise, connect
@@ -355,13 +355,13 @@ func RunCommand() (code int, err error) {
 	// launch the shell under.
 	var pamEnvironment []string
 	if c.PAMConfig != nil {
-		// Connect std{in,out,err} to the TTY if it's a shell request, otherwise
-		// discard std{out,err}. If this was not done, things like MOTD would be
-		// printed for "exec" requests.
+		// Connect std{in,out,err} to the TTY if a terminal has been allocated,
+		// otherwise discard std{out,err}. If this was not done, things like MOTD
+		// would be printed for non-interactive "exec" requests.
 		var stdin io.Reader
 		var stdout io.Writer
 		var stderr io.Writer
-		if c.RequestType == sshutils.ShellRequest {
+		if tty != nil {
 			stdin = tty
 			stdout = tty
 			stderr = tty
@@ -387,6 +387,7 @@ func RunCommand() (code int, err error) {
 		if err != nil {
 			return exitCode(err), trace.Wrap(err, "failed to open PAM context")
 		}
+		defer pamContext.Close()
 
 		// Save off any environment variables that come from PAM.
 		pamEnvironment = pamContext.Environment()
@@ -1255,8 +1256,14 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 		// to be passed to the child, open them so that they can be passed
 		// to the grandchild.
 		if c.ExtraFilesLen > 0 {
-			if err := populateExtraFiles(&cmd, c.ExtraFilesLen); err != nil {
-				return nil, trace.Wrap(err)
+			cmd.ExtraFiles = make([]*os.File, c.ExtraFilesLen)
+			for i := range c.ExtraFilesLen {
+				fd := FirstExtraFile + uintptr(i)
+				f := os.NewFile(fd, strconv.Itoa(int(fd)))
+				if f == nil {
+					return nil, trace.NotFound("extra file %d not found", fd)
+				}
+				cmd.ExtraFiles[i] = f
 			}
 		}
 	}
@@ -1303,20 +1310,6 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 	}
 
 	return &cmd, nil
-}
-
-func populateExtraFiles(cmd *exec.Cmd, extraFilesLen int) error {
-	cmd.ExtraFiles = make([]*os.File, extraFilesLen)
-	for i := range extraFilesLen {
-		fd := FirstExtraFile + uintptr(i)
-		f := os.NewFile(fd, strconv.Itoa(int(fd)))
-		if f == nil {
-			return trace.NotFound("extra file %d not found", fd)
-		}
-		cmd.ExtraFiles[i] = f
-	}
-
-	return nil
 }
 
 // ConfigureCommand creates a command fully configured to execute. This
