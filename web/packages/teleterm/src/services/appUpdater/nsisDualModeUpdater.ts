@@ -23,6 +23,11 @@ import { NsisUpdater } from 'electron-updater';
 import { DownloadUpdateOptions } from 'electron-updater/out/AppUpdater';
 import { InstallOptions } from 'electron-updater/out/BaseUpdater';
 
+import {
+  TSH_AUTOUPDATE_ENV_VAR,
+  TSH_AUTOUPDATE_OFF,
+} from 'teleterm/node/tshAutoupdate';
+
 export interface NsisDualModeUpdaterOptions {
   /**
    * Deprecated per‑machine env‑var config forces UAC (no privileged updater).
@@ -76,7 +81,9 @@ export class NsisDualModeUpdater extends NsisUpdater {
     if (options.isForceRunAfter) {
       args.push('--force-run');
     }
-    void this.spawnLog(this.tshPath, args);
+    void this.spawnLog(this.tshPath, args, {
+      [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
+    });
     return true;
   }
 
