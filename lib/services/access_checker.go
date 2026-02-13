@@ -1022,6 +1022,8 @@ func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([
 			loginGetter = role.GetLogins
 		case types.KindWindowsDesktop:
 			loginGetter = role.GetWindowsLogins
+		case types.KindLinuxDesktop:
+			loginGetter = role.GetLinuxDesktopLogins
 		case types.KindApp:
 			if !resourceIsApp {
 				return nil, trace.BadParameter("received unsupported resource type for Application kind: %T", resource)
@@ -1062,6 +1064,8 @@ func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([
 		newLoginMatcher = NewLoginMatcher
 	case types.KindWindowsDesktop:
 		newLoginMatcher = NewWindowsLoginMatcher
+	case types.KindLinuxDesktop:
+		newLoginMatcher = NewLinuxDesktopLoginMatcher
 	case types.KindApp:
 		if !resourceIsApp || !resourceAsApp.IsAWSConsole() {
 			return nil, trace.BadParameter("received unsupported resource type for Application: %T", resource)

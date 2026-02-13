@@ -3090,6 +3090,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.WindowsDesktops = services.WindowsDesktops
 	cfg.WorkloadIdentity = services.WorkloadIdentities
 	cfg.DynamicWindowsDesktops = services.DynamicWindowsDesktops
+	cfg.LinuxDesktops = services.LinuxDesktops
 	cfg.AutoUpdateService = services.AutoUpdateService
 	cfg.ProvisioningStates = services.ProvisioningStates
 	cfg.IdentityCenter = services.IdentityCenter
@@ -3145,6 +3146,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.WebToken = client
 	cfg.WindowsDesktops = client
 	cfg.DynamicWindowsDesktops = client.DynamicDesktopClient()
+	cfg.LinuxDesktops = client.LinuxDesktopClient()
 	cfg.AutoUpdateService = client
 	cfg.GitServers = client.GitServerClient()
 	cfg.HealthCheckConfig = client
