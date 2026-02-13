@@ -94,9 +94,6 @@ type AWSOIDCServiceConfig struct {
 // app_servers created by the integration being deleted.  Should only be used by
 // methods that check access for VerbDelete on KindIntegration
 func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, authCtx *authz.Context, ig types.Integration) error {
-	// TODO(alexhemard): follow up work needed to add explicit labels for
-	// resources created by integration rather than rely on implicit rules
-
 	// Delete discovery_configs created by this integration
 	var configsRequireCleanup []string
 	var configsToDelete []string
@@ -104,6 +101,13 @@ func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, authCtx 
 	for config, err := range clientutils.Resources(ctx, s.cache.ListDiscoveryConfigs) {
 		if err != nil {
 			return trace.Wrap(err)
+		}
+
+		// check for labels from the aws oidc integration
+		igLabel, _ := config.GetLabel(types.IntegrationLabel)
+		if igLabel == ig.GetName() {
+			configsToDelete = append(configsToDelete, config.GetName())
+			continue
 		}
 
 		awsMatchers := config.Spec.AWS
@@ -116,8 +120,9 @@ func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, authCtx 
 			continue
 		}
 
-		// discovery_configs can be assumed to be created by the integration
-		// and deleted if
+		// fallback if there's no label
+		// discovery_configs can be assumed to be created by the integration and
+		// deleted if:
 		// 1. only has matchers referencing this integration
 		// 2. has valid uuid name
 		if config.IsMatchersEmpty() {
@@ -164,7 +169,10 @@ func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, authCtx 
 	}
 
 	for _, appServer := range appServers {
-		if appServer.GetApp().GetIntegration() == ig.GetName() {
+		// check for labels, fallback to checking integration in spec
+		igLabel, _ := appServer.GetApp().GetLabel(types.IntegrationLabel)
+		if igLabel == ig.GetName() ||
+			appServer.GetApp().GetIntegration() == ig.GetName() {
 			s.logger.DebugContext(ctx, "Deleting app_server associated with integration",
 				"app_server", appServer.GetName(),
 				"integration", ig.GetName())

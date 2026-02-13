@@ -89,6 +89,16 @@ type Status struct {
 
 // NewDiscoveryConfig will create a new discovery config.
 func NewDiscoveryConfig(metadata header.Metadata, spec Spec) (*DiscoveryConfig, error) {
+	// add label for aws integration
+	if len(spec.AWS) == 1 && spec.AWS[0].Integration != "" {
+		if metadata.Labels == nil {
+			metadata.Labels = make(map[string]string)
+		}
+		if _, exists := metadata.Labels[types.IntegrationLabel]; !exists {
+			metadata.Labels[types.IntegrationLabel] = spec.AWS[0].Integration
+		}
+	}
+
 	discoveryConfig := &DiscoveryConfig{
 		ResourceHeader: header.ResourceHeaderFromMetadata(metadata),
 		Spec:           spec,
