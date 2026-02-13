@@ -135,41 +135,7 @@ func (f Features) ToProto() *proto.Features {
 		Entitlements:               f.EntitlementsToProto(),
 	}
 
-	// remove setLegacyLogic in v18
-	setLegacyLogic(protoF, f)
 	return protoF
-}
-
-// setLegacyLogic sets the deprecated fields; to be removed in v18 - use entitlements
-func setLegacyLogic(protoF *proto.Features, f Features) {
-	protoF.Kubernetes = f.GetEntitlement(entitlements.K8s).Enabled
-	protoF.App = f.GetEntitlement(entitlements.App).Enabled
-	protoF.DB = f.GetEntitlement(entitlements.DB).Enabled
-	protoF.OIDC = f.GetEntitlement(entitlements.OIDC).Enabled
-	protoF.SAML = f.GetEntitlement(entitlements.SAML).Enabled
-	protoF.HSM = f.GetEntitlement(entitlements.HSM).Enabled
-	protoF.Desktop = f.GetEntitlement(entitlements.Desktop).Enabled
-	protoF.FeatureHiding = f.GetEntitlement(entitlements.FeatureHiding).Enabled
-	protoF.IdentityGovernance = f.GetEntitlement(entitlements.Identity).Enabled
-	protoF.ExternalAuditStorage = f.GetEntitlement(entitlements.ExternalAuditStorage).Enabled
-	protoF.JoinActiveSessions = f.GetEntitlement(entitlements.JoinActiveSessions).Enabled
-	protoF.MobileDeviceManagement = f.GetEntitlement(entitlements.MobileDeviceManagement).Enabled
-
-	protoF.DeviceTrust = &proto.DeviceTrustFeature{
-		Enabled: f.GetEntitlement(entitlements.DeviceTrust).Enabled, DevicesUsageLimit: f.GetEntitlement(entitlements.DeviceTrust).Limit,
-	}
-	protoF.AccessRequests = &proto.AccessRequestsFeature{
-		MonthlyRequestLimit: f.GetEntitlement(entitlements.AccessRequests).Limit,
-	}
-	protoF.AccessMonitoring = &proto.AccessMonitoringFeature{
-		Enabled: f.AccessMonitoringConfigured, MaxReportRangeLimit: f.GetEntitlement(entitlements.AccessMonitoring).Limit,
-	}
-	protoF.AccessList = &proto.AccessListFeature{
-		CreateLimit: f.GetEntitlement(entitlements.AccessLists).Limit,
-	}
-	protoF.Policy = &proto.PolicyFeature{
-		Enabled: f.GetEntitlement(entitlements.Policy).Enabled,
-	}
 }
 
 // EntitlementsToProto takes the features.Entitlements object and returns a proto version. If not present on Features, the
