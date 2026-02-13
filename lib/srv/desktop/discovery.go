@@ -222,6 +222,7 @@ func (s *WindowsService) getDesktopsFromLDAP() (result map[string]types.WindowsD
 				s.cfg.Logger.WarnContext(s.closeCtx, "could not create Windows Desktop from LDAP entry", "error", err)
 				continue
 			}
+			maps.Copy(desktop.GetMetadata().Labels, discoveryConfig.Labels)
 			discovered[desktop.GetName()] = desktop
 		}
 	}
