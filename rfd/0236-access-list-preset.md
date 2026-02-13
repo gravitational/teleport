@@ -286,6 +286,162 @@ In the web UI after an access list has successfully deleted, a popup dialogue wi
 
 Since deleting a role that is used (e.g. a role assigned in another role) can lock a user out with "role not found" error, a warning banner will also be rendered on the delete dialogue to let users know that it is their responsibility to ensure that the roles that they are about to delete is unused.
 
+### Product Metrics
+
+To help gain insight into how this wizard is used we will implement the following product metrics:
+
+```proto
+// AccessListStatus represents a access list wizard step outcome.
+enum AccessListStatus {
+  ACCESS_LIST_STATUS_UNSPECIFIED = 0;
+  // The user tried to complete the action and it succeeded.
+  // e.g. going to next step,
+  ACCESS_LIST_STATUS_SUCCESS = 1;
+  // The user skipped the action (some steps may be optional).
+  ACCESS_LIST_STATUS_SKIPPED = 2;
+  // The user tried to complete the action and it failed.
+  ACCESS_LIST_STATUS_ERROR = 3;
+  // The user did not complete the action and left the wizard.
+  ACCESS_LIST_STATUS_ABORTED = 4;
+}
+
+// AccessListPreset represents the access list preset type.
+enum AccessListPreset {
+  ACCESS_LIST_PRESET_UNSPECIFIED = 0;
+  ACCESS_LIST_PRESET_SHORT_TERM = 1;
+  ACCESS_LIST_PRESET_LONG_TERM = 2;
+}
+
+// AccessListIntent describes what the user intent is.
+enum AccessListIntent {
+  ACCESS_LIST_INTENT_UNSPECIFIED = 0;
+  // User wants to update an access list.
+  ACCESS_LIST_INTENT_PRESET_UPDATE = 1;
+  // User wants to create a new access list.
+  ACCESS_LIST_INTENT_PRESET_CREATE = 2;
+}
+
+// AccessListStepStatus contains fields that track a particular step outcome.
+message AccessListStepStatus {
+  // Indicates the step outcome.
+  AccessListStatus status = 1;
+  // Contains error details in case of Error Status.
+  string error = 2;
+}
+
+// AccessListMetadata contains common metadata for access list related events.
+message AccessListMetadata {
+  // Uniquely identifies access list wizard "session". Will allow to correlate
+  // events within the same access list wizard run.
+  string id = 1;
+  // anonymized
+  string user_name = 2;
+  // Describes the sessions preset.
+  AccessListPreset preset = 3;
+  // Describes the sessions intent.
+  AccessListIntent intent = 4;
+}
+
+// UIAccessListDefineAccessEvent is emitted when user is finished with the step
+// that defines access to resources.
+message UIAccessListDefineAccessEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListDefineIdentitiesEvent is emitted when user is finished with the
+// step that defines resource identities/principals.
+message UIAccessListDefineIdentitiesEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListBasicInfoEvent is emitted when user is finished with the step
+// that defines basic info of an access list (title, desc, etc).
+message UIAccessListBasicInfoEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListDefineMembersEvent is emitted when user is finished with the
+// step that defines access list members.
+message UIAccessListDefineMembersEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListDefineOwnersEvent is emitted when user is finished with the
+// step that defines access list owners.
+message UIAccessListDefineOwnersEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+```
+
+To track success or failure of API calls:
+
+```proto
+// UIAccessListCreatedEvent is emitted when an access list is created
+// (or errors out).
+message UIAccessListCreatedEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListCreatedEvent is emitted when an access list is updated
+// (or errors out).
+message UIAccessListUpdatedEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+```
+
+To track how long the entire wizard took:
+
+```proto
+// UIAccessListStartedEvent is emitted when user starts the wizard
+// (after selection of a wizard).
+message UIAccessListStartedEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+
+// UIAccessListCompletedEvent is emitted when user completes a wizard.
+message UIAccessListCompletedEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+```
+
+When user leaves to integrate with Okta (by clicking on a CTA button during the wizard) or when user is coming from Okta integration:
+
+```proto
+// AccessListIntegrate describes what integration user
+// was interested in.
+enum AccessListIntegrate {
+  ACCESS_LIST_INTEGRATE_UNSPECIFIED = 0;
+  // User wants to integrate Okta or is coming from Okta.
+  ACCESS_LIST_INTEGRATE_OKTA = 1;
+}
+
+// UIAccessListIntegrateOktaEvent is emitted when a user leaves the wizard
+// to enroll an integration by clicking on a CTA button in the wizard.
+message UIAccessListIntegrateEvent {
+  AccessListMetadata metadata = 1;
+  AccessListIntegrate integrate = 2;
+}
+
+// UIAccessListFromOktaEvent is emitted when a user comes from a
+// integration by clicking on any of the set up access CTA buttons
+// (e.g: status page, okta overview page, or finished step during integration).
+message UIAccessListFromIntegrationEvent {
+  AccessListMetadata metadata = 1;
+  AccessListIntegrate integrate = 2;
+}
+```
+
 ### Optimization Consideration
 
 For each access list created with a preset, about 3-4 roles are created for it. This can result in hundreds of roles related to access lists.
