@@ -23,11 +23,9 @@ import (
 	"github.com/godbus/dbus/v5"
 	"github.com/godbus/dbus/v5/introspect"
 	"github.com/gravitational/trace"
-)
 
-// polkitAllowUserInteraction allows polkit to prompt the user
-// for a password if it is required.
-const polkitAllowUserInteraction = uint32(1)
+	"github.com/gravitational/teleport/lib/vnet/polkit"
+)
 
 // introspectNode describes the exported D-Bus API. Update it if any method
 // signature is changed or new methods are added.
@@ -165,28 +163,18 @@ func (d *dbusDaemon) authorize(sender dbus.Sender) error {
 		return nil
 	}
 
-	subject := polkitSubject{
-		Kind: "system-bus-name",
-		Details: map[string]dbus.Variant{
-			"name": dbus.MakeVariant(string(sender)),
-		},
-	}
-	var result struct {
-		Authorized bool
-		Challenge  bool
-		Details    map[string]string
-	}
-	if err := d.conn.Object("org.freedesktop.PolicyKit1", "/org/freedesktop/PolicyKit1/Authority").
-		Call(
-			"org.freedesktop.PolicyKit1.Authority.CheckAuthorization",
-			0,
-			subject,
-			vnetPolkitAction,
-			map[string]string{},
-			polkitAllowUserInteraction,
-			"",
-		).Store(&result); err != nil {
-		return trace.Wrap(err, "checking polkit authorization")
+	subject := polkit.NewSystemBusNameSubject(string(sender))
+	result, err := polkit.CheckAuthorization(
+		d.ctx,
+		d.conn,
+		subject,
+		vnetPolkitAction,
+		map[string]string{},
+		true,
+		"",
+	)
+	if err != nil {
+		return err
 	}
 	if !result.Authorized {
 		if result.Challenge {
@@ -205,9 +193,4 @@ func (d *dbusDaemon) lookupSenderUID(sender dbus.Sender) (uint32, error) {
 		return 0, trace.Wrap(err, "querying D-Bus sender UID")
 	}
 	return uid, nil
-}
-
-type polkitSubject struct {
-	Kind    string
-	Details map[string]dbus.Variant
 }
