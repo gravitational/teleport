@@ -200,14 +200,11 @@ message GetCertAuthorityOverrideResponse {
 
 // Request for ListCertAuthorityOverride.
 message ListCertAuthorityOverrideRequest {
-  // CA override to target.
-  CertAuthorityOverrideID ca_id = 1;
-
   // The maximum number of items to return.
   // The server may impose a different page size at its discretion.
-  int32 page_size = 2;
+  int32 page_size = 1;
   // The next_page_token value returned from a previous List request, if any.
-  string page_token = 3;
+  string page_token = 2;
 }
 
 // Response for ListCertAuthorityOverride.
