@@ -189,6 +189,8 @@ message DiscoveryConfigEvent {
   string discovery_config_name = 2;
   // resource_types is the list of resource types configured for discovery (e.g., "ec2", "rds", "eks").
   repeated string resource_types = 3;
+  // regions is the list of regions to discover resources in
+  repeated string regions = 4;
 }
 ```
 
@@ -202,6 +204,8 @@ message DiscoveryConfigEvent {
 **`discovery_config_name`:** anonymized name of the DiscoveryConfig, for correlation with `ResourceCreateEvent.discovery_config_name` and the other funnel events.
 
 **`resource_types`:** extracted from the DiscoveryConfig's matchers. Supports multiple types for future multi-resource setups.
+
+**`regions`:** extracted from the DiscoveryConfig's matchers.
 
 Emitted in `CreateDiscoveryConfig()`, `UpdateDiscoveryConfig()`, and `DeleteDiscoveryConfig()` in the discoveryconfig service.
 
