@@ -967,6 +967,94 @@ func TestCreateAppSession_deviceExtensions(t *testing.T) {
 	}
 }
 
+func TestCreateAppSession_allowedResourceIDs(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.App: {Enabled: true},
+			},
+		},
+	})
+	ctx := context.Background()
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+
+	user, _, err := authtest.CreateUserAndRole(authServer, "teleport-user", []string{"teleport-user"}, nil)
+	require.NoError(t, err, "CreateUserAndRole failed")
+
+	app, err := types.NewAppV3(
+		types.Metadata{
+			Name: "someapp",
+		}, types.AppSpecV3{
+			URI:        "http://localhost:8080",
+			PublicAddr: "someapp.example.com",
+		})
+	require.NoError(t, err)
+	appServer, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+	require.NoError(t, err)
+	_, err = authServer.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+
+	wantResourceIDs := []types.ResourceID{
+		{
+			ClusterName: testServer.ClusterName(),
+			Kind:        types.KindApp,
+			Name:        "someapp",
+		},
+	}
+
+	tests := []struct {
+		name       string
+		modifyUser func(u *authtest.TestIdentity)
+		assertCert func(t *testing.T, cert *x509.Certificate)
+	}{
+		{
+			name: "identity with no AllowedResourceIDs",
+		},
+		{
+			name: "identity with AllowedResourceIDs",
+			modifyUser: func(u *authtest.TestIdentity) {
+				lu := u.I.(authz.LocalUser)
+				lu.Identity.AllowedResourceIDs = wantResourceIDs
+				u.I = lu
+			},
+			assertCert: func(t *testing.T, cert *x509.Certificate) {
+				gotIdentity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(wantResourceIDs, gotIdentity.AllowedResourceIDs, protocmp.Transform()))
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			u := authtest.TestUser(user.GetName())
+			if test.modifyUser != nil {
+				test.modifyUser(&u)
+			}
+
+			userClient, err := testServer.NewClient(u)
+			require.NoError(t, err)
+
+			session, err := userClient.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
+				Username:    user.GetName(),
+				PublicAddr:  app.GetPublicAddr(),
+				ClusterName: testServer.ClusterName(),
+			})
+			require.NoError(t, err)
+
+			block, _ := pem.Decode(session.GetTLSCert())
+			require.NotNil(t, block)
+			gotCert, err := x509.ParseCertificate(block.Bytes)
+			require.NoError(t, err)
+
+			if test.assertCert != nil {
+				test.assertCert(t, gotCert)
+			}
+		})
+	}
+}
+
 func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

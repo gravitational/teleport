@@ -484,6 +484,11 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 			Roles:          roles,
 			Traits:         traits,
 			AccessRequests: identity.ActiveRequests,
+			// Propagate AllowedResourceIDs so the app session cert
+			// carries resource-level restrictions from the caller's identity.
+			// Without this, checkAllowedResources() at the app service sees an
+			// empty list and falls back to role-based checks alone.
+			RequestedResourceIDs: identity.AllowedResourceIDs,
 			// If the user's current identity is attested as a "web_session", it's secrets are only
 			// available to the Proxy and Auth roles, meaning this request is coming from the Proxy
 			// service on behalf of the user's Web Session. We can safely attest this child app session
@@ -528,10 +533,13 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	}
 
 	checker, err := services.NewAccessChecker(&services.AccessInfo{
-		Username:           req.User,
-		Roles:              req.Roles,
-		Traits:             req.Traits,
-		AllowedResourceIDs: req.RequestedResourceIDs,
+		Username: req.User,
+		Roles:    req.Roles,
+		Traits:   req.Traits,
+		// Propagate AllowedResourceIDs from the req, so AccessChecker
+		// doesn't fall back to role-based checks alone if resource-level restrictions
+		// are present on caller's identity.
+		AllowedResourceIDs: req.NewWebSessionRequest.RequestedResourceIDs,
 	}, clusterName.GetClusterName(), a)
 	if err != nil {
 		return nil, trace.Wrap(err)
