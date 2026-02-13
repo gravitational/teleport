@@ -34,7 +34,6 @@ func newDefaultConfig() *Config {
 				token: "next_token",
 				next:  "next_token",
 			},
-
 			"teleport.auditlog.v1.AuditLogService.GetUnstructuredEvents": {
 				size:  "limit",
 				token: "start_key",
@@ -108,9 +107,66 @@ func newDefaultConfig() *Config {
 				next:  "next_key",
 			},
 			"teleport.lib.teleterm.v1.TerminalService.ListDatabaseServers": {
-				next: "next_key",
+				size:  "params", // params encodes the limit
+				token: "params", // params encodes the token
+				next:  "next_key",
 			},
 			"teleport.lib.teleterm.v1.TerminalService.ListUnifiedResources": {
+				size:  "limit",
+				token: "start_key",
+				next:  "next_key",
+			},
+			"proto.AuthService.GetEvents": {
+				size:  "Limit",
+				token: "StartKey",
+				next:  "LastKey",
+			},
+			"proto.AuthService.ListApps": {
+				size:  "limit",
+				token: "start_key",
+				next:  "next_key",
+			},
+			"proto.AuthService.GetSessionEvents": {
+				size:  "Limit",
+				token: "StartKey",
+				next:  "LastKey",
+			},
+			"proto.AuthService.ListAccessRequests": {
+				size:  "Limit",
+				token: "StartKey",
+				next:  "NextKey",
+			},
+			"proto.AuthService.ListProvisionTokens": {
+				size:  "Limit",
+				token: "StartKey",
+				next:  "NextKey",
+			},
+			"proto.AuthService.ListResources": {
+				size:  "Limit",
+				token: "StartKey",
+				next:  "NextKey",
+			},
+			"proto.AuthService.ListRoles": {
+				size:  "Limit",
+				token: "StartKey",
+				next:  "NextKey",
+			},
+			"proto.AuthService.ListSAMLIdPServiceProviders": {
+				size:  "Limit",
+				token: "NextKey",
+				next:  "NextKey",
+			},
+			"proto.AuthService.ListUnifiedResources": {
+				size:  "Limit",
+				token: "StartKey",
+				next:  "NextKey",
+			},
+			"proto.AuthService.ListUserGroups": {
+				size:  "Limit",
+				token: "NextKey",
+				next:  "NextKey",
+			},
+			"proto.AuthService.ListWindowsDesktops": {
 				size:  "limit",
 				token: "start_key",
 				next:  "next_key",
@@ -124,69 +180,59 @@ func newDefaultConfig() *Config {
 			},
 		},
 		skips: map[protoreflect.FullName]struct{}{
-			// TODO(okraport): review the following and remove the skip:
+			// TODO(okraport): Add paginated RPC alternative and deprecate:
+			"proto.AuthService.GetInventoryStatus":                                {},
+			"proto.AuthService.GetPluginData":                                     {},
+			"teleport.accesslist.v1.AccessListService.GetAccessListOwners":        {},
+			"teleport.accesslist.v1.AccessListService.GetAccessListsToReview":     {},
+			"teleport.accesslist.v1.AccessListService.GetSuggestedAccessLists":    {},
+			"teleport.okta.v1.OktaService.GetApps":                                {},
+			"teleport.okta.v1.OktaService.GetGroups":                              {},
+			"teleport.userloginstate.v1.UserLoginStateService.GetUserLoginStates": {},
+
+			// TerminalService
+			"teleport.lib.teleterm.v1.TerminalService.GetAccessRequests":       {},
+			"teleport.lib.teleterm.v1.TerminalService.GetRequestableRoles":     {},
+			"teleport.lib.teleterm.v1.TerminalService.GetSuggestedAccessLists": {},
+			"teleport.lib.teleterm.v1.TerminalService.ListDatabaseUsers":       {},
+			"teleport.lib.teleterm.v1.TerminalService.ListGateways":            {},
+			"teleport.lib.teleterm.v1.TerminalService.ListKubernetesResources": {},
+			"teleport.lib.teleterm.v1.TerminalService.ListLeafClusters":        {},
+			"teleport.lib.teleterm.v1.TerminalService.ListRootClusters":        {},
+			"teleport.lib.teleterm.v1.TerminalService.GetAuthSettings":         {},
+
+			// Alternative implemented but needs to be deprecated in proto:
+			"teleport.accesslist.v1.AccessListService.GetAccessLists": {},
+			"proto.AuthService.GetWindowsDesktopServices":             {},
+			"proto.AuthService.GetWindowsDesktops":                    {},
+
+			// Paginated but does not support page sizes:
+			"teleport.integration.v1.AWSOIDCService.ListDatabases":                {},
+			"teleport.integration.v1.AWSOIDCService.ListDeployedDatabaseServices": {},
+			"teleport.integration.v1.AWSOIDCService.ListEKSClusters":              {},
+			"teleport.integration.v1.AWSOIDCService.ListSecurityGroups":           {},
+			"teleport.integration.v1.AWSOIDCService.ListSubnets":                  {},
+			"teleport.integration.v1.AWSOIDCService.ListVPCs":                     {},
+
+			// RPCs unlikely to exceed grpc message limits:
 			"proto.AuthService.GetAccessCapabilities":                                   {},
 			"proto.AuthService.GetAccountRecoveryCodes":                                 {},
+			"proto.AuthService.GetMFADevices":                                           {},
+			"proto.AuthService.GetSSHTargets":                                           {},
+			"proto.AuthService.ListReleases":                                            {},
+			"teleport.plugins.v1.PluginService.GetAvailablePluginTypes":                 {},
+			"teleport.trust.v1.TrustService.GetCertAuthorities":                         {},
 			"proto.AuthService.GetAlertAcks":                                            {},
 			"proto.AuthService.GetClusterAlerts":                                        {},
-			"proto.AuthService.GetEvents":                                               {},
-			"proto.AuthService.GetLocks":                                                {},
-			"proto.AuthService.GetMFADevices":                                           {},
-			"proto.AuthService.GetPluginData":                                           {},
-			"proto.AuthService.GetSessionEvents":                                        {},
-			"proto.AuthService.GetSSHTargets":                                           {},
-			"proto.AuthService.GetSSODiagnosticInfo":                                    {},
-			"proto.AuthService.GetTokens":                                               {},
-			"proto.AuthService.GetWindowsDesktops":                                      {},
-			"proto.AuthService.GetWindowsDesktopServices":                               {},
-			"proto.AuthService.ListAccessRequests":                                      {},
-			"proto.AuthService.ListApps":                                                {},
-			"proto.AuthService.ListProvisionTokens":                                     {},
-			"proto.AuthService.ListReleases":                                            {},
-			"proto.AuthService.ListResources":                                           {},
-			"proto.AuthService.ListRoles":                                               {},
-			"proto.AuthService.ListSAMLIdPServiceProviders":                             {},
-			"proto.AuthService.ListUnifiedResources":                                    {},
-			"proto.AuthService.ListUserGroups":                                          {},
-			"proto.AuthService.ListWindowsDesktops":                                     {},
-			"teleport.accesslist.v1.AccessListService.GetAccessListOwners":              {},
-			"teleport.accesslist.v1.AccessListService.GetAccessLists":                   {},
-			"teleport.accesslist.v1.AccessListService.GetAccessListsToReview":           {},
-			"teleport.accesslist.v1.AccessListService.GetSuggestedAccessLists":          {},
-			"teleport.integration.v1.AWSOIDCService.ListDatabases":                      {},
-			"teleport.integration.v1.AWSOIDCService.ListDeployedDatabaseServices":       {},
-			"teleport.integration.v1.AWSOIDCService.ListEKSClusters":                    {},
-			"teleport.integration.v1.AWSOIDCService.ListSecurityGroups":                 {},
-			"teleport.integration.v1.AWSOIDCService.ListSubnets":                        {},
-			"teleport.integration.v1.AWSOIDCService.ListVPCs":                           {},
-			"teleport.kube.v1.KubeService.ListKubernetesResources":                      {},
-			"teleport.lib.teleterm.v1.TerminalService.GetSuggestedAccessLists":          {},
-			"teleport.okta.v1.OktaService.GetApps":                                      {},
-			"teleport.okta.v1.OktaService.GetGroups":                                    {},
-			"teleport.plugins.v1.PluginService.GetAvailablePluginTypes":                 {},
-			"teleport.plugins.v1.PluginService.SearchPluginStaticCredentials":           {},
-			"teleport.secreports.v1.SecReportsService.GetSchema":                        {},
-			"teleport.trust.v1.TrustService.GetCertAuthorities":                         {},
-			"teleport.userloginstate.v1.UserLoginStateService.GetUserLoginStates":       {},
 			"teleport.lib.teleterm.auto_update.v1.AutoUpdateService.GetClusterVersions": {},
-			"teleport.lib.teleterm.v1.TerminalService.GetAccessRequests":                {},
-			"teleport.lib.teleterm.v1.TerminalService.GetRequestableRoles":              {},
-			"teleport.lib.teleterm.v1.TerminalService.ListKubernetesResources":          {},
-			"teleport.lib.teleterm.v1.TerminalService.ListDatabaseServers":              {},
-			"teleport.lib.teleterm.v1.TerminalService.ListGateways":                     {},
-			"teleport.lib.teleterm.v1.TerminalService.ListRootClusters":                 {},
-			"teleport.lib.teleterm.v1.TerminalService.ListLeafClusters":                 {},
-			"teleport.lib.teleterm.v1.TerminalService.ListDatabaseUsers":                {},
-			"proto.AuthService.GetInventoryStatus":                                      {},
 
-			// repeated field `schemas` in `Resource` does not require pagination.
-			"teleport.scim.v1.SCIMService.GetSCIMResource": {},
-			// `Device` message contains repeated field `DeviceCollectedData` but is not paginated.
-			"teleport.devicetrust.v1.DeviceTrustService.GetDevice": {},
-			// AuthSettings contains repeated `auth_providers` but does not need pagination.
-			"teleport.lib.teleterm.v1.TerminalService.GetAuthSettings": {},
-			// GetServiceInfoResponse does not require pagination.
-			"teleport.lib.teleterm.vnet.v1.VnetService.GetServiceInfo": {},
+			// Nested fields contain repeated fields or maps but unlikely to require pagination:
+			"proto.AuthService.GetSSODiagnosticInfo":                          {},
+			"teleport.devicetrust.v1.DeviceTrustService.GetDevice":            {},
+			"teleport.lib.teleterm.vnet.v1.VnetService.GetServiceInfo":        {},
+			"teleport.plugins.v1.PluginService.SearchPluginStaticCredentials": {},
+			"teleport.scim.v1.SCIMService.GetSCIMResource":                    {},
+			"teleport.secreports.v1.SecReportsService.GetSchema":              {},
 		},
 	}
 }

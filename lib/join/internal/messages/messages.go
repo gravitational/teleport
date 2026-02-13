@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/joinutils"
@@ -100,6 +101,9 @@ type TokenInit struct {
 
 	// ClientParams holds parameters for the specific type of client trying to join.
 	ClientParams ClientParams
+	// Secret holds the token secret required when using the token join method with
+	// a scoped token.
+	Secret string
 }
 
 func (i *TokenInit) Check() error {
@@ -358,6 +362,161 @@ type EC2Init struct {
 	Document []byte
 }
 
+// OracleInit is sent from the client in response to the ServerInit message for
+// the Oracle join method.
+//
+// The Oracle method join flow is:
+// 1. client->server: ClientInit
+// 2. client<-server: ServerInit
+// 3. client->server: OracleInit
+// 4. client<-server: OracleChallenge
+// 5. client->server: OracleChallengeSolution
+// 6. client<-server: Result
+type OracleInit struct {
+	embedRequest
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams ClientParams
+}
+
+// OracleChallenge is from the server in response to the OracleInit message from the client.
+// The client is expected to respond with a OracleChallengeSolution.
+type OracleChallenge struct {
+	embedResponse
+
+	// Challenge is a a crypto-random string that should be signed by the
+	// client and included in the OracleChallengeSolution message.
+	Challenge string
+}
+
+// OracleChallengeSolution must be sent from the client in response to the
+// OracleChallenge message.
+type OracleChallengeSolution struct {
+	embedRequest
+
+	// Cert is the OCI instance identity certificate, an X509 certificate in PEM format.
+	Cert []byte
+	// Intermediate encodes the intermediate CAs that issued the instance
+	// identity certificate, in PEM format.
+	Intermediate []byte
+	// Signature is a signature over the challenge, signed by the private key
+	// matching the instance identity certificate.
+	Signature []byte
+	// SignedRootCaReq is a signed request to the Oracle API for retreiving the
+	// root CAs that issued the instance identity certificate.
+	SignedRootCAReq []byte
+}
+
+// TPMInit is sent from the client in response to the ServerInit message for
+// the TPM join flow.
+//
+// The TPM method join flow is:
+// 1. client->server: ClientInit
+// 2. client<-server: ServerInit
+// 3. client->server: TPMInit
+// 4. client<-server: TPMEncryptedCredential
+// 5. client->server: TPMSolution
+// 6. client<-server: Result
+type TPMInit struct {
+	embedRequest
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams ClientParams
+	// Public is the encoded TPMT_PUBLIC structure containing the attestation
+	// public key and signing parameters.
+	Public []byte
+	// CreateData is the properties of the attestation key, encoded as a
+	// TPMS_CREATION_DATA structure.
+	CreateData []byte
+	// CreateAttestation is an assertion as to the details of the key, encoded
+	// as a TPMS_ATTEST structure.
+	CreateAttestation []byte
+	// CreateSignature is a signature of create_attestation, encoded as a
+	// TPMT_SIGNATURE structure.
+	CreateSignature []byte
+	// EKCert is the device's endorsement certificate in X509, ASN.1 DER form.
+	// This certificate contains the public key of the endorsement key. This is
+	// preferred to ek_key.
+	//
+	// Only one of EKCert and EKKey will be set.
+	EKCert []byte
+	// EKKey is the device's public endorsement key in PKIX, ASN.1 DER form.
+	// This is used when a TPM does not contain any endorsement certificates.
+	//
+	// Only one of EKCert and EKKey will be set.
+	EKKey []byte
+}
+
+// TPMEncryptedCredential is the message sent from the server in response to the
+// TPMInit message.
+type TPMEncryptedCredential struct {
+	embedResponse
+
+	// CredentialBlob is the `credential_blob` parameter to be used with the
+	// `ActivateCredential` command. This is used with the decrypted value of
+	// `secret` in a cryptographic process to decrypt the solution.
+	CredentialBlob []byte
+	// Secret is the `secret` parameter to be used with `ActivateCredential`.
+	// This is a seed which can be decrypted with the EK. The decrypted seed is
+	// then used when decrypting `credential_blob`.
+	Secret []byte
+}
+
+// TPMSolution is the message sent from the client in response to the
+// TPMEncryptedCredential message.
+type TPMSolution struct {
+	embedRequest
+
+	// Solution is the client's solution to TPMEncryptedCredential using
+	// ActivateCredential.
+	Solution []byte
+}
+
+// AzureInit is sent from the client in response to the ServerInit message for
+// the Azure join method.
+//
+// The Azure method join flow is:
+// 1. client->server: ClientInit
+// 2. client<-server: ServerInit
+// 3. client->server: AzureInit
+// 4. client<-server: AzureChallenge
+// 5. client->server: AzureChallengeSolution
+// 6. client<-server: Result
+type AzureInit struct {
+	embedRequest
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams ClientParams
+}
+
+// AzureChallenge is sent from the server in response to the AzureInit message
+// from the client. The client is expected to respond with a
+// AzureChallengeSolution.
+type AzureChallenge struct {
+	embedResponse
+
+	// Challenge is a a crypto-random string that should be included by the
+	// client in the AzureChallengeSolution message.
+	Challenge string
+}
+
+// AzureChallenge message.
+// AzureChallengeSolution must be sent from the client in response to the
+type AzureChallengeSolution struct {
+	embedRequest
+
+	// AttestedData is a signed JSON document from an Azure VM's attested data
+	// metadata endpoint used to prove the identity of a joining node. It must
+	// include the challenge string as the nonce.
+	AttestedData []byte
+	// Intermediate encodes the intermediate CAs that issued the leaf certificate
+	// used to sign the attested data document, in x509 DER format.
+	Intermediate []byte
+	// AccessToken is a JWT signed by Azure, used to prove the identity of a
+	// joining node.
+	AccessToken string
+}
+
 // Response is implemented by all join response messages.
 type Response interface {
 	isResponse()
@@ -389,6 +548,9 @@ type HostResult struct {
 	Certificates Certificates
 	// HostId is the unique ID assigned to the host.
 	HostID string
+	// ImmutableLabels are the immutable labels that have been assigned to
+	// the host.
+	ImmutableLabels *joiningv1.ImmutableLabels
 }
 
 // BotResult holds results for bot joining.

@@ -1,5 +1,6 @@
 resource "teleport_access_list" "crane-operation" {
   header = {
+    version = "v1"
     metadata = {
       name = "crane-operation"
       labels = {

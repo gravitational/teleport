@@ -206,7 +206,7 @@ var (
 	// See https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_CreateTrustAnchor.html#API_CreateTrustAnchor_RequestBody
 	matchRolesAnywhereTrustAnchorName = baseResourceNameMatcher
 
-	// matchRolesAnywhereProfileName is a regex that matches against AWS IAM Roles Anywhere Trust Anchor Names.
+	// matchRolesAnywhereProfileName is a regex that matches against AWS IAM Roles Anywhere Profile Names.
 	// See https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_CreateProfile.html#API_CreateProfile_RequestBody
 	matchRolesAnywhereProfileName = baseResourceNameMatcher
 

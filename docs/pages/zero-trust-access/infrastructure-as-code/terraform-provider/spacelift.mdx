@@ -15,7 +15,8 @@ audit trail of changes to your Teleport configuration and a single source of
 truth for operators to examine.
 
 This guide shows you how to configure the Teleport Terraform Provider to
-authenticate to a Teleport cluster using Machine ID when running on Spacelift.
+authenticate to a Teleport cluster using Machine & Workload Identity when
+running on Spacelift.
 
 ## How it works
 
@@ -38,11 +39,11 @@ resources.
 - A paid Spacelift account. This is required to use the `spacelift` join method.
 - Your Teleport user should have the privileges to create token resources.
 
-## Step 1/3. Create a role and Machine ID bot
+## Step 1/3. Create a role and Machine & Workload Identity bot
 
-First, we'll create a Machine ID Bot for our Spacelift job to act as. We'll
-grant it the `terraform-provider` role, which automatically grants access to
-every resource supported by the Teleport terraform provider.
+First, we'll create a Machine & Workload Identity Bot for our Spacelift job to
+act as. We'll grant it the `terraform-provider` role, which automatically grants
+access to every resource supported by the Teleport terraform provider.
 
 Create `bot.yaml`:
 
@@ -197,9 +198,9 @@ earlier:
 
 ![Terraform plan](../../../../img/management/spacelift/pr-run.png)
 
-When running `terraform plan`, the Teleport Terraform Provider uses Machine ID
-to generate the short-lived credentials necessary to authenticate to the
-Teleport cluster.
+When running `terraform plan`, the Teleport Terraform Provider uses Machine &
+Workload Identity to generate the short-lived credentials necessary to
+authenticate to the Teleport cluster.
 
 Merge the PR, then navigate to your stack and click **Runs**. Click the status
 of the first run, which corresponds to merging your PR, to visit the page for
@@ -223,9 +224,6 @@ $ tctl get users/terraform-test
   Terraform and Spacelift, read the [Terraform resource
   reference](../../../reference/infrastructure-as-code/terraform-provider/terraform-provider.mdx) so
   you can flesh out your configuration.
-- To find out more about Spacelift's OIDC implementation, which Machine ID uses
-  to authenticate to your Teleport cluster, read [the Spacelift
-  documentation](https://docs.spacelift.io/integrations/cloud-providers/oidc/).
-- Learn how you can help achieve secure access for service accounts by sending
-  [anonymous Machine ID telemetry](../../../reference/machine-workload-identity/machine-id/telemetry.mdx).
-
+- To find out more about Spacelift's OIDC implementation, which Machine &
+  Workload Identity uses to authenticate to your Teleport cluster, read
+  [the Spacelift documentation](https://docs.spacelift.io/integrations/cloud-providers/oidc/).

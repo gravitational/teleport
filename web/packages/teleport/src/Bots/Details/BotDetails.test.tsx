@@ -102,16 +102,12 @@ describe('BotDetails', () => {
   });
 
   it('should allow back navigation', async () => {
-    const history = createMemoryHistory({
-      initialEntries: ['/web/bot/test-bot-name'],
-    });
-    history.goBack = jest.fn();
-
     withFetchSuccess();
     withFetchJoinTokensSuccess();
     withFetchInstancesSuccess();
     withListLocksSuccess();
-    const { user } = renderComponent({ history });
+    const { user, history } = renderComponent();
+    jest.spyOn(history, 'goBack');
     await waitForLoadingBot();
 
     const backButton = screen.getByLabelText('back');
@@ -249,6 +245,37 @@ describe('BotDetails', () => {
         'Multi-factor authentication is required to view join tokens'
       )
     ).toBeInTheDocument();
+  });
+
+  it('should allow an instance to be selected', async () => {
+    withFetchSuccess();
+    withFetchJoinTokensSuccess();
+    withFetchInstancesSuccess();
+    withListLocksSuccess();
+    const { user, history } = renderComponent();
+    jest.spyOn(history, 'push');
+    await waitForLoadingBot();
+    await waitForLoadingTokens();
+
+    const instanceSection = screen
+      .getByRole('heading', { name: 'Active Instances' })
+      .closest('section');
+
+    const firstItem = within(instanceSection!).getByText(
+      'c11250e0-00c2-4f52-bcdf-b367f80b9461'
+    );
+
+    await user.click(firstItem);
+
+    expect(history.push).toHaveBeenCalledTimes(1);
+    const search = new URLSearchParams(history.location.search);
+    expect(search.get('query')).toBe('spec.bot_name == "ansible-worker"');
+    expect(search.get('is_advanced')).toBe('1');
+    expect(search.get('sort_field')).toBe('active_at_latest');
+    expect(search.get('sort_dir')).toBe('DESC');
+    expect(search.get('selected')).toBe(
+      'ansible-worker/c11250e0-00c2-4f52-bcdf-b367f80b9461'
+    );
   });
 
   describe('should show bot join tokens empty message', () => {
@@ -578,11 +605,6 @@ describe('BotDetails', () => {
 
   describe('Delete', () => {
     it('should show an overflow option to delete the bot', async () => {
-      const history = createMemoryHistory({
-        initialEntries: ['/web/bot/test-bot-name'],
-      });
-      history.replace = jest.fn();
-
       withFetchSuccess();
       withFetchJoinTokensSuccess();
       withFetchInstancesSuccess();
@@ -590,7 +612,8 @@ describe('BotDetails', () => {
         locks: [],
       });
       withDeleteBotSuccess();
-      const { user } = renderComponent({ history });
+      const { user, history } = renderComponent();
+      jest.spyOn(history, 'replace');
       await waitForLoadingBot();
 
       const overflowButton = screen.getByTestId('overflow-btn-open');
@@ -730,15 +753,21 @@ async function inputMaxSessionDuration(user: UserEvent, duration: string) {
 }
 
 const renderComponent = (options?: {
-  history?: ReturnType<typeof createMemoryHistory>;
   customAcl?: ReturnType<typeof makeAcl>;
 }) => {
   const user = userEvent.setup();
+  const history = createMemoryHistory({
+    initialEntries: ['/web/bot/test-bot-name'],
+  });
   return {
     ...render(<BotDetails />, {
-      wrapper: makeWrapper(options),
+      wrapper: makeWrapper({
+        customAcl: options?.customAcl,
+        history,
+      }),
     }),
     user,
+    history,
   };
 };
 
@@ -860,14 +889,12 @@ function withDeleteBotSuccess() {
   server.use(deleteBotSuccess());
 }
 
-function makeWrapper(options?: {
-  history?: ReturnType<typeof createMemoryHistory>;
+function makeWrapper(options: {
+  history: ReturnType<typeof createMemoryHistory>;
   customAcl?: ReturnType<typeof makeAcl>;
 }) {
   const {
-    history = createMemoryHistory({
-      initialEntries: ['/web/bot/test-bot-name'],
-    }),
+    history,
     customAcl = makeAcl({
       bots: {
         ...defaultAccess,
@@ -895,7 +922,7 @@ function makeWrapper(options?: {
         edit: true,
       },
     }),
-  } = options ?? {};
+  } = options;
   return ({ children }: PropsWithChildren) => {
     const ctx = createTeleportContext({
       customAcl,

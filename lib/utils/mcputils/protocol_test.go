@@ -89,7 +89,7 @@ func TestJSONRPCNotification(t *testing.T) {
 
 	m := base.MakeNotification()
 	require.NotNil(t, m)
-	assert.Equal(t, mcp.MCPMethod("notifications/message"), m.Method)
+	assert.Equal(t, "notifications/message", m.Method)
 	assert.Len(t, base.Params, 3)
 
 	outputJSON, err := json.MarshalIndent(m, "", "  ")
@@ -106,7 +106,7 @@ func TestJSONRPCRequest(t *testing.T) {
 
 	m := base.MakeRequest()
 	require.NotNil(t, m)
-	assert.Equal(t, mcp.MethodToolsCall, m.Method)
+	assert.Equal(t, MethodToolsCall, m.Method)
 	assert.Equal(t, "int64:2", m.ID.String())
 	name, ok := m.Params.GetName()
 	assert.True(t, ok)
@@ -153,4 +153,27 @@ func TestJSONRPCResponse(t *testing.T) {
 			},
 		}},
 	}, toolList)
+}
+
+func TestUnmarshalJSONRPCMessage_caseSensitive(t *testing.T) {
+	input := []byte(`
+{ "jsonrpc": "2.0",
+  "id": "good-id",
+  "iD": "bad-id",
+  "method": "tools/call",
+  "params": { "name": "good-name" },
+  "Params": { "name": "bad-name" }
+}`)
+	// Test that json.Unmarshal automatically uses case-sensitive unmarshaling
+	// via the custom UnmarshalJSON method.
+	var output BaseJSONRPCMessage
+	require.NoError(t, json.Unmarshal(input, &output))
+	require.Equal(t, BaseJSONRPCMessage{
+		JSONRPC: "2.0",
+		ID:      mcp.NewRequestId("good-id"),
+		Method:  "tools/call",
+		Params: map[string]interface{}{
+			"name": "good-name",
+		},
+	}, output)
 }

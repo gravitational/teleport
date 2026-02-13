@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 )
 
 var pngFrame []byte
@@ -86,8 +87,8 @@ func TestWriteMovieMultipleScreenSpecs(t *testing.T) {
 	t.Parallel()
 
 	events := []apievents.AuditEvent{
-		tdpEvent(t, tdp.ClientScreenSpec{Width: 1920, Height: 1080}),
-		tdpEvent(t, tdp.ClientScreenSpec{Width: 1920, Height: 1080}),
+		tdpEvent(t, legacy.ClientScreenSpec{Width: 1920, Height: 1080}),
+		tdpEvent(t, legacy.ClientScreenSpec{Width: 1920, Height: 1080}),
 	}
 
 	fs := eventstest.NewFakeStreamer(events, 0)
@@ -102,9 +103,9 @@ func TestWriteMovieWritesOneFrame(t *testing.T) {
 	oneFrame := frameDelayMillis
 	// need a PNG that will actually decode
 	events := []apievents.AuditEvent{
-		tdpEventMillis(t, tdp.ClientScreenSpec{Width: 128, Height: 128}, 0),
-		tdpEventMillis(t, tdp.PNG2Frame(pngFrame), 0),
-		tdpEventMillis(t, tdp.PNG2Frame(pngFrame), int64(oneFrame)+1),
+		tdpEventMillis(t, legacy.ClientScreenSpec{Width: 128, Height: 128}, 0),
+		tdpEventMillis(t, legacy.PNG2Frame(pngFrame), 0),
+		tdpEventMillis(t, legacy.PNG2Frame(pngFrame), int64(oneFrame)+1),
 	}
 	fs := eventstest.NewFakeStreamer(events, 0)
 	frames, _, err := writeMovieWrapper(t, context.Background(), fs, session.ID("test"), "test", nil)
@@ -116,11 +117,11 @@ func TestWriteMovieWritesManyFrames(t *testing.T) {
 	t.Parallel()
 
 	events := []apievents.AuditEvent{
-		tdpEventMillis(t, tdp.ClientScreenSpec{Width: 128, Height: 128}, 0),
-		tdpEventMillis(t, tdp.PNG2Frame(pngFrame), 0),
+		tdpEventMillis(t, legacy.ClientScreenSpec{Width: 128, Height: 128}, 0),
+		tdpEventMillis(t, legacy.PNG2Frame(pngFrame), 0),
 
 		// the final frame is just over 1s after the first frame
-		tdpEventMillis(t, tdp.PNG2Frame(pngFrame), 1001),
+		tdpEventMillis(t, legacy.PNG2Frame(pngFrame), 1001),
 	}
 	fs := eventstest.NewFakeStreamer(events, 0)
 	t.Cleanup(func() { os.RemoveAll("test.avi") })

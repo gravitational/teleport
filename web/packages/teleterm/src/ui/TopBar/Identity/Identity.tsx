@@ -19,12 +19,14 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 
-import { Box } from 'design';
+import { Box, ButtonText, Flex, Link, P3 } from 'design';
+import { Cross, Stars } from 'design/Icon';
 import Popover from 'design/Popover';
 import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
 
 import * as tshd from 'teleterm/services/tshd/types';
 import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { usePersistedState } from 'teleterm/ui/hooks/usePersistedState';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 import {
   useKeyboardShortcutFormatters,
@@ -119,6 +121,7 @@ export function IdentityContainer() {
               deviceTrustStatus={deviceTrustStatus}
             />
           )}
+          <TshHomeMigrationBanner />
           <KeyboardArrowsNavigation>
             {focusGrabber}
             <ClusterList
@@ -173,3 +176,62 @@ const focusGrabber = (
     autoFocus={true}
   />
 );
+
+export function TshHomeMigrationBanner(props: { className?: string }) {
+  const [state, setState] = usePersistedState(
+    'showTshHomeMigrationBanner',
+    false
+  );
+  if (!state) {
+    return;
+  }
+
+  return (
+    <Flex
+      className={props.className}
+      alignItems="center"
+      gap={2}
+      px={3}
+      py={2}
+      backgroundColor="interactive.tonal.informational.1"
+    >
+      <Stars size="medium" mx={1} />
+      <Flex
+        justifyContent="space-between"
+        alignItems="center"
+        width="100%"
+        gap={2}
+      >
+        {/*This max width value prevents the banner from being too wide in ClusterConnectPanel. */}
+        <Flex maxWidth="280px">
+          {/*Matches the look of a subtitle in TitleAndSubtitle. */}
+          <P3
+            color="text.slightlyMuted"
+            css={`
+              line-height: 1.3;
+            `}
+          >
+            Profiles are now{' '}
+            <Link
+              target="_blank"
+              href={
+                'https://goteleport.com/docs/connect-your-client/teleport-connect/#using-tsh-outside-of-teleport-connect'
+              }
+            >
+              automatically synced
+            </Link>{' '}
+            between Teleport Connect and the tsh command-line tool.
+          </P3>
+        </Flex>
+        <ButtonText
+          size="small"
+          p={1}
+          title="Close"
+          onClick={() => setState(false)}
+        >
+          <Cross size="small" />
+        </ButtonText>
+      </Flex>
+    </Flex>
+  );
+}

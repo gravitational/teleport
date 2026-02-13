@@ -48,9 +48,12 @@ const FeatureHeaderTitle = styled(H1)`
 /**
  * Feature Box (container)
  */
-const FeatureBox = styled(Flex)<{ hideBottomSpacing?: boolean }>`
+const FeatureBox = styled(Flex)<{
+  hideBottomSpacing?: boolean;
+  unsetHeight?: boolean;
+}>`
   width: 100%;
-  height: 100%;
+  ${props => !props.unsetHeight && 'height: 100%;'}
   flex-direction: column;
   padding-left: ${props => props.theme.space[6]}px;
   padding-right: ${props => props.theme.space[6]}px;

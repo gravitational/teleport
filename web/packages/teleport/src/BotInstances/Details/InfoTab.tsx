@@ -38,6 +38,8 @@ import {
   GetBotInstanceResponseJoinAttrs,
 } from 'teleport/services/bot/types';
 
+import { HealthStatusDot } from './HealthTab';
+
 export function InfoTab(props: {
   data: GetBotInstanceResponse;
   onGoToServicesClick: () => void;
@@ -249,25 +251,6 @@ const HealthLabelText = styled(Text).attrs({
   typography: 'body3',
 })`
   white-space: nowrap;
-`;
-
-const HealthStatusDot = styled.div<{
-  $status: BotInstanceServiceHealthStatus | undefined;
-}>`
-  width: ${props => props.theme.space[3] - props.theme.space[1]}px;
-  height: ${props => props.theme.space[3] - props.theme.space[1]}px;
-  border-radius: 999px;
-  background-color: ${({ theme, $status }) =>
-    $status ===
-    BotInstanceServiceHealthStatus.BOT_INSTANCE_HEALTH_STATUS_HEALTHY
-      ? theme.colors.interactive.solid.success.default
-      : $status ===
-          BotInstanceServiceHealthStatus.BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY
-        ? theme.colors.interactive.solid.danger.default
-        : $status ===
-            BotInstanceServiceHealthStatus.BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED
-          ? theme.colors.interactive.solid.alert.default
-          : theme.colors.interactive.tonal.neutral[1]};
 `;
 
 const AccentCountText = styled(Text)`

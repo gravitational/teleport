@@ -34,3 +34,9 @@ tests:
       - ../.lint/argocd.yaml
     asserts:
       - matchSnapshot: {}
+  - it: should match the snapshot (no token name)
+    set:
+      clusterName: "test.teleport.sh"
+      teleportProxyAddress: "test.teleport.sh:443"
+    asserts:
+      - matchSnapshot: {}

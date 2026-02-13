@@ -23,9 +23,11 @@ import (
 	"crypto/x509/pkix"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -67,6 +69,10 @@ type nopProxyGetter struct{}
 
 func (n nopProxyGetter) GetProxies() ([]types.Server, error) {
 	return nil, nil
+}
+
+func (n nopProxyGetter) ListProxyServers(_ context.Context, _ int, _ string) ([]types.Server, string, error) {
+	return nil, "", nil
 }
 
 func TestResourceWatcher_Backoff(t *testing.T) {
@@ -397,108 +403,117 @@ func TestLockWatcherSubscribeWithEmptyTarget(t *testing.T) {
 func TestLockWatcherStale(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		clock := clockwork.NewRealClock()
 
-	bk, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
-	})
-	require.NoError(t, err)
+		bk, err := memory.New(memory.Config{
+			Context: ctx,
+			Clock:   clock,
+		})
+		require.NoError(t, err)
 
-	type client struct {
-		services.Access
-		types.Events
-	}
+		type client struct {
+			services.Access
+			types.Events
+		}
 
-	access := local.NewAccessService(bk)
-	events := &withUnreliability{Events: local.NewEventsService(bk)}
-	w, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:      "test",
-			MaxRetryPeriod: 200 * time.Millisecond,
-			Client: &client{
-				Access: access,
-				Events: events,
+		access := local.NewAccessService(bk)
+		events := &withUnreliability{Events: local.NewEventsService(bk)}
+		w, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+			ResourceWatcherConfig: services.ResourceWatcherConfig{
+				Component:      "test",
+				MaxRetryPeriod: 200 * time.Millisecond,
+				Client: &client{
+					Access: access,
+					Events: events,
+				},
+				Clock: clock,
 			},
-			Clock: clock,
-		},
-	})
-	require.NoError(t, err)
-	t.Cleanup(w.Close)
-	select {
-	case <-w.LoopC:
-	case <-time.After(15 * time.Second):
-		t.Fatal("Timeout waiting for LockWatcher loop.")
-	}
+		})
+		require.NoError(t, err)
+		t.Cleanup(w.Close)
+		select {
+		case <-w.LoopC:
+		case <-time.After(15 * time.Second):
+			t.Fatal("Timeout waiting for LockWatcher loop.")
+		}
 
-	// Subscribe to lock watcher updates.
-	target := types.LockTarget{ServerID: "node"}
-	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
-	require.NoError(t, w.CheckLockInForce(constants.LockingModeStrict, target))
-	sub, err := w.Subscribe(ctx, target)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, sub.Close()) })
+		// Subscribe to lock watcher updates.
+		target := types.LockTarget{ServerID: "node"}
+		require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
+		require.NoError(t, w.CheckLockInForce(constants.LockingModeStrict, target))
+		sub, err := w.Subscribe(ctx, target)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, sub.Close()) })
 
-	// Close the underlying watcher. Until LockMaxStaleness is exceeded, no error
-	// should be returned.
-	events.setUnreliable(true)
-	bk.CloseWatchers()
-	select {
-	case event := <-sub.Events():
-		t.Fatalf("Unexpected event: %v.", event)
-	case <-sub.Done():
-		t.Fatal("Lock watcher subscription has unexpectedly exited.")
-	case <-time.After(2 * time.Second):
-	}
-	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
-	require.NoError(t, w.CheckLockInForce(constants.LockingModeStrict, target))
-
-	// Advance the clock to exceed LockMaxStaleness.
-	clock.Advance(defaults.LockMaxStaleness + time.Second)
-	select {
-	case event := <-sub.Events():
-		require.Equal(t, types.OpUnreliable, event.Type)
-	case <-sub.Done():
-		t.Fatal("Lock watcher subscription has unexpectedly exited.")
-	case <-time.After(15 * time.Second):
-		t.Fatal("Timeout waiting for OpUnreliable.")
-	}
-	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
-	expectLockInForce(t, nil, w.CheckLockInForce(constants.LockingModeStrict, target))
-
-	// Add a lock matching the subscription target.
-	lock, err := types.NewLock("test-lock", types.LockSpecV2{
-		Target: target,
-	})
-	require.NoError(t, err)
-	require.NoError(t, access.UpsertLock(ctx, lock))
-
-	// Make the event stream reliable again. That should broadcast any matching
-	// locks added in the meantime.
-	events.setUnreliable(false)
-	clock.Advance(time.Second)
-ExpectPut:
-	for {
+		// Close the underlying watcher. Until LockMaxStaleness is exceeded, no error
+		// should be returned.
+		events.setUnreliable(true)
+		bk.CloseWatchers()
 		select {
 		case event := <-sub.Events():
-			// There might be additional OpUnreliable events in the queue.
-			if event.Type == types.OpUnreliable {
-				continue ExpectPut
-			}
-			require.Equal(t, types.OpPut, event.Type)
-			receivedLock, ok := event.Resource.(types.Lock)
-			require.True(t, ok)
-			require.Empty(t, resourceDiff(receivedLock, lock))
-			break ExpectPut
+			t.Fatalf("Unexpected event: %v.", event)
+		case <-sub.Done():
+			t.Fatal("Lock watcher subscription has unexpectedly exited.")
+		case <-time.After(2 * time.Second):
+		}
+		require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
+		require.NoError(t, w.CheckLockInForce(constants.LockingModeStrict, target))
+
+		synctest.Wait()
+		// Advance the clock to exceed LockMaxStaleness.
+		time.Sleep(defaults.LockMaxStaleness + time.Second)
+		synctest.Wait()
+
+		select {
+		case event := <-sub.Events():
+			require.Equal(t, types.OpUnreliable, event.Type)
 		case <-sub.Done():
 			t.Fatal("Lock watcher subscription has unexpectedly exited.")
 		case <-time.After(15 * time.Second):
-			t.Fatal("Timeout waiting for OpPut.")
+			t.Fatal("Timeout waiting for OpUnreliable.")
 		}
-	}
-	expectLockInForce(t, lock, w.CheckLockInForce(constants.LockingModeBestEffort, target))
-	expectLockInForce(t, lock, w.CheckLockInForce(constants.LockingModeStrict, target))
+		require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
+		expectLockInForce(t, nil, w.CheckLockInForce(constants.LockingModeStrict, target))
+
+		// Add a lock matching the subscription target.
+		lock, err := types.NewLock("test-lock", types.LockSpecV2{
+			Target: target,
+		})
+		require.NoError(t, err)
+		require.NoError(t, access.UpsertLock(ctx, lock))
+
+		// Make the event stream reliable again. That should broadcast any matching
+		// locks added in the meantime.
+		events.setUnreliable(false)
+
+		synctest.Wait()
+		// Advance the clock to exceed LockMaxStaleness.
+		time.Sleep(time.Second)
+		synctest.Wait()
+	ExpectPut:
+		for {
+			select {
+			case event := <-sub.Events():
+				// There might be additional OpUnreliable events in the queue.
+				if event.Type == types.OpUnreliable {
+					continue ExpectPut
+				}
+				require.Equal(t, types.OpPut, event.Type)
+				receivedLock, ok := event.Resource.(types.Lock)
+				require.True(t, ok)
+				require.Empty(t, resourceDiff(receivedLock, lock))
+				break ExpectPut
+			case <-sub.Done():
+				t.Fatal("Lock watcher subscription has unexpectedly exited.")
+			case <-time.After(15 * time.Second):
+				t.Fatal("Timeout waiting for OpPut.")
+			}
+		}
+		expectLockInForce(t, lock, w.CheckLockInForce(constants.LockingModeBestEffort, target))
+		expectLockInForce(t, lock, w.CheckLockInForce(constants.LockingModeStrict, target))
+	})
 }
 
 type withUnreliability struct {
@@ -769,6 +784,80 @@ func TestCertAuthorityWatcher(t *testing.T) {
 			},
 			Clock: clock,
 		},
+		Types:           []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA, types.OpenSSHCA},
+		AuthorityGetter: caService,
+		ResourceC:       make(chan []types.CertAuthority, 8),
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	waitForEvent := func(t *testing.T, caTypes []types.CertAuthType) {
+		select {
+		case cas := <-w.ResourcesC:
+			for _, caType := range caTypes {
+				require.True(t, slices.ContainsFunc(cas, func(ca types.CertAuthority) bool {
+					return ca.GetType() == caType
+				}))
+			}
+			require.Empty(t, w.ResourcesC)
+			require.Len(t, cas, len(caTypes))
+		case <-time.After(time.Second * 2):
+			t.Fatal("timed out waiting for event")
+		}
+	}
+
+	select {
+	case changeset := <-w.ResourcesC:
+		require.Empty(t, changeset)
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the first event.")
+	}
+
+	// Create a CA and ensure we receive the event.
+	ca := newCertAuthority(t, "test", types.HostCA)
+	require.NoError(t, caService.UpsertCertAuthority(ctx, ca))
+	waitForEvent(t, []types.CertAuthType{types.HostCA})
+
+	ca = newCertAuthority(t, "test", types.DatabaseCA)
+	require.NoError(t, caService.UpsertCertAuthority(ctx, ca))
+	waitForEvent(t, []types.CertAuthType{types.HostCA, types.DatabaseCA})
+
+	require.NoError(t, caService.DeleteCertAuthority(ctx, ca.GetID()))
+	waitForEvent(t, []types.CertAuthType{types.HostCA})
+}
+
+func TestDeprecatedCertAuthorityWatcher(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	bk, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	type client struct {
+		services.Trust
+		types.Events
+	}
+
+	caService := local.NewCAService(bk)
+	//nolint:staticcheck // SA1019 This test should be deleted after all uses of
+	// [services.DeprecatedNewCertAuthorityWatcher] are removed.
+	w, err := services.DeprecatedNewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
+			Client: &client{
+				Trust:  caService,
+				Events: local.NewEventsService(bk),
+			},
+			Clock: clock,
+		},
 		Types: []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA, types.OpenSSHCA},
 	})
 	require.NoError(t, err)
@@ -846,8 +935,7 @@ func TestCertAuthorityWatcher(t *testing.T) {
 }
 
 func newCertAuthority(t *testing.T, name string, caType types.CertAuthType) types.CertAuthority {
-	ta := testauthority.New()
-	priv, pub, err := ta.GenerateKeyPair()
+	priv, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	// CA for cluster1 with 1 key pair.

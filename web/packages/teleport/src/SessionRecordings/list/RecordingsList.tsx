@@ -21,6 +21,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentType,
   type CSSProperties,
 } from 'react';
 import styled, { useTheme } from 'styled-components';
@@ -30,7 +31,11 @@ import Box from 'design/Box';
 import InputSearch from 'design/DataTable/InputSearch';
 import Flex, { Stack } from 'design/Flex';
 import Text from 'design/Text';
-import { SortMenu } from 'shared/components/Controls/SortMenu';
+import {
+  SortItem,
+  SortMenu,
+  SortOrder,
+} from 'shared/components/Controls/SortMenu';
 import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 
 import { ClusterDropdown } from 'teleport/components/ClusterDropdown/ClusterDropdown';
@@ -45,29 +50,24 @@ import {
   RecordingFilters,
   type RecordingFilterOptions,
 } from './RecordingFilters';
-import { RecordingItem, type ActionSlot } from './RecordingItem';
+import { RecordingItem, type RecordingActionProps } from './RecordingItem';
 import { RecordingsPagination } from './RecordingsPagination';
 import type {
   RecordingsListFilterKey,
   RecordingsListFilters,
-  RecordingsListSortDirection,
-  RecordingsListSortKey,
   RecordingsListState,
 } from './state';
 import { Density, ViewMode, ViewSwitcher } from './ViewSwitcher';
 
 interface RecordingsListProps {
-  actionSlot?: ActionSlot;
+  actionComponent?: ComponentType<RecordingActionProps>;
   onFilterChange: (
     key: RecordingsListFilterKey,
     value: string[] | boolean
   ) => void;
   onPageChange: (page: number) => void;
   onSearchChange: (search: string) => void;
-  onSortChange: (
-    key: RecordingsListSortKey,
-    dir: RecordingsListSortDirection
-  ) => void;
+  onSortChange: (key: string, dir: SortOrder) => void;
   state: RecordingsListState;
 }
 
@@ -76,14 +76,25 @@ interface RecordingsGridProps {
   density: Density;
 }
 
-interface SortFieldOption {
-  value: RecordingsListSortKey;
-  label: string;
-}
-
-const sortFieldOptions: SortFieldOption[] = [
-  { label: 'Type', value: 'type' },
-  { label: 'Date', value: 'date' },
+const sortFieldOptions: SortItem[] = [
+  {
+    label: 'Type',
+    key: 'type',
+    ascendingLabel: 'Type, A - Z',
+    descendingLabel: 'Type, Z - A',
+    ascendingOptionLabel: 'Alphabetical, A - Z',
+    descendingOptionLabel: 'Alphabetical, Z - A',
+    defaultOrder: 'ASC',
+  },
+  {
+    label: 'Date',
+    key: 'date',
+    ascendingLabel: 'Oldest',
+    descendingLabel: 'Newest',
+    ascendingOptionLabel: 'Oldest',
+    descendingOptionLabel: 'Newest',
+    defaultOrder: 'DESC',
+  },
 ];
 
 const RecordingsGrid = styled.div<RecordingsGridProps>(p => {
@@ -124,7 +135,7 @@ const ScrollContainer = styled.div`
 `;
 
 export function RecordingsList({
-  actionSlot,
+  actionComponent,
   onFilterChange,
   onPageChange,
   onSearchChange,
@@ -194,11 +205,8 @@ export function RecordingsList({
   const endIndex = Math.min(startIndex + pageSize, recordings.length);
 
   const handleSortChange = useCallback(
-    (newSort: {
-      fieldName: RecordingsListSortKey;
-      dir: RecordingsListSortDirection;
-    }) => {
-      onSortChange(newSort.fieldName, newSort.dir);
+    (field: string, order: SortOrder) => {
+      onSortChange(field, order);
 
       scrollRef.current?.scrollTo({ top: 0 });
     },
@@ -234,7 +242,7 @@ export function RecordingsList({
         .slice(startIndex, endIndex)
         .map(recording => (
           <RecordingItem
-            actionSlot={actionSlot}
+            actionComponent={actionComponent}
             key={recording.sid}
             recording={recording}
             thumbnailStyles={thumbnailStyles}
@@ -243,7 +251,7 @@ export function RecordingsList({
           />
         )),
     [
-      actionSlot,
+      actionComponent,
       recordings,
       viewMode,
       density,
@@ -304,11 +312,9 @@ export function RecordingsList({
           />
 
           <SortMenu
-            current={{
-              fieldName: state.sortKey,
-              dir: state.sortDirection,
-            }}
-            fields={sortFieldOptions}
+            selectedKey={state.sortKey}
+            selectedOrder={state.sortDirection}
+            items={sortFieldOptions}
             onChange={handleSortChange}
           />
 
@@ -415,8 +421,8 @@ function filterRecordings(
 }
 
 function createRecordingsSortFunction(
-  key: RecordingsListSortKey,
-  direction: RecordingsListSortDirection
+  key: string,
+  direction: SortOrder
 ): (a: Recording, b: Recording) => number {
   return (a, b) => {
     let valueA: string | number;

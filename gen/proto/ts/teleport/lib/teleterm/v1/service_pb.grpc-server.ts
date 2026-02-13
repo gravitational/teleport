@@ -50,6 +50,8 @@ import { UpdateHeadlessAuthenticationStateRequest } from "./service_pb";
 import { ReportUsageEventRequest } from "./usage_events_pb";
 import { FileTransferProgress } from "./service_pb";
 import { FileTransferRequest } from "./service_pb";
+import { ClearStaleClusterClientsResponse } from "./service_pb";
+import { ClearStaleClusterClientsRequest } from "./service_pb";
 import { LogoutRequest } from "./service_pb";
 import { LoginPasswordlessResponse } from "./service_pb";
 import { LoginPasswordlessRequest } from "./service_pb";
@@ -308,6 +310,12 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: Logout(teleport.lib.teleterm.v1.LogoutRequest) returns (teleport.lib.teleterm.v1.EmptyResponse);
      */
     logout: grpc.handleUnaryCall<LogoutRequest, EmptyResponse>;
+    /**
+     * Closes root and leaf cluster clients that use outdated TLS certificates.
+     *
+     * @generated from protobuf rpc: ClearStaleClusterClients(teleport.lib.teleterm.v1.ClearStaleClusterClientsRequest) returns (teleport.lib.teleterm.v1.ClearStaleClusterClientsResponse);
+     */
+    clearStaleClusterClients: grpc.handleUnaryCall<ClearStaleClusterClientsRequest, ClearStaleClusterClientsResponse>;
     /**
      * TransferFile sends a request to download/upload a file
      *
@@ -709,6 +717,16 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         requestDeserialize: bytes => LogoutRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(EmptyResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(LogoutRequest.toBinary(value))
+    },
+    clearStaleClusterClients: {
+        path: "/teleport.lib.teleterm.v1.TerminalService/ClearStaleClusterClients",
+        originalName: "ClearStaleClusterClients",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => ClearStaleClusterClientsResponse.fromBinary(bytes),
+        requestDeserialize: bytes => ClearStaleClusterClientsRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(ClearStaleClusterClientsResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(ClearStaleClusterClientsRequest.toBinary(value))
     },
     transferFile: {
         path: "/teleport.lib.teleterm.v1.TerminalService/TransferFile",

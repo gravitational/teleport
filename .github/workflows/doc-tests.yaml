@@ -19,7 +19,7 @@ jobs:
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: changes
         with:
@@ -46,13 +46,13 @@ jobs:
 
     steps:
       - name: Check out teleport
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: 'gravitational/teleport'
           path: 'teleport'
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: 'gravitational/docs-website'
           path: 'docs'
@@ -65,14 +65,14 @@ jobs:
           private-key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
 
       - name: Check out shared-workflows
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: gravitational/shared-workflows
           path: shared-workflows
           ref: 6f388765b8ce993721502083c74cb9af1fc5658f 
 
       - name: Install Go
-        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        uses: actions/setup-go@faf52423ec0d44c58f68e83b614bfcd99dded66f # v6.0.0
         with:
           go-version: 'stable'
           cache-dependency-path: shared-workflows/bot/go.sum
@@ -84,7 +84,7 @@ jobs:
         run: cd shared-workflows/bot && go run main.go -workflow=docpaths -token="${TOKEN}" -teleport-path="${GITHUB_WORKSPACE}/teleport" -reviewers="${REVIEWERS}"
 
       - name: Install Node.js
-        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        uses: actions/setup-node@dda4788290998366da86b6a4f497909644397bb2 # v6.0.0
         with:
           node-version: 22
           cache: 'yarn'

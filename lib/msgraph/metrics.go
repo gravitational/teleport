@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
 type clientMetrics struct {
@@ -34,22 +34,26 @@ type clientMetrics struct {
 }
 
 const (
-	metricSubsystem     = "msgraph"
 	metricsLabelStatus  = "status"
 	metricsLabelsMethod = "method"
 )
 
-func newMetrics() *clientMetrics {
+func newMetrics(reg *metrics.Registry) *clientMetrics {
+	var namespace, subsystem string
+	if reg != nil {
+		namespace = reg.Namespace()
+		subsystem = reg.Subsystem()
+	}
 	return &clientMetrics{
 		requestTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: teleport.MetricNamespace,
-			Subsystem: metricSubsystem,
+			Namespace: namespace,
+			Subsystem: subsystem,
 			Name:      "request_total",
 			Help:      "Total number of requests made to MS Graph",
 		}, []string{metricsLabelsMethod, metricsLabelStatus}),
 		requestDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Namespace: teleport.MetricNamespace,
-			Subsystem: metricSubsystem,
+			Namespace: namespace,
+			Subsystem: subsystem,
 			Name:      "request_duration_seconds",
 			Help:      "Request to MS Graph duration in seconds.",
 		}, []string{metricsLabelsMethod}),

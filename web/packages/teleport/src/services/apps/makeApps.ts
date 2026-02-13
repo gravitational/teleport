@@ -21,7 +21,9 @@ import { AwsRole, getAppUriScheme } from 'shared/services/apps';
 
 import cfg from 'teleport/config';
 
-import { App, PermissionSet } from './types';
+import { App, CloudInstance, PermissionSet } from './types';
+
+const cloudProtocol = 'cloud://';
 
 function getLaunchUrl({
   fqdn,
@@ -66,6 +68,7 @@ export default function makeApp(json: any): App {
     subKind,
     samlAppLaunchUrls,
     mcp,
+    supportedFeatureIds,
   } = json;
 
   const launchUrl = getLaunchUrl({
@@ -88,7 +91,7 @@ export default function makeApp(json: any): App {
   let addrWithProtocol = uri;
   if (publicAddr) {
     if (isCloud) {
-      addrWithProtocol = `cloud://${publicAddr}`;
+      addrWithProtocol = `${cloudProtocol}${publicAddr}`;
     } else if (isTcp) {
       addrWithProtocol = `tcp://${publicAddr}`;
     } else if (isMcp) {
@@ -101,12 +104,29 @@ export default function makeApp(json: any): App {
       addrWithProtocol = `https://${publicAddr}`;
     }
   }
+
   if (useAnyProxyPublicAddr) {
     addrWithProtocol = `https://${fqdn}`;
   }
   let samlAppSsoUrl = '';
   if (samlApp) {
     samlAppSsoUrl = `${cfg.baseUrl}/enterprise/saml-idp/login/${name}`;
+  }
+
+  let cloudInstance: CloudInstance;
+  if (isCloud) {
+    // Cloud instance app URI format is "cloud://<cloud>"
+    // eg: "cloud://GCP"
+    const splittedUri = uri.split(cloudProtocol);
+    if (splittedUri.length > 1) {
+      const gotCloudInstance = splittedUri[1];
+      for (const cloudEnumVal of Object.values(CloudInstance)) {
+        if (cloudEnumVal === gotCloudInstance) {
+          cloudInstance = gotCloudInstance;
+          break;
+        }
+      }
+    }
   }
 
   return {
@@ -137,5 +157,7 @@ export default function makeApp(json: any): App {
     permissionSets,
     samlAppLaunchUrls,
     mcp,
+    cloudInstance,
+    supportedFeatureIds,
   };
 }

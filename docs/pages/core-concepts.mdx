@@ -69,7 +69,7 @@ An SSH server implementation that allows users to execute commands on remote
 machines while taking advantage of Teleport's built-in access controls,
 auditing, and session recording. The SSH service is enabled by default.
 
-Read more about the [Teleport SSH Service](./enroll-resources/server-access/introduction.mdx).
+Read more about the [Teleport SSH Service](./enroll-resources/server-access/server-access.mdx).
 
 ### Teleport Kubernetes Service
 
@@ -84,7 +84,7 @@ Proxies HTTP and TCP traffic to user-configured endpoints, e.g., internal web
 applications or the AWS Console. Protect your internal tools and dashboards.
 
 Read more about the [Teleport Application
-Service](./enroll-resources/application-access/introduction.mdx).
+Service](./enroll-resources/application-access/application-access.mdx).
 
 ### Teleport Database Service
 
@@ -122,14 +122,14 @@ their access control strategy, ensuring only trusted devices are allowed to conn
 Provides internal diagnostics, exposing metrics, performance profiling tools, and debugging endpoints. 
 It is designed for measuring performance, troubleshooting scenarios, and enabling operators to change the logging level without restarting teleport. 
 This can be helpful for analyzing bottlenecks, or diagnosing unexpected behavior in a controlled environment. The debug service is exposed locally by default.
-[Read more about the Debug Service](zero-trust-access/management/admin/troubleshooting.mdx#step-13-enable-verbose-logging).
+[Read more about the Debug Service](zero-trust-access/management/diagnostics/troubleshooting.mdx#step-13-enable-verbose-logging).
 
 ## Agent
 
 A Teleport instance that runs one or more services to provide access to infrastructure resources. 
 It can be hosted separately from the resources it manages, but all agents must run within the same network as their target resources.
 
-## Machine ID
+## Machine & Workload Identity
 
 Allows machines and services—called bot users—to communicate securely with
 resources in your infrastructure by automatically provisioning and renewing
@@ -139,15 +139,15 @@ Bot users can connect to resources in your infrastructure without relying
 on static credentials (e.g., certificates and private keys) that become more
 vulnerable to attacks the longer they remain in use.
 
-Unlike other **Teleport services**, Machine ID runs via the `tbot` binary,
-rather than the `teleport` binary.
+Unlike other **Teleport services**, Machine & Workload Identity runs via the
+`tbot` binary, rather than the `teleport` binary.
 
 ### `tbot`
 
 `tbot` is a lightweight agent designed to provision short-lived credentials to workloads and automation systems like CI/CD pipelines. 
 It enables secure machine and workload authentication without relying on long-lived secrets. This makes it ideal for infrastructure automation and Zero Trust deployments.
 
-Read more in our [Machine ID guide](machine-workload-identity/machine-id/introduction.mdx).
+Read more in our [Machine & Workload Identity documentation](./machine-workload-identity/machine-workload-identity.mdx).
 
 ## Teleport editions
 
@@ -194,7 +194,7 @@ A **configuration resource** is a document stored on the **Teleport Auth
 Service** backend that specifies settings for your **Teleport cluster**.
 Examples include **roles**, **local users**, and **authentication connectors**
 
-Read more in our [resource reference](reference/infrastructure-as-code/resources.mdx).
+Read more in our [resource reference](reference/infrastructure-as-code/teleport-resources/teleport-resources.mdx).
 
 ### Role
 
@@ -243,7 +243,7 @@ users, roles, and resources, but the trust relationship allows users with certai
 in the root cluster to be mapped to roles and permissions defined in the leaf cluster.
 
 For more information about how to configure a trust relationship between clusters,
-see [Configure Trusted Clusters](zero-trust-access/management/admin/trustedclusters.mdx). For an overview of the architecture used in a trusted cluster relationship, see [Trusted Cluster Architecture](reference/architecture/trustedclusters.mdx).
+see [Configure Trusted Clusters](zero-trust-access/deploy-a-cluster/trustedclusters.mdx). For an overview of the architecture used in a trusted cluster relationship, see [Trusted Cluster Architecture](reference/architecture/trustedclusters.mdx).
 
 ## Teleport clients
 

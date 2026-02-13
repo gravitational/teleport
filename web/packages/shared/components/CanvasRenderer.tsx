@@ -231,21 +231,5 @@ function makeBitmapFrameRenderer(
 ): (frame: BitmapFrame) => void {
   const ctx = canvas.getContext('2d');
 
-  // Buffered rendering logic
-  let bitmapBuffer: BitmapFrame[] = [];
-  const renderBuffer = () => {
-    if (bitmapBuffer.length) {
-      for (let i = 0; i < bitmapBuffer.length; i++) {
-        if (bitmapBuffer[i].image_data.data.length != 0) {
-          const bmpFrame = bitmapBuffer[i];
-          ctx.putImageData(bmpFrame.image_data, bmpFrame.left, bmpFrame.top);
-        }
-      }
-      bitmapBuffer = [];
-    }
-    requestAnimationFrame(renderBuffer);
-  };
-  requestAnimationFrame(renderBuffer);
-
-  return frame => bitmapBuffer.push(frame);
+  return frame => ctx.putImageData(frame.image_data, frame.left, frame.top);
 }

@@ -48,6 +48,10 @@ export enum IntegrationEnrollEvent {
   Started = 'tp.ui.integrationEnroll.start',
   Complete = 'tp.ui.integrationEnroll.complete',
   Step = 'tp.ui.integrationEnroll.step',
+  SectionOpen = 'tp.ui.integrationEnroll.sectionOpen',
+  FieldComplete = 'tp.ui.integrationEnroll.fieldComplete',
+  CodeCopy = 'tp.ui.integrationEnroll.codeCopy',
+  LinkClick = 'tp.ui.integrationEnroll.linkClick',
 }
 
 // IntegrationEnrollKind represents a integration type.
@@ -67,6 +71,7 @@ export enum IntegrationEnrollKind {
   ServiceNow = 'INTEGRATION_ENROLL_KIND_SERVICENOW',
   MachineID = 'INTEGRATION_ENROLL_KIND_MACHINE_ID',
   MachineIDGitHubActions = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS',
+  MachineIDGitHubActionsKubernetes = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES',
   MachineIDCircleCI = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_CIRCLECI',
   MachineIDGitLab = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_GITLAB',
   MachineIDJenkins = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_JENKINS',
@@ -103,6 +108,14 @@ export enum IntegrationEnrollStep {
   GitHubRaCreateGitServer = 'INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_GIT_SERVER',
   GitHubRaConfigureSshCert = 'INTEGRATION_ENROLL_STEP_GITHUBRA_CONFIGURE_SSH_CERT',
   GitHubRaCreateRole = 'INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_ROLE',
+
+  /**
+   * MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+   */
+  MWIGHAK8SWelcome = 'INTEGRATION_ENROLL_STEP_MWIGHAK8S_WELCOME',
+  MWIGHAK8SConnectGitHub = 'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB',
+  MWIGHAK8SConfigureAccess = 'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONFIGURE_ACCESS',
+  MWIGHAK8SSetupWorkflow = 'INTEGRATION_ENROLL_STEP_MWIGHAK8S_SETUP_WORKFLOW',
 }
 
 /**
@@ -115,6 +128,53 @@ export enum IntegrationEnrollStatusCode {
   Skipped = 'INTEGRATION_ENROLL_STATUS_CODE_SKIPPED',
   Error = 'INTEGRATION_ENROLL_STATUS_CODE_ERROR',
   Aborted = 'INTEGRATION_ENROLL_STATUS_CODE_ABORTED',
+}
+
+/**
+ * IntegrationEnrollSection identifies a section the user opened or expanded in
+ * an integration setup wizard. Value matches with proto enums defined in the
+ * backend.
+ */
+export enum IntegrationEnrollSection {
+  /**
+   * MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+   */
+  MWIGHAK8SGitHubAdvancedOptions = 'INTEGRATION_ENROLL_SECTION_MWIGHAK8S_GITHUB_ADVANCED_OPTIONS',
+  MWIGHAK8SKubernetesLabelPicker = 'INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_LABEL_PICKER',
+  MWIGHAK8SKubernetesAdvancedOptions = 'INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_ADVANCED_OPTIONS',
+  MWIGHAK8SKubernetesResourceRulePicker = 'INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_RESOURCE_RULE_PICKER',
+}
+
+/**
+ * IntegrationEnrollField identifies a field the user completed in an integration
+ * setup wizard. Value matches with proto enums defined in the backend.
+ */
+export enum IntegrationEnrollField {
+  /**
+   * MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+   */
+  MWIGHAK8SGitHubRepositoryURL = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REPOSITORY_URL',
+  MWIGHAK8SGitHubBranch = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_BRANCH',
+  MWIGHAK8SGitHubWorkflow = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_WORKFLOW',
+  MWIGHAK8SGitHubEnvironment = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENVIRONMENT',
+  MWIGHAK8SGitHubRef = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REF',
+  MWIGHAK8SGitHubEnterpriseSlug = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_SLUG',
+  MWIGHAK8SGitHubEnterpriseStaticJWKS = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_STATIC_JWKS',
+  MWIGHAK8SKubernetesLabels = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_LABELS',
+  MWIGHAK8SKubernetesGroups = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_GROUPS',
+  MWIGHAK8SKubernetesUsers = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_USERS',
+  MWIGHAK8SKubernetesResourceRules = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_RESOURCE_RULES',
+  MWIGHAK8SKubernetesClusterName = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_CLUSTER_NAME',
+}
+
+/**
+ * IntegrationEnrollCodeType identifies the type of code that was copied in an
+ * integration setup wizard. Value matches with proto enums defined in the
+ * backend.
+ */
+export enum IntegrationEnrollCodeType {
+  Terraform = 'INTEGRATION_ENROLL_CODE_TYPE_TERRAFORM',
+  GitHubActionsYAML = 'INTEGRATION_ENROLL_CODE_TYPE_GITHUB_ACTIONS_YAML',
 }
 
 /**
@@ -142,6 +202,10 @@ export type IntegrationEnrollEventData = {
   kind: IntegrationEnrollKind;
   step?: IntegrationEnrollStep;
   status?: IntegrationEnrollStepStatus;
+  section?: IntegrationEnrollSection;
+  field?: IntegrationEnrollField;
+  codeType?: IntegrationEnrollCodeType;
+  link?: string;
 };
 
 /**
@@ -230,6 +294,8 @@ export enum DiscoverEventResource {
   SamlApplication = 'DISCOVER_RESOURCE_SAML_APPLICATION',
 
   MCPStdio = 'DISCOVER_RESOURCE_MCP_STDIO',
+  MCPSSE = 'DISCOVER_RESOURCE_MCP_SSE',
+  MCPStreamableHTTP = 'DISCOVER_RESOURCE_MCP_STREAMABLE_HTTP',
 }
 
 export enum DiscoverEventStatus {

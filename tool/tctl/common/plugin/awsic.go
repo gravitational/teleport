@@ -204,7 +204,7 @@ func (a *awsICInstallArgs) parseUserFilters() ([]*types.AWSICUserSyncFilter, err
 func (p *PluginsCommand) initInstallAWSIC(parent *kingpin.CmdClause) {
 	p.install.awsIC.cmd = parent.Command("awsic", "Install an AWS IAM Identity Center integration.")
 	cmd := p.install.awsIC.cmd
-	cmd.Flag("access-list-default-owner", "Teleport user to set as default owner for the imported access lists. Multiple flags allowed.").
+	cmd.Flag("access-list-default-owner", "Teleport user to set as default owner for the imported Access Lists. Multiple flags allowed.").
 		Required().
 		StringsVar(&p.install.awsIC.defaultOwners)
 	cmd.Flag("scim-url", "AWS Identity Center SCIM provisioning endpoint").

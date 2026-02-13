@@ -416,6 +416,10 @@ func testX11Forward(ctx context.Context, t *testing.T, proc *networking.Process,
 func TestRootCheckHomeDir(t *testing.T) {
 	testutils.RequireRoot(t)
 
+	// this test manipulates global state, ensure we're not going to run it in
+	// parallel with something else
+	t.Setenv("foo", "bar")
+
 	tmp := t.TempDir()
 	require.NoError(t, os.Chmod(filepath.Dir(tmp), 0777))
 	require.NoError(t, os.Chmod(tmp, 0777))

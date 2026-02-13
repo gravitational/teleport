@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -258,6 +259,24 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			wantErr: true,
+		},
+		{
+			desc: "iam method with aws_organization_id",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: "iam",
+					Allow: []*TokenRule{
+						{
+							AWSOrganizationID: "o-123abcd",
+						},
+					},
+				},
+			},
+			wantErr: false,
 		},
 		{
 			desc: "github valid",
@@ -1646,6 +1665,27 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			desc: "oracle too many instance IDs",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodOracle,
+					Oracle: &ProvisionTokenSpecV2Oracle{
+						Allow: []*ProvisionTokenSpecV2Oracle_Rule{
+							{
+								Tenancy:   "ocid.tenancy.oc1..mytentant",
+								Instances: genOCIDs(101),
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tc := range testcases {
@@ -1665,6 +1705,14 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			}
 		})
 	}
+}
+
+func genOCIDs(count int) []string {
+	out := make([]string, count)
+	for i := range count {
+		out[i] = fmt.Sprintf("ocid.instance.oc1.region.%d", i)
+	}
+	return out
 }
 
 func TestProvisionTokenV2_GetSafeName(t *testing.T) {

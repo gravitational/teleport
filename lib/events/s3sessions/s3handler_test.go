@@ -24,6 +24,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -36,10 +37,15 @@ import (
 
 // TestStreams tests various streaming upload scenarios
 func TestStreams(t *testing.T) {
+	bucket := os.Getenv("TELEPORT_TEST_AUDIT_SESSIONS_S3_BUCKET")
+	if bucket == "" {
+		bucket = "teleport-unit-tests"
+	}
+
 	handler, err := NewHandler(context.Background(), Config{
 		Region: "us-west-1",
 		Path:   "/test/",
-		Bucket: "teleport-unit-tests",
+		Bucket: bucket,
 	})
 	require.NoError(t, err)
 

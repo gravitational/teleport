@@ -19,25 +19,32 @@
 package athena
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/athena"
 	athenaTypes "github.com/aws/aws-sdk-go-v2/service/athena/types"
-	"github.com/dustin/go-humanize"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
+	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
@@ -192,8 +199,8 @@ func TestSearchEvents(t *testing.T) {
 			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
 				wantSingleCallToAthena(t, mock)
 				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
-					` AND session_id = ? AND event_type IN (?,?,?) ORDER BY event_time ASC, uid ASC LIMIT 100;`)
-				wantQueryParams(t, mock, append(timeRangeParams, "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", "'session.end'", "'windows.desktop.session.end'", "'db.session.end'")...)
+					` AND session_id = ? AND event_type IN (?,?,?,?) ORDER BY event_time ASC, uid ASC LIMIT 100;`)
+				wantQueryParams(t, mock, append(timeRangeParams, "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", "'session.end'", "'windows.desktop.session.end'", "'db.session.end'", "'app.session.chunk'")...)
 			},
 		},
 		{
@@ -758,10 +765,9 @@ func Test_querier_fetchResults(t *testing.T) {
 		// fakeResp defines responses which will be returned based on given
 		// input token to GetQueryResults. Note that due to limit of GetQueryResults
 		// we are doing multiple calls, first always with empty token.
-		fakeResp     map[string]eventsWithToken
-		wantEvents   []apievents.AuditEvent
-		wantKeyset   string
-		wantErrorMsg string
+		fakeResp   map[string]eventsWithToken
+		wantEvents []apievents.AuditEvent
+		wantKeyset string
 	}{
 		{
 			name:  "no data returned from query, return empty results",
@@ -794,9 +800,9 @@ func Test_querier_fetchResults(t *testing.T) {
 				"": {returnToken: "", events: []apievents.AuditEvent{bigUntrimmableEvent}},
 			},
 			limit: 10,
-			wantErrorMsg: fmt.Sprintf(
-				"app.create event %s is 5.0 MiB and cannot be returned because it exceeds the maximum response size of %s",
-				bigUntrimmableEvent.Metadata.ID, humanize.IBytes(events.MaxEventBytesInResponse)),
+			// we still want to receive the untrimmable event
+			wantEvents: []apievents.AuditEvent{bigUntrimmableEvent},
+			wantKeyset: mustEventToKey(t, bigUntrimmableEvent),
 		},
 		{
 			name: "events with trimmable event exceeding > MaxEventBytesInResponse",
@@ -853,10 +859,6 @@ func Test_querier_fetchResults(t *testing.T) {
 				},
 			}
 			gotEvents, gotKeyset, err := q.fetchResults(context.Background(), "queryid", tt.limit, tt.condition)
-			if tt.wantErrorMsg != "" {
-				require.ErrorContains(t, err, tt.wantErrorMsg)
-				return
-			}
 			require.NoError(t, err)
 
 			want := make([]events.EventFields, 0, len(tt.wantEvents))
@@ -954,4 +956,124 @@ func (f *fakeAthenaResultsGetter) GetQueryResults(ctx context.Context, params *a
 			Rows: rows,
 		},
 	}, nil
+}
+
+func Test_querier_streamEventsFromChunk(t *testing.T) {
+	const (
+		tableName  = "test_table"
+		bucketName = "test_bucket"
+		prefix     = "test_prefix"
+		date       = "2025-12-01"
+		chunkID    = "test_chunk"
+	)
+
+	event1 := &apievents.AppCreate{
+		Metadata: apievents.Metadata{
+			ID:   uuid.NewString(),
+			Time: time.Now().UTC(),
+			Type: events.AppCreateEvent,
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppName: "app-1",
+		},
+	}
+	event2 := &apievents.AppCreate{
+		Metadata: apievents.Metadata{
+			ID:   uuid.NewString(),
+			Time: time.Now().UTC(),
+			Type: events.AppCreateEvent,
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppName: "app-2",
+		},
+	}
+
+	tests := []struct {
+		name   string
+		events []apievents.AuditEvent
+	}{
+		{
+			name:   "single-event chunk",
+			events: []apievents.AuditEvent{event1},
+		},
+		{
+			name:   "multi-event chunk",
+			events: []apievents.AuditEvent{event1, event2},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// add event parquets (in one .parquet file) to mock S3 getter
+			payloads, err := auditEventsToParquet(tt.events)
+			require.NoError(t, err)
+
+			buf := new(bytes.Buffer)
+			writer := parquet.NewGenericWriter[eventParquet](buf)
+			_, err = writer.Write(payloads)
+			require.NoError(t, err)
+			require.NoError(t, writer.Close())
+
+			key := fmt.Sprintf("%s/%s/%s.parquet", prefix, date, chunkID)
+			file := filepath.Join(bucketName, key)
+			mockS3 := &mockS3Getter{
+				files: map[string][]byte{
+					file: buf.Bytes(),
+				},
+			}
+
+			q := &querier{
+				querierConfig: querierConfig{
+					tablename:        tableName,
+					locationS3Bucket: bucketName,
+					locationS3Prefix: prefix,
+					logger:           slog.Default(),
+					tracer:           tracing.NoopTracer(teleport.ComponentAthena),
+				},
+				s3Getter: mockS3,
+			}
+
+			eventStream := q.streamEventsFromChunk(t.Context(), date, chunkID)
+			eventParquets, err := stream.Collect(eventStream)
+			require.NoError(t, err)
+			require.Len(t, eventParquets, len(payloads))
+			for i, e := range eventParquets {
+				require.Equal(t, payloads[i].UID, e.UID)
+			}
+		})
+	}
+}
+
+func auditEventsToParquet(in []apievents.AuditEvent) ([]eventParquet, error) {
+	out := make([]eventParquet, 0, len(in))
+
+	for _, e := range in {
+		p, err := auditEventToParquet(e)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *p)
+	}
+	return out, nil
+}
+
+type mockS3Getter struct {
+	mu    sync.Mutex
+	files map[string][]byte
+}
+
+func (m *mockS3Getter) GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	file := filepath.Join(*params.Bucket, *params.Key)
+	if obj, ok := m.files[file]; ok {
+		return &s3.GetObjectOutput{
+			Body: io.NopCloser(bytes.NewReader(obj)),
+		}, nil
+	}
+	return nil, &s3Types.NoSuchKey{Message: aws.String("key does not exist")}
+}
+
+func (m *mockS3Getter) ListObjectsV2(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
+	return &s3.ListObjectsV2Output{}, nil
 }

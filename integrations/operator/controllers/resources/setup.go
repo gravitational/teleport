@@ -31,9 +31,11 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 )
 
+type ReconcilerFactory func(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error)
+
 type reconcilerFactory struct {
 	cr      string
-	factory func(kclient.Client, *client.Client) (controllers.Reconciler, error)
+	factory ReconcilerFactory
 }
 
 // SetupAllControllers sets up all controllers
@@ -59,6 +61,7 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 
 	oidc := modules.GetProtoEntitlement(features, entitlements.OIDC)
 	saml := modules.GetProtoEntitlement(features, entitlements.SAML)
+	policy := modules.GetProtoEntitlement(features, entitlements.Policy)
 
 	if oidc.Enabled {
 		reconcilers = append(reconcilers, reconcilerFactory{"TeleportOIDCConnector", NewOIDCConnectorReconciler})
@@ -70,6 +73,14 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		reconcilers = append(reconcilers, reconcilerFactory{"TeleportSAMLConnector", NewSAMLConnectorReconciler})
 	} else {
 		log.Info("SAML connectors are only available in Teleport Enterprise edition. TeleportSAMLConnector resources won't be reconciled")
+	}
+
+	if policy.Enabled {
+		reconcilers = append(reconcilers, reconcilerFactory{"TeleportInferenceModel", NewInferenceModelReconciler})
+		reconcilers = append(reconcilers, reconcilerFactory{"TeleportInferencePolicy", NewInferencePolicyReconciler})
+		reconcilers = append(reconcilers, reconcilerFactory{"TeleportInferenceSecret", NewInferenceSecretReconciler})
+	} else {
+		log.Info("Inference Models, Policies, and Secrets are only available in Teleport Enterprise edition. TeleportInferenceModel, TeleportInferencePolicy, and TeleportInferenceSecret resources won't be reconciled")
 	}
 
 	// Login Rules are enterprise-only but there is no specific feature flag for them.

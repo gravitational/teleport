@@ -1,0 +1,34 @@
+---
+title: Inference Policy Resource Reference
+sidebar_label: Inference Policy
+description: Provides a comprehensive list of fields for the Teleport inference policy resource.
+---
+
+The inference policy resource controls, in session recording summaries, which
+sessions are summarized and which model will be used to summarize them. There
+can be multiple policies defined; multiple policies can also share the same
+model.
+
+```yaml
+kind: inference_policy
+version: v1
+metadata:
+  name: example-policy
+spec:
+
+  # kinds indicate which kinds of sessions will match this policy. Required.
+  # Supported values: 'ssh', 'k8s', 'db'.
+  kinds: ['ssh', 'db']
+
+  # model is the name of the inference_model resource containing provider and
+  # model configuration. Required.
+  model: example-model
+  
+  # filter is an additional filter that the sessions need to match to be
+  # matched by this policy. Optional, defaults to matching all sessions of
+  # given kind.
+  filter: 'equals(resource.metadata.labels["env"], "prod")'
+```
+
+See [Predicate Language](../../access-controls/predicate-language.mdx) for more details on the
+filter expressions.

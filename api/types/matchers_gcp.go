@@ -108,6 +108,10 @@ func (m *GCPMatcher) CheckAndSetDefaults() error {
 		if m.Params.ScriptName == "" {
 			m.Params.ScriptName = DefaultInstallerScriptName
 		}
+
+		if err := m.Params.HTTPProxySettings.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	if slices.Contains(m.Locations, Wildcard) || len(m.Locations) == 0 {

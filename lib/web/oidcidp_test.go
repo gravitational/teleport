@@ -67,7 +67,7 @@ func TestOIDCIdPPublicEndpoints(t *testing.T) {
 		Claims:                           []string{"iss", "sub", "obo", "aud", "jti", "iat", "exp", "nbf"},
 		ResponseTypesSupported:           []string{"id_token"},
 		ScopesSupported:                  []string{"openid"},
-		SubjectTypesSupported:            []string{"public", "pair-wise"},
+		SubjectTypesSupported:            []string{"public"},
 	}
 	require.Equal(t, expectedConfiguration, gotConfiguration)
 

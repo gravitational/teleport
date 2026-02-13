@@ -1,5 +1,5 @@
 ---
-title: Discover AWS Access Patterns and AWS CloudTrail events with Teleport Identity Security
+title: Discover AWS Access Patterns with Teleport Identity Security
 sidebar_label: AWS
 description: Describes how to import and visualize AWS accounts access patterns using Identity Security.
 tags:
@@ -7,6 +7,7 @@ tags:
  - identity-security
  - aws
  - access-risks
+enterprise: Identity Security
 ---
 
 Identity Security streamlines and centralizes access management across your entire infrastructure. You can view access relationships in seconds,
@@ -20,8 +21,8 @@ enhancing the permission model within your AWS environment. This functionality e
 - Which resources can be reached via identities associated with EC2 instances?
 - What AWS resources can Teleport users access when connecting to EC2 nodes?
 
-Identity Security also offers CloudTrail data ingestion, analysis for threats and correlation with
-other services such as Okta and GitHub Actions.
+Identity Security also offers CloudTrail data ingestion, EKS (Kubernetes) API server audit log ingestion, analysis for
+threats and correlation with other services such as Okta and GitHub Actions.
 
 Utilizing the Access Graph to analyze IAM permissions within an AWS account necessitates the setup of the Access Graph
 service, a Discovery Service, and integration with your AWS account.
@@ -76,8 +77,17 @@ object key. Teleport uses this information to fetch the corresponding CloudTrail
 from S3.
 
 Once the file is downloaded, Teleport parses the CloudTrail events and processes them for audit and
-security purposes. This allows Teleport to provide continuous visibility into activity across AWS
-services, including login attempts, API calls, and changes to infrastructure.
+security purposes. This allows Identity Activity Center to provide continuous visibility into
+activity across AWS services, including login attempts, API calls, and changes to infrastructure.
+
+
+### Importing Amazon EKS API Server audit logs (optional)
+
+If EKS is configured to log API server audit logs to CloudWatch Logs, Identity Activity Center can
+process these logs in near real time. Teleport will fetch these logs continuously, parsing them for
+audit and security purposes. This allows Identity Activity Center to provide continuous visibility
+into activity within your EKS clusters.
+
 
 ## Prerequisites
 
@@ -92,7 +102,7 @@ how to set up Access Graph.
   - AWS CloudTrail setup with notifications being sent to a SNS topic.
   - AWS SQS queue receiving raw messages from CloudTrail SNS notifications.
 
-## Step 1/3. Configure Discovery Service (Self-hosted only)
+## Step 1/4. Configure Discovery Service (Self-hosted only)
 
 <Admonition type="warning">
 
@@ -119,7 +129,7 @@ it's possible to reuse it as long as the following requirements are met:
 `discovery_group`.
 - Access Graph service is reachable from the machine where Discovery Service runs.
 
-## Step 2/3. Identity Activity Center CloudTrail integration (optional)
+## Step 2/4. Integrate CloudTrail Events for Identity Activity Center (optional)
 
 To enable the Identity Activity Center CloudTrail integration, you can use an existing
 CloudTrail trail or create a new one. Trails can be scoped to a single AWS account or
@@ -145,7 +155,55 @@ is strongly recommended. Be sure to configure the necessary KMS key permissions 
 following step so that Identity Security can successfully decrypt messages from SQS
 and access CloudTrail logs in the S3 bucket.
 
-## Step 3/3. Set up Access Graph AWS Sync
+## Step 3/4. Integrate Amazon EKS CloudWatch Audit Logs for Identity Activity Center (optional)
+
+To set up near real-time access to EKS API server audit logs, use the AWS web console to
+navigate to the EKS cluster configuration. From the "Observability" tab, in the "Control plane logs"
+section, click the "Manage" button. Then select the "Audit" checkbox to send control plane logs
+to CloudWatch Logs.
+
+![Show EKS Audit Settings](../../../img/access-graph/aws/eks-audit-settings.png)
+
+The default setup performed in step 4 matches all EKS clusters in the configured AWS regions. If
+you want to be more selective about which EKS cluster to fetch logs from, you can create a
+`discovery_config` resource with tags to match the tags on the EKS clusters. Those clusters that
+match the tags will have the API server audit logs fetched from CloudWatch Logs and imported into
+Identity Activity Center.
+
+- <Var name="resource-name" />: The name of the `discovery_config` resource.
+- <Var name="discovery-group" />: The `discovery_group` name matching the existing Discovery Service's `discovery_group` (as described in step 1).
+- <Var name="regions" />: A list of AWS regions in which to discover EKS clusters.
+- <Var name="tag-name" />: The name of a tag that EKS clusters must match, or `"*"` for any tag.
+- <Var name="tag-value" />: The value or list of values that the named tag must have to match, or `"*"` for any value. If a list, only one of the values needs to match.
+
+```yaml
+kind: discovery_config
+version: v1
+metadata:
+  name: <Var name="resource-name" />
+spec:
+  discovery_group: <Var name="discovery-group" />
+  access_graph:
+    aws:
+      - regions: [<Var name="regions" />]
+        eks_audit_logs:
+          tags:
+            <Var name="tag-name" />: <Var name="tag-value" />
+            ...
+```
+
+1. Place this YAML configuration in a file <Var name="discovery_config.yaml" />
+1. Apply this configuration file to your cluster, assigning <Var name="teleport.example.com" />
+   to the domain name of your Teleport Proxy Service in your cluster:
+   ```code
+   $ tctl create --proxy=<Var name="teleport.example.com" /> -f <Var name="discovery_config.yaml" />
+   ```
+
+This will configure Teleport to fetch audit logs for EKS clusters in the specified regions where
+the EKS clusters match the specified tags. The last seven days of logs will be imported and then
+continuously as long as the EKS cluster tags match the discovery configuration.
+
+## Step 4/4. Set up Access Graph AWS Sync
 
 To initiate the setup wizard for configuring AWS Sync, access the Teleport UI,
 click the Identity Security sidebar button, and then click Integrations.
@@ -241,7 +299,8 @@ The IAM policy includes the following directives:
 
 ```
 
-If Identity Activity Center is enabled, two extra configurations are required:
+If Identity Activity Center is enabled, the following extra configurations are required for CloudTrail
+integration:
 
 - <Var name="aws-sqs-queue"/>: The ARN of the Amazon SQS queue subscribed to the SNS topic that receives CloudTrail notifications.
 - <Var name="aws-s3-trail-bucket"/>: The arn of the Amazon S3 bucket where CloudTrail delivers its log files.
@@ -288,6 +347,23 @@ If Identity Activity Center is enabled, two extra configurations are required:
   ]
 }
 ```
+
+If EKS Audit Log integration is enabled, the IAM policy includes the following directives:
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "logs:FilterLogEvents"
+      ],
+      "Resource": "arn:aws:logs:*:*:log-group:/aws/eks/*"
+    }
+  ]
+}
+```
+
 </details>
 
 

@@ -146,7 +146,8 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 
 	switch p.TeleportCommandPrefix {
 	case PrefixSUDO:
-		p.TeleportCommandPrefix = p.binSudo
+		// add -E to preserve environment variables set before executing the script.
+		p.TeleportCommandPrefix = p.binSudo + " -E"
 	case "":
 	default:
 		return trace.BadParameter("invalid command prefix %q, only %v are supported", p.TeleportCommandPrefix, allowedCommandPrefix)

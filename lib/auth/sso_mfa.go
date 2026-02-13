@@ -34,18 +34,18 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// beginSSOMFAChallenge creates a new SSO MFA auth request and session data for the given user and sso device.
-func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, sso *types.SSOMFADevice, ssoClientRedirectURL, proxyAddress string, ext *mfav1.ChallengeExtensions) (*proto.SSOChallenge, error) {
+// BeginSSOMFAChallenge creates a new SSO MFA auth request and session data for the given user and sso device.
+func (a *Server) BeginSSOMFAChallenge(ctx context.Context, params mfatypes.BeginSSOMFAChallengeParams) (*proto.SSOChallenge, error) {
 	chal := &proto.SSOChallenge{
-		Device: sso,
+		Device: params.SSO,
 	}
 
-	switch sso.ConnectorType {
+	switch params.SSO.ConnectorType {
 	case constants.SAML:
 		resp, err := a.CreateSAMLAuthRequestForMFA(ctx, types.SAMLAuthRequest{
-			ConnectorID:       sso.ConnectorId,
-			Type:              sso.ConnectorType,
-			ClientRedirectURL: ssoClientRedirectURL,
+			ConnectorID:       params.SSO.ConnectorId,
+			Type:              params.SSO.ConnectorType,
+			ClientRedirectURL: params.SSOClientRedirectURL,
 			CheckUser:         true,
 		})
 		if err != nil {
@@ -57,10 +57,10 @@ func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, sso *typ
 		codeVerifier := oauth2.GenerateVerifier()
 
 		resp, err := a.CreateOIDCAuthRequestForMFA(ctx, types.OIDCAuthRequest{
-			ConnectorID:       sso.ConnectorId,
-			Type:              sso.ConnectorType,
-			ClientRedirectURL: ssoClientRedirectURL,
-			ProxyAddress:      proxyAddress,
+			ConnectorID:       params.SSO.ConnectorId,
+			Type:              params.SSO.ConnectorType,
+			ClientRedirectURL: params.SSOClientRedirectURL,
+			ProxyAddress:      params.ProxyAddress,
 			PkceVerifier:      codeVerifier,
 			CheckUser:         true,
 		})
@@ -70,20 +70,22 @@ func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, sso *typ
 		chal.RequestId = resp.StateToken
 		chal.RedirectUrl = resp.RedirectURL
 	default:
-		return nil, trace.BadParameter("unsupported sso connector type %v", sso.ConnectorType)
+		return nil, trace.BadParameter("unsupported sso connector type %v", params.SSO.ConnectorType)
 	}
 
-	if err := a.upsertSSOMFASession(ctx, user, chal.RequestId, sso.ConnectorId, sso.ConnectorType, ext); err != nil {
+	if err := a.upsertSSOMFASession(ctx, params.User, chal.RequestId, params.SSO.ConnectorId, params.SSO.ConnectorType, params.Ext, params.SIP, params.SourceCluster, params.TargetCluster); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return chal, nil
 }
 
-// verifySSOMFASession verifies that the given sso mfa token matches an existing MFA session
+// VerifySSOMFASession verifies that the given sso mfa token matches an existing MFA session
 // for the user and session ID. It also checks the required extensions, and finishes by deleting
 // the MFA session if reuse is not allowed.
-func (a *Server) verifySSOMFASession(ctx context.Context, username, sessionID, token string, requiredExtensions *mfav1.ChallengeExtensions) (*authz.MFAAuthData, error) {
+// TODO(cthach): Refactor to accept a params struct since there are many parameters. Must be done after SSO MFA device
+// support is added to lib/auth/authtest (https://github.com/gravitational/teleport/issues/62271).
+func (a *Server) VerifySSOMFASession(ctx context.Context, username, sessionID, token string, requiredExtensions *mfav1.ChallengeExtensions) (*authz.MFAAuthData, error) {
 	if requiredExtensions == nil {
 		return nil, trace.BadParameter("requested challenge extensions must be supplied.")
 	}
@@ -136,16 +138,19 @@ func (a *Server) verifySSOMFASession(ctx context.Context, username, sessionID, t
 	}
 
 	return &authz.MFAAuthData{
-		Device:     groupedDevs.SSO,
-		User:       username,
-		AllowReuse: mfaSess.ChallengeExtensions.AllowReuse,
+		Device:        groupedDevs.SSO,
+		User:          username,
+		AllowReuse:    mfaSess.ChallengeExtensions.AllowReuse,
+		Payload:       mfaSess.Payload,
+		SourceCluster: mfaSess.SourceCluster,
+		TargetCluster: mfaSess.TargetCluster,
 	}, nil
 }
 
 // upsertSSOMFASession upserts a new unverified SSO MFA session for the given username,
 // sessionID, connector details, and challenge extensions.
-func (a *Server) upsertSSOMFASession(ctx context.Context, user string, sessionID string, connectorID string, connectorType string, ext *mfav1.ChallengeExtensions) error {
-	err := a.UpsertSSOMFASessionData(ctx, &services.SSOMFASessionData{
+func (a *Server) upsertSSOMFASession(ctx context.Context, user string, sessionID string, connectorID string, connectorType string, ext *mfav1.ChallengeExtensions, sip *mfav1.SessionIdentifyingPayload, sourceCluster string, targetCluster string) error {
+	data := &services.SSOMFASessionData{
 		Username:      user,
 		RequestID:     sessionID,
 		ConnectorID:   connectorID,
@@ -154,8 +159,17 @@ func (a *Server) upsertSSOMFASession(ctx context.Context, user string, sessionID
 			Scope:      ext.Scope,
 			AllowReuse: ext.AllowReuse,
 		},
-	})
-	return trace.Wrap(err)
+		SourceCluster: sourceCluster,
+		TargetCluster: targetCluster,
+	}
+
+	if sip != nil {
+		data.Payload = &mfatypes.SessionIdentifyingPayload{
+			SSHSessionID: sip.GetSshSessionId(),
+		}
+	}
+
+	return trace.Wrap(a.UpsertSSOMFASessionData(ctx, data))
 }
 
 // UpsertSSOMFASessionWithToken upserts the given SSO MFA session with a random mfa token.

@@ -43,6 +43,10 @@ your clients receive security patches and remain compatible with your cluster.
 Those resources are generated automatically by Teleport. Users should not edit them, reading them can be helpful to
 track the autoupdate state and understand Teleport's update decisions.
 
+These resources only track Teleport Agent installations.
+However, if tbot is deployed alongside a Teleport Agent, a tbot update failure will cause the agent update to revert,
+and the agent update will be marked as failed.
+
 #### `autoupdate_agent_rollout`
 
 `autoupdate_agent_rollout` describes the rollout of the version across agent groups.
@@ -194,6 +198,45 @@ intervention to resume (`tctl autoupdate agents mark-done $GROUP_NAME`).
 
 If `dev` finishes updating Friday at 16:30, `prod` will not start updating immediately as update windows are
 1-hour-long and `prod`'s update window is over. `prod` update will start on Monday at 15:00.
+
+#### Canaries
+
+With the `halt-on-error` strategy, the `canary_count` field can be set on each group to specify
+a number of randomly selected agents (fewer than five) to update and verify before
+proceeding to the rest of the agents in the group. This can be used to reduce the impact
+of a failed update that might not be caught by earlier groups due to environment differences.
+
+**Key characteristics:**
+
+- Up to five total Linux and Kubernetes agents are randomly selected and updated first.
+- If any canary fails to update, the group is marked as failed and not updated.
+- Subsequent groups will not be updated until the group successfully updates.
+- Linux and Kubernetes agents can be placed in separate groups to ensure both are covered by canaries.
+- tbot-only installations are not selected as canaries. However, agents may be deployed
+  alongside tbot to detect tbot update failures, roll back both the agent and tbot, and fail the canary.
+
+**Example configuration:**
+
+```yaml
+kind: autoupdate_config
+metadata:
+  name: autoupdate-config
+spec:
+  agents:
+    mode: enabled
+    strategy: halt-on-error
+    schedules:
+      regular:
+        - name: stage
+          days: ["Mon", "Tue", "Wed", "Thu"]
+          start_hour: 18
+          canary_count: 5
+        - name: prod
+          days: ["Mon", "Tue", "Wed", "Thu"]
+          start_hour: 20
+          wait_hours: 24
+          canary_count: 5
+```
 
 
 ### `time-based` Strategy Version Behavior

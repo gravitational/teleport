@@ -85,11 +85,7 @@ const kinds = ({ theme, kind, shadow }: ThemedKindsProps) => {
 };
 
 interface LabelStateProps
-  extends SpaceProps,
-    KindsProps,
-    WidthProps,
-    ColorProps,
-    FontSizeProps {}
+  extends SpaceProps, KindsProps, WidthProps, ColorProps, FontSizeProps {}
 
 const LabelState = styled.span<LabelStateProps>`
   box-sizing: border-box;

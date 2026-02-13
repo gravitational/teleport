@@ -101,6 +101,7 @@ func TestGenerateIAMTokenName(t *testing.T) {
 
 type tokenData struct {
 	name   string
+	labels map[string]string
 	expiry time.Time
 	spec   types.ProvisionTokenSpecV2
 }
@@ -148,6 +149,30 @@ func TestGetTokens(t *testing.T) {
 				staticUIToken,
 			},
 			includeUserToken: true,
+		},
+		{
+			name: "cloud managed",
+			tokenData: []tokenData{
+				{
+					name: "cloud-iam",
+					spec: types.ProvisionTokenSpecV2{
+						Roles: types.SystemRoles{types.RoleProxy},
+					},
+					labels: map[string]string{"teleport.internal/cloud/token": "iam"},
+					expiry: expiry,
+				},
+			},
+			expected: []ui.JoinToken{
+				staticUIToken,
+				{
+					ID:            "cloud-iam",
+					SafeName:      "*********",
+					Expiry:        expiry,
+					Roles:         types.SystemRoles{types.RoleProxy},
+					IsCloudSystem: true, // due to presence of the teleport.internal/cloud/token label
+					Method:        "token",
+				},
+			},
 		},
 		{
 			name: "all tokens",
@@ -242,7 +267,7 @@ func TestGetTokens(t *testing.T) {
 									Workflow:        "test-workflow",
 									Environment:     "test-environment",
 									Actor:           "octocat",
-									Ref:             "ref/heads/main",
+									Ref:             "refs/heads/main",
 									RefType:         "branch",
 								},
 							},
@@ -269,7 +294,7 @@ func TestGetTokens(t *testing.T) {
 								Workflow:        "test-workflow",
 								Environment:     "test-environment",
 								Actor:           "octocat",
-								Ref:             "ref/heads/main",
+								Ref:             "refs/heads/main",
 								RefType:         "branch",
 							},
 						},
@@ -320,6 +345,13 @@ func TestGetTokens(t *testing.T) {
 			for _, td := range tc.tokenData {
 				token, err := types.NewProvisionTokenFromSpec(td.name, td.expiry, td.spec)
 				require.NoError(t, err)
+
+				if len(td.labels) > 0 {
+					m := token.GetMetadata()
+					m.Labels = td.labels
+					token.SetMetadata(m)
+				}
+
 				err = env.server.Auth().CreateToken(ctx, token)
 				require.NoError(t, err)
 			}
@@ -599,18 +631,9 @@ func TestEditToken(t *testing.T) {
 }
 
 func TestCreateTokenExpiry(t *testing.T) {
-	// Can't t.Parallel because of modules.SetTestModules.
-	// Use enterprise build to access token types such as TPM and Spacelift
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Cloud: false,
-		},
-	})
-
-	ctx := context.Background()
+	ctx := t.Context()
 	username := "test-user@example.com"
-	env := newWebPack(t, 1)
+	env := newWebPack(t, 1, withModules(modulestest.EnterpriseModules()))
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, username, nil /* roles */)
 
@@ -1400,7 +1423,6 @@ func newAutoupdateTestHandler(t *testing.T, config autoupdateTestHandlerConfig) 
 	}
 
 	log := logtest.NewLogger()
-	modulestest.SetTestModules(t, *config.testModules)
 	r, err := autoupdatelookup.NewResolver(
 		autoupdatelookup.Config{
 			RolloutGetter: ap,
@@ -1416,6 +1438,7 @@ func newAutoupdateTestHandler(t *testing.T, config autoupdateTestHandlerConfig) 
 			AccessPoint:     ap,
 			PublicProxyAddr: addr,
 			ProxyClient:     clt,
+			Modules:         config.testModules,
 		},
 		logger:             log,
 		autoUpdateResolver: r,
@@ -2086,38 +2109,31 @@ func TestJoinScript(t *testing.T) {
 
 func TestAutomaticUpgrades(t *testing.T) {
 	t.Run("cloud and automatic upgrades enabled", func(t *testing.T) {
-		modulestest.SetTestModules(t, modulestest.Modules{
-			TestFeatures: modules.Features{
-				Cloud:             true,
-				AutomaticUpgrades: true,
-			},
-		})
+		features := modules.Features{
+			Cloud:             true,
+			AutomaticUpgrades: true,
+		}
 
-		got := automaticUpgrades(*modules.GetModules().Features().ToProto())
+		got := automaticUpgrades(*features.ToProto())
 		require.True(t, got)
 	})
 	t.Run("cloud but automatic upgrades disabled", func(t *testing.T) {
-		modulestest.SetTestModules(t, modulestest.Modules{
-			TestFeatures: modules.Features{
-				Cloud:             true,
-				AutomaticUpgrades: false,
-			},
-		})
+		features := modules.Features{
+			Cloud:             true,
+			AutomaticUpgrades: false,
+		}
 
-		got := automaticUpgrades(*modules.GetModules().Features().ToProto())
+		got := automaticUpgrades(*features.ToProto())
 		require.False(t, got)
 	})
 
 	t.Run("automatic upgrades enabled but is not cloud", func(t *testing.T) {
-		modulestest.SetTestModules(t, modulestest.Modules{
-			TestBuildType: modules.BuildEnterprise,
-			TestFeatures: modules.Features{
-				Cloud:             false,
-				AutomaticUpgrades: true,
-			},
-		})
+		features := modules.Features{
+			Cloud:             false,
+			AutomaticUpgrades: true,
+		}
 
-		got := automaticUpgrades(*modules.GetModules().Features().ToProto())
+		got := automaticUpgrades(*features.ToProto())
 		require.False(t, got)
 	})
 }

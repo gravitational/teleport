@@ -16,7 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { LocationDescriptor } from 'history';
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import styled, { useTheme } from 'styled-components';
 import { color, ColorProps, style } from 'styled-system';
 
@@ -46,7 +48,8 @@ export type AlertKind =
   | 'success'
   | 'outline-danger'
   | 'outline-info'
-  | 'outline-warn';
+  | 'outline-warn'
+  | 'cta';
 
 const alertBorder = (
   props: ThemedAlertProps
@@ -76,6 +79,11 @@ const alertBorder = (
       return {
         border: theme.borders[1],
         borderColor: theme.colors.text.disabled,
+      };
+    case 'cta':
+      return {
+        border: theme.borders[2],
+        borderColor: theme.colors.interactive.solid.primary.default,
       };
   }
 };
@@ -108,6 +116,10 @@ const backgroundColor = (
       return {
         background: theme.colors.interactive.tonal.neutral[0],
       };
+    case 'cta':
+      return {
+        background: 'inherit',
+      };
   }
 };
 
@@ -137,15 +149,19 @@ interface Props<K> {
  */
 export interface Action {
   content: React.ReactNode;
+  /**
+   * a link that takes user out of the app (new tab)
+   */
   href?: string;
+  /**
+   * a link that takes you to a different route within the app
+   */
+  linkTo?: LocationDescriptor;
   onClick?: (event: React.MouseEvent) => void;
 }
 
 export interface AlertProps
-  extends Props<AlertKind>,
-    SpaceProps,
-    WidthProps,
-    ColorProps {
+  extends Props<AlertKind>, SpaceProps, WidthProps, ColorProps {
   linkColor?: string;
   /**
    * If specified, the alert's contents will wrap for narrower screens
@@ -188,7 +204,7 @@ export const Alert = ({
   wrapContents = false,
   ...otherProps
 }: AlertProps) => {
-  const alertIconSize = kind === 'neutral' ? 'large' : 'small';
+  const alertIconSize = 'small';
   const [dismissed, setDismissed] = useState(false);
 
   const onDismissClick = () => {
@@ -319,7 +335,14 @@ const iconContainerStyles = ({
     case 'neutral':
       return {
         color: theme.colors.text.main,
-        background: 'none',
+        background: theme.colors.interactive.tonal.neutral[0],
+        padding: `${theme.space[2]}px`,
+      };
+    case 'cta':
+      return {
+        color: theme.colors.text.primaryInverse,
+        background: theme.colors.interactive.solid.primary.default,
+        padding: `${theme.space[2]}px`,
       };
   }
 };
@@ -347,7 +370,7 @@ const IconContainer = styled.div<{ kind: AlertKind; wrapContents?: boolean }>`
 const primaryButtonProps = (
   kind: AlertKind | BannerKind
 ): { fill: ButtonFill; intent: ButtonIntent } => {
-  return kind === 'neutral'
+  return kind === 'neutral' || kind === 'cta'
     ? { fill: 'filled', intent: 'primary' }
     : { fill: 'border', intent: 'neutral' };
 };
@@ -382,7 +405,7 @@ const ActionButtons = ({
       )}
       {secondaryAction && (
         <ActionButton
-          fill="minimal"
+          fill={kind === 'neutral' ? 'filled' : 'minimal'}
           intent="neutral"
           action={secondaryAction}
         />
@@ -398,7 +421,7 @@ const ActionButtons = ({
 
 /** Renders either a regular or a link button, depending on the action. */
 export const ActionButton = ({
-  action: { href, content, onClick },
+  action: { href, content, onClick, linkTo },
   fill,
   intent,
   inputAlignment = false,
@@ -411,33 +434,36 @@ export const ActionButton = ({
   inputAlignment?: boolean;
   disabled?: boolean;
   title?: string;
-}) =>
-  href ? (
-    <Button
-      as="a"
-      href={href}
-      target="_blank"
-      fill={fill}
-      intent={intent}
-      onClick={onClick}
-      inputAlignment={inputAlignment}
-      disabled={disabled}
-      title={title}
-    >
-      {content}
-    </Button>
-  ) : (
-    <Button
-      fill={fill}
-      intent={intent}
-      onClick={onClick}
-      inputAlignment={inputAlignment}
-      disabled={disabled}
-      title={title}
-    >
-      {content}
-    </Button>
-  );
+}) => {
+  const sharedProps = {
+    fill,
+    intent,
+    onClick,
+    disabled,
+    title,
+    // Prevent props being passed to underlying React element
+    // and removes "React does not recognize <field> on a DOM element"
+    // error.
+    $inputAlignment: inputAlignment,
+  };
+
+  if (href) {
+    return (
+      <Button {...sharedProps} as="a" href={href} target="_blank">
+        {content}
+      </Button>
+    );
+  }
+
+  if (linkTo) {
+    return (
+      <Button {...sharedProps} as={Link} to={linkTo}>
+        {content}
+      </Button>
+    );
+  }
+  return <Button {...sharedProps}>{content}</Button>;
+};
 
 export const Danger = (props: AlertProps) => <Alert kind="danger" {...props} />;
 export const Info = (props: AlertProps) => <Alert kind="info" {...props} />;
@@ -576,6 +602,7 @@ const iconKind = (kind: AlertKind | BannerKind): StatusKind => {
     case 'outline-info':
       return 'info';
     case 'primary':
+    case 'cta':
       return 'neutral';
     default:
       return kind;

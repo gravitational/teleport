@@ -51,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -61,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -370,8 +370,12 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	sshSigner, err := ssh.NewSignerFromSigner(key)
 	fatalIf(err)
 
-	keygen := keygen.New(t.Context(), keygen.SetClock(cfg.Clock))
-	hostCert, err := keygen.GenerateHostCert(sshca.HostCertificateRequest{
+	clock := cmp.Or(cfg.Clock, clockwork.NewRealClock())
+	// TODO(tross): replace modules.GetModules with cfg.Modules
+	authority, err := testauthority.NewKeygen(modules.GetModules().BuildType(), clock.Now)
+	fatalIf(err)
+
+	hostCert, err := authority.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      sshSigner,
 		PublicHostKey: cfg.Pub,
 		HostID:        cfg.HostID,
@@ -383,8 +387,6 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 		},
 	})
 	fatalIf(err)
-
-	clock := cmp.Or(cfg.Clock, clockwork.NewRealClock())
 
 	identity := tlsca.Identity{
 		Username: fmt.Sprintf("%v.%v", cfg.HostID, cfg.ClusterName),
@@ -633,8 +635,14 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 
 	tconf.Kube.CheckImpersonationPermissions = nullImpersonationCheck
 
-	tconf.Keygen = testauthority.New()
-	tconf.MaxRetryPeriod = defaults.HighResPollingPeriod
+	// TODO(tross): replace modules.GetModules with tconf.Modules
+	clock := cmp.Or(tconf.Clock, clockwork.NewRealClock())
+	keygen, err := testauthority.NewKeygen(modules.GetModules().BuildType(), clock.Now)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tconf.Keygen = keygen
+	tconf.AuthConnectionConfig = *servicecfg.DefaultRatioAuthConnectionConfig(defaults.HighResPollingPeriod)
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	tconf.FileDescriptors = append(tconf.FileDescriptors, i.Fds...)
 
@@ -672,7 +680,7 @@ func (i *TeleInstance) createTeleportProcess(tconf *servicecfg.Config) (*service
 }
 
 // CreateWithConf creates a new instance of Teleport using the supplied config
-func (i *TeleInstance) CreateWithConf(_ *testing.T, tconf *servicecfg.Config) error {
+func (i *TeleInstance) CreateWithConf(t *testing.T, tconf *servicecfg.Config) error {
 	i.Config = tconf
 	var err error
 	i.Process, err = i.createTeleportProcess(tconf)
@@ -689,7 +697,7 @@ func (i *TeleInstance) CreateWithConf(_ *testing.T, tconf *servicecfg.Config) er
 	// create users and roles if they don't exist, or sign their keys if they're
 	// already present
 	auth := i.Process.GetAuthServer()
-	ctx := context.TODO()
+	ctx := t.Context()
 
 	for _, user := range i.Secrets.Users {
 		teleUser, err := types.NewUser(user.Username)
@@ -1379,6 +1387,18 @@ func (i *TeleInstance) Start() error {
 		"received_events_count", len(receivedEvents),
 	)
 
+	// Wait for any SSH instances to be visible in the inventory before returning
+	// to prevent any immediate connection attempts from failing because the host
+	// has not yet been propagated to the caches.
+	expectedNodes := len(i.Nodes)
+	if i.Config.SSH.Enabled {
+		expectedNodes++
+	}
+
+	if err := i.WaitForNodeCount(context.Background(), i.Secrets.SiteName, expectedNodes); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -1701,6 +1721,59 @@ func (w *WebClient) SSH(termReq web.TerminalRequest) (*terminal.Stream, error) {
 	return terminal.NewStream(context.Background(), terminal.StreamConfig{WS: ws}), nil
 }
 
+func (w *WebClient) SFTP(path string, upload []byte) ([]byte, error) {
+	u := &url.URL{
+		Host:   w.i.Web,
+		Scheme: client.HTTPS,
+		Path: fmt.Sprintf(
+			"/v1/webapi/sites/%s/nodes/%s/%s/scp",
+			w.i.Config.Auth.ClusterName.GetClusterName(),
+			w.tc.Host,
+			w.tc.HostLogin,
+		),
+	}
+
+	q := u.Query()
+	q.Set("location", path)
+	q.Set("filename", "foo.txt")
+	u.RawQuery = q.Encode()
+	header := http.Header{}
+	header.Add("Origin", "http://localhost")
+	for _, cookie := range w.cookies {
+		header.Add("Cookie", cookie.String())
+	}
+	header.Set("Authorization", "Bearer "+w.token)
+
+	ctx := w.i.Process.GracefulExitContext()
+	method := http.MethodGet
+	if upload != nil {
+		method = http.MethodPost
+	}
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), bytes.NewReader(upload))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.Header = header
+	transport, err := defaults.Transport()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	transport.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+	clt := &http.Client{Transport: transport}
+	resp, err := clt.Do(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return body, trace.ReadError(resp.StatusCode, body)
+}
+
 func (w *WebClient) JoinKubernetesSession(id string, mode types.SessionParticipantMode) (*terminal.Stream, error) {
 	u := url.URL{
 		Host:   w.i.Web,
@@ -1903,6 +1976,10 @@ func (i *TeleInstance) WaitForNodeCount(ctx context.Context, clusterName string,
 		deadline     = time.Second * 30
 		iterWaitTime = time.Second
 	)
+
+	if count <= 0 || i.Config == nil || !i.Config.Auth.Enabled || !i.Config.Proxy.Enabled {
+		return nil
+	}
 
 	err := retryutils.RetryStaticFor(deadline, iterWaitTime, func() error {
 		cluster, err := i.Tunnel.Cluster(ctx, clusterName)

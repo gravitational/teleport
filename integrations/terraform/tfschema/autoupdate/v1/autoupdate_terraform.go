@@ -234,12 +234,12 @@ func GenSchemaAutoUpdateVersion(ctx context.Context) (github_com_hashicorp_terra
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"start_version": {
-							Description: "start_version is the version to update from.",
+							Description: "start_version is the version used for newly installed agents before their update window.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"target_version": {
-							Description: "target_version is the version to update to.",
+							Description: "target_version is the version that all agents will update to during their update window.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},

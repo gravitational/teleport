@@ -28,10 +28,10 @@ dedicated guide:
 </Admonition>
 
 When running the Teleport Terraform provider on Terraform Cloud, you can use its
-built-in Machine ID support to dynamically authenticate to your Teleport cluster
-without any shared secrets. When run in this configuration, the Terraform
-provider proves its identity to the Teleport Auth Service using Terraform
-Cloud's [Workload Identity][tf-workload-id] tokens.
+built-in Machine & Workload Identity support to dynamically authenticate to your
+Teleport cluster without any shared secrets. When run in this configuration, the
+Terraform provider proves its identity to the Teleport Auth Service using
+Terraform Cloud's [Workload Identity][tf-workload-id] tokens.
 
 While following this guide, you'll configure your Teleport cluster to accept
 join requests from Terraform Cloud runs and configure the provider to

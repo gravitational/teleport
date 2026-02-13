@@ -1,0 +1,197 @@
+kind: discovery_config
+version: v1
+metadata:
+  name: my-discovery-config
+spec:
+  # discovery_group is used to group discovered resources into different
+  # sets. This is required when you have multiple Teleport Discovery services
+  # running. It prevents discovered services from colliding in Teleport when
+  # managing discovered resources.
+  # If two Discovery Services match the same resources, they must be in the
+  # same discovery group.
+  # If two Discovery Services match different resources, they must be in
+  # different discovery groups.
+  #
+  # It is also used to watch DiscoveryConfig resources.
+  # The Discovery Configs that have a matching discovery_group will be added to
+  # this Discovery Service matchers.
+  discovery_group: "disc-group"
+  # Matchers for discovering AWS-hosted resources.
+  aws:
+    # AWS resource types to discover and register with your Teleport cluster.
+    # Valid options are:
+    # 'ec2' - Amazon EC2 instances.
+    # 'eks' - Amazon EKS clusters.
+    # 'rds' - Amazon RDS and Aurora databases.
+    # 'rdsproxy' - Amazon RDS Proxy databases.
+    # 'redshift' - Amazon Redshift databases.
+    # 'redshift-serverless' - Amazon Redshift Serverless databases.
+    # 'elasticache' - Amazon ElastiCache Redis and Valkey databases.
+    # 'elasticache-serverless' - Amazon ElastiCache Serverless Redis or Valkey databases.
+    # 'memorydb' - Amazon MemoryDB databases.
+    # 'opensearch' - Amazon OpenSearch Redis databases.
+    # 'docdb' - Amazon DocumentDB databases.
+  - types: ["ec2"]
+    # AWS regions to search for resources from
+    regions: ["us-east-1","us-west-1"]
+    # Optional AWS resource tags to match when registering resources
+    # Defaults to a wildcard selector that matches any resource: "*":"*"
+    tags:
+      "*": "*"
+    # Optional AWS role that the Discovery Service will assume to discover
+    # and register AWS-hosted databases and EKS clusters.
+    assume_role:
+      role_arn: "arn:aws:iam::123456789012:role/example-role-name"
+      # AWS role name that the Discovery Service will assume to discover resources in other accounts
+      # Only required when using discovering accounts under an organization.
+      role_name: "example-role-name"
+      # Optional AWS external ID that the Discovery Service will use to assume
+      # a role in an external AWS account.
+      external_id: "example-external-id"
+    # Organization sections enables AWS organization account discovery.
+    # Only applicable for EC2 discovery.
+    organization:
+      # Organization ID used for discovering accounts in the AWS organization.
+      organization_id: "o-exampleorgid"
+      # Filters for matching on AWS Organizational Units (OUs).
+      organizational_units:
+        # Include is a list of AWS Organizational Unit IDs and children OUs to include.
+        # Accounts that belong to these OUs, and their children, will be included.
+        # Only exact matches or wildcard (*) are supported.
+        # Required.
+        include_ous: ["*"]
+        # Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude.
+        # Accounts that belong to these OUs, and their children, will be excluded, even if they were included.
+        # Only exact matches are supported.
+        # Optional. If empty, no OUs are excluded.
+        exclude_ous: []
+    # Optional section: install is used to provide parameters to the installer script.
+    # Only applicable for EC2 discovery.
+    install:
+      # The token to use when joining the cluster
+      join_token: "iam-join-token"
+      # The method to use when joining the cluster
+      join_method: "iam"
+      # script_name is the name of the Teleport install script to use.
+      # Optional, defaults to: "default-installer".
+      script_name: "default-installer"
+      # Optional: adds a suffix to teleport installation, allowing for multiple agent installations.
+      # Requires managed updates to be enabled.
+      # Supported characters are alphanumeric characters and `-`.
+      suffix: "<suffix>"
+      # Optional: when using managed updates, set the update group of the installation.
+      # Supported characters are alphanumeric characters and `-`.
+      update_group: "<update-group>"
+      # Optional: proxy settings for the install script.
+      # Sets the http_proxy, HTTP_PROXY, https_proxy, HTTPS_PROXY, no_proxy, and NO_PROXY
+      # environment variables for the install script.
+      http_proxy_settings:
+        https_proxy: http://172.31.5.130:3128
+        http_proxy: http://172.31.5.130:3128
+        no_proxy: my-local-domain
+    # Optional section: ssm is used to configure which AWS SSM document to use
+    # If the ssm section isnt provided the below defaults are used.
+    ssm:
+      # document_name is the name of the SSM document that should be
+      # executed when installing teleport on matching nodes
+      # Can be set to "AWS-RunShellScript" which is a pre-defined SSM Document,
+      # removing the need to create a custom SSM Document in each region.
+      # Optional, defaults to: "TeleportDiscoveryInstaller".
+      document_name: "AWS-RunShellScript"
+    # Optional role for which the Discovery Service should create the EKS access entry.
+    # If not set, the Discovery Service will attempt to create the access
+    # entry using its own identity.
+    # If used, the role must match the role configured for a Teleport Kubernetes Service.
+    setup_access_for_arn: arn:aws:iam::123456789012:role/kube-service-role
+  # Matchers for discovering Azure-hosted resources.
+  azure:
+    # Azure resource types. Valid options are:
+    # 'aks' - discovers and registers Azure AKS Kubernetes Clusters.
+    # 'vm' - discovers and registers Azure virtual machines.
+    # 'mysql' - discovers and registers Azure MySQL databases.
+    # 'postgres' - discovers and registers Azure PostgreSQL databases.
+    # 'redis' - discovers and registers Azure Cache for Redis databases.
+    # 'sqlserver' - discovers and registers Azure SQL Server databases.
+  - types: ["aks"]
+    # Azure regions to search for resources from. Valid options are:
+    # '*' - discovers resources in all regions (default).
+    # Any valid Azure region name. List all valid regions using the Azure "az" cli: `az account list-locations -o table`
+    regions: ["eastus", "westus"]
+    # Azure subscription IDs to search resources from. Valid options are:
+    # '*' - discovers resources in all subscriptions (default).
+    # Any subscription_id: `az account subscription list -o table`
+    subscriptions: ["11111111-2222-3333-4444-555555555555"]
+    # Azure resource groups to search resources from. Valid options are:
+    # '*' - discovers resources in all resource groups within configured subscription(s) (default).
+    # Any resource_groups: `az group list -o table`
+    resource_groups: ["group1", "group2"]
+    # Optional section: install is used to provide parameters to the Teleport installation in Azure VMs.
+    # Only applicable for VM discovery.
+    install_params:
+      # The token to use when joining the cluster
+      join_token: "iam-join-token"
+      # The method to use when joining the cluster
+      join_method: "azure"
+      # script_name is the name of the Teleport install script to use.
+      # Optional, defaults to: "default-installer".
+      script_name: "default-installer"
+      # Optional: adds a suffix to teleport installation, allowing for multiple agent installations.
+      # Requires managed updates to be enabled.
+      # Supported characters are alphanumeric characters and `-`.
+      suffix: "<suffix>"
+      # Optional: when using managed updates, set the update group of the installation.
+      # Supported characters are alphanumeric characters and `-`.
+      update_group: "<update-group>"
+      # Optional: proxy settings for the install script.
+      # Sets the http_proxy, HTTP_PROXY, https_proxy, HTTPS_PROXY, no_proxy, and NO_PROXY
+      # environment variables for the install script.
+      http_proxy_settings:
+        https_proxy: http://172.31.5.130:3128
+        http_proxy: http://172.31.5.130:3128
+        no_proxy: my-local-domain
+    # Azure resource tag filters used to match resources.
+    tags:
+      "*": "*"
+  # Matchers for discovering GCP-hosted resources.
+  gcp:
+    # GCP resource types. Valid options are:
+    # 'gke' - discovers and registers GKE Kubernetes clusters.
+    # 'gce' - discovers and registers GCP compute instances.
+    - types: ["gce"]
+      # IDs of GCP projects to search for resources from.
+      project_ids: ["project-id"]
+      # GCP locations to search for resources from. Valid options are:
+      # '*' - discovers resources in all locations.
+      # Any valid GCP region (e.g. "us-west1").
+      # Any valid GCP zone (e.g. "us-west1-b").
+      locations: ["us-east2", "us-west1-b"]
+      # Email addresses of service accounts that instances can join with.
+      # If empty, any service account is allowed.
+      service_accounts: []
+      # Optional section: install is used to provide parameters to the Teleport installation in Google Cloud VMs.
+      # Only applicable for VM discovery.
+      install_params:
+        # The token to use when joining the cluster
+        join_token: "gcp-join-token"
+        # The method to use when joining the cluster
+        join_method: "gcp"
+        # script_name is the name of the Teleport install script to use.
+        # Optional, defaults to: "default-installer".
+        script_name: "default-installer"
+        # Optional: adds a suffix to teleport installation, allowing for multiple agent installations.
+        # Requires managed updates to be enabled.
+        # Supported characters are alphanumeric characters and `-`.
+        suffix: "<suffix>"
+        # Optional: when using managed updates, set the update group of the installation.
+        # Supported characters are alphanumeric characters and `-`.
+        update_group: "<update-group>"
+        # Optional: proxy settings for the install script.
+        # Sets the http_proxy, HTTP_PROXY, https_proxy, HTTPS_PROXY, no_proxy, and NO_PROXY
+        # environment variables for the install script.
+        http_proxy_settings:
+          https_proxy: http://172.31.5.130:3128
+          http_proxy: http://172.31.5.130:3128
+          no_proxy: my-local-domain
+      # GCP resource label filters used to match resources.
+      labels:
+        "*": "*"

@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024 Gravitational, Inc.
+ * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,85 +16,73 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { Meta, StoryFn, StoryObj } from '@storybook/react-vite';
+import { Meta, StoryFn, StoryObj } from '@storybook/react-vite';
 import { action } from 'storybook/actions';
 import { useArgs } from 'storybook/preview-api';
 
-import { Flex } from 'design';
+import Flex from 'design/Flex/Flex';
 
-import { SortMenu } from './SortMenu';
-
-const STUB_FIELDS = ['name', 'created', 'updated', 'status'] as const;
+import { SortMenu, SortOrder } from './SortMenu';
 
 export default {
   title: 'Shared/Controls/SortMenu',
-  component: SortMenu<any>,
-  argTypes: {
-    current: {
-      control: { type: 'select' },
-      options: STUB_FIELDS.reduce(
-        (acc, v) => [...acc, `${v} (Asc)`, `${v} (Desc)`],
-        []
-      ),
-      mapping: STUB_FIELDS.reduce(
-        (acc, v) => ({
-          ...acc,
-          [`${v} (Asc)`]: { fieldName: v, dir: 'ASC' },
-          [`${v} (Desc)`]: { fieldName: v, dir: 'DESC' },
-        }),
-        {}
-      ),
-      description: 'Current sort',
-      table: {
-        type: {
-          summary:
-            "Array<{ fieldName: Exclude<keyof T, symbol | number>; dir: 'ASC' | 'DESC' }>",
-        },
-      },
-    },
-    fields: {
-      control: false,
-      description: 'Fields to sort by',
-      table: {
-        type: {
-          summary:
-            'Array<{ value: Exclude<keyof T, symbol | number>; label: string }>',
-        },
-      },
-    },
-    onChange: {
-      control: false,
-      description: 'Callback when fieldName or dir is changed',
-      table: {
-        type: {
-          summary:
-            "(value: { fieldName: Exclude<keyof T, symbol | number>; dir: 'ASC' | 'DESC' }) => void",
-        },
-      },
-    },
-  },
+  component: SortMenu,
+  argTypes: {},
   args: {
-    current: { fieldName: STUB_FIELDS[0], dir: 'ASC' },
-    fields: STUB_FIELDS.map(v => ({
-      value: v,
-      label: `${v.charAt(0).toUpperCase()}${v.slice(1)}`,
-    })),
+    items: [
+      {
+        key: 'name',
+        label: 'Name',
+        ascendingLabel: 'Name, A - Z',
+        descendingLabel: 'Name, Z - A',
+        ascendingOptionLabel: 'Alphabetical, A - Z',
+        descendingOptionLabel: 'Alphabetical, Z - A',
+      },
+      {
+        key: 'created',
+        label: 'Created',
+        ascendingLabel: 'Oldest',
+        descendingLabel: 'Newest',
+        ascendingOptionLabel: 'Oldest',
+        descendingOptionLabel: 'Newest',
+        defaultOrder: 'DESC',
+      },
+      {
+        key: 'status',
+        label: 'Status',
+        ascendingOptionLabel: 'Alphabetical, A - Z',
+        descendingOptionLabel: 'Alphabetical, Z - A',
+      },
+      {
+        key: 'relevance',
+        label: 'Relevance',
+        disableSort: true,
+        defaultOrder: 'DESC',
+      },
+    ],
+    selectedKey: 'name',
+    selectedOrder: 'ASC',
     onChange: action('onChange'),
   },
   render: (args => {
-    const [{ current }, updateArgs] =
-      useArgs<Meta<typeof SortMenu<any>>['args']>();
-    const onChange = (value: typeof current) => {
-      updateArgs({ current: value });
-      args.onChange?.(value);
+    const [, updateArgs] =
+      useArgs<NonNullable<Meta<typeof SortMenu>['args']>>();
+    const onChange = (key: string, order: SortOrder) => {
+      updateArgs({ selectedKey: key, selectedOrder: order });
+      args.onChange?.(key, order);
     };
     return (
-      <Flex alignItems="center" minHeight="100px">
-        <SortMenu current={current} fields={args.fields} onChange={onChange} />
+      <Flex flexDirection="column" alignItems="flex-end" minWidth="100%">
+        <SortMenu
+          items={args.items}
+          selectedKey={args.selectedKey}
+          selectedOrder={args.selectedOrder}
+          onChange={onChange}
+        />
       </Flex>
     );
   }) satisfies StoryFn<typeof SortMenu>,
-} satisfies Meta<typeof SortMenu<any>>;
+} satisfies Meta<typeof SortMenu>;
 
 const Default: StoryObj<typeof SortMenu> = { args: {} };
 

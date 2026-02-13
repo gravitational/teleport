@@ -26,11 +26,14 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/sshca"
 )
 
 // CommonAccessChecker defines the common methods that are identical across both scoped and unscoped access checkers.
@@ -46,6 +49,19 @@ type CommonAccessChecker interface {
 	PermitX11Forwarding() bool
 	LockingMode(defaultMode constants.LockingMode) constants.LockingMode
 	CheckAccessToRules(ctx RuleContext, resource string, verbs ...string) error
+	HostSudoers(types.Server) ([]string, error)
+	EnhancedRecordingSet() map[string]bool
+	HostUsers(types.Server) (*decisionpb.HostUsersInfo, error)
+	CheckAgentForward(login string) error
+	MaxConnections() int64
+	MaxSessions() int64
+	CanCopyFiles() bool
+	SSHPortForwardMode() decisionpb.SSHPortForwardMode
+	AdjustClientIdleTimeout(timeout time.Duration) time.Duration
+	AdjustDisconnectExpiredCert(disconnect bool) bool
+	SessionRecordingMode(service constants.SessionRecordingService) constants.SessionRecordingMode
+	CheckAccessToSSHServer(target types.Server, state AccessState, osUser string) error
+	CanAccessSSHServer(target types.Server) error
 }
 
 // ScopedAccessCheckerSubset defines the methods that are specific to scoped access checkers.
@@ -57,7 +73,7 @@ type ScopedAccessCheckerSubset interface {
 type UnscopedAccessCheckerSubset interface {
 	RoleNames() []string
 	CertificateFormat() string
-	GetAllowedResourceIDs() []types.ResourceID
+	GetAllowedResourceAccessIDs() []types.ResourceAccessID
 	CertificateExtensions() []*types.CertExtension
 	CheckAccessToRemoteCluster(cluster types.RemoteCluster) error
 	CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) (groups []string, users []string, err error)
@@ -127,6 +143,27 @@ func (c *accessCheckerShim) CheckMaybeHasAccessToRules(ctx RuleContext, resource
 	return checkMaybeHasAccessToRulesImpl(c.AccessChecker, ctx, resource, verbs...)
 }
 
+// CheckAccessToSSHServer checks access to an SSH server with optional role matchers. Note that this function
+// is a thin wrapper around the standard [AccessChecker.CheckAccess] method. The purpose of this method is to
+// provide a more constrained access-checking API since the majority of access-checkable resources are not
+// supported by scopes yet.
+func (c *accessCheckerShim) CheckAccessToSSHServer(target types.Server, state AccessState, osUser string) error {
+	return c.AccessChecker.CheckAccess(
+		target,
+		state,
+		NewLoginMatcher(osUser),
+	)
+}
+
+// CanAccessSSHServer is a helper method that checkes whether access to the specified SSH server is possible.
+// This method is used to determine read access to SSH servers, and does not take into account elements like
+// MFA state or os login. This helper is based on the behavior of auth.resourceChecker.CanAccess. The purpose
+// of this method is to provide a more constrained access-checking API since the majority of access-checkable
+// resources are not supported by scopes yet.
+func (c *accessCheckerShim) CanAccessSSHServer(target types.Server) error {
+	return c.AccessChecker.CheckAccess(target, AccessState{MFAVerified: true})
+}
+
 func checkAccessToRulesImpl(checker AccessChecker, ctx RuleContext, resource string, verbs ...string) error {
 	if len(verbs) == 0 {
 		return trace.BadParameter("malformed rule check for %q, no verbs provided (this is a bug)", resource)
@@ -174,6 +211,19 @@ func NewScopedSplitAccessCheckerContext(ctx *ScopedAccessCheckerContext) *SplitA
 	return &SplitAccessCheckerContext{
 		scopedContext: ctx,
 	}
+}
+
+// Scoped
+func (c *SplitAccessCheckerContext) Scoped() *ScopedAccessCheckerContext {
+	return c.scopedContext
+}
+
+// ScopePin returns the scope pin associated with the context, if any.
+func (c *SplitAccessCheckerContext) ScopePin() (*scopesv1.Pin, bool) {
+	if c.scopedContext == nil {
+		return nil, false
+	}
+	return c.scopedContext.ScopePin(), true
 }
 
 // CheckMaybeHasAccessToRules returns an error if the context definitely does not have access to the provided rules. in practice
@@ -266,4 +316,34 @@ func (c *SplitAccessCheckerContext) decision(ctx context.Context, checkers strea
 	}
 
 	return trace.AccessDenied("access denied (decision)")
+}
+
+func (c *SplitAccessCheckerContext) AccessStateFromSSHIdentity(ctx context.Context, ident *sshca.Identity, authPrefGetter AuthPreferenceGetter) (AccessState, error) {
+	if c.scopedContext == nil {
+		// in unscoped state, defer to regular access state building
+		return AccessStateFromSSHIdentity(ctx, ident, c.unscopedChecker, authPrefGetter)
+	}
+
+	authPref, err := authPrefGetter.GetAuthPreference(ctx)
+	if err != nil {
+		return AccessState{}, trace.Wrap(err)
+	}
+
+	if authPref.GetRequireMFAType().IsSessionMFARequired() {
+		// TODO(fspmarshall/scopes): implement scoped MFA
+		// NOTE: this will require additional refactoring of relevant access-checking logic. currently, we often
+		// check MFA requirements *before* we determine access to the underlying resource, but a scoped MFA model
+		// will need to first determine the scope of access *before* we can determine whether MFA is required for that scope.
+		return AccessState{}, trace.AccessDenied("cannot perform scoped access when cluster-level MFA is required (scoped MFA is not implemented)")
+	}
+
+	return AccessState{
+		// MFA state is hard-coded here because scoped roles do not support MFA yet, and the above check should reject
+		// cases where cluster-level config would obligate MFA.
+		MFARequired:              MFARequiredNever,
+		MFAVerified:              false,
+		EnableDeviceVerification: true,
+		DeviceVerified:           dtauthz.IsSSHDeviceVerified(ident),
+		IsBot:                    ident.IsBot(),
+	}, nil
 }

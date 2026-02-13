@@ -60,7 +60,7 @@ func (c *mockTeleportEventWatcher) setSearchEventsError(err error) {
 	c.mockSearchErr = err
 }
 
-func (c *mockTeleportEventWatcher) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error) {
+func (c *mockTeleportEventWatcher) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string, search string) ([]events.AuditEvent, string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -106,7 +106,7 @@ func (c *mockTeleportEventWatcher) StreamSessionEvents(ctx context.Context, sess
 }
 
 func (c *mockTeleportEventWatcher) SearchUnstructuredEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]*auditlogpb.EventUnstructured, string, error) {
-	events, lastKey, err := c.SearchEvents(ctx, fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
+	events, lastKey, err := c.SearchEvents(ctx, fromUTC, toUTC, namespace, eventTypes, limit, order, startKey, "")
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}

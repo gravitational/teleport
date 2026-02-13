@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/constants"
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/iterutils"
 )
@@ -43,6 +44,8 @@ type AppServer interface {
 	GetHostname() string
 	// GetHostID returns ID of the host the server is running on.
 	GetHostID() string
+	// SetHostID sets ID of the host the server is running on.
+	SetHostID(string)
 	// GetRotation gets the state of certificate authority rotation.
 	GetRotation() Rotation
 	// SetRotation sets the state of certificate authority rotation.
@@ -68,6 +71,12 @@ type AppServer interface {
 	// GetRelayIDs returns the list of Relay host IDs that the app server is
 	// connected to.
 	GetRelayIDs() []string
+	// GetScope returns the scope this server belongs to.
+	GetScope() string
+	// GetComponentFeatures returns the ComponentFeatures supported by this AppServer.
+	GetComponentFeatures() *componentfeaturesv1.ComponentFeatures
+	// SetComponentFeatures sets the ComponentFeatures supported by this AppServer.
+	SetComponentFeatures(*componentfeaturesv1.ComponentFeatures)
 }
 
 // NewAppServerV3 creates a new app server instance.
@@ -112,6 +121,16 @@ func NewAppServerForAWSOIDCIntegration(integrationName, hostID, publicAddr strin
 	})
 }
 
+// GetComponentFeatures returns the ComponentFeatures supported by this AppServer.
+func (s *AppServerV3) GetComponentFeatures() *componentfeaturesv1.ComponentFeatures {
+	return s.Spec.ComponentFeatures
+}
+
+// SetComponentFeatures sets the ComponentFeatures supported by this AppServer.
+func (s *AppServerV3) SetComponentFeatures(cf *componentfeaturesv1.ComponentFeatures) {
+	s.Spec.ComponentFeatures = cf
+}
+
 // GetVersion returns the database server resource version.
 func (s *AppServerV3) GetVersion() string {
 	return s.Version
@@ -130,6 +149,11 @@ func (s *AppServerV3) GetHostname() string {
 // GetHostID returns ID of the host the server is running on.
 func (s *AppServerV3) GetHostID() string {
 	return s.Spec.HostID
+}
+
+// SetHostID sets ID of the host the server is running on.
+func (s *AppServerV3) SetHostID(hostID string) {
+	s.Spec.HostID = hostID
 }
 
 // GetKind returns the resource kind.
@@ -325,7 +349,7 @@ func (s *AppServerV3) GetAllLabels() map[string]string {
 		dynamicLabels = s.Spec.App.Spec.DynamicLabels
 	}
 
-	return CombineLabels(staticLabels, dynamicLabels)
+	return CombineLabels(nil, staticLabels, dynamicLabels)
 }
 
 // GetStaticLabels returns the app server static labels.
@@ -351,6 +375,11 @@ func (s *AppServerV3) CloneResource() ResourceWithLabels {
 // match against the list of search values.
 func (s *AppServerV3) MatchSearch(values []string) bool {
 	return MatchSearch(nil, values, nil)
+}
+
+// GetScope returns the scope this server belongs to.
+func (s *AppServerV3) GetScope() string {
+	return s.Scope
 }
 
 // AppServers represents a list of app servers.

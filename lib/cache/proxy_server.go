@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -42,8 +43,11 @@ func newProxyServerCollection(p services.Presence, w types.WatchKind) (*collecti
 				proxyServerNameIndex: types.Server.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Server, error) {
-			servers, err := p.GetProxies()
-			return servers, trace.Wrap(err)
+			out, err := clientutils.CollectWithFallback(ctx, p.ListProxyServers, func(context.Context) ([]types.Server, error) {
+				//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+				return p.GetProxies()
+			})
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Server {
 			return &types.ServerV2{
@@ -59,6 +63,10 @@ func newProxyServerCollection(p services.Presence, w types.WatchKind) (*collecti
 }
 
 // GetProxies is a part of auth.Cache implementation
+//
+// Deprecated: Prefer paginated gRPC variant [ListProxyServers].
+//
+// TODO(kiosion): DELETE IN 21.0.0
 func (c *Cache) GetProxies() ([]types.Server, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetProxies")
 	defer span.End()
@@ -70,6 +78,7 @@ func (c *Cache) GetProxies() ([]types.Server, error) {
 	defer rg.Release()
 
 	if !rg.ReadCache() {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 		servers, err := c.Config.Presence.GetAuthServers()
 		return servers, trace.Wrap(err)
 	}
@@ -80,4 +89,20 @@ func (c *Cache) GetProxies() ([]types.Server, error) {
 	}
 
 	return servers, nil
+}
+
+// ListProxyServers returns a paginated list of registered proxy servers.
+func (c *Cache) ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListProxyServers")
+	defer span.End()
+
+	lister := genericLister[types.Server, proxyServerIndex]{
+		cache:        c,
+		collection:   c.collections.proxyServers,
+		index:        proxyServerNameIndex,
+		upstreamList: c.Config.Presence.ListProxyServers,
+		nextToken:    types.Server.GetName,
+	}
+	out, next, err := lister.list(ctx, pageSize, pageToken)
+	return out, next, trace.Wrap(err)
 }

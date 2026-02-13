@@ -1,30 +1,142 @@
 ---
 title: MCP Servers
-description: Guides to protecting MCP servers with Teleport
+description: Protect Model Context Protocol (MCP) servers with Teleport's access controls and auditing capabilities 
+template: doc-page
 tags:
  - mcp
  - zero-trust
 ---
 
-Teleport can provide secure connections to your MCP (Model Context Protocol)
-servers while improving both access control and visibility.
+import DocHero from "@site/src/components/Pages/Landing/DocHero";
+import UseCasesList from "@site/src/components/Pages/Landing/UseCasesList";
+import Resources from "@site/src/components/Pages/Homepage/Resources";
 
-![Architecture diagram for enrolling MCP servers with Teleport](../../../img/mcp-access/architecture.svg)
+import userCheckSvg from "@site/src/components/Icon/svg/user-check.svg";
+import questionSvg from "@site/src/components/Icon/svg/question2.svg";
+import databaseSvg from "@site/src/components/Icon/teleport-svg/database.svg";
+import kubernetesSvg from "@site/src/components/Icon/svg/kubernetes2.svg";
+import githubSvg from "@site/src/components/Icon/svg/github.svg";
+import vaultSvg from "@site/src/components/Icon/svg/hashicorp-vault.svg";
+import notionSvg from "@site/src/components/Icon/svg/notion.svg";
+import grafanaSvg from "@site/src/components/Icon/svg/grafana.svg";
+import awsSvg from "@site/src/components/Icon/svg/aws.svg";
 
+<DocHero
+  title="Enroll your first MCP server"
+  youtubeVideoId="JdiNX4pIUaU"
+  ctaLinks={[
+    {
+      title: "Get started with MCP servers",
+      href: "./getting-started/",
+      variant: "secondary",
+      arrow: true,
+    },
+  ]}
+  links={[
+    {
+      title: "MCP access controls",
+      description: "Use Teleport's role-based access control (RBAC) system to set up granular permissions for authenticating to MCP servers connected to Teleport.",
+      href: "./rbac/",
+      icon: userCheckSvg,
+    },
+    {
+      title: "Troubleshooting",
+      description: "Understand common issues that you might encounter in managing access to MCP servers with Teleport and how to work around or resolve them.",
+      href: "./troubleshooting/",
+      icon: questionSvg,
+    },
+  ]}
+>
+{/* vale messaging.protocol-products = NO */}
+Connect an MCP server with the Teleport Application Service, configure and assign a role granting MCP permissions, and connect and query the server with the Teleport CLI or your AI platform of choice.
+</DocHero>
 
-## Getting started
-- [Quick-start with Demo MCP Server](./getting-started.mdx): Provides instructions to set up a Teleport Service and enable secure access to a demo MCP server.
+<UseCasesList
+  title="MCP server access"
+  description="Connect to and query MCP servers with the AI platform of your choice"
+  desktopColumnsCount={2}
+  variant="doc"
+  useCases={[
+    {
+      title: "Enroll a streamable-HTTP MCP server",
+      description: "Enroll an MCP server with streamable-HTTP transport into your Teleport cluster and connect to it through Teleport.",
+      href: "./enrolling-mcp-servers/streamable-http/",
+    },  
+    {
+      title: "Enroll an stdio MCP server",
+      description: "Enroll an MCP server with stdio transport into your Teleport cluster and connect to it through Teleport.",
+      href: "./enrolling-mcp-servers/stdio/",
+    },  
+    {
+      title: "Enroll an SSE MCP server",
+      description: "Enroll an MCP server with SSE (Server-Sent Events) transport into your Teleport cluster and connect to it through Teleport.",
+      href: "./enrolling-mcp-servers/sse/",
+    },  
+    {
+      title: "JWT authentication to MCP server",
+      description: "Authenticate Teleport to an MCP server with JWTs signed by Teleport's CA, carrying user identity, roles, and traits.",
+      href: "./jwt/",
+    },  
+    {
+      title: "Dynamic MCP server registration",
+      description: "Register MCP servers (or update existing ones) without having to update the static configuration files read by Teleport Application Service instances.",
+      href: "./dynamic-registration/",
+    },
+    {
+      title: "Configure MCP clients",
+      description: "Configure MCP clients such as Claude Desktop or Cursor to access MCP servers.",
+      href: "../../connect-your-client/model-context-protocol/mcp-access/",
+    },
+  ]}
+/>
+{/* vale messaging.protocol-products = YES */}
 
-## Guides
-- [MCP Access with Streamable-HTTP MCP Server](./streamable-http.mdx): Set up a Teleport Service and enable secure access to a MCP server with streamable-HTTP transport.
-- [MCP Access with Stdio MCP Server](./stdio.mdx): Set up a Teleport Service and enable secure access to a MCP server with stdio transport.
-- [MCP Access with SSE MCP Server](./sse.mdx): Set up a Teleport Service and enable secure access to a MCP server with SSE transport.
-- [Configure MCP clients](../../connect-your-client/model-context-protocol/mcp-access.mdx): How to configure MCP clients such as Claude Desktop to access MCP servers.
-
-## Configuration & management
-- [MCP Access Controls](./rbac.mdx): Role-Based Access Control (RBAC) for Teleport MCP access.
-- [JWT Authentication to MCP server](./jwt.mdx): Use Teleport JWT to authenticate your MCP servers.
-- [Dynamic Registration](./dynamic-registration.mdx): Register/unregister MCP servers without restarting Teleport.
-
-## Troubleshooting & support
-- [Troubleshooting MCP Access](./troubleshooting.mdx): Describes common issues and solutions for access to MCP servers.
+<Resources
+  title="Integrate MCP with your services"
+  desktopColumnsCount={2}
+  variant="doc"
+  resources={[
+    {
+      title: "Databases",
+      description: "Connect Teleport databases over MCP",
+      href: "../../connect-your-client/model-context-protocol/database-access/",
+      iconComponent: databaseSvg,
+    },
+    {
+      title: "Kubernetes Clusters",
+      description: "Connect Teleport Kubernetes Clusters over MCP",
+      href: "../../connect-your-client/model-context-protocol/kube-access/",
+      iconComponent: kubernetesSvg,
+    },
+    {
+      title: "Amazon Bedrock AgentCore Gateway",
+      description: "Connect Amazon Bedrock AgentCore Gateway",
+      href: "./integration-guides/aws-bedrock-gateway/",
+      iconComponent: awsSvg,
+    },
+    {
+      title: "GitHub",
+      description: "Connect GitHub over MCP",
+      href: "./integration-guides/github/",
+      iconComponent: githubSvg,
+    },
+    {
+      title: "Grafana",
+      description: "Connect Grafana over MCP",
+      href: "./integration-guides/grafana/",
+      iconComponent: grafanaSvg,
+    },
+    {
+      title: "Hashicorp Vault",
+      description: "Connect Hashicorp Vault over MCP",
+      href: "./integration-guides/vault/",
+      iconComponent: vaultSvg,
+    },
+    {
+      title: "Notion",
+      description: "Connect Notion over MCP",
+      href: "./integration-guides/notion/",
+      iconComponent: notionSvg,
+    },
+  ]}
+/>

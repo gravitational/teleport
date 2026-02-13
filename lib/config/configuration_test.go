@@ -387,6 +387,7 @@ func TestConfigReading(t *testing.T) {
 					},
 					ResourceGroups: []string{"group1"},
 					Subscriptions:  []string{"sub1"},
+					Integration:    "integration1",
 				},
 			},
 			GCPMatchers: []GCPMatcher{
@@ -520,6 +521,7 @@ func TestConfigReading(t *testing.T) {
 					ResourceGroups: []string{"rg1", "rg2"},
 					Types:          []string{"mysql"},
 					Regions:        []string{"eastus", "westus"},
+					Integration:    "integration1",
 					ResourceTags: map[string]apiutils.Strings{
 						"a": {"b"},
 					},
@@ -878,6 +880,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 				ResourceGroups: []string{"group1", "group2"},
 				Types:          []string{"postgres", "mysql"},
 				Regions:        []string{"eastus", "centralus"},
+				Integration:    "integration123",
 				ResourceTags: map[string]apiutils.Strings{
 					"a": {"b"},
 				},
@@ -1396,7 +1399,6 @@ func TestParseCachePolicy(t *testing.T) {
 	tcs := []struct {
 		in  *CachePolicy
 		out *servicecfg.CachePolicy
-		err error
 	}{
 		{in: &CachePolicy{EnabledFlag: "yes", TTL: "never"}, out: &servicecfg.CachePolicy{Enabled: true}},
 		{in: &CachePolicy{EnabledFlag: "true", TTL: "10h"}, out: &servicecfg.CachePolicy{Enabled: true}},
@@ -1407,12 +1409,8 @@ func TestParseCachePolicy(t *testing.T) {
 	for i, tc := range tcs {
 		comment := fmt.Sprintf("test case #%v", i)
 		out, err := tc.in.Parse()
-		if tc.err != nil {
-			require.IsType(t, tc.err, err, comment)
-		} else {
-			require.NoError(t, err, comment)
-			require.Equal(t, out, tc.out, comment)
-		}
+		require.NoError(t, err, comment)
+		require.Equal(t, out, tc.out, comment)
 	}
 }
 
@@ -1602,6 +1600,7 @@ func makeConfigFixture() string {
 			},
 			ResourceGroups: []string{"group1"},
 			Subscriptions:  []string{"sub1"},
+			Integration:    "integration1",
 		},
 	}
 
@@ -1721,6 +1720,7 @@ func makeConfigFixture() string {
 			ResourceTags: map[string]apiutils.Strings{
 				"a": {"b"},
 			},
+			Integration: "integration1",
 		},
 		{
 			Subscriptions:  []string{"sub3", "sub4"},
@@ -2020,7 +2020,7 @@ func TestLicenseFileNoConfig(t *testing.T) {
 }
 
 // TestFIPS makes sure configuration is correctly updated/enforced when in
-// FedRAMP/FIPS 140-2 mode.
+// FedRAMP/FIPS mode.
 func TestFIPS(t *testing.T) {
 	tests := []struct {
 		inConfigString string
@@ -2396,6 +2396,33 @@ func TestWindowsDesktopService(t *testing.T) {
 				}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "something",
+				}
+			},
+		},
+		{
+			desc:        "NOK - invalid RDP port",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.DiscoveryConfigs = []LDAPDiscoveryConfig{
+					{
+						BaseDN:  "*",
+						RDPPort: 99999,
+					},
+				}
+			},
+		},
+		{
+			desc:        "NOK - invalid static label",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.DiscoveryConfigs = []LDAPDiscoveryConfig{
+					{
+						BaseDN: "*",
+						Labels: map[string]string{
+							"foo":               "bar",
+							"invalid label key": "test",
+						},
+					},
 				}
 			},
 		},
@@ -3387,6 +3414,44 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			},
 			errMessage: "must set keyring in ca_key_params.gcp_kms",
 		},
+		{
+			name: "enable health checking",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					HealthCheck: &servicecfg.KeystoreHealthCheck{
+						Active: &servicecfg.KeystoreActiveHealthCheck{
+							Enabled: true,
+						},
+					},
+				},
+			},
+			want: servicecfg.KeystoreConfig{
+				HealthCheck: &servicecfg.KeystoreHealthCheck{
+					Active: &servicecfg.KeystoreActiveHealthCheck{
+						Enabled: true,
+					},
+				},
+			},
+		},
+		{
+			name: "disable health checking",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					HealthCheck: &servicecfg.KeystoreHealthCheck{
+						Active: &servicecfg.KeystoreActiveHealthCheck{
+							Enabled: false,
+						},
+					},
+				},
+			},
+			want: servicecfg.KeystoreConfig{
+				HealthCheck: &servicecfg.KeystoreHealthCheck{
+					Active: &servicecfg.KeystoreActiveHealthCheck{
+						Enabled: false,
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -3900,6 +3965,7 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 							},
 							Suffix: "blue",
 						},
+						Integration: "integration123",
 					},
 				},
 			},
@@ -3921,6 +3987,7 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 						},
 						Regions:        []string{"*"},
 						ResourceTags:   types.Labels{"*": []string{"*"}},
+						Integration:    "integration123",
 						ResourceGroups: []string{"*"},
 					},
 				},
@@ -4368,7 +4435,6 @@ func TestGetInstallerProxyAddr(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name              string
-		installParams     *InstallParams
 		fc                *FileConfig
 		expectedProxyAddr string
 	}{
@@ -4376,18 +4442,6 @@ func TestGetInstallerProxyAddr(t *testing.T) {
 			name:              "empty",
 			fc:                &FileConfig{},
 			expectedProxyAddr: "",
-		},
-		{
-			name: "explicit proxy addr",
-			installParams: &InstallParams{
-				PublicProxyAddr: "explicit.example.com",
-			},
-			fc: &FileConfig{
-				Global: Global{
-					ProxyServer: "proxy.example.com",
-				},
-			},
-			expectedProxyAddr: "explicit.example.com",
 		},
 		{
 			name: "proxy server",
@@ -4435,7 +4489,7 @@ func TestGetInstallerProxyAddr(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expectedProxyAddr, getInstallerProxyAddr(tc.installParams, tc.fc))
+			assert.Equal(t, tc.expectedProxyAddr, getInstallerProxyAddr(tc.fc))
 		})
 	}
 }
@@ -4641,8 +4695,9 @@ func TestDiscoveryConfig(t *testing.T) {
 				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
 				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
 					{
-						"types":   []string{"aks"},
-						"regions": []string{"eucentral1"},
+						"types":       []string{"aks"},
+						"regions":     []string{"eucentral1"},
+						"integration": "integration1",
 						"tags": cfgMap{
 							"discover_teleport": "yes",
 						},
@@ -4652,8 +4707,9 @@ func TestDiscoveryConfig(t *testing.T) {
 				}
 			},
 			expectedAzureMatchers: []types.AzureMatcher{{
-				Types:   []string{"aks"},
-				Regions: []string{"eucentral1"},
+				Types:       []string{"aks"},
+				Regions:     []string{"eucentral1"},
+				Integration: "integration1",
 				ResourceTags: map[string]apiutils.Strings{
 					"discover_teleport": []string{"yes"},
 				},
@@ -4854,6 +4910,23 @@ func TestDiscoveryConfig(t *testing.T) {
 				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
 					{
 						"types":   []string{"ec2"},
+						"regions": []string{"invalid-region"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+					},
+				}
+			},
+		},
+		{
+			desc:          "for EC2 discovery, region can be set to wildcard",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
 						"regions": []string{"*"},
 						"tags": cfgMap{
 							"discover_teleport": "yes",
@@ -4861,6 +4934,22 @@ func TestDiscoveryConfig(t *testing.T) {
 					},
 				}
 			},
+			expectedAWSMatchers: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"*"},
+				Tags: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				Params: &types.InstallerParams{
+					JoinMethod:      types.JoinMethodIAM,
+					JoinToken:       "aws-discovery-iam-token",
+					SSHDConfig:      "/etc/ssh/sshd_config",
+					ScriptName:      "default-installer",
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+				SSM: &types.AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
+			}},
 		},
 		{
 			desc:          "AWS section is filled with invalid join method",
@@ -5006,6 +5095,102 @@ func TestDiscoveryConfig(t *testing.T) {
 					SSHDConfig:      "/etc/ssh/sshd_config",
 					InstallTeleport: true,
 					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+			}},
+		},
+		{
+			desc:          "AWS section is filled custom HTTP Proxy Settings",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"eu-west-1"},
+						"install": cfgMap{
+							"join_params": cfgMap{
+								"method": "iam",
+							},
+							"http_proxy_settings": cfgMap{
+								"http_proxy":  "http://squid-local:8080",
+								"https_proxy": "http://squid-local:8081",
+								"no_proxy":    "intranet.local,localhost",
+							},
+						},
+					},
+				}
+			},
+			expectedAWSMatchers: []types.AWSMatcher{{
+				Types: []string{"ec2"},
+				SSM: &types.AWSSSM{
+					DocumentName: types.AWSInstallerDocument,
+				},
+				Regions: []string{"eu-west-1"},
+				Tags:    map[string]apiutils.Strings{"*": {"*"}},
+				Params: &types.InstallerParams{
+					JoinMethod:      types.JoinMethodIAM,
+					JoinToken:       types.IAMInviteTokenName,
+					ScriptName:      installers.InstallerScriptName,
+					SSHDConfig:      "/etc/ssh/sshd_config",
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+					HTTPProxySettings: &types.HTTPProxySettings{
+						HTTPProxy:  "http://squid-local:8080",
+						HTTPSProxy: "http://squid-local:8081",
+						NoProxy:    "intranet.local,localhost",
+					},
+				},
+			}},
+		},
+		{
+			desc:          "organization matcher defined for AWS discovery",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"*"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"assume_role_name": "my-role",
+						"organization": cfgMap{
+							"organization_id": "o-123",
+							"organizational_units": cfgMap{
+								"include": []string{"ou-123"},
+								"exclude": []string{"ou-456"},
+							},
+						},
+					},
+				}
+			},
+			expectedAWSMatchers: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"*"},
+				Tags: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				Params: &types.InstallerParams{
+					JoinMethod:      types.JoinMethodIAM,
+					JoinToken:       "aws-discovery-iam-token",
+					SSHDConfig:      "/etc/ssh/sshd_config",
+					ScriptName:      "default-installer",
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+				SSM: &types.AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
+				AssumeRole: &types.AssumeRole{
+					RoleName: "my-role",
+				},
+				Organization: &types.AWSOrganizationMatcher{
+					OrganizationID: "o-123",
+					OrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+						Include: []string{"ou-123"},
+						Exclude: []string{"ou-456"},
+					},
 				},
 			}},
 		},

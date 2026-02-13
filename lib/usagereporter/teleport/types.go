@@ -211,6 +211,8 @@ func integrationEnrollMetadataToPrehog(u *usageeventsv1.IntegrationEnrollMetadat
 		prehogKind = prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES
 	case usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_ARGOCD:
 		prehogKind = prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_ARGOCD
+	case usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES:
+		prehogKind = prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES
 	default:
 		prehogKind = prehogv1a.IntegrationEnrollKind(u.Kind)
 	}
@@ -305,6 +307,102 @@ func (u *UIIntegrationEnrollStepEvent) Anonymize(a utils.Anonymizer) prehogv1a.S
 					Code:  u.Status.GetCode(),
 					Error: u.Status.GetError(),
 				},
+			},
+		},
+	}
+}
+
+// UIIntegrationEnrollSectionOpenEvent is emitted when the user opens or expands
+// a section (e.g. "Advanced Options") in an integration setup wizard.
+type UIIntegrationEnrollSectionOpenEvent prehogv1a.UIIntegrationEnrollSectionOpenEvent
+
+func (u *UIIntegrationEnrollSectionOpenEvent) CheckAndSetDefaults() error {
+	return trace.Wrap(validateIntegrationEnrollMetadata(u.Metadata))
+}
+
+func (u *UIIntegrationEnrollSectionOpenEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiIntegrationEnrollSectionOpenEvent{
+			UiIntegrationEnrollSectionOpenEvent: &prehogv1a.UIIntegrationEnrollSectionOpenEvent{
+				Metadata: &prehogv1a.IntegrationEnrollMetadata{
+					Id:       u.Metadata.Id,
+					Kind:     u.Metadata.Kind,
+					UserName: a.AnonymizeString(u.Metadata.UserName),
+				},
+				Step:    u.Step,
+				Section: u.Section,
+			},
+		},
+	}
+}
+
+// UIIntegrationEnrollFieldCompleteEvent is emitted when the user completes a
+// field in an integration setup wizard.
+type UIIntegrationEnrollFieldCompleteEvent prehogv1a.UIIntegrationEnrollFieldCompleteEvent
+
+func (u *UIIntegrationEnrollFieldCompleteEvent) CheckAndSetDefaults() error {
+	return trace.Wrap(validateIntegrationEnrollMetadata(u.Metadata))
+}
+
+func (u *UIIntegrationEnrollFieldCompleteEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiIntegrationEnrollFieldCompleteEvent{
+			UiIntegrationEnrollFieldCompleteEvent: &prehogv1a.UIIntegrationEnrollFieldCompleteEvent{
+				Metadata: &prehogv1a.IntegrationEnrollMetadata{
+					Id:       u.Metadata.Id,
+					Kind:     u.Metadata.Kind,
+					UserName: a.AnonymizeString(u.Metadata.UserName),
+				},
+				Step:  u.Step,
+				Field: u.Field,
+			},
+		},
+	}
+}
+
+// UIIntegrationEnrollCodeCopyEvent is emitted when the user copies generated
+// IaC (e.g. Terraform) code in an integration setup wizard.
+type UIIntegrationEnrollCodeCopyEvent prehogv1a.UIIntegrationEnrollCodeCopyEvent
+
+func (u *UIIntegrationEnrollCodeCopyEvent) CheckAndSetDefaults() error {
+	return trace.Wrap(validateIntegrationEnrollMetadata(u.Metadata))
+}
+
+func (u *UIIntegrationEnrollCodeCopyEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiIntegrationEnrollCodeCopyEvent{
+			UiIntegrationEnrollCodeCopyEvent: &prehogv1a.UIIntegrationEnrollCodeCopyEvent{
+				Metadata: &prehogv1a.IntegrationEnrollMetadata{
+					Id:       u.Metadata.Id,
+					Kind:     u.Metadata.Kind,
+					UserName: a.AnonymizeString(u.Metadata.UserName),
+				},
+				Step: u.Step,
+				Type: u.Type,
+			},
+		},
+	}
+}
+
+// UIIntegrationEnrollLinkClickEvent is emitted when the user clicks a link to
+// documentation, etc. in an integration setup wizard.
+type UIIntegrationEnrollLinkClickEvent prehogv1a.UIIntegrationEnrollLinkClickEvent
+
+func (u *UIIntegrationEnrollLinkClickEvent) CheckAndSetDefaults() error {
+	return trace.Wrap(validateIntegrationEnrollMetadata(u.Metadata))
+}
+
+func (u *UIIntegrationEnrollLinkClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiIntegrationEnrollLinkClickEvent{
+			UiIntegrationEnrollLinkClickEvent: &prehogv1a.UIIntegrationEnrollLinkClickEvent{
+				Metadata: &prehogv1a.IntegrationEnrollMetadata{
+					Id:       u.Metadata.Id,
+					Kind:     u.Metadata.Kind,
+					UserName: a.AnonymizeString(u.Metadata.UserName),
+				},
+				Step: u.Step,
+				Link: u.Link,
 			},
 		},
 	}
@@ -1478,6 +1576,50 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 
 		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiIntegrationEnrollSectionOpenEvent:
+		ret := &UIIntegrationEnrollSectionOpenEvent{
+			Metadata: integrationEnrollMetadataToPrehog(e.UiIntegrationEnrollSectionOpenEvent.Metadata, userMD),
+			Step:     prehogv1a.IntegrationEnrollStep(e.UiIntegrationEnrollSectionOpenEvent.Step),
+			Section:  prehogv1a.IntegrationEnrollSection(e.UiIntegrationEnrollSectionOpenEvent.Section),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiIntegrationEnrollFieldCompleteEvent:
+		ret := &UIIntegrationEnrollFieldCompleteEvent{
+			Metadata: integrationEnrollMetadataToPrehog(e.UiIntegrationEnrollFieldCompleteEvent.Metadata, userMD),
+			Step:     prehogv1a.IntegrationEnrollStep(e.UiIntegrationEnrollFieldCompleteEvent.Step),
+			Field:    prehogv1a.IntegrationEnrollField(e.UiIntegrationEnrollFieldCompleteEvent.Field),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiIntegrationEnrollCodeCopyEvent:
+		ret := &UIIntegrationEnrollCodeCopyEvent{
+			Metadata: integrationEnrollMetadataToPrehog(e.UiIntegrationEnrollCodeCopyEvent.Metadata, userMD),
+			Step:     prehogv1a.IntegrationEnrollStep(e.UiIntegrationEnrollCodeCopyEvent.Step),
+			Type:     prehogv1a.IntegrationEnrollCodeType(e.UiIntegrationEnrollCodeCopyEvent.Type),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiIntegrationEnrollLinkClickEvent:
+		ret := &UIIntegrationEnrollLinkClickEvent{
+			Metadata: integrationEnrollMetadataToPrehog(e.UiIntegrationEnrollLinkClickEvent.Metadata, userMD),
+			Step:     prehogv1a.IntegrationEnrollStep(e.UiIntegrationEnrollLinkClickEvent.Step),
+			Link:     e.UiIntegrationEnrollLinkClickEvent.Link,
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverStartedEvent:
 		ret := &UIDiscoverStartedEvent{
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverStartedEvent.Metadata, userMD),
@@ -1925,5 +2067,42 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		return ret, nil
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())
+	}
+}
+
+// SessionSummaryAccessEvent is emitted when a user accesses a session summary.
+type SessionSummaryAccessEvent prehogv1a.SessionSummaryAccessEvent
+
+// Anonymize anonymizes the event.
+func (e *SessionSummaryAccessEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_SessionSummaryAccessEvent{
+			SessionSummaryAccessEvent: &prehogv1a.SessionSummaryAccessEvent{
+				UserName:     a.AnonymizeString(e.UserName),
+				SessionType:  e.SessionType,
+				ResourceName: a.AnonymizeString(e.ResourceName),
+				UserKind:     e.UserKind,
+			},
+		},
+	}
+}
+
+// SessionSummaryCreateEvent is emitted when the system creates a session summary.
+type SessionSummaryCreateEvent prehogv1a.SessionSummaryCreateEvent
+
+// Anonymize anonymizes the event.
+func (e *SessionSummaryCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_SessionSummaryCreateEvent{
+			SessionSummaryCreateEvent: &prehogv1a.SessionSummaryCreateEvent{
+				SessionType:         e.SessionType,
+				Provider:            e.Provider,
+				TotalInputTokens:    e.TotalInputTokens,
+				TotalOutputTokens:   e.TotalOutputTokens,
+				Success:             e.Success,
+				ResourceName:        a.AnonymizeString(e.ResourceName),
+				IsCloudDefaultModel: e.IsCloudDefaultModel,
+			},
+		},
 	}
 }

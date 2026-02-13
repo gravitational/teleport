@@ -1,0 +1,20 @@
+kind: discovery_config
+# ...
+spec:
+  aws:
+    - types: ["ec2"]
+      tags:
+       - "env": "prod"
+      regions: ["us-west1", "us-east1"]
+      install:
+        script_name: "default-installer"
+      ssm:
+        document_name: "AWS-RunShellScript"
+    - types: ["ec2"]
+      tags:
+       - "env": "devel"
+      regions: ["us-west1", "us-east1"]
+      install:
+        script_name: "devel-installer"
+      ssm:
+        document_name: "AWS-RunShellScript"

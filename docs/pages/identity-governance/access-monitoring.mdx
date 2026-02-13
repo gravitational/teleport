@@ -6,6 +6,7 @@ tags:
  - how-to
  - identity-governance
  - access-risks
+enterprise: Identity Governance
 ---
 
 Access Monitoring allows users to understand and analyze the access patterns in a Teleport cluster.
@@ -19,12 +20,6 @@ Teleport includes a report that searches the audit log for events indicating ris
 or database sessions without MFA) and provides users with recommendations on suggested actions.
 
 Users are able to write their own custom access monitoring queries by querying the audit log.
-
-<Admonition type="note">
-  Access Monitoring is not currently supported with External Audit Storage
-  in Teleport Enterprise (Cloud). This functionality will be
-  enabled in a future Teleport release.
-</Admonition>
 
 ## Prerequisites
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -480,7 +475,7 @@ ORDER BY
     event_date
 ```
 
-**Suggestion:**  Use short lived certificates less than a working day. Check out Machine ID to get short lived certificates for your automation.
+**Suggestion:**  Use short lived certificates less than a working day. Check out Machine & Workload Identity to get short lived certificates for your automation.
 
 ### Long-lived join tokens
 

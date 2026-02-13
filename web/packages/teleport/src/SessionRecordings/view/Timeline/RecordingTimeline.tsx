@@ -30,7 +30,7 @@ import { useDebounceCallback } from 'usehooks-ts';
 import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 
 import type {
-  SessionRecordingMetadata,
+  SessionRecordingEvent,
   SessionRecordingThumbnail,
 } from 'teleport/services/recordings';
 import { KeysEnum } from 'teleport/services/storageService';
@@ -45,10 +45,12 @@ import {
 } from './utils';
 
 interface RecordingTimelineProps {
+  duration: number;
+  events: SessionRecordingEvent[];
   frames: SessionRecordingThumbnail[];
-  metadata: SessionRecordingMetadata;
   onTimeChange: (time: number) => void;
   showAbsoluteTime: boolean;
+  startTime: number;
   ref: RefObject<RecordingTimelineHandle>;
 }
 
@@ -116,10 +118,12 @@ function scaleCanvas(
 }
 
 export function RecordingTimeline({
+  duration,
+  events,
   frames,
-  metadata,
   onTimeChange,
   showAbsoluteTime,
+  startTime,
   ref,
 }: RecordingTimelineProps) {
   const theme = useTheme();
@@ -169,13 +173,15 @@ export function RecordingTimeline({
 
     rendererRef.current = new TimelineRenderer(
       ctxRef.current,
-      metadata,
+      duration,
+      startTime,
+      events,
       frames,
       theme,
       containerWidth,
       containerHeight
     );
-  }, [frames, metadata, theme]);
+  }, [duration, events, frames, startTime, theme]);
 
   useEffect(() => {
     if (!rendererRef.current) {
@@ -191,7 +197,7 @@ export function RecordingTimeline({
     }
 
     function handleWheel(event: WheelEvent) {
-      if (!rendererRef.current) {
+      if (!rendererRef.current || !canvasRef.current) {
         return;
       }
 
@@ -203,7 +209,10 @@ export function RecordingTimeline({
         const ZOOM_SENSITIVITY = 0.002;
         const deltaZoom = -event.deltaY * ZOOM_SENSITIVITY;
 
-        renderer.accumulateZoom(event.clientX, deltaZoom);
+        const canvasX =
+          event.clientX - canvasRef.current.getBoundingClientRect().left;
+
+        renderer.accumulateZoom(canvasX, deltaZoom);
       } else if (event.deltaX !== 0) {
         renderer.accumulatePan(event.deltaX);
       } else if (event.shiftKey && event.deltaY !== 0) {
@@ -299,11 +308,11 @@ export function RecordingTimeline({
 
       // Calculate timeline width based on duration and zoom
       const pixelsPerMs = 0.1;
-      const baseTimelineWidth = metadata.duration * pixelsPerMs;
+      const baseTimelineWidth = duration * pixelsPerMs;
       const timelineWidth = baseTimelineWidth * renderer.getZoom();
 
       // Calculate time position on the timeline
-      const timePosition = (time / metadata.duration) * timelineWidth;
+      const timePosition = (time / duration) * timelineWidth;
       const relativePosition = timePosition + renderer.getOffset();
 
       // Check if we should auto-scroll
@@ -341,7 +350,7 @@ export function RecordingTimeline({
 
       renderer.setCurrentTime(time);
     },
-    [metadata.duration, isInteractingRef]
+    [duration, isInteractingRef]
   );
 
   useImperativeHandle(ref, () => ({
@@ -416,6 +425,7 @@ export function RecordingTimeline({
 
       <Canvas
         onClick={handleClick}
+        onContextMenu={e => e.preventDefault()}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onMouseMove={handleMouseMove}

@@ -26,6 +26,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/gravitational/trace"
@@ -230,4 +231,15 @@ func IterAttr[V any](iter iter.Seq[V]) slog.LogValuer {
 
 func (a iterAttr[V]) LogValue() slog.Value {
 	return slog.AnyValue(slices.Collect[V](a.iter))
+}
+
+// TimeAttr creates a lazily evaluated log value printing the time in RFC3339 format.
+func TimeAttr(t time.Time) slog.LogValuer {
+	return timeAttr{t}
+}
+
+type timeAttr struct{ t time.Time }
+
+func (a timeAttr) LogValue() slog.Value {
+	return slog.StringValue(a.t.UTC().Format(time.RFC3339))
 }

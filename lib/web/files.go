@@ -36,8 +36,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/sshagent"
@@ -169,10 +169,15 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 
 	signer := agentless.SignerFromSSHIdentity(ident, h.auth.accessPoint, tc.SiteName, tc.Username)
 
+	clientDstAddr := h.cfg.ProxyWebAddr
+	if srvConn, err := authz.ConnFromContext(r.Context()); err == nil {
+		clientDstAddr = utils.FromAddr(srvConn.LocalAddr())
+	}
 	conn, err := h.cfg.Router.DialHost(
 		ctx,
+		ident.ScopePin,
 		&utils.NetAddr{Addr: r.RemoteAddr},
-		&h.cfg.ProxyWebAddr,
+		&clientDstAddr,
 		req.serverID,
 		"0",
 		tc.SiteName,
@@ -210,7 +215,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		req.serverID+":0",
 		req.serverID,
 		tc,
-		modules.GetModules().IsBoringBinary(),
+		h.cfg.Modules.IsBoringBinary(),
 	)
 	if err != nil {
 		// The close error is ignored instead of using [trace.NewAggregate] because

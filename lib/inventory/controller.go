@@ -22,6 +22,7 @@ import (
 	"context"
 	"iter"
 	"log/slog"
+	"maps"
 	"math/rand/v2"
 	"os"
 	"strings"
@@ -55,6 +56,7 @@ type Auth interface {
 	UpsertNode(context.Context, types.Server) (*types.KeepAlive, error)
 
 	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
+	UnconditionalUpdateApplicationServer(context.Context, types.AppServer) (types.AppServer, error)
 	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
 
 	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*types.KeepAlive, error)
@@ -911,6 +913,21 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 		return trace.AccessDenied("incorrect ssh server ID (expected %q, got %q)", handle.Hello().ServerID, sshServer.GetName())
 	}
 
+	// Agent's that don't know about scopes can still have a scoped identity. In that case, we consider an empty
+	// scope to defer to what was found in the identity during the initial hello.
+	if sshServer.Scope == "" {
+		sshServer.Scope = handle.Hello().GetScope()
+	}
+
+	// When an agent includes a scope in its heartbeat, we enforce that it matches what was found in the hello.
+	if sshServer.Scope != handle.Hello().GetScope() {
+		return trace.AccessDenied("incorrect ssh server scope (expected %q, got %q)", handle.Hello().GetScope(), sshServer.Scope)
+	}
+
+	if !maps.Equal(sshServer.GetImmutableLabels(), handle.Hello().GetImmutableLabels().GetSsh()) {
+		return trace.AccessDenied("immutable labels changed after registration")
+	}
+
 	// if a peer address is available in the context, use it to override zero-value addresses from
 	// the server heartbeat.
 	if handle.PeerAddr() != "" {
@@ -927,7 +944,7 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 		handle.sshServer = &heartBeatInfo[*types.ServerV2]{
 			resource: sshServer,
 		}
-	} else if handle.sshServer.keepAliveErrs == 0 && services.CompareServers(handle.sshServer.resource, sshServer) < services.Different {
+	} else if handle.sshServer.keepAliveErrs == 0 && services.CompareServers(handle.sshServer.resource, sshServer) != services.Different {
 		// if we have successfully upserted this exact server the last time
 		// (except for the expiry), we don't need to upsert it again right now
 		return nil
@@ -974,6 +991,17 @@ func (c *Controller) handleRelayServerHB(handle *upstreamHandle, relayServer *pr
 	}
 	if expected, actual := handle.Hello().GetServerID(), relayServer.GetMetadata().GetName(); expected != actual {
 		return trace.AccessDenied("incorrect relay server ID (expected %q, got %q)", expected, actual)
+	}
+
+	// Agent's that don't know about scopes can still have a scoped identity. In that case, we consider an empty
+	// scope to defer to what was found in the identity during the initial hello.
+	if relayServer.Scope == "" {
+		relayServer.Scope = handle.Hello().GetScope()
+	}
+
+	// When an agent includes a scope in its heartbeat, we enforce that it matches what was found in the hello.
+	if relayServer.Scope != handle.Hello().GetScope() {
+		return trace.AccessDenied("incorrect relay server scope (expected %q, got %q)", handle.Hello().GetScope(), relayServer.Scope)
 	}
 
 	// TODO(espadolini): check the relay_server for consistency if there's any
@@ -1027,46 +1055,69 @@ func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.
 		return trace.AccessDenied("incorrect app server ID (expected %q, got %q)", handle.Hello().ServerID, appServer.GetHostID())
 	}
 
+	// Agent's that don't know about scopes can still have a scoped identity. In that case, we consider an empty
+	// scope to defer to what was found in the identity during the initial hello.
+	if appServer.Scope == "" {
+		appServer.Scope = handle.Hello().GetScope()
+	}
+
+	// When an agent includes a scope in its heartbeat, we enforce that it matches what was found in the hello.
+	if appServer.Scope != handle.Hello().GetScope() {
+		return trace.AccessDenied("incorrect app server scope (expected %q, got %q)", handle.Hello().GetScope(), appServer.Scope)
+	}
+
 	if handle.appServers == nil {
 		handle.appServers = make(map[resourceKey]*heartBeatInfo[*types.AppServerV3])
 	}
 
 	appKey := resourceKey{hostID: appServer.GetHostID(), name: appServer.GetApp().GetName()}
 
-	if _, ok := handle.appServers[appKey]; !ok {
+	srv := handle.appServers[appKey]
+	if srv == nil {
 		c.onConnectFunc(constants.KeepAliveApp)
 		if c.appHBVariableDuration != nil {
 			c.appHBVariableDuration.Inc()
 		}
-		handle.appServers[appKey] = &heartBeatInfo[*types.AppServerV3]{}
 		handle.appKeepAliveDelay.Add(appKey)
+		srv = &heartBeatInfo[*types.AppServerV3]{
+			resource: appServer,
+		}
+		handle.appServers[appKey] = srv
+	} else if srv.keepAliveErrs == 0 && services.CompareServers(srv.resource, appServer) != services.Different {
+		// if we have successfully upserted this exact server the last time
+		// (except for the expiry), we don't need to upsert it again right now
+		return nil
+	} else {
+		srv.resource = appServer
 	}
 
-	now := c.clock.Now()
+	srv.resource.SetExpiry(c.clock.Now().Add(c.serverTTL).UTC())
 
-	appServer.SetExpiry(now.Add(c.serverTTL).UTC())
-
-	lease, err := c.auth.UpsertApplicationServer(c.closeContext, appServer)
-	if err == nil {
+	if _, err := c.auth.UpsertApplicationServer(c.closeContext, srv.resource); err == nil {
 		c.testEvent(appUpsertOk)
 		// store the new lease and reset retry state
-		srv := handle.appServers[appKey]
-		srv.lease = lease
+		srv.keepAliveErrs = 0
 		srv.retryUpsert = false
-		srv.resource = appServer
+
+		handle.appKeepAliveDelay.Reset(appKey)
 	} else {
 		c.testEvent(appUpsertErr)
-		slog.WarnContext(c.closeContext, "Failed to upsert app server on heartbeat",
+		slog.WarnContext(c.closeContext, "Failed to announce app server",
 			"server_id", handle.Hello().ServerID,
 			"error", err,
 		)
 
-		// blank old lease if any and set retry state. next time handleKeepAlive is called
-		// we will attempt to upsert the server again.
-		srv := handle.appServers[appKey]
-		srv.lease = nil
+		// we use keepAliveErrs as a general upsert error count, retryUpsert as
+		// a flag to signify that we MUST succeed the very next upsert: if we're
+		// here it means that we have a new resource to upsert and we have
+		// failed to do so once, so if we fail again we are going to fall too
+		// far behind and we should let the instance go and connect to a
+		// healthier auth server
+		srv.keepAliveErrs++
+		if srv.retryUpsert || srv.keepAliveErrs > c.maxKeepAliveErrs {
+			return trace.Wrap(err, "failed to announce app server")
+		}
 		srv.retryUpsert = true
-		srv.resource = appServer
 	}
 	return nil
 }
@@ -1080,6 +1131,17 @@ func (c *Controller) handleDatabaseServerHB(handle *upstreamHandle, databaseServ
 	}
 	if databaseServer.GetHostID() != handle.Hello().ServerID {
 		return trace.AccessDenied("incorrect database server ID (expected %q, got %q)", handle.Hello().ServerID, databaseServer.GetHostID())
+	}
+
+	// Agent's that don't know about scopes can still have a scoped identity. In that case, we consider an empty
+	// scope to defer to what was found in the identity during the initial hello.
+	if databaseServer.Scope == "" {
+		databaseServer.Scope = handle.Hello().GetScope()
+	}
+
+	// When an agent includes a scope in its heartbeat, we enforce that it matches what was found in the hello.
+	if databaseServer.Scope != handle.Hello().GetScope() {
+		return trace.AccessDenied("incorrect database server scope (expected %q, got %q)", handle.Hello().GetScope(), databaseServer.Scope)
 	}
 
 	if handle.databaseServers == nil {
@@ -1135,6 +1197,17 @@ func (c *Controller) handleKubernetesServerHB(handle *upstreamHandle, kubernetes
 	}
 	if kubernetesServer.GetHostID() != handle.Hello().ServerID {
 		return trace.AccessDenied("incorrect kubernetes server ID (expected %q, got %q)", handle.Hello().ServerID, kubernetesServer.GetHostID())
+	}
+
+	// Agent's that don't know about scopes can still have a scoped identity. In that case, we consider an empty
+	// scope to defer to what was found in the identity during the initial hello.
+	if kubernetesServer.Scope == "" {
+		kubernetesServer.Scope = handle.Hello().GetScope()
+	}
+
+	// When an agent includes a scope in its heartbeat, we enforce that it matches what was found in the hello.
+	if kubernetesServer.Scope != handle.Hello().GetScope() {
+		return trace.AccessDenied("incorrect kubernetes server scope (expected %q, got %q)", handle.Hello().GetScope(), kubernetesServer.Scope)
 	}
 
 	if handle.kubernetesServers == nil {
@@ -1206,59 +1279,53 @@ func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m *proto.Upstre
 }
 
 func (c *Controller) keepAliveAppServer(handle *upstreamHandle, now time.Time, name resourceKey) error {
-	srv, ok := handle.appServers[name]
-	if !ok {
+	srv := handle.appServers[name]
+	if srv == nil {
 		handle.appKeepAliveDelay.Remove(name)
 		return trace.Errorf("desync between app server hb registry and keepalive delay (this is a bug)")
 	}
 
-	if srv.lease != nil {
-		lease := *srv.lease
-		lease.Expires = now.Add(c.serverTTL).UTC()
-		if err := c.auth.KeepAliveServer(c.closeContext, lease); err != nil {
-			c.testEvent(appKeepAliveErr)
-
-			srv.keepAliveErrs++
-			handle.appServers[name] = srv
-			shouldRemove := srv.keepAliveErrs > c.maxKeepAliveErrs
-			slog.WarnContext(c.closeContext, "Failed to keep alive app server",
-				"server_id", handle.Hello().ServerID,
-				"error", err,
-				"error_count", srv.keepAliveErrs,
-				"should_remove", shouldRemove,
-			)
-
-			if shouldRemove {
-				c.testEvent(appKeepAliveDel)
-				c.onDisconnectFunc(constants.KeepAliveApp, 1)
-				if c.appHBVariableDuration != nil {
-					c.appHBVariableDuration.Dec()
-				}
-				delete(handle.appServers, name)
-				handle.appKeepAliveDelay.Remove(name)
-			}
+	srv.resource.SetExpiry(now.Add(c.serverTTL).UTC())
+	if _, err := c.auth.UnconditionalUpdateApplicationServer(c.closeContext, srv.resource); err == nil {
+		if srv.retryUpsert {
+			c.testEvent(appUpsertRetryOk)
 		} else {
-			srv.keepAliveErrs = 0
 			c.testEvent(appKeepAliveOk)
 		}
-	} else if srv.retryUpsert {
-		srv.resource.SetExpiry(c.clock.Now().Add(c.serverTTL).UTC())
-		lease, err := c.auth.UpsertApplicationServer(c.closeContext, srv.resource)
-		if err != nil {
+		srv.keepAliveErrs = 0
+		srv.retryUpsert = false
+	} else {
+		if srv.retryUpsert {
 			c.testEvent(appUpsertRetryErr)
-			slog.WarnContext(c.closeContext, "Failed to upsert app server on retry",
+			slog.WarnContext(c.closeContext, "Failed to update app server on retry",
 				"server_id", handle.Hello().ServerID,
 				"error", err,
 			)
-			// since this is retry-specific logic, an error here means that upsert failed twice in
-			// a row. Missing upserts is more problematic than missing keepalives so we don't bother
-			// attempting a third time.
-			return trace.Errorf("failed to upsert app server on retry: %v", err)
+			// retryUpsert is set when we get a new resource and we fail to
+			// upsert it; if we're here it means that we have failed to upsert
+			// it _again_, so we have fallen quite far behind
+			return trace.Wrap(err, "failed to update app server on retry")
 		}
-		c.testEvent(appUpsertRetryOk)
 
-		srv.lease = lease
-		srv.retryUpsert = false
+		c.testEvent(appKeepAliveErr)
+		srv.keepAliveErrs++
+		shouldRemove := srv.keepAliveErrs > c.maxKeepAliveErrs
+		slog.WarnContext(c.closeContext, "Failed to update app server on keepalive",
+			"server_id", handle.Hello().ServerID,
+			"error", err,
+			"error_count", srv.keepAliveErrs,
+			"should_remove", shouldRemove,
+		)
+
+		if shouldRemove {
+			c.testEvent(appKeepAliveDel)
+			c.onDisconnectFunc(constants.KeepAliveApp, 1)
+			if c.appHBVariableDuration != nil {
+				c.appHBVariableDuration.Dec()
+			}
+			delete(handle.appServers, name)
+			handle.appKeepAliveDelay.Remove(name)
+		}
 	}
 
 	return nil

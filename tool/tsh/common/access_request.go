@@ -19,8 +19,11 @@
 package common
 
 import (
+	"cmp"
+	"context"
 	"fmt"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -34,8 +37,10 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -50,12 +55,11 @@ func onRequestList(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if cf.Username == "" {
-		cf.Username = tc.Username
-	}
+	cf.Username = cmp.Or(cf.Username, tc.Username)
 
 	var reqs []types.AccessRequest
 
+	// TODO: consider using the AccessRequestFilter below to filter server side rather than client side.
 	err = tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
 		reqs, err = clt.GetAccessRequests(cf.Context, types.AccessRequestFilter{})
 		return trace.Wrap(err)
@@ -63,51 +67,32 @@ func onRequestList(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// NOTE: It probably makes sense for --reviewable, --suggested, and --my-requests
+	// to be mutually exclusive, but the original implementation of request filtering
+	// applied the filters in this order. We retain that behavior now for compatibility.
+
 	if cf.ReviewableRequests {
-		filtered := reqs[:0]
-	Reviewable:
-		for _, req := range reqs {
-			if req.GetUser() == cf.Username {
-				continue Reviewable
-			}
-			for _, rev := range req.GetReviews() {
-				if rev.Author == cf.Username {
-					continue Reviewable
-				}
-			}
-			filtered = append(filtered, req)
-		}
-		reqs = filtered
+		reqs = slices.DeleteFunc(reqs, func(ar types.AccessRequest) bool {
+			// Requests made by the same user or requests the user already reviewed are not reviewable.
+			return ar.GetUser() == cf.Username ||
+				slices.ContainsFunc(ar.GetReviews(), func(review types.AccessReview) bool { return review.Author == cf.Username })
+		})
 	}
 	if cf.SuggestedRequests {
-		filtered := reqs[:0]
-	Suggested:
-		for _, req := range reqs {
-			if req.GetUser() == cf.Username {
-				continue Suggested
-			}
-			for _, rev := range req.GetReviews() {
-				if rev.Author == cf.Username {
-					continue Suggested
-				}
-			}
-			for _, reviewer := range req.GetSuggestedReviewers() {
-				if reviewer == cf.Username {
-					filtered = append(filtered, req)
-					continue Suggested
-				}
-			}
-		}
-		reqs = filtered
+		reqs = slices.DeleteFunc(reqs, func(ar types.AccessRequest) bool {
+			// Requests made by the same author, requests already reviewed, or requests that do not contain
+			// this user as a suggested reviewer get filtered out.
+			return ar.GetUser() == cf.Username ||
+				slices.ContainsFunc(ar.GetReviews(), func(review types.AccessReview) bool { return review.Author == cf.Username }) ||
+				!slices.ContainsFunc(ar.GetSuggestedReviewers(), func(suggestion string) bool { return suggestion == cf.Username })
+		})
 	}
 	if cf.MyRequests {
-		filtered := reqs[:0]
-		for _, req := range reqs {
-			if req.GetUser() == cf.Username {
-				filtered = append(filtered, req)
-			}
-		}
-		reqs = filtered
+		reqs = slices.DeleteFunc(reqs, func(ar types.AccessRequest) bool {
+			// Filter out requests made by other users.
+			return ar.GetUser() != cf.Username
+		})
 	}
 
 	format := strings.ToLower(cf.Format)
@@ -199,12 +184,9 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 		reviewers = strings.Join(r, ", ")
 	}
 
-	resourcesStr := ""
-	if resources := req.GetRequestedResourceIDs(); len(resources) > 0 {
-		var err error
-		if resourcesStr, err = types.ResourceIDsToString(resources); err != nil {
-			return trace.Wrap(err)
-		}
+	resourcesStr, err := common.FormatResourceAccessIDs(req.GetAllRequestedResourceIDs())
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	table := asciitable.MakeHeadlessTable(2)
@@ -225,7 +207,7 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 	}
 	table.AddRow([]string{"Status:", req.GetState().String()})
 
-	_, err := table.AsBuffer().WriteTo(cf.Stdout())
+	_, err = table.AsBuffer().WriteTo(cf.Stdout())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -378,7 +360,9 @@ func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 		if now.After(req.GetAccessExpiry()) {
 			continue
 		}
-		resourceIDsString, err := types.ResourceIDsToString(req.GetRequestedResourceIDs())
+		// This table isn't a comprehensive overview of each request; omit constraints on resources for brevity
+		// and only print their stringified ResourceIDs.
+		resourceIDsString, err := types.ResourceIDsToString(types.RiskyExtractResourceIDs(req.GetAllRequestedResourceIDs()))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -406,6 +390,125 @@ func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 }
 
 func onRequestSearch(cf *CLIConf) error {
+	if cf.RequestableRoles && cf.ResourceKind != "" {
+		return trace.BadParameter("only one of --kind and --roles may be specified")
+	}
+	if !cf.RequestableRoles && cf.ResourceKind == "" {
+		return trace.BadParameter("one of --kind and --roles is required")
+	}
+
+	if cf.RequestableRoles {
+		return searchRequestableRoles(cf)
+	} else {
+		return searchRequestableResources(cf)
+	}
+}
+
+type requestableRoleRow struct {
+	Role        string
+	Description string
+}
+
+type resourceRow interface {
+	kubeResourceRow |
+		dbResourceRow |
+		genericResourceRow
+}
+
+type kubeResourceRow struct {
+	Name       string
+	Namespace  string
+	Labels     string
+	ResourceID string
+}
+
+type dbResourceRow struct {
+	DatabaseName string
+	Labels       string
+	ResourceID   string
+}
+
+type genericResourceRow struct {
+	Name       string
+	Hostname   string
+	Labels     string
+	ResourceID string
+}
+
+func searchRequestableRoles(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var allRoles []*proto.ListRequestableRolesResponse_RequestableRole
+	err = tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
+		pageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*proto.ListRequestableRolesResponse_RequestableRole, string, error) {
+			req := &proto.ListRequestableRolesRequest{
+				PageSize:  int32(pageSize),
+				PageToken: pageToken,
+			}
+
+			resp, err := clt.ListRequestableRoles(ctx, req)
+			return resp.GetRoles(), resp.GetNextPageToken(), trace.Wrap(err)
+		}
+
+		var err error
+		allRoles, err = stream.Collect(clientutils.Resources(cf.Context, pageFunc))
+		return err
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	rows := make([]requestableRoleRow, 0, len(allRoles))
+	for _, r := range allRoles {
+		rows = append(rows, requestableRoleRow{
+			Role:        r.Name,
+			Description: r.Description,
+		})
+	}
+
+	return printRequestableRoles(cf, rows)
+}
+
+func printRequestableRoles(cf *CLIConf, rows []requestableRoleRow) error {
+	format := strings.ToLower(cf.Format)
+
+	switch format {
+	case teleport.Text, "":
+		if len(rows) == 0 {
+			fmt.Fprintln(cf.Stdout(), "No requestable roles found.")
+			return nil
+		}
+
+		columns, rows, err := asciitable.MakeColumnsAndRows(rows, nil)
+		if err != nil {
+			return err
+		}
+
+		var table asciitable.Table
+		if cf.Verbose {
+			table = asciitable.MakeTable(columns, rows...)
+		} else {
+			table = asciitable.MakeTableWithTruncatedColumn(columns, rows, "Description")
+		}
+
+		if _, err := table.AsBuffer().WriteTo(cf.Stdout()); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAMLArray(cf.Stdout(), rows))
+	case teleport.JSON:
+		return trace.Wrap(utils.WriteJSONArray(cf.Stdout(), rows))
+	default:
+		return trace.BadParameter("unsupported format %q", cf.Format)
+	}
+}
+
+func searchRequestableResources(cf *CLIConf) error {
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -424,9 +527,11 @@ func onRequestSearch(cf *CLIConf) error {
 		cf.kubeNamespace = ""
 	}
 
-	var resources types.ResourcesWithLabels
-	var tableColumns []string
-	if cf.ResourceKind == types.KindKubernetesResource {
+	deduplicateResourceIDs := map[string]struct{}{}
+	var resourceIDs []string
+
+	switch cf.ResourceKind {
+	case types.KindKubernetesResource:
 		proxyGRPCClient, err := tc.NewKubernetesServiceClient(cf.Context, tc.SiteName)
 		if err != nil {
 			return trace.Wrap(err)
@@ -446,13 +551,40 @@ func onRequestSearch(cf *CLIConf) error {
 			TeleportCluster:     tc.SiteName,
 		}
 
-		resources, err = client.GetKubernetesResourcesWithFilters(cf.Context, proxyGRPCClient, &req)
+		resources, err := client.GetKubernetesResourcesWithFilters(cf.Context, proxyGRPCClient, &req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		tableColumns = []string{"Name", "Namespace", "Labels", "Resource ID"}
-	} else {
+		var rows []kubeResourceRow
+		for _, resource := range resources {
+			r, ok := resource.(*types.KubernetesResourceV1)
+			if !ok {
+				continue
+			}
+
+			resourceID := types.ResourceIDToString(types.ResourceID{
+				ClusterName:     tc.SiteName,
+				Kind:            r.GetKind(),
+				Name:            cf.KubernetesCluster,
+				SubResourceName: path.Join(r.Spec.Namespace, r.GetName()),
+			})
+			if ignoreDuplicateResourceID(deduplicateResourceIDs, resourceID) {
+				continue
+			}
+			resourceIDs = append(resourceIDs, resourceID)
+
+			rows = append(rows, kubeResourceRow{
+				Name:       common.FormatResourceName(r, cf.Verbose),
+				Namespace:  r.Spec.Namespace,
+				Labels:     common.FormatLabels(r.GetAllLabels(), cf.Verbose),
+				ResourceID: resourceID,
+			})
+		}
+
+		return printRequestableResources(cf, rows, resourceIDs)
+
+	default:
 		// For all other resources, we need to connect to the auth server.
 		clusterClient, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
@@ -467,99 +599,108 @@ func onRequestSearch(cf *CLIConf) error {
 			UseSearchAsRoles:    true,
 		}
 
-		resources, err = accessrequest.GetResourcesByKind(cf.Context, clusterClient.AuthClient, req, cf.ResourceKind)
+		resources, err := accessrequest.GetResourcesByKind(cf.Context, clusterClient.AuthClient, req, cf.ResourceKind)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		switch cf.ResourceKind {
 		case types.KindDatabase:
-			tableColumns = []string{"Database Name", "Labels", "Resource ID"}
-		default:
-			tableColumns = []string{"Name", "Hostname", "Labels", "Resource ID"}
-		}
-	}
+			var rows []dbResourceRow
+			for _, resource := range resources {
+				r := resource
 
-	var rows [][]string
-	var resourceIDs []string
-	deduplicateResourceIDs := map[string]struct{}{}
-	for _, resource := range resources {
-		var row []string
-		switch r := resource.(type) {
-		case *types.KubernetesResourceV1:
-			resourceID := types.ResourceIDToString(types.ResourceID{
-				ClusterName:     tc.SiteName,
-				Kind:            r.GetKind(),
-				Name:            cf.KubernetesCluster,
-				SubResourceName: path.Join(r.Spec.Namespace, r.GetName()),
-			})
-			if ignoreDuplicateResourceID(deduplicateResourceIDs, resourceID) {
-				continue
-			}
-			resourceIDs = append(resourceIDs, resourceID)
+				resourceID := types.ResourceIDToString(types.ResourceID{
+					ClusterName: tc.SiteName,
+					Kind:        r.GetKind(),
+					Name:        r.GetName(),
+				})
+				if ignoreDuplicateResourceID(deduplicateResourceIDs, resourceID) {
+					continue
+				}
+				resourceIDs = append(resourceIDs, resourceID)
 
-			row = []string{
-				common.FormatResourceName(r, cf.Verbose),
-				r.Spec.Namespace,
-				common.FormatLabels(r.GetAllLabels(), cf.Verbose),
-				resourceID,
+				rows = append(rows, dbResourceRow{
+					DatabaseName: common.FormatResourceName(r, cf.Verbose),
+					Labels:       common.FormatLabels(r.GetAllLabels(), cf.Verbose),
+					ResourceID:   resourceID,
+				})
 			}
+			return printRequestableResources(cf, rows, resourceIDs)
 
 		default:
-			resourceID := types.ResourceIDToString(types.ResourceID{
-				ClusterName: tc.SiteName,
-				Kind:        r.GetKind(),
-				Name:        r.GetName(),
-			})
-			if ignoreDuplicateResourceID(deduplicateResourceIDs, resourceID) {
-				continue
+			var rows []genericResourceRow
+			for _, resource := range resources {
+				r := resource
+
+				resourceID := types.ResourceIDToString(types.ResourceID{
+					ClusterName: tc.SiteName,
+					Kind:        r.GetKind(),
+					Name:        r.GetName(),
+				})
+				if ignoreDuplicateResourceID(deduplicateResourceIDs, resourceID) {
+					continue
+				}
+				resourceIDs = append(resourceIDs, resourceID)
+
+				hostName := ""
+				if r2, ok := r.(interface{ GetHostname() string }); ok {
+					hostName = r2.GetHostname()
+				}
+
+				rows = append(rows, genericResourceRow{
+					Name:       common.FormatResourceName(r, cf.Verbose),
+					Hostname:   hostName,
+					Labels:     common.FormatLabels(r.GetAllLabels(), cf.Verbose),
+					ResourceID: resourceID,
+				})
 			}
 
-			resourceIDs = append(resourceIDs, resourceID)
-			hostName := ""
-			if r2, ok := r.(interface{ GetHostname() string }); ok {
-				hostName = r2.GetHostname()
-			}
-
-			switch cf.ResourceKind {
-			case types.KindDatabase:
-				row = []string{
-					common.FormatResourceName(r, cf.Verbose),
-					common.FormatLabels(r.GetAllLabels(), cf.Verbose),
-					resourceID,
-				}
-			default:
-				row = []string{
-					common.FormatResourceName(r, cf.Verbose),
-					hostName,
-					common.FormatLabels(r.GetAllLabels(), cf.Verbose),
-					resourceID,
-				}
-			}
+			return printRequestableResources(cf, rows, resourceIDs)
 		}
-		rows = append(rows, row)
 	}
-	var table asciitable.Table
-	if cf.Verbose {
-		table = asciitable.MakeTable(tableColumns, rows...)
-	} else {
-		table = asciitable.MakeTableWithTruncatedColumn(tableColumns, rows, "Labels")
-	}
-	if _, err := table.AsBuffer().WriteTo(cf.Stdout()); err != nil {
-		return trace.Wrap(err)
-	}
+}
 
-	if len(resourceIDs) > 0 {
-		resourcesStr := strings.Join(resourceIDs, " --resource ")
-		fmt.Fprintf(cf.Stdout(), `
+func printRequestableResources[T resourceRow](cf *CLIConf, rows []T, resourceIDs []string) error {
+	format := strings.ToLower(cf.Format)
+
+	switch format {
+	case teleport.Text, "":
+		columns, tableRows, err := asciitable.MakeColumnsAndRows(rows, nil)
+		if err != nil {
+			return err
+		}
+
+		var table asciitable.Table
+		if cf.Verbose {
+			table = asciitable.MakeTable(columns, tableRows...)
+		} else {
+			table = asciitable.MakeTableWithTruncatedColumn(columns, tableRows, "Labels")
+		}
+
+		if _, err := table.AsBuffer().WriteTo(cf.Stdout()); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if len(resourceIDs) > 0 {
+			resourcesStr := strings.Join(resourceIDs, " --resource ")
+			fmt.Fprintf(cf.Stdout(), `
 To request access to these resources, run
 > tsh request create --resource %s \
     --reason <request reason>
 
 `, resourcesStr)
-	}
+		}
 
-	return nil
+		return nil
+
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAMLArray(cf.Stdout(), rows))
+	case teleport.JSON:
+		return trace.Wrap(utils.WriteJSONArray(cf.Stdout(), rows))
+	default:
+		return trace.BadParameter("unsupported format %q", cf.Format)
+	}
 }
 
 // ignoreDuplicateResourceID returns true if the resource ID is a duplicate

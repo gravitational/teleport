@@ -57,6 +57,8 @@ func TestEncryptedIO(t *testing.T) {
 	err = writer.Close()
 	require.NoError(t, err)
 
+	encryptedBytes := out.Bytes()
+
 	reader, err := encryptedIO.WithDecryption(ctx, out)
 	require.NoError(t, err)
 
@@ -64,6 +66,11 @@ func TestEncryptedIO(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, msg, plaintext)
+
+	// Test buffer decryption directly
+	decryptedBuf, err := recordingencryption.DecryptBufferIfEncrypted(ctx, encryptedBytes, encryptedIO)
+	require.NoError(t, err)
+	require.Equal(t, msg, decryptedBuf)
 
 	// creating an EncryptedIO without a SessionRecordingConfigGetter or keyfinder should be an error
 	_, err = recordingencryption.NewEncryptedIO(nil, nil)
@@ -79,6 +86,12 @@ func TestEncryptedIO(t *testing.T) {
 
 	_, err = encryptedIO.WithEncryption(ctx, &writeCloser{Writer: out})
 	require.ErrorIs(t, err, recordingencryption.ErrEncryptionDisabled)
+
+	// Decrypting an unencrypted buffer should return the original buffer
+	origBuf := []byte("this is not encrypted")
+	decryptedBuf, err = recordingencryption.DecryptBufferIfEncrypted(ctx, origBuf, encryptedIO)
+	require.NoError(t, err)
+	require.Equal(t, origBuf, decryptedBuf)
 }
 
 type fakeSRCGetter struct {

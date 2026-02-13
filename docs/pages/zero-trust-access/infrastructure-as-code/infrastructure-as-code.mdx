@@ -1,6 +1,7 @@
 ---
 title: Infrastructure as Code
 description: An introduction to managing Teleport with Infrastructure as Code tools, including Terraform and Kubernetes resources.
+sidebar_position: 4
 tags:
  - infrastructure-as-code
  - conceptual
@@ -14,7 +15,7 @@ Teleport provides three methods for managing Teleport with infrastructure as
 code tools: 
 - [Teleport Terraform provider](terraform-provider/terraform-provider.mdx)
 - [Teleport Kubernetes operator](teleport-operator/teleport-operator.mdx)
-- [`tctl` client tool](../../reference/cli/tctl.mdx)
+- [`tctl` client tool](using-tctl.mdx)
 
 For instructions on managing users, roles, trusted clusters, and other resources
 with IaC tools, see [Managing Resources with Infrastructure as
@@ -161,10 +162,10 @@ in Teleport dynamic resources:
 
 For reference guides to dynamic configuration resources available to apply using
 `tctl`, read the [Configuration Resource
-Reference](../../reference/infrastructure-as-code/resources.mdx). There are also
+Reference](../../reference/infrastructure-as-code/teleport-resources/teleport-resources.mdx). There are also
 dedicated configuration resource references for
-[applications](../../reference/agent-services/application-access.mdx) and
-[databases](../../reference/agent-services/database-access-reference/configuration.mdx).
+[applications](../../enroll-resources/application-access/reference.mdx) and
+[databases](../../enroll-resources/database-access/reference/configuration.mdx).
 
 ### Terraform resources and data sources
 
@@ -175,7 +176,7 @@ References](../../reference/infrastructure-as-code/terraform-provider/terraform-
 ### Kubernetes operator resources 
 
 For comprehensive reference guides for resources you can manage with the
-Teleport Terraform provider, see [Teleport Terraform Provider
+Kubernetes operator, see [Teleport Kubernetes Operator Resource
 References](../../reference/infrastructure-as-code/operator-resources/operator-resources.mdx).
 
 ## Other ways to use the dynamic resource API

@@ -170,6 +170,19 @@ func TestGCPMatcherCheckAndSetDefaults(t *testing.T) {
 			},
 			errCheck: isBadParameterErr,
 		},
+		{
+			name: "invalid proxy settings",
+			in: &GCPMatcher{
+				Types:      []string{"gce"},
+				ProjectIDs: []string{"project001"},
+				Params: &InstallerParams{
+					HTTPProxySettings: &HTTPProxySettings{
+						HTTPProxy: "not a valid url",
+					},
+				},
+			},
+			errCheck: isBadParameterErr,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.in.CheckAndSetDefaults()

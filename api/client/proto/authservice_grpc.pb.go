@@ -43,6 +43,7 @@ const (
 	AuthService_GetInstances_FullMethodName                        = "/proto.AuthService/GetInstances"
 	AuthService_GetClusterAlerts_FullMethodName                    = "/proto.AuthService/GetClusterAlerts"
 	AuthService_UpsertClusterAlert_FullMethodName                  = "/proto.AuthService/UpsertClusterAlert"
+	AuthService_DeleteClusterAlert_FullMethodName                  = "/proto.AuthService/DeleteClusterAlert"
 	AuthService_CreateAlertAck_FullMethodName                      = "/proto.AuthService/CreateAlertAck"
 	AuthService_GetAlertAcks_FullMethodName                        = "/proto.AuthService/GetAlertAcks"
 	AuthService_ClearAlertAcks_FullMethodName                      = "/proto.AuthService/ClearAlertAcks"
@@ -118,7 +119,6 @@ const (
 	AuthService_DeleteAllSAMLIdPSessions_FullMethodName            = "/proto.AuthService/DeleteAllSAMLIdPSessions"
 	AuthService_DeleteUserSAMLIdPSessions_FullMethodName           = "/proto.AuthService/DeleteUserSAMLIdPSessions"
 	AuthService_GetWebSession_FullMethodName                       = "/proto.AuthService/GetWebSession"
-	AuthService_GetWebSessions_FullMethodName                      = "/proto.AuthService/GetWebSessions"
 	AuthService_StreamWebSessions_FullMethodName                   = "/proto.AuthService/StreamWebSessions"
 	AuthService_DeleteWebSession_FullMethodName                    = "/proto.AuthService/DeleteWebSession"
 	AuthService_DeleteAllWebSessions_FullMethodName                = "/proto.AuthService/DeleteAllWebSessions"
@@ -219,6 +219,7 @@ const (
 	AuthService_GetSessionEvents_FullMethodName                    = "/proto.AuthService/GetSessionEvents"
 	AuthService_GetLock_FullMethodName                             = "/proto.AuthService/GetLock"
 	AuthService_GetLocks_FullMethodName                            = "/proto.AuthService/GetLocks"
+	AuthService_ListLocks_FullMethodName                           = "/proto.AuthService/ListLocks"
 	AuthService_UpsertLock_FullMethodName                          = "/proto.AuthService/UpsertLock"
 	AuthService_DeleteLock_FullMethodName                          = "/proto.AuthService/DeleteLock"
 	AuthService_ReplaceRemoteLocks_FullMethodName                  = "/proto.AuthService/ReplaceRemoteLocks"
@@ -333,6 +334,8 @@ type AuthServiceClient interface {
 	GetClusterAlerts(ctx context.Context, in *types.GetClusterAlertsRequest, opts ...grpc.CallOption) (*GetClusterAlertsResponse, error)
 	// UpsertClusterAlert creates a cluster alert.
 	UpsertClusterAlert(ctx context.Context, in *UpsertClusterAlertRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// DeleteClusterAlert deletes a cluster alert.
+	DeleteClusterAlert(ctx context.Context, in *DeleteClusterAlertRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// CreateAlertAck marks a cluster alert as acknowledged.
 	CreateAlertAck(ctx context.Context, in *types.AlertAcknowledgement, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetAlertAcks gets active alert ackowledgements.
@@ -525,9 +528,6 @@ type AuthServiceClient interface {
 	DeleteUserSAMLIdPSessions(ctx context.Context, in *DeleteUserSAMLIdPSessionsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetWebSession gets a web session.
 	GetWebSession(ctx context.Context, in *types.GetWebSessionRequest, opts ...grpc.CallOption) (*GetWebSessionResponse, error)
-	// Deprecated: Do not use.
-	// GetWebSessions gets all web sessions.
-	GetWebSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWebSessionsResponse, error)
 	// StreamWebSessions gets all web sessions in a stream.
 	StreamWebSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[types.WebSessionV2], error)
 	// DeleteWebSession deletes a web session.
@@ -818,8 +818,11 @@ type AuthServiceClient interface {
 	GetSessionEvents(ctx context.Context, in *GetSessionEventsRequest, opts ...grpc.CallOption) (*Events, error)
 	// GetLock gets a lock by name.
 	GetLock(ctx context.Context, in *GetLockRequest, opts ...grpc.CallOption) (*types.LockV2, error)
+	// Deprecated: Do not use.
 	// GetLocks gets all/in-force locks that match at least one of the targets when specified.
 	GetLocks(ctx context.Context, in *GetLocksRequest, opts ...grpc.CallOption) (*GetLocksResponse, error)
+	// ListLocks returns a page of locks matching a filter.
+	ListLocks(ctx context.Context, in *ListLocksRequest, opts ...grpc.CallOption) (*ListLocksResponse, error)
 	// UpsertLock upserts a lock.
 	UpsertLock(ctx context.Context, in *types.LockV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteLock deletes a lock.
@@ -1156,6 +1159,16 @@ func (c *authServiceClient) UpsertClusterAlert(ctx context.Context, in *UpsertCl
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, AuthService_UpsertClusterAlert_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) DeleteClusterAlert(ctx context.Context, in *DeleteClusterAlertRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, AuthService_DeleteClusterAlert_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1987,17 +2000,6 @@ func (c *authServiceClient) GetWebSession(ctx context.Context, in *types.GetWebS
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetWebSessionResponse)
 	err := c.cc.Invoke(ctx, AuthService_GetWebSession_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// Deprecated: Do not use.
-func (c *authServiceClient) GetWebSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWebSessionsResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetWebSessionsResponse)
-	err := c.cc.Invoke(ctx, AuthService_GetWebSessions_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -3040,10 +3042,21 @@ func (c *authServiceClient) GetLock(ctx context.Context, in *GetLockRequest, opt
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetLocks(ctx context.Context, in *GetLocksRequest, opts ...grpc.CallOption) (*GetLocksResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetLocksResponse)
 	err := c.cc.Invoke(ctx, AuthService_GetLocks_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListLocks(ctx context.Context, in *ListLocksRequest, opts ...grpc.CallOption) (*ListLocksResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListLocksResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListLocks_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -4003,6 +4016,8 @@ type AuthServiceServer interface {
 	GetClusterAlerts(context.Context, *types.GetClusterAlertsRequest) (*GetClusterAlertsResponse, error)
 	// UpsertClusterAlert creates a cluster alert.
 	UpsertClusterAlert(context.Context, *UpsertClusterAlertRequest) (*emptypb.Empty, error)
+	// DeleteClusterAlert deletes a cluster alert.
+	DeleteClusterAlert(context.Context, *DeleteClusterAlertRequest) (*emptypb.Empty, error)
 	// CreateAlertAck marks a cluster alert as acknowledged.
 	CreateAlertAck(context.Context, *types.AlertAcknowledgement) (*emptypb.Empty, error)
 	// GetAlertAcks gets active alert ackowledgements.
@@ -4195,9 +4210,6 @@ type AuthServiceServer interface {
 	DeleteUserSAMLIdPSessions(context.Context, *DeleteUserSAMLIdPSessionsRequest) (*emptypb.Empty, error)
 	// GetWebSession gets a web session.
 	GetWebSession(context.Context, *types.GetWebSessionRequest) (*GetWebSessionResponse, error)
-	// Deprecated: Do not use.
-	// GetWebSessions gets all web sessions.
-	GetWebSessions(context.Context, *emptypb.Empty) (*GetWebSessionsResponse, error)
 	// StreamWebSessions gets all web sessions in a stream.
 	StreamWebSessions(*emptypb.Empty, grpc.ServerStreamingServer[types.WebSessionV2]) error
 	// DeleteWebSession deletes a web session.
@@ -4488,8 +4500,11 @@ type AuthServiceServer interface {
 	GetSessionEvents(context.Context, *GetSessionEventsRequest) (*Events, error)
 	// GetLock gets a lock by name.
 	GetLock(context.Context, *GetLockRequest) (*types.LockV2, error)
+	// Deprecated: Do not use.
 	// GetLocks gets all/in-force locks that match at least one of the targets when specified.
 	GetLocks(context.Context, *GetLocksRequest) (*GetLocksResponse, error)
+	// ListLocks returns a page of locks matching a filter.
+	ListLocks(context.Context, *ListLocksRequest) (*ListLocksResponse, error)
 	// UpsertLock upserts a lock.
 	UpsertLock(context.Context, *types.LockV2) (*emptypb.Empty, error)
 	// DeleteLock deletes a lock.
@@ -4770,6 +4785,9 @@ func (UnimplementedAuthServiceServer) GetClusterAlerts(context.Context, *types.G
 func (UnimplementedAuthServiceServer) UpsertClusterAlert(context.Context, *UpsertClusterAlertRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertClusterAlert not implemented")
 }
+func (UnimplementedAuthServiceServer) DeleteClusterAlert(context.Context, *DeleteClusterAlertRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteClusterAlert not implemented")
+}
 func (UnimplementedAuthServiceServer) CreateAlertAck(context.Context, *types.AlertAcknowledgement) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateAlertAck not implemented")
 }
@@ -4994,9 +5012,6 @@ func (UnimplementedAuthServiceServer) DeleteUserSAMLIdPSessions(context.Context,
 }
 func (UnimplementedAuthServiceServer) GetWebSession(context.Context, *types.GetWebSessionRequest) (*GetWebSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWebSession not implemented")
-}
-func (UnimplementedAuthServiceServer) GetWebSessions(context.Context, *emptypb.Empty) (*GetWebSessionsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetWebSessions not implemented")
 }
 func (UnimplementedAuthServiceServer) StreamWebSessions(*emptypb.Empty, grpc.ServerStreamingServer[types.WebSessionV2]) error {
 	return status.Errorf(codes.Unimplemented, "method StreamWebSessions not implemented")
@@ -5297,6 +5312,9 @@ func (UnimplementedAuthServiceServer) GetLock(context.Context, *GetLockRequest) 
 }
 func (UnimplementedAuthServiceServer) GetLocks(context.Context, *GetLocksRequest) (*GetLocksResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetLocks not implemented")
+}
+func (UnimplementedAuthServiceServer) ListLocks(context.Context, *ListLocksRequest) (*ListLocksResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListLocks not implemented")
 }
 func (UnimplementedAuthServiceServer) UpsertLock(context.Context, *types.LockV2) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertLock not implemented")
@@ -5695,6 +5713,24 @@ func _AuthService_UpsertClusterAlert_Handler(srv interface{}, ctx context.Contex
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).UpsertClusterAlert(ctx, req.(*UpsertClusterAlertRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_DeleteClusterAlert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteClusterAlertRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).DeleteClusterAlert(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_DeleteClusterAlert_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).DeleteClusterAlert(ctx, req.(*DeleteClusterAlertRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -6959,24 +6995,6 @@ func _AuthService_GetWebSession_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetWebSession(ctx, req.(*types.GetWebSessionRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AuthService_GetWebSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AuthServiceServer).GetWebSessions(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AuthService_GetWebSessions_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetWebSessions(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -8745,6 +8763,24 @@ func _AuthService_GetLocks_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListLocks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListLocksRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListLocks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListLocks_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListLocks(ctx, req.(*ListLocksRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_UpsertLock_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(types.LockV2)
 	if err := dec(in); err != nil {
@@ -10397,6 +10433,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_UpsertClusterAlert_Handler,
 		},
 		{
+			MethodName: "DeleteClusterAlert",
+			Handler:    _AuthService_DeleteClusterAlert_Handler,
+		},
+		{
 			MethodName: "CreateAlertAck",
 			Handler:    _AuthService_CreateAlertAck_Handler,
 		},
@@ -10655,10 +10695,6 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetWebSession",
 			Handler:    _AuthService_GetWebSession_Handler,
-		},
-		{
-			MethodName: "GetWebSessions",
-			Handler:    _AuthService_GetWebSessions_Handler,
 		},
 		{
 			MethodName: "DeleteWebSession",
@@ -11043,6 +11079,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetLocks",
 			Handler:    _AuthService_GetLocks_Handler,
+		},
+		{
+			MethodName: "ListLocks",
+			Handler:    _AuthService_ListLocks_Handler,
 		},
 		{
 			MethodName: "UpsertLock",

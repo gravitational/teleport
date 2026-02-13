@@ -1,0 +1,229 @@
+---
+title: Run the Teleport Terraform Provider on env zero
+sidebar_label: env zero
+description: How to manage dynamic resources using the Teleport Terraform provider on env zero.
+tags:
+ - ci-cd
+ - infrastructure-as-code
+ - how-to
+ - zero-trust
+---
+
+This guide demonstrates how to use the Terraform provider for Teleport in jobs
+running on [env zero].
+
+This guide does not cover running the Terraform provider locally, in other CI/CD
+environments, or in short-lived cloud VMs. In any of these cases, refer to a
+dedicated guide:
+
+- [Run the Terraform Provider on Terraform Cloud](./terraform-cloud.mdx)
+- [Run the Terraform Provider in CI or cloud VMs](./ci-or-cloud.mdx)
+- [Run the Terraform Provider locally](./local.mdx)
+
+## How it works
+
+When running the Teleport Terraform provider on env zero, you can use its
+built-in Machine & Workload ID support to dynamically authenticate to your
+Teleport cluster without any shared secrets.
+
+To do so, Teleport can make use of env zero's support for
+[General OIDC Integrations][oidc], which provides OIDC tokens to jobs run on
+env zero's platform. The Teleport Terraform provider can then use these tokens
+to prove its identity to your Teleport cluster.
+
+While following this guide, you'll configure your Teleport cluster to accept
+join requests from env zero deployments and configure the provider to
+authenticate using the `env0` join method.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport 18.4.0"!)
+
+- (!docs/pages/includes/tctl.mdx!)
+
+- [Terraform >= (=terraform.version=)+](https://learn.hashicorp.com/tutorials/terraform/install-cli)
+
+  ```code
+  $ terraform version
+  # Terraform v(=terraform.version=)
+  ```
+
+  To import existing Teleport resources as Terraform resources, you must have
+  Terraform version `v1.5.0` or above.
+
+- An account and project on [env zero]
+
+- The Teleport Terraform provider, v18.4.0 or later
+
+## Step 1/5: Enable OIDC in env zero
+
+OIDC integrations must be enabled in your organization's credential settings. To
+do so:
+1. Navigate to your organization settings
+2. Select the "Policies" tab
+3. Under the "Third-Party Authentication" header, ensure "Enable OIDC during deployments" is checked
+4. If necessary, select "Save"
+
+For more information, refer to [env zero's documentation](https://docs.env0.com/docs/oidc-integrations#enabling-oidc-token-availability).
+
+## Step 2/5. Collect information
+
+To allow deployment workflows to authenticate to Teleport, you'll need to
+configure - at a minimum - the IDs of your organization and project. These
+values can be found in the env zero UI.
+
+To determine your organization ID, navigate to your organization's settings,
+select the "General" tab, and make a note of the value shown in the ID field. If
+desired, store your organization ID here: <Var name="example-organization-id" />
+
+Next, you'll also need to retrieve a project ID. Navigate to the settings for
+the desired project and make a note of the ID shown. If desired, you can insert
+it here: <Var name="example-project-id" />
+
+## Step 3/5. Configure env zero joining in Teleport
+
+To start, the Teleport Auth Service needs to be configured to accept join
+requests from env zero runs. We'll do this by creating a bot named `terraform`
+which the Teleport Terraform provider will use in a later step.
+
+Write the following to `terraform_bot.yaml`:
+
+```yaml
+kind: bot
+version: v1
+metadata:
+  name: terraform
+spec:
+  # The terraform-provider role is a built-in role granting access to every
+  # resource supported by the terraform provider.
+  roles: ["terraform-provider"]
+```
+
+Then, create the bot from the new YAML manifest:
+
+```code
+$ tctl create -f terraform_bot.yaml
+bot 'terraform' has been created
+```
+
+Next, the new bot needs to be allowed to authenticate with env zero's [OIDC
+credentials][oidc]. Create a file named `terraform_token.yaml` with this
+content:
+```yaml
+kind: token
+version: v2
+metadata:
+  name: terraform
+spec:
+  roles: [Bot]
+  join_method: env0
+  bot_name: terraform
+  env0:
+    allow:
+      - organization_id: <Var name="example-organization-id" />
+        project_id: <Var name="example-project-id" />
+```
+
+Additional allow rules fields may be used to further restrict which jobs are
+allowed to authenticate , refer to the [`env0` join method reference][reference]
+for a full list of options.
+
+Note that all specified fields must match those presented to Teleport by a
+deployment job for it to be allowed to join. If you want to allow multiple
+different projects to join, you can add additional entries to the `allow` field.
+Additionally, note that each entry must provide at minimum `organization_id` and
+a project identifier (`project_id` or `project_name`).
+
+Once finished, create the token:
+
+```code
+$ tctl create -f terraform_token.yaml
+token 'terraform' has been created
+```
+
+## Step 4/5. Configure the Terraform Provider
+
+In your `provider.tf` or similar, configure the `teleport` provider:
+
+```hcl
+provider "teleport" {
+  addr = "example.teleport.sh:443"
+  join_method = "env0"
+  join_token = "terraform"
+}
+```
+
+These parameters must be set:
+- `addr` should match the public hostname and port of your Teleport cluster
+- `join_method` should be `env0`
+- `join_token` should match the name of the `token` resource created in Step #2
+
+Be sure to remove any preexisting `identity_file_path`; it is replaced by
+`join_method` and `join_token`.
+
+For a complete example, consider this minimal `provider.tf`:
+
+```hcl
+terraform {
+  required_providers {
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = "(=teleport.plugin.version=)"
+    }
+  }
+}
+
+provider "teleport" {
+  addr = "example.teleport.sh:443"
+  join_method = "env0"
+  join_token = "terraform"
+}
+
+resource "teleport_role" "test" {
+  version = "v7"
+  metadata = {
+    name        = "test"
+    description = "Dummy role to validate Terraform Provider setup"
+    labels = {
+      test = "yes"
+    }
+  }
+}
+```
+
+## Step 5/5. Run Terraform
+
+You should now be able to perform a Terraform `plan` or `apply`. All types of
+triggers should work, including CLI, API, and Git, so long as the run is
+coordinated by Terraform Cloud.
+
+If your local `terraform` is authenticated to env zero and
+[Remote Plan][remote-plan] is configured, you can run:
+```code
+$ terraform plan
+```
+
+Otherwise, you can trigger a job execution through whichever means you normally
+use: manually, via a Git hook, etc.
+
+Regardless of trigger, the workflow should successfully execute, depending on
+your Terraform configuration. You can use `tctl` to verify the dummy role was
+created:
+```code
+$ tctl get role/test
+```
+
+## Next steps
+
+- Now that you know how to manage Teleport configuration resources with
+  Terraform and env zero, read the [Terraform resource
+  reference](../../../reference/infrastructure-as-code/terraform-provider/terraform-provider.mdx) so
+  you can flesh out your configuration.
+- To find out more about env zero's OIDC implementation, which Machine &
+  Workload ID uses to authenticate to your Teleport cluster, read
+  [env zero's documentation][oidc].
+
+[env zero]: https://www.env0.com/
+[oidc]: https://docs.envzero.com/guides/integrations/oidc-integrations
+[reference]: ../../../reference/deployment/join-methods.mdx#env0-env0
+[remote-plan]: https://docs.envzero.com/guides/admin-guide/remote-backend/remote-plan

@@ -442,6 +442,7 @@ func (cfg *Config) UpdateForExternalAuditStorage(ctx context.Context, externalAu
 	cfg.QueryResultsS3 = spec.AthenaResultsURI
 	cfg.Database = spec.GlueDatabase
 	cfg.TableName = spec.GlueTable
+	cfg.Region = spec.Region
 
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx,
 		awsconfig.WithRegion(cfg.Region),

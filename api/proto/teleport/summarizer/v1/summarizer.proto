@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.summarizer.v1;
 
+import "google/protobuf/duration.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/metadata.proto";
@@ -91,6 +92,10 @@ message BedrockProvider {
   string bedrock_model_id = 2;
   // Temperature controls the randomness of the model's output.
   float temperature = 3;
+  // Integration is the AWS OIDC Integration name. If unset, Teleport will use
+  // AWS credentials available on the Auth Service machine; otherwise, it will
+  // use the specified OIDC integration for assuming appropriate role.
+  string integration = 4;
 }
 
 // InferenceSecret resource stores session summarization inference provider
@@ -178,4 +183,183 @@ message Summary {
   // ErrorMessage is an error message if the summarization failed. Available if
   // the state is SUMMARY_STATE_ERROR.
   string error_message = 8;
+  // EnhancedSummary contains structured data extracted from the session.
+  EnhancedSummary enhanced_summary = 9;
+}
+
+// The following enums and messages should be kept in sync with `e/lib/auth/summarizer/schema/command.go`
+
+// CommandCategory represents the category of a command.
+enum CommandCategory {
+  // CommandCategoryUnspecified is the default value and indicates that the command
+  // category is not specified.
+  COMMAND_CATEGORY_UNSPECIFIED = 0;
+  // CommandCategoryFileOperation indicates that the command is related to file
+  // operations, such as copying, moving, or deleting files.
+  COMMAND_CATEGORY_FILE_OPERATION = 1;
+  // CommandCategoryNetwork indicates that the command is related to network
+  // operations, such as connecting to a remote host or transferring data.
+  COMMAND_CATEGORY_NETWORK = 2;
+  // CommandCategoryProcess indicates that the command is related to process
+  // management, such as starting or stopping processes.
+  COMMAND_CATEGORY_PROCESS = 3;
+  // CommandCategorySystemConfig indicates that the command is related to system
+  // configuration, such as changing system settings or installing software.
+  COMMAND_CATEGORY_SYSTEM_CONFIG = 4;
+  // CommandCategoryDataAccess indicates that the command is related to data access,
+  // such as querying databases or reading data files.
+  COMMAND_CATEGORY_DATA_ACCESS = 5;
+  // CommandCategoryAuthentication indicates that the command is related to
+  // authentication, such as logging in or changing user credentials.
+  COMMAND_CATEGORY_AUTHENTICATION = 6;
+  // CommandCategoryOther indicates that the command does not fit into any of the
+  // other categories.
+  COMMAND_CATEGORY_OTHER = 7;
+}
+
+// RiskLevel represents the risk level associated with a command.
+enum RiskLevel {
+  // RiskLevelUnspecified is the default value and indicates that the risk level
+  // is not specified.
+  RISK_LEVEL_UNSPECIFIED = 0;
+  // RiskLevelLow indicates that the command has a low risk level.
+  RISK_LEVEL_LOW = 1;
+  // RiskLevelMedium indicates that the command has a medium risk level.
+  RISK_LEVEL_MEDIUM = 2;
+  // RiskLevelHigh indicates that the command has a high risk level.
+  RISK_LEVEL_HIGH = 3;
+  // RiskLevelCritical indicates that the command has a critical risk level.
+  RISK_LEVEL_CRITICAL = 4;
+}
+
+// ThreatCategory represents the category of a detected threat.
+enum ThreatCategory {
+  // ThreatCategoryUnspecified is the default value and indicates that the threat
+  // category is not specified.
+  THREAT_CATEGORY_UNSPECIFIED = 0;
+  // ThreatCategoryReconnaissance indicates that the threat is related to reconnaissance
+  // activities, such as scanning or probing the system.
+  THREAT_CATEGORY_RECONNAISSANCE = 1;
+  // ThreatCategoryExecution indicates that the threat is related to execution activities,
+  // such as running malicious code.
+  THREAT_CATEGORY_EXECUTION = 2;
+  // ThreatCategoryPersistence indicates that the threat is related to persistence
+  // activities, such as installing backdoors.
+  THREAT_CATEGORY_PERSISTENCE = 3;
+  // ThreatCategoryPrivilegeEscalation indicates that the threat is related to privilege
+  // escalation activities, such as exploiting vulnerabilities to gain higher privileges.
+  THREAT_CATEGORY_PRIVILEGE_ESCALATION = 4;
+  // ThreatCategoryDefenseEvasion indicates that the threat is related to defense evasion
+  // activities, such as disabling security software.
+  THREAT_CATEGORY_DEFENSE_EVASION = 5;
+  // ThreatCategoryCredentialAccess indicates that the threat is related to credential
+  // access activities, such as stealing passwords.
+  THREAT_CATEGORY_CREDENTIAL_ACCESS = 6;
+  // ThreatCategoryDiscovery indicates that the threat is related to discovery activities,
+  // such as gathering information about the system.
+  THREAT_CATEGORY_DISCOVERY = 7;
+  // ThreatCategoryLateralMovement indicates that the threat is related to lateral movement
+  // activities, such as moving laterally within the network.
+  THREAT_CATEGORY_LATERAL_MOVEMENT = 8;
+  // ThreatCategoryCollection indicates that the threat is related to collection activities,
+  // such as collecting sensitive data.
+  THREAT_CATEGORY_COLLECTION = 9;
+  // ThreatCategoryExfiltration indicates that the threat is related to exfiltration
+  // activities, such as stealing data from the system.
+  THREAT_CATEGORY_EXFILTRATION = 10;
+  // ThreatCategoryImpact indicates that the threat is related to impact activities,
+  // such as disrupting system operations.
+  THREAT_CATEGORY_IMPACT = 11;
+  // ThreatCategoryNone indicates that there is no threat detected.
+  THREAT_CATEGORY_NONE = 12;
+}
+
+// CommandAnalysis represents a summary of a single command executed during a
+// session.
+message CommandAnalysis {
+  // Command is the command that was executed.
+  string command = 1;
+  // Category is the category of the command.
+  CommandCategory category = 2;
+  // Success indicates whether the command executed successfully.
+  bool success = 3;
+  // RiskLevel is the risk level associated with the command.
+  RiskLevel risk_level = 4;
+  // RiskScore is a numerical score representing the risk associated with the command.
+  int32 risk_score = 5;
+  // ThreatCategory is the category of any detected threat associated with the command.
+  ThreatCategory threat_category = 6;
+  // TimelineTitle is a brief title for the command's entry in the session timeline.
+  string timeline_title = 7;
+  // TimelineSubtitle is a more detailed subtitle for the command's entry in the session timeline.
+  string timeline_subtitle = 8;
+  // ShortDescription is a concise description of the command and its purpose.
+  string short_description = 9;
+  // DetailedDescription is an in-depth explanation of the command, its function,
+  // and any relevant context.
+  string detailed_description = 10;
+  // ErrorMessages contains any error messages produced during the execution of the command.
+  repeated string error_messages = 11;
+  // SuspiciousFlags contains any suspicious flags or indicators associated with the command.
+  repeated string suspicious_flags = 12;
+  // SensitiveItems contains any sensitive items accessed or modified by the command.
+  repeated string sensitive_items = 13;
+  // SuspiciousPatterns contains any suspicious patterns detected in relation to the command.
+  repeated string suspicious_patterns = 14;
+  // IOCs contains any indicators of compromise associated with the command.
+  repeated string iocs = 15;
+  // MitreAttackIDs contains any MITRE ATT&CK IDs relevant to the command.
+  repeated string mitre_attack_ids = 16;
+  // HasSensitiveData indicates whether the command involved access to or modification of sensitive data.
+  bool has_sensitive_data = 17;
+  // PrivilegeEscalation indicates whether the command involved privilege escalation.
+  bool privilege_escalation = 18;
+  // DataExfiltration indicates whether the command involved data exfiltration.
+  bool data_exfiltration = 19;
+  // Persistence indicates whether the command involved persistence mechanisms.
+  bool persistence = 20;
+  // StartOffset is the start time of the command, relative to the start of the session.
+  google.protobuf.Duration start_offset = 21;
+  // EndOffset is the end time of the command, relative to the start of the session.
+  google.protobuf.Duration end_offset = 22;
+}
+
+// SecurityRecommendation represents a security recommendation related to a command
+message SecurityRecommendation {
+  // Title is a brief title for the security recommendation.
+  string title = 1;
+  // Description is a detailed description of the security recommendation.
+  string description = 2;
+  // Severity indicates the severity level of the recommendation.
+  RiskLevel severity = 3;
+}
+
+// NeedsReviewReason represents the reason why a session needs further review.
+enum NeedsReviewReason {
+  // NeedsReviewReasonUnspecified is the default value and indicates that the reason
+  // for needing review is not specified.
+  NEEDS_REVIEW_REASON_UNSPECIFIED = 0;
+  // NeedsReviewReasonTooLarge indicates that the session is too large to be fully analyzed.
+  NEEDS_REVIEW_REASON_TOO_LARGE = 1;
+}
+
+// EnhancedSummary represents an enhanced summary of a session recording,
+// with structured data extracted from the session.
+message EnhancedSummary {
+  // ShortDescription is a concise description of the session.
+  string short_description = 1;
+  // DetailedDescription is an in-depth explanation of the session.
+  string detailed_description = 2;
+  // RiskLevel is the overall risk level associated with the session.
+  RiskLevel risk_level = 3;
+  // SuspiciousActivities is a list of suspicious activities detected during the session.
+  repeated string suspicious_activities = 4;
+  // CompromiseIndicators indicates whether any indicators of compromise were detected during the session.
+  bool compromise_indicators = 5;
+  // NotableCommandIndexes is a list of indexes of commands that are considered notable.
+  repeated int32 notable_command_indexes = 6;
+  // Commands is a list of command summaries extracted from the session.
+  repeated CommandAnalysis commands = 7;
+  // NeedsFurtherReview indicates the reason why the session needs further review.
+  optional NeedsReviewReason needs_further_review = 8;
 }

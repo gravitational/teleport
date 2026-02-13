@@ -28,9 +28,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -43,7 +43,7 @@ import (
 type credentialsChecker struct {
 	awsConfigProvider awsconfig.Provider
 	awsClients        awsClientProvider
-	azureClients      cloud.AzureClients
+	azureClients      azure.Clients
 	resourceMatchers  []services.ResourceMatcher
 	logger            *slog.Logger
 	cache             *utils.FnCache
@@ -128,7 +128,7 @@ func (c *credentialsChecker) getAWSIdentity(ctx context.Context, meta *types.AWS
 
 func (c *credentialsChecker) checkAzure(ctx context.Context, database types.Database) {
 	allSubIDs, err := utils.FnCacheGet(ctx, c.cache, types.CloudAzure, func(ctx context.Context) ([]string, error) {
-		client, err := c.azureClients.GetAzureSubscriptionClient()
+		client, err := c.azureClients.GetSubscriptionClient(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

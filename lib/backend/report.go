@@ -247,6 +247,32 @@ func (s *Reporter) Put(ctx context.Context, i Item) (*Lease, error) {
 	return lease, err
 }
 
+// PutBatch puts multiple values into backend.
+func (s *Reporter) PutBatch(ctx context.Context, items []Item) ([]string, error) {
+	ctx, span := s.Tracer.Start(
+		ctx,
+		"backend/PutBatch",
+		oteltrace.WithAttributes(
+			attribute.Int("batch_size", len(items)),
+		),
+	)
+	defer span.End()
+
+	start := s.Clock().Now()
+	revisions, err := PutBatch(ctx, s.Backend, items)
+	backendmetrics.BatchWriteLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
+	backendmetrics.BatchWriteRequests.WithLabelValues(s.Component).Inc()
+	if err != nil {
+		backendmetrics.BatchWriteRequestsFailed.WithLabelValues(s.Component).Inc()
+	} else {
+		backendmetrics.Writes.WithLabelValues(s.Component).Add(float64(len(items)))
+	}
+	for _, item := range items {
+		s.trackRequest(ctx, types.OpPut, item.Key, Key{})
+	}
+	return revisions, err
+}
+
 // Update updates value in the backend
 func (s *Reporter) Update(ctx context.Context, i Item) (*Lease, error) {
 	ctx, span := s.Tracer.Start(

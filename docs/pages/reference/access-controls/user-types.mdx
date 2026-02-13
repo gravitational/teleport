@@ -29,16 +29,16 @@ Disabling local authentication is required for [FIPS/FedRAMP compliance
 
 ### Special case: Bots
 
-Machine ID provides machines with an identity that can authenticate to the
-Teleport cluster. This identity is known as a bot. Bots are represented in
-Teleport by a user and a role resource and can be created via the
+Machine & Workload Identity provides machines with an identity that can
+authenticate to the Teleport cluster. This identity is known as a bot. Bots are
+represented in Teleport by a user and a role resource and can be created via the
 `tctl bots add` command.
 
 Unlike human users, who use a password, MFA, or SSO, bot users join
 the cluster as Teleport services using [a join method](../deployment/join-methods.mdx). They
 can still join even if local auth is disabled. 
 
-See the [Machine ID introduction](../../machine-workload-identity/machine-id/introduction.mdx) for more information.
+See the [Machine & Workload Identity introduction](../../machine-workload-identity/introduction.mdx) for more information.
 
 ## SSO users
 
@@ -75,8 +75,7 @@ authentication connector and allow user to log in via an IdP.
 
 ### Synced users
 
-Since version 15, Teleport supports fetching users from external identity
-providers like Okta.
+Teleport supports fetching users from external identity providers like Okta.
 
 Synchronizing users from the external IdP allows all users to be represented in
 Teleport, whether they logged in Teleport or not. The benefits of such

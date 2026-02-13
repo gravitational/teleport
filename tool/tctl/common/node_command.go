@@ -22,7 +22,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"os"
 	"strings"
 	"text/template"
@@ -36,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -134,7 +134,8 @@ Run this on the new node to join the cluster:
 
 > teleport start \
    --roles={{.roles}} \
-   --token={{.token}} \{{range .ca_pins}}
+   --token={{.token}} \{{with .secret}}
+   --token-secret={{.}} \{{end}}{{range .ca_pins}}
    --ca-pin={{.}} \{{end}}
    --auth-server={{.auth_server}}
 
@@ -186,7 +187,12 @@ func (c *NodeCommand) Invite(ctx context.Context, client *authclient.Client) err
 		return trace.Wrap(err)
 	}
 
-	authServers, err := client.GetAuthServers()
+	authServers, err := clientutils.CollectWithFallback(
+		ctx,
+		client.ListAuthServers,
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		func(context.Context) ([]types.Server, error) { return client.GetAuthServers() },
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -199,29 +205,12 @@ func (c *NodeCommand) Invite(ctx context.Context, client *authclient.Client) err
 		if roles.Include(types.RoleTrustedCluster) {
 			fmt.Printf(trustedClusterMessage, token, int(c.ttl.Minutes()))
 		} else {
-			authServer := authServers[0].GetAddr()
-
-			pingResponse, err := client.Ping(ctx)
-			if err != nil {
-				slog.DebugContext(ctx, "unable to ping auth client", "error", err)
-			}
-
-			if err == nil && pingResponse.GetServerFeatures().Cloud {
-				proxies, err := client.GetProxies()
-				if err != nil {
-					return trace.Wrap(err)
-				}
-
-				if len(proxies) != 0 {
-					authServer = proxies[0].GetPublicAddr()
-				}
-			}
 			return nodeMessageTemplate.Execute(os.Stdout, map[string]any{
 				"token":       token,
 				"minutes":     int(c.ttl.Minutes()),
 				"roles":       strings.ToLower(roles.String()),
 				"ca_pins":     caPins,
-				"auth_server": authServer,
+				"auth_server": controlPlaneAddr(ctx, client, authServers[0].GetAddr()),
 			})
 		}
 	} else {

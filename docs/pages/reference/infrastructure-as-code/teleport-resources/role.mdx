@@ -1,0 +1,59 @@
+---
+title: Role Resource Reference
+sidebar_label: Role
+description: Provides a comprehensive list of fields for the Teleport role resource.
+---
+
+Interactive and non-interactive users (bots) assume one or many roles.
+
+Roles govern access to databases, SSH servers, Kubernetes clusters, web services and applications and Windows Desktops.
+
+(!docs/pages/includes/role-spec.mdx!)
+
+## Role versions
+
+There are currently six supported role versions: `v3`, `v4`, `v5`, `v6`, `v7`, and `v8`.
+
+Different role versions may have varying RBAC applied to resources.
+
+### `kubernetes_resource`
+
+Versions 5, 6, 7 and 8 of the Teleport role resource have different behaviors when
+accessing Kubernetes resources.
+{/*lint ignore messaging*/}
+Roles not [granting Kubernetes access](../../../enroll-resources/kubernetes-access/introduction.mdx) are
+equivalent in the four versions.
+
+Roles v5 and v6 can only restrict actions on pods (e.g. executing in them).
+Role v7 supports restricting some common resource kinds (
+see [the `kubernetes_resource` documentation](../../../enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources)
+for a complete list).
+Role v8 supports restricting all resource kinds, including CRDs. It also changes the format of the `kind` field.
+
+When no `kubernetes_resource` is set:
+- Roles v5, v7 and v8 grant all access by default
+- Roles v6 blocks pod execution by default, this was reverted by roles v7 to improve the user experience.
+
+{/* This table is cursed. Our current docs engine doesn't support HTML tables
+(due to SSR and the rehydration process). We have dto do everything inlined in
+markdown. Some HTML character codes are used to render specific chars like {}
+or to avoid line breaks in the middle fo the YAML. Spaces before br tags
+are required.*/}
+
+| Allow rule                                                                                                                                                                                                                                                                                              | Role v5                                                                                                              | Role v6                                                                                                              | Role v7                                                                                                                                                                                                    | Role v8                            |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------|
+| <pre>kubernetes_groups: <br/>  - "system:masters" <br/>kubernetes_labels: &#123;&#125; <br/>kubernetes_resources:&nbsp;[]<br/></pre>                                                                                                                                                                    | ❌ no access                                                                                                         | ❌ no access                                                                                                         | ❌ no access                                                                                                                                                                                                | ❌ no access                        |
+| <pre>kubernetes_groups: <br/>  - "system:masters" <br/>kubernetes_labels: <br/>  env: ["dev"] <br/>kubernetes_resources:&nbsp;[]<br/></pre>                                                                                                                                                             | ✅ full access to `dev` clusters                                                                                     | ❌ cannot exec in pods <br/> ✅ can access other <br/>resources like `secrets`                                       | ✅ full access to `dev` clusters                                                                                                                                                                            | ✅ full access to `dev` clusters    |
+| <pre>kubernetes_groups: <br/>  - "system:masters" <br/>kubernetes_labels: <br/>  env: ["dev"] <br/>kubernetes_resources: <br/>  - name: "&ast;" <br/>    kind: pod <br/>    namespace: "foo"</pre>                                                                                                      | ✅ can exec in pods in `foo` <br/>✅ can access `secrets` in all namespaces. <br/>❌ cannot exec in other namespaces | ✅ can exec in pods in `foo` <br/>✅ can access `secrets` in all namespaces. <br/>❌ cannot exec in other namespaces | ✅ can exec in pods in `foo` <br/>❌ cannot access `secrets` in all namespaces <br/>❌ cannot exec in other namespaces                                                                                        | ⚠️ invalid, v8 uses plural          |
+| <pre>kubernetes_groups: <br/>  - "system:masters" <br/>kubernetes_labels: <br/>  env: ["dev"] <br/>kubernetes_resources: <br/>  - name: "&ast;" <br/>    kind: pod <br/>    namespace: "foo" <br/>  - name: "&ast;" <br/>    kind: secret <br/>    namespace: "foo"</pre>                               | ⚠️ not supported                                                                                                     | ⚠️ not supported                                                                                                     | ✅ can exec in pods in `foo` <br/>✅ can access `secrets` in `foo` <br/>❌ cannot exec in other namespaces <br/>❌ cannot access `secrets` in other namespaces <br/>❌ cannot access `configmaps` in `foo`   | ⚠️ invalid, v8 uses plural          |
+| <pre>kubernetes_groups: <br/>  - "system:masters" <br/>kubernetes_labels: <br/>  env: ["dev"] <br/>kubernetes_resources: <br/>  - kind: "namespace" <br/>    name: "foo"</pre>                                                                                                                          | ⚠️ not supported                                                                                                     | ⚠️ not supported                                                                                                     | ✅ full access in namespace `foo` including all its resources <br/>❌ cannot access other namespaces<br/>❌ cannot access cluster-wide resources                                                            | ⚠️ invalid, v8 uses plural          |
+| <pre>kubernetes_groups: <br/>  - "system:masters" <br/>kubernetes_labels: <br/>  env: ["dev"] <br/>kubernetes_resources: <br/>  - kind: "&ast;"<br/>    namespace: "foo"<br/>    name: "&ast;"</pre>                                                                                                    | ⚠️ not supported                                                                                                     | ⚠️ not supported                                                                                                     | ✅ full access in namespace `foo` including all its resources <br/>❌ cannot access other namespaces<br/> ✅ full access to cluster-wide resources                                                          | ⚠️ invalid, v8 requires api_group for '*' kind |
+| <pre>kubernetes_groups: <br/>  - "system:masters" <br/>kubernetes_labels: <br/>  env: ["dev"] <br/>kubernetes_resources: <br/>  - kind: "&ast;"<br/>    namespace: "&ast;"<br/>    name: "&ast;"</pre>                                                                                                  | ⚠️ not supported                                                                                                     | ⚠️ not supported                                                                                                     | ✅ full access to `dev` clusters                                                                                                                                                                           | ⚠️ invalid, v8 requires api_group for '*' kind |
+| <pre>kubernetes_groups: <br/>  - "system:masters" <br/>kubernetes_labels: <br/>  env: ["dev"] <br/>kubernetes_resources: <br/>  - name: "&ast;" <br/>    kind: pods <br/>    namespace: "foo" <br/>  - name: "&ast;" <br/>    kind: deployments <br/>    api_group: apps<br/>    namespace: "foo"</pre> | ⚠️ not supported                                                                                                     | ⚠️ not supported                                                                                                     | ⚠️ not supported                                                                                                                                                                                           | ✅ can exec in pods in `foo` <br/>✅ can access `deployments` in `foo` <br/>❌ cannot exec in other namespaces <br/>❌ cannot access `deployments` in other namespaces <br/>❌ cannot access `configmaps` in `foo`  |
+
+### `saml_idp_service_provider`
+SAML IdP role option `spec.idp.saml.enabled: true/false` is only supported in role version 7 and below.
+See [SAML IdP reference](../../access-controls/saml-idp.mdx#RBAC) to learn how the RBAC is applied to
+the `saml_idp_service_provider` resource starting role version 8.
+
+

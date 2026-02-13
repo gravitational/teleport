@@ -15,8 +15,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import { getErrorMessage } from './error';
 
 export {
-  /** @deprecated Import `getErrorMessage` from 'shared/utils/error.ts' */
+  /**
+   * @deprecated Import `getErrorMessage` from 'shared/utils/error.ts'
+   */
   getErrorMessage as getErrMessage,
-} from './error';
+};

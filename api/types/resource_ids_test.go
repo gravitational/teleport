@@ -800,3 +800,128 @@ func TestLegacyKubeResourceIDs(t *testing.T) {
 		})
 	}
 }
+
+func TestResourceIDsToResourceAccessIDs(t *testing.T) {
+	t.Parallel()
+
+	id1 := ResourceID{ClusterName: "root", Kind: "app", Name: "a1"}
+	id2 := ResourceID{ClusterName: "root", Kind: "db", Name: "d1", SubResourceName: "ns/pod"}
+
+	out := ResourceIDsToResourceAccessIDs([]ResourceID{id1, id2})
+	require.Len(t, out, 2)
+
+	require.Equal(t, id1, out[0].Id)
+	require.Nil(t, out[0].GetConstraints())
+
+	require.Equal(t, id2, out[1].Id)
+	require.Nil(t, out[1].GetConstraints())
+
+	// Nil input should be safe and return an empty slice.
+	require.Empty(t, ResourceIDsToResourceAccessIDs(nil))
+}
+
+func TestCombineAsResourceAccessIDs(t *testing.T) {
+	t.Parallel()
+
+	id1 := ResourceID{ClusterName: "root", Kind: "app", Name: "a1"}
+	id2 := ResourceID{ClusterName: "leaf", Kind: "kube_pod", Name: "k1", SubResourceName: "ns/pod"}
+
+	c1 := ResourceAccessID{
+		Id: ResourceID{ClusterName: "root", Kind: "app", Name: "aws-console"},
+		Constraints: &ResourceConstraints{
+			Version: "v1",
+			Details: &ResourceConstraints_AwsConsole{
+				AwsConsole: &AWSConsoleResourceConstraints{RoleArns: []string{"arn:aws:iam::123:role/Allowed"}},
+			},
+		},
+	}
+	c2 := ResourceAccessID{
+		Id: ResourceID{ClusterName: "root", Kind: "app", Name: "empty-constraints-non-nil"},
+		// Non-nil but empty constraints should still be preserved as an "accessID".
+		Constraints: &ResourceConstraints{Version: "v1"},
+	}
+
+	out := CombineAsResourceAccessIDs([]ResourceID{id1, id2}, []ResourceAccessID{c1, c2})
+
+	require.Equal(t, []ResourceAccessID{
+		{Id: id1},
+		{Id: id2},
+		c1,
+		c2,
+	}, out)
+
+	t.Run("nil ids", func(t *testing.T) {
+		out := CombineAsResourceAccessIDs(nil, []ResourceAccessID{c1})
+		require.Equal(t, []ResourceAccessID{c1}, out)
+	})
+
+	t.Run("nil accessIDs", func(t *testing.T) {
+		out := CombineAsResourceAccessIDs([]ResourceID{id1}, nil)
+		require.Equal(t, []ResourceAccessID{{Id: id1}}, out)
+	})
+}
+
+func TestUnwrapResourceAccessIDs(t *testing.T) {
+	t.Parallel()
+
+	plain1 := ResourceAccessID{Id: ResourceID{ClusterName: "root", Kind: "app", Name: "a1"}}
+	constrained1 := ResourceAccessID{
+		Id: ResourceID{ClusterName: "root", Kind: "app", Name: "aws-console"},
+		Constraints: &ResourceConstraints{
+			Version: "v1",
+			Details: &ResourceConstraints_AwsConsole{
+				AwsConsole: &AWSConsoleResourceConstraints{RoleArns: []string{"arn:aws:iam::123:role/Allowed"}},
+			},
+		},
+	}
+	plain2 := ResourceAccessID{Id: ResourceID{ClusterName: "leaf", Kind: "db", Name: "d1"}}
+	constrainedEmptyButNonNil := ResourceAccessID{
+		Id:          ResourceID{ClusterName: "root", Kind: "app", Name: "empty-constraints-non-nil"},
+		Constraints: &ResourceConstraints{Version: "v1"},
+	}
+
+	plainIDs, accessIDs := UnwrapResourceAccessIDs([]ResourceAccessID{
+		plain1,
+		constrained1,
+		plain2,
+		constrainedEmptyButNonNil,
+	})
+
+	require.Equal(t, []ResourceID{
+		plain1.Id,
+		plain2.Id,
+	}, plainIDs)
+
+	require.Equal(t, []ResourceAccessID{
+		constrained1,
+		constrainedEmptyButNonNil,
+	}, accessIDs)
+
+	t.Run("empty input", func(t *testing.T) {
+		plainIDs, accessIDs := UnwrapResourceAccessIDs(nil)
+		require.Empty(t, plainIDs)
+		require.Empty(t, accessIDs)
+	})
+}
+
+func TestRiskyExtractResourceIDs(t *testing.T) {
+	t.Parallel()
+
+	a1 := ResourceAccessID{
+		Id: ResourceID{ClusterName: "root", Kind: "app", Name: "a1"},
+	}
+	a2 := ResourceAccessID{
+		Id: ResourceID{ClusterName: "root", Kind: "app", Name: "aws-console"},
+		Constraints: &ResourceConstraints{
+			Version: "v1",
+			Details: &ResourceConstraints_AwsConsole{
+				AwsConsole: &AWSConsoleResourceConstraints{RoleArns: []string{"arn:aws:iam::123:role/Allowed"}},
+			},
+		},
+	}
+
+	out := RiskyExtractResourceIDs([]ResourceAccessID{a1, a2})
+	require.Equal(t, []ResourceID{a1.Id, a2.Id}, out)
+
+	require.Empty(t, RiskyExtractResourceIDs(nil))
+}

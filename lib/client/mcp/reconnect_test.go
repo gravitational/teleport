@@ -28,6 +28,7 @@ import (
 	"time"
 
 	mcpserver "github.com/mark3labs/mcp-go/server"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -118,10 +119,16 @@ func TestProxyStdioConn_http(t *testing.T) {
 	app := newAppFromURI(t, "some-mcp", "mcp+http://127.0.0.1:8888/mcp")
 
 	// Remote MCP server.
-	mcpServer := mcptest.NewServer()
+	mcpServer := mcpserver.NewStreamableHTTPServer(mcptest.NewServer())
 	listener := listenerutils.NewInMemoryListener()
 	t.Cleanup(func() { listener.Close() })
-	go http.Serve(listener, mcpserver.NewStreamableHTTPServer(mcpServer))
+	var receivedSessionEnd atomic.Bool
+	go http.Serve(listener, http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		if req.Method == http.MethodDelete {
+			receivedSessionEnd.Store(true)
+		}
+		mcpServer.ServeHTTP(rw, req)
+	}))
 
 	// Start proxy.
 	clientStdioSource, clientStdioDest := mustMakeConnPair(t)
@@ -149,6 +156,10 @@ func TestProxyStdioConn_http(t *testing.T) {
 	select {
 	case proxyErr := <-proxyError:
 		require.NoError(t, proxyErr)
+
+		// Make sure the transport has sent out "session end" message before
+		// ProxyStdioConn returns.
+		assert.True(t, receivedSessionEnd.Load())
 	case <-time.After(time.Second * 5):
 		require.Fail(t, "timed out waiting for proxy to complete")
 	}

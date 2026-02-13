@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/git"
@@ -201,8 +202,7 @@ type Config struct {
 	// Logger specifies the logger
 	Logger *slog.Logger
 
-	// FIPS means Teleport was started in a FedRAMP/FIPS 140-2 compliant
-	// configuration.
+	// FIPS means Teleport was started in FedRAMP/FIPS mode.
 	FIPS bool
 
 	// Emitter is event emitter
@@ -222,6 +222,9 @@ type Config struct {
 
 	// CertAuthorityWatcher is a cert authority watcher.
 	CertAuthorityWatcher *services.CertAuthorityWatcher
+
+	// AppServerWatcher is a app server watcher.
+	AppServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
 
 	// CircuitBreakerConfig configures the auth client circuit breaker
 	CircuitBreakerConfig breaker.Config
@@ -298,6 +301,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.CertAuthorityWatcher == nil {
 		return trace.BadParameter("missing parameter CertAuthorityWatcher")
+	}
+	if cfg.AppServerWatcher == nil {
+		return trace.BadParameter("missing parameter AppServerWatcher")
 	}
 
 	if cfg.EICEDialer == nil {
@@ -388,6 +394,7 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 		sshutils.SetCiphers(cfg.Ciphers),
 		sshutils.SetKEXAlgorithms(cfg.KEXAlgorithms),
 		sshutils.SetMACAlgorithms(cfg.MACAlgorithms),
+		sshutils.SetRequestHandler(srv),
 		sshutils.SetFIPS(cfg.FIPS),
 		sshutils.SetClock(cfg.Clock),
 		sshutils.SetIngressReporter(ingress.Tunnel, cfg.IngressReporter),
@@ -406,6 +413,21 @@ func remoteClustersMap(rc []types.RemoteCluster) map[string]types.RemoteCluster 
 		out[rc[i].GetName()] = rc[i]
 	}
 	return out
+}
+
+// HandleRequest processes global out-of-band requests.
+//
+// Only supports [teleport.KeepAliveReqType] requests, all other requests are discarded.
+func (s *server) HandleRequest(ctx context.Context, ccx *sshutils.ConnectionContext, r *ssh.Request) {
+	switch r.Type {
+	case teleport.KeepAliveReqType:
+		r.Reply(false, nil)
+	default:
+		if err := r.Reply(false, nil); err != nil {
+			s.logger.WarnContext(ctx, "Failed to reply to ssh request", "request_type", r.Type, "error", err)
+		}
+		s.logger.DebugContext(ctx, "Discarding global request", "request_type", r.Type)
+	}
 }
 
 // disconnectClusters disconnects reverse tunnel connections from leaf clusters
@@ -693,7 +715,7 @@ func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 		}
 		//nolint:sloglint // message should be a constant but in this case we are creating it at runtime.
 		s.logger.WarnContext(ctx, msg)
-		s.rejectRequest(nch, ssh.ConnectionFailed, msg)
+		s.rejectRequest(nch, ssh.UnknownChannelType, msg)
 		return
 	}
 }
@@ -959,6 +981,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 			utils.ExtIntCertType: certType,
 			extCertRole:          certRole,
 			extAuthority:         clusterName,
+			extScope:             ident.AgentScope,
 		},
 	}, nil
 }
@@ -1014,7 +1037,14 @@ func (s *server) upsertServiceConn(conn net.Conn, sconn *ssh.ServerConn, connTyp
 		return nil, nil, trace.BadParameter("host id not found")
 	}
 
-	rconn, err := s.localCluster.addConn(nodeID, connType, conn, sconn)
+	scope := sconn.Permissions.Extensions[extScope]
+	if scope != "" {
+		if err := scopes.WeakValidate(scope); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
+	rconn, err := s.localCluster.addConn(nodeID, scope, connType, conn, sconn)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1255,6 +1285,19 @@ func newLeafCluster(srv *server, domainName string, sconn ssh.Conn) (*leafCluste
 		return nil, trace.Wrap(err)
 	}
 	leaf.nodeWatcher = nodeWatcher
+
+	appServerWatcher, err := services.NewAppServersWatcher(closeContext, services.AppServersWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: srv.Component,
+			Logger:    srv.Logger,
+			Client:    accessPoint,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	leaf.appServerWatcher = appServerWatcher
+
 	// instantiate a cache of host certificates for the forwarding server. the
 	// certificate cache is created in each cluster (instead of creating it in
 	// reversetunnel.server and passing it along) so that the host certificate
@@ -1276,7 +1319,8 @@ func newLeafCluster(srv *server, domainName string, sconn ssh.Conn) (*leafCluste
 		return nil, trace.Wrap(err)
 	}
 
-	leafClusterWatcher, err := services.NewCertAuthorityWatcher(srv.ctx, services.CertAuthorityWatcherConfig{
+	//nolint:staticcheck // SA1019 This should be updated to use [services.NewCertAuthorityWatcher]
+	leafClusterWatcher, err := services.DeprecatedNewCertAuthorityWatcher(srv.ctx, services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
 			Logger:    srv.logger,
@@ -1352,9 +1396,9 @@ func getLeafClusterAuthVersion(ctx context.Context, sconn ssh.Conn) (string, err
 }
 
 const (
-	extHost      = "host@teleport"
-	extAuthority = "auth@teleport"
-	extCertRole  = "role"
-
+	extHost        = "host@teleport"
+	extAuthority   = "auth@teleport"
+	extCertRole    = "role"
+	extScope       = "scope@goteleport.com"
 	versionRequest = "x-teleport-version"
 )

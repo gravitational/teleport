@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -160,6 +161,9 @@ type NodeAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
+
+	// ScopedRoleReader returns a read-only scoped role client.
+	ScopedRoleReader() services.ScopedRoleReader
 }
 
 // ReadProxyAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
@@ -220,10 +224,24 @@ type ReadProxyAccessPoint interface {
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
+	//
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
 
+	// ListProxyServers returns a paginated list of proxy servers registered in the cluster
+	ListProxyServers(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
+
 	// GetAuthServers returns a list of auth servers registered in the cluster
+	//
+	// Deprecated: Prefer paginated variant [ListAuthServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetAuthServers() ([]types.Server, error)
+
+	// ListAuthServers returns a paginated list of auth servers registered in the cluster
+	ListAuthServers(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
 
 	// ListReverseTunnels returns a list of reverse tunnels with pagination.
 	ListReverseTunnels(ctx context.Context, pageSize int, nextToken string) ([]types.ReverseTunnel, string, error)
@@ -362,6 +380,9 @@ type ProxyAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
+
+	// ScopedRoleReader returns a read-only scoped role client.
+	ScopedRoleReader() services.ScopedRoleReader
 }
 
 // ReadRelayAccessPoint is a read only API interface to be used by a Relay
@@ -389,6 +410,8 @@ type ReadRelayAccessPoint interface {
 	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
+
+	GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error)
 }
 
 // ReadRemoteProxyAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
@@ -436,10 +459,24 @@ type ReadRemoteProxyAccessPoint interface {
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
+	//
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
 
+	// ListProxyServers returns a paginated list of proxy servers registered in the cluster
+	ListProxyServers(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
+
 	// GetAuthServers returns a list of auth servers registered in the cluster
+	//
+	// Deprecated: Prefer paginated variant [ListAuthServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetAuthServers() ([]types.Server, error)
+
+	// ListAuthServers returns a paginated list of auth servers registered in the cluster
+	ListAuthServers(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
 	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
@@ -469,6 +506,15 @@ type ReadRemoteProxyAccessPoint interface {
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 }
 
+// RelayAccessPoint is the top-level access point interface required by a Relay service.
+type RelayAccessPoint interface {
+	// ReadRelayAccessPoint provides methods to read data
+	ReadRelayAccessPoint
+
+	// ScopedRoleReader returns a read-only scoped role client.
+	ScopedRoleReader() services.ScopedRoleReader
+}
+
 // RemoteProxyAccessPoint is an API interface implemented by a certificate authority (CA) to be
 // used by a teleport.ComponentProxy.
 type RemoteProxyAccessPoint interface {
@@ -477,6 +523,11 @@ type RemoteProxyAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
+
+	// ScopedRoleReader returns a read-only scoped role client.
+	// TODO(fspmarshall/scopes): remove the need for this. this is only here to satisfy the common
+	// interface used by lib/srv components. scoped access is not support for cross-cluster operations.
+	ScopedRoleReader() services.ScopedRoleReader
 }
 
 // ReadKubernetesAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -599,7 +650,14 @@ type ReadAppsAccessPoint interface {
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
+	//
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
+
+	// ListProxyServers returns a paginated list of proxy servers registered in the cluster
+	ListProxyServers(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
 
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
@@ -828,7 +886,14 @@ type ReadDiscoveryAccessPoint interface {
 	GetIntegration(ctx context.Context, name string) (types.Integration, error)
 
 	// GetProxies returns a list of registered proxies.
+	//
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
+
+	// ListProxyServers returns a paginated list of proxy servers registered in the cluster
+	ListProxyServers(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
 
 	// GetUserTask gets a single User Task by its name.
 	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
@@ -914,7 +979,14 @@ type ReadOktaAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
+	//
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
+
+	// ListProxyServers returns a paginated list of proxy servers registered in the cluster
+	ListProxyServers(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
 
 	// GetAuthPreference returns the cluster authentication configuration.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
@@ -954,6 +1026,12 @@ type ReadOktaAccessPoint interface {
 
 	// GetLocks lists the locks that target a given set of resources.
 	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
+
+	// ListLocks returns a page of locks matching a filter.
+	ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error)
+
+	// RangeLocks returns locks within the range [start, end) matching a filter.
+	RangeLocks(ctx context.Context, start, end string, filter *types.LockFilter) iter.Seq2[types.Lock, error]
 }
 
 // OktaAccessPoint is a read caching interface used by an Okta component.
@@ -1069,10 +1147,24 @@ type Cache interface {
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
+	//
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
 
+	// ListProxyServers returns a paginated list of proxy servers registered in the cluster
+	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
+
 	// GetAuthServers returns a list of auth servers registered in the cluster
+	//
+	// Deprecated: Prefer paginated variant [ListAuthServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetAuthServers() ([]types.Server, error)
+
+	// ListAuthServers returns a paginated list of auth servers registered in the cluster
+	ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 
 	// GetCertAuthority returns cert authority by id
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
@@ -1211,6 +1303,18 @@ type Cache interface {
 	// cache, the other Teleport components should make use of
 	// services.LockWatcher that provides the necessary freshness guarantees.
 	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
+
+	// ListLocks returns a page of locks.
+	// NOTE: This method is intentionally available only for the auth server
+	// cache, the other Teleport components should make use of
+	// services.LockWatcher that provides the necessary freshness guarantees.
+	ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error)
+
+	// RangeLocks returns locks within the range [start, end).
+	// NOTE: This method is intentionally available only for the auth server
+	// cache, the other Teleport components should make use of
+	// services.LockWatcher that provides the necessary freshness guarantees.
+	RangeLocks(ctx context.Context, start, end string, filter *types.LockFilter) iter.Seq2[types.Lock, error]
 
 	// ListResources returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
@@ -1389,6 +1493,12 @@ type Cache interface {
 
 	// DiscoveryConfigsGetter defines methods for fetching discovery configs.
 	services.DiscoveryConfigsGetter
+
+	// AppAuthConfigGetter defines methods for fetching app auth configs.
+	services.AppAuthConfigReader
+
+	// WorkloadClusterServiceGetter defines methods for fetching workload clusters.
+	services.WorkloadClusterServiceGetter
 }
 
 type NodeWrapper struct {
@@ -1403,6 +1513,12 @@ func NewNodeWrapper(base NodeAccessPoint, cache ReadNodeAccessPoint) NodeAccessP
 		accessPoint:         base,
 		ReadNodeAccessPoint: cache,
 	}
+}
+
+func (w *NodeWrapper) ScopedRoleReader() services.ScopedRoleReader {
+	// TODO(fspmarshall/scopes): implement caching for scoped roles
+	// on node agents.
+	return w.NoCache.ScopedRoleReader()
 }
 
 // Close closes all associated resources
@@ -1426,10 +1542,43 @@ func NewProxyWrapper(base ProxyAccessPoint, cache ReadProxyAccessPoint) ProxyAcc
 	}
 }
 
+func (w *ProxyWrapper) ScopedRoleReader() services.ScopedRoleReader {
+	// TODO(fspmarshall/scopes): implement caching for scoped roles
+	// on proxies.
+	return w.NoCache.ScopedRoleReader()
+}
+
 // Close closes all associated resources
 func (w *ProxyWrapper) Close() error {
 	err := w.NoCache.Close()
 	err2 := w.ReadProxyAccessPoint.Close()
+	return trace.NewAggregate(err, err2)
+}
+
+// RelayWrapper is a wrapper around a RelayAccessPoint that manages delegation
+// of read and write operations between a cached and non-cached access point.
+type RelayWrapper struct {
+	ReadRelayAccessPoint
+	NoCache RelayAccessPoint
+}
+
+// NewRelayWrapper creates a new RelayWrapper from the provided cache and upstream.
+func NewRelayWrapper(base RelayAccessPoint, cache ReadRelayAccessPoint) RelayAccessPoint {
+	return &RelayWrapper{
+		NoCache:              base,
+		ReadRelayAccessPoint: cache,
+	}
+}
+
+// ScopedRoleReader returns the scoped role reader from the non-cached access point.
+func (w *RelayWrapper) ScopedRoleReader() services.ScopedRoleReader {
+	return w.NoCache.ScopedRoleReader()
+}
+
+// Close closes all associated resources
+func (w *RelayWrapper) Close() error {
+	err := w.NoCache.Close()
+	err2 := w.ReadRelayAccessPoint.Close()
 	return trace.NewAggregate(err, err2)
 }
 
@@ -1445,6 +1594,10 @@ func NewRemoteProxyWrapper(base RemoteProxyAccessPoint, cache ReadRemoteProxyAcc
 		accessPoint:                base,
 		ReadRemoteProxyAccessPoint: cache,
 	}
+}
+
+func (w *RemoteProxyWrapper) ScopedRoleReader() services.ScopedRoleReader {
+	return w.NoCache.ScopedRoleReader()
 }
 
 // Close closes all associated resources
@@ -1728,7 +1881,23 @@ func (w *OktaWrapper) DeleteApplicationServer(ctx context.Context, namespace, ho
 
 // GetLocks fetches locks that target a given set of resources
 func (w *OktaWrapper) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
-	return w.NoCache.GetLocks(ctx, inForceOnly, targets...)
+	return clientutils.CollectWithFallback(
+		ctx,
+		func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+			filter := &types.LockFilter{
+				InForceOnly: inForceOnly,
+				Targets:     make([]*types.LockTarget, 0, len(targets)),
+			}
+			for _, tgt := range targets {
+				filter.Targets = append(filter.Targets, &tgt)
+			}
+			return w.NoCache.ListLocks(ctx, limit, start, filter)
+		},
+		func(ctx context.Context) ([]types.Lock, error) {
+			// TODO(okraport): DELETE IN v21
+			return w.NoCache.GetLocks(ctx, inForceOnly, targets...)
+		},
+	)
 }
 
 // UpsertLock creates and/or updates lock resources

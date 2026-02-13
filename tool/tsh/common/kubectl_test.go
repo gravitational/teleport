@@ -20,6 +20,7 @@ package common
 
 import (
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -265,6 +266,72 @@ func Test_overwriteKubeconfigFlagInEnv(t *testing.T) {
 	require.Equal(t, wantEnv, overwriteKubeconfigInEnv(inputEnv, "new-path"))
 }
 
+func Test_insertDoubleDashAfterKubectl(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		input  []string
+		expect []string
+	}{
+		{
+			name:   "short flag before positional arg",
+			input:  []string{"kubectl", "-n", "default", "get", "pod"},
+			expect: []string{"kubectl", "--", "-n", "default", "get", "pod"},
+		},
+		{
+			name:   "long flag before positional arg",
+			input:  []string{"kubectl", "--namespace", "default", "get", "pod"},
+			expect: []string{"kubectl", "--", "--namespace", "default", "get", "pod"},
+		},
+		{
+			name:   "positional arg first",
+			input:  []string{"kubectl", "get", "pod", "-n", "default"},
+			expect: []string{"kubectl", "get", "pod", "-n", "default"},
+		},
+		{
+			name:   "global flags before kubectl",
+			input:  []string{"--debug", "kubectl", "-n", "default", "get", "pod"},
+			expect: []string{"--debug", "kubectl", "--", "-n", "default", "get", "pod"},
+		},
+		{
+			name:   "double dash already present",
+			input:  []string{"kubectl", "--", "-n", "default", "get", "pod"},
+			expect: []string{"kubectl", "--", "-n", "default", "get", "pod"},
+		},
+		{
+			name:   "no kubectl in args",
+			input:  []string{"ssh", "user@host"},
+			expect: []string{"ssh", "user@host"},
+		},
+		{
+			name:   "kubectl with no extra args",
+			input:  []string{"kubectl"},
+			expect: []string{"kubectl"},
+		},
+		{
+			name:   "kubectl as arg to another command",
+			input:  []string{"ssh", "jake@foo", "kubectl"},
+			expect: []string{"ssh", "jake@foo", "kubectl"},
+		},
+		{
+			name:   "kubectl as arg to another command with flags",
+			input:  []string{"ssh", "jake@foo", "kubectl", "-n", "default", "get", "pod"},
+			expect: []string{"ssh", "jake@foo", "kubectl", "-n", "default", "get", "pod"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			original := slices.Clone(test.input)
+			result := insertDoubleDashAfterKubectl(test.input)
+			require.Equal(t, test.expect, result)
+			// Verify original slice is not modified.
+			require.Equal(t, original, test.input)
+		})
+	}
+}
+
 func mustSetupKubeconfig(t *testing.T, tshHome, kubeCluster string) string {
 	kubeconfigLocation := filepath.Join(tshHome, "kubeconfig")
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
@@ -282,6 +349,7 @@ func mustSetupKubeconfig(t *testing.T, tshHome, kubeCluster string) string {
 				TLSCertificates: [][]byte{[]byte(fixtures.TLSCACertPEM)},
 			}},
 		},
+		ProxyAddr:     "localhost:443",
 		SelectCluster: kubeCluster,
 	}, false)
 	require.NoError(t, err)

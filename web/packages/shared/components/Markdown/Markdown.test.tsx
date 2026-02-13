@@ -51,6 +51,7 @@ describe('Markdown', () => {
 
       expect(link).toBeInTheDocument();
       expect(link).toHaveAttribute('href', 'https://example.com');
+      expect(link).toHaveAttribute('target', '_blank');
     });
 
     it('does not render links unless explicitly enabled', () => {

@@ -221,7 +221,7 @@ func TestFormatAccountName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
-			accountName, err := auth.FormatAccountName(tt.inDebugAuth, "foo", "00000000-0000-0000-0000-000000000000")
+			accountName, err := auth.FormatAccountName(t.Context(), tt.inDebugAuth, "foo", "00000000-0000-0000-0000-000000000000")
 			tt.outError(t, err)
 			require.Equal(t, accountName, tt.outAccountName)
 		})
@@ -265,6 +265,7 @@ func TestUserTokenSecretsCreationSettings(t *testing.T) {
 func TestUserTokenCreationSettings(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
+	ctx := t.Context()
 
 	username := "joe@example.com"
 	_, _, err := authtest.CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
@@ -276,7 +277,7 @@ func TestUserTokenCreationSettings(t *testing.T) {
 		Type: authclient.UserTokenTypeResetPasswordInvite,
 	}
 
-	token, err := srv.Auth().NewUserToken(req)
+	token, err := srv.Auth().NewUserToken(ctx, req)
 	require.NoError(t, err)
 	require.Equal(t, req.Name, token.GetUser())
 	require.Equal(t, req.Type, token.GetSubKind())
@@ -458,6 +459,13 @@ func (s *debugAuth) GetProxies() ([]types.Server, error) {
 		return nil, trace.BadParameter("failed to fetch proxies")
 	}
 	return s.proxies, nil
+}
+
+func (s *debugAuth) ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	if s.proxiesError {
+		return nil, "", trace.BadParameter("failed to fetch proxies")
+	}
+	return s.proxies, "", nil
 }
 
 func (s *debugAuth) GetDomainName() (string, error) {

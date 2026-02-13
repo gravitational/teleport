@@ -512,7 +512,7 @@ func (p *Provider) configureLog() {
 		level = logutils.TraceLevel
 	}
 
-	_, _, err := logutils.Initialize(logutils.Config{
+	_, _, _, err := logutils.Initialize(logutils.Config{
 		Severity: level.String(),
 		Format:   "text",
 	})
@@ -530,10 +530,12 @@ func (p *Provider) configureLog() {
 func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceType, diag.Diagnostics) {
 	return map[string]tfsdk.ResourceType{
 		"teleport_app":                        resourceTeleportAppType{},
+		"teleport_app_auth_config":            resourceTeleportAppAuthConfigType{},
 		"teleport_auth_preference":            resourceTeleportAuthPreferenceType{},
 		"teleport_cluster_maintenance_config": resourceTeleportClusterMaintenanceConfigType{},
 		"teleport_cluster_networking_config":  resourceTeleportClusterNetworkingConfigType{},
 		"teleport_database":                   resourceTeleportDatabaseType{},
+		"teleport_discovery_config":           resourceTeleportDiscoveryConfigType{},
 		"teleport_dynamic_windows_desktop":    resourceTeleportDynamicWindowsDesktopType{},
 		"teleport_github_connector":           resourceTeleportGithubConnectorType{},
 		"teleport_provision_token":            resourceTeleportProvisionTokenType{},
@@ -557,6 +559,10 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_autoupdate_version":         resourceTeleportAutoUpdateVersionType{},
 		"teleport_autoupdate_config":          resourceTeleportAutoUpdateConfigType{},
 		"teleport_health_check_config":        resourceTeleportHealthCheckConfigType{},
+		"teleport_integration":                resourceTeleportIntegrationType{},
+		"teleport_inference_model":            resourceTeleportInferenceModelType{},
+		"teleport_inference_secret":           resourceTeleportInferenceSecretType{},
+		"teleport_inference_policy":           resourceTeleportInferencePolicyType{},
 	}, nil
 }
 
@@ -564,10 +570,12 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourceType, diag.Diagnostics) {
 	return map[string]tfsdk.DataSourceType{
 		"teleport_app":                        dataSourceTeleportAppType{},
+		"teleport_app_auth_config":            dataSourceTeleportAppAuthConfigType{},
 		"teleport_auth_preference":            dataSourceTeleportAuthPreferenceType{},
 		"teleport_cluster_maintenance_config": dataSourceTeleportClusterMaintenanceConfigType{},
 		"teleport_cluster_networking_config":  dataSourceTeleportClusterNetworkingConfigType{},
 		"teleport_database":                   dataSourceTeleportDatabaseType{},
+		"teleport_discovery_config":           dataSourceTeleportDiscoveryConfigType{},
 		"teleport_dynamic_windows_desktop":    dataSourceTeleportDynamicWindowsDesktopType{},
 		"teleport_github_connector":           dataSourceTeleportGithubConnectorType{},
 		"teleport_provision_token":            dataSourceTeleportProvisionTokenType{},
@@ -589,6 +597,14 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_autoupdate_version":         dataSourceTeleportAutoUpdateVersionType{},
 		"teleport_autoupdate_config":          dataSourceTeleportAutoUpdateConfigType{},
 		"teleport_health_check_config":        dataSourceTeleportHealthCheckConfigType{},
+		"teleport_integration":                dataSourceTeleportIntegrationType{},
+		// TODO(bl-nero): Add teleport_inference_* data sources after data sources
+		// are fixed. The current problems with data sources include:
+		// - Data sources only perform a "shallow fill", which means only setting
+		//   leaf-level fields.
+		// - Data sources use the same schema as resources, which means that fields
+		//   required on a resource also need to be set on the data source
+		//   definition.
 	}, nil
 }
 

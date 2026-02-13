@@ -20,6 +20,7 @@ package utils
 
 import (
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"log/slog"
 	"testing"
@@ -211,4 +212,46 @@ func TestFilterArguments(t *testing.T) {
 	for i, tt := range tests {
 		require.Equal(t, tt.expected, FilterArguments(tt.args, app.Model()), fmt.Sprintf("test case %v", i))
 	}
+}
+
+// TestFormatCertError tests the formatCertError function for various x509 error types and messages.
+func TestFormatCertError(t *testing.T) {
+	t.Run("UnknownAuthorityError", func(t *testing.T) {
+		err := x509.UnknownAuthorityError{}
+		msg := formatCertError(err)
+		require.Contains(t, msg, "The proxy you are connecting to has presented a certificate signed by a")
+	})
+
+	t.Run("HostnameErrorConnectingToAuth", func(t *testing.T) {
+		cert := &x509.Certificate{Raw: []byte("dummy")}
+		err := x509.HostnameError{Certificate: cert, Host: "99999999999999999999999999999999.teleport.cluster.local"}
+		msg := formatCertError(err)
+		require.Contains(t, msg, "Cannot connect to the Auth service via the Teleport Proxy.")
+		require.Contains(t, msg, "Host: 99999999999999999999999999999999.teleport.cluster.local")
+	})
+
+	t.Run("HostnameError", func(t *testing.T) {
+		cert := &x509.Certificate{Raw: []byte("dummy")}
+		err := x509.HostnameError{Certificate: cert, Host: "example.com"}
+		msg := formatCertError(err)
+		require.Contains(t, msg, "Cannot establish https connection to example.com")
+	})
+
+	t.Run("CertificateInvalidError", func(t *testing.T) {
+		err := x509.CertificateInvalidError{Reason: x509.Expired, Cert: &x509.Certificate{}}
+		msg := formatCertError(err)
+		require.Contains(t, msg, "The certificate presented by the proxy is invalid")
+	})
+
+	t.Run("CertificateNotTrustedError", func(t *testing.T) {
+		err := errors.New("certificate is not trusted")
+		msg := formatCertError(err)
+		require.Contains(t, msg, "The proxy you are connecting to has presented a certificate signed by")
+	})
+
+	t.Run("NoMatch", func(t *testing.T) {
+		err := errors.New("some other error")
+		msg := formatCertError(err)
+		require.Empty(t, msg)
+	})
 }

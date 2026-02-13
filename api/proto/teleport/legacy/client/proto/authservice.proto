@@ -25,6 +25,8 @@ import "teleport/legacy/client/proto/event.proto";
 import "teleport/legacy/client/proto/inventory.proto";
 import "teleport/legacy/client/proto/requestable_roles.proto";
 import "teleport/legacy/types/events/events.proto";
+import "teleport/legacy/types/metadata.proto";
+import "teleport/legacy/types/mfa_device.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/webauthn/webauthn.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
@@ -243,6 +245,10 @@ message UserCertsRequest {
     // tunnel. Requests from this requester allows reuse of the MFA session
     // response but TTL is limited to single use TTL.
     TSH_DB_EXEC = 5;
+    // TSH_APP_AWS_CREDENTIALPROCESS is set when tsh provides access to an AWS App which uses client side credentials.
+    // When using per-session MFA, this ensures the TTL of the certificate (and thus the AWS session) is the same as the Teleport identity session.
+    // AWS credentials should not be written to disk when this requester is used, but may be exported as env variables through stdout.
+    TSH_APP_AWS_CREDENTIALPROCESS = 6;
   }
   // RequesterName identifies who sent the request.
   Requester RequesterName = 17 [(gogoproto.jsontag) = "requester_name"];
@@ -795,6 +801,9 @@ message GenerateAppTokenRequest {
   ];
   // Traits are the traits assigned to the user within Teleport.
   map<string, wrappers.StringValues> Traits = 5 [(gogoproto.jsontag) = "traits"];
+  // AuthorityType configures which Teleport authority issues the JWT token.
+  // Defaults to JWTSigner ("jwt") if empty.
+  string authority_type = 6;
 }
 
 // GenerateAppTokenResponse contains a signed application token.
@@ -995,12 +1004,6 @@ message DeleteUserSAMLIdPSessionsRequest {
 message GetWebSessionResponse {
   // Session is the web session.
   types.WebSessionV2 Session = 1 [(gogoproto.jsontag) = "session"];
-}
-
-// GetWebSessionsResponse contains all the requested web sessions.
-message GetWebSessionsResponse {
-  // Sessions is a list of web sessions.
-  repeated types.WebSessionV2 Sessions = 1 [(gogoproto.jsontag) = "sessions"];
 }
 
 // GetWebTokenResponse contains the requested web token.
@@ -1590,6 +1593,8 @@ message GetEventsRequest {
   // Order specifies an ascending or descending order of events.
   // A value of 0 means a descending order and a value of 1 means an ascending order.
   Order Order = 7;
+  // Search is an optional search term to filter events by (case-insensitive substring match).
+  string Search = 8;
 }
 
 message GetSessionEventsRequest {
@@ -1634,6 +1639,26 @@ message GetLocksRequest {
 message GetLocksResponse {
   // Locks is a list of locks.
   repeated types.LockV2 Locks = 1;
+}
+
+// ListLocksRequest is a request for a page of locks.
+message ListLocksRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+  // Filter specifies lock specific filters.
+  types.LockFilter filter = 3;
+}
+
+// ListLocksResponse contains a page of registered applications.
+message ListLocksResponse {
+  // Locks is a list of locks.
+  repeated types.LockV2 locks = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
 }
 
 message GetLockRequest {
@@ -1768,6 +1793,20 @@ message WindowsDesktopCertRequest {
   int64 TTL = 3 [(gogoproto.casttype) = "Duration"];
   // CRLDomain is the Active Directory domain where CRLs are published.
   string CRLDomain = 4;
+  // Set by callers that fully support the new Windows CA.
+  //
+  // Auth issues certificates differently according to this parameter:
+  // - false issues certificates using the UserCA
+  //   (Teleport agent versions < 18.x, where 18.x marks the initial release of
+  //   the Windows CA split).
+  // - true issues certificates using the WindowsCA
+  //   (Teleport agent version >= 18.x)
+  //
+  // Transitional. To be removed on Teleport 20, when all agents are expected
+  // to support the Windows CA.
+  //
+  // TODO(codingllama): DELETE IN 20. Explained above.
+  bool SupportsWindowsCA = 5;
 }
 
 // WindowsDesktopCertResponse contains the signed Windows RDP certificate.
@@ -2678,6 +2717,12 @@ message GetAlertAcksResponse {
   ];
 }
 
+// DeleteClustAlertRequest specifies an alert or multiple alerts to delete.
+message DeleteClusterAlertRequest {
+  // The identifier of the alert to delete.
+  string alert_id = 1;
+}
+
 // ClearAlertAcksRequest specifies alerts acknowledgements to clear.
 message ClearAlertAcksRequest {
   // AlertID deletes an acknowledgement by ID. Deletes all acknowledgements if
@@ -2948,6 +2993,9 @@ service AuthService {
   // UpsertClusterAlert creates a cluster alert.
   rpc UpsertClusterAlert(UpsertClusterAlertRequest) returns (google.protobuf.Empty);
 
+  // DeleteClusterAlert deletes a cluster alert.
+  rpc DeleteClusterAlert(DeleteClusterAlertRequest) returns (google.protobuf.Empty);
+
   // CreateAlertAck marks a cluster alert as acknowledged.
   rpc CreateAlertAck(types.AlertAcknowledgement) returns (google.protobuf.Empty);
 
@@ -3184,10 +3232,6 @@ service AuthService {
 
   // GetWebSession gets a web session.
   rpc GetWebSession(types.GetWebSessionRequest) returns (GetWebSessionResponse);
-  // GetWebSessions gets all web sessions.
-  rpc GetWebSessions(google.protobuf.Empty) returns (GetWebSessionsResponse) {
-    option deprecated = true;
-  }
   // StreamWebSessions gets all web sessions in a stream.
   rpc StreamWebSessions(google.protobuf.Empty) returns (stream types.WebSessionV2);
   // DeleteWebSession deletes a web session.
@@ -3523,7 +3567,11 @@ service AuthService {
   // GetLock gets a lock by name.
   rpc GetLock(GetLockRequest) returns (types.LockV2);
   // GetLocks gets all/in-force locks that match at least one of the targets when specified.
-  rpc GetLocks(GetLocksRequest) returns (GetLocksResponse);
+  rpc GetLocks(GetLocksRequest) returns (GetLocksResponse) {
+    option deprecated = true;
+  }
+  // ListLocks returns a page of locks matching a filter.
+  rpc ListLocks(ListLocksRequest) returns (ListLocksResponse);
   // UpsertLock upserts a lock.
   rpc UpsertLock(types.LockV2) returns (google.protobuf.Empty);
   // DeleteLock deletes a lock.

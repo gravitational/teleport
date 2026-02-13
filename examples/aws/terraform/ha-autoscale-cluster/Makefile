@@ -9,7 +9,7 @@ TF_VAR_cluster_name ?=
 # AWS SSH key name to provision in installed instances, should be available in the region
 TF_VAR_key_name ?=
 
-# Full absolute path to the license file for Teleport Enterprise 
+# Full absolute path to the license file for Teleport Enterprise
 # This license will be copied into SSM and then pulled down on the auth nodes to enable Enterprise functionality
 TF_VAR_license_path ?=
 
@@ -18,7 +18,7 @@ TF_VAR_license_path ?=
 # To list available AMIs:
 # OSS: aws ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-oss-*'
 # Enterprise: aws ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-ent-*'
-# FIPS 140-2 images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
+# FIPS images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
 TF_VAR_ami_name ?=
 
 

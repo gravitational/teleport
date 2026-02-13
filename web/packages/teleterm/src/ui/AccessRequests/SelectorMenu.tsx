@@ -44,7 +44,6 @@ import {
   MenuListItem,
   Separator,
 } from 'teleterm/ui/components/Menu';
-import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
@@ -83,7 +82,6 @@ export function SelectorMenu() {
   const ctx = useAppContext();
   const { clustersService } = ctx;
   const selectorRef = useRef<HTMLButtonElement>(null);
-  const { requestResourcesRefresh } = useResourcesContext(rootClusterUri);
   const loggedInUser = useLoggedInUser();
   const username = loggedInUser?.name;
 
@@ -210,7 +208,6 @@ export function SelectorMenu() {
         await clustersService.assumeRoles(rootClusterUri, [requestId]);
       }
     });
-    requestResourcesRefresh();
   }
 
   const isResourceRequestAssumed = sortedRequests
@@ -519,6 +516,8 @@ function makeSharedRequest(
         ...r.id,
         kind: r.id.kind as RequestableResourceKind,
       },
+      // TODO(kiosion): Would be more optimal to fix the types, but we only care about the 'id' here anyways.
+      constraints: undefined,
     })),
   };
 }

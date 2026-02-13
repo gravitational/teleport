@@ -1,7 +1,29 @@
 By default, `tbot` will run in daemon mode. However, this must then be
 configured as a service within the service manager on the Linux host. The
 service manager will start `tbot` on boot and ensure it is restarted if it
-fails. For this guide, systemd will be demonstrated but `tbot` should be
+fails.
+
+**If tbot was installed using the Teleport install script or `teleport-update`
+command, the `tbot` systemd service is automatically created for you.**
+
+After `tbot.yaml` is created, enable and start the service::
+
+```code
+$ sudo systemctl enable tbot --now
+```
+
+Check the service has started successfully:
+
+```code
+$ sudo systemctl status tbot
+```
+
+Service properties like `User` and `Group` may be configured using `systemctl edit tbot`.`
+
+**If tbot was installed manually, service configuration will need to be
+performed manually as well.**
+
+For this guide, systemd will be demonstrated but `tbot` should be
 compatible with all common alternatives.
 
 Use `tbot install systemd` to generate a systemd service file:
@@ -32,8 +54,7 @@ service:
 
 ```code
 $ sudo systemctl daemon-reload
-$ sudo systemctl enable tbot
-$ sudo systemctl start tbot
+$ sudo systemctl enable tbot --now
 ```
 
 Check the service has started successfully:

@@ -85,6 +85,62 @@ const api = {
     throw new Error('data for body is not a type of FormData');
   },
 
+  /**
+   * postWithOptions makes a POST request. Optionally accepts data xor formData. The headers field
+   * overrides defaultHeaders but not auth headers (see getAuthHeaders).
+   *
+   * When passing formData, it always overrides default headers with Accept: 'application/json' to
+   * avoid setting Content-Type to let the browser infer Content-Type from formData. Always adds
+   * Accept: 'application/json' to custom headers when formData is used.
+   */
+  postWithOptions(
+    url: string,
+    options: Partial<{
+      headers: Record<string, string>;
+      mfaResponse: MfaChallengeResponse;
+      signal: AbortSignal;
+    }> & // Either data or formData.
+      (
+        | { data?: unknown; formData?: never }
+        | { data?: never; formData?: FormData }
+      ) = {}
+  ) {
+    let body: RequestInit['body'];
+    let headers: RequestInit['headers'] = options.headers;
+
+    if (options.data) {
+      body = JSON.stringify(options.data);
+    } else if (options.formData) {
+      body = options.formData;
+      // Override headers so that Content-Type is not set to the default one from `defaultRequestOptions`.
+      // Do not set Content-Type directly to let the browser infer Content-Type for FormData types
+      // to set the correct boundary:
+      // 1) https://developer.mozilla.org/en-US/docs/Web/API/FormData/Using_FormData_Objects#sending_files_using_a_formdata_object
+      // 2) https://stackoverflow.com/a/64653976
+      headers = {
+        ...(options.headers || {}),
+        Accept: 'application/json',
+      };
+    }
+
+    const customOptions: RequestInit = {
+      method: 'POST',
+      body,
+      signal: options.signal,
+    };
+    // Special handling for header merging logic from api.fetch.
+    // Passing { headers: undefined } would cause api.fetch to completely ignore default headers.
+    if (headers) {
+      customOptions.headers = headers;
+    }
+
+    return api.fetchJsonWithMfaAuthnRetry(
+      url,
+      customOptions,
+      options.mfaResponse
+    );
+  },
+
   /** @deprecated Use `deleteWithOptions` instead. */
   delete(url: string, data?: unknown, mfaResponse?: MfaChallengeResponse) {
     return api.deleteWithOptions(url, {
@@ -351,12 +407,14 @@ const api = {
   },
 };
 
+export const defaultHeaders: Readonly<Record<string, string>> = {
+  Accept: 'application/json',
+  'Content-Type': 'application/json; charset=utf-8',
+};
+
 export const defaultRequestOptions: RequestInit = {
   credentials: 'same-origin',
-  headers: {
-    Accept: 'application/json',
-    'Content-Type': 'application/json; charset=utf-8',
-  },
+  headers: defaultHeaders,
   mode: 'same-origin',
   cache: 'no-store',
 };

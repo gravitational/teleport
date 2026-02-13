@@ -46,8 +46,10 @@ import (
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	recordingmetadatav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
@@ -343,7 +345,7 @@ func (c *Client) StreamSessionEvents(ctx context.Context, sessionID session.ID, 
 
 // SearchEvents allows searching for audit events with pagination support.
 func (c *Client) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	events, lastKey, err := c.APIClient.SearchEvents(ctx, req.From, req.To, apidefaults.Namespace, req.EventTypes, req.Limit, req.Order, req.StartKey)
+	events, lastKey, err := c.APIClient.SearchEvents(ctx, req.From, req.To, apidefaults.Namespace, req.EventTypes, req.Limit, req.Order, req.StartKey, req.Search)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -644,6 +646,11 @@ func (c *Client) NotificationServiceClient() notificationsv1.NotificationService
 	return notificationsv1.NewNotificationServiceClient(c.APIClient.GetConnection())
 }
 
+// MFAClient returns a client for the MFA service.
+func (c *Client) MFAClient() mfav1.MFAServiceClient {
+	return mfav1.NewMFAServiceClient(c.APIClient.GetConnection())
+}
+
 // DatabaseObjectsClient returns a client for managing the DatabaseObject resource.
 func (c *Client) DatabaseObjectsClient() *databaseobject.Client {
 	return databaseobject.NewClient(c.APIClient.DatabaseObjectClient())
@@ -677,6 +684,12 @@ func (c *Client) GetStaticTokens(ctx context.Context) (types.StaticTokens, error
 // SetStaticTokens sets a list of static register tokens
 func (c *Client) SetStaticTokens(st types.StaticTokens) error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// ScopedRoleReader returns a read-only scoped role client. Having this method lets us reduce the surface
+// are of the scoped access API available in agent access points to only what is necessary.
+func (c *Client) ScopedRoleReader() services.ScopedRoleReader {
+	return c.APIClient.ScopedAccessServiceClient()
 }
 
 // UpsertUserNotificationState creates or updates a user notification state which records whether the user has clicked on or dismissed a notification.
@@ -1420,6 +1433,17 @@ type ForwardedClientMetadata struct {
 	// either from a direct client connection, or from a PROXY protocol header
 	// if the connection is forwarded through a load balancer.
 	RemoteAddr string `json:"remote_addr,omitempty"`
+	// ProxyGroupID is reverse tunnel group ID, used by reverse tunnel agents
+	// in proxy peering mode.
+	ProxyGroupID string `json:"proxy_group_id,omitempty"`
+	// MaxTouchPoints indicates whether the client device supports touch controls. It is reported by
+	// JavaScript in the browser and sent by the frontend app through the Max-Touch-Points header. It
+	// differentiates iPadOS from macOS since they both use the same user agent otherwise. This
+	// information is needed to decide whether to show the Device Trust prompt in the Web UI after a
+	// successful login.
+	//
+	// Available only in select endpoints which lead to the Device Trust prompt in the Web UI.
+	MaxTouchPoints int `json:"max_touch_points,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -1591,7 +1615,14 @@ type ClientI interface {
 	services.Notifications
 	services.VnetConfigGetter
 	services.HealthCheckConfig
+	services.AppAuthConfig
+	services.AppAuthConfigSessions
 	types.Events
+	services.ScopedAccessClientGetter
+	services.WorkloadClusterService
+
+	// ListUnifiedInstances returns a paginated list of unified instances (teleport instances and bot instances).
+	ListUnifiedInstances(ctx context.Context, req *inventoryv1.ListUnifiedInstancesRequest) (*inventoryv1.ListUnifiedInstancesResponse, error)
 
 	types.WebSessionsGetter
 	services.WebToken
@@ -1851,6 +1882,9 @@ type ClientI interface {
 	// StableUNIXUsersClient returns a client for the stable UNIX users API.
 	StableUNIXUsersClient() stableunixusersv1.StableUNIXUsersServiceClient
 
+	// MFAServiceClient returns a client for the MFA service.
+	MFAServiceClient() mfav1.MFAServiceClient
+
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
 
@@ -1910,4 +1944,8 @@ type ClientI interface {
 	// SummarizerServiceClient returns a client for the session recording
 	// summarizer service.
 	SummarizerServiceClient() summarizerv1.SummarizerServiceClient
+
+	// ScopedRoleReader returns a read-only scoped role client. Having this method lets us reduce the surface
+	// are of the scoped access API available in agent access points to only what is necessary.
+	ScopedRoleReader() services.ScopedRoleReader
 }

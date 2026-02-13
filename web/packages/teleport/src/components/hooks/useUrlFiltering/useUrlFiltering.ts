@@ -43,7 +43,7 @@ export interface UrlFilteringState {
   search: string;
 }
 
-type URLResourceFilter = Omit<ResourceFilter, 'includedResourceMode'>;
+export type URLResourceFilter = Omit<ResourceFilter, 'includedResourceMode'>;
 
 export function useUrlFiltering(
   initialParams: URLResourceFilter,

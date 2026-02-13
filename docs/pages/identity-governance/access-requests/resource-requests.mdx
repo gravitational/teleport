@@ -1,20 +1,28 @@
 ---
 title: Resource Access Requests
+sidebar_label: Resource Requests
+sidebar_position: 2
 description: Teleport allows users to request access to specific resources from the CLI or UI. Requests can be escalated via ChatOps or anywhere else via our flexible Authorization Workflow API.
 tags:
  - access-requests
  - how-to
  - identity-governance
  - privileged-access
+enterprise: Identity Governance
 ---
 
 {/* lint disable page-structure remark-lint */}
 
 With Teleport Resource Access Requests, users can request access to specific
 resources without needing to know anything about the roles or RBAC controls used
-under the hood.
+under the hood. Unlike [Role Access Requests](role-requests.mdx), where users
+request elevated roles directly, Resource Access Requests let users identify the
+individual resources they need, and Teleport determines which roles to grant
+in order to provide access.
+
 The Access Request API makes it easy to dynamically approve or deny these
-requests.
+requests. Resource Access Requests can be created through the Teleport Web UI,
+Teleport Connect, or the `tsh` CLI.
 
 Just-in-time Access Requests are a feature of Teleport Enterprise.
 Teleport Community Edition users can get a preview of how Access Requests work by
@@ -27,6 +35,61 @@ available in Teleport Enterprise.
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
 
 - (!docs/pages/includes/tctl.mdx!)
+
+## Resource Constraints
+
+Resource Access Requests can optionally include **Resource Constraints**,
+which narrow which principals — such as AWS Role ARNs, SSH logins, or database
+users — a user can assume on a resource when using an approved Access Request.
+The requester selects the specific principals they need when they create a request
+using the Web UI or Teleport Connect, and these constraints are encoded
+in the resulting short-lived certificates and enforced at authorization time,
+independent of any subsequent role changes.
+
+Resource Constraints are distinct from the role-based restrictions described in
+[Restricting the resources a user can request access
+to](#restricting-the-resources-a-user-can-request-access-to) below. Those
+controls govern *which resources* are searchable and requestable. Resource
+Constraints govern which principals the user is authorized to use on a specific
+resource once the request is approved.
+
+For example, consider a role `aws-full-access` that grants access to an AWS
+Console application with multiple ARNs:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: aws-full-access
+spec:
+  allow:
+    app_labels:
+      env: production
+    aws_role_arns:
+      - 'arn:aws:iam::123456789012:role/ReadOnly'
+      - 'arn:aws:iam::123456789012:role/Admin'
+```
+
+Without Resource Constraints, a user who requests and is approved for access to
+an AWS Console application via this role receives both ARNs. With Resource Constraints, the user can
+select only `ReadOnly` at request creation, and the approved certificate is
+scoped to that single ARN.
+
+Resource Constraints are currently supported for AWS Console application
+resources. Support for additional resource types (SSH, Windows Desktop,
+database, Kubernetes, and others) is planned.
+
+### Availability
+
+Constrained resource requests can only be created through the Teleport Web UI
+and Teleport Connect. The Teleport CLI (`tsh`) supports reviewing and assuming
+these requests, but not yet creating them.
+
+All Teleport components in the request path (Auth Service, Proxy Service, and
+relevant application servers) must support Resource Constraints. In
+mixed-version clusters, components that do not recognize constraints will
+prevent the creation of constrained resource requests and deny any access to
+constrained resources on existing Resource Access Requests.
 
 ## Step 1/6. Grant roles to users
 
@@ -162,7 +225,7 @@ Successfully submitted review.  Request state: APPROVED
 
 <Admonition type="tip">
 Check out our [Access Request
-integrations](../access-request-plugins/access-request-plugins.mdx) to notify
+integrations](plugins/plugins.mdx) to notify
 the right people about new Access Requests.
 </Admonition>
 
@@ -253,6 +316,237 @@ Getting updated certificates...
 iot:~ alice$
 ```
 
+## Restricting the resources a user can request access to
+
+In this guide, we showed you how to enable a user to search for resources to
+request access to. To do so, we assigned the user a Teleport role with the
+`search_as_roles` field set to the preset `access` role.
+
+You can impose further restrictions on the resources a user is allowed to
+search by assigning `search_as_roles` to a more limited role. Below, we will
+show you which permissions you must set to restrict a user's ability to search
+for different resources.
+
+To restrict access to a particular resource using a role similar to the ones
+below, edit one of the user's roles so the `search_as_roles` field includes the
+role you have created.
+
+For full details on how to use Teleport roles to configure RBAC, see the
+[Access Controls Reference](../../reference/access-controls/roles.mdx).
+
+### `node`
+
+You can restrict access to searching `node` resources by assigning values to the
+`node_labels` field in the `spec.allow` or `spec.deny` fields. The following
+role allows access to SSH Service instances with the `env:staging` label.
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: staging-access
+spec:
+  allow:
+    node_labels:
+      env: staging
+    logins:
+      - '{{internal.logins}}'
+  options:
+    # Only allows the requester to use this role for 1 hour from time of request.
+    max_session_ttl: 1h
+```
+
+### `kube_cluster`
+
+You can restrict access to searching `kube_cluster` resources by assigning
+values to the `kubernetes_labels` field in the `spec.allow` or `spec.deny`
+fields.
+
+The following role allows access to Kubernetes clusters with the `env:staging`
+label:
+
+```yaml
+kind: role
+metadata:
+  name: kube-access
+version: v8
+spec:
+  allow:
+    kubernetes_labels:
+      env: staging
+    kubernetes_resources:
+      - kind: '*'
+        namespace: '*'
+        name: '*'
+        api_group: '*'
+  deny: {}
+```
+
+### Kubernetes resources
+
+You can restrict access to Kubernetes resources by assigning values to the
+`kubernetes_resources` field in the `spec.allow` or `spec.deny` fields.
+
+The following role allows access to Kubernetes pods with the name `nginx` in any
+namespace, and all pods in the `dev` namespace:
+
+```yaml
+kind: role
+metadata:
+  name: kube-access
+version: v8
+spec:
+  allow:
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+      - kind: pods
+        namespace: '*'
+        name: 'nginx*'
+        api_group: ''
+      - kind: pods
+        namespace: dev
+        name: '*'
+        api_group: ''
+    kubernetes_groups:
+      - viewers
+  deny: {}
+```
+
+The `request.kubernetes_resources` field allows you to restrict what kinds of Kubernetes
+resources a user can request access to. Configuring this field to any value will disallow
+requesting access to the entire Kubernetes cluster.
+
+If the `request.kubernetes_resources` field is not configured, then a user can request access
+to any Kubernetes resources, including the entire Kubernetes cluster.
+
+The following role allows users to request access to Kubernetes namespaces.
+Requests for Kubernetes resources other than `pods` will not be allowed.
+
+```yaml
+kind: role
+metadata:
+  name: requester-kube-access
+version: v8
+spec:
+  allow:
+    request:
+      search_as_roles:
+        - kube-access
+      kubernetes_resources:
+        - kind: pods
+          api_group: ''
+```
+
+The following role allows users to request access only to Kubernetes deployments and/or pods.
+
+```yaml
+kind: role
+metadata:
+  name: requester-kube-access
+version: v8
+spec:
+  allow:
+    request:
+      search_as_roles:
+        - kube-access
+      kubernetes_resources:
+        - kind: deployments
+          api_group: apps
+        - kind: pods
+          api_group: ''
+```
+
+The following role allows users to request access to any specific Kubernetes resources.
+
+```yaml
+kind: role
+metadata:
+  name: requester-kube-access
+version: v8
+spec:
+  allow:
+    request:
+      search_as_roles:
+        - kube-access
+      kubernetes_resources:
+        - kind: '*'
+          api_group: '*'
+```
+
+The `request.kubernetes_resources` field only restricts what
+`kind` / `api_group` of Kubernetes resource requests are allowed.
+To control Kubernetes access to these resources see
+[Kubernetes Resources](../../enroll-resources/kubernetes-access/controls.mdx)
+section for more details.
+
+### `db`
+
+You can restrict access to searching `db` resources by assigning values to the
+`db_labels` field in the `spec.allow` or `spec.deny` fields.
+
+The following role allows access to databases with the `env:dev` or
+`env:staging` labels:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: developer
+spec:
+  allow:
+    db_labels:
+      env: ["dev", "staging"]
+
+    # Database account names this role can connect as.
+    db_users: ["viewer", "editor"]
+    db_names: ["*"]
+```
+
+### `app`
+
+You can restrict access to searching `app` resources by assigning values to the
+`app_labels` field in the `spec.allow` or `spec.deny` fields.
+
+The following role allows access to all applications except for those in
+`env:prod`:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: dev
+spec:
+  allow:
+    app_labels:
+      "*": "*"
+  deny:
+    app_labels:
+      env: "prod"
+```
+
+### `windows_desktop`
+
+You can restrict access to searching `windows_desktop` resources by assigning
+values to the `windows_desktop_labels` field in the `spec.allow` or `spec.deny`
+fields.
+
+The following role allows access to all Windows desktops with the
+`env:dev` or `env:staging` labels.
+
+```yaml
+kind: role
+version: v4
+metadata:
+  name: developer
+spec:
+  allow:
+    windows_desktop_labels:
+      env: ["dev", "staging"]
+
+    windows_desktop_logins: ["{{internal.windows_logins}}"]
+```
+
 ## Next steps
 
 - Read about all of the ways you can configure Access Requests in the [Access
@@ -262,6 +556,11 @@ iot:~ alice$
 - With Teleport's Access Request plugins, users can manage Access Requests from
   within your organization's existing messaging and project management
   solutions. Read the documentation on [Access Request
-  plugins](../access-request-plugins/access-request-plugins.mdx).
+  plugins](../access-requests/plugins/plugins.mdx).
+- For more information about creating and managing Access Requests as an end
+  user, read [Request Access to Roles and
+  Resources](../../connect-your-client/teleport-clients/request-access.mdx).
 - Learn about [Access Lists](../access-lists/access-lists.mdx), which allow you
   to assign elevated privileges to a list of Teleport users for a limited time.
+
+

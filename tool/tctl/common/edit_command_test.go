@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"io"
 	"os"
 	"slices"
 	"testing"
@@ -49,7 +50,8 @@ import (
 )
 
 func TestEditResources(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+
 	log := logtest.NewLogger()
 	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(log))
 	require.NoError(t, err)
@@ -147,7 +149,7 @@ func testEditGithubConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.SetClientID("abcdef")
 
-		collection := &connectorsCollection{github: []types.GithubConnector{expected}}
+		collection := resources.NewConnectorCollection(nil, nil, []types.GithubConnector{expected})
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -260,7 +262,7 @@ func testEditClusterNetworkingConfig(t *testing.T, clt *authclient.Client) {
 		expected.SetKeepAliveCountMax(1)
 		expected.SetCaseInsensitiveRouting(true)
 
-		collection := &netConfigCollection{netConfig: expected}
+		collection := &fakeCollection{[]types.Resource{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -298,7 +300,7 @@ func testEditAuthPreference(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(initial.GetRevision())
 		expected.SetSecondFactors(types.SecondFactorType_SECOND_FACTOR_TYPE_OTP, types.SecondFactorType_SECOND_FACTOR_TYPE_SSO)
 
-		collection := &authPrefCollection{authPref: expected}
+		collection := &fakeCollection{[]types.Resource{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -335,7 +337,7 @@ func testEditSessionRecordingConfig(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(initial.GetRevision())
 		expected.SetMode(types.RecordAtProxy)
 
-		collection := &recConfigCollection{recConfig: expected}
+		collection := &fakeCollection{[]types.Resource{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -432,7 +434,7 @@ func testEditOIDCConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.SetClientID("abcdef")
 
-		collection := &connectorsCollection{oidc: []types.OIDCConnector{expected}}
+		collection := resources.NewConnectorCollection([]types.OIDCConnector{expected}, nil, nil)
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -500,7 +502,7 @@ func testEditSAMLConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetSigningKeyPair(created.GetSigningKeyPair())
 		expected.SetAssertionConsumerService("updated-acs")
 
-		collection := &connectorsCollection{saml: []types.SAMLConnector{expected}}
+		collection := resources.NewConnectorCollection(nil, []types.SAMLConnector{expected}, nil)
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -551,7 +553,7 @@ func testEditStaticHostUser(t *testing.T, clt *authclient.Client) {
 		expected.GetMetadata().Revision = created.GetMetadata().Revision
 		expected.Spec.Matchers[0].Groups = []string{"baz", "quux"}
 
-		collection := &staticHostUserCollection{items: []*userprovisioningpb.StaticHostUser{expected}}
+		collection := resources.NewStaticHostUserCollection([]*userprovisioningpb.StaticHostUser{expected})
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -655,13 +657,9 @@ func testEditAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
 }
 
 func testEditDynamicWindowsDesktop(t *testing.T, clt *authclient.Client) {
-	ctx := context.Background()
-
-	expected, err := types.NewDynamicWindowsDesktopV1("test", nil, types.DynamicWindowsDesktopSpecV1{
-		Addr: "test",
-	})
+	expected, err := types.NewDynamicWindowsDesktopV1("test", nil, types.DynamicWindowsDesktopSpecV1{Addr: "test"})
 	require.NoError(t, err)
-	created, err := clt.DynamicDesktopClient().CreateDynamicWindowsDesktop(ctx, expected)
+	created, err := clt.DynamicDesktopClient().CreateDynamicWindowsDesktop(t.Context(), expected)
 	require.NoError(t, err)
 
 	editor := func(name string) error {
@@ -673,15 +671,16 @@ func testEditDynamicWindowsDesktop(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.Spec.Addr = "test2"
 
-		collection := &dynamicWindowsDesktopCollection{desktops: []types.DynamicWindowsDesktop{expected}}
+		collection := resources.NewDynamicDesktopCollection([]types.DynamicWindowsDesktop{expected})
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
 	_, err = runEditCommand(t, clt, []string{"edit", "dynamic_windows_desktop/test"}, withEditor(editor))
 	require.NoError(t, err)
 
-	actual, err := clt.DynamicDesktopClient().GetDynamicWindowsDesktop(ctx, expected.GetName())
+	actual, err := clt.DynamicDesktopClient().GetDynamicWindowsDesktop(t.Context(), expected.GetName())
 	require.NoError(t, err)
+
 	expected.SetRevision(actual.GetRevision())
 	require.Empty(t, cmp.Diff(expected, actual, protocmp.Transform()))
 }
@@ -748,4 +747,19 @@ func TestMultipleRoles(t *testing.T) {
 			require.NotEqual(t, role.GetRevision(), actual.GetRevision(), "revision should have been modified by edit")
 		}
 	}
+}
+
+// fakeCollection implements [resources.Collection] for testing purposes.
+type fakeCollection struct {
+	resources []types.Resource
+}
+
+// Resources implements [resources.Collection]
+func (c *fakeCollection) Resources() []types.Resource {
+	return c.resources
+}
+
+// WriteText implements [resources.Collection]
+func (c *fakeCollection) WriteText(w io.Writer, verbose bool) error {
+	return nil
 }

@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"maps"
 	"net/http"
+	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -40,8 +41,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	listenerutils "github.com/gravitational/teleport/lib/utils/listener"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/mcptest"
 )
+
+func TestMain(m *testing.M) {
+	logtest.InitLogger(testing.Verbose)
+	os.Exit(m.Run())
+}
 
 func TestReplaceHTTPResponse(t *testing.T) {
 	t.Parallel()
@@ -203,6 +210,10 @@ func TestHTTPReaderWriter(t *testing.T) {
 		mcptest.MustCallServerTool(t, stdioClient)
 
 		// Test listening notifications from server.
+		// First do a synctest.Wait until the client establish the listening
+		// stream before sending the notification from the server. Then do
+		// another synctest.Wait for the client to receive the notification.
+		synctest.Wait()
 		mcpServer.SendNotificationToAllClients("notifications/test", nil)
 		synctest.Wait()
 		require.Len(t, receivedNotifications, 1)

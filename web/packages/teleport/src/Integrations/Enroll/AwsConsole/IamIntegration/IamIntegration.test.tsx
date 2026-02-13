@@ -82,9 +82,78 @@ test('flows through roles anywhere IAM setup', async () => {
     screen.getByRole('button', { name: 'Next: Configure Access' })
   ).toBeDisabled();
 
+  fireEvent.click(screen.getByRole('button', { name: 'Generate Command' }));
+  expect(screen.getByText('Integration name is required')).toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText('Integration Name'), {
+    target: { value: 'invalid(((***' },
+  });
+
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: 'Optionally edit resource names that will be created in AWS',
+    })
+  );
+  expect(
+    screen.getByText('Edit resource names that will be created in AWS')
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText('IAM Roles Anywhere Trust Anchor Name')
+  ).toBeInTheDocument();
+  fireEvent.change(
+    screen.getByLabelText('IAM Roles Anywhere Trust Anchor Name'),
+    {
+      target: { value: 'invalid(((***' },
+    }
+  );
+  fireEvent.change(
+    screen.getByLabelText('IAM Role Name (used for profile synchronization)'),
+    {
+      target: { value: 'invalid(((***' },
+    }
+  );
+  fireEvent.change(
+    screen.getByLabelText(
+      'IAM Roles Anywhere Profile Name (used for profile synchronization)'
+    ),
+    {
+      target: { value: 'invalid(((***' },
+    }
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Generate Command' }));
+  expect(
+    screen.getByText(
+      "Name must only contain lowercase alphanumeric characters or '-'"
+    )
+  ).toBeInTheDocument();
+
+  expect(
+    screen.getAllByText(/Name must only contain characters/i)
+  ).toHaveLength(3);
+
   fireEvent.change(screen.getByLabelText('Integration Name'), {
     target: { value: 'some-integration-name' },
   });
+  fireEvent.change(
+    screen.getByLabelText('IAM Roles Anywhere Trust Anchor Name'),
+    {
+      target: { value: 'teleport-aws-roles-anywhere-trust-anchor' },
+    }
+  );
+  fireEvent.change(
+    screen.getByLabelText('IAM Role Name (used for profile synchronization)'),
+    {
+      target: { value: 'teleport-aws-roles-anywhere-role' },
+    }
+  );
+  fireEvent.change(
+    screen.getByLabelText(
+      'IAM Roles Anywhere Profile Name (used for profile synchronization)'
+    ),
+    {
+      target: { value: 'teleport-aws-roles-anywhere-profile' },
+    }
+  );
   fireEvent.click(screen.getByRole('button', { name: 'Generate Command' }));
 
   await waitFor(() =>

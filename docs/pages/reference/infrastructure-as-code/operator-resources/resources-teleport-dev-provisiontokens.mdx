@@ -41,6 +41,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |gcp|[object](#specgcp)|GCP allows the configuration of options specific to the "gcp" join method.|
 |github|[object](#specgithub)|GitHub allows the configuration of options specific to the "github" join method.|
 |gitlab|[object](#specgitlab)|GitLab allows the configuration of options specific to the "gitlab" join method.|
+|integration|string|Integration name which provides credentials for validating join attempts. Currently only in use for validating the AWS Organization ID in the IAM Join method.|
 |join_method|string|JoinMethod is the joining method required in order to use this token. Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm|
 |kubernetes|[object](#speckubernetes)|Kubernetes allows the configuration of options specific to the "kubernetes" join method.|
 |oracle|[object](#specoracle)|Oracle allows the configuration of options specific to the "oracle" join method.|
@@ -57,6 +58,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |aws_account|string|AWSAccount is the AWS account ID.|
 |aws_arn|string|AWSARN is used for the IAM join method, the AWS identity of joining nodes must match this ARN. Supports wildcards "*" and "?".|
+|aws_organization_id|string|AWSOrganizationID is used for the IAM join method, the AWS identity of joining nodes must belong to this organization.|
 |aws_regions|[]string|AWSRegions is used for the EC2 join method and is a list of AWS regions a node is allowed to join from.|
 |aws_role|string|AWSRole is used for the EC2 join method and is the ARN of the AWS role that the Auth Service will assume in order to call the ec2 API.|
 
@@ -272,6 +274,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
+|instances|[]string||
 |parent_compartments|[]string||
 |regions|[]string||
 |tenancy|string||

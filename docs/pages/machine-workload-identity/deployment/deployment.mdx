@@ -1,0 +1,197 @@
+---
+title: Deploy tbot
+description: Explains how to deploy tbot on your platform and join it to your Teleport cluster.
+tags:
+ - conceptual
+ - mwi
+ - infrastructure-identity
+---
+
+The first step to set up Machine & Workload Identity is to deploy the `tbot`
+agent and join it as a Bot to your Teleport cluster. You can run the `tbot`
+binary on a number of platforms, from AWS and GitHub Actions to a generic Linux
+server or Kubernetes cluster.
+
+## Choosing a deployment method
+
+There are two considerations to make when determining how to deploy the `tbot`
+agent on your infrastructure.
+
+### Your infrastructure
+
+The `tbot` agent runs as a container or on a Linux virtual machine. If you run
+`tbot` on GitHub Actions, you can use one of the ready-made [Teleport GitHub
+Actions workflows](https://github.com/teleport-actions).
+
+### Join method
+
+The `tbot` agent joins your Teleport cluster by using one of the following
+authentication methods:
+
+- **Platform-signed document:** The platform that hosts `tbot`, such as a
+  Kubernetes cluster or Amazon EC2 instance, provides a signed identity document
+  that Teleport can verify using the platform's certificate authority. This is
+  the recommended approach because it avoids the use of shared secrets.
+
+- **Bound keypair token:** Your `tbot` agent generates a public/private keypair
+  and the Teleport Auth Service is configured to trust the public key. This
+  trust can either be established manually - by an administrator copying the key
+  to Teleport - or automatically if a single-use joining secret is provided to
+  the `tbot` client.
+
+  Once trusted, the `tbot` agent can use its keypair to prove its long-term
+  identity to Teleport and receive a renewable certificate. It authenticates to
+  Teleport for as long as the renewable credential remains valid, but can use
+  the bound keypair to automatically recover if it ever expires - if allowed to
+  do so by your own policy. [Read more about Bound Keypair
+  Joining](../../reference/machine-workload-identity/bound-keypair/bound-keypair.mdx).
+
+- **Static join token:** Your Teleport client tool generates a string and stores
+  it on the Teleport Auth Service. `tbot` provides this string when it first
+  connects to your Teleport cluster, demonstrating to the Auth Service that it
+  belongs in the cluster. From then on, `tbot` authenticates to your Teleport
+  cluster with a renewable certificate.
+
+## Deployment guides
+
+The guides in this section show you how to deploy the Machine & Workload
+Identity agent, `tbot`, and join it to your cluster.
+
+If a specific guide does not exist for your platform, the [Linux
+guide](linux.mdx) is compatible with most platforms. For
+custom approaches, you can also read the [Machine & Workload Identity Reference](../../reference/machine-workload-identity/machine-workload-identity.mdx)
+and [Architecture](../../reference/architecture/machine-id-architecture.mdx) to plan your deployment.
+
+<TileGrid
+  tiles={[
+    {
+      icon: <Icon name="aws" size="xl" />,
+      to: "./aws",
+      name: "AWS",
+    },
+    {
+      icon: <Icon name="azure" size="xl" />,
+      to: "./azure",
+      name: "Azure",
+    },
+    {
+      icon: <Icon name="azureDevops" size="xl" />,
+      to: "./azure-devops",
+      name: "Azure DevOps",
+    },
+    {
+      icon: <Icon name="bitbucket" size="xl" />,
+      to: "./bitbucket",
+      name: "BitBucket Pipelines",
+    },
+    {
+      icon: <Icon name="circleci" size="xl" />,
+      to: "./circleci",
+      name: "CircleCI",
+    },
+    {
+      icon: <Icon name="github" size="xl" />,
+      to: "./github-actions",
+      name: "GitHub Actions",
+    },
+    {
+      icon: <Icon name="gitlab" size="xl" />,
+      to: "./gitlab",
+      name: "GitLab CI",
+    },
+    {
+      icon: <Icon name="googleCloud" size="xl" />,
+      to: "./gcp",
+      name: "Google Cloud",
+    },
+    {
+      icon: <Icon name="kubernetes2" size="xl" />,
+      to: "./kubernetes",
+      name: "Kubernetes",
+    },
+    {
+      icon: <Icon name="kubernetes" size="xl" />,
+      to: "./kubernetes-oidc",
+      name: "Kubernetes OIDC",
+    },
+    {
+      icon: <Icon name="linux" size="xl" />,
+      to: "./linux",
+      name: "Linux",
+    },
+    {
+      icon: <Icon name="linux" size="xl" />,
+      to: "./linux-tpm",
+      name: "Linux TPM",
+    },
+    {
+      icon: <Icon name="lock" size="xl" />,
+      to: "../../reference/machine-workload-identity/bound-keypair/getting-started",
+      name: "Bound Keypair Joining",
+    }
+  ]}
+/>
+
+### CI/CD
+
+Read the following guides for how to deploy `tbot` on a continuous integration
+and continuous deployment platform.
+
+<TileGrid
+  tiles={[
+    {
+      icon: <Icon name="azureDevops" size="xl" />,
+      to: "./azure-devops",
+      name: "Azure DevOps",
+    },
+    {
+      icon: <Icon name="bitbucket" size="xl" />,
+      to: "./bitbucket",
+      name: "BitBucket Pipelines",
+    },
+    {
+      icon: <Icon name="circleci" size="xl" />,
+      to: "./circleci",
+      name: "CircleCI",
+    },
+    {
+      icon: <Icon name="gitlab" size="xl" />,
+      to: "./gitlab",
+      name: "GitLab CI",
+    },
+    {
+      icon: <Icon name="github" size="xl" />,
+      to: "./github-actions",
+      name: "GitHub Actions",
+    },
+    {
+      icon: <Icon name="jenkins" size="xl" />,
+      to: "./jenkins",
+      name: "Jenkins",
+    },
+    {
+      icon: <Icon name="spacelift" size="xl" />,
+      to: "../../zero-trust-access/infrastructure-as-code/terraform-provider/spacelift",
+      name: "Spacelift",
+    },
+    {
+      icon: <Icon name="terraform" size="xl" />,
+      to: "../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-cloud",
+      name: "Terraform Cloud",
+    },
+    {
+      icon: <Icon name="lock" size="xl" />,
+      to: "../../reference/machine-workload-identity/bound-keypair/static-keys",
+      name: "Bound Keypair static keys (Generic)",
+    }
+  ]}
+/>
+
+<br />
+
+<Admonition type="tip" title="Unsupported Provider?">
+If your CI/CD provider does not have a dedicated join method listed above,
+consider using [Bound Keypair static keys][bound-keypair-static] as a fallback.
+</Admonition>
+
+[bound-keypair-static]: ../../reference/machine-workload-identity/bound-keypair/static-keys.mdx

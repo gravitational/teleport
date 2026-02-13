@@ -167,6 +167,10 @@ func MakeEKSFetchersFromAWSMatchers(logger *slog.Logger, clients AWSClientGetter
 			for _, region := range matcher.Regions {
 				switch t {
 				case types.AWSMatcherEKS:
+					if region == types.Wildcard {
+						logger.WarnContext(context.Background(), "EKS discovery does not support region discovery, remove the '*' from the regions field", "discovery_config", discoveryConfigName)
+						continue
+					}
 					fetcher, err := NewEKSFetcher(
 						EKSFetcherConfig{
 							ClientGetter:        clients,
@@ -217,7 +221,6 @@ func NewEKSFetcher(cfg EKSFetcherConfig) (common.Fetcher, error) {
 	if fetcher.SetupAccessForARN == "" {
 		fetcher.SetupAccessForARN = fetcher.callerIdentity
 	}
-
 	return fetcher, nil
 }
 
@@ -229,7 +232,7 @@ func (a *eksFetcher) getClient(ctx context.Context) (EKSClient, error) {
 		return a.client, nil
 	}
 
-	cfg, err := a.ClientGetter.GetConfig(ctx, a.Region, a.getAWSOpts()...)
+	cfg, err := a.ClientGetter.GetConfig(ctx, a.Region, getAWSOpts(a.AssumeRole, a.Integration)...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -403,6 +406,27 @@ func (a *eksFetcher) getMatchingKubeCluster(ctx context.Context, clusterName str
 	if a.SetupAccessForARN == "" || rsp.Cluster.AccessConfig == nil || a.Integration != "" {
 		return cluster, nil
 	}
+
+	var assumedRole *types.AssumeRole
+	if a.AssumeRole.RoleARN != "" {
+		assumedRole = &a.AssumeRole
+	}
+
+	// Set the AWS status for the cluster. This holds information about the
+	// access setup that was performed for discovering this cluster.
+	// This information is later used during deletion when the cluster no longer
+	// matches the filtering criteria in order to clean up any access that was set up.
+	cluster.SetStatus(
+		&types.KubernetesClusterStatus{
+			Discovery: &types.KubernetesClusterDiscoveryStatus{
+				Aws: &types.KubernetesClusterAWSStatus{
+					SetupAccessForArn:    a.SetupAccessForARN,
+					Integration:          a.Integration,
+					DiscoveryAssumedRole: assumedRole,
+				},
+			},
+		},
+	)
 
 	// If the fetcher should setup access for the specified ARN, first check if the cluster authentication mode
 	// is set to either [eks.AuthenticationModeApi] or [eks.AuthenticationModeApiAndConfigMap].
@@ -712,7 +736,7 @@ func (a *eksFetcher) upsertAccessEntry(ctx context.Context, client EKSClient, cl
 func (a *eksFetcher) setCallerIdentity(ctx context.Context) error {
 	cfg, err := a.ClientGetter.GetConfig(ctx,
 		a.Region,
-		a.getAWSOpts()...,
+		getAWSOpts(a.AssumeRole, a.Integration)...,
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -732,13 +756,13 @@ func (a *eksFetcher) setCallerIdentity(ctx context.Context) error {
 	return nil
 }
 
-func (a *eksFetcher) getAWSOpts() []awsconfig.OptionsFn {
+func getAWSOpts(assumeRole types.AssumeRole, integration string) []awsconfig.OptionsFn {
 	return []awsconfig.OptionsFn{
 		awsconfig.WithAssumeRole(
-			a.AssumeRole.RoleARN,
-			a.AssumeRole.ExternalID,
+			assumeRole.RoleARN,
+			assumeRole.ExternalID,
 		),
-		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: a.Integration}),
+		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: integration}),
 	}
 }
 
@@ -770,4 +794,125 @@ func convertAssumedRoleToIAMRole(callerIdentity string) string {
 	}
 	a.Resource = path.Join(roleResource, split[1])
 	return a.String()
+}
+
+// DeleteKubernetesDanglingResourcesConfig configures the deletion of dangling Kubernetes resources
+// created during EKS cluster discovery. This configuration is used to clean up AWS resources that
+// were automatically provisioned when a cluster was discovered but are no longer needed (e.g., when
+// the cluster is deleted or no longer matches discovery filters).
+//
+// Dangling resources include:
+//   - EKS Access Entries: IAM principal-to-Kubernetes group mappings created for Teleport access
+//
+// The cleanup process is idempotent and safe to run multiple times. It will skip non-EKS clusters
+// and clusters without AWS discovery status.
+type DeleteKubernetesDanglingResourcesConfig struct {
+	// ClientGetter retrieves an EKS client and an STS client for making AWS API calls.
+	// This must be configured with appropriate credentials to delete access entries.
+	ClientGetter AWSClientGetter
+
+	// Cluster is the Kubernetes cluster resource to clean up dangling AWS resources for.
+	// The cluster's status must contain AWS discovery metadata (SetupAccessForARN, Integration, AssumedRole)
+	// for cleanup to proceed. If the cluster is not an EKS cluster or lacks AWS status, cleanup is skipped.
+	Cluster types.KubeCluster
+
+	// Logger is used for logging cleanup operations and errors.
+	// If not provided, a default logger with component "fetcher:eks" will be used.
+	Logger *slog.Logger
+}
+
+// CheckAndSetDefaults validates the configuration and sets default values for optional fields.
+// It ensures that required fields (ClientGetter, Cluster) are provided and initializes the
+// Logger with a default component key if not already set.
+//
+// Returns:
+//   - trace.BadParameter if required fields are missing
+//   - nil if validation succeeds
+func (c *DeleteKubernetesDanglingResourcesConfig) CheckAndSetDefaults() error {
+	if c.ClientGetter == nil {
+		return trace.BadParameter("missing ClientGetter field")
+	}
+	if c.Cluster == nil {
+		return trace.BadParameter("missing Cluster field")
+	}
+
+	if c.Logger == nil {
+		return trace.BadParameter("missing Logger field")
+	}
+
+	return nil
+}
+
+// DeleteKubernetesDanglingResources deletes dangling AWS resources that were automatically created
+// during EKS cluster discovery. This function should be called when a cluster is being removed or
+// no longer matches discovery criteria to ensure proper cleanup of AWS access configurations.
+//
+// Cleanup Process:
+//  1. Retrieves AWS credentials using the same role/integration used during cluster discovery
+//  2. Checks if the access entry exists for the principal ARN specified in cluster status
+//  3. Deletes the access entry if it exists
+func DeleteKubernetesDanglingResources(ctx context.Context, cfg DeleteKubernetesDanglingResourcesConfig) error {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	cluster := cfg.Cluster
+
+	// Early return: Skip cleanup if the cluster is not an EKS cluster or lacks AWS discovery status.
+	// This is expected for non-AWS clusters or clusters discovered without AWS integration.
+	if !cluster.IsAWS() || cluster.GetStatus() == nil || cluster.GetStatus().Discovery == nil || cluster.GetStatus().Discovery.Aws == nil {
+		return nil
+	}
+
+	// Extract cluster configuration and AWS status information.
+	// This metadata was populated during cluster discovery and tells us:
+	// - Which AWS region and account the cluster is in
+	// - Which IAM role was assumed during discovery (if any)
+	// - Which integration was used for authentication
+	// - Which principal ARN had access configured
+	region := cluster.GetAWSConfig().Region
+	clusterName := cluster.GetAWSConfig().Name
+	awsStatus := cluster.GetStatus().Discovery.Aws
+
+	// Reconstruct the AWS configuration used during cluster discovery.
+	// This ensures we use the same credentials/role/integration for cleanup.
+	assumeRole := types.AssumeRole{}
+	if awsStatus.DiscoveryAssumedRole != nil {
+		assumeRole = *awsStatus.DiscoveryAssumedRole
+	}
+
+	awsConfig, err := cfg.ClientGetter.GetConfig(ctx, region, getAWSOpts(assumeRole, awsStatus.Integration)...)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	client := cfg.ClientGetter.GetAWSEKSClient(awsConfig)
+
+	// Access entry exists and needs to be deleted.
+	cfg.Logger.InfoContext(ctx, "Deleting dangling access entry for EKS cluster",
+		"cluster_name", clusterName,
+		"region", region,
+		"aws_account_id", cluster.GetAWSConfig().AccountID,
+		"principal_arn", awsStatus.SetupAccessForArn,
+	)
+
+	_, err = convertAWSError(
+		client.DeleteAccessEntry(ctx, &eks.DeleteAccessEntryInput{
+			ClusterName:  aws.String(clusterName),
+			PrincipalArn: aws.String(awsStatus.SetupAccessForArn),
+		}),
+	)
+
+	switch {
+	case trace.IsNotFound(err):
+		// Access entry doesn't exist - already cleaned up or never created.
+		// This is a successful outcome; nothing more to do.
+		return nil
+	case trace.IsAccessDenied(err):
+		// Access denied means that the principal does not have access to delete access entries for the cluster.
+		return trace.Wrap(err, "access denied when attempting to delete access entry for cluster %q. Ensure the required permissions are set", clusterName)
+	default:
+		return trace.Wrap(err, "failed to delete access entry for cluster %q", clusterName)
+	}
+
 }

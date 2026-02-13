@@ -211,7 +211,7 @@ func TestWorkloadIdentityRevocation(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
-		require.Equal(t, "[]", buf.String())
+		require.Equal(t, "[]\n", buf.String())
 	})
 
 	t.Run("workload-identity revocations add", func(t *testing.T) {
@@ -307,6 +307,6 @@ func TestWorkloadIdentityRevocation(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
-		require.Equal(t, "[]", buf.String())
+		require.Equal(t, "[]\n", buf.String())
 	})
 }

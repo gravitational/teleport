@@ -20,6 +20,8 @@ package common
 
 import (
 	"bufio"
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -34,6 +36,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/spf13/cobra"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -45,6 +48,7 @@ import (
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
@@ -97,20 +101,28 @@ const (
 	// tshKubectlReexecEnvVar is the name of the environment variable used to control if
 	// tsh should re-exec or execute a kubectl command.
 	tshKubectlReexecEnvVar = "TSH_KUBE_REEXEC"
+	tshTraceContextEnvVar  = "TSH_TRACE_CONTEXT"
 )
 
 // runKubectlReexec reexecs itself and copies the `stderr` output into
 // the provided collector.
 // It also sets tshKubectlReexec for the command to prevent
 // an exec loop
-func runKubectlReexec(cf *CLIConf, fullArgs, args []string, collector io.Writer) error {
+func runKubectlReexec(ctx context.Context, cf *CLIConf, fullArgs, args []string, collector io.Writer) error {
 	closeFn, newKubeConfigLocation, err := maybeStartKubeLocalProxy(cf, withKubectlArgs(args))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer closeFn()
 
-	cmdEnv := append(os.Environ(), fmt.Sprintf("%s=yes", tshKubectlReexecEnvVar))
+	cmdEnv := append(os.Environ(), tshKubectlReexecEnvVar+"=yes")
+	if span := oteltrace.SpanFromContext(ctx); span.IsRecording() {
+		if traceCtx := tracing.PropagationContextFromContext(ctx); len(traceCtx) > 0 {
+			if out, err := json.Marshal(traceCtx); err == nil {
+				cmdEnv = append(cmdEnv, tshTraceContextEnvVar+"="+string(out))
+			}
+		}
+	}
 
 	// Update kubeconfig location.
 	if newKubeConfigLocation != "" {
@@ -119,7 +131,7 @@ func runKubectlReexec(cf *CLIConf, fullArgs, args []string, collector io.Writer)
 	}
 
 	// Execute.
-	cmd := exec.Command(cf.executablePath, fullArgs...)
+	cmd := exec.CommandContext(ctx, cf.executablePath, fullArgs...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = io.MultiWriter(os.Stderr, collector)
@@ -129,19 +141,43 @@ func runKubectlReexec(cf *CLIConf, fullArgs, args []string, collector io.Writer)
 
 // wrapConfigFn wraps the rest.Config with a custom RoundTripper if the user
 // wants to sample traces.
-func wrapConfigFn(cf *CLIConf) func(c *rest.Config) *rest.Config {
+func wrapConfigFn(span oteltrace.Span) func(c *rest.Config) *rest.Config {
 	return func(c *rest.Config) *rest.Config {
-		c.Wrap(
-			func(rt http.RoundTripper) http.RoundTripper {
-				if cf.SampleTraces {
-					// If the user wants to sample traces, wrap the transport with a trace
-					// transport.
-					return tracehttp.NewTransport(rt)
-				}
+		c.Wrap(func(rt http.RoundTripper) http.RoundTripper {
+			if !span.IsRecording() {
 				return rt
-			},
+			}
+
+			// Wrap the transport with a transport that injects span context
+			// since kubectl uses context.TODO() for all requests.
+			return &spanContextTripper{span: span, RoundTripper: tracehttp.NewTransport(rt)}
+		},
 		)
 		return c
+	}
+}
+
+// spanContextTripper wraps an [http.RoundTrip] so that tracing context
+// can be injected into any requests made.
+//
+// This is a workaround for kubectl which hardcodes [context.TODO()] instead of
+// using the passed in context. Without this tracing information does not
+// get forwarded in HTTP requests issued to other Teleport components.
+type spanContextTripper struct {
+	span oteltrace.Span
+	http.RoundTripper
+}
+
+func (t *spanContextTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+	return t.RoundTripper.RoundTrip(r.WithContext(oteltrace.ContextWithSpan(r.Context(), t.span)))
+}
+
+func (t *spanContextTripper) CloseIdleConnections() {
+	type closeIdler interface {
+		CloseIdleConnections()
+	}
+	if c, ok := t.RoundTripper.(closeIdler); ok {
+		c.CloseIdleConnections()
 	}
 }
 
@@ -150,21 +186,16 @@ func wrapConfigFn(cf *CLIConf) func(c *rest.Config) *rest.Config {
 // because we need to retry kubectl calls and `kubectl` calls os.Exit in multiple
 // paths.
 func runKubectlCode(cf *CLIConf, args []string) {
-	closeTracer := initializeTracing(cf)
-	// If the user opted to not sample traces, cf.TracingProvider is pre-initialized
-	// with a noop provider.
 	ctx, span := cf.TracingProvider.Tracer("kubectl").Start(cf.Context, "kubectl")
-	closeSpanAndTracer := func() {
-		span.End()
-		closeTracer()
-	}
+	defer span.End()
+
 	// These values are the defaults used by kubectl and can be found here:
 	// https://github.com/kubernetes/kubectl/blob/3612c18ed86fc0a2f4467ca355b3e21569fabe0a/pkg/cmd/cmd.go#L94
 	defaultConfigFlags := genericclioptions.NewConfigFlags(true).
 		WithDeprecatedPasswordFlag().
 		WithDiscoveryBurst(300).
 		WithDiscoveryQPS(50.0).
-		WithWrapConfigFn(wrapConfigFn(cf))
+		WithWrapConfigFn(wrapConfigFn(span))
 
 	command := cmd.NewDefaultKubectlCommandWithArgs(
 		cmd.KubectlOptions{
@@ -182,16 +213,16 @@ func runKubectlCode(cf *CLIConf, args []string) {
 
 	// run command until it finishes.
 	if err := cli.RunNoErrOutput(command); err != nil {
-		closeSpanAndTracer()
 		// Pretty-print the error and exit with an error.
+		tracing.EndSpan(span, err)
 		cmdutil.CheckErr(err)
 	}
-
-	closeSpanAndTracer()
-	os.Exit(0)
 }
 
 func runKubectlAndCollectRun(cf *CLIConf, fullArgs, args []string) error {
+	ctx, span := cf.tracer.Start(cf.Context, "kubectl/reexec")
+	defer span.End()
+
 	var (
 		alreadyRequestedAccess bool
 		err                    error
@@ -202,7 +233,7 @@ func runKubectlAndCollectRun(cf *CLIConf, fullArgs, args []string) error {
 		// was rejected in this kubectl call.
 		missingKubeResources := make([]resourceKind, 0, 50)
 		reader, writer := io.Pipe()
-		group, _ := errgroup.WithContext(cf.Context)
+		group, _ := errgroup.WithContext(ctx)
 		group.Go(
 			func() error {
 				// This goroutine scans each line of output emitted to stderr by kubectl
@@ -236,11 +267,11 @@ func runKubectlAndCollectRun(cf *CLIConf, fullArgs, args []string) error {
 			},
 		)
 
-		err := runKubectlReexec(cf, fullArgs, args, writer)
+		err := runKubectlReexec(ctx, cf, fullArgs, args, writer)
 		writer.CloseWithError(io.EOF)
 
 		if scanErr := group.Wait(); scanErr != nil {
-			logger.WarnContext(cf.Context, "unable to scan stderr payload", "error", scanErr)
+			logger.WarnContext(ctx, "unable to scan stderr payload", "error", scanErr)
 		}
 
 		if err == nil {
@@ -265,6 +296,7 @@ func runKubectlAndCollectRun(cf *CLIConf, fullArgs, args []string) error {
 	}
 	// exit with the kubectl exit code to keep compatibility.
 	if errors.As(err, &exitErr) {
+		tracing.EndSpan(span, exitErr)
 		os.Exit(exitErr.ExitCode())
 	}
 	return nil
@@ -458,6 +490,12 @@ func shouldUseKubeLocalProxy(cf *CLIConf, kubectlArgs []string) (*clientcmdapi.C
 		return nil, nil, false
 	}
 
+	// TODO(espadolini): we could skip the local proxy when using a relay, but
+	// we can only know if we are using a relay once we have a TeleportClient
+	// and we load the profile, which will only happen later; seeing as it's
+	// only a little wasteful to spin up a local proxy it's fine for now, but if
+	// we rework the flow we should add a way to skip the local proxy when using
+	// a relay even if a connection through the control plane would require it
 	if !profile.RequireKubeLocalProxy() {
 		return nil, nil, false
 	}
@@ -480,7 +518,7 @@ func shouldUseKubeLocalProxy(cf *CLIConf, kubectlArgs []string) (*clientcmdapi.C
 	}
 
 	// Prepare Teleport kube cluster based on selected context.
-	kubeCluster, found := kubeconfig.FindTeleportClusterForLocalProxy(defaultConfig, kubeClusterAddrFromProfile(profile), selectedContext)
+	kubeCluster, found := kubeconfig.FindTeleportClusterForLocalProxy(defaultConfig, selectedContext, profile.Name(), kubeClusterAddrFromProfile(profile))
 	if !found {
 		return nil, nil, false
 	}
@@ -534,4 +572,33 @@ func overwriteKubeconfigInEnv(env []string, newPath string) (output []string) {
 	}
 	output = append(output, kubeConfigEnvPrefix+newPath)
 	return
+}
+
+// insertDoubleDashAfterKubectl returns a copy of args with "--" inserted immediately after "kubectl"
+// when kubectl flags would otherwise be misinterpreted as tsh flags by kingpin.
+// The "--" is only inserted when "kubectl" is the tsh subcommand (first non-flag argument)
+// and the argument immediately following it starts with "-".
+// See https://github.com/gravitational/teleport/issues/63621 for more details.
+func insertDoubleDashAfterKubectl(args []string) []string {
+	for i, arg := range args {
+		// Skip flags to find the subcommand position.
+		if strings.HasPrefix(arg, "-") {
+			continue
+		}
+		// First non-flag argument is the subcommand.
+		// If it's not "kubectl", then "kubectl" is not the subcommand (e.g. "ssh jake@foo kubectl").
+		if arg != "kubectl" {
+			return args
+		}
+		// Only insert "--" when the next arg starts with "-" to prevent kingpin from parsing it as a tsh flag.
+		if i+1 >= len(args) || !strings.HasPrefix(args[i+1], "-") || args[i+1] == "--" {
+			return args
+		}
+		result := make([]string, 0, len(args)+1)
+		result = append(result, args[:i+1]...)
+		result = append(result, "--")
+		result = append(result, args[i+1:]...)
+		return result
+	}
+	return args
 }

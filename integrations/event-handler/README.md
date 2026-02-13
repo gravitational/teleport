@@ -21,25 +21,33 @@ You may specify configuration options via command line arguments, environment va
 |---------------------------|-------------------------------------------------------------------------------------------------------|---------------------------------|
 | teleport-addr             | Teleport host and port                                                                                | FDFWD_TELEPORT_ADDR             |
 | teleport-ca               | Teleport TLS CA file                                                                                  | FDFWD_TELEPORT_CA               |
-| teleport-cert             | Teleport TLS certificate file                                                                         | FDWRD_TELEPORT_CERT             |
+| teleport-cert             | Teleport TLS certificate file                                                                         | FDFWD_TELEPORT_CERT             |
 | teleport-key              | Teleport TLS key file                                                                                 | FDFWD_TELEPORT_KEY              |
 | teleport-identity         | Teleport identity file                                                                                | FDFWD_TELEPORT_IDENTITY         |
 | teleport-refresh-enabled  | Controls if the identity file should be reloaded from disk after the initial start on interval.       | FDFWD_TELEPORT_REFRESH_ENABLED  |
 | teleport-refresh-interval | How often to load the identity file from disk when teleport-refresh-enabled is specified. Default: 1m | FDFWD_TELEPORT_REFRESH_INTERVAL |
 | fluentd-url               | Fluentd URL                                                                                           | FDFWD_FLUENTD_URL               |
 | fluentd-session-url       | Fluentd session URL                                                                                   | FDFWD_FLUENTD_SESSION_URL       |
-| fluentd-ca                | fluentd TLS CA file                                                                                   | FDFWD_FLUENTD_CA                |
+| fluentd-ca                | Fluentd TLS CA file                                                                                   | FDFWD_FLUENTD_CA                |
 | fluentd-cert              | Fluentd TLS certificate file                                                                          | FDFWD_FLUENTD_CERT              |
 | fluentd-key               | Fluentd TLS key file                                                                                  | FDFWD_FLUENTD_KEY               |
+| fluentd-max-connections   | Maximum number of connections to Fluentd                                                              | FDFWD_MAX_CONNECTIONS           |
 | storage                   | Storage directory                                                                                     | FDFWD_STORAGE                   |
 | batch                     | Fetch batch size                                                                                      | FDFWD_BATCH                     |
 | types                     | Comma-separated list of event types to forward                                                        | FDFWD_TYPES                     |
-| skip-event-types              | Comma-separated list of event types to skip                                                           | FDFWD_SKIP_EVENT_TYPES              |
+| skip-event-types          | Comma-separated list of event types to skip                                                           | FDFWD_SKIP_EVENT_TYPES          |
 | skip-session-types        | Comma-separated list of session event types to skip                                                   | FDFWD_SKIP_SESSION_TYPES        |
 | start-time                | Minimum event time (RFC3339 format)                                                                   | FDFWD_START_TIME                |
 | timeout                   | Polling timeout                                                                                       | FDFWD_TIMEOUT                   |
-| cursor                    | Start cursor value                                                                                    | FDFWD_CURSOR                    |
 | debug                     | Debug logging                                                                                         | FDFWD_DEBUG                     |
+| dry-run                   | Simulates execution without sending events to Fluentd                                                 | FDFWD_DRY_RUN                   |
+| exit-on-last-event        | Exit when last event is processed                                                                     | FDFWD_EXIT_ON_LAST_EVENT        |
+| concurrency               | Number of concurrent sessions                                                                         | FDFWD_CONCURRENCY               |
+| window-size               | Window size to process events                                                                         | FDFWD_WINDOW_SIZE               |
+| lock-enabled              | Enable user auto-locking                                                                              | FDFWD_LOCKING_ENABLED           |
+| lock-failed-attempts-count| Number of failed attempts in lock-period which triggers locking                                       | FDFWD_LOCKING_FAILED_ATTEMPTS   |
+| lock-period               | Time period where lock-failed-attempts-count failed attempts will trigger locking                     | FDFWD_LOCKING_PERIOD            |
+| lock-for                  | Time period for which user gets lock                                                                  | FDFWD_LOCKING_FOR               |
 
 TOML configuration keys are the same as CLI args. Teleport and Fluentd variables can be grouped into sections. See [example TOML](example/config.toml). You can specify TOML file location using `--config` CLI flag.
 

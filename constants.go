@@ -132,6 +132,10 @@ const (
 	// ComponentDatabase is the database proxy service.
 	ComponentDatabase = "db:service"
 
+	// ComponentDatabaseHealth is the endpoint health checking component of the
+	// database proxy service.
+	ComponentDatabaseHealth = "db:health"
+
 	// ComponentDiscovery is the Discovery service.
 	ComponentDiscovery = "discovery:service"
 
@@ -517,6 +521,9 @@ const (
 	// CertExtensionAllowedResources lists the resources which this certificate
 	// should be allowed to access
 	CertExtensionAllowedResources = "teleport-allowed-resources"
+	// CertExtensionAllowedResourceAccessIDs lists the resources which this
+	// certificate should be allowed to access, paired with additional access information.
+	CertExtensionAllowedResourceAccessIDs = "teleport-allowed-resource-access-ids"
 	// CertExtensionConnectionDiagnosticID contains the ID of the ConnectionDiagnostic.
 	// The Node/Agent will append connection traces to this diagnostic instance.
 	CertExtensionConnectionDiagnosticID = "teleport-connection-diagnostic-id"
@@ -551,6 +558,9 @@ const (
 	// CertExtensionGitHubUsername indicates the GitHub username identified by
 	// the GitHub connector.
 	CertExtensionGitHubUsername = "github-login@goteleport.com"
+	// CertExtensionImmutableLabelHash is the hash used to verify immutable
+	// labels against a certificate.
+	CertExtensionImmutableLabelHash = "immutable-label-hash@goteleport.com"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
@@ -831,8 +841,21 @@ const (
 	CurrentSessionIDRequest = "current-session-id@goteleport.com"
 
 	// SessionIDQueryRequest is sent by clients to ask servers if they
-	// will generate their own session ID when a new session is created.
+	// will generate and share their own session ID when a new session
+	// is started (session and exec/shell channels accepted).
+	//
+	// TODO(Joerger): DELETE IN v20.0.0
+	// All v17+ servers set the session ID. v19+ clients stop checking.
 	SessionIDQueryRequest = "session-id-query@goteleport.com"
+
+	// SessionIDQueryRequestV2 is sent by clients to ask servers if they
+	// will generate and share their own session ID when a new session
+	// channel is accepted, rather than when the shell/exec channel is.
+	//
+	// TODO(Joerger): DELETE IN v21.0.0
+	// all v19+ servers set the session ID directly after accepting the session channel.
+	// clients should stop checking in v21, and servers should stop responding to the query in v22.
+	SessionIDQueryRequestV2 = "session-id-query-v2@goteleport.com"
 
 	// ForceTerminateRequest is an SSH request to forcefully terminate a session.
 	ForceTerminateRequest = "x-teleport-force-terminate"

@@ -197,6 +197,10 @@ var regions = sync.OnceValue(func() map[string]Region {
 			Name:        "us-isob-east-1",
 			Description: "US ISOB East (Ohio)",
 		},
+		"us-isob-west-1": {
+			Name:        "us-isob-west-1",
+			Description: "US ISOB West",
+		},
 		"us-isof-east-1": {
 			Name:        "us-isof-east-1",
 			Description: "US ISOF EAST",

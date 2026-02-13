@@ -16,18 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { ComponentProps } from 'react';
 
 import { Icon } from 'design/Icon';
+import { LabelKind } from 'design/Label';
+import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
 import { ResourceIconName } from 'design/ResourceIcon';
 import { TargetHealth } from 'gen-proto-ts/teleport/lib/teleterm/v1/target_health_pb';
 import { AppSubKind, NodeSubKind } from 'shared/services';
 import { DbProtocol } from 'shared/services/databases';
+import type { ComponentFeatureID } from 'shared/utils/componentFeatures';
 
 // eslint-disable-next-line no-restricted-imports -- FIXME
 import { ResourceLabel } from 'teleport/services/agents';
 // eslint-disable-next-line no-restricted-imports -- FIXME
 import { AppMCP, PermissionSet } from 'teleport/services/apps';
+
+import { SortOrder } from '../Controls/SortMenu';
 
 // "mixed" indicates the resource has a mix of health
 // statuses. This can happen when multiple agents proxy the same resource.
@@ -85,6 +90,7 @@ export type UnifiedResourceApp = {
   subKind?: AppSubKind;
   permissionSets?: PermissionSet[];
   mcp?: AppMCP;
+  supportedFeatureIds?: ComponentFeatureID[];
 };
 
 export interface UnifiedResourceDatabase {
@@ -173,7 +179,7 @@ export type UnifiedResourcesQueryParams = {
   search?: string;
   sort?: {
     fieldName: string;
-    dir: 'ASC' | 'DESC';
+    dir: SortOrder;
   };
   pinnedOnly?: boolean;
   statuses?: ResourceHealthStatus[];
@@ -181,12 +187,10 @@ export type UnifiedResourcesQueryParams = {
   kinds?: string[];
   includedResourceMode?: IncludedResourceMode;
 };
+
 export interface UnifiedResourceViewItem {
   name: string;
-  labels: {
-    name: string;
-    value: string;
-  }[];
+  labels: ResourceLabel[];
   primaryIconName: ResourceIconName;
   SecondaryIcon: typeof Icon;
   ActionButton: React.ReactElement;
@@ -195,6 +199,25 @@ export interface UnifiedResourceViewItem {
   requiresRequest?: boolean;
   status?: ResourceHealthStatus;
 }
+
+export type VisibleFilterPanelFields = {
+  checkbox: boolean;
+  clusterOpts: boolean;
+  healthStatusOpts: boolean;
+  resourceTypeOpts: boolean;
+  resourceAvailabilityOpts: boolean;
+  collapseLabelBtn: boolean;
+};
+
+export type VisibleResourceItemFields = {
+  checkbox: boolean;
+  pin: boolean;
+  copy: boolean;
+  /**
+   * If false, removes any hover state.
+   */
+  hoverState: boolean;
+};
 
 export enum PinningSupport {
   Supported = 'Supported',
@@ -215,6 +238,33 @@ export type IncludedResourceMode =
   | 'requestable'
   | 'accessible';
 
+/**
+ * The return value after processing a label.
+ */
+export type ProcessedLabel = {
+  kind: LabelKind;
+};
+
+/**
+ * If this field is not provided, the default config will be:
+ * - No icon, just text label
+ * - Label kind is "secondary"
+ * - No hover states
+ */
+export type ResourceLabelConfig = Omit<
+  ComponentProps<typeof LabelButtonWithIcon>,
+  'children'
+> & {
+  /**
+   * Provide an optional callback against a label
+   * to change appearance of the label e.g:
+   * if the label is determined to be selected by
+   * the caller, then provide a LabelKind that
+   * makes it apparent it's been "selected".
+   */
+  processLabel?(label: ResourceLabel): ProcessedLabel;
+};
+
 export type ResourceItemProps = {
   onLabelClick?: (label: ResourceLabel) => void;
   pinResource: () => void;
@@ -230,6 +280,23 @@ export type ResourceItemProps = {
    * Used as a flag to render different styling.
    */
   showingStatusInfo: boolean;
+  /**
+   * Defaults to showing all fields.
+   * When specified, only fields with `true` value are shown.
+   */
+  visibleInputFields?: VisibleResourceItemFields;
+  /**
+   * resourceLabelConfig provides a way to custom handle resource labels.
+   *
+   * Look up the type to see the default behaviors if fields are not
+   * provided.
+   */
+  resourceLabelConfig?: ResourceLabelConfig;
+  /**
+   * If true, render a check icon at the top right corner of cards
+   * and right next to resource name for list view rows.
+   */
+  showResourceSelectedIcon?: boolean;
 };
 
 // Props that are needed for the Card view.
@@ -273,6 +340,23 @@ export type ResourceViewProps = {
     showingStatusInfo: boolean;
   }[];
   expandAllLabels: boolean;
+  /**
+   * Defaults to showing all fields.
+   * When specified, only fields with `true` value are shown.
+   */
+  visibleInputFields?: VisibleResourceItemFields;
+  /**
+   * resourceLabelConfig provides a way to custom handle resource labels.
+   *
+   * Look up the type to see the default behaviors if fields are not
+   * provided.
+   */
+  resourceLabelConfig?: ResourceLabelConfig;
+  /**
+   * If true, renders a check icon at the top right corner of cards
+   * and right next to resource name for list view rows.
+   */
+  showResourcesSelectedIcon?: boolean;
 };
 
 /**

@@ -30,6 +30,7 @@ import (
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -79,20 +80,33 @@ func (h *Handler) listUsersHandle(w http.ResponseWriter, r *http.Request, params
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := clt.ListUsers(r.Context(), &userspb.ListUsersRequest{
-		PageSize:  limit,
-		PageToken: values.Get("startKey"),
-		Filter: &types.UserFilter{
-			SearchKeywords:  client.ParseSearchKeywords(values.Get("search"), ' '),
-			SkipSystemUsers: true,
-		},
-	})
+	users, nextToken, _, err := clientutils.Page(
+		r.Context(),
+		int(limit),
+		values.Get("startKey"),
+		func(ctx context.Context, pageSize int, pageToken string) ([]*types.UserV2, string, error) {
+			resp, err := clt.ListUsers(r.Context(), &userspb.ListUsersRequest{
+				PageSize:  int32(pageSize),
+				PageToken: pageToken,
+				Filter: &types.UserFilter{
+					SearchKeywords:  client.ParseSearchKeywords(values.Get("search"), ' '),
+					SkipSystemUsers: true,
+				},
+			})
+
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			return resp.Users, resp.NextPageToken, nil
+		})
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var uiUsers []ui.UserListEntry
-	for _, u := range resp.GetUsers() {
+	for _, u := range users {
 		uiuser, err := ui.NewUserListEntry(u)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -102,7 +116,7 @@ func (h *Handler) listUsersHandle(w http.ResponseWriter, r *http.Request, params
 
 	return &listUsersResponse{
 		Items:    uiUsers,
-		StartKey: resp.GetNextPageToken(),
+		StartKey: nextToken,
 	}, nil
 }
 

@@ -19,6 +19,7 @@
 package common
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -40,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes/joining"
@@ -60,10 +62,10 @@ type ScopedTokensCommand struct {
 	// tokenType is the type of token. For example, "node".
 	tokenType string
 
-	// Value is the value of the token. Can be used to either act on a
+	// name of the token. Can be used to either act on a
 	// token (for example, delete a token) or used to create a token with a
-	// specific value.
-	value string
+	// specific name.
+	name string
 
 	// assignedScope allows for filtering tokens by the scope they assign
 	assignedScope string
@@ -73,6 +75,14 @@ type ScopedTokensCommand struct {
 
 	// ttl is how long the token will live for.
 	ttl time.Duration
+
+	// mode is the usage mode of a token.
+	mode string
+	// labels are optional token labels assigned to the token itself
+	labels string
+
+	// sshLabels are the ssh labels that should be assigned to a node token
+	sshLabels string
 
 	// tokenAdd is used to add a token.
 	tokenAdd *kingpin.CmdClause
@@ -90,7 +100,6 @@ type ScopedTokensCommand struct {
 // Initialize allows TokenCommand to plug itself into the CLI parser
 func (c *ScopedTokensCommand) Initialize(scopedCmd *kingpin.CmdClause, config *servicecfg.Config) {
 	c.config = config
-
 	tokens := scopedCmd.Command("tokens", "List or revoke scoped invitation tokens")
 
 	formats := []string{teleport.Text, teleport.JSON, teleport.YAML}
@@ -98,7 +107,7 @@ func (c *ScopedTokensCommand) Initialize(scopedCmd *kingpin.CmdClause, config *s
 	// tctl scoped tokens add ..."
 	c.tokenAdd = tokens.Command("add", "Create a scoped invitation token.")
 	c.tokenAdd.Flag("type", "Type(s) of token to add, e.g. --type=node").Required().StringVar(&c.tokenType)
-	c.tokenAdd.Flag("value", "Override the default random generated token with a specified value").StringVar(&c.value)
+	c.tokenAdd.Flag("name", "Override the default, randomly generated token name with a specified name").StringVar(&c.name)
 	c.tokenAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v minutes",
 		int(defaults.ProvisioningTokenTTL/time.Minute))).
 		Default(fmt.Sprintf("%v", defaults.ProvisioningTokenTTL)).
@@ -106,10 +115,13 @@ func (c *ScopedTokensCommand) Initialize(scopedCmd *kingpin.CmdClause, config *s
 	c.tokenAdd.Flag("format", "Output format, 'text', 'json', or 'yaml'").EnumVar(&c.format, formats...)
 	c.tokenAdd.Flag("assign-scope", "Scope that should be applied to resources provisioned by this token").StringVar(&c.assignedScope)
 	c.tokenAdd.Flag("scope", "Scope assigned to the token itself").StringVar(&c.tokenScope)
+	c.tokenAdd.Flag("mode", "Usage mode of a token (default: unlimited, single_use)").StringVar(&c.mode)
+	c.tokenAdd.Flag("labels", "Set token labels, e.g. env=prod,region=us-west").StringVar(&c.labels)
+	c.tokenAdd.Flag("ssh-labels", "Set immutable ssh labels the token should assign to provisioned resources, e.g. env=prod,region=us-west").StringVar(&c.sshLabels)
 
 	// "tctl scoped tokens rm ..."
 	c.tokenDel = tokens.Command("rm", "Delete/revoke a scoped invitation token.").Alias("del")
-	c.tokenDel.Arg("token", "Token to delete").StringVar(&c.value)
+	c.tokenDel.Arg("token", "Token to delete").StringVar(&c.name)
 
 	// "tctl scoped tokens ls"
 	c.tokenList = tokens.Command("ls", "List invitation tokens.")
@@ -158,8 +170,26 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 		roles = append(roles, types.RoleApp, types.RoleDiscovery)
 	}
 
-	tokenName := c.value
+	tokenName := c.name
 
+	var labels map[string]string
+	if c.labels != "" {
+		labels, err = libclient.ParseLabelSpec(c.labels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	var immutableLabels *joiningv1.ImmutableLabels
+	if c.sshLabels != "" {
+		sshLabels, err := libclient.ParseLabelSpec(c.sshLabels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		immutableLabels = &joiningv1.ImmutableLabels{
+			Ssh: sshLabels,
+		}
+	}
 	expires := time.Now().UTC().Add(c.ttl)
 	tok := &joiningv1.ScopedToken{
 		Kind:    types.KindScopedToken,
@@ -167,11 +197,14 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 		Metadata: &headerv1.Metadata{
 			Name:    tokenName,
 			Expires: timestamppb.New(expires),
+			Labels:  labels,
 		},
 		Scope: c.tokenScope,
 		Spec: &joiningv1.ScopedTokenSpec{
-			Roles:         roles.StringSlice(),
-			AssignedScope: c.assignedScope,
+			Roles:           roles.StringSlice(),
+			AssignedScope:   c.assignedScope,
+			UsageMode:       cmp.Or(c.mode, joining.TokenUsageModeUnlimited),
+			ImmutableLabels: immutableLabels,
 		},
 	}
 
@@ -187,12 +220,14 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 	}
 
 	tokenName = tok.GetMetadata().GetName()
+	tokenSecret := tok.GetStatus().GetSecret()
 	// Print token information formatted with JSON, YAML, or just print the raw token.
 	switch c.format {
 	case teleport.JSON, teleport.YAML:
 		expires := time.Now().Add(c.ttl)
 		tokenInfo := map[string]any{
 			"token":        tokenName,
+			"token_secret": tokenSecret,
 			"roles":        roles,
 			"scope":        tok.GetScope(),
 			"assign_scope": tok.GetSpec().GetAssignedScope(),
@@ -220,23 +255,24 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 	}
 
 	return trace.Wrap(showJoinInstructions(ctx, joinInstructionsInput{
-		out:       c.Stdout,
-		ttl:       c.ttl,
-		roles:     roles,
-		tokenName: tokenName,
-		client:    client,
+		out:         c.Stdout,
+		ttl:         c.ttl,
+		roles:       roles,
+		tokenName:   tokenName,
+		tokenSecret: tokenSecret,
+		client:      client,
 	}))
 }
 
 // Del is called to execute "scoped tokens del ..." command.
 func (c *ScopedTokensCommand) Del(ctx context.Context, client *authclient.Client) error {
-	if c.value == "" {
+	if c.name == "" {
 		return trace.BadParameter("Need an argument: token")
 	}
-	if err := client.DeleteScopedToken(ctx, c.value); err != nil {
+	if err := client.DeleteScopedToken(ctx, c.name); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Fprintf(c.Stdout, "Token %s has been deleted\n", c.value)
+	fmt.Fprintf(c.Stdout, "Token %s has been deleted\n", c.name)
 	return nil
 }
 
@@ -267,11 +303,11 @@ func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Clien
 		return left.GetMetadata().GetExpires().AsTime().Compare(right.GetMetadata().GetExpires().AsTime())
 	})
 
-	nameFunc := func(tok *joiningv1.ScopedToken) string {
+	secretFunc := func(tok *joiningv1.ScopedToken) string {
 		if c.withSecrets {
-			return tok.GetMetadata().GetName()
+			return tok.GetStatus().GetSecret()
 		}
-		return joining.GetSafeScopedTokenName(tok)
+		return "******"
 	}
 	switch c.format {
 	case teleport.JSON:
@@ -286,11 +322,11 @@ func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Clien
 		}
 	case teleport.Text:
 		for _, token := range tokens {
-			fmt.Fprintln(c.Stdout, nameFunc(token))
+			fmt.Fprintln(c.Stdout, token.GetMetadata().GetName())
 		}
 	default:
 		tokensView := func() string {
-			table := asciitable.MakeTable([]string{"Token", "Type", "Scope", "Assigns Scope", "Labels", "Expiry Time (UTC)"})
+			table := asciitable.MakeTable([]string{"Token", "Secret", "Type", "Scope", "Assigns Scope", "Labels", "Expiry Time (UTC)"})
 			now := time.Now()
 			for _, t := range tokens {
 				expiry := "never"
@@ -300,7 +336,7 @@ func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Clien
 					expdur := expiresAt.Sub(now).Round(time.Second)
 					expiry = fmt.Sprintf("%s (%s)", exptime, expdur.String())
 				}
-				table.AddRow([]string{nameFunc(t), strings.Join(t.GetSpec().GetRoles(), ","), t.GetScope(), t.GetSpec().GetAssignedScope(), printMetadataLabels(t.GetMetadata().Labels), expiry})
+				table.AddRow([]string{t.GetMetadata().GetName(), secretFunc(t), strings.Join(t.GetSpec().GetRoles(), ","), t.GetScope(), t.GetSpec().GetAssignedScope(), printMetadataLabels(t.GetMetadata().Labels), expiry})
 			}
 			return table.AsBuffer().String()
 		}

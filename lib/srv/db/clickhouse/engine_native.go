@@ -27,7 +27,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -65,15 +64,4 @@ func getNativeEndpoint(db types.Database) (string, error) {
 		return "", trace.Wrap(err, "failed to parse database URI")
 	}
 	return u.Host, nil
-}
-
-// NewNativeEndpointsResolver resolves a ClickHouse native endpoint from DB URI.
-func NewNativeEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
-	endpoint, err := getNativeEndpoint(db)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return endpoints.ResolverFn(func(context.Context) ([]string, error) {
-		return []string{endpoint}, nil
-	}), nil
 }

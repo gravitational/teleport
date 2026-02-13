@@ -97,8 +97,8 @@ TF_VAR_license_path ?= "/path/to/license"
 # To list available AMIs:
 # OSS: aws ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-oss-*'
 # Enterprise: aws ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-ent-*'
-# FIPS 140-2 images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
-TF_VAR_ami_name ?= "teleport-ent-18.2.4-arm64"
+# FIPS images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
+TF_VAR_ami_name ?= "teleport-ent-18.6.8-arm64"
 
 # Route 53 hosted zone to use, must be a root zone registered in AWS, e.g. example.com
 TF_VAR_route53_zone ?= "example.com"

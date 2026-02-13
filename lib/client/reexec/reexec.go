@@ -99,6 +99,9 @@ func RunForkAuthenticate(ctx context.Context, params ForkAuthenticateParams) err
 		disownR.Close()
 	}()
 
+	// disownW and killR are going to stay alive until the defer or until the
+	// close after a successful start, so we can pass them to
+	// configureReexecForOS here
 	signalFd, killFd := configureReexecForOS(cmd, disownW, killR)
 	cmd.Args = append(cmd.Args, params.GetArgs(signalFd, killFd)...)
 	cmd.Args[0] = os.Args[0]

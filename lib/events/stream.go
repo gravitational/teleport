@@ -68,8 +68,14 @@ const (
 	// MaxProtoMessageSizeBytes is maximum protobuf marshaled message size
 	MaxProtoMessageSizeBytes = 64 * 1024
 
-	// MinUploadPartSizeBytes is the minimum allowed part size when uploading a part to
-	// Amazon S3.
+	// MinUploadPartSizeBytes is the minimum upload part size when uploading session recordings
+	// through a [MultipartUploader]. All uploaded parts are expected to meet this minimum size.
+	// The actual minimum enforced by th external audit storage depends on the provider:
+	// - S3 (AWS):    5MiB
+	// - GCloud:      5MiB
+	// - Azure:       None
+	// - File:        None
+	// - Mem (tests): Configurable
 	MinUploadPartSizeBytes = 1024 * 1024 * 5
 
 	// ProtoStreamV1 is a version of the binary protocol
@@ -1168,7 +1174,7 @@ func (p ProtoReaderStats) ToFields() map[string]any {
 
 // Close releases reader resources
 func (r *ProtoReader) Close() error {
-	if r.gzipReader != nil {
+	if r != nil && r.gzipReader != nil {
 		return r.gzipReader.Close()
 	}
 	return nil
@@ -1297,6 +1303,21 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 					return nil, err
 				}
 				return nil, r.setError(trace.ConvertSystemError(err))
+			}
+
+			// Empty parts may be created for padding. Just skip them and discard any padding.
+			if header.PartSize == 0 {
+				if header.PaddingSize != 0 {
+					skipped, err := io.CopyBuffer(io.Discard, io.LimitReader(r.reader, int64(header.PaddingSize)), r.messageBytes[:])
+					if err != nil {
+						return nil, r.setError(trace.ConvertSystemError(err))
+					}
+					if skipped != int64(header.PaddingSize) {
+						return nil, r.setError(trace.BadParameter(
+							"data truncated, expected to read %v bytes, but got %v", r.padding, skipped))
+					}
+				}
+				continue
 			}
 
 			r.padding = int64(header.PaddingSize)
