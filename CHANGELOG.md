@@ -12,8 +12,10 @@ is now macOS 12 (Monterey).
 #### Application Access connection limits
 
 The `connection_limits` configuration now applies to the Application
-Service. If you have `connection_limits` configured, app access
-connections will be subject to those limits after upgrading to v19.
+Service. App access connections are subject to the same default cap
+(15,000 max connections) as all other services. If you have
+`connection_limits` configured, those values apply to app access
+connections after upgrading to v19.
 
 ## 18.5.0 (12/04/25)
 
