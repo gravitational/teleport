@@ -1,4 +1,4 @@
-.version: &version "18.6.8"
+.version: &version "18.6.9-dev.gavin.1"
 
 apiVersion: v2
 name: teleport-plugin-jira
