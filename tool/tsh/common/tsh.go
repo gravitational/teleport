@@ -881,6 +881,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("relay", "Teleport relay address, \"none\" to explicitly disable the use of a relay, or \"default\" to use the cluster-provided address even if a different address was specified at login time.").Envar(relayEnvVar).StringVar(&cf.Relay)
 	app.Flag("nocache", "Do not cache cluster discovery locally.").Hidden().BoolVar(&cf.NoCache)
 	app.Flag("user", "Teleport user, defaults to current local user.").Envar(userEnvVar).StringVar(&cf.Username)
+	app.Flag("home-dir", "Directory where client state, credentials, and user-specific config are stored. Defaults to \"$HOME/.tsh\".").Envar(types.HomeEnvVar).StringVar(&cf.HomePath)
+	app.Flag("global-config-path", "Path to file where shared config is stored. Defaults to \"/etc/tsh.yaml\".").Envar(globalTshConfigEnvVar).StringVar(&cf.GlobalTshConfigPath)
 	app.Flag("mem-profile", "Write memory profile to file.").Hidden().StringVar(&memProfile)
 	app.Flag("cpu-profile", "Write CPU profile to file.").Hidden().StringVar(&cpuProfile)
 	app.Flag("trace-profile", "Write trace profile to file.").Hidden().StringVar(&traceProfile)
@@ -963,7 +965,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("remote-forward", "Forward remote connections to localhost.").Short('R').StringsVar(&cf.RemoteForwardPorts)
 	ssh.Flag("local", "Execute command on localhost after connecting to SSH node.").Default("false").BoolVar(&cf.LocalExec)
 	ssh.Flag("tty", "Allocate TTY.").Short('t').BoolVar(&cf.Interactive)
-	ssh.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	ssh.Flag("cluster", clusterHelp).Short('c').Envar(clusterEnvVar).StringVar(&cf.SiteName)
 	ssh.Flag("option", "OpenSSH options in the format used in the configuration file.").Short('o').AllowDuplicate().StringsVar(&cf.Options)
 	ssh.Flag("no-remote-exec", "Don't execute remote command, useful for port forwarding.").Short('N').BoolVar(&cf.NoRemoteExec)
 	ssh.Flag("x11-untrusted", "Requests untrusted (secure) X11 forwarding for this session.").Short('X').BoolVar(&cf.X11ForwardingUntrusted)
@@ -1034,7 +1036,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")
-	apps.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	apps.Flag("cluster", clusterHelp).Short('c').Envar(clusterEnvVar).StringVar(&cf.SiteName)
 	lsApps := apps.Command("ls", "List available applications.")
 	lsApps.Flag("verbose", "Show extra application fields.").Short('v').BoolVar(&cf.Verbose)
 	lsApps.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
@@ -1074,7 +1076,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode.")
 	proxySSH := proxy.Command("ssh", "Start local TLS proxy for ssh connections when using Teleport in single-port mode.")
 	proxySSH.Arg("[user@]host", "Remote hostname and the login to use.").Required().StringVar(&cf.UserHost)
-	proxySSH.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	proxySSH.Flag("cluster", clusterHelp).Short('c').Envar(clusterEnvVar).StringVar(&cf.SiteName)
 	proxySSH.Flag("no-resume", "Disable SSH connection resumption.").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	proxySSH.Flag("relogin", "Permit performing an authentication attempt on a failed command.").Default("true").BoolVar(&cf.Relogin)
 	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode.")
@@ -1087,7 +1089,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyDB.Flag("db-user", "Database user to log in as.").Short('u').StringVar(&cf.DatabaseUser)
 	proxyDB.Flag("db-name", "Database name to log in to.").Short('n').StringVar(&cf.DatabaseName)
 	proxyDB.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
-	proxyDB.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	proxyDB.Flag("cluster", clusterHelp).Short('c').Envar(clusterEnvVar).StringVar(&cf.SiteName)
 	proxyDB.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	proxyDB.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	proxyDB.Flag("request-reason", "Reason for requesting access.").StringVar(&cf.RequestReason)
@@ -1096,12 +1098,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode.")
 	proxyApp.Arg("app", "The name of the application to start local proxy for.").Required().StringVar(&cf.AppName)
 	proxyApp.Flag("port", "Specifies the listening port used by by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. \"1234:5678\".").Short('p').StringVar(&cf.LocalProxyPortMapping)
-	proxyApp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	proxyApp.Flag("cluster", clusterHelp).Short('c').Envar(clusterEnvVar).StringVar(&cf.SiteName)
 
 	proxyMCP := proxy.Command("mcp", "Start local proxy for MCP access.")
 	proxyMCP.Arg("app", "The name of the MCP application to start local proxy for.").Required().StringVar(&cf.AppName)
 	proxyMCP.Flag("port", "Specifies the listening port used by by the proxy app listener.").Short('p').StringVar(&cf.LocalProxyPortMapping)
-	proxyMCP.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	proxyMCP.Flag("cluster", clusterHelp).Short('c').Envar(clusterEnvVar).StringVar(&cf.SiteName)
 
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
 	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
@@ -1125,7 +1127,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
-	db.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	db.Flag("cluster", clusterHelp).Short('c').Envar(clusterEnvVar).StringVar(&cf.SiteName)
 	dbList := db.Command("ls", "List all available databases.")
 	dbList.Flag("verbose", "Show extra database fields.").Short('v').BoolVar(&cf.Verbose)
 	dbList.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
@@ -1188,12 +1190,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// join
 	join := app.Command("join", "Join the active SSH or Kubernetes session.")
-	join.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	join.Flag("cluster", clusterHelp).Short('c').Envar(clusterEnvVar).StringVar(&cf.SiteName)
 	join.Flag("mode", "Mode of joining the session, valid modes are observer, moderator and peer.").Short('m').Default("observer").EnumVar(&cf.JoinMode, "observer", "moderator", "peer")
 	join.Arg("session-id", "ID of the session to join.").Required().StringVar(&cf.SessionID)
 	// play
 	play := app.Command("play", "Replay the recorded session (SSH, Kubernetes, App, DB).")
-	play.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	play.Flag("cluster", clusterHelp).Short('c').Envar(clusterEnvVar).StringVar(&cf.SiteName)
 	play.Flag("speed", "Playback speed, applicable when streaming SSH or Kubernetes sessions.").Default("1x").EnumVar(&cf.PlaySpeed, "0.5x", "1x", "2x", "4x", "8x")
 	play.Flag("skip-idle-time", "Quickly skip over idle time, applicable when streaming SSH or Kubernetes sessions.").BoolVar(&cf.NoWait)
 	play.Flag("format", defaults.FormatFlagDescription(
@@ -1203,7 +1205,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// scp
 	scp := app.Command("scp", "Transfer files to a remote SSH node.")
-	scp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	scp.Flag("cluster", clusterHelp).Short('c').Envar(clusterEnvVar).StringVar(&cf.SiteName)
 	scp.Arg("from, to", "Source and destination to copy, one must be a local path and one must be a remote path.").Required().StringsVar(&cf.CopySpec)
 	scp.Flag("recursive", "Recursive copy of subdirectories.").Short('r').BoolVar(&cf.RecursiveCopy)
 	scp.Flag("port", "Port to connect to on the remote host.").Short('P').Int32Var(&cf.NodePort)
@@ -1213,7 +1215,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	scp.Flag("relogin", "Permit performing an authentication attempt on a failed command.").Default("true").BoolVar(&cf.Relogin)
 	// ls
 	ls := app.Command("ls", "List remote SSH nodes.")
-	ls.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	ls.Flag("cluster", clusterHelp).Short('c').Envar(clusterEnvVar).StringVar(&cf.SiteName)
 	ls.Flag("verbose", "One-line output (for text format), including node UUIDs.").Short('v').BoolVar(&cf.Verbose)
 	ls.Flag("format", defaults.FormatFlagDescription(
 		teleport.Text, teleport.JSON, teleport.YAML, teleport.Names,
@@ -1250,10 +1252,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	login.Flag("request-reviewers", "Suggested reviewers for role request.").StringVar(&cf.SuggestedReviewers)
 	login.Flag("request-nowait", "Finish without waiting for request resolution.").BoolVar(&cf.NoWait)
 	login.Flag("request-id", "Login with the roles requested in the given request.").StringVar(&cf.RequestID)
-	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
+	login.Arg("cluster", clusterHelp).Envar(clusterEnvVar).StringVar(&cf.SiteName)
 	login.Flag("scope", "Scope pins credentials to a given scope.").StringVar(&cf.Scope)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
-	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to.").StringVar(&cf.KubernetesCluster)
+	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to.").Envar(kubeClusterEnvVar).StringVar(&cf.KubernetesCluster)
 	login.Flag("verbose", "Show extra status information.").Short('v').BoolVar(&cf.Verbose)
 	login.Alias(loginUsageFooter)
 
@@ -1265,12 +1267,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	latencySSH := latency.Command("ssh", "Measure latency to a particular SSH host.")
 	latencySSH.Arg("[user@]host", "Remote hostname and the login to use.").Required().StringVar(&cf.UserHost)
-	latencySSH.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	latencySSH.Flag("cluster", clusterHelp).Short('c').Envar(clusterEnvVar).StringVar(&cf.SiteName)
 	latencySSH.Flag("no-resume", "Disable SSH connection resumption.").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 
 	// bench
 	bench := app.Command("bench", "Run Teleport benchmark tests.").Hidden()
-	bench.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	bench.Flag("cluster", clusterHelp).Short('c').Envar(clusterEnvVar).StringVar(&cf.SiteName)
 	bench.Flag("duration", "Test duration.").Default("1s").DurationVar(&cf.BenchDuration)
 	bench.Flag("rate", "Requests per second rate.").Default("10").IntVar(&cf.BenchRate)
 	bench.Flag("export", "Export the latency profile.").BoolVar(&cf.BenchExport)
@@ -1303,9 +1305,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	benchKube.Flag("kube-namespace", "Selects the Kubernetes namespace.").Default("default").Hidden().StringVar(&benchKubeOpts.namespace)
 	benchKube.Flag("namespace", "Selects the Kubernetes namespace.").Default("default").StringVar(&benchKubeOpts.namespace)
 	benchListKube := benchKube.Command("ls", "Run a benchmark test to list Pods.").Hidden()
-	benchListKube.Arg("kube_cluster", "Kubernetes cluster to use.").Required().StringVar(&cf.KubernetesCluster)
+	benchListKube.Arg("kube_cluster", "Kubernetes cluster to use.").Required().Envar(kubeClusterEnvVar).StringVar(&cf.KubernetesCluster)
 	benchExecKube := benchKube.Command("exec", "Run a benchmark test to exec into the specified Pod.").Hidden()
-	benchExecKube.Arg("kube_cluster", "Kubernetes cluster to use.").Required().StringVar(&cf.KubernetesCluster)
+	benchExecKube.Arg("kube_cluster", "Kubernetes cluster to use.").Required().Envar(kubeClusterEnvVar).StringVar(&cf.KubernetesCluster)
 	benchExecKube.Arg("pod", "Pod name to exec into.").Required().StringVar(&benchKubeOpts.pod)
 	benchExecKube.Arg("command", "Command to execute on a pod.").Required().StringsVar(&cf.RemoteCommand)
 	benchExecKube.Flag("container", "Selects the container to exec into.").StringVar(&benchKubeOpts.container)
@@ -1430,7 +1432,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqSearch.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	reqSearch.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	reqSearch.Flag("labels", labelHelp).StringVar(&cf.Labels)
-	reqSearch.Flag("kube-cluster", "Kubernetes Cluster to search for Pods.").StringVar(&cf.KubernetesCluster)
+	reqSearch.Flag("kube-cluster", "Kubernetes Cluster to search for Pods.").Envar(kubeClusterEnvVar).StringVar(&cf.KubernetesCluster)
 	// kube-namespace exists for backwards compatibility.
 	reqSearch.Flag("kube-namespace", "Kubernetes Namespace to search for Pods.").Hidden().Default(corev1.NamespaceDefault).StringVar(&cf.kubeNamespace)
 	reqSearch.Flag("namespace", "Kubernetes Namespace to search for Pods.").Default(corev1.NamespaceDefault).StringVar(&cf.kubeNamespace)
@@ -1512,9 +1514,20 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		}
 	}
 
-	// configs
-	setEnvFlags(&cf)
+	if cf.HomePath != "" {
+		cf.HomePath = filepath.Clean(cf.HomePath)
+	}
+	if cf.GlobalTshConfigPath != "" {
+		cf.GlobalTshConfigPath = filepath.Clean(cf.GlobalTshConfigPath)
+	}
 
+	if cf.SiteName == "" {
+		if clusterName := os.Getenv(siteEnvVar); clusterName != "" {
+			cf.SiteName = clusterName
+		}
+	}
+
+	// configs
 	confOptions, err := client.LoadAllConfigs(cf.GlobalTshConfigPath, cf.HomePath)
 	if err != nil {
 		return trace.Wrap(err)
@@ -6199,31 +6212,6 @@ func serializeEnvironment(profile *client.ProfileStatus, format string) (string,
 		out, err = yaml.Marshal(env)
 	}
 	return string(out), trace.Wrap(err)
-}
-
-// setEnvFlags sets flags that can be set via environment variables.
-func setEnvFlags(cf *CLIConf) {
-	// these can only be set with env vars.
-	if homeDir := os.Getenv(types.HomeEnvVar); homeDir != "" {
-		cf.HomePath = filepath.Clean(homeDir)
-	}
-	if configPath := os.Getenv(globalTshConfigEnvVar); configPath != "" {
-		cf.GlobalTshConfigPath = filepath.Clean(configPath)
-	}
-
-	// prioritize CLI input for the rest.
-	if cf.SiteName == "" {
-		// check cluster env variables in order of priority.
-		if clusterName := os.Getenv(clusterEnvVar); clusterName != "" {
-			cf.SiteName = clusterName
-		} else if clusterName = os.Getenv(siteEnvVar); clusterName != "" {
-			cf.SiteName = clusterName
-		}
-	}
-
-	if cf.KubernetesCluster == "" {
-		cf.KubernetesCluster = os.Getenv(kubeClusterEnvVar)
-	}
 }
 
 func handleUnimplementedError(ctx context.Context, perr error, cf CLIConf) error {

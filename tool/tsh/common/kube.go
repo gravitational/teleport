@@ -112,7 +112,7 @@ func newKubeJoinCommand(parent *kingpin.CmdClause) *kubeJoinCommand {
 	}
 
 	c.Flag("mode", "Mode of joining the session, valid modes are observer, moderator and peer.").Short('m').Default("observer").EnumVar(&c.mode, "observer", "moderator", "peer")
-	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
+	c.Flag("cluster", clusterHelp).Short('c').Envar(clusterEnvVar).StringVar(&c.siteName)
 	c.Arg("session", "The ID of the target session.").Required().StringVar(&c.session)
 	return c
 }
@@ -565,7 +565,7 @@ func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
 		CmdClause: parent.Command("sessions", "Get a list of active Kubernetes sessions. (DEPRECATED: use tsh sessions ls --kind=kube instead.)"),
 	}
 	c.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaults.DefaultFormats...)
-	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
+	c.Flag("cluster", clusterHelp).Short('c').Envar(clusterEnvVar).StringVar(&c.siteName)
 	return c
 }
 
@@ -914,7 +914,7 @@ func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
 	c := &kubeLSCommand{
 		CmdClause: parent.Command("ls", "Get a list of Kubernetes clusters."),
 	}
-	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
+	c.Flag("cluster", clusterHelp).Short('c').Envar(clusterEnvVar).StringVar(&c.siteName)
 	c.Flag("search", searchHelp).StringVar(&c.searchKeywords)
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpr)
 	c.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaults.DefaultFormats...)
@@ -1212,7 +1212,7 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	c := &kubeLoginCommand{
 		CmdClause: parent.Command("login", "Login to a Kubernetes cluster."),
 	}
-	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
+	c.Flag("cluster", clusterHelp).Short('c').Envar(clusterEnvVar).StringVar(&c.siteName)
 	c.Arg("kube-cluster", "Name of the Kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters.").StringVar(&c.kubeCluster)
 	c.Flag("labels", labelHelp).StringVar(&c.labels)
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpression)
