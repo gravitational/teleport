@@ -17,11 +17,11 @@
 package grpcclientconfigv1
 
 import (
-	"context"
-	"os"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	grpcv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/grpcclientconfig/v1"
 	"github.com/gravitational/teleport/api/types/grpcclientconfig"
@@ -68,7 +68,7 @@ func TestGetServiceConfigEnvVar(t *testing.T) {
 
 			resp, err := service.GetServiceConfig(t.Context(), &grpcv1.GetServiceConfigRequest{})
 			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(tt.expected, resp.GetConfig(), protcmp.Transform()))
+			require.Empty(t, cmp.Diff(tt.expected, resp.GetConfig(), protocmp.Transform()))
 		})
 	}
 }
