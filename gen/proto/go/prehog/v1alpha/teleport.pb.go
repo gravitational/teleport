@@ -42,7 +42,7 @@ const (
 
 // UserOrigin is the origin of a user account.
 // Keep the values in sync with UserOrigin enum defined in
-// API events and prehogv1.
+// Teleport OSS repository.
 type UserOrigin int32
 
 const (
@@ -515,6 +515,7 @@ const (
 	CTA_CTA_OKTA_USER_SYNC         CTA = 11
 	CTA_CTA_ENTRA_ID               CTA = 12
 	CTA_CTA_OKTA_SCIM              CTA = 13
+	CTA_CTA_USAGE_REPORT           CTA = 14
 )
 
 // Enum value maps for CTA.
@@ -534,6 +535,7 @@ var (
 		11: "CTA_OKTA_USER_SYNC",
 		12: "CTA_ENTRA_ID",
 		13: "CTA_OKTA_SCIM",
+		14: "CTA_USAGE_REPORT",
 	}
 	CTA_value = map[string]int32{
 		"CTA_UNSPECIFIED":            0,
@@ -550,6 +552,7 @@ var (
 		"CTA_OKTA_USER_SYNC":         11,
 		"CTA_ENTRA_ID":               12,
 		"CTA_OKTA_SCIM":              13,
+		"CTA_USAGE_REPORT":           14,
 	}
 )
 
@@ -1502,7 +1505,7 @@ type UserLoginEvent struct {
 	DeviceId string `protobuf:"bytes,3,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
 	// the required private key policy for this login.
 	RequiredPrivateKeyPolicy string `protobuf:"bytes,4,opt,name=required_private_key_policy,json=requiredPrivateKeyPolicy,proto3" json:"required_private_key_policy,omitempty"`
-	// UserOrigin specifies the origin of this user account.
+	// UserOrigin specifies the origin of the user specified in user_name.
 	//
 	// PostHog property: tp.user_origin
 	UserOrigin    UserOrigin `protobuf:"varint,5,opt,name=user_origin,json=userOrigin,proto3,enum=prehog.v1alpha.UserOrigin" json:"user_origin,omitempty"`
@@ -8883,7 +8886,7 @@ type SessionSummaryCreateEvent struct {
 	//
 	// PostHog property: tp.resource_name
 	ResourceName string `protobuf:"bytes,6,opt,name=resource_name,json=resourceName,proto3" json:"resource_name,omitempty"`
-	// is_cloud_default_model indicates wether the session summary was generated using
+	// is_cloud_default_model indicates whether the session summary was generated using
 	// the cloud default model.
 	//
 	// PostHog property: tp.ai.default_model
@@ -11564,7 +11567,7 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	"\x17DISCOVER_STATUS_SUCCESS\x10\x01\x12\x1b\n" +
 	"\x17DISCOVER_STATUS_SKIPPED\x10\x02\x12\x19\n" +
 	"\x15DISCOVER_STATUS_ERROR\x10\x03\x12\x1b\n" +
-	"\x17DISCOVER_STATUS_ABORTED\x10\x04*\xd4\x02\n" +
+	"\x17DISCOVER_STATUS_ABORTED\x10\x04*\xea\x02\n" +
 	"\x03CTA\x12\x13\n" +
 	"\x0fCTA_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12CTA_AUTH_CONNECTOR\x10\x01\x12\x17\n" +
@@ -11580,7 +11583,8 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	"\x12\x16\n" +
 	"\x12CTA_OKTA_USER_SYNC\x10\v\x12\x10\n" +
 	"\fCTA_ENTRA_ID\x10\f\x12\x11\n" +
-	"\rCTA_OKTA_SCIM\x10\r*\xb5\n" +
+	"\rCTA_OKTA_SCIM\x10\r\x12\x14\n" +
+	"\x10CTA_USAGE_REPORT\x10\x0e*\xb5\n" +
 	"\n" +
 	"\x15IntegrationEnrollKind\x12'\n" +
 	"#INTEGRATION_ENROLL_KIND_UNSPECIFIED\x10\x00\x12!\n" +
