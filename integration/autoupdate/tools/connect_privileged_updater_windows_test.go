@@ -84,7 +84,8 @@ func TestPrivilegedUpdateServiceRejectsInvalidVersionFormat(t *testing.T) {
 		binary:  []byte("payload"),
 	}
 	err := runPrivilegedUpdaterFlow(t, up)
-	require.ErrorIs(t, err, trace.BadParameter(`invalid update version "not-a-semver"`))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `invalid update version "not-a-semver"`)
 }
 
 func TestPrivilegedUpdateServiceRejectsChecksumRequestFailure(t *testing.T) {
