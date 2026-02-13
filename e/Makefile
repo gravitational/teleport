@@ -62,6 +62,9 @@ TARBINS = $(addprefix teleport-ent/,$(BINS))
 # Include common setting from OSS repo.
 include ../common.mk
 
+# TODO(okraport) Temporary fallback during migration, remove once merged on both sides:
+GOTESTSUM ?= go run gotest.tools/gotestsum@v1.13.0
+
 # Check if rust and cargo are installed before compiling
 CHECK_CARGO := $(shell cargo --version 2>/dev/null)
 CHECK_RUST := $(shell rustc --version 2>/dev/null)
@@ -572,14 +575,14 @@ test-go-all:
 #
 test-go:
 ifneq ("$(SUBJECT)", "")
-	go tool gotestsum --junitfile unit-tests.xml --jsonfile unit-tests.json -- $(SUBJECT) -race -shuffle on -tags "$(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(TPMSIMULATOR_TEST_TAG) enablesynctest" $(ADDFLAGS)
+	$(GOTESTSUM) --junitfile unit-tests.xml --jsonfile unit-tests.json -- $(SUBJECT) -race -shuffle on -tags "$(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(TPMSIMULATOR_TEST_TAG) enablesynctest" $(ADDFLAGS)
 endif
 
 # test-operator runs tests for the k8s operator with enterprise-only resource
 # types that must be tested with an enterprise Teleport cluster.
 .PHONY: test-operator
 test-operator:
-	go tool gotestsum --junitfile unit-tests-operator.xml --jsonfile unit-tests-operator.json -- ./lib/operatortest -race -shuffle on
+	$(GOTESTSUM) --junitfile unit-tests-operator.xml --jsonfile unit-tests-operator.json -- ./lib/operatortest -race -shuffle on
 
 # test-crdb runs crdb backend tests.
 .PHONY: test-crdb
@@ -695,7 +698,7 @@ test-go-integration:
 	@if [ -n "$(SUBJECT)" ]; then \
 		$(CGOFLAG) go test -timeout=$(INTEGRATION_TEST_TIMEOUT) -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 			| tee $(TEST_LOG_DIR)/unit.json \
-			| go tool gotestsum --junitfile unit-tests-integration.xml --jsonfile unit-tests-integration.json --raw-command -- cat; \
+			| $(GOTESTSUM) --junitfile unit-tests-integration.xml --jsonfile unit-tests-integration.json --raw-command -- cat; \
 	fi
 
 # All developers should run this upon cloning the repo. Unfortunately this
