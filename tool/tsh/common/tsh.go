@@ -574,8 +574,8 @@ type CLIConf struct {
 	// It shouldn't be used outside testing.
 	KubeConfigPath string
 
-	// Client only version display.  Skips checking proxy version.
-	clientOnlyVersionCheck bool
+	// Skip server-side checks for certain commands (status, version, etc)
+	clientOnlyChecks bool
 
 	// tracer is the tracer used to trace tsh commands.
 	tracer oteltrace.Tracer
@@ -944,7 +944,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ver := app.Command("version", "Print the tsh client and Proxy server versions for the current context.")
 	ver.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	ver.Flag("client", "Show the client version only (no server required).").
-		BoolVar(&cf.clientOnlyVersionCheck)
+		BoolVar(&cf.clientOnlyChecks)
 	// ssh
 	// Use Interspersed(false) to forward all flags to ssh.
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node.").Interspersed(false)
@@ -1324,7 +1324,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// about the certificate.
 	status := app.Command("status", "Display the list of proxy servers and retrieved certificates.")
 	status.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
-	status.Flag("verbose", "Show extra status information after successful login").Short('v').BoolVar(&cf.Verbose)
+	status.Flag("verbose", "Show extra status information after successful login.").Short('v').BoolVar(&cf.Verbose)
+	status.Flag("client", "Show client information only (no server required).").BoolVar(&cf.clientOnlyChecks)
 
 	// The environment command prints out environment variables for the configured
 	// proxy and cluster. Can be used to create sessions "sticky" to a terminal
@@ -2105,7 +2106,7 @@ func onVersion(cf *CLIConf) error {
 	proxyVersion := ""
 	proxyPublicAddr := ""
 	// Check proxy version if not in client only mode
-	if !cf.clientOnlyVersionCheck {
+	if !cf.clientOnlyChecks {
 		pv, ppa, err := fetchProxyVersion(cf)
 		if err != nil {
 			fmt.Fprintf(cf.Stderr(), "Failed to fetch proxy version: %s\n", err)
@@ -5614,6 +5615,10 @@ func onStatus(cf *CLIConf) error {
 	duration := time.Until(profile.ValidUntil)
 	if !profile.ValidUntil.IsZero() && duration.Nanoseconds() <= 0 {
 		return trace.NotFound("Active profile expired.")
+	}
+
+	if cf.clientOnlyChecks {
+		return nil
 	}
 
 	// make the teleport client and retrieve the certificate from the proxy:
