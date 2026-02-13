@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestWindowsDesktops tests that CRUD operations on
@@ -157,6 +158,121 @@ func TestWindowsDesktop(t *testing.T) {
 	out, err = p.cache.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: "test"})
 	require.NoError(t, err)
 	require.Len(t, out, 2)
+}
+
+// TestWindowsDesktopListResources tests that cache's listResources
+// (not listResourcesFallback) properly handles KindWindowsDesktop.
+func TestWindowsDesktopListResources(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	p, err := newPackWithoutCache(t.TempDir())
+	require.NoError(t, err)
+
+	// Wrap presence to fail ListResources for WindowsDesktop, forcing the cache path instead of the fallback.
+	wrappedPresence := &windowsDesktopListResourcesFailingPresence{Presence: p.presenceS}
+
+	p.cache, err = New(ForAuth(Config{
+		Context:                 ctx,
+		Events:                  p.eventsS,
+		ClusterConfig:           p.clusterConfigS,
+		Provisioner:             p.provisionerS,
+		Trust:                   p.trustS,
+		Users:                   p.usersS,
+		Access:                  p.accessS,
+		DynamicAccess:           p.dynamicAccessS,
+		Presence:                wrappedPresence, // Use wrapped presence
+		AppSession:              p.appSessionS,
+		WebSession:              p.webSessionS,
+		WebToken:                p.webTokenS,
+		SnowflakeSession:        p.snowflakeSessionS,
+		Restrictions:            p.restrictions,
+		Apps:                    p.apps,
+		Kubernetes:              p.kubernetes,
+		DatabaseServices:        p.databaseServices,
+		Databases:               p.databases,
+		WindowsDesktops:         p.windowsDesktops,
+		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
+		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
+		UserGroups:              p.userGroups,
+		Okta:                    p.okta,
+		Integrations:            p.integrations,
+		UserTasks:               p.userTasks,
+		DiscoveryConfigs:        p.discoveryConfigs,
+		UserLoginStates:         p.userLoginStates,
+		SecReports:              p.secReports,
+		AccessLists:             p.accessLists,
+		KubeWaitingContainers:   p.kubeWaitingContainers,
+		Notifications:           p.notifications,
+		AccessMonitoringRules:   p.accessMonitoringRules,
+		CrownJewels:             p.crownJewels,
+		SPIFFEFederations:       p.spiffeFederations,
+		DatabaseObjects:         p.databaseObjects,
+		StaticHostUsers:         p.staticHostUsers,
+		AutoUpdateService:       p.autoUpdateService,
+		ProvisioningStates:      p.provisioningStates,
+		IdentityCenter:          p.identityCenter,
+		PluginStaticCredentials: p.pluginStaticCredentials,
+		GitServers:              p.gitServers,
+		HealthCheckConfig:       p.healthCheckConfig,
+		WorkloadIdentity:        p.workloadIdentity,
+		BotInstanceService:      p.botInstanceService,
+		RecordingEncryption:     p.recordingEncryption,
+		Plugin:                  p.plugin,
+		MaxRetryPeriod:          200 * time.Millisecond,
+		EventsC:                 p.eventsC,
+		AppAuthConfig:           p.appAuthConfigs,
+		StaticScopedToken:       p.clusterConfigS,
+		WorkloadClusterService:  p.workloadClusters,
+	}))
+	require.NoError(t, err)
+	t.Cleanup(p.Close)
+
+	// Wait for watcher to start
+	event := <-p.eventsC
+	require.Equal(t, WatcherStarted, event.Type)
+
+	// Create a WindowsDesktop resource
+	wd, err := types.NewWindowsDesktopV3(
+		"test-desktop",
+		map[string]string{"env": "test"},
+		types.WindowsDesktopSpecV3{
+			Addr:   "localhost:3389",
+			HostID: "host-1",
+		},
+	)
+	require.NoError(t, err)
+	require.NoError(t, p.windowsDesktops.CreateWindowsDesktop(ctx, wd))
+
+	// Wait for the resource to be replicated to the cache
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		resp, err := p.cache.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{})
+		assert.NoError(t, err)
+		assert.Len(t, resp.Desktops, 1)
+	}, 5*time.Second, 100*time.Millisecond)
+
+	// Now test ListResources with KindWindowsDesktop.
+	resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindWindowsDesktop,
+		Limit:        100,
+	})
+	require.NoError(t, err, "ListResources should succeed using the cache path, not the fallback")
+	require.Len(t, resp.Resources, 1)
+	require.Equal(t, "test-desktop", resp.Resources[0].GetName())
+}
+
+// windowsDesktopListResourcesFailingPresence wraps Presence and makes
+// ListResources return NotImplemented for KindWindowsDesktop.
+type windowsDesktopListResourcesFailingPresence struct {
+	services.Presence
+}
+
+func (p *windowsDesktopListResourcesFailingPresence) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	if req.ResourceType == types.KindWindowsDesktop {
+		return nil, trace.NotImplemented("not implemented for testing")
+	}
+	return p.Presence.ListResources(ctx, req)
 }
 
 // TestWindowsDesktopService tests that CRUD operations on
