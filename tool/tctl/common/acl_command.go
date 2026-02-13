@@ -34,8 +34,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
@@ -167,19 +169,9 @@ func (c *ACLCommand) List(ctx context.Context, client *authclient.Client) error 
 			return trace.Wrap(err)
 		}
 	} else {
-		var nextKey string
-		for {
-			var page []*accesslist.AccessList
-			page, nextKey, err = client.AccessListClient().ListAccessLists(ctx, 0, nextKey)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			accessLists = append(accessLists, page...)
-
-			if nextKey == "" {
-				break
-			}
+		accessLists, err = stream.Collect(clientutils.Resources(ctx, client.AccessListClient().ListAccessLists))
+		if err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
@@ -341,8 +333,10 @@ func (c *ACLCommand) makeReview() (*accesslist.Review, error) {
 }
 
 func (c *ACLCommand) ReviewsList(ctx context.Context, client *authclient.Client) error {
-	// TODO(r0mant): Up to a 100 reviews is plenty for now, no need for pagination yet.
-	reviews, _, err := client.AccessListClient().ListAccessListReviews(ctx, c.accessListName, 100, "")
+	reviews, err := stream.Collect(clientutils.Resources(ctx,
+		func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.Review, string, error) {
+			return client.AccessListClient().ListAccessListReviews(ctx, c.accessListName, pageSize, pageToken)
+		}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
