@@ -98,6 +98,8 @@ type LDAPDiscoveryConfig struct {
 	// Filters are additional LDAP filters to apply to the search.
 	// See: https://ldap.com/ldap-filters/
 	Filters []string
+	// Labels are static labels to apply to hosts discovered via LDAP.
+	Labels map[string]string
 	// LabelAttributes are LDAP attributes to apply to hosts discovered
 	// via LDAP. Teleport labels hosts by prefixing the attribute with
 	// "ldap/" - for example, a value of "location" here would result in

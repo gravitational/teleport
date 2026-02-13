@@ -76,6 +76,7 @@ export default function generateResourcePath(
     .replace(':startKey?', params.startKey || '')
     .replace(':regions?', processedParams.regions || '')
     .replace(':owners?', processedParams.owners || '')
+    .replace(':origin?', processedParams.origin || '')
     .replace(':roles?', processedParams.roles || '')
     .replace(
       ':includedResourceMode?',

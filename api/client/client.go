@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
+	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -4296,6 +4297,15 @@ func (c *Client) CreateRegisterChallenge(ctx context.Context, in *proto.CreateRe
 // GenerateCertAuthorityCRL generates an empty CRL for a CA.
 func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, req *proto.CertAuthorityRequest) (*proto.CRL, error) {
 	resp, err := c.grpc.GenerateCertAuthorityCRL(ctx, req)
+
+	// TODO(codingllama): DELETE IN 20.
+	if shouldFallbackToUserCA(err, req.Type) {
+		slog.WarnContext(ctx, "WindowsCA not available, falling back to UserCA")
+		req2 := gogoproto.Clone(req).(*proto.CertAuthorityRequest)
+		req2.Type = types.UserCA
+		resp, err = c.grpc.GenerateCertAuthorityCRL(ctx, req2)
+	}
+
 	return resp, trace.Wrap(err)
 }
 
@@ -5464,31 +5474,91 @@ func (c *Client) StableUNIXUsersClient() stableunixusersv1.StableUNIXUsersServic
 
 // GetCertAuthority retrieves a CA by type and domain.
 func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
-	ca, err := c.TrustClient().GetCertAuthority(ctx, &trustpb.GetCertAuthorityRequest{
+	trust := c.TrustClient()
+	req := &trustpb.GetCertAuthorityRequest{
 		Type:       string(id.Type),
 		Domain:     id.DomainName,
 		IncludeKey: loadKeys,
-	})
+	}
+
+	ca, err := trust.GetCertAuthority(ctx, req)
+
+	// TODO(codingllama): DELETE IN 20.
+	if shouldFallbackToUserCA(err, id.Type) {
+		slog.WarnContext(ctx, "WindowsCA not available, falling back to UserCA")
+		req.Type = string(types.UserCA)
+		ca, err = trust.GetCertAuthority(ctx, req)
+	}
 
 	return ca, trace.Wrap(err)
 }
 
 // GetCertAuthorities retrieves CAs by type.
 func (c *Client) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error) {
-	resp, err := c.TrustClient().GetCertAuthorities(ctx, &trustpb.GetCertAuthoritiesRequest{
+	trust := c.TrustClient()
+	req := &trustpb.GetCertAuthoritiesRequest{
 		Type:       string(caType),
 		IncludeKey: loadKeys,
-	})
+	}
+
+	resp, err := trust.GetCertAuthorities(ctx, req)
+
+	// TODO(codingllama): DELETE IN 20.
+	if shouldFallbackToUserCA(err, caType) ||
+		// Reads through the cache don't error on unknown types, instead they return
+		// empty. For example, "tctl get cas/windows" against an older binary.
+		(err == nil &&
+			len(resp.CertAuthoritiesV2) == 0 &&
+			c.shouldFallbackEmptyListToUserCA(ctx, caType)) {
+		slog.WarnContext(ctx, "WindowsCA not available, falling back to UserCA")
+		req.Type = string(types.UserCA)
+		resp, err = trust.GetCertAuthorities(ctx, req)
+	}
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cas := make([]types.CertAuthority, 0, len(resp.CertAuthoritiesV2))
-	for _, ca := range resp.CertAuthoritiesV2 {
-		cas = append(cas, ca)
+	cas := make([]types.CertAuthority, len(resp.CertAuthoritiesV2))
+	for i, ca := range resp.CertAuthoritiesV2 {
+		cas[i] = ca
+	}
+	return cas, nil
+}
+
+// shouldFallbackEmptyListToUserCA is used by GetCertAuthorities to decide if a
+// fallback query with UserCA is necessary.
+//
+// Cached responses of GetCertAuthorities don't error on unknown CA types,
+// instead they swallow the errors and return empty. This method detects that.
+//
+// Don't use this fallback in other scenarios unless you really know what you
+// are doing.
+func (c *Client) shouldFallbackEmptyListToUserCA(ctx context.Context, caType types.CertAuthType) bool {
+	if caType != types.WindowsCA {
+		return false
 	}
 
-	return cas, nil
+	cn, err := c.GetClusterName(ctx)
+	if err != nil {
+		slog.WarnContext(ctx, "Failed to fetch cluster name", "error", err)
+		return false
+	}
+
+	// Attempt to fetch a windows CA. If it returns an "unsupported authority"
+	// error this means we should fallback.
+	_, err = c.TrustClient().GetCertAuthority(ctx, &trustpb.GetCertAuthorityRequest{
+		Type:       string(caType),
+		Domain:     cn.GetClusterName(),
+		IncludeKey: false,
+	})
+	return shouldFallbackToUserCA(err, caType)
+}
+
+func shouldFallbackToUserCA(err error, caType types.CertAuthType) bool {
+	return err != nil &&
+		caType == types.WindowsCA &&
+		types.IsUnsupportedAuthorityErr(err)
 }
 
 // DeleteCertAuthority removes a CA matching the type and domain.

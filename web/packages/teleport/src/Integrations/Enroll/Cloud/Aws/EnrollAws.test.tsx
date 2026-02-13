@@ -25,7 +25,6 @@ import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoG
 import 'shared/components/TextEditor/TextEditor.mock';
 
 import { copyToClipboard } from 'design/utils/copyToClipboard';
-import { useToastNotifications } from 'shared/components/ToastNotification';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
@@ -40,27 +39,12 @@ jest.mock('design/utils/copyToClipboard', () => ({
   copyToClipboard: jest.fn(),
 }));
 
-jest.mock(
-  'shared/components/ToastNotification/ToastNotificationContext',
-  () => {
-    const originalContext = jest.requireActual(
-      'shared/components/ToastNotification/ToastNotificationContext'
-    );
-    return {
-      ...originalContext,
-      useToastNotifications: jest.fn(),
-    };
-  }
-);
-
 const defaultProxyCluster = cfg.proxyCluster;
 
 describe('EnrollAws', () => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-
-  let mockAddToast: jest.Mock;
 
   function renderEnrollAws() {
     const ctx = createTeleportContext();
@@ -85,11 +69,6 @@ describe('EnrollAws', () => {
     jest.clearAllMocks();
     queryClient.clear();
     cfg.proxyCluster = 'my-cluster.cloud.gravitational.io';
-
-    mockAddToast = jest.fn();
-    (useToastNotifications as jest.Mock).mockReturnValue({
-      add: mockAddToast,
-    });
   });
 
   afterEach(() => {
@@ -111,6 +90,14 @@ describe('EnrollAws', () => {
   test('copy terraform configuration button validates and copies to clipboard', async () => {
     renderEnrollAws();
 
+    const input = screen.getByLabelText(/integration name/i);
+
+    expect(input).toHaveDisplayValue(/^aws-integration-/);
+
+    fireEvent.change(input, {
+      target: { value: '' },
+    });
+
     const copyButtons = screen.getAllByRole('button', {
       name: /copy terraform module/i,
     });
@@ -123,7 +110,6 @@ describe('EnrollAws', () => {
       ).toBeInTheDocument();
     });
 
-    const input = screen.getByLabelText(/integration name/i);
     fireEvent.change(input, {
       target: { value: 'test-integration' },
     });
@@ -142,6 +128,13 @@ describe('EnrollAws', () => {
   test('check integration button validates form', async () => {
     renderEnrollAws();
 
+    const input = screen.getByLabelText(/integration name/i);
+
+    // change to invalid name
+    fireEvent.change(input, {
+      target: { value: '0cool' },
+    });
+
     const checkButton = screen.getByRole('button', {
       name: /check integration/i,
     });
@@ -149,12 +142,12 @@ describe('EnrollAws', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/integration name is required/i)
+        screen.getByText(/name must start with an alphabetic/i)
       ).toBeInTheDocument();
     });
   });
 
-  test('queries for integration and shows success toast when found', async () => {
+  test('queries for integration and shows success when found', async () => {
     jest
       .spyOn(integrationService, 'fetchIntegration')
       .mockResolvedValue({ name: 'test-integration' } as any);
@@ -172,14 +165,6 @@ describe('EnrollAws', () => {
 
     const success = await screen.findByText(/successfully added/i);
     expect(success).toBeInTheDocument();
-
-    await waitFor(() => {
-      expect(mockAddToast).toHaveBeenCalledWith(
-        expect.objectContaining({
-          severity: 'success',
-        })
-      );
-    });
 
     const viewIntegrationLinks = screen.getAllByRole('link', {
       name: /^view integration$/i,
@@ -214,14 +199,6 @@ describe('EnrollAws', () => {
     // wait until polling fails
     await act(async () => {
       await jest.advanceTimersByTimeAsync(35000);
-    });
-
-    await waitFor(() => {
-      expect(mockAddToast).toHaveBeenCalledWith(
-        expect.objectContaining({
-          severity: 'error',
-        })
-      );
     });
 
     expect(

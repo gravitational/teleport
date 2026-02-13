@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { LocationDescriptor } from 'history';
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled, { useTheme } from 'styled-components';
@@ -145,7 +146,7 @@ export interface Action {
   /**
    * a link that takes you to a different route within the app
    */
-  linkTo?: string;
+  linkTo?: LocationDescriptor;
   onClick?: (event: React.MouseEvent) => void;
 }
 
