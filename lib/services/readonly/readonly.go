@@ -248,6 +248,50 @@ type Application interface {
 
 var _ Application = types.Application(nil)
 
+// ProxiedService is a read only variant of [types.ProxiedService].
+type ProxiedService interface {
+	// GetProxyIDs returns a list of proxy ids this service is connected to.
+	GetProxyIDs() []string
+}
+
+var _ ProxiedService = types.ProxiedService(nil)
+
+// AppServer is a read only variant of [types.AppServer].
+type AppServer interface {
+	// ResourceWithLabels provides common resource methods.
+	ResourceWithLabels
+	// GetNamespace returns server namespace.
+	GetNamespace() string
+	// GetTeleportVersion returns the teleport version the server is running on.
+	GetTeleportVersion() string
+	// GetHostname returns the server hostname.
+	GetHostname() string
+	// GetHostID returns ID of the host the server is running on.
+	GetHostID() string
+	// GetRotation gets the state of certificate authority rotation.
+	GetRotation() types.Rotation
+	// String returns string representation of the server.
+	String() string
+	// Copy returns a copy of this app server object.
+	Copy() types.AppServer
+	// GetApp returns the app this app server proxies.
+	GetApp() types.Application
+	// GetTunnelType returns the tunnel type associated with the app server.
+	GetTunnelType() types.TunnelType
+	// ProxiedService provides common methods for a proxied service.
+	ProxiedService
+	// GetRelayGroup returns the name of the Relay group that the app server is
+	// connected to.
+	GetRelayGroup() string
+	// GetRelayIDs returns the list of Relay host IDs that the app server is
+	// connected to.
+	GetRelayIDs() []string
+	// GetScope returns the scope this server belongs to.
+	GetScope() string
+}
+
+var _ AppServer = types.AppServer(nil)
+
 // KubeServer is a read only variant of [types.KubeServer].
 type KubeServer interface {
 	// ResourceWithLabels provides common resource methods.

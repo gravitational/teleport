@@ -215,6 +215,9 @@ type Config struct {
 	// CertAuthorityWatcher is a cert authority watcher.
 	CertAuthorityWatcher *services.CertAuthorityWatcher
 
+	// AppServerWatcher is a app server watcher.
+	AppServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
+
 	// CircuitBreakerConfig configures the auth client circuit breaker
 	CircuitBreakerConfig breaker.Config
 
@@ -285,6 +288,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.CertAuthorityWatcher == nil {
 		return trace.BadParameter("missing parameter CertAuthorityWatcher")
+	}
+	if cfg.AppServerWatcher == nil {
+		return trace.BadParameter("missing parameter AppServerWatcher")
 	}
 	return nil
 }
@@ -1254,6 +1260,19 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		return nil, trace.Wrap(err)
 	}
 	remoteSite.nodeWatcher = nodeWatcher
+
+	appServerWatcher, err := services.NewAppServersWatcher(closeContext, services.AppServersWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: srv.Component,
+			Logger:    srv.Logger,
+			Client:    accessPoint,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	remoteSite.appServerWatcher = appServerWatcher
+
 	// instantiate a cache of host certificates for the forwarding server. the
 	// certificate cache is created in each site (instead of creating it in
 	// reversetunnel.server and passing it along) so that the host certificate
