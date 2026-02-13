@@ -187,13 +187,19 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 		return nil, trace.BadParameter("expected *types.AppV3, got %T", resp.Resources[0].GetApp())
 	}
 	if !app.IsTCP() {
+		// TODO(greedy52) allow more http apps instead of hardcoding
 		log.InfoContext(ctx, "Query matched a web app")
-		// If not a TCP app this must be a web app and we can return early.
-		return &vnetv1.ResolveFQDNResponse{
-			Match: &vnetv1.ResolveFQDNResponse_MatchedWebApp{
-				MatchedWebApp: &vnetv1.MatchedWebApp{},
-			},
-		}, nil
+		switch app.GetName() {
+		case "dumper":
+			log.InfoContext(ctx, "=== let it through to test out vnet with http app")
+		default:
+			// If not a TCP app this must be a web app and we can return early.
+			return &vnetv1.ResolveFQDNResponse{
+				Match: &vnetv1.ResolveFQDNResponse_MatchedWebApp{
+					MatchedWebApp: &vnetv1.MatchedWebApp{},
+				},
+			}, nil
+		}
 	}
 	clusterConfig, err := r.cfg.clusterConfigCache.GetClusterConfig(ctx, clusterClient)
 	if err != nil {

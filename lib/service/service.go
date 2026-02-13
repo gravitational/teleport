@@ -187,6 +187,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
 	"github.com/gravitational/teleport/lib/utils/certreloader"
+	listenerutils "github.com/gravitational/teleport/lib/utils/listener"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	procutils "github.com/gravitational/teleport/lib/utils/process"
 	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
@@ -5307,6 +5308,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Register web proxy server
 	alpnHandlerForWeb := &alpnproxy.ConnectionHandlerWrapper{}
+	var webAppHandler *webapp.Handler
 
 	if !process.Config.Proxy.DisableWebService {
 		var fs http.FileSystem
@@ -5491,6 +5493,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		webAppHandler = webHandler.GetAppHandler()
 
 		webServer, err = web.NewServer(web.ServerConfig{
 			Server: &http.Server{
@@ -5549,6 +5552,55 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolMCP),
 			Handler:   webServer.HandleConnection,
 		})
+
+		// TODO(greedy52) see if we can workaround some of these hacks
+		if webAppHandler != nil {
+			appMiddleware := &authz.Middleware{
+				ClusterName:   conn.ClusterName(),
+				AcceptedUsage: []string{teleport.UsageAppsOnly},
+			}
+
+			miniAppServerConfig := tlsConfigWeb.Clone()
+
+			process.logger.InfoContext(process.ExitContext(), "=== add router for ProtocolHTTPSInMTLS")
+			alpnRouter.Add(alpnproxy.HandlerDecs{
+				MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolHTTPSInMTLS),
+				Handler: func(ctx context.Context, conn net.Conn) error {
+					process.logger.InfoContext(ctx, "=== handling HTTPS in mTLS")
+					defer conn.Close()
+
+					tlsConn, ok := conn.(utils.TLSConn)
+					if !ok {
+						return trace.BadParameter("expected utils.TLSConn, got %T", conn)
+					}
+					ctx, err := appMiddleware.WrapContextWithUser(ctx, tlsConn)
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					identity, err := authz.UserFromContext(ctx)
+					process.logger.InfoContext(ctx, "=== found identity", "name", identity.GetIdentity().Username, "route_to_app", identity.GetIdentity().RouteToApp)
+
+					// Terminate inner TLS with original server TLS config
+					innerConn := tls.Server(tlsConn, miniAppServerConfig)
+
+					// Single-use HTTP server. could we avoid this? how to get actual error?
+					waitConn := utils.NewWaitConn(innerConn)
+					context.AfterFunc(ctx, func() { waitConn.Close() })
+
+					httpServer := &http.Server{
+						Handler:     webAppHandler,
+						BaseContext: func(net.Listener) context.Context { return ctx },
+					}
+
+					listener := listenerutils.NewSingleUseListener(waitConn)
+					if err := httpServer.Serve(listener); err != nil && !utils.IsOKNetworkError(err) {
+						return trace.Wrap(err)
+					}
+					waitConn.Wait()
+					return nil
+				},
+			})
+		}
 	}
 
 	var peerAddrString string

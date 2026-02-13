@@ -23,6 +23,7 @@ package app
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"log/slog"
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -416,7 +418,15 @@ func (h *Handler) getAppSessionFromCert(r *http.Request) (types.WebSession, erro
 	if !HasClientCert(r) {
 		return nil, trace.BadParameter("request missing client certificate")
 	}
-	certificate := r.TLS.PeerCertificates[0]
+
+	var certificate *x509.Certificate
+	if certFromCtx, err := authz.UserCertificateFromContext(r.Context()); err == nil {
+		certificate = certFromCtx
+		h.logger.InfoContext(r.Context(), "==== loading certificate from context")
+	} else {
+		certificate = r.TLS.PeerCertificates[0]
+	}
+
 	identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -535,6 +545,15 @@ func HasSessionCookie(r *http.Request) bool {
 
 // HasClientCert checks if the request has a client certificate.
 func HasClientCert(r *http.Request) bool {
+	_, err := authz.UserCertificateFromContext(r.Context())
+	if err == nil {
+		if identity, err := authz.UserFromContext(r.Context()); err == nil {
+			slog.InfoContext(r.Context(), "=== found user certificate with app route", "route_to_app", identity.GetIdentity().RouteToApp)
+		} else {
+			slog.InfoContext(r.Context(), "=== found user certificate")
+		}
+		return true
+	}
 	return r.TLS != nil && len(r.TLS.PeerCertificates) > 0
 }
 
