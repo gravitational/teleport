@@ -398,44 +398,53 @@ func TestValidateTokenUpdate(t *testing.T) {
 		},
 	}
 
-	t.Run("check scope change", func(t *testing.T) {
-		modified := proto.CloneOf(baseToken)
-		modified.Scope = "/other"
-		modified.Spec.AssignedScope = "/other/one"
+	for _, tc := range []struct {
+		name            string
+		modifyTokenFunc func(*joiningv1.ScopedToken)
+		wantErr         []string
+	}{
+		{
+			name: "check scope change",
+			modifyTokenFunc: func(t *joiningv1.ScopedToken) {
+				t.Scope = "/other"
+				t.Spec.AssignedScope = "/other/one"
+			},
+			wantErr: []string{"cannot modify scope of existing scoped token", "/test", "/other"},
+		},
+		{
+			name: "check usage mode change",
+			modifyTokenFunc: func(t *joiningv1.ScopedToken) {
+				t.Spec.UsageMode = string(joining.TokenUsageModeSingle)
+			},
+			wantErr: []string{"cannot modify usage mode of existing scoped token", string(joining.TokenUsageModeUnlimited), string(joining.TokenUsageModeSingle)},
+		},
+		{
+			name: "check secret change",
+			modifyTokenFunc: func(t *joiningv1.ScopedToken) {
+				t.Status.Secret = "new-secret-value"
+			},
+			wantErr: []string{"cannot modify secret of existing scoped token"},
+		},
+		{
+			name: "valid update",
+			modifyTokenFunc: func(t *joiningv1.ScopedToken) {
+				t.Metadata.Labels = map[string]string{"env": "production"}
+				t.Spec.AssignedScope = "/test/one/two"
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			modified := proto.CloneOf(baseToken)
+			tc.modifyTokenFunc(modified)
 
-		err := joining.ValidateTokenUpdate(baseToken, modified)
-		require.Error(t, err)
-		assert.ErrorContains(t, err, "cannot modify scope of existing scoped token")
-		assert.ErrorContains(t, err, "/test")
-		assert.ErrorContains(t, err, "/other")
-	})
-
-	t.Run("check usage mode change", func(t *testing.T) {
-		modified := proto.CloneOf(baseToken)
-		modified.Spec.UsageMode = string(joining.TokenUsageModeSingle)
-
-		err := joining.ValidateTokenUpdate(baseToken, modified)
-		require.Error(t, err)
-		assert.ErrorContains(t, err, "cannot modify usage mode of existing scoped token")
-		assert.ErrorContains(t, err, string(joining.TokenUsageModeUnlimited))
-		assert.ErrorContains(t, err, string(joining.TokenUsageModeSingle))
-	})
-
-	t.Run("check secret change", func(t *testing.T) {
-		modified := proto.CloneOf(baseToken)
-		modified.Status.Secret = "new-secret-value"
-
-		err := joining.ValidateTokenUpdate(baseToken, modified)
-		require.Error(t, err)
-		assert.ErrorContains(t, err, "cannot modify secret of existing scoped token")
-	})
-
-	t.Run("valid update", func(t *testing.T) {
-		modified := proto.CloneOf(baseToken)
-		modified.Metadata.Labels = map[string]string{"env": "production"}
-		modified.Spec.AssignedScope = "/test/one/two"
-
-		err := joining.ValidateTokenUpdate(baseToken, modified)
-		require.NoError(t, err)
-	})
+			err := joining.ValidateTokenUpdate(baseToken, modified)
+			if len(tc.wantErr) > 0 {
+				for _, msg := range tc.wantErr {
+					assert.ErrorContains(t, err, msg)
+				}
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }

@@ -207,8 +207,8 @@ func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
 }
 
 // ValidateTokenUpdate checks for invalid updates between two tokens.
-// If the scope, usage mode, or secret was changed between two token updates, we invalidate with
-// a trace.BadParameter error.
+// If the scope, usage mode, or secret was changed between two token updates,
+// a trace.BadParameter error is returned.
 func ValidateTokenUpdate(oldToken *joiningv1.ScopedToken, newToken *joiningv1.ScopedToken) error {
 	if newToken == nil {
 		return trace.BadParameter("new token is invalid")

@@ -719,4 +719,45 @@ func TestScopedTokenUpsert(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "staging", final.GetToken().GetMetadata().GetLabels()["env"])
 	})
+
+	t.Run("concurrent upserts succeed", func(t *testing.T) {
+		service, ctx := newService(t)
+		token := newToken("concurrent-upserts")
+
+		// Simulate 4 users concurrently upserting the same token with
+		// different labels. Every upsert should succeed thanks to the
+		// built-in retry logic.
+		const numUsers = 4
+		errs := make([]error, numUsers)
+
+		var wg sync.WaitGroup
+		for i := range numUsers {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				update := proto.CloneOf(token)
+				update.Metadata.Labels = map[string]string{
+					"user": fmt.Sprintf("user-%d", i),
+				}
+				_, errs[i] = service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: update})
+			}()
+		}
+		wg.Wait()
+
+		for _, err := range errs {
+			assert.NoError(t, err)
+		}
+
+		// Verify the token still exists and is consistent.
+		final, err := service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+			Name:       token.GetMetadata().GetName(),
+			WithSecret: true,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, final.GetToken())
+		// One of the concurrent writers must have won; the label should
+		// belong to one of the 4 users.
+		label := final.GetToken().GetMetadata().GetLabels()["user"]
+		require.Contains(t, []string{"user-0", "user-1", "user-2", "user-3"}, label)
+	})
 }
