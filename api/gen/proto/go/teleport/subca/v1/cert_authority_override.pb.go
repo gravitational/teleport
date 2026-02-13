@@ -191,7 +191,7 @@ func (x *CertAuthorityOverrideSpec) GetCertificateOverrides() []*CertificateOver
 // CertAuthorityOverride resource.
 type CertAuthorityOverrideStatus struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// CLRs generated for each certificate override.
+	// CRLs generated for each certificate override.
 	PublicKeyHashToCrl map[string]*CertificateRevocationList `protobuf:"bytes,1,rep,name=public_key_hash_to_crl,json=publicKeyHashToCrl,proto3" json:"public_key_hash_to_crl,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
