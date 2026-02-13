@@ -420,7 +420,7 @@ func (h *Handler) authenticateWithAppAuth(ctx context.Context, r *http.Request, 
 	ws, appAuthConfig, err := h.getAppSessionUsingAuthConfig(r, reqAppServer)
 	if err != nil {
 		h.logger.WarnContext(ctx, "Failed to fetch application session", "error", err)
-		return nil, trace.Wrap(err)
+		return nil, trace.AccessDenied("invalid session")
 	}
 
 	session, err := h.getSessionWithAppAuth(ctx, ws, appAuthConfig)

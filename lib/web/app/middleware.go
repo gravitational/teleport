@@ -70,9 +70,9 @@ type requestedAppParams struct {
 	clusterName string
 }
 
-// extracAppParamsFunc function used to extract the requested app params from
+// extractAppParamsFunc function used to extract the requested app params from
 // a request.
-type extracAppParamsFunc func(p httprouter.Params) requestedAppParams
+type extractAppParamsFunc func(p httprouter.Params) requestedAppParams
 
 // appQualifierFunc function used to check if the resolved app qualifies for
 // receiving the request.
@@ -80,7 +80,7 @@ type appQualifierFunc func(app types.Application) bool
 
 // withAppAuthConfig resolves app based on request then authenticate the
 // request before handling to a http.HandlerFunc.
-func (h *Handler) withAppAuthConfig(handler handlerWithAppAuthFunc, extractFunc extracAppParamsFunc, appFunc appQualifierFunc) httprouter.Handle {
+func (h *Handler) withAppAuthConfig(handler handlerWithAppAuthFunc, extractFunc extractAppParamsFunc, appFunc appQualifierFunc) httprouter.Handle {
 	return makeRouterHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
 		params := extractFunc(p)
 		appName := params.appName

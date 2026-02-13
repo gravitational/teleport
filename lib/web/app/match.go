@@ -112,7 +112,7 @@ func ResolveByName(ctx context.Context, cluster reversetunnelclient.Cluster, app
 	}
 
 	if len(servers) == 0 {
-		return nil, trace.BadParameter("unable to solve requested app by name")
+		return nil, trace.BadParameter("unable to resolve requested app by name")
 	}
 
 	return servers[0], nil

@@ -1020,9 +1020,14 @@ func TestSelectAppAuthConfig(t *testing.T) {
 // client with the endpoints, and verify that the handle succeeds when
 // authentication succeeds and returns an error otherwise.
 func TestMCPEndpoints(t *testing.T) {
-	clusterName := "test-cluster"
-	mcpServerName := "mcp-test-server"
-	appName := "regular-app"
+	const (
+		clusterName       = "test-cluster"
+		mcpServerName     = "mcp-test-server"
+		appName           = "regular-app"
+		header            = "Authorization"
+		customHader       = "X-Custom-Test-Header"
+		customHeaderValue = "random-value"
+	)
 
 	key, cert, err := tlsca.GenerateSelfSignedCA(
 		pkix.Name{CommonName: clusterName},
@@ -1031,7 +1036,6 @@ func TestMCPEndpoints(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	header := "Authorization"
 	fakeClock := clockwork.NewFakeClock()
 	authClient := &mockAuthClient{
 		clusterName:      clusterName,
@@ -1081,9 +1085,15 @@ func TestMCPEndpoints(t *testing.T) {
 	} {
 		t.Run(endpoint.desc, func(t *testing.T) {
 			t.Run("success", func(t *testing.T) {
-				clt := makeMCPClient(t, frontSrv, endpoint.path, map[string]string{header: "Bearer fake-token"})
+				clt := makeMCPClient(t, frontSrv, endpoint.path, map[string]string{
+					header:      "Bearer fake-token",
+					customHader: customHeaderValue,
+				})
 				mcptest.MustInitializeClient(t, clt)
 				mcptest.MustCallServerTool(t, clt)
+				headers := mcptest.MustCallRequestHeaders(t, clt)
+				require.Empty(t, headers.Get(header))
+				require.Equal(t, customHeaderValue, headers.Get(customHader))
 			})
 
 			t.Run("fails to resolve app", func(t *testing.T) {
