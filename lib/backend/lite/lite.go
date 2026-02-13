@@ -245,18 +245,18 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	// serialize access to sqlite, as we're using immediate transactions anyway,
 	// and in-memory go locks are faster than sqlite locks
 	db.SetMaxOpenConns(1)
-	buf := backend.NewCircularBuffer(
-		backend.BufferCapacity(cfg.BufferSize),
+	eventFanout := backend.NewEventFanout(
+		backend.WithCapacity(cfg.BufferSize),
 	)
 	closeCtx, cancel := context.WithCancel(ctx)
 	l := &Backend{
-		Config: cfg,
-		db:     db,
-		logger: slog.With(teleport.ComponentKey, BackendName),
-		clock:  cfg.Clock,
-		buf:    buf,
-		ctx:    closeCtx,
-		cancel: cancel,
+		Config:      cfg,
+		db:          db,
+		logger:      slog.With(teleport.ComponentKey, BackendName),
+		clock:       cfg.Clock,
+		eventFanout: eventFanout,
+		ctx:         closeCtx,
+		cancel:      cancel,
 	}
 	l.logger.DebugContext(ctx, "Connected to database", "database", connectionURI, "poll_stream_period", cfg.PollStreamPeriod)
 	if err := l.createSchema(); err != nil {
@@ -278,9 +278,9 @@ type Backend struct {
 	// could be swapped in tests for fixed time
 	clock clockwork.Clock
 
-	buf    *backend.CircularBuffer
-	ctx    context.Context
-	cancel context.CancelFunc
+	eventFanout *backend.EventFanout
+	ctx         context.Context
+	cancel      context.CancelFunc
 
 	// closedFlag is set to indicate that the database is closed
 	closedFlag int32
@@ -986,7 +986,7 @@ func (l *Backend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.
 	if l.EventsOff {
 		return nil, trace.BadParameter("events are turned off for this backend")
 	}
-	return l.buf.NewWatcher(ctx, watch)
+	return l.eventFanout.NewWatcher(ctx, watch)
 }
 
 // Close closes all associated resources
@@ -998,7 +998,7 @@ func (l *Backend) Close() error {
 // CloseWatchers closes all the watchers
 // without closing the backend
 func (l *Backend) CloseWatchers() {
-	l.buf.Clear()
+	l.eventFanout.Clear()
 }
 
 func (l *Backend) isClosed() bool {
@@ -1011,7 +1011,7 @@ func (l *Backend) setClosed() {
 
 func (l *Backend) closeDatabase() error {
 	l.setClosed()
-	l.buf.Close()
+	l.eventFanout.Close()
 	return l.db.Close()
 }
 

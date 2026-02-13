@@ -150,7 +150,7 @@ func (l *Backend) pollEvents(rowid int64) (int64, error) {
 			return rowid, trace.Wrap(err)
 		}
 		l.logger.DebugContext(l.ctx, "Initialized event ID iterator", "event_id", rowid)
-		l.buf.SetInit()
+		l.eventFanout.SetInit()
 	}
 
 	var events []backend.Event
@@ -187,7 +187,7 @@ func (l *Backend) pollEvents(rowid int64) (int64, error) {
 	if err != nil {
 		return rowid, trace.Wrap(err)
 	}
-	l.buf.Emit(events...)
+	l.eventFanout.Emit(events...)
 	if len(events) != 0 {
 		return lastID, nil
 	}

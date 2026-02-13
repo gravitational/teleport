@@ -200,13 +200,12 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 
 	ctx, cancel := context.WithCancel(ctx)
 	b := &Backend{
-		cfg:        cfg,
-		feedConfig: feedConfig,
-
-		log:    log,
-		pool:   pool,
-		buf:    backend.NewCircularBuffer(),
-		cancel: cancel,
+		cfg:         cfg,
+		feedConfig:  feedConfig,
+		log:         log,
+		pool:        pool,
+		eventFanout: backend.NewEventFanout(),
+		cancel:      cancel,
 	}
 
 	if !cfg.DisableExpiry {
@@ -231,9 +230,9 @@ type Backend struct {
 	cfg        Config
 	feedConfig *pgxpool.Config
 
-	log  *slog.Logger
-	pool *pgxpool.Pool
-	buf  *backend.CircularBuffer
+	log         *slog.Logger
+	pool        *pgxpool.Pool
+	eventFanout *backend.EventFanout
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -242,7 +241,7 @@ type Backend struct {
 func (b *Backend) Close() error {
 	b.cancel()
 	b.wg.Wait()
-	b.buf.Close()
+	b.eventFanout.Close()
 	b.pool.Close()
 	return nil
 }
@@ -652,11 +651,11 @@ func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 
 // NewWatcher implements [backend.Backend].
 func (b *Backend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.Watcher, error) {
-	return b.buf.NewWatcher(ctx, watch)
+	return b.eventFanout.NewWatcher(ctx, watch)
 }
 
 // CloseWatchers implements [backend.Backend].
-func (b *Backend) CloseWatchers() { b.buf.Clear() }
+func (b *Backend) CloseWatchers() { b.eventFanout.Clear() }
 
 // Clock implements [backend.Backend].
 func (b *Backend) Clock() clockwork.Clock {

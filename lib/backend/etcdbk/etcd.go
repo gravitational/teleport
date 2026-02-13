@@ -157,7 +157,7 @@ type EtcdBackend struct {
 	cancelC     chan bool
 	stopC       chan bool
 	clock       clockwork.Clock
-	buf         *backend.CircularBuffer
+	eventFanout *backend.EventFanout
 	leaseBucket time.Duration
 	leaseCache  *utils.FnCache
 	ctx         context.Context
@@ -261,8 +261,8 @@ func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBacke
 		return nil, trace.Wrap(err)
 	}
 
-	buf := backend.NewCircularBuffer(
-		backend.BufferCapacity(cfg.BufferSize),
+	eventFanout := backend.NewEventFanout(
+		backend.WithCapacity(cfg.BufferSize),
 	)
 	closeCtx, cancel := context.WithCancel(ctx)
 
@@ -288,7 +288,7 @@ func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBacke
 		cancel:      cancel,
 		ctx:         closeCtx,
 		watchDone:   make(chan struct{}),
-		buf:         buf,
+		eventFanout: eventFanout,
 		leaseBucket: retryutils.SeventhJitter(options.leaseBucket),
 		leaseCache:  leaseCache,
 	}
@@ -414,7 +414,7 @@ func (b *EtcdBackend) Clock() clockwork.Clock {
 
 func (b *EtcdBackend) Close() error {
 	b.cancel()
-	b.buf.Close()
+	b.eventFanout.Close()
 	var errs []error
 	if b.clients != nil {
 		b.clients.ForEach(func(clt *clientv3.Client) {
@@ -427,7 +427,7 @@ func (b *EtcdBackend) Close() error {
 // CloseWatchers closes all the watchers
 // without closing the backend
 func (b *EtcdBackend) CloseWatchers() {
-	b.buf.Clear()
+	b.eventFanout.Clear()
 }
 
 func (b *EtcdBackend) reconnect(ctx context.Context) error {
@@ -575,13 +575,13 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 	eventsC := b.clients.Next().Watch(ctx, b.cfg.Key, clientv3.WithPrefix())
 
 	// set buffer to initialized state.
-	b.buf.SetInit()
+	b.eventFanout.SetInit()
 
 	// ensure correct cleanup ordering (buffer must not be reset until event emission has halted).
 	defer func() {
 		q.Close()
 		<-emitDone
-		b.buf.Reset()
+		b.eventFanout.Reset()
 	}()
 
 	// launch background process responsible for event emission.
@@ -595,7 +595,7 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 					b.logger.ErrorContext(ctx, "Failed to unmarshal event", "event", r.original, "error", r.err)
 					continue EmitEvents
 				}
-				b.buf.Emit(r.event)
+				b.eventFanout.Emit(r.event)
 			case <-q.Done():
 				return
 			}
@@ -646,7 +646,7 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 
 // NewWatcher returns a new event watcher
 func (b *EtcdBackend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.Watcher, error) {
-	return b.buf.NewWatcher(ctx, watch)
+	return b.eventFanout.NewWatcher(ctx, watch)
 }
 
 func (b *EtcdBackend) Items(ctx context.Context, params backend.ItemsParams) iter.Seq2[backend.Item, error] {
