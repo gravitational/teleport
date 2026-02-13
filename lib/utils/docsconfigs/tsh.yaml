@@ -73,3 +73,8 @@ env_vars:
     description: "File path to identity file"
     default: "none"
     type: "string"
+
+flag_default_overrides:
+  - full_command: "tsh scan keys"
+    flag: "dirs"
+    value: '<system dependent: /home/, /Users/, or C:\\Users\\>'

@@ -381,7 +381,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|PROFILES|none (optional)|Comma-separated profile names to be exported. Supported profiles: allocs,block,cmdline,goroutine,mutex,trace,heap,profile,threadcreate. Default: goroutine,heap,profile|
+|PROFILES|none (optional)|Comma-separated profile names to be exported. Supported profiles: allocs,block,cmdline,goroutine,heap,mutex,profile,threadcreate,trace. Default: goroutine,heap,profile|
 
 ## teleport debug readyz
 
@@ -731,6 +731,26 @@ Flags:
 |`--pool-name`|none|Name for the new workforce identity pool.|
 |`--pool-provider-name`|none|Name for the new workforce identity pool provider.|
 
+## teleport integration configure session-summaries bedrock
+
+Adds required IAM permissions for Session Summaries feature using Amazon
+Bedrock.
+
+Usage:
+
+```code
+$ teleport integration configure session-summaries bedrock --role=ROLE [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--aws-account-id`|none|The AWS account ID.|
+|`--[no-]confirm`|`false`|Apply changes without confirmation prompt.|
+|`--resource`|`*`|The Amazon Bedrock resource to grant access to. Can be a full ARN or a model ID (e.g., 'anthropic.claude-v2' or '*' for all models).|
+|`--role`|none|The AWS Role name used by the AWS OIDC Integration.|
+
 ## teleport join openssh
 
 Join an SSH server to a Teleport cluster.
@@ -753,10 +773,11 @@ Flags:
 |`--labels`|none|Comma-separated list of labels for this OpenSSH node, for example env=dev,app=web.|
 |`--[no-]insecure`|`false`|Insecure mode disables certificate validation.|
 |`--[no-]restart-sshd`|`true`|Restart OpenSSH.|
+|`--[no-]skip-version-check`|`false`|Skip version checking between server and client.|
 |`--openssh-config`|`/etc/ssh/sshd_config`|Path to the OpenSSH config file \[/etc/ssh/sshd_config\].|
 |`--proxy-server`|none|Address of the proxy server.|
 |`--sshd-check-command`|`sshd -t -f`|Command to use when checking OpenSSH config for validity. (sshd -t -f \<sshd_config\>)|
-|`--sshd-restart-command`|`systemctl restart sshd`|Command to use when restarting openssh.|
+|`--sshd-restart-command`|none|Command to use when restarting openssh.|
 |`--token`|none|Invitation token or path to file with token value to register with an auth server.|
 
 ## teleport node configure
@@ -803,7 +824,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--advertise-ip`|none|IP to advertise to clients if running behind NAT|
-|`--apply-on-startup`|none|Path to a non-empty YAML file containing resources to apply on startup. Works on initialized clusters, unlike --bootstrap. Only supports the following kinds: \[token cluster_networking_config cluster_auth_preference bot role user\].|
+|`--apply-on-startup`|none|Path to a non-empty YAML file containing resources to apply on startup. Works on initialized clusters, unlike --bootstrap. Only supports the following kinds: \[bot cluster_auth_preference cluster_networking_config role token user\].|
 |`--auth-server`|none|Address of the auth server \[127.0.0.1:3025\]|
 |`--bootstrap`|none|Path to a non-empty YAML file containing bootstrap resources (ignored if already initialized)|
 |`--ca-pin`|none|CA pin to validate the Auth Server (can be repeated for multiple pins)|

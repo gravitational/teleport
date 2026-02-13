@@ -24,9 +24,9 @@ Global flags:
 |Flag|Default|Description|
 |---|---|---|
 |`-c`, `--config`|none|Path to a configuration file.|
-|`-d`, `--[no-]debug`|`false`|Verbose logging to stdout.|
+|`-d`, `--[no-]debug`|`false`|Enables verbose logging to stdout.|
 |`--log-format`|`text`|Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.|
-|`--[no-]fips`|`false`|Runs tbot in FIPS compliance mode. This requires the FIPS binary is in use.|
+|`--[no-]fips`|`false`|Enables FIPS compliance mode. This requires the FIPS binary is in use.|
 |`--[no-]insecure`|`false`|Insecure configures the bot to trust the certificates from the Auth Server or Proxy on first connect without verification. Do not use in production.|
 
 Global environment variables:
@@ -34,7 +34,7 @@ Global environment variables:
 |Variable|Default|Description|
 |---|---|---|
 |`TBOT_CONFIG_PATH`|none|Path to a configuration file.|
-|`TBOT_DEBUG`|`false`|Verbose logging to stdout.|
+|`TBOT_DEBUG`|`false`|Enables verbose logging to stdout.|
 
 ## tbot configure application
 
@@ -67,7 +67,7 @@ Flags:
 |`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
 |`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--[no-]specific-tls-extensions`|`false`|If set, include additional `tls.crt`, `tls.key`, and `tls.cas` for apps that require these file extensions|
+|`--[no-]specific-tls-extensions`|`false`|If set, includes additional `tls.crt`, `tls.key`, and `tls.cas` for apps that require these file extensions|
 |`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|none|Address of the Teleport Proxy Server.|
 |`--reader-group`|none|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
@@ -81,7 +81,7 @@ Flags:
 
 ## tbot configure application-proxy
 
-Configures tbot with an application proxy.
+Configures tbot with a HTTP application proxy.
 
 Usage:
 
@@ -107,7 +107,7 @@ Flags:
 |`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
 |`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
 |`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--listen`|none|A socket URI, such as tcp://0.0.0.0:8080|
+|`--listen`|none|The socket URI on which the local proxy should listen, such as `tcp://0.0.0.0:8080`.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|none|Address of the Teleport Proxy Server.|
@@ -147,7 +147,7 @@ Flags:
 |`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
 |`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
 |`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--listen`|none|A socket URI, such as tcp://0.0.0.0:8080|
+|`--listen`|none|The socket URI on which the tunnel should listen, such as `tcp://0.0.0.0:8080`.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|none|Address of the Teleport Proxy Server.|
@@ -183,10 +183,10 @@ Flags:
 |`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
 |`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
 |`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--database`|none|The name of the database available in the requested database service|
+|`--database`|none|The name of the database available in the requested database service.|
 |`--destination`|none|A destination URI, such as file:///foo/bar|
 |`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--format`|``|The database output format if necessary|
+|`--format`|``|The format of the credentials to generate. If specified, must be `tls`, `mongo` or `cockroach`.|
 |`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
 |`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
@@ -197,11 +197,11 @@ Flags:
 |`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
 |`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
 |`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--service`|none|The database service name|
+|`--service`|none|The database service name.|
 |`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
 |`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
 |`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`--username`|none|The database user name|
+|`--username`|none|The database user name.|
 
 ## tbot configure database-tunnel
 
@@ -228,22 +228,22 @@ Flags:
 |`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
 |`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
 |`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--database`|none|The name of the database available in the requested database service|
+|`--database`|none|The name of the database available in the requested database service.|
 |`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
 |`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
 |`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--listen`|none|A socket URI to listen on, such as tcp://0.0.0.0:3306|
+|`--listen`|none|A socket URI to listen on, such as `tcp://0.0.0.0:3306`.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|none|Address of the Teleport Proxy Server.|
 |`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
 |`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
 |`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--service`|none|The database service name|
+|`--service`|none|The database service name.|
 |`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
 |`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
 |`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`--username`|none|The database user name|
+|`--username`|none|The database user name.|
 
 ## tbot configure identity
 
@@ -270,7 +270,7 @@ Flags:
 |`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
 |`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
 |`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--cluster`|none|The name of a specific cluster for which to issue an identity if using a leaf cluster|
+|`--cluster`|none|The name of a specific cluster for which to issue an identity if using a leaf cluster.|
 |`--destination`|none|A destination URI, such as file:///foo/bar|
 |`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
 |`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
@@ -317,7 +317,7 @@ Flags:
 |`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
 |`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
 |`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--kubernetes-cluster`|none|The name of the Kubernetes cluster in Teleport for which to fetch credentials|
+|`--kubernetes-cluster`|none|The name of the Kubernetes cluster in Teleport for which to fetch credentials.|
 |`--[no-]disable-exec-plugin`|`false`|If set, disables the exec plugin. This allows credentials to be used without the `tbot` binary.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
@@ -483,9 +483,9 @@ Flags:
 |`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
 |`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
 |`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','.|
+|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
 |`--listen`|none|The address on which the workload identity API should listen. This should either be prefixed with 'unix://' or 'tcp://'.|
-|`--name-selector`|none|The name of the workload identity to issue|
+|`--name-selector`|none|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|none|Address of the Teleport Proxy Server.|
@@ -526,8 +526,8 @@ Flags:
 |`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
 |`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
 |`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','.|
-|`--name-selector`|none|The name of the workload identity to issue|
+|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
+|`--name-selector`|none|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
 |`--profile-arn`|none|The ARN of the Roles Anywhere profile to use.|
@@ -576,8 +576,8 @@ Flags:
 |`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
 |`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
 |`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','.|
-|`--name-selector`|none|The name of the workload identity to issue|
+|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
+|`--name-selector`|none|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|none|Address of the Teleport Proxy Server.|
@@ -619,9 +619,9 @@ Flags:
 |`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
 |`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
 |`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','.|
-|`--name-selector`|none|The name of the workload identity to issue|
-|`--[no-]include-federated-trust-bundles`|`false`|If set, include federated trust bundles in the output|
+|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
+|`--name-selector`|none|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
+|`--[no-]include-federated-trust-bundles`|`false`|If set, include federated trust bundles in the output.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|none|Address of the Teleport Proxy Server.|
@@ -636,7 +636,7 @@ Flags:
 
 ## tbot copy-binaries
 
-Copies this tbot binary to a given destination
+Copies this tbot binary to a given destination.
 
 Usage:
 
@@ -654,11 +654,11 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|destination-dir|none (required)|The destination path to write the copy of the tbot binary|
+|destination-dir|none (required)|The destination path to write the copy of the tbot binary.|
 
 ## tbot db
 
-Execute database commands through tsh.
+Executes database commands through tsh.
 
 Usage:
 
@@ -671,8 +671,8 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--cluster`|none|The cluster name. Extracted from the certificate if unset.|
-|`--destination-dir`|none|The destination directory with which to authenticate tsh|
-|`--proxy-server`|none|The Teleport proxy server to use, in host:port form.|
+|`--destination-dir`|none|The destination directory to provide tsh for authentication.|
+|`--proxy-server`|none|The address of the Teleport proxy server to use, in host:port form.|
 
 Arguments:
 
@@ -698,8 +698,7 @@ Arguments:
 
 ## tbot init
 
-Initialize a certificate destination directory for writes from a separate bot
-user.
+Initializes a destination directory for writes from a separate bot user.
 
 Usage:
 
@@ -722,7 +721,7 @@ Flags:
 |`--bot-user`|none|Enables POSIX ACLs and defines Linux user that can read/write short-lived certificates to "--destination-dir".|
 |`--destination-dir`|none|Directory to write short-lived machine certificates.|
 |`--init-dir`|none|If using a config file and multiple destinations are configured, controls which destination dir to configure.|
-|`--[no-]clean`|`false`|If set, remove unexpected files and directories from the destination.|
+|`--[no-]clean`|`false`|If set, removes unexpected files and directories from the destination.|
 |`--owner`|none|Defines Linux "user:group" owner of "--destination-dir". Defaults to the Linux user running tbot if unspecified.|
 |`--proxy-server`|none|Address of the Teleport Proxy Server.|
 |`--reader-user`|none|Enables POSIX ACLs and defines Linux user that will read short-lived certificates from "--destination-dir".|
@@ -747,13 +746,35 @@ Flags:
 |`--[no-]anonymous-telemetry`|`false`|Enable anonymous telemetry.|
 |`--[no-]force`|`false`|Overwrite existing systemd unit file if present.|
 |`--[no-]write`|`false`|Write the systemd unit file. If not specified, this command runs in a dry-run mode that outputs the generated content to stdout.|
+|`--pid-file`|none|Overrides the PID file path that should be set in the systemd unit files.|
 |`--systemd-directory`|`/etc/systemd/system`|Path to the directory that the systemd unit file should be written. Defaults to '/etc/systemd/system'.|
 |`--user`|`teleport`|The user that the service should run as. Defaults to 'teleport'.|
 
+## tbot keypair create
+
+Creates a keypair to preregister for bound-keypair joining.
+
+Usage:
+
+```code
+$ tbot keypair create --proxy-server=PROXY-SERVER [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text`|Output format, one of: text, json|
+|`--[no-]overwrite`|`false`|If set, overwrite any existing keypair. If unset and a keypair already exists, its key will be printed for use.|
+|`--[no-]static`|`false`|If set, creates a static private key instead of writing a mutable key into bot storage. If --static-key-path is unset, the key will be printed to the terminal.|
+|`--proxy-server`|none|The proxy server, which will be pinged to determine the current cryptographic suite in use.|
+|`--static-key-path`|none|If set, writes the static private key to a file.|
+|`--storage`|none|The internal storage URI to write the keypair to, such as `file:///var/lib/teleport/bot`.|
+
 ## tbot migrate
 
-Migrates a config file from an older version to the newest version. Outputs to
-stdout by default.
+Migrates a configuration file from an older version to the newest version.
+Outputs to stdout by default.
 
 Usage:
 
@@ -765,11 +786,11 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-o`, `--output`|none|Path to write the generated configuration file to rather than write to stdout.|
+|`-o`, `--output`|none|The path to write the generated configuration file to. If unset, it will be written to stdout.|
 
 ## tbot proxy
 
-Start a local TLS proxy via tsh to connect to Teleport in single-port mode.
+Starts a local TLS proxy via tsh to connect to Teleport in single-port mode.
 
 Usage:
 
@@ -777,19 +798,13 @@ Usage:
 $ tbot proxy [<flags>] [<args>...]
 ```
 
-Environment variables:
-
-|Variable|Default|Description|
-|---|---|---|
-|`TELEPORT_PROXY`|none|The Teleport proxy server to use, in host:port form.|
-
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
 |`--cluster`|none|The cluster name. Extracted from the certificate if unset.|
-|`--destination-dir`|none|The destination directory with which to authenticate tsh|
-|`--proxy-server`|none|The Teleport proxy server to use, in host:port form.|
+|`--destination-dir`|none|The destination directory to provide tsh for authentication.|
+|`--proxy-server`|none|The address of the Teleport proxy server to use, in host:port form.|
 
 Arguments:
 
@@ -844,7 +859,7 @@ Flags:
 |`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
 |`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--[no-]specific-tls-extensions`|`false`|If set, include additional `tls.crt`, `tls.key`, and `tls.cas` for apps that require these file extensions|
+|`--[no-]specific-tls-extensions`|`false`|If set, includes additional `tls.crt`, `tls.key`, and `tls.cas` for apps that require these file extensions|
 |`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|none|Address of the Teleport Proxy Server.|
 |`--reader-group`|none|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
@@ -858,7 +873,7 @@ Flags:
 
 ## tbot start application-proxy
 
-Starts tbot with an application proxy.
+Starts tbot with a HTTP application proxy.
 
 Usage:
 
@@ -884,7 +899,7 @@ Flags:
 |`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
 |`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
 |`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--listen`|none|A socket URI, such as tcp://0.0.0.0:8080|
+|`--listen`|none|The socket URI on which the local proxy should listen, such as `tcp://0.0.0.0:8080`.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|none|Address of the Teleport Proxy Server.|
@@ -924,7 +939,7 @@ Flags:
 |`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
 |`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
 |`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--listen`|none|A socket URI, such as tcp://0.0.0.0:8080|
+|`--listen`|none|The socket URI on which the tunnel should listen, such as `tcp://0.0.0.0:8080`.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|none|Address of the Teleport Proxy Server.|
@@ -960,10 +975,10 @@ Flags:
 |`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
 |`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
 |`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--database`|none|The name of the database available in the requested database service|
+|`--database`|none|The name of the database available in the requested database service.|
 |`--destination`|none|A destination URI, such as file:///foo/bar|
 |`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--format`|``|The database output format if necessary|
+|`--format`|``|The format of the credentials to generate. If specified, must be `tls`, `mongo` or `cockroach`.|
 |`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
 |`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
@@ -974,11 +989,11 @@ Flags:
 |`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
 |`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
 |`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--service`|none|The database service name|
+|`--service`|none|The database service name.|
 |`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
 |`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
 |`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`--username`|none|The database user name|
+|`--username`|none|The database user name.|
 
 ## tbot start database-tunnel
 
@@ -1005,22 +1020,22 @@ Flags:
 |`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
 |`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
 |`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--database`|none|The name of the database available in the requested database service|
+|`--database`|none|The name of the database available in the requested database service.|
 |`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
 |`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
 |`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--listen`|none|A socket URI to listen on, such as tcp://0.0.0.0:3306|
+|`--listen`|none|A socket URI to listen on, such as `tcp://0.0.0.0:3306`.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|none|Address of the Teleport Proxy Server.|
 |`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
 |`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
 |`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--service`|none|The database service name|
+|`--service`|none|The database service name.|
 |`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
 |`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
 |`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`--username`|none|The database user name|
+|`--username`|none|The database user name.|
 
 ## tbot start identity
 
@@ -1047,7 +1062,7 @@ Flags:
 |`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
 |`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
 |`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--cluster`|none|The name of a specific cluster for which to issue an identity if using a leaf cluster|
+|`--cluster`|none|The name of a specific cluster for which to issue an identity if using a leaf cluster.|
 |`--destination`|none|A destination URI, such as file:///foo/bar|
 |`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
 |`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
@@ -1094,7 +1109,7 @@ Flags:
 |`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
 |`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
 |`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--kubernetes-cluster`|none|The name of the Kubernetes cluster in Teleport for which to fetch credentials|
+|`--kubernetes-cluster`|none|The name of the Kubernetes cluster in Teleport for which to fetch credentials.|
 |`--[no-]disable-exec-plugin`|`false`|If set, disables the exec plugin. This allows credentials to be used without the `tbot` binary.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
@@ -1260,9 +1275,9 @@ Flags:
 |`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
 |`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
 |`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','.|
+|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
 |`--listen`|none|The address on which the workload identity API should listen. This should either be prefixed with 'unix://' or 'tcp://'.|
-|`--name-selector`|none|The name of the workload identity to issue|
+|`--name-selector`|none|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|none|Address of the Teleport Proxy Server.|
@@ -1303,8 +1318,8 @@ Flags:
 |`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
 |`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
 |`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','.|
-|`--name-selector`|none|The name of the workload identity to issue|
+|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
+|`--name-selector`|none|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
 |`--profile-arn`|none|The ARN of the Roles Anywhere profile to use.|
@@ -1353,8 +1368,8 @@ Flags:
 |`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
 |`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
 |`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','.|
-|`--name-selector`|none|The name of the workload identity to issue|
+|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
+|`--name-selector`|none|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|none|Address of the Teleport Proxy Server.|
@@ -1396,9 +1411,9 @@ Flags:
 |`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
 |`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
 |`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','.|
-|`--name-selector`|none|The name of the workload identity to issue|
-|`--[no-]include-federated-trust-bundles`|`false`|If set, include federated trust bundles in the output|
+|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
+|`--name-selector`|none|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
+|`--[no-]include-federated-trust-bundles`|`false`|If set, include federated trust bundles in the output.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|none|Address of the Teleport Proxy Server.|
@@ -1413,7 +1428,7 @@ Flags:
 
 ## tbot tpm identify
 
-Output identifying information related to the TPM detected on the system.
+Outputs identifying information related to the TPM detected on the system.
 
 Usage:
 
@@ -1423,7 +1438,7 @@ $ tbot tpm identify
 
 ## tbot version
 
-Print the version of your tbot binary.
+Prints the version of this tbot binary.
 
 Usage:
 

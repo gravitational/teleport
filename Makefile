@@ -2053,6 +2053,18 @@ cli-docs-tctl:
 	$(BUILDDIR)/tctldocs help 2>docs/pages/reference/cli/tctl.mdx && \
 	rm $(BUILDDIR)/tctldocs
 
+# cli-docs generates reference documentation for all Teleport CLI tools.
+.PHONY: cli-docs
+cli-docs: cli-docs-tsh cli-docs-tbot cli-docs-teleport cli-docs-tctl
+
+# cli-docs-up-to-date checks if the generated CLI reference docs are up to date.
+.PHONY: cli-docs-up-to-date
+cli-docs-up-to-date: must-start-clean/host cli-docs
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "CLI reference docs" "make cli-docs"; \
+		exit 1; \
+	fi
+
 # audit-event-reference generates audit event reference docs using the Web UI
 # source.
 .PHONY: audit-event-reference

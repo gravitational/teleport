@@ -268,7 +268,7 @@ func formatHelp(help string) string {
 // docsUsageTemplatePath points to a help text template for CLI reference
 // documentation. Intended to be used as the argument to
 // *kingpin.Application.UsageTemplate.
-var docsUsageTemplatePath = filepath.Join("lib", "utils", "docs-usage.md.tmpl")
+var docsUsageTemplatePath = filepath.Join("lib", "utils", "usage_docs.md.tmpl")
 
 // updateAppUsageTemplatePath updates the app usage template to print a reference
 // guide for the CLI application. It reads the template from r and uses the
