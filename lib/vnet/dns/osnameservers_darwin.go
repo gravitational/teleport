@@ -14,8 +14,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build linux || darwin
-
 package dns
 
 import (
@@ -24,10 +22,13 @@ import (
 	"log/slog"
 	"net/netip"
 	"os"
-	"runtime"
 	"strings"
 
 	"github.com/gravitational/trace"
+)
+
+const (
+	confFilePath = "/etc/resolv.conf"
 )
 
 // platformLoadUpstreamNameservers reads the OS DNS nameservers found in
@@ -37,20 +38,6 @@ import (
 // easiest place to read them. Eventually we should probably use a better
 // method, but for now this works.
 func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
-	// TODO: this is very hacky and just happens to work on the EC2 I've been
-	// testing on, figure out a good way to find upstream nameservers on Linux
-	// or a better way of resolving queries VNet can't handle (names in custom
-	// DNS zones that don't match a teleport app may resolve to some other
-	// company internal app outside of VNet/Teleport).
-	var confFilePath string
-	switch runtime.GOOS {
-	case "darwin":
-		confFilePath = "/etc/resolv.conf"
-	case "linux":
-		confFilePath = "/run/systemd/resolve/resolv.conf"
-	default:
-		return nil, trace.NotImplemented("unsupported os %s", runtime.GOOS)
-	}
 	f, err := os.Open(confFilePath)
 	if err != nil {
 		return nil, trace.Wrap(err, "opening %s", confFilePath)
