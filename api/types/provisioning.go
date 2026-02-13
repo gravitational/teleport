@@ -145,6 +145,9 @@ type ProvisionToken interface {
 	SetLabels(map[string]string)
 	// GetAllowRules returns the list of allow rules
 	GetAllowRules() []*TokenRule
+	// GetAWSAllowRules returns the list of AWS-specific allow rules. GetAllowRules is kept for backwards compatibility,
+	// but GetAWSAllowRules should be preferred.
+	GetAWSAllowRules() []*TokenRule
 	// SetAllowRules sets the allow rules
 	SetAllowRules([]*TokenRule)
 	// GetIntegration returns the integration name that provides credentials to validate allow rules.
@@ -512,9 +515,14 @@ func (p *ProvisionTokenV2) SetLabels(l map[string]string) {
 	p.Metadata.Labels = l
 }
 
-// GetAllowRules returns the list of allow rules
-func (p *ProvisionTokenV2) GetAllowRules() []*TokenRule {
+// GetAWSAllowRules returns the list of AWS-specific allow rules
+func (p *ProvisionTokenV2) GetAWSAllowRules() []*TokenRule {
 	return p.Spec.Allow
+}
+
+// GetAllowRules returns the list of allow rules.
+func (p *ProvisionTokenV2) GetAllowRules() []*TokenRule {
+	return p.GetAWSAllowRules()
 }
 
 // SetAllowRules sets the allow rules.
@@ -522,7 +530,7 @@ func (p *ProvisionTokenV2) SetAllowRules(rules []*TokenRule) {
 	p.Spec.Allow = rules
 }
 
-// GetGCPRules will return the GCP rules within this token.
+// GetGCPRules will return the GCP-specific configuration for this token.
 func (p *ProvisionTokenV2) GetGCPRules() *ProvisionTokenSpecV2GCP {
 	return p.Spec.GCP
 }

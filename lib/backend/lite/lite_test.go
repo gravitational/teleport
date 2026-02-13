@@ -20,6 +20,7 @@ package lite
 
 import (
 	"context"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -73,7 +74,15 @@ func TestLite(t *testing.T) {
 }
 
 func TestConnectionURIGeneration(t *testing.T) {
-	fileNameAndParams := "/sqlite.db?_busy_timeout=0&_txlock=immediate"
+	params := url.Values{}
+	params.Add("_pragma", "busy_timeout(0)")
+	params.Add("_pragma", "journal_mode(WAL)")
+	params.Add("_txlock", "immediate")
+
+	p := params.Encode()
+
+	fileNameAndParams := "/sqlite.db?" + p
+
 	tests := []struct {
 		name     string
 		path     string
@@ -96,7 +105,10 @@ func TestConnectionURIGeneration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			conf := Config{Path: tt.path}
+			conf := Config{
+				Path:    tt.path,
+				Journal: "WAL",
+			}
 			require.Equal(t, tt.expected, conf.ConnectionURI())
 		})
 	}

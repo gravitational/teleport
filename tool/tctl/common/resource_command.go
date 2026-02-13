@@ -43,7 +43,6 @@ import (
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
@@ -124,14 +123,12 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindIntegration:          rc.createIntegration,
 		types.KindSecurityReport:       rc.createSecurityReport,
 		types.KindCrownJewel:           rc.createCrownJewel,
-		types.KindVnetConfig:           rc.createVnetConfig,
 		types.KindPlugin:               rc.createPlugin,
 		types.KindHealthCheckConfig:    rc.createHealthCheckConfig,
 		types.KindInferencePolicy:      rc.createInferencePolicy,
 	}
 	rc.UpdateHandlers = map[string]ResourceCreateHandler{
 		types.KindCrownJewel:        rc.updateCrownJewel,
-		types.KindVnetConfig:        rc.updateVnetConfig,
 		types.KindPlugin:            rc.updatePlugin,
 		types.KindHealthCheckConfig: rc.updateHealthCheckConfig,
 		types.KindInferencePolicy:   rc.updateInferencePolicy,
@@ -1177,12 +1174,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &securityReportCollection{items: resources}, nil
-	case types.KindVnetConfig:
-		vnetConfig, err := client.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &vnetConfigCollection{vnetConfig: vnetConfig}, nil
 	case types.KindPlugin:
 		if rc.ref.Name != "" {
 			plugin, err := client.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{Name: rc.ref.Name})
@@ -1280,37 +1271,6 @@ func (rc *ResourceCommand) createSecurityReport(ctx context.Context, client *aut
 	if err = client.SecReportsClient().UpsertSecurityReport(ctx, in); err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
-}
-
-func (rc *ResourceCommand) createVnetConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	vnetConfig, err := services.UnmarshalProtoResource[*vnet.VnetConfig](raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if rc.IsForced() {
-		_, err = client.VnetConfigServiceClient().UpsertVnetConfig(ctx, &vnet.UpsertVnetConfigRequest{VnetConfig: vnetConfig})
-	} else {
-		_, err = client.VnetConfigServiceClient().CreateVnetConfig(ctx, &vnet.CreateVnetConfigRequest{VnetConfig: vnetConfig})
-	}
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Println("vnet_config has been created")
-	return nil
-}
-
-func (rc *ResourceCommand) updateVnetConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	vnetConfig, err := services.UnmarshalProtoResource[*vnet.VnetConfig](raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := client.VnetConfigServiceClient().UpdateVnetConfig(ctx, &vnet.UpdateVnetConfigRequest{VnetConfig: vnetConfig}); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Println("vnet_config has been updated")
 	return nil
 }
 

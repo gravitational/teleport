@@ -50,12 +50,18 @@ The Teleport Debug Service allows administrators to dynamically manage log level
 without restarting the instance. The service, enabled by default, ensures
 local-only access and must be consumed from inside the same instance.
 
-To change the instance log level use the `teleport debug set-log-level` command:
+To change the instance log level use the `teleport debug set-log-level` command.
+
+On a Linux server, run the following command:
 
 ```code
 $ teleport debug set-log-level DEBUG
 Changed log level from "INFO" to "DEBUG".
+```
 
+If running your Teleport cluster on Kubernetes, use `kubectl`:
+
+```code
 $ kubectl -n teleport exec my-pod -- teleport debug set-log-level DEBUG
 Changed log level from "INFO" to "DEBUG".
 ```
@@ -85,6 +91,15 @@ teleport:
 Restart the `teleport` process to apply the modified log level. Logs will resemble
 the following (these logs were printed while joining a server to a cluster, then
 terminating the `teleport` process on the server):
+
+If you are running your cluster on Kubernetes from the `teleport-cluster` Helm
+chart, edit your values file as follows and update your release:
+
+```yaml
+log:
+  level: DEBUG
+```
+
 </TabItem>
 </Tabs>
 
@@ -112,8 +127,9 @@ DEBU [NODE:PROX] Pool is closing agent. leaseID:3 target:tele.example.com:11106 
 ## Step 2/3. Generate a debug dump
 
 The `teleport` binary is a Go program. Go programs assign work to CPU threads
-using an abstraction called a **goroutine**. You can get a goroutine dump of a
-running `teleport` process by sending it a `USR1` signal.
+using an abstraction called a **goroutine**. If you have access to the machine
+where a `teleport` process is running, you can get a goroutine dump of the
+process by sending it a `USR1` signal.
 
 This is especially useful for troubleshooting a `teleport` process that appears
 stuck, since you can see which a goroutine is blocked and and why. For example,
@@ -165,6 +181,12 @@ Determine the version of the `teleport` process you are investigating.
 ```code
 $ teleport version
 Teleport v8.3.7 git:v8.3.7-0-ga8d066935 go1.17.3
+```
+
+Or, on Kubernetes, use:
+
+```code
+$ kubectl -n teleport exec my-pod -- teleport version
 ```
 
 You can also collect the versions of the Teleport Auth Service, Proxy
