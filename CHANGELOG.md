@@ -8597,7 +8597,7 @@ Other updates:
 
 * We now provide local user management via `https://[cluster-url]/web/users`, providing the ability to edit, reset and delete local users.
 * Teleport Node & App Install scripts. This is currently an Enterprise-only feature that provides customers with an 'auto-magic' installer script. Enterprise customers can enable this feature by modifying the 'token' resource. See note above.
-* We've added a Waiting Room for customers using Access Workflows. [Docs](docs/pages/identity-governance/access-requests/plugins/plugins.mdx)
+* We've added a Waiting Room for customers using Access Workflows. Users can create and manage Access Requests using the Teleport Web UI. [Docs](docs/pages/identity-governance/access-requests/access-requests.mdx). 
 
 #### Signed RPM and Releases
 
