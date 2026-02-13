@@ -422,9 +422,9 @@ func (s *SessionSummarizer) summarizeNow(ctx context.Context, details sessionDet
 		defer s.concurrencyLimiter.Release(1)
 
 		switch details.kind {
-		case types.SSHSessionKind:
+		case types.SSHSessionKind, types.KubernetesSessionKind:
 			sumErr = s.summarizeSession(ctx, log, result, details)
-		case types.DatabaseSessionKind, types.KubernetesSessionKind:
+		case types.DatabaseSessionKind:
 			sumErr = s.summarizeSimple(ctx, log, result, details)
 		// This should be unreachable due to checks in the caller.
 		default:

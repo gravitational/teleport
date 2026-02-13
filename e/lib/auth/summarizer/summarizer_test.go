@@ -1052,6 +1052,81 @@ func TestSummarizerEnhancedSession(t *testing.T) {
 	}
 }
 
+// TestSummarizerSessionRouting verifies that SSH and Kubernetes sessions use the
+// enhanced summarization path while database sessions use the simple summarization path
+func TestSummarizerSessionRouting(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	srv := newSummarizerTestTLSServer(t, summarizerTestTLSServerConfig{
+		uploader:                         eventstest.NewMemoryUploader(),
+		enableBedrockWithoutRestrictions: true,
+	})
+
+	createTestUser(t, srv, "alice")
+	clt, err := srv.NewClient(authtest.TestUser("alice"))
+	require.NoError(t, err)
+	sclt := clt.SummarizerServiceClient()
+	createSummarizerConfig(t, ctx, sclt)
+
+	t.Run("SSH sessions get an enhanced summary", func(t *testing.T) {
+		ctx := t.Context()
+		sessionID := uuid.NewString()
+		sessEvents := generateEnhancedTestSession("openai-cluster", "alice", sessionID, "ls -la")
+
+		ingestSession(t, ctx, srv.Auth(), sessionID, sessEvents)
+		summary := waitForSummary(t, ctx, sclt, sessionID)
+
+		require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS, summary.State)
+		require.NotNil(t, summary.EnhancedSummary, "SSH sessions should produce an enhanced summary via summarizeSession")
+		require.Empty(t, summary.Content, "SSH sessions with commands should not produce simple content")
+	})
+
+	t.Run("Kubernetes sessions get an enhanced summary", func(t *testing.T) {
+		ctx := t.Context()
+		sessionID := uuid.NewString()
+		sessEvents := eventstest.GenerateTestKubeSession(eventstest.SessionParams{
+			ClusterName: "openai-cluster",
+			UserName:    "alice",
+			SessionID:   sessionID,
+			PrintData: []string{
+				"\x1b[?2004h",
+				"kubectl get pods",
+				"\x1b[?2004l",
+				"\r\n",
+				"NAME    READY   STATUS    RESTARTS   AGE",
+			},
+		})
+
+		ingestSession(t, ctx, srv.Auth(), sessionID, sessEvents)
+		summary := waitForSummary(t, ctx, sclt, sessionID)
+
+		require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS, summary.State)
+		require.NotNil(t, summary.EnhancedSummary, "Kubernetes sessions should produce an enhanced summary via summarizeSession")
+		require.Empty(t, summary.Content, "Kubernetes sessions with commands should not produce simple content")
+	})
+
+	t.Run("Database sessions use simple summarization", func(t *testing.T) {
+		ctx := t.Context()
+		sessionID := uuid.NewString()
+		sessEvents := eventstest.GenerateTestDBSession(eventstest.DBSessionParams{
+			ClusterName:     "openai-cluster",
+			UserName:        "alice",
+			SessionID:       sessionID,
+			DatabaseService: "treasure-trove",
+			Queries:         1,
+		})
+
+		ingestSession(t, ctx, srv.Auth(), sessionID, sessEvents)
+		summary := waitForSummary(t, ctx, sclt, sessionID)
+
+		require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS, summary.State)
+		require.Nil(t, summary.EnhancedSummary, "Database sessions should not produce an enhanced summary")
+		require.NotEmpty(t, summary.Content, "Database sessions should produce simple content via summarizeSimple")
+		require.Contains(t, summary.Content, "The user queried:", "Database sessions should use the database prompt")
+	})
+}
+
 // generateEnhancedTestSession creates session events with bracketed paste mode
 // escape sequences to trigger the enhanced summarization path.
 func generateEnhancedTestSession(clusterName, userName, sessionID, command string) []apievents.AuditEvent {
