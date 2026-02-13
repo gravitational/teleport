@@ -98,6 +98,7 @@ export function DocumentGateway(props: {
         gateway={gateway}
         changePort={changePort}
         runCliCommand={runCliCommand}
+        autoUsersEnabled={doc.autoUsersEnabled}
       />
     </Document>
   );

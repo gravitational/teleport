@@ -30,6 +30,7 @@ export async function connectToDatabase(
     protocol: string;
     dbUser: string;
     gcpProjectId?: string;
+    autoUsersEnabled?: boolean;
   },
   telemetry: {
     origin: DocumentOrigin;
@@ -39,17 +40,16 @@ export async function connectToDatabase(
   const documentsService =
     ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
 
+  const targetUser = getTransformedTargetUser(ctx, target);
+
   const doc = documentsService.createGatewayDocument({
     // Not passing the `gatewayUri` field here, as at this point the gateway doesn't exist yet.
     // `port` is not passed as well, we'll let the tsh daemon pick a random one.
     targetUri: target.uri,
     targetName: target.name,
-    targetUser: getTargetUser(
-      target.protocol as GatewayProtocol,
-      target.dbUser,
-      target.gcpProjectId
-    ),
+    targetUser: targetUser,
     origin: telemetry.origin,
+    autoUsersEnabled: target.autoUsersEnabled,
   });
 
   const connectionToReuse = ctx.connectionTracker.findConnectionByDocument(doc);
@@ -63,6 +63,41 @@ export async function connectToDatabase(
     documentsService.add(doc);
     documentsService.open(doc.uri);
   }
+}
+
+/**
+ * Transforms the target username for database connections.
+ * Handles protocol-specific transformations (Redis, GCP) and leaf cluster prefixes.
+ */
+function getTransformedTargetUser(
+  ctx: IAppContext,
+  target: {
+    uri: DatabaseUri;
+    protocol: string;
+    dbUser: string;
+    gcpProjectId?: string;
+  }
+): string {
+  // Get base username with protocol-specific transformations (Redis, GCP)
+  let targetUser = getTargetUser(
+    target.protocol as GatewayProtocol,
+    target.dbUser,
+    target.gcpProjectId
+  );
+
+  const parsedUri = routing.parseDbUri(target.uri);
+  const isLeafCluster = !!parsedUri?.params?.leafClusterId;
+
+  if (isLeafCluster && !targetUser.startsWith('remote-')) {
+    const rootCluster = ctx.clustersService.findRootClusterByResource(
+      target.uri
+    );
+    if (rootCluster) {
+      targetUser = `remote-${targetUser}-${rootCluster.name}`;
+    }
+  }
+
+  return targetUser;
 }
 
 function getTargetUser(

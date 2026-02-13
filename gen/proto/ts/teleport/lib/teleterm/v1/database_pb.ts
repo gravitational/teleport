@@ -98,6 +98,12 @@ export interface Database {
      * @generated from protobuf field: string gcp_project_id = 10;
      */
     gcpProjectId: string;
+    /**
+     * auto_users_enabled indicates if the database supports automatic user provisioning
+     *
+     * @generated from protobuf field: bool auto_users_enabled = 11;
+     */
+    autoUsersEnabled: boolean;
 }
 /**
  * DatabaseServer (db_server) describes a database heartbeat signal
@@ -137,7 +143,8 @@ class Database$Type extends MessageType<Database> {
             { no: 7, name: "addr", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 8, name: "labels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Label },
             { no: 9, name: "target_health", kind: "message", T: () => TargetHealth },
-            { no: 10, name: "gcp_project_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 10, name: "gcp_project_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 11, name: "auto_users_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<Database>): Database {
@@ -151,6 +158,7 @@ class Database$Type extends MessageType<Database> {
         message.addr = "";
         message.labels = [];
         message.gcpProjectId = "";
+        message.autoUsersEnabled = false;
         if (value !== undefined)
             reflectionMergePartial<Database>(this, message, value);
         return message;
@@ -189,6 +197,9 @@ class Database$Type extends MessageType<Database> {
                     break;
                 case /* string gcp_project_id */ 10:
                     message.gcpProjectId = reader.string();
+                    break;
+                case /* bool auto_users_enabled */ 11:
+                    message.autoUsersEnabled = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -232,6 +243,9 @@ class Database$Type extends MessageType<Database> {
         /* string gcp_project_id = 10; */
         if (message.gcpProjectId !== "")
             writer.tag(10, WireType.LengthDelimited).string(message.gcpProjectId);
+        /* bool auto_users_enabled = 11; */
+        if (message.autoUsersEnabled !== false)
+            writer.tag(11, WireType.Varint).bool(message.autoUsersEnabled);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

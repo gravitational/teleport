@@ -47,6 +47,8 @@ message Database {
   TargetHealth target_health = 9;
   // gcp_project_id is optional project ID set for GCP Project databases.
   string gcp_project_id = 10;
+  // auto_users_enabled indicates if the database supports automatic user provisioning
+  bool auto_users_enabled = 11;
 }
 
 // DatabaseServer (db_server) describes a database heartbeat signal

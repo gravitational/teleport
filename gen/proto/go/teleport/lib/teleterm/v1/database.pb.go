@@ -60,9 +60,11 @@ type Database struct {
 	// target_health of the "db_server" that is serving this database.
 	TargetHealth *TargetHealth `protobuf:"bytes,9,opt,name=target_health,json=targetHealth,proto3" json:"target_health,omitempty"`
 	// gcp_project_id is optional project ID set for GCP Project databases.
-	GcpProjectId  string `protobuf:"bytes,10,opt,name=gcp_project_id,json=gcpProjectId,proto3" json:"gcp_project_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	GcpProjectId string `protobuf:"bytes,10,opt,name=gcp_project_id,json=gcpProjectId,proto3" json:"gcp_project_id,omitempty"`
+	// auto_users_enabled indicates if the database supports automatic user provisioning
+	AutoUsersEnabled bool `protobuf:"varint,11,opt,name=auto_users_enabled,json=autoUsersEnabled,proto3" json:"auto_users_enabled,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *Database) Reset() {
@@ -165,6 +167,13 @@ func (x *Database) GetGcpProjectId() string {
 	return ""
 }
 
+func (x *Database) GetAutoUsersEnabled() bool {
+	if x != nil {
+		return x.AutoUsersEnabled
+	}
+	return false
+}
+
 // DatabaseServer (db_server) describes a database heartbeat signal
 // reported from an agent (db_service) that is proxying
 // the database.
@@ -240,7 +249,7 @@ var File_teleport_lib_teleterm_v1_database_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_database_proto_rawDesc = "" +
 	"\n" +
-	"'teleport/lib/teleterm/v1/database.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\x1a,teleport/lib/teleterm/v1/target_health.proto\"\xd0\x02\n" +
+	"'teleport/lib/teleterm/v1/database.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\x1a,teleport/lib/teleterm/v1/target_health.proto\"\xfe\x02\n" +
 	"\bDatabase\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -252,7 +261,8 @@ const file_teleport_lib_teleterm_v1_database_proto_rawDesc = "" +
 	"\x06labels\x18\b \x03(\v2\x1f.teleport.lib.teleterm.v1.LabelR\x06labels\x12K\n" +
 	"\rtarget_health\x18\t \x01(\v2&.teleport.lib.teleterm.v1.TargetHealthR\ftargetHealth\x12$\n" +
 	"\x0egcp_project_id\x18\n" +
-	" \x01(\tR\fgcpProjectId\"\xa4\x01\n" +
+	" \x01(\tR\fgcpProjectId\x12,\n" +
+	"\x12auto_users_enabled\x18\v \x01(\bR\x10autoUsersEnabled\"\xa4\x01\n" +
 	"\x0eDatabaseServer\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x1a\n" +
 	"\bhostname\x18\x02 \x01(\tR\bhostname\x12\x17\n" +

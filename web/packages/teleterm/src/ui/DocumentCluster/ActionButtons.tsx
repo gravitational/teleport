@@ -216,12 +216,32 @@ export function ConnectDatabaseActionButton(props: {
   const appContext = useAppContext();
 
   function connect(dbUser: string): void {
-    const { uri, name, protocol, gcpProjectId } = props.database;
+    const { uri, name, protocol, gcpProjectId, autoUsersEnabled } = props.database;
 
     connectToDatabase(
       appContext,
-      { uri, name, protocol, dbUser, gcpProjectId },
+      { uri, name, protocol, dbUser, gcpProjectId, autoUsersEnabled },
       { origin: 'resource_table' }
+    );
+  }
+
+  if (props.database.autoUsersEnabled) {
+    const cluster = appContext.clustersService.findClusterByResource(
+      props.database.uri
+    );
+    const dbUser = cluster?.loggedInUser?.name || '';
+
+    return (
+      <ButtonBorder
+        size="small"
+        onClick={() => {
+          connect(dbUser);
+        }}
+        textTransform="none"
+        width={buttonWidth}
+      >
+        Connect
+      </ButtonBorder>
     );
   }
 

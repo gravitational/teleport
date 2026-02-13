@@ -73,8 +73,10 @@ type Gateway struct {
 	// daemon. This means that the Database Access team can add support for a new protocol and
 	// Connect will support it right away with no extra changes.
 	GatewayCliCommand *GatewayCLICommand `protobuf:"bytes,10,opt,name=gateway_cli_command,json=gatewayCliCommand,proto3" json:"gateway_cli_command,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// database_roles is a list of database roles that the auto-provisioned user will be assigned
+	DatabaseRoles []string `protobuf:"bytes,11,rep,name=database_roles,json=databaseRoles,proto3" json:"database_roles,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Gateway) Reset() {
@@ -166,6 +168,13 @@ func (x *Gateway) GetTargetSubresourceName() string {
 func (x *Gateway) GetGatewayCliCommand() *GatewayCLICommand {
 	if x != nil {
 		return x.GatewayCliCommand
+	}
+	return nil
+}
+
+func (x *Gateway) GetDatabaseRoles() []string {
+	if x != nil {
+		return x.DatabaseRoles
 	}
 	return nil
 }
@@ -262,7 +271,7 @@ var File_teleport_lib_teleterm_v1_gateway_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_gateway_proto_rawDesc = "" +
 	"\n" +
-	"&teleport/lib/teleterm/v1/gateway.proto\x12\x18teleport.lib.teleterm.v1\"\x84\x03\n" +
+	"&teleport/lib/teleterm/v1/gateway.proto\x12\x18teleport.lib.teleterm.v1\"\xab\x03\n" +
 	"\aGateway\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x1f\n" +
 	"\vtarget_name\x18\x02 \x01(\tR\n" +
@@ -277,7 +286,8 @@ const file_teleport_lib_teleterm_v1_gateway_proto_rawDesc = "" +
 	"\bprotocol\x18\a \x01(\tR\bprotocol\x126\n" +
 	"\x17target_subresource_name\x18\t \x01(\tR\x15targetSubresourceName\x12[\n" +
 	"\x13gateway_cli_command\x18\n" +
-	" \x01(\v2+.teleport.lib.teleterm.v1.GatewayCLICommandR\x11gatewayCliCommandJ\x04\b\b\x10\tR\vcli_command\"g\n" +
+	" \x01(\v2+.teleport.lib.teleterm.v1.GatewayCLICommandR\x11gatewayCliCommand\x12%\n" +
+	"\x0edatabase_roles\x18\v \x03(\tR\rdatabaseRolesJ\x04\b\b\x10\tR\vcli_command\"g\n" +
 	"\x11GatewayCLICommand\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x12\n" +
 	"\x04args\x18\x02 \x03(\tR\x04args\x12\x10\n" +

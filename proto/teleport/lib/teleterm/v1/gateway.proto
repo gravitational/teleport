@@ -58,6 +58,8 @@ message Gateway {
   // daemon. This means that the Database Access team can add support for a new protocol and
   // Connect will support it right away with no extra changes.
   GatewayCLICommand gateway_cli_command = 10;
+  // database_roles is a list of database roles that the auto-provisioned user will be assigned
+  repeated string database_roles = 11;
 }
 
 // GatewayCLICommand represents a command that the user can execute to connect to a gateway

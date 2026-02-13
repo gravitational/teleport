@@ -285,6 +285,8 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
               gwConn.title = doc.title;
               gwConn.targetSubresourceName = doc.targetSubresourceName;
               gwConn.port = doc.port;
+              gwConn.databaseRoles = doc.databaseRoles;
+              gwConn.autoUsersEnabled = doc.autoUsersEnabled;
               gwConn.connected = !!this._clusterService.findGateway(
                 doc.gatewayUri
               );

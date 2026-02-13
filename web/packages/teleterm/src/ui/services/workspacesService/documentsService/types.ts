@@ -111,6 +111,16 @@ export interface DocumentGateway extends DocumentBase {
    * targetProtocol is the protocol of the resource proxied by the gateway.
    */
   targetProtocol?: string;
+  /**
+   * databaseRoles is the list of database roles to assign to the auto-provisioned database user.
+   * Only applicable for database gateways with auto-user provisioning enabled.
+   */
+  databaseRoles?: string[];
+  /**
+   * autoUsersEnabled indicates whether automatic user provisioning is enabled for this database.
+   * When true, the database user will be automatically provisioned with the configured roles.
+   */
+  autoUsersEnabled?: boolean;
 }
 
 /**
@@ -331,6 +341,8 @@ export type CreateGatewayDocumentOpts = {
   port?: string;
   origin: DocumentOrigin;
   targetProtocol?: string;
+  databaseRoles?: string[];
+  autoUsersEnabled?: boolean;
 };
 
 export type CreateAccessRequestDocumentOpts = {

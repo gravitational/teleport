@@ -40,6 +40,11 @@ func (d *db) RouteToDatabase() tlsca.RouteToDatabase {
 	return d.cfg.RouteToDatabase()
 }
 
+// DatabaseRoles returns the database roles that the auto-provisioned user will be assigned.
+func (d *db) DatabaseRoles() []string {
+	return d.cfg.DatabaseRoles
+}
+
 func makeDatabaseGateway(cfg Config) (Database, error) {
 	base, err := newBase(cfg)
 	if err != nil {
@@ -59,6 +64,7 @@ func makeDatabaseGateway(cfg Config) (Database, error) {
 			cert, err := d.cfg.OnExpiredCert(ctx, d)
 			return cert, trace.Wrap(err)
 		},
+		dbRoute: d.cfg.RouteToDatabase(),
 	}
 
 	localProxyConfig := alpnproxy.LocalProxyConfig{
