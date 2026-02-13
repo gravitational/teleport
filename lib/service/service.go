@@ -2746,8 +2746,8 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
-	process.Supervisor.RegisterProcessStateCallback(func(cse componentStateEnum) {
-		if cse != stateOK {
+	process.Supervisor.RegisterProcessStateCallback(func(healthy bool) {
+		if !healthy {
 			tlsServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_NOT_SERVING)
 			return
 		}

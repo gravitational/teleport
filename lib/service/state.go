@@ -64,7 +64,7 @@ func init() {
 type processState struct {
 	mu        sync.Mutex
 	states    map[string]*componentState
-	callbacks []func(componentStateEnum)
+	callbacks []func(healthy bool)
 	// lastState stores the last state sent to callbacks. this is used to determine
 	// whether the next state change should be sent to callbacks.
 	lastState componentStateEnum
@@ -180,11 +180,11 @@ func (f *processState) getState() componentStateEnum {
 	return f.getStateLocked()
 }
 
-func (f *processState) registerCallback(fn func(componentStateEnum)) {
+func (f *processState) registerCallback(fn func(healthy bool)) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.callbacks = append(f.callbacks, fn)
-	fn(f.getStateLocked())
+	fn(f.getStateLocked() == stateOK)
 }
 
 func (f *processState) updateCallbacksLocked() {
@@ -193,7 +193,7 @@ func (f *processState) updateCallbacksLocked() {
 		return
 	}
 	for _, fn := range f.callbacks {
-		fn(state)
+		fn(state == stateOK)
 	}
 	f.lastState = state
 }

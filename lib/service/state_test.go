@@ -132,24 +132,24 @@ func TestProcessStateCallback(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
 		initial componentStateEnum
-		expect  []componentStateEnum
+		expect  []bool
 		events  []string
 	}{
 		{
 			name:    "callback receives initial state",
 			initial: stateDegraded,
-			expect:  []componentStateEnum{stateDegraded},
+			expect:  []bool{false},
 		},
 		{
 			name:    "callback receives multiple state changes",
 			initial: stateOK,
-			expect:  []componentStateEnum{stateOK, stateDegraded, stateRecovering},
+			expect:  []bool{true, false, false},
 			events:  []string{TeleportDegradedEvent, TeleportOKEvent},
 		},
 		{
 			name:    "callback skips non-state change events",
 			initial: stateOK,
-			expect:  []componentStateEnum{stateOK},
+			expect:  []bool{true},
 			events:  []string{TeleportOKEvent, TeleportOKEvent, TeleportOKEvent},
 		},
 	} {
@@ -161,11 +161,11 @@ func TestProcessStateCallback(t *testing.T) {
 				},
 			}
 
-			var got []componentStateEnum
-			ps.registerCallback(func(state componentStateEnum) {
-				got = append(got, state)
+			var got []bool
+			ps.registerCallback(func(h bool) {
+				got = append(got, h)
 			})
-			require.Equal(t, []componentStateEnum{tt.initial}, got)
+			require.Equal(t, tt.expect[:1], got)
 
 			for _, event := range tt.events {
 				ps.update(time.Now(), event, component)

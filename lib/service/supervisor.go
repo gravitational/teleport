@@ -112,9 +112,9 @@ type Supervisor interface {
 	HandleReadiness(http.ResponseWriter, *http.Request)
 
 	// RegisterProcessStateCallback registers a function which is called immediately
-	// upon registering and then each time the overall process state changes. The
-	// function must not call back into the supervisor or block in any way.
-	RegisterProcessStateCallback(fn func(componentStateEnum))
+	// upon registering and then each time the health of the process state changes.
+	// The function must not call back into the supervisor or block in any way.
+	RegisterProcessStateCallback(func(healthy bool))
 }
 
 // EventMapping maps a sequence of incoming
@@ -523,9 +523,9 @@ func (s *LocalSupervisor) BroadcastEvent(event Event) {
 }
 
 // RegisterProcessStateCallback registers a function which is called immediately
-// upon registering and then each time the overall process state changes. The
-// function must not call back into the supervisor or block in any way.
-func (s *LocalSupervisor) RegisterProcessStateCallback(fn func(componentStateEnum)) {
+// upon registering and then each time the health of the process state changes.
+// The function must not call back into the supervisor or block in any way.
+func (s *LocalSupervisor) RegisterProcessStateCallback(fn func(healthy bool)) {
 	s.processState.registerCallback(fn)
 }
 
