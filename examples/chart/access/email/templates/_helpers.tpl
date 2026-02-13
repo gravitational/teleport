@@ -79,3 +79,68 @@ identity
 {{- .Values.teleport.identitySecretPath -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Create the embedded tbot's service account name.
+*/}}
+{{- define "email.tbot.serviceAccountName" -}}
+{{- if .Values.tbot.serviceAccount.name -}}
+{{- .Values.tbot.serviceAccount.name -}}
+{{- else -}}
+{{- .Release.Name }}-{{ default .Values.tbot.nameOverride "tbot" }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Create the embedded tbot's token name.
+*/}}
+{{- define "email.tbot.tokenName" -}}
+{{- if .Values.tbot.token -}}
+{{- .Values.tbot.token -}}
+{{- else -}}
+{{- .Release.Name }}-{{ default .Values.tbot.nameOverride "tbot" }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Create the namespace that Operator custom resources will be created in.
+*/}}
+{{- define "email.crd.namespace" -}}
+{{- if .Values.crd.namespace -}}
+{{- .Values.crd.namespace -}}
+{{- else -}}
+{{- .Release.Namespace -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Create the default TeleportProvisionToken join spec when using kubernetes join method.
+*/}}
+{{- define "email.crd.defaultKubeJoinSpec" -}}
+join_method: kubernetes
+kubernetes:
+  type: in_cluster
+  allow:
+  - service_account: "{{ .Release.Namespace }}:{{ include "email.tbot.serviceAccountName" . }}"
+{{- end -}}
+
+{{/*
+Create the full TeleportProvisionToken join spec.
+*/}}
+{{- define "email.crd.tokenJoinSpec" -}}
+{{/* Any overriden token spec must match tbot's join method */}}
+{{- if and (hasKey .Values.crd.tokenSpecOverride "join_method") (ne .Values.crd.tokenSpecOverride.join_method .Values.tbot.joinMethod) -}}
+{{- fail "crd.tokenSpecOverride.join_method must be same as tbot.joinMethod" -}}
+{{- end -}}
+{{- if eq .Values.tbot.joinMethod "kubernetes" -}}
+{{- mustMergeOverwrite (include "email.crd.defaultKubeJoinSpec" . | fromYaml) .Values.crd.tokenSpecOverride | toYaml -}}
+{{- else -}}
+  {{- if empty .Values.crd.tokenSpecOverride -}}
+  {{- fail "crd.tokenSpecOverride cannot be empty in chart values" -}}
+  {{- end -}}
+  {{- if not (hasKey .Values.crd.tokenSpecOverride "join_method") -}}
+  {{- fail "crd.tokenSpecOverride.join_method cannot be empty in chart values" -}}
+  {{- end -}}
+{{- .Values.crd.tokenSpecOverride | toYaml -}}
+{{- end -}}
+{{- end -}}

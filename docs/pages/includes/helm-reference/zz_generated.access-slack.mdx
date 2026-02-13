@@ -218,6 +218,89 @@ teleportAuthAddress: "teleport-auth.teleport-namespace.svc.cluster.local:3025"
 `tbot.joinMethod` describes how tbot joins the Teleport cluster.
 See [the join method reference](../../reference/deployment/join-methods.mdx) for a list of supported values and detailed explanations.
 
+### `tbot.token`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`tbot.token` is the name of the token used by tbot to join the Teleport cluster.
+This value is not sensitive unless the `joinMethod` is set to `"token"`.
+If unset, defaults to `[release name]-tbot`.
+If `crd.create` is set to true, then a TeleportProvisionToken will be created with the provided token name.
+
+## `crd`
+
+`crd` controls whether the chart creates custom resources managed by the Teleport Kubernetes Operator.
+If enabled, the chart will create TeleportRoleV8, TeleportBotV1, and TeleportProvisionToken
+resources to automatically connect the plugin to Teleport.
+
+<Admonition type="warning" title="Interaction with Teleport Kubernetes Operator">
+The Teleport Kubernetes Operator must already be enabled in the Teleport cluster
+for the custom resources to be applied successfully. In addition,
+the custom resources must be deployed in the same namespace as the Teleport Kubernetes Operator.
+</Admonition>
+
+### `crd.create`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`crd.create` controls if the chart should create
+the Operator custom resources to automatically bootstrap the plugin.
+
+### `crd.namespace`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`crd.namespace` optionally overrides the Kubernetes namespace that the
+custom resources are created in. This should match the namespace in which the
+Teleport Kubernetes Operator is running. Defaults to the release namespace.
+
+### `crd.tokenSpecOverride`
+
+`crd.tokenSpecOverride` optionally overrides the join token spec for tbot to use to join the Teleport cluster.
+
+When tbot is enabled, the default configuration uses the `kubernetes` in_cluster join method.
+By default, the service account for tbot will be allowed for all `kubernetes` join types: in_cluster, JWKS, OIDC.
+
+You can also configure the token to use other supported join methods. The token specification
+must match `tbot.joinMethod` for the plugin to correctly join the cluster.
+See [the join method reference](../../reference/deployment/join-methods.mdx) for a list of supported values and detailed explanations.
+
+<Admonition type="warning" title="Other Join Methods">
+When not using the `kubernetes` join method, or when tbot is not enabled, you must specify `join_method`.
+Ensure all necessary fields for the join token are present for the Operator
+to correctly create the Teleport token resource.
+</Admonition>
+
+Example (Kubernetes JWKS join method):
+```yaml
+tokenSpecOverride:
+  join_method: kubernetes
+  kubernetes:
+    type: static_jwks
+    static_jwks:
+      jwks: |
+        # Place the kubernetes JWKS here (`kubectl get --raw /openid/v1/jwks`)
+        {"keys":[--snip--]}
+```
+
+Example (Kubernetes OIDC join method):
+```yaml
+tokenSpecOverride:
+  join_method: kubernetes
+  kubernetes:
+    type: oidc
+    oidc:
+      # Insert the OIDC issuer value here, it will vary depending on your
+      # cluster and cloud provider.
+      issuer: https://oidc.eks.us-west-2.amazonaws.com/id/my-cluster
+```
+
 ## `annotations`
 
 `annotations` contains annotations to apply to the different Kubernetes
