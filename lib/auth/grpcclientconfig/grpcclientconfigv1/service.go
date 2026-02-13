@@ -33,20 +33,21 @@ const serviceConfigEnvVar = "TELEPORT_UNSTABLE_GRPC_SERVICE_CONFIG"
 
 // NewService initializes a new grpcclientconfig [Service].
 func NewService() (*Service, error) {
-	if sc, ok := os.LookupEnv(serviceConfigEnvVar); ok {
-		config := &grpcv1.ServiceConfig{}
-		unmarshaler := protojson.UnmarshalOptions{
-			DiscardUnknown: true,
-		}
-		if err := unmarshaler.Unmarshal([]byte(sc), config); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	sc, _ := os.LookupEnv(serviceConfigEnvVar)
+	if sc == "" {
 		return &Service{
-			config: config,
+			config: grpcclientconfig.DefaultServiceConfig(),
 		}, nil
 	}
+	config := &grpcv1.ServiceConfig{}
+	unmarshaler := protojson.UnmarshalOptions{
+		DiscardUnknown: true,
+	}
+	if err := unmarshaler.Unmarshal([]byte(sc), config); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &Service{
-		config: grpcclientconfig.DefaultServiceConfig(),
+		config: config,
 	}, nil
 }
 
