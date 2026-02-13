@@ -20,12 +20,12 @@ import (
 	"context"
 	"net"
 	"slices"
-	"syscall"
 
 	"github.com/godbus/dbus/v5"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/vnet/systemdresolved"
 )
 
 type platformOSConfigState struct {
@@ -94,25 +94,6 @@ func shouldReconfiguredDNSZones(cfg *osConfig, state *platformOSConfigState) boo
 	return !utils.ContainSameUniqueElements(cfg.dnsZones, state.configuredDNSZones)
 }
 
-const (
-	systemdResolvedService         = "org.freedesktop.resolve1"
-	systemdResolvedObjectPath      = "/org/freedesktop/resolve1"
-	systemdResolvedManager         = "org.freedesktop.resolve1.Manager"
-	systemdResolvedSetLinkDNS      = systemdResolvedManager + ".SetLinkDNS"
-	systemdResolvedSetDomains      = systemdResolvedManager + ".SetLinkDomains"
-	systemdResolvedSetDefaultRoute = systemdResolvedManager + ".SetLinkDefaultRoute"
-)
-
-type systemdResolvedDNSAddress struct {
-	Family  int32
-	Address []byte
-}
-
-type systemdResolvedDomain struct {
-	Domain      string
-	RoutingOnly bool
-}
-
 func configureDNS(ctx context.Context, cfg *osConfig, state *platformOSConfigState) error {
 	// systemd-resolved stores DNS settings per network link. For VNet
 	// we configure DNS on the TUN link. The TUN is ephemeral, when
@@ -129,15 +110,14 @@ func configureDNS(ctx context.Context, cfg *osConfig, state *platformOSConfigSta
 		return trace.BadParameter("empty TUN interface name with non-empty nameserver")
 	}
 
-	if err := checkSystemdResolvedAvailability(ctx); err != nil {
-		return err
-	}
 	conn, err := dbus.ConnectSystemBus()
 	if err != nil {
 		return trace.NotFound("system D-Bus is unavailable: %v", err)
 	}
 	defer conn.Close()
-	obj := conn.Object(systemdResolvedService, dbus.ObjectPath(systemdResolvedObjectPath))
+	if err := systemdresolved.CheckAvailability(ctx, conn); err != nil {
+		return err
+	}
 
 	if shouldReconfiguredDNSZones(cfg, state) {
 		iface, err := net.InterfaceByName(state.tunName)
@@ -145,17 +125,16 @@ func configureDNS(ctx context.Context, cfg *osConfig, state *platformOSConfigSta
 			return trace.Wrap(err, "looking up interface %s", state.tunName)
 		}
 		log.InfoContext(ctx, "Configuring DNS zones", "zones", cfg.dnsZones)
-		domains := make([]systemdResolvedDomain, 0, len(cfg.dnsZones))
+		domains := make([]systemdresolved.Domain, 0, len(cfg.dnsZones))
 		for _, dnsZone := range cfg.dnsZones {
-			domains = append(domains, systemdResolvedDomain{
+			domains = append(domains, systemdresolved.Domain{
 				Domain:      dnsZone,
 				RoutingOnly: true,
 			})
 		}
 		// Equivalent to: resolvectl domain <ifname> ~<zone1> ~<zone2> ...
-		call := obj.CallWithContext(ctx, systemdResolvedSetDomains, 0, int32(iface.Index), domains)
-		if call.Err != nil {
-			return trace.Wrap(call.Err, "setting systemd-resolved link domains")
+		if err := systemdresolved.SetLinkDomains(ctx, conn, int32(iface.Index), domains); err != nil {
+			return err
 		}
 		state.configuredDNSZones = cfg.dnsZones
 	}
@@ -165,9 +144,9 @@ func configureDNS(ctx context.Context, cfg *osConfig, state *platformOSConfigSta
 		if err != nil {
 			return trace.Wrap(err, "looking up interface %s", state.tunName)
 		}
-		addresses := make([]systemdResolvedDNSAddress, 0, len(cfg.dnsAddrs))
+		addresses := make([]systemdresolved.DNSAddress, 0, len(cfg.dnsAddrs))
 		for _, addr := range cfg.dnsAddrs {
-			address, err := systemdResolvedDNSAddressForIP(addr)
+			address, err := systemdresolved.DNSAddressForIP(addr)
 			if err != nil {
 				return trace.Wrap(err, "parsing DNS nameserver %q", addr)
 			}
@@ -175,64 +154,16 @@ func configureDNS(ctx context.Context, cfg *osConfig, state *platformOSConfigSta
 		}
 		log.InfoContext(ctx, "Configuring DNS nameserver", "nameservers", cfg.dnsAddrs)
 		// Equivalent to: resolvectl default-route <ifname> false
-		call := obj.CallWithContext(ctx, systemdResolvedSetDefaultRoute, 0, int32(iface.Index), false)
-		if call.Err != nil {
-			return trace.Wrap(call.Err, "setting systemd-resolved link default route")
+		if err := systemdresolved.SetLinkDefaultRoute(ctx, conn, int32(iface.Index), false); err != nil {
+			return err
 		}
 
 		// Equivalent to: resolvectl dns <ifname> <addr1> <addr2> ...
-		call = obj.CallWithContext(ctx, systemdResolvedSetLinkDNS, 0, int32(iface.Index), addresses)
-		if call.Err != nil {
-			return trace.Wrap(call.Err, "setting systemd-resolved link DNS")
+		if err := systemdresolved.SetLinkDNS(ctx, conn, int32(iface.Index), addresses); err != nil {
+			return err
 		}
 		state.configuredNameserver = true
 	}
 
 	return nil
-}
-
-func systemdResolvedDNSAddressForIP(raw string) (systemdResolvedDNSAddress, error) {
-	ip := net.ParseIP(raw)
-	if ip == nil {
-		return systemdResolvedDNSAddress{}, trace.BadParameter("invalid IP address")
-	}
-	if ip4 := ip.To4(); ip4 != nil {
-		return systemdResolvedDNSAddress{
-			Family:  syscall.AF_INET,
-			Address: []byte(ip4),
-		}, nil
-	}
-	if ip16 := ip.To16(); ip16 != nil {
-		return systemdResolvedDNSAddress{
-			Family:  syscall.AF_INET6,
-			Address: []byte(ip16),
-		}, nil
-	}
-	return systemdResolvedDNSAddress{}, trace.BadParameter("unsupported IP address")
-}
-
-func checkSystemdResolvedAvailability(ctx context.Context) error {
-	conn, err := dbus.ConnectSystemBus()
-	if err != nil {
-		return trace.Wrap(err, "system D-Bus is unavailable")
-	}
-	defer conn.Close()
-
-	var hasOwner bool
-	err = conn.Object("org.freedesktop.DBus", "/org/freedesktop/DBus").
-		CallWithContext(ctx, "org.freedesktop.DBus.NameHasOwner", 0, systemdResolvedService).
-		Store(&hasOwner)
-	if err != nil {
-		return trace.Wrap(err, "checking systemd-resolved D-Bus service owner")
-	}
-	if hasOwner {
-		return nil
-	}
-
-	return trace.Errorf(
-		"systemd-resolved is not running (D-Bus service %s has no owner).\n"+
-			"you can enable it with:\n"+
-			"  sudo systemctl enable --now systemd-resolved\n",
-		systemdResolvedService,
-	)
 }
