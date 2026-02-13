@@ -860,7 +860,7 @@ export class TdpbCodec implements Codec {
   encodeMouseWheelScroll(axis: ScrollAxis, delta: number): Message {
     return this.marshal({
       oneofKind: 'mouseWheel',
-      mouseWheel: { axis: axis.valueOf() - 1, delta: Math.round(delta) },
+      mouseWheel: { axis: axis.valueOf() + 1, delta: Math.round(delta) },
     });
   }
 
