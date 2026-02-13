@@ -28,41 +28,6 @@ export function SessionRecordingTimeline({
 }: SessionRecordingTimelineProps) {
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(-1);
 
-  for (const [index, command] of commands.entries()) {
-    switch (index) {
-      case 1:
-        {
-          command.startOffset = 4000;
-          command.endOffset = 8000;
-        }
-        break;
-      case 2:
-        {
-          command.startOffset = 8000;
-          command.endOffset = 12000;
-        }
-        break;
-      case 3:
-        {
-          command.startOffset = 13000;
-          command.endOffset = 14000;
-        }
-        break;
-      case 4:
-        {
-          command.startOffset = 18000;
-          command.endOffset = 21000;
-        }
-        break;
-      case 5:
-        {
-          command.startOffset = 28000;
-          command.endOffset = 18000;
-        }
-        break;
-    }
-  }
-
   const items = useMemo(
     () =>
       commands.map((command, index) => (

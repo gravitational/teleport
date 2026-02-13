@@ -33,10 +33,15 @@ export type SessionRecordingSummary =
   | RecordingSummarySuccess
   | RecordingSummaryError;
 
+export enum NeedsFurtherReview {
+  TooLarge = 'too_large',
+}
+
 export interface EnhancedSummary {
   shortDescription: string;
   detailedDescription: string;
   riskLevel: RiskLevel;
+  needsFurtherReview?: NeedsFurtherReview;
   suspiciousActivities: string[];
   compromiseIndicators: boolean;
   notableCommandIndexes: number[];

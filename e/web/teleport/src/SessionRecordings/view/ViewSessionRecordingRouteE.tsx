@@ -1,11 +1,18 @@
 import type { QueryObserverResult } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
+import styled from 'styled-components';
+
+import Flex from 'design/Flex';
+import { Warning } from 'design/Icon';
+import Label from 'design/Label';
+import { HoverTooltip } from 'design/Tooltip';
 
 import cfg from 'e-teleport/config';
 import { useSuspenseGetRecordingSummary } from 'e-teleport/services/recordings/hooks';
 import { RECORDING_TYPES_WITH_SUMMARIES } from 'e-teleport/services/recordings/recordings';
 import {
+  NeedsFurtherReview,
   RecordingSummaryState,
   type SessionRecordingSummary,
 } from 'e-teleport/services/recordings/types';
@@ -147,41 +154,6 @@ function RecordingWithMetadataE({
       return data.metadata.events;
     }
 
-    for (const [index, command] of summary.enhancedSummary.commands.entries()) {
-      switch (index) {
-        case 1:
-          {
-            command.startOffset = 4000;
-            command.endOffset = 8000;
-          }
-          break;
-        case 2:
-          {
-            command.startOffset = 8000;
-            command.endOffset = 12000;
-          }
-          break;
-        case 3:
-          {
-            command.startOffset = 13000;
-            command.endOffset = 14000;
-          }
-          break;
-        case 4:
-          {
-            command.startOffset = 18000;
-            command.endOffset = 21000;
-          }
-          break;
-        case 5:
-          {
-            command.startOffset = 28000;
-            command.endOffset = 18000;
-          }
-          break;
-      }
-    }
-
     const riskyCommandEvents = summary.enhancedSummary.commands
       .filter(cmd =>
         [
@@ -241,9 +213,22 @@ function RecordingWithMetadataE({
                 <>
                   <InfoGridLabel>Risk Score</InfoGridLabel>
 
-                  <div>
+                  <Flex alignItems="center">
                     <RiskLevel riskLevel={summary.enhancedSummary.riskLevel} />
-                  </div>
+
+                    {summary.enhancedSummary.needsFurtherReview && (
+                      <HoverTooltip
+                        tipContent={getNeedsFurtherReviewTooltipContent(
+                          summary.enhancedSummary.needsFurtherReview
+                        )}
+                      >
+                        <StyledLabel kind="secondary">
+                          <Warning size="small" />
+                          Needs further review
+                        </StyledLabel>
+                      </HoverTooltip>
+                    )}
+                  </Flex>
                 </>
               )}
           </SessionRecordingDetails>
@@ -285,6 +270,17 @@ function RecordingWithMetadataE({
       )}
     </SessionRecordingGrid>
   );
+}
+
+function getNeedsFurtherReviewTooltipContent(
+  needsFurtherReview: NeedsFurtherReview
+) {
+  switch (needsFurtherReview) {
+    case NeedsFurtherReview.TooLarge:
+      return 'The recording was only partially analyzed due to its large size and needs further review.';
+    default:
+      return 'This recording needs further review.';
+  }
 }
 
 function RecordingWithSummaryE({
@@ -334,3 +330,11 @@ function RecordingWithSummaryE({
     </SessionRecordingGrid>
   );
 }
+
+const StyledLabel = styled(Label)`
+  display: inline-flex;
+  align-items: center;
+  gap: ${p => p.theme.space[1]}px;
+  text-transform: uppercase;
+  margin-left: ${p => p.theme.space[2]}px;
+`;
