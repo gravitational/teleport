@@ -191,6 +191,8 @@ message DiscoveryConfigEvent {
   repeated string resource_types = 3;
   // regions is the list of regions to discover resources in
   repeated string regions = 4;
+  // cloud_providers is the list of cloud providers the config has matchers for.
+  repeated string cloud_providers = 5;
 }
 ```
 
