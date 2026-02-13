@@ -437,6 +437,9 @@ func TestProxySSHConfig(t *testing.T) {
 // fast to avoid adding latency to all kubectl calls. It should tolerate being
 // called many times in parallel.
 func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(b, err)
 

@@ -52,3 +52,12 @@ diag-bpf-vars:
 	@echo is-native: $(IS_NATIVE_BUILD)
 	@echo is-cross: $(IS_CROSS_COMPILE_BB)
 	@echo buildbox-mode: $(BUILDBOX_MODE)
+
+# Dir of last included file, in this case common.mk:
+COMMON_MK_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+# This allows $(GOTESTSUM) in any Makefile that includes common.mk:
+TOOLS_DIR := $(abspath $(COMMON_MK_DIR)/build.assets/tools)
+GOTESTSUM = go tool -modfile=$(TOOLS_DIR)/gotestsum/go.mod gotestsum
+GCI = go tool -modfile=$(TOOLS_DIR)/gci/go.mod gci
+GODA = go tool -modfile=$(TOOLS_DIR)/goda/go.mod goda
+BENCHSTAT = go tool -modfile=$(TOOLS_DIR)/benchstat/go.mod benchstat
