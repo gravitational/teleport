@@ -8,7 +8,7 @@
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:18.6.8
+      image: public.ecr.aws/gravitational/teleport-distroless:18.7.0
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -159,7 +159,7 @@ should set nodeSelector when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:18.6.8
+      image: public.ecr.aws/gravitational/teleport-distroless:18.7.0
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -277,7 +277,7 @@ should set resources when set in values:
       env:
       - name: GOMEMLIMIT
         value: "3865470567"
-      image: public.ecr.aws/gravitational/teleport-distroless:18.6.8
+      image: public.ecr.aws/gravitational/teleport-distroless:18.7.0
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -381,7 +381,7 @@ should set securityContext when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:18.6.8
+      image: public.ecr.aws/gravitational/teleport-distroless:18.7.0
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
