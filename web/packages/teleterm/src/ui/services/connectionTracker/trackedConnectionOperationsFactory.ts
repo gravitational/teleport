@@ -146,6 +146,8 @@ export class TrackedConnectionOperationsFactory {
             gatewayUri: gw?.uri,
             port: connection.port,
             origin: params.origin,
+            databaseRoles: connection.databaseRoles,
+            autoUsersEnabled: connection.autoUsersEnabled,
           });
 
           documentsService.add(gwDoc);

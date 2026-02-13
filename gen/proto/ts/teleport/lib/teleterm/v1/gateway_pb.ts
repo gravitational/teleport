@@ -104,6 +104,12 @@ export interface Gateway {
      * @generated from protobuf field: teleport.lib.teleterm.v1.GatewayCLICommand gateway_cli_command = 10;
      */
     gatewayCliCommand?: GatewayCLICommand;
+    /**
+     * database_roles is a list of database roles that the auto-provisioned user will be assigned
+     *
+     * @generated from protobuf field: repeated string database_roles = 11;
+     */
+    databaseRoles: string[];
 }
 /**
  * GatewayCLICommand represents a command that the user can execute to connect to a gateway
@@ -163,7 +169,8 @@ class Gateway$Type extends MessageType<Gateway> {
             { no: 6, name: "local_port", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 7, name: "protocol", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 9, name: "target_subresource_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 10, name: "gateway_cli_command", kind: "message", T: () => GatewayCLICommand }
+            { no: 10, name: "gateway_cli_command", kind: "message", T: () => GatewayCLICommand },
+            { no: 11, name: "database_roles", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<Gateway>): Gateway {
@@ -176,6 +183,7 @@ class Gateway$Type extends MessageType<Gateway> {
         message.localPort = "";
         message.protocol = "";
         message.targetSubresourceName = "";
+        message.databaseRoles = [];
         if (value !== undefined)
             reflectionMergePartial<Gateway>(this, message, value);
         return message;
@@ -211,6 +219,9 @@ class Gateway$Type extends MessageType<Gateway> {
                     break;
                 case /* teleport.lib.teleterm.v1.GatewayCLICommand gateway_cli_command */ 10:
                     message.gatewayCliCommand = GatewayCLICommand.internalBinaryRead(reader, reader.uint32(), options, message.gatewayCliCommand);
+                    break;
+                case /* repeated string database_roles */ 11:
+                    message.databaseRoles.push(reader.string());
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -251,6 +262,9 @@ class Gateway$Type extends MessageType<Gateway> {
         /* teleport.lib.teleterm.v1.GatewayCLICommand gateway_cli_command = 10; */
         if (message.gatewayCliCommand)
             GatewayCLICommand.internalBinaryWrite(message.gatewayCliCommand, writer.tag(10, WireType.LengthDelimited).fork(), options).join();
+        /* repeated string database_roles = 11; */
+        for (let i = 0; i < message.databaseRoles.length; i++)
+            writer.tag(11, WireType.LengthDelimited).string(message.databaseRoles[i]);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

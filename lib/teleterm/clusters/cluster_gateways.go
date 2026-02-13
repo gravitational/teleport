@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/sso"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -81,10 +82,21 @@ func (c *Cluster) createDBGateway(ctx context.Context, params CreateGatewayParam
 		return nil, trace.Wrap(err)
 	}
 
+	accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, c.status.AccessInfo(), c.clusterClient.SiteName, params.ClusterClient.AuthClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dbRoles, err := accessChecker.CheckDatabaseRoles(db.Database, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	routeToDatabase := tlsca.RouteToDatabase{
 		ServiceName: db.GetName(),
 		Protocol:    db.GetProtocol(),
 		Username:    params.TargetUser,
+		Roles:       dbRoles,
 	}
 
 	var cert tls.Certificate
@@ -104,6 +116,7 @@ func (c *Cluster) createDBGateway(ctx context.Context, params CreateGatewayParam
 		TargetSubresourceName:         params.TargetSubresourceName,
 		Protocol:                      db.GetProtocol(),
 		Cert:                          cert,
+		DatabaseRoles:                 dbRoles,
 		Insecure:                      c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:                  c.clusterClient.WebProxyAddr,
 		Logger:                        c.Logger,

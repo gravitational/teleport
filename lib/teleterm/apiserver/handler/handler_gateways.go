@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/cmd"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	gw "github.com/gravitational/teleport/lib/teleterm/gateway"
 )
 
 // CreateGateway creates a gateway
@@ -87,7 +88,7 @@ func (s *Handler) newAPIGateway(ctx context.Context, gateway gateway.Gateway) (*
 		return nil, trace.Wrap(err)
 	}
 
-	return &api.Gateway{
+	apiGw := &api.Gateway{
 		Uri:                   gateway.URI().String(),
 		TargetUri:             gateway.TargetURI().String(),
 		TargetName:            gateway.TargetName(),
@@ -97,7 +98,13 @@ func (s *Handler) newAPIGateway(ctx context.Context, gateway gateway.Gateway) (*
 		LocalAddress:          gateway.LocalAddress(),
 		LocalPort:             gateway.LocalPort(),
 		GatewayCliCommand:     makeGatewayCLICommand(cmds),
-	}, nil
+	}
+
+	if dbGateway, err := gw.AsDatabase(gateway); err == nil {
+		apiGw.DatabaseRoles = dbGateway.DatabaseRoles()
+	}
+
+	return apiGw, nil
 }
 
 func makeGatewayCLICommand(cmds cmd.Cmds) *api.GatewayCLICommand {

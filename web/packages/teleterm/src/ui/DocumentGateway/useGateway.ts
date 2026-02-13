@@ -86,6 +86,8 @@ export function useGateway(doc: DocumentGateway) {
           // called from OfflineGateway.
           draftDoc.targetSubresourceName = gw.targetSubresourceName;
           draftDoc.status = 'connected';
+          // Sync databaseRoles from the gateway returned by the backend
+          draftDoc.databaseRoles = gw.databaseRoles;
           // The title might need to be changed if OfflineGateway changed gateway params.
           draftDoc.title = getDocumentGatewayTitle(draftDoc);
         });
