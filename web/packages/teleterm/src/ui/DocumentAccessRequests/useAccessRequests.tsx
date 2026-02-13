@@ -128,7 +128,10 @@ function makeUiLongTermResourceGrouping(
       grouping.accessListToResources
     ).reduce(
       // flatten 'resourceIds' onto access list name key
-      (acc, [k, v]) => ({ ...acc, [k]: v.resourceIds }),
+      (acc, [k, v]) => {
+        acc[k] = v.resourceIds;
+        return acc;
+      },
       {}
     ),
   };

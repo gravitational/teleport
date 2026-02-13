@@ -467,7 +467,7 @@ export function RequestCheckout<T extends PendingListItem>({
                 <CrossIcon
                   clearAttempt={clearAttempt}
                   item={item}
-                  toggleResource={i => toggleResources([i])}
+                  toggleResource={r => toggleResources([r])}
                   createAttempt={createAttempt}
                 />
               </Flex>
@@ -656,7 +656,7 @@ export function RequestCheckout<T extends PendingListItem>({
                             <CrossIcon
                               clearAttempt={clearAttempt}
                               item={resource}
-                              toggleResource={i => toggleResources([i])}
+                              toggleResource={r => toggleResources([r])}
                               createAttempt={createAttempt}
                             />
                           </Cell>

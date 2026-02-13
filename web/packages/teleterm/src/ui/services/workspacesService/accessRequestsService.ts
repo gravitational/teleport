@@ -78,6 +78,13 @@ export class AccessRequestsService {
     }
   }
 
+  /**
+   * Toggles a resource in the pending access request. If the resource is
+   * already present, it's removed, otherwise it's added.
+   *
+   * Should not be called in parallel as a confirmation modal may
+   * be opened via {@link canUpdateRequest}.
+   */
   async addOrRemoveResource(request: ResourceRequest): Promise<void> {
     if (!(await this.canUpdateRequest('resource'))) {
       return;
@@ -183,6 +190,13 @@ export class AccessRequestsService {
     });
   }
 
+  /**
+   * Toggles a role in the pending access request. If the role is already
+   * present, it's removed, otherwise it's added.
+   *
+   * Should not be called in parallel as a confirmation modal may
+   * be opened via {@link canUpdateRequest}.
+   */
   async addOrRemoveRole(role: string): Promise<void> {
     if (!(await this.canUpdateRequest('role'))) {
       return;

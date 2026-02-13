@@ -264,6 +264,7 @@ export default function useAccessRequestCheckout() {
   async function toggleResources(
     pendingListItems: PendingListItemWithOriginalItem[]
   ) {
+    // Called serially as toggleResource may open a confirmation
     for (const pendingListItem of pendingListItems) {
       await toggleResource(pendingListItem);
     }
