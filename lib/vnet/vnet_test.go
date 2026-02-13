@@ -689,8 +689,7 @@ func (c *fakeClusterClient) SessionSSHKeyRing(ctx context.Context, user string, 
 	return k, false, nil
 }
 
-// fakeAuthClient is a fake auth client that answers GetResources requests with a static list of apps and
-// basic/faked predicate filtering.
+// fakeAuthClient is a fake auth client that answers GetResources requests with a static list of apps.
 type fakeAuthClient struct {
 	authclient.ClientI
 	clusterSpec     testClusterSpec
@@ -699,6 +698,10 @@ type fakeAuthClient struct {
 }
 
 func (c *fakeAuthClient) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
+	filter, err := services.MatchResourceFilterFromListResourceRequest(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	resp := &proto.ListResourcesResponse{}
 	for _, app := range c.clusterSpec.apps {
 		appServer := &types.AppServerV3{
@@ -722,10 +725,6 @@ func (c *fakeAuthClient) GetResources(ctx context.Context, req *proto.ListResour
 			appServer.Spec.App.SetTCPPorts(app.tcpPorts)
 		}
 
-		filter, err := services.MatchResourceFilterFromListResourceRequest(req)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		match, err := services.MatchResourceByFilters(appServer, filter, nil /* seenMap */)
 		if err != nil {
 			return nil, trace.Wrap(err)
