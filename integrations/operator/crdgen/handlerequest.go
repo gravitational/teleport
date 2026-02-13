@@ -239,7 +239,33 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 				withVersionOverride(types.V1),
 				withVersionInKindOverride(),
 				withNameOverride("AutoupdateVersion"),
-			}},
+			},
+		},
+		{
+			name: "InferenceModel",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+			},
+		},
+		{
+			name: "InferencePolicy",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+			},
+		},
+		{
+			name: "InferenceSecret",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+			},
+		},
+		{
+			name: "AccessMonitoringRule",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withVersionInKindOverride(),
+			},
+		},
 	}
 
 	for _, resource := range resources {
