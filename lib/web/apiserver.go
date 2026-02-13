@@ -1163,6 +1163,12 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Channel can contain "/", hence the use of a catch-all parameter
 	h.GET("/webapi/automaticupgrades/channel/*request", h.WithUnauthenticatedHighLimiter(h.automaticUpgrades109))
 
+	// Managed updates
+	h.GET("/webapi/managedupdates", h.WithAuth(h.getManagedUpdatesDetails))
+	h.POST("/webapi/managedupdates/groups/:groupName/start", h.WithAuth(h.startGroupUpdate))
+	h.POST("/webapi/managedupdates/groups/:groupName/done", h.WithAuth(h.markGroupDone))
+	h.POST("/webapi/managedupdates/groups/:groupName/rollback", h.WithAuth(h.rollbackGroup))
+
 	// GET Machine ID bot by name
 	h.GET("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.getBot))
 	// GET Machine ID bots

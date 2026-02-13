@@ -39,6 +39,7 @@ import {
   Regions,
 } from 'teleport/services/integrations';
 import type { KubeResourceKind } from 'teleport/services/kube/types';
+import type { GroupAction } from 'teleport/services/managedUpdates';
 import type { RecordingType } from 'teleport/services/recordings';
 import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
@@ -233,6 +234,7 @@ const cfg = {
     requests: '/web/requests/:requestId?',
 
     downloadCenter: '/web/downloads',
+    managedUpdates: '/web/managedupdates',
 
     // sso routes
     ssoConnector: {
@@ -554,6 +556,11 @@ const cfg = {
         '/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/playback/ws',
       thumbnail: '/v1/webapi/sites/:clusterId/sessionthumbnail/:sessionId',
     },
+
+    managedUpdates: {
+      details: '/v1/webapi/managedupdates',
+      groupAction: '/v1/webapi/managedupdates/groups/:groupName/:action',
+    },
   },
 
   playable_db_protocols: [],
@@ -714,6 +721,21 @@ const cfg = {
 
   getAuditRoute(clusterId: string) {
     return generatePath(cfg.routes.audit, { clusterId });
+  },
+
+  getManagedUpdatesRoute() {
+    return cfg.routes.managedUpdates;
+  },
+
+  getManagedUpdatesUrl() {
+    return cfg.api.managedUpdates.details;
+  },
+
+  getManagedUpdatesGroupActionUrl(groupName: string, action: GroupAction) {
+    return generatePath(cfg.api.managedUpdates.groupAction, {
+      groupName,
+      action,
+    });
   },
 
   /**
