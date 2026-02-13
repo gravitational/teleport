@@ -56,6 +56,6 @@ func loadUpstreamNameservers(ctx context.Context) ([]string, error) {
 	return platformLoadUpstreamNameservers(ctx)
 }
 
-func withDNSPort(addr netip.Addr) string {
+func WithDNSPort(addr netip.Addr) string {
 	return netip.AddrPortFrom(addr, 53).String()
 }

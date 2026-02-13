@@ -30,7 +30,7 @@ var (
 	vnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
 
 	// Satisfy unused linter.
-	_ = withDNSPort
+	_ = WithDNSPort
 )
 
 func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
