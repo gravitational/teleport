@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
+	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 
 type mockTeleportClient struct {
@@ -263,4 +264,66 @@ func TestTryApproveRequest(t *testing.T) {
 	}))
 	bot.AssertNumberOfCalls(t, "FetchOncallUsers", 3)
 	teleportClient.AssertNumberOfCalls(t, "SubmitAccessReview", 2)
+}
+
+func TestPopulateRequestTimeFields(t *testing.T) {
+	now := time.Date(2026, 2, 13, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name              string
+		requestExpiry     time.Time
+		accessExpiry      time.Time
+		wantRequestTTL    string
+		wantAccessTTL     string
+		wantRequestExpiry bool
+		wantAccessExpiry  bool
+	}{
+		{
+			name:              "future request and access expiries set ttl and expiry fields",
+			requestExpiry:     now.Add(2*time.Hour + 31*time.Second),
+			accessExpiry:      now.Add(8*time.Hour + 29*time.Second),
+			wantRequestTTL:    "2h1m0s",
+			wantAccessTTL:     "8h0m0s",
+			wantRequestExpiry: true,
+			wantAccessExpiry:  true,
+		},
+		{
+			name:              "past expiries keep expiry fields without ttl",
+			requestExpiry:     now.Add(-2 * time.Hour),
+			accessExpiry:      now.Add(-30 * time.Minute),
+			wantRequestExpiry: true,
+			wantAccessExpiry:  true,
+		},
+		{
+			name: "unset expiries remain empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := types.NewAccessRequest("req-id", "user", "role")
+			require.NoError(t, err)
+			if !tt.requestExpiry.IsZero() {
+				req.SetExpiry(tt.requestExpiry)
+			}
+			if !tt.accessExpiry.IsZero() {
+				req.SetAccessExpiry(tt.accessExpiry)
+			}
+
+			data := pd.AccessRequestData{}
+			app := &App{}
+			app.populateRequestTimeFields(req, now, &data)
+
+			require.Equal(t, tt.wantRequestTTL, data.RequestTTL)
+			require.Equal(t, tt.wantAccessTTL, data.AccessTTL)
+			require.Equal(t, tt.wantRequestExpiry, data.RequestExpiry != nil)
+			require.Equal(t, tt.wantAccessExpiry, data.AccessExpiry != nil)
+			if tt.wantRequestExpiry {
+				require.True(t, tt.requestExpiry.Equal(*data.RequestExpiry))
+			}
+			if tt.wantAccessExpiry {
+				require.True(t, tt.accessExpiry.Equal(*data.AccessExpiry))
+			}
+		})
+	}
 }

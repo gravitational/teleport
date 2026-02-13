@@ -21,6 +21,7 @@ package accessrequest
 import (
 	"fmt"
 	"net/url"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/lib/plugindata"
@@ -105,4 +106,69 @@ func ExampleMsgReview() {
 	// Resolution: ✅ APPROVED.
 	// Reason: ```
 	// example reason```
+}
+
+func ExampleMsgFields_ttl() {
+	id := "00000000-0000-0000-0000-000000000000"
+	requestExpiry, _ := time.Parse(time.RFC3339, "2006-01-02T17:04:05Z")
+	accessExpiry, _ := time.Parse(time.RFC3339, "2006-01-02T23:04:05Z")
+	req := plugindata.AccessRequestData{
+		User:          "example@goteleport.com",
+		Roles:         []string{"foo"},
+		RequestReason: "test",
+		RequestTTL:    "2h0m0s",
+		RequestExpiry: &requestExpiry,
+		AccessTTL:     "8h0m0s",
+		AccessExpiry:  &accessExpiry,
+	}
+	cluster := "example.teleport.sh"
+	webProxyURL := &url.URL{
+		Scheme:  "https",
+		Host:    "example.teleport.sh",
+		RawPath: "web/requests/00000000-0000-0000-0000-000000000000",
+	}
+
+	msg := MsgFields(id, req, cluster, webProxyURL)
+	fmt.Println(msg)
+
+	// Output: *ID*: 00000000-0000-0000-0000-000000000000
+	// *Cluster*: example.teleport.sh
+	// *User*: example@goteleport.com
+	// *Role(s)*: `foo`
+	// *Reason*: ```
+	// test```
+	// *Request TTL*: `2h0m0s`
+	// *Request Expires (UTC)*: 2006-01-02T17:04:05Z
+	// *Access TTL*: `8h0m0s`
+	// *Access Expires (UTC)*: 2006-01-02T23:04:05Z
+	// *Link*: https://example.teleport.sh/web/requests/00000000-0000-0000-0000-000000000000
+}
+
+func ExampleMsgFields_accessExpiryWithoutTTL() {
+	id := "00000000-0000-0000-0000-000000000000"
+	accessExpiry, _ := time.Parse(time.RFC3339, "2006-01-02T23:04:05Z")
+	req := plugindata.AccessRequestData{
+		User:          "example@goteleport.com",
+		Roles:         []string{"foo"},
+		RequestReason: "test",
+		AccessExpiry:  &accessExpiry,
+	}
+	cluster := "example.teleport.sh"
+	webProxyURL := &url.URL{
+		Scheme:  "https",
+		Host:    "example.teleport.sh",
+		RawPath: "web/requests/00000000-0000-0000-0000-000000000000",
+	}
+
+	msg := MsgFields(id, req, cluster, webProxyURL)
+	fmt.Println(msg)
+
+	// Output: *ID*: 00000000-0000-0000-0000-000000000000
+	// *Cluster*: example.teleport.sh
+	// *User*: example@goteleport.com
+	// *Role(s)*: `foo`
+	// *Reason*: ```
+	// test```
+	// *Access Expires (UTC)*: 2006-01-02T23:04:05Z
+	// *Link*: https://example.teleport.sh/web/requests/00000000-0000-0000-0000-000000000000
 }
