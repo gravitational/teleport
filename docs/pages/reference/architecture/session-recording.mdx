@@ -46,7 +46,7 @@ informally referred to as "chunks."
 
 ### Database sessions
 
-Teleport captures database queries and a stream of audit events 
+Teleport captures database queries and a stream of audit events
 related to the database being accessed.
 
 ## Session recording configurations
@@ -205,6 +205,18 @@ audit log for session end events, which contain metadata about the recording.
 This is sometimes surprising to Teleport users, because even though the recordings
 and audit log are stored in separate backends, both need to be operational in
 order to play recordings.
+
+## Download
+
+Session recordings can be downloaded from the cluster storage using the
+[`tctl recordings download`](../cli/tctl.mdx#tctl-recordings-download) command.
+
+```code
+$ tctl recordings download [--output-dir <output-dir>] <session_id>
+```
+
+All downloaded recordings are decrypted during the streaming process if session
+recording encryption is enabled.
 
 ## Upload completer
 
