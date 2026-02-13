@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cache"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -151,7 +152,10 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 	secReportsSvc, err := local.NewSecReportsService(bkWrapper, bkWrapper.Clock())
 	require.NoError(t, err)
 
-	accessListsSvc, err := local.NewAccessListService(bkWrapper, bkWrapper.Clock())
+	accessListsSvc, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: bkWrapper,
+		Modules: modulestest.EnterpriseModules(),
+	})
 	require.NoError(t, err)
 
 	accessMonitoringRuleService, err := local.NewAccessMonitoringRulesService(bkWrapper)
@@ -204,6 +208,9 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 	recordingEncryption, err := local.NewRecordingEncryptionService(bkWrapper)
 	require.NoError(t, err)
 
+	workloadClusters, err := local.NewWorkloadClusterService(bkWrapper)
+	require.NoError(t, err)
+
 	plugin := local.NewPluginsService(bkWrapper)
 
 	c, err := cache.New(setupConfig(cache.Config{
@@ -252,9 +259,11 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 		WorkloadIdentity:        workloadIdentitySvc,
 		BotInstanceService:      botInstanceService,
 		RecordingEncryption:     recordingEncryption,
+		StaticScopedToken:       clusterConfig,
 		Plugin:                  plugin,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 eventsC,
+		WorkloadClusterService:  workloadClusters,
 	}))
 	require.NoError(t, err)
 
