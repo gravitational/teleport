@@ -21,6 +21,7 @@ package mcputils
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -251,4 +252,55 @@ func makeHTTPServerWithInMemoryListener(t *testing.T, mcpServer *mcpserver.MCPSe
 		httpServer.Close()
 	})
 	return listener
+}
+
+// TestReplaceHTTPResponseSSEIgnoreMalformedEvents ensures that when replacing
+// the HTTP SSE response, malformed events (such as without data) won't cause
+// the stream to fail, instead those events should be ignored.
+func TestReplaceHTTPResponseSSEIgnoreMalformedEvents(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	jsonRPCResp := BaseJSONRPCMessage{
+		JSONRPC: "2.0",
+		ID:      mcp.NewRequestId(int64(1)),
+		Result:  json.RawMessage(`{"key":"value"}`),
+	}
+	responseJSON, err := json.Marshal(jsonRPCResp)
+	require.NoError(t, err)
+
+	// Construct SSE data with a malformed event followed by a message event.
+	var sseData bytes.Buffer
+	writeEvent(&sseData, Event{ID: "random-id"})
+	writeEvent(&sseData, Event{Name: "ping", Data: []byte("keepalive")})
+	writeEvent(&sseData, Event{Name: "message", Data: responseJSON})
+
+	resp := &http.Response{
+		StatusCode:    http.StatusOK,
+		Header:        http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:          io.NopCloser(&sseData),
+		ContentLength: -1,
+	}
+
+	processor := &noopProcessor{}
+	err = ReplaceHTTPResponse(ctx, resp, processor)
+	require.NoError(t, err)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	// Verify the non-message event was skipped and we got the message event
+	// re-encoded as SSE.
+	require.Contains(t, string(body), "event: message")
+	require.Contains(t, string(body), `"key":"value"`)
+}
+
+type noopProcessor struct{}
+
+func (p *noopProcessor) ProcessResponse(_ context.Context, resp *JSONRPCResponse) mcp.JSONRPCMessage {
+	return resp
+}
+
+func (p *noopProcessor) ProcessNotification(_ context.Context, notif *JSONRPCNotification) mcp.JSONRPCMessage {
+	return notif
 }

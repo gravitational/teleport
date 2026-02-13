@@ -119,14 +119,25 @@ func (r *httpSSEResponseReplacer) Read(p []byte) (int, error) {
 		return n, nil
 	}
 
-	msg, err := r.ReadMessage(r.ctx)
-	if err != nil {
-		// Note that the underlying connection may be canceled by connection
-		// monitoring.
-		if utils.IsOKNetworkError(err) || errors.Is(err, context.Canceled) {
-			return 0, io.EOF
+	var msg string
+	for {
+		var err error
+		msg, err = r.ReadMessage(r.ctx)
+		if err != nil {
+			// Note that the underlying connection may be canceled by connection
+			// monitoring.
+			if utils.IsOKNetworkError(err) || errors.Is(err, context.Canceled) {
+				return 0, io.EOF
+			}
+			// Skip malformed SSE events (e.g., events without data, or
+			// non-standard events.
+			if isReaderParseError(err) {
+				slog.DebugContext(r.ctx, "malformed SSE message received, ignoring it", "error", err)
+				continue
+			}
+			return 0, trace.Wrap(err)
 		}
-		return 0, trace.Wrap(err)
+		break
 	}
 
 	var base BaseJSONRPCMessage

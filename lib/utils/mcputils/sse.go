@@ -182,7 +182,7 @@ func (r *SSEResponseReader) ReadMessage(ctx context.Context) (string, error) {
 		return "", trace.Wrap(err, "reading SSE server message")
 	}
 	if evt.Name != sseEventMessage {
-		return "", newReaderParseError(trace.BadParameter("unexpected event type %s", evt.Name))
+		return "", newReaderParseError(trace.BadParameter("unexpected event type %q", evt.Name))
 	}
 	return string(evt.Data), nil
 }
