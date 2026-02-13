@@ -325,9 +325,6 @@ const (
 	// PPID is the PID of the parent process.
 	PPID = "ppid"
 
-	// CgroupID is the internal cgroupv2 ID of the event.
-	CgroupID = "cgroup_id"
-
 	// Program is name of the executable.
 	Program = "program"
 

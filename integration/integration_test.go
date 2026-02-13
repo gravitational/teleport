@@ -2004,7 +2004,6 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 					require.Empty(t, next)
 					require.NoError(t, err)
 					require.Len(t, sems, 1)
-
 				}, 2*time.Second, 100*time.Millisecond)
 
 				tracker := waitForSessionToBeEstablished(t, site, 1)
@@ -6217,9 +6216,6 @@ func testBPFInteractive(t *testing.T, suite *integrationTestSuite) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			// Create temporary directory where cgroup2 hierarchy will be mounted.
-			dir := t.TempDir()
-
 			// Create and start a Teleport cluster.
 			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *servicecfg.Config) {
 				recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
@@ -6244,7 +6240,6 @@ func testBPFInteractive(t *testing.T, suite *integrationTestSuite) {
 				tconf.SSH.Enabled = true
 				if tt.inBPFEnabled {
 					tconf.SSH.BPF.Enabled = true
-					tconf.SSH.BPF.CgroupPath = dir
 				}
 				return t, nil, nil, tconf
 			}
@@ -6344,9 +6339,6 @@ func testBPFExec(t *testing.T, suite *integrationTestSuite) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			// Create temporary directory where cgroup2 hierarchy will be mounted.
-			dir := t.TempDir()
-
 			// Create and start a Teleport cluster.
 			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *servicecfg.Config) {
 				recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
@@ -6371,7 +6363,6 @@ func testBPFExec(t *testing.T, suite *integrationTestSuite) {
 				tconf.SSH.Enabled = true
 				if tt.inBPFEnabled {
 					tconf.SSH.BPF.Enabled = true
-					tconf.SSH.BPF.CgroupPath = dir
 				}
 				return t, nil, nil, tconf
 			}
@@ -6545,9 +6536,6 @@ func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
 	lsPath, err := exec.LookPath("ls")
 	require.NoError(t, err)
 
-	// Create temporary directory where cgroup2 hierarchy will be mounted.
-	dir := t.TempDir()
-
 	// Create and start a Teleport cluster.
 	makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *servicecfg.Config) {
 		recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
@@ -6571,7 +6559,6 @@ func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
 		// BPF to simulate an OpenSSH node.
 		tconf.SSH.Enabled = true
 		tconf.SSH.BPF.Enabled = true
-		tconf.SSH.BPF.CgroupPath = dir
 		return t, nil, nil, tconf
 	}
 	main := suite.NewTeleportWithConfig(makeConfig())

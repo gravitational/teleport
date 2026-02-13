@@ -58,36 +58,6 @@ type exec struct {
 	lostCounter *Counter
 }
 
-func (e *exec) startSession(cgroupID uint64) error {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-
-	if e.closed {
-		return trace.BadParameter("open session already closed")
-	}
-
-	if err := e.objs.MonitoredCgroups.Put(cgroupID, int64(0)); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func (e *exec) endSession(cgroupID uint64) error {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-
-	if e.closed {
-		return nil // Ignore. If the session is closed, the cgroup is no longer monitored.
-	}
-
-	if err := e.objs.MonitoredCgroups.Delete(&cgroupID); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 // startExec will load, start, and pull events off the ring buffer
 // for the BPF program.
 func startExec(bufferSize int) (*exec, error) {
@@ -160,6 +130,36 @@ func startExec(bufferSize int) (*exec, error) {
 		bpfEvents:   bpfEvents,
 		lostCounter: lostCtr,
 	}, nil
+}
+
+func (e *exec) startSession(auditSessionID uint32) error {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	if e.closed {
+		return trace.BadParameter("open session already closed")
+	}
+
+	if err := e.objs.MonitoredSessionids.Put(auditSessionID, uint8(0)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (e *exec) endSession(auditSessionID uint32) error {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	if e.closed {
+		return nil
+	}
+
+	if err := e.objs.MonitoredSessionids.Delete(&auditSessionID); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // close will stop reading events off the ring buffer and unload the BPF

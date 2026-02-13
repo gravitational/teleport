@@ -77,12 +77,15 @@ type Exec interface {
 	// Wait will block while the command executes.
 	Wait() *ExecResult
 
-	// WaitForChild blocks until the child process has completed any required
-	// setup operations before proceeding with execution.
-	WaitForChild(ctx context.Context) error
+	// ReadAuditSessionID reads the unique audit session ID of the process
+	// that will be used to correlate audit events to the SSH session for
+	// sessions with Enhanced Session Recording enabled. Otherwise, this
+	// method is a no-op.
+	ReadAuditSessionID() (uint32, error)
 
 	// Continue will resume execution of the process after it completes its
-	// pre-processing routine (placed in a cgroup).
+	// pre-processing routine if Enhanced Session Recording is enabled.
+	// Otherwise, this method is a no-op.
 	Continue()
 
 	// PID returns the PID of the Teleport process that was re-execed.
@@ -128,6 +131,8 @@ type localExec struct {
 
 	// Ctx holds the *ServerContext.
 	Ctx *ServerContext
+
+	pid int
 }
 
 // GetCommand returns the command string.
@@ -183,9 +188,12 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	// Close our half of the write pipe since it is only to be used by the child process.
 	// Not closing prevents being signaled when the child closes its half.
 	if err := e.Ctx.readyw.Close(); err != nil {
-		logger.WarnContext(ctx, "Failed to close parent process ready signal write fd", "error", err)
+		logger.WarnContext(ctx, "Failed to close parent process audit session ID signal write fd", "error", err)
 	}
 	e.Ctx.readyw = nil
+
+	// Save off the PID of the Teleport process under which the command is executing.
+	e.pid = e.Cmd.Process.Pid
 
 	go func() {
 		if _, err := io.Copy(inputWriter, channel); err != nil {
@@ -224,12 +232,25 @@ func (e *localExec) Wait() *ExecResult {
 	return execResult
 }
 
-func (e *localExec) WaitForChild(ctx context.Context) error {
-	return e.Ctx.WaitForChild(ctx)
+// ReadAuditSessionID reads the unique audit session ID of the process
+// that will be used to correlate audit events to the SSH session for
+// sessions with Enhanced Session Recording enabled. Otherwise, this
+// method is a no-op.
+func (e *localExec) ReadAuditSessionID() (uint32, error) {
+	if !e.Ctx.recordWithBPF() {
+		return 0, nil
+	}
+
+	if err := e.Ctx.WaitForChild(e.Ctx.cancelContext); err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return readAuditSessionID(e.pid)
 }
 
 // Continue will resume execution of the process after it completes its
-// pre-processing routine (placed in a cgroup).
+// pre-processing routine if Enhanced Session Recording is enabled.
+// Otherwise, this method is a no-op.
 func (e *localExec) Continue() {
 	e.Ctx.contw.Close()
 
@@ -239,7 +260,7 @@ func (e *localExec) Continue() {
 
 // PID returns the PID of the Teleport process that was re-execed.
 func (e *localExec) PID() int {
-	return e.Cmd.Process.Pid
+	return e.pid
 }
 
 func (e *localExec) String() string {
@@ -301,6 +322,27 @@ func checkSCPAllowed(scx *ServerContext, command string) (bool, error) {
 	}
 
 	return true, trace.Wrap(scx.CheckFileCopyingAllowed())
+}
+
+func readAuditSessionID(pid int) (uint32, error) {
+	if pid == 0 {
+		return 0, trace.BadParameter("pid is zero")
+	}
+
+	pidStr := strconv.Itoa(pid)
+	sessionIDPath := filepath.Join("/proc", pidStr, "sessionid")
+	sessionIDBytes, err := os.ReadFile(sessionIDPath)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	sessionIDStr := strings.TrimSpace(string(sessionIDBytes))
+
+	sessionID, err := strconv.ParseUint(sessionIDStr, 10, 32)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return uint32(sessionID), nil
 }
 
 // remoteExec is used to run an "exec" SSH request and return the result.
@@ -385,7 +427,7 @@ func (e *remoteExec) Wait() *ExecResult {
 	}
 }
 
-func (e *remoteExec) WaitForChild(context.Context) error { return nil }
+func (e *remoteExec) ReadAuditSessionID() (uint32, error) { return 0, nil }
 
 // Continue does nothing for remote command execution.
 func (e *remoteExec) Continue() {}

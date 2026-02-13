@@ -153,7 +153,7 @@ func startOpen(bufferSize int) (*open, error) {
 	}, nil
 }
 
-func (o *open) startSession(cgroupID uint64) error {
+func (o *open) startSession(auditSessionID uint32) error {
 	o.mtx.Lock()
 	defer o.mtx.Unlock()
 
@@ -161,22 +161,22 @@ func (o *open) startSession(cgroupID uint64) error {
 		return trace.BadParameter("open session already closed")
 	}
 
-	if err := o.objs.MonitoredCgroups.Put(cgroupID, int64(0)); err != nil {
+	if err := o.objs.MonitoredSessionids.Put(auditSessionID, uint8(0)); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
 }
 
-func (o *open) endSession(cgroupID uint64) error {
+func (o *open) endSession(auditSessionID uint32) error {
 	o.mtx.Lock()
 	defer o.mtx.Unlock()
 
 	if o.closed {
-		return nil // Ignore. If the session is closed, the cgroup is no longer monitored.
+		return nil
 	}
 
-	if err := o.objs.MonitoredCgroups.Delete(&cgroupID); err != nil {
+	if err := o.objs.MonitoredSessionids.Delete(&auditSessionID); err != nil {
 		return trace.Wrap(err)
 	}
 
