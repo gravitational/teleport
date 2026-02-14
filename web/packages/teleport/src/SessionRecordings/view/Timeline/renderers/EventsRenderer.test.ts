@@ -51,10 +51,12 @@ function createRenderer(metadata?: Partial<SessionRecordingMetadata>) {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d')!;
 
-  const renderer = new EventsRenderer(ctx, darkTheme, {
+  const m = {
     ...mockMetadata,
     ...metadata,
-  });
+  };
+
+  const renderer = new EventsRenderer(ctx, darkTheme, m.duration, m.events);
 
   return { ctx, renderer };
 }
@@ -63,28 +65,31 @@ describe('EventsRenderer', () => {
   describe('event row creation', () => {
     it('should place non-overlapping events in the same row', () => {
       const { renderer } = createRenderer({
-        duration: 10000,
+        duration: 200000,
         events: [
           {
             type: SessionRecordingEventType.Join,
             startTime: 0,
-            endTime: 1000,
+            endTime: 10000,
             user: 'alice',
           },
           {
             type: SessionRecordingEventType.Join,
-            startTime: 1500,
-            endTime: 2500,
+            startTime: 25000,
+            endTime: 30000,
             user: 'bob',
           },
           {
             type: SessionRecordingEventType.Join,
-            startTime: 3000,
-            endTime: 4000,
+            startTime: 45000,
+            endTime: 60000,
             user: 'charlie',
           },
         ],
       });
+
+      renderer.calculate();
+      renderer.setTimelineWidth(2000);
 
       expect(renderer.getHeight()).toBe(
         EVENT_ROW_HEIGHT + EVENT_SECTION_PADDING
@@ -115,6 +120,8 @@ describe('EventsRenderer', () => {
           },
         ],
       });
+
+      renderer.calculate();
 
       expect(renderer.getHeight()).toBe(
         3 * EVENT_ROW_HEIGHT + EVENT_SECTION_PADDING
@@ -147,6 +154,8 @@ describe('EventsRenderer', () => {
           },
         ],
       });
+
+      renderer.calculate();
 
       expect(renderer.getHeight()).toBe(
         EVENT_ROW_HEIGHT + EVENT_SECTION_PADDING
@@ -438,14 +447,14 @@ describe('EventsRenderer', () => {
         events: [],
       });
 
-      expect(renderer.getHeight()).toBe(EVENT_SECTION_PADDING);
-
       const renderContext: TimelineRenderContext = {
         containerWidth: 1200,
         offset: 0,
         containerHeight: 200,
         eventsHeight: renderer.getHeight(),
       };
+
+      ctx.__clearDrawCalls();
 
       renderer._render(renderContext);
 

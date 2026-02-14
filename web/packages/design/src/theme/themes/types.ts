@@ -233,6 +233,12 @@ export type ThemeColors = {
         progress: string;
       };
     };
+    riskLevels: {
+      low: string;
+      medium: string;
+      high: string;
+      critical: string;
+    };
   };
 
   sessionRecordingTimeline: {
