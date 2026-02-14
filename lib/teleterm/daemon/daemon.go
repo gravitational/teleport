@@ -1152,7 +1152,7 @@ func (s *Service) ListUnifiedResources(ctx context.Context, clusterURI uri.Resou
 	var resources *unifiedresources.ListResponse
 
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		resources, err = unifiedresources.List(ctx, cluster, proxyClient.CurrentCluster(), req)
+		resources, err = unifiedresources.List(ctx, cluster, proxyClient.CurrentCluster(), req, s.cfg.Logger)
 		if err != nil {
 			return trace.Wrap(err)
 		}

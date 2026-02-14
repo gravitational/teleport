@@ -87,6 +87,7 @@ describe('restoring workspace', () => {
           pending: {
             kind: 'resource',
             resources: new Map(),
+            resourceConstraints: {},
           },
           isBarCollapsed: false,
         },
@@ -125,6 +126,7 @@ describe('restoring workspace', () => {
           pending: {
             kind: 'resource',
             resources: new Map(),
+            resourceConstraints: {},
           },
         },
         color: 'purple',

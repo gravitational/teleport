@@ -26,6 +26,8 @@ import {
   UserPreferences,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+import { AppAWSRoleMenu } from 'shared/components/AccessRequests/NewRequest';
+import { appIsAwsConsoleAndSupportsConstraints } from 'shared/components/AccessRequests/NewRequest/AppAWSRoleMenu/AppAWSRoleMenu';
 import {
   InfoGuidePanelProvider,
   useInfoGuide,
@@ -53,13 +55,20 @@ import {
 import { Attempt } from 'shared/hooks/useAsync';
 import { AppSubKind, NodeSubKind } from 'shared/services';
 import {
+  ResourceConstraints,
+  ResourceIDString,
+} from 'shared/services/accessRequests';
+import {
   DbProtocol,
   DbType,
   formatDatabaseInfo,
 } from 'shared/services/databases';
 import { waitForever } from 'shared/utils/wait';
 
-import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
+import {
+  getAppAddrWithProtocol,
+  getAwsAppLaunchUrl,
+} from 'teleterm/services/tshd/app';
 import { getWindowsDesktopAddrWithoutDefaultPort } from 'teleterm/services/tshd/windowsDesktop';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
@@ -205,6 +214,27 @@ export function UnifiedResources(props: {
     return accessRequestsService.getAddedItemsCount();
   }, [accessRequestsService]);
 
+  const setAddedResourceConstraints = useCallback(
+    (key: ResourceIDString, rc?: ResourceConstraints) =>
+      accessRequestsService.setResourceConstraints(key, rc),
+    [accessRequestsService]
+  );
+
+  const resourceConstraints = useStoreSelector(
+    'workspacesService',
+    useCallback(
+      state => {
+        const pending =
+          state.workspaces[rootClusterUri]?.accessRequests.pending;
+        if (pending?.kind === 'resource') {
+          return pending.resourceConstraints;
+        }
+        return {};
+      },
+      [rootClusterUri]
+    )
+  );
+
   const getAccessRequestButton = useCallback(
     (resource: UnifiedResourceResponse) => {
       const isResourceAdded = addedResources?.has(resource.resource.uri);
@@ -216,6 +246,41 @@ export function UnifiedResources(props: {
           // If we are currently making an access request, all buttons change to
           // add to request.
           requestStarted);
+
+      // For AWS Console apps that support constraints, show the AppAWSRoleMenu
+      // to allow selecting specific AWS IAM roles.
+      if (
+        resource.kind === 'app' &&
+        appIsAwsConsoleAndSupportsConstraints(resource.resource)
+      ) {
+        const cluster = clustersService.findClusterByResource(
+          resource.resource.uri
+        );
+        const awsRoles = resource.resource.awsRoles.map(r => ({
+          ...r,
+          launchUrl: getAwsAppLaunchUrl({
+            app: resource.resource,
+            rootCluster,
+            cluster,
+            arn: r.arn,
+          }),
+        }));
+
+        return (
+          <AppAWSRoleMenu
+            awsRoles={awsRoles}
+            isAppInCart={isResourceAdded}
+            addedResourceConstraints={resourceConstraints}
+            clusterName={cluster.name}
+            appName={resource.resource.name}
+            addOrRemoveApp={() =>
+              accessRequestsService.addOrRemoveResource(resource)
+            }
+            setResourceConstraints={setAddedResourceConstraints}
+            requestStarted={requestStarted}
+          />
+        );
+      }
 
       if (showRequestButton) {
         return (
@@ -232,6 +297,10 @@ export function UnifiedResources(props: {
       addedResources,
       requestStarted,
       integratedAccessRequests,
+      resourceConstraints,
+      setAddedResourceConstraints,
+      clustersService,
+      rootCluster,
     ]
   );
 
@@ -590,6 +659,8 @@ const mapToSharedResource = (
           requiresRequest: resource.requiresRequest,
           subKind: resource.resource.subKind as AppSubKind,
           permissionSets: resource.resource.permissionSets,
+          awsRoles: app.awsRoles,
+          supportedFeatureIds: app.supportedFeatureIds,
         },
         ui: {
           ActionButton: <ConnectAppActionButton app={app} />,

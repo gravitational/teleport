@@ -104,6 +104,8 @@ export function AccessRequestCheckout() {
     updateNamespacesForKubeCluster,
     reasonMode,
     reasonPrompts,
+    resourceConstraints,
+    setResourceConstraints,
   } = useAccessRequestCheckout();
 
   const isRoleRequest = pendingAccessRequests[0]?.kind === 'role';
@@ -286,9 +288,8 @@ export function AccessRequestCheckout() {
             updateNamespacesForKubeCluster={updateNamespacesForKubeCluster}
             requireReason={reasonMode === 'required'}
             reasonPrompts={reasonPrompts}
-            // TODO(kiosion): Support Resource Constraints in Connect's RequestCheckout
-            addedResourceConstraints={{}}
-            setResourceConstraints={() => null}
+            addedResourceConstraints={resourceConstraints}
+            setResourceConstraints={setResourceConstraints}
           />
         )}
       </Transition>

@@ -19,15 +19,21 @@
 import { useEffect } from 'react';
 
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
-import { AccessRequest as TshdAccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
+import type { ResourceConstraints as ProtoResourceConstraints } from 'gen-proto-ts/teleport/legacy/types/resources_pb';
+import {
+  Resource as ProtoResource,
+  AccessRequest as TshdAccessRequest,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 import { LoggedInUser } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { RequestFlags } from 'shared/components/AccessRequests/ReviewRequests';
 import { mapAttempt } from 'shared/hooks/useAsync';
 import {
   AccessRequest,
   makeAccessRequest,
+  ResourceConstraints,
 } from 'shared/services/accessRequests';
 
+import { constraintsOneOfIsAwsConsole } from 'teleterm/helpers';
 import { useAccessRequestsContext } from 'teleterm/ui/AccessRequests/AccessRequestsContext';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
@@ -102,10 +108,46 @@ export function makeUiAccessRequest(request: TshdAccessRequest) {
     })),
     suggestedReviewers: request.suggestedReviewers,
     thresholdNames: request.thresholdNames,
-    resources: request.resources,
+    resources: request.resources.map(convertProtoResource),
     reasonMode: request.reasonMode || 'optional',
     reasonPrompts: request.reasonPrompts,
   });
+}
+
+/**
+ * Converts proto-ts ResourceConstraints to the shared ResourceConstraints type (flattened).
+ */
+function convertProtoConstraints(
+  proto: ProtoResourceConstraints | undefined
+): ResourceConstraints | undefined {
+  if (!proto) {
+    return undefined;
+  }
+
+  if (constraintsOneOfIsAwsConsole(proto.details)) {
+    return {
+      version: (proto.version || 'v1') as ResourceConstraints['version'],
+      aws_console: {
+        role_arns: proto.details.awsConsole.roleArns,
+      },
+    };
+  }
+
+  return undefined;
+}
+
+function convertProtoResource(
+  proto: ProtoResource
+): Omit<ProtoResource, 'constraints'> & { constraints?: ResourceConstraints } {
+  const constraints = convertProtoConstraints(proto.constraints);
+
+  if (!constraints) {
+    // eslint-disable-next-line unused-imports/no-unused-vars
+    const { constraints: _, ...rest } = proto;
+    return rest;
+  }
+
+  return { ...proto, constraints };
 }
 
 // transform tsdh Access Request type into the web's Access Request

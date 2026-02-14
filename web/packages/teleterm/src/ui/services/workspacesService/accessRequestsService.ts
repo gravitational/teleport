@@ -1,3 +1,9 @@
+import {
+  ResourceConstraints,
+  ResourceConstraintsMap,
+  ResourceIDString,
+} from 'shared/services/accessRequests';
+
 /**
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -64,6 +70,26 @@ export class AccessRequestsService {
     });
   }
 
+  getResourceConstraints() {
+    const { pending } = this.getState();
+    if (pending.kind === 'resource') {
+      return pending.resourceConstraints;
+    }
+    return {};
+  }
+
+  setResourceConstraints(key: ResourceIDString, rc?: ResourceConstraints) {
+    this.setState(draftState => {
+      if (draftState.pending.kind === 'resource') {
+        draftState.pending.resourceConstraints = updateResourceConstraints(
+          draftState.pending.resourceConstraints,
+          key,
+          rc
+        );
+      }
+    });
+  }
+
   getAddedItemsCount(): number {
     const pendingAccessRequest = this.getState().pending;
     const { kind } = pendingAccessRequest;
@@ -87,6 +113,7 @@ export class AccessRequestsService {
         draftState.pending = {
           kind: 'resource',
           resources: new Map(),
+          resourceConstraints: {},
         };
       }
 
@@ -94,6 +121,11 @@ export class AccessRequestsService {
 
       if (resources.has(request.resource.uri)) {
         resources.delete(request.resource.uri);
+        draftState.pending.resourceConstraints = updateResourceConstraints(
+          draftState.pending.resourceConstraints,
+          request.resource.uri as ResourceIDString,
+          undefined
+        );
       } else {
         resources.set(request.resource.uri, getRequiredProperties(request));
       }
@@ -144,6 +176,7 @@ export class AccessRequestsService {
         draftState.pending = {
           kind: 'resource',
           resources: new Map(),
+          resourceConstraints: {},
         };
       }
 
@@ -151,6 +184,10 @@ export class AccessRequestsService {
       const allAdded = requestedResources.every(r =>
         resources.has(r.resource.uri)
       );
+
+      if (allAdded) {
+        draftState.pending.resourceConstraints = {};
+      }
 
       requestedResources.forEach(request => {
         if (allAdded) {
@@ -171,6 +208,7 @@ export class AccessRequestsService {
         draftState.pending = {
           kind: 'resource',
           resources: new Map(),
+          resourceConstraints: {},
         };
       }
 
@@ -229,6 +267,20 @@ export class AccessRequestsService {
   }
 }
 
+const updateResourceConstraints = (
+  prev: ResourceConstraintsMap,
+  key: ResourceIDString,
+  rc?: ResourceConstraints
+) => {
+  prev ||= {};
+  if (rc) {
+    return { ...prev, [key]: rc };
+  }
+  // eslint-disable-next-line unused-imports/no-unused-vars
+  const { [key]: _, ...rest } = prev;
+  return rest;
+};
+
 /** Returns only the properties required by the type. */
 function getRequiredProperties({
   kind,
@@ -257,6 +309,7 @@ export function getEmptyPendingAccessRequest(): PendingAccessRequest {
   return {
     kind: 'resource',
     resources: new Map(),
+    resourceConstraints: {},
   };
 }
 
@@ -264,6 +317,7 @@ export type PendingAccessRequest =
   | {
       kind: 'resource';
       resources: Map<ResourceUri, ResourceRequest>;
+      resourceConstraints: ResourceConstraintsMap;
     }
   | { kind: 'role'; roles: Set<string> };
 
