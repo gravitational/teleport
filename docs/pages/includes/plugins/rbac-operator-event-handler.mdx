@@ -1,0 +1,100 @@
+{{ plugin="plugin" }}
+
+### Generate credentials for the Event Handler plugin
+
+In the generated configuration file `{{ plugin }}-values.yaml`,
+replace the `teleport` section with the `crd` and `tbot` sections.
+Assign <Var name="operator-namespace" /> to the namespace where the
+Teleport Kubernetes Operator is running in.
+Assign <Var name="teleport.example.com:443" /> to the DNS name and
+port of your Teleport Proxy Service:
+
+```yaml
+# values.yaml
+crd:
+  create: true
+  namespace: <Var name="operator-namespace" />
+  tokenSpecOverride: {}
+
+tbot:
+  enabled: true
+  clusterName: <Var name="teleport.example.com" />
+  teleportProxyAddress: <Var name="teleport.example.com:443" />
+```
+
+<Admonition type="warning">
+Ensure the `teleport` section is removed, since `tbot` is performing the authentication to the cluster.
+</Admonition>
+
+This will generate the Event Handler role and bot user for the Machine & Workload Identity bot, `tbot`,
+to authenticate as when connecting to your Teleport cluster.
+
+### Specify a join token for tbot
+
+The `tbot` deployment authenticates to the Teleport cluster using a join token
+created by the `crd` section. Depending on where you deploy the Event Handler plugin
+relative to your Teleport cluster, you may need to modify the join token specification.
+
+<Tabs>
+<TabItem label="Same Kubernetes cluster as Teleport cluster">
+
+When running {{ plugin }} in the same Kubernetes cluster
+as the Teleport cluster (eg. the `teleport-cluster` Helm chart),
+we can use the default join token specification: `kubernetes` in_cluster
+join method. This will automatically connect `tbot` to Teleport.
+
+</TabItem>
+<TabItem label="External Teleport cluster">
+
+When running {{ plugin }} against an external Teleport cluster not in Kubernetes,
+you must modify the join token specification using `crd.tokenSpecOverride`. We
+recommend either the `kubernetes` JWKS join method or the `kubernetes` OIDC join method.
+
+<details>
+<summary>Example (Kubernetes JWKS join method)</summary>
+You can override the join token specification to use the `kubernetes` JWKS join method.
+
+```yaml
+# values.yaml
+tokenSpecOverride:
+  join_method: kubernetes
+  kubernetes:
+    type: static_jwks
+    static_jwks:
+      jwks: |
+        # Place the kubernetes JWKS here (`kubectl get --raw /openid/v1/jwks`)
+        {"keys":[--snip--]}
+```
+</details>
+
+<details>
+<summary>Example (Kubernetes OIDC join method)</summary>
+You can override the join token specification to use the `kubernetes` OIDC join method.
+
+```yaml
+# values.yaml
+tokenSpecOverride:
+  join_method: kubernetes
+  kubernetes:
+    type: oidc
+    oidc:
+      # Insert the OIDC issuer URL here, it will vary depending on your
+      # cluster and cloud provider.
+      issuer: https://oidc.eks.us-west-2.amazonaws.com/id/my-cluster
+```
+</details>
+
+</TabItem>
+</Tabs>
+
+Consult the [Helm chart reference
+guide](../../reference/helm-reference/teleport-plugin-event-handler.mdx)
+for more information on the `crd` and `tbot` sections.
+
+### Example configuration file
+
+Your helm configuration file `teleport-plugin-event-handler-values.yaml` should now
+contain settings similar to the following. We will configure the `fluentd` section
+to your log management solution of choice in the following guide.
+
+(!docs/pages/includes/plugins/helm-operator-config.mdx!)
