@@ -1,7 +1,5 @@
-//go:build !darwin && !windows
-
 // Teleport
-// Copyright (C) 2025 Gravitational, Inc.
+// Copyright (C) 2026 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -16,21 +14,23 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package diag
+package systemdresolved
 
-import (
-	"context"
-	"os/exec"
-
-	"github.com/gravitational/trace"
-)
-
-// TODO: linux diagnostics
-
-func (n *NetInterfaces) interfaceApp(ctx context.Context, ifaceName string) (string, error) {
-	return "", trace.NotImplemented("InterfaceApp is not implemented")
+// DNSAddress is the systemd-resolved representation of a DNS address.
+type DNSAddress struct {
+	Family  int32
+	Address []byte
 }
 
-func (c *RouteConflictDiag) commands(ctx context.Context) []*exec.Cmd {
-	return nil
+// Domain is the systemd-resolved representation of a DNS domain.
+type Domain struct {
+	Domain      string
+	RoutingOnly bool
+}
+
+// DNS is a single DNS server entry from systemd-resolved's DNS property.
+type DNS struct {
+	InterfaceIndex int32
+	Family         int32
+	Address        []byte
 }

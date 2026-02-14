@@ -1,7 +1,5 @@
-//go:build !darwin && !windows
-
 // Teleport
-// Copyright (C) 2025 Gravitational, Inc.
+// Copyright (C) 2026 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -16,21 +14,24 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package diag
+package polkit
 
-import (
-	"context"
-	"os/exec"
+import "github.com/godbus/dbus/v5"
 
-	"github.com/gravitational/trace"
-)
-
-// TODO: linux diagnostics
-
-func (n *NetInterfaces) interfaceApp(ctx context.Context, ifaceName string) (string, error) {
-	return "", trace.NotImplemented("InterfaceApp is not implemented")
+// Subject describes the entity being authorized.
+type Subject struct {
+	// Kind is the subject kind, e.g. "system-bus-name".
+	Kind string
+	// Details are subject kind specific key/value pairs.
+	Details map[string]dbus.Variant
 }
 
-func (c *RouteConflictDiag) commands(ctx context.Context) []*exec.Cmd {
-	return nil
+// AuthorizationResult is the result of CheckAuthorization.
+type AuthorizationResult struct {
+	// Authorized is true if the subject is authorized for the action.
+	Authorized bool
+	// Challenge is true if the subject could be authorized after authentication.
+	Challenge bool
+	// Details contains extra result information.
+	Details map[string]string
 }

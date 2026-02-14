@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !darwin && !windows
+//go:build !darwin && !windows && !linux
 
 package dns
 
@@ -30,7 +30,7 @@ var (
 	vnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
 
 	// Satisfy unused linter.
-	_ = withDNSPort
+	_ = WithDNSPort
 )
 
 func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {

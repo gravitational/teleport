@@ -1,7 +1,5 @@
-//go:build !darwin && !windows
-
 // Teleport
-// Copyright (C) 2025 Gravitational, Inc.
+// Copyright (C) 2026 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -16,21 +14,18 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package diag
+package polkit
 
-import (
-	"context"
-	"os/exec"
+const (
+	AuthorityServiceName = "org.freedesktop.PolicyKit1"
+	AuthorityObjectPath  = "/org/freedesktop/PolicyKit1/Authority"
+	AuthorityInterface   = "org.freedesktop.PolicyKit1.Authority"
 
-	"github.com/gravitational/trace"
+	CheckAuthorizationMethod = AuthorityInterface + ".CheckAuthorization"
+
+	CheckAuthorizationFlagNone                 = uint32(0x00000000)
+	CheckAuthorizationFlagAllowUserInteraction = uint32(0x00000001)
+
+	SubjectKindSystemBusName = "system-bus-name"
+	SubjectDetailNameKey     = "name"
 )
-
-// TODO: linux diagnostics
-
-func (n *NetInterfaces) interfaceApp(ctx context.Context, ifaceName string) (string, error) {
-	return "", trace.NotImplemented("InterfaceApp is not implemented")
-}
-
-func (c *RouteConflictDiag) commands(ctx context.Context) []*exec.Cmd {
-	return nil
-}

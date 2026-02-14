@@ -1,7 +1,5 @@
-//go:build !darwin && !windows
-
 // Teleport
-// Copyright (C) 2025 Gravitational, Inc.
+// Copyright (C) 2026 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -16,21 +14,21 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package diag
+package systemdresolved
 
-import (
-	"context"
-	"os/exec"
+const (
+	DBusService       = "org.freedesktop.DBus"
+	DBusObjectPath    = "/org/freedesktop/DBus"
+	DBusNameHasOwner  = "org.freedesktop.DBus.NameHasOwner"
+	DBusPropertiesGet = "org.freedesktop.DBus.Properties.Get"
 
-	"github.com/gravitational/trace"
+	Service    = "org.freedesktop.resolve1"
+	ObjectPath = "/org/freedesktop/resolve1"
+	Manager    = "org.freedesktop.resolve1.Manager"
+
+	SetLinkDNSMethod      = Manager + ".SetLinkDNS"
+	SetDomainsMethod      = Manager + ".SetLinkDomains"
+	SetDefaultRouteMethod = Manager + ".SetLinkDefaultRoute"
+
+	DNSProperty = "DNS"
 )
-
-// TODO: linux diagnostics
-
-func (n *NetInterfaces) interfaceApp(ctx context.Context, ifaceName string) (string, error) {
-	return "", trace.NotImplemented("InterfaceApp is not implemented")
-}
-
-func (c *RouteConflictDiag) commands(ctx context.Context) []*exec.Cmd {
-	return nil
-}

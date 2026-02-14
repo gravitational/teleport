@@ -63,7 +63,7 @@ func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
 			continue
 		}
 
-		nameservers = append(nameservers, withDNSPort(ip))
+		nameservers = append(nameservers, WithDNSPort(ip))
 	}
 
 	slog.DebugContext(ctx, "Loaded host upstream nameservers.", "nameservers", nameservers, "config_file", confFilePath)
