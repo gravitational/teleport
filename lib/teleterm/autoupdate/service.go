@@ -172,10 +172,9 @@ func (s *Service) GetConfig(_ context.Context, _ *api.GetConfigRequest) (*api.Ge
 		}
 	}
 
-	m := modules.GetModules()
-	// Uses the same logic as the teleport/lib/autoupdate/tools package.
-	if cdnBaseUrlValue == "" && m.BuildType() != modules.BuildOSS {
-		cdnBaseUrlValue = autoupdate.DefaultBaseURL
+	defaultBaseUrlValue := getDefaultBaseURL()
+	if cdnBaseUrlValue == "" && defaultBaseUrlValue != "" {
+		cdnBaseUrlValue = defaultBaseUrlValue
 		cdnBaseUrlSource = api.ConfigSource_CONFIG_SOURCE_DEFAULT
 	}
 
@@ -183,6 +182,15 @@ func (s *Service) GetConfig(_ context.Context, _ *api.GetConfigRequest) (*api.Ge
 		ToolsVersion: &api.ConfigValue{Value: toolsVersionValue, Source: toolsVersionSource},
 		CdnBaseUrl:   &api.ConfigValue{Value: cdnBaseUrlValue, Source: cdnBaseUrlSource},
 	}, nil
+}
+
+func getDefaultBaseURL() string {
+	m := modules.GetModules()
+	// Uses the same logic as the teleport/lib/autoupdate/tools package.
+	if m.BuildType() != modules.BuildOSS {
+		return autoupdate.DefaultBaseURL
+	}
+	return ""
 }
 
 func validateURL(raw string) error {
