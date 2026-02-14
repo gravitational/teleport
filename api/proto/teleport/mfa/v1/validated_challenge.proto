@@ -42,6 +42,9 @@ message ValidatedMFAChallengeSpec {
   string source_cluster = 2;
   // Name of the cluster where the SSH session is being established and this resource is intended for.
   string target_cluster = 3;
+  // Username of the Teleport user for whom the challenge was issued. This should be the Teleport username (not the SSH
+  // login name) and must correspond to a user in the cluster specified to source_cluster.
+  string username = 4;
 }
 
 // SessionIdentifyingPayload contains a value that uniquely identifies a user's session. It must be computed by the

@@ -93,6 +93,12 @@ type MFAService interface {
 		username string,
 		challengeName string,
 	) (*mfav1.ValidatedMFAChallenge, error)
+
+	ListValidatedMFAChallenges(
+		ctx context.Context,
+		pageSize int32,
+		pageToken string,
+	) ([]*mfav1.ValidatedMFAChallenge, string, error)
 }
 
 // ServiceConfig holds creation parameters for [Service].
@@ -369,6 +375,7 @@ func (s *Service) ValidateSessionChallenge(
 				},
 				SourceCluster: details.SourceCluster,
 				TargetCluster: details.TargetCluster,
+				Username:      username,
 			},
 		},
 	)
@@ -383,6 +390,35 @@ func (s *Service) ValidateSessionChallenge(
 	s.emitValidationEvent(ctx, currentCluster.GetClusterName(), username, details.Device, nil)
 
 	return &mfav1.ValidateSessionChallengeResponse{}, nil
+}
+
+// ListValidatedMFAChallenges implements the mfav1.MFAServiceServer.ListValidatedMFAChallenges method.
+func (s *Service) ListValidatedMFAChallenges(
+	ctx context.Context,
+	req *mfav1.ListValidatedMFAChallengesRequest,
+) (*mfav1.ListValidatedMFAChallengesResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !isRemoteProxy(*authCtx) {
+		return nil, trace.AccessDenied("only remote proxy identities can list validated MFA challenges")
+	}
+
+	if err := checkListValidatedMFAChallengesRequest(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	challenges, nextPageToken, err := s.storage.ListValidatedMFAChallenges(ctx, req.GetPageSize(), req.GetPageToken())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &mfav1.ListValidatedMFAChallengesResponse{
+		ValidatedChallenges: challenges,
+		NextPageToken:       nextPageToken,
+	}, nil
 }
 
 // ReplicateValidatedMFAChallenge implements the mfav1.MFAServiceServer.ReplicateValidatedMFAChallenge method.
@@ -427,6 +463,7 @@ func (s *Service) ReplicateValidatedMFAChallenge(
 			Payload:       req.GetPayload(),
 			SourceCluster: req.GetSourceCluster(),
 			TargetCluster: req.GetTargetCluster(),
+			Username:      req.GetUsername(),
 		},
 	}
 
@@ -724,6 +761,15 @@ func checkReplicateValidatedMFAChallengeRequest(req *mfav1.ReplicateValidatedMFA
 
 	if err := checkPayload(req.GetPayload()); err != nil {
 		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func checkListValidatedMFAChallengesRequest(req *mfav1.ListValidatedMFAChallengesRequest) error {
+	switch {
+	case req.GetPageSize() <= 0:
+		return trace.BadParameter("param ListValidatedMFAChallengesRequest.page_size must be a positive integer")
 	}
 
 	return nil
