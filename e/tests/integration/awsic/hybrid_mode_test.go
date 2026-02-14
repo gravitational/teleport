@@ -121,57 +121,57 @@ func TestUsersAreNotUpdatedInHybridMode(t *testing.T) {
 		{ID: "uid_emily", UserName: "emily"},
 	}
 	require.EventuallyWithT(t,
-		func(c *assert.CollectT) {
+		func(t *assert.CollectT) {
 			// EXPECT that Teleport has adopted the Identity Center users and correctly
 			// bound them to their corresponding Teleport users
 			for _, icUser := range expectedUsers {
-				assertSCIMProvisioningState(ctx, c, auth, provisioning.GetIDForUserName(icUser.UserName),
+				assertSCIMProvisioningState(ctx, t, auth, provisioning.GetIDForUserName(icUser.UserName),
 					hasSCIMProvisioningState(provisioningv1.ProvisioningState_PROVISIONING_STATE_STALE),
 					hasSCIMExternalID(icUser.ID))
-				assertPrincipalAssignment(ctx, c, auth, principal.GetIDForUserName(icUser.UserName),
+				assertPrincipalAssignment(ctx, t, auth, principal.GetIDForUserName(icUser.UserName),
 					hasProvisioningState(identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
 					hasExternalID(icUser.ID),
 				)
 			}
+
+			// EXPECT that the Account role-based Account Assignments have been provisioned
+			// into AWS
+			requirePrincipalAssignment(ctx, t, auth, principal.GetIDForUserName("bob"),
+				hasAccountAssignment("arn:aws:sso:::permissionSet/Admin", "1111111111"),
+				hasAccountAssignment("arn:aws:sso:::permissionSet/ReadOnly", "1111111111"))
+			require.ElementsMatch(t,
+				[]*icsdk.Assignment{
+					&icsdk.Assignment{
+						AccountID:        "1111111111",
+						PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly",
+						PrincipalType:    ssoadmintypes.PrincipalTypeUser,
+					},
+					&icsdk.Assignment{
+						AccountID:        "1111111111",
+						PermissionSetARN: "arn:aws:sso:::permissionSet/Admin",
+						PrincipalType:    ssoadmintypes.PrincipalTypeUser,
+					},
+				},
+				getRemoteAccountAssignments(unifiedClient, "uid_bob"),
+				"Bob's account assignments must be provisioned")
+
+			requirePrincipalAssignment(ctx, t, auth, principal.GetIDForUserName("emily"),
+				hasAccountAssignment("arn:aws:sso:::permissionSet/Admin", "1111111111"))
+			require.ElementsMatch(t,
+				[]*icsdk.Assignment{
+					&icsdk.Assignment{
+						AccountID:        "1111111111",
+						PermissionSetARN: "arn:aws:sso:::permissionSet/Admin",
+						PrincipalType:    ssoadmintypes.PrincipalTypeUser,
+					},
+				},
+				getRemoteAccountAssignments(unifiedClient, "uid_emily"),
+				"Emily's account assignments must be provisioned")
 		},
 		// Initial Identity Center startup takes a while to run, especially under
 		// the flakey test detector, so we give this more than the usual 3s to run
 		10*time.Second, 100*time.Millisecond,
 		"Initial users must be provisioned")
-
-	// EXPECT that the Account role-based Account Assignments have been provisioned
-	// into AWS
-	requirePrincipalAssignment(ctx, t, auth, principal.GetIDForUserName("bob"),
-		hasAccountAssignment("arn:aws:sso:::permissionSet/Admin", "1111111111"),
-		hasAccountAssignment("arn:aws:sso:::permissionSet/ReadOnly", "1111111111"))
-	require.ElementsMatch(t,
-		[]*icsdk.Assignment{
-			&icsdk.Assignment{
-				AccountID:        "1111111111",
-				PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly",
-				PrincipalType:    ssoadmintypes.PrincipalTypeUser,
-			},
-			&icsdk.Assignment{
-				AccountID:        "1111111111",
-				PermissionSetARN: "arn:aws:sso:::permissionSet/Admin",
-				PrincipalType:    ssoadmintypes.PrincipalTypeUser,
-			},
-		},
-		getRemoteAccountAssignments(unifiedClient, "uid_bob"),
-		"Bob's account assignments must be provisioned")
-
-	requirePrincipalAssignment(ctx, t, auth, principal.GetIDForUserName("emily"),
-		hasAccountAssignment("arn:aws:sso:::permissionSet/Admin", "1111111111"))
-	require.ElementsMatch(t,
-		[]*icsdk.Assignment{
-			&icsdk.Assignment{
-				AccountID:        "1111111111",
-				PermissionSetARN: "arn:aws:sso:::permissionSet/Admin",
-				PrincipalType:    ssoadmintypes.PrincipalTypeUser,
-			},
-		},
-		getRemoteAccountAssignments(unifiedClient, "uid_emily"),
-		"Emily's account assignments must be provisioned")
 
 	// EXPECT that the `zelda` Teleport user, who has no corresponding IC user,
 	// is still sitting as "STALE" with no known external id
