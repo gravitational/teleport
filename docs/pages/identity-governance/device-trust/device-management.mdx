@@ -146,10 +146,14 @@ For auto-enrollment to work, the following conditions must be met:
 integration](./device-trust.mdx#mdm-integrations).
 - Auto-enrollment must be enabled in the cluster setting.
 
-Enable auto-enrollment in your cluster settings. To do so, modify the dynamic
-config resource using the following command:
+Enable auto-enrollment in your cluster settings. To do so, modify the dynamic config resource.
 
-```code
+<Tabs>
+<TabItem label="Using the CLI">
+
+Use the following command:
+
+```shell
 $ tctl edit cluster_auth_preference
 ```
 
@@ -166,6 +170,23 @@ spec:
     mode: "required"
 +   auto_enroll: true
 ```
+
+</TabItem>
+<TabItem label="Helm Chart">
+
+Because this is an enterprise feature, it is not included in the set of supported settings in our default Helm chart.
+In order to enable it, you will need to add the following snippet to your Helm values file under `auth.teleportconfig.auth_service`:
+```diff
+auth:
+  teleportConfig:
+    # ...
+    auth_service:
+      # ...
+      device_trust:
++       auto_enroll: true
+```
+</TabItem>
+</Tabs>
 
 Save and close your editor to apply your changes.
 
