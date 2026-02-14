@@ -219,11 +219,11 @@ func ValidateTokenUpdate(oldToken *joiningv1.ScopedToken, newToken *joiningv1.Sc
 	}
 	tokenName := newToken.GetMetadata().GetName()
 	if oldToken.GetScope() != newToken.GetScope() {
-		return trace.BadParameter("cannot modify scope of existing scoped token %s with old scope %s and new scope %s", tokenName, oldToken.GetScope(), newToken.GetScope())
+		return trace.BadParameter("cannot modify scope of existing scoped token %s with scope %s to %s", tokenName, oldToken.GetScope(), newToken.GetScope())
 	}
 
 	if oldToken.GetSpec().GetUsageMode() != newToken.GetSpec().GetUsageMode() {
-		return trace.BadParameter("cannot modify usage mode of existing scoped token %s from usage mode %s to usage mode %s", tokenName, oldToken.GetSpec().GetUsageMode(), newToken.GetSpec().GetUsageMode())
+		return trace.BadParameter("cannot modify usage mode of existing scoped token %s from usage mode %s to %s", tokenName, oldToken.GetSpec().GetUsageMode(), newToken.GetSpec().GetUsageMode())
 	}
 
 	if oldToken.GetStatus().GetSecret() != newToken.GetStatus().GetSecret() {

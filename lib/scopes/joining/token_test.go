@@ -401,7 +401,7 @@ func TestValidateTokenUpdate(t *testing.T) {
 	for _, tc := range []struct {
 		name            string
 		modifyTokenFunc func(*joiningv1.ScopedToken)
-		wantErr         []string
+		wantErr         string
 	}{
 		{
 			name: "check scope change",
@@ -409,21 +409,21 @@ func TestValidateTokenUpdate(t *testing.T) {
 				t.Scope = "/other"
 				t.Spec.AssignedScope = "/other/one"
 			},
-			wantErr: []string{"cannot modify scope of existing scoped token", "/test", "/other"},
+			wantErr: "cannot modify scope of existing scoped token test-token with scope /test to /other",
 		},
 		{
 			name: "check usage mode change",
 			modifyTokenFunc: func(t *joiningv1.ScopedToken) {
 				t.Spec.UsageMode = string(joining.TokenUsageModeSingle)
 			},
-			wantErr: []string{"cannot modify usage mode of existing scoped token", string(joining.TokenUsageModeUnlimited), string(joining.TokenUsageModeSingle)},
+			wantErr: fmt.Sprintf("cannot modify usage mode of existing scoped token test-token from usage mode %s to %s", joining.TokenUsageModeUnlimited, joining.TokenUsageModeSingle),
 		},
 		{
 			name: "check secret change",
 			modifyTokenFunc: func(t *joiningv1.ScopedToken) {
 				t.Status.Secret = "new-secret-value"
 			},
-			wantErr: []string{"cannot modify secret of existing scoped token"},
+			wantErr: "cannot modify secret of existing scoped token test-token",
 		},
 		{
 			name: "valid update",
@@ -438,12 +438,10 @@ func TestValidateTokenUpdate(t *testing.T) {
 			tc.modifyTokenFunc(modified)
 
 			err := joining.ValidateTokenUpdate(baseToken, modified)
-			if len(tc.wantErr) > 0 {
-				for _, msg := range tc.wantErr {
-					assert.ErrorContains(t, err, msg)
-				}
-			} else {
+			if tc.wantErr == "" {
 				require.NoError(t, err)
+			} else {
+				assert.ErrorContains(t, err, tc.wantErr)
 			}
 		})
 	}

@@ -409,6 +409,7 @@ func TestJoinToken(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			token := &joiningv1.ScopedToken{
 				Kind:    types.KindScopedToken,
 				Version: types.V1,

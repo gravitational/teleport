@@ -18,7 +18,6 @@ package local_test
 
 import (
 	"cmp"
-	"context"
 	"crypto/sha256"
 	"fmt"
 	"slices"
@@ -28,6 +27,7 @@ import (
 	"time"
 
 	gocmp "github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -576,20 +576,20 @@ func TestScopedTokenUse(t *testing.T) {
 }
 
 func TestScopedTokenUpsert(t *testing.T) {
-	newService := func(t *testing.T) (*local.ScopedTokenService, context.Context) {
-		t.Helper()
-		bk, err := memory.New(memory.Config{})
-		require.NoError(t, err)
-		service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
-		require.NoError(t, err)
-		return service, t.Context()
-	}
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
+	require.NoError(t, err)
+
+	ctx := t.Context()
+
 	newToken := func(name string) *joiningv1.ScopedToken {
+		randNs := uuid.New().String()
 		return &joiningv1.ScopedToken{
 			Kind:    types.KindScopedToken,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
-				Name: name,
+				Name: randNs + "-" + name,
 			},
 			Scope: "/test",
 			Spec: &joiningv1.ScopedTokenSpec{
@@ -609,7 +609,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 	}
 
 	t.Run("upsert creates a new entry", func(t *testing.T) {
-		service, ctx := newService(t)
+		t.Parallel()
 		token := newToken("create")
 
 		upsertedToken, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: token})
@@ -624,7 +624,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 	})
 
 	t.Run("upsert updates existing entry", func(t *testing.T) {
-		service, ctx := newService(t)
+		t.Parallel()
 		token := newToken("update")
 		_, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: token})
 		require.NoError(t, err)
@@ -645,7 +645,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 	})
 
 	t.Run("upsert fails because the scope is changed", func(t *testing.T) {
-		service, ctx := newService(t)
+		t.Parallel()
 		token := newToken("scope-change")
 		_, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: token})
 		require.NoError(t, err)
@@ -659,7 +659,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 	})
 
 	t.Run("upsert fails because the usage status is changed", func(t *testing.T) {
-		service, ctx := newService(t)
+		t.Parallel()
 		token := newToken("usage-change")
 		_, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: token})
 		require.NoError(t, err)
@@ -673,7 +673,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 	})
 
 	t.Run("upsert fails because the secret is changed", func(t *testing.T) {
-		service, ctx := newService(t)
+		t.Parallel()
 		token := newToken("secret-change")
 		_, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: token})
 		require.NoError(t, err)
@@ -686,9 +686,9 @@ func TestScopedTokenUpsert(t *testing.T) {
 		require.ErrorContains(t, err, "cannot modify secret of existing scoped token")
 	})
 
-	t.Run("upsert succeeds with when revisions don't match", func(t *testing.T) {
-		service, ctx := newService(t)
-		token := newToken("concurrent-test")
+	t.Run("upsert succeeds when revisions don't match", func(t *testing.T) {
+		t.Parallel()
+		token := newToken("stale-revision")
 
 		_, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: token})
 		require.NoError(t, err)
@@ -721,7 +721,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 	})
 
 	t.Run("concurrent upserts succeed", func(t *testing.T) {
-		service, ctx := newService(t)
+		t.Parallel()
 		token := newToken("concurrent-upserts")
 
 		// Simulate 4 users concurrently upserting the same token with
@@ -732,15 +732,13 @@ func TestScopedTokenUpsert(t *testing.T) {
 
 		var wg sync.WaitGroup
 		for i := range numUsers {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				update := proto.CloneOf(token)
 				update.Metadata.Labels = map[string]string{
 					"user": fmt.Sprintf("user-%d", i),
 				}
 				_, errs[i] = service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: update})
-			}()
+			})
 		}
 		wg.Wait()
 
