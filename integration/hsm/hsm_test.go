@@ -549,27 +549,28 @@ func TestHSMRevert(t *testing.T) {
 	ctx := t.Context()
 	log := logtest.With(teleport.ComponentKey, "TestHSMRevert")
 
+	// Start auth with an HSM attached and generate HSM keys.
 	log.DebugContext(ctx, "starting auth server")
-	auth1Config := newHSMAuthConfig(t, liteBackendConfig(t), log, clock)
-	auth1, err := newTeleportService(ctx, auth1Config, "auth1")
+	authConfig := newHSMAuthConfig(t, liteBackendConfig(t), log, clock)
+	hsmAuth, err := newTeleportService(ctx, authConfig, "auth1")
 	require.NoError(t, err)
+	require.NoError(t, hsmAuth.process.Close())
+	require.NoError(t, hsmAuth.waitForShutdown(ctx))
 	t.Cleanup(func() {
-		assert.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil),
+		assert.NoError(t, hsmAuth.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil),
 			"failed to delete hsm keys during test cleanup")
-		assert.NoError(t, auth1.cleanup())
+		assert.NoError(t, hsmAuth.cleanup())
 	})
 
 	// Switch config back to default (software) and restart.
-	auth1.process.Close()
-	require.NoError(t, auth1.waitForShutdown(ctx))
-	auth1Config.Auth.KeyStore = servicecfg.KeystoreConfig{}
-	auth1, err = newTeleportService(ctx, auth1Config, "auth1")
+	authConfig.Auth.KeyStore = servicecfg.KeystoreConfig{}
+	softwareAuth, err := newTeleportService(ctx, authConfig, "auth1")
 	require.NoError(t, err)
 
 	// Make sure a cluster alert is created.
 	var alert types.ClusterAlert
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		alerts, err := auth1.process.GetAuthServer().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
+		alerts, err := softwareAuth.process.GetAuthServer().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
 		require.NoError(t, err)
 		require.Len(t, alerts, 1)
 		alert = alerts[0]
@@ -580,7 +581,7 @@ func TestHSMRevert(t *testing.T) {
 	assert.Contains(t, alert.Spec.Message, "The Auth Service is currently unable to sign certificates")
 
 	rotate := func(caType types.CertAuthType, targetPhase string) error {
-		return auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
+		return softwareAuth.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 			Type:        caType,
 			TargetPhase: targetPhase,
 			Mode:        types.RotationModeManual,
@@ -599,7 +600,7 @@ func TestHSMRevert(t *testing.T) {
 				if targetPhase == types.RotationPhaseInit {
 					expectedEvent = service.TeleportPhaseChangeEvent
 				}
-				require.NoError(t, auth1.waitingForNewEvent(ctx, expectedEvent, func() error {
+				require.NoError(t, softwareAuth.waitingForNewEvent(ctx, expectedEvent, func() error {
 					return rotate(caType, targetPhase)
 				}))
 			} else {
@@ -613,7 +614,7 @@ func TestHSMRevert(t *testing.T) {
 	// auth.AutoRotateCertAuthorities which reconciles the alert state.
 	clock.Advance(2 * defaults.HighResPollingPeriod)
 	assert.EventuallyWithT(t, func(t *assert.CollectT) {
-		alerts, err := auth1.process.GetAuthServer().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
+		alerts, err := softwareAuth.process.GetAuthServer().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
 		assert.NoError(t, err)
 		assert.Empty(t, alerts)
 
