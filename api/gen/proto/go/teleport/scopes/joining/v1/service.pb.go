@@ -40,7 +40,9 @@ const (
 type GetScopedTokenRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Name is the name of the scoped token.
-	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// If true, include the token secret in the response.
+	WithSecret    bool `protobuf:"varint,2,opt,name=with_secret,json=withSecret,proto3" json:"with_secret,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -80,6 +82,13 @@ func (x *GetScopedTokenRequest) GetName() string {
 		return x.Name
 	}
 	return ""
+}
+
+func (x *GetScopedTokenRequest) GetWithSecret() bool {
+	if x != nil {
+		return x.WithSecret
+	}
+	return false
 }
 
 // GetScopedTokenResponse is the response to get a scoped token.
@@ -142,7 +151,9 @@ type ListScopedTokensRequest struct {
 	// Filter tokens that apply at least one of the provided roles.
 	Roles []string `protobuf:"bytes,5,rep,name=roles,proto3" json:"roles,omitempty"`
 	// Filter tokens that match all provided labels.
-	Labels        map[string]string `protobuf:"bytes,6,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Labels map[string]string `protobuf:"bytes,6,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// If true, include the token secrets in the response.
+	WithSecrets   bool `protobuf:"varint,7,opt,name=with_secrets,json=withSecrets,proto3" json:"with_secrets,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -217,6 +228,13 @@ func (x *ListScopedTokensRequest) GetLabels() map[string]string {
 		return x.Labels
 	}
 	return nil
+}
+
+func (x *ListScopedTokensRequest) GetWithSecrets() bool {
+	if x != nil {
+		return x.WithSecrets
+	}
+	return false
 }
 
 // ListScopedTokensResponse is the response to list scoped tokens.
@@ -366,29 +384,29 @@ func (x *CreateScopedTokenResponse) GetToken() *ScopedToken {
 	return nil
 }
 
-// UpdateScopedTokenRequest is the request to update a scoped token.
-type UpdateScopedTokenRequest struct {
+// UpsertScopedTokenRequest is the request to upsert a scoped token.
+type UpsertScopedTokenRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Token is the scoped token to update.
+	// Token is the scoped token to upsert.
 	Token         *ScopedToken `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *UpdateScopedTokenRequest) Reset() {
-	*x = UpdateScopedTokenRequest{}
+func (x *UpsertScopedTokenRequest) Reset() {
+	*x = UpsertScopedTokenRequest{}
 	mi := &file_teleport_scopes_joining_v1_service_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UpdateScopedTokenRequest) String() string {
+func (x *UpsertScopedTokenRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UpdateScopedTokenRequest) ProtoMessage() {}
+func (*UpsertScopedTokenRequest) ProtoMessage() {}
 
-func (x *UpdateScopedTokenRequest) ProtoReflect() protoreflect.Message {
+func (x *UpsertScopedTokenRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_scopes_joining_v1_service_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -400,41 +418,41 @@ func (x *UpdateScopedTokenRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateScopedTokenRequest.ProtoReflect.Descriptor instead.
-func (*UpdateScopedTokenRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use UpsertScopedTokenRequest.ProtoReflect.Descriptor instead.
+func (*UpsertScopedTokenRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_scopes_joining_v1_service_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *UpdateScopedTokenRequest) GetToken() *ScopedToken {
+func (x *UpsertScopedTokenRequest) GetToken() *ScopedToken {
 	if x != nil {
 		return x.Token
 	}
 	return nil
 }
 
-// UpdateScopedTokenResponse is the response to update a scoped token.
-type UpdateScopedTokenResponse struct {
+// UpsertScopedTokenResponse is the response to upsert a scoped token.
+type UpsertScopedTokenResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Token is the post-update scoped token.
+	// Token is the post-upsert scoped token.
 	Token         *ScopedToken `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *UpdateScopedTokenResponse) Reset() {
-	*x = UpdateScopedTokenResponse{}
+func (x *UpsertScopedTokenResponse) Reset() {
+	*x = UpsertScopedTokenResponse{}
 	mi := &file_teleport_scopes_joining_v1_service_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UpdateScopedTokenResponse) String() string {
+func (x *UpsertScopedTokenResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UpdateScopedTokenResponse) ProtoMessage() {}
+func (*UpsertScopedTokenResponse) ProtoMessage() {}
 
-func (x *UpdateScopedTokenResponse) ProtoReflect() protoreflect.Message {
+func (x *UpsertScopedTokenResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_scopes_joining_v1_service_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -446,12 +464,12 @@ func (x *UpdateScopedTokenResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateScopedTokenResponse.ProtoReflect.Descriptor instead.
-func (*UpdateScopedTokenResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use UpsertScopedTokenResponse.ProtoReflect.Descriptor instead.
+func (*UpsertScopedTokenResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_scopes_joining_v1_service_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *UpdateScopedTokenResponse) GetToken() *ScopedToken {
+func (x *UpsertScopedTokenResponse) GetToken() *ScopedToken {
 	if x != nil {
 		return x.Token
 	}
@@ -554,18 +572,21 @@ var File_teleport_scopes_joining_v1_service_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_joining_v1_service_proto_rawDesc = "" +
 	"\n" +
-	"(teleport/scopes/joining/v1/service.proto\x12\x1ateleport.scopes.joining.v1\x1a&teleport/scopes/joining/v1/token.proto\x1a\x1fteleport/scopes/v1/scopes.proto\"+\n" +
+	"(teleport/scopes/joining/v1/service.proto\x12\x1ateleport.scopes.joining.v1\x1a&teleport/scopes/joining/v1/token.proto\x1a\x1fteleport/scopes/v1/scopes.proto\"L\n" +
 	"\x15GetScopedTokenRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"W\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1f\n" +
+	"\vwith_secret\x18\x02 \x01(\bR\n" +
+	"withSecret\"W\n" +
 	"\x16GetScopedTokenResponse\x12=\n" +
-	"\x05token\x18\x01 \x01(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x05token\"\xf7\x02\n" +
+	"\x05token\x18\x01 \x01(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x05token\"\x9a\x03\n" +
 	"\x17ListScopedTokensRequest\x12A\n" +
 	"\x0eresource_scope\x18\x01 \x01(\v2\x1a.teleport.scopes.v1.FilterR\rresourceScope\x12A\n" +
 	"\x0eassigned_scope\x18\x02 \x01(\v2\x1a.teleport.scopes.v1.FilterR\rassignedScope\x12\x16\n" +
 	"\x06cursor\x18\x03 \x01(\tR\x06cursor\x12\x14\n" +
 	"\x05limit\x18\x04 \x01(\rR\x05limit\x12\x14\n" +
 	"\x05roles\x18\x05 \x03(\tR\x05roles\x12W\n" +
-	"\x06labels\x18\x06 \x03(\v2?.teleport.scopes.joining.v1.ListScopedTokensRequest.LabelsEntryR\x06labels\x1a9\n" +
+	"\x06labels\x18\x06 \x03(\v2?.teleport.scopes.joining.v1.ListScopedTokensRequest.LabelsEntryR\x06labels\x12!\n" +
+	"\fwith_secrets\x18\a \x01(\bR\vwithSecrets\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"s\n" +
@@ -576,9 +597,9 @@ const file_teleport_scopes_joining_v1_service_proto_rawDesc = "" +
 	"\x05token\x18\x01 \x01(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x05token\"Z\n" +
 	"\x19CreateScopedTokenResponse\x12=\n" +
 	"\x05token\x18\x01 \x01(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x05token\"Y\n" +
-	"\x18UpdateScopedTokenRequest\x12=\n" +
+	"\x18UpsertScopedTokenRequest\x12=\n" +
 	"\x05token\x18\x01 \x01(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x05token\"Z\n" +
-	"\x19UpdateScopedTokenResponse\x12=\n" +
+	"\x19UpsertScopedTokenResponse\x12=\n" +
 	"\x05token\x18\x01 \x01(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x05token\"J\n" +
 	"\x18DeleteScopedTokenRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1a\n" +
@@ -588,7 +609,7 @@ const file_teleport_scopes_joining_v1_service_proto_rawDesc = "" +
 	"\x0eGetScopedToken\x121.teleport.scopes.joining.v1.GetScopedTokenRequest\x1a2.teleport.scopes.joining.v1.GetScopedTokenResponse\x12}\n" +
 	"\x10ListScopedTokens\x123.teleport.scopes.joining.v1.ListScopedTokensRequest\x1a4.teleport.scopes.joining.v1.ListScopedTokensResponse\x12\x80\x01\n" +
 	"\x11CreateScopedToken\x124.teleport.scopes.joining.v1.CreateScopedTokenRequest\x1a5.teleport.scopes.joining.v1.CreateScopedTokenResponse\x12\x80\x01\n" +
-	"\x11UpdateScopedToken\x124.teleport.scopes.joining.v1.UpdateScopedTokenRequest\x1a5.teleport.scopes.joining.v1.UpdateScopedTokenResponse\x12\x80\x01\n" +
+	"\x11UpsertScopedToken\x124.teleport.scopes.joining.v1.UpsertScopedTokenRequest\x1a5.teleport.scopes.joining.v1.UpsertScopedTokenResponse\x12\x80\x01\n" +
 	"\x11DeleteScopedToken\x124.teleport.scopes.joining.v1.DeleteScopedTokenRequest\x1a5.teleport.scopes.joining.v1.DeleteScopedTokenResponseBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
 
 var (
@@ -611,8 +632,8 @@ var file_teleport_scopes_joining_v1_service_proto_goTypes = []any{
 	(*ListScopedTokensResponse)(nil),  // 3: teleport.scopes.joining.v1.ListScopedTokensResponse
 	(*CreateScopedTokenRequest)(nil),  // 4: teleport.scopes.joining.v1.CreateScopedTokenRequest
 	(*CreateScopedTokenResponse)(nil), // 5: teleport.scopes.joining.v1.CreateScopedTokenResponse
-	(*UpdateScopedTokenRequest)(nil),  // 6: teleport.scopes.joining.v1.UpdateScopedTokenRequest
-	(*UpdateScopedTokenResponse)(nil), // 7: teleport.scopes.joining.v1.UpdateScopedTokenResponse
+	(*UpsertScopedTokenRequest)(nil),  // 6: teleport.scopes.joining.v1.UpsertScopedTokenRequest
+	(*UpsertScopedTokenResponse)(nil), // 7: teleport.scopes.joining.v1.UpsertScopedTokenResponse
 	(*DeleteScopedTokenRequest)(nil),  // 8: teleport.scopes.joining.v1.DeleteScopedTokenRequest
 	(*DeleteScopedTokenResponse)(nil), // 9: teleport.scopes.joining.v1.DeleteScopedTokenResponse
 	nil,                               // 10: teleport.scopes.joining.v1.ListScopedTokensRequest.LabelsEntry
@@ -627,17 +648,17 @@ var file_teleport_scopes_joining_v1_service_proto_depIdxs = []int32{
 	11, // 4: teleport.scopes.joining.v1.ListScopedTokensResponse.tokens:type_name -> teleport.scopes.joining.v1.ScopedToken
 	11, // 5: teleport.scopes.joining.v1.CreateScopedTokenRequest.token:type_name -> teleport.scopes.joining.v1.ScopedToken
 	11, // 6: teleport.scopes.joining.v1.CreateScopedTokenResponse.token:type_name -> teleport.scopes.joining.v1.ScopedToken
-	11, // 7: teleport.scopes.joining.v1.UpdateScopedTokenRequest.token:type_name -> teleport.scopes.joining.v1.ScopedToken
-	11, // 8: teleport.scopes.joining.v1.UpdateScopedTokenResponse.token:type_name -> teleport.scopes.joining.v1.ScopedToken
+	11, // 7: teleport.scopes.joining.v1.UpsertScopedTokenRequest.token:type_name -> teleport.scopes.joining.v1.ScopedToken
+	11, // 8: teleport.scopes.joining.v1.UpsertScopedTokenResponse.token:type_name -> teleport.scopes.joining.v1.ScopedToken
 	0,  // 9: teleport.scopes.joining.v1.ScopedJoiningService.GetScopedToken:input_type -> teleport.scopes.joining.v1.GetScopedTokenRequest
 	2,  // 10: teleport.scopes.joining.v1.ScopedJoiningService.ListScopedTokens:input_type -> teleport.scopes.joining.v1.ListScopedTokensRequest
 	4,  // 11: teleport.scopes.joining.v1.ScopedJoiningService.CreateScopedToken:input_type -> teleport.scopes.joining.v1.CreateScopedTokenRequest
-	6,  // 12: teleport.scopes.joining.v1.ScopedJoiningService.UpdateScopedToken:input_type -> teleport.scopes.joining.v1.UpdateScopedTokenRequest
+	6,  // 12: teleport.scopes.joining.v1.ScopedJoiningService.UpsertScopedToken:input_type -> teleport.scopes.joining.v1.UpsertScopedTokenRequest
 	8,  // 13: teleport.scopes.joining.v1.ScopedJoiningService.DeleteScopedToken:input_type -> teleport.scopes.joining.v1.DeleteScopedTokenRequest
 	1,  // 14: teleport.scopes.joining.v1.ScopedJoiningService.GetScopedToken:output_type -> teleport.scopes.joining.v1.GetScopedTokenResponse
 	3,  // 15: teleport.scopes.joining.v1.ScopedJoiningService.ListScopedTokens:output_type -> teleport.scopes.joining.v1.ListScopedTokensResponse
 	5,  // 16: teleport.scopes.joining.v1.ScopedJoiningService.CreateScopedToken:output_type -> teleport.scopes.joining.v1.CreateScopedTokenResponse
-	7,  // 17: teleport.scopes.joining.v1.ScopedJoiningService.UpdateScopedToken:output_type -> teleport.scopes.joining.v1.UpdateScopedTokenResponse
+	7,  // 17: teleport.scopes.joining.v1.ScopedJoiningService.UpsertScopedToken:output_type -> teleport.scopes.joining.v1.UpsertScopedTokenResponse
 	9,  // 18: teleport.scopes.joining.v1.ScopedJoiningService.DeleteScopedToken:output_type -> teleport.scopes.joining.v1.DeleteScopedTokenResponse
 	14, // [14:19] is the sub-list for method output_type
 	9,  // [9:14] is the sub-list for method input_type

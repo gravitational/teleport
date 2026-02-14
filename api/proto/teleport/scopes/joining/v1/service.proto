@@ -32,8 +32,8 @@ service ScopedJoiningService {
   // CreateScopedToken creates a new scoped token.
   rpc CreateScopedToken(CreateScopedTokenRequest) returns (CreateScopedTokenResponse);
 
-  // UpdateScopedToken updates a scoped token.
-  rpc UpdateScopedToken(UpdateScopedTokenRequest) returns (UpdateScopedTokenResponse);
+  // UpsertScopedToken upserts a scoped token.
+  rpc UpsertScopedToken(UpsertScopedTokenRequest) returns (UpsertScopedTokenResponse);
 
   // DeleteScopedToken deletes a scoped token.
   rpc DeleteScopedToken(DeleteScopedTokenRequest) returns (DeleteScopedTokenResponse);
@@ -43,6 +43,9 @@ service ScopedJoiningService {
 message GetScopedTokenRequest {
   // Name is the name of the scoped token.
   string name = 1;
+
+  // If true, include the token secret in the response.
+  bool with_secret = 2;
 }
 
 // GetScopedTokenResponse is the response to get a scoped token.
@@ -70,6 +73,9 @@ message ListScopedTokensRequest {
 
   // Filter tokens that match all provided labels.
   map<string, string> labels = 6;
+
+  // If true, include the token secrets in the response.
+  bool with_secrets = 7;
 }
 
 // ListScopedTokensResponse is the response to list scoped tokens.
@@ -93,15 +99,15 @@ message CreateScopedTokenResponse {
   ScopedToken token = 1;
 }
 
-// UpdateScopedTokenRequest is the request to update a scoped token.
-message UpdateScopedTokenRequest {
-  // Token is the scoped token to update.
+// UpsertScopedTokenRequest is the request to upsert a scoped token.
+message UpsertScopedTokenRequest {
+  // Token is the scoped token to upsert.
   ScopedToken token = 1;
 }
 
-// UpdateScopedTokenResponse is the response to update a scoped token.
-message UpdateScopedTokenResponse {
-  // Token is the post-update scoped token.
+// UpsertScopedTokenResponse is the response to upsert a scoped token.
+message UpsertScopedTokenResponse {
+  // Token is the post-upsert scoped token.
   ScopedToken token = 1;
 }
 

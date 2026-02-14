@@ -29,7 +29,7 @@ func isAllowedScopedRule(kind string, verb string) bool {
 		return isReadWriteNoSecrets(verb)
 	case types.KindScopedToken:
 		// scoped tokens can be read/written, and contain secrets.
-		return isReadWriteWithSecrets(verb)
+		return isReadWriteWithSecrets(verb) || isReadWriteNoSecrets(verb)
 	default:
 		return false
 	}
