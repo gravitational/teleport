@@ -857,10 +857,19 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	if _, err := muApp.Parse(utils.FilterArguments(args, muApp.Model())); err != nil {
 		slog.WarnContext(ctx, "can't identify current profile", "error", err)
 	}
-	// Check local update for specific proxy from configuration.
-	name := utils.TryHost(strings.TrimPrefix(strings.ToLower(proxyArg), "https://"))
-	if err := autoupdatetools.CheckAndUpdateLocal(ctx, name, args); err != nil {
-		return trace.Wrap(err)
+	// Check whether the process is currently executing as a Windows service.
+	// This is a case for VNet, where its system service is implemented by 'tsh.exe vnet-service'.
+	// The service binary should not change unexpectedly, so updates should be disabled.
+	isRunningAsService, err := runningAsService()
+	if err != nil {
+		logger.ErrorContext(ctx, "Could not determine whether tsh is running as a service; client tools managed updates will not be disabled", "error", err)
+	}
+	if !isRunningAsService {
+		// Check local update for specific proxy from configuration.
+		name := utils.TryHost(strings.TrimPrefix(strings.ToLower(proxyArg), "https://"))
+		if err := autoupdatetools.CheckAndUpdateLocal(ctx, name, args); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// run early to enable debug logging if env var is set.
