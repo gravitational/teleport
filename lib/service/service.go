@@ -1131,18 +1131,15 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	}
 
 	// If FIPS mode was requested make sure binary is build against BoringCrypto.
-	if cfg.FIPS {
-		if !modules.GetModules().IsBoringBinary() {
-			return nil, trace.BadParameter("binary not compiled against BoringCrypto, check " +
-				"that Enterprise FIPS release was downloaded from " +
-				"a Teleport account https://teleport.sh")
-		}
+	if cfg.FIPS && !cfg.Modules.IsBoringBinary() {
+		return nil, trace.BadParameter("binary not compiled against BoringCrypto, check " +
+			"that Enterprise FIPS release was downloaded from " +
+			"a Teleport account https://teleport.sh")
+
 	}
 
-	if cfg.Auth.Preference.GetPrivateKeyPolicy().IsHardwareKeyPolicy() {
-		if modules.GetModules().BuildType() != modules.BuildEnterprise {
-			return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
-		}
+	if cfg.Auth.Preference.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && cfg.Modules.BuildType() != modules.BuildEnterprise {
+		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 	}
 
 	// If SELinux support is enabled ensure we have a valid configuration,
@@ -1521,8 +1518,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	// Create a process wide key generator that will be shared. This is so the
 	// key generator can pre-generate keys and share these across services.
 	if cfg.Keygen == nil {
-		// TODO(tross): replace modules.GetModules with cfg.Modules
-		cfg.Keygen, err = keygen.New(keygen.Config{Now: cfg.Clock.Now, BuildType: modules.GetModules().BuildType()})
+		cfg.Keygen, err = keygen.New(keygen.Config{Now: cfg.Clock.Now, BuildType: cfg.Modules.BuildType()})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1772,14 +1768,14 @@ func (process *TeleportProcess) configureUpgraderExporter(kind string) error {
 
 // enterpriseServicesEnabled will return true if any enterprise services are enabled.
 func (process *TeleportProcess) enterpriseServicesEnabled() bool {
-	return modules.GetModules().BuildType() == modules.BuildEnterprise &&
+	return process.Config.Modules.BuildType() == modules.BuildEnterprise &&
 		(process.Config.Okta.Enabled || process.Config.Jamf.Enabled())
 }
 
 // enterpriseServicesEnabledWithCommunityBuild will return true if any
 // enterprise services are enabled with an OSS teleport build.
 func (process *TeleportProcess) enterpriseServicesEnabledWithCommunityBuild() bool {
-	return modules.GetModules().IsOSSBuild() &&
+	return process.Config.Modules.IsOSSBuild() &&
 		(process.Config.Okta.Enabled || process.Config.Jamf.Enabled())
 }
 
@@ -2259,15 +2255,15 @@ func (process *TeleportProcess) initAuthService() error {
 
 	switch {
 	case cfg.Auth.KeyStore.PKCS11 != servicecfg.PKCS11Config{}:
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+		if !cfg.Modules.Features().GetEntitlement(entitlements.HSM).Enabled {
 			return trace.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", auth.ErrRequiresEnterprise)
 		}
 	case cfg.Auth.KeyStore.GCPKMS != servicecfg.GCPKMSConfig{}:
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+		if !cfg.Modules.Features().GetEntitlement(entitlements.HSM).Enabled {
 			return trace.Errorf("GCP KMS support requires a license with the HSM feature enabled: %w", auth.ErrRequiresEnterprise)
 		}
 	case cfg.Auth.KeyStore.AWSKMS != nil:
-		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
+		if !cfg.Modules.Features().GetEntitlement(entitlements.HSM).Enabled {
 			return trace.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", auth.ErrRequiresEnterprise)
 		}
 	}
@@ -4666,7 +4662,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 	}
 
 	if tunnelStrategy == types.ProxyPeering &&
-		modules.GetModules().BuildType() != modules.BuildEnterprise {
+		cfg.Modules.BuildType() != modules.BuildEnterprise {
 		return nil, trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
@@ -5462,7 +5458,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			HostUUID:                  conn.HostUUID(),
 			Context:                   process.GracefulExitContext(),
 			StaticFS:                  fs,
-			Modules:                   modules.GetModules(), // TODO(tross) replace modules.GetModules with cfg.Modules
+			Modules:                   cfg.Modules,
 			ClusterFeatures:           process.GetClusterFeatures(),
 			GetProxyClientCertificate: conn.ClientGetCertificate,
 			UI:                        cfg.Proxy.UI,
