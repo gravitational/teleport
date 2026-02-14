@@ -47,8 +47,9 @@ import (
 )
 
 func TestRemoteClusterStatus(t *testing.T) {
-	ctx := context.Background()
-	a := newTestAuthServer(ctx, t)
+	t.Parallel()
+	ctx := t.Context()
+	a := newTestAuthServer(ctx, t, modulestest.OSSModules())
 
 	rc, err := types.NewRemoteCluster("rc")
 	require.NoError(t, err)
@@ -124,7 +125,8 @@ func TestRemoteClusterStatus(t *testing.T) {
 }
 
 func TestRefreshRemoteClusters(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
+	ctx := t.Context()
 
 	tests := []struct {
 		name               string
@@ -162,7 +164,7 @@ func TestRefreshRemoteClusters(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			require.LessOrEqual(t, tt.clustersNeedUpdate, tt.clustersTotal)
 
-			a := newTestAuthServer(ctx, t)
+			a := newTestAuthServer(ctx, t, modulestest.OSSModules())
 			a.SetRemoteClusterRefreshLimit(10)
 			a.RemoteClusterRefreshBuckets(5)
 
@@ -207,13 +209,16 @@ func TestRefreshRemoteClusters(t *testing.T) {
 }
 
 func TestValidateTrustedCluster(t *testing.T) {
+	t.Parallel()
 	const localClusterName = "localcluster"
 	const validToken = "validtoken"
-	ctx := context.Background()
+	ctx := t.Context()
 
+	testModules := modulestest.OSSModules()
 	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: localClusterName,
 		Dir:         t.TempDir(),
+		Modules:     testModules,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testAuth.Close()) })
@@ -404,9 +409,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 
 	t.Run("Cloud prohibits adding leaf clusters", func(t *testing.T) {
-		modulestest.SetTestModules(t, modulestest.Modules{
-			TestFeatures: modules.Features{Cloud: true},
-		})
+		testModules.TestFeatures = modules.Features{Cloud: true}
 
 		req := &authclient.ValidateTrustedClusterRequest{
 			Token: "invalidtoken",
@@ -435,14 +438,11 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 }
 
-func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *auth.Server {
+func newTestAuthServer(ctx context.Context, t *testing.T, m *modulestest.Modules) *auth.Server {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
 	clusterName := "me.localhost"
-	if len(name) != 0 {
-		clusterName = name[0]
-	}
 	// Create a cluster with minimal viable config.
 	clusterNameRes, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: clusterName,
@@ -455,6 +455,7 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *auth.
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterNameRes,
 		Backend:                bk,
+		Modules:                m,
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
 		Authority:              keygen,
 		SkipPeriodicOperations: true,

@@ -200,7 +200,8 @@ func TestBadIdentity(t *testing.T) {
 }
 
 func TestSignatureAlgorithmSuite(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
+	ctx := t.Context()
 
 	suiteName := func(suite types.SignatureAlgorithmSuite) string {
 		suiteName, err := suite.MarshalText()
@@ -213,15 +214,7 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 		assert.Equal(t, suiteName(expected), suiteName(actual))
 	}
 
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.HSM: {Enabled: true},
-			},
-		},
-	})
-
-	setupInitConfig := func(t *testing.T, capOrigin string, fips, hsm bool) auth.InitConfig {
+	setupInitConfig := func(t *testing.T, capOrigin string, fips, hsm, cloud bool) auth.InitConfig {
 		cfg := setupConfig(t)
 		cfg.FIPS = fips
 		if hsm {
@@ -242,6 +235,16 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 
 			cfg.BootstrapResources = append(cfg.BootstrapResources, ca)
 		}
+
+		cfg.Modules = &modulestest.Modules{
+			TestFeatures: modules.Features{
+				Cloud: cloud,
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.HSM: {Enabled: true},
+				},
+			},
+		}
+
 		return cfg
 	}
 
@@ -296,21 +299,10 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 			t.Run(origin, func(t *testing.T) {
 				for desc, tc := range testCases {
 					t.Run(desc, func(t *testing.T) {
-						if tc.cloud {
-							modulestest.SetTestModules(t, modulestest.Modules{
-								TestFeatures: modules.Features{
-									Cloud: true,
-									Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-										entitlements.HSM: {Enabled: true},
-									},
-								},
-							})
-						}
-
 						// Assert that a fresh cluster with no signature_algorithm_suite
 						// configured gets the expected default suite, whether
 						// or not anything else in the cluster auth preference is set.
-						cfg := setupInitConfig(t, origin, tc.fips, tc.hsm)
+						cfg := setupInitConfig(t, origin, tc.fips, tc.hsm, tc.cloud)
 						auth1, err := auth.Init(ctx, cfg)
 						require.NoError(t, err)
 						t.Cleanup(func() { auth1.Close() })
@@ -377,16 +369,6 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 	t.Run("upsert", func(t *testing.T) {
 		for desc, tc := range testCases {
 			t.Run(desc, func(t *testing.T) {
-				if tc.cloud {
-					modulestest.SetTestModules(t, modulestest.Modules{
-						TestFeatures: modules.Features{
-							Cloud: true,
-							Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-								entitlements.HSM: {Enabled: true},
-							},
-						},
-					})
-				}
 				cfg := authtest.AuthServerConfig{
 					Dir:  t.TempDir(),
 					FIPS: tc.fips,
@@ -395,6 +377,14 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 						SecondFactor: constants.SecondFactorOn,
 						Webauthn: &types.Webauthn{
 							RPID: "teleport.example.com",
+						},
+					},
+					Modules: &modulestest.Modules{
+						TestFeatures: modules.Features{
+							Cloud: tc.cloud,
+							Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+								entitlements.HSM: {Enabled: true},
+							},
 						},
 					},
 				}
@@ -960,7 +950,9 @@ func TestInitCertFailureRecovery(t *testing.T) {
 
 // TestPresets tests behavior of presets
 func TestPresets(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
+
+	ctx := t.Context()
 
 	presetRoleNames := []string{
 		teleport.PresetEditorRoleName,
@@ -974,13 +966,14 @@ func TestPresets(t *testing.T) {
 	}
 
 	t.Run("EmptyCluster", func(t *testing.T) {
-		as := newTestAuthServer(ctx, t)
+		testModules := modulestest.OSSModules()
+		as := newTestAuthServer(ctx, t, testModules)
 
-		err := auth.CreatePresetRoles(ctx, modules.BuildOSS, as)
+		err := auth.CreatePresetRoles(ctx, testModules.BuildType(), as)
 		require.NoError(t, err)
 
 		// Second call should not fail
-		err = auth.CreatePresetRoles(ctx, modules.BuildOSS, as)
+		err = auth.CreatePresetRoles(ctx, testModules.BuildType(), as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -992,14 +985,16 @@ func TestPresets(t *testing.T) {
 
 	// Makes sure that existing role with the same name is not modified
 	t.Run("ExistingRole", func(t *testing.T) {
-		as := newTestAuthServer(ctx, t)
+		testModules := modulestest.OSSModules()
+
+		as := newTestAuthServer(ctx, t, testModules)
 
 		access := services.NewPresetEditorRole()
 		access.SetLogins(types.Allow, []string{"root"})
 		access, err := as.CreateRole(ctx, access)
 		require.NoError(t, err)
 
-		err = auth.CreatePresetRoles(ctx, modules.BuildOSS, as)
+		err = auth.CreatePresetRoles(ctx, testModules.BuildType(), as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -1015,7 +1010,9 @@ func TestPresets(t *testing.T) {
 
 	// If a default allow condition is not present, ensure it gets added.
 	t.Run("AddDefaultAllowConditions", func(t *testing.T) {
-		as := newTestAuthServer(ctx, t)
+		testModules := modulestest.OSSModules()
+
+		as := newTestAuthServer(ctx, t, testModules)
 
 		editorRole := services.NewPresetEditorRole()
 		rules := editorRole.GetRules(types.Allow)
@@ -1040,7 +1037,7 @@ func TestPresets(t *testing.T) {
 		accessRole, err = as.CreateRole(ctx, accessRole)
 		require.NoError(t, err)
 
-		err = auth.CreatePresetRoles(ctx, modules.BuildOSS, as)
+		err = auth.CreatePresetRoles(ctx, testModules.BuildType(), as)
 		require.NoError(t, err)
 
 		outEditor, err := as.GetRole(ctx, editorRole.GetName())
@@ -1065,7 +1062,8 @@ func TestPresets(t *testing.T) {
 	// Don't set a default allow rule if the resource is present in the role.
 	// Either as part of allowing or denying rules.
 	t.Run("DefaultAllowRulesNotAppliedIfExplicitlyDefined", func(t *testing.T) {
-		as := newTestAuthServer(ctx, t)
+		testModules := modulestest.OSSModules()
+		as := newTestAuthServer(ctx, t, testModules)
 
 		// Set up a changed Editor Role
 		editorRole := services.NewPresetEditorRole()
@@ -1102,7 +1100,7 @@ func TestPresets(t *testing.T) {
 		require.NoError(t, err)
 
 		// Apply defaults.
-		err = auth.CreatePresetRoles(ctx, modules.BuildOSS, as)
+		err = auth.CreatePresetRoles(ctx, testModules.BuildType(), as)
 		require.NoError(t, err)
 
 		outEditor, err := as.GetRole(ctx, editorRole.GetName())
@@ -1281,9 +1279,7 @@ func TestPresets(t *testing.T) {
 	})
 
 	t.Run("Enterprise", func(t *testing.T) {
-		modulestest.SetTestModules(t, modulestest.Modules{
-			TestBuildType: modules.BuildEnterprise,
-		})
+		testModules := modulestest.EnterpriseModules()
 
 		enterprisePresetRoleNames := append([]string{
 			teleport.PresetGroupAccessRoleName,
@@ -1302,20 +1298,20 @@ func TestPresets(t *testing.T) {
 		}
 
 		enterpriseUsers := []types.User{
-			services.NewSystemAutomaticAccessBotUser(modules.BuildEnterprise),
+			services.NewSystemAutomaticAccessBotUser(testModules.BuildType()),
 		}
 
 		t.Run("EmptyCluster", func(t *testing.T) {
-			as := newTestAuthServer(ctx, t)
+			as := newTestAuthServer(ctx, t, testModules)
 
 			// Run multiple times to simulate starting auth on an
 			// existing cluster and asserting that everything still
 			// returns success
 			for range 2 {
-				err := auth.CreatePresetRoles(ctx, modules.BuildEnterprise, as)
+				err := auth.CreatePresetRoles(ctx, testModules.BuildType(), as)
 				require.NoError(t, err)
 
-				err = auth.CreatePresetUsers(ctx, modules.BuildEnterprise, as)
+				err = auth.CreatePresetUsers(ctx, testModules.BuildType(), as)
 				require.NoError(t, err)
 			}
 
@@ -1333,12 +1329,12 @@ func TestPresets(t *testing.T) {
 		})
 
 		t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
-			upsertRoleTest(t, modules.BuildEnterprise, enterprisePresetRoleNames, enterpriseSystemRoleNames)
+			upsertRoleTest(t, testModules.BuildType(), enterprisePresetRoleNames, enterpriseSystemRoleNames)
 		})
 
 		t.Run("System users are always upserted", func(t *testing.T) {
-			ctx := context.Background()
-			sysUser := services.NewSystemAutomaticAccessBotUser(modules.BuildEnterprise).(*types.UserV2)
+			ctx := t.Context()
+			sysUser := services.NewSystemAutomaticAccessBotUser(testModules.BuildType()).(*types.UserV2)
 
 			// GIVEN a user database...
 			manager := newMockUserManager(t)
@@ -1360,7 +1356,7 @@ func TestPresets(t *testing.T) {
 				Return(sysUser, nil)
 
 			// WHEN I attempt to create the preset users...
-			err := auth.CreatePresetUsers(ctx, modules.BuildEnterprise, manager)
+			err := auth.CreatePresetUsers(ctx, testModules.BuildType(), manager)
 
 			// EXPECT that the process succeeds and the system user was upserted
 			require.NoError(t, err)
@@ -1371,19 +1367,17 @@ func TestPresets(t *testing.T) {
 }
 
 func TestDashboardMode(t *testing.T) {
+	t.Parallel()
 
-	testModules := modulestest.Modules{
+	conf := setupConfig(t)
+	// dashboard mode is determined via cloud and recovery codes
+	conf.Modules = &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Cloud:         false,
 			RecoveryCodes: true,
 		},
 	}
-
-	// dashboard mode is determined via cloud and recovery codes
-	modulestest.SetTestModules(t, testModules)
-
-	conf := setupConfig(t)
 	ctx := t.Context()
 	authServer, err := auth.Init(ctx, conf)
 	require.NoError(t, err)
@@ -1397,7 +1391,7 @@ func TestDashboardMode(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify that preset roles were NOT created in dashboard mode
-	presetRoles := auth.GetPresetRoles(testModules.BuildType())
+	presetRoles := auth.GetPresetRoles(conf.Modules.BuildType())
 
 	for _, role := range presetRoles {
 		_, err := authServer.GetRole(ctx, role.GetName())
@@ -1405,7 +1399,7 @@ func TestDashboardMode(t *testing.T) {
 	}
 
 	// verify preset users were NOT created in dashboard mode
-	presetUsers := auth.GetPresetUsers(testModules.BuildType())
+	presetUsers := auth.GetPresetUsers(conf.Modules.BuildType())
 
 	for _, user := range presetUsers {
 		_, err := authServer.GetUser(ctx, user.GetName(), false)

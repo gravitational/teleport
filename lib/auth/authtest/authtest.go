@@ -116,6 +116,8 @@ type AuthServerConfig struct {
 	FIPS bool
 	// KeystoreConfig is configuration for the CA keystore.
 	KeystoreConfig servicecfg.KeystoreConfig
+	// Modules sets process specific configuration
+	Modules modules.Modules
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -140,6 +142,10 @@ func (cfg *AuthServerConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.UploadHandler == nil {
 		cfg.UploadHandler = eventstest.NewMemoryUploader()
+	}
+	if cfg.Modules == nil {
+		// TODO(tross) return an error after all callers are updated
+		cfg.Modules = modules.GetModules()
 	}
 	return nil
 }
@@ -315,8 +321,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 
 	accessLists, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
 		Backend: srv.Backend,
-		// TODO(tross): replace with cfg.Modules
-		Modules: modules.GetModules(),
+		Modules: cfg.Modules,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -330,8 +335,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(tross): replace with cfg.Modules.BuildType
-	authority, err := authority.NewKeygen(modules.GetModules().BuildType(), cfg.Clock.Now)
+	authority, err := authority.NewKeygen(cfg.Modules.BuildType(), cfg.Clock.Now)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -339,6 +343,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	srv.AuthServer, err = auth.NewServer(&auth.InitConfig{
 		DataDir:                      cfg.Dir,
 		Backend:                      srv.Backend,
+		Modules:                      cfg.Modules,
 		VersionStorage:               NewFakeTeleportVersion(),
 		Authority:                    authority,
 		Access:                       access,

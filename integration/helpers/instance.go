@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -336,6 +337,8 @@ type InstanceConfig struct {
 	Listeners *InstanceListeners
 
 	Fds []*servicecfg.FileDescriptor
+
+	Modules modules.Modules
 }
 
 // NewInstance creates a new Teleport process instance.
@@ -357,6 +360,10 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 		cfg.Logger = slog.New(slog.DiscardHandler)
 	}
 
+	if cfg.Modules == nil {
+		cfg.Modules = modulestest.OSSModules()
+	}
+
 	// generate instance secrets (keys):
 	if cfg.Priv == nil || cfg.Pub == nil {
 		privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
@@ -371,8 +378,7 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	fatalIf(err)
 
 	clock := cmp.Or(cfg.Clock, clockwork.NewRealClock())
-	// TODO(tross): replace modules.GetModules with cfg.Modules
-	authority, err := testauthority.NewKeygen(modules.GetModules().BuildType(), clock.Now)
+	authority, err := testauthority.NewKeygen(cfg.Modules.BuildType(), clock.Now)
 	fatalIf(err)
 
 	hostCert, err := authority.GenerateHostCert(sshca.HostCertificateRequest{

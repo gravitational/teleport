@@ -106,6 +106,9 @@ type InitConfig struct {
 	// Backend is auth backend to use
 	Backend backend.Backend
 
+	// Modules defines build characteristics and runtime features that are enabled.
+	Modules modules.Modules
+
 	// VersionStorage is a version storage for local process
 	VersionStorage VersionStorage
 
@@ -455,6 +458,11 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 		return nil, trace.BadParameter("HostUUID: host UUID can not be empty")
 	}
 
+	// TODO(tross): Return an error once everything is setting this appropriately.
+	if cfg.Modules == nil {
+		cfg.Modules = modules.GetModules()
+	}
+
 	asrv, err := NewServer(&cfg, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -504,7 +512,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if len(cfg.BootstrapResources) > 0 {
 		if firstStart {
 			asrv.logger.InfoContext(ctx, "Applying bootstrap resources (first initialization)", "resource_count", len(cfg.BootstrapResources))
-			if err := checkResourceConsistency(ctx, asrv.keyStore, domainName, cfg.BootstrapResources...); err != nil {
+			if err := checkResourceConsistency(ctx, cfg.Modules, asrv.keyStore, domainName, cfg.BootstrapResources...); err != nil {
 				return trace.Wrap(err, "refusing to bootstrap backend")
 			}
 			if err := local.CreateResources(ctx, cfg.Backend, cfg.BootstrapResources...); err != nil {
@@ -712,15 +720,15 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	span.AddEvent("completed checking certificate authority cluster names")
 
 	// Create presets - convenience and example resources.
-	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
+	if !services.IsDashboard(*cfg.Modules.Features().ToProto()) {
 		span.AddEvent("creating preset roles")
-		if err := createPresetRoles(ctx, modules.GetModules().BuildType(), asrv); err != nil {
+		if err := createPresetRoles(ctx, asrv.modules.BuildType(), asrv); err != nil {
 			return trace.Wrap(err)
 		}
 		span.AddEvent("completed creating preset roles")
 
 		span.AddEvent("creating preset users")
-		if err := createPresetUsers(ctx, modules.GetModules().BuildType(), asrv); err != nil {
+		if err := createPresetUsers(ctx, asrv.modules.BuildType(), asrv); err != nil {
 			return trace.Wrap(err)
 		}
 		span.AddEvent("completed creating preset users")
@@ -1115,7 +1123,7 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 			newAuthPref.SetDefaultSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
 				FIPS:          asrv.fips,
 				UsingHSMOrKMS: asrv.keyStore.UsingHSMOrKMS(),
-				Cloud:         modules.GetModules().Features().Cloud,
+				Cloud:         asrv.modules.Features().Cloud,
 			})
 		case newAuthPref.Origin() == types.OriginDefaults:
 			// There is a stored auth preference which we are overwriting with a
@@ -1535,7 +1543,7 @@ func isFirstStart(ctx context.Context, authServer *Server, cfg InitConfig) (bool
 }
 
 // checkResourceConsistency checks far basic conflicting state issues.
-func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, clusterName string, resources ...types.Resource) error {
+func checkResourceConsistency(ctx context.Context, mod modules.Modules, keyStore *keystore.Manager, clusterName string, resources ...types.Resource) error {
 	for _, rsc := range resources {
 		switch r := rsc.(type) {
 		case types.CertAuthority:
@@ -1590,7 +1598,7 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			}
 		case types.Role:
 			// Some options are only available with enterprise subscription
-			if err := checkRoleFeatureSupport(r); err != nil {
+			if err := checkRoleFeatureSupport(mod, r); err != nil {
 				return trace.Wrap(err)
 			}
 		default:

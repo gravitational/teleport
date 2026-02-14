@@ -44,7 +44,6 @@ import (
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -193,7 +192,7 @@ func (a *Server) calculateTrustedDeviceMode(
 	const unspecified = types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED
 
 	// Don't evaluate for OSS.
-	if !modules.GetModules().IsEnterpriseBuild() {
+	if !a.modules.IsEnterpriseBuild() {
 		return unspecified, nil
 	}
 
@@ -465,7 +464,7 @@ type NewAppSessionRequest struct {
 // The certificate is used for all access requests, which is where access
 // control is enforced.
 func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest, identity tlsca.Identity, checker services.AccessChecker) (types.WebSession, error) {
-	if !modules.GetModules().Features().GetEntitlement(entitlements.App).Enabled {
+	if !a.modules.Features().GetEntitlement(entitlements.App).Enabled {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for application access, please contact the cluster administrator")
 	}
@@ -528,7 +527,7 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 }
 
 func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionRequest) (types.WebSession, error) {
-	if !modules.GetModules().Features().GetEntitlement(entitlements.App).Enabled {
+	if !a.modules.Features().GetEntitlement(entitlements.App).Enabled {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for application access, please contact the cluster administrator")
 	}
@@ -819,7 +818,7 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 func (a *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSnowflakeSessionRequest,
 	identity tlsca.Identity, checker services.AccessChecker,
 ) (types.WebSession, error) {
-	if !modules.GetModules().Features().GetEntitlement(entitlements.DB).Enabled {
+	if !a.modules.Features().GetEntitlement(entitlements.DB).Enabled {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for database access, please contact the cluster administrator")
 	}
@@ -858,7 +857,7 @@ func (a *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 // CreateAppSessionForAppAuth creates a new app session based on app auth
 // config.
 func (a *Server) CreateAppSessionForAppAuth(ctx context.Context, req *appauthconfigv1.CreateAppSessionForAppAuthRequest) (types.WebSession, error) {
-	if !modules.GetModules().Features().GetEntitlement(entitlements.App).Enabled {
+	if !a.modules.Features().GetEntitlement(entitlements.App).Enabled {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for application access, please contact the cluster administrator")
 	}
