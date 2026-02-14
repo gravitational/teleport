@@ -52,7 +52,6 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -71,9 +70,11 @@ func TestTeleterm(t *testing.T) {
 		dbhelpers.WithListenerSetupDatabaseTest(helpers.SingleProxyPortSetup),
 		dbhelpers.WithLeafConfig(func(config *servicecfg.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			config.Modules = modulestest.EnterpriseModules()
 		}),
 		dbhelpers.WithRootConfig(func(config *servicecfg.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			config.Modules = modulestest.EnterpriseModules()
 		}),
 	)
 	pack.WaitForLeaf(t)
@@ -1302,11 +1303,6 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 			require.Equal(t, roles, user.GetRoles())
 		}, 10*time.Second, 100*time.Millisecond)
 	}
-
-	// Allow resource access requests to be created.
-	currentModules := modules.GetModules()
-	t.Cleanup(func() { modules.SetModules(currentModules) })
-	modules.SetModules(&modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	rootClusterName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
 	require.NoError(t, err)
