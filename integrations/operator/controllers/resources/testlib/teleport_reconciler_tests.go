@@ -22,16 +22,21 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
-	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
+	resources "github.com/gravitational/teleport/integrations/operator/controllers/resources"
 )
+
+const ConflictErrorMessage = `An unexpected conflict happened. The resource changed since the last time it was edited.
+Either the test is not waiting properly for changes to propagate in cache, or there is another resource editor messing with the test.`
 
 type ResourceTestingPrimitives[T reconcilers.Resource, K reconcilers.KubernetesCR[T]] interface {
 	// Adapter allows to recover the name revision and labels of a resource
@@ -70,9 +75,10 @@ func ResourceUpdateTestSynchronous[T reconcilers.Resource, K reconcilers.Kuberne
 	err = test.CreateTeleportResource(ctx, resourceName)
 	require.NoError(t, err)
 
+	var tResource T
 	// Test setup: Wait for the resource to be served by Teleport, fail early if Teleport is broken.
 	FastEventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := test.GetTeleportResource(ctx, resourceName)
+		tResource, err = test.GetTeleportResource(ctx, resourceName)
 		require.NoError(t, err, "Teleport resource still not served by Teleport, Teleport might be stale/with a broken cache.")
 	})
 
@@ -93,19 +99,30 @@ func ResourceUpdateTestSynchronous[T reconcilers.Resource, K reconcilers.Kuberne
 			Name:      resourceName,
 		},
 	}
+	// First reconcile adds the finalizer
 	_, err = reconciler.Reconcile(ctx, req)
 	require.NoError(t, err)
+	// Second reconcile actually does the Teleport call.
+	_, err = reconciler.Reconcile(ctx, req)
+	if trace.IsCompareFailed(err) {
+		unexpectedResource, err := test.GetTeleportResource(ctx, resourceName)
+		require.NoError(t, err, "Retrieving the user after an unexpected conflict")
+		require.Failf(t, ConflictErrorMessage, cmp.Diff(tResource, unexpectedResource, protocmp.Transform()))
+	}
+	require.NoError(t, err)
+
+	var reconciledResource T
 
 	// Test setup: Check if both Teleport and Kube resources are in-sync.
 	FastEventuallyWithT(t, func(t *assert.CollectT) {
-		tResource, err := test.GetTeleportResource(ctx, resourceName)
+		reconciledResource, err = test.GetTeleportResource(ctx, resourceName)
 		require.NoError(t, err)
 
 		kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
 		require.NoError(t, err)
 
 		// Kubernetes and Teleport resources are in-sync
-		equal, diff := test.CompareTeleportAndKubernetesResource(tResource, kubeResource)
+		equal, diff := test.CompareTeleportAndKubernetesResource(reconciledResource, kubeResource)
 		require.True(t, equal, "Kubernetes and Teleport resources not sync-ed yet: %s", diff)
 	})
 
@@ -114,6 +131,11 @@ func ResourceUpdateTestSynchronous[T reconcilers.Resource, K reconcilers.Kuberne
 
 	// Test execution: Trigger reconciliation
 	_, err = reconciler.Reconcile(ctx, req)
+	if trace.IsCompareFailed(err) {
+		unexpectedResource, err := test.GetTeleportResource(ctx, resourceName)
+		require.NoError(t, err, "Retrieving the user after an unexpected conflict")
+		require.Failf(t, ConflictErrorMessage, cmp.Diff(reconciledResource, unexpectedResource, protocmp.Transform()))
+	}
 	require.NoError(t, err)
 
 	var testPassed bool
