@@ -1,0 +1,68 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.grpcclientconfig.v1;
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/grpcclientconfig/v1;grpcclientconfigv1";
+
+// DiscoverRequest is the request used by grpc clients to discover a services
+// desired grpc service configuration.
+message GetServiceConfigRequest {}
+
+// DiscoverResponse returns the desired client-side grpc service configuration.
+message GetServiceConfigResponse {
+  // ServiceConfig contains all grpc-service configuration.
+  ServiceConfig config = 1;
+}
+
+// ServiceConfig contains all grpc-service configuration.
+message ServiceConfig {
+  // Each entry represents a different load balance strategy ordered
+  // by priority. A client should use the first supported configuration.
+  repeated LoadBalancerConfig load_balancing_config = 1;
+
+  HealthCheckConfig health_check_config = 2;
+}
+
+// LoadBalancerConfig contains one of the supported load balancing policy
+// configurations.
+message LoadBalancerConfig {
+  oneof config {
+    TeleportPickHealthyConfig teleport_pick_healthy = 1;
+  }
+}
+
+// TeleportPickHealthyConfig represents the teleport_pick_health load balancing
+// policy.
+message TeleportPickHealthyConfig {
+  Mode mode = 1;
+}
+
+// HealthCheckConfig represents a gRPC clients health check configuration.
+message HealthCheckConfig {
+  // Service name to use in the health-checking request.
+  optional string service_name = 1;
+}
+
+// Mode specifies a mode for the TeleportPickHealthy balancer to operate in.
+enum Mode {
+  // MODE_UNSPECIFIED indicates that no mode was specified.
+  MODE_UNSPECIFIED = 0;
+  // MODE_PICK_FIRST behaves like the default grpc pick_first balancer.
+  MODE_PICK_FIRST = 1;
+  // MODE_RECONNECT will reconnect to the server when the server becomes unhealthy.
+  MODE_RECONNECT = 2;
+}
