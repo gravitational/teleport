@@ -633,6 +633,7 @@
     "puttyconfig",
     "pvpy",
     "pwdless",
+    "qoiz",
     "Quickstart",
     "quux",
     "QWERTYUIOP",
@@ -843,6 +844,7 @@
     "tcps",
     "TCSD",
     "tctl",
+    "TDPB",
     "TEAMID",
     "tele",
     "Teleconsole",
@@ -899,6 +901,7 @@
     "ttyplayback",
     "tunables",
     "tutorialization",
+    "Uacc",
     "udner",
     "uintptr",
     "unbeknowst",
@@ -977,8 +980,15 @@
     "XBCO",
     "xcopy",
     "xeyes",
+    "XFIXES",
     "xinding",
+    "XRANDR",
+    "xsession",
+    "xsessions",
+    "xrdp",
+    "XTEST",
     "XVCJ",
+    "Xvfb",
     "Yassine",
     "ykpiv",
     "Yubi",
@@ -991,6 +1001,7 @@
     "zdvik",
     "Zilla",
     "zarquon",
-    "ZLMR"
+    "ZLMR",
+    "zstd"
   ]
 }
