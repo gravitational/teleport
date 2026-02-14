@@ -1,5 +1,77 @@
 # Changelog
 
+## 18.7.0 (02/13/26)
+
+#### Organization-level auto-discovery for AWS EC2 instances
+
+AWS auto-discovery supports EC2 instance enrollment from all or a subset of accounts
+of an AWS organization without having to configure per-account discovery.
+
+Organization-level discovery for other resources within AWS (RDS, EKS) as well as other
+for cloud providers will follow in future releases.
+
+#### Terraform-native flow for configuration of AWS EC2 auto-discovery
+
+Teleport provides in-product UX for configuring EC2 auto-discovery in a single AWS
+account using terraform module.
+
+#### Static labels for auto-discovered Windows desktops
+
+Teleport can now be configured to apply a set of static labels to Windows
+desktops that it discovers via LDAP. This is an alternative to setting labels
+based on the value of LDAP attributes.
+
+#### Access requests privilege escalation UX for AWS
+
+Teleport users are now able to see specific IAM roles available to them when requesting
+elevated access to AWS CLI/console. Future releases will extend support for specific
+principal selection to access requests for other resource types as well.
+
+#### Entra ID integration status page
+
+Teleport users are now able to see status of the configured Entra ID integration in the
+web UI.
+
+#### Inventory UI
+
+Teleport's web UI now includes a new page showing the complete inventory of all instances
+and bots connected to the cluster.
+
+#### Managed Updates UI
+
+Teleport's web UI now includes new functionality for working with managed updates.
+The UI offers the ability to view and manage the updater configuration as well
+as monitor the progress of update rollouts.
+
+#### Split Windows CA
+
+Teleport now introduces a new Windows CA responsible for issuing user certificates for
+Windows Desktop access. Currently the User CA issues those certificates, as they are end-user certs.
+Splitting the CAs improves Teleport's security posture by introducing a more specialized CA
+and allows both CAs to be rotated independently.
+
+#### Other fixes and improvements
+
+* Fixed `tsh kubectl` failing when kubectl flags appear before positional arguments (e.g., `tsh kubectl -n default get pod`). [#63807](https://github.com/gravitational/teleport/pull/63807)
+* The tsh status command can now be executed in client-only mode with --client. This skips all server-side operations. [#63786](https://github.com/gravitational/teleport/pull/63786)
+* MWI: Add new `tbot start no-op` helper that starts no services. [#63666](https://github.com/gravitational/teleport/pull/63666)
+* Improved performance and user experience of `teleport backend clone`. [#63635](https://github.com/gravitational/teleport/pull/63635)
+* Fixed out of sequent audit logs rendering in ui for same timestamp logs. [#63613](https://github.com/gravitational/teleport/pull/63613)
+* Added the Windows CA, used to issue Windows Desktop Access user certificates. The Windows CA is initially created as a copy of the User CA, so existing trust relationships are maintained. You may rotate either CA in order to create distinct key material (make sure to consult the Certificate Authority Rotation guide before performing a CA rotation). The Windows CA is a top-level CA entity, so it is reflected in all commands that operate on CAs. Updating both command-line tools and Windows Desktop agents is recommended. [#63547](https://github.com/gravitational/teleport/pull/63547)
+* Added support for summarizer resources to the Teleport Terraform provider. [#63534](https://github.com/gravitational/teleport/pull/63534)
+* Add Managed Updates dashboard to the WebUI. [#63310](https://github.com/gravitational/teleport/pull/63310)
+* Fixed a bug that could cause Windows desktops discovered via LDAP to be removed in error. [#62471](https://github.com/gravitational/teleport/pull/62471)
+* Fixed an issue that could cause failed Active Directory user lookups to cache the error rather than retry. [#62471](https://github.com/gravitational/teleport/pull/62471)
+* Ensure that discovered Windows desktops don't expire when a large discovery interval is configured. [#62471](https://github.com/gravitational/teleport/pull/62471)
+* Each Windows desktop `discovery_config` can now include a set of static labels to apply to discovered hosts. [#62452](https://github.com/gravitational/teleport/pull/62452)
+* Added support for discovering EC2 instances in all the accounts under an AWS Organization. [#62302](https://github.com/gravitational/teleport/pull/62302)
+* Added support for EC2 instances to join based on their AWS Organization. [#62302](https://github.com/gravitational/teleport/pull/62302)
+
+Enterprise:
+* Updated Entra ID plugin UI to support Access List owners source configuration.
+* Fixes a panic that occurred when External Audit Storage was available but not enabled in Teleport Cloud while Access Monitoring was enabled.
+* Added plugin status page for Teleport Entra ID integration.
+
 ## 18.6.8 (02/10/26)
 
 * Added `--exec-cmd` and `--exec-arg` flags to `tsh proxy kube` to allow launching custom commands like k9s directly without requiring environment variable workarounds. [#63066](https://github.com/gravitational/teleport/pull/63066)

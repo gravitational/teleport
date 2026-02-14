@@ -7,8 +7,8 @@ should request certificates when certManager enabled:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-event-handler
-        app.kubernetes.io/version: 18.7.0-dev.marco.1
-        helm.sh/chart: teleport-plugin-event-handler-18.7.0-dev.marco.1
+        app.kubernetes.io/version: 18.7.0
+        helm.sh/chart: teleport-plugin-event-handler-18.7.0
       name: RELEASE-NAME-teleport-plugin-event-handler-server
       namespace: NAMESPACE
     spec:
@@ -35,8 +35,8 @@ should request certificates when certManager enabled:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-event-handler
-        app.kubernetes.io/version: 18.7.0-dev.marco.1
-        helm.sh/chart: teleport-plugin-event-handler-18.7.0-dev.marco.1
+        app.kubernetes.io/version: 18.7.0
+        helm.sh/chart: teleport-plugin-event-handler-18.7.0
       name: RELEASE-NAME-teleport-plugin-event-handler-client
       namespace: NAMESPACE
     spec:
