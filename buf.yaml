@@ -36,6 +36,7 @@ lint:
     - api/proto/teleport/legacy/types/wrappers/wrappers.proto
     - proto/teleport/lib/multiplexer/test/ping.proto
     - proto/teleport/lib/web/terminal/envelope.proto
+    - api/proto/teleport/legacy/types/access_requests.proto
   ignore_only:
     COMMENT_MESSAGE:
       - proto/prehog
@@ -58,18 +59,21 @@ lint:
       - api/proto/teleport/legacy/client/proto/inventory.proto
       - api/proto/teleport/legacy/types/device.proto
       - api/proto/teleport/legacy/types/resources.proto
+      - api/proto/teleport/legacy/types/access_requests.proto
     PACKAGE_DIRECTORY_MATCH:
       - api/proto/teleport/legacy/client/proto/joinservice.proto
       - api/proto/teleport/legacy/types/device.proto
       - api/proto/teleport/legacy/types/trusted_device_requirement.proto
       - api/proto/teleport/legacy/types/resources.proto
       - api/proto/teleport/legacy/types/webauthn/webauthn.proto
+      - api/proto/teleport/legacy/types/access_requests.proto
     PACKAGE_VERSION_SUFFIX:
       - api/proto/teleport/legacy/client/proto/joinservice.proto
       - api/proto/teleport/legacy/types/device.proto
       - api/proto/teleport/legacy/types/trusted_device_requirement.proto
       - api/proto/teleport/legacy/types/resources.proto
       - api/proto/teleport/legacy/types/webauthn/webauthn.proto
+      - api/proto/teleport/legacy/types/access_requests.proto
     RPC_REQUEST_STANDARD_NAME:
       - proto/teleport/lib/teleterm/v1/service.proto
     UNARY_RPC:

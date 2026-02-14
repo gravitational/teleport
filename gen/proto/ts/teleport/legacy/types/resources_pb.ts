@@ -64,6 +64,17 @@ export interface ResourceID {
     subResourceName: string;
 }
 /**
+ * ResourceIDList represents a list of ResourceID objects.
+ *
+ * @generated from protobuf message types.ResourceIDList
+ */
+export interface ResourceIDList {
+    /**
+     * @generated from protobuf field: repeated types.ResourceID resource_ids = 1;
+     */
+    resourceIds: ResourceID[];
+}
+/**
  * ResourceConstraints is a domain-specific payload that narrows what principals
  * or options are allowed on the associated ResourceID. Exactly one detail is set.
  *
@@ -202,6 +213,53 @@ class ResourceID$Type extends MessageType<ResourceID> {
  * @generated MessageType for protobuf message types.ResourceID
  */
 export const ResourceID = new ResourceID$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ResourceIDList$Type extends MessageType<ResourceIDList> {
+    constructor() {
+        super("types.ResourceIDList", [
+            { no: 1, name: "resource_ids", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ResourceID, options: { "gogoproto.nullable": false } }
+        ]);
+    }
+    create(value?: PartialMessage<ResourceIDList>): ResourceIDList {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.resourceIds = [];
+        if (value !== undefined)
+            reflectionMergePartial<ResourceIDList>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ResourceIDList): ResourceIDList {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated types.ResourceID resource_ids */ 1:
+                    message.resourceIds.push(ResourceID.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ResourceIDList, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated types.ResourceID resource_ids = 1; */
+        for (let i = 0; i < message.resourceIds.length; i++)
+            ResourceID.internalBinaryWrite(message.resourceIds[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message types.ResourceIDList
+ */
+export const ResourceIDList = new ResourceIDList$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ResourceConstraints$Type extends MessageType<ResourceConstraints> {
     constructor() {

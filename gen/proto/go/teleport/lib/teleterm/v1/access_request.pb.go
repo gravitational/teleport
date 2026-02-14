@@ -77,8 +77,13 @@ type AccessRequest struct {
 	// reason_prompts is a sorted and deduplicated list of reason prompts for this Access Request.
 	// It's only added in response to a dry run request.
 	ReasonPrompts []string `protobuf:"bytes,20,rep,name=reason_prompts,json=reasonPrompts,proto3" json:"reason_prompts,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// request_kind is the kind (long-term/short-term) of the request.
+	RequestKind types.AccessRequestKind `protobuf:"varint,21,opt,name=request_kind,json=requestKind,proto3,enum=types.AccessRequestKind" json:"request_kind,omitempty"`
+	// long_term_resource_grouping contains information about how requested resources
+	// can be grouped for long-term access.
+	LongTermResourceGrouping *types.LongTermResourceGrouping `protobuf:"bytes,22,opt,name=long_term_resource_grouping,json=longTermResourceGrouping,proto3" json:"long_term_resource_grouping,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *AccessRequest) Reset() {
@@ -240,6 +245,20 @@ func (x *AccessRequest) GetReasonMode() string {
 func (x *AccessRequest) GetReasonPrompts() []string {
 	if x != nil {
 		return x.ReasonPrompts
+	}
+	return nil
+}
+
+func (x *AccessRequest) GetRequestKind() types.AccessRequestKind {
+	if x != nil {
+		return x.RequestKind
+	}
+	return types.AccessRequestKind(0)
+}
+
+func (x *AccessRequest) GetLongTermResourceGrouping() *types.LongTermResourceGrouping {
+	if x != nil {
+		return x.LongTermResourceGrouping
 	}
 	return nil
 }
@@ -529,7 +548,7 @@ var File_teleport_lib_teleterm_v1_access_request_proto protoreflect.FileDescript
 
 const file_teleport_lib_teleterm_v1_access_request_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/lib/teleterm/v1/access_request.proto\x12\x18teleport.lib.teleterm.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a%teleport/legacy/types/resources.proto\"\x98\a\n" +
+	"-teleport/lib/teleterm/v1/access_request.proto\x12\x18teleport.lib.teleterm.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a+teleport/legacy/types/access_requests.proto\x1a%teleport/legacy/types/resources.proto\"\xb5\b\n" +
 	"\rAccessRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05state\x18\x02 \x01(\tR\x05state\x12%\n" +
@@ -553,7 +572,9 @@ const file_teleport_lib_teleterm_v1_access_request_proto_rawDesc = "" +
 	"sessionTtl\x12\x1f\n" +
 	"\vreason_mode\x18\x13 \x01(\tR\n" +
 	"reasonMode\x12%\n" +
-	"\x0ereason_prompts\x18\x14 \x03(\tR\rreasonPromptsJ\x04\b\f\x10\rR\fresource_ids\"\xac\x02\n" +
+	"\x0ereason_prompts\x18\x14 \x03(\tR\rreasonPrompts\x12;\n" +
+	"\frequest_kind\x18\x15 \x01(\x0e2\x18.types.AccessRequestKindR\vrequestKind\x12^\n" +
+	"\x1blong_term_resource_grouping\x18\x16 \x01(\v2\x1f.types.LongTermResourceGroupingR\x18longTermResourceGroupingJ\x04\b\f\x10\rR\fresource_ids\"\xac\x02\n" +
 	"\x13AccessRequestReview\x12\x16\n" +
 	"\x06author\x18\x01 \x01(\tR\x06author\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x14\n" +
@@ -590,13 +611,15 @@ func file_teleport_lib_teleterm_v1_access_request_proto_rawDescGZIP() []byte {
 
 var file_teleport_lib_teleterm_v1_access_request_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_teleport_lib_teleterm_v1_access_request_proto_goTypes = []any{
-	(*AccessRequest)(nil),             // 0: teleport.lib.teleterm.v1.AccessRequest
-	(*AccessRequestReview)(nil),       // 1: teleport.lib.teleterm.v1.AccessRequestReview
-	(*ResourceID)(nil),                // 2: teleport.lib.teleterm.v1.ResourceID
-	(*ResourceDetails)(nil),           // 3: teleport.lib.teleterm.v1.ResourceDetails
-	(*Resource)(nil),                  // 4: teleport.lib.teleterm.v1.Resource
-	(*timestamppb.Timestamp)(nil),     // 5: google.protobuf.Timestamp
-	(*types.ResourceConstraints)(nil), // 6: types.ResourceConstraints
+	(*AccessRequest)(nil),                  // 0: teleport.lib.teleterm.v1.AccessRequest
+	(*AccessRequestReview)(nil),            // 1: teleport.lib.teleterm.v1.AccessRequestReview
+	(*ResourceID)(nil),                     // 2: teleport.lib.teleterm.v1.ResourceID
+	(*ResourceDetails)(nil),                // 3: teleport.lib.teleterm.v1.ResourceDetails
+	(*Resource)(nil),                       // 4: teleport.lib.teleterm.v1.Resource
+	(*timestamppb.Timestamp)(nil),          // 5: google.protobuf.Timestamp
+	(types.AccessRequestKind)(0),           // 6: types.AccessRequestKind
+	(*types.LongTermResourceGrouping)(nil), // 7: types.LongTermResourceGrouping
+	(*types.ResourceConstraints)(nil),      // 8: types.ResourceConstraints
 }
 var file_teleport_lib_teleterm_v1_access_request_proto_depIdxs = []int32{
 	5,  // 0: teleport.lib.teleterm.v1.AccessRequest.created:type_name -> google.protobuf.Timestamp
@@ -607,16 +630,18 @@ var file_teleport_lib_teleterm_v1_access_request_proto_depIdxs = []int32{
 	5,  // 5: teleport.lib.teleterm.v1.AccessRequest.max_duration:type_name -> google.protobuf.Timestamp
 	5,  // 6: teleport.lib.teleterm.v1.AccessRequest.request_ttl:type_name -> google.protobuf.Timestamp
 	5,  // 7: teleport.lib.teleterm.v1.AccessRequest.session_ttl:type_name -> google.protobuf.Timestamp
-	5,  // 8: teleport.lib.teleterm.v1.AccessRequestReview.created:type_name -> google.protobuf.Timestamp
-	5,  // 9: teleport.lib.teleterm.v1.AccessRequestReview.assume_start_time:type_name -> google.protobuf.Timestamp
-	2,  // 10: teleport.lib.teleterm.v1.Resource.id:type_name -> teleport.lib.teleterm.v1.ResourceID
-	3,  // 11: teleport.lib.teleterm.v1.Resource.details:type_name -> teleport.lib.teleterm.v1.ResourceDetails
-	6,  // 12: teleport.lib.teleterm.v1.Resource.constraints:type_name -> types.ResourceConstraints
-	13, // [13:13] is the sub-list for method output_type
-	13, // [13:13] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	6,  // 8: teleport.lib.teleterm.v1.AccessRequest.request_kind:type_name -> types.AccessRequestKind
+	7,  // 9: teleport.lib.teleterm.v1.AccessRequest.long_term_resource_grouping:type_name -> types.LongTermResourceGrouping
+	5,  // 10: teleport.lib.teleterm.v1.AccessRequestReview.created:type_name -> google.protobuf.Timestamp
+	5,  // 11: teleport.lib.teleterm.v1.AccessRequestReview.assume_start_time:type_name -> google.protobuf.Timestamp
+	2,  // 12: teleport.lib.teleterm.v1.Resource.id:type_name -> teleport.lib.teleterm.v1.ResourceID
+	3,  // 13: teleport.lib.teleterm.v1.Resource.details:type_name -> teleport.lib.teleterm.v1.ResourceDetails
+	8,  // 14: teleport.lib.teleterm.v1.Resource.constraints:type_name -> types.ResourceConstraints
+	15, // [15:15] is the sub-list for method output_type
+	15, // [15:15] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_teleterm_v1_access_request_proto_init() }
