@@ -38,35 +38,77 @@ const azureEventPrefix = "azure/"
 
 // AzureInstances contains information about discovered Azure virtual machines.
 type AzureInstances struct {
+	// DiscoveryConfigName is the name of discovery config.
+	DiscoveryConfigName string
+	// Integration is the optional name of the integration to use for auth.
+	Integration string
+
 	// Region is the Azure region where the instances are located.
 	Region string
 	// SubscriptionID is the subscription ID for the instances.
 	SubscriptionID string
 	// ResourceGroup is the resource group for the instances.
 	ResourceGroup string
+
 	// InstallerParams are the installer parameters used for installation.
 	InstallerParams *types.InstallerParams
 	// Instances is a list of discovered Azure virtual machines.
 	Instances []*armcompute.VirtualMachine
-	// Integration is the optional name of the integration to use for auth.
-	Integration string
 }
 
 // MakeEvents generates MakeEvents for these instances.
-func (instances *AzureInstances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
+func (instances *AzureInstances) MakeEvents(failures []AzureInstallFailure) map[string]*usageeventsv1.ResourceCreateEvent {
 	resourceType := types.DiscoveredResourceNode
 	if instances.InstallerParams != nil && instances.InstallerParams.ScriptName == installers.InstallerScriptNameAgentless {
 		resourceType = types.DiscoveredResourceAgentlessNode
 	}
-	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))
+
+	failed := map[string]struct{}{}
+	for _, failure := range failures {
+		id := azure.StringVal(failure.Instance.ID)
+		failed[id] = struct{}{}
+	}
+
+	expectedSize := len(instances.Instances) - len(failures)
+	events := make(map[string]*usageeventsv1.ResourceCreateEvent, expectedSize)
 	for _, inst := range instances.Instances {
-		events[azureEventPrefix+azure.StringVal(inst.ID)] = &usageeventsv1.ResourceCreateEvent{
+		id := azure.StringVal(inst.ID)
+		// skip failed
+		if _, found := failed[id]; found {
+			continue
+		}
+		events[azureEventPrefix+id] = &usageeventsv1.ResourceCreateEvent{
 			ResourceType:   resourceType,
 			ResourceOrigin: types.OriginCloud,
 			CloudProvider:  types.CloudAzure,
 		}
 	}
 	return events
+}
+
+// FilterExistingNodes removes instances matching existing nodes in place.
+func (instances *AzureInstances) FilterExistingNodes(existingNodes []types.Server) {
+	vmIDs := make(map[string]struct{})
+	for _, node := range existingNodes {
+		labels := node.GetAllLabels()
+		subscriptionID := labels[types.SubscriptionIDLabel]
+		if subscriptionID != instances.SubscriptionID {
+			continue
+		}
+		vmID := labels[types.VMIDLabel]
+		if vmID != "" {
+			vmIDs[vmID] = struct{}{}
+		}
+	}
+
+	instances.Instances = slices.DeleteFunc(instances.Instances, func(instance *armcompute.VirtualMachine) bool {
+		var vmID string
+		if instance.Properties != nil && instance.Properties.VMID != nil {
+			vmID = *instance.Properties.VMID
+		}
+		_, found := vmIDs[vmID]
+		return found
+	})
 }
 
 type azureClientGetter func(ctx context.Context, integration string) (azure.Clients, error)
@@ -188,7 +230,8 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 			if err != nil {
 				f.Logger.WarnContext(ctx, "Skipping Teleport installation on Azure VM - failed to infer resource group from vm id",
 					"subscription_id", f.Subscription,
-					"vm_id", azure.StringVal(vm.ID),
+					"vm_id", azure.StringVal(vm.Properties.VMID),
+					"resource_id", azure.StringVal(vm.ID),
 					"error", err,
 				)
 				continue
@@ -211,12 +254,13 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 	var instances []*AzureInstances
 	for batchGroup, vms := range instancesByRegionAndResourceGroup {
 		instances = append(instances, &AzureInstances{
-			SubscriptionID:  f.Subscription,
-			Region:          batchGroup.location,
-			ResourceGroup:   batchGroup.resourceGroup,
-			Instances:       vms,
-			Integration:     f.Integration,
-			InstallerParams: f.InstallerParams,
+			SubscriptionID:      f.Subscription,
+			Region:              batchGroup.location,
+			ResourceGroup:       batchGroup.resourceGroup,
+			Instances:           vms,
+			Integration:         f.Integration,
+			InstallerParams:     f.InstallerParams,
+			DiscoveryConfigName: f.DiscoveryConfigName,
 		})
 	}
 

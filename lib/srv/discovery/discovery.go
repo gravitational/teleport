@@ -27,6 +27,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
@@ -104,12 +105,6 @@ func (m Matchers) IsEmpty() bool {
 // ssmInstaller handles running SSM commands that install Teleport on EC2 instances.
 type ssmInstaller interface {
 	Run(ctx context.Context, req server.SSMRunRequest) error
-}
-
-// azureInstaller handles running commands that install Teleport on Azure
-// virtual machines.
-type azureInstaller interface {
-	Run(ctx context.Context, req server.AzureRunRequest) error
 }
 
 // gcpInstaller handles running commands that install Teleport on GCP
@@ -404,11 +399,6 @@ type Server struct {
 	ec2Watcher *server.Watcher[*server.EC2Instances]
 	// ec2Installer is used to start the installation process on discovered EC2 nodes
 	ec2Installer ssmInstaller
-	// azureWatcher periodically retrieves Azure virtual machines.
-	azureWatcher *server.Watcher[*server.AzureInstances]
-	// azureInstaller is used to start the installation process on discovered Azure
-	// virtual machines.
-	azureInstaller azureInstaller
 	// gcpWatcher periodically retrieves GCP virtual machines.
 	gcpWatcher *server.Watcher[*server.GCPInstances]
 	// gcpInstaller is used to start the installation process on discovered GCP
@@ -458,6 +448,7 @@ type Server struct {
 	awsEC2Tasks           awsEC2Tasks
 	awsEKSTasks           awsEKSTasks
 	awsRDSTasks           awsRDSTasks
+	azureVMStatus         atomic.Pointer[resourceStatusMap]
 
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
@@ -508,7 +499,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.initAzureWatchers(s.ctx, cfg.Matchers.Azure, noDiscoveryConfig); err != nil {
+	if err := s.initAzureWatchers(s.ctx, cfg.Matchers.Azure); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -516,10 +507,8 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if s.ec2Watcher != nil || s.azureWatcher != nil || s.gcpWatcher != nil {
-		if err := s.initTeleportNodeWatcher(); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if err := s.initTeleportNodeWatcher(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if err := s.initKubeAppWatchers(cfg.Matchers.Kubernetes); err != nil {
@@ -868,32 +857,11 @@ func (s *Server) getAzureClients(ctx context.Context, integration string) (azure
 }
 
 // initAzureWatchers starts Azure resource watchers based on types provided.
-func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMatcher, discoveryConfigName string) error {
-	vmMatchers, otherMatchers := splitMatchers(matchers, func(matcherType string) bool {
+func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMatcher) error {
+	// Filter out VM matchers
+	_, otherMatchers := splitMatchers(matchers, func(matcherType string) bool {
 		return matcherType == types.AzureMatcherVM
 	})
-
-	// VM watcher.
-	s.azureWatcher = server.NewWatcher[*server.AzureInstances](
-		s.ctx,
-		server.WithPreFetchHookFn[*server.AzureInstances](func(fetchers []server.Fetcher[*server.AzureInstances]) {
-			if len(fetchers) > 0 {
-				s.submitFetchEvent(types.CloudAzure, types.AzureMatcherVM)
-			}
-		}),
-		server.WithPollInterval[*server.AzureInstances](s.PollInterval),
-		server.WithTriggerFetchC[*server.AzureInstances](s.newDiscoveryConfigChangedSub()),
-		server.WithClock[*server.AzureInstances](s.clock),
-	)
-
-	staticFetchers := server.MatchersToAzureInstanceFetchers(s.Log, vmMatchers, s.getAzureClients, discoveryConfigName)
-	s.azureWatcher.SetFetchers(noDiscoveryConfig, staticFetchers)
-
-	if s.azureInstaller == nil {
-		s.azureInstaller = &server.AzureInstaller{
-			Emitter: s.Emitter,
-		}
-	}
 
 	// Database fetchers were added in databaseFetchersFromMatchers.
 	_, otherMatchers = splitMatchers(otherMatchers, db.IsAzureMatcherType)
@@ -923,7 +891,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 						FilterLabels:        matcher.ResourceTags,
 						ResourceGroups:      matcher.ResourceGroups,
 						Logger:              s.Log,
-						DiscoveryConfigName: discoveryConfigName,
+						DiscoveryConfigName: noDiscoveryConfig,
 						Integration:         matcher.Integration,
 					})
 					if err != nil {
@@ -1068,20 +1036,28 @@ func genGCPInstancesLogStr(instances []*gcpimds.Instance) string {
 	})
 }
 
+// genInstancesLogStr builds a bracketed, comma-separated log string of instance identifiers.
+// It displays up to 10 IDs; if more exist, it appends a count of omitted entries.
 func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
-	var logInstances strings.Builder
-	for idx, inst := range instances {
-		if idx == 10 || idx == (len(instances)-1) {
-			logInstances.WriteString(getID(inst))
-			break
-		}
-		logInstances.WriteString(getID(inst) + ", ")
-	}
-	if len(instances) > 10 {
-		logInstances.WriteString(fmt.Sprintf("... + %d instance IDs truncated", len(instances)-10))
+	const maxInstances = 10
+
+	n := len(instances)
+	if n == 0 {
+		return "[]"
 	}
 
-	return fmt.Sprintf("[%s]", logInstances.String())
+	limit := min(n, maxInstances)
+	ids := make([]string, limit)
+	for i := range limit {
+		ids[i] = getID(instances[i])
+	}
+
+	result := strings.Join(ids, ", ")
+	if n > maxInstances {
+		result += fmt.Sprintf("... + %d instance IDs truncated", n-maxInstances)
+	}
+
+	return "[" + result + "]"
 }
 
 func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
@@ -1385,99 +1361,250 @@ func (s *Server) handleEC2Discovery() {
 	}
 }
 
-func (s *Server) filterExistingAzureNodes(instances *server.AzureInstances) error {
-	nodes, err := s.nodeWatcher.CurrentResourcesWithFilter(s.ctx, func(n readonly.Server) bool {
-		labels := n.GetAllLabels()
-		_, subscriptionOK := labels[types.SubscriptionIDLabel]
-		_, vmOK := labels[types.VMIDLabel]
-		return subscriptionOK && vmOK
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var filtered []*armcompute.VirtualMachine
-outer:
-	for _, inst := range instances.Instances {
-		for _, node := range nodes {
-			var vmID string
-			if inst.Properties != nil {
-				vmID = aws.ToString(inst.Properties.VMID)
-			}
-			match := types.MatchLabels(node, map[string]string{
-				types.SubscriptionIDLabel: instances.SubscriptionID,
-				types.VMIDLabel:           vmID,
-			})
-			if match {
-				continue outer
-			}
-		}
-		filtered = append(filtered, inst)
-	}
-	instances.Instances = filtered
-	return nil
-}
-
-func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
+func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.AzureInstances) ([]server.AzureInstallFailure, error) {
 	azureClients, err := s.getAzureClients(s.ctx, instances.Integration)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	runClient, err := azureClients.GetRunCommandClient(s.ctx, instances.SubscriptionID)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	err = s.filterExistingAzureNodes(instances)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if len(instances.Instances) == 0 {
-		return trace.Wrap(errNoInstances)
-	}
-
-	s.Log.DebugContext(s.ctx, "Running Teleport installation on virtual machines", "subscription_id", instances.SubscriptionID, "vms", genAzureInstancesLogStr(instances.Instances))
-	req := server.AzureRunRequest{
-		Client:          runClient,
+	req := server.AzureInstallRequest{
 		Instances:       instances.Instances,
 		Region:          instances.Region,
 		ResourceGroup:   instances.ResourceGroup,
 		InstallerParams: instances.InstallerParams,
 		ProxyAddrGetter: s.publicProxyAddress,
 	}
-	if err := s.azureInstaller.Run(s.ctx, req); err != nil {
-		return trace.Wrap(err)
+
+	failures, err := req.Run(s.ctx, runClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	if err := s.emitUsageEvents(instances.MakeEvents()); err != nil {
-		s.Log.DebugContext(s.ctx, "Error emitting usage event", "error", err)
+
+	const maxReportedErrors = 10
+
+	for reported, failure := range failures {
+		if reported >= maxReportedErrors {
+			omitted := len(failures) - maxReportedErrors
+
+			log.WarnContext(s.ctx, "Too many install failures; suppressing further errors",
+				"reported", maxReportedErrors,
+				"total", len(failures),
+				"omitted", omitted,
+			)
+
+			break
+		}
+		log.WarnContext(s.ctx, "Failed to install Teleport on a virtual machine",
+			"vm_id", azure.StringVal(failure.Instance.Properties.VMID),
+			"resource_id", azure.StringVal(failure.Instance.ID),
+			"install_error", failure.Error,
+		)
 	}
-	return nil
+
+	err = s.emitUsageEvents(instances.MakeEvents(failures))
+	if err != nil {
+		log.WarnContext(s.ctx, "Error emitting usage event", "error", err)
+	}
+	return failures, nil
 }
 
-func (s *Server) handleAzureDiscovery() {
+// startAzureServerDiscovery starts the Azure VM discovery.
+// It needs to be run asynchronously as it waits on node watcher initialization before proceeding.
+func (s *Server) startAzureServerDiscovery() {
 	if err := s.nodeWatcher.WaitInitialization(); err != nil {
 		s.Log.ErrorContext(s.ctx, "Failed to initialize nodeWatcher", "error", err)
 		return
 	}
 
-	go s.azureWatcher.Run()
-	for {
-		select {
-		case instances := <-s.azureWatcher.InstancesC:
-			s.Log.DebugContext(s.ctx, "Azure instances discovered, starting installation", "subscription_id", instances.SubscriptionID, "instances", genAzureInstancesLogStr(instances.Instances))
-			if err := s.handleAzureInstances(instances); err != nil {
-				if errors.Is(err, errNoInstances) {
-					s.Log.DebugContext(s.ctx, "All discovered Azure VMs are already part of the cluster")
-				} else {
-					s.Log.ErrorContext(s.ctx, "Failed to enroll discovered Azure VMs", "error", err)
-				}
+	var azureWatcher *server.Watcher[*server.AzureInstances]
+
+	// static fetchers; can be cached, any changes require service restart.
+	staticFetchers := s.azureServerFetchersFromMatchers(s.Matchers.Azure, noDiscoveryConfig)
+
+	// a full refresh is somewhat wasteful, however not overly so due to inexpensive operations involved.
+	// a more selective approach would necessitate deeper refactoring.
+	fullRefresh := func() {
+		replaceMap := make(map[string][]server.Fetcher[*server.AzureInstances])
+		replaceMap[noDiscoveryConfig] = staticFetchers
+
+		s.dynamicDiscoveryConfigMu.RLock()
+		for _, config := range s.dynamicDiscoveryConfig {
+			replaceMap[config.GetName()] = s.azureServerFetchersFromMatchers(config.Spec.Azure, config.GetName())
+		}
+		s.dynamicDiscoveryConfigMu.RUnlock()
+		azureWatcher.ReplaceFetchers(replaceMap)
+	}
+
+	var sm *resourceStatusMap
+	var vmTasks *azureVMTasks
+	var runStart time.Time
+
+	azureWatcher = server.NewWatcher(
+		s.ctx,
+		server.WithPreFetchHookFn(func(fetchers []server.Fetcher[*server.AzureInstances]) {
+			s.Log.InfoContext(s.ctx, "Azure VM discovery iteration starting")
+			runStart = s.clock.Now()
+
+			if len(fetchers) > 0 {
+				s.submitFetchEvent(types.CloudAzure, types.AzureMatcherVM)
 			}
-		case <-s.ctx.Done():
-			s.azureWatcher.Stop()
+			sm = newStatusMap(types.AzureMatcherVM)
+			vmTasks = &azureVMTasks{}
+
+			// Initialize the status map with an entry per fetcher (discoveryConfig + integration).
+			// The per-instance hook only receives the slice of instance groups; when a fetcher
+			// returns zero groups, the hook has nothing to iterate and cannot introduce the key
+			// into sm.results. Creating the key here ensures we still write an explicit
+			// "0 found/enrolled/failed" update instead of leaving stale non-zero status from a
+			// previous iteration.
+			for _, fetcher := range fetchers {
+				fgKey := fetcherGroupKey{
+					discoveryConfigName: fetcher.GetDiscoveryConfigName(),
+					integration:         fetcher.IntegrationName(),
+				}
+				sm.add(fgKey, make(map[statusType]int))
+			}
+		}),
+		server.WithPerInstanceHookFn(func(instanceGroups []*server.AzureInstances) {
+			s.Log.DebugContext(s.ctx, "Processing instances", "groups", len(instanceGroups))
+			for _, group := range instanceGroups {
+				fgKey := fetcherGroupKey{
+					discoveryConfigName: group.DiscoveryConfigName,
+					integration:         group.Integration,
+				}
+				s.Log.DebugContext(s.ctx, "Processing instance group", "group", fgKey, "instances", len(group.Instances))
+				results := s.installAzureServers(group, vmTasks)
+				sm.add(fgKey, results)
+			}
+		}),
+		server.WithPostFetchHookFn[*server.AzureInstances](func() {
+			// update statuses of relevant discovery configs.
+			s.azureVMStatus.Store(sm)
+			s.updateDiscoveryConfigStatus(sm.discoveryConfigs()...)
+			// upsert user tasks for failed enrollments.
+			vmTasks.upsertAll(s.taskUpdater())
+
+			s.Log.InfoContext(s.ctx, "Azure VM discovery iteration completed", "elapsed", s.clock.Since(runStart))
+		}),
+		server.WithPollInterval[*server.AzureInstances](s.PollInterval),
+		server.WithTriggerFetchC[*server.AzureInstances](s.newDiscoveryConfigChangedSub()),
+		server.WithTriggerFetchHookFn[*server.AzureInstances](fullRefresh),
+		server.WithClock[*server.AzureInstances](s.clock),
+	)
+
+	// refresh dynamic fetchers once at the beginning.
+	fullRefresh()
+
+	s.Log.DebugContext(s.ctx, "Azure VM watcher starting.")
+	go azureWatcher.Run()
+}
+
+func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *azureVMTasks) (results map[statusType]int) {
+	results = make(map[statusType]int)
+
+	log := s.Log.With(
+		"discovery_config", instances.DiscoveryConfigName,
+		"integration", instances.Integration,
+		"subscription_id", instances.SubscriptionID,
+		"region", instances.Region,
+		"resource_group", instances.ResourceGroup,
+	)
+
+	allFound := len(instances.Instances)
+	results[statusFound] = allFound
+
+	if allFound == 0 {
+		log.DebugContext(s.ctx, "No Azure instances found, skipping installation")
+		return
+	}
+
+	nodes, err := s.nodeWatcher.CurrentResources(s.ctx)
+	if err != nil {
+		log.WarnContext(s.ctx, "Failed to get current node resources", "error", err)
+		return
+	}
+	instances.FilterExistingNodes(nodes)
+
+	// count machines that have already been enrolled in previous cycles.
+	needInstall := len(instances.Instances)
+	results[statusEnrolled] = allFound - needInstall
+
+	if len(instances.Instances) == 0 {
+		log.DebugContext(s.ctx, "No Azure instances remain to enroll, skipping installation")
+		return
+	}
+
+	addFailedEnrollment := func(vm *armcompute.VirtualMachine, issueType string) {
+		// Static matchers don't have a discovery config resource, so skip creating user tasks
+		// because validation requires a discovery config name.
+		if instances.DiscoveryConfigName == noDiscoveryConfig {
 			return
 		}
+
+		tg := usertasks.TaskGroup{
+			Integration: instances.Integration,
+			IssueType:   issueType,
+		}
+		vmTasks.addFailedEnrollment(
+			tg,
+			azureVMTaskKey{
+				subscriptionID: instances.SubscriptionID,
+				resourceGroup:  instances.ResourceGroup,
+				region:         instances.Region,
+			},
+			&usertasksv1.DiscoverAzureVMInstance{
+				VmId:            azure.StringVal(vm.Properties.VMID),
+				ResourceId:      azure.StringVal(vm.ID),
+				Name:            azure.StringVal(vm.Name),
+				DiscoveryConfig: instances.DiscoveryConfigName,
+				DiscoveryGroup:  s.DiscoveryGroup,
+				SyncTime:        timestamppb.New(s.clock.Now()),
+			},
+		)
 	}
+
+	log.DebugContext(s.ctx, "Running Teleport installation on virtual machines", "vms", genAzureInstancesLogStr(instances.Instances))
+	failures, err := s.enrollAzureVirtualMachines(log, instances)
+	if err != nil {
+		// treat non-nil err as deployment failure affecting all machines.
+		log.WarnContext(s.ctx, "Failed to enroll discovered Azure VMs", "error", err, "count", len(instances.Instances))
+		results[statusFailed] = len(instances.Instances)
+
+		issueType := classifyAzureVMEnrollmentError(err)
+		for _, vm := range instances.Instances {
+			addFailedEnrollment(vm, issueType)
+		}
+		return
+	}
+
+	if len(failures) > 0 {
+		log.WarnContext(s.ctx, "Failed to enroll some discovered Azure VMs", "count", len(failures))
+	}
+
+	// count individual failed enrollments.
+	results[statusFailed] = len(failures)
+
+	// Record failures as user tasks.
+	for _, failure := range failures {
+		addFailedEnrollment(failure.Instance, classifyAzureVMEnrollmentError(failure.Error))
+	}
+
+	pendingCount := len(instances.Instances) - len(failures)
+	if pendingCount > 0 {
+		// Note: we have no "installation in progress" or "installation succeeded" counter, so we ignore those.
+		// If the installation went fine the "enrolled" counter will increase during next iteration.
+		// Otherwise, we will try to enroll those once again, possibly failing.
+		// There is a gap here: we will ignore join failures as those happen out of our sight.
+		// There is no easy way to close that gap in the current architecture.
+		log.DebugContext(s.ctx, "Installation attempt finished. If the machines have joined the cluster successfully, they will be counted as enrolled during the next iteration.", "pending", pendingCount)
+	}
+
+	return
 }
 
 func (s *Server) filterExistingGCPNodes(instances *server.GCPInstances) error {
@@ -1633,9 +1760,7 @@ func (s *Server) Start() error {
 		go s.handleEC2Discovery()
 		go s.reconciler.run(s.ctx)
 	}
-	if s.azureWatcher != nil {
-		go s.handleAzureDiscovery()
-	}
+	go s.startAzureServerDiscovery()
 	if s.gcpWatcher != nil {
 		go s.handleGCPDiscovery()
 	}
@@ -1795,7 +1920,6 @@ func (s *Server) deleteDynamicFetchers(name string) {
 	s.muDynamicDatabaseFetchers.Unlock()
 
 	s.ec2Watcher.DeleteFetchers(name)
-	s.azureWatcher.DeleteFetchers(name)
 	s.gcpWatcher.DeleteFetchers(name)
 
 	s.muDynamicTAGAWSFetchers.Lock()
@@ -1813,14 +1937,15 @@ func (s *Server) deleteDynamicFetchers(name string) {
 
 // upsertDynamicMatchers upserts the internal set of dynamic matchers given a particular discovery config.
 func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) error {
-	matchers := Matchers{
+	matchers := &Matchers{
 		AWS:         dc.Spec.AWS,
 		Azure:       dc.Spec.Azure,
 		GCP:         dc.Spec.GCP,
 		Kubernetes:  dc.Spec.Kube,
 		AccessGraph: dc.Spec.AccessGraph,
 	}
-	s.discardUnsupportedMatchers(&matchers)
+
+	s.discardUnsupportedMatchers(matchers)
 
 	dcName := dc.GetName()
 
@@ -1830,16 +1955,13 @@ func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.
 	}
 	s.ec2Watcher.SetFetchers(dcName, awsServerFetchers)
 
-	azureServerFetchers := s.azureServerFetchersFromMatchers(matchers.Azure, dcName)
-	s.azureWatcher.SetFetchers(dcName, azureServerFetchers)
-
 	gcpServerFetchers, err := s.gcpServerFetchersFromMatchers(s.ctx, matchers.GCP, dcName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	s.gcpWatcher.SetFetchers(dcName, gcpServerFetchers)
 
-	databaseFetchers, err := s.databaseFetchersFromMatchers(matchers, dcName)
+	databaseFetchers, err := s.databaseFetchersFromMatchers(*matchers, dcName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1849,7 +1971,7 @@ func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.
 	s.muDynamicDatabaseFetchers.Unlock()
 
 	awsSyncMatchers, err := s.accessGraphAWSFetchersFromMatchers(
-		ctx, matchers, dcName,
+		ctx, *matchers, dcName,
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1858,7 +1980,7 @@ func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.
 	s.dynamicTAGAWSFetchers[dcName] = awsSyncMatchers
 	s.muDynamicTAGAWSFetchers.Unlock()
 
-	azureSyncMatchers, err := s.accessGraphAzureFetchersFromMatchers(matchers, dcName)
+	azureSyncMatchers, err := s.accessGraphAzureFetchersFromMatchers(*matchers, dcName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1866,7 +1988,7 @@ func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.
 	s.dynamicTAGAzureFetchers[dcName] = azureSyncMatchers
 	s.muDynamicTAGAzureFetchers.Unlock()
 
-	kubeFetchers, err := s.kubeFetchersFromMatchers(matchers, dcName)
+	kubeFetchers, err := s.kubeFetchersFromMatchers(*matchers, dcName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1923,9 +2045,6 @@ func (s *Server) Stop() {
 	s.cancelfn()
 	if s.ec2Watcher != nil {
 		s.ec2Watcher.Stop()
-	}
-	if s.azureWatcher != nil {
-		s.azureWatcher.Stop()
 	}
 	if s.gcpWatcher != nil {
 		s.gcpWatcher.Stop()
