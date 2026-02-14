@@ -111,8 +111,9 @@ teleport:
     #shutdown_delay: "0s"
 
     # Teleport can limit the number of connections coming from each client
-    # IP address to avoid abuse. Note that these limits are enforced separately
-    # for each service (SSH, Kubernetes, etc.)
+    # IP address to avoid abuse. These limits are enforced separately for
+    # each service (Auth, Proxy, SSH, Kubernetes, Database, Windows
+    # Desktop, and Application).
     connection_limits:
         max_connections: 1000
 

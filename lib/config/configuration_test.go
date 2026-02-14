@@ -945,6 +945,27 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.True(t, cfg.Okta.SyncSettings.SyncAccessLists)
 }
 
+func TestApplyConfigAppsLimiter(t *testing.T) {
+	fc := &FileConfig{
+		Global: Global{
+			Limits: ConnectionLimits{
+				MaxConnections: 100,
+				Rates: []ConnectionRate{
+					{Average: 10, Burst: 10, Period: time.Minute},
+				},
+			},
+		},
+	}
+	cfg := servicecfg.MakeDefaultConfig()
+	require.NoError(t, ApplyFileConfig(fc, cfg))
+
+	require.Equal(t, int64(100), cfg.Apps.Limiter.MaxConnections)
+	require.Len(t, cfg.Apps.Limiter.Rates, 1)
+	require.Equal(t, int64(10), cfg.Apps.Limiter.Rates[0].Average)
+	require.Equal(t, int64(10), cfg.Apps.Limiter.Rates[0].Burst)
+	require.Equal(t, time.Minute, cfg.Apps.Limiter.Rates[0].Period)
+}
+
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
 // it's fields are not read in.
 func TestApplyConfigNoneEnabled(t *testing.T) {

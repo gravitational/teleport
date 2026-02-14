@@ -718,6 +718,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		&cfg.Databases.Limiter,
 		&cfg.Kube.Limiter,
 		&cfg.WindowsDesktop.ConnLimiter,
+		&cfg.Apps.Limiter,
 	}
 	for _, l := range limiters {
 		if fc.Limits.MaxConnections > 0 {
