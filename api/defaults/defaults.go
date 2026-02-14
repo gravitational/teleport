@@ -18,6 +18,7 @@ limitations under the License.
 package defaults
 
 import (
+	"os"
 	"sync"
 	"time"
 
@@ -100,6 +101,26 @@ var (
 	// heartbeat interval.
 	minInstanceHeartbeatInterval = 3 * time.Minute
 )
+
+// ProxyAnnounceTTL is announce ttl used for proxy presence.
+// This defaults to [ServerAnnounceTTL].
+func ProxyAnnounceTTL() time.Duration {
+	v := os.Getenv("TELEPORT_UNSTABLE_PROXY_ANNOUNCE_TTL")
+	if d, err := time.ParseDuration(v); err == nil {
+		return d
+	}
+	return ServerAnnounceTTL
+}
+
+// AuthAnnounceTTL is announce ttl used for auth presence.
+// This defaults to [ServerAnnounceTTL].
+func AuthAnnounceTTL() time.Duration {
+	v := os.Getenv("TELEPORT_UNSTABLE_AUTH_ANNOUNCE_TTL")
+	if d, err := time.ParseDuration(v); err == nil {
+		return d
+	}
+	return ServerAnnounceTTL
+}
 
 func SetTestTimeouts(svrKeepAliveTTL, keepAliveTick time.Duration) {
 	moduleLock.Lock()
