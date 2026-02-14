@@ -378,6 +378,8 @@ export const eventCodes = {
   INFERENCE_POLICY_CREATE: 'INF007I',
   INFERENCE_POLICY_UPDATE: 'INF008I',
   INFERENCE_POLICY_DELETE: 'INF009I',
+  SESSION_SUMMARIZED: 'INF010I',
+  SESSION_SUMMARIZED_FAILURE: 'INF010E',
 } as const;
 
 /**
@@ -2213,6 +2215,26 @@ export type RawEvents = {
   [eventCodes.INFERENCE_POLICY_DELETE]: RawEvent<
     typeof eventCodes.INFERENCE_POLICY_DELETE,
     HasName
+  >;
+  [eventCodes.SESSION_SUMMARIZED]: RawEvent<
+    typeof eventCodes.SESSION_SUMMARIZED,
+    {
+      sid: string;
+      session_type?: string;
+      model_name?: string;
+      risk_level?: string;
+      short_description?: string;
+    }
+  >;
+  [eventCodes.SESSION_SUMMARIZED_FAILURE]: RawEvent<
+    typeof eventCodes.SESSION_SUMMARIZED_FAILURE,
+    {
+      sid: string;
+      session_type?: string;
+      model_name?: string;
+      risk_level?: string;
+      short_description?: string;
+    }
   >;
 };
 

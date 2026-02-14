@@ -608,6 +608,9 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case InferencePolicyDeleteEvent:
 		e = &events.InferencePolicyDelete{}
 
+	case SessionSummarizedEvent:
+		e = &events.SessionSummarized{}
+
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 	}
