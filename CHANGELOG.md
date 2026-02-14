@@ -2,11 +2,6 @@
 
 ## 18.7.0 (02/13/26)
 
-#### Session timeline view for Identity Security
-
-Session player for Identity Security users received an enhanced timeline view with
-per-command session breakdown.
-
 #### Organization-level auto-discovery for AWS EC2 instances
 
 AWS auto-discovery supports EC2 instance enrollment from all or a subset of accounts
