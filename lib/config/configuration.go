@@ -2042,6 +2042,14 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// Apps are enabled.
 	cfg.Apps.Enabled = true
 
+	// Warn if proxy_service is enabled in the same config but has no
+	// public_addr. Without it, app access does not work.
+	if fc.Proxy.Enabled() && len(fc.Proxy.PublicAddr) == 0 {
+		slog.WarnContext(context.Background(),
+			"app_service requires proxy_service.public_addr to route requests; app access will not work until it is set",
+		)
+	}
+
 	// Enable debugging application if requested.
 	cfg.Apps.DebugApp = fc.Apps.DebugApp
 
