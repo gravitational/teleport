@@ -28,6 +28,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -146,8 +147,6 @@ func TestRootCleanup(t *testing.T) {
 		MountPath: dir,
 	})
 	require.NoError(t, err)
-	const skipUnmount = false
-	defer service.Close(skipUnmount)
 
 	// Create fake session ID and cgroup.
 	sessionID := uuid.New().String()
@@ -161,6 +160,9 @@ func TestRootCleanup(t *testing.T) {
 	// Make sure the cgroup no longer exists.
 	cgroupPath := filepath.Join(service.teleportRoot, sessionID)
 	require.NoDirExists(t, cgroupPath)
+
+	err = service.unmount()
+	require.NoError(t, err)
 }
 
 // TestRootSkipUnmount checks that closing the service with skipUnmount set to
@@ -189,16 +191,33 @@ func TestRootSkipUnmount(t *testing.T) {
 	const skipUnmount = true
 	require.NoError(t, service.Close(skipUnmount))
 
-	require.DirExists(t, service.teleportRoot)
+	// Check whether cgroup mount path is indeed mounted as cgroup
+	isCgroupMounted, err := isCgroupDir(service.MountPath)
+	require.NoError(t, err)
+	require.True(t, isCgroupMounted)
+
+	require.DirExists(t, service.MountPath)
 	require.NoDirExists(t, filepath.Join(service.teleportRoot, sessionID))
 
 	require.NoError(t, service.unmount())
 
-	require.NoDirExists(t, service.teleportRoot)
+	// Check whether cgroup mount path is no longer mounted as cgroup
+	isCgroupMounted, err = isCgroupDir(service.MountPath)
+	require.NoError(t, err)
+	require.False(t, isCgroupMounted)
 }
 
 // isRoot returns a boolean if the test is being run as root or not. Tests
 // for this package must be run as root.
 func isRoot() bool {
 	return os.Geteuid() == 0
+}
+
+func isCgroupDir(path string) (bool, error) {
+	var st unix.Statfs_t
+	if err := unix.Statfs(path, &st); err != nil {
+		return false, err
+	}
+
+	return st.Type == unix.CGROUP2_SUPER_MAGIC, nil
 }
