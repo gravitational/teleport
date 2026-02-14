@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 
-import { fireEvent, render, screen } from 'design/utils/testing';
+import { act, render, screen, userEvent } from 'design/utils/testing';
 import { requestRoleApproved } from 'shared/components/AccessRequests/fixtures';
 import { RequestFlags } from 'shared/components/AccessRequests/ReviewRequests';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
@@ -29,6 +29,8 @@ import { RequestList } from './RequestList';
 test('disabled assume button with assume start date', async () => {
   // Set system time before the assume start date.
   jest.useFakeTimers().setSystemTime(new Date('2024-02-16T02:51:12.70087Z'));
+
+  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
 
   render(
     <MemoryRouter>
@@ -48,7 +50,9 @@ test('disabled assume button with assume start date', async () => {
   expect(assumeBtn).toBeDisabled();
 
   // Mouse over the disabled button, and expect a popup message.
-  fireEvent.mouseEnter(assumeBtn);
+  await act(async () => {
+    await user.hover(assumeBtn);
+  });
   expect(
     screen.getByText(/access is not available until the approved time/i)
   ).toBeInTheDocument();

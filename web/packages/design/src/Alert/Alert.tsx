@@ -18,7 +18,7 @@
 
 import { LocationDescriptor } from 'history';
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 import { color, ColorProps, style } from 'styled-system';
 

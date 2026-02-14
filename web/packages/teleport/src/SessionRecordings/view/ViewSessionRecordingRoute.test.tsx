@@ -19,7 +19,7 @@
 import { screen } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
-import { MemoryRouter, Route } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 import { render, testQueryClient } from 'design/utils/testing';
 
@@ -87,9 +87,12 @@ function setupTest(initialEntry?: string) {
   return render(
     <MemoryRouter initialEntries={initialEntry ? [initialEntry] : undefined}>
       <ContextProvider ctx={ctx}>
-        <Route path={cfg.routes.player}>
-          <ViewSessionRecordingRoute />
-        </Route>
+        <Routes>
+          <Route
+            path={cfg.routes.player}
+            element={<ViewSessionRecordingRoute />}
+          />
+        </Routes>
       </ContextProvider>
     </MemoryRouter>
   );

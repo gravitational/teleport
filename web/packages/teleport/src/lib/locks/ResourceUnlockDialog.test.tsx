@@ -16,14 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createMemoryHistory } from 'history';
 import { setupServer } from 'msw/node';
 import {
   ComponentPropsWithoutRef,
   MouseEventHandler,
   PropsWithChildren,
 } from 'react';
-import { Router } from 'react-router';
 
 import {
   Providers,
@@ -193,7 +191,7 @@ describe('ResourceUnlockDialog', () => {
 });
 
 function renderComponent(
-  options?: { history?: ReturnType<typeof createMemoryHistory> } & Pick<
+  options?: { initialEntries?: string[] } & Pick<
     Partial<ComponentPropsWithoutRef<typeof ResourceUnlockDialog>>,
     'onCancel' | 'onComplete' | 'onGoToLocksForTesting'
   >
@@ -219,15 +217,13 @@ function renderComponent(
   };
 }
 
-function makeWrapper(options?: {
-  history?: ReturnType<typeof createMemoryHistory>;
-}) {
-  const { history = createMemoryHistory() } = options ?? {};
+function makeWrapper(options?: { initialEntries?: string[] }) {
+  const { initialEntries = ['/'] } = options ?? {};
   const ctx = createTeleportContext();
   return (props: PropsWithChildren) => (
     <Providers>
-      <TeleportProviderBasic teleportCtx={ctx}>
-        <Router history={history}>{props.children}</Router>
+      <TeleportProviderBasic teleportCtx={ctx} initialEntries={initialEntries}>
+        {props.children}
       </TeleportProviderBasic>
     </Providers>
   );

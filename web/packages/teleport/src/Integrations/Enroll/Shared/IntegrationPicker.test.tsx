@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createMemoryHistory } from 'history';
 import type { PropsWithChildren } from 'react';
-import { Router } from 'react-router';
+import { MemoryRouter } from 'react-router';
 
 import { Providers, render, screen } from 'design/utils/testing';
 
@@ -63,14 +62,10 @@ const defaultProps = {
 };
 
 function makeWrapper(route: string = '/') {
-  const history = createMemoryHistory({
-    initialEntries: [route],
-  });
-
   return function wrapper({ children }: PropsWithChildren) {
     return (
       <Providers>
-        <Router history={history}>{children}</Router>
+        <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
       </Providers>
     );
   };

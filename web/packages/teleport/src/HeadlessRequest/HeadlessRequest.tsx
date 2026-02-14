@@ -31,7 +31,7 @@ import auth from 'teleport/services/auth';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 export function HeadlessRequest() {
-  const { requestId } = useParams<{ requestId: string }>();
+  const { requestId } = useParams() as { requestId: string };
 
   const [state, setState] = useState({
     ipAddress: '',

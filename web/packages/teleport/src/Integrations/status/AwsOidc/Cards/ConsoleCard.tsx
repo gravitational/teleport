@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { Link as InternalLink } from 'react-router-dom';
+import { Link as InternalLink } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
 import { P3, SyncStamp, Text } from 'design';

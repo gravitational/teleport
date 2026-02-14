@@ -38,12 +38,20 @@ describe('getServerUri', () => {
     {
       name: 'throws an error if serverId is missing from the root cluster URI',
       input: { rootClusterId: 'foo' },
-      wantErr: new TypeError('Expected "serverId" to be defined'),
+      // react-router changed the error message format
+      wantErr: 'Missing ":serverId" param',
     },
     {
       name: 'throws an error if serverId is missing from the leaf cluster URI',
       input: { rootClusterId: 'foo', leafClusterId: 'bar' },
-      wantErr: new TypeError('Expected "serverId" to be defined'),
+      // react-router changed the error message format
+      wantErr: 'Missing ":serverId" param',
+    },
+    {
+      name: 'throws an error if serverId is missing from the leaf cluster URI',
+      input: { rootClusterId: 'foo', leafClusterId: 'bar' },
+      // react-router changed the error message format
+      wantErr: 'Missing ":serverId" param',
     },
     {
       // This isn't necessarily a behavior which we should depend on, but we should document it

@@ -25,7 +25,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react';
-import { useHistory } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 
 import { SortOrder } from 'shared/components/Controls/SortMenu';
 
@@ -251,10 +251,11 @@ export function statesAreEqual(a: RecordingsListState, b: RecordingsListState) {
 export function useRecordingsListState(
   ranges: EventRange[]
 ): [RecordingsListState, Dispatch<SetStateAction<RecordingsListState>>] {
-  const history = useHistory();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const [state, _setState] = useState<RecordingsListState>(() =>
-    searchParamsToState(ranges, new URLSearchParams(history.location.search))
+    searchParamsToState(ranges, new URLSearchParams(location.search))
   );
 
   const setState = useCallback(
@@ -282,7 +283,7 @@ export function useRecordingsListState(
     []
   );
 
-  const currentSearch = useRef<string>(history.location.search);
+  const currentSearch = useRef<string>(location.search);
 
   useEffect(() => {
     const params = stateToSearchParams(state);
@@ -290,7 +291,7 @@ export function useRecordingsListState(
     currentSearch.current = `?${params.toString()}`;
 
     if (
-      history.location.search.length === 0 &&
+      location.search.length === 0 &&
       currentSearch.current.length === 1 // empty, i.e. just '?'
     ) {
       // the current search is empty, and the state is also empty,
@@ -298,25 +299,26 @@ export function useRecordingsListState(
       return;
     }
 
-    if (history.location.search !== currentSearch.current) {
-      history.replace({
-        hash: history.location.hash,
-        search: currentSearch.current,
-      });
+    if (location.search !== currentSearch.current) {
+      navigate(
+        {
+          hash: location.hash,
+          search: currentSearch.current,
+        },
+        { replace: true }
+      );
     }
-  }, [history, state]);
+  }, [navigate, location, state]);
 
   useEffect(() => {
-    return history.listen(next => {
-      if (next.search !== currentSearch.current) {
-        _setState(
-          searchParamsToState(ranges, new URLSearchParams(next.search))
-        );
+    if (location.search !== currentSearch.current) {
+      _setState(
+        searchParamsToState(ranges, new URLSearchParams(location.search))
+      );
 
-        currentSearch.current = next.search;
-      }
-    });
-  }, [history, ranges]);
+      currentSearch.current = location.search;
+    }
+  }, [location.search, ranges]);
 
   return [state, setState] as const;
 }

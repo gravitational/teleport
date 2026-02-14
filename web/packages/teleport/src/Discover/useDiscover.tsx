@@ -17,7 +17,7 @@
  */
 
 import React, { useCallback, useContext, useEffect, useState } from 'react';
-import { useHistory, useLocation } from 'react-router';
+import { useLocation } from 'react-router';
 
 import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
 
@@ -136,8 +136,8 @@ export function DiscoverProvider({
   eViewConfigs = [],
   updateFlow,
 }: React.PropsWithChildren<DiscoverProviderProps>) {
-  const history = useHistory();
-  const location = useLocation<DiscoverUrlLocationState>();
+  const location = useLocation();
+  const locationState = location.state as DiscoverUrlLocationState;
   const { infoGuideConfig, setInfoGuideConfig } = useInfoGuide();
 
   const [currentStep, setCurrentStep] = useState(0);
@@ -212,16 +212,16 @@ export function DiscoverProvider({
       // Emit abort event upon unmounting from going back or
       // forward to a non-discover route or upon exiting from
       // the exit prompt.
-      if (history.location.pathname !== cfg.routes.discover) {
+      if (location.pathname !== cfg.routes.discover) {
         emitAbortOrSuccessEvent();
       }
 
       window.removeEventListener('beforeunload', emitAbortOrSuccessEvent);
     };
-  }, [eventState, history.location.pathname, emitEvent]);
+  }, [eventState, location.pathname, emitEvent]);
 
   useEffect(() => {
-    if (location.state?.discover) {
+    if (locationState?.discover) {
       resumeDiscoverFlow();
     } else {
       initEventState();
@@ -272,7 +272,7 @@ export function DiscoverProvider({
   // The location.state.discover should contain all the state that allows
   // the user to resume from where they left of.
   function resumeDiscoverFlow() {
-    const { discover, integration } = location.state;
+    const { discover, integration } = locationState;
 
     updateAgentMeta({ awsIntegration: integration });
 

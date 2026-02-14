@@ -16,33 +16,43 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createBrowserHistory, type History } from 'history';
 import { matchPath } from 'react-router';
 
 import cfg from 'teleport/config';
 
-let _inst: History = null;
+interface NavigationFunctions {
+  navigate: (to: string, options?: { replace?: boolean }) => void;
+  getLocation: () => { pathname: string; search: string; hash: string };
+}
+
+let _nav: NavigationFunctions | null = null;
 
 const history = {
+  /**
+   * Get the navigation functions.
+   */
   original() {
-    return _inst;
+    return _nav;
   },
 
-  init(history?: History) {
-    _inst = history || createBrowserHistory();
+  /**
+   * Initialize with navigation functions from React Router.
+   */
+  init(nav: NavigationFunctions) {
+    _nav = nav;
   },
 
   replace(route = '') {
     route = this.ensureKnownRoute(route);
-    _inst.replace(route);
+    _nav?.navigate(route, { replace: true });
   },
 
-  push(route, withRefresh = false) {
+  push(route: string, withRefresh = false) {
     route = this.ensureKnownRoute(route);
     if (withRefresh) {
       this._pageRefresh(route);
     } else {
-      _inst.push(route);
+      _nav?.navigate(route);
     }
   },
 
@@ -63,7 +73,7 @@ const history = {
     }
 
     if (rememberLocation) {
-      const { search, pathname } = _inst.location;
+      const { search, pathname } = this.getLocation();
       const knownRoute = this.ensureKnownRoute(pathname);
       const knownRedirect = this.ensureBaseUrl(knownRoute);
       const query = search ? encodeURIComponent(search) : '';
@@ -80,11 +90,11 @@ const history = {
 
   // TODO (avatus): make this return a path only if a full URI is present
   getRedirectParam() {
-    return getUrlParameter('redirect_uri', this.original().location.search);
+    return getUrlParameter('redirect_uri', this.getLocation().search);
   },
 
   hasAccessChangedParam() {
-    return hasUrlParameter('access_changed', this.original().location.search);
+    return hasUrlParameter('access_changed', this.getLocation().search);
   },
 
   ensureKnownRoute(route = '') {
@@ -111,7 +121,19 @@ const history = {
   },
 
   getLocation() {
-    return this.original().location;
+    if (_nav) {
+      return _nav.getLocation();
+    }
+
+    if (typeof window !== 'undefined' && window.location) {
+      return {
+        pathname: window.location.pathname,
+        search: window.location.search,
+        hash: window.location.hash,
+      };
+    }
+
+    return { pathname: '', search: '', hash: '' };
   },
 
   _canPush(route: string) {
@@ -122,10 +144,10 @@ const history = {
 
     const match = (known: string) =>
       // only match against pathname
-      matchPath(pathname, {
-        path: known,
-        exact: !nonExactRoutes.includes(known),
-      });
+      matchPath(
+        { path: known, end: !nonExactRoutes.includes(known) },
+        pathname
+      );
 
     return knownRoutes.some(match);
   },

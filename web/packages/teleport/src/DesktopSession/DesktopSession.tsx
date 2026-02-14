@@ -39,7 +39,8 @@ import { useUser } from 'teleport/User/UserContext';
 export function DesktopSession() {
   const ctx = useTeleport();
   const { preferences } = useUser();
-  const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
+  const { username, desktopName, clusterId } =
+    useParams() as unknown as UrlDesktopParams;
   useEffect(() => {
     document.title = `${username} on ${desktopName} • ${clusterId}`;
   }, [clusterId, desktopName, username]);

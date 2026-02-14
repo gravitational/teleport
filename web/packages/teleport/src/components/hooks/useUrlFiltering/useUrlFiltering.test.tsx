@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createMemoryHistory } from 'history';
-import { Router } from 'react-router';
+import { ReactNode } from 'react';
+import { MemoryRouter } from 'react-router';
 
 import { SortType } from 'design/DataTable/types';
 import renderHook from 'design/utils/renderHook';
@@ -37,12 +37,11 @@ test('extracting params from URL with simple search and sort params', () => {
     statuses: undefined,
   };
 
-  const history = createMemoryHistory({ initialEntries: [url] });
-
   let result;
   result = renderHook(() => useUrlFiltering(initialParams), {
-    wrapper: Wrapper,
-    wrapperProps: { history },
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <MemoryRouter initialEntries={[url]}>{children}</MemoryRouter>
+    ),
   });
 
   expect(result.current.params).toEqual(expected);
@@ -63,12 +62,11 @@ test('extracting params from URL with advanced search and sort params', () => {
     statuses: undefined,
   };
 
-  const history = createMemoryHistory({ initialEntries: [url] });
-
   let result;
   result = renderHook(() => useUrlFiltering(initialParams), {
-    wrapper: Wrapper,
-    wrapperProps: { history },
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <MemoryRouter initialEntries={[url]}>{children}</MemoryRouter>
+    ),
   });
 
   expect(result.current.params).toEqual(expected);
@@ -85,12 +83,11 @@ test('extracting params from URL with simple search param but no sort param', ()
     statuses: undefined,
   };
 
-  const history = createMemoryHistory({ initialEntries: [url] });
-
   let result;
   result = renderHook(() => useUrlFiltering(initialParams), {
-    wrapper: Wrapper,
-    wrapperProps: { history },
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <MemoryRouter initialEntries={[url]}>{children}</MemoryRouter>
+    ),
   });
 
   expect(result.current.params).toEqual(expected);
@@ -106,12 +103,11 @@ test('extracting params from URL with no search param and with sort param with u
     statuses: undefined,
   };
 
-  const history = createMemoryHistory({ initialEntries: [url] });
-
   let result;
   result = renderHook(() => useUrlFiltering(initialParams), {
-    wrapper: Wrapper,
-    wrapperProps: { history },
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <MemoryRouter initialEntries={[url]}>{children}</MemoryRouter>
+    ),
   });
 
   expect(result.current.params).toEqual(expected);
@@ -128,11 +124,10 @@ test('extracting params from URL with resource kinds and statuses', () => {
     statuses: ['unknown', 'healthy'],
   };
 
-  const history = createMemoryHistory({ initialEntries: [url] });
-
   const { current } = renderHook(() => useUrlFiltering(initialParams), {
-    wrapper: Wrapper,
-    wrapperProps: { history },
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <MemoryRouter initialEntries={[url]}>{children}</MemoryRouter>
+    ),
   });
 
   expect(current.params).toEqual(expected);
@@ -144,7 +139,3 @@ const initialSort: SortType = {
 };
 
 const initialParams = { sort: initialSort };
-
-function Wrapper(props: any) {
-  return <Router history={props.history}>{props.children}</Router>;
-}

@@ -61,7 +61,7 @@ export function ViewSessionRecordingRoute({
   withMetadataComponent: RecordingWithMetadataComponent = RecordingWithMetadata,
   withSummaryComponent: RecordingWithSummaryComponent,
 }: ViewSessionRecordingRouteProps) {
-  const { sid, clusterId } = useParams<UrlPlayerParams>();
+  const { sid, clusterId } = useParams() as unknown as UrlPlayerParams;
   const { search } = useLocation();
 
   const recordingType = getUrlParameter(

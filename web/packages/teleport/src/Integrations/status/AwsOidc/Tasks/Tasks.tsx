@@ -17,7 +17,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { useHistory, useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
 import { Flex, Indicator } from 'design';
@@ -40,8 +40,9 @@ import { integrationService, UserTask } from 'teleport/services/integrations';
 
 export function Tasks() {
   const theme = useTheme();
-  const history = useHistory();
-  const { search } = useLocation();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { search } = location;
   const searchParams = useMemo(() => new URLSearchParams(search), [search]);
   const [notification, setNotification] = useState<ToastNotificationItem>();
 
@@ -112,13 +113,13 @@ export function Tasks() {
         id: selectedTask,
       });
     }
-    history.replace(history.location.pathname);
+    navigate(location.pathname, { replace: true });
   }
 
   function openTask(task: UserTask) {
     const urlParams = new URLSearchParams();
     urlParams.append('task', task.name);
-    history.replace(`${history.location.pathname}?${urlParams.toString()}`);
+    navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true });
   }
 
   return (

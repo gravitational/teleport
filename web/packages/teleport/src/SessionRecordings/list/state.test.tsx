@@ -17,9 +17,8 @@
  */
 
 import { act, renderHook } from '@testing-library/react';
-import { createMemoryHistory } from 'history';
 import type { PropsWithChildren } from 'react';
-import { Router } from 'react-router';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router';
 
 import { EventRange } from 'teleport/components/EventRangePicker';
 
@@ -678,14 +677,29 @@ describe('useRecordingsListState', () => {
     },
   ];
 
-  it('initializes state from URL search params', () => {
-    const history = createMemoryHistory({
-      initialEntries: ['/session-recordings?page=2&sort=type'],
-    });
+  function createWrapper(initialEntries: string[] = ['/']) {
+    return function wrapper({ children }: PropsWithChildren) {
+      return (
+        <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>
+      );
+    };
+  }
 
-    function wrapper({ children }: PropsWithChildren) {
-      return <Router history={history}>{children}</Router>;
-    }
+  function useRecordingsListStateHarness() {
+    const [state, setState] = useRecordingsListState(mockRanges);
+    const location = useLocation();
+    const navigate = useNavigate();
+
+    return {
+      state,
+      setState,
+      location,
+      navigate,
+    };
+  }
+
+  it('initializes state from URL search params', () => {
+    const wrapper = createWrapper(['/session-recordings?page=2&sort=type']);
 
     const { result } = renderHook(() => useRecordingsListState(mockRanges), {
       wrapper,
@@ -698,57 +712,41 @@ describe('useRecordingsListState', () => {
   });
 
   it('updates URL when state changes', () => {
-    const history = createMemoryHistory();
+    const wrapper = createWrapper();
 
-    function wrapper({ children }: PropsWithChildren) {
-      return <Router history={history}>{children}</Router>;
-    }
-
-    const { result } = renderHook(() => useRecordingsListState(mockRanges), {
+    const { result } = renderHook(() => useRecordingsListStateHarness(), {
       wrapper,
     });
 
-    const [, setState] = result.current;
-
     act(() => {
-      setState(prev => ({
+      result.current.setState(prev => ({
         ...prev,
         page: 3,
         sortKey: 'type',
       }));
     });
 
-    expect(history.location.search).toContain('page=3');
-    expect(history.location.search).toContain('sort=type');
+    expect(result.current.location.search).toContain('page=3');
+    expect(result.current.location.search).toContain('sort=type');
   });
 
   it('responds to browser navigation', () => {
-    const history = createMemoryHistory();
+    const wrapper = createWrapper();
 
-    function wrapper({ children }: PropsWithChildren) {
-      return <Router history={history}>{children}</Router>;
-    }
-
-    const { result } = renderHook(() => useRecordingsListState(mockRanges), {
+    const { result } = renderHook(() => useRecordingsListStateHarness(), {
       wrapper,
     });
 
     act(() => {
-      history.push('?page=5&sort=type');
+      result.current.navigate('?page=5&sort=type');
     });
 
-    const [state] = result.current;
-
-    expect(state.page).toBe(5);
-    expect(state.sortKey).toBe('type');
+    expect(result.current.state.page).toBe(5);
+    expect(result.current.state.sortKey).toBe('type');
   });
 
   it('prevents unnecessary state updates', () => {
-    const history = createMemoryHistory();
-
-    function wrapper({ children }: PropsWithChildren) {
-      return <Router history={history}>{children}</Router>;
-    }
+    const wrapper = createWrapper();
 
     const { result } = renderHook(() => useRecordingsListState(mockRanges), {
       wrapper,
@@ -766,11 +764,7 @@ describe('useRecordingsListState', () => {
   });
 
   it('handles functional updates', () => {
-    const history = createMemoryHistory();
-
-    function wrapper({ children }: PropsWithChildren) {
-      return <Router history={history}>{children}</Router>;
-    }
+    const wrapper = createWrapper();
 
     const { result } = renderHook(() => useRecordingsListState(mockRanges), {
       wrapper,
@@ -791,26 +785,20 @@ describe('useRecordingsListState', () => {
   });
 
   it('does not update URL for default empty search params', () => {
-    const history = createMemoryHistory();
-    const replaceSpy = jest.spyOn(history, 'replace');
+    const wrapper = createWrapper();
 
-    function wrapper({ children }: PropsWithChildren) {
-      return <Router history={history}>{children}</Router>;
-    }
+    const { result } = renderHook(() => useRecordingsListStateHarness(), {
+      wrapper,
+    });
 
-    renderHook(() => useRecordingsListState(mockRanges), { wrapper });
-
-    expect(replaceSpy).not.toHaveBeenCalled();
+    // With default state, the URL should remain unchanged (no search params)
+    expect(result.current.location.search).toBe('');
   });
 
   it('handles hideNonInteractive filter in URL params', () => {
-    const history = createMemoryHistory({
-      initialEntries: ['/session-recordings?hide_non_interactive=true'],
-    });
-
-    function wrapper({ children }: PropsWithChildren) {
-      return <Router history={history}>{children}</Router>;
-    }
+    const wrapper = createWrapper([
+      '/session-recordings?hide_non_interactive=true',
+    ]);
 
     const { result } = renderHook(() => useRecordingsListState(mockRanges), {
       wrapper,
@@ -822,20 +810,14 @@ describe('useRecordingsListState', () => {
   });
 
   it('updates URL when hideNonInteractive filter changes', () => {
-    const history = createMemoryHistory();
+    const wrapper = createWrapper();
 
-    function wrapper({ children }: PropsWithChildren) {
-      return <Router history={history}>{children}</Router>;
-    }
-
-    const { result } = renderHook(() => useRecordingsListState(mockRanges), {
+    const { result } = renderHook(() => useRecordingsListStateHarness(), {
       wrapper,
     });
 
-    const [, setState] = result.current;
-
     act(() => {
-      setState(prev => ({
+      result.current.setState(prev => ({
         ...prev,
         filters: {
           ...prev.filters,
@@ -844,17 +826,13 @@ describe('useRecordingsListState', () => {
       }));
     });
 
-    expect(history.location.search).toContain('hide_non_interactive=true');
+    expect(result.current.location.search).toContain(
+      'hide_non_interactive=true'
+    );
   });
 
   it('handles search parameter in URL params', () => {
-    const history = createMemoryHistory({
-      initialEntries: ['/session-recordings?search=test%20query'],
-    });
-
-    function wrapper({ children }: PropsWithChildren) {
-      return <Router history={history}>{children}</Router>;
-    }
+    const wrapper = createWrapper(['/session-recordings?search=test%20query']);
 
     const { result } = renderHook(() => useRecordingsListState(mockRanges), {
       wrapper,
@@ -866,25 +844,19 @@ describe('useRecordingsListState', () => {
   });
 
   it('updates URL when search changes', () => {
-    const history = createMemoryHistory();
+    const wrapper = createWrapper();
 
-    function wrapper({ children }: PropsWithChildren) {
-      return <Router history={history}>{children}</Router>;
-    }
-
-    const { result } = renderHook(() => useRecordingsListState(mockRanges), {
+    const { result } = renderHook(() => useRecordingsListStateHarness(), {
       wrapper,
     });
 
-    const [, setState] = result.current;
-
     act(() => {
-      setState(prev => ({
+      result.current.setState(prev => ({
         ...prev,
         search: 'new search term',
       }));
     });
 
-    expect(history.location.search).toContain('search=new+search+term');
+    expect(result.current.location.search).toContain('search=new+search+term');
   });
 });

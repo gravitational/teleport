@@ -17,7 +17,6 @@
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { History } from 'history';
 import React, { Suspense, useEffect } from 'react';
 
 import { ToastNotificationProvider } from 'shared/components/ToastNotification';
@@ -63,9 +62,10 @@ const queryClient = new QueryClient({
 });
 
 const Teleport: React.FC<Props> = props => {
-  const { ctx, history } = props;
+  const { ctx } = props;
   const createPublicRoutes = props.renderPublicRoutes || publicOSSRoutes;
   const createPrivateRoutes = props.renderPrivateRoutes || privateOSSRoutes;
+
   // update the favicon based on the system pref, and listen if it changes
   // overtime.
   // TODO(avatus) this can be expanded upon eventually to handle the entire theme
@@ -96,7 +96,7 @@ const Teleport: React.FC<Props> = props => {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <LayoutContextProvider>
-            <Router history={history}>
+            <Router>
               <Suspense fallback={null}>
                 <Switch>
                   {createPublicRoutes()}
@@ -107,6 +107,7 @@ const Teleport: React.FC<Props> = props => {
                           <TeleportContextProvider ctx={ctx}>
                             <Switch>
                               <Route
+                                exact={false}
                                 path={cfg.routes.appLauncher}
                                 component={AppLauncher}
                               />
@@ -229,7 +230,6 @@ export default Teleport;
 
 export type Props = {
   ctx: TeleportContext;
-  history: History;
   renderPublicRoutes?: () => React.ReactNode[];
   renderPrivateRoutes?: () => React.ReactNode;
 };

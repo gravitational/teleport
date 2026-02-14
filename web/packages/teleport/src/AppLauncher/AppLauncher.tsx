@@ -37,7 +37,7 @@ export function AppLauncher({
 }) {
   const { attempt, setAttempt } = useAttempt('processing');
 
-  const pathParams = useParams<UrlLauncherParams>();
+  const pathParams = useParams() as unknown as UrlLauncherParams;
   const { search } = useLocation();
   const queryParams = new URLSearchParams(search);
   const isRedirectFlow = queryParams.get('required-apps');
@@ -55,119 +55,129 @@ export function AppLauncher({
     },
   });
 
-  const createAppSession = useCallback(async (params: UrlLauncherParams) => {
-    let fqdn = params.fqdn;
-    const port = location.port ? `:${location.port}` : '';
+  const createAppSession = useCallback(
+    async (params: UrlLauncherParams) => {
+      let fqdn = params.fqdn;
+      const port = location.port ? `:${location.port}` : '';
 
-    try {
-      // TODO (avatus): see if we can get appDetails inside the initial /web/launch
-      // fetch request and remove the need for this second request.
+      try {
+        // TODO (avatus): see if we can get appDetails inside the initial /web/launch
+        // fetch request and remove the need for this second request.
 
-      // Attempt to resolve the fqdn of the app, if we can't then an error
-      // will be returned preventing a redirect to a potentially arbitrary
-      // address. Compare the resolved fqdn with the one that was passed,
-      // if they don't match then the public address was used to find the
-      // resolved fqdn, and the passed fdqn isn't valid.
-      const resolvedApp = await service.getAppDetails({
-        fqdn: params.fqdn,
-        clusterId: params.clusterId,
-        publicAddr: params.publicAddr,
-        arn: params.arn,
-      });
-      // Because the ports are stripped from the FQDNs before they are
-      // compared, an attacker can pass a FQDN with a different port than
-      // what the app's public address is configured with and have Teleport
-      // redirect to the public address with an arbitrary port. But because
-      // the attacker can't control what domain is redirected to this has
-      // a low risk factor.
-      if (prepareFqdn(resolvedApp.fqdn) !== prepareFqdn(params.fqdn)) {
-        throw Error(`Failed to match applications with FQDN "${params.fqdn}"`);
-      }
-
-      let path = '';
-      if (queryParams.has('path')) {
-        path = queryParams.get('path');
-
-        if (path && !path.startsWith('/')) {
-          path = `/${path}`;
-        }
-
-        if (queryParams.has('query')) {
-          path += '?' + queryParams.get('query');
-        }
-      }
-
-      let requiredApps = resolvedApp.requiredAppFQDNs || [];
-      if (isRedirectFlow !== null) {
-        requiredApps = isRedirectFlow.split(',');
-      }
-
-      // Let the target app know of a new auth exchange.
-      const stateToken = queryParams.get('state');
-      if (!stateToken) {
-        const url = getNewAuthExchangeUrl({
-          fqdn,
-          port,
-          path,
-          params,
-          requiredApps,
+        // Attempt to resolve the fqdn of the app, if we can't then an error
+        // will be returned preventing a redirect to a potentially arbitrary
+        // address. Compare the resolved fqdn with the one that was passed,
+        // if they don't match then the public address was used to find the
+        // resolved fqdn, and the passed fdqn isn't valid.
+        const resolvedApp = await service.getAppDetails({
+          fqdn: params.fqdn,
+          clusterId: params.clusterId,
+          publicAddr: params.publicAddr,
+          arn: params.arn,
         });
+        // Because the ports are stripped from the FQDNs before they are
+        // compared, an attacker can pass a FQDN with a different port than
+        // what the app's public address is configured with and have Teleport
+        // redirect to the public address with an arbitrary port. But because
+        // the attacker can't control what domain is redirected to this has
+        // a low risk factor.
+        if (prepareFqdn(resolvedApp.fqdn) !== prepareFqdn(params.fqdn)) {
+          throw Error(
+            `Failed to match applications with FQDN "${params.fqdn}"`
+          );
+        }
+
+        let path = '';
+        if (queryParams.has('path')) {
+          path = queryParams.get('path');
+
+          if (path && !path.startsWith('/')) {
+            path = `/${path}`;
+          }
+
+          if (queryParams.has('query')) {
+            path += '?' + queryParams.get('query');
+          }
+        }
+
+        let requiredApps = resolvedApp.requiredAppFQDNs || [];
+        if (isRedirectFlow !== null) {
+          requiredApps = isRedirectFlow.split(',');
+        }
+
+        // Let the target app know of a new auth exchange.
+        const stateToken = queryParams.get('state');
+        if (!stateToken) {
+          const url = getNewAuthExchangeUrl({
+            fqdn,
+            port,
+            path,
+            params,
+            requiredApps,
+          });
+          windowLocation.replace(url.toString());
+          return;
+        }
+
+        // Continue the auth exchange.
+        if (params.arn) {
+          params.arn = decodeURIComponent(params.arn);
+        }
+
+        const createAppSessionParams: CreateAppSessionParams = {
+          fqdn: params.fqdn,
+          cluster_name: params.clusterId,
+          public_addr: params.publicAddr,
+          arn: params.arn,
+          mfaResponse: await mfa.getChallengeResponse(),
+        };
+        const session = await service.createAppSession(createAppSessionParams);
+
+        // Set all the fields expected by server to validate request.
+        const url = getXTeleportAuthUrl({ fqdn, port });
+        url.searchParams.set('state', stateToken);
+        url.searchParams.set('subject', session.subjectCookieValue);
+        if (requiredApps.length > 1) {
+          url.searchParams.set('required-apps', requiredApps.join(','));
+        }
+        url.hash = `#value=${session.cookieValue}`;
+
+        if (path) {
+          url.searchParams.set('path', path);
+        }
+
+        // This will load an empty HTML with the inline JS containing
+        // logic to finish the auth exchange.
         windowLocation.replace(url.toString());
-        return;
+      } catch (err) {
+        let statusText = 'Something went wrong';
+
+        if (err instanceof TypeError) {
+          // `fetch` returns `TypeError` when there is a network error.
+          statusText = `Unable to access "${fqdn}". This may happen if your Teleport Proxy is using untrusted or self-signed certificate. Please ensure Teleport Proxy service uses valid certificate or access the application domain directly (https://${fqdn}${port}) and accept the certificate exception from your browser.`;
+        } else if (isRedirectFlow) {
+          statusText = `Error while authenticating a required app: ${err.message}`;
+        } else if (err instanceof Error) {
+          statusText = err.message;
+        }
+
+        setAttempt({
+          status: 'failed',
+          statusText,
+        });
       }
-
-      // Continue the auth exchange.
-      if (params.arn) {
-        params.arn = decodeURIComponent(params.arn);
-      }
-
-      const createAppSessionParams: CreateAppSessionParams = {
-        fqdn: params.fqdn,
-        cluster_name: params.clusterId,
-        public_addr: params.publicAddr,
-        arn: params.arn,
-        mfaResponse: await mfa.getChallengeResponse(),
-      };
-      const session = await service.createAppSession(createAppSessionParams);
-
-      // Set all the fields expected by server to validate request.
-      const url = getXTeleportAuthUrl({ fqdn, port });
-      url.searchParams.set('state', stateToken);
-      url.searchParams.set('subject', session.subjectCookieValue);
-      if (requiredApps.length > 1) {
-        url.searchParams.set('required-apps', requiredApps.join(','));
-      }
-      url.hash = `#value=${session.cookieValue}`;
-
-      if (path) {
-        url.searchParams.set('path', path);
-      }
-
-      // This will load an empty HTML with the inline JS containing
-      // logic to finish the auth exchange.
-      windowLocation.replace(url.toString());
-    } catch (err) {
-      let statusText = 'Something went wrong';
-
-      if (err instanceof TypeError) {
-        // `fetch` returns `TypeError` when there is a network error.
-        statusText = `Unable to access "${fqdn}". This may happen if your Teleport Proxy is using untrusted or self-signed certificate. Please ensure Teleport Proxy service uses valid certificate or access the application domain directly (https://${fqdn}${port}) and accept the certificate exception from your browser.`;
-      } else if (isRedirectFlow) {
-        statusText = `Error while authenticating a required app: ${err.message}`;
-      } else if (err instanceof Error) {
-        statusText = err.message;
-      }
-
-      setAttempt({
-        status: 'failed',
-        statusText,
-      });
-    }
-  }, []);
+    },
+    [mfa, queryParams, setAttempt, windowLocation, isRedirectFlow]
+  );
 
   useEffect(() => {
-    createAppSession(pathParams);
-  }, [pathParams]);
+    createAppSession({
+      fqdn: pathParams.fqdn || '',
+      clusterId: pathParams.clusterId,
+      publicAddr: pathParams.publicAddr,
+      arn: pathParams.arn,
+    });
+  }, [createAppSession, pathParams]);
 
   return (
     <div>

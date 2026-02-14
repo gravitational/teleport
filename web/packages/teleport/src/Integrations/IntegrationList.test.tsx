@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createMemoryHistory } from 'history';
-import { Router } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 import { render, screen, userEvent } from 'design/utils/testing';
 
@@ -27,31 +26,46 @@ import {
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
 
-test('integration list does not display action menu for aws-oidc, row click navigates', async () => {
-  const history = createMemoryHistory();
-  history.push = jest.fn();
+const mockedNavigate = jest.fn();
 
+jest.mock('react-router', () => ({
+  ...jest.requireActual('react-router'),
+  useNavigate: () => mockedNavigate,
+}));
+
+beforeEach(() => {
+  mockedNavigate.mockReset();
+});
+
+test('integration list does not display action menu for aws-oidc, row click navigates', async () => {
   render(
-    <Router history={history}>
-      <IntegrationList
-        list={[
-          {
-            resourceType: 'integration',
-            name: 'aws-integration',
-            kind: IntegrationKind.AwsOidc,
-            statusCode: IntegrationStatusCode.Running,
-            spec: { roleArn: '', issuerS3Prefix: '', issuerS3Bucket: '' },
-          },
-        ]}
-      />
-    </Router>
+    <MemoryRouter initialEntries={['/integrations']}>
+      <Routes>
+        <Route
+          path="/integrations"
+          element={
+            <IntegrationList
+              list={[
+                {
+                  resourceType: 'integration',
+                  name: 'aws-integration',
+                  kind: IntegrationKind.AwsOidc,
+                  statusCode: IntegrationStatusCode.Running,
+                  spec: { roleArn: '', issuerS3Prefix: '', issuerS3Bucket: '' },
+                },
+              ]}
+            />
+          }
+        />
+      </Routes>
+    </MemoryRouter>
   );
 
   expect(
     screen.queryByRole('button', { name: 'Options' })
   ).not.toBeInTheDocument();
   await userEvent.click(screen.getAllByRole('row')[1]);
-  expect(history.push).toHaveBeenCalledWith(
+  expect(mockedNavigate).toHaveBeenCalledWith(
     '/web/integrations/status/aws-oidc/aws-integration'
   );
 });

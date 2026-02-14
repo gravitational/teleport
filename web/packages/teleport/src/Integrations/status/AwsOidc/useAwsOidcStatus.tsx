@@ -38,10 +38,10 @@ export const awsOidcStatusContext =
   createContext<AwsOidcStatusContextState>(null);
 
 export function AwsOidcStatusProvider({ children }: React.PropsWithChildren) {
-  const { name } = useParams<{
+  const { name } = useParams() as {
     type: IntegrationKind;
     name: string;
-  }>();
+  };
   const ctx = useTeleport();
   const integrationAccess = ctx.storeUser.getIntegrationsAccess();
   const hasIntegrationReadAccess = integrationAccess.read;

@@ -91,7 +91,7 @@ test('getSsoUrl', () => {
   expect(
     cfg.getSsoUrl(providerUrl, 'keycloak', 'example.com', 'user@example.com')
   ).toEqual(
-    'http://localhost/v1/webapi/oidc/login/web?connector_id=keycloak&login_hint=user@example.com&redirect_url=example.com'
+    'http://localhost/v1/webapi/oidc/login/web?connector_id=keycloak&login_hint=user%40example.com&redirect_url=example.com'
   );
   expect(
     cfg.getSsoUrl(
@@ -101,6 +101,41 @@ test('getSsoUrl', () => {
       'user@example.com'
     )
   ).toEqual(
-    'http://localhost/v1/webapi/oidc/login/web?connector_id=keycloak&login_hint=user@example.com&redirect_url=example.com%3Fa=b&c=d'
+    'http://localhost/v1/webapi/oidc/login/web?connector_id=keycloak&login_hint=user%40example.com&redirect_url=example.com%3Fa%3Db%26c%3Dd'
+  );
+});
+
+test('getUsersUrlV2 encodes params', () => {
+  expect(
+    cfg.getUsersUrlV2({
+      startKey: 'next=1&offset=2',
+      search: 'user@example.com / admin',
+      limit: 25,
+    })
+  ).toEqual(
+    '/v2/webapi/users?startKey=next%3D1%26offset%3D2&search=user%40example.com%20%2F%20admin&limit=25'
+  );
+});
+
+test('getUsersUrlV2 clears optional params', () => {
+  expect(cfg.getUsersUrlV2()).toEqual(
+    '/v2/webapi/users?startKey=&search=&limit='
+  );
+});
+
+test('getRoleUrl listv2 encodes query params', () => {
+  expect(
+    cfg.getRoleUrl({
+      action: 'listv2',
+      params: {
+        startKey: 'next=1&offset=2',
+        search: 'role:admin@example.com',
+        limit: 50,
+        includeSystemRoles: 'yes',
+        includeObject: 'yes',
+      },
+    })
+  ).toEqual(
+    '/v2/webapi/roles?startKey=next%3D1%26offset%3D2&search=role%3Aadmin%40example.com&limit=50&includeSystemRoles=yes&includeObject=yes'
   );
 });

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 import { useMemo } from 'react';
-import { useHistory } from 'react-router';
+import { useNavigate } from 'react-router';
 
 import { Alert, Box, Flex } from 'design';
 
@@ -34,9 +34,10 @@ import { IntegrationKind } from 'teleport/services/integrations';
 import useTeleport from 'teleport/useTeleport';
 
 export const AwsRolesAnywhereSetup = () => {
-  const { subPage } = useParams<{ subPage?: string }>();
+  const params = useParams<Record<string, string | undefined>>();
+  const subPage = params.subPage ?? params['*']?.split('/')[0];
   const ctx = useTeleport();
-  const history = useHistory();
+  const navigate = useNavigate();
   const integrationsAccess = ctx.storeUser.getIntegrationsAccess();
   const canEnroll = integrationsAccess.create;
 
@@ -102,14 +103,14 @@ export const AwsRolesAnywhereSetup = () => {
                   resourceText="AWS IAM Roles Anywhere Profiles will be imported soon and available in the Resources page."
                   primaryButtonText="Go To Resources"
                   primaryButtonAction={() =>
-                    history.push(
+                    navigate(
                       `${cfg.getUnifiedResourcesRoute(cfg.proxyCluster)}?kinds=app&query=search("arn:aws:rolesanywhere")`,
-                      { kind: 'app' }
+                      { state: { kind: 'app' } }
                     )
                   }
                   secondaryButtonText="View Integration"
                   secondaryButtonAction={() =>
-                    history.push(
+                    navigate(
                       cfg.getIntegrationStatusRoute(
                         IntegrationKind.AwsRa,
                         props.location.state.integrationName

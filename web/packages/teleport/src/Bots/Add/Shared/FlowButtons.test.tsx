@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createMemoryHistory } from 'history';
-import { MemoryRouter, Router } from 'react-router';
+import { MemoryRouter } from 'react-router';
 
 import { render, screen, userEvent } from 'design/utils/testing';
 
@@ -25,9 +24,22 @@ import cfg from 'teleport/config';
 
 import { FlowButtons, FlowButtonsProps } from './FlowButtons';
 
+const mockedNavigate = jest.fn();
+const mockedUseLocation = jest.fn();
+
+jest.mock('react-router', () => ({
+  ...jest.requireActual('react-router'),
+  useNavigate: () => mockedNavigate,
+  useLocation: () => mockedUseLocation(),
+}));
+
 describe('flowButtons component', () => {
   let props: FlowButtonsProps;
   beforeEach(() => {
+    mockedNavigate.mockReset();
+    mockedUseLocation.mockReset();
+    mockedUseLocation.mockReturnValue({ key: 'test' });
+
     props = {
       backButton: {
         disabled: false,
@@ -91,50 +103,32 @@ describe('flowButtons component', () => {
   });
 
   test('when there is a previous history location, then back button uses `history.goBack()`', async () => {
-    const history = createMemoryHistory({
-      initialEntries: [
-        {
-          pathname: 'web/random/route',
-        },
-        {
-          pathname: cfg.getBotsNewRoute('github-actions-ssh'),
-        },
-      ],
-    });
-    history.push = jest.fn();
-    history.goBack = jest.fn();
-
     render(
-      <Router history={history}>
+      <MemoryRouter
+        initialEntries={[
+          { pathname: '/', state: { previousPathname: 'web/random/route' } },
+        ]}
+      >
         <FlowButtons {...props} isFirstStep={true} />
-      </Router>
+      </MemoryRouter>
     );
 
     await userEvent.click(screen.getByTestId('button-back-first-step'));
-    expect(history.push).not.toHaveBeenCalled();
-    expect(history.goBack).toHaveBeenCalled();
+    expect(mockedNavigate).toHaveBeenCalledWith(-1);
   });
 
   test('when there is no previous history location, then back button pushes to integrations list', async () => {
-    const history = createMemoryHistory({
-      initialEntries: [
-        {
-          key: 'default',
-          pathname: cfg.getBotsNewRoute('github-actions-ssh'),
-        },
-      ],
-    });
-    history.push = jest.fn();
-    history.goBack = jest.fn();
+    mockedUseLocation.mockReturnValue({ key: 'default' });
 
     render(
-      <Router history={history}>
+      <MemoryRouter>
         <FlowButtons {...props} isFirstStep={true} />
-      </Router>
+      </MemoryRouter>
     );
 
     await userEvent.click(screen.getByTestId('button-back-first-step'));
-    expect(history.goBack).not.toHaveBeenCalled();
-    expect(history.push).toHaveBeenCalledWith(cfg.getIntegrationsEnrollRoute());
+    expect(mockedNavigate).toHaveBeenCalledWith(
+      cfg.getIntegrationsEnrollRoute()
+    );
   });
 });

@@ -17,7 +17,7 @@
  */
 
 import type { JSX } from 'react';
-import { Link as InternalLink } from 'react-router-dom';
+import { Link as InternalLink } from 'react-router';
 
 import { Mark } from 'design';
 import {

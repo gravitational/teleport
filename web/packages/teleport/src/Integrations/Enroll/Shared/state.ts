@@ -23,7 +23,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react';
-import { useHistory } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 
 import { SortOrder } from 'shared/components/Controls/SortMenu';
 
@@ -105,13 +105,14 @@ export function useIntegrationPickerState(): [
   IntegrationPickerState,
   Dispatch<SetStateAction<IntegrationPickerState>>,
 ] {
-  const history = useHistory();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const [state, setState] = useState<IntegrationPickerState>(() =>
-    searchParamsToState(new URLSearchParams(history.location.search))
+    searchParamsToState(new URLSearchParams(location.search))
   );
 
-  const currentSearch = useRef<string>(history.location.search);
+  const currentSearch = useRef<string>(location.search);
 
   useEffect(() => {
     const params = stateToSearchParams(state);
@@ -119,7 +120,7 @@ export function useIntegrationPickerState(): [
     currentSearch.current = `?${params.toString()}`;
 
     if (
-      history.location.search.length === 0 &&
+      location.search.length === 0 &&
       currentSearch.current.length === 1 // empty, i.e. just '?'
     ) {
       // the current search is empty, and the state is also empty,
@@ -127,20 +128,18 @@ export function useIntegrationPickerState(): [
       return;
     }
 
-    if (history.location.search !== currentSearch.current) {
-      history.replace({ search: currentSearch.current });
+    if (location.search !== currentSearch.current) {
+      navigate({ search: currentSearch.current }, { replace: true });
     }
-  }, [history, state]);
+  }, [location.search, navigate, state]);
 
+  // Listen for URL changes (e.g., browser back/forward navigation)
   useEffect(() => {
-    return history.listen(next => {
-      if (next.search !== currentSearch.current) {
-        setState(searchParamsToState(new URLSearchParams(next.search)));
-
-        currentSearch.current = next.search;
-      }
-    });
-  }, [history]);
+    if (location.search !== currentSearch.current) {
+      setState(searchParamsToState(new URLSearchParams(location.search)));
+      currentSearch.current = location.search;
+    }
+  }, [location.search]);
 
   return [state, setState];
 }

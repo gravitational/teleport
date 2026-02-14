@@ -50,6 +50,171 @@ import { IntegrationTag } from './Integrations/Enroll/Shared';
 import type { MfaChallengeResponse } from './services/mfa';
 import { KindAuthConnectors } from './services/resources';
 
+/**
+ * Generates a URL path by substituting named parameters.
+ * Unlike react-router's generatePath, this function also supports
+ * parameters in query strings (e.g., `?param=:value`).
+ *
+ * Parameters can be optional by adding a `?` suffix (e.g., `:param?`).
+ * If an optional parameter's value is undefined, the parameter and its
+ * value are removed from the URL.
+ *
+ * @param pattern - The URL pattern with named parameters (e.g., `/path/:id?query=:value`)
+ * @param params - An object containing the parameter values
+ * @returns The URL with parameters substituted
+ */
+function generateFullPath(
+  pattern: string,
+  params: Record<string, string | number | boolean | undefined>
+): string {
+  // Split into path and query parts to handle encoding correctly
+  const queryStart = pattern.indexOf('?');
+  const hasQuery = queryStart !== -1;
+  const pathPart = hasQuery ? pattern.slice(0, queryStart) : pattern;
+  const queryPart = hasQuery ? pattern.slice(queryStart) : '';
+
+  // Process path part (no URL encoding needed for path segments)
+  let processedPath = pathPart;
+  for (const [key, value] of Object.entries(params)) {
+    const optionalPattern = new RegExp(`:${key}\\?`, 'g');
+    const requiredPattern = new RegExp(`:${key}(?!\\?)`, 'g');
+
+    if (value === undefined || value === '') {
+      processedPath = processedPath.replace(optionalPattern, '');
+    } else {
+      const strValue = String(value);
+      processedPath = processedPath.replace(optionalPattern, strValue);
+      processedPath = processedPath.replace(requiredPattern, strValue);
+    }
+  }
+
+  // Process query part (URL encode values)
+  let processedQuery = queryPart;
+  for (const [key, value] of Object.entries(params)) {
+    const optionalPattern = new RegExp(`:${key}\\?`, 'g');
+    const requiredPattern = new RegExp(`:${key}(?!\\?)`, 'g');
+
+    if (value === undefined || value === '') {
+      processedQuery = processedQuery.replace(optionalPattern, '');
+    } else {
+      const strValue = encodeURIComponent(String(value));
+      processedQuery = processedQuery.replace(optionalPattern, strValue);
+      processedQuery = processedQuery.replace(requiredPattern, strValue);
+    }
+  }
+
+  return processedPath + processedQuery;
+}
+
+export const consoleRoutePatterns = {
+  consoleNodes: '/web/cluster/:clusterId/console/nodes',
+  consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
+  consoleSession: '/web/cluster/:clusterId/console/session/:sid',
+  kubeExec: '/web/cluster/:clusterId/console/kube/exec/:kubeId/',
+  kubeExecSession: '/web/cluster/:clusterId/console/kube/session/:sid',
+  dbConnect: '/web/cluster/:clusterId/console/db/connect/:serviceName',
+} as const;
+
+export const ossRoutes = {
+  root: '/web',
+  discover: '/web/discover',
+  accessRequest: '/web/accessrequest',
+  apps: '/web/cluster/:clusterId/apps',
+  appLauncher: '/web/launch/:fqdn/:clusterId?/:publicAddr?/:arn?',
+  support: '/web/support',
+  settings: '/web/settings',
+  account: '/web/account',
+  accountPassword: '/web/account/password',
+  accountMfaDevices: '/web/account/twofactor',
+  accountSecurity: '/web/account/security',
+  accountPreferences: '/web/account/preferences',
+  roles: '/web/roles',
+  joinTokens: '/web/tokens',
+  deviceTrust: `/web/devices`,
+  deviceTrustAuthorize: '/web/device/authorize/:id?/:token?',
+  sso: '/web/sso',
+  cluster: '/web/cluster/:clusterId/',
+  clusters: '/web/clusters',
+
+  trustedClusters: '/web/trust',
+  audit: '/web/cluster/:clusterId/audit',
+  unifiedResources: '/web/cluster/:clusterId/resources',
+  nodes: '/web/cluster/:clusterId/nodes',
+  sessions: '/web/cluster/:clusterId/sessions',
+  recordings: '/web/cluster/:clusterId/recordings',
+  databases: '/web/cluster/:clusterId/databases',
+  desktops: '/web/cluster/:clusterId/desktops',
+  desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
+  users: '/web/users',
+  bots: '/web/bots',
+  bot: '/web/bot/:botName',
+  botInstances: '/web/bots/instances',
+  instances: '/web/instances',
+  botsNew: '/web/bots/new/:type?',
+  workloadIdentities: '/web/workloadidentities',
+  console: '/web/cluster/:clusterId/console',
+  consoleNodes: consoleRoutePatterns.consoleNodes,
+  consoleConnect: consoleRoutePatterns.consoleConnect,
+  consoleSession: consoleRoutePatterns.consoleSession,
+  kubeExec: consoleRoutePatterns.kubeExec,
+  kubeExecSession: consoleRoutePatterns.kubeExecSession,
+  dbConnect: consoleRoutePatterns.dbConnect,
+  dbSession: '/web/cluster/:clusterId/console/db/session/:sid',
+  player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
+  login: '/web/login',
+  loginSuccess: '/web/msg/info/login_success',
+  loginTerminalRedirect: '/web/msg/info/login_terminal',
+  loginClose: '/web/msg/info/login_close',
+  loginErrorLegacy: '/web/msg/error/login_failed',
+  loginError: '/web/msg/error/login',
+  loginErrorCallback: '/web/msg/error/login/callback',
+  loginErrorCallbackMissingRole: '/web/msg/error/login/callback_missing_role',
+  loginErrorUnauthorized: '/web/msg/error/login/auth',
+  samlSloFailed: '/web/msg/error/slo',
+  userInvite: '/web/invite/:tokenId',
+  userInviteContinue: '/web/invite/:tokenId/continue',
+  userReset: '/web/reset/:tokenId',
+  userResetContinue: '/web/reset/:tokenId/continue',
+  kubernetes: '/web/cluster/:clusterId/kubernetes',
+  headlessSso: `/web/headless/:requestId`,
+  integrations: '/web/integrations',
+  integrationOverview: '/web/integrations/overview/:type/:name',
+  integrationStatus: '/web/integrations/status/:type/:name',
+  integrationTasks: '/web/integrations/status/:type/:name/tasks',
+  integrationStatusResources:
+    '/web/integrations/status/:type/:name/resources/:resourceKind',
+  integrationEnroll: '/web/integrations/new/:type?',
+  locks: '/web/locks',
+  newLock: '/web/locks/new',
+  requests: '/web/requests/:requestId?',
+
+  downloadCenter: '/web/downloads',
+  managedUpdates: '/web/managedupdates',
+
+  // sso routes
+  ssoConnector: {
+    /**
+     * create is the dedicated page for creating a new auth connector.
+     */
+    create: '/web/sso/new/:connectorType(github|oidc|saml)',
+    edit: '/web/sso/edit/:connectorType(github|oidc|saml)/:connectorName?',
+  },
+
+  // whitelist sso handlers
+  oidcHandler: '/v1/webapi/oidc/*',
+  samlHandler: '/v1/webapi/saml/*',
+  githubHandler: '/v1/webapi/github/*',
+
+  // Access Graph is part of enterprise, but we need to generate links in the audit log,
+  // which is in OSS.
+  accessGraph: {
+    crownJewelAccessPath: '/web/accessgraph/crownjewels/access/:id',
+  },
+
+  /** samlIdpSso is an exact path of the service provider initiated SAML SSO endpoint. */
+  samlIdpSso: '/enterprise/saml-idp/sso',
+};
+
 export type Cfg = typeof cfg;
 const cfg = {
   /** @deprecated Use cfg.edition instead. */
@@ -167,105 +332,7 @@ const cfg = {
     sessionSummarizationEnabled: false,
   },
 
-  routes: {
-    root: '/web',
-    discover: '/web/discover',
-    accessRequest: '/web/accessrequest',
-    apps: '/web/cluster/:clusterId/apps',
-    appLauncher: '/web/launch/:fqdn/:clusterId?/:publicAddr?/:arn?',
-    support: '/web/support',
-    settings: '/web/settings',
-    account: '/web/account',
-    accountPassword: '/web/account/password',
-    accountMfaDevices: '/web/account/twofactor',
-    accountSecurity: '/web/account/security',
-    accountPreferences: '/web/account/preferences',
-    roles: '/web/roles',
-    joinTokens: '/web/tokens',
-    deviceTrust: `/web/devices`,
-    deviceTrustAuthorize: '/web/device/authorize/:id?/:token?',
-    sso: '/web/sso',
-    cluster: '/web/cluster/:clusterId/',
-    clusters: '/web/clusters',
-
-    trustedClusters: '/web/trust',
-    audit: '/web/cluster/:clusterId/audit',
-    unifiedResources: '/web/cluster/:clusterId/resources',
-    nodes: '/web/cluster/:clusterId/nodes',
-    sessions: '/web/cluster/:clusterId/sessions',
-    recordings: '/web/cluster/:clusterId/recordings',
-    databases: '/web/cluster/:clusterId/databases',
-    desktops: '/web/cluster/:clusterId/desktops',
-    desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
-    users: '/web/users',
-    bots: '/web/bots',
-    bot: '/web/bot/:botName',
-    botInstances: '/web/bots/instances',
-    instances: '/web/instances',
-    botsNew: '/web/bots/new/:type?',
-    workloadIdentities: '/web/workloadidentities',
-    console: '/web/cluster/:clusterId/console',
-    consoleNodes: '/web/cluster/:clusterId/console/nodes',
-    consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
-    consoleSession: '/web/cluster/:clusterId/console/session/:sid',
-    kubeExec: '/web/cluster/:clusterId/console/kube/exec/:kubeId/',
-    kubeExecSession: '/web/cluster/:clusterId/console/kube/session/:sid',
-    dbConnect: '/web/cluster/:clusterId/console/db/connect/:serviceName',
-    dbSession: '/web/cluster/:clusterId/console/db/session/:sid',
-    player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
-    login: '/web/login',
-    loginSuccess: '/web/msg/info/login_success',
-    loginTerminalRedirect: '/web/msg/info/login_terminal',
-    loginClose: '/web/msg/info/login_close',
-    loginErrorLegacy: '/web/msg/error/login_failed',
-    loginError: '/web/msg/error/login',
-    loginErrorCallback: '/web/msg/error/login/callback',
-    loginErrorCallbackMissingRole: '/web/msg/error/login/callback_missing_role',
-    loginErrorUnauthorized: '/web/msg/error/login/auth',
-    samlSloFailed: '/web/msg/error/slo',
-    userInvite: '/web/invite/:tokenId',
-    userInviteContinue: '/web/invite/:tokenId/continue',
-    userReset: '/web/reset/:tokenId',
-    userResetContinue: '/web/reset/:tokenId/continue',
-    kubernetes: '/web/cluster/:clusterId/kubernetes',
-    headlessSso: `/web/headless/:requestId`,
-    integrations: '/web/integrations',
-    integrationOverview: '/web/integrations/overview/:type/:name',
-    integrationStatus: '/web/integrations/status/:type/:name/:subPage?',
-    integrationTasks: '/web/integrations/status/:type/:name/tasks',
-    integrationStatusResources:
-      '/web/integrations/status/:type/:name/resources/:resourceKind',
-    integrationEnroll: '/web/integrations/new/:type?/:subPage?',
-    locks: '/web/locks',
-    newLock: '/web/locks/new',
-    requests: '/web/requests/:requestId?',
-
-    downloadCenter: '/web/downloads',
-    managedUpdates: '/web/managedupdates',
-
-    // sso routes
-    ssoConnector: {
-      /**
-       * create is the dedicated page for creating a new auth connector.
-       */
-      create: '/web/sso/new/:connectorType(github|oidc|saml)',
-      edit: '/web/sso/edit/:connectorType(github|oidc|saml)/:connectorName?',
-    },
-
-    // whitelist sso handlers
-    oidcHandler: '/v1/webapi/oidc/*',
-    samlHandler: '/v1/webapi/saml/*',
-    githubHandler: '/v1/webapi/github/*',
-
-    // Access Graph is part of enterprise, but we need to generate links in the audit log,
-    // which is in OSS.
-    accessGraph: {
-      crownJewelAccessPath: '/web/accessgraph/crownjewels/access/:id',
-    },
-
-    /** samlIdpSso is an exact path of the service provider initiated SAML SSO endpoint. */
-    samlIdpSso: '/enterprise/saml-idp/sso',
-  },
+  routes: { ...ossRoutes },
 
   api: {
     appSession: '/v1/webapi/sessions/app',
@@ -614,7 +681,7 @@ const cfg = {
   },
 
   getClusterEventsUrl(clusterId: string, params: UrlClusterEventsParams) {
-    return generatePath(cfg.api.clusterEventsPathV2, {
+    return generateFullPath(cfg.api.clusterEventsPathV2, {
       clusterId,
       ...params,
     });
@@ -718,7 +785,7 @@ const cfg = {
     loginHint = loginHint === '' ? undefined : loginHint;
     let basePath =
       cfg.baseUrl +
-      generatePath(providerUrl, { redirect, providerName, loginHint });
+      generateFullPath(providerUrl, { redirect, providerName, loginHint });
 
     if (!loginHint) {
       const url = new URL(basePath);
@@ -778,7 +845,8 @@ const cfg = {
    * @returns {string} Generated enrollment route
    */
   getIntegrationEnrollRoute(type?: string, subPage?: string) {
-    return generatePath(cfg.routes.integrationEnroll, { type, subPage });
+    const base = generatePath(cfg.routes.integrationEnroll, { type });
+    return subPage ? `${base}/${subPage}` : base;
   },
 
   /**
@@ -794,7 +862,8 @@ const cfg = {
     name: string,
     subPage?: string
   ) {
-    return generatePath(cfg.routes.integrationStatus, { type, name, subPage });
+    const base = generatePath(cfg.routes.integrationStatus, { type, name });
+    return subPage ? `${base}/${subPage}` : base;
   },
 
   getIaCIntegrationRoute(type: PluginKind | IntegrationKind, name: string) {
@@ -870,7 +939,7 @@ const cfg = {
   ) {
     return (
       cfg.baseUrl +
-      generatePath(cfg.api.awsConfigureIamScriptDeployServicePath, { ...p })
+      generateFullPath(cfg.api.awsConfigureIamScriptDeployServicePath, { ...p })
     );
   },
 
@@ -878,7 +947,10 @@ const cfg = {
     const path = cfg.api.awsConfigureIamScriptOidcIdpPath;
     return (
       cfg.baseUrl +
-      generatePath(path, { ...p, policyPreset: p.policyPreset || undefined })
+      generateFullPath(path, {
+        ...p,
+        policyPreset: p.policyPreset || undefined,
+      })
     );
   },
 
@@ -889,7 +961,7 @@ const cfg = {
   getAppNodeScriptUrl(token: string, name: string, uri: string) {
     return (
       cfg.baseUrl +
-      generatePath(cfg.api.appNodeScriptPath, { token, name, uri })
+      generateFullPath(cfg.api.appNodeScriptPath, { token, name, uri })
     );
   },
 
@@ -1033,7 +1105,13 @@ const cfg = {
   },
 
   getAppLauncherRoute(params: UrlLauncherParams) {
-    return generatePath(cfg.routes.appLauncher, { ...params });
+    if (!params?.fqdn) {
+      return '';
+    }
+    return generatePath(cfg.routes.appLauncher, {
+      ...params,
+      fqdn: params.fqdn ?? '',
+    });
   },
 
   getPlayerRoute(params: UrlPlayerParams, search: UrlPlayerSearch) {
@@ -1132,7 +1210,7 @@ const cfg = {
   },
 
   getUsersUrlV2(params?: UrlListUsersParams) {
-    return generatePath(cfg.api.usersPathV2, {
+    return generateFullPath(cfg.api.usersPathV2, {
       search: params?.search || undefined,
       startKey: params?.startKey || undefined,
       limit: params?.limit || undefined,
@@ -1309,7 +1387,7 @@ const cfg = {
   },
 
   getScpUrl({ mfaResponse, ...params }: UrlScpParams) {
-    let path = generatePath(cfg.api.scp, {
+    let path = generateFullPath(cfg.api.scp, {
       ...params,
     });
 
@@ -1363,7 +1441,7 @@ const cfg = {
         return generatePath(cfg.api.role.update, { name: req.name });
       case 'list': {
         const params = req.params;
-        return generatePath(cfg.api.role.list, {
+        return generateFullPath(cfg.api.role.list, {
           search: params?.search || undefined,
           startKey: params?.startKey || undefined,
           limit: params?.limit || undefined,
@@ -1371,7 +1449,7 @@ const cfg = {
       }
       case 'listv2': {
         const params = req.params;
-        return generatePath(cfg.api.role.listV2, {
+        return generateFullPath(cfg.api.role.listV2, {
           search: params?.search || undefined,
           startKey: params?.startKey || undefined,
           limit: params?.limit || undefined,
@@ -1385,7 +1463,7 @@ const cfg = {
   },
 
   getListRequestableRolesUrl(params?: UrlListRolesParams) {
-    return generatePath(cfg.api.listRequestableRolesPath, {
+    return generateFullPath(cfg.api.listRequestableRolesPath, {
       search: params?.search || undefined,
       startKey: params?.startKey || undefined,
       limit: params?.limit || undefined,
@@ -1517,7 +1595,7 @@ const cfg = {
 
   getIntegrationUserTasksListUrl(name: string, state: TaskState) {
     const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.userTaskListByIntegrationPath, {
+    return generateFullPath(cfg.api.userTaskListByIntegrationPath, {
       clusterId,
       name,
       state,
@@ -1691,7 +1769,7 @@ const cfg = {
   getEksIamConfigureScriptUrl(params: UrlAwsConfigureIamScriptParams) {
     return (
       cfg.baseUrl +
-      generatePath(cfg.api.awsConfigureIamEksScriptPath, {
+      generateFullPath(cfg.api.awsConfigureIamEksScriptPath, {
         ...params,
       })
     );
@@ -1702,7 +1780,7 @@ const cfg = {
   ) {
     return (
       cfg.baseUrl +
-      generatePath(cfg.api.awsConfigureIamAppAccessPath, {
+      generateFullPath(cfg.api.awsConfigureIamAppAccessPath, {
         ...params,
       })
     );
@@ -1713,7 +1791,7 @@ const cfg = {
   ) {
     return (
       cfg.baseUrl +
-      generatePath(cfg.api.awsConfigureIamEc2AutoDiscoverWithSsmPath, {
+      generateFullPath(cfg.api.awsConfigureIamEc2AutoDiscoverWithSsmPath, {
         ...params,
       })
     );
@@ -1724,7 +1802,7 @@ const cfg = {
   ) {
     return (
       cfg.baseUrl +
-      generatePath(cfg.api.awsConfigureIamScriptListDatabasesPath, {
+      generateFullPath(cfg.api.awsConfigureIamScriptListDatabasesPath, {
         ...params,
       })
     );
@@ -1739,7 +1817,7 @@ const cfg = {
     const path = cfg.api.awsRolesAnywhere.generate;
     return (
       cfg.baseUrl +
-      generatePath(path, {
+      generateFullPath(path, {
         integrationName,
         trustAnchor,
         syncRole,
@@ -1893,7 +1971,7 @@ const cfg = {
   },
 
   getNotificationsUrl(params: UrlNotificationParams) {
-    return generatePath(cfg.api.notificationsPath, { ...params });
+    return generateFullPath(cfg.api.notificationsPath, { ...params });
   },
 
   getNotificationLastSeenUrl(clusterId: string) {

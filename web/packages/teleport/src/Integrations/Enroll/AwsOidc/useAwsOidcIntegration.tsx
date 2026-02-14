@@ -63,7 +63,7 @@ export function useAwsOidcIntegration() {
     useState<IntegrationAwsOidc>();
   const { clusterId } = useStickyClusterId();
 
-  const location = useLocation<DiscoverUrlLocationState>();
+  const location = useLocation() as { state?: DiscoverUrlLocationState };
 
   const [eventData] = useState<IntegrationEnrollEventData>({
     id: crypto.randomUUID(),

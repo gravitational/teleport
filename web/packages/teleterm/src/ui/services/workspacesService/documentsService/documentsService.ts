@@ -370,10 +370,11 @@ export class DocumentsService {
 
   isActive(uri: string) {
     const location = this.getLocation();
-    return !!routing.parseUri(location, {
-      exact: true,
-      path: uri,
-    });
+    if (!location) {
+      return false;
+    }
+    // matchPath uses end=true by default (equivalent to v5 exact=true).
+    return !!routing.parseUri(location, uri);
   }
 
   add(doc: Document, position?: number) {

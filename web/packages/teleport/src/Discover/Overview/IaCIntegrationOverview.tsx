@@ -19,8 +19,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { useState, type ReactNode } from 'react';
-import { useParams } from 'react-router';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useParams } from 'react-router';
 
 import { Box, Card, Flex, H2, Indicator, Text } from 'design';
 import { Danger } from 'design/Alert';
@@ -82,7 +81,7 @@ const TABS = [
 ] as const;
 
 export function IaCIntegrationOverview() {
-  const { name } = useParams<{ name: string }>();
+  const { name } = useParams() as { name: string };
 
   const {
     data: stats,

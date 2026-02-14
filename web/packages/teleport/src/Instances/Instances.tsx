@@ -18,7 +18,7 @@
 
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
-import { useHistory, useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import styled from 'styled-components';
 
 import { Alert } from 'design/Alert';
@@ -76,7 +76,7 @@ async function fetchInstances(
 }
 
 export function Instances() {
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const query = queryParams.get('query') ?? '';
@@ -207,12 +207,12 @@ export function Instances() {
     (updateFn: (search: URLSearchParams) => void) => {
       const search = new URLSearchParams(location.search);
       updateFn(search);
-      history.push({
+      navigate({
         pathname: location.pathname,
         search: search.toString(),
       });
     },
-    [history, location.pathname, location.search]
+    [navigate, location.pathname, location.search]
   );
 
   const handleQueryChange = useCallback(
@@ -238,12 +238,15 @@ export function Instances() {
       search.set('sort', sortField);
       search.set('sort_dir', sortDir);
 
-      history.replace({
-        pathname: location.pathname,
-        search: search.toString(),
-      });
+      navigate(
+        {
+          pathname: location.pathname,
+          search: search.toString(),
+        },
+        { replace: true }
+      );
     },
-    [history, location.pathname, location.search]
+    [navigate, location.pathname, location.search]
   );
 
   const handleTypesChange = useCallback(

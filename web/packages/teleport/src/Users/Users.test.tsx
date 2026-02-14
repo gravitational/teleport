@@ -148,7 +148,9 @@ describe('invite collaborators integration', () => {
         </InfoGuidePanelProvider>
       </MemoryRouter>
     );
-    expect(screen.getByTestId('invite-collaborators')).toBeInTheDocument();
+    expect(
+      await screen.findByTestId('invite-collaborators')
+    ).toBeInTheDocument();
   });
 });
 

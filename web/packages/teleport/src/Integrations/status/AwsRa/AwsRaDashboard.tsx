@@ -17,8 +17,7 @@
  */
 
 import { useQueries } from '@tanstack/react-query';
-import { useHistory, useParams } from 'react-router';
-import { Link as InternalLink } from 'react-router-dom';
+import { Link as InternalLink, useNavigate, useParams } from 'react-router';
 import { useTheme } from 'styled-components';
 
 import { ButtonIcon, Flex, Link, MenuItem, Text } from 'design';
@@ -48,10 +47,10 @@ import {
 } from 'teleport/services/integrations';
 
 export function AwsRaDashboard() {
-  const { name } = useParams<{
+  const { name } = useParams() as {
     type: IntegrationKind;
     name: string;
-  }>();
+  };
 
   const results = useQueries({
     queries: [
@@ -115,7 +114,7 @@ export function AwsRaDashboard() {
 
 function AwsRaTitle({ integration }: { integration: IntegrationAwsRa }) {
   const theme = useTheme();
-  const history = useHistory();
+  const navigate = useNavigate();
   const integrationOps = useIntegrationOperation();
 
   const anchorIdReg = new RegExp('[^\\/]+$');
@@ -124,7 +123,7 @@ function AwsRaTitle({ integration }: { integration: IntegrationAwsRa }) {
   async function removeIntegration() {
     await integrationOps.remove();
     integrationOps.clear();
-    history.push(cfg.routes.integrations);
+    navigate(cfg.routes.integrations);
   }
 
   async function editIntegration(req: EditableIntegrationFields) {
@@ -182,14 +181,17 @@ function AwsRaTitle({ integration }: { integration: IntegrationAwsRa }) {
         <MenuButton icon={<Icons.Cog size="small" />}>
           <MenuItem
             onClick={() =>
-              history.push(
+              navigate(
                 cfg.getIntegrationEnrollRoute(IntegrationKind.AwsRa, 'access'),
                 {
-                  integrationName: integration.name,
-                  trustAnchorArn: integration.spec.trustAnchorARN,
-                  syncProfileArn: integration.spec.profileSyncConfig.profileArn,
-                  syncRoleArn: integration.spec.profileSyncConfig.roleArn,
-                  edit: true,
+                  state: {
+                    integrationName: integration.name,
+                    trustAnchorArn: integration.spec.trustAnchorARN,
+                    syncProfileArn:
+                      integration.spec.profileSyncConfig.profileArn,
+                    syncRoleArn: integration.spec.profileSyncConfig.roleArn,
+                    edit: true,
+                  },
                 }
               )
             }
