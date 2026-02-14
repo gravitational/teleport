@@ -244,7 +244,12 @@ credential_process = credential_process
 		err := SetDefaultProfileCredentialProcess(configFilePath, "credential_process")
 		require.NoError(t, err)
 
-		require.DirExists(t, filepath.Join(tmpDir, "dir"))
+		dir := filepath.Join(tmpDir, "dir")
+		require.DirExists(t, dir)
+		info, err := os.Stat(dir)
+		require.NoError(t, err)
+		require.Equal(t, os.FileMode(0700), info.Mode().Perm())
+
 		bs, err := os.ReadFile(configFilePath)
 		require.NoError(t, err)
 		require.Equal(t, `; Do not edit. Section managed by Teleport.
@@ -436,6 +441,46 @@ credential_process = process
 	}
 }
 
+func TestSSORemovalGuard(t *testing.T) {
+	configFilePath := filepath.Join(t.TempDir(), "config")
+
+	// 1. Create a transient profile (managed by old comment)
+	err := UpsertProfileCredentialProcess(configFilePath, "transient", "tsh apps config --format aws-credential-process app")
+	require.NoError(t, err)
+
+	// 2. Create an SSO session and profile (managed by new SSO comment)
+	err = UpsertSSOSession(configFilePath, "sso-session", "https://start.url", "us-east-1")
+	require.NoError(t, err)
+	err = UpsertSSOProfile(configFilePath, SSOProfile{
+		Name:      "sso-profile",
+		Session:   "sso-session",
+		AccountID: "123",
+		RoleName:  "Admin",
+	})
+	require.NoError(t, err)
+
+	// 3. Verify they all exist
+	content, err := os.ReadFile(configFilePath)
+	require.NoError(t, err)
+	s := string(content)
+	require.Contains(t, s, "[profile transient]")
+	require.Contains(t, s, "[sso-session sso-session]")
+	require.Contains(t, s, "[profile sso-profile]")
+
+	// 4. Run RemoveAllTeleportManagedProfiles (simulating 'tsh apps logout')
+	err = RemoveAllTeleportManagedProfiles(configFilePath)
+	require.NoError(t, err)
+
+	// 5. Verify transient is gone, but SSO sections remain
+	content, err = os.ReadFile(configFilePath)
+	require.NoError(t, err)
+	s = string(content)
+
+	require.NotContains(t, s, "[profile transient]", "Transient profile should be removed on logout")
+	require.Contains(t, s, "[sso-session sso-session]", "SSO session should persist after logout")
+	require.Contains(t, s, "[profile sso-profile]", "SSO profile should persist after logout")
+}
+
 func TestUpdateRemoveCycle(t *testing.T) {
 	initialContents := "[profile baz]\nregion = us-east-1\n\n[default]\nregion = us-west-2\n"
 	configFilePath := filepath.Join(t.TempDir(), "config")
@@ -460,4 +505,139 @@ func TestUpdateRemoveCycle(t *testing.T) {
 	bs, err := os.ReadFile(configFilePath)
 	require.NoError(t, err)
 	require.Equal(t, initialContents, string(bs))
+}
+func TestSSOConfig(t *testing.T) {
+	t.Run("UpsertSSOSession", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		configFilePath := filepath.Join(tmpDir, "dir", "config")
+
+		err := UpsertSSOSession(configFilePath, "my-session", "https://start.url", "us-east-1")
+		require.NoError(t, err)
+
+		dir := filepath.Join(tmpDir, "dir")
+		require.DirExists(t, dir)
+		info, err := os.Stat(dir)
+		require.NoError(t, err)
+		require.Equal(t, os.FileMode(0700), info.Mode().Perm())
+
+		bs, err := os.ReadFile(configFilePath)
+		require.NoError(t, err)
+		require.Equal(t, `; Do not edit. Section managed by Teleport (AWS Identity Center integration).
+[sso-session my-session]
+sso_start_url = https://start.url
+sso_region    = us-east-1
+`, string(bs))
+	})
+
+	t.Run("UpsertSSOProfile", func(t *testing.T) {
+		configFilePath := filepath.Join(t.TempDir(), "config")
+
+		err := UpsertSSOProfile(configFilePath, SSOProfile{
+			Name:      "my-profile",
+			Session:   "my-session",
+			AccountID: "123456789012",
+			RoleName:  "Admin",
+		})
+		require.NoError(t, err)
+
+		bs, err := os.ReadFile(configFilePath)
+		require.NoError(t, err)
+		require.Equal(t, `; Do not edit. Section managed by Teleport (AWS Identity Center integration).
+[profile my-profile]
+sso_session    = my-session
+sso_account_id = 123456789012
+sso_role_name  = Admin
+`, string(bs))
+	})
+
+	t.Run("UpsertSSOProfile errors on credential_process", func(t *testing.T) {
+		configFilePath := filepath.Join(t.TempDir(), "config")
+		initial := `; Do not edit. Section managed by Teleport (AWS Identity Center integration).
+[profile my-profile]
+credential_process = some-command
+`
+		err := os.WriteFile(configFilePath, []byte(initial), 0600)
+		require.NoError(t, err)
+
+		err = UpsertSSOProfile(configFilePath, SSOProfile{
+			Name:      "my-profile",
+			Session:   "my-session",
+			AccountID: "123456789012",
+			RoleName:  "Admin",
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "contains 'credential_process' and cannot be converted to an SSO profile")
+	})
+
+	t.Run("UpsertSSOSession handles updates", func(t *testing.T) {
+		configFilePath := filepath.Join(t.TempDir(), "config")
+
+		err := UpsertSSOSession(configFilePath, "my-session", "https://start.url", "us-east-1")
+		require.NoError(t, err)
+
+		err = UpsertSSOSession(configFilePath, "my-session", "https://new.url", "us-west-2")
+		require.NoError(t, err)
+
+		bs, err := os.ReadFile(configFilePath)
+		require.NoError(t, err)
+		require.Equal(t, `; Do not edit. Section managed by Teleport (AWS Identity Center integration).
+[sso-session my-session]
+sso_start_url = https://new.url
+sso_region    = us-west-2
+`, string(bs))
+	})
+}
+
+func TestWriteSSOConfig(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config")
+
+	initialContent := `[profile external]
+region = us-west-2
+
+; Do not edit. Section managed by Teleport (AWS Identity Center integration).
+[sso-session teleport-stale]
+sso_start_url = https://stale.url
+sso_region = us-east-1
+
+; Do not edit. Section managed by Teleport (AWS Identity Center integration).
+[profile teleport-stale-profile]
+sso_session = teleport-stale
+`
+	err := os.WriteFile(configPath, []byte(initialContent), 0600)
+	require.NoError(t, err)
+
+	profiles := []SSOProfile{
+		{
+			Name:      "new-profile",
+			Session:   "new-session",
+			AccountID: "123",
+			RoleName:  "Admin",
+		},
+	}
+	sessions := []SSOSession{
+		{
+			Name:     "new-session",
+			StartURL: "https://new.url",
+			Region:   "us-east-1",
+		},
+	}
+
+	err = WriteSSOConfig(configPath, profiles, sessions)
+	require.NoError(t, err)
+
+	bs, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	content := string(bs)
+
+	// External preserved
+	require.Contains(t, content, "[profile external]")
+
+	// New sections added
+	require.Contains(t, content, "[sso-session new-session]")
+	require.Contains(t, content, "[profile new-profile]")
+	require.Contains(t, content, "sso_start_url = https://new.url")
+
+	// Stale sections pruned
+	require.NotContains(t, content, "[sso-session teleport-stale]")
+	require.NotContains(t, content, "[profile teleport-stale-profile]")
 }
