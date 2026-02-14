@@ -28,12 +28,8 @@ import (
 // CheckOracleAllowRules checks that a the oracle rules in a provision token
 // allow an OCI instance with the given claims to join the cluster.
 func CheckOracleAllowRules(claims *Claims, token provision.Token) error {
-	ptv2, ok := token.(*types.ProvisionTokenV2)
-	if !ok {
-		return trace.Errorf("Oracle join method only supports ProvisionTokenV2")
-	}
 	instanceRegion := claims.Region()
-	for _, rule := range ptv2.Spec.Oracle.Allow {
+	for _, rule := range token.GetOracle().Allow {
 		if rule.Tenancy != claims.TenancyID {
 			// rule.Tenancy is required, if it doesn't match the instance skip this rule.
 			continue
