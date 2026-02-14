@@ -176,6 +176,7 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 		return nil, errNoMatch
 	}
 	if len(resp.Resources) == 0 {
+		log.DebugContext(ctx, "Found no matching app servers")
 		// Didn't find any matching app, forward the request upstream.
 		return nil, errNoMatch
 	}
