@@ -337,7 +337,10 @@ func TestScopedJoiningService(t *testing.T) {
 			t.Parallel()
 			listRes, err := reader.ListScopedTokens(ctx, &joiningv1.ListScopedTokensRequest{})
 			require.NoError(t, err)
-			require.Len(t, listRes.GetTokens(), 1)
+			require.NotEmpty(t, listRes.GetTokens())
+			for _, token := range listRes.GetTokens() {
+				require.Equal(t, "/staging/aa", token.GetScope(), "reader should only see tokens at their accessible scope")
+			}
 		})
 
 		t.Run("ensure other identities can't list tokens", func(t *testing.T) {
@@ -362,8 +365,10 @@ func TestScopedJoiningService(t *testing.T) {
 
 		t.Run("ensure deleter can delete a token", func(t *testing.T) {
 			t.Parallel()
-			_, err := deleter.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
-				Name: stageTokenAA.Metadata.Name,
+			tokenForDelete, err := createToken(ctx, admin, baseToken)
+			require.NoError(t, err)
+			_, err = deleter.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
+				Name: tokenForDelete.Metadata.Name,
 			})
 			require.NoError(t, err)
 		})
@@ -378,11 +383,14 @@ func TestScopedJoiningService(t *testing.T) {
 
 		t.Run("ensure upserter can update a token at accessible scope", func(t *testing.T) {
 			t.Parallel()
-			tokenUpdate := proto.CloneOf(stageTokenAA)
-			tokenUpdate.Metadata = proto.CloneOf(stageTokenAA.GetMetadata())
+			tokenForUpsert, err := createToken(ctx, admin, baseToken)
+			require.NoError(t, err)
+
+			tokenUpdate := proto.CloneOf(tokenForUpsert)
+			tokenUpdate.Metadata = proto.CloneOf(tokenForUpsert.GetMetadata())
 			tokenUpdate.Metadata.Labels = map[string]string{"env": "test"}
 
-			_, err := updater.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{
+			_, err = updater.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{
 				Token: tokenUpdate,
 			})
 			require.NoError(t, err)
