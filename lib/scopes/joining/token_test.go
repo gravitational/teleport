@@ -378,3 +378,104 @@ func TestImmutableLabelHashing(t *testing.T) {
 	labels.Ssh["three"] = "3"
 	require.False(t, joining.VerifyImmutableLabelsHash(labels, initialHash))
 }
+
+func TestImmutableLabelHashCollision(t *testing.T) {
+	// Assert labels that could feasibly result in the same set of strings in the same order do not collide
+	// unless they're the exact same keys and values. Represented as a slice of test cases to make it easier
+	// to extend once immutable labels are made up of more than SSH labels.
+	cases := []struct {
+		name    string
+		labelsA *joiningv1.ImmutableLabels
+		labelsB *joiningv1.ImmutableLabels
+	}{
+		{
+			// guards against map entries being naively concatenated as they're hashed. e.g.
+			// aaa=bbbcccddd should not collide with aaa=bbb,ccc=ddd
+			name: "split label concatenation",
+			labelsA: &joiningv1.ImmutableLabels{
+				Ssh: map[string]string{
+					"aaa": "bbbcccddd",
+				},
+			},
+
+			labelsB: &joiningv1.ImmutableLabels{
+				Ssh: map[string]string{
+					"aaa": "bbb",
+					"ccc": "ddd",
+				},
+			},
+		},
+		{
+			// guards against single entries being naively concatenated as they're hashed. e.g.
+			// aaa=bbb should not collide with aaab=bb
+			name: "single label concatenation",
+			labelsA: &joiningv1.ImmutableLabels{
+				Ssh: map[string]string{
+					"aaa": "bbb",
+				},
+			},
+
+			labelsB: &joiningv1.ImmutableLabels{
+				Ssh: map[string]string{
+					"aaab": "bb",
+				},
+			},
+		},
+		// TODO (eriktate): add test case for identical labels applied to different service types once immutable
+		// labels support more than SSH
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			hashA := joining.HashImmutableLabels(c.labelsA)
+			require.False(t, joining.VerifyImmutableLabelsHash(c.labelsB, hashA))
+		})
+	}
+}
+
+// TestImmutableLabelHashGolden tests the immutable labels hashing implementation against a set of known-good hashes
+// to help guard against regressions.
+func TestImmutableLabelHashGolden(t *testing.T) {
+	cases := []struct {
+		name   string
+		labels *joiningv1.ImmutableLabels
+		hash   string
+	}{
+		{
+			name: "single ssh label",
+			labels: &joiningv1.ImmutableLabels{
+				Ssh: map[string]string{
+					"aaa": "bbb",
+				},
+			},
+			hash: "5dd8fad69587f17535a4dea3ab41400914c3fbecd1972d4e194b1c18c0f4c4ff",
+		},
+		{
+			name: "multiple ssh label",
+			labels: &joiningv1.ImmutableLabels{
+				Ssh: map[string]string{
+					"aaa": "bbb",
+					"ccc": "ddd",
+					"eee": "fff",
+				},
+			},
+			hash: "b4757712bb94a422f835ca983e9ab3a9ce9925617496e9eeea676fb65b28f2b9",
+		},
+		{
+			name: "empty labels",
+			labels: &joiningv1.ImmutableLabels{
+				Ssh: map[string]string{},
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			hash := joining.HashImmutableLabels(c.labels)
+			// assert both VerifyImmutableLabelsHash and a regular equality check just in case
+			// the VerifyImmutableLabelsHash implementation drifts
+			assert.True(t, joining.VerifyImmutableLabelsHash(c.labels, hash))
+			assert.Equal(t, c.hash, hash)
+		})
+	}
+}

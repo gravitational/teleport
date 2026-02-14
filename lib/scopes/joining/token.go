@@ -19,6 +19,7 @@ package joining
 import (
 	"cmp"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"slices"
 	"time"
@@ -425,7 +426,13 @@ func HashImmutableLabels(labels *joiningv1.ImmutableLabels) string {
 	}
 
 	hash := sha256.New()
-	if sshLabels := labels.GetSsh(); sshLabels != nil {
+	var bytesWrittenToHash int
+	writeHash := func(p []byte) {
+		n, _ := hash.Write(p)
+		bytesWrittenToHash += n
+	}
+
+	if sshLabels := labels.GetSsh(); len(sshLabels) > 0 {
 		sorted := make([]struct{ key, value string }, 0, len(sshLabels))
 		for k, v := range sshLabels {
 			sorted = append(sorted, struct{ key, value string }{k, v})
@@ -434,10 +441,33 @@ func HashImmutableLabels(labels *joiningv1.ImmutableLabels) string {
 			return cmp.Compare(a.key, b.key)
 		})
 
+		// first we write the service type so that the following labels do not collide with identical labels
+		// from other services e.g. app labels or database labels
+		writeHash([]byte("ssh"))
+
+		// Each map entry is added to the hash as 4 components:
+		// 1. The length of the key
+		// 2. The value of the key
+		// 3. The length of the value
+		// 4. The value itself
+		// This combination prevents collisions between:
+		// - single labels (e.g. aaa=bbb and aaab=bb)
+		// - splitting labels (e.g. aaa=bbbcccddd and aaa=bbb,ccc=ddd)
+		// ...because in both cases the lengths of the keys/values must change to create different labels from
+		// the same set of characters.
 		for _, v := range sorted {
-			_, _ = hash.Write([]byte(v.key))
-			_, _ = hash.Write([]byte(v.value))
+			buf := [8]byte{}
+			binary.BigEndian.PutUint64(buf[:], uint64(len(v.key)))
+			writeHash(buf[:])
+			writeHash([]byte(v.key))
+			binary.BigEndian.PutUint64(buf[:], uint64(len(v.value)))
+			writeHash(buf[:])
+			writeHash([]byte(v.value))
 		}
+	}
+
+	if bytesWrittenToHash == 0 {
+		return ""
 	}
 
 	return hex.EncodeToString(hash.Sum(nil))
