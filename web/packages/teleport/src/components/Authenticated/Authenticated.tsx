@@ -28,6 +28,8 @@ import { throttle } from 'shared/utils/highbar';
 import { StyledIndicator } from 'teleport/Main';
 import { ApiError } from 'teleport/services/api/parseError';
 import { storageService } from 'teleport/services/storageService';
+import userService from 'teleport/services/user';
+import { getUserPreferences } from 'teleport/services/userPreferences';
 import session from 'teleport/services/websession';
 
 import { ErrorDialog } from './ErrorDialogue';
@@ -58,6 +60,10 @@ const Authenticated: React.FC<PropsWithChildren> = ({ children }) => {
         session.clearBrowserSession(true /* rememberLocation */);
         return;
       }
+
+      // Fetch user context and preferences concurrently
+      userService.fetchUserContext();
+      getUserPreferences();
 
       try {
         const result = await session.validateCookieAndSession();
