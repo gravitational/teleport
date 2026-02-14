@@ -42,6 +42,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	_ "google.golang.org/grpc/encoding/gzip" // gzip compressor for gRPC.
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
@@ -213,7 +215,8 @@ type GRPCServer struct {
 	auditlogpb.UnimplementedAuditLogServiceServer
 	logger *slog.Logger
 	APIConfig
-	server *grpc.Server
+	server      *grpc.Server
+	healthcheck *health.Server
 
 	// TraceServiceServer exposes the exporter server so that the auth server may
 	// collect and forward spans
@@ -223,6 +226,13 @@ type GRPCServer struct {
 	// in-flight CreateAuditStream RPCs, by sending a value in at the beginning
 	// of the RPC and pulling one out before returning.
 	createAuditStreamSemaphore chan struct{}
+}
+
+func (g *GRPCServer) SetServingStatus(service string, servingStatus grpc_health_v1.HealthCheckResponse_ServingStatus) {
+	if g.healthcheck == nil {
+		return
+	}
+	g.healthcheck.SetServingStatus(service, servingStatus)
 }
 
 // Export forwards OTLP traces to the upstream collector configured in the tracing service. This allows for
@@ -6205,9 +6215,10 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	scopedjoiningv1.RegisterScopedJoiningServiceServer(server, scopedJoining)
 
 	authServer := &GRPCServer{
-		APIConfig: cfg.APIConfig,
-		logger:    logger,
-		server:    server,
+		APIConfig:   cfg.APIConfig,
+		logger:      logger,
+		server:      server,
+		healthcheck: health.NewServer(),
 	}
 
 	if en := os.Getenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT"); en != "" {
@@ -6231,6 +6242,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 
 	authpb.RegisterAuthServiceServer(server, authServer)
+	grpc_health_v1.RegisterHealthServer(server, authServer.healthcheck)
 	collectortracepb.RegisterTraceServiceServer(server, authServer)
 	auditlogpb.RegisterAuditLogServiceServer(server, authServer)
 
