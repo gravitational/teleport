@@ -742,7 +742,7 @@ func TestKubeSelection(t *testing.T) {
 			}
 
 			equal := reflect.DeepEqual(
-				accessRequests[0].GetRequestedResourceIDs(),
+				types.RiskyExtractResourceIDs(accessRequests[0].GetAllRequestedResourceIDs()),
 				[]types.ResourceID{
 					{
 						ClusterName: s.root.Config.Auth.ClusterName.GetClusterName(),

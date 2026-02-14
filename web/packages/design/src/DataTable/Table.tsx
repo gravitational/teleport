@@ -111,7 +111,7 @@ export default function Table<T>(props: TableProps<T>) {
     ) {
       return <LoadingIndicator colSpan={columns.length} />;
     }
-    data.map((item, rowIdx) => {
+    data.forEach((item, rowIdx) => {
       const TableRow: React.FC<PropsWithChildren> = ({ children }) => (
         <tr
           key={rowIdx}
@@ -123,29 +123,36 @@ export default function Table<T>(props: TableProps<T>) {
       );
 
       const customRow = row?.customRow?.(item);
+      const renderAfter = row?.renderAfter?.(item);
+
       if (customRow) {
         rows.push(<TableRow key={rowIdx}>{customRow}</TableRow>);
-        return;
+      } else {
+        const cells = columns.flatMap((column, columnIdx) => {
+          if (column.isNonRender) {
+            return []; // does not include this column.
+          }
+
+          const $cell = column.render ? (
+            column.render(item)
+          ) : (
+            <TextCell data={column.key ? item[column.key] : undefined} />
+          );
+
+          return (
+            <React.Fragment key={`${rowIdx} ${columnIdx}`}>
+              {$cell}
+            </React.Fragment>
+          );
+        });
+        rows.push(<TableRow key={rowIdx}>{cells}</TableRow>);
       }
 
-      const cells = columns.flatMap((column, columnIdx) => {
-        if (column.isNonRender) {
-          return []; // does not include this column.
-        }
-
-        const $cell = column.render ? (
-          column.render(item)
-        ) : (
-          <TextCell data={column.key ? item[column.key] : undefined} />
+      if (renderAfter) {
+        rows.push(
+          <React.Fragment key={`${rowIdx}-after`}>{renderAfter}</React.Fragment>
         );
-
-        return (
-          <React.Fragment key={`${rowIdx} ${columnIdx}`}>
-            {$cell}
-          </React.Fragment>
-        );
-      });
-      rows.push(<TableRow key={rowIdx}>{cells}</TableRow>);
+      }
     });
 
     if (rows.length) {
