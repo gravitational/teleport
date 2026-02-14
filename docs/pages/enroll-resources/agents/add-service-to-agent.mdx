@@ -31,45 +31,92 @@ cluster with the new token and receive a new certificate.
 - A Teleport cluster
 - At least one Teleport Agent running in your cluster, either on a Linux server
   or a Kubernetes pod
- - (!docs/pages/includes/tctl.mdx!)
-
-As an example, this guide shows you how to add a service to an agent using the
-token join method. This is one of multiple available join methods. Read the
-[Using Teleport Agents overview](agents.mdx) for a complete list.
+- (!docs/pages/includes/iac-clients.mdx!)
+- Familiarity with at least one Teleport join method. Read the [Using Teleport
+  Agents overview](agents.mdx) for a complete list of guides to joining Teleport
+  Agents. This guide assumes that you have followed at least one how-to guide
+  for joining a Teleport Agent.
 
 ## Step 1/3. Generate a new join token
 
 Generate a new join token for all services running on an agent, including any
 new services you want to run. 
 
-For example, if an agent runs the Teleport Kubernetes Service, and you want it
-to run the Teleport Application Service as well, create a join token for the
-Teleport Kubernetes Service and Teleport Application Service. To do so, specify
-the two services in the `--type` flag of `tctl tokens add`:
-
-```code
-$ tctl tokens add --type=kube,app --ttl=5m
-```
-
 You can specify the following token types:
 
 (!docs/pages/includes/token-types.mdx!)
 
-If you are running your Teleport Agent using the `teleport-kube-agent` Helm
-chart, once you know your token types, update your values file so the `roles`
-field includes your required roles.
+For example, if an agent runs the Teleport Kubernetes Service, and you want it
+to run the Teleport Application Service as well, create a join token for the
+Teleport Kubernetes Service and Teleport Application Service. 
 
-For example, this change adds the `app` role to enable the Teleport Application
-Service:
+Modify the token type in the configuration you used to create the token,
+depending on your infrastructure as code tool and whether your agent runs from
+the `teleport-kube-agent` Helm chart:
+
+<Tabs>
+<TabItem label="tctl">
+
+Edit the `spec.roles` field in your token resource manifest. In this example, we
+are allowing this token to join the Teleport Application Service in addition to
+the Teleport Kubernetes Service:
 
 ```diff
-- roles: kube,db
-+ roles: kube,app,db
+# ...
+  spec:
+    # use the minimal set of roles required (e.g. Node, Proxy, App, Kube, DB, WindowsDesktop)
+-   roles: [Kube]
++   roles: [Kube,App]
+```
+
+</TabItem>
+<TabItem label="Terraform">
+
+Edit the `spec.roles` field in your resource configuration. In this example, we
+are allowing this token to join the Teleport Application Service in addition to
+the Teleport Kubernetes Service:
+
+```diff
+  resource "teleport_provision_token" "current" {
+  // ...
+    spec = {
+      // use the minimal set of roles required (e.g. Node, Proxy, App, Kube, DB, WindowsDesktop)
+-     roles       = ["Kube"]
++     roles       = ["Kube","App"]
+```
+</TabItem>
+<TabItem label="Kubernetes">
+
+Edit the `spec.roles` field in your manifest. In this example, we are allowing
+this token to join the Teleport Application Service in addition to the Teleport
+Kubernetes Service:
+
+```diff
+# ...
+  spec:
+    # use the minimal set of roles required (e.g. Node, Proxy, App, Kube, DB, WindowsDesktop)
+-   roles: [Kube]
++   roles: [Kube,App]
+```
+</TabItem>
+<TabItem label="teleport-kube-agent">
+
+Edit the `roles` field in your values file. In this example, we are allowing
+this token to join the Teleport Application Service in addition to the Teleport
+Kubernetes Service:
+
+```diff
+- roles: kube,
++ roles: kube,app
 ```
 
 See the `teleport-kube-agent` [chart
 reference](../../reference/helm-reference/teleport-kube-agent.mdx#roles) for the
 roles and token types that the chart supports.
+
+</TabItem>
+</Tabs>
+
 
 ## Step 2/3. Edit your agent configuration
 
