@@ -20,6 +20,7 @@ package plugindata
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -36,12 +37,24 @@ var sampleAccessRequestData = AccessRequestData{
 	LoginsByRole: map[string][]string{
 		"role-foo": {"login-foo", "login-bar"},
 	},
+	RequestTTL:    "2h0m0s",
+	RequestExpiry: mustParseTime("2006-01-02T17:04:05Z"),
+	AccessTTL:     "8h0m0s",
+	AccessExpiry:  mustParseTime("2006-01-02T23:04:05Z"),
+}
+
+func mustParseTime(raw string) *time.Time {
+	t, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		panic(err)
+	}
+	return &t
 }
 
 func TestEncodeAccessRequestData(t *testing.T) {
 	dataMap, err := EncodeAccessRequestData(sampleAccessRequestData)
 	assert.NoError(t, err)
-	assert.Len(t, dataMap, 9)
+	assert.Len(t, dataMap, 13)
 	assert.Equal(t, "user-foo", dataMap["user"])
 	assert.Equal(t, "role-foo,role-bar", dataMap["roles"])
 	assert.Equal(t, `["cluster/node/foo","cluster/node/bar"]`, dataMap["resources"])
@@ -51,6 +64,10 @@ func TestEncodeAccessRequestData(t *testing.T) {
 	assert.Equal(t, "foo ok", dataMap["resolve_reason"])
 	assert.Equal(t, `["foouser"]`, dataMap["suggested_reviewers"])
 	assert.Equal(t, `{"role-foo":["login-foo","login-bar"]}`, dataMap["logins_by_role"])
+	assert.Equal(t, "2h0m0s", dataMap["request_ttl"])
+	assert.Equal(t, "2006-01-02T17:04:05Z", dataMap["request_expiry"])
+	assert.Equal(t, "8h0m0s", dataMap["access_ttl"])
+	assert.Equal(t, "2006-01-02T23:04:05Z", dataMap["access_expiry"])
 
 }
 
@@ -65,6 +82,10 @@ func TestDecodeAccessRequestData(t *testing.T) {
 		"resolve_reason":      "foo ok",
 		"suggested_reviewers": `["foouser"]`,
 		"logins_by_role":      `{"role-foo":["login-foo","login-bar"]}`,
+		"request_ttl":         "2h0m0s",
+		"request_expiry":      "2006-01-02T17:04:05Z",
+		"access_ttl":          "8h0m0s",
+		"access_expiry":       "2006-01-02T23:04:05Z",
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, sampleAccessRequestData, pluginData)
