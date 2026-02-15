@@ -1180,6 +1180,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	require.NoError(t, err)
 
 	localAdmin, err := storage.ReadLocalIdentityForRole(
+		ctx,
 		filepath.Join(process.Config.DataDir, teleport.ComponentProcess),
 		types.RoleAdmin,
 	)
