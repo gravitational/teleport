@@ -81,6 +81,8 @@ type RemoteClusterTunnelManagerConfig struct {
 	KubeDialAddr utils.NetAddr
 	// FIPS indicates if Teleport was started in FIPS mode.
 	FIPS bool
+	// InsecureMode defines whether insecure connections are allowed.
+	InsecureMode bool
 	// Logger is the logger
 	Logger *slog.Logger
 	// LocalAuthAddresses is a list of auth servers to use when dialing back to
@@ -360,6 +362,7 @@ func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 
 func realNewAgentPool(ctx context.Context, cfg RemoteClusterTunnelManagerConfig, cluster, addr string) (*AgentPool, error) {
 	pool, err := NewAgentPool(ctx, AgentPoolConfig{
+		InsecureMode: cfg.InsecureMode,
 		// Configs for our cluster.
 		Client:              cfg.AuthClient,
 		AccessPoint:         cfg.AccessPoint,

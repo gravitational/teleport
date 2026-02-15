@@ -184,6 +184,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	agentPool, err := reversetunnel.NewAgentPool(
 		process.ExitContext(),
 		reversetunnel.AgentPoolConfig{
+			InsecureMode:             process.Config.InsecureMode,
 			Component:                teleport.ComponentDatabase,
 			HostUUID:                 conn.HostID(),
 			Resolver:                 tunnelAddrResolver,

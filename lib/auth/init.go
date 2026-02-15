@@ -103,6 +103,9 @@ type RecordingEncryptionManager interface {
 
 // InitConfig is auth server init config
 type InitConfig struct {
+	// InsecureMode defines whether insecure connections are allowed.
+	InsecureMode bool
+
 	// Backend is auth backend to use
 	Backend backend.Backend
 
@@ -700,7 +703,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		return trace.Wrap(err)
 	}
 
-	if lib.IsInsecureDevMode() {
+	if lib.IsInsecureDevMode() || cfg.InsecureMode {
 		const warningMessage = "Starting teleport in insecure mode. This is " +
 			"dangerous! Sensitive information will be logged to console and " +
 			"certificates will not be verified. Proceed with caution!"

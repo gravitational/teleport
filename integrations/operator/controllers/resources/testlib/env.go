@@ -79,7 +79,7 @@ func ValidRandomResourceName(prefix string) string {
 	return prefix + string(b)
 }
 
-func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) {
+func defaultTeleportServiceConfig(t *testing.T, insecureMode bool) (*helpers.TeleInstance, string) {
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
@@ -104,6 +104,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = true
 	rcConf.Version = "v2"
+	rcConf.InsecureMode = insecureMode
 
 	roleName := ValidRandomResourceName("role-")
 	unrestricted := []string{"list", "create", "read", "update", "delete"}
@@ -184,6 +185,7 @@ type TestSetup struct {
 	TeleportServer           *helpers.TeleInstance
 	ResourceName             string
 	Context                  context.Context
+	InsecureMode             bool
 }
 
 // StartKubernetesOperator creates and start a new operator
@@ -253,7 +255,7 @@ func setupTeleportClient(t *testing.T, setup *TestSetup) {
 
 	// Start a Teleport server for the test and set up a client connected to
 	// that server.
-	teleportServer, operatorName := defaultTeleportServiceConfig(t)
+	teleportServer, operatorName := defaultTeleportServiceConfig(t, setup.InsecureMode)
 	setup.TeleportServer = teleportServer
 	require.NoError(t, teleportServer.Start())
 	setup.TeleportClient = clientForTeleport(t, teleportServer, operatorName)
@@ -274,6 +276,12 @@ type TestOption func(*TestSetup)
 func WithTeleportClient(clt *client.Client) TestOption {
 	return func(setup *TestSetup) {
 		setup.TeleportClient = clt
+	}
+}
+
+func WithInsecureMode() TestOption {
+	return func(setup *TestSetup) {
+		setup.InsecureMode = true
 	}
 }
 
