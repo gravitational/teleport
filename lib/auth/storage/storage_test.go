@@ -302,9 +302,9 @@ func TestImmutableLabels(t *testing.T) {
 
 	// run in a loop to ensure we can overwrite existing labels
 	for i := range 2 {
-		err = storage.WriteIdentity(identName, *ident)
+		err = storage.WriteIdentity(t.Context(), identName, *ident)
 		require.NoError(t, err)
-		ident, err = storage.ReadIdentity(identName, types.RoleNode)
+		ident, err = storage.ReadIdentity(t.Context(), identName, types.RoleNode)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(immutableLabels, ident.ImmutableLabels, protocmp.Transform()))
 		immutableLabels.Ssh[fmt.Sprintf("label-%d", i)] = fmt.Sprintf("value-%d", i)
