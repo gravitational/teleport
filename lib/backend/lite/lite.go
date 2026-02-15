@@ -1081,6 +1081,7 @@ func isConstraintError(err error) bool {
 	if ok := errors.As(err, &e); !ok {
 		return false
 	}
+	// Only return true if the constraint violation is from the primary key.
 	return e.Code() == sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY
 }
 
@@ -1089,7 +1090,8 @@ func isLockedError(err error) bool {
 	if ok := errors.As(err, &e); !ok {
 		return false
 	}
-	return e.Code() == sqlite3.SQLITE_BUSY
+	// Return true for busy or any extended busy errors.
+	return e.Code()&0xFF == sqlite3.SQLITE_BUSY
 }
 
 func isReadonlyError(err error) bool {
@@ -1097,5 +1099,6 @@ func isReadonlyError(err error) bool {
 	if ok := errors.As(err, &e); !ok {
 		return false
 	}
-	return e.Code() == sqlite3.SQLITE_READONLY
+	// Return true for readonly or any extended readonly errors.
+	return e.Code()&0xFF == sqlite3.SQLITE_READONLY
 }
