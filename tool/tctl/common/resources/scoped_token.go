@@ -47,7 +47,7 @@ func NewScopedTokenCollection(tokens []*joiningv1.ScopedToken) Collection {
 func (c *scopedTokenCollection) Resources() []types.Resource {
 	r := make([]types.Resource, len(c.tokens))
 	for i, resource := range c.tokens {
-		r[i] = types.Resource153ToLegacy(resource)
+		r[i] = types.ProtoResource153ToLegacy(resource)
 	}
 	return r
 }
