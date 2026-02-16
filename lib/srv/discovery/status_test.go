@@ -84,7 +84,7 @@ func (m *mockInstance) GetDiscoveryGroup() string {
 }
 
 func TestMergeExistingInstances(t *testing.T) {
-	s, _ := newTaskUpdater(t)
+	s, _ := newTaskUpdater(t, 10*time.Minute)
 	clock := s.clock
 	pollInterval := s.PollInterval
 
@@ -222,7 +222,7 @@ func TestMergeUpsertUserTask(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, ap := newTaskUpdater(t, tt.existingTask)
+			s, ap := newTaskUpdater(t, 10*time.Minute, tt.existingTask)
 
 			mergeCalled := false
 			mergeFunc := func(oldSpec *usertasksv1.UserTaskSpec, newSpec *usertasksv1.UserTaskSpec) {
@@ -280,7 +280,7 @@ func (m *mocktaskUpdaterAccessPoint) GetUserTask(ctx context.Context, name strin
 	return task, nil
 }
 
-func newTaskUpdater(t *testing.T, existingTasks ...*usertasksv1.UserTask) (*taskUpdater, *mocktaskUpdaterAccessPoint) {
+func newTaskUpdater(t *testing.T, pollInterval time.Duration, existingTasks ...*usertasksv1.UserTask) (*taskUpdater, *mocktaskUpdaterAccessPoint) {
 	t.Helper()
 
 	clock := clockwork.NewFakeClock()
@@ -295,7 +295,7 @@ func newTaskUpdater(t *testing.T, existingTasks ...*usertasksv1.UserTask) (*task
 
 		DiscoveryGroup: "group-1",
 		ServerID:       "discover-server-id",
-		PollInterval:   10 * time.Minute,
+		PollInterval:   pollInterval,
 		Log:            logtest.NewLogger(),
 		AccessPoint:    ap,
 	}
@@ -309,6 +309,112 @@ func newTaskUpdater(t *testing.T, existingTasks ...*usertasksv1.UserTask) (*task
 	}
 
 	return manager, ap
+}
+
+func TestTaskExpirationTTL(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		poll     time.Duration
+		expected time.Duration
+	}{
+		{"zero poll", 0, time.Hour},
+		{"short poll", 5 * time.Minute, time.Hour},
+		{"30 min boundary", 30 * time.Minute, time.Hour},
+		{"above boundary", 31 * time.Minute, 62 * time.Minute},
+		{"long poll", 2 * time.Hour, 4 * time.Hour},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, taskExpirationTTL(tt.poll))
+		})
+	}
+}
+
+// newEC2TaskKeyAndInstances builds an awsEC2TaskKey and matching
+// DiscoverEC2 payload for use in tests. The instanceID is used as both
+// the map key and the DiscoverEC2Instance.InstanceId field.
+func newEC2TaskKeyAndInstances(issueType string, instanceID string, syncTime *timestamppb.Timestamp) (awsEC2TaskKey, *usertasksv1.DiscoverEC2) {
+	key := awsEC2TaskKey{
+		integration:     "my-int",
+		issueType:       issueType,
+		accountID:       "123456789012",
+		region:          "us-east-1",
+		ssmDocument:     "my-doc",
+		installerScript: "my-script",
+	}
+	data := &usertasksv1.DiscoverEC2{
+		AccountId:       key.accountID,
+		Region:          key.region,
+		SsmDocument:     key.ssmDocument,
+		InstallerScript: key.installerScript,
+		Instances: map[string]*usertasksv1.DiscoverEC2Instance{
+			instanceID: {
+				InstanceId:      instanceID,
+				DiscoveryConfig: "dc01",
+				DiscoveryGroup:  "group-1",
+				SyncTime:        syncTime,
+			},
+		},
+	}
+	return key, data
+}
+
+// ec2TaskName derives the task name from an awsEC2TaskKey.
+func ec2TaskName(key awsEC2TaskKey) string {
+	return usertasks.TaskNameForDiscoverEC2(usertasks.TaskNameForDiscoverEC2Parts{
+		Integration:     key.integration,
+		IssueType:       key.issueType,
+		AccountID:       key.accountID,
+		Region:          key.region,
+		SSMDocument:     key.ssmDocument,
+		InstallerScript: key.installerScript,
+	})
+}
+
+// TestMergeUpsertDiscoverEC2Task_IssueTypes verifies that tasks with
+// different EC2 issue types can be created and persisted correctly.
+func TestMergeUpsertDiscoverEC2Task_IssueTypes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		issueType  string
+		instanceID string
+	}{
+		{
+			name:       "ssm script failure",
+			issueType:  usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
+			instanceID: "i-ssm-failure",
+		},
+		{
+			name:       "join failure",
+			issueType:  usertasks.AutoDiscoverEC2IssueJoinFailure,
+			instanceID: "i-join-failure",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			s, ap := newTaskUpdater(t, 5*time.Minute)
+			taskGroup, failedInstances := newEC2TaskKeyAndInstances(
+				tt.issueType, tt.instanceID, timestamppb.New(s.clock.Now()),
+			)
+
+			require.NoError(t, s.mergeUpsertDiscoverEC2Task(taskGroup, failedInstances))
+
+			upsertedTask, err := ap.GetUserTask(t.Context(), ec2TaskName(taskGroup))
+			require.NoError(t, err)
+			require.NotNil(t, upsertedTask)
+
+			require.Equal(t, tt.issueType, upsertedTask.Spec.IssueType)
+			require.Len(t, upsertedTask.Spec.DiscoverEc2.Instances, 1)
+			require.Contains(t, upsertedTask.Spec.DiscoverEc2.Instances, tt.instanceID)
+
+		})
+	}
 }
 
 func TestAzureVMTasks_AddFailedEnrollment(t *testing.T) {
@@ -494,7 +600,7 @@ func TestAzureVMTasks_UpsertAll(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, ap := newTaskUpdater(t, tt.existingTasks...)
+			s, ap := newTaskUpdater(t, 10*time.Minute, tt.existingTasks...)
 
 			tt.tasks.upsertAll(s)
 

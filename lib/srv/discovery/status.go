@@ -399,6 +399,17 @@ func (s *Server) ReportEC2SSMInstallationResult(ctx context.Context, result *ser
 	return nil
 }
 
+// taskExpirationTTL returns the TTL for user task expiration.
+// It enforces a minimum floor of 1 hour to prevent tasks from expiring
+// too quickly when poll intervals are short.
+func taskExpirationTTL(pollInterval time.Duration) time.Duration {
+	ttl := 2 * pollInterval
+	if ttl < time.Hour {
+		return time.Hour
+	}
+	return ttl
+}
+
 // awsEC2Tasks contains the Discover EC2 User Tasks that must be reported to the user.
 type awsEC2Tasks struct {
 	mu sync.RWMutex
@@ -677,7 +688,7 @@ func (s *taskUpdater) mergeUpsertDiscoverEC2Task(taskGroup awsEC2TaskKey, failed
 
 	// If the DiscoveryService is stopped, or the issue does not happen again
 	// the task is removed to prevent users from working on issues that are no longer happening.
-	taskExpiration := s.clock.Now().Add(2 * s.PollInterval)
+	taskExpiration := s.clock.Now().Add(taskExpirationTTL(s.PollInterval))
 
 	task, err := usertasks.NewDiscoverEC2UserTask(
 		&usertasksv1.UserTaskSpec{
