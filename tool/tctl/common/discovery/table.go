@@ -195,6 +195,12 @@ func renderNextActions(w io.Writer, style textStyle, actions []nextAction) error
 }
 
 func renderAlignedKeyValues(w io.Writer, indent string, lines []keyValue) error {
+	return renderAlignedKeyValuesWithPrefix(w, indent, indent, lines)
+}
+
+// renderAlignedKeyValuesWithPrefix renders key-value pairs with a distinct
+// first-line prefix. Subsequent lines are indented with continuationIndent.
+func renderAlignedKeyValuesWithPrefix(w io.Writer, firstPrefix, continuationIndent string, lines []keyValue) error {
 	if len(lines) == 0 {
 		return nil
 	}
@@ -202,8 +208,12 @@ func renderAlignedKeyValues(w io.Writer, indent string, lines []keyValue) error 
 	for _, line := range lines {
 		maxKeyWidth = max(maxKeyWidth, len(line.Key))
 	}
-	for _, line := range lines {
-		if _, err := fmt.Fprintf(w, "%s%-*s: %s\n", indent, maxKeyWidth, line.Key, line.Value); err != nil {
+	for i, line := range lines {
+		prefix := continuationIndent
+		if i == 0 {
+			prefix = firstPrefix
+		}
+		if _, err := fmt.Fprintf(w, "%s%-*s: %s\n", prefix, maxKeyWidth, line.Key, line.Value); err != nil {
 			return trace.Wrap(err)
 		}
 	}
