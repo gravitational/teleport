@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -64,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
+	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -2003,23 +2005,20 @@ func initializeTracing(cf *CLIConf) func() {
 		}
 	}
 
+	var propContext apitracing.PropagationContext
+	if traceContext := os.Getenv(tshTraceContextEnvVar); traceContext != "" {
+		logger.DebugContext(cf.Context, "found tracing context in environment", "context", traceContext)
+		if err := json.Unmarshal([]byte(traceContext), &propContext); err == nil {
+			logger.DebugContext(cf.Context, "tracing context was valid", "context", propContext)
+		}
+	}
+
 	// A default sampling rate of 1 ensures that all spans for this invocation of
 	// tsh are guaranteed to be recorded. Since Teleport honors the sampling rate
 	// of remote spans this will also cause Teleport to sample any spans it generates
 	// in response to the client request.
 	const samplingRate = 1.0
-
 	switch {
-	// kubectl is a special case because it is the only command that we re-execute
-	// in order to be able to access the exit code and stdout/stderr of the command
-	// that was run and determine if we should create a new access request from
-	// the output data.
-	// We don't want to enable tracing for the master invocation of tsh kubectl
-	// because the data that we would be tracing would be the tsh kubectl command.
-	// Instead, we want to enable tracing for the re-executed kubectl command and
-	// we do that in the kubectl command handler.
-	case cf.command == "kubectl":
-		return func() {}
 	// The user explicitly asked for traces to be sent to a particular exporter
 	// instead of forwarding them to Auth. Proceed with creating the provider.
 	case cf.SampleTraces && cf.TraceExporter != "":
@@ -2040,7 +2039,7 @@ func initializeTracing(cf *CLIConf) func() {
 		cf.tracer = provider.Tracer(teleport.ComponentTSH)
 		// Start the root span for the command and update the config context so
 		// that all spans created in the future will be rooted at this span.
-		cf.Context, rootSpan = cf.tracer.Start(cf.Context, cf.command)
+		cf.Context, rootSpan = cf.tracer.Start(apitracing.WithPropagationContext(cf.Context, propContext), cf.command)
 		return flush(provider)
 	// All commands besides ssh are only traced if the user explicitly requested
 	// tracing. For ssh, a random number of spans may be sampled if the Proxy is
@@ -2067,7 +2066,7 @@ func initializeTracing(cf *CLIConf) func() {
 	cf.tracer = provider.Tracer(teleport.ComponentTSH)
 	// Start the root span for the command and update the config context so
 	// that all spans created in the future will be rooted at this span.
-	cf.Context, rootSpan = cf.tracer.Start(cf.Context, cf.command)
+	cf.Context, rootSpan = cf.tracer.Start(apitracing.WithPropagationContext(cf.Context, propContext), cf.command)
 
 	if cf.command == "login" {
 		// Don't call RetryWithRelogin below if the user is trying to log in.
