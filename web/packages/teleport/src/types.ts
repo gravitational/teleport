@@ -227,6 +227,7 @@ export interface FeatureFlags {
   readAutoUpdateVersion: boolean;
   readAutoUpdateAgentRollout: boolean;
   listAutoUpdateAgentReport: boolean;
+  sessionSummaries: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.
