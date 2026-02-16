@@ -94,7 +94,7 @@ func newClient(t *testing.T) *client {
 func TestUnifiedResourceWatcher(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clt := newClient(t)
 
 	// Add node to the backend.
@@ -190,9 +190,10 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		gitServer, gitServer2,
 		services.IdentityCenterAccountToAppServer(icAcct),
 	}
-	assert.Eventually(t, func() bool {
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
 		res, err = w.GetUnifiedResources(ctx)
-		return len(res) == len(expectedRes)
+		require.NoError(t, err)
+		require.Len(t, res, len(expectedRes))
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be added")
 	assert.Empty(t, cmp.Diff(
 		expectedRes,
@@ -218,14 +219,15 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		services.IdentityCenterAccountToAppServer(icAcct),
 	}
 
-	assert.Eventually(t, func() bool {
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
 		res, err = w.GetUnifiedResources(ctx)
 		require.NoError(t, err)
 		serverUpdated := slices.ContainsFunc(res, func(r types.ResourceWithLabels) bool {
 			node, ok := r.(types.Server)
 			return ok && node.GetAddr() == "192.168.0.1:22"
 		})
-		return len(res) == len(expectedRes) && serverUpdated
+		require.True(t, serverUpdated)
+		require.Len(t, res, len(expectedRes))
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be updated")
 	assert.Empty(t, cmp.Diff(
 		expectedRes,
@@ -243,7 +245,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 func TestUnifiedResourceCacheIterateResources(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clt := newClient(t)
 
 	node := newNodeServer(t, "node1", "hostname1", "127.0.0.1:22", false /*tunnel*/)
@@ -430,7 +432,7 @@ func TestUnifiedResourceCacheIterateResources(t *testing.T) {
 func TestUnifiedResourceCacheIteration(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const resourceCount = 1234
 	ids := make([]string, 0, resourceCount)
@@ -819,7 +821,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 func TestUnifiedResourceWatcher_PreventDuplicates(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clt := newClient(t)
 	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -835,9 +837,10 @@ func TestUnifiedResourceWatcher_PreventDuplicates(t *testing.T) {
 	_, err = clt.UpsertNode(ctx, node)
 	require.NoError(t, err)
 
-	assert.Eventually(t, func() bool {
-		res, _ := w.GetUnifiedResources(ctx)
-		return len(res) == 1
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, err := w.GetUnifiedResources(ctx)
+		require.NoError(t, err)
+		require.Len(t, res, 1)
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be added")
 
 	// update a node
@@ -845,10 +848,11 @@ func TestUnifiedResourceWatcher_PreventDuplicates(t *testing.T) {
 	_, err = clt.UpsertNode(ctx, updatedNode)
 	require.NoError(t, err)
 
-	// only one resource should still exists with the name "node1" (with hostname updated)
-	assert.Eventually(t, func() bool {
-		res, _ := w.GetUnifiedResources(ctx)
-		return len(res) == 1
+	// only one resource should still exist with the name "node1" (with hostname updated)
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, err := w.GetUnifiedResources(ctx)
+		require.NoError(t, err)
+		require.Len(t, res, 1)
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be added")
 
 }
@@ -974,7 +978,7 @@ func TestUnifiedResourceCache_AppServerComponentFeaturesIntersection(t *testing.
 func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clt := newClient(t)
 	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -1093,9 +1097,10 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	_, err = clt.CreateGitServer(ctx, gitServer)
 	require.NoError(t, err)
 
-	assert.Eventually(t, func() bool {
-		res, _ := w.GetUnifiedResources(ctx)
-		return len(res) == 8
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, err := w.GetUnifiedResources(ctx)
+		require.NoError(t, err)
+		require.Len(t, res, 8)
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be added")
 
 	// delete just one of each of the HA servers
@@ -1221,7 +1226,7 @@ func newICAccount(t *testing.T, ctx context.Context, svc services.IdentityCenter
 
 func TestOktaAppServers(t *testing.T) {
 	clt := newClient(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	appsServer := []*types.AppServerV3{
 		mustCreateOktaAppServer(t, uuid.NewString(), "App 1"),
@@ -1233,7 +1238,7 @@ func TestOktaAppServers(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	w, err := services.NewUnifiedResourceCache(context.Background(), services.UnifiedResourceCacheConfig{
+	w, err := services.NewUnifiedResourceCache(t.Context(), services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentUnifiedResource,
 			Client:    clt,
@@ -1308,7 +1313,7 @@ func newMCPServerApp(t *testing.T, name string) *types.AppV3 {
 func TestUnifiedResourceCacheIterateMCPServers(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clt := newClient(t)
 
 	app, err := types.NewAppServerV3(
@@ -1417,7 +1422,7 @@ func TestUnifiedResourceCacheIterateMCPServers(t *testing.T) {
 func TestUnifiedResourceLinuxDesktop(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clt := newClient(t)
 
 	// Create a unified resource cache
@@ -1452,10 +1457,10 @@ func TestUnifiedResourceLinuxDesktop(t *testing.T) {
 
 	// Wait for the resource to appear in the cache
 	var resources []types.ResourceWithLabels
-	assert.Eventually(t, func() bool {
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
 		resources, err = w.GetUnifiedResources(ctx)
 		require.NoError(t, err)
-		return len(resources) == 1
+		require.Len(t, resources, 1)
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for Linux desktop to be added")
 
 	// Verify the resource is a Linux desktop with correct properties
@@ -1494,10 +1499,10 @@ func TestUnifiedResourceLinuxDesktop(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for both resources to appear
-	assert.Eventually(t, func() bool {
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
 		resources, err = w.GetUnifiedResources(ctx)
 		require.NoError(t, err)
-		return len(resources) == 2
+		require.Len(t, resources, 2)
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for second Linux desktop")
 
 	// Verify both desktops are present
@@ -1510,17 +1515,18 @@ func TestUnifiedResourceLinuxDesktop(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for deletion to be reflected
-	assert.Eventually(t, func() bool {
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
 		resources, err = w.GetUnifiedResources(ctx)
 		require.NoError(t, err)
-		return len(resources) == 1 && resources[0].GetName() == "linux-desktop-2"
+		require.Len(t, resources, 1)
+		require.Equal(t, "linux-desktop-2", resources[0].GetName())
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for Linux desktop deletion")
 }
 
 func TestUnifiedResourceLinuxDesktopFiltering(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clt := newClient(t)
 
 	// Create a unified resource cache
@@ -1571,10 +1577,10 @@ func TestUnifiedResourceLinuxDesktopFiltering(t *testing.T) {
 
 	// Wait for all resources
 	var allResources []types.ResourceWithLabels
-	assert.Eventually(t, func() bool {
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
 		allResources, err = w.GetUnifiedResources(ctx)
 		require.NoError(t, err)
-		return len(allResources) == 3
+		require.Len(t, allResources, 3)
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for all resources")
 
 	// Helper to collect resources from iterator

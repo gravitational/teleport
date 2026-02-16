@@ -502,9 +502,9 @@ func TestMakeLinuxDesktop(t *testing.T) {
 			expected: Desktop{
 				Kind:   types.KindLinuxDesktop,
 				OS:     "linux",
-				Name:   "linux-desktop-1",
+				Name:   "linux-host-1",
 				Addr:   "10.0.0.1:22",
-				HostID: "linux-host-1",
+				HostID: "linux-desktop-1",
 				Labels: []ui.Label{
 					{Name: "env", Value: "prod"},
 					{Name: "region", Value: "us-west"},
@@ -538,9 +538,9 @@ func TestMakeLinuxDesktop(t *testing.T) {
 			expected: Desktop{
 				Kind:   types.KindLinuxDesktop,
 				OS:     "linux",
-				Name:   "linux-desktop-2",
+				Name:   "linux-host-2",
 				Addr:   "192.168.1.100:22",
-				HostID: "linux-host-2",
+				HostID: "linux-desktop-2",
 				Labels: []ui.Label{
 					{Name: "visible", Value: "label"},
 				},
@@ -568,9 +568,9 @@ func TestMakeLinuxDesktop(t *testing.T) {
 			expected: Desktop{
 				Kind:            types.KindLinuxDesktop,
 				OS:              "linux",
-				Name:            "linux-desktop-3",
+				Name:            "linux-host-3",
 				Addr:            "example.com:2222",
-				HostID:          "linux-host-3",
+				HostID:          "linux-desktop-3",
 				Labels:          []ui.Label{},
 				Logins:          nil,
 				RequiresRequest: false,

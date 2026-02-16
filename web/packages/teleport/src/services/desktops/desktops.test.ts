@@ -34,6 +34,7 @@ test('correct formatting of desktops fetch response', async () => {
         addr: '10.0.0.10',
         labels: [{ name: 'env', value: 'test' }],
         logins: ['Administrator'],
+        host_id: undefined,
       },
     ],
     startKey: mockResponse.startKey,
@@ -67,6 +68,7 @@ test('null labels field in desktops fetch response', async () => {
 const mockResponse = {
   items: [
     {
+      kind: 'windows_desktop',
       addr: '10.0.0.10',
       labels: [{ name: 'env', value: 'test' }],
       name: 'DC1-teleport-demo',
