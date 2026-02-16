@@ -37,6 +37,7 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/utils"
@@ -728,25 +729,16 @@ func (c *UnifiedResourceCache) getDesktops(ctx context.Context) ([]types.Windows
 // getLinuxDesktops will get all Linux desktops
 func (c *UnifiedResourceCache) getLinuxDesktops(ctx context.Context) ([]resource, error) {
 	var linuxDesktops []resource
-	var startKey string
-	for {
-		resp, nextKey, err := c.ListLinuxDesktops(ctx, apidefaults.DefaultChunkSize, startKey)
+	for linuxDesktop, err := range clientutils.Resources(ctx, c.ListLinuxDesktops) {
 		if err != nil {
-			return nil, trace.Wrap(err, "getting linux desktops for resource watcher")
+			return nil, trace.Wrap(err)
 		}
-		for _, linuxDesktop := range resp {
-			legacy := types.ProtoResource153ToLegacy(linuxDesktop)
-			res, ok := legacy.(resource)
-			if !ok {
-				return nil, trace.BadParameter("type %T doesn't implement services.resource", legacy)
-			}
-			linuxDesktops = append(linuxDesktops, res)
+		legacy := types.ProtoResource153ToLegacy(linuxDesktop)
+		res, ok := legacy.(resource)
+		if !ok {
+			return nil, trace.BadParameter("type %T doesn't implement services.resource", legacy)
 		}
-
-		if nextKey == "" {
-			break
-		}
-		startKey = nextKey
+		linuxDesktops = append(linuxDesktops, res)
 	}
 	return linuxDesktops, nil
 }
