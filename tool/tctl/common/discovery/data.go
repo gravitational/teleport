@@ -151,8 +151,6 @@ func friendlyTaskType(taskType string) string {
 		return "AWS EKS"
 	case usertasksapi.TaskTypeDiscoverRDS:
 		return "AWS RDS"
-	case usertasksapi.TaskTypeDiscoverAzureVM:
-		return "Azure VM"
 	default:
 		if strings.TrimSpace(taskType) == "" {
 			return "Unknown"
@@ -249,8 +247,6 @@ func taskAffectedCount(task *usertasksv1.UserTask) int {
 		return len(spec.GetDiscoverEks().GetClusters())
 	case usertasksapi.TaskTypeDiscoverRDS:
 		return len(spec.GetDiscoverRds().GetDatabases())
-	case usertasksapi.TaskTypeDiscoverAzureVM:
-		return len(spec.GetDiscoverAzureVm().GetInstances())
 	default:
 		return 0
 	}
