@@ -67,7 +67,29 @@ set +x
 TELEPORT_BINARY=/usr/local/bin/teleport
 [ -z "${TELEPORT_INSTALL_SUFFIX:-}" ] || TELEPORT_BINARY=/opt/teleport/${TELEPORT_INSTALL_SUFFIX}/bin/teleport
 
-sudo -E "$TELEPORT_BINARY" ` + strings.Join(argsList, " ") + " $@"
+sudo -E "$TELEPORT_BINARY" ` + strings.Join(argsList, " ") + ` $@
+INSTALL_EXIT_CODE=$?
+
+# Derive the systemd service name from the suffix (matches the convention
+# used by AutoDiscoverNodeInstaller).
+SERVICE_NAME=teleport
+[ -z "${TELEPORT_INSTALL_SUFFIX:-}" ] || SERVICE_NAME="teleport_${TELEPORT_INSTALL_SUFFIX}"
+
+JOIN_CHECK_DELAY=30
+if [ "$INSTALL_EXIT_CODE" -eq 0 ]; then
+    JOIN_CHECK_START=$(date -u +"%Y-%m-%d %H:%M:%S")
+    echo "Waiting ${JOIN_CHECK_DELAY}s for the agent to join the cluster..."
+    sleep "$JOIN_CHECK_DELAY"
+
+    JOURNAL=$(journalctl -u "$SERVICE_NAME" --no-pager --since="$JOIN_CHECK_START" 2>/dev/null || true)
+    if echo "$JOURNAL" | grep -qE "Can not join the cluster|Failed to establish connection to cluster"; then
+        echo "Teleport agent failed to join the cluster within ${JOIN_CHECK_DELAY}s."
+        echo "$JOURNAL"
+        exit 1
+    fi
+fi
+
+exit $INSTALL_EXIT_CODE`
 
 	argsList = []string{
 		"install", "autodiscover-node",

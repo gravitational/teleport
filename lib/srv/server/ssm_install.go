@@ -51,6 +51,13 @@ const (
 	//nolint:misspell // ignore Cancelled and Cancelling
 	// executed waiter when the command state transitions to one of Cancelled, TimedOut, Failed or Cancelling.
 	waiterTransitionedToFailureErrorMessage = "waiter state transitioned to Failure"
+
+	// JoinFailureMessage is the substring that detectIssueType looks for in
+	// SSM command output to classify a failure as ec2-join-failure. The
+	// installer script (defaultinstallers.go) must emit a message containing
+	// this substring when a join failure is detected. Exported so that
+	// tests can verify the coupling between the script and the detector.
+	JoinFailureMessage = "failed to join the cluster"
 )
 
 // SSMClient is the subset of the AWS SSM API required for EC2 discovery.
@@ -99,6 +106,19 @@ type SSMInstallationResult struct {
 	// InstanceName is the Instance's name.
 	// Might be empty.
 	InstanceName string
+}
+
+// detectIssueType inspects the SSM command output for the join-failure
+// message emitted by the installer script. Both stdout and stderr are checked
+// because journalctl output may be captured in either stream depending on
+// systemd and SSM agent configuration. If the message is present the issue is
+// classified as a join failure; otherwise it falls back to the generic SSM
+// script failure type.
+func detectIssueType(standardOutput, standardError string) string {
+	if strings.Contains(standardOutput, JoinFailureMessage) || strings.Contains(standardError, JoinFailureMessage) {
+		return usertasks.AutoDiscoverEC2IssueJoinFailure
+	}
+	return usertasks.AutoDiscoverEC2IssueSSMScriptFailure
 }
 
 // SSMInstaller handles running SSM commands that install Teleport on EC2 instances.
@@ -435,11 +455,15 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 					return trace.Wrap(err)
 				}
 
+				issueType := ""
+				if invocationResultEvent.Code != libevents.SSMRunSuccessCode {
+					issueType = detectIssueType(invocationResultEvent.StandardOutput, invocationResultEvent.StandardError)
+				}
 				return trace.Wrap(si.ReportSSMInstallationResultFunc(ctx, &SSMInstallationResult{
 					SSMRunEvent:         invocationResultEvent,
 					IntegrationName:     req.IntegrationName,
 					DiscoveryConfigName: req.DiscoveryConfigName,
-					IssueType:           usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
+					IssueType:           issueType,
 					SSMDocumentName:     req.DocumentName,
 					InstallerScript:     req.InstallerScriptName(),
 					InstanceName:        instanceName,
@@ -452,11 +476,15 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 		// Emit an event for the first failed step or for the latest step.
 		lastStep := i+1 == len(invocationSteps)
 		if stepResultEvent.Metadata.Code != libevents.SSMRunSuccessCode || lastStep {
+			issueType := ""
+			if stepResultEvent.Code != libevents.SSMRunSuccessCode {
+				issueType = detectIssueType(stepResultEvent.StandardOutput, stepResultEvent.StandardError)
+			}
 			return trace.Wrap(si.ReportSSMInstallationResultFunc(ctx, &SSMInstallationResult{
 				SSMRunEvent:         stepResultEvent,
 				IntegrationName:     req.IntegrationName,
 				DiscoveryConfigName: req.DiscoveryConfigName,
-				IssueType:           usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
+				IssueType:           issueType,
 				SSMDocumentName:     req.DocumentName,
 				InstallerScript:     req.InstallerScriptName(),
 				InstanceName:        instanceName,

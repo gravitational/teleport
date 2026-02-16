@@ -164,7 +164,6 @@ func TestSSMInstaller(t *testing.T) {
 					Status:        string(ssmtypes.CommandInvocationStatusSuccess),
 					InvocationURL: "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
-				IssueType:       "ec2-ssm-script-failure",
 				SSMDocumentName: "ssmdocument",
 				InstanceName:    "my-instance-name",
 			}},
@@ -211,7 +210,6 @@ func TestSSMInstaller(t *testing.T) {
 					Status:        string(ssmtypes.CommandInvocationStatusSuccess),
 					InvocationURL: "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
-				IssueType:       "ec2-ssm-script-failure",
 				SSMDocumentName: "ssmdocument-without-sshdConfigPath-param",
 			}},
 		},
@@ -463,7 +461,6 @@ func TestSSMInstaller(t *testing.T) {
 						Status:        string(ssmtypes.CommandInvocationStatusSuccess),
 						InvocationURL: "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 					},
-					IssueType:       "ec2-ssm-script-failure",
 					SSMDocumentName: "ssmdocument",
 				},
 				{
@@ -568,7 +565,6 @@ func TestSSMInstaller(t *testing.T) {
 					StandardOutput: "custom output",
 					InvocationURL:  "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
-				IssueType:       "ec2-ssm-script-failure",
 				SSMDocumentName: "ssmdocument",
 			}},
 		},
@@ -610,8 +606,171 @@ func TestSSMInstaller(t *testing.T) {
 					Status:        string(ssmtypes.CommandInvocationStatusSuccess),
 					InvocationURL: "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
+				SSMDocumentName: "ssmdocument",
+			}},
+		},
+		{
+			name: "join failure detected in ssm output",
+			req: SSMRunRequest{
+				Instances: []EC2Instance{
+					{InstanceID: "instance-id-1", InstanceName: "failing-instance"},
+				},
+				DocumentName:        document,
+				Params:              map[string]string{"token": "abcdefg"},
+				IntegrationName:     "aws-integration",
+				DiscoveryConfigName: "dc001",
+				Region:              "us-west-2",
+				AccountID:           "account-id",
+			},
+			client: &mockSSMClient{
+				commandOutput: &ssm.SendCommandOutput{
+					Command: &ssmtypes.Command{
+						CommandId: aws.String("command-id-1"),
+						Status:    ssmtypes.CommandStatusFailed,
+					},
+				},
+				commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
+					"downloadContent": {
+						Status:       ssmtypes.CommandInvocationStatusSuccess,
+						ResponseCode: 0,
+					},
+					"runShellScript": {
+						Status:                ssmtypes.CommandInvocationStatusFailed,
+						ResponseCode:          1,
+						StandardOutputContent: aws.String("Teleport agent failed to join the cluster within 30s.\nFeb 15 12:00:00 ip-10-0-1-42 teleport[1234]: Can not join the cluster, the token is expired or not found."),
+						StandardErrorContent:  aws.String("teleport.service is not active"),
+					},
+				},
+			},
+			expectedInstallations: []*SSMInstallationResult{{
+				IntegrationName:     "aws-integration",
+				DiscoveryConfigName: "dc001",
+				SSMRunEvent: &events.SSMRun{
+					Metadata: events.Metadata{
+						Type: libevent.SSMRunEvent,
+						Code: libevent.SSMRunFailCode,
+					},
+					CommandID:      "command-id-1",
+					InstanceID:     "instance-id-1",
+					AccountID:      "account-id",
+					Region:         "us-west-2",
+					ExitCode:       1,
+					Status:         string(ssmtypes.CommandInvocationStatusFailed),
+					StandardOutput: "Teleport agent failed to join the cluster within 30s.\nFeb 15 12:00:00 ip-10-0-1-42 teleport[1234]: Can not join the cluster, the token is expired or not found.",
+					StandardError:  "teleport.service is not active",
+					InvocationURL:  "https://us-west-2.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
+				},
+				IssueType:       "ec2-join-failure",
+				SSMDocumentName: "ssmdocument",
+				InstanceName:    "failing-instance",
+			}},
+		},
+		{
+			name: "ssm script failure without join failure message",
+			req: SSMRunRequest{
+				Instances: []EC2Instance{
+					{InstanceID: "instance-id-1", InstanceName: "normal-failure"},
+				},
+				DocumentName:        document,
+				Params:              map[string]string{"token": "abcdefg"},
+				IntegrationName:     "aws-integration",
+				DiscoveryConfigName: "dc001",
+				Region:              "us-west-2",
+				AccountID:           "account-id",
+			},
+			client: &mockSSMClient{
+				commandOutput: &ssm.SendCommandOutput{
+					Command: &ssmtypes.Command{
+						CommandId: aws.String("command-id-1"),
+						Status:    ssmtypes.CommandStatusFailed,
+					},
+				},
+				commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
+					"downloadContent": {
+						Status:       ssmtypes.CommandInvocationStatusSuccess,
+						ResponseCode: 0,
+					},
+					"runShellScript": {
+						Status:                ssmtypes.CommandInvocationStatusFailed,
+						ResponseCode:          1,
+						StandardOutputContent: aws.String("Installation failed: package not found"),
+						StandardErrorContent:  aws.String("some error"),
+					},
+				},
+			},
+			expectedInstallations: []*SSMInstallationResult{{
+				IntegrationName:     "aws-integration",
+				DiscoveryConfigName: "dc001",
+				SSMRunEvent: &events.SSMRun{
+					Metadata: events.Metadata{
+						Type: libevent.SSMRunEvent,
+						Code: libevent.SSMRunFailCode,
+					},
+					CommandID:      "command-id-1",
+					InstanceID:     "instance-id-1",
+					AccountID:      "account-id",
+					Region:         "us-west-2",
+					ExitCode:       1,
+					Status:         string(ssmtypes.CommandInvocationStatusFailed),
+					StandardOutput: "Installation failed: package not found",
+					StandardError:  "some error",
+					InvocationURL:  "https://us-west-2.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
+				},
 				IssueType:       "ec2-ssm-script-failure",
 				SSMDocumentName: "ssmdocument",
+				InstanceName:    "normal-failure",
+			}},
+		},
+		{
+			name: "join failure detected via InvalidPluginName fallback path",
+			req: SSMRunRequest{
+				Instances: []EC2Instance{
+					{InstanceID: "instance-id-1", InstanceName: "runshell-instance"},
+				},
+				DocumentName:        "AWS-RunShellScript",
+				Params:              map[string]string{"token": "abcdefg"},
+				IntegrationName:     "aws-integration",
+				DiscoveryConfigName: "dc001",
+				Region:              "us-east-1",
+				AccountID:           "account-id",
+			},
+			client: &mockSSMClient{
+				commandOutput: &ssm.SendCommandOutput{
+					Command: &ssmtypes.Command{
+						CommandId: aws.String("command-id-1"),
+						Status:    ssmtypes.CommandStatusFailed,
+					},
+				},
+				commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
+					"": {
+						Status:                ssmtypes.CommandInvocationStatusFailed,
+						ResponseCode:          1,
+						StandardOutputContent: aws.String("Teleport agent failed to join the cluster within 30s.\nclock_skew: time difference between client and server exceeds 10 minutes"),
+						StandardErrorContent:  aws.String("teleport.service not active"),
+					},
+				},
+			},
+			expectedInstallations: []*SSMInstallationResult{{
+				IntegrationName:     "aws-integration",
+				DiscoveryConfigName: "dc001",
+				SSMRunEvent: &events.SSMRun{
+					Metadata: events.Metadata{
+						Type: libevent.SSMRunEvent,
+						Code: libevent.SSMRunFailCode,
+					},
+					CommandID:      "command-id-1",
+					InstanceID:     "instance-id-1",
+					AccountID:      "account-id",
+					Region:         "us-east-1",
+					ExitCode:       1,
+					Status:         string(ssmtypes.CommandInvocationStatusFailed),
+					StandardOutput: "Teleport agent failed to join the cluster within 30s.\nclock_skew: time difference between client and server exceeds 10 minutes",
+					StandardError:  "teleport.service not active",
+					InvocationURL:  "https://us-east-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
+				},
+				IssueType:       "ec2-join-failure",
+				SSMDocumentName: "AWS-RunShellScript",
+				InstanceName:    "runshell-instance",
 			}},
 		},
 		// todo(amk): test that incomplete commands eventually return
@@ -635,6 +794,44 @@ func TestSSMInstaller(t *testing.T) {
 			}
 
 			require.ElementsMatch(t, tc.expectedInstallations, installationResultsCollector.installations)
+		})
+	}
+}
+
+func TestDetectIssueType(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		standardOutput string
+		standardError  string
+		want           string
+	}{
+		{
+			name:           "join failure message in stdout",
+			standardOutput: "Teleport agent failed to join the cluster within 30s.\nFeb 15 12:00:00 teleport[1234]: token expired",
+			want:           "ec2-join-failure",
+		},
+		{
+			name:          "join failure message in stderr",
+			standardError: "Teleport agent failed to join the cluster within 30s.\njournal output here",
+			want:          "ec2-join-failure",
+		},
+		{
+			name:           "no join failure message in either stream",
+			standardOutput: "Installation failed: package not found",
+			standardError:  "some error",
+			want:           "ec2-ssm-script-failure",
+		},
+		{
+			name: "empty output",
+			want: "ec2-ssm-script-failure",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, detectIssueType(tc.standardOutput, tc.standardError))
 		})
 	}
 }
