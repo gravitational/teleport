@@ -239,16 +239,57 @@ func (s *LinuxService) Serve(plainLis net.Listener) error {
 	}
 }
 
-func (s *LinuxService) handleConnection(conn net.Conn) {
-	tdpConn := tdp.NewConn(conn, tdp.DecoderAdapter(tdpb.DecodePermissive))
+func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
+	log := s.cfg.Logger
+	ctx := s.closeCtx
+
+	tdpConn := tdp.NewConn(proxyConn, tdp.DecoderAdapter(tdpb.DecodePermissive))
 	defer tdpConn.Close()
+
+	// Inline function to enforce that we are centralizing TDP Error sending in this function.
+	sendTDPError := func(message string) {
+		if err := tdpConn.WriteMessage(&tdpb.Alert{Message: message, Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR}); err != nil {
+			log.ErrorContext(context.Background(), "Failed to send TDPB error message", "error", err, "message", message)
+		}
+	}
+
+	// Check connection limits.
+	remoteAddr, _, err := net.SplitHostPort(proxyConn.RemoteAddr().String())
+	if err != nil {
+		log.ErrorContext(context.Background(), "Could not parse client IP", "addr", proxyConn.RemoteAddr().String(), "error", err)
+		sendTDPError("Internal error.")
+		return
+	}
+	log = log.With("client_ip", remoteAddr)
+	if err := s.cfg.ConnLimiter.AcquireConnection(remoteAddr); err != nil {
+		log.WarnContext(context.Background(), "Connection limit exceeded, rejecting connection")
+		sendTDPError("Connection limit exceeded.")
+		return
+	}
+	defer s.cfg.ConnLimiter.ReleaseConnection(remoteAddr)
+
+	// Authenticate the client.
+	ctx, err = s.middleware.WrapContextWithUser(ctx, proxyConn)
+	if err != nil {
+		log.WarnContext(ctx, "mTLS authentication failed for incoming connection", "error", err)
+		sendTDPError("Connection authentication failed.")
+		return
+	}
+	log.DebugContext(ctx, "Authenticated Linux desktop connection")
+
+	if _, err := s.cfg.Authorizer.Authorize(ctx); err != nil {
+		log.WarnContext(ctx, "authorization failed for Linux desktop connection", "error", err)
+		sendTDPError("Connection authorization failed.")
+		return
+	}
+
 	for {
 		msg, err := tdpConn.ReadMessage()
 		if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
 			return
 		}
 		if err != nil {
-			s.cfg.Logger.ErrorContext(s.closeCtx, "got error reading message", "error", err)
+			s.cfg.Logger.ErrorContext(ctx, "got error reading message", "error", err)
 			return
 		}
 		switch m := msg.(type) {

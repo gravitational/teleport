@@ -1645,7 +1645,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		process.initLinuxDesktopService()
 		serviceStarted = true
 	} else {
-		warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentWindowsDesktop), process.logger)
+		warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentLinuxDesktop), process.logger)
 	}
 
 	if process.shouldInitDiscovery() {
@@ -4416,7 +4416,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, h
 			utils.NetAddr{Addr: reversetunnelclient.LocalLinuxDesktop},
 			utils.NetAddr{Addr: desktop.WildcardServiceDNS},
 		)
-		addrs = append(addrs, process.Config.WindowsDesktop.PublicAddrs...)
+		addrs = append(addrs, process.Config.LinuxDesktop.PublicAddrs...)
 	}
 
 	if process.Config.OpenSSH.Enabled {

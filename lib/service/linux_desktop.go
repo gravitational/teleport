@@ -228,7 +228,7 @@ func (process *TeleportProcess) initLinuxDesktopServiceRegistered(logger *slog.L
 		Heartbeat: desktop.HeartbeatConfig{
 			HostUUID:    conn.HostUUID(),
 			PublicAddr:  publicAddr,
-			OnHeartbeat: process.OnHeartbeat(teleport.ComponentWindowsDesktop),
+			OnHeartbeat: process.OnHeartbeat(teleport.ComponentLinuxDesktop),
 		},
 	})
 	if err != nil {
