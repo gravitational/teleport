@@ -172,8 +172,6 @@ func renderTaskDetailsText(w io.Writer, task *usertasksv1.UserTask, start, end i
 		resourcePage, err = renderEKSDetails(w, task, start, end)
 	case usertasksapi.TaskTypeDiscoverRDS:
 		resourcePage, err = renderRDSDetails(w, task, start, end)
-	case usertasksapi.TaskTypeDiscoverAzureVM:
-		resourcePage, err = renderAzureVMDetails(w, task, start, end)
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -378,46 +376,6 @@ func renderRDSDetails(w io.Writer, task *usertasksv1.UserTask, start, end int) (
 
 	fmt.Fprintf(w, "\n%s\n", style.section("Affected RDS databases:"))
 	return info, trace.Wrap(renderTable(w, []string{"Database", "Engine", "Cluster", "DiscoveryConfig", "DiscoveryGroup", "Sync Time", "AWS URL", "Config URL"}, rows, style.tableWidth))
-}
-
-func renderAzureVMDetails(w io.Writer, task *usertasksv1.UserTask, start, end int) (pageInfo, error) {
-	instances := task.GetSpec().GetDiscoverAzureVm().GetInstances()
-	pageKeys, info, style := paginateMapKeys(w, instances, start, end)
-	now := time.Now().UTC()
-
-	fmt.Fprintf(w, "\n%s\n", style.section("Affected Azure VMs:"))
-	if len(pageKeys) == 0 {
-		fmt.Fprintf(w, "%s\n", style.warning("No affected Azure VMs for the selected page."))
-		return info, nil
-	}
-
-	for i, key := range pageKeys {
-		vm := instances[key]
-		if i > 0 {
-			fmt.Fprintln(w, "")
-		}
-
-		syncTime := "n/a"
-		if ts := vm.GetSyncTime(); ts != nil {
-			abs := formatTime(ts.AsTime())
-			syncTime = fmt.Sprintf("%s (%s)", abs, formatRelativeTime(ts.AsTime(), now))
-		}
-		firstPrefix := fmt.Sprintf("[%d] ", info.Start+i+1)
-		continuation := strings.Repeat(" ", len(firstPrefix))
-		details := []keyValue{
-			{Key: "VM ID", Value: vm.GetVmId()},
-			{Key: "NAME", Value: vm.GetName()},
-			{Key: "RESOURCE ID", Value: vm.GetResourceId()},
-			{Key: "DISCOVERY CONFIG", Value: vm.GetDiscoveryConfig()},
-			{Key: "DISCOVERY GROUP", Value: vm.GetDiscoveryGroup()},
-			{Key: "SYNC TIME", Value: syncTime},
-		}
-		if err := renderAlignedKeyValuesWithPrefix(w, firstPrefix, continuation, details); err != nil {
-			return info, trace.Wrap(err)
-		}
-	}
-
-	return info, nil
 }
 
 func renderStatusText(w io.Writer, summary statusSummary) error {
