@@ -51,7 +51,7 @@ func (r dataSourceTeleportVnetConfigType) NewDataSource(_ context.Context, p tfs
 
 // Read reads teleport VnetConfig
 func (r dataSourceTeleportVnetConfig) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
-	vnetConfigI, err := r.p.Client.GetVnetConfig(ctx)
+	vnetConfigI, err := r.p.Client.VnetConfigClient().GetVnetConfig(ctx)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading VnetConfig", trace.Wrap(err), "vnet_config"))
 		return

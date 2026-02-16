@@ -1,5 +1,5 @@
 /*
-Copyright 2025 Gravitational, Inc.
+Copyright 2026 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -101,17 +101,17 @@ func (s *TerraformSuiteOSS) TestImportVnetConfig() {
 	})
 	require.NoError(s.T(), err)
 
-	err = s.client.ResetVnetConfig(ctx)
+	err = s.client.VnetConfigClient().ResetVnetConfig(ctx)
 	require.NoError(s.T(), err)
 
-	vnetConfigBefore, err := s.client.GetVnetConfig(ctx)
+	vnetConfigBefore, err := s.client.VnetConfigClient().GetVnetConfig(ctx)
 	require.NoError(s.T(), err)
 
-	_, err = s.client.UpsertVnetConfig(ctx, vnetConfig)
+	_, err = s.client.VnetConfigClient().UpsertVnetConfig(ctx, vnetConfig)
 	require.NoError(s.T(), err)
 
 	require.Eventually(s.T(), func() bool {
-		vnetConfigCurrent, err := s.client.GetVnetConfig(ctx)
+		vnetConfigCurrent, err := s.client.VnetConfigClient().GetVnetConfig(ctx)
 		require.NoError(s.T(), err)
 
 		return vnetConfigBefore.GetMetadata().GetRevision() != vnetConfigCurrent.GetMetadata().GetRevision()

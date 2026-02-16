@@ -88,7 +88,7 @@ func (r resourceTeleportVnetConfig) Create(ctx context.Context, req tfsdk.Create
 		return
 	}
 
-	_, err = r.p.Client.UpsertVnetConfig(ctx, vnetConfig)
+	_, err = r.p.Client.VnetConfigClient().UpsertVnetConfig(ctx, vnetConfig)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating VnetConfig", trace.Wrap(err), "vnet_config"))
 		return
@@ -114,7 +114,7 @@ func (r resourceTeleportVnetConfig) Create(ctx context.Context, req tfsdk.Create
 	}
 	for {
 		tries = tries + 1
-		vnetConfigI, err = r.p.Client.GetVnetConfig(ctx)
+		vnetConfigI, err = r.p.Client.VnetConfigClient().GetVnetConfig(ctx)
 		if trace.IsNotFound(err) {
 		    select {
 			case <-ctx.Done():
@@ -230,7 +230,7 @@ func (r resourceTeleportVnetConfig) Update(ctx context.Context, req tfsdk.Update
 		return
 	}
 
-	_, err = r.p.Client.UpsertVnetConfig(ctx, vnetConfig)
+	_, err = r.p.Client.VnetConfigClient().UpsertVnetConfig(ctx, vnetConfig)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating VnetConfig", trace.Wrap(err), "vnet_config"))
 		return
@@ -249,7 +249,7 @@ func (r resourceTeleportVnetConfig) Update(ctx context.Context, req tfsdk.Update
 	}
 	for {
 		tries = tries + 1
-		vnetConfigI, err = r.p.Client.GetVnetConfig(ctx)
+		vnetConfigI, err = r.p.Client.VnetConfigClient().GetVnetConfig(ctx)
 		if err != nil {
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading VnetConfig", trace.Wrap(err), "vnet_config"))
 			return
@@ -285,7 +285,7 @@ func (r resourceTeleportVnetConfig) Update(ctx context.Context, req tfsdk.Update
 
 // Delete deletes Teleport VnetConfig
 func (r resourceTeleportVnetConfig) Delete(ctx context.Context, req tfsdk.DeleteResourceRequest, resp *tfsdk.DeleteResourceResponse) {
-	err := r.p.Client.ResetVnetConfig(ctx)
+	err := r.p.Client.VnetConfigClient().ResetVnetConfig(ctx)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error deleting VnetConfig", trace.Wrap(err), "vnet_config"))
 		return
