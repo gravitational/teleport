@@ -1,4 +1,4 @@
-.version: &version "18.7.0-dev.tener.1"
+.version: &version "18.7.0-dev.tener.2"
 
 name: teleport-operator
 apiVersion: v2
