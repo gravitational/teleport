@@ -215,7 +215,7 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/session-summaries/:sessionId',
 
     inference: {
-      testModel: '/v1/webapi/sites/:clusterId/inference/models/test',
+      testModel: '/v1/webapi/sites/:clusterId/inference/test-model',
       policies: '/v1/webapi/sites/:clusterId/inference/policies',
       policy: '/v1/webapi/sites/:clusterId/inference/policies/:name',
       secrets: '/v1/webapi/sites/:clusterId/inference/secrets',

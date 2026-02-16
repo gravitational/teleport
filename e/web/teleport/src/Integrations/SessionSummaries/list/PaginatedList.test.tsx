@@ -80,9 +80,8 @@ beforeAll(() => {
   server.listen();
 });
 
-afterEach(async () => {
+afterEach(() => {
   server.resetHandlers();
-  await testQueryClient.resetQueries();
   testQueryClient.clear();
 });
 

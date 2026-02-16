@@ -36,19 +36,24 @@ const openaiApiExistingKeySchema = z.object({
   secretName: z.string().min(1, 'Secret name is required'),
 });
 
+const apiUrl = z.url({
+  protocol: /https|http/,
+  error: 'Must be a valid URL starting with http:// or https://',
+});
+
 // OpenAI Compatible API with a new key (secret will be created)
 const openaiCompatibleNewKeySchema = z.object({
   accessMethod: z.literal('openai_compatible'),
   apiKey: z.string().optional(),
   apiKeyMode: z.literal('new'),
-  apiUrl: z.url('Must be a valid URL').min(1, 'API URL is required'),
+  apiUrl: z.union([apiUrl, z.literal('')]),
 });
 
 // OpenAI Compatible API with an existing secret
 const openaiCompatibleExistingKeySchema = z.object({
   accessMethod: z.literal('openai_compatible'),
   apiKeyMode: z.literal('existing'),
-  apiUrl: z.url('Must be a valid URL').min(1, 'API URL is required'),
+  apiUrl: z.union([apiUrl, z.literal('')]),
   secretName: z.string().min(1, 'Secret name is required'),
 });
 

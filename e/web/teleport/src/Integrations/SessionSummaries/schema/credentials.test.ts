@@ -162,7 +162,9 @@ describe('cloud', () => {
       const result = cloudCredentials.safeParse(input);
 
       expect(result.success).toBe(false);
-      expect(result.error.issues[0].message).toBe('Must be a valid URL');
+      expect(result.error.issues[0].message).toBe(
+        'Must be a valid URL starting with http:// or https://'
+      );
     });
   });
 });
@@ -314,7 +316,9 @@ describe('self hosted', () => {
       const result = selfHostedCredentials.safeParse(input);
 
       expect(result.success).toBe(false);
-      expect(result.error.issues[0].message).toBe('Must be a valid URL');
+      expect(result.error.issues[0].message).toBe(
+        'Must be a valid URL starting with http:// or https://'
+      );
     });
 
     it('rejects missing secretName for existing key mode', () => {

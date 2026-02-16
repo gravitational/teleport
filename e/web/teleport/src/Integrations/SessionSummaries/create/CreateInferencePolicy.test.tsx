@@ -23,7 +23,7 @@ const server = setupServer();
 beforeAll(() => server.listen());
 afterEach(() => {
   server.resetHandlers();
-  return testQueryClient.resetQueries();
+  testQueryClient.clear();
 });
 afterAll(() => server.close());
 

@@ -36,6 +36,7 @@ export const {
 );
 
 export const {
+  createQueryKey: listInferenceModelsQueryKey,
   useInfiniteQuery: useInfiniteListInferenceModels,
   useQuery: useListInferenceModels,
 } = createQueryHook(
@@ -60,8 +61,10 @@ export const {
   })
 );
 
-export const { useSuspenseQuery: useSuspenseGetInferenceModel } =
-  createQueryHook(['inference', 'model'], getInferenceModel);
+export const {
+  createQueryKey: getInferenceModelQueryKey,
+  useSuspenseQuery: useSuspenseGetInferenceModel,
+} = createQueryHook(['inference', 'model'], getInferenceModel);
 
 export const { useSuspenseQuery: useSuspenseGetInferencePolicy } =
   createQueryHook(['inference', 'policy'], getInferencePolicy);
