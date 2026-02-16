@@ -1152,14 +1152,21 @@ func renderInventoryText(w io.Writer, output inventoryOutput, hostIDFilter strin
 	now := time.Now().UTC()
 
 	// Summary
-	summaryRows := [][]string{
-		{"Query window", output.Window + " (audit events); nodes: current"},
-		{"Hosts", fmt.Sprintf("%d total, %s online, %s offline, %s failed",
-			output.TotalHosts,
-			style.good(strconv.Itoa(output.OnlineHosts)),
-			style.pendingCount(uint64(output.OfflineHosts)),
-			style.failedCount(uint64(output.FailedHosts)))},
-		{"Displayed", fmt.Sprintf("%d (range %d-%d)", output.DisplayedHosts, output.HostPage.Start, output.HostPage.End)},
+	var summaryRows [][]string
+	if hostIDFilter != "" {
+		summaryRows = [][]string{
+			{"Query window", output.Window + " (audit events); nodes: current"},
+		}
+	} else {
+		summaryRows = [][]string{
+			{"Query window", output.Window + " (audit events); nodes: current"},
+			{"Hosts", fmt.Sprintf("%d total, %s online, %s offline, %s failed",
+				output.TotalHosts,
+				style.good(strconv.Itoa(output.OnlineHosts)),
+				style.pendingCount(uint64(output.OfflineHosts)),
+				style.failedCount(uint64(output.FailedHosts)))},
+			{"Displayed", fmt.Sprintf("%d (range %d-%d)", output.DisplayedHosts, output.HostPage.Start, output.HostPage.End)},
+		}
 	}
 	if err := renderTable(w, []string{"Summary Item", "Details"}, summaryRows, style.tableWidth); err != nil {
 		return trace.Wrap(err)
@@ -1200,6 +1207,7 @@ func renderInventoryText(w io.Writer, output inventoryOutput, hostIDFilter strin
 			{Key: "NODE UUID", Value: host.HostID},
 			{Key: "INSTANCE ID", Value: cmp.Or(host.InstanceID, "-")},
 			{Key: "ACCOUNT ID", Value: cmp.Or(host.AccountID, "-")},
+			{Key: "REGION", Value: cmp.Or(host.Region, "-")},
 			{Key: "METHOD", Value: cmp.Or(host.Method, "-")},
 			{Key: "LAST SSM RUN", Value: inventoryTimeValue(host.LastSSMRun, now)},
 			{Key: "LAST JOIN", Value: inventoryTimeValue(host.LastJoin, now)},
@@ -1264,17 +1272,16 @@ type timelineEntry struct {
 	Kind   string // "JOIN" or "SSM RUN"
 	Status string
 	Detail string
-	Error  string
+	Error  string // join error message (displayed in red)
+	Output string // SSM run stdout/stderr (displayed with > quotes)
 }
 
 func buildTimeline(host inventoryHost) []timelineEntry {
 	entries := make([]timelineEntry, 0, len(host.SSMRecords)+len(host.JoinRecords))
 
 	for _, r := range host.JoinRecords {
-		status := "Success"
 		errMsg := ""
 		if isJoinFailure(r) {
-			status = "Failed"
 			errMsg = r.Error
 		}
 		detail := strings.TrimSpace(r.Method)
@@ -1284,18 +1291,16 @@ func buildTimeline(host inventoryHost) []timelineEntry {
 		entries = append(entries, timelineEntry{
 			Time:   r.parsedEventTime,
 			Kind:   "JOIN",
-			Status: status,
+			Status: r.Code,
 			Detail: detail,
 			Error:  errMsg,
 		})
 	}
 
 	for _, r := range host.SSMRecords {
-		status := "Success"
-		errMsg := ""
+		output := ""
 		if isSSMRunFailure(r) {
-			status = "Failed"
-			errMsg = combineOutput(r.Stdout, r.Stderr)
+			output = combineOutput(r.Stdout, r.Stderr)
 		}
 		detail := ""
 		if r.ExitCode != "" {
@@ -1304,9 +1309,9 @@ func buildTimeline(host inventoryHost) []timelineEntry {
 		entries = append(entries, timelineEntry{
 			Time:   r.parsedEventTime,
 			Kind:   "SSM RUN",
-			Status: status,
+			Status: cmp.Or(r.Status, r.Code),
 			Detail: detail,
-			Error:  errMsg,
+			Output: output,
 		})
 	}
 
@@ -1343,6 +1348,12 @@ func renderInventoryTimeline(w io.Writer, style textStyle, host inventoryHost, n
 				if line != "" {
 					fmt.Fprintf(w, "       %s\n", style.bad(line))
 				}
+			}
+		}
+		if e.Output != "" {
+			for _, line := range strings.Split(e.Output, "\n") {
+				line = strings.ReplaceAll(line, "\r", "")
+				fmt.Fprintf(w, "       > %s\n", line)
 			}
 		}
 	}
