@@ -21,7 +21,7 @@ import (
 	"golang.org/x/sys/windows/svc"
 )
 
-func runningAsService() (bool, error) {
+func isWindowsService() (bool, error) {
 	isSvc, err := svc.IsWindowsService()
 	return isSvc, trace.Wrap(err)
 }

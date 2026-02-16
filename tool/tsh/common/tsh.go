@@ -858,11 +858,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// Check whether the process is currently executing as a Windows service.
 	// This is a case for VNet, where its system service is implemented by 'tsh.exe vnet-service'.
 	// The service binary should not change unexpectedly, so updates should be disabled.
-	isRunningAsService, err := runningAsService()
+	isWinService, err := isWindowsService()
 	if err != nil {
 		logger.ErrorContext(ctx, "Could not determine whether tsh is running as a service; client tools managed updates will not be disabled", "error", err)
 	}
-	if !isRunningAsService {
+	if !isWinService {
 		// Check local update for specific proxy from configuration.
 		name := utils.TryHost(strings.TrimPrefix(strings.ToLower(proxyArg), "https://"))
 		if err := autoupdatetools.CheckAndUpdateLocal(ctx, name, args); err != nil {

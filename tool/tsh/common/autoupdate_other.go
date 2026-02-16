@@ -18,6 +18,6 @@
 
 package common
 
-func runningAsService() (bool, error) {
+func isWindowsService() (bool, error) {
 	return false, nil
 }
