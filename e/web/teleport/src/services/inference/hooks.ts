@@ -66,8 +66,10 @@ export const {
   useSuspenseQuery: useSuspenseGetInferenceModel,
 } = createQueryHook(['inference', 'model'], getInferenceModel);
 
-export const { useSuspenseQuery: useSuspenseGetInferencePolicy } =
-  createQueryHook(['inference', 'policy'], getInferencePolicy);
+export const {
+  createQueryKey: getInferencePolicyQueryKey,
+  useSuspenseQuery: useSuspenseGetInferencePolicy,
+} = createQueryHook(['inference', 'policy'], getInferencePolicy);
 
 export const { useSuspenseQuery: useSuspenseGetInferenceSecret } =
   createQueryHook(['inference', 'secret'], getInferenceSecret);

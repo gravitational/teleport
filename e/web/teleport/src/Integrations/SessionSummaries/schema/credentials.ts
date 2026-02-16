@@ -73,10 +73,22 @@ const bedrockIntegrationSchema = bedrockBaseSchema.extend({
   integrationName: z.string().min(1, 'Integration name is required'),
 });
 
-// Bedrock either directly with credentials on the auth server or using an inference profile (only for self-hosted)
+// Bedrock connection directly with credentials on the auth server
 // The `model` field will be used for the value.
 const bedrockSelfHostedDirectSchema = bedrockBaseSchema.extend({
-  bedrockMode: z.enum(['direct', 'inference_profile']),
+  bedrockMode: z.literal('direct'),
+});
+
+// Bedrock connection using an Inference Profile ARN. Only supported for self-hosted since cloud does not support inference profiles.
+const bedrockSelfHostedInferenceProfileSchema = bedrockBaseSchema.extend({
+  bedrockMode: z.literal('inference_profile'),
+  inferenceProfile: z
+    .string()
+    .min(1, 'Inference Profile ARN is required')
+    .regex(
+      /^arn:aws:bedrock:[a-z0-9-]+:\d{12}:inference-profile\/[a-zA-Z0-9-_]+$/,
+      'Must be a valid Bedrock Inference Profile ARN'
+    ),
 });
 
 // Teleport provided credentials (Cloud only)
@@ -98,6 +110,7 @@ export const cloudCredentials = z.union([
 export const selfHostedCredentials = z.union([
   bedrockIntegrationSchema,
   bedrockSelfHostedDirectSchema,
+  bedrockSelfHostedInferenceProfileSchema,
   openaiApiNewKeySchema,
   openaiApiExistingKeySchema,
   openaiCompatibleNewKeySchema,

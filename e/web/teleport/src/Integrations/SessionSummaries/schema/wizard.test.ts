@@ -138,7 +138,9 @@ describe('self-hosted', () => {
     const input: InferenceWizardForm = {
       isCloud: false,
       kinds: ['db'],
-      model: 'anthropic.claude-v2',
+      model: 'dummy-value',
+      inferenceProfile:
+        'arn:aws:bedrock:us-west-2:123456789012:inference-profile/your-profile',
       modelProvider: 'claude',
       accessMethod: 'bedrock',
       bedrockMode: 'inference_profile',

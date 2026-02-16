@@ -201,6 +201,8 @@ describe('self hosted', () => {
         accessMethod: 'bedrock',
         bedrockMode: 'inference_profile',
         region: 'ap-northeast-1',
+        inferenceProfile:
+          'arn:aws:bedrock:us-west-2:123456789012:inference-profile/your-profile',
       };
 
       const result = selfHostedCredentials.safeParse(input);

@@ -19,13 +19,17 @@ import {
 import { useListInferenceSecrets } from 'e-teleport/services/inference/hooks';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
-export function CredentialsForm() {
+interface CredentialsFormProps {
+  isCloud: boolean;
+}
+
+export function CredentialsForm({ isCloud }: CredentialsFormProps) {
   const accessMethod = useWatch<InferenceModelSchema, 'accessMethod'>({
     name: 'accessMethod',
   });
 
   if (accessMethod === 'bedrock') {
-    return <BedrockConfigurationForm />;
+    return <BedrockConfigurationForm isCloud={isCloud} />;
   }
 
   return <OpenAIConfigurationForm />;

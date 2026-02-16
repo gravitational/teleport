@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useId,
-  useMemo,
-  type KeyboardEvent,
-  type ReactNode,
-} from 'react';
+import { useCallback, useId, type KeyboardEvent, type ReactNode } from 'react';
 import {
   useController,
   useWatch,
@@ -15,18 +9,17 @@ import styled from 'styled-components';
 
 import Box, { BoxProps } from 'design/Box';
 import Flex from 'design/Flex';
-import { Check } from 'design/Icon';
 import { LabelContent, LabelInput } from 'design/LabelInput/LabelInput';
 import Text from 'design/Text';
 import { HelperTextLine } from 'shared/components/FieldInput/FieldInput';
 
-export interface CheckboxOption<T extends string = string> {
+export interface RadioOption<T extends string = string> {
   value: T;
   label: string;
   icon?: ReactNode;
 }
 
-interface FieldCheckboxGroupProps<
+interface FieldRadioGroupProps<
   TFieldValues extends FieldValues = FieldValues,
   TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
 > {
@@ -35,11 +28,11 @@ interface FieldCheckboxGroupProps<
   helperText?: ReactNode;
   label?: ReactNode;
   name: TName;
-  options: CheckboxOption[];
+  options: RadioOption[];
   required?: boolean;
 }
 
-export function FieldCheckboxGroup<
+export function FieldRadioGroup<
   TFieldValues extends FieldValues = FieldValues,
   TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
 >({
@@ -50,7 +43,7 @@ export function FieldCheckboxGroup<
   name,
   options,
   required,
-}: FieldCheckboxGroupProps<TFieldValues, TName>) {
+}: FieldRadioGroupProps<TFieldValues, TName>) {
   const { field, fieldState, formState } = useController<TFieldValues, TName>({
     name,
   });
@@ -70,9 +63,9 @@ export function FieldCheckboxGroup<
           {label}
         </LabelContent>
 
-        <Flex gap={2} flexWrap="wrap">
+        <Flex gap={2} flexWrap="wrap" role="radiogroup">
           {options.map(option => (
-            <CheckboxOption
+            <RadioOption
               key={option.value}
               disabled={isDisabled}
               name={name}
@@ -93,37 +86,27 @@ export function FieldCheckboxGroup<
   );
 }
 
-interface CheckboxOptionProps<
+interface RadioOptionProps<
   TFieldValues extends FieldValues = FieldValues,
   TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
 > {
   disabled?: boolean;
   name: TName;
-  onChange: (value: string[]) => void;
-  option: CheckboxOption;
+  onChange: (value: string) => void;
+  option: RadioOption;
 }
 
-function CheckboxOption<
+function RadioOption<
   TFieldValues extends FieldValues = FieldValues,
   TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
->({
-  disabled,
-  name,
-  onChange,
-  option,
-}: CheckboxOptionProps<TFieldValues, TName>) {
+>({ disabled, name, onChange, option }: RadioOptionProps<TFieldValues, TName>) {
   const value = useWatch<TFieldValues, TName>({ name });
-  const values = useMemo(() => (Array.isArray(value) ? value : []), [value]);
 
-  const selected = values.includes(option.value);
+  const selected = value === option.value;
 
   const handleSelect = useCallback(() => {
-    if (selected) {
-      onChange(values.filter(v => v !== option.value));
-    } else {
-      onChange([...values, option.value]);
-    }
-  }, [onChange, option.value, selected, values]);
+    onChange(option.value);
+  }, [onChange, option.value]);
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
@@ -142,12 +125,10 @@ function CheckboxOption<
       aria-disabled={disabled}
       onClick={handleSelect}
       onKeyDown={handleKeyDown}
-      role="checkbox"
+      role="radio"
       tabIndex={disabled ? -1 : 0}
     >
-      <CheckboxSquare selected={selected}>
-        {selected && <Check size="small" />}
-      </CheckboxSquare>
+      <RadioCircle selected={selected}>{selected && <RadioDot />}</RadioCircle>
 
       <Flex alignItems="center" gap={2}>
         {option.icon}
@@ -186,7 +167,7 @@ const OptionContainer = styled.div<{ selected: boolean }>`
   }
 `;
 
-const CheckboxSquare = styled.div<{ selected: boolean }>`
+const RadioCircle = styled.div<{ selected: boolean }>`
   display: flex;
   align-items: center;
   justify-content: center;
@@ -197,10 +178,13 @@ const CheckboxSquare = styled.div<{ selected: boolean }>`
       p.selected
         ? p.theme.colors.interactive.solid.primary.default
         : p.theme.colors.interactive.tonal.neutral[2]};
-  border-radius: 3px;
-  background: ${p =>
-    p.selected
-      ? p.theme.colors.interactive.solid.primary.default
-      : 'transparent'};
-  color: ${p => p.theme.colors.text.primaryInverse};
+  border-radius: 50%;
+  background: transparent;
+`;
+
+const RadioDot = styled.div`
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: ${p => p.theme.colors.interactive.solid.primary.default};
 `;

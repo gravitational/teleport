@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import type { FallbackProps } from 'react-error-boundary';
 import { useForm, type SubmitHandler } from 'react-hook-form';
@@ -20,6 +21,8 @@ import { inferencePolicySchema } from 'e-teleport/Integrations/SessionSummaries/
 import type { ResourceKind } from 'e-teleport/Integrations/SessionSummaries/schema/types';
 import { useSessionSummariesManagement } from 'e-teleport/Integrations/SessionSummaries/SessionSummariesManagement';
 import {
+  getInferencePolicyQueryKey,
+  listInferencePoliciesQueryKey,
   useSuspenseGetInferencePolicy,
   useUpdateInferencePolicy,
 } from 'e-teleport/services/inference/hooks';
@@ -98,7 +101,24 @@ function EditInferencePolicyInner({ name }: EditInferencePolicyProps) {
     resolver: zodResolver(inferencePolicySchema),
   });
 
-  const edit = useUpdateInferencePolicy();
+  const queryClient = useQueryClient();
+
+  const edit = useUpdateInferencePolicy({
+    onSuccess(data) {
+      const listPoliciesQueryKey = listInferencePoliciesQueryKey({
+        clusterId,
+        limit: 10,
+      });
+
+      const getPolicyQueryKey = getInferencePolicyQueryKey({
+        clusterId,
+        name,
+      });
+
+      void queryClient.refetchQueries({ queryKey: listPoliciesQueryKey });
+      void queryClient.setQueryData(getPolicyQueryKey, data);
+    },
+  });
 
   const handleSubmit = useCallback<SubmitHandler<EditInferencePolicySchema>>(
     async values => {

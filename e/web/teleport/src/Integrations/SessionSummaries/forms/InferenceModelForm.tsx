@@ -146,7 +146,9 @@ export function InferenceModelForm({
         )}
         <Flex flexDirection="column" gap={4} width="100%">
           <FieldModelProvider isCloud={isCloud} />
-          <CredentialsForm />
+
+          <CredentialsForm isCloud={isCloud} />
+
           {isCreate && (
             <FieldInput
               helperText="Enter a unique name for this inference model."

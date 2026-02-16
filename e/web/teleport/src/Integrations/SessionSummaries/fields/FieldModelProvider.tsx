@@ -102,18 +102,6 @@ const AccessMethodOptionContainer = styled.div<{ selected: boolean }>`
   }
 `;
 
-const Circle = styled.div<{ selected: boolean }>`
-  border-radius: 50%;
-  width: ${p => p.theme.space[2]}px;
-  height: ${p => p.theme.space[2]}px;
-  background-color: ${p => (p.selected ? p.theme.colors.brand : 'transparent')};
-  border: 2px solid
-    ${p =>
-      p.selected
-        ? p.theme.colors.brand
-        : p.theme.colors.interactive.tonal.neutral[2]};
-`;
-
 function AccessMethodOption({ details, onChange }: AccessMethodOptionProps) {
   const value = useWatch<InferenceModelSchema, 'accessMethod'>({
     name: 'accessMethod',
@@ -129,7 +117,9 @@ function AccessMethodOption({ details, onChange }: AccessMethodOptionProps) {
       selected={selected}
     >
       <Flex alignItems="center" height="32px" justifyContent="center">
-        <Circle selected={selected} />
+        <RadioCircle selected={selected}>
+          {selected && <RadioDot />}
+        </RadioCircle>
       </Flex>
 
       <Stack flexDirection="row" gap={3}>
@@ -178,3 +168,25 @@ function getAvailableAccessMethods(isCloud: boolean) {
 
   return methods;
 }
+
+const RadioCircle = styled.div<{ selected: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border: 1px solid
+    ${p =>
+      p.selected
+        ? p.theme.colors.interactive.solid.primary.default
+        : p.theme.colors.interactive.tonal.neutral[2]};
+  border-radius: 50%;
+  background: transparent;
+`;
+
+const RadioDot = styled.div`
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: ${p => p.theme.colors.interactive.solid.primary.default};
+`;

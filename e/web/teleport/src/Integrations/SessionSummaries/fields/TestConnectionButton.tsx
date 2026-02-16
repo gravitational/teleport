@@ -97,6 +97,15 @@ function mapCredentialsFormDataToAPI(
         };
       }
 
+      if (data.bedrockMode === 'inference_profile') {
+        return {
+          bedrock: {
+            modelId: data.inferenceProfile,
+            region: data.region,
+          },
+        };
+      }
+
       return {
         bedrock: {
           modelId: data.model,

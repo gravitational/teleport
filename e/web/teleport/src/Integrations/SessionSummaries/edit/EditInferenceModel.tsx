@@ -104,8 +104,49 @@ function createDefaultValues(
   }
 
   if (model.bedrock) {
-    // will be fully fleshed out in the next PR with the Bedrock form
-    return {} as EditInferenceModelSchema;
+    if (model.bedrock.integration) {
+      return {
+        cloud: isCloud,
+        bedrockMode: 'integration',
+        accessMethod: 'bedrock',
+        integrationName: model.bedrock.integration,
+        region: model.bedrock.region,
+        model: model.bedrock.modelId,
+      };
+    }
+
+    const inferenceProfileRegex =
+      /^arn:aws:bedrock:[a-z0-9-]+:\d{12}:inference-profile\/[a-zA-Z0-9-_]+$/;
+    if (inferenceProfileRegex.test(model.bedrock.modelId)) {
+      if (isCloud) {
+        throw new Error(
+          'Inference profiles are not supported in cloud environment.'
+        );
+      }
+
+      return {
+        cloud: false,
+        bedrockMode: 'inference_profile',
+        accessMethod: 'bedrock',
+        region: model.bedrock.region,
+        model: '',
+        inferenceProfile: model.bedrock.modelId,
+      };
+    }
+
+    if (isCloud) {
+      throw new Error(
+        'Direct Bedrock access is not supported in cloud environment.'
+      );
+    }
+
+    return {
+      cloud: false,
+      bedrockMode: 'direct',
+      accessMethod: 'bedrock',
+      region: model.bedrock.region,
+      model: model.bedrock.modelId,
+    };
   }
 
   throw new Error('Unsupported inference model configuration');
