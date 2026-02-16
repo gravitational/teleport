@@ -1,4 +1,4 @@
-.version: &version "18.7.0-dev.tener.2"
+.version: &version "18.7.0-dev.tener.3"
 
 name: teleport-cluster
 apiVersion: v2
