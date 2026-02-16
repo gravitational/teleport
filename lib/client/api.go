@@ -1637,7 +1637,7 @@ func (tc *TeleportClient) GetTargetNode(ctx context.Context, clt authclient.Clie
 		Labels:              tc.Labels,
 	})
 	switch {
-	//TODO(tross): DELETE IN v20.0.0
+	// TODO(tross): DELETE IN v20.0.0
 	case trace.IsNotImplemented(err):
 		resources, err := client.GetAllUnifiedResources(ctx, clt, &proto.ListUnifiedResourcesRequest{
 			Kinds:               []string{types.KindNode},
@@ -2570,7 +2570,7 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 		}
 	}
 
-	if err := player.Err(); err != nil {
+	if err := player.Err(); err != nil && !errors.Is(err, io.EOF) {
 		return trace.Wrap(err)
 	}
 
