@@ -1152,7 +1152,7 @@ integration: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)' |
 integration:  $(TEST_LOG_DIR)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) \
-		| $(GOTESTSUM) --junitfile $(TEST_LOG_DI/unit-tests-integration.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-integration.json --raw-command -- cat
+		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-integration.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-integration.json --raw-command -- cat
 
 #
 # Integration tests that run Kubernetes tests in order to complete successfully
