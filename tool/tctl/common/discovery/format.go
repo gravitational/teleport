@@ -29,71 +29,79 @@ import (
 )
 
 type pageInfo struct {
-	Page      int
-	PageSize  int
-	Total     int
-	Start     int
-	End       int
-	Remaining int
-	HasNext   bool
-	NextPage  int
+	Start     int `json:"start"`
+	End       int `json:"end"`
+	Total     int `json:"total"`
+	Remaining int `json:"remaining"`
+	HasNext   bool `json:"has_next"`
 }
 
-func normalizePage(page, pageSize int) (int, int) {
-	if page < 1 {
-		page = 1
+func parseRange(input string) (int, int, error) {
+	parts := strings.SplitN(input, ",", 2)
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("invalid range %q, expected format start,end (e.g. 0,25)", input)
 	}
-	if pageSize < 1 {
-		pageSize = 25
+	start, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid range start %q: %w", parts[0], err)
 	}
-	return page, pageSize
+	end, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid range end %q: %w", parts[1], err)
+	}
+	if start < 0 {
+		return 0, 0, fmt.Errorf("range start must be non-negative, got %d", start)
+	}
+	if end < start {
+		return 0, 0, fmt.Errorf("range end (%d) must be >= start (%d)", end, start)
+	}
+	return start, end, nil
 }
 
-func paginateSlice[T any](items []T, page, pageSize int) ([]T, pageInfo) {
-	page, pageSize = normalizePage(page, pageSize)
+func paginateSlice[T any](items []T, start, end int) ([]T, pageInfo) {
 	total := len(items)
-	start := (page - 1) * pageSize
 	if start > total {
 		start = total
 	}
-	end := start + pageSize
 	if end > total {
 		end = total
 	}
 
 	info := pageInfo{
-		Page:      page,
-		PageSize:  pageSize,
-		Total:     total,
 		Start:     start,
 		End:       end,
+		Total:     total,
 		Remaining: total - end,
 		HasNext:   end < total,
-		NextPage:  page + 1,
 	}
 	return items[start:end], info
 }
 
 func fullPageInfo(n int) pageInfo {
 	return pageInfo{
-		Page:     1,
-		PageSize: n,
-		Total:    n,
-		End:      n,
-		NextPage: 2,
+		Start: 0,
+		End:   n,
+		Total: n,
 	}
 }
 
-var pageFlagPattern = regexp.MustCompile(`(?:^|\s)--page=\S+`)
+var rangeFlagPattern = regexp.MustCompile(`(?:^|\s)--range=\S+`)
 var markdownLinkPattern = regexp.MustCompile(`\[(.+?)\]\((https?://[^)]+)\)`)
 var markdownStrongPattern = regexp.MustCompile(`\*\*(.+?)\*\*`)
 var markdownCodePattern = regexp.MustCompile("`([^`]+)`")
 
-func withPageFlag(command string, page int) string {
+func withRangeFlag(command string, start, end int) string {
 	command = strings.TrimSpace(command)
-	command = pageFlagPattern.ReplaceAllString(command, "")
+	command = rangeFlagPattern.ReplaceAllString(command, "")
 	command = strings.Join(strings.Fields(command), " ")
-	return fmt.Sprintf("%s --page=%d", command, page)
+	return fmt.Sprintf("%s --range=%d,%d", command, start, end)
+}
+
+func shellQuoteArg(s string) string {
+	if s == "" || strings.ContainsAny(s, " \t()\"'\\$`!") {
+		return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+	}
+	return s
 }
 
 func formatTime(ts time.Time) string {
@@ -118,11 +126,11 @@ func mapKeys[K comparable, V any](m map[K]V) []K {
 	return keys
 }
 
-func paginateMapKeys[V any](w io.Writer, m map[string]V, page, pageSize int) ([]string, pageInfo, textStyle) {
+func paginateMapKeys[V any](w io.Writer, m map[string]V, start, end int) ([]string, pageInfo, textStyle) {
 	style := newTextStyle(w)
 	keys := mapKeys(m)
 	slices.Sort(keys)
-	pageKeys, info := paginateSlice(keys, page, pageSize)
+	pageKeys, info := paginateSlice(keys, start, end)
 	return pageKeys, info, style
 }
 
@@ -269,6 +277,21 @@ func formatMaybeParsedTime(ts time.Time) string {
 		return ""
 	}
 	return ts.UTC().Format("2006-01-02 15:04:05")
+}
+
+func combineOutput(stdout, stderr string) string {
+	stdout = strings.TrimSpace(stdout)
+	stderr = strings.TrimSpace(stderr)
+	if stdout == "" && stderr == "" {
+		return ""
+	}
+	if stdout == "" {
+		return stderr
+	}
+	if stderr == "" {
+		return stdout
+	}
+	return stdout + "\n" + stderr
 }
 
 func formatHistoryTimestamp(timestamp string, now time.Time) string {
