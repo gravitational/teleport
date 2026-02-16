@@ -242,10 +242,25 @@ func (s *LinuxService) Serve(plainLis net.Listener) error {
 func (s *LinuxService) handleConnection(conn net.Conn) {
 	tdpConn := tdp.NewConn(conn, tdp.DecoderAdapter(tdpb.DecodePermissive))
 	defer tdpConn.Close()
-	msg, err := tdpConn.ReadMessage()
-	s.cfg.Logger.InfoContext(s.closeCtx, "Received message", "message", msg, "error", trace.DebugReport(err))
-	tdpConn.WriteMessage(&tdpb.Alert{
-		Message:  "Connection closed gracefully",
-		Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_INFO,
-	})
+	for {
+		msg, err := tdpConn.ReadMessage()
+		if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
+			return
+		}
+		if err != nil {
+			s.cfg.Logger.ErrorContext(s.closeCtx, "got error reading message", "error", err)
+			return
+		}
+		switch m := msg.(type) {
+		case *tdpb.ClientHello:
+			tdpConn.WriteMessage(&tdpb.Alert{
+				Message:  "Not implemented yet",
+				Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR,
+			})
+		case *tdpb.Ping:
+			tdpConn.WriteMessage(m)
+		default:
+			s.cfg.Logger.InfoContext(s.closeCtx, "Ignoring message", "message", msg)
+		}
+	}
 }
