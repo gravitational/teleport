@@ -6252,6 +6252,15 @@ message SSMRun {
   // InvocationURL is a link to AWS Web Console for this invocation.
   // An invocation is the execution of a Command in an Instance.
   string InvocationURL = 10 [(gogoproto.jsontag) = "invocation_url"];
+
+  // PlatformName is the operating system name of the EC2 instance.
+  string PlatformName = 11 [(gogoproto.jsontag) = "platform_name"];
+
+  // PlatformType is the operating system platform of the EC2 instance.
+  string PlatformType = 12 [(gogoproto.jsontag) = "platform_type"];
+
+  // PlatformVersion is the version of the operating system running on the EC2 instance.
+  string PlatformVersion = 13 [(gogoproto.jsontag) = "platform_version"];
 }
 
 // CassandraSession is emitted when a Cassandra client sends
