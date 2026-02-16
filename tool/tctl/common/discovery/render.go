@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -51,8 +52,10 @@ func renderTasksListText(w io.Writer, items []taskListItem, hints taskListHintsI
 		if i > 0 {
 			fmt.Fprintln(w, "")
 		}
-		fmt.Fprintf(w, "[%d] TASK: %s\n", i+1, item.Name)
+		firstPrefix := fmt.Sprintf("[%d] ", i+1)
+		continuation := strings.Repeat(" ", len(firstPrefix))
 		details := []keyValue{
+			{Key: "TASK", Value: item.Name},
 			{Key: "STATE", Value: style.statusValue(item.State)},
 			{Key: "TYPE", Value: friendlyTaskType(item.TaskType)},
 			{Key: "ISSUE TYPE", Value: item.IssueType},
@@ -60,7 +63,7 @@ func renderTasksListText(w io.Writer, items []taskListItem, hints taskListHintsI
 			{Key: "INTEGRATION", Value: displayIntegrationName(item.Integration)},
 			{Key: "LAST STATE CHANGE", Value: formatRelativeTime(item.LastStateChange, now)},
 		}
-		if err := renderAlignedKeyValues(w, "    ", details); err != nil {
+		if err := renderAlignedKeyValuesWithPrefix(w, firstPrefix, continuation, details); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -86,10 +89,18 @@ func taskListNextActions(items []taskListItem, input taskListHintsInput) []nextA
 				Comment:  "Broaden task list filters",
 				Commands: commands,
 			},
+			{
+				Comment:  "Check discovery status",
+				Commands: []string{"tctl discovery status"},
+			},
+			{
+				Comment:  "List integrations",
+				Commands: []string{"tctl discovery integration ls"},
+			},
 		}
 	}
 
-	actions := make([]nextAction, 0, 3)
+	actions := make([]nextAction, 0, 4)
 	filterCommands := make([]string, 0, 3)
 	if input.TaskType == "" {
 		filterCommands = append(filterCommands, "tctl discovery tasks ls --task-type=discover-ec2")
@@ -115,6 +126,10 @@ func taskListNextActions(items []taskListItem, input taskListHintsInput) []nextA
 		},
 	})
 	actions = append(actions, nextAction{
+		Comment:  "List integrations",
+		Commands: []string{"tctl discovery integration ls"},
+	})
+	actions = append(actions, nextAction{
 		Comment: "Use machine-readable output",
 		Commands: []string{
 			"tctl discovery tasks ls --format=json",
@@ -125,7 +140,7 @@ func taskListNextActions(items []taskListItem, input taskListHintsInput) []nextA
 	return actions
 }
 
-func renderTaskDetailsText(w io.Writer, task *usertasksv1.UserTask, page, pageSize int, baseCommand string) error {
+func renderTaskDetailsText(w io.Writer, task *usertasksv1.UserTask, start, end int, baseCommand string) error {
 	style := newTextStyle(w)
 	now := time.Now().UTC()
 	title, description := usertasks.DescriptionForDiscoverEC2Issue(task.GetSpec().GetIssueType())
@@ -152,13 +167,13 @@ func renderTaskDetailsText(w io.Writer, task *usertasksv1.UserTask, page, pageSi
 	var err error
 	switch task.GetSpec().GetTaskType() {
 	case usertasksapi.TaskTypeDiscoverEC2:
-		resourcePage, err = renderEC2Details(w, task, page, pageSize)
+		resourcePage, err = renderEC2Details(w, task, start, end)
 	case usertasksapi.TaskTypeDiscoverEKS:
-		resourcePage, err = renderEKSDetails(w, task, page, pageSize)
+		resourcePage, err = renderEKSDetails(w, task, start, end)
 	case usertasksapi.TaskTypeDiscoverRDS:
-		resourcePage, err = renderRDSDetails(w, task, page, pageSize)
+		resourcePage, err = renderRDSDetails(w, task, start, end)
 	case usertasksapi.TaskTypeDiscoverAzureVM:
-		resourcePage, err = renderAzureVMDetails(w, task, page, pageSize)
+		resourcePage, err = renderAzureVMDetails(w, task, start, end)
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -184,12 +199,17 @@ func taskShowNextActions(task *usertasksv1.UserTask, resourcePage pageInfo, disp
 	if resourcePage.Total > 0 && displayStart == 0 {
 		actions = append(actions, nextAction{
 			Comment:  "Current resource page is out of range",
-			Commands: []string{withPageFlag(baseCommand, 1)},
+			Commands: []string{withRangeFlag(baseCommand, 0, resourcePage.End)},
 		})
 	} else if resourcePage.HasNext {
+		pageSize := resourcePage.End - resourcePage.Start
+		nextEnd := resourcePage.End + pageSize
+		if nextEnd > resourcePage.Total {
+			nextEnd = resourcePage.Total
+		}
 		actions = append(actions, nextAction{
 			Comment:  "Show next page of affected resources",
-			Commands: []string{withPageFlag(baseCommand, resourcePage.NextPage)},
+			Commands: []string{withRangeFlag(baseCommand, resourcePage.End, nextEnd)},
 		})
 	}
 	if integration := task.GetSpec().GetIntegration(); integration != "" {
@@ -199,6 +219,10 @@ func taskShowNextActions(task *usertasksv1.UserTask, resourcePage pageInfo, disp
 				fmt.Sprintf("tctl discovery tasks ls --integration=%s", integration),
 				fmt.Sprintf("tctl discovery tasks ls --integration=%s --state=resolved", integration),
 			},
+		})
+		actions = append(actions, nextAction{
+			Comment:  "Inspect this integration",
+			Commands: []string{fmt.Sprintf("tctl discovery integration show %s", integration)},
 		})
 	}
 	if task.GetSpec().GetTaskType() == usertasksapi.TaskTypeDiscoverEC2 {
@@ -211,14 +235,21 @@ func taskShowNextActions(task *usertasksv1.UserTask, resourcePage pageInfo, disp
 				Commands: []string{
 					fmt.Sprintf("tctl discovery ssm-runs show %s", instanceID),
 					fmt.Sprintf("tctl discovery ssm-runs show %s --show-all-runs", instanceID),
-					fmt.Sprintf("tctl discovery ssm-runs show %s --since=1h --failed", instanceID),
+					fmt.Sprintf("tctl discovery ssm-runs show %s --last=1h", instanceID),
 				},
 			})
 		}
 	}
 	actions = append(actions, nextAction{
+		Comment: "Check instance joins",
+		Commands: []string{
+			"tctl discovery joins ls",
+			"tctl discovery joins ls --last=1h",
+		},
+	})
+	actions = append(actions, nextAction{
 		Comment:  "Return to discovery overview",
-		Commands: []string{"tctl discovery status --state=open"},
+		Commands: []string{"tctl discovery status"},
 	})
 	actions = append(actions, nextAction{
 		Comment: "Use machine-readable output",
@@ -237,9 +268,9 @@ func resourceDisplayRange(info pageInfo) (start, end int) {
 	return info.Start + 1, info.End
 }
 
-func renderEC2Details(w io.Writer, task *usertasksv1.UserTask, page, pageSize int) (pageInfo, error) {
+func renderEC2Details(w io.Writer, task *usertasksv1.UserTask, start, end int) (pageInfo, error) {
 	ec2 := usertasks.EC2InstancesWithURLs(task)
-	pageKeys, info, style := paginateMapKeys(w, ec2.Instances, page, pageSize)
+	pageKeys, info, style := paginateMapKeys(w, ec2.Instances, start, end)
 	now := time.Now().UTC()
 
 	fmt.Fprintf(w, "\n%s\n", style.section("Affected EC2 instances:"))
@@ -254,8 +285,10 @@ func renderEC2Details(w io.Writer, task *usertasksv1.UserTask, page, pageSize in
 			fmt.Fprintln(w, "")
 		}
 
-		fmt.Fprintf(w, "[%d] INSTANCE: %s\n", info.Start+i+1, instance.GetInstanceId())
-		details := make([]keyValue, 0, 7)
+		firstPrefix := fmt.Sprintf("[%d] ", info.Start+i+1)
+		continuation := strings.Repeat(" ", len(firstPrefix))
+		details := make([]keyValue, 0, 8)
+		details = append(details, keyValue{Key: "INSTANCE", Value: instance.GetInstanceId()})
 		if name := strings.TrimSpace(instance.GetName()); name != "" {
 			details = append(details, keyValue{Key: "NAME", Value: name})
 		}
@@ -279,7 +312,7 @@ func renderEC2Details(w io.Writer, task *usertasksv1.UserTask, page, pageSize in
 		if invocationURL := strings.TrimSpace(instance.GetInvocationUrl()); invocationURL != "" {
 			details = append(details, keyValue{Key: "INVOCATION URL", Value: invocationURL})
 		}
-		if err := renderAlignedKeyValues(w, "    ", details); err != nil {
+		if err := renderAlignedKeyValuesWithPrefix(w, firstPrefix, continuation, details); err != nil {
 			return info, trace.Wrap(err)
 		}
 	}
@@ -287,9 +320,9 @@ func renderEC2Details(w io.Writer, task *usertasksv1.UserTask, page, pageSize in
 	return info, nil
 }
 
-func renderEKSDetails(w io.Writer, task *usertasksv1.UserTask, page, pageSize int) (pageInfo, error) {
+func renderEKSDetails(w io.Writer, task *usertasksv1.UserTask, start, end int) (pageInfo, error) {
 	eks := usertasks.EKSClustersWithURLs(task)
-	pageKeys, info, style := paginateMapKeys(w, eks.Clusters, page, pageSize)
+	pageKeys, info, style := paginateMapKeys(w, eks.Clusters, start, end)
 
 	rows := make([][]string, 0, len(pageKeys))
 	for _, key := range pageKeys {
@@ -324,9 +357,9 @@ func eksActionURL(cluster *usertasks.DiscoverEKSClusterWithURLs) string {
 	return ""
 }
 
-func renderRDSDetails(w io.Writer, task *usertasksv1.UserTask, page, pageSize int) (pageInfo, error) {
+func renderRDSDetails(w io.Writer, task *usertasksv1.UserTask, start, end int) (pageInfo, error) {
 	rds := usertasks.RDSDatabasesWithURLs(task)
-	pageKeys, info, style := paginateMapKeys(w, rds.Databases, page, pageSize)
+	pageKeys, info, style := paginateMapKeys(w, rds.Databases, start, end)
 
 	rows := make([][]string, 0, len(pageKeys))
 	for _, key := range pageKeys {
@@ -347,9 +380,9 @@ func renderRDSDetails(w io.Writer, task *usertasksv1.UserTask, page, pageSize in
 	return info, trace.Wrap(renderTable(w, []string{"Database", "Engine", "Cluster", "DiscoveryConfig", "DiscoveryGroup", "Sync Time", "AWS URL", "Config URL"}, rows, style.tableWidth))
 }
 
-func renderAzureVMDetails(w io.Writer, task *usertasksv1.UserTask, page, pageSize int) (pageInfo, error) {
+func renderAzureVMDetails(w io.Writer, task *usertasksv1.UserTask, start, end int) (pageInfo, error) {
 	instances := task.GetSpec().GetDiscoverAzureVm().GetInstances()
-	pageKeys, info, style := paginateMapKeys(w, instances, page, pageSize)
+	pageKeys, info, style := paginateMapKeys(w, instances, start, end)
 	now := time.Now().UTC()
 
 	fmt.Fprintf(w, "\n%s\n", style.section("Affected Azure VMs:"))
@@ -364,20 +397,22 @@ func renderAzureVMDetails(w io.Writer, task *usertasksv1.UserTask, page, pageSiz
 			fmt.Fprintln(w, "")
 		}
 
-		fmt.Fprintf(w, "[%d] VM ID: %s\n", info.Start+i+1, vm.GetVmId())
 		syncTime := "n/a"
 		if ts := vm.GetSyncTime(); ts != nil {
 			abs := formatTime(ts.AsTime())
 			syncTime = fmt.Sprintf("%s (%s)", abs, formatRelativeTime(ts.AsTime(), now))
 		}
+		firstPrefix := fmt.Sprintf("[%d] ", info.Start+i+1)
+		continuation := strings.Repeat(" ", len(firstPrefix))
 		details := []keyValue{
+			{Key: "VM ID", Value: vm.GetVmId()},
 			{Key: "NAME", Value: vm.GetName()},
 			{Key: "RESOURCE ID", Value: vm.GetResourceId()},
 			{Key: "DISCOVERY CONFIG", Value: vm.GetDiscoveryConfig()},
 			{Key: "DISCOVERY GROUP", Value: vm.GetDiscoveryGroup()},
 			{Key: "SYNC TIME", Value: syncTime},
 		}
-		if err := renderAlignedKeyValues(w, "    ", details); err != nil {
+		if err := renderAlignedKeyValuesWithPrefix(w, firstPrefix, continuation, details); err != nil {
 			return info, trace.Wrap(err)
 		}
 	}
@@ -393,11 +428,9 @@ func renderStatusText(w io.Writer, summary statusSummary) error {
 	}
 
 	fmt.Fprintf(w, "  %s\n", style.section(fmt.Sprintf("User Tasks [%d total, %d open, %d resolved]", summary.TotalTasks, summary.OpenTasks, summary.ResolvedTasks)))
-	filterDetails := fmt.Sprintf("Showing %d tasks matching state=%s", summary.FilteredTaskCount, summary.FilteredState)
 	if summary.FilteredIntegration != "" {
-		filterDetails += fmt.Sprintf(", integration=%s", summary.FilteredIntegration)
+		fmt.Fprintf(w, "  %s\n", style.info(fmt.Sprintf("Filtered by integration=%s", summary.FilteredIntegration)))
 	}
-	fmt.Fprintf(w, "  %s\n", style.info(filterDetails))
 	if len(summary.UserTasks) == 0 {
 		fmt.Fprintf(w, "%s\n", style.warning("No user tasks for the selected filters."))
 	} else {
@@ -436,30 +469,64 @@ func renderStatusText(w io.Writer, summary statusSummary) error {
 		}
 	}
 
-	if len(summary.IntegrationResourceStats) > 0 {
-		fmt.Fprintf(w, "\n  %s\n", style.section(fmt.Sprintf("Integration Resource Status [%d total]", len(summary.IntegrationResourceStats))))
-		integrationRows := integrationStatsRows(summary.IntegrationResourceStats)
-		rows := make([][]string, 0, len(integrationRows))
-		for _, stats := range integrationRows {
-			awaitingJoin := awaitingJoin(resourcesAggregate{
-				Found:    stats.Found,
-				Enrolled: stats.Enrolled,
-				Failed:   stats.Failed,
-			})
+	if len(summary.Integrations) > 0 {
+		activeCount := 0
+		for _, item := range summary.Integrations {
+			if item.Found > 0 || item.Enrolled > 0 || item.Failed > 0 {
+				activeCount++
+			}
+		}
+		fmt.Fprintf(w, "\n  %s\n", style.section(fmt.Sprintf("Integrations [%d total, %d active]",
+			len(summary.Integrations), activeCount)))
+		rows := make([][]string, 0, len(summary.Integrations))
+		for _, item := range summary.Integrations {
 			rows = append(rows, []string{
-				displayIntegrationName(stats.Integration),
-				style.discoveredCount(stats.Found),
-				style.pendingCount(awaitingJoin),
-				style.discoveredCount(stats.Enrolled),
-				style.failedCount(stats.Failed),
+				item.Name,
+				item.Type,
+				fmt.Sprintf("%d", item.OpenTasks),
+				style.discoveredCount(item.Found),
+				style.pendingCount(item.AwaitingJoin),
+				style.discoveredCount(item.Enrolled),
+				style.failedCount(item.Failed),
 			})
 		}
-		if err := renderTable(w, []string{"Integration", "Found", "Awaiting Join", "Enrolled", "Failed"}, rows, 0); err != nil {
+		if err := renderTable(w, []string{"Name", "Type", "Open Tasks", "Found", "Awaiting Join", "Enrolled", "Failed"}, rows, style.tableWidth); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
+	if summary.SSMRunStats != nil || summary.JoinStats != nil {
+		renderAuditEventStatsSection(w, style, "SSM Runs", summary.SSMRunStats, "--ssm-limit")
+		renderAuditEventStatsSection(w, style, "Instance Joins", summary.JoinStats, "--join-limit")
+	}
+
 	return trace.Wrap(renderNextActions(w, style, statusNextActions(summary)))
+}
+
+func renderAuditEventStatsSection(w io.Writer, style textStyle, title string, stats *auditEventStats, limitFlag string) {
+	if stats == nil {
+		return
+	}
+	windowLabel := stats.Window
+	if stats.LimitReached && stats.EffectiveWindow != "" {
+		if stats.SuggestedLimit > 0 {
+			windowLabel = fmt.Sprintf("requested %s, oldest returned %s; use %s=%d", stats.Window, stats.EffectiveWindow, limitFlag, stats.SuggestedLimit)
+		} else {
+			windowLabel = fmt.Sprintf("requested %s, oldest returned %s; increase %s", stats.Window, stats.EffectiveWindow, limitFlag)
+		}
+	} else if stats.LimitReached {
+		windowLabel += fmt.Sprintf("; increase %s", limitFlag)
+	}
+	fmt.Fprintf(w, "\n  %s\n", style.section(fmt.Sprintf("%s (%s)", title, windowLabel)))
+
+	details := []keyValue{
+		{Key: "TOTAL EVENTS", Value: fmt.Sprintf("%d", stats.Total)},
+		{Key: "SUCCESSFUL", Value: fmt.Sprintf("%d", stats.Success)},
+		{Key: "FAILED", Value: style.failedCount(uint64(stats.Failed))},
+		{Key: "DISTINCT HOSTS", Value: fmt.Sprintf("%d", stats.DistinctHosts)},
+		{Key: "HOSTS WITH FAILURES", Value: style.failedCount(uint64(stats.FailingHosts))},
+	}
+	_ = renderAlignedKeyValues(w, "  ", details)
 }
 
 func statusNextActions(summary statusSummary) []nextAction {
@@ -483,16 +550,36 @@ func statusNextActions(summary statusSummary) []nextAction {
 			Commands: inspectCommands,
 		},
 		{
-			Comment: "Check SSM runs",
+			Comment: "List integrations",
 			Commands: []string{
-				"tctl discovery ssm-runs ls",
-				"tctl discovery ssm-runs ls --since=1h",
-				"tctl discovery ssm-runs ls --since=1h --failed",
+				"tctl discovery integration ls",
 			},
 		},
 		{
-			Comment:  "Use machine-readable output",
-			Commands: []string{"tctl discovery status --format=json"},
+			Comment: "Check SSM runs",
+			Commands: []string{
+				"tctl discovery ssm-runs ls",
+				"tctl discovery ssm-runs ls --last=1h",
+				"tctl discovery ssm-runs ls --from-utc=2026-02-15T08:00 --to-utc=2026-02-15T20:00",
+			},
+		},
+		{
+			Comment: "Check instance joins",
+			Commands: []string{
+				"tctl discovery joins ls",
+				"tctl discovery joins ls --last=1h",
+			},
+		},
+		{
+			Comment:  "View unified host inventory",
+			Commands: []string{"tctl discovery inventory ls"},
+		},
+		{
+			Comment: "Use machine-readable output",
+			Commands: []string{
+				"tctl discovery status --format=json",
+				"tctl discovery status --format=yaml",
+			},
 		},
 	}
 }
@@ -524,15 +611,15 @@ func renderCountRowsTable(w io.Writer, label string, rows []countRow, total int,
 func renderSSMRunsText(w io.Writer, output ssmRunsOutput, instanceIDFilter string, showAllRuns bool, baseCommand string) error {
 	style := newTextStyle(w)
 	now := time.Now().UTC()
-	rowsLabel := "Failing VM rows shown"
-	if instanceIDFilter != "" {
-		rowsLabel = "VM rows shown"
+	runsInWindow := fmt.Sprintf("%d total (%d failed, %d success)", output.TotalRuns, output.FailedRuns, output.SuccessRuns)
+	if output.LimitReached {
+		runsInWindow += fmt.Sprintf(" [limit: %d, use --limit to increase]", output.FetchLimit)
 	}
 	summaryRows := [][]string{
 		{"Query window", output.Window},
-		{"SSM runs in window", fmt.Sprintf("%d total (%d failed, %d success)", output.TotalRuns, output.FailedRuns, output.SuccessRuns)},
+		{"SSM runs in window", runsInWindow},
 		{"VM status snapshot", fmt.Sprintf("%d total VMs, %d currently failing", output.TotalVMs, output.FailingVMs)},
-		{rowsLabel, fmt.Sprintf("%d (page %d, page-size %d)", output.DisplayedVMs, output.VMPage.Page, output.VMPage.PageSize)},
+		{"VM rows shown", fmt.Sprintf("%d (range %d-%d)", output.DisplayedVMs, output.VMPage.Start, output.VMPage.End)},
 	}
 	if instanceIDFilter != "" {
 		summaryRows = append(summaryRows, []string{"Filtered instance", instanceIDFilter})
@@ -545,10 +632,10 @@ func renderSSMRunsText(w io.Writer, output ssmRunsOutput, instanceIDFilter strin
 		if instanceIDFilter != "" {
 			fmt.Fprintf(w, "\n%s\n", style.warning(fmt.Sprintf("No SSM runs found for instance %s in the selected window.", instanceIDFilter)))
 		} else {
-			fmt.Fprintf(w, "\n%s\n", style.warning("No failing VMs found for the selected window."))
+			fmt.Fprintf(w, "\n%s\n", style.warning("No VMs found for the selected window."))
 		}
 	} else {
-		sectionTitle := "Failing VMs (most recent run failed):"
+		sectionTitle := "VMs (sorted by most recent run):"
 		if instanceIDFilter != "" {
 			sectionTitle = "VM:"
 		}
@@ -557,43 +644,71 @@ func renderSSMRunsText(w io.Writer, output ssmRunsOutput, instanceIDFilter strin
 			if i > 0 {
 				fmt.Fprintln(w, "")
 			}
+			var ssmFirstPrefix, ssmContinuation string
 			if instanceIDFilter != "" && len(output.VMs) == 1 {
-				fmt.Fprintf(w, "INSTANCE: %s\n", vm.InstanceID)
+				ssmFirstPrefix = ""
+				ssmContinuation = ""
 			} else {
-				fmt.Fprintf(w, "[%d] INSTANCE: %s\n", i+1, vm.InstanceID)
+				ssmFirstPrefix = fmt.Sprintf("[%d] ", i+1)
+				ssmContinuation = strings.Repeat(" ", len(ssmFirstPrefix))
 			}
 
 			details := []keyValue{
+				{Key: "INSTANCE", Value: vm.InstanceID},
 				{Key: "MOST RECENT", Value: formatRelativeOrTimestamp(vm.MostRecent.parsedEventTime, vm.MostRecent.EventTime, now)},
 				{Key: "RESULT", Value: style.statusValue(cmp.Or(vm.MostRecent.Status, vm.MostRecent.Code))},
 				{Key: "RUNS", Value: fmt.Sprintf("%d", vm.TotalRuns)},
 				{Key: "FAILED", Value: style.failedCount(uint64(vm.FailedRuns))},
 				{Key: "REGION", Value: cmp.Or(strings.TrimSpace(vm.MostRecent.Region), "n/a")},
 			}
-			if err := renderAlignedKeyValues(w, "    ", details); err != nil {
+			if err := renderAlignedKeyValuesWithPrefix(w, ssmFirstPrefix, ssmContinuation, details); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 
-		fmt.Fprintf(w, "\n%s\n", style.section("Run history:"))
-		if instanceIDFilter != "" && len(output.VMs) == 1 {
-			rows := buildVMHistoryRows(output.VMs[0], showAllRuns)
-			if err := renderSSMRunHistoryRows(w, style, rows, now, true); err != nil {
-				return trace.Wrap(err)
+		// In single-instance view, always show history. In multi-VM ls view,
+		// show history when --show-all-runs is set or when any VM has output
+		// (stdout/stderr from the install script).
+		showHistory := showAllRuns || instanceIDFilter != ""
+		if !showHistory {
+			for _, vm := range output.VMs {
+				for _, run := range vm.Runs {
+					if run.Stdout != "" || run.Stderr != "" {
+						showHistory = true
+						break
+					}
+				}
+				if showHistory {
+					break
+				}
 			}
-		} else {
-			for vmIndex, vm := range output.VMs {
-				fmt.Fprintf(w, "\n%s\n", style.info(fmt.Sprintf("[%d] VM: %s", vmIndex+1, vm.InstanceID)))
-				rows := buildVMHistoryRows(vm, showAllRuns)
-				if err := renderSSMRunHistoryRows(w, style, rows, now, false); err != nil {
+		}
+		if showHistory {
+			fmt.Fprintf(w, "\n%s\n", style.section("Run history:"))
+			if instanceIDFilter != "" && len(output.VMs) == 1 {
+				rows := buildVMHistoryRows(output.VMs[0], showAllRuns)
+				if err := renderSSMRunHistoryRows(w, style, rows, now, true); err != nil {
 					return trace.Wrap(err)
+				}
+			} else {
+				for vmIndex, vm := range output.VMs {
+					fmt.Fprintf(w, "\n%s\n", style.info(fmt.Sprintf("[%d] VM: %s", vmIndex+1, vm.InstanceID)))
+					rows := buildVMHistoryRows(vm, showAllRuns)
+					if err := renderSSMRunHistoryRows(w, style, rows, now, false); err != nil {
+						return trace.Wrap(err)
+					}
 				}
 			}
 		}
 	}
 	if output.VMPage.HasNext {
-		fmt.Fprintf(w, "\n%s\n", style.warning(fmt.Sprintf("More failing VMs available: %d remaining.", output.VMPage.Remaining)))
-		fmt.Fprintf(w, "%s %s\n", style.info("Next page:"), withPageFlag(baseCommand, output.VMPage.NextPage))
+		fmt.Fprintf(w, "\n%s\n", style.warning(fmt.Sprintf("More VMs available: %d remaining.", output.VMPage.Remaining)))
+		pageSize := output.VMPage.End - output.VMPage.Start
+		nextEnd := output.VMPage.End + pageSize
+		if nextEnd > output.VMPage.Total {
+			nextEnd = output.VMPage.Total
+		}
+		fmt.Fprintf(w, "%s %s\n", style.info("Next page:"), withRangeFlag(baseCommand, output.VMPage.End, nextEnd))
 	}
 
 	actions := ssmRunsNextActions(output, instanceIDFilter, showAllRuns)
@@ -616,6 +731,7 @@ func renderSSMRunHistoryRows(w io.Writer, style textStyle, rows []ssmRunHistoryR
 			if err := renderAlignedKeyValues(w, "    ", details); err != nil {
 				return trace.Wrap(err)
 			}
+			renderQuotedOutput(w, row.Output, "    ", details)
 			continue
 		}
 
@@ -633,8 +749,211 @@ func renderSSMRunHistoryRows(w io.Writer, style textStyle, rows []ssmRunHistoryR
 		if err := renderAlignedKeyValues(w, "    ", details); err != nil {
 			return trace.Wrap(err)
 		}
+		renderQuotedOutput(w, row.Output, "    ", details)
 	}
 	return nil
+}
+
+func renderQuotedOutput(w io.Writer, output string, indent string, details []keyValue) {
+	output = strings.TrimSpace(output)
+	if output == "" {
+		return
+	}
+	maxKeyWidth := len("OUTPUT")
+	for _, kv := range details {
+		maxKeyWidth = max(maxKeyWidth, len(kv.Key))
+	}
+	fmt.Fprintf(w, "%s%-*s:\n", indent, maxKeyWidth, "OUTPUT")
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.ReplaceAll(line, "\r", "")
+		fmt.Fprintf(w, "%s> %s\n", indent, line)
+	}
+}
+
+func renderIntegrationListText(w io.Writer, items []integrationListItem) error {
+	style := newTextStyle(w)
+
+	fmt.Fprintf(w, "%s\n", style.section(fmt.Sprintf("Integrations [%d]", len(items))))
+	if len(items) == 0 {
+		fmt.Fprintf(w, "%s\n", style.warning("No integrations found."))
+		return trace.Wrap(renderNextActions(w, style, integrationListNextActions(items)))
+	}
+
+	rows := make([][]string, 0, len(items))
+	for _, item := range items {
+		rows = append(rows, []string{
+			item.Name,
+			item.Type,
+			style.discoveredCount(item.Found),
+			style.discoveredCount(item.Enrolled),
+			style.failedCount(item.Failed),
+			style.pendingCount(item.AwaitingJoin),
+			fmt.Sprintf("%d", item.OpenTasks),
+		})
+	}
+	if err := renderTable(w, []string{"Name", "Type", "Found", "Enrolled", "Failed", "Awaiting Join", "Open Tasks"}, rows, style.tableWidth); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(renderNextActions(w, style, integrationListNextActions(items)))
+}
+
+func integrationListNextActions(items []integrationListItem) []nextAction {
+	if len(items) == 0 {
+		return []nextAction{
+			{
+				Comment:  "Check discovery status",
+				Commands: []string{"tctl discovery status"},
+			},
+		}
+	}
+
+	actions := make([]nextAction, 0, 4)
+	actions = append(actions, nextAction{
+		Comment: "Inspect an integration",
+		Commands: []string{
+			fmt.Sprintf("tctl discovery integration show %s", items[0].Name),
+			"tctl discovery integration show <name>",
+		},
+	})
+	actions = append(actions, nextAction{
+		Comment: "List discovery tasks",
+		Commands: []string{
+			"tctl discovery tasks ls",
+		},
+	})
+	actions = append(actions, nextAction{
+		Comment:  "Check discovery status",
+		Commands: []string{"tctl discovery status"},
+	})
+	actions = append(actions, nextAction{
+		Comment: "Use machine-readable output",
+		Commands: []string{
+			"tctl discovery integration ls --format=json",
+			"tctl discovery integration ls --format=yaml",
+		},
+	})
+	return actions
+}
+
+func renderIntegrationShowText(w io.Writer, detail integrationDetail) error {
+	style := newTextStyle(w)
+	now := time.Now().UTC()
+
+	headerKVs := []keyValue{
+		{Key: "NAME", Value: detail.Name},
+		{Key: "TYPE", Value: detail.Type},
+	}
+	credKeys := mapKeys(detail.Credentials)
+	slices.Sort(credKeys)
+	for _, k := range credKeys {
+		headerKVs = append(headerKVs, keyValue{Key: strings.ToUpper(k), Value: detail.Credentials[k]})
+	}
+	if err := renderAlignedKeyValues(w, "", headerKVs); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(detail.ResourceTypeStats) > 0 {
+		fmt.Fprintf(w, "\n%s\n", style.section("Resource Stats by Type"))
+		rows := make([][]string, 0, len(detail.ResourceTypeStats))
+		for _, rs := range detail.ResourceTypeStats {
+			rows = append(rows, []string{
+				rs.ResourceType,
+				style.discoveredCount(rs.Found),
+				style.discoveredCount(rs.Enrolled),
+				style.failedCount(rs.Failed),
+			})
+		}
+		if err := renderTable(w, []string{"Resource Type", "Found", "Enrolled", "Failed"}, rows, style.tableWidth); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if len(detail.DiscoveryConfigs) > 0 {
+		fmt.Fprintf(w, "\n%s\n", style.section("Discovery Configs"))
+		rows := make([][]string, 0, len(detail.DiscoveryConfigs))
+		for _, cfg := range detail.DiscoveryConfigs {
+			rows = append(rows, []string{
+				cfg.Name,
+				style.statusValue(humanizeEnumValue(cfg.State)),
+				cfg.Matchers,
+				formatRelativeTime(cfg.LastSync, now),
+			})
+		}
+		if err := renderTable(w, []string{"Name", "State", "Matchers", "Last Sync"}, rows, style.tableWidth); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	fmt.Fprintf(w, "\n%s\n", style.section("Open Tasks"))
+	if len(detail.OpenTasks) == 0 {
+		fmt.Fprintf(w, "%s\n", style.info("No open tasks for this integration."))
+	} else {
+		rows := make([][]string, 0, len(detail.OpenTasks))
+		for _, task := range detail.OpenTasks {
+			rows = append(rows, []string{
+				task.Name,
+				task.IssueType,
+				fmt.Sprintf("%d", task.Affected),
+			})
+		}
+		if err := renderTable(w, []string{"Task Name", "Issue Type", "Affected"}, rows, style.tableWidth); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return trace.Wrap(renderNextActions(w, style, integrationShowNextActions(detail)))
+}
+
+func integrationShowNextActions(detail integrationDetail) []nextAction {
+	actions := make([]nextAction, 0, 6)
+	if len(detail.OpenTasks) > 0 {
+		actions = append(actions, nextAction{
+			Comment: "Inspect a task",
+			Commands: []string{
+				fmt.Sprintf("tctl discovery tasks show %s", taskNamePrefix(detail.OpenTasks[0].Name)),
+				"tctl discovery tasks show <task-id-prefix>",
+			},
+		})
+	}
+	actions = append(actions, nextAction{
+		Comment: "List tasks for this integration",
+		Commands: []string{
+			fmt.Sprintf("tctl discovery tasks ls --integration=%s", detail.Name),
+			fmt.Sprintf("tctl discovery tasks ls --integration=%s --state=resolved", detail.Name),
+		},
+	})
+	actions = append(actions, nextAction{
+		Comment: "Check SSM runs",
+		Commands: []string{
+			"tctl discovery ssm-runs ls",
+			"tctl discovery ssm-runs ls --last=1h",
+			"tctl discovery ssm-runs ls --from-utc=2026-02-15T08:00 --to-utc=2026-02-15T20:00",
+		},
+	})
+	actions = append(actions, nextAction{
+		Comment: "Check instance joins",
+		Commands: []string{
+			"tctl discovery joins ls",
+			"tctl discovery joins ls --last=1h",
+		},
+	})
+	actions = append(actions, nextAction{
+		Comment:  "Return to integration list",
+		Commands: []string{"tctl discovery integration ls"},
+	})
+	actions = append(actions, nextAction{
+		Comment:  "Check discovery status",
+		Commands: []string{"tctl discovery status"},
+	})
+	actions = append(actions, nextAction{
+		Comment: "Use machine-readable output",
+		Commands: []string{
+			fmt.Sprintf("tctl discovery integration show %s --format=json", detail.Name),
+			fmt.Sprintf("tctl discovery integration show %s --format=yaml", detail.Name),
+		},
+	})
+	return actions
 }
 
 func ssmRunsNextActions(output ssmRunsOutput, instanceIDFilter string, showAllRuns bool) []nextAction {
@@ -645,14 +964,15 @@ func ssmRunsNextActions(output ssmRunsOutput, instanceIDFilter string, showAllRu
 				Comment: "Return to SSM overview",
 				Commands: []string{
 					"tctl discovery ssm-runs ls",
-					fmt.Sprintf("tctl discovery ssm-runs ls --since=%s", output.Window),
+					"tctl discovery ssm-runs ls --last=1h",
+					"tctl discovery ssm-runs ls --from-utc=2026-02-15T08:00 --to-utc=2026-02-15T20:00",
 				},
 			},
 		}
 		if !showAllRuns {
 			actions = append(actions, nextAction{
 				Comment:  "Show full run history for this instance",
-				Commands: []string{fmt.Sprintf("tctl discovery ssm-runs show %s --since=%s --show-all-runs", instanceIDFilter, output.Window)},
+				Commands: []string{fmt.Sprintf("tctl discovery ssm-runs show %s --last=1h --show-all-runs", instanceIDFilter)},
 			})
 		}
 		actions = append(actions, nextAction{
@@ -660,8 +980,12 @@ func ssmRunsNextActions(output ssmRunsOutput, instanceIDFilter string, showAllRu
 			Commands: []string{"tctl discovery tasks ls --task-type=discover-ec2 --state=open"},
 		})
 		actions = append(actions, nextAction{
+			Comment:  "List integrations",
+			Commands: []string{"tctl discovery integration ls"},
+		})
+		actions = append(actions, nextAction{
 			Comment:  "Use machine-readable output",
-			Commands: []string{fmt.Sprintf("tctl discovery ssm-runs show %s --since=%s --format=json", instanceIDFilter, output.Window)},
+			Commands: []string{fmt.Sprintf("tctl discovery ssm-runs show %s --last=1h --format=json", instanceIDFilter)},
 		})
 		return actions
 	}
@@ -672,28 +996,556 @@ func ssmRunsNextActions(output ssmRunsOutput, instanceIDFilter string, showAllRu
 		instanceCommand = fmt.Sprintf("tctl discovery ssm-runs show %s --show-all-runs", output.VMs[0].InstanceID)
 	}
 
-	return []nextAction{
+	actions := []nextAction{
 		{
-			Comment: "Start with SSM overview",
+			Comment: "Adjust SSM time window",
 			Commands: []string{
-				"tctl discovery ssm-runs ls",
-				fmt.Sprintf("tctl discovery ssm-runs ls --since=%s", output.Window),
-				fmt.Sprintf("tctl discovery ssm-runs ls --since=%s --failed", output.Window),
+				"tctl discovery ssm-runs ls --last=1h",
+				"tctl discovery ssm-runs ls --last=24h",
+				"tctl discovery ssm-runs ls --from-utc=2026-02-15T08:00 --to-utc=2026-02-15T20:00",
 			},
 		},
 		{
 			Comment:  "View all runs for a specific failing instance",
 			Commands: []string{instanceCommand},
 		},
-		{
+	}
+	if output.LimitReached {
+		actions = append(actions, nextAction{
+			Comment:  "Fetch more events (current limit reached)",
+			Commands: []string{fmt.Sprintf("tctl discovery ssm-runs ls --limit=%d", output.FetchLimit*5)},
+		})
+	}
+	actions = append(actions,
+		nextAction{
 			Comment:  "Inspect the discovery tasks themselves",
 			Commands: []string{"tctl discovery tasks ls --task-type=discover-ec2 --state=open"},
 		},
-		{
-			Comment: "Use machine-readable output",
+		nextAction{
+			Comment:  "List integrations",
+			Commands: []string{"tctl discovery integration ls"},
+		},
+		nextAction{
+			Comment: "Check instance joins",
 			Commands: []string{
-				fmt.Sprintf("tctl discovery ssm-runs ls --since=%s --format=json", output.Window),
+				"tctl discovery joins ls",
+				"tctl discovery joins ls --last=1h",
 			},
 		},
+		nextAction{
+			Comment:  "View unified host inventory",
+			Commands: []string{"tctl discovery inventory ls"},
+		},
+		nextAction{
+			Comment: "Use machine-readable output",
+			Commands: []string{
+				"tctl discovery ssm-runs ls --last=1h --format=json",
+			},
+		},
+	)
+	return actions
+}
+
+func renderJoinsText(w io.Writer, output joinsOutput, hostIDFilter string, showAllJoins bool, baseCommand string) error {
+	style := newTextStyle(w)
+	now := time.Now().UTC()
+	joinsInWindow := fmt.Sprintf("%d total (%d failed, %d success)", output.TotalJoins, output.FailedJoins, output.SuccessJoins)
+	if output.LimitReached {
+		joinsInWindow += fmt.Sprintf(" [limit: %d, use --limit to increase]", output.FetchLimit)
 	}
+	summaryRows := [][]string{
+		{"Query window", output.Window},
+		{"Joins in window", joinsInWindow},
+		{"Host snapshot", fmt.Sprintf("%d total hosts, %d with failed joins", output.TotalHosts, output.FailingHosts)},
+		{"Host rows shown", fmt.Sprintf("%d (range %d-%d)", output.DisplayedHosts, output.HostPage.Start, output.HostPage.End)},
+	}
+	if hostIDFilter != "" {
+		summaryRows = append(summaryRows, []string{"Filtered host", hostIDFilter})
+	}
+	if err := renderTable(w, []string{"Summary Item", "Details"}, summaryRows, style.tableWidth); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(output.Hosts) == 0 {
+		if hostIDFilter != "" {
+			fmt.Fprintf(w, "\n%s\n", style.warning(fmt.Sprintf("No join events found for host %s in the selected window.", hostIDFilter)))
+		} else {
+			fmt.Fprintf(w, "\n%s\n", style.warning("No hosts found for the selected window."))
+		}
+	} else {
+		sectionTitle := "Hosts (sorted by most recent join):"
+		if hostIDFilter != "" {
+			sectionTitle = "Host:"
+		}
+		fmt.Fprintf(w, "\n%s\n", style.section(sectionTitle))
+		for i, host := range output.Hosts {
+			if i > 0 {
+				fmt.Fprintln(w, "")
+			}
+			var joinFirstPrefix, joinContinuation string
+			if hostIDFilter != "" && len(output.Hosts) == 1 {
+				joinFirstPrefix = ""
+				joinContinuation = ""
+			} else {
+				joinFirstPrefix = fmt.Sprintf("[%d] ", i+1)
+				joinContinuation = strings.Repeat(" ", len(joinFirstPrefix))
+			}
+
+			result := "success"
+			if host.MostRecentFailed {
+				result = cmp.Or(host.MostRecent.Error, "failed")
+			}
+			details := []keyValue{
+				{Key: "HOST", Value: host.HostID},
+				{Key: "NODE NAME", Value: cmp.Or(strings.TrimSpace(host.NodeName), "n/a")},
+				{Key: "INSTANCE ID", Value: cmp.Or(strings.TrimSpace(host.MostRecent.InstanceID), "n/a")},
+				{Key: "ACCOUNT ID", Value: cmp.Or(strings.TrimSpace(host.MostRecent.AccountID), "n/a")},
+				{Key: "TOKEN", Value: cmp.Or(strings.TrimSpace(host.MostRecent.TokenName), "n/a")},
+				{Key: "MOST RECENT", Value: formatRelativeOrTimestamp(host.MostRecent.parsedEventTime, host.MostRecent.EventTime, now)},
+				{Key: "RESULT", Value: style.statusValue(result)},
+				{Key: "METHOD", Value: cmp.Or(strings.TrimSpace(host.MostRecent.Method), "n/a")},
+				{Key: "ROLE", Value: cmp.Or(strings.TrimSpace(host.MostRecent.Role), "n/a")},
+				{Key: "JOINS", Value: fmt.Sprintf("%d", host.TotalJoins)},
+				{Key: "FAILED", Value: style.failedCount(uint64(host.FailedJoins))},
+			}
+			if err := renderAlignedKeyValuesWithPrefix(w, joinFirstPrefix, joinContinuation, details); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		// In single-host view or when --show-all-joins is set, show the full
+		// history section. In multi-host ls view without --show-all-joins, the
+		// host cards above already show the most recent join for each host.
+		if hostIDFilter != "" && len(output.Hosts) == 1 {
+			fmt.Fprintf(w, "\n%s\n", style.section("Join history:"))
+			rows := buildJoinHistoryRows(output.Hosts[0], showAllJoins)
+			if err := renderJoinHistoryRows(w, style, rows, now, true); err != nil {
+				return trace.Wrap(err)
+			}
+		} else if showAllJoins {
+			fmt.Fprintf(w, "\n%s\n", style.section("Join history:"))
+			for hostIndex, host := range output.Hosts {
+				fmt.Fprintf(w, "\n%s\n", style.info(fmt.Sprintf("[%d] HOST: %s", hostIndex+1, host.HostID)))
+				rows := buildJoinHistoryRows(host, showAllJoins)
+				if err := renderJoinHistoryRows(w, style, rows, now, false); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+		}
+	}
+	if output.HostPage.HasNext {
+		fmt.Fprintf(w, "\n%s\n", style.warning(fmt.Sprintf("More hosts available: %d remaining.", output.HostPage.Remaining)))
+		pageSize := output.HostPage.End - output.HostPage.Start
+		nextEnd := output.HostPage.End + pageSize
+		if nextEnd > output.HostPage.Total {
+			nextEnd = output.HostPage.Total
+		}
+		fmt.Fprintf(w, "%s %s\n", style.info("Next page:"), withRangeFlag(baseCommand, output.HostPage.End, nextEnd))
+	}
+
+	actions := joinsNextActions(output, hostIDFilter, showAllJoins)
+	return trace.Wrap(renderNextActions(w, style, actions))
+}
+
+func renderJoinHistoryRows(w io.Writer, style textStyle, rows []joinHistoryRow, now time.Time, singleHost bool) error {
+	for i, row := range rows {
+		if i > 0 {
+			fmt.Fprintln(w, "")
+		}
+		if singleHost {
+			fmt.Fprintf(w, "\n[%d] TIMESTAMP: %s\n", i+1, formatHistoryTimestamp(row.Timestamp, now))
+			details := []keyValue{
+				{Key: "RESULT", Value: style.statusValue(row.Result)},
+				{Key: "METHOD", Value: cmp.Or(strings.TrimSpace(row.Method), "n/a")},
+				{Key: "ROLE", Value: cmp.Or(strings.TrimSpace(row.Role), "n/a")},
+				{Key: "INSTANCE ID", Value: cmp.Or(strings.TrimSpace(row.InstanceID), "n/a")},
+				{Key: "ACCOUNT ID", Value: cmp.Or(strings.TrimSpace(row.AccountID), "n/a")},
+				{Key: "TOKEN", Value: cmp.Or(strings.TrimSpace(row.TokenName), "n/a")},
+			}
+			if err := renderAlignedKeyValues(w, "    ", details); err != nil {
+				return trace.Wrap(err)
+			}
+			continue
+		}
+
+		if len(rows) == 1 {
+			fmt.Fprintf(w, "  JOIN:\n")
+		} else {
+			fmt.Fprintf(w, "  JOIN %d:\n", i+1)
+		}
+		details := []keyValue{
+			{Key: "TIMESTAMP", Value: formatHistoryTimestamp(row.Timestamp, now)},
+			{Key: "RESULT", Value: style.statusValue(row.Result)},
+			{Key: "METHOD", Value: cmp.Or(strings.TrimSpace(row.Method), "n/a")},
+			{Key: "ROLE", Value: cmp.Or(strings.TrimSpace(row.Role), "n/a")},
+			{Key: "INSTANCE ID", Value: cmp.Or(strings.TrimSpace(row.InstanceID), "n/a")},
+			{Key: "ACCOUNT ID", Value: cmp.Or(strings.TrimSpace(row.AccountID), "n/a")},
+			{Key: "TOKEN", Value: cmp.Or(strings.TrimSpace(row.TokenName), "n/a")},
+		}
+		if err := renderAlignedKeyValues(w, "    ", details); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func renderInventoryText(w io.Writer, output inventoryOutput, hostIDFilter string, showAll bool, baseCommand string) error {
+	style := newTextStyle(w)
+	now := time.Now().UTC()
+
+	// Summary
+	summaryRows := [][]string{
+		{"Query window", output.Window + " (audit events); nodes: current"},
+		{"Hosts", fmt.Sprintf("%d total, %s online, %s offline, %s failed",
+			output.TotalHosts,
+			style.good(strconv.Itoa(output.OnlineHosts)),
+			style.pendingCount(uint64(output.OfflineHosts)),
+			style.failedCount(uint64(output.FailedHosts)))},
+		{"Displayed", fmt.Sprintf("%d (range %d-%d)", output.DisplayedHosts, output.HostPage.Start, output.HostPage.End)},
+	}
+	if err := renderTable(w, []string{"Summary Item", "Details"}, summaryRows, style.tableWidth); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(output.Hosts) == 0 {
+		if hostIDFilter != "" {
+			fmt.Fprintf(w, "\n%s\n", style.warning(fmt.Sprintf("No data found for host %s in the selected window.", hostIDFilter)))
+		} else {
+			fmt.Fprintf(w, "\n%s\n", style.warning("No hosts found for the selected window."))
+		}
+		return nil
+	}
+
+	if hostIDFilter != "" {
+		fmt.Fprintf(w, "\n%s\n", style.section("Host:"))
+	} else {
+		fmt.Fprintf(w, "\n%s\n", style.section("Hosts (sorted by most recent activity):"))
+	}
+
+	for i, host := range output.Hosts {
+		if i > 0 {
+			fmt.Fprintln(w, "")
+		}
+		var firstPrefix, continuation string
+		if hostIDFilter != "" && len(output.Hosts) == 1 {
+			firstPrefix = ""
+			continuation = ""
+		} else {
+			firstPrefix = fmt.Sprintf("[%d] ", i+1+output.HostPage.Start)
+			continuation = strings.Repeat(" ", len(firstPrefix))
+		}
+
+		details := []keyValue{
+			{Key: "HOST", Value: host.DisplayID},
+			{Key: "STATE", Value: style.inventoryStateValue(host.State)},
+			{Key: "NODE NAME", Value: cmp.Or(host.NodeName, "-")},
+			{Key: "NODE UUID", Value: host.HostID},
+			{Key: "INSTANCE ID", Value: cmp.Or(host.InstanceID, "-")},
+			{Key: "ACCOUNT ID", Value: cmp.Or(host.AccountID, "-")},
+			{Key: "METHOD", Value: cmp.Or(host.Method, "-")},
+			{Key: "LAST SSM RUN", Value: inventoryTimeValue(host.LastSSMRun, now)},
+			{Key: "LAST JOIN", Value: inventoryTimeValue(host.LastJoin, now)},
+			{Key: "LAST SEEN", Value: inventoryLastSeenValue(host, now)},
+			{Key: "SSM RUNS", Value: fmt.Sprintf("%d (%d success, %d failed)", host.SSMRuns, host.SSMSuccess, host.SSMFailed)},
+			{Key: "JOINS", Value: fmt.Sprintf("%d (%d success, %d failed)", host.Joins, host.JoinSuccess, host.JoinFailed)},
+		}
+		if err := renderAlignedKeyValuesWithPrefix(w, firstPrefix, continuation, details); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// In show view, render the timeline
+		if hostIDFilter != "" {
+			if err := renderInventoryTimeline(w, style, host, now, showAll); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+
+	// Pagination
+	if output.HostPage.HasNext {
+		fmt.Fprintf(w, "\n%s\n", style.info(fmt.Sprintf("  ... %d more hosts available", output.HostPage.Remaining)))
+	}
+
+	// Next actions
+	actions := inventoryNextActions(output, hostIDFilter, showAll, baseCommand)
+	return trace.Wrap(renderNextActions(w, style, actions))
+}
+
+func inventoryTimeValue(t time.Time, now time.Time) string {
+	if t.IsZero() {
+		return "-"
+	}
+	return formatRelativeTime(t, now)
+}
+
+func inventoryLastSeenValue(host inventoryHost, now time.Time) string {
+	if host.IsOnline {
+		return "now (online)"
+	}
+	if host.LastSeen.IsZero() {
+		return "never"
+	}
+	return formatRelativeTime(host.LastSeen, now)
+}
+
+func (s textStyle) inventoryStateValue(state inventoryHostState) string {
+	switch state {
+	case inventoryStateOnline, inventoryStateJoinedOnly:
+		return s.good(string(state))
+	case inventoryStateJoinFailed, inventoryStateSSMFailed:
+		return s.bad(string(state))
+	case inventoryStateOffline, inventoryStateSSMAttempted:
+		return s.warning(string(state))
+	default:
+		return string(state)
+	}
+}
+
+type timelineEntry struct {
+	Time   time.Time
+	Kind   string // "JOIN" or "SSM RUN"
+	Status string
+	Detail string
+	Error  string
+}
+
+func buildTimeline(host inventoryHost) []timelineEntry {
+	entries := make([]timelineEntry, 0, len(host.SSMRecords)+len(host.JoinRecords))
+
+	for _, r := range host.JoinRecords {
+		status := "Success"
+		errMsg := ""
+		if isJoinFailure(r) {
+			status = "Failed"
+			errMsg = r.Error
+		}
+		detail := strings.TrimSpace(r.Method)
+		if r.Role != "" {
+			detail += "  " + r.Role + " role"
+		}
+		entries = append(entries, timelineEntry{
+			Time:   r.parsedEventTime,
+			Kind:   "JOIN",
+			Status: status,
+			Detail: detail,
+			Error:  errMsg,
+		})
+	}
+
+	for _, r := range host.SSMRecords {
+		status := "Success"
+		errMsg := ""
+		if isSSMRunFailure(r) {
+			status = "Failed"
+			errMsg = combineOutput(r.Stdout, r.Stderr)
+		}
+		detail := ""
+		if r.ExitCode != "" {
+			detail = "exit=" + r.ExitCode
+		}
+		entries = append(entries, timelineEntry{
+			Time:   r.parsedEventTime,
+			Kind:   "SSM RUN",
+			Status: status,
+			Detail: detail,
+			Error:  errMsg,
+		})
+	}
+
+	slices.SortFunc(entries, func(a, b timelineEntry) int {
+		return compareTimeDesc(a.Time, b.Time)
+	})
+
+	return entries
+}
+
+func renderInventoryTimeline(w io.Writer, style textStyle, host inventoryHost, now time.Time, showAll bool) error {
+	entries := buildTimeline(host)
+	if len(entries) == 0 {
+		return nil
+	}
+
+	displayEntries := entries
+	if !showAll && len(displayEntries) > 10 {
+		displayEntries = displayEntries[:10]
+	}
+
+	fmt.Fprintf(w, "\n%s\n", style.section("Timeline:"))
+	for i, e := range displayEntries {
+		relative := formatRelativeTime(e.Time, now)
+		status := style.statusValue(e.Status)
+		fmt.Fprintf(w, "  #%-3d %-12s %-7s  %s", i+1, relative, e.Kind, status)
+		if e.Detail != "" {
+			fmt.Fprintf(w, "  %s", e.Detail)
+		}
+		fmt.Fprintln(w)
+		if e.Error != "" {
+			for _, line := range strings.Split(e.Error, "\n") {
+				line = strings.TrimSpace(line)
+				if line != "" {
+					fmt.Fprintf(w, "       %s\n", style.bad(line))
+				}
+			}
+		}
+	}
+
+	if !showAll && len(entries) > 10 {
+		fmt.Fprintf(w, "\n  %s\n", style.info(fmt.Sprintf("... %d more events, use --show-all-events to see all", len(entries)-10)))
+	}
+
+	return nil
+}
+
+func inventoryNextActions(output inventoryOutput, hostIDFilter string, showAll bool, baseCommand string) []nextAction {
+	var actions []nextAction
+
+	if hostIDFilter == "" {
+		// ls view
+		if output.HostPage.HasNext {
+			actions = append(actions, nextAction{
+				Comment:  "Next page",
+				Commands: []string{withRangeFlag(baseCommand, output.HostPage.End, output.HostPage.End+25)},
+			})
+		}
+		if output.FailedHosts > 0 {
+			actions = append(actions, nextAction{
+				Comment:  "Show only failing hosts",
+				Commands: []string{"tctl discovery inventory ls --state=failed"},
+			})
+		}
+		if len(output.Hosts) > 0 {
+			actions = append(actions, nextAction{
+				Comment:  "Drill into a specific host",
+				Commands: []string{fmt.Sprintf("tctl discovery inventory show %s", output.Hosts[0].DisplayID)},
+			})
+		}
+	} else {
+		// show view
+		if !showAll {
+			actions = append(actions, nextAction{
+				Comment:  "Show full event timeline",
+				Commands: []string{baseCommand + " --show-all-events"},
+			})
+		}
+		actions = append(actions, nextAction{
+			Comment:  "Return to host list",
+			Commands: []string{"tctl discovery inventory ls"},
+		})
+		actions = append(actions, nextAction{
+			Comment:  "Check SSM runs for this host",
+			Commands: []string{fmt.Sprintf("tctl discovery ssm-runs show %s", hostIDFilter)},
+		})
+		actions = append(actions, nextAction{
+			Comment:  "Check join events for this host",
+			Commands: []string{fmt.Sprintf("tctl discovery joins show %s", hostIDFilter)},
+		})
+	}
+
+	return actions
+}
+
+func joinsNextActions(output joinsOutput, hostIDFilter string, showAllJoins bool) []nextAction {
+	if hostIDFilter != "" {
+		actions := []nextAction{
+			{
+				Comment: "Return to joins overview",
+				Commands: []string{
+					"tctl discovery joins ls",
+					"tctl discovery joins ls --last=1h",
+					"tctl discovery joins ls --from-utc=2026-02-15T08:00 --to-utc=2026-02-15T20:00",
+				},
+			},
+		}
+		if !showAllJoins {
+			actions = append(actions, nextAction{
+				Comment:  "Show full join history for this host",
+				Commands: []string{fmt.Sprintf("tctl discovery joins show %s --show-all-joins", shellQuoteArg(hostIDFilter))},
+			})
+		}
+		actions = append(actions,
+			nextAction{
+				Comment: "Check SSM runs",
+				Commands: []string{
+					"tctl discovery ssm-runs ls",
+					"tctl discovery ssm-runs ls --last=1h",
+					"tctl discovery ssm-runs ls --from-utc=2026-02-15T08:00 --to-utc=2026-02-15T20:00",
+				},
+			},
+			nextAction{
+				Comment:  "Inspect the discovery tasks",
+				Commands: []string{"tctl discovery tasks ls"},
+			},
+			nextAction{
+				Comment:  "List integrations",
+				Commands: []string{"tctl discovery integration ls"},
+			},
+			nextAction{
+				Comment: "Use machine-readable output",
+				Commands: []string{
+					fmt.Sprintf("tctl discovery joins show %s --format=json", shellQuoteArg(hostIDFilter)),
+				},
+			},
+		)
+		return actions
+	}
+
+	// List view.
+	hostCommand := "tctl discovery joins show <host-id> --show-all-joins"
+	if len(output.Hosts) > 0 {
+		hostCommand = fmt.Sprintf("tctl discovery joins show %s --show-all-joins", shellQuoteArg(output.Hosts[0].HostID))
+	}
+
+	actions := []nextAction{
+		{
+			Comment: "Adjust joins time window",
+			Commands: []string{
+				"tctl discovery joins ls --last=1h",
+				"tctl discovery joins ls --last=24h",
+				"tctl discovery joins ls --from-utc=2026-02-15T08:00 --to-utc=2026-02-15T20:00",
+			},
+		},
+		{
+			Comment:  "View all joins for a specific host",
+			Commands: []string{hostCommand},
+		},
+	}
+	if output.LimitReached {
+		actions = append(actions, nextAction{
+			Comment:  "Fetch more events (current limit reached)",
+			Commands: []string{fmt.Sprintf("tctl discovery joins ls --limit=%d", output.FetchLimit*5)},
+		})
+	}
+	actions = append(actions,
+		nextAction{
+			Comment:  "Hide hosts with unknown/empty host ID",
+			Commands: []string{"tctl discovery joins ls --hide-unknown"},
+		},
+		nextAction{
+			Comment: "Check SSM runs",
+			Commands: []string{
+				"tctl discovery ssm-runs ls",
+				"tctl discovery ssm-runs ls --last=1h",
+				"tctl discovery ssm-runs ls --from-utc=2026-02-15T08:00 --to-utc=2026-02-15T20:00",
+			},
+		},
+		nextAction{
+			Comment:  "Inspect the discovery tasks",
+			Commands: []string{"tctl discovery tasks ls"},
+		},
+		nextAction{
+			Comment:  "List integrations",
+			Commands: []string{"tctl discovery integration ls"},
+		},
+		nextAction{
+			Comment:  "View unified host inventory",
+			Commands: []string{"tctl discovery inventory ls"},
+		},
+		nextAction{
+			Comment: "Use machine-readable output",
+			Commands: []string{
+				"tctl discovery joins ls --last=1h --format=json",
+			},
+		},
+	)
+	return actions
 }

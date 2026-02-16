@@ -26,11 +26,13 @@ import (
 
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	usertasksapi "github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/usertasks"
 	"github.com/gravitational/trace"
@@ -255,30 +257,43 @@ func taskAffectedCount(task *usertasksv1.UserTask) int {
 }
 
 type statusSummary struct {
-	GeneratedAt              time.Time                     `json:"generated_at"`
-	FilteredState            string                        `json:"filtered_state"`
-	FilteredIntegration      string                        `json:"filtered_integration,omitempty"`
-	DiscoveryConfigCount     int                           `json:"discovery_config_count"`
-	DiscoveryGroupCount      int                           `json:"discovery_group_count"`
-	UserTasks                []taskListItem                `json:"user_tasks"`
-	DiscoveryConfigs         []configStatus                `json:"discovery_configs"`
-	TotalTasks               int                           `json:"total_tasks"`
-	OpenTasks                int                           `json:"open_tasks"`
-	ResolvedTasks            int                           `json:"resolved_tasks"`
-	FilteredTaskCount        int                           `json:"filtered_task_count"`
-	TasksByType              map[string]int                `json:"tasks_by_type"`
-	TasksByIssue             map[string]int                `json:"tasks_by_issue"`
-	TasksByIntegration       map[string]int                `json:"tasks_by_integration"`
-	IntegrationResourceStats map[string]resourcesAggregate `json:"integration_resource_stats"`
+	GeneratedAt          time.Time             `json:"generated_at" yaml:"generated_at"`
+	FilteredIntegration  string                `json:"filtered_integration,omitempty" yaml:"filtered_integration,omitempty"`
+	DiscoveryConfigCount int                   `json:"discovery_config_count" yaml:"discovery_config_count"`
+	DiscoveryGroupCount  int                   `json:"discovery_group_count" yaml:"discovery_group_count"`
+	UserTasks            []taskListItem        `json:"user_tasks" yaml:"user_tasks"`
+	DiscoveryConfigs     []configStatus        `json:"discovery_configs" yaml:"discovery_configs"`
+	TotalTasks           int                   `json:"total_tasks" yaml:"total_tasks"`
+	OpenTasks            int                   `json:"open_tasks" yaml:"open_tasks"`
+	ResolvedTasks        int                   `json:"resolved_tasks" yaml:"resolved_tasks"`
+	TasksByType          map[string]int        `json:"tasks_by_type" yaml:"tasks_by_type"`
+	TasksByIssue         map[string]int        `json:"tasks_by_issue" yaml:"tasks_by_issue"`
+	TasksByIntegration   map[string]int        `json:"tasks_by_integration" yaml:"tasks_by_integration"`
+	Integrations         []integrationListItem `json:"integrations" yaml:"integrations"`
+	SSMRunStats          *auditEventStats      `json:"ssm_run_stats,omitempty" yaml:"ssm_run_stats,omitempty"`
+	JoinStats            *auditEventStats      `json:"join_stats,omitempty" yaml:"join_stats,omitempty"`
+}
+
+type auditEventStats struct {
+	Window          string    `json:"window" yaml:"window"`
+	EffectiveWindow string    `json:"effective_window,omitempty" yaml:"effective_window,omitempty"`
+	OldestEvent     time.Time `json:"oldest_event,omitempty" yaml:"oldest_event,omitempty"`
+	SuggestedLimit  int       `json:"suggested_limit,omitempty" yaml:"suggested_limit,omitempty"`
+	Total           int       `json:"total" yaml:"total"`
+	Success         int       `json:"success" yaml:"success"`
+	Failed          int       `json:"failed" yaml:"failed"`
+	DistinctHosts   int       `json:"distinct_hosts" yaml:"distinct_hosts"`
+	FailingHosts    int       `json:"failing_hosts" yaml:"failing_hosts"`
+	LimitReached    bool      `json:"limit_reached" yaml:"limit_reached"`
 }
 
 type configStatus struct {
-	Name       string    `json:"name"`
-	Group      string    `json:"group"`
-	State      string    `json:"state"`
-	Matchers   string    `json:"matchers"`
-	Discovered uint64    `json:"discovered"`
-	LastSync   time.Time `json:"last_sync"`
+	Name       string    `json:"name" yaml:"name"`
+	Group      string    `json:"group" yaml:"group"`
+	State      string    `json:"state" yaml:"state"`
+	Matchers   string    `json:"matchers" yaml:"matchers"`
+	Discovered uint64    `json:"discovered" yaml:"discovered"`
+	LastSync   time.Time `json:"last_sync" yaml:"last_sync"`
 }
 
 type resourcesAggregate struct {
@@ -287,38 +302,32 @@ type resourcesAggregate struct {
 	Failed   uint64 `json:"failed"`
 }
 
-func makeStatusSummary(allTasks, filteredTasks []*usertasksv1.UserTask, dcs []*discoveryconfig.DiscoveryConfig, state, integration string) statusSummary {
+func makeStatusSummary(tasks []*usertasksv1.UserTask, dcs []*discoveryconfig.DiscoveryConfig, integrations []types.Integration, integration string) statusSummary {
 	summary := statusSummary{
-		GeneratedAt:              time.Now().UTC(),
-		FilteredState:            cmp.Or(state, "ALL"),
-		FilteredIntegration:      integration,
-		DiscoveryConfigCount:     len(dcs),
-		DiscoveryGroupCount:      countDiscoveryGroups(dcs),
-		UserTasks:                make([]taskListItem, 0, len(filteredTasks)),
-		DiscoveryConfigs:         make([]configStatus, 0, len(dcs)),
-		TotalTasks:               len(allTasks),
-		FilteredTaskCount:        len(filteredTasks),
-		TasksByType:              map[string]int{},
-		TasksByIssue:             map[string]int{},
-		TasksByIntegration:       map[string]int{},
-		IntegrationResourceStats: map[string]resourcesAggregate{},
+		GeneratedAt:          time.Now().UTC(),
+		FilteredIntegration:  integration,
+		DiscoveryConfigCount: len(dcs),
+		DiscoveryGroupCount:  countDiscoveryGroups(dcs),
+		UserTasks:            make([]taskListItem, 0, len(tasks)),
+		DiscoveryConfigs:     make([]configStatus, 0, len(dcs)),
+		TotalTasks:           len(tasks),
+		TasksByType:          map[string]int{},
+		TasksByIssue:         map[string]int{},
+		TasksByIntegration:   map[string]int{},
 	}
 
-	for _, task := range allTasks {
+	for _, task := range tasks {
 		switch task.GetSpec().GetState() {
 		case usertasksapi.TaskStateOpen:
 			summary.OpenTasks++
 		case usertasksapi.TaskStateResolved:
 			summary.ResolvedTasks++
 		}
-	}
-
-	for _, task := range filteredTasks {
 		summary.TasksByType[task.GetSpec().GetTaskType()]++
 		summary.TasksByIssue[task.GetSpec().GetIssueType()]++
 		summary.TasksByIntegration[task.GetSpec().GetIntegration()]++
 	}
-	summary.UserTasks = toTaskListItems(filteredTasks)
+	summary.UserTasks = toTaskListItems(tasks)
 	slices.SortFunc(summary.UserTasks, func(a, b taskListItem) int {
 		if c := compareTimeDesc(a.LastStateChange, b.LastStateChange); c != 0 {
 			return c
@@ -340,17 +349,9 @@ func makeStatusSummary(allTasks, filteredTasks []*usertasksv1.UserTask, dcs []*d
 		return cmp.Compare(a.Name, b.Name)
 	})
 
-	for _, dc := range dcs {
-		for integrationName, integrationSummary := range dc.Status.IntegrationDiscoveredResources {
-			key := integrationName
-			agg := summary.IntegrationResourceStats[key]
-			addDiscoveredSummary(&agg, integrationSummary.GetAwsEc2())
-			addDiscoveredSummary(&agg, integrationSummary.GetAwsEks())
-			addDiscoveredSummary(&agg, integrationSummary.GetAwsRds())
-			addDiscoveredSummary(&agg, integrationSummary.GetAzureVms())
-			summary.IntegrationResourceStats[key] = agg
-		}
-	}
+	statsMap := buildIntegrationStatsMap(dcs)
+	taskCountMap := countTasksByIntegration(tasks)
+	summary.Integrations = toIntegrationListItems(integrations, statsMap, taskCountMap)
 
 	return summary
 }
@@ -425,43 +426,6 @@ func countRows(counts map[string]int) []countRow {
 	return rows
 }
 
-type integrationStatsRow struct {
-	Integration string
-	Found       uint64
-	Enrolled    uint64
-	Failed      uint64
-}
-
-func integrationStatsRows(stats map[string]resourcesAggregate) []integrationStatsRow {
-	names := mapKeys(stats)
-	rows := make([]integrationStatsRow, 0, len(names))
-	for _, name := range names {
-		value := stats[name]
-		rows = append(rows, integrationStatsRow{
-			Integration: name,
-			Found:       value.Found,
-			Enrolled:    value.Enrolled,
-			Failed:      value.Failed,
-		})
-	}
-	slices.SortFunc(rows, func(a, b integrationStatsRow) int {
-		if a.Failed != b.Failed {
-			if a.Failed > b.Failed {
-				return -1
-			}
-			return 1
-		}
-		if a.Found != b.Found {
-			if a.Found > b.Found {
-				return -1
-			}
-			return 1
-		}
-		return cmp.Compare(a.Integration, b.Integration)
-	})
-	return rows
-}
-
 type ssmRunRecord struct {
 	EventTime     string `json:"event_time"`
 	Code          string `json:"code"`
@@ -472,13 +436,13 @@ type ssmRunRecord struct {
 	Region        string `json:"region"`
 	CommandID     string `json:"command_id"`
 	InvocationURL string `json:"invocation_url"`
-	Stderr        string `json:"stderr"`
+	Stdout        string `json:"stdout,omitempty"`
+	Stderr        string `json:"stderr,omitempty"`
 
 	parsedEventTime time.Time
 }
 
 type ssmRunEventFilters struct {
-	FailedOnly bool
 	InstanceID string
 }
 
@@ -499,6 +463,7 @@ func parseSSMRunEvents(eventList []apievents.AuditEvent, filters ssmRunEventFilt
 			Region:        run.Region,
 			CommandID:     run.CommandID,
 			InvocationURL: run.InvocationURL,
+			Stdout:        run.StandardOutput,
 			Stderr:        run.StandardError,
 		}
 		if !run.Time.IsZero() {
@@ -507,9 +472,6 @@ func parseSSMRunEvents(eventList []apievents.AuditEvent, filters ssmRunEventFilt
 		}
 
 		if filters.InstanceID != "" && !strings.EqualFold(strings.TrimSpace(record.InstanceID), strings.TrimSpace(filters.InstanceID)) {
-			continue
-		}
-		if filters.FailedOnly && !isSSMRunFailure(record) {
 			continue
 		}
 		records = append(records, record)
@@ -687,6 +649,7 @@ type ssmRunHistoryRow struct {
 	Result    string `json:"result"`
 	CommandID string `json:"command_id"`
 	ExitCode  string `json:"exit_code"`
+	Output    string `json:"output,omitempty"`
 }
 
 func buildVMHistoryRows(group ssmVMGroup, showAll bool) []ssmRunHistoryRow {
@@ -703,6 +666,7 @@ func buildVMHistoryRows(group ssmVMGroup, showAll bool) []ssmRunHistoryRow {
 			Result:    cmp.Or(run.Status, run.Code),
 			CommandID: run.CommandID,
 			ExitCode:  run.ExitCode,
+			Output:    combineOutput(run.Stdout, run.Stderr),
 		})
 	}
 	return rows
@@ -711,6 +675,8 @@ func buildVMHistoryRows(group ssmVMGroup, showAll bool) []ssmRunHistoryRow {
 type ssmRunsOutput struct {
 	Window       string       `json:"window"`
 	Query        string       `json:"query"`
+	FetchLimit   int          `json:"fetch_limit"`
+	LimitReached bool         `json:"limit_reached"`
 	TotalRuns    int          `json:"total_runs"`
 	SuccessRuns  int          `json:"success_runs"`
 	FailedRuns   int          `json:"failed_runs"`
@@ -719,4 +685,794 @@ type ssmRunsOutput struct {
 	DisplayedVMs int          `json:"displayed_vms"`
 	VMPage       pageInfo     `json:"vm_page"`
 	VMs          []ssmVMGroup `json:"vms"`
+}
+
+// Integration types and functions.
+
+type integrationListItem struct {
+	Name         string `json:"name" yaml:"name"`
+	Type         string `json:"type" yaml:"type"`
+	Found        uint64 `json:"found" yaml:"found"`
+	Enrolled     uint64 `json:"enrolled" yaml:"enrolled"`
+	Failed       uint64 `json:"failed" yaml:"failed"`
+	AwaitingJoin uint64 `json:"awaiting_join" yaml:"awaiting_join"`
+	OpenTasks    int    `json:"open_tasks" yaml:"open_tasks"`
+}
+
+type integrationListOutput struct {
+	Total int                   `json:"total" yaml:"total"`
+	Items []integrationListItem `json:"items" yaml:"items"`
+}
+
+type resourceTypeStatsRow struct {
+	ResourceType string `json:"resource_type" yaml:"resource_type"`
+	Found        uint64 `json:"found" yaml:"found"`
+	Enrolled     uint64 `json:"enrolled" yaml:"enrolled"`
+	Failed       uint64 `json:"failed" yaml:"failed"`
+}
+
+type integrationDetail struct {
+	Name              string                `json:"name" yaml:"name"`
+	Type              string                `json:"type" yaml:"type"`
+	Credentials       map[string]string     `json:"credentials" yaml:"credentials"`
+	ResourceTypeStats []resourceTypeStatsRow `json:"resource_type_stats" yaml:"resource_type_stats"`
+	DiscoveryConfigs  []configStatus        `json:"discovery_configs" yaml:"discovery_configs"`
+	OpenTasks         []taskListItem        `json:"open_tasks" yaml:"open_tasks"`
+}
+
+func listIntegrations(ctx context.Context, client *authclient.Client) ([]types.Integration, error) {
+	items, err := stream.Collect(clientutils.Resources(ctx, client.ListIntegrations))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return items, nil
+}
+
+func friendlyIntegrationType(subKind string) string {
+	switch subKind {
+	case types.IntegrationSubKindAWSOIDC:
+		return "AWS OIDC"
+	case types.IntegrationSubKindAzureOIDC:
+		return "Azure OIDC"
+	case types.IntegrationSubKindGitHub:
+		return "GitHub"
+	case types.IntegrationSubKindAWSRolesAnywhere:
+		return "AWS Roles Anywhere"
+	default:
+		if strings.TrimSpace(subKind) == "" {
+			return "Unknown"
+		}
+		return subKind
+	}
+}
+
+func integrationCredentialDetails(ig types.Integration) map[string]string {
+	creds := map[string]string{}
+	switch ig.GetSubKind() {
+	case types.IntegrationSubKindAWSOIDC:
+		if spec := ig.GetAWSOIDCIntegrationSpec(); spec != nil {
+			creds["Role ARN"] = spec.RoleARN
+		}
+	case types.IntegrationSubKindAzureOIDC:
+		if spec := ig.GetAzureOIDCIntegrationSpec(); spec != nil {
+			creds["Tenant ID"] = spec.TenantID
+			creds["Client ID"] = spec.ClientID
+		}
+	case types.IntegrationSubKindGitHub:
+		if spec := ig.GetGitHubIntegrationSpec(); spec != nil {
+			creds["Organization"] = spec.Organization
+		}
+	case types.IntegrationSubKindAWSRolesAnywhere:
+		if spec := ig.GetAWSRolesAnywhereIntegrationSpec(); spec != nil {
+			if spec.ProfileSyncConfig != nil {
+				creds["Role ARN"] = spec.ProfileSyncConfig.RoleARN
+			}
+		}
+	}
+	return creds
+}
+
+func buildIntegrationStatsMap(dcs []*discoveryconfig.DiscoveryConfig) map[string]resourcesAggregate {
+	statsMap := map[string]resourcesAggregate{}
+	for _, dc := range dcs {
+		for integrationName, integrationSummary := range dc.Status.IntegrationDiscoveredResources {
+			agg := statsMap[integrationName]
+			addDiscoveredSummary(&agg, integrationSummary.GetAwsEc2())
+			addDiscoveredSummary(&agg, integrationSummary.GetAwsEks())
+			addDiscoveredSummary(&agg, integrationSummary.GetAwsRds())
+			addDiscoveredSummary(&agg, integrationSummary.GetAzureVms())
+			statsMap[integrationName] = agg
+		}
+	}
+	return statsMap
+}
+
+func countTasksByIntegration(tasks []*usertasksv1.UserTask) map[string]int {
+	counts := map[string]int{}
+	for _, task := range tasks {
+		counts[task.GetSpec().GetIntegration()]++
+	}
+	return counts
+}
+
+func toIntegrationListItems(integrations []types.Integration, statsMap map[string]resourcesAggregate, taskCountMap map[string]int) []integrationListItem {
+	items := make([]integrationListItem, 0, len(integrations))
+	for _, ig := range integrations {
+		name := ig.GetName()
+		stats := statsMap[name]
+		items = append(items, integrationListItem{
+			Name:         name,
+			Type:         friendlyIntegrationType(ig.GetSubKind()),
+			Found:        stats.Found,
+			Enrolled:     stats.Enrolled,
+			Failed:       stats.Failed,
+			AwaitingJoin: awaitingJoin(stats),
+			OpenTasks:    taskCountMap[name],
+		})
+	}
+	slices.SortFunc(items, func(a, b integrationListItem) int {
+		if a.Failed != b.Failed {
+			if a.Failed > b.Failed {
+				return -1
+			}
+			return 1
+		}
+		if a.Found != b.Found {
+			if a.Found > b.Found {
+				return -1
+			}
+			return 1
+		}
+		return cmp.Compare(a.Name, b.Name)
+	})
+	return items
+}
+
+func perResourceTypeStats(dcs []*discoveryconfig.DiscoveryConfig, integrationName string) []resourceTypeStatsRow {
+	type key struct{ name string }
+	statsMap := map[key]resourceTypeStatsRow{}
+	addRow := func(resourceType string, summary *discoveryconfigv1.ResourcesDiscoveredSummary) {
+		if summary == nil {
+			return
+		}
+		if summary.GetFound() == 0 && summary.GetEnrolled() == 0 && summary.GetFailed() == 0 {
+			return
+		}
+		k := key{name: resourceType}
+		row := statsMap[k]
+		row.ResourceType = resourceType
+		row.Found += summary.GetFound()
+		row.Enrolled += summary.GetEnrolled()
+		row.Failed += summary.GetFailed()
+		statsMap[k] = row
+	}
+	for _, dc := range dcs {
+		integrationSummary, ok := dc.Status.IntegrationDiscoveredResources[integrationName]
+		if !ok {
+			continue
+		}
+		addRow("EC2", integrationSummary.GetAwsEc2())
+		addRow("EKS", integrationSummary.GetAwsEks())
+		addRow("RDS", integrationSummary.GetAwsRds())
+		addRow("Azure VM", integrationSummary.GetAzureVms())
+	}
+	rows := make([]resourceTypeStatsRow, 0, len(statsMap))
+	for _, row := range statsMap {
+		rows = append(rows, row)
+	}
+	slices.SortFunc(rows, func(a, b resourceTypeStatsRow) int {
+		return cmp.Compare(a.ResourceType, b.ResourceType)
+	})
+	return rows
+}
+
+func associatedDiscoveryConfigs(dcs []*discoveryconfig.DiscoveryConfig, integrationName string) []configStatus {
+	configs := make([]configStatus, 0)
+	for _, dc := range dcs {
+		if _, ok := dc.Status.IntegrationDiscoveredResources[integrationName]; !ok {
+			continue
+		}
+		configs = append(configs, configStatus{
+			Name:       dc.GetName(),
+			Group:      dc.GetDiscoveryGroup(),
+			State:      cmp.Or(strings.TrimSpace(dc.Status.State), "UNKNOWN"),
+			Matchers:   configMatchersSummary(dc),
+			Discovered: dc.Status.DiscoveredResources,
+			LastSync:   dc.Status.LastSyncTime.UTC(),
+		})
+	}
+	slices.SortFunc(configs, func(a, b configStatus) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
+	return configs
+}
+
+func buildIntegrationDetail(ig types.Integration, dcs []*discoveryconfig.DiscoveryConfig, tasks []*usertasksv1.UserTask) integrationDetail {
+	name := ig.GetName()
+	return integrationDetail{
+		Name:              name,
+		Type:              friendlyIntegrationType(ig.GetSubKind()),
+		Credentials:       integrationCredentialDetails(ig),
+		ResourceTypeStats: perResourceTypeStats(dcs, name),
+		DiscoveryConfigs:  associatedDiscoveryConfigs(dcs, name),
+		OpenTasks:         toTaskListItems(tasks),
+	}
+}
+
+// Instance join types and functions.
+
+type joinRecord struct {
+	EventTime  string `json:"event_time"`
+	Code       string `json:"code"`
+	HostID     string `json:"host_id"`
+	NodeName   string `json:"node_name"`
+	Role       string `json:"role"`
+	Method     string `json:"method"`
+	TokenName  string `json:"token_name,omitempty"`
+	InstanceID string `json:"instance_id,omitempty"`
+	AccountID  string `json:"account_id,omitempty"`
+	Success    bool   `json:"success"`
+	Error      string `json:"error,omitempty"`
+
+	parsedEventTime time.Time
+}
+
+type joinEventFilters struct {
+	HostID string
+}
+
+type joinGroup struct {
+	HostID           string       `json:"host_id"`
+	NodeName         string       `json:"node_name"`
+	MostRecent       joinRecord   `json:"most_recent"`
+	MostRecentFailed bool         `json:"most_recent_failed"`
+	TotalJoins       int          `json:"total_joins"`
+	FailedJoins      int          `json:"failed_joins"`
+	SuccessJoins     int          `json:"success_joins"`
+	Joins            []joinRecord `json:"joins"`
+}
+
+type joinAnalysis struct {
+	Total        int            `json:"total"`
+	Success      int            `json:"success"`
+	Failed       int            `json:"failed"`
+	ByHost       map[string]int `json:"by_host"`
+	FailedByHost map[string]int `json:"failed_by_host"`
+}
+
+type joinsOutput struct {
+	Window         string      `json:"window"`
+	Query          string      `json:"query"`
+	FetchLimit     int         `json:"fetch_limit"`
+	LimitReached   bool        `json:"limit_reached"`
+	TotalJoins     int         `json:"total_joins"`
+	SuccessJoins   int         `json:"success_joins"`
+	FailedJoins    int         `json:"failed_joins"`
+	TotalHosts     int         `json:"total_hosts"`
+	FailingHosts   int         `json:"failing_hosts"`
+	DisplayedHosts int         `json:"displayed_hosts"`
+	HostPage       pageInfo    `json:"host_page"`
+	Hosts          []joinGroup `json:"hosts"`
+}
+
+type joinHistoryRow struct {
+	Timestamp  string `json:"timestamp"`
+	Result     string `json:"result"`
+	Method     string `json:"method"`
+	Role       string `json:"role"`
+	TokenName  string `json:"token_name,omitempty"`
+	InstanceID string `json:"instance_id,omitempty"`
+	AccountID  string `json:"account_id,omitempty"`
+}
+
+// getJoinAttributeString safely extracts a string value from an InstanceJoin's
+// Attributes protobuf Struct field.
+func getJoinAttributeString(join *apievents.InstanceJoin, key string) string {
+	if join.Attributes == nil {
+		return ""
+	}
+	v, ok := join.Attributes.Fields[key]
+	if !ok || v == nil {
+		return ""
+	}
+	return v.GetStringValue()
+}
+
+// extractEC2InstanceID extracts the EC2 instance ID from an IAM role ARN.
+// For example: "arn:aws:sts::123456:assumed-role/role-name/i-030a87f439b67b43a"
+// returns "i-030a87f439b67b43a".
+func extractEC2InstanceID(arn string) string {
+	// The instance ID is the last segment after the final "/".
+	lastSlash := strings.LastIndex(arn, "/")
+	if lastSlash < 0 || lastSlash+1 >= len(arn) {
+		return ""
+	}
+	candidate := arn[lastSlash+1:]
+	if strings.HasPrefix(candidate, "i-") {
+		return candidate
+	}
+	return ""
+}
+
+func parseInstanceJoinEvents(eventList []apievents.AuditEvent, filters joinEventFilters) []joinRecord {
+	records := make([]joinRecord, 0, len(eventList))
+	for _, event := range eventList {
+		join, ok := event.(*apievents.InstanceJoin)
+		if !ok {
+			continue
+		}
+
+		record := joinRecord{
+			Code:       join.Code,
+			HostID:     join.HostID,
+			NodeName:   join.NodeName,
+			Role:       join.Role,
+			Method:     join.Method,
+			TokenName:  sanitizeTokenName(join.TokenName, join.Method),
+			InstanceID: extractEC2InstanceID(getJoinAttributeString(join, "Arn")),
+			AccountID:  getJoinAttributeString(join, "Account"),
+			Success:    join.Status.Success,
+			Error:      join.Status.Error,
+		}
+		if !join.Time.IsZero() {
+			record.parsedEventTime = join.Time.UTC()
+			record.EventTime = record.parsedEventTime.Format(time.RFC3339Nano)
+		}
+
+		if filters.HostID != "" {
+			// Compare against the group key so "show" works with the
+			// same identifiers displayed by "ls" (e.g. "unknown (10.0.0.1)").
+			if !strings.EqualFold(joinGroupKey(record), strings.TrimSpace(filters.HostID)) {
+				continue
+			}
+		}
+		records = append(records, record)
+	}
+
+	sortJoinRecords(records)
+	return records
+}
+
+func sortJoinRecords(records []joinRecord) {
+	slices.SortFunc(records, func(a, b joinRecord) int {
+		if c := compareTimeDesc(a.parsedEventTime, b.parsedEventTime); c != 0 {
+			return c
+		}
+		return cmp.Compare(b.EventTime, a.EventTime)
+	})
+}
+
+func isJoinFailure(record joinRecord) bool {
+	return record.Code == libevents.InstanceJoinFailureCode || !record.Success
+}
+
+// sanitizeTokenName masks the token name when the join method is "token"
+// since that's a secret value.
+func sanitizeTokenName(tokenName, method string) string {
+	if strings.EqualFold(method, "token") && tokenName != "" {
+		return "********"
+	}
+	return tokenName
+}
+
+// joinGroupKey returns a stable key for grouping join records by host.
+// When HostID is empty (failed joins before identification), returns "unknown".
+func joinGroupKey(record joinRecord) string {
+	hostID := strings.TrimSpace(record.HostID)
+	if hostID != "" {
+		return hostID
+	}
+	return "unknown"
+}
+
+func isUnknownHost(hostID string) bool {
+	return hostID == "unknown"
+}
+
+func analyzeInstanceJoins(records []joinRecord) joinAnalysis {
+	analysis := joinAnalysis{
+		Total:        len(records),
+		ByHost:       map[string]int{},
+		FailedByHost: map[string]int{},
+	}
+
+	for _, record := range records {
+		key := joinGroupKey(record)
+		analysis.ByHost[key]++
+
+		if isJoinFailure(record) {
+			analysis.Failed++
+			analysis.FailedByHost[key]++
+		} else {
+			analysis.Success++
+		}
+	}
+
+	return analysis
+}
+
+func groupJoinsByHost(records []joinRecord) []joinGroup {
+	byHost := map[string][]joinRecord{}
+	for _, record := range records {
+		key := joinGroupKey(record)
+		byHost[key] = append(byHost[key], record)
+	}
+
+	groups := make([]joinGroup, 0, len(byHost))
+	for hostID, hostJoins := range byHost {
+		sortJoinRecords(hostJoins)
+
+		group := joinGroup{
+			HostID:           hostID,
+			NodeName:         hostJoins[0].NodeName,
+			MostRecent:       hostJoins[0],
+			MostRecentFailed: isJoinFailure(hostJoins[0]),
+			TotalJoins:       len(hostJoins),
+			Joins:            hostJoins,
+		}
+		for _, join := range hostJoins {
+			if isJoinFailure(join) {
+				group.FailedJoins++
+			} else {
+				group.SuccessJoins++
+			}
+		}
+		groups = append(groups, group)
+	}
+
+	slices.SortFunc(groups, func(a, b joinGroup) int {
+		if c := compareTimeDesc(a.MostRecent.parsedEventTime, b.MostRecent.parsedEventTime); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.HostID, b.HostID)
+	})
+
+	return groups
+}
+
+func selectFailingJoinGroups(groups []joinGroup, limit int) []joinGroup {
+	out := make([]joinGroup, 0, len(groups))
+	for _, group := range groups {
+		if !group.MostRecentFailed {
+			continue
+		}
+		out = append(out, group)
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out
+}
+
+func filterOutUnknownJoinGroups(groups []joinGroup) []joinGroup {
+	out := make([]joinGroup, 0, len(groups))
+	for _, group := range groups {
+		if isUnknownHost(group.HostID) {
+			continue
+		}
+		out = append(out, group)
+	}
+	return out
+}
+
+// inventoryHostState represents where a host is in the discovery pipeline.
+type inventoryHostState string
+
+const (
+	inventoryStateOnline       inventoryHostState = "Online"
+	inventoryStateOffline      inventoryHostState = "Offline"
+	inventoryStateJoinFailed   inventoryHostState = "Join Failed"
+	inventoryStateSSMFailed    inventoryHostState = "SSM Failed"
+	inventoryStateSSMAttempted inventoryHostState = "SSM Attempted"
+	inventoryStateJoinedOnly   inventoryHostState = "Joined Only"
+)
+
+type inventoryHost struct {
+	// DisplayID is the preferred unified identifier: instance ID when
+	// available, otherwise the Teleport node UUID.
+	DisplayID  string             `json:"display_id"`
+	HostID     string             `json:"host_id"`
+	InstanceID string             `json:"instance_id,omitempty"`
+	AccountID  string             `json:"account_id,omitempty"`
+	NodeName   string             `json:"node_name"`
+	State      inventoryHostState `json:"state"`
+	Method     string             `json:"method,omitempty"`
+
+	LastSSMRun time.Time `json:"last_ssm_run,omitempty"`
+	LastJoin   time.Time `json:"last_join,omitempty"`
+	LastSeen   time.Time `json:"last_seen,omitempty"`
+	IsOnline   bool      `json:"is_online"`
+
+	SSMRuns    int `json:"ssm_runs"`
+	SSMSuccess int `json:"ssm_success"`
+	SSMFailed  int `json:"ssm_failed"`
+	Joins      int `json:"joins"`
+	JoinSuccess int `json:"join_success"`
+	JoinFailed  int `json:"join_failed"`
+
+	SSMRecords  []ssmRunRecord `json:"ssm_records,omitempty"`
+	JoinRecords []joinRecord   `json:"join_records,omitempty"`
+
+	// mostRecentActivity is the latest timestamp across all sources, used for sorting.
+	mostRecentActivity time.Time
+}
+
+type inventoryOutput struct {
+	Window         string          `json:"window"`
+	TotalHosts     int             `json:"total_hosts"`
+	OnlineHosts    int             `json:"online_hosts"`
+	OfflineHosts   int             `json:"offline_hosts"`
+	FailedHosts    int             `json:"failed_hosts"`
+	DisplayedHosts int             `json:"displayed_hosts"`
+	HostPage       pageInfo        `json:"host_page"`
+	Hosts          []inventoryHost `json:"hosts"`
+}
+
+func buildInventoryHosts(
+	nodes []types.Server,
+	ssmRecords []ssmRunRecord,
+	joinRecords []joinRecord,
+) []inventoryHost {
+	type hostData struct {
+		nodeName   string
+		instanceID string
+		accountID  string
+		isOnline   bool
+		lastSeen   time.Time
+		method     string
+		ssmRuns    []ssmRunRecord
+		joinRecs   []joinRecord
+	}
+
+	hosts := make(map[string]*hostData)
+
+	getOrCreate := func(id string) *hostData {
+		if h, ok := hosts[id]; ok {
+			return h
+		}
+		h := &hostData{}
+		hosts[id] = h
+		return h
+	}
+
+	// 1. Nodes (currently online). Extract AWS instance/account IDs from
+	// labels (teleport.dev/instance-id, teleport.dev/account-id) set during
+	// EC2 discovery so that joined nodes show consistent AWS-native names.
+	for _, node := range nodes {
+		id := node.GetName()
+		if id == "" {
+			continue
+		}
+		h := getOrCreate(id)
+		h.isOnline = true
+		h.lastSeen = node.Expiry()
+		if h.nodeName == "" {
+			h.nodeName = node.GetHostname()
+		}
+		if awsID := node.GetAWSInstanceID(); awsID != "" && h.instanceID == "" {
+			h.instanceID = awsID
+		}
+		if awsAcct := node.GetAWSAccountID(); awsAcct != "" && h.accountID == "" {
+			h.accountID = awsAcct
+		}
+	}
+
+	// 2. SSM runs — keyed by EC2 instance ID (e.g. i-030a87f439b67b43a).
+	for _, rec := range ssmRecords {
+		id := rec.InstanceID
+		if id == "" {
+			continue
+		}
+		h := getOrCreate(id)
+		h.ssmRuns = append(h.ssmRuns, rec)
+		if h.instanceID == "" {
+			h.instanceID = id
+		}
+		if h.accountID == "" {
+			h.accountID = rec.AccountID
+		}
+	}
+
+	// 3. Join events — use InstanceID (from ARN) when available for
+	// correlation with SSM runs; otherwise fall back to HostID.
+	for _, rec := range joinRecords {
+		var id string
+		if rec.InstanceID != "" {
+			id = rec.InstanceID
+		} else {
+			id = joinGroupKey(rec)
+		}
+		if id == "" {
+			continue
+		}
+		h := getOrCreate(id)
+		h.joinRecs = append(h.joinRecs, rec)
+		if h.nodeName == "" && rec.NodeName != "" {
+			h.nodeName = rec.NodeName
+		}
+		if h.method == "" && rec.Method != "" {
+			h.method = rec.Method
+		}
+		if h.instanceID == "" && rec.InstanceID != "" {
+			h.instanceID = rec.InstanceID
+		}
+		if h.accountID == "" && rec.AccountID != "" {
+			h.accountID = rec.AccountID
+		}
+	}
+
+	// 4. Merge duplicate entries. An online node (keyed by UUID) may have
+	// its AWS instance ID from labels, while SSM runs and join events are
+	// keyed by that same instance ID. Merge instance-ID entries into the
+	// corresponding UUID entry so the host appears once.
+	//
+	// Build a reverse map: instanceID → UUID key for nodes that have one.
+	instanceToUUID := make(map[string]string)
+	for key, data := range hosts {
+		if data.instanceID != "" && data.isOnline {
+			instanceToUUID[data.instanceID] = key
+		}
+	}
+	for instanceID, data := range hosts {
+		if !strings.HasPrefix(instanceID, "i-") {
+			continue
+		}
+		// Find a UUID-keyed node entry to merge into. First check
+		// the reverse map (node labels), then fall back to join records.
+		targetKey := ""
+		if uuidKey, ok := instanceToUUID[instanceID]; ok && uuidKey != instanceID {
+			targetKey = uuidKey
+		} else {
+			for _, rec := range data.joinRecs {
+				hostID := strings.TrimSpace(rec.HostID)
+				if hostID == "" || hostID == instanceID {
+					continue
+				}
+				if _, ok := hosts[hostID]; ok {
+					targetKey = hostID
+					break
+				}
+			}
+		}
+		if targetKey == "" {
+			continue
+		}
+		nodeEntry := hosts[targetKey]
+		nodeEntry.ssmRuns = append(nodeEntry.ssmRuns, data.ssmRuns...)
+		nodeEntry.joinRecs = append(nodeEntry.joinRecs, data.joinRecs...)
+		if nodeEntry.instanceID == "" {
+			nodeEntry.instanceID = data.instanceID
+		}
+		if nodeEntry.accountID == "" {
+			nodeEntry.accountID = data.accountID
+		}
+		if nodeEntry.method == "" && data.method != "" {
+			nodeEntry.method = data.method
+		}
+		if nodeEntry.nodeName == "" && data.nodeName != "" {
+			nodeEntry.nodeName = data.nodeName
+		}
+		delete(hosts, instanceID)
+	}
+
+	// Build output
+	result := make([]inventoryHost, 0, len(hosts))
+	for hostID, data := range hosts {
+		displayID := cmp.Or(data.instanceID, hostID)
+		ih := inventoryHost{
+			DisplayID:   displayID,
+			HostID:      hostID,
+			InstanceID:  data.instanceID,
+			AccountID:   data.accountID,
+			NodeName:    data.nodeName,
+			IsOnline:    data.isOnline,
+			LastSeen:    data.lastSeen,
+			Method:      data.method,
+			SSMRecords:  data.ssmRuns,
+			JoinRecords: data.joinRecs,
+		}
+
+		// SSM stats
+		ih.SSMRuns = len(data.ssmRuns)
+		for _, r := range data.ssmRuns {
+			if isSSMRunFailure(r) {
+				ih.SSMFailed++
+			} else {
+				ih.SSMSuccess++
+			}
+		}
+		if len(data.ssmRuns) > 0 {
+			ih.LastSSMRun = data.ssmRuns[0].parsedEventTime // already sorted desc
+		}
+
+		// Join stats
+		ih.Joins = len(data.joinRecs)
+		hasSuccessfulJoin := false
+		for _, r := range data.joinRecs {
+			if isJoinFailure(r) {
+				ih.JoinFailed++
+			} else {
+				ih.JoinSuccess++
+				hasSuccessfulJoin = true
+			}
+		}
+		if len(data.joinRecs) > 0 {
+			ih.LastJoin = data.joinRecs[0].parsedEventTime
+			if ih.Method == "" {
+				ih.Method = data.joinRecs[0].Method
+			}
+		}
+
+		// Derive state
+		ih.State = deriveInventoryState(data.isOnline, hasSuccessfulJoin, data.joinRecs, data.ssmRuns)
+
+		// Most recent activity for sorting
+		ih.mostRecentActivity = maxTime(ih.LastSeen, ih.LastSSMRun, ih.LastJoin)
+
+		result = append(result, ih)
+	}
+
+	slices.SortFunc(result, func(a, b inventoryHost) int {
+		if c := compareTimeDesc(a.mostRecentActivity, b.mostRecentActivity); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.HostID, b.HostID)
+	})
+
+	return result
+}
+
+func deriveInventoryState(isOnline, hasSuccessfulJoin bool, joinRecs []joinRecord, ssmRuns []ssmRunRecord) inventoryHostState {
+	if isOnline {
+		return inventoryStateOnline
+	}
+	if len(joinRecs) > 0 {
+		if hasSuccessfulJoin {
+			return inventoryStateOffline
+		}
+		return inventoryStateJoinFailed
+	}
+	if len(ssmRuns) > 0 {
+		if isSSMRunFailure(ssmRuns[0]) {
+			return inventoryStateSSMFailed
+		}
+		return inventoryStateSSMAttempted
+	}
+	return inventoryStateJoinedOnly
+}
+
+func maxTime(times ...time.Time) time.Time {
+	var best time.Time
+	for _, t := range times {
+		if t.After(best) {
+			best = t
+		}
+	}
+	return best
+}
+
+func buildJoinHistoryRows(group joinGroup, showAll bool) []joinHistoryRow {
+	joins := group.Joins
+	if !showAll && len(joins) > 1 {
+		joins = joins[:1]
+	}
+
+	rows := make([]joinHistoryRow, 0, len(joins))
+	for _, join := range joins {
+		timestamp := cmp.Or(formatMaybeParsedTime(join.parsedEventTime), join.EventTime)
+		result := "success"
+		if isJoinFailure(join) {
+			result = cmp.Or(join.Error, "failed")
+		}
+		rows = append(rows, joinHistoryRow{
+			Timestamp:  timestamp,
+			Result:     result,
+			Method:     join.Method,
+			Role:       join.Role,
+			TokenName:  join.TokenName,
+			InstanceID: join.InstanceID,
+			AccountID:  join.AccountID,
+		})
+	}
+	return rows
 }
