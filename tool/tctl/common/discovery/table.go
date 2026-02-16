@@ -148,9 +148,9 @@ func (s textStyle) pendingCount(value uint64) string {
 func (s textStyle) statusValue(value string) string {
 	v := strings.TrimSpace(value)
 	switch strings.ToLower(v) {
-	case "success", "healthy", "resolved", "tds00i":
+	case "success", "healthy", "resolved", "tds00i", "tj002i":
 		return s.good(value)
-	case "failed", "failure", "error", "unhealthy", "tds00w":
+	case "failed", "failure", "error", "unhealthy", "tds00w", "tj002e":
 		return s.bad(value)
 	case "timedout", "timeout", "unknown", "open", "syncing":
 		return s.warning(value)
