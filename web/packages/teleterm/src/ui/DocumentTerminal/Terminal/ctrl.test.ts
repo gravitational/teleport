@@ -35,8 +35,6 @@ describe('Alt+Arrow sends escape sequences for word navigation', () => {
     // instead of objects to be able to use %j in test name to automatically escape the 2nd arg.
     ['ArrowLeft', '\x1bb'],
     ['ArrowRight', '\x1bf'],
-    ['ArrowUp', '\x1b[1;5A'],
-    ['ArrowDown', '\x1b[1;5B'],
   ])('Alt+%s sends %j', (key, expectedSeq) => {
     const { tty, writeFn } = createTerminal();
 
@@ -53,7 +51,6 @@ describe('Alt+Arrow sends escape sequences for word navigation', () => {
 
     // writeFn may be called by xterm's default handling, but not with our Alt+arrow sequences.
     expect(writeFn).not.toHaveBeenCalledWith('\x1bb');
-    expect(writeFn).not.toHaveBeenCalledWith('\x1b[1;5D');
     tty.destroy();
   });
 });

@@ -147,8 +147,8 @@ export default class TtyTerminal implements TerminalSearcher {
     // the appropriate escape sequences, matching what VS Code does.
     // https://github.com/microsoft/vscode/blob/5bb327de4bf14578c8c0bd1b553ee14dd2977e18/src/vs/workbench/contrib/terminalContrib/sendSequence/browser/terminal.sendSequence.contribution.ts#L163-L182
     //
-    // Alt+Left/Right always send ESC b / ESC f (readline word navigation), since these sequences
-    // are universally understood by all shells, regardless of the remote host's platform.
+    // Terminal.app and iTerm2 have bindings only for Alt+Left/Right, so we follow their steps and
+    // send ESC b / ESC f (readline word navigation).
     this.registerCustomKeyEventHandler(e => {
       // Only handle pure Alt+Arrow. Other modifier combinations (e.g. Ctrl+Alt+Arrow,
       // Shift+Alt+Arrow) have their own distinct escape sequences that Xterm.js already handles.
@@ -164,12 +164,6 @@ export default class TtyTerminal implements TerminalSearcher {
 
       let seq: string | undefined;
       switch (e.key) {
-        case 'ArrowUp':
-          seq = '\x1b[1;5A';
-          break;
-        case 'ArrowDown':
-          seq = '\x1b[1;5B';
-          break;
         case 'ArrowRight':
           seq = '\x1bf';
           break;
