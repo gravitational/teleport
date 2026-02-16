@@ -21,6 +21,7 @@ package dynamo
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
 	"log/slog"
 	"net/http"
@@ -832,7 +833,10 @@ func (b *Backend) Delete(ctx context.Context, key backend.Key) error {
 // the revision of the item in Dynamo.
 func (b *Backend) ConditionalUpdate(ctx context.Context, item backend.Item) (*backend.Lease, error) {
 	if item.Revision == "" {
-		return nil, trace.Wrap(backend.ErrIncorrectRevision)
+		return nil, trace.Wrap(trace.NewAggregate(
+			backend.ErrIncorrectRevision,
+			errors.New("item revision value is empty"),
+		))
 	}
 
 	if item.Revision == backend.BlankRevision {
@@ -852,7 +856,10 @@ func (b *Backend) ConditionalUpdate(ctx context.Context, item backend.Item) (*ba
 // the revision of the item in Dynamo.
 func (b *Backend) ConditionalDelete(ctx context.Context, key backend.Key, rev string) error {
 	if rev == "" {
-		return trace.Wrap(backend.ErrIncorrectRevision)
+		return trace.Wrap(trace.NewAggregate(
+			backend.ErrIncorrectRevision,
+			errors.New("item revision value is empty"),
+		))
 	}
 
 	av, err := attributevalue.MarshalMap(keyLookup{
@@ -878,7 +885,10 @@ func (b *Backend) ConditionalDelete(ctx context.Context, key backend.Key, rev st
 	if _, err = b.svc.DeleteItem(ctx, &input); err != nil {
 		err = convertError(err)
 		if trace.IsCompareFailed(err) {
-			return trace.Wrap(backend.ErrIncorrectRevision)
+			return trace.Wrap(trace.NewAggregate(
+				backend.ErrIncorrectRevision,
+				fmt.Errorf("item revision=%s", rev),
+			))
 		}
 		return trace.Wrap(err)
 	}
@@ -1123,7 +1133,10 @@ func (b *Backend) create(ctx context.Context, item backend.Item, mode int) (stri
 	err = convertError(err)
 	if err != nil {
 		if mode == modeConditionalUpdate && trace.IsCompareFailed(err) {
-			return "", trace.Wrap(backend.ErrIncorrectRevision)
+			return "", trace.Wrap(trace.NewAggregate(
+				backend.ErrIncorrectRevision,
+				fmt.Errorf("conditional_mode=%d, item_revision=%s", mode, item.Revision),
+			))
 		}
 
 		return "", trace.Wrap(err)

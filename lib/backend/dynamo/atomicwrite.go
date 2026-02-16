@@ -76,7 +76,11 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 			switch ca.Condition.Revision {
 			case "":
 				// dynamo backend doesn't support empty revision values, caller is working with outdated state.
-				return "", trace.Wrap(backend.ErrConditionFailed)
+				return "", trace.Wrap(
+					trace.NewAggregate(
+						backend.ErrConditionFailed,
+						errors.New("revision value is empty on atmoic write"),
+					))
 			case backend.BlankRevision:
 				// item has not been modified since the introduction of the revision attr
 				condExpr = &missingRevisionExpr
