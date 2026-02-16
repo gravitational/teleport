@@ -62,9 +62,10 @@ function createTerminal() {
   const ptyProcess = new MockPtyProcess();
   const writeFn = jest.spyOn(ptyProcess, 'write');
   const configService = createMockConfigService({});
-  const keyboardShortcutsService: Partial<KeyboardShortcutsService> = {
-    getShortcutAction: jest.fn().mockReturnValue(undefined),
-  };
+  const keyboardShortcutsService = new KeyboardShortcutsService(
+    'darwin',
+    configService
+  );
 
   const tty = new TtyTerminal(
     ptyProcess,
@@ -76,7 +77,7 @@ function createTerminal() {
       openContextMenu: jest.fn(),
     },
     configService,
-    keyboardShortcutsService as KeyboardShortcutsService
+    keyboardShortcutsService
   );
   tty.open();
 
