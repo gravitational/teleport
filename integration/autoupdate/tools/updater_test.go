@@ -71,7 +71,7 @@ func TestUpdate(t *testing.T) {
 	_, err = cmd.Output()
 	var exitErr *exec.ExitError
 	require.ErrorAs(t, err, &exitErr)
-	require.Equal(t, exitErr.ExitCode(), tools.FastReExecOnlyExitCode)
+	require.Equal(t, tools.FastReExecOnlyExitCode, exitErr.ExitCode())
 	require.Contains(t, string(exitErr.Stderr), tools.FastReExecOnlyErrorMessage)
 
 	// Execute version command again with setting the new version which must
