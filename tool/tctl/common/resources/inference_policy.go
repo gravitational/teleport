@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2025 Gravitational, Inc.
+// Copyright (C) 2026 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package common
+package resources
 
 import (
 	"context"
@@ -31,113 +31,13 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
-// CRUD operations for InferencePolicy resources
-
-// createInferencePolicy creates or updates a new inference policy resource.
-func (rc *ResourceCommand) createInferencePolicy(
-	ctx context.Context, clt *authclient.Client, raw services.UnknownResource,
-) error {
-	policy, err := services.UnmarshalProtoResource[*summarizerv1.InferencePolicy](
-		raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	sclt := clt.SummarizerServiceClient()
-	if rc.IsForced() {
-		req := &summarizerv1.UpsertInferencePolicyRequest{
-			Policy: policy,
-		}
-		_, err = sclt.UpsertInferencePolicy(ctx, req)
-	} else {
-		req := &summarizerv1.CreateInferencePolicyRequest{
-			Policy: policy,
-		}
-		_, err = sclt.CreateInferencePolicy(ctx, req)
-	}
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Printf("inference_policy %q has been created\n", policy.GetMetadata().GetName())
-	return nil
-}
-
-// updateInferencePolicy updates an inference policy resource.
-func (rc *ResourceCommand) updateInferencePolicy(
-	ctx context.Context, clt *authclient.Client, raw services.UnknownResource,
-) error {
-	policy, err := services.UnmarshalProtoResource[*summarizerv1.InferencePolicy](
-		raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	req := &summarizerv1.UpdateInferencePolicyRequest{
-		Policy: policy,
-	}
-	if _, err := clt.SummarizerServiceClient().UpdateInferencePolicy(ctx, req); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("inference_policy %q has been updated\n", policy.GetMetadata().GetName())
-	return nil
-}
-
-// getInferencePolicies retrieves one or more inference policy resources.
-func (rc *ResourceCommand) getInferencePolicies(
-	ctx context.Context, clt *authclient.Client,
-) (resources.Collection, error) {
-	ssclt := clt.SummarizerServiceClient()
-	if rc.ref.Name != "" {
-		req := &summarizerv1.GetInferencePolicyRequest{
-			Name: rc.ref.Name,
-		}
-		res, err := ssclt.GetInferencePolicy(ctx, req)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return InferencePolicyCollection{res.Policy}, nil
-	}
-
-	items, err := stream.Collect(clientutils.Resources(
-		ctx,
-		func(
-			ctx context.Context, _ int, nextPageToken string,
-		) ([]*summarizerv1.InferencePolicy, string, error) {
-			resp, err := ssclt.ListInferencePolicies(
-				ctx,
-				&summarizerv1.ListInferencePoliciesRequest{
-					PageToken: nextPageToken,
-				})
-			return resp.GetPolicies(), resp.GetNextPageToken(), trace.Wrap(err)
-		}))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return InferencePolicyCollection(items), nil
-}
-
-// deleteInferencePolicy deletes an inference policy resource.
-func (rc *ResourceCommand) deleteInferencePolicy(
-	ctx context.Context, clt *authclient.Client,
-) error {
-	req := &summarizerv1.DeleteInferencePolicyRequest{
-		Name: rc.ref.Name,
-	}
-	if _, err := clt.SummarizerServiceClient().DeleteInferencePolicy(ctx, req); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("inference_policy %q has been deleted\n", rc.ref.Name)
-	return nil
-}
-
-// InferencePolicyCollection is a collection of InferencePolicy resources that
+// inferencePolicyCollection is a collection of InferencePolicy resources that
 // can be written to an io.Writer in a human-readable format.
-type InferencePolicyCollection []*summarizerv1.InferencePolicy
+type inferencePolicyCollection []*summarizerv1.InferencePolicy
 
-func (c InferencePolicyCollection) Resources() []types.Resource {
+func (c inferencePolicyCollection) Resources() []types.Resource {
 	out := make([]types.Resource, 0, len(c))
 	for _, item := range c {
 		out = append(out, types.ProtoResource153ToLegacy(item))
@@ -145,7 +45,7 @@ func (c InferencePolicyCollection) Resources() []types.Resource {
 	return out
 }
 
-func (c InferencePolicyCollection) WriteText(w io.Writer, verbose bool) error {
+func (c inferencePolicyCollection) WriteText(w io.Writer, verbose bool) error {
 	headers := []string{"Name", "Description", "Kinds", "Filter", "Model"}
 	var rows [][]string
 	for _, item := range c {
@@ -170,4 +70,109 @@ func (c InferencePolicyCollection) WriteText(w io.Writer, verbose bool) error {
 	t.SortRowsBy([]int{0}, true)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
+}
+
+func inferencePolicyHandler() Handler {
+	return Handler{
+		getHandler:    getInferencePolicies,
+		createHandler: createInferencePolicy,
+		updateHandler: updateInferencePolicy,
+		deleteHandler: deleteInferencePolicy,
+		singleton:     false,
+		mfaRequired:   false,
+		description:   "Specifies which sessions will be summarized and which inference model to use",
+	}
+}
+
+func createInferencePolicy(
+	ctx context.Context, clt *authclient.Client, raw services.UnknownResource, opts CreateOpts,
+) error {
+	policy, err := services.UnmarshalProtoResource[*summarizerv1.InferencePolicy](
+		raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sclt := clt.SummarizerServiceClient()
+	if opts.Force {
+		req := &summarizerv1.UpsertInferencePolicyRequest{
+			Policy: policy,
+		}
+		_, err = sclt.UpsertInferencePolicy(ctx, req)
+	} else {
+		req := &summarizerv1.CreateInferencePolicyRequest{
+			Policy: policy,
+		}
+		_, err = sclt.CreateInferencePolicy(ctx, req)
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("inference_policy %q has been created\n", policy.GetMetadata().GetName())
+	return nil
+}
+
+func updateInferencePolicy(
+	ctx context.Context, clt *authclient.Client, raw services.UnknownResource, opts CreateOpts,
+) error {
+	policy, err := services.UnmarshalProtoResource[*summarizerv1.InferencePolicy](
+		raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	req := &summarizerv1.UpdateInferencePolicyRequest{
+		Policy: policy,
+	}
+	if _, err := clt.SummarizerServiceClient().UpdateInferencePolicy(ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("inference_policy %q has been updated\n", policy.GetMetadata().GetName())
+	return nil
+}
+
+func getInferencePolicies(
+	ctx context.Context, clt *authclient.Client, ref services.Ref, opts GetOpts,
+) (Collection, error) {
+	ssclt := clt.SummarizerServiceClient()
+	if ref.Name != "" {
+		req := &summarizerv1.GetInferencePolicyRequest{
+			Name: ref.Name,
+		}
+		res, err := ssclt.GetInferencePolicy(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return inferencePolicyCollection{res.Policy}, nil
+	}
+
+	items, err := stream.Collect(clientutils.Resources(
+		ctx,
+		func(
+			ctx context.Context, _ int, nextPageToken string,
+		) ([]*summarizerv1.InferencePolicy, string, error) {
+			resp, err := ssclt.ListInferencePolicies(
+				ctx,
+				&summarizerv1.ListInferencePoliciesRequest{
+					PageToken: nextPageToken,
+				})
+			return resp.GetPolicies(), resp.GetNextPageToken(), trace.Wrap(err)
+		}))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return inferencePolicyCollection(items), nil
+}
+
+func deleteInferencePolicy(
+	ctx context.Context, clt *authclient.Client, ref services.Ref,
+) error {
+	req := &summarizerv1.DeleteInferencePolicyRequest{
+		Name: ref.Name,
+	}
+	if _, err := clt.SummarizerServiceClient().DeleteInferencePolicy(ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("inference_policy %q has been deleted\n", ref.Name)
+	return nil
 }

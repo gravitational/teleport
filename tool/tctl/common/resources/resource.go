@@ -64,6 +64,7 @@ func Handlers() map[string]Handler {
 		types.KindGitServer:                          gitServerHandler(),
 		types.KindInferenceModel:                     inferenceModelHandler(),
 		types.KindInferenceSecret:                    inferenceSecretHandler(),
+		types.KindInferencePolicy:                    inferencePolicyHandler(),
 		types.KindInstaller:                          installerHandler(),
 		types.KindKubeServer:                         kubeServerHandler(),
 		types.KindKubernetesCluster:                  kubeClusterHandler(),
