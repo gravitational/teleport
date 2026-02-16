@@ -163,6 +163,32 @@ func TestValidateUserTask(t *testing.T) {
 			wantErr: noError,
 		},
 		{
+			name: "DiscoverEC2: valid with ec2-join-failure issue type",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				userTask, err := NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
+					Integration: "my-integration",
+					TaskType:    TaskTypeDiscoverEC2,
+					IssueType:   AutoDiscoverEC2IssueJoinFailure,
+					State:       TaskStateOpen,
+					DiscoverEc2: &usertasksv1.DiscoverEC2{
+						AccountId: "123456789012",
+						Region:    "us-east-1",
+						Instances: map[string]*usertasksv1.DiscoverEC2Instance{
+							"i-456": {
+								InstanceId:      "i-456",
+								DiscoveryConfig: "dc01",
+								DiscoveryGroup:  "dg01",
+								SyncTime:        timestamppb.Now(),
+							},
+						},
+					},
+				})
+				require.NoError(t, err)
+				return userTask
+			},
+			wantErr: noError,
+		},
+		{
 			name: "DiscoverEC2: invalid state",
 			task: func(t *testing.T) *usertasksv1.UserTask {
 				ut := baseEC2DiscoverTask(t)
@@ -888,6 +914,19 @@ func TestNewDiscoverAzureVMUserTask(t *testing.T) {
 			require.Equal(t, tt.expectedTask, gotTask)
 		})
 	}
+}
+
+// TestAutoDiscoverEC2IssueJoinFailure validates that the ec2-join-failure
+// issue type constant has the expected value and is registered in
+// DiscoverEC2IssueTypes. Full validation of task creation with this issue
+// type is covered by the table entry in TestValidateUserTask.
+func TestAutoDiscoverEC2IssueJoinFailure(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "ec2-join-failure", AutoDiscoverEC2IssueJoinFailure,
+		"constant value mismatch")
+	require.Contains(t, DiscoverEC2IssueTypes, AutoDiscoverEC2IssueJoinFailure,
+		"AutoDiscoverEC2IssueJoinFailure must be in DiscoverEC2IssueTypes")
 }
 
 func TestTaskNameFromParts(t *testing.T) {
