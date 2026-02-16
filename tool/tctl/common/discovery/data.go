@@ -1170,6 +1170,7 @@ type inventoryHost struct {
 	HostID     string             `json:"host_id"`
 	InstanceID string             `json:"instance_id,omitempty"`
 	AccountID  string             `json:"account_id,omitempty"`
+	Region     string             `json:"region,omitempty"`
 	NodeName   string             `json:"node_name"`
 	State      inventoryHostState `json:"state"`
 	Method     string             `json:"method,omitempty"`
@@ -1213,6 +1214,7 @@ func buildInventoryHosts(
 		nodeName   string
 		instanceID string
 		accountID  string
+		region     string
 		isOnline   bool
 		lastSeen   time.Time
 		method     string
@@ -1251,6 +1253,13 @@ func buildInventoryHosts(
 		if awsAcct := node.GetAWSAccountID(); awsAcct != "" && h.accountID == "" {
 			h.accountID = awsAcct
 		}
+		if h.region == "" {
+			if r, ok := node.GetLabel(types.AWSInstanceRegion); ok && r != "" {
+				h.region = r
+			} else if awsMeta := node.GetAWSInfo(); awsMeta != nil && awsMeta.Region != "" {
+				h.region = awsMeta.Region
+			}
+		}
 	}
 
 	// 2. SSM runs — keyed by EC2 instance ID (e.g. i-030a87f439b67b43a).
@@ -1266,6 +1275,9 @@ func buildInventoryHosts(
 		}
 		if h.accountID == "" {
 			h.accountID = rec.AccountID
+		}
+		if h.region == "" {
+			h.region = rec.Region
 		}
 	}
 
@@ -1348,6 +1360,9 @@ func buildInventoryHosts(
 		if nodeEntry.nodeName == "" && data.nodeName != "" {
 			nodeEntry.nodeName = data.nodeName
 		}
+		if nodeEntry.region == "" && data.region != "" {
+			nodeEntry.region = data.region
+		}
 		delete(hosts, instanceID)
 	}
 
@@ -1360,6 +1375,7 @@ func buildInventoryHosts(
 			HostID:      hostID,
 			InstanceID:  data.instanceID,
 			AccountID:   data.accountID,
+			Region:      data.region,
 			NodeName:    data.nodeName,
 			IsOnline:    data.isOnline,
 			LastSeen:    data.lastSeen,
