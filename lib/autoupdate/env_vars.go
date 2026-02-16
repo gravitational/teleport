@@ -18,5 +18,10 @@
 
 package autoupdate
 
-// InstallSuffixEnvVar specifies the Teleport install suffix.
-const InstallSuffixEnvVar = "TELEPORT_INSTALL_SUFFIX"
+const (
+	// InstallSuffixEnvVar specifies the Teleport install suffix.
+	InstallSuffixEnvVar = "TELEPORT_INSTALL_SUFFIX"
+
+	// AllowProxyConflictEnvVar allows defining whether a proxy conflict is allowed via env var.
+	AllowProxyConflictEnvVar = "TELEPORT_ALLOW_PROXY_CONFLICT"
+)
