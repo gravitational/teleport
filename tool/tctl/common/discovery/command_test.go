@@ -275,44 +275,6 @@ func TestDiscoveryRenderEC2DetailsCompact(t *testing.T) {
 	require.NotContains(t, got, "│")
 }
 
-func TestDiscoveryRenderAzureVMDetailsCompact(t *testing.T) {
-	t.Parallel()
-
-	task := &usertasksv1.UserTask{
-		Spec: &usertasksv1.UserTaskSpec{
-			TaskType: usertasksapi.TaskTypeDiscoverAzureVM,
-			DiscoverAzureVm: &usertasksv1.DiscoverAzureVM{
-				Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{
-					"4d944eab-ad1d-49ca-8cc3-8a62f920b5b1": {
-						VmId:            "4d944eab-ad1d-49ca-8cc3-8a62f920b5b1",
-						Name:            "tener-dev-9cab71ed-vm-0",
-						ResourceId:      "/subscriptions/060a97ea-3a57-4218-9be5-dba3f19ff2b5/resourceGroups/tener-dev-9cab71ed-workload-rg/providers/Microsoft.Compute/virtualMachines/tener-dev-9cab71ed-vm-0",
-						DiscoveryConfig: "tener-dev-9cab71ed-azure_teleport",
-						DiscoveryGroup:  "main",
-						SyncTime:        timestamppb.New(mustTestParseTime(t, "2026-02-13T17:02:21Z")),
-					},
-				},
-			},
-		},
-	}
-
-	var out bytes.Buffer
-	info, err := renderAzureVMDetails(&out, task, 0, 25)
-	require.NoError(t, err)
-	require.Equal(t, 1, info.Total)
-
-	got := out.String()
-	require.Contains(t, got, "Affected Azure VMs:")
-	require.Contains(t, got, "[1] VM ID           : 4d944eab-ad1d-49ca-8cc3-8a62f920b5b1")
-	require.Contains(t, got, "    NAME            : tener-dev-9cab71ed-vm-0")
-	require.Contains(t, got, "    RESOURCE ID     : /subscriptions/060a97ea-3a57-4218-9be5-dba3f19ff2b5/resourceGroups/tener-dev-9cab71ed-workload-rg/providers/Microsoft.Compute/virtualMachines/tener-dev-9cab71ed-vm-0")
-	require.Contains(t, got, "    DISCOVERY CONFIG: tener-dev-9cab71ed-azure_teleport")
-	require.Contains(t, got, "    DISCOVERY GROUP : main")
-	require.Contains(t, got, "    SYNC TIME       : 2026-02-13T17:02:21Z")
-	require.NotContains(t, got, "┌")
-	require.NotContains(t, got, "│")
-}
-
 func TestDiscoveryRenderTaskDetailsShowingResourcesLine(t *testing.T) {
 	t.Parallel()
 
@@ -708,8 +670,7 @@ func TestDiscoveryRenderStatusTextIncludesConfigsAndIdleIntegrations(t *testing.
 	require.Contains(t, got, "10m ago")
 	require.Contains(t, got, "e785789e-4fbc-5774-a3d3-4e34edc80dbd")
 	require.NotContains(t, got, "e785789e-...")
-	require.Contains(t, got, "Azure VM")
-	require.NotContains(t, got, "discover-azure-vm")
+	require.Contains(t, got, "discover-azure-vm")
 	require.Contains(t, got, "azure=1")
 	require.NotContains(t, got, "aws=0")
 	require.Contains(t, got, "integration-idle")
@@ -1173,7 +1134,6 @@ func TestDiscoveryFriendlyTaskType(t *testing.T) {
 	require.Equal(t, "AWS EC2", friendlyTaskType(usertasksapi.TaskTypeDiscoverEC2))
 	require.Equal(t, "AWS EKS", friendlyTaskType(usertasksapi.TaskTypeDiscoverEKS))
 	require.Equal(t, "AWS RDS", friendlyTaskType(usertasksapi.TaskTypeDiscoverRDS))
-	require.Equal(t, "Azure VM", friendlyTaskType(usertasksapi.TaskTypeDiscoverAzureVM))
 	require.Equal(t, "unknown-type", friendlyTaskType("unknown-type"))
 }
 
