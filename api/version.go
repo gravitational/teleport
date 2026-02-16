@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.7.0-dev.marco.1"
+const Version = "18.7.0-dev.tener.1"
 
 const VersionMajor = 18
 const VersionMinor = 7
 const VersionPatch = 0
-const VersionPreRelease = "dev.marco.1"
+const VersionPreRelease = "dev.tener.1"
 const VersionMetadata = ""
