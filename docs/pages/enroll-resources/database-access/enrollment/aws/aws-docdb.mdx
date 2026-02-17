@@ -17,7 +17,23 @@ tags:
 
 <Tabs>
 <TabItem label="Self-Hosted">
-![Teleport Architecture DocumentDB Access Self-Hosted](../../../../../img/database-access/guides/docdb_selfhosted.svg)
+
+```mermaid
+architecture-beta
+
+  service users(carbon-user)[Users]
+  service teleport(teleport-logo-purple)[Teleport Control Plane]
+
+  group aws(logos-aws)[Virtual Private Cloud]
+  service tdb(teleport-logo-purple)[Teleport Database Service] in aws
+  service ddb(logos-aws-documentdb)[Amazon DocumentDB] in aws
+
+  users:R --> L:teleport
+
+  tdb:L --> R:teleport
+  tdb:R --> L:ddb
+```
+
 </TabItem>
 <TabItem label="Cloud-Hosted">
 ![Teleport Architecture DocumentDB Cloud](../../../../../img/database-access/guides/docdb_cloud.svg)
