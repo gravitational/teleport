@@ -55,17 +55,22 @@ const (
 	serviceAccessFlags = windows.SERVICE_START | windows.SERVICE_QUERY_STATUS
 	serviceRunTimeout  = 30 * time.Second
 
-	// Allow SYSTEM/Admins Full Control, Authenticated Users read/write, implicitly denies everyone else.
-	pipeSecurityDescriptor = "D:" + // DACL
-		"(A;;GA;;;SY)" + // Allow (A);; Generic All (GA);;; SYSTEM (SY)
-		"(A;;GA;;;BA)" + // Allow (A);; Generic All (GA);;; Built-in Admins (BA)
-		"(A;;GRGW;;;AU)" // Allow (A);; Generic Read/Write (GRGW);;; Authenticated Users (AU)
+	// According to https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-security-and-access-rights
+	// and https://stackoverflow.com/questions/29947524/c-let-user-process-write-to-local-system-named-pipe-custom-security-descrip
+	// the pipe should not set GENERIC_WRITE for standard users as it would allow them to create the pipe.
+	safePipeReadWriteAccess = windows.GENERIC_READ | windows.FILE_WRITE_DATA
+
 	updateDirSecurityDescriptor = "O:SY" + // Owner SYSTEM
 		"D:P" + // 'P' blocks permissions inheritance from the parent directory
 		"(A;OICI;GA;;;SY)" + // Allow System Full Access
 		"(A;OICI;GA;;;BA)" // Allow Built-in Administrators Full Access
-
 )
+
+// Allow SYSTEM/Admins Full Control, Authenticated Users (safe) read/write, implicitly deny everyone else.
+var pipeServerSecurityDescriptor = "D:" + // DACL
+	"(A;;GA;;;SY)" + // Allow (A);; Generic All (GA);;; SYSTEM (SY)
+	"(A;;GA;;;BA)" + // Allow (A);; Generic All (GA);;; Built-in Admins (BA)
+	fmt.Sprintf("(A;;%#x;;;AU)", safePipeReadWriteAccess) // Allow (A);; safePipeReadWriteAccess ;;; Authenticated Users (AU)
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, "autoupdate")
 
@@ -226,7 +231,7 @@ type acceptResult struct {
 // waitForSingleClient waits for the first client and then closes the listener.
 func waitForSingleClient(ctx context.Context) (net.Conn, error) {
 	l, err := winio.ListenPipe(PipePath, &winio.PipeConfig{
-		SecurityDescriptor: pipeSecurityDescriptor,
+		SecurityDescriptor: pipeServerSecurityDescriptor,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
