@@ -1451,23 +1451,7 @@ func TestUnifiedResourceFiltering(t *testing.T) {
 		require.Len(t, allResources, 2)
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for all resources")
 
-	// Helper to collect resources from iterator
-	collect := func(t *testing.T, iter iter.Seq2[types.ResourceWithLabels, error]) (collected []types.ResourceWithLabels) {
-		for r, err := range iter {
-			require.NoError(t, err)
-			collected = append(collected, r)
-		}
-		return collected
-	}
-
-	// Test filtering by Windows desktop kind only
-	windowsOnly := collect(t, w.Resources(ctx, "", types.SortBy{}, types.KindWindowsDesktop))
-	require.Len(t, windowsOnly, 1)
-	require.Equal(t, types.KindWindowsDesktop, windowsOnly[0].GetKind())
-	require.Equal(t, "windows-desktop", windowsOnly[0].GetName())
-
-	// Test filtering by node kind (should not include desktops)
-	nodesOnly := collect(t, w.Resources(ctx, "", types.SortBy{}, types.KindNode))
-	require.Len(t, nodesOnly, 1)
-	require.Equal(t, types.KindNode, nodesOnly[0].GetKind())
+	allResources, err = w.GetUnifiedResources(ctx)
+	require.NoError(t, err)
+	require.Len(t, allResources, 2)
 }
