@@ -120,6 +120,16 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForUser(ctx context.Context, 
 		return trace.NotFound("no scoped role assignments found for user %q applicable to pinned scope %q", user, pin.GetScope())
 	}
 
+	// Prune the assignment tree if it exceeds the maximum encoded size. See [pinning.PruneAssignmentTree] for a detailed
+	// discussion of the rationale for pruning and the justification for the specific pruning strategy employed.
+	if prunedCount := pinning.PruneAssignmentTree(ctx, pin, c.cfg.MaxAssignmentTreeBytes); prunedCount > 0 {
+		slog.WarnContext(ctx, "pruned assignment tree to limit certificate size, user may experience degraded privileges until assignments are reduced",
+			"user", user,
+			"pin_scope", pin.GetScope(),
+			"total_pruned", prunedCount,
+			"max_bytes", c.cfg.MaxAssignmentTreeBytes)
+	}
+
 	// perform a final weak validation of the pin to ensure that it is well-formed. this should be redundant since auth performs strong
 	// validation of all pins prior to encoding them on certs, but its worth being defensive due to how critical scope pins are.
 	if err := pinning.WeakValidate(pin); err != nil {
