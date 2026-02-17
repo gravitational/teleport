@@ -586,9 +586,7 @@ spec:
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		// Get the scoped token by name
 		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_token/test-token", "--format=json"})
-		if !assert.NoError(ct, err) {
-			return
-		}
+		require.NoError(t, err)
 		raw = buff.Bytes()
 	}, time.Second*30, time.Millisecond*100, "Timed out waiting for scoped token cache propagation")
 
@@ -631,10 +629,6 @@ spec:
 	require.True(t, trace.IsAlreadyExists(err), "expected already exists error, got %v", err)
 
 	// Using --force should succeed and act as an upsert
-	_, err = runResourceCommand(t, clt, []string{"create", "--force", scopedTokenYAMLPath})
-	require.NoError(t, err)
-
-	// Update (upsert) scoped tokens
 	allTokens[0].Metadata.Labels = map[string]string{"env": "staging"}
 	allTokens[0].Spec.AssignedScope = "/bar"
 	updatedBytes, err := services.MarshalProtoResource(allTokens[0])
@@ -647,15 +641,13 @@ spec:
 	// Wait for cache propagation and verify the update took effect
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_token/test-token", "--format=json"})
-		if !assert.NoError(ct, err) {
-			return
-		}
+		require.NoError(t, err)
 		updated, err := services.UnmarshalProtoResourceArray[*joiningv1.ScopedToken](buff.Bytes(), services.DisallowUnknown())
-		if !assert.NoError(ct, err) || !assert.Len(ct, updated, 1) {
-			return
-		}
-		assert.Equal(ct, "/bar", updated[0].GetSpec().GetAssignedScope())
-		assert.Equal(ct, "staging", updated[0].GetMetadata().GetLabels()["env"])
+		require.NoError(t, err)
+		require.Len(t, updated, 1)
+		require.Equal(t, "test-token", updated[0].GetMetadata().GetName())
+		require.Equal(ct, "/bar", updated[0].GetSpec().GetAssignedScope())
+		require.Equal(ct, "staging", updated[0].GetMetadata().GetLabels()["env"])
 	}, time.Second*30, time.Millisecond*100, "Timed out waiting for upserted scoped token cache propagation")
 
 	// verify delete of token
@@ -665,7 +657,7 @@ spec:
 	// wait for delete cache propagation
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		_, err = runResourceCommand(t, clt, []string{"get", "scoped_token/test-token", "--format=json"})
-		assert.True(ct, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
+		require.True(ct, trace.IsNotFound(err))
 	}, time.Second*30, time.Millisecond*100, "Timed out waiting for scoped token cache propagation")
 }
 

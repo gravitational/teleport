@@ -63,12 +63,12 @@ func scopedTokenHandler() Handler {
 		getHandler:    getScopedToken,
 		createHandler: createScopedToken,
 		deleteHandler: deleteScopedToken,
-		updateHandler: updateScopedToken,
 		description:   "Scoped invitation tokens that can be used to provision resources at a limited scope",
 	}
 }
 
 func createScopedToken(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
+	verb := "created"
 	r, err := services.UnmarshalProtoResource[*joiningv1.ScopedToken](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
@@ -77,6 +77,7 @@ func createScopedToken(ctx context.Context, client *authclient.Client, raw servi
 	var token *joiningv1.ScopedToken
 	if opts.Force {
 		token, err = client.UpsertScopedToken(ctx, r)
+		verb = "upserted"
 	} else {
 		token, err = client.CreateScopedToken(ctx, r)
 	}
@@ -85,29 +86,10 @@ func createScopedToken(ctx context.Context, client *authclient.Client, raw servi
 	}
 
 	fmt.Printf(
-		"%v %q has been created\n",
+		"%v %q has been %s\n",
 		types.KindScopedToken,
 		token.GetMetadata().GetName(),
-	)
-
-	return nil
-}
-
-func updateScopedToken(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
-	r, err := services.UnmarshalProtoResource[*joiningv1.ScopedToken](raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	token, err := client.UpsertScopedToken(ctx, r)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Printf(
-		"%v %q has been updated\n",
-		types.KindScopedToken,
-		token.GetMetadata().GetName(),
+		verb,
 	)
 
 	return nil
