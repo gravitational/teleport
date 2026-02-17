@@ -2,12 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { generatePath, MemoryRouter } from 'react-router';
 
-import {
-  render,
-  screen,
-  testQueryClient,
-  userEvent,
-} from 'design/utils/testing';
+import { render, screen, testQueryClient } from 'design/utils/testing';
 
 import cfg from 'e-teleport/config';
 import { ListSessionRecordingsRouteE } from 'e-teleport/SessionRecordings/list/ListSessionRecordingsRouteE';
@@ -25,6 +20,8 @@ let originalIdentitySecurityLicensed: boolean;
 
 beforeAll(() => server.listen());
 beforeEach(() => {
+  testQueryClient.clear();
+
   // backup original flag values
   originalSessionSummarizerEnabled = cfg.oss.sessionSummarizerEnabled;
   originalIdentitySecurityLicensed = cfg.oss.identitySecurity.licensed;
@@ -97,7 +94,14 @@ test('should not show a view summary button when the feature is disabled', async
     })
   );
 
-  setupTest({ summarizerEnabled: false });
+  setupTest({
+    summarizerEnabled: false,
+    acl: {
+      inferencePolicy: fullAccess,
+      inferenceSecret: fullAccess,
+      inferenceModel: fullAccess,
+    },
+  });
 
   await screen.findByText('server-01');
 
@@ -155,13 +159,24 @@ test('should show the session summaries status as enabled when identity security
     summarizerEnabled: true,
     acl: {
       accessGraph: fullAccess,
+      inferencePolicy: fullAccess,
+      inferenceSecret: fullAccess,
+      inferenceModel: fullAccess,
     },
     identitySecurityLicensed: true,
   });
 
   await screen.findByText('server-01');
 
-  expect(screen.getByText('AI Session Summaries Enabled')).toBeInTheDocument();
+  expect(screen.getByTestId('session-summaries-configure')).toHaveTextContent(
+    'Configure Session Summaries'
+  );
+  expect(screen.getByTestId('session-summaries-configure')).toHaveTextContent(
+    'Enabled'
+  );
+  expect(
+    screen.getByTestId('session-summaries-configure')
+  ).not.toHaveTextContent('Not Enabled');
 });
 
 test('should show a link to set up session summaries when identity security is enabled but the feature is disabled', async () => {
@@ -177,45 +192,21 @@ test('should show a link to set up session summaries when identity security is e
     summarizerEnabled: false,
     acl: {
       accessGraph: fullAccess,
+      inferencePolicy: fullAccess,
+      inferenceSecret: fullAccess,
+      inferenceModel: fullAccess,
     },
     identitySecurityLicensed: true,
   });
 
   await screen.findByText('server-01');
 
-  expect(screen.getByText('Set up AI Session Summaries')).toBeInTheDocument();
-});
-
-test('session summaries setup link should be dismissible', async () => {
-  server.use(
-    http.get(listRecordingsUrl, () => {
-      return HttpResponse.json({
-        events: MOCK_EVENTS,
-      });
-    })
+  expect(screen.getByTestId('session-summaries-configure')).toHaveTextContent(
+    'Configure Session Summaries'
   );
-
-  setupTest({
-    summarizerEnabled: false,
-    acl: {
-      accessGraph: fullAccess,
-    },
-    identitySecurityLicensed: true,
-  });
-
-  await screen.findByText('server-01');
-
-  const link = screen.getByText('Set up AI Session Summaries');
-
-  expect(link).toBeInTheDocument();
-
-  const dismissButton = screen.getByRole('button', { name: 'Dismiss' });
-
-  expect(dismissButton).toBeInTheDocument();
-
-  await userEvent.click(dismissButton);
-
-  expect(link).not.toBeInTheDocument();
+  expect(screen.getByTestId('session-summaries-configure')).toHaveTextContent(
+    'Not Enabled'
+  );
 });
 
 // TODO(ryan): use the mocks from the OSS tests once merged

@@ -33,9 +33,9 @@ import { Downloads } from 'e-teleport/Downloads';
 import Integrations from 'e-teleport/Integrations';
 import { IntegrationEnroll } from 'e-teleport/Integrations/IntegrationEnroll';
 import { IntegrationStatus } from 'e-teleport/Integrations/IntegrationStatus';
-import { IntegrationSessionSummaries } from 'e-teleport/Integrations/SessionSummaries/IntegrationSessionSummaries';
 import { NewLock } from 'e-teleport/NewLockV2';
 import { ListSessionRecordingsRouteE } from 'e-teleport/SessionRecordings/list/ListSessionRecordingsRouteE';
+import { SessionSummaries } from 'e-teleport/SessionRecordings/setup/SessionSummaries';
 import { SSOConfirm } from 'e-teleport/SSOConfirm/SSOConfirm';
 import SupportE from 'e-teleport/Support';
 import { UnifiedResourcesE } from 'e-teleport/UnifiedResources';
@@ -385,20 +385,6 @@ class FeatureIntegrationEnroll extends OSS.FeatureIntegrationEnroll {
   }
 }
 
-class FeatureIntegrationSessionSummaries implements TeleportFeature {
-  parent = FeatureIntegrations;
-
-  route = {
-    title: 'Session Summaries',
-    path: cfg.routes.integrationSessionSummaries,
-    component: IntegrationSessionSummaries,
-  };
-
-  hasAccess() {
-    return false; // Disabled until feature is ready for use
-  }
-}
-
 class FeatureIntegrationStatus implements TeleportFeature {
   parent = FeatureIntegrations;
 
@@ -704,6 +690,20 @@ class FeatureRecordings extends OSS.FeatureRecordings {
   }
 }
 
+class FeatureSessionSummaries implements TeleportFeature {
+  parent = FeatureIntegrations;
+
+  route = {
+    title: 'Session Summaries',
+    path: cfg.routes.sessionSummariesManagement,
+    component: SessionSummaries,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.sessionSummaries;
+  }
+}
+
 export function getEnterpriseFeatures(): TeleportFeature[] {
   return [
     // Resources
@@ -733,7 +733,6 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new OSS.FeatureJoinTokens(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
-    new FeatureIntegrationSessionSummaries(),
     new FeatureIntegrationStatus(),
     new OSS.FeatureIntegrationOverview(),
 
@@ -755,6 +754,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new OSS.FeatureAudit(),
     new OSS.FeatureSessions(),
     new FeatureRecordings(),
+    new FeatureSessionSummaries(),
 
     // - Policy
     new FeatureAccessGraph(),

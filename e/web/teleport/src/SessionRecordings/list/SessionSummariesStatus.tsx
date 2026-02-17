@@ -1,16 +1,13 @@
-import { useCallback, type MouseEvent } from 'react';
+import { Link } from 'react-router-dom';
 import styled, { useTheme } from 'styled-components';
 
-import { ChatCircleSparkle, Cross } from 'design/Icon';
+import { Button } from 'design/Button';
+import { Cog } from 'design/Icon';
 import Text from 'design/Text';
-import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 
 import cfg from 'e-teleport/config';
-import { KeysEnum } from 'teleport/services/storageService';
-import {
-  CtaLink,
-  DismissButton,
-} from 'teleport/SessionRecordings/list/SessionSummariesCta';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+import useTeleport from 'teleport/useTeleport';
 
 const StatusCircle = styled.div<{ statusColor: string }>`
   background-color: ${p => p.statusColor};
@@ -20,62 +17,71 @@ const StatusCircle = styled.div<{ statusColor: string }>`
   flex-shrink: 0;
 `;
 
-const Container = styled.div`
-  border: 1px solid ${p => p.theme.colors.spotBackground[1]};
-  border-radius: ${p => p.theme.radii[3]}px;
-  padding: ${p =>
-    `${p.theme.space[1]}px ${p.theme.space[2]}px ${p.theme.space[1]}px calc(${p.theme.space[2]}px + ${p.theme.space[1]}px)`};
+const Status = styled.div`
   display: flex;
-  gap: ${p => p.theme.space[2]}px;
   align-items: center;
+  gap: ${p => p.theme.space[1]}px;
+  background: ${p => p.theme.colors.interactive.tonal.neutral[0]};
+  padding: ${p => p.theme.space[2]}px ${p => p.theme.space[2]}px;
+  border-radius: ${p => p.theme.radii[2]}px;
+  margin-left: ${p => p.theme.space[2]}px;
+  line-height: 1;
+`;
+
+const StyledButtonSecondary = styled(Button)`
+  background: ${p =>
+    p.theme.colors.interactive.tonal
+      .neutral[0]}; // when using as={Link}, a lot of the styles are overridden for some reason
+  font-weight: 500;
+  font-size: 12px;
+  height: 35px;
+  box-sizing: border-box;
+  padding: ${p => p.theme.space[1]}px ${p => p.theme.space[1]}px
+    ${p => p.theme.space[1]}px ${p => p.theme.space[2]}px;
+  gap: ${p => p.theme.space[1]}px;
+  border-radius: ${p => p.theme.radii[3]}px;
+  text-decoration: none;
+  color: ${p => p.theme.colors.text.main};
+  display: flex;
+  align-items: center;
+
+  &:hover {
+    background: ${p => p.theme.colors.interactive.tonal.neutral[1]};
+  }
 `;
 
 export function SessionSummariesStatus() {
   const theme = useTheme();
+  const { clusterId } = useStickyClusterId();
+  const ctx = useTeleport();
+  const flags = ctx.getFeatureFlags();
 
-  const [dismissed, setDismissed] = useLocalStorage(
-    KeysEnum.SESSION_RECORDINGS_DISMISSED_SETUP,
-    false
-  );
-
-  const handleDismiss = useCallback(
-    (event: MouseEvent) => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      setDismissed(true);
-    },
-    [setDismissed]
-  );
-
-  if (cfg.oss.sessionSummarizerEnabled) {
-    return (
-      <Container>
-        <StatusCircle
-          statusColor={theme.colors.interactive.solid.success.default}
-        />
-
-        <Text>AI Session Summaries Enabled</Text>
-      </Container>
-    );
-  }
-
-  if (dismissed) {
+  if (!flags.sessionSummaries) {
     return null;
   }
 
+  const status = cfg.oss.sessionSummarizerEnabled ? 'Enabled' : 'Not Enabled';
+
+  const statusColor = cfg.oss.sessionSummarizerEnabled
+    ? theme.colors.interactive.solid.success.default
+    : theme.colors.interactive.solid.danger.default;
+
+  const link = cfg.getSessionSummariesManagementRoute(clusterId);
+
   return (
-    <CtaLink
-      href="https://goteleport.com/docs/identity-security/session-summaries/"
-      target="_blank"
+    <StyledButtonSecondary
+      data-testid="session-summaries-configure"
+      as={Link}
+      intent="neutral"
+      fill="filled"
+      to={link}
     >
-      <ChatCircleSparkle size="small" />
-
-      <Text>Set up AI Session Summaries</Text>
-
-      <DismissButton onClick={handleDismiss} aria-label="Dismiss">
-        <Cross size="small" />
-      </DismissButton>
-    </CtaLink>
+      <Cog size="small" />
+      Configure Session Summaries
+      <Status>
+        <StatusCircle statusColor={statusColor} />
+        <Text>{status}</Text>
+      </Status>
+    </StyledButtonSecondary>
   );
 }

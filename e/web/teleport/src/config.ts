@@ -67,7 +67,7 @@ const cfg = {
     // billing
     usageSummarySummary: '/web/cluster/:clusterId/usage-summary',
 
-    integrationSessionSummaries: '/web/integrations/session-summaries',
+    sessionSummariesManagement: '/web/cluster/:clusterId/recordings/summaries',
   },
 
   api: {
@@ -626,6 +626,10 @@ const cfg = {
 
   getInferencePolicyUrl(clusterId: string, name: string) {
     return generatePath(cfg.api.inference.policy, { clusterId, name });
+  },
+
+  getSessionSummariesManagementRoute(clusterId: string) {
+    return generatePath(cfg.routes.sessionSummariesManagement, { clusterId });
   },
 
   init(json: object) {
