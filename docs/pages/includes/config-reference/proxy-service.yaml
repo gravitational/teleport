@@ -66,8 +66,8 @@ proxy_service:
     # The DNS name of the proxy HTTPS endpoint as accessible by cluster users.
     # Defaults to the proxy's hostname if not specified. If running multiple
     # proxies behind a load balancer, this name must point to the load balancer
-    # If application access is enabled, public_addr is used to write correct
-    # redirects
+    # Used for app access auth redirects. Falls back to the cluster name
+    # if not set.
     # If database access is enabled, Database clients will connect to the Proxy
     # over this hostname
     public_addr: proxy.example.com:3080
