@@ -109,11 +109,20 @@ var errNoMatch = errors.New("no match for queried FQDN")
 type clusterResolutionCandidate struct {
 	client          ClusterClient
 	profileName     string
+	rootClusterName string
 	leafClusterName string
 	clusterName     string
-	rootClusterName string
 }
 
+// clusterResolutionCandidates yields all clusterResolutionCandidates for a
+// queried FQDN. A clusterResolutionCandidate essentially identifies a specific
+// Teleport cluster, and includes a client for the cluster and some metadata
+// that may be helpful for deciding if the queried FQDN should really resolve
+// to a match in that cluster.
+//
+// It does a first-pass filter to avoid yielding any clusters that definitely
+// won't match for the queried FQDN, using only cached information without
+// doing any actual queries to the cluster.
 func (r *fqdnResolver) clusterResolutionCandidates(ctx context.Context, profileNames []string, fqdn string) iter.Seq[clusterResolutionCandidate] {
 	return func(yield func(clusterResolutionCandidate) bool) {
 		for _, profileName := range profileNames {
@@ -126,8 +135,55 @@ func (r *fqdnResolver) clusterResolutionCandidates(ctx context.Context, profileN
 	}
 }
 
+// clusterResolutionCandidatesInProfile yields all clusterResolutionCandidates
+// in a specific profile for a queried FQDN.
+//
+// It does a first-pass filter to avoid yielding any clusters that definitely
+// won't match for the queried FQDN, using only cached information without
+// doing any actual queries to the cluster.
+//
+// A cluster candidate will be yielded in the following cases:
+//
+//  1. If fqdn is a direct (one-level) subdomain of the profileName it may
+//     match an app in the root cluster or any leaf cluster.
+//  2. If fqdn is any subdomain of the cluster name it may match an SSH node
+//     in that cluster.
+//  3. If fqdn is any subdomain of any of the app DNS zones for the cluster
+//     (this includes the proxy public_addr and any configured custom DNS
+//     zones)
 func (r *fqdnResolver) clusterResolutionCandidatesInProfile(ctx context.Context, profileName string, fqdn string) iter.Seq[clusterResolutionCandidate] {
 	return func(yield func(clusterResolutionCandidate) bool) {
+		// A direct subdomain of the root cluster proxy public addr (which is
+		// the profileName) may be a web app in a leaf cluster, which needs to
+		// be reachable at <app-name>.<root-proxy-public-addr>. It also may be
+		// an app in the root cluster, so we can/must yield every client before
+		// checking configured DNS zones.
+		shouldYieldAllCandidates := isDirectSubdomain(fqdn, profileName)
+
+		shouldYieldCandidate := func(candidate clusterResolutionCandidate) bool {
+			if shouldYieldAllCandidates {
+				return true
+			}
+
+			if isDescendantSubdomain(fqdn, candidate.clusterName) {
+				// This may match an SSH server, must yield the client.
+				return true
+			}
+
+			clusterConfig, err := r.cfg.clusterConfigCache.GetClusterConfig(ctx, candidate.client)
+			if err != nil {
+				log.ErrorContext(ctx, "Failed to get VNet config, apps in this cluster may not be resolved.", "profile", profileName, "leaf_cluster", candidate.leafClusterName, "error", err)
+				return false
+			}
+			for _, zone := range clusterConfig.appDNSZones() {
+				if isDescendantSubdomain(fqdn, zone) {
+					return true
+				}
+			}
+
+			return false
+		}
+
 		rootClient, err := r.cfg.clientApplication.GetCachedClient(ctx, profileName, "")
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to get root cluster client, resources in this cluster will not be resolved.", "profile", profileName, "error", err)
@@ -148,57 +204,27 @@ func (r *fqdnResolver) clusterResolutionCandidatesInProfile(ctx context.Context,
 		// GetCachedClient will return the root client if given an empty string for leafClusterName.
 		leafClusters = append([]string{""}, leafClusters...)
 
-		// A direct subdomain of the root cluster proxy public addr (which is
-		// the profileName) may be a web app in a leaf cluster, which needs to
-		// be reachable at <app-name>.<root-proxy-public-addr>. It also may be
-		// an app in the root cluster, so we can/must yield every client before
-		// checking configured DNS zones.
-		shouldYieldAllCandidates := isDirectSubdomain(fqdn, profileName)
-
-	leafClusterLoop:
 		for _, leafClusterName := range leafClusters {
 			clusterClient, err := r.cfg.clientApplication.GetCachedClient(ctx, profileName, leafClusterName)
 			if err != nil {
 				log.ErrorContext(ctx, "Failed to get cluster client, resources in this cluster will not be resolved.", "profile", profileName, "leaf_cluster", leafClusterName, "error", err)
-				continue leafClusterLoop
+				continue
 			}
 
 			candidate := clusterResolutionCandidate{
 				client:          clusterClient,
 				profileName:     profileName,
+				rootClusterName: rootClusterName,
 				leafClusterName: leafClusterName,
 				clusterName:     clusterClient.ClusterName(),
-				rootClusterName: rootClusterName,
 			}
 
-			if shouldYieldAllCandidates {
-				if !yield(candidate) {
-					return
-				}
-				continue leafClusterLoop
+			if !shouldYieldCandidate(candidate) {
+				continue
 			}
 
-			clusterConfig, err := r.cfg.clusterConfigCache.GetClusterConfig(ctx, clusterClient)
-			if err != nil {
-				log.ErrorContext(ctx, "Failed to get VNet config, apps in this cluster will not be resolved.", "profile", profileName, "leaf_cluster", leafClusterName, "error", err)
-				continue leafClusterLoop
-			}
-
-			if isDescendantSubdomain(fqdn, candidate.clusterName) {
-				// This may match an SSH server, must yield the client.
-				if !yield(candidate) {
-					return
-				}
-				continue leafClusterLoop
-			}
-
-			for _, zone := range clusterConfig.appDNSZones() {
-				if isDescendantSubdomain(fqdn, zone) {
-					if !yield(candidate) {
-						return
-					}
-					continue leafClusterLoop
-				}
+			if !yield(candidate) {
+				return
 			}
 		}
 	}
