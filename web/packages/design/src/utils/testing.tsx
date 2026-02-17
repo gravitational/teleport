@@ -39,6 +39,7 @@ import 'jest-styled-components';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { HttpResponse, JsonBodyType } from 'msw';
+import { setupServer } from 'msw/node';
 
 export const testQueryClient = new QueryClient({
   defaultOptions: {
@@ -131,6 +132,8 @@ export function createDeferredResponse<T extends JsonBodyType>(data: T) {
     resolve: () => resolve(),
   };
 }
+
+export const server = setupServer();
 
 export {
   act,
