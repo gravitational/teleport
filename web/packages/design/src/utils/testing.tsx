@@ -45,7 +45,6 @@ export const testQueryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: false,
-      gcTime: 0,
     },
   },
 });
