@@ -38,10 +38,10 @@ import (
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/join/joinutils"
+	"github.com/gravitational/teleport/lib/join/provision"
 	liboidc "github.com/gravitational/teleport/lib/oidc"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -404,8 +404,8 @@ func claimsToIdentifiers(tokenClaims *AccessTokenClaims) (subscriptionID, resour
 	return "", "", trace.BadParameter("unexpected resource type: %q", resourceID.ResourceType.Type)
 }
 
-func checkAzureAllowRules(vmID string, attrs *workloadidentityv1pb.JoinAttrsAzure, token *types.ProvisionTokenV2) error {
-	for _, rule := range token.Spec.Azure.Allow {
+func checkAzureAllowRules(vmID string, attrs *workloadidentityv1pb.JoinAttrsAzure, token provision.Token) error {
+	for _, rule := range token.GetAzure().Allow {
 		if rule.Subscription != attrs.Subscription {
 			continue
 		}
@@ -448,7 +448,7 @@ type CheckAzureRequestParams struct {
 	// AzureJoinConfig holds configurable options for Azure joining.
 	AzureJoinConfig *AzureJoinConfig
 	// Token is the token used for the incoming request.
-	Token *types.ProvisionTokenV2
+	Token provision.Token
 	// Challenge is the challenge that was issued.
 	Challenge string
 	// AttestedData is the Azure attested data that was returned by the joining

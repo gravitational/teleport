@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { useEffect, useState } from 'react';
 
 import { Alert, Box, Flex, Indicator, Text } from 'design';
@@ -32,6 +32,7 @@ import api from 'teleport/services/api';
 import {
   ClusterMaintenanceInfo,
   GroupAction,
+  GroupActionResponse,
   ManagedUpdatesDetails,
 } from 'teleport/services/managedUpdates';
 import useTeleport from 'teleport/useTeleport';
@@ -56,6 +57,8 @@ export interface ManagedUpdatesProps {
   ClusterMaintenanceCard?: React.ComponentType<ClusterMaintenanceCardProps>;
 }
 
+const managedUpdatesQueryKey = ['managed-updates'];
+
 export function ManagedUpdates({
   ClusterMaintenanceCard,
 }: ManagedUpdatesProps) {
@@ -77,8 +80,10 @@ export function ManagedUpdates({
     canReadRollout,
   });
 
+  const queryClient = useQueryClient();
+
   const { data, isLoading, isError, error, dataUpdatedAt, refetch } = useQuery({
-    queryKey: ['managed-updates'],
+    queryKey: managedUpdatesQueryKey,
     queryFn: () =>
       api.get(cfg.getManagedUpdatesUrl()) as Promise<ManagedUpdatesDetails>,
     enabled: canViewAnything,
@@ -132,8 +137,22 @@ export function ManagedUpdates({
     try {
       const url = cfg.getManagedUpdatesGroupActionUrl(groupName, action);
       const body = action === 'start' ? { force: force ?? false } : {};
-      await api.post(url, body);
-      refetch();
+      const response = await (api.post(
+        url,
+        body
+      ) as Promise<GroupActionResponse>);
+
+      queryClient.setQueryData<ManagedUpdatesDetails>(
+        managedUpdatesQueryKey,
+        currentData => {
+          return {
+            ...currentData,
+            groups: currentData?.groups.map(group =>
+              group.name === response?.group?.name ? response.group : group
+            ),
+          };
+        }
+      );
     } catch (err) {
       setActionError(
         err instanceof Error ? err.message : 'Failed to perform group action'
