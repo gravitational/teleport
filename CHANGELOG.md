@@ -59,6 +59,8 @@ and allows both CAs to be rotated independently.
 
 * Fixed `tsh kubectl` failing when kubectl flags appear before positional arguments (e.g., `tsh kubectl -n default get pod`). [#63807](https://github.com/gravitational/teleport/pull/63807)
 * The tsh status command can now be executed in client-only mode with --client. This skips all server-side operations. [#63786](https://github.com/gravitational/teleport/pull/63786)
+* Improved tracing support via `tsh --trace kubectl`. [#63762](https://github.com/gravitational/teleport/pull/63762)
+* Added `tctl recordings download` command to download session recordings to local files without requiring direct access to the storage backend. [#63726](https://github.com/gravitational/teleport/pull/63726)
 * MWI: Add new `tbot start no-op` helper that starts no services. [#63666](https://github.com/gravitational/teleport/pull/63666)
 * Improved performance and user experience of `teleport backend clone`. [#63635](https://github.com/gravitational/teleport/pull/63635)
 * Fixed out of sequent audit logs rendering in ui for same timestamp logs. [#63613](https://github.com/gravitational/teleport/pull/63613)
