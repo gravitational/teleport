@@ -20,7 +20,6 @@ import { screen, within } from '@testing-library/react';
 
 import { render } from 'design/utils/testing';
 
-import { RawEvents } from '../../services/audit';
 import makeEvent from '../../services/audit/makeEvent';
 import EventList from './EventList';
 
@@ -28,41 +27,27 @@ describe('EventList', () => {
   it('should sort events with same timestamp by event index', () => {
     const sameTimestamp = '2025-09-08T21:25:49.265Z';
 
-    const mcpSessionStart = {
-      code: 'TMCP001I',
-      event: 'mcp.session.start',
+    const userCreatedEvent = {
+      code: 'T1002I',
+      event: 'user.create',
       time: sameTimestamp,
       uid: '5dcf76ab-3f31-40a7-8550-bb29ecea1e42',
       user: 'admin',
       ei: 269750, // Lower event index - should be first
-      sid: '5dcf76ab-3f31-40a7-8550-bb29ecea1e42',
-      app_name: 'teleport-mcp-demo',
-    } as RawEvents[typeof import('teleport/services/audit').eventCodes.MCP_SESSION_START];
+      name: 'alice',
+    };
 
-    const mcpSessionRequest = {
-      code: 'TMCP003I',
-      event: 'mcp.session.request',
+    const userDeletedEvent = {
+      code: 'T1004I',
+      event: 'user.delete',
       time: sameTimestamp,
       uid: 'int64:0',
       user: 'admin',
       ei: 667167, // Higher event index - should be second
-      app_name: 'teleport-mcp-demo',
-      message: {
-        id: 'init64:0',
-        jsonrpc: '2.0',
-        method: 'initialize',
-        params: {
-          capabilities: {},
-          clientInfo: {
-            name: 'claude-ai',
-            version: '0.1.0',
-          },
-          protocolVersion: '2025-06-18',
-        },
-      },
-    } as RawEvents[typeof import('teleport/services/audit').eventCodes.MCP_SESSION_REQUEST];
+      name: 'bob',
+    };
 
-    const events = [makeEvent(mcpSessionStart), makeEvent(mcpSessionRequest)];
+    const events = [makeEvent(userCreatedEvent), makeEvent(userDeletedEvent)];
 
     render(
       <EventList
@@ -79,47 +64,33 @@ describe('EventList', () => {
     const firstDataRow = rows[1];
     const secondDataRow = rows[2];
     expect(
-      within(firstDataRow).getByText(/MCP Session Started/i)
+      within(firstDataRow).getByText(/User \[alice\] has been created/i)
     ).toBeInTheDocument();
     expect(
-      within(secondDataRow).getByText(/MCP Session Request/i)
+      within(secondDataRow).getByText(/User \[bob\] has been deleted/i)
     ).toBeInTheDocument();
   });
 
   it('should handle events with different timestamps correctly', () => {
     const olderEvent = {
-      code: 'TMCP001I',
-      event: 'mcp.session.start',
+      code: 'T1002I',
+      event: 'user.create',
       time: '2025-09-08T21:25:48.000Z',
       uid: 'uid-1',
       user: 'admin',
       ei: 999999,
-      sid: 'sid-1',
-      app_name: 'teleport-mcp-demo',
-    } as RawEvents[typeof import('teleport/services/audit').eventCodes.MCP_SESSION_START];
+      name: 'charlie',
+    };
 
     const newerEvent = {
-      code: 'TMCP003I',
-      event: 'mcp.session.request',
+      code: 'T1004I',
+      event: 'user.delete',
       time: '2025-09-08T21:25:49.000Z',
       uid: 'uid-2',
       user: 'admin',
       ei: 1,
-      app_name: 'teleport-mcp-demo',
-      message: {
-        id: 'int64:0',
-        jsonrpc: '2.0',
-        method: 'initialize',
-        params: {
-          capabilities: {},
-          clientInfo: {
-            name: 'claude-ai',
-            version: '0.1.0',
-          },
-          protocolVersion: '2025-06-18',
-        },
-      },
-    } as RawEvents[typeof import('teleport/services/audit').eventCodes.MCP_SESSION_REQUEST];
+      name: 'dave',
+    };
 
     const events = [makeEvent(olderEvent), makeEvent(newerEvent)];
 
@@ -139,10 +110,10 @@ describe('EventList', () => {
     const secondDataRow = rows[2];
 
     expect(
-      within(firstDataRow).getByText(/MCP Session Request/i)
+      within(firstDataRow).getByText(/User \[dave\] has been deleted/i)
     ).toBeInTheDocument();
     expect(
-      within(secondDataRow).getByText(/MCP Session Started/i)
+      within(secondDataRow).getByText(/User \[charlie\] has been created/i)
     ).toBeInTheDocument();
   });
 });
