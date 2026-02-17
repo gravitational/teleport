@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 
 import {
   Providers,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -34,8 +34,6 @@ import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 import { deleteBotError, deleteBotSuccess } from 'teleport/test/helpers/bots';
 
 import { DeleteDialog } from './DeleteDialog';
-
-const server = setupServer();
 
 beforeAll(() => {
   server.listen();

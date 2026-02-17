@@ -16,14 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { setupServer } from 'msw/node';
-
-import { render, screen, testQueryClient } from 'design/utils/testing';
+import { render, screen, server, testQueryClient } from 'design/utils/testing';
 
 import { getThumbnail, MOCK_THUMBNAIL } from './mock';
 import { RecordingThumbnail } from './RecordingThumbnail';
-
-const server = setupServer();
 
 beforeAll(() => server.listen());
 

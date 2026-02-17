@@ -18,10 +18,9 @@
 
 import { screen } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import { MemoryRouter, Route } from 'react-router-dom';
 
-import { render, testQueryClient } from 'design/utils/testing';
+import { render, server, testQueryClient } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
@@ -42,8 +41,6 @@ jest.spyOn(cfg, 'getSessionRecordingMetadataUrl').mockImplementation(() => {
 jest.mock('teleport/lib/AuthenticatedWebSocket', () => ({
   AuthenticatedWebSocket: MockAuthenticatedWebSocket,
 }));
-
-const server = setupServer();
 
 beforeAll(() => {
   server.listen();

@@ -18,7 +18,6 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { UserEvent } from '@testing-library/user-event';
-import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 import selectEvent from 'react-select-event';
 
@@ -28,6 +27,7 @@ import {
   act,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   waitForElementToBeRemoved,
@@ -47,8 +47,6 @@ import {
 import { successGetRoles } from 'teleport/test/helpers/roles';
 
 import { EditDialog } from './EditDialog';
-
-const server = setupServer();
 
 beforeAll(() => {
   server.listen();

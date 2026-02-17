@@ -17,7 +17,6 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { setupServer } from 'msw/node';
 import { ComponentProps, PropsWithChildren } from 'react';
 
 import darkTheme from 'design/theme/themes/darkTheme';
@@ -25,6 +24,7 @@ import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   within,
@@ -41,8 +41,6 @@ import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 import { trackingTester } from '../Shared/trackingTester';
 import { TrackingProvider } from '../Shared/useTracking';
 import { KubernetesLabelsSelect } from './KubernetesLabelsSelect';
-
-const server = setupServer();
 
 beforeAll(() => {
   server.listen();

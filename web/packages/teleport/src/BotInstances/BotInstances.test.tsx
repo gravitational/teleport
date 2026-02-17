@@ -18,7 +18,6 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory } from 'history';
-import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 import { MemoryRouter, Route, Router } from 'react-router';
 
@@ -27,6 +26,7 @@ import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -65,8 +65,6 @@ jest.mock('teleport/services/bot/bot', () => {
     }),
   };
 });
-
-const server = setupServer();
 
 beforeAll(() => {
   server.listen();

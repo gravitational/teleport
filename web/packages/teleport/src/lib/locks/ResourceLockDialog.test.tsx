@@ -17,13 +17,13 @@
  */
 
 import { UserEvent } from '@testing-library/user-event';
-import { setupServer } from 'msw/node';
 import { ComponentPropsWithoutRef, PropsWithChildren } from 'react';
 
 import {
   Providers,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -37,8 +37,6 @@ import {
 } from 'teleport/test/helpers/locks';
 
 import { ResourceLockDialog } from './ResourceLockDialog';
-
-const server = setupServer();
 
 beforeAll(() => {
   server.listen();

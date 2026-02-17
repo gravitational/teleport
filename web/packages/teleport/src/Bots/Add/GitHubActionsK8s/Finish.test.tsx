@@ -17,7 +17,6 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 import selectEvent from 'react-select-event';
 
@@ -27,6 +26,7 @@ import {
   act,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
 } from 'design/utils/testing';
@@ -65,8 +65,6 @@ jest.mock('shared/components/FieldSelect/FieldSelectCreatable', () => {
     },
   };
 });
-
-const server = setupServer();
 
 beforeAll(() => {
   server.listen();

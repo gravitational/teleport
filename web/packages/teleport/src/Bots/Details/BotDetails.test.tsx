@@ -21,7 +21,6 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { UserEvent } from '@testing-library/user-event';
 import { createMemoryHistory } from 'history';
-import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 import { MemoryRouter, Route, Router } from 'react-router';
 
@@ -30,6 +29,7 @@ import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -64,8 +64,6 @@ import {
 } from 'teleport/test/helpers/tokens';
 
 import { BotDetails } from './BotDetails';
-
-const server = setupServer();
 
 beforeAll(() => {
   server.listen();

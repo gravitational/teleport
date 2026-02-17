@@ -17,7 +17,6 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { setupServer } from 'msw/node';
 import { ComponentProps, PropsWithChildren } from 'react';
 
 import darkTheme from 'design/theme/themes/darkTheme';
@@ -25,6 +24,7 @@ import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   waitForElementToBeRemoved,
@@ -42,8 +42,6 @@ import {
 } from 'teleport/test/helpers/botInstances';
 
 import { BotInstanceDetails } from './BotInstanceDetails';
-
-const server = setupServer();
 
 beforeAll(() => {
   server.listen();

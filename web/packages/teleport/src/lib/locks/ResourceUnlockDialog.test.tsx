@@ -17,7 +17,6 @@
  */
 
 import { createMemoryHistory } from 'history';
-import { setupServer } from 'msw/node';
 import {
   ComponentPropsWithoutRef,
   MouseEventHandler,
@@ -29,6 +28,7 @@ import {
   Providers,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -43,8 +43,6 @@ import {
 } from 'teleport/test/helpers/locks';
 
 import { ResourceUnlockDialog } from './ResourceUnlockDialog';
-
-const server = setupServer();
 
 beforeAll(() => {
   server.listen();

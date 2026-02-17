@@ -17,11 +17,16 @@
  */
 
 import { format } from 'date-fns';
-import { setupServer } from 'msw/node';
 import { act } from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { render, screen, testQueryClient, tick } from 'design/utils/testing';
+import {
+  render,
+  screen,
+  server,
+  testQueryClient,
+  tick,
+} from 'design/utils/testing';
 
 import cfg from 'teleport/config';
 import { ContextProvider } from 'teleport/index';
@@ -72,8 +77,6 @@ async function setupTest({
 
   return view;
 }
-
-const server = setupServer();
 
 beforeAll(() => server.listen());
 

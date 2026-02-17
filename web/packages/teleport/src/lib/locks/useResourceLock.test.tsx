@@ -18,10 +18,9 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
-import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 
-import { testQueryClient } from 'design/utils/testing';
+import { server, testQueryClient } from 'design/utils/testing';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
@@ -34,8 +33,6 @@ import {
 } from 'teleport/test/helpers/locks';
 
 import { useResourceLock } from './useResourceLock';
-
-const server = setupServer();
 
 beforeAll(() => {
   server.listen();

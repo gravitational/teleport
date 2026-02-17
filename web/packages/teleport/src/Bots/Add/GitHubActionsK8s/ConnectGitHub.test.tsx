@@ -17,7 +17,6 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { setupServer } from 'msw/node';
 import { ComponentProps, PropsWithChildren } from 'react';
 import selectEvent from 'react-select-event';
 
@@ -27,6 +26,7 @@ import {
   act,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
 } from 'design/utils/testing';
@@ -42,8 +42,6 @@ import { trackingTester } from '../Shared/trackingTester';
 import { TrackingProvider } from '../Shared/useTracking';
 import { ConnectGitHub } from './ConnectGitHub';
 import { GitHubK8sFlowProvider } from './useGitHubK8sFlow';
-
-const server = setupServer();
 
 beforeAll(() => {
   server.listen();
