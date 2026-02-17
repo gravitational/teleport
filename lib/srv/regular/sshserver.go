@@ -1296,8 +1296,10 @@ func (s *Server) getNetworkingProcess(scx *srv.ServerContext) (*networking.Proce
 // startNetworkingProcess launches a new networking process. It should be closed once
 // the server connection is closed.
 func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Process, error) {
+	ctx := scx.CancelContext()
+
 	// Create context for the networking process.
-	nsctx, err := srv.NewServerContext(context.Background(), scx.ConnectionContext, s, scx.Identity, nil)
+	nsctx, err := srv.NewServerContext(ctx, scx.ConnectionContext, s, scx.Identity, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1313,8 +1315,12 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 		return nil, trace.Wrap(err)
 	}
 
-	proc, err := networking.NewProcess(nsctx.CancelContext(), cmd)
-	return proc, trace.Wrap(err)
+	proc, err := networking.NewProcess(ctx, cmd)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return proc, nil
 }
 
 // HandleRequest processes global out-of-band requests. Global out-of-band
