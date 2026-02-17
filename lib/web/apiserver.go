@@ -455,8 +455,24 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Build the proxy address list for app routing. Fall back to the
+	// cluster name when proxy_service.public_addr is not configured,
+	// matching the fallback in redirectToLauncher.
+	proxyAddrs := h.handler.cfg.ProxyPublicAddrs
+	if len(proxyAddrs) == 0 && h.appHandler != nil {
+		clusterName := h.handler.auth.clusterName
+		if clusterName != "" {
+			addr, err := utils.ParseAddr(r.Host)
+			if err == nil {
+				port := addr.Port(443)
+				host := net.JoinHostPort(clusterName, strconv.Itoa(port))
+				proxyAddrs = []utils.NetAddr{{Addr: host}}
+			}
+		}
+	}
+
 	// if the request is for an app, passthrough OPTIONS requests to the app handler
-	redir, ok := app.HasName(r, h.handler.cfg.ProxyPublicAddrs)
+	redir, ok := app.HasName(r, proxyAddrs)
 	if ok && r.Method == http.MethodOptions {
 		h.handlePreflight(w, r)
 		return
@@ -733,11 +749,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		}
 	}
 
-	resp, err := h.cfg.ProxySettings.GetProxySettings(cfg.Context)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Create application specific handler. This handler handles sessions and
 	// forwarding for application access.
 	var appHandler *app.Handler
@@ -749,7 +760,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			ProxyClient:           cfg.Proxy,
 			CipherSuites:          cfg.CipherSuites,
 			ProxyPublicAddrs:      cfg.ProxyPublicAddrs,
-			WebPublicAddr:         resp.SSH.PublicAddr,
 			IntegrationAppHandler: cfg.IntegrationAppHandler,
 		})
 		if err != nil {
