@@ -675,11 +675,12 @@ func buildVMHistoryRows(group ssmVMGroup, showAll bool) []ssmRunHistoryRow {
 }
 
 type ssmRunsOutput struct {
-	Window        string            `json:"-"`
-	From          time.Time         `json:"from"`
-	To            time.Time         `json:"to"`
-	FetchLimit    int               `json:"fetch_limit"`
-	LimitReached  bool              `json:"limit_reached"`
+	Window         string            `json:"-"`
+	From           time.Time         `json:"from"`
+	To             time.Time         `json:"to"`
+	FetchLimit     int               `json:"fetch_limit"`
+	LimitReached   bool              `json:"limit_reached"`
+	SuggestedLimit int               `json:"suggested_limit,omitempty"`
 	CacheSummary  string            `json:"cache_summary,omitempty"`
 	TotalRuns     int               `json:"total_runs"`
 	SuccessRuns   int               `json:"success_runs"`
@@ -1041,11 +1042,12 @@ type joinAnalysis struct {
 }
 
 type joinsOutput struct {
-	Window       string      `json:"-"`
-	From         time.Time   `json:"from"`
-	To           time.Time   `json:"to"`
-	FetchLimit   int         `json:"fetch_limit"`
-	LimitReached bool        `json:"limit_reached"`
+	Window         string      `json:"-"`
+	From           time.Time   `json:"from"`
+	To             time.Time   `json:"to"`
+	FetchLimit     int         `json:"fetch_limit"`
+	LimitReached   bool        `json:"limit_reached"`
+	SuggestedLimit int         `json:"suggested_limit,omitempty"`
 	CacheSummary string      `json:"cache_summary,omitempty"`
 	TotalJoins   int         `json:"total_joins"`
 	SuccessJoins int         `json:"success_joins"`
@@ -1300,16 +1302,19 @@ type inventoryHost struct {
 }
 
 type inventoryOutput struct {
-	Window       string          `json:"-"`
-	From         time.Time       `json:"from"`
-	To           time.Time       `json:"to"`
-	CacheSummary string          `json:"cache_summary,omitempty"`
-	TotalHosts   int             `json:"total_hosts"`
-	OnlineHosts  int             `json:"online_hosts"`
-	OfflineHosts int             `json:"offline_hosts"`
-	FailedHosts  int             `json:"failed_hosts"`
-	HostPage     pageInfo        `json:"host_page"`
-	Hosts        []inventoryHost `json:"hosts"`
+	Window         string          `json:"-"`
+	From           time.Time       `json:"from"`
+	To             time.Time       `json:"to"`
+	CacheSummary   string          `json:"cache_summary,omitempty"`
+	TotalHosts     int             `json:"total_hosts"`
+	OnlineHosts    int             `json:"online_hosts"`
+	OfflineHosts   int             `json:"offline_hosts"`
+	FailedHosts    int             `json:"failed_hosts"`
+	FetchLimit     int             `json:"fetch_limit"`
+	LimitReached   bool            `json:"limit_reached"`
+	SuggestedLimit int             `json:"suggested_limit,omitempty"`
+	HostPage       pageInfo        `json:"host_page"`
+	Hosts          []inventoryHost `json:"hosts"`
 }
 
 func buildInventoryHosts(

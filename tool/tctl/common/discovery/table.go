@@ -33,6 +33,7 @@ import (
 type textStyle struct {
 	enabled    bool
 	tableWidth int
+	indent     string
 }
 
 type keyValue struct {
@@ -218,6 +219,40 @@ func renderAlignedKeyValuesWithPrefix(w io.Writer, firstPrefix, continuationInde
 		}
 	}
 	return nil
+}
+
+// indented returns a copy of the style with two additional spaces of indent.
+func (s textStyle) indented() textStyle {
+	s.indent += "  "
+	return s
+}
+
+// nested returns a copy of the style indented to align with the content
+// after a parent [N] prefix (i.e. matching the width of "[parentIndex+1] ").
+func (s textStyle) nested(parentIndex int) textStyle {
+	s.indent += strings.Repeat(" ", len(fmt.Sprintf("[%d] ", parentIndex+1)))
+	return s
+}
+
+// numberedBlock renders a numbered item with the [N] prefix colored:
+//
+//	[N] KEY1  : value1
+//	    KEY2  : value2
+//
+// The index is 0-based (i.e. pass 0 to get "[1]").
+func (s textStyle) numberedBlock(w io.Writer, index int, details []keyValue) error {
+	plain := fmt.Sprintf("[%d] ", index+1)
+	colored := s.info(fmt.Sprintf("[%d]", index+1)) + " "
+	kvIndent := s.indent + strings.Repeat(" ", len(plain))
+	return renderAlignedKeyValuesWithPrefix(w, s.indent+colored, kvIndent, details)
+}
+
+// keyValues renders aligned key-value pairs at the current indent level:
+//
+//	KEY1  : value1
+//	KEY2  : value2
+func (s textStyle) keyValues(w io.Writer, details []keyValue) error {
+	return renderAlignedKeyValues(w, s.indent, details)
 }
 
 var ansiEscapePattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)

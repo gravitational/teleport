@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -53,6 +54,9 @@ import (
 // API call. The server-side maximum is 10,000 (defaults.EventsMaxIterationLimit).
 const auditEventPageSize = 1000
 
+// defaultFetchLimit is the default --limit value for audit event fetch commands.
+const defaultFetchLimit = 1000
+
 // Command implements `tctl discovery` troubleshooting commands.
 type Command struct {
 	config *servicecfg.Config
@@ -65,6 +69,8 @@ type Command struct {
 	statusIntegration  string
 	statusFormat       string
 	statusLast         string
+	statusFromUTC      string
+	statusToUTC        string
 	statusSSMLimit     int
 	statusJoinLimit    int
 
@@ -130,11 +136,13 @@ type Command struct {
 	inventoryStateFilter  string
 	inventoryMethodFilter string
 
-	cacheCmd       *kingpin.CmdClause
-	cacheLoadCmd   *kingpin.CmdClause
-	cacheLoadLast  string
-	cacheStatusCmd *kingpin.CmdClause
-	cachePruneCmd  *kingpin.CmdClause
+	cacheCmd          *kingpin.CmdClause
+	cacheLoadCmd      *kingpin.CmdClause
+	cacheLoadLast     string
+	cacheLoadFromUTC  string
+	cacheLoadToUTC    string
+	cacheStatusCmd    *kingpin.CmdClause
+	cachePruneCmd     *kingpin.CmdClause
 }
 
 func (c *Command) output() io.Writer {
@@ -181,6 +189,9 @@ func buildSSMRunsCommand(c *Command, subCmd string, instanceID string) string {
 	if c.ssmRunsToUTC != "" {
 		cmd = append(cmd, fmt.Sprintf("--to-utc=%s", c.ssmRunsToUTC))
 	}
+	if c.ssmRunsLimit != 0 && c.ssmRunsLimit != defaultFetchLimit {
+		cmd = append(cmd, fmt.Sprintf("--limit=%d", c.ssmRunsLimit))
+	}
 	if c.ssmRunsShowAll {
 		cmd = append(cmd, "--show-all-runs")
 	}
@@ -204,6 +215,9 @@ func buildJoinsCommand(c *Command, subCmd string, hostID string) string {
 	if c.joinsToUTC != "" {
 		cmd = append(cmd, fmt.Sprintf("--to-utc=%s", c.joinsToUTC))
 	}
+	if c.joinsLimit != 0 && c.joinsLimit != defaultFetchLimit {
+		cmd = append(cmd, fmt.Sprintf("--limit=%d", c.joinsLimit))
+	}
 	if c.joinsShowAll {
 		cmd = append(cmd, "--show-all-joins")
 	}
@@ -225,8 +239,10 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	c.statusCmd = c.discovery.Command("status", "Triage Discovery health: tasks, configs, integrations, and next actions.")
 	c.statusCmd.Flag("integration", "Filter tasks by integration.").StringVar(&c.statusIntegration)
 	c.statusCmd.Flag("last", "Time window for audit event stats (SSM runs, joins).").Default("24h").StringVar(&c.statusLast)
-	c.statusCmd.Flag("ssm-limit", "Maximum SSM run events to fetch.").Default("1000").IntVar(&c.statusSSMLimit)
-	c.statusCmd.Flag("join-limit", "Maximum instance join events to fetch.").Default("1000").IntVar(&c.statusJoinLimit)
+	c.statusCmd.Flag("from-utc", "Start of time range in UTC (format: 2006-01-02T15:04).").StringVar(&c.statusFromUTC)
+	c.statusCmd.Flag("to-utc", "End of time range in UTC (format: 2006-01-02T15:04).").StringVar(&c.statusToUTC)
+	c.statusCmd.Flag("ssm-limit", "Maximum SSM run events to fetch.").Default(strconv.Itoa(defaultFetchLimit)).IntVar(&c.statusSSMLimit)
+	c.statusCmd.Flag("join-limit", "Maximum instance join events to fetch.").Default(strconv.Itoa(defaultFetchLimit)).IntVar(&c.statusJoinLimit)
 	c.statusCmd.Flag("format", "Output format: text, json, or yaml.").Default(teleport.Text).EnumVar(&c.statusFormat, teleport.Text, teleport.JSON, teleport.YAML)
 
 	c.tasksCmd = c.discovery.Command("tasks", "Inspect Discovery user tasks.").Alias("task")
@@ -247,7 +263,7 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	c.ssmRunsListCmd.Flag("last", "Time window to analyze, e.g. 1h, 30m, 24h.").StringVar(&c.ssmRunsLast)
 	c.ssmRunsListCmd.Flag("from-utc", "Start of time range in UTC (format: 2006-01-02T15:04).").StringVar(&c.ssmRunsFromUTC)
 	c.ssmRunsListCmd.Flag("to-utc", "End of time range in UTC (format: 2006-01-02T15:04).").StringVar(&c.ssmRunsToUTC)
-	c.ssmRunsListCmd.Flag("limit", "Maximum SSM run events to fetch from audit log.").Default("1000").IntVar(&c.ssmRunsLimit)
+	c.ssmRunsListCmd.Flag("limit", "Maximum SSM run events to fetch from audit log.").Default(strconv.Itoa(defaultFetchLimit)).IntVar(&c.ssmRunsLimit)
 	c.ssmRunsListCmd.Flag("range", "Range of VMs to display as start,end (0-indexed, exclusive end).").Default("0,50").StringVar(&c.ssmRunsRange)
 	c.ssmRunsListCmd.Flag("show-all-runs", "Show full run history for each displayed VM.").BoolVar(&c.ssmRunsShowAll)
 	c.ssmRunsListCmd.Flag("cluster-errors", "Group similar SSM run errors into clusters using Drain+MinHash/LSH.").BoolVar(&c.ssmRunsClusterErrors)
@@ -258,7 +274,7 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	c.ssmRunsShowCmd.Flag("last", "Time window to analyze, e.g. 1h, 30m, 24h.").StringVar(&c.ssmRunsLast)
 	c.ssmRunsShowCmd.Flag("from-utc", "Start of time range in UTC (format: 2006-01-02T15:04).").StringVar(&c.ssmRunsFromUTC)
 	c.ssmRunsShowCmd.Flag("to-utc", "End of time range in UTC (format: 2006-01-02T15:04).").StringVar(&c.ssmRunsToUTC)
-	c.ssmRunsShowCmd.Flag("limit", "Maximum SSM run events to fetch from audit log.").Default("1000").IntVar(&c.ssmRunsLimit)
+	c.ssmRunsShowCmd.Flag("limit", "Maximum SSM run events to fetch from audit log.").Default(strconv.Itoa(defaultFetchLimit)).IntVar(&c.ssmRunsLimit)
 	c.ssmRunsShowCmd.Flag("show-all-runs", "Show full run history for the selected VM.").BoolVar(&c.ssmRunsShowAll)
 	c.ssmRunsShowCmd.Flag("format", "Output format: text, json, or yaml.").Default(teleport.Text).EnumVar(&c.ssmRunsFormat, teleport.Text, teleport.JSON, teleport.YAML)
 
@@ -275,7 +291,7 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	c.joinsListCmd.Flag("last", "Time window to analyze, e.g. 1h, 30m, 24h.").StringVar(&c.joinsLast)
 	c.joinsListCmd.Flag("from-utc", "Start of time range in UTC (format: 2006-01-02T15:04).").StringVar(&c.joinsFromUTC)
 	c.joinsListCmd.Flag("to-utc", "End of time range in UTC (format: 2006-01-02T15:04).").StringVar(&c.joinsToUTC)
-	c.joinsListCmd.Flag("limit", "Maximum join events to fetch from audit log.").Default("1000").IntVar(&c.joinsLimit)
+	c.joinsListCmd.Flag("limit", "Maximum join events to fetch from audit log.").Default(strconv.Itoa(defaultFetchLimit)).IntVar(&c.joinsLimit)
 	c.joinsListCmd.Flag("range", "Range of hosts to display as start,end (0-indexed, exclusive end).").Default("0,50").StringVar(&c.joinsRange)
 	c.joinsListCmd.Flag("show-all-joins", "Show full join history for each displayed host.").BoolVar(&c.joinsShowAll)
 	c.joinsListCmd.Flag("hide-unknown", "Hide hosts with unknown/empty host ID (failed joins before identification).").BoolVar(&c.joinsHideUnknown)
@@ -287,7 +303,7 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	c.joinsShowCmd.Flag("last", "Time window to analyze, e.g. 1h, 30m, 24h.").StringVar(&c.joinsLast)
 	c.joinsShowCmd.Flag("from-utc", "Start of time range in UTC (format: 2006-01-02T15:04).").StringVar(&c.joinsFromUTC)
 	c.joinsShowCmd.Flag("to-utc", "End of time range in UTC (format: 2006-01-02T15:04).").StringVar(&c.joinsToUTC)
-	c.joinsShowCmd.Flag("limit", "Maximum join events to fetch from audit log.").Default("1000").IntVar(&c.joinsLimit)
+	c.joinsShowCmd.Flag("limit", "Maximum join events to fetch from audit log.").Default(strconv.Itoa(defaultFetchLimit)).IntVar(&c.joinsLimit)
 	c.joinsShowCmd.Flag("show-all-joins", "Show full join history for the selected host.").BoolVar(&c.joinsShowAll)
 	c.joinsShowCmd.Flag("raw", "Dump raw audit events as JSON (for inspecting all available fields).").BoolVar(&c.joinsRaw)
 	c.joinsShowCmd.Flag("format", "Output format: text, json, or yaml.").Default(teleport.Text).EnumVar(&c.joinsFormat, teleport.Text, teleport.JSON, teleport.YAML)
@@ -297,7 +313,7 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	c.inventoryListCmd.Flag("last", "Time window for audit events, e.g. 1h, 30m, 24h.").Default("24h").StringVar(&c.inventoryLast)
 	c.inventoryListCmd.Flag("from-utc", "Start of time range in UTC (format: 2006-01-02T15:04).").StringVar(&c.inventoryFromUTC)
 	c.inventoryListCmd.Flag("to-utc", "End of time range in UTC (format: 2006-01-02T15:04).").StringVar(&c.inventoryToUTC)
-	c.inventoryListCmd.Flag("limit", "Maximum audit events to fetch per event type.").Default("1000").IntVar(&c.inventoryLimit)
+	c.inventoryListCmd.Flag("limit", "Maximum audit events to fetch per event type.").Default(strconv.Itoa(defaultFetchLimit)).IntVar(&c.inventoryLimit)
 	c.inventoryListCmd.Flag("range", "Range of hosts to display as start,end (0-indexed, exclusive end).").Default("0,50").StringVar(&c.inventoryRange)
 	c.inventoryListCmd.Flag("state", "Filter by state: online, offline, failed, attempted.").StringVar(&c.inventoryStateFilter)
 	c.inventoryListCmd.Flag("method", "Filter by join method: ec2, iam, azure, token, etc.").StringVar(&c.inventoryMethodFilter)
@@ -308,13 +324,15 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	c.inventoryShowCmd.Flag("last", "Time window for audit events, e.g. 1h, 30m, 24h.").Default("24h").StringVar(&c.inventoryLast)
 	c.inventoryShowCmd.Flag("from-utc", "Start of time range in UTC (format: 2006-01-02T15:04).").StringVar(&c.inventoryFromUTC)
 	c.inventoryShowCmd.Flag("to-utc", "End of time range in UTC (format: 2006-01-02T15:04).").StringVar(&c.inventoryToUTC)
-	c.inventoryShowCmd.Flag("limit", "Maximum audit events to fetch per event type.").Default("1000").IntVar(&c.inventoryLimit)
+	c.inventoryShowCmd.Flag("limit", "Maximum audit events to fetch per event type.").Default(strconv.Itoa(defaultFetchLimit)).IntVar(&c.inventoryLimit)
 	c.inventoryShowCmd.Flag("show-all-events", "Show full event timeline for the selected host.").BoolVar(&c.inventoryShowAll)
 	c.inventoryShowCmd.Flag("format", "Output format: text, json, or yaml.").Default(teleport.Text).EnumVar(&c.inventoryFormat, teleport.Text, teleport.JSON, teleport.YAML)
 
 	c.cacheCmd = c.discovery.Command("cache", "Manage the local audit event cache.").Hidden()
 	c.cacheLoadCmd = c.cacheCmd.Command("load", "Pre-fetch all audit events into the local cache.")
 	c.cacheLoadCmd.Flag("last", "Time window to cache, e.g. 1h, 24h, 7d.").Default("24h").StringVar(&c.cacheLoadLast)
+	c.cacheLoadCmd.Flag("from-utc", "Start of time range in UTC (format: 2006-01-02T15:04).").StringVar(&c.cacheLoadFromUTC)
+	c.cacheLoadCmd.Flag("to-utc", "End of time range in UTC (format: 2006-01-02T15:04).").StringVar(&c.cacheLoadToUTC)
 	c.cacheStatusCmd = c.cacheCmd.Command("status", "Show cache file inventory.")
 	c.cachePruneCmd = c.cacheCmd.Command("prune", "Delete all cached audit events.")
 }
@@ -401,7 +419,7 @@ func (c *Command) runStatus(ctx context.Context, client *authclient.Client) erro
 	summary := makeStatusSummary(tasks, discoveryConfigs, integrations, c.statusIntegration)
 
 	slog.DebugContext(ctx, "Fetching SSM run events", "window", c.statusLast, "limit", c.statusSSMLimit)
-	ssmStats, err := fetchSSMRunStats(ctx, client, c.cache, c.statusLast, c.statusSSMLimit)
+	ssmStats, err := fetchSSMRunStats(ctx, client, c.cache, c.statusLast, c.statusFromUTC, c.statusToUTC, c.statusSSMLimit)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -409,7 +427,7 @@ func (c *Command) runStatus(ctx context.Context, client *authclient.Client) erro
 	summary.SSMRunStats = ssmStats
 
 	slog.DebugContext(ctx, "Fetching instance join events", "window", c.statusLast, "limit", c.statusJoinLimit)
-	joinStats, err := fetchJoinStats(ctx, client, c.cache, c.statusLast, c.statusJoinLimit)
+	joinStats, err := fetchJoinStats(ctx, client, c.cache, c.statusLast, c.statusFromUTC, c.statusToUTC, c.statusJoinLimit)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -422,8 +440,8 @@ func (c *Command) runStatus(ctx context.Context, client *authclient.Client) erro
 	}))
 }
 
-func fetchAuditEventStats(ctx context.Context, client *authclient.Client, cache *eventCache, last string, eventType string, limit int) ([]apievents.AuditEvent, bool, error) {
-	from, to, err := resolveTimeRangeFromFlags(last, "", "")
+func fetchAuditEventStats(ctx context.Context, client *authclient.Client, cache *eventCache, last, fromUTC, toUTC string, eventType string, limit int) ([]apievents.AuditEvent, bool, error) {
+	from, to, err := resolveTimeRangeFromFlags(last, fromUTC, toUTC)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	}
@@ -441,16 +459,16 @@ func fetchAuditEventStats(ctx context.Context, client *authclient.Client, cache 
 	return result.Events, result.LimitReached, nil
 }
 
-func fetchSSMRunStats(ctx context.Context, client *authclient.Client, cache *eventCache, last string, limit int) (*auditEventStats, error) {
-	events, limitReached, err := fetchAuditEventStats(ctx, client, cache, last, libevents.SSMRunEvent, limit)
+func fetchSSMRunStats(ctx context.Context, client *authclient.Client, cache *eventCache, last, fromUTC, toUTC string, limit int) (*auditEventStats, error) {
+	events, limitReached, err := fetchAuditEventStats(ctx, client, cache, last, fromUTC, toUTC, libevents.SSMRunEvent, limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	records := parseSSMRunEvents(events, ssmRunEventFilters{})
 	analysis := analyzeSSMRuns(records)
-	from, to, _ := resolveTimeRangeFromFlags(last, "", "")
+	from, to, _ := resolveTimeRangeFromFlags(last, fromUTC, toUTC)
 	stats := &auditEventStats{
-		Window:        timeRangeDescriptionFromFlags(last, "", ""),
+		Window:        timeRangeDescriptionFromFlags(last, fromUTC, toUTC),
 		From:          from,
 		To:            to,
 		Total:         analysis.Total,
@@ -472,16 +490,16 @@ func fetchSSMRunStats(ctx context.Context, client *authclient.Client, cache *eve
 	return stats, nil
 }
 
-func fetchJoinStats(ctx context.Context, client *authclient.Client, cache *eventCache, last string, limit int) (*auditEventStats, error) {
-	events, limitReached, err := fetchAuditEventStats(ctx, client, cache, last, libevents.InstanceJoinEvent, limit)
+func fetchJoinStats(ctx context.Context, client *authclient.Client, cache *eventCache, last, fromUTC, toUTC string, limit int) (*auditEventStats, error) {
+	events, limitReached, err := fetchAuditEventStats(ctx, client, cache, last, fromUTC, toUTC, libevents.InstanceJoinEvent, limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	records := parseInstanceJoinEvents(events, joinEventFilters{})
 	analysis := analyzeInstanceJoins(records)
-	from, to, _ := resolveTimeRangeFromFlags(last, "", "")
+	from, to, _ := resolveTimeRangeFromFlags(last, fromUTC, toUTC)
 	stats := &auditEventStats{
-		Window:        timeRangeDescriptionFromFlags(last, "", ""),
+		Window:        timeRangeDescriptionFromFlags(last, fromUTC, toUTC),
 		From:          from,
 		To:            to,
 		Total:         analysis.Total,
@@ -647,6 +665,27 @@ func (c *Command) runSSMRunsShow(ctx context.Context, client *authclient.Client)
 
 const timeRangeFormat = "2006-01-02T15:04"
 
+// parseDurationWithDays extends time.ParseDuration to support "d" (days) suffix.
+// Examples: "7d", "2d12h", "30m".
+func parseDurationWithDays(s string) (time.Duration, error) {
+	s = strings.TrimSpace(s)
+	// Check for a "d" component and expand it to hours.
+	if i := strings.Index(s, "d"); i > 0 {
+		dayPart := s[:i]
+		rest := s[i+1:]
+		days, err := strconv.Atoi(dayPart)
+		if err != nil {
+			return 0, fmt.Errorf("invalid day count %q", dayPart)
+		}
+		expanded := fmt.Sprintf("%dh", days*24)
+		if rest != "" {
+			expanded += rest
+		}
+		return time.ParseDuration(expanded)
+	}
+	return time.ParseDuration(s)
+}
+
 func resolveTimeRangeFromFlags(last, fromUTC, toUTC string) (from, to time.Time, err error) {
 	hasLast := strings.TrimSpace(last) != ""
 	hasFrom := strings.TrimSpace(fromUTC) != ""
@@ -679,9 +718,9 @@ func resolveTimeRangeFromFlags(last, fromUTC, toUTC string) (from, to time.Time,
 	}
 
 	if hasLast {
-		d, err := time.ParseDuration(last)
+		d, err := parseDurationWithDays(last)
 		if err != nil || d <= 0 {
-			return time.Time{}, time.Time{}, trace.BadParameter("invalid --last value %q, expected duration like 1h or 30m", last)
+			return time.Time{}, time.Time{}, trace.BadParameter("invalid --last value %q, expected duration like 1h, 30m, or 7d", last)
 		}
 		return now.Add(-d), now, nil
 	}
@@ -709,11 +748,12 @@ func timeRangeDescriptionFromFlags(last, fromUTC, toUTC string) string {
 }
 
 type fetchMeta struct {
-	FetchLimit   int
-	LimitReached bool
-	CacheHits    int
-	CacheMisses  int
-	CacheFiles   int
+	FetchLimit     int
+	LimitReached   bool
+	SuggestedLimit int
+	CacheHits      int
+	CacheMisses    int
+	CacheFiles     int
 }
 
 func (c *Command) fetchSSMRunData(ctx context.Context, client *authclient.Client, instanceIDFilter string) (ssmRunAnalysis, []ssmVMGroup, fetchMeta, error) {
@@ -744,6 +784,11 @@ func (c *Command) fetchSSMRunData(ctx context.Context, client *authclient.Client
 		InstanceID: instanceIDFilter,
 	})
 	slog.DebugContext(ctx, "Parsed SSM run events", "records", len(records), "elapsed", time.Since(parseStart).Round(time.Millisecond))
+	if meta.LimitReached && len(records) > 0 {
+		now := time.Now().UTC()
+		oldest := records[len(records)-1].parsedEventTime
+		meta.SuggestedLimit = estimateRequiredLimit(len(records), oldest, now, from)
+	}
 	analysis := analyzeSSMRuns(records)
 	vmGroups := groupSSMRunsByVM(records)
 	return analysis, vmGroups, meta, nil
@@ -752,11 +797,12 @@ func (c *Command) fetchSSMRunData(ctx context.Context, client *authclient.Client
 func (c *Command) buildSSMRunsOutput(analysis ssmRunAnalysis, vmGroups, allFailingVMGroups, displayedVMGroups []ssmVMGroup, vmPage pageInfo, meta fetchMeta) ssmRunsOutput {
 	from, to, _ := resolveTimeRangeFromFlags(c.ssmRunsLast, c.ssmRunsFromUTC, c.ssmRunsToUTC)
 	return ssmRunsOutput{
-		Window:       timeRangeDescriptionFromFlags(c.ssmRunsLast, c.ssmRunsFromUTC, c.ssmRunsToUTC),
-		From:         from,
-		To:           to,
-		FetchLimit:   meta.FetchLimit,
-		LimitReached: meta.LimitReached,
+		Window:         timeRangeDescriptionFromFlags(c.ssmRunsLast, c.ssmRunsFromUTC, c.ssmRunsToUTC),
+		From:           from,
+		To:             to,
+		FetchLimit:     meta.FetchLimit,
+		LimitReached:   meta.LimitReached,
+		SuggestedLimit: meta.SuggestedLimit,
 		CacheSummary: c.cache.cacheSummary(),
 		TotalRuns:    analysis.Total,
 		SuccessRuns:  analysis.Success,
@@ -935,6 +981,11 @@ func (c *Command) fetchJoinData(ctx context.Context, client *authclient.Client, 
 	records := parseInstanceJoinEvents(result.Events, joinEventFilters{
 		HostID: hostIDFilter,
 	})
+	if meta.LimitReached && len(records) > 0 {
+		now := time.Now().UTC()
+		oldest := records[len(records)-1].parsedEventTime
+		meta.SuggestedLimit = estimateRequiredLimit(len(records), oldest, now, from)
+	}
 	analysis := analyzeInstanceJoins(records)
 	hostGroups := groupJoinsByHost(records)
 	return analysis, hostGroups, meta, nil
@@ -943,11 +994,12 @@ func (c *Command) fetchJoinData(ctx context.Context, client *authclient.Client, 
 func (c *Command) buildJoinsOutput(analysis joinAnalysis, hostGroups, allFailingGroups, displayedGroups []joinGroup, hostPage pageInfo, meta fetchMeta) joinsOutput {
 	from, to, _ := resolveTimeRangeFromFlags(c.joinsLast, c.joinsFromUTC, c.joinsToUTC)
 	return joinsOutput{
-		Window:       timeRangeDescriptionFromFlags(c.joinsLast, c.joinsFromUTC, c.joinsToUTC),
-		From:         from,
-		To:           to,
-		FetchLimit:   meta.FetchLimit,
-		LimitReached: meta.LimitReached,
+		Window:         timeRangeDescriptionFromFlags(c.joinsLast, c.joinsFromUTC, c.joinsToUTC),
+		From:           from,
+		To:             to,
+		FetchLimit:     meta.FetchLimit,
+		LimitReached:   meta.LimitReached,
+		SuggestedLimit: meta.SuggestedLimit,
 		CacheSummary: c.cache.cacheSummary(),
 		TotalJoins:   analysis.Total,
 		SuccessJoins: analysis.Success,
@@ -971,7 +1023,7 @@ func (c *Command) runInventoryList(ctx context.Context, clt *authclient.Client) 
 		return trace.Wrap(err)
 	}
 
-	allHosts, err := c.fetchInventoryData(ctx, clt, "")
+	allHosts, meta, err := c.fetchInventoryData(ctx, clt, "")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -979,7 +1031,7 @@ func (c *Command) runInventoryList(ctx context.Context, clt *authclient.Client) 
 	filteredHosts := filterInventoryHosts(allHosts, c.inventoryStateFilter, c.inventoryMethodFilter)
 	displayedHosts, hostPage := paginateSlice(filteredHosts, start, end)
 
-	output := c.buildInventoryOutput(allHosts, displayedHosts, hostPage)
+	output := c.buildInventoryOutput(allHosts, displayedHosts, hostPage, meta)
 	baseCommand := buildInventoryCommand(c, "ls", "")
 	return trace.Wrap(c.writeInventoryOutput(output, "", baseCommand))
 }
@@ -987,7 +1039,7 @@ func (c *Command) runInventoryList(ctx context.Context, clt *authclient.Client) 
 func (c *Command) runInventoryShow(ctx context.Context, clt *authclient.Client) error {
 	hostID := c.inventoryShowHostID
 
-	allHosts, err := c.fetchInventoryData(ctx, clt, hostID)
+	allHosts, meta, err := c.fetchInventoryData(ctx, clt, hostID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1001,15 +1053,15 @@ func (c *Command) runInventoryShow(ctx context.Context, clt *authclient.Client) 
 	}
 	hostPage := fullPageInfo(len(showHosts))
 
-	output := c.buildInventoryOutput(allHosts, showHosts, hostPage)
+	output := c.buildInventoryOutput(allHosts, showHosts, hostPage, meta)
 	baseCommand := buildInventoryCommand(c, "show", hostID)
 	return trace.Wrap(c.writeInventoryOutput(output, hostID, baseCommand))
 }
 
-func (c *Command) fetchInventoryData(ctx context.Context, clt *authclient.Client, hostIDFilter string) ([]inventoryHost, error) {
+func (c *Command) fetchInventoryData(ctx context.Context, clt *authclient.Client, hostIDFilter string) ([]inventoryHost, fetchMeta, error) {
 	from, to, err := resolveTimeRangeFromFlags(c.inventoryLast, c.inventoryFromUTC, c.inventoryToUTC)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, fetchMeta{}, trace.Wrap(err)
 	}
 	fetchLimit := c.inventoryLimit
 	if fetchLimit <= 0 {
@@ -1022,30 +1074,57 @@ func (c *Command) fetchInventoryData(ctx context.Context, clt *authclient.Client
 		Namespace:    apidefaults.Namespace,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, fetchMeta{}, trace.Wrap(err)
 	}
 
-	ssmEvents, err := fetchAuditEventsInRange(ctx, clt, c.cache, from, to, libevents.SSMRunEvent, fetchLimit)
+	ssmResult, err := fetchAuditEventsInRange(ctx, clt, c.cache, from, to, libevents.SSMRunEvent, fetchLimit)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, fetchMeta{}, trace.Wrap(err)
 	}
-	ssmRecords := parseSSMRunEvents(ssmEvents, ssmRunEventFilters{InstanceID: hostIDFilter})
+	ssmRecords := parseSSMRunEvents(ssmResult.Events, ssmRunEventFilters{InstanceID: hostIDFilter})
 
-	joinEvents, err := fetchAuditEventsInRange(ctx, clt, c.cache, from, to, libevents.InstanceJoinEvent, fetchLimit)
+	joinResult, err := fetchAuditEventsInRange(ctx, clt, c.cache, from, to, libevents.InstanceJoinEvent, fetchLimit)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, fetchMeta{}, trace.Wrap(err)
 	}
-	joinRecords := parseInstanceJoinEvents(joinEvents, joinEventFilters{HostID: hostIDFilter})
+	joinRecords := parseInstanceJoinEvents(joinResult.Events, joinEventFilters{HostID: hostIDFilter})
 
-	return buildInventoryHosts(nodes, ssmRecords, joinRecords), nil
+	meta := fetchMeta{
+		FetchLimit:   fetchLimit,
+		LimitReached: ssmResult.LimitReached || joinResult.LimitReached,
+		CacheHits:    ssmResult.CacheHits + joinResult.CacheHits,
+		CacheMisses:  ssmResult.CacheMisses + joinResult.CacheMisses,
+		CacheFiles:   ssmResult.CacheFiles + joinResult.CacheFiles,
+	}
+
+	if meta.LimitReached {
+		// Use the worst case: whichever event type needs the larger limit.
+		now := time.Now().UTC()
+		var suggested int
+		if ssmResult.LimitReached && len(ssmResult.Events) > 0 {
+			oldest := ssmResult.Events[len(ssmResult.Events)-1].GetTime()
+			if s := estimateRequiredLimit(len(ssmResult.Events), oldest, now, from); s > suggested {
+				suggested = s
+			}
+		}
+		if joinResult.LimitReached && len(joinResult.Events) > 0 {
+			oldest := joinResult.Events[len(joinResult.Events)-1].GetTime()
+			if s := estimateRequiredLimit(len(joinResult.Events), oldest, now, from); s > suggested {
+				suggested = s
+			}
+		}
+		meta.SuggestedLimit = suggested
+	}
+
+	return buildInventoryHosts(nodes, ssmRecords, joinRecords), meta, nil
 }
 
-func fetchAuditEventsInRange(ctx context.Context, clt *authclient.Client, cache *eventCache, from, to time.Time, eventType string, limit int) ([]apievents.AuditEvent, error) {
+func fetchAuditEventsInRange(ctx context.Context, clt *authclient.Client, cache *eventCache, from, to time.Time, eventType string, limit int) (cachedSearchResult, error) {
 	result, err := cache.cachedSearchEvents(ctx, clt.SearchEvents, from, to, eventType, limit)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return cachedSearchResult{}, trace.Wrap(err)
 	}
-	return result.Events, nil
+	return result, nil
 }
 
 func filterInventoryHosts(hosts []inventoryHost, stateFilter, methodFilter string) []inventoryHost {
@@ -1083,7 +1162,7 @@ func matchesStateFilter(state inventoryHostState, filter string) bool {
 	}
 }
 
-func (c *Command) buildInventoryOutput(allHosts, displayedHosts []inventoryHost, hostPage pageInfo) inventoryOutput {
+func (c *Command) buildInventoryOutput(allHosts, displayedHosts []inventoryHost, hostPage pageInfo, meta fetchMeta) inventoryOutput {
 	var online, offline, failed int
 	for _, h := range allHosts {
 		switch h.State {
@@ -1104,8 +1183,11 @@ func (c *Command) buildInventoryOutput(allHosts, displayedHosts []inventoryHost,
 		TotalHosts:     len(allHosts),
 		OnlineHosts:    online,
 		OfflineHosts:   offline,
-		FailedHosts:  failed,
-		HostPage:     hostPage,
+		FailedHosts:    failed,
+		FetchLimit:     meta.FetchLimit,
+		LimitReached:   meta.LimitReached,
+		SuggestedLimit: meta.SuggestedLimit,
+		HostPage:       hostPage,
 		Hosts:          displayedHosts,
 	}
 }
@@ -1130,6 +1212,9 @@ func buildInventoryCommand(c *Command, subCmd, hostID string) string {
 	if c.inventoryToUTC != "" {
 		cmd = append(cmd, fmt.Sprintf("--to-utc=%s", c.inventoryToUTC))
 	}
+	if c.inventoryLimit != 0 && c.inventoryLimit != defaultFetchLimit {
+		cmd = append(cmd, fmt.Sprintf("--limit=%d", c.inventoryLimit))
+	}
 	if c.inventoryShowAll {
 		cmd = append(cmd, "--show-all-events")
 	}
@@ -1152,14 +1237,14 @@ func (c *Command) runCacheLoad(ctx context.Context, client *authclient.Client) e
 		return trace.BadParameter("cache not initialized (could not resolve cluster name)")
 	}
 
-	from, to, err := resolveTimeRangeFromFlags(c.cacheLoadLast, "", "")
+	from, to, err := resolveTimeRangeFromFlags(c.cacheLoadLast, c.cacheLoadFromUTC, c.cacheLoadToUTC)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	w := c.output()
 	for _, eventType := range []string{libevents.SSMRunEvent, libevents.InstanceJoinEvent} {
-		fmt.Fprintf(w, "Loading %s events for %s ...\n", eventType, timeRangeDescriptionFromFlags(c.cacheLoadLast, "", ""))
+		fmt.Fprintf(w, "Loading %s events for %s ...\n", eventType, timeRangeDescriptionFromFlags(c.cacheLoadLast, c.cacheLoadFromUTC, c.cacheLoadToUTC))
 		result, err := c.cache.cachedSearchEvents(ctx, client.SearchEvents, from, to, eventType, 0)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1202,8 +1287,6 @@ func (c *Command) runCacheStatus(_ context.Context, _ *authclient.Client) error 
 			fmt.Fprintln(w)
 		}
 		h := f.Header
-		firstPrefix := style.info(fmt.Sprintf("[%d]", i+1)) + " "
-		continuation := strings.Repeat(" ", len(fmt.Sprintf("[%d] ", i+1)))
 		details := []keyValue{
 			{Key: "EVENT TYPE", Value: style.section(h.EventType)},
 			{Key: "FROM", Value: h.From.Format(cacheTimeFormat)},
@@ -1212,7 +1295,7 @@ func (c *Command) runCacheStatus(_ context.Context, _ *authclient.Client) error 
 			{Key: "FETCHED", Value: fmt.Sprintf("%s (%s)", h.FetchedAt.Format(time.RFC3339), formatRelativeTime(h.FetchedAt, now))},
 			{Key: "FILE", Value: filepath.Base(f.Path)},
 		}
-		if err := renderAlignedKeyValuesWithPrefix(w, firstPrefix, continuation, details); err != nil {
+		if err := style.numberedBlock(w, i, details); err != nil {
 			return trace.Wrap(err)
 		}
 	}
