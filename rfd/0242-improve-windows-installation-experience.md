@@ -158,18 +158,36 @@ For most users, it is sufficient to disable updates entirely by setting the valu
       binary itself.
     - Flow:
         - `tsh.exe connect-updater-install-update --path= --update-version=` starts the update service and waits for it.
-        - The service opens a named pipe `\\.\pipe\TeleportConnectUpdaterPipe` and accepts only a single connection
-          from an authenticated user (enforced through DACL). Any other client must wait until the current service
-          invocation exits.
+        - The service starts, opens a named pipe `\\.\pipe\TeleportConnectUpdaterPipe` and accepts only a single
+          connection from an authenticated user. Any other client must wait until the current service invocation exits.
+            - The pipe will be created with the following security descriptor (pseudocode):
+              ```         
+              "D:" + // DACL
+              "(A;;GA;;;SY)" + // Allow (A);; Generic All (GA);;; SYSTEM (SY)
+              "(A;;GA;;;BA)" + // Allow (A);; Generic All (GA);;; Built-in Admins (BA)
+              "(A;;GENERIC_READ|FILE_WRITE_DATA;;;AU)" // Allow (A);;GENERIC_READ | FILE_WRITE_DATA ;;;Authenticated Users (AU)
+              ```
+            - Note granting `GENERIC_READ | FILE_WRITE_DATA` (not GENERIC_WRITE) so authenticated users can read/write
+              pipe data
+              but [cannot create pipe instances](https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-security-and-access-rights).
+            - Internally, `winio.ListenPipe` calls `NtCreateNamedPipeFile` with `FILE_CREATE` flag, which ensures the
+              call succeeds only if the pipe name does not already exist, preventing pipe-name squatting.
         - The user process sends metadata (version and size) as JSON and then streams the update binary over the pipe.
     - The service will start with some restrictions: max 30s lifetime, and 1 GB size limit for data transferred over the
       pipe.
 
 4. Staging the update file.
     - Ensure `%ProgramData%\TeleportConnectUpdater` directory exists.
-        - First try to create a directory with correct ACLs, granting write access only to SYSTEM and Administrators.
+        - First try to create a directory with the following security descriptor, granting access only to SYSTEM and
+          Administrators (pseudocode):
+          ```  
+          "O:SY" + // Owner SYSTEM
+          "D:P" + // 'P' blocks permissions inheritance from the parent directory
+          "(A;OICI;GA;;;SY)" + // Allow System Full Access
+          "(A;OICI;GA;;;BA)" // Allow Built-in Administrators Full Access
+           ```
         - If `ERROR_ALREADY_EXISTS` error is returned, open a file handle and verify it's a directory (and not a reparse
-          point). Reapply the expected ACLs to ensure no unauthorized permissions persist.
+          point). Reapply the security descriptor to ensure no unauthorized permissions persist.
         - Attempt to delete all existing contents (files and subdirectories) to prevent excessive disk usage.
         - Directory cleanup will be implemented using `os.RemoveAll`; its behavior has been checked to ensure it does
           not traverse reparse points and therefore does not delete data outside the target directory.
