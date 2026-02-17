@@ -82,11 +82,8 @@ async function setupTest({
 }
 
 beforeEach(() => {
-  server.use(getThumbnail(MOCK_THUMBNAIL));
-});
-
-afterEach(() => {
   testQueryClient.clear();
+  server.use(getThumbnail(MOCK_THUMBNAIL));
 });
 
 test('renders recording item with basic information', async () => {

@@ -49,8 +49,11 @@ jest.mock('teleport/lib/AuthenticatedWebSocket', () => ({
 
 enableMswServer();
 
-afterEach(() => {
+beforeEach(() => {
   testQueryClient.clear();
+});
+
+afterEach(() => {
   jest.clearAllMocks();
 });
 

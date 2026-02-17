@@ -47,6 +47,8 @@ import { Density, ViewMode } from './ViewSwitcher';
 enableMswServer();
 
 beforeEach(() => {
+  testQueryClient.clear();
+
   server.use(
     getThumbnail(MOCK_THUMBNAIL),
     http.get(cfg.api.clustersPath, () => {
@@ -62,9 +64,6 @@ beforeEach(() => {
       ]);
     })
   );
-});
-afterEach(() => {
-  testQueryClient.clear();
 });
 
 const defaultState: RecordingsListState = {
