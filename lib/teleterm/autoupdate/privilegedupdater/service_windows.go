@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package autoupdate
+package privilegedupdater
 
 import (
 	"bytes"
@@ -42,6 +42,7 @@ import (
 	"golang.org/x/sys/windows/registry"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/teleterm/autoupdate/common"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/windowsservice"
 )
@@ -68,9 +69,9 @@ const (
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, "autoupdate")
 
-// PrivilegedServiceTestConfig allows overriding certain updater config properties.
+// ServiceTestConfig allows overriding certain updater config properties.
 // For test use only.
-type PrivilegedServiceTestConfig struct {
+type ServiceTestConfig struct {
 	// UpdateDirSecurityDescriptor overrides updateDirSecurityDescriptor.
 	UpdateDirSecurityDescriptor string
 	// UpdateBaseDir overrides the default %ProgramData%\TeleportConnectUpdater update path.
@@ -81,9 +82,9 @@ type PrivilegedServiceTestConfig struct {
 	PolicyCDNBaseURL string
 }
 
-// InstallPrivilegedService installs Teleport Connect privileged update service.
+// InstallService installs Teleport Connect privileged update service.
 // The service allows installing updates with asking for admin permissions.
-func InstallPrivilegedService(ctx context.Context) (err error) {
+func InstallService(ctx context.Context) (err error) {
 	return trace.Wrap(windowsservice.Install(ctx, &windowsservice.InstallConfig{
 		Name:              serviceName,
 		Command:           ServiceCommand,
@@ -93,19 +94,19 @@ func InstallPrivilegedService(ctx context.Context) (err error) {
 	}))
 }
 
-// UninstallPrivilegedService uninstalls Teleport Connect privileged update service.
-func UninstallPrivilegedService(ctx context.Context) (err error) {
+// UninstallService uninstalls Teleport Connect privileged update service.
+func UninstallService(ctx context.Context) (err error) {
 	return trace.Wrap(windowsservice.Uninstall(ctx, &windowsservice.UninstallConfig{
 		Name:            serviceName,
 		EventSourceName: eventSource,
 	}))
 }
 
-// PrivilegedServiceMain implements Teleport Connect privileged update service.
+// RunService implements Teleport Connect privileged update service.
 // The service allows installing updates with asking for admin permissions.
-func PrivilegedServiceMain() error {
+func RunService() error {
 	h := &handler{
-		testCfg: &PrivilegedServiceTestConfig{},
+		testCfg: &ServiceTestConfig{},
 	}
 
 	closeLogger, err := windowsservice.InitSlogEventLogger(eventSource)
@@ -121,10 +122,10 @@ func PrivilegedServiceMain() error {
 	return trace.NewAggregate(err, closeLogger())
 }
 
-// PrivilegedServiceMainTest implements Teleport Connect privileged update service.
+// RunServiceTest implements Teleport Connect privileged update service.
 // It runs the service implementation directly.
 // For test use only.
-func PrivilegedServiceMainTest(ctx context.Context, cfg *PrivilegedServiceTestConfig) error {
+func RunServiceTest(ctx context.Context, cfg *ServiceTestConfig) error {
 	h := &handler{
 		testCfg: cfg,
 	}
@@ -132,7 +133,7 @@ func PrivilegedServiceMainTest(ctx context.Context, cfg *PrivilegedServiceTestCo
 }
 
 type handler struct {
-	testCfg *PrivilegedServiceTestConfig
+	testCfg *ServiceTestConfig
 }
 
 func (h *handler) Execute(ctx context.Context, _ []string) (err error) {
@@ -163,8 +164,8 @@ func (h *handler) Execute(ctx context.Context, _ []string) (err error) {
 		return trace.Wrap(err)
 	}
 
-	if updaterConfig.version != "" && updateMeta.Version != updaterConfig.version {
-		return trace.BadParameter("update version %s does not match policy version %s", updateMeta.Version, updaterConfig.version)
+	if updaterConfig.Version != "" && updateMeta.Version != updaterConfig.Version {
+		return trace.BadParameter("update version %s does not match policy version %s", updateMeta.Version, updaterConfig.Version)
 	}
 
 	if err = ensureIsUpgrade(updateMeta.Version); err != nil {
@@ -173,7 +174,7 @@ func (h *handler) Execute(ctx context.Context, _ []string) (err error) {
 
 	// TODO(gzdunek): Add signature verification.
 
-	hash, err := downloadChecksum(ctx, updaterConfig.cdnBaseURL, updateMeta.Version)
+	hash, err := downloadChecksum(ctx, updaterConfig.CDNBaseURL, updateMeta.Version)
 	if err != nil {
 		return trace.Wrap(err, "downloading update checksum")
 	}
@@ -186,34 +187,34 @@ func (h *handler) Execute(ctx context.Context, _ []string) (err error) {
 }
 
 // getUpdaterConfig reads the per-machine config.
-func (h *handler) getUpdaterConfig() (*policyValue, error) {
-	policyValues, err := readRegistryPolicyValues(registry.LOCAL_MACHINE)
+func (h *handler) getUpdaterConfig() (*common.PolicyValues, error) {
+	policyValues, err := common.ReadRegistryPolicyValues(registry.LOCAL_MACHINE)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	versionFromPolicy := policyValues.version
+	versionFromPolicy := policyValues.Version
 	if h.testCfg.PolicyToolsVersion != "" {
 		versionFromPolicy = h.testCfg.PolicyToolsVersion
 	}
-	if versionFromPolicy == teleportToolsVersionOff {
+	if versionFromPolicy == common.TeleportToolsVersionOff {
 		return nil, trace.BadParameter(`ToolsVersion in HKLM\SOFTWARE\Policies\Teleport\TeleportConnect is "off", the update will not be installed`)
 	}
 
-	cdnBaseURL := policyValues.cdnBaseURL
+	cdnBaseURL := policyValues.CDNBaseURL
 	if h.testCfg.PolicyCDNBaseURL != "" {
 		cdnBaseURL = h.testCfg.PolicyCDNBaseURL
 	}
 	if cdnBaseURL == "" {
-		cdnBaseURL = getDefaultBaseURL()
+		cdnBaseURL = common.GetDefaultBaseURL()
 	}
 	if cdnBaseURL == "" {
 		return nil, trace.BadParameter("client tools updates are disabled as they are licensed under AGPL. To use Community Edition builds or custom binaries, set CdnBaseUrl in HKLM\\SOFTWARE\\Policies\\Teleport\\TeleportConnect")
 	}
 
-	return &policyValue{
-		cdnBaseURL: cdnBaseURL,
-		version:    versionFromPolicy,
+	return &common.PolicyValues{
+		CDNBaseURL: cdnBaseURL,
+		Version:    versionFromPolicy,
 	}, nil
 }
 
@@ -224,7 +225,7 @@ type acceptResult struct {
 
 // waitForSingleClient waits for the first client and then closes the listener.
 func waitForSingleClient(ctx context.Context) (net.Conn, error) {
-	l, err := winio.ListenPipe(UpdaterPipePath, &winio.PipeConfig{
+	l, err := winio.ListenPipe(PipePath, &winio.PipeConfig{
 		SecurityDescriptor: pipeSecurityDescriptor,
 	})
 	if err != nil {

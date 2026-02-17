@@ -42,7 +42,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/teleterm/autoupdate"
+	"github.com/gravitational/teleport/lib/teleterm/autoupdate/privilegedupdater"
 )
 
 func TestPrivilegedUpdateServiceSuccess(t *testing.T) {
@@ -126,7 +126,7 @@ func TestPrivilegedUpdateServiceRejectsMalformedMetadata(t *testing.T) {
 
 	serviceErr := make(chan error, 1)
 	go func() {
-		serviceErr <- autoupdate.PrivilegedServiceMainTest(t.Context(), cfg)
+		serviceErr <- privilegedupdater.RunServiceTest(t.Context(), cfg)
 	}()
 
 	conn := dialUpdaterPipe(t, 5*time.Second)
@@ -232,7 +232,7 @@ func TestPrivilegedUpdateServiceCorrectsUpdateBaseDirACL(t *testing.T) {
 func TestPrivilegedUpdateServiceAllowOnlyOneClientConnection(t *testing.T) {
 	serviceErr := make(chan error, 1)
 	go func() {
-		serviceErr <- autoupdate.PrivilegedServiceMainTest(t.Context(), &autoupdate.PrivilegedServiceTestConfig{})
+		serviceErr <- privilegedupdater.RunServiceTest(t.Context(), &privilegedupdater.ServiceTestConfig{})
 	}()
 
 	// First client connects and keeps the pipe open. This blocks the service in readUpdate.
@@ -241,7 +241,7 @@ func TestPrivilegedUpdateServiceAllowOnlyOneClientConnection(t *testing.T) {
 	// Second client should fail because waitForSingleClient closes the listener after first accept.
 	clientCtx2, cancel2 := context.WithTimeout(t.Context(), 2*time.Second)
 	t.Cleanup(cancel2)
-	secondConn, err := winio.DialPipeContext(clientCtx2, autoupdate.UpdaterPipePath)
+	secondConn, err := winio.DialPipeContext(clientCtx2, privilegedupdater.PipePath)
 	if secondConn != nil {
 		_ = secondConn.Close()
 	}
@@ -260,7 +260,7 @@ func TestPrivilegedUpdateServiceAllowOnlyOneClientConnection(t *testing.T) {
 }
 
 type serviceConfig struct {
-	autoupdate.PrivilegedServiceTestConfig
+	privilegedupdater.ServiceTestConfig
 	checksumServerResponseWriter func(http.ResponseWriter)
 }
 
@@ -295,7 +295,7 @@ func runPrivilegedUpdaterFlow(t *testing.T, update update, opts ...privilegedSer
 
 	defaultCfg := getDefaultConfig(t)
 	cfg := &serviceConfig{
-		PrivilegedServiceTestConfig: autoupdate.PrivilegedServiceTestConfig{
+		ServiceTestConfig: privilegedupdater.ServiceTestConfig{
 			UpdateDirSecurityDescriptor: defaultCfg.UpdateDirSecurityDescriptor,
 			UpdateBaseDir:               defaultCfg.UpdateBaseDir,
 		},
@@ -326,7 +326,7 @@ func runPrivilegedUpdaterFlow(t *testing.T, update update, opts ...privilegedSer
 	serviceErr := make(chan error, 1)
 	installUpdateFromClientErr := make(chan error, 1)
 	go func() {
-		err := autoupdate.PrivilegedServiceMainTest(t.Context(), &autoupdate.PrivilegedServiceTestConfig{
+		err := privilegedupdater.RunServiceTest(t.Context(), &privilegedupdater.ServiceTestConfig{
 			UpdateDirSecurityDescriptor: cfg.UpdateDirSecurityDescriptor,
 			UpdateBaseDir:               cfg.UpdateBaseDir,
 			PolicyToolsVersion:          cfg.PolicyToolsVersion,
@@ -349,7 +349,7 @@ func runPrivilegedUpdaterFlow(t *testing.T, update update, opts ...privilegedSer
 		serviceErr <- err
 	}()
 	go func() {
-		installUpdateFromClientErr <- autoupdate.InstallUpdateFromClient(t.Context(), payloadPath, false, update.version)
+		installUpdateFromClientErr <- privilegedupdater.InstallUpdateFromClient(t.Context(), payloadPath, false, update.version)
 	}()
 
 	for i := 0; i < 2; i++ {
@@ -373,7 +373,7 @@ func dialUpdaterPipe(t *testing.T, timeout time.Duration) net.Conn {
 
 	var conn net.Conn
 	err := retryutils.RetryStaticFor(timeout, 25*time.Millisecond, func() error {
-		c, err := winio.DialPipeContext(t.Context(), autoupdate.UpdaterPipePath)
+		c, err := winio.DialPipeContext(t.Context(), privilegedupdater.PipePath)
 		if err != nil {
 			return err
 		}
@@ -385,7 +385,7 @@ func dialUpdaterPipe(t *testing.T, timeout time.Duration) net.Conn {
 }
 
 // getDefaultConfig returns a base dir and a security descriptor.
-func getDefaultConfig(t *testing.T) *autoupdate.PrivilegedServiceTestConfig {
+func getDefaultConfig(t *testing.T) *privilegedupdater.ServiceTestConfig {
 	t.Helper()
 
 	token := windows.GetCurrentProcessToken()
@@ -403,7 +403,7 @@ func getDefaultConfig(t *testing.T) *autoupdate.PrivilegedServiceTestConfig {
 		"(A;;FA;;;BA)" +
 		"(A;OICI;0x1301bf;;;AU)" // 0x1301bf - modify rights for AU (authenticated users) for dir and sub dirs (OICI)
 
-	return &autoupdate.PrivilegedServiceTestConfig{
+	return &privilegedupdater.ServiceTestConfig{
 		UpdateDirSecurityDescriptor: descriptor,
 		UpdateBaseDir:               t.TempDir(),
 	}

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package autoupdate
+package privilegedupdater
 
 import (
 	"context"
@@ -59,7 +59,7 @@ func RunServiceAndInstallUpdateFromClient(ctx context.Context, path string, forc
 
 // InstallUpdateFromClient sends update metadata, and transfers the binary for validation and installation.
 func InstallUpdateFromClient(ctx context.Context, path string, forceRun bool, version string) error {
-	conn, err := dialPipeWithRetry(ctx, UpdaterPipePath)
+	conn, err := dialPipeWithRetry(ctx, PipePath)
 	if err != nil {
 		return trace.Wrap(err)
 	}

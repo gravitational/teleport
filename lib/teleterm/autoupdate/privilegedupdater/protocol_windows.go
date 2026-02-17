@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package autoupdate
+package privilegedupdater
 
 import (
 	"encoding/binary"
@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	UpdaterPipePath       = `\\.\pipe\TeleportConnectUpdaterPipe`
+	PipePath              = `\\.\pipe\TeleportConnectUpdaterPipe`
 	maxUpdateMetadataSize = 1 * 1024 * 1024        // 1 MiB
 	maxUpdatePayloadSize  = 1 * 1024 * 1024 * 1024 // 1 GiB
 )
