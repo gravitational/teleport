@@ -120,5 +120,6 @@ type MFAService interface {
 		ctx context.Context,
 		pageSize int32,
 		pageToken string,
+		filter *mfav1.ListValidatedMFAChallengesFilter,
 	) ([]*mfav1.ValidatedMFAChallenge, string, error)
 }

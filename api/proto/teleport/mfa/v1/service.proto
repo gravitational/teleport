@@ -78,12 +78,22 @@ message ValidateSessionChallengeRequest {
 // ValidateSessionChallengeResponse is the response message for ValidateSessionChallenge.
 message ValidateSessionChallengeResponse {}
 
+// ListValidatedMFAChallengesFilter is used to filter validated MFA challenges in ListValidatedMFAChallengesRequest.
+message ListValidatedMFAChallengesFilter {
+  // If set, only return validated MFA challenges for the specified target cluster.
+  optional string target_cluster = 1;
+}
+
 // ListValidatedMFAChallengesRequest is the request message for ListValidatedMFAChallenges.
 message ListValidatedMFAChallengesRequest {
   // The maximum number of items to return. The server may impose a different page size at its discretion.
   int32 page_size = 1;
   // The next_page_token value returned from a previous List request, if any.
   string page_token = 2;
+  // Collection of fields to filter challenges by. Challenges must match all filter fields to be included in the
+  // results. If unset, no filtering is performed and all validated MFA challenges are returned (up to the page size
+  // limit).
+  ListValidatedMFAChallengesFilter filter = 3;
 }
 
 // ListValidatedMFAChallengesResponse is the response message for ListValidatedMFAChallenges.

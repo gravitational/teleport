@@ -98,6 +98,7 @@ type MFAService interface {
 		ctx context.Context,
 		pageSize int32,
 		pageToken string,
+		filter *mfav1.ListValidatedMFAChallengesFilter,
 	) ([]*mfav1.ValidatedMFAChallenge, string, error)
 }
 
@@ -410,7 +411,19 @@ func (s *Service) ListValidatedMFAChallenges(
 		return nil, trace.Wrap(err)
 	}
 
-	challenges, nextPageToken, err := s.storage.ListValidatedMFAChallenges(ctx, req.GetPageSize(), req.GetPageToken())
+	// If a filter with a target cluster is specified, ensure that the target cluster exists.
+	if req.GetFilter().GetTargetCluster() != "" {
+		if err := s.clusterExists(ctx, req.GetFilter().GetTargetCluster()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	challenges, nextPageToken, err := s.storage.ListValidatedMFAChallenges(
+		ctx,
+		req.GetPageSize(),
+		req.GetPageToken(),
+		req.GetFilter(),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
