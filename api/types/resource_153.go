@@ -328,11 +328,6 @@ type protoResource153ToLegacyAdapter[T ProtoResource153] struct {
 	resource153ToResourceWithLabelsAdapter[T]
 }
 
-func (r *protoResource153ToLegacyAdapter[T]) CloneResource() ResourceWithLabels {
-	clone := proto.CloneOf(r.inner)
-	return ProtoResource153ToLegacy(clone)
-}
-
 // UnwrapT is an escape hatch for Resource153 instances that are piped down into
 // the codebase as a legacy Resource.
 //
