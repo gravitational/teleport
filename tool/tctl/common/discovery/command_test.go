@@ -1033,7 +1033,6 @@ func TestDiscoveryRenderSSMRunsTextNextGuidance(t *testing.T) {
 	require.NotContains(t, got, "Most recent stderr:")
 	require.Contains(t, got, "# Adjust SSM time window")
 	require.Contains(t, got, "tctl discovery ssm-runs ls --last=1h")
-	require.Contains(t, got, "tctl discovery ssm-runs ls --last=24h")
 	require.Contains(t, got, "# View all runs for a specific failing instance")
 	require.Contains(t, got, "tctl discovery ssm-runs show i-06b58359e8c2aad58 --show-all-runs")
 	require.Contains(t, got, "# Inspect the discovery tasks themselves")
@@ -1097,15 +1096,15 @@ func TestDiscoveryRenderSSMRunsTextSingleVMHistoryNumbering(t *testing.T) {
 	require.Contains(t, got, "VM:")
 	require.Contains(t, got, "INSTANCE   : i-003a23be4c3d13fa8")
 	require.Contains(t, got, "Run history:")
-	require.Contains(t, got, "[1] TIMESTAMP: 2026-02-13 17:43:33")
-	require.Contains(t, got, "[2] TIMESTAMP: 2026-02-13 16:41:36")
-	require.Contains(t, got, "    RESULT")
-	require.Contains(t, got, "    COMMAND")
-	require.Contains(t, got, "    EXIT")
-	require.NotContains(t, got, "[1] INSTANCE")
-	require.NotContains(t, got, "[1] VM:")
-	require.NotContains(t, got, "[1] RUN:")
-	require.NotContains(t, got, "RUN 1:")
+	require.Contains(t, got, "[1] TIMESTAMP")
+	require.Contains(t, got, "[2] TIMESTAMP")
+	require.Contains(t, got, "TIMESTAMP: 2026-02-13 17:43:33")
+	require.Contains(t, got, "TIMESTAMP: 2026-02-13 16:41:36")
+	require.Contains(t, got, "  RESULT")
+	require.Contains(t, got, "  COMMAND")
+	require.Contains(t, got, "  EXIT")
+	require.Contains(t, got, "[1] INSTANCE")
+	require.Contains(t, got, "[1] VM:")
 }
 
 func TestDiscoveryRenderSSMRunHistoryRows(t *testing.T) {
@@ -1126,32 +1125,28 @@ func TestDiscoveryRenderSSMRunHistoryRows(t *testing.T) {
 			ExitCode:  "-1",
 		},
 	}
-	style := textStyle{enabled: false}
-
-	t.Run("single instance format", func(t *testing.T) {
+	t.Run("no indent", func(t *testing.T) {
 		var out bytes.Buffer
-		err := renderSSMRunHistoryRows(&out, style, rows, now, true)
+		err := renderSSMRunHistoryRows(&out, textStyle{}, rows, now)
 		require.NoError(t, err)
 
 		got := out.String()
-		require.Contains(t, got, "[1] TIMESTAMP: 2026-02-13 17:43:33")
-		require.Contains(t, got, "[2] TIMESTAMP: 2026-02-13 16:41:36")
+		require.Contains(t, got, "[1] TIMESTAMP")
+		require.Contains(t, got, "[2] TIMESTAMP")
 		require.Contains(t, got, "RESULT")
 		require.Contains(t, got, "COMMAND")
 		require.Contains(t, got, "EXIT")
-		require.NotContains(t, got, "RUN 1:")
 	})
 
-	t.Run("multi instance format", func(t *testing.T) {
+	t.Run("with indent", func(t *testing.T) {
 		var out bytes.Buffer
-		err := renderSSMRunHistoryRows(&out, style, rows, now, false)
+		indented := textStyle{indent: "     "}
+		err := renderSSMRunHistoryRows(&out, indented, rows, now)
 		require.NoError(t, err)
 
 		got := out.String()
-		require.Contains(t, got, "  RUN 1:")
-		require.Contains(t, got, "  RUN 2:")
-		require.Contains(t, got, "TIMESTAMP")
-		require.NotContains(t, got, "[1] TIMESTAMP")
+		require.Contains(t, got, "     [1] TIMESTAMP")
+		require.Contains(t, got, "     [2] TIMESTAMP")
 	})
 }
 
@@ -1767,7 +1762,7 @@ func TestDiscoveryRenderJoinsText(t *testing.T) {
 	require.NoError(t, err)
 	gotLimited := outLimited.String()
 	require.Contains(t, gotLimited, "[limit: 200, use --limit to increase]")
-	require.Contains(t, gotLimited, "# Fetch more events (current limit reached)")
+	require.Contains(t, gotLimited, "# Fetch more events to cover full search window")
 	require.Contains(t, gotLimited, "--limit=1000")
 }
 
