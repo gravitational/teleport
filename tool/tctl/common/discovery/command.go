@@ -24,6 +24,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -56,6 +57,7 @@ const auditEventPageSize = 1000
 type Command struct {
 	config *servicecfg.Config
 	Stdout io.Writer
+	cache  *eventCache
 
 	discovery *kingpin.CmdClause
 
@@ -86,6 +88,7 @@ type Command struct {
 	ssmRunsLimit          int
 	ssmRunsRange          string
 	ssmRunsShowAll        bool
+	ssmRunsClusterErrors  bool
 	ssmRunsFormat         string
 	ssmRunsFromUTC        string
 	ssmRunsToUTC          string
@@ -126,6 +129,12 @@ type Command struct {
 	inventoryLast         string
 	inventoryStateFilter  string
 	inventoryMethodFilter string
+
+	cacheCmd       *kingpin.CmdClause
+	cacheLoadCmd   *kingpin.CmdClause
+	cacheLoadLast  string
+	cacheStatusCmd *kingpin.CmdClause
+	cachePruneCmd  *kingpin.CmdClause
 }
 
 func (c *Command) output() io.Writer {
@@ -133,6 +142,21 @@ func (c *Command) output() io.Writer {
 		return c.Stdout
 	}
 	return os.Stdout
+}
+
+func (c *Command) initCache(ctx context.Context, client *authclient.Client) {
+	cn, err := client.GetClusterName(ctx)
+	if err != nil {
+		slog.WarnContext(ctx, "Could not get cluster name for cache", "error", err)
+		return
+	}
+	clusterName := cn.GetClusterName()
+	if clusterName == "" {
+		return
+	}
+	c.cache = &eventCache{
+		Dir: filepath.Join(".cache", clusterName),
+	}
 }
 
 func buildTaskShowCommand(c *Command) string {
@@ -226,6 +250,7 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	c.ssmRunsListCmd.Flag("limit", "Maximum SSM run events to fetch from audit log.").Default("1000").IntVar(&c.ssmRunsLimit)
 	c.ssmRunsListCmd.Flag("range", "Range of VMs to display as start,end (0-indexed, exclusive end).").Default("0,50").StringVar(&c.ssmRunsRange)
 	c.ssmRunsListCmd.Flag("show-all-runs", "Show full run history for each displayed VM.").BoolVar(&c.ssmRunsShowAll)
+	c.ssmRunsListCmd.Flag("cluster-errors", "Group similar SSM run errors into clusters using Drain+MinHash/LSH.").BoolVar(&c.ssmRunsClusterErrors)
 	c.ssmRunsListCmd.Flag("format", "Output format: text, json, or yaml.").Default(teleport.Text).EnumVar(&c.ssmRunsFormat, teleport.Text, teleport.JSON, teleport.YAML)
 
 	c.ssmRunsShowCmd = c.ssmRunsCmd.Command("show", "Show run history for one EC2 instance in the selected time window.")
@@ -286,6 +311,12 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	c.inventoryShowCmd.Flag("limit", "Maximum audit events to fetch per event type.").Default("1000").IntVar(&c.inventoryLimit)
 	c.inventoryShowCmd.Flag("show-all-events", "Show full event timeline for the selected host.").BoolVar(&c.inventoryShowAll)
 	c.inventoryShowCmd.Flag("format", "Output format: text, json, or yaml.").Default(teleport.Text).EnumVar(&c.inventoryFormat, teleport.Text, teleport.JSON, teleport.YAML)
+
+	c.cacheCmd = c.discovery.Command("cache", "Manage the local audit event cache.").Hidden()
+	c.cacheLoadCmd = c.cacheCmd.Command("load", "Pre-fetch all audit events into the local cache.")
+	c.cacheLoadCmd.Flag("last", "Time window to cache, e.g. 1h, 24h, 7d.").Default("24h").StringVar(&c.cacheLoadLast)
+	c.cacheStatusCmd = c.cacheCmd.Command("status", "Show cache file inventory.")
+	c.cachePruneCmd = c.cacheCmd.Command("prune", "Delete all cached audit events.")
 }
 
 // TryRun takes the CLI command and executes it.
@@ -315,6 +346,12 @@ func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclien
 		commandFunc = c.runInventoryList
 	case matchesCommand(cmd, c.inventoryShowCmd):
 		commandFunc = c.runInventoryShow
+	case matchesCommand(cmd, c.cacheLoadCmd):
+		commandFunc = c.runCacheLoad
+	case matchesCommand(cmd, c.cacheStatusCmd):
+		commandFunc = c.runCacheStatus
+	case matchesCommand(cmd, c.cachePruneCmd):
+		commandFunc = c.runCachePrune
 	default:
 		return false, nil
 	}
@@ -324,6 +361,8 @@ func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclien
 		return false, trace.Wrap(err)
 	}
 	defer closeFn(ctx)
+
+	c.initCache(ctx, client)
 
 	return true, trace.Wrap(commandFunc(ctx, client))
 }
@@ -362,7 +401,7 @@ func (c *Command) runStatus(ctx context.Context, client *authclient.Client) erro
 	summary := makeStatusSummary(tasks, discoveryConfigs, integrations, c.statusIntegration)
 
 	slog.DebugContext(ctx, "Fetching SSM run events", "window", c.statusLast, "limit", c.statusSSMLimit)
-	ssmStats, err := fetchSSMRunStats(ctx, client, c.statusLast, c.statusSSMLimit)
+	ssmStats, err := fetchSSMRunStats(ctx, client, c.cache, c.statusLast, c.statusSSMLimit)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -370,19 +409,20 @@ func (c *Command) runStatus(ctx context.Context, client *authclient.Client) erro
 	summary.SSMRunStats = ssmStats
 
 	slog.DebugContext(ctx, "Fetching instance join events", "window", c.statusLast, "limit", c.statusJoinLimit)
-	joinStats, err := fetchJoinStats(ctx, client, c.statusLast, c.statusJoinLimit)
+	joinStats, err := fetchJoinStats(ctx, client, c.cache, c.statusLast, c.statusJoinLimit)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	slog.DebugContext(ctx, "Fetched instance join events", "total", joinStats.Total, "limit_reached", joinStats.LimitReached)
 	summary.JoinStats = joinStats
+	summary.CacheSummary = c.cache.cacheSummary()
 
 	return trace.Wrap(writeOutputByFormat(c.output(), c.statusFormat, summary, func(w io.Writer) error {
 		return renderStatusText(w, summary)
 	}))
 }
 
-func fetchAuditEventStats(ctx context.Context, client *authclient.Client, last string, eventType string, limit int) ([]apievents.AuditEvent, bool, error) {
+func fetchAuditEventStats(ctx context.Context, client *authclient.Client, cache *eventCache, last string, eventType string, limit int) ([]apievents.AuditEvent, bool, error) {
 	from, to, err := resolveTimeRangeFromFlags(last, "", "")
 	if err != nil {
 		return nil, false, trace.Wrap(err)
@@ -391,45 +431,28 @@ func fetchAuditEventStats(ctx context.Context, client *authclient.Client, last s
 		limit = 200
 	}
 
-	allEvents := make([]apievents.AuditEvent, 0, limit)
-	var startKey string
-	pages := 0
-	for len(allEvents) < limit {
-		requestLimit := limit - len(allEvents)
-		if requestLimit > auditEventPageSize {
-			requestLimit = auditEventPageSize
-		}
-		pageEvents, nextKey, err := client.SearchEvents(ctx, libevents.SearchEventsRequest{
-			From:       from,
-			To:         to,
-			EventTypes: []string{eventType},
-			Limit:      requestLimit,
-			Order:      types.EventOrderDescending,
-			StartKey:   startKey,
-		})
-		if err != nil {
-			return nil, false, trace.Wrap(err)
-		}
-		pages++
-		allEvents = append(allEvents, pageEvents...)
-		slog.DebugContext(ctx, "Fetched audit event page", "event_type", eventType, "page", pages, "page_size", len(pageEvents), "total_so_far", len(allEvents), "limit", limit)
-		if nextKey == "" || len(pageEvents) == 0 {
-			break
-		}
-		startKey = nextKey
+	result, err := cache.cachedSearchEvents(ctx, client.SearchEvents, from, to, eventType, limit)
+	if err != nil {
+		return nil, false, trace.Wrap(err)
 	}
-	return allEvents, len(allEvents) >= limit, nil
+	if result.CacheHits > 0 {
+		slog.DebugContext(ctx, "Audit event cache stats", "event_type", eventType, "cache_hits", result.CacheHits, "cache_misses", result.CacheMisses, "cache_files", result.CacheFiles)
+	}
+	return result.Events, result.LimitReached, nil
 }
 
-func fetchSSMRunStats(ctx context.Context, client *authclient.Client, last string, limit int) (*auditEventStats, error) {
-	events, limitReached, err := fetchAuditEventStats(ctx, client, last, libevents.SSMRunEvent, limit)
+func fetchSSMRunStats(ctx context.Context, client *authclient.Client, cache *eventCache, last string, limit int) (*auditEventStats, error) {
+	events, limitReached, err := fetchAuditEventStats(ctx, client, cache, last, libevents.SSMRunEvent, limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	records := parseSSMRunEvents(events, ssmRunEventFilters{})
 	analysis := analyzeSSMRuns(records)
+	from, to, _ := resolveTimeRangeFromFlags(last, "", "")
 	stats := &auditEventStats{
 		Window:        timeRangeDescriptionFromFlags(last, "", ""),
+		From:          from,
+		To:            to,
 		Total:         analysis.Total,
 		Success:       analysis.Success,
 		Failed:        analysis.Failed,
@@ -443,22 +466,24 @@ func fetchSSMRunStats(ctx context.Context, client *authclient.Client, last strin
 		stats.OldestEvent = oldest
 		if limitReached {
 			stats.EffectiveWindow = formatRelativeDelta(oldest, now, false)
-			from, _, _ := resolveTimeRangeFromFlags(last, "", "")
 			stats.SuggestedLimit = estimateRequiredLimit(stats.Total, oldest, now, from)
 		}
 	}
 	return stats, nil
 }
 
-func fetchJoinStats(ctx context.Context, client *authclient.Client, last string, limit int) (*auditEventStats, error) {
-	events, limitReached, err := fetchAuditEventStats(ctx, client, last, libevents.InstanceJoinEvent, limit)
+func fetchJoinStats(ctx context.Context, client *authclient.Client, cache *eventCache, last string, limit int) (*auditEventStats, error) {
+	events, limitReached, err := fetchAuditEventStats(ctx, client, cache, last, libevents.InstanceJoinEvent, limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	records := parseInstanceJoinEvents(events, joinEventFilters{})
 	analysis := analyzeInstanceJoins(records)
+	from, to, _ := resolveTimeRangeFromFlags(last, "", "")
 	stats := &auditEventStats{
 		Window:        timeRangeDescriptionFromFlags(last, "", ""),
+		From:          from,
+		To:            to,
 		Total:         analysis.Total,
 		Success:       analysis.Success,
 		Failed:        analysis.Failed,
@@ -472,7 +497,6 @@ func fetchJoinStats(ctx context.Context, client *authclient.Client, last string,
 		stats.OldestEvent = oldest
 		if limitReached {
 			stats.EffectiveWindow = formatRelativeDelta(oldest, now, false)
-			from, _, _ := resolveTimeRangeFromFlags(last, "", "")
 			stats.SuggestedLimit = estimateRequiredLimit(stats.Total, oldest, now, from)
 		}
 	}
@@ -585,10 +609,17 @@ func (c *Command) runSSMRunsList(ctx context.Context, client *authclient.Client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	slog.DebugContext(ctx, "SSM run data fetched", "total_runs", analysis.Total, "failed", analysis.Failed, "vm_groups", len(vmGroups))
+
 	allFailingVMGroups := selectFailingVMGroups(vmGroups, 0)
 	displayedVMs, vmPage := paginateSlice(vmGroups, start, end)
 
 	output := c.buildSSMRunsOutput(analysis, vmGroups, allFailingVMGroups, displayedVMs, vmPage, meta)
+	if c.ssmRunsClusterErrors {
+		slog.DebugContext(ctx, "Starting error clustering")
+		output.ErrorClusters = clusterSSMRunErrors(vmGroups)
+		slog.DebugContext(ctx, "Error clustering complete", "clusters", len(output.ErrorClusters))
+	}
 	baseCommand := buildSSMRunsCommand(c, "ls", "")
 	return trace.Wrap(c.writeSSMRunsOutput(output, "", baseCommand))
 }
@@ -680,6 +711,9 @@ func timeRangeDescriptionFromFlags(last, fromUTC, toUTC string) string {
 type fetchMeta struct {
 	FetchLimit   int
 	LimitReached bool
+	CacheHits    int
+	CacheMisses  int
+	CacheFiles   int
 }
 
 func (c *Command) fetchSSMRunData(ctx context.Context, client *authclient.Client, instanceIDFilter string) (ssmRunAnalysis, []ssmVMGroup, fetchMeta, error) {
@@ -692,52 +726,43 @@ func (c *Command) fetchSSMRunData(ctx context.Context, client *authclient.Client
 		fetchLimit = 200
 	}
 
-	allEvents := make([]apievents.AuditEvent, 0, fetchLimit)
-	var startKey string
-	for len(allEvents) < fetchLimit {
-		requestLimit := fetchLimit - len(allEvents)
-		if requestLimit > auditEventPageSize {
-			requestLimit = auditEventPageSize
-		}
-		pageEvents, nextKey, err := client.SearchEvents(ctx, libevents.SearchEventsRequest{
-			From:       from,
-			To:         to,
-			EventTypes: []string{libevents.SSMRunEvent},
-			Limit:      requestLimit,
-			Order:      types.EventOrderDescending,
-			StartKey:   startKey,
-		})
-		if err != nil {
-			return ssmRunAnalysis{}, nil, fetchMeta{}, trace.Wrap(err)
-		}
-		allEvents = append(allEvents, pageEvents...)
-		if nextKey == "" || len(pageEvents) == 0 {
-			break
-		}
-		startKey = nextKey
+	result, err := c.cache.cachedSearchEvents(ctx, client.SearchEvents, from, to, libevents.SSMRunEvent, fetchLimit)
+	if err != nil {
+		return ssmRunAnalysis{}, nil, fetchMeta{}, trace.Wrap(err)
 	}
 
-	meta := fetchMeta{FetchLimit: fetchLimit, LimitReached: len(allEvents) >= fetchLimit}
-	records := parseSSMRunEvents(allEvents, ssmRunEventFilters{
+	meta := fetchMeta{
+		FetchLimit:   fetchLimit,
+		LimitReached: result.LimitReached,
+		CacheHits:    result.CacheHits,
+		CacheMisses:  result.CacheMisses,
+		CacheFiles:   result.CacheFiles,
+	}
+	slog.DebugContext(ctx, "Parsing SSM run events", "events", len(result.Events))
+	parseStart := time.Now()
+	records := parseSSMRunEvents(result.Events, ssmRunEventFilters{
 		InstanceID: instanceIDFilter,
 	})
+	slog.DebugContext(ctx, "Parsed SSM run events", "records", len(records), "elapsed", time.Since(parseStart).Round(time.Millisecond))
 	analysis := analyzeSSMRuns(records)
 	vmGroups := groupSSMRunsByVM(records)
 	return analysis, vmGroups, meta, nil
 }
 
 func (c *Command) buildSSMRunsOutput(analysis ssmRunAnalysis, vmGroups, allFailingVMGroups, displayedVMGroups []ssmVMGroup, vmPage pageInfo, meta fetchMeta) ssmRunsOutput {
+	from, to, _ := resolveTimeRangeFromFlags(c.ssmRunsLast, c.ssmRunsFromUTC, c.ssmRunsToUTC)
 	return ssmRunsOutput{
 		Window:       timeRangeDescriptionFromFlags(c.ssmRunsLast, c.ssmRunsFromUTC, c.ssmRunsToUTC),
-		Query:        fmt.Sprintf("SearchEvents(event_type=%q)", libevents.SSMRunEvent),
+		From:         from,
+		To:           to,
 		FetchLimit:   meta.FetchLimit,
 		LimitReached: meta.LimitReached,
+		CacheSummary: c.cache.cacheSummary(),
 		TotalRuns:    analysis.Total,
 		SuccessRuns:  analysis.Success,
 		FailedRuns:   analysis.Failed,
 		TotalVMs:     len(vmGroups),
 		FailingVMs:   len(allFailingVMGroups),
-		DisplayedVMs: len(displayedVMGroups),
 		VMPage:       vmPage,
 		VMs:          displayedVMGroups,
 	}
@@ -862,34 +887,14 @@ func (c *Command) runJoinsRaw(ctx context.Context, client *authclient.Client, ho
 		fetchLimit = 200
 	}
 
-	var allEvents []apievents.AuditEvent
-	var startKey string
-	for len(allEvents) < fetchLimit {
-		requestLimit := fetchLimit - len(allEvents)
-		if requestLimit > auditEventPageSize {
-			requestLimit = auditEventPageSize
-		}
-		pageEvents, nextKey, err := client.SearchEvents(ctx, libevents.SearchEventsRequest{
-			From:       from,
-			To:         to,
-			EventTypes: []string{libevents.InstanceJoinEvent},
-			Limit:      requestLimit,
-			Order:      types.EventOrderDescending,
-			StartKey:   startKey,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		allEvents = append(allEvents, pageEvents...)
-		if nextKey == "" || len(pageEvents) == 0 {
-			break
-		}
-		startKey = nextKey
+	result, err := c.cache.cachedSearchEvents(ctx, client.SearchEvents, from, to, libevents.InstanceJoinEvent, fetchLimit)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Filter to matching host ID if specified, and collect raw events.
 	var rawEvents []any
-	for _, ev := range allEvents {
+	for _, ev := range result.Events {
 		join, ok := ev.(*apievents.InstanceJoin)
 		if !ok {
 			continue
@@ -915,33 +920,19 @@ func (c *Command) fetchJoinData(ctx context.Context, client *authclient.Client, 
 		fetchLimit = 200
 	}
 
-	allEvents := make([]apievents.AuditEvent, 0, fetchLimit)
-	var startKey string
-	for len(allEvents) < fetchLimit {
-		requestLimit := fetchLimit - len(allEvents)
-		if requestLimit > auditEventPageSize {
-			requestLimit = auditEventPageSize
-		}
-		pageEvents, nextKey, err := client.SearchEvents(ctx, libevents.SearchEventsRequest{
-			From:       from,
-			To:         to,
-			EventTypes: []string{libevents.InstanceJoinEvent},
-			Limit:      requestLimit,
-			Order:      types.EventOrderDescending,
-			StartKey:   startKey,
-		})
-		if err != nil {
-			return joinAnalysis{}, nil, fetchMeta{}, trace.Wrap(err)
-		}
-		allEvents = append(allEvents, pageEvents...)
-		if nextKey == "" || len(pageEvents) == 0 {
-			break
-		}
-		startKey = nextKey
+	result, err := c.cache.cachedSearchEvents(ctx, client.SearchEvents, from, to, libevents.InstanceJoinEvent, fetchLimit)
+	if err != nil {
+		return joinAnalysis{}, nil, fetchMeta{}, trace.Wrap(err)
 	}
 
-	meta := fetchMeta{FetchLimit: fetchLimit, LimitReached: len(allEvents) >= fetchLimit}
-	records := parseInstanceJoinEvents(allEvents, joinEventFilters{
+	meta := fetchMeta{
+		FetchLimit:   fetchLimit,
+		LimitReached: result.LimitReached,
+		CacheHits:    result.CacheHits,
+		CacheMisses:  result.CacheMisses,
+		CacheFiles:   result.CacheFiles,
+	}
+	records := parseInstanceJoinEvents(result.Events, joinEventFilters{
 		HostID: hostIDFilter,
 	})
 	analysis := analyzeInstanceJoins(records)
@@ -950,19 +941,21 @@ func (c *Command) fetchJoinData(ctx context.Context, client *authclient.Client, 
 }
 
 func (c *Command) buildJoinsOutput(analysis joinAnalysis, hostGroups, allFailingGroups, displayedGroups []joinGroup, hostPage pageInfo, meta fetchMeta) joinsOutput {
+	from, to, _ := resolveTimeRangeFromFlags(c.joinsLast, c.joinsFromUTC, c.joinsToUTC)
 	return joinsOutput{
-		Window:         timeRangeDescriptionFromFlags(c.joinsLast, c.joinsFromUTC, c.joinsToUTC),
-		Query:          fmt.Sprintf("SearchEvents(event_type=%q)", libevents.InstanceJoinEvent),
-		FetchLimit:     meta.FetchLimit,
-		LimitReached:   meta.LimitReached,
-		TotalJoins:     analysis.Total,
-		SuccessJoins:   analysis.Success,
-		FailedJoins:    analysis.Failed,
-		TotalHosts:     len(hostGroups),
-		FailingHosts:   len(allFailingGroups),
-		DisplayedHosts: len(displayedGroups),
-		HostPage:       hostPage,
-		Hosts:          displayedGroups,
+		Window:       timeRangeDescriptionFromFlags(c.joinsLast, c.joinsFromUTC, c.joinsToUTC),
+		From:         from,
+		To:           to,
+		FetchLimit:   meta.FetchLimit,
+		LimitReached: meta.LimitReached,
+		CacheSummary: c.cache.cacheSummary(),
+		TotalJoins:   analysis.Total,
+		SuccessJoins: analysis.Success,
+		FailedJoins:  analysis.Failed,
+		TotalHosts:   len(hostGroups),
+		FailingHosts: len(allFailingGroups),
+		HostPage:     hostPage,
+		Hosts:        displayedGroups,
 	}
 }
 
@@ -1032,13 +1025,13 @@ func (c *Command) fetchInventoryData(ctx context.Context, clt *authclient.Client
 		return nil, trace.Wrap(err)
 	}
 
-	ssmEvents, err := fetchAuditEventsInRange(ctx, clt, from, to, libevents.SSMRunEvent, fetchLimit)
+	ssmEvents, err := fetchAuditEventsInRange(ctx, clt, c.cache, from, to, libevents.SSMRunEvent, fetchLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	ssmRecords := parseSSMRunEvents(ssmEvents, ssmRunEventFilters{InstanceID: hostIDFilter})
 
-	joinEvents, err := fetchAuditEventsInRange(ctx, clt, from, to, libevents.InstanceJoinEvent, fetchLimit)
+	joinEvents, err := fetchAuditEventsInRange(ctx, clt, c.cache, from, to, libevents.InstanceJoinEvent, fetchLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1047,32 +1040,12 @@ func (c *Command) fetchInventoryData(ctx context.Context, clt *authclient.Client
 	return buildInventoryHosts(nodes, ssmRecords, joinRecords), nil
 }
 
-func fetchAuditEventsInRange(ctx context.Context, clt *authclient.Client, from, to time.Time, eventType string, limit int) ([]apievents.AuditEvent, error) {
-	allEvents := make([]apievents.AuditEvent, 0, limit)
-	var startKey string
-	for len(allEvents) < limit {
-		requestLimit := limit - len(allEvents)
-		if requestLimit > auditEventPageSize {
-			requestLimit = auditEventPageSize
-		}
-		pageEvents, nextKey, err := clt.SearchEvents(ctx, libevents.SearchEventsRequest{
-			From:       from,
-			To:         to,
-			EventTypes: []string{eventType},
-			Limit:      requestLimit,
-			Order:      types.EventOrderDescending,
-			StartKey:   startKey,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		allEvents = append(allEvents, pageEvents...)
-		if nextKey == "" || len(pageEvents) == 0 {
-			break
-		}
-		startKey = nextKey
+func fetchAuditEventsInRange(ctx context.Context, clt *authclient.Client, cache *eventCache, from, to time.Time, eventType string, limit int) ([]apievents.AuditEvent, error) {
+	result, err := cache.cachedSearchEvents(ctx, clt.SearchEvents, from, to, eventType, limit)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return allEvents, nil
+	return result.Events, nil
 }
 
 func filterInventoryHosts(hosts []inventoryHost, stateFilter, methodFilter string) []inventoryHost {
@@ -1122,14 +1095,17 @@ func (c *Command) buildInventoryOutput(allHosts, displayedHosts []inventoryHost,
 			failed++
 		}
 	}
+	from, to, _ := resolveTimeRangeFromFlags(c.inventoryLast, c.inventoryFromUTC, c.inventoryToUTC)
 	return inventoryOutput{
 		Window:         timeRangeDescriptionFromFlags(c.inventoryLast, c.inventoryFromUTC, c.inventoryToUTC),
+		From:           from,
+		To:             to,
+		CacheSummary:   c.cache.cacheSummary(),
 		TotalHosts:     len(allHosts),
 		OnlineHosts:    online,
 		OfflineHosts:   offline,
-		FailedHosts:    failed,
-		DisplayedHosts: len(displayedHosts),
-		HostPage:       hostPage,
+		FailedHosts:  failed,
+		HostPage:     hostPage,
 		Hosts:          displayedHosts,
 	}
 }
@@ -1169,6 +1145,108 @@ func buildInventoryCommand(c *Command, subCmd, hostID string) string {
 		}
 	}
 	return strings.Join(cmd, " ")
+}
+
+func (c *Command) runCacheLoad(ctx context.Context, client *authclient.Client) error {
+	if c.cache == nil {
+		return trace.BadParameter("cache not initialized (could not resolve cluster name)")
+	}
+
+	from, to, err := resolveTimeRangeFromFlags(c.cacheLoadLast, "", "")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	w := c.output()
+	for _, eventType := range []string{libevents.SSMRunEvent, libevents.InstanceJoinEvent} {
+		fmt.Fprintf(w, "Loading %s events for %s ...\n", eventType, timeRangeDescriptionFromFlags(c.cacheLoadLast, "", ""))
+		result, err := c.cache.cachedSearchEvents(ctx, client.SearchEvents, from, to, eventType, 0)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprintf(w, "  %d events (%d cached, %d fetched)\n", len(result.Events), result.CacheHits, result.CacheMisses)
+	}
+	fmt.Fprintf(w, "\nCache directory: %s\n", c.cache.Dir)
+	return nil
+}
+
+func (c *Command) runCacheStatus(_ context.Context, _ *authclient.Client) error {
+	if c.cache == nil {
+		return trace.BadParameter("cache not initialized (could not resolve cluster name)")
+	}
+
+	w := c.output()
+	style := newTextStyle(w)
+	now := time.Now().UTC()
+
+	fmt.Fprintf(w, "Cache directory: %s\n", c.cache.Dir)
+
+	var allFiles []cacheFile
+	for _, eventType := range []string{libevents.SSMRunEvent, libevents.InstanceJoinEvent} {
+		files, err := c.cache.listCacheFiles(eventType)
+		if err != nil {
+			fmt.Fprintf(w, "\n%s\n", style.warning(fmt.Sprintf("Error listing %s cache files: %v", eventType, err)))
+			continue
+		}
+		allFiles = append(allFiles, files...)
+	}
+
+	if len(allFiles) == 0 {
+		fmt.Fprintf(w, "\n%s\n", style.warning("No cached files."))
+		return nil
+	}
+
+	fmt.Fprintf(w, "\n%s\n", style.section(fmt.Sprintf("Cached Files [%d]", len(allFiles))))
+	for i, f := range allFiles {
+		if i > 0 {
+			fmt.Fprintln(w)
+		}
+		h := f.Header
+		firstPrefix := style.info(fmt.Sprintf("[%d]", i+1)) + " "
+		continuation := strings.Repeat(" ", len(fmt.Sprintf("[%d] ", i+1)))
+		details := []keyValue{
+			{Key: "EVENT TYPE", Value: style.section(h.EventType)},
+			{Key: "FROM", Value: h.From.Format(cacheTimeFormat)},
+			{Key: "TO", Value: h.To.Format(cacheTimeFormat)},
+			{Key: "EVENTS", Value: style.good(fmt.Sprintf("%d", h.Count))},
+			{Key: "FETCHED", Value: fmt.Sprintf("%s (%s)", h.FetchedAt.Format(time.RFC3339), formatRelativeTime(h.FetchedAt, now))},
+			{Key: "FILE", Value: filepath.Base(f.Path)},
+		}
+		if err := renderAlignedKeyValuesWithPrefix(w, firstPrefix, continuation, details); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (c *Command) runCachePrune(_ context.Context, _ *authclient.Client) error {
+	if c.cache == nil {
+		return trace.BadParameter("cache not initialized (could not resolve cluster name)")
+	}
+
+	entries, err := os.ReadDir(c.cache.Dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			fmt.Fprintf(c.output(), "No cache directory found at %s\n", c.cache.Dir)
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	removed := 0
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".jsonl") {
+			continue
+		}
+		if err := os.Remove(filepath.Join(c.cache.Dir, e.Name())); err != nil {
+			slog.Warn("Failed to remove cache file", "file", e.Name(), "error", err)
+			continue
+		}
+		removed++
+	}
+
+	fmt.Fprintf(c.output(), "Removed %d cache file(s) from %s\n", removed, c.cache.Dir)
+	return nil
 }
 
 func writeOutputByFormat(w io.Writer, format string, output any, renderText func(io.Writer) error) error {
