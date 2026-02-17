@@ -241,11 +241,14 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 	expr := fmt.Sprintf(`resource.spec.public_addr == "%s" || resource.spec.public_addr == "%s"`,
 		strings.TrimSuffix(fqdn, "."), fqdn)
 
-	// Apps in leaf clusters are reachable at <app-name>.<root-proxy-addr>.
-	// They can only be queried in the leaf cluster by name.
-	// The root proxy address is always the profile name, so any queried FQDN
-	// that is a direct subdomain of the profile name may be for a web app in a
-	// leaf cluster.
+	// If candidate is a leaf cluster and fqdn possibly points to a leaf
+	// cluster app, also query for the app by name.
+	//
+	// Apps in leaf clusters are reachable through the root cluster at
+	// <app-name>.<root-proxy-addr>. They can only be queried in the leaf
+	// cluster by name. The root proxy address is always the profile name, so
+	// any queried FQDN that is a direct subdomain of the profile name may be
+	// for a web app in a leaf cluster.
 	var potentialAppName string
 	if candidate.leafClusterName != "" && isDirectSubdomain(fqdn, candidate.profileName) {
 		potentialAppName = strings.TrimSuffix(fqdn, "."+fullyQualify(candidate.profileName))
@@ -278,6 +281,7 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 			matchedByPublicAddr := fullyQualify(app.GetPublicAddr()) == fqdn
 			matchedByName := app.GetName() == potentialAppName
 			if !matchedByName && !matchedByPublicAddr {
+				// This shouldn't happen if the backend query worked correctly.
 				log.WarnContext(ctx, "Query returned an app that did not match by name or public_addr",
 					"name", app.GetName(), "public_addr", app.GetPublicAddr())
 				continue
