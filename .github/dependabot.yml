@@ -166,6 +166,66 @@ updates:
       - 'go'
       - 'no-changelog'
 
+  # go tools:
+  # Tool configs are mostly the same, but dependabot has no way to reuse common configs:
+  # https://github.com/dependabot/dependabot-core/issues/1582
+  - package-ecosystem: gomod
+    directory: '/build.assets/tools/gci'
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 2
+    open-pull-requests-limit: 3
+    groups:
+      go:
+        update-types:
+          - 'minor'
+          - 'patch'
+    labels:
+      - 'dependencies'
+      - 'go'
+      - 'no-changelog'
+      - 'backport/branch/v17'
+      - 'backport/branch/v18'
+
+  - package-ecosystem: gomod
+    directory: '/build.assets/tools/gotestsum'
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 2
+    open-pull-requests-limit: 3
+    groups:
+      go:
+        update-types:
+          - 'minor'
+          - 'patch'
+    labels:
+      - 'dependencies'
+      - 'go'
+      - 'no-changelog'
+      - 'backport/branch/v17'
+      - 'backport/branch/v18'
+
+  - package-ecosystem: gomod
+    directory: '/build.assets/tools/goda'
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 2
+    open-pull-requests-limit: 3
+    groups:
+      go:
+        update-types:
+          - 'minor'
+          - 'patch'
+    labels:
+      - 'dependencies'
+      - 'go'
+      - 'no-changelog'
+      - 'backport/branch/v17'
+      - 'backport/branch/v18'
+
   - package-ecosystem: cargo
     directory: '/'
     schedule:

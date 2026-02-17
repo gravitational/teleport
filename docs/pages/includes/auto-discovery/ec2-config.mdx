@@ -62,6 +62,8 @@ Static configuration while simpler at first, has less flexibility because enroll
       ssm:
         document_name: "AWS-RunShellScript"
       install:
+        enroll_mode: 1
+        install_teleport: true
         join_method: iam
         join_token: aws-discovery-iam-token
   ```
@@ -96,9 +98,11 @@ Static configuration while simpler at first, has less flexibility because enroll
       ssm:
         document_name: "AWS-RunShellScript"
       install:
-          join_params:
-            token_name: aws-discovery-iam-token
-            method: iam
+        enroll_mode: script
+        install_teleport: true
+        join_params:
+          token_name: aws-discovery-iam-token
+          method: iam
   ```
   
   Adjust the keys under `discovery_service.aws` to match your EC2 environment, 

@@ -17,7 +17,6 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 import selectEvent from 'react-select-event';
 
@@ -25,8 +24,10 @@ import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   act,
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
 } from 'design/utils/testing';
@@ -66,11 +67,9 @@ jest.mock('shared/components/FieldSelect/FieldSelectCreatable', () => {
   };
 });
 
-const server = setupServer();
+enableMswServer();
 
-beforeAll(() => {
-  server.listen();
-
+beforeEach(() => {
   // Basic mock for all tests
   server.use(genWizardCiCdSuccess());
   server.use(fetchUnifiedResourcesSuccess());
@@ -80,8 +79,6 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  server.close();
-
   jest.useRealTimers();
   jest.resetAllMocks();
 });
