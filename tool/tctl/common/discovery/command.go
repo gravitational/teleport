@@ -94,7 +94,8 @@ type Command struct {
 	ssmRunsLimit          int
 	ssmRunsRange          string
 	ssmRunsShowAll        bool
-	ssmRunsClusterErrors  bool
+	ssmRunsCluster        bool
+	ssmRunsSimilarity     float64
 	ssmRunsFormat         string
 	ssmRunsFromUTC        string
 	ssmRunsToUTC          string
@@ -192,6 +193,12 @@ func buildSSMRunsCommand(c *Command, subCmd string, instanceID string) string {
 	if c.ssmRunsLimit != 0 && c.ssmRunsLimit != defaultFetchLimit {
 		cmd = append(cmd, fmt.Sprintf("--limit=%d", c.ssmRunsLimit))
 	}
+	if c.ssmRunsCluster {
+		cmd = append(cmd, "--cluster")
+		if c.ssmRunsSimilarity != clusterDefaults().drainSimThreshold {
+			cmd = append(cmd, fmt.Sprintf("--similarity=%.2f", c.ssmRunsSimilarity))
+		}
+	}
 	if c.ssmRunsShowAll {
 		cmd = append(cmd, "--show-all-runs")
 	}
@@ -266,7 +273,8 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	c.ssmRunsListCmd.Flag("limit", "Maximum SSM run events to fetch from audit log.").Default(strconv.Itoa(defaultFetchLimit)).IntVar(&c.ssmRunsLimit)
 	c.ssmRunsListCmd.Flag("range", "Range of VMs to display as start,end (0-indexed, exclusive end).").Default("0,50").StringVar(&c.ssmRunsRange)
 	c.ssmRunsListCmd.Flag("show-all-runs", "Show full run history for each displayed VM.").BoolVar(&c.ssmRunsShowAll)
-	c.ssmRunsListCmd.Flag("cluster-errors", "Group similar SSM run errors into clusters using Drain+MinHash/LSH.").BoolVar(&c.ssmRunsClusterErrors)
+	c.ssmRunsListCmd.Flag("cluster", "Group similar SSM runs into clusters using Drain+MinHash/LSH.").BoolVar(&c.ssmRunsCluster)
+	c.ssmRunsListCmd.Flag("similarity", "Drain similarity threshold for clustering (0.0-1.0, lower merges more aggressively).").Default("0.4").Float64Var(&c.ssmRunsSimilarity)
 	c.ssmRunsListCmd.Flag("format", "Output format: text, json, or yaml.").Default(teleport.Text).EnumVar(&c.ssmRunsFormat, teleport.Text, teleport.JSON, teleport.YAML)
 
 	c.ssmRunsShowCmd = c.ssmRunsCmd.Command("show", "Show run history for one EC2 instance in the selected time window.")
@@ -633,10 +641,14 @@ func (c *Command) runSSMRunsList(ctx context.Context, client *authclient.Client)
 	displayedVMs, vmPage := paginateSlice(vmGroups, start, end)
 
 	output := c.buildSSMRunsOutput(analysis, vmGroups, allFailingVMGroups, displayedVMs, vmPage, meta)
-	if c.ssmRunsClusterErrors {
-		slog.DebugContext(ctx, "Starting error clustering")
-		output.ErrorClusters = clusterSSMRunErrors(vmGroups)
-		slog.DebugContext(ctx, "Error clustering complete", "clusters", len(output.ErrorClusters))
+	if c.ssmRunsCluster {
+		slog.DebugContext(ctx, "Starting run clustering", "similarity", c.ssmRunsSimilarity)
+		opts := clusterDefaults()
+		opts.drainSimThreshold = c.ssmRunsSimilarity
+		output.ErrorClusters, output.SuccessClusters = clusterSSMRuns(vmGroups, opts)
+		slog.DebugContext(ctx, "Run clustering complete",
+			"error_clusters", len(output.ErrorClusters),
+			"success_clusters", len(output.SuccessClusters))
 	}
 	baseCommand := buildSSMRunsCommand(c, "ls", "")
 	return trace.Wrap(c.writeSSMRunsOutput(output, "", baseCommand))

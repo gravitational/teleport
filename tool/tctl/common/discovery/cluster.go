@@ -324,7 +324,7 @@ func makeSeeds(n int) []uint64 {
 	seeds := make([]uint64, n)
 	for i := range seeds {
 		b := make([]byte, 8)
-		binary.LittleEndian.PutUint64(b, uint64(i*0x517cc1b727220a95+0x6c62272e07bb0142))
+		binary.LittleEndian.PutUint64(b, uint64(i)*0x5bd1e995+0x27d4eb2f)
 		seeds[i] = binary.LittleEndian.Uint64(b)
 	}
 	return seeds
