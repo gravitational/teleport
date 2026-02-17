@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 
+import cfg from 'e-teleport/config';
 import { CreateInferenceModel } from 'e-teleport/SessionRecordings/setup/create/CreateInferenceModel';
 import { CreateInferencePolicy } from 'e-teleport/SessionRecordings/setup/create/CreateInferencePolicy';
 import { CreateInferenceSecret } from 'e-teleport/SessionRecordings/setup/create/CreateInferenceSecret';
@@ -13,6 +14,8 @@ import {
 } from 'e-teleport/SessionRecordings/setup/SessionSummariesManagement';
 
 export function SessionSummariesOverlays() {
+  const isCloud = cfg.oss.isCloud;
+
   const { overlays } = useSessionSummariesManagement();
 
   const items = useMemo(
@@ -24,7 +27,13 @@ export function SessionSummariesOverlays() {
               return <EditInferenceModel key={index} name={overlay.name} />;
 
             case OverlayEntity.Policy:
-              return <EditInferencePolicy key={index} name={overlay.name} />;
+              return (
+                <EditInferencePolicy
+                  key={index}
+                  name={overlay.name}
+                  isCloud={isCloud}
+                />
+              );
 
             case OverlayEntity.Secret:
               return <EditInferenceSecret key={index} name={overlay.name} />;
@@ -36,13 +45,13 @@ export function SessionSummariesOverlays() {
             return <CreateInferenceModel key={index} />;
 
           case OverlayEntity.Policy:
-            return <CreateInferencePolicy key={index} />;
+            return <CreateInferencePolicy key={index} isCloud={isCloud} />;
 
           case OverlayEntity.Secret:
             return <CreateInferenceSecret key={index} />;
         }
       }),
-    [overlays]
+    [overlays, isCloud]
   );
 
   return <>{items}</>;

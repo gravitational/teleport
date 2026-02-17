@@ -15,6 +15,7 @@ import Dialog, {
 import { Indicator } from 'design/Indicator';
 import { ErrorSuspenseWrapper } from 'shared/components/ErrorSuspenseWrapper/ErrorSuspenseWrapper';
 
+import type { InferencePolicy } from 'e-teleport/services/inference';
 import {
   getInferencePolicyQueryKey,
   listInferencePoliciesQueryKey,
@@ -23,6 +24,7 @@ import {
 } from 'e-teleport/services/inference/hooks';
 import { Form } from 'e-teleport/SessionRecordings/setup/fields/Form';
 import { InferencePolicyForm } from 'e-teleport/SessionRecordings/setup/forms/InferencePolicyForm';
+import { TELEPORT_CLOUD_MODEL } from 'e-teleport/SessionRecordings/setup/schema/accessMethods';
 import { inferencePolicySchema } from 'e-teleport/SessionRecordings/setup/schema/policy';
 import type { ResourceKind } from 'e-teleport/SessionRecordings/setup/schema/types';
 import { useSessionSummariesManagement } from 'e-teleport/SessionRecordings/setup/SessionSummariesManagement';
@@ -31,16 +33,20 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 type EditInferencePolicySchema = z.infer<typeof inferencePolicySchema>;
 
 interface EditInferencePolicyProps {
+  isCloud: boolean;
   name: string;
 }
 
-export function EditInferencePolicy({ name }: EditInferencePolicyProps) {
+export function EditInferencePolicy({
+  isCloud,
+  name,
+}: EditInferencePolicyProps) {
   const { closeCurrentOverlay } = useSessionSummariesManagement();
 
   return (
     <Dialog
       dialogCss={() => ({
-        maxWidth: '700px',
+        maxWidth: '900px',
         width: '100%',
         overflow: 'unset',
       })}
@@ -56,7 +62,7 @@ export function EditInferencePolicy({ name }: EditInferencePolicyProps) {
         errorComponent={LoadingInferencePolicyFailed}
         loadingComponent={LoadingInferencePolicy}
       >
-        <EditInferencePolicyInner name={name} />
+        <EditInferencePolicyInner isCloud={isCloud} name={name} />
       </ErrorSuspenseWrapper>
     </Dialog>
   );
@@ -86,17 +92,35 @@ function LoadingInferencePolicyFailed({ error }: FallbackProps) {
   );
 }
 
-function EditInferencePolicyInner({ name }: EditInferencePolicyProps) {
+function getDefaultValues(
+  isCloud: boolean,
+  policy: InferencePolicy
+): EditInferencePolicySchema {
+  if (isCloud && policy.model === TELEPORT_CLOUD_MODEL) {
+    return {
+      kinds: [...policy.kinds] as ResourceKind[],
+      model: TELEPORT_CLOUD_MODEL,
+      providedByTeleportCloud: true,
+      acceptedTerms: true,
+    };
+  }
+
+  return {
+    kinds: [...policy.kinds] as ResourceKind[],
+    model: policy.model,
+    providedByTeleportCloud: false,
+  };
+}
+
+function EditInferencePolicyInner({ isCloud, name }: EditInferencePolicyProps) {
   const { closeCurrentOverlay } = useSessionSummariesManagement();
   const { clusterId } = useStickyClusterId();
 
   const policy = useSuspenseGetInferencePolicy({ clusterId, name });
+  const wasAlreadyCloud = isCloud && policy.data.model === TELEPORT_CLOUD_MODEL;
 
   const form = useForm<EditInferencePolicySchema>({
-    defaultValues: {
-      kinds: [...policy.data.kinds] as ResourceKind[],
-      model: policy.data.model,
-    },
+    defaultValues: getDefaultValues(isCloud, policy.data),
     mode: 'onChange',
     resolver: zodResolver(inferencePolicySchema),
   });
@@ -145,6 +169,7 @@ function EditInferencePolicyInner({ name }: EditInferencePolicyProps) {
     <Form form={form} onSubmit={handleSubmit}>
       <InferencePolicyForm
         clusterId={clusterId}
+        isCloud={isCloud}
         isCreate={false}
         isError={edit.isError}
         isPending={edit.isPending}
@@ -152,6 +177,7 @@ function EditInferencePolicyInner({ name }: EditInferencePolicyProps) {
         error={edit.error}
         name={name}
         onClose={closeCurrentOverlay}
+        wasAlreadyCloud={wasAlreadyCloud}
       />
     </Form>
   );

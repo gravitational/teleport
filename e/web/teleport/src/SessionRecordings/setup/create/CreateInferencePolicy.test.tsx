@@ -185,6 +185,50 @@ test('can select multiple session types', async () => {
   expect(screen.getByRole('checkbox', { name: /SSH/i })).toBeChecked();
 });
 
+test('shows terms and conditions when using Teleport Cloud', async () => {
+  cfg.oss.isCloud = true;
+  mockListInferenceModels();
+  renderCreateInferencePolicy();
+
+  expect(
+    screen.getByRole('checkbox', { name: /I have read and agree/i })
+  ).toBeInTheDocument();
+  cfg.oss.isCloud = false;
+});
+
+test('create button is disabled without accepting terms', async () => {
+  cfg.oss.isCloud = true;
+  mockListInferenceModels();
+  renderCreateInferencePolicy();
+
+  const user = userEvent.setup();
+
+  await user.click(screen.getByRole('checkbox', { name: /Kubernetes/i }));
+  await user.type(screen.getByLabelText(/Name/i), 'my-policy');
+
+  expect(screen.getByRole('button', { name: /Create/i })).toBeDisabled();
+  cfg.oss.isCloud = false;
+});
+
+test('create button is enabled after accepting terms and filling form', async () => {
+  cfg.oss.isCloud = true;
+  mockListInferenceModels();
+  renderCreateInferencePolicy();
+
+  const user = userEvent.setup();
+
+  await user.click(screen.getByRole('checkbox', { name: /Kubernetes/i }));
+  await user.type(screen.getByLabelText(/Name/i), 'my-policy');
+  await user.click(
+    screen.getByRole('checkbox', { name: /I have read and agree/i })
+  );
+
+  await waitFor(() => {
+    expect(screen.getByRole('button', { name: /Create/i })).toBeEnabled();
+  });
+  cfg.oss.isCloud = false;
+});
+
 function renderCreateInferencePolicy() {
   return render(
     <MemoryRouter initialEntries={['/#new-policy']}>

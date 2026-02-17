@@ -2,6 +2,7 @@ import { inferencePolicySchema } from './policy';
 
 test('validates with valid kinds and model', () => {
   const input = {
+    providedByTeleportCloud: false,
     kinds: ['ssh', 'k8s', 'db'],
     model: 'gpt-4',
   };
@@ -13,6 +14,7 @@ test('validates with valid kinds and model', () => {
 
 test('validates with single kind', () => {
   const input = {
+    providedByTeleportCloud: false,
     kinds: ['ssh'],
     model: 'anthropic.claude-v2',
   };
@@ -24,6 +26,7 @@ test('validates with single kind', () => {
 
 test('rejects empty kinds array', () => {
   const input = {
+    providedByTeleportCloud: false,
     kinds: [],
     model: 'gpt-4',
   };
@@ -36,6 +39,7 @@ test('rejects empty kinds array', () => {
 
 test('rejects empty model', () => {
   const input = {
+    providedByTeleportCloud: false,
     kinds: ['ssh'],
     model: '',
   };
@@ -48,6 +52,7 @@ test('rejects empty model', () => {
 
 test('rejects invalid resource kind', () => {
   const input = {
+    providedByTeleportCloud: false,
     kinds: ['invalid_kind'],
     model: 'gpt-4',
   };

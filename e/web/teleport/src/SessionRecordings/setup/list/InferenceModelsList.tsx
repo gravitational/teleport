@@ -15,6 +15,7 @@ import {
   ItemLink,
   PaginatedList,
 } from 'e-teleport/SessionRecordings/setup/list/PaginatedList';
+import { TELEPORT_CLOUD_MODEL } from 'e-teleport/SessionRecordings/setup/schema/accessMethods';
 import {
   OverlayEntity,
   useSessionSummariesManagement,
@@ -77,7 +78,7 @@ function getModelDetails(
   }
 
   if (model.bedrock) {
-    if (model.bedrock.modelId === 'teleport-cloud-default') {
+    if (model.bedrock.modelId === TELEPORT_CLOUD_MODEL) {
       return {
         icon: TeleportLogo,
         label: 'Teleport Cloud AI',

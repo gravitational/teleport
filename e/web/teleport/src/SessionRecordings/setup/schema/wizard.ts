@@ -15,17 +15,19 @@ import { ModelProvider } from './types';
  */
 
 // The wizard will always require the policy and the model provider
-const baseFields = inferencePolicySchema.extend({
-  modelProvider: ModelProvider,
-});
+const baseFields = inferencePolicySchema.and(
+  z.object({
+    modelProvider: ModelProvider,
+  })
+);
 
 // Use `cloud` to discriminate between cloud and self-hosted schemas
 const cloudFormSchema = baseFields
-  .extend({ isCloud: z.literal(true) })
+  .and(z.object({ isCloud: z.literal(true) }))
   .and(cloudCredentials);
 
 const selfHostedFormSchema = baseFields
-  .extend({ isCloud: z.literal(false) })
+  .and(z.object({ isCloud: z.literal(false) }))
   .and(selfHostedCredentials);
 
 export const inferenceWizardSchema = z.union([
@@ -68,6 +70,7 @@ export function getDefaultInferenceWizardValues(
           integrationName: '',
           isCloud: true,
           region: '',
+          providedByTeleportCloud: false,
         };
       }
 
@@ -78,6 +81,7 @@ export function getDefaultInferenceWizardValues(
         integrationName: '',
         isCloud: false,
         region: '',
+        providedByTeleportCloud: false,
       };
 
     case 'openai_api':
@@ -86,6 +90,7 @@ export function getDefaultInferenceWizardValues(
         accessMethod: 'openai_api',
         apiKey: '',
         apiKeyMode: 'new',
+        providedByTeleportCloud: false,
       };
 
     case 'openai_compatible':
@@ -95,6 +100,7 @@ export function getDefaultInferenceWizardValues(
         apiKey: '',
         apiKeyMode: 'new',
         apiUrl: '',
+        providedByTeleportCloud: false,
       };
 
     case 'teleport':
@@ -107,6 +113,8 @@ export function getDefaultInferenceWizardValues(
         accessMethod: 'teleport',
         isCloud: true,
         model: TELEPORT_CLOUD_MODEL,
+        providedByTeleportCloud: true,
+        acceptedTerms: false,
       };
   }
 }

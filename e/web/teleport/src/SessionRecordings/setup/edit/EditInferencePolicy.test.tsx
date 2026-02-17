@@ -272,6 +272,55 @@ test('can change session types', async () => {
   expect(screen.getByRole('checkbox', { name: /Kubernetes/i })).toBeChecked();
 });
 
+test('does not show terms when policy already uses Teleport Cloud', async () => {
+  cfg.oss.isCloud = true;
+
+  const cloudPolicy: InferencePolicy = {
+    name: 'cloud-policy',
+    model: 'teleport-cloud-default',
+    kinds: ['k8s'],
+  };
+
+  server.use(
+    http.get(cfg.api.inference.policy, () => HttpResponse.json(cloudPolicy))
+  );
+  mockListInferenceModels();
+
+  render(
+    <MemoryRouter initialEntries={['/#edit-policy:cloud-policy']}>
+      <SessionSummariesManagementProvider />
+    </MemoryRouter>
+  );
+
+  await waitFor(() => {
+    expect(
+      screen.getByText('Editing Inference Policy: cloud-policy')
+    ).toBeInTheDocument();
+  });
+
+  expect(
+    screen.queryByRole('checkbox', { name: /I have read and agree/i })
+  ).not.toBeInTheDocument();
+
+  cfg.oss.isCloud = false;
+});
+
+test('does not show terms when policy uses a custom model', async () => {
+  mockGetInferencePolicy();
+  mockListInferenceModels();
+  renderEditInferencePolicy();
+
+  await waitFor(() => {
+    expect(
+      screen.getByText('Editing Inference Policy: my-policy')
+    ).toBeInTheDocument();
+  });
+
+  expect(
+    screen.queryByRole('checkbox', { name: /I have read and agree/i })
+  ).not.toBeInTheDocument();
+});
+
 function renderEditInferencePolicy() {
   return render(
     <MemoryRouter initialEntries={['/#edit-policy:my-policy']}>

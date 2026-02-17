@@ -20,9 +20,12 @@ import {
   useListInferenceModels,
 } from 'e-teleport/services/inference/hooks';
 import { FieldCheckboxGroup } from 'e-teleport/SessionRecordings/setup/fields/FieldCheckboxGroup';
+import { FieldCloudModelProvider } from 'e-teleport/SessionRecordings/setup/fields/FieldCloudModelProvider';
 import { FieldInput } from 'e-teleport/SessionRecordings/setup/fields/FieldInput';
 import { FieldSelect } from 'e-teleport/SessionRecordings/setup/fields/FieldSelect';
+import { FieldTermsAndConditions } from 'e-teleport/SessionRecordings/setup/fields/FieldTermsAndConditions';
 import { DeleteButton } from 'e-teleport/SessionRecordings/setup/forms/DeleteButton';
+import type { InferencePolicySchema } from 'e-teleport/SessionRecordings/setup/schema/policy';
 import {
   OverlayEntity,
   useSessionSummariesManagement,
@@ -31,20 +34,23 @@ import {
 interface CreateInferencePolicyFormProps {
   clusterId: string;
   error: unknown;
+  isCloud: boolean;
   isCreate: true;
   isError: boolean;
   isPending: boolean;
   isValid: boolean;
   name?: never;
   onClose(): void;
+  wasAlreadyCloud?: never;
 }
 
 interface EditInferencePolicyFormProps extends Omit<
   CreateInferencePolicyFormProps,
-  'isCreate' | 'name'
+  'isCreate' | 'name' | 'wasAlreadyCloud'
 > {
   isCreate: false;
   name: string;
+  wasAlreadyCloud: boolean;
 }
 
 type InferencePolicyFormProps =
@@ -54,19 +60,25 @@ type InferencePolicyFormProps =
 export function InferencePolicyForm({
   clusterId,
   error,
+  isCloud,
   isCreate,
   isError,
   isPending,
   isValid,
   name,
   onClose,
+  wasAlreadyCloud,
 }: InferencePolicyFormProps) {
   const queryClient = useQueryClient();
 
-  const { createNewOverlayLink, clearPendingSelection, pendingSelection } =
-    useSessionSummariesManagement();
+  const providedByTeleportCloud = useWatch<
+    InferencePolicySchema,
+    'providedByTeleportCloud'
+  >({
+    name: 'providedByTeleportCloud',
+  });
 
-  const form = useFormContext();
+  const showTerms = providedByTeleportCloud && !wasAlreadyCloud;
 
   const deletePolicy = useDeleteInferencePolicy({
     onSuccess() {
@@ -91,6 +103,102 @@ export function InferencePolicyForm({
       // handled by TanStack Query
     }
   }, [deletePolicy, clusterId, name, onClose]);
+
+  return (
+    <>
+      <DialogContent>
+        {isError && <Alert kind="danger">{getErrorMessage(error)}</Alert>}
+        {deletePolicy.isError && (
+          <Alert kind="danger">{getErrorMessage(deletePolicy.error)}</Alert>
+        )}
+
+        <Flex flexDirection="column" gap={4} width="100%">
+          {isCloud && <FieldCloudModelProvider />}
+
+          <FieldModelSelector clusterId={clusterId} />
+
+          <FieldCheckboxGroup
+            name="kinds"
+            label="What types of sessions should be summarized?"
+            options={[
+              {
+                label: 'Kubernetes',
+                value: 'k8s',
+                icon: <Kubernetes size="small" />,
+              },
+              {
+                label: 'Database',
+                value: 'db',
+                icon: <Database size="small" />,
+              },
+              { label: 'SSH', value: 'ssh', icon: <Server size="small" /> },
+            ]}
+            required={true}
+          />
+
+          {isCreate && (
+            <FieldInput
+              helperText="Enter a unique name for this inference policy."
+              label="Name"
+              name="name"
+              placeholder="my-inference-policy"
+              required={true}
+            />
+          )}
+
+          {showTerms && <FieldTermsAndConditions name="acceptedTerms" />}
+        </Flex>
+      </DialogContent>
+
+      <DialogFooter>
+        <Flex alignItems="center" width="100%">
+          <ButtonPrimary mr={3} disabled={!isValid || isPending} type="submit">
+            {isCreate ? 'Create' : 'Update'}
+          </ButtonPrimary>
+
+          <ButtonSecondary disabled={isPending} onClick={onClose} type="button">
+            Cancel
+          </ButtonSecondary>
+
+          <Spacer />
+
+          {!isCreate && (
+            <DeleteButton
+              buttonText="Delete Inference Policy"
+              confirmText={
+                <Box>
+                  Are you sure you want to delete the inference policy{' '}
+                  <strong>{name}</strong>?
+                </Box>
+              }
+              headerText="Confirm Delete Inference Policy"
+              isPending={deletePolicy.isPending}
+              onDelete={handleDeletePolicy}
+            />
+          )}
+        </Flex>
+      </DialogFooter>
+    </>
+  );
+}
+
+interface FieldModelSelectorProps {
+  clusterId: string;
+}
+
+function FieldModelSelector({ clusterId }: FieldModelSelectorProps) {
+  const queryClient = useQueryClient();
+  const form = useFormContext();
+
+  const { createNewOverlayLink, clearPendingSelection, pendingSelection } =
+    useSessionSummariesManagement();
+
+  const isUsingCloudModelProvider = useWatch<
+    InferencePolicySchema,
+    'providedByTeleportCloud'
+  >({
+    name: 'providedByTeleportCloud',
+  });
 
   const inferenceModels = useListInferenceModels({ clusterId });
 
@@ -127,90 +235,23 @@ export function InferencePolicyForm({
     [createNewOverlayLink]
   );
 
+  if (isUsingCloudModelProvider) {
+    return null;
+  }
+
   return (
-    <>
-      <DialogContent>
-        {isError && <Alert kind="danger">{getErrorMessage(error)}</Alert>}
-        {deletePolicy.isError && (
-          <Alert kind="danger">{getErrorMessage(deletePolicy.error)}</Alert>
-        )}
-
-        <Flex flexDirection="column" gap={4} width="100%">
-          <FieldSelect
-            name="model"
-            components={{
-              SingleValue: CustomSingleValue,
-            }}
-            options={options}
-            label="Inference model to use"
-            labelButton={
-              <AddLink to={addInferenceModelLink}>
-                Add a new inference model
-              </AddLink>
-            }
-            required={true}
-          />
-
-          <FieldCheckboxGroup
-            name="kinds"
-            label="What types of sessions should be summarized?"
-            options={[
-              {
-                label: 'Kubernetes',
-                value: 'k8s',
-                icon: <Kubernetes size="small" />,
-              },
-              {
-                label: 'Database',
-                value: 'db',
-                icon: <Database size="small" />,
-              },
-              { label: 'SSH', value: 'ssh', icon: <Server size="small" /> },
-            ]}
-            required={true}
-          />
-
-          {isCreate && (
-            <FieldInput
-              helperText="Enter a unique name for this inference policy."
-              label="Name"
-              name="name"
-              placeholder="my-inference-policy"
-              required={true}
-            />
-          )}
-        </Flex>
-      </DialogContent>
-
-      <DialogFooter>
-        <Flex alignItems="center" width="100%">
-          <ButtonPrimary mr={3} disabled={!isValid || isPending} type="submit">
-            {isCreate ? 'Create' : 'Update'}
-          </ButtonPrimary>
-
-          <ButtonSecondary disabled={isPending} onClick={onClose} type="button">
-            Cancel
-          </ButtonSecondary>
-
-          <Spacer />
-
-          {!isCreate && (
-            <DeleteButton
-              buttonText="Delete Inference Policy"
-              confirmText={
-                <Box>
-                  Are you sure you want to delete the inference policy{' '}
-                  <strong>{name}</strong>?
-                </Box>
-              }
-              headerText="Confirm Delete Inference Policy"
-              isPending={deletePolicy.isPending}
-              onDelete={handleDeletePolicy}
-            />
-          )}
-        </Flex>
-      </DialogFooter>
-    </>
+    <FieldSelect
+      name="model"
+      components={{
+        SingleValue: CustomSingleValue,
+      }}
+      options={options}
+      label="Inference model to use"
+      labelButton={
+        <AddLink to={addInferenceModelLink}>Add a new inference model</AddLink>
+      }
+      required={true}
+    />
   );
 }
 

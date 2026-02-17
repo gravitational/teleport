@@ -5,14 +5,18 @@ import {
   useWatch,
   type FieldPathValue,
 } from 'react-hook-form';
-import styled from 'styled-components';
 
 import Flex, { Stack } from 'design/Flex';
-import { BedrockLogo, OpenAIBlossom, TeleportLogo } from 'design/Icon';
+import { BedrockLogo, OpenAIBlossom } from 'design/Icon';
 import { type IconProps } from 'design/Icon/Icon';
 import { LabelContent } from 'design/LabelInput/LabelInput';
 import Text, { H3 } from 'design/Text';
 
+import {
+  AccessMethodOptionContainer,
+  RadioCircle,
+  RadioDot,
+} from 'e-teleport/SessionRecordings/setup/fields/common';
 import type { InferenceModelSchema } from 'e-teleport/SessionRecordings/setup/schema/model';
 
 interface AccessMethodOptionProps {
@@ -29,11 +33,22 @@ interface AvailableAccessMethod {
   values: FieldPathValue<InferenceModelSchema, 'accessMethod'>[];
 }
 
-interface SelectProviderProps {
-  isCloud: boolean;
-}
+const accessMethods = [
+  {
+    description: 'Use OpenAI or an OpenAI-compatible API',
+    Icon: OpenAIBlossom,
+    text: 'OpenAI-Compatible API',
+    values: ['openai_api' as const, 'openai_compatible' as const],
+  },
+  {
+    description: 'Connect to models through Amazon Bedrock',
+    Icon: BedrockLogo,
+    text: 'Amazon Bedrock',
+    values: ['bedrock' as const],
+  },
+];
 
-export function FieldModelProvider({ isCloud }: SelectProviderProps) {
+export function FieldModelProvider() {
   const { setFocus, setValue } = useFormContext<InferenceModelSchema>();
 
   const { field } = useController<InferenceModelSchema, 'accessMethod'>({
@@ -61,14 +76,14 @@ export function FieldModelProvider({ isCloud }: SelectProviderProps) {
 
   const options = useMemo(
     () =>
-      getAvailableAccessMethods(isCloud).map(method => (
+      accessMethods.map(method => (
         <AccessMethodOption
           details={method}
           key={method.text}
           onChange={handleAccessMethodChange}
         />
       )),
-    [isCloud, handleAccessMethodChange]
+    [handleAccessMethodChange]
   );
 
   return (
@@ -81,26 +96,6 @@ export function FieldModelProvider({ isCloud }: SelectProviderProps) {
     </Stack>
   );
 }
-
-const AccessMethodOptionContainer = styled.div<{ selected: boolean }>`
-  display: flex;
-  align-items: flex-start;
-  gap: ${p => p.theme.space[3]}px;
-  padding: ${p => p.theme.space[2]}px ${p => p.theme.space[3]}px
-    ${p => p.theme.space[3]}px;
-  border: 1px solid
-    ${p =>
-      p.selected
-        ? p.theme.colors.brand
-        : p.theme.colors.interactive.tonal.neutral[0]};
-  border-radius: ${p => p.theme.radii[3]}px;
-  cursor: pointer;
-  flex: 1;
-
-  &:hover {
-    background-color: ${p => p.theme.colors.interactive.tonal.neutral[1]};
-  }
-`;
 
 function AccessMethodOption({ details, onChange }: AccessMethodOptionProps) {
   const value = useWatch<InferenceModelSchema, 'accessMethod'>({
@@ -138,55 +133,3 @@ function AccessMethodOption({ details, onChange }: AccessMethodOptionProps) {
     </AccessMethodOptionContainer>
   );
 }
-
-function getAvailableAccessMethods(isCloud: boolean) {
-  const methods: AvailableAccessMethod[] = [];
-
-  if (isCloud) {
-    methods.push({
-      description: 'Use Claude Sonnet 4.5 provided by Teleport Cloud',
-      Icon: TeleportLogo,
-      text: 'Teleport Cloud',
-      values: ['teleport' as const],
-    });
-  }
-
-  methods.push(
-    {
-      description: 'Use OpenAI or an OpenAI-compatible API',
-      Icon: OpenAIBlossom,
-      text: 'OpenAI-Compatible API',
-      values: ['openai_api' as const, 'openai_compatible' as const],
-    },
-    {
-      description: 'Connect to models through Amazon Bedrock',
-      Icon: BedrockLogo,
-      text: 'Amazon Bedrock',
-      values: ['bedrock' as const],
-    }
-  );
-
-  return methods;
-}
-
-const RadioCircle = styled.div<{ selected: boolean }>`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  border: 1px solid
-    ${p =>
-      p.selected
-        ? p.theme.colors.interactive.solid.primary.default
-        : p.theme.colors.interactive.tonal.neutral[2]};
-  border-radius: 50%;
-  background: transparent;
-`;
-
-const RadioDot = styled.div`
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: ${p => p.theme.colors.interactive.solid.primary.default};
-`;

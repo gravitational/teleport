@@ -145,7 +145,7 @@ export function InferenceModelForm({
           <Alert kind="danger">{getErrorMessage(deleteModel.error)}</Alert>
         )}
         <Flex flexDirection="column" gap={4} width="100%">
-          <FieldModelProvider isCloud={isCloud} />
+          <FieldModelProvider />
 
           <CredentialsForm isCloud={isCloud} />
 

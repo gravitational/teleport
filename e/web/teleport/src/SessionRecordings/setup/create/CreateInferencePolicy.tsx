@@ -12,6 +12,7 @@ import {
 } from 'e-teleport/services/inference/hooks';
 import { Form } from 'e-teleport/SessionRecordings/setup/fields/Form';
 import { InferencePolicyForm } from 'e-teleport/SessionRecordings/setup/forms/InferencePolicyForm';
+import { TELEPORT_CLOUD_MODEL } from 'e-teleport/SessionRecordings/setup/schema/accessMethods';
 import { inferencePolicySchema } from 'e-teleport/SessionRecordings/setup/schema/policy';
 import {
   OverlayEntity,
@@ -19,24 +20,45 @@ import {
 } from 'e-teleport/SessionRecordings/setup/SessionSummariesManagement';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
-const createInferencePolicySchema = inferencePolicySchema.extend({
-  name: z.string().min(1, 'Name is required'),
-});
+const createInferencePolicySchema = inferencePolicySchema.and(
+  z.object({
+    name: z.string().min(1, 'Name is required'),
+  })
+);
 
 type CreateInferencePolicySchema = z.infer<typeof createInferencePolicySchema>;
 
-export function CreateInferencePolicy() {
+interface CreateInferencePolicyProps {
+  isCloud: boolean;
+}
+
+function getDefaultValues(isCloud: boolean): CreateInferencePolicySchema {
+  if (isCloud) {
+    return {
+      name: '',
+      kinds: [],
+      model: TELEPORT_CLOUD_MODEL,
+      providedByTeleportCloud: true,
+      acceptedTerms: false,
+    };
+  }
+
+  return {
+    name: '',
+    kinds: [],
+    model: '',
+    providedByTeleportCloud: false,
+  };
+}
+
+export function CreateInferencePolicy({ isCloud }: CreateInferencePolicyProps) {
   const { clusterId } = useStickyClusterId();
 
   const { closeCurrentOverlay, setPendingSelection } =
     useSessionSummariesManagement();
 
-  const form = useForm({
-    defaultValues: {
-      kinds: [],
-      model: '',
-      name: '',
-    },
+  const form = useForm<CreateInferencePolicySchema>({
+    defaultValues: getDefaultValues(isCloud),
     mode: 'onChange',
     resolver: zodResolver(createInferencePolicySchema),
   });
@@ -80,7 +102,7 @@ export function CreateInferencePolicy() {
   return (
     <Dialog
       dialogCss={() => ({
-        maxWidth: '700px',
+        maxWidth: '900px',
         width: '100%',
         overflow: 'unset',
       })}
@@ -95,6 +117,7 @@ export function CreateInferencePolicy() {
       <Form form={form} onSubmit={handleSubmit}>
         <InferencePolicyForm
           clusterId={clusterId}
+          isCloud={isCloud}
           isCreate={true}
           isError={create.isError}
           isPending={create.isPending}
