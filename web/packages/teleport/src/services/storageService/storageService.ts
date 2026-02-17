@@ -266,6 +266,10 @@ export const storageService = {
     return this.getParsedJSONValue(KeysEnum.ACCESS_GRAPH_ENABLED, false);
   },
 
+  resetAccessGraphEnabled() {
+    window.localStorage.removeItem(KeysEnum.ACCESS_GRAPH_ENABLED);
+  },
+
   getAccessGraphSQLEnabled(): boolean {
     return this.getParsedJSONValue(KeysEnum.ACCESS_GRAPH_SQL_ENABLED, false);
   },

@@ -359,6 +359,27 @@ test('undefined values in context response gives proper default values', async (
       create: false,
       remove: false,
     },
+    inferencePolicy: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    inferenceModel: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    inferenceSecret: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
   };
 
   expect(response).toEqual({
