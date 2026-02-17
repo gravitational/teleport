@@ -82,8 +82,8 @@ type ServiceTestConfig struct {
 	PolicyCDNBaseURL string
 }
 
-// InstallService installs Teleport Connect privileged update service.
-// The service allows installing updates with asking for admin permissions.
+// InstallService installs the Teleport Connect privileged update service.
+// This service enables installing updates without prompting the user for administrator permissions.
 func InstallService(ctx context.Context) (err error) {
 	return trace.Wrap(windowsservice.Install(ctx, &windowsservice.InstallConfig{
 		Name:              serviceName,
@@ -103,7 +103,7 @@ func UninstallService(ctx context.Context) (err error) {
 }
 
 // RunService implements Teleport Connect privileged update service.
-// The service allows installing updates with asking for admin permissions.
+// This service enables installing updates without prompting the user for administrator permissions.
 func RunService() error {
 	h := &handler{
 		testCfg: &ServiceTestConfig{},
