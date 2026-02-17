@@ -976,16 +976,18 @@ endif
 .PHONY: test-go-bench
 test-go-bench: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr testing.B .  | xargs dirname | xargs go list | sort -u)
 test-go-bench: BENCHMARK_SKIP_PATTERN = "^BenchmarkRoot"
+test-go-bench: BENCH_OUTPUT ?= $(TEST_LOG_DIR)/bench.txt
 test-go-bench: | $(TEST_LOG_DIR)
 	go test -run ^$$ -bench . -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $(PACKAGES) \
-		| tee $(TEST_LOG_DIR)/bench.txt
+		| tee $(BENCH_OUTPUT)
 
 test-go-bench-root: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr BenchmarkRoot .  | xargs dirname | xargs go list | sort -u)
 test-go-bench-root: BENCHMARK_PATTERN = "^BenchmarkRoot"
 test-go-bench-root: BENCHMARK_SKIP_PATTERN = ""
+test-go-bench-root: BENCH_OUTPUT ?= $(TEST_LOG_DIR)/bench.txt
 test-go-bench-root: | $(TEST_LOG_DIR)
 	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $(PACKAGES) \
-		| tee $(TEST_LOG_DIR)/bench.txt
+		| tee $(BENCH_OUTPUT)
 
 # Make sure untagged vnetdaemon code build/tests.
 .PHONY: test-go-vnet-daemon
@@ -1937,3 +1939,10 @@ gen-docs:
 	$(MAKE) -C integrations/terraform docs
 	$(MAKE) -C integrations/operator crd-docs
 	$(MAKE) -C examples/chart render-chart-ref
+
+.PHONY: benchstat
+benchstat:
+ifndef BENCH_FILES
+	$(error "Please provide BENCH_FILES=<file1> <file2> ...")
+endif
+	@$(BENCHSTAT) $(BENCH_FILES) | tee test-logs/benchstat.txt
