@@ -1,0 +1,20 @@
+
+╔══════════════════════════════════════════════════════════════╗
+║            Welcome to Teleport Beams Sandbox                 ║
+╚══════════════════════════════════════════════════════════════╝
+
+Installed: Python, Node.js, Claude Code, vim, jq, git
+
+Network Access:
+  ✓ LLM APIs (Anthropic, OpenAI) - Available
+  ✗ Internet - Restricted by default
+
+To allow additional domains, run in a separate terminal:
+  tsh beams allow --python-dev
+  tsh beams allow --npm-dev
+  tsh beams allow --github
+  tsh beams allow --domain api.github.com
+
+Quick start:
+  claude --dangerously-skip-permissions
+

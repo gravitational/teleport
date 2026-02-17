@@ -1,0 +1,22 @@
+
+beams@sandbox:/workspace$ pip install openai tavily-python langsmith
+beams@sandbox:/workspace$ python research_agent.py
+Question: latest news on AI?
+  Searching: latest AI news 2026...
+Traceback (most recent call last):
+File "/home/beams/.local/lib/python3.11/site-packages/urllib3/connection.py", li
+...
+urllib3.exceptions.NewConnectionError: HTTPSConnection(host='api.tavily.com', po
+rt=443): Failed to establish a new connection: [Errno 111] Connection refused
+
+┌─ Network Policy ─────────────────────────────────────────────────────────────┐
+│ ⚠  Your beam is trying to reach:                                             │
+│                                                                              │
+│    api.tavily.com:443                                                        │
+│    api.smith.langchain.com:443                                               │
+│                                                                              │
+│  Allow?   [Y] yes  [N] deny                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘
+────────────────────────────────────────────────────────────────────────────────
+ Teleport Beams | ray1 │ Allowed ● python-dev                          │ F1 menu
+────────────────────────────────────────────────────────────────────────────────
