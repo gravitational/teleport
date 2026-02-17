@@ -38,6 +38,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -52,6 +53,10 @@ type sftpSubsys struct {
 	sftpCmd         *exec.Cmd
 	serverCtx       *srv.ServerContext
 	errCh           chan error
+
+	// childStderrDone is closed when child process stderr is fully read and
+	// propagated to the SSH channel.
+	childStderrDone chan struct{}
 }
 
 func newSFTPSubsys(fileTransferReq *srv.FileTransferRequest) (*sftpSubsys, error) {
@@ -121,8 +126,35 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.sftpCmd.Stdout = os.Stdout
-	s.sftpCmd.Stderr = os.Stderr
+
+	// Capture stderr.
+	stderrR, stderrW, err := os.Pipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer stderrW.Close()
+	s.sftpCmd.Stderr = stderrW
+
+	s.childStderrDone = make(chan struct{})
+	go func() {
+		defer close(s.childStderrDone)
+		defer stderrR.Close()
+
+		childErr, err := reexec.ReadChildError(stderrR, &reexec.ErrorContext{
+			DecisionContext: s.serverCtx.Identity.AccessPermit.DecisionContext,
+			Login:           s.serverCtx.Identity.Login,
+		})
+		if err != nil {
+			s.serverCtx.Logger.WarnContext(context.WithoutCancel(ctx), "Failed to read child process stderr", "error", err)
+		} else if childErr != "" {
+			if _, err := io.WriteString(ch.Stderr(), childErr); err != nil {
+				s.serverCtx.Logger.WarnContext(context.WithoutCancel(ctx), "Failed to propagate child process stderr to client", "error", err)
+			}
+		}
+	}()
+
+	// Ensure stderrR pipe is closed.
+	serverCtx.AddCloser(stderrR)
 
 	s.logger.DebugContext(ctx, "starting SFTP process")
 	err = s.sftpCmd.Start()
@@ -228,6 +260,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 func (s *sftpSubsys) Wait() error {
 	ctx := context.Background()
 	waitErr := s.sftpCmd.Wait()
+	<-s.childStderrDone
 	s.logger.DebugContext(ctx, "SFTP process finished")
 
 	s.serverCtx.SendExecResult(ctx, srv.ExecResult{

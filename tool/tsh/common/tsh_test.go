@@ -8443,6 +8443,7 @@ func TestReexecErrorPropagation(t *testing.T) {
 		t.Parallel()
 		homePath := userMissingLoginHomePath
 
+		unkownUserReexecError := fmt.Sprintf("Failed to launch: %v.\r\n", user.UnknownUserError(missingLogin))
 		for _, tc := range []testCase{sshShell, sshCommand, sshCommandTTY} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -8453,17 +8454,44 @@ func TestReexecErrorPropagation(t *testing.T) {
 				require.ErrorAs(t, err, &exitCodeErr)
 				require.Equal(t, teleport.RemoteCommandFailure, exitCodeErr.Code)
 
-				expectStdout := fmt.Sprintf("Failed to launch: %v.\r\n", user.UnknownUserError(missingLogin))
-
 				// Check for exact match to catch regressions with new lines.
-				require.Equal(t, expectStdout, stdout)
+				require.Equal(t, unkownUserReexecError, stdout)
 			})
 		}
+
+		t.Run("sftp", func(t *testing.T) {
+			stderr := &output{buf: bytes.Buffer{}}
+			err := Run(ctx, []string{
+				"scp",
+				"--insecure",
+				"-q",
+				"-d",
+				"--no-resume",
+				fmt.Sprintf("%s@%s:%s", missingLogin, sshHostname, "/placeholder"),
+				t.TempDir(),
+			},
+				setHomePath(homePath),
+				func(conf *CLIConf) error {
+					conf.overrideStderr = stderr
+					conf.Relogin = false
+					return nil
+				},
+			)
+			require.Error(t, err)
+			// Check for exact match to catch regressions with new lines.
+			require.Equal(t, unkownUserReexecError, err.Error())
+		})
 	})
 
 	t.Run("error with host user creation context", func(t *testing.T) {
 		t.Parallel()
 		homePath := userHostUserCreationContextHomePath
+
+		contextualReexecErrorMessage := fmt.Sprintf("Failed to launch: %s: host user creation denied by the following resources: [%s: %q]\r\n",
+			user.UnknownUserError(missingLogin),
+			types.KindRole,
+			roleNodeAccessMissingLogin.GetName(),
+		)
 
 		for _, tc := range []testCase{sshCommand} {
 			t.Run(tc.name, func(t *testing.T) {
@@ -8475,15 +8503,32 @@ func TestReexecErrorPropagation(t *testing.T) {
 				require.ErrorAs(t, err, &exitCodeErr)
 				require.Equal(t, teleport.RemoteCommandFailure, exitCodeErr.Code)
 
-				expectStdout := fmt.Sprintf("Failed to launch: %s: host user creation denied by the following resources: [%s: %q]\r\n",
-					user.UnknownUserError(missingLogin),
-					types.KindRole,
-					roleNodeAccessMissingLogin.GetName(),
-				)
-
 				// Check for exact match to catch regressions with new lines.
-				require.Equal(t, expectStdout, stdout)
+				require.Equal(t, contextualReexecErrorMessage, stdout)
 			})
 		}
+
+		t.Run("sftp", func(t *testing.T) {
+			stderr := &output{buf: bytes.Buffer{}}
+			err := Run(ctx, []string{
+				"scp",
+				"--insecure",
+				"-q",
+				"-d",
+				"--no-resume",
+				fmt.Sprintf("%s@%s:%s", missingLogin, sshHostname, "/placeholder"),
+				t.TempDir(),
+			},
+				setHomePath(homePath),
+				func(conf *CLIConf) error {
+					conf.overrideStderr = stderr
+					conf.Relogin = false
+					return nil
+				},
+			)
+			require.Error(t, err)
+			// Check for exact match to catch regressions with new lines.
+			require.Equal(t, contextualReexecErrorMessage, err.Error())
+		})
 	})
 }
