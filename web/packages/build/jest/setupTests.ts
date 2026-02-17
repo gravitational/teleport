@@ -21,6 +21,9 @@ import 'whatwg-fetch';
 const crypt = require('crypto');
 const path = require('path');
 
+const {
+  configure: configureTestingLibrary,
+} = require('@testing-library/react');
 const failOnConsole = require('jest-fail-on-console');
 const { configMocks } = require('jsdom-testing-mocks');
 const { act } = require('react');
@@ -71,3 +74,10 @@ failOnConsole({
       message.includes(allowedMessageFragment)
     ),
 });
+
+if (process.env.CI) {
+  configureTestingLibrary({
+    // Change the default waitFor timeout from 1s to 5s.
+    asyncUtilTimeout: 5000,
+  });
+}
