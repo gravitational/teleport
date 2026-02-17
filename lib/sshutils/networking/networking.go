@@ -23,6 +23,8 @@
 //   - Start: The parent teleport process creates a unix socket pair and passes one side to the
 //     networking subprocess on start. This is used as a unidirectional pipe for the parent
 //     to make networking requests.
+//   - Ready: The child process signals that it is ready and listening on the unix socket by sending
+//     a single byte message.
 //   - Request: The parent creates a new request-level socket pair and sends one side through the
 //     main pipe, along with the request payload (e.g. dial tcp 8080).
 //   - Handle: The subprocess watches for new requests on the main pipe. When a request is received,
@@ -35,17 +37,20 @@ package networking
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
 	"os"
 	"os/exec"
+	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils/uds"
 )
@@ -65,6 +70,8 @@ type Process struct {
 	done chan struct{}
 	// killed is set to true when the process was killed forcibly.
 	killed atomic.Bool
+	// childErr is an error sent by the child process over stderr.
+	childErr error
 }
 
 // Request is a networking request.
@@ -107,28 +114,18 @@ type X11Request struct {
 
 // NewProcess starts a new networking process with the given command, which should
 // be pre-configured from a ssh server context with Teleport reexec settings.
-func NewProcess(ctx context.Context, cmd *exec.Cmd) (*Process, error) {
-	// Create the socket to communicate over.
-	remoteConn, localConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer remoteConn.Close()
-	remoteFD, err := remoteConn.File()
-	if err != nil {
-		localConn.Close()
-		return nil, trace.Wrap(err)
-	}
-	defer remoteFD.Close()
-	cmd.ExtraFiles = append(cmd.ExtraFiles, remoteFD)
-
+func NewProcess(ctx context.Context, cmd *exec.Cmd, reexecErrorContext *reexec.ErrorContext) (*Process, error) {
 	proc := &Process{
 		cmd:  cmd,
-		conn: localConn,
 		done: make(chan struct{}),
 	}
 
-	if err := proc.start(ctx); err != nil {
+	if err := proc.start(ctx, reexecErrorContext); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := proc.waitReady(ctx); err != nil {
+		_ = proc.Close()
 		return nil, trace.Wrap(err)
 	}
 
@@ -136,22 +133,86 @@ func NewProcess(ctx context.Context, cmd *exec.Cmd) (*Process, error) {
 }
 
 // start the the networking process.
-func (p *Process) start(ctx context.Context) error {
+func (p *Process) start(ctx context.Context, reexecErrorContext *reexec.ErrorContext) error {
+	// Create the socket to communicate over.
+	remoteConn, localConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer remoteConn.Close()
+	p.conn = localConn
+
+	remoteFD, err := remoteConn.File()
+	if err != nil {
+		localConn.Close()
+		return trace.Wrap(err)
+	}
+	defer remoteFD.Close()
+	p.cmd.ExtraFiles = append(p.cmd.ExtraFiles, remoteFD)
+
+	stderrReader, stderrWriter, err := os.Pipe()
+	if err != nil {
+		localConn.Close()
+		return trace.Wrap(err)
+	}
+	defer stderrWriter.Close()
+	p.cmd.Stderr = stderrWriter
+
 	if err := p.cmd.Start(); err != nil {
-		p.conn.Close()
+		localConn.Close()
+		stderrReader.Close()
 		return trace.Wrap(err)
 	}
 
 	go func() {
 		defer close(p.done)
 		defer p.conn.Close()
-		// Ensure unexpected cmd failures get logged.
-		if err := p.cmd.Wait(); err != nil && !p.killed.Load() {
-			slog.WarnContext(ctx, "Networking process exited early with unexpected error.", "error", err)
+		defer stderrReader.Close()
+
+		waitErr := p.cmd.Wait()
+		if waitErr == nil || p.killed.Load() {
+			return
+		}
+
+		childErr, err := reexec.ReadChildError(stderrReader, reexecErrorContext)
+		if err == nil && childErr != "" {
+			p.childErr = errors.New(strings.TrimRight(childErr, "\r\n"))
+			return
+		}
+
+		// Child process exited before becoming ready without returning a structured
+		// reexec error over stderr, so fall back to the process wait error.
+		p.childErr = trace.Wrap(waitErr, "networking process exited before signaling ready")
+		if err != nil {
+			slog.WarnContext(context.WithoutCancel(ctx), "Failed to read child process error after early exit", "wait_error", waitErr, "child_error", err)
 		}
 	}()
 
 	return nil
+}
+
+func (p *Process) waitReady(ctx context.Context) error {
+	readyC := make(chan struct{})
+	go func() {
+		// Wait for the child process to signal ready. A read error indicate a process
+		// failure and can be ignored here.
+		if n, _ := p.conn.Read(make([]byte, 1)); n == 1 {
+			close(readyC)
+		}
+	}()
+
+	// Wait for the child process to be ready and listening or fail.
+	select {
+	case <-readyC:
+		return nil
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err(), "networking process failed to signal ready")
+	case <-p.done:
+		if p.childErr == nil {
+			return trace.BadParameter("networking process exited before signaling ready")
+		}
+		return p.childErr
+	}
 }
 
 // Close stops the process and frees up its related resources.

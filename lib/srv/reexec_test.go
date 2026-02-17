@@ -206,6 +206,30 @@ func newHTTPTestServer(t *testing.T, listener net.Listener) *httptest.Server {
 	return tsrv
 }
 
+const (
+	reexecWaitHelperErrorEnv = "TELEPORT_REEXEC_WAIT_HELPER_ERROR"
+)
+
+func TestNetworkingProcessPropagatesChildStderr(t *testing.T) {
+	const expectedChildErr = "Failed to launch: test networking child error"
+
+	cmd := exec.Command(os.Args[0], "-test.run=^TestReexecHelperProcess$")
+	cmd.Env = append(
+		os.Environ(),
+		reexecWaitHelperErrorEnv+"="+expectedChildErr,
+	)
+
+	_, err := networking.NewProcess(t.Context(), cmd, nil)
+	require.ErrorContains(t, err, expectedChildErr)
+}
+
+func TestReexecHelperProcess(t *testing.T) {
+	if os.Getenv(reexecWaitHelperErrorEnv) != "" {
+		_, _ = io.WriteString(os.Stderr, os.Getenv(reexecWaitHelperErrorEnv))
+		os.Exit(1)
+	}
+}
+
 func TestNetworkingCommand(t *testing.T) {
 	t.Parallel()
 	testNetworkingCommand(t, "")
@@ -243,7 +267,7 @@ func testNetworkingCommand(t *testing.T, login string) {
 	// Start networking subprocess.
 	command, err := ConfigureCommand(scx)
 	require.NoError(t, err)
-	proc, err := networking.NewProcess(ctx, command)
+	proc, err := networking.NewProcess(ctx, command, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { proc.Close() })
 
