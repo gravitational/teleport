@@ -210,6 +210,33 @@ func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
 	return nil
 }
 
+// ValidateTokenUpdate checks for invalid updates between two tokens.
+// If the scope, usage mode, or secret was changed between two token updates,
+// a trace.BadParameter error is returned.
+func ValidateTokenUpdate(oldToken *joiningv1.ScopedToken, newToken *joiningv1.ScopedToken) error {
+	if newToken == nil {
+		return trace.BadParameter("new token is invalid")
+	}
+	// no old token to compare to so we assume that the new token is valid and no need for additional checks
+	if oldToken == nil {
+		return nil
+	}
+	tokenName := newToken.GetMetadata().GetName()
+	if oldToken.GetScope() != newToken.GetScope() {
+		return trace.BadParameter("cannot modify scope of existing scoped token %s with scope %s to %s", tokenName, oldToken.GetScope(), newToken.GetScope())
+	}
+
+	if oldToken.GetSpec().GetUsageMode() != newToken.GetSpec().GetUsageMode() {
+		return trace.BadParameter("cannot modify usage mode of existing scoped token %s from usage mode %s to %s", tokenName, oldToken.GetSpec().GetUsageMode(), newToken.GetSpec().GetUsageMode())
+	}
+
+	if oldToken.GetStatus().GetSecret() != newToken.GetStatus().GetSecret() {
+		return trace.BadParameter("cannot modify secret of existing scoped token %s", tokenName)
+	}
+
+	return nil
+}
+
 // Token wraps a [joiningv1.ScopedToken] such that it can be used to provision
 // resources.
 type Token struct {

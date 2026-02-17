@@ -19,6 +19,7 @@
 import {
   ClientScreenSpec,
   selectDirectoryInBrowser,
+  TdpbCodec,
   TdpClient,
   TdpClientEvent,
 } from 'shared/libs/tdp';
@@ -57,6 +58,7 @@ export class PlayerClient extends TdpClient {
   private sendTimeUpdates = true;
   private lastUpdateTime = 0;
   private timeout = null;
+  private tdpbCodec = new TdpbCodec();
 
   constructor({ url, setTime, setPlayerStatus, setStatusText }) {
     super(
@@ -174,7 +176,16 @@ export class PlayerClient extends TdpClient {
         this.scheduleNextUpdate(json.ms);
       }
 
-      await super.processMessage(base64ToArrayBuffer(json.message));
+      // Handle TDPB recordings by switching to the TDPB codec
+      if (json.tdpb_message !== undefined) {
+        await super.processMessage(
+          base64ToArrayBuffer(json.tdpb_message),
+          this.tdpbCodec
+        );
+      } else {
+        // Handle TDP recordings
+        await super.processMessage(base64ToArrayBuffer(json.message));
+      }
     }
   }
 

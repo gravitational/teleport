@@ -399,3 +399,71 @@ func TestImmutableLabelHashing(t *testing.T) {
 	labels.Ssh["three"] = "3"
 	require.False(t, joining.VerifyImmutableLabelsHash(labels, initialHash))
 }
+
+func TestValidateTokenUpdate(t *testing.T) {
+	baseToken := &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "test-token",
+		},
+		Scope: "/test",
+		Spec: &joiningv1.ScopedTokenSpec{
+			AssignedScope: "/test/one",
+			JoinMethod:    string(types.JoinMethodToken),
+			Roles:         []string{types.RoleNode.String()},
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
+		},
+		Status: &joiningv1.ScopedTokenStatus{
+			Secret: "secret-value",
+		},
+	}
+
+	for _, tc := range []struct {
+		name            string
+		modifyTokenFunc func(*joiningv1.ScopedToken)
+		wantErr         string
+	}{
+		{
+			name: "check scope change",
+			modifyTokenFunc: func(t *joiningv1.ScopedToken) {
+				t.Scope = "/other"
+				t.Spec.AssignedScope = "/other/one"
+			},
+			wantErr: "cannot modify scope of existing scoped token test-token with scope /test to /other",
+		},
+		{
+			name: "check usage mode change",
+			modifyTokenFunc: func(t *joiningv1.ScopedToken) {
+				t.Spec.UsageMode = string(joining.TokenUsageModeSingle)
+			},
+			wantErr: fmt.Sprintf("cannot modify usage mode of existing scoped token test-token from usage mode %s to %s", joining.TokenUsageModeUnlimited, joining.TokenUsageModeSingle),
+		},
+		{
+			name: "check secret change",
+			modifyTokenFunc: func(t *joiningv1.ScopedToken) {
+				t.Status.Secret = "new-secret-value"
+			},
+			wantErr: "cannot modify secret of existing scoped token test-token",
+		},
+		{
+			name: "valid update",
+			modifyTokenFunc: func(t *joiningv1.ScopedToken) {
+				t.Metadata.Labels = map[string]string{"env": "production"}
+				t.Spec.AssignedScope = "/test/one/two"
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			modified := proto.CloneOf(baseToken)
+			tc.modifyTokenFunc(modified)
+
+			err := joining.ValidateTokenUpdate(baseToken, modified)
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				assert.ErrorContains(t, err, tc.wantErr)
+			}
+		})
+	}
+}

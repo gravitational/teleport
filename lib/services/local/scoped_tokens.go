@@ -31,6 +31,7 @@ import (
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
@@ -39,7 +40,8 @@ import (
 )
 
 const (
-	scopedTokenPrefix = "scoped_token"
+	scopedTokenPrefix      = "scoped_token"
+	maxTokenUpsertAttempts = 4
 )
 
 // ScopedTokenService exposes backend functionality for working with scoped token resources.
@@ -137,8 +139,13 @@ func (s *ScopedTokenService) GetScopedToken(ctx context.Context, req *joiningv1.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if err := joining.WeakValidateToken(token); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if !req.GetWithSecret() {
+		setScopedTokenWithoutSecret(token)
 	}
 	return &joiningv1.GetScopedTokenResponse{Token: token}, nil
 }
@@ -229,7 +236,9 @@ func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
+		if !req.GetWithSecrets() {
+			setScopedTokenWithoutSecret(tokens...)
+		}
 		return &joiningv1.ListScopedTokensResponse{
 			Tokens: tokens,
 			Cursor: cursor,
@@ -292,6 +301,10 @@ func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv
 		return nil, trace.Wrap(err)
 	}
 
+	if !req.GetWithSecrets() {
+		setScopedTokenWithoutSecret(tokens...)
+	}
+
 	return &joiningv1.ListScopedTokensResponse{
 		Tokens: tokens,
 		Cursor: cursor,
@@ -301,6 +314,82 @@ func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv
 // DeleteScopedToken deletes a scoped token by name.
 func (s *ScopedTokenService) DeleteScopedToken(ctx context.Context, req *joiningv1.DeleteScopedTokenRequest) (*joiningv1.DeleteScopedTokenResponse, error) {
 	return nil, trace.Wrap(s.svc.DeleteResource(ctx, req.GetName()))
+}
+
+// UpsertScopedToken updates or creates a scoped token. If updating an existing token, the scope and status must not be modified.
+func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, req *joiningv1.UpsertScopedTokenRequest) (*joiningv1.UpsertScopedTokenResponse, error) {
+	tokenUpsert := req.GetToken()
+
+	if err := joining.StrongValidateToken(tokenUpsert); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// We handle 4 retry attempts to try and handle some concurrency. Handling more retries than this
+	// indicates that something may be going wrong.
+	for attempt := range maxTokenUpsertAttempts {
+		if attempt != 0 {
+			select {
+			case <-time.After(retryutils.FullJitter(time.Duration(300*attempt) * time.Millisecond)):
+			case <-ctx.Done():
+				return nil, trace.Wrap(ctx.Err())
+			}
+		}
+
+		existingToken, err := s.svc.GetResource(ctx, tokenUpsert.GetMetadata().GetName())
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		// We enforce this validating the updates here in order for the access-control layer's checks to be sound.
+		// Changing this would require rethinking or additional changes to the access-control checks.
+		if err := joining.ValidateTokenUpdate(existingToken, tokenUpsert); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if existingToken != nil {
+			// Use conditional update with revision checking to ensure the token hasn't changed since we validated it.
+			// This prevents race conditions where the token could be deleted and recreated with
+			// different properties between our validation check and the write.
+			tokenUpsert.GetMetadata().Revision = existingToken.GetMetadata().GetRevision()
+			upsertedToken, err := s.svc.ConditionalUpdateResource(ctx, tokenUpsert)
+			if err != nil {
+				if trace.IsCompareFailed(err) {
+					continue
+				}
+				return nil, trace.Wrap(err)
+			}
+
+			return &joiningv1.UpsertScopedTokenResponse{
+				Token: upsertedToken,
+			}, nil
+		}
+
+		createdToken, err := s.svc.CreateResource(ctx, tokenUpsert)
+		if err != nil {
+			// This will only be true if we call upsert concurrently and there was no existing token.
+			// One of the concurrent calls will retry but as an update call.
+			if trace.IsAlreadyExists(err) {
+				continue
+			}
+			return nil, trace.Wrap(err)
+		}
+
+		return &joiningv1.UpsertScopedTokenResponse{
+			Token: createdToken,
+		}, nil
+	}
+
+	return nil, trace.LimitExceeded("exceeded max retries attempting to upsert scoped token - too many concurrent modifications")
+}
+
+func setScopedTokenWithoutSecret(token ...*joiningv1.ScopedToken) {
+	for _, t := range token {
+		if t != nil && t.Status != nil {
+			t.Status.Secret = ""
+		}
+	}
 }
 
 type scopedTokenParser struct {

@@ -8,6 +8,42 @@ resources:
     package: github.com/gravitational/teleport/api/types
     yaml_kind: app
     yaml_version: v3
+    introduction: |
+      The `app` resource represents an application that is dynamically
+      registered with Teleport. 
+
+      If you configure the Teleport Application Service with **dynamic resource
+      watchers**, the service queries the Teleport backend for `app` resources
+      that match their configured filters. For each matching `app`, the
+      Application Service creates an `app_server` resource configured to proxy
+      the target application.
+
+      To learn more about using the `app` resource, see [Dynamic App
+      Registration](../../../enroll-resources/application-access/configuration/dynamic-registration.mdx).
+
+      To learn more about the `app_server` resource, see the [reference
+      guide](app-server-v3.mdx).
+  - type: AppServerV3
+    package: github.com/gravitational/teleport/api/types
+    yaml_kind: app_server
+    yaml_version: v3
+    introduction: |
+      The `app_server` resource represents an application that has been
+      registered with Teleport. 
+
+      The Teleport Application Service creates an `app_server` in two situations:
+
+        1. It reads information about the target application in its
+           configuration file when it first starts.
+        1. It fetches a dynamically registered `app` resource from the Teleport
+           backend that matches its dynamic resource watchers.
+
+        There can be multiple instances of an `app_server` for a single
+        application, each corresponding to a different Teleport Application
+        Service instance that proxies the application. Read more about [High
+        Availability](../../../enroll-resources/application-access/configuration/ha.mdx)
+        for the Teleport Application Service. Read the [reference
+        guide](./app-v3.mdx) for the `app` resource.
   - type: DatabaseServerV3
     package: github.com/gravitational/teleport/api/types
     yaml_kind: db_server
