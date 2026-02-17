@@ -1648,10 +1648,15 @@ func TestPriority(t *testing.T) {
 		testEchoConnection(t, conn)
 
 		routes := clientApp.RequestedRouteToApps("dual.example.com")
-		require.NotEmpty(t, routes)
-		assert.True(t, slices.ContainsFunc(routes, func(route *proto.RouteToApp) bool {
-			return route.ClusterName == "example.com" && route.Name == "dual-tcp" && route.PublicAddr == "dual.example.com"
-		}))
+		require.Len(t, routes, 1)
+		route := routes[0]
+		expectedRoute := &proto.RouteToApp{
+			ClusterName: "example.com",
+			Name:        "dual-tcp",
+			PublicAddr:  "dual.example.com",
+			URI:         "tcp://dual.example.com",
+		}
+		assert.Equal(t, expectedRoute, route)
 	})
 
 	t.Run("web app beats SSH cluster match", func(t *testing.T) {
@@ -1694,13 +1699,15 @@ func TestPriority(t *testing.T) {
 		testEchoConnection(t, conn)
 
 		routes := clientApp.RequestedRouteToApps("shared.apps.shared.test")
-		require.NotEmpty(t, routes)
-		assert.True(t, slices.ContainsFunc(routes, func(route *proto.RouteToApp) bool {
-			return route.ClusterName == "example.com" && route.Name == "shared-root" && route.PublicAddr == "shared.apps.shared.test"
-		}))
-		assert.False(t, slices.ContainsFunc(routes, func(route *proto.RouteToApp) bool {
-			return route.ClusterName == "leaf.example.com"
-		}))
+		require.Len(t, routes, 1)
+		route := routes[0]
+		expectedRoute := &proto.RouteToApp{
+			ClusterName: "example.com",
+			Name:        "shared-root",
+			PublicAddr:  "shared.apps.shared.test",
+			URI:         "tcp://shared.apps.shared.test",
+		}
+		assert.Equal(t, expectedRoute, route)
 	})
 }
 
