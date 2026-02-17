@@ -24,9 +24,12 @@ import (
 )
 
 const (
-	teleportConnectPoliciesKeyPath = `SOFTWARE\Policies\Teleport\TeleportConnect`
-	registryValueToolsVersion      = "ToolsVersion"
-	registryValueCDNBaseURL        = "CdnBaseUrl"
+	// TeleportConnectPoliciesKeyPath is the Windows registry path for Teleport Connect policy settings.
+	TeleportConnectPoliciesKeyPath = `SOFTWARE\Policies\Teleport\TeleportConnect`
+	// RegistryValueToolsVersion is the policy value name that pins the managed tools version.
+	RegistryValueToolsVersion = "ToolsVersion"
+	// RegistryValueCDNBaseURL is the policy value name that configures the managed update CDN base URL.
+	RegistryValueCDNBaseURL = "CdnBaseUrl"
 )
 
 // PolicyValues defines the managed update policy configuration.
@@ -39,12 +42,12 @@ type PolicyValues struct {
 
 // ReadRegistryPolicyValues reads system policy values (tools version and CDN base URL) for Teleport Connect.
 func ReadRegistryPolicyValues(key registry.Key) (*PolicyValues, error) {
-	version, err := ReadRegistryValue(key, teleportConnectPoliciesKeyPath, registryValueToolsVersion)
+	version, err := ReadRegistryValue(key, TeleportConnectPoliciesKeyPath, RegistryValueToolsVersion)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
 
-	url, err := ReadRegistryValue(key, teleportConnectPoliciesKeyPath, registryValueCDNBaseURL)
+	url, err := ReadRegistryValue(key, TeleportConnectPoliciesKeyPath, RegistryValueCDNBaseURL)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}

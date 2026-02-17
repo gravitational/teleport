@@ -109,7 +109,7 @@ func TestPrivilegedUpdateServicePolicyOffRejectsUpdate(t *testing.T) {
 	}
 	err := runPrivilegedUpdaterFlow(t, up, withServiceTestPolicyToolsVersion("off"))
 	require.Error(t, err)
-	require.ErrorIs(t, err, trace.BadParameter(`ToolsVersion in HKLM\SOFTWARE\Policies\Teleport\TeleportConnect is "off", the update will not be installed`))
+	require.ErrorIs(t, err, trace.AccessDenied(`ToolsVersion in HKLM\SOFTWARE\Policies\Teleport\TeleportConnect is "off", automatic updates are disabled by system policy`))
 }
 
 func TestPrivilegedUpdateServicePolicyVersionMismatch(t *testing.T) {

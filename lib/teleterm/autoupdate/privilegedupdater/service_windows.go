@@ -198,7 +198,7 @@ func (h *handler) getUpdaterConfig() (*common.PolicyValues, error) {
 		versionFromPolicy = h.testCfg.PolicyToolsVersion
 	}
 	if versionFromPolicy == common.TeleportToolsVersionOff {
-		return nil, trace.BadParameter(`ToolsVersion in HKLM\SOFTWARE\Policies\Teleport\TeleportConnect is "off", the update will not be installed`)
+		return nil, trace.AccessDenied("%s in %s is %q, automatic updates are disabled by system policy", common.RegistryValueToolsVersion, common.TeleportConnectPoliciesKeyPath, common.TeleportToolsVersionOff)
 	}
 
 	cdnBaseURL := policyValues.CDNBaseURL
@@ -209,7 +209,7 @@ func (h *handler) getUpdaterConfig() (*common.PolicyValues, error) {
 		cdnBaseURL = common.GetDefaultBaseURL()
 	}
 	if cdnBaseURL == "" {
-		return nil, trace.BadParameter("client tools updates are disabled as they are licensed under AGPL. To use Community Edition builds or custom binaries, set CdnBaseUrl in HKLM\\SOFTWARE\\Policies\\Teleport\\TeleportConnect")
+		return nil, trace.AccessDenied("client tools updates are disabled as they are licensed under AGPL. To use Community Edition builds or custom binaries, set %s in %s", common.RegistryValueCDNBaseURL, common.TeleportConnectPoliciesKeyPath)
 	}
 
 	return &common.PolicyValues{
