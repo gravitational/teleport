@@ -20,6 +20,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 	"time"
@@ -255,6 +256,7 @@ func taskAffectedCount(task *usertasksv1.UserTask) int {
 type statusSummary struct {
 	GeneratedAt          time.Time             `json:"generated_at" yaml:"generated_at"`
 	FilteredIntegration  string                `json:"filtered_integration,omitempty" yaml:"filtered_integration,omitempty"`
+	CacheSummary         string                `json:"cache_summary,omitempty" yaml:"cache_summary,omitempty"`
 	DiscoveryConfigCount int                   `json:"discovery_config_count" yaml:"discovery_config_count"`
 	DiscoveryGroupCount  int                   `json:"discovery_group_count" yaml:"discovery_group_count"`
 	UserTasks            []taskListItem        `json:"user_tasks" yaml:"user_tasks"`
@@ -271,7 +273,9 @@ type statusSummary struct {
 }
 
 type auditEventStats struct {
-	Window          string    `json:"window" yaml:"window"`
+	Window          string    `json:"-" yaml:"-"`
+	From            time.Time `json:"from" yaml:"from"`
+	To              time.Time `json:"to" yaml:"to"`
 	EffectiveWindow string    `json:"effective_window,omitempty" yaml:"effective_window,omitempty"`
 	OldestEvent     time.Time `json:"oldest_event,omitempty" yaml:"oldest_event,omitempty"`
 	SuggestedLimit  int       `json:"suggested_limit,omitempty" yaml:"suggested_limit,omitempty"`
@@ -281,6 +285,8 @@ type auditEventStats struct {
 	DistinctHosts   int       `json:"distinct_hosts" yaml:"distinct_hosts"`
 	FailingHosts    int       `json:"failing_hosts" yaml:"failing_hosts"`
 	LimitReached    bool      `json:"limit_reached" yaml:"limit_reached"`
+	CacheHits       int       `json:"cache_hits,omitempty" yaml:"cache_hits,omitempty"`
+	CacheMisses     int       `json:"cache_misses,omitempty" yaml:"cache_misses,omitempty"`
 }
 
 type configStatus struct {
@@ -669,18 +675,116 @@ func buildVMHistoryRows(group ssmVMGroup, showAll bool) []ssmRunHistoryRow {
 }
 
 type ssmRunsOutput struct {
-	Window       string       `json:"window"`
-	Query        string       `json:"query"`
-	FetchLimit   int          `json:"fetch_limit"`
-	LimitReached bool         `json:"limit_reached"`
-	TotalRuns    int          `json:"total_runs"`
-	SuccessRuns  int          `json:"success_runs"`
-	FailedRuns   int          `json:"failed_runs"`
-	TotalVMs     int          `json:"total_vms"`
-	FailingVMs   int          `json:"failing_vms"`
-	DisplayedVMs int          `json:"displayed_vms"`
-	VMPage       pageInfo     `json:"vm_page"`
-	VMs          []ssmVMGroup `json:"vms"`
+	Window        string            `json:"-"`
+	From          time.Time         `json:"from"`
+	To            time.Time         `json:"to"`
+	FetchLimit    int               `json:"fetch_limit"`
+	LimitReached  bool              `json:"limit_reached"`
+	CacheSummary  string            `json:"cache_summary,omitempty"`
+	TotalRuns     int               `json:"total_runs"`
+	SuccessRuns   int               `json:"success_runs"`
+	FailedRuns    int               `json:"failed_runs"`
+	TotalVMs      int               `json:"total_vms"`
+	FailingVMs    int               `json:"failing_vms"`
+	VMPage        pageInfo          `json:"vm_page"`
+	VMs           []ssmVMGroup      `json:"vms"`
+	ErrorClusters []ssmErrorCluster `json:"error_clusters,omitempty"`
+}
+
+// ssmErrorCluster is an enriched error cluster for JSON output. Instead of
+// opaque index arrays, members are grouped by (instance_id, account_id, region)
+// with sorted occurrence timestamps.
+type ssmErrorCluster struct {
+	ID        int                       `json:"id"`
+	Template  string                    `json:"template"`
+	Instances []ssmErrorClusterInstance `json:"instances"`
+}
+
+type ssmErrorClusterInstance struct {
+	InstanceID string   `json:"instance_id"`
+	AccountID  string   `json:"account_id"`
+	Region     string   `json:"region"`
+	Times      []string `json:"times"`
+}
+
+// clusterSSMRunErrors groups failed SSM run outputs into clusters of similar
+// errors using the Drain → MinHash → LSH pipeline. The returned clusters
+// contain enriched member info grouped by (instance_id, account_id, region)
+// with sorted occurrence timestamps.
+func clusterSSMRunErrors(vmGroups []ssmVMGroup) []ssmErrorCluster {
+	// Collect output from all failed runs, tracking the source record.
+	type indexedRun struct {
+		output string
+		record ssmRunRecord
+	}
+	var runs []indexedRun
+	for _, vm := range vmGroups {
+		for _, run := range vm.Runs {
+			if !isSSMRunFailure(run) {
+				continue
+			}
+			output := combineOutput(run.Stdout, run.Stderr)
+			if strings.TrimSpace(output) == "" {
+				output = strings.TrimSpace(run.Status)
+			}
+			if output == "" {
+				continue
+			}
+			runs = append(runs, indexedRun{output: output, record: run})
+		}
+	}
+	if len(runs) == 0 {
+		return nil
+	}
+	slog.Debug("Clustering SSM run errors", "failed_runs", len(runs))
+
+	outputs := make([]string, len(runs))
+	for i, r := range runs {
+		outputs[i] = r.output
+	}
+	rawClusters := clusterTexts(outputs, clusterDefaults())
+
+	// Build enriched clusters with structured member info.
+	enriched := make([]ssmErrorCluster, 0, len(rawClusters))
+	for _, rc := range rawClusters {
+		// Group members by (instance_id, account_id, region).
+		type instanceKey struct{ instanceID, accountID, region string }
+		grouped := map[instanceKey][]string{}
+		for _, idx := range rc.Members {
+			rec := runs[idx].record
+			key := instanceKey{
+				instanceID: rec.InstanceID,
+				accountID:  rec.AccountID,
+				region:     rec.Region,
+			}
+			ts := rec.EventTime
+			if ts == "" && !rec.parsedEventTime.IsZero() {
+				ts = rec.parsedEventTime.Format(time.RFC3339)
+			}
+			grouped[key] = append(grouped[key], ts)
+		}
+
+		instances := make([]ssmErrorClusterInstance, 0, len(grouped))
+		for key, times := range grouped {
+			slices.Sort(times)
+			instances = append(instances, ssmErrorClusterInstance{
+				InstanceID: key.instanceID,
+				AccountID:  key.accountID,
+				Region:     key.region,
+				Times:      times,
+			})
+		}
+		slices.SortFunc(instances, func(a, b ssmErrorClusterInstance) int {
+			return cmp.Compare(a.InstanceID, b.InstanceID)
+		})
+
+		enriched = append(enriched, ssmErrorCluster{
+			ID:        rc.ID,
+			Template:  rc.Template,
+			Instances: instances,
+		})
+	}
+	return enriched
 }
 
 // Integration types and functions.
@@ -708,12 +812,12 @@ type resourceTypeStatsRow struct {
 }
 
 type integrationDetail struct {
-	Name              string                `json:"name" yaml:"name"`
-	Type              string                `json:"type" yaml:"type"`
-	Credentials       map[string]string     `json:"credentials" yaml:"credentials"`
+	Name              string                 `json:"name" yaml:"name"`
+	Type              string                 `json:"type" yaml:"type"`
+	Credentials       map[string]string      `json:"credentials" yaml:"credentials"`
 	ResourceTypeStats []resourceTypeStatsRow `json:"resource_type_stats" yaml:"resource_type_stats"`
-	DiscoveryConfigs  []configStatus        `json:"discovery_configs" yaml:"discovery_configs"`
-	OpenTasks         []taskListItem        `json:"open_tasks" yaml:"open_tasks"`
+	DiscoveryConfigs  []configStatus         `json:"discovery_configs" yaml:"discovery_configs"`
+	OpenTasks         []taskListItem         `json:"open_tasks" yaml:"open_tasks"`
 }
 
 func listIntegrations(ctx context.Context, client *authclient.Client) ([]types.Integration, error) {
@@ -937,18 +1041,19 @@ type joinAnalysis struct {
 }
 
 type joinsOutput struct {
-	Window         string      `json:"window"`
-	Query          string      `json:"query"`
-	FetchLimit     int         `json:"fetch_limit"`
-	LimitReached   bool        `json:"limit_reached"`
-	TotalJoins     int         `json:"total_joins"`
-	SuccessJoins   int         `json:"success_joins"`
-	FailedJoins    int         `json:"failed_joins"`
-	TotalHosts     int         `json:"total_hosts"`
-	FailingHosts   int         `json:"failing_hosts"`
-	DisplayedHosts int         `json:"displayed_hosts"`
-	HostPage       pageInfo    `json:"host_page"`
-	Hosts          []joinGroup `json:"hosts"`
+	Window       string      `json:"-"`
+	From         time.Time   `json:"from"`
+	To           time.Time   `json:"to"`
+	FetchLimit   int         `json:"fetch_limit"`
+	LimitReached bool        `json:"limit_reached"`
+	CacheSummary string      `json:"cache_summary,omitempty"`
+	TotalJoins   int         `json:"total_joins"`
+	SuccessJoins int         `json:"success_joins"`
+	FailedJoins  int         `json:"failed_joins"`
+	TotalHosts   int         `json:"total_hosts"`
+	FailingHosts int         `json:"failing_hosts"`
+	HostPage     pageInfo    `json:"host_page"`
+	Hosts        []joinGroup `json:"hosts"`
 }
 
 type joinHistoryRow struct {
@@ -1180,10 +1285,10 @@ type inventoryHost struct {
 	LastSeen   time.Time `json:"last_seen,omitempty"`
 	IsOnline   bool      `json:"is_online"`
 
-	SSMRuns    int `json:"ssm_runs"`
-	SSMSuccess int `json:"ssm_success"`
-	SSMFailed  int `json:"ssm_failed"`
-	Joins      int `json:"joins"`
+	SSMRuns     int `json:"ssm_runs"`
+	SSMSuccess  int `json:"ssm_success"`
+	SSMFailed   int `json:"ssm_failed"`
+	Joins       int `json:"joins"`
 	JoinSuccess int `json:"join_success"`
 	JoinFailed  int `json:"join_failed"`
 
@@ -1195,14 +1300,16 @@ type inventoryHost struct {
 }
 
 type inventoryOutput struct {
-	Window         string          `json:"window"`
-	TotalHosts     int             `json:"total_hosts"`
-	OnlineHosts    int             `json:"online_hosts"`
-	OfflineHosts   int             `json:"offline_hosts"`
-	FailedHosts    int             `json:"failed_hosts"`
-	DisplayedHosts int             `json:"displayed_hosts"`
-	HostPage       pageInfo        `json:"host_page"`
-	Hosts          []inventoryHost `json:"hosts"`
+	Window       string          `json:"-"`
+	From         time.Time       `json:"from"`
+	To           time.Time       `json:"to"`
+	CacheSummary string          `json:"cache_summary,omitempty"`
+	TotalHosts   int             `json:"total_hosts"`
+	OnlineHosts  int             `json:"online_hosts"`
+	OfflineHosts int             `json:"offline_hosts"`
+	FailedHosts  int             `json:"failed_hosts"`
+	HostPage     pageInfo        `json:"host_page"`
+	Hosts        []inventoryHost `json:"hosts"`
 }
 
 func buildInventoryHosts(

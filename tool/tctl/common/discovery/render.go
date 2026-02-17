@@ -458,6 +458,10 @@ func renderStatusText(w io.Writer, summary statusSummary) error {
 		renderAuditEventStatsSection(w, style, "Instance Joins", summary.JoinStats, "--join-limit")
 	}
 
+	if summary.CacheSummary != "" {
+		fmt.Fprintf(w, "\n  %s %s\n", style.info("Cache:"), summary.CacheSummary)
+	}
+
 	return trace.Wrap(renderNextActions(w, style, statusNextActions(summary)))
 }
 
@@ -577,7 +581,10 @@ func renderSSMRunsText(w io.Writer, output ssmRunsOutput, instanceIDFilter strin
 		{"Query window", output.Window},
 		{"SSM runs in window", runsInWindow},
 		{"VM status snapshot", fmt.Sprintf("%d total VMs, %d currently failing", output.TotalVMs, output.FailingVMs)},
-		{"VM rows shown", fmt.Sprintf("%d (range %d-%d)", output.DisplayedVMs, output.VMPage.Start, output.VMPage.End)},
+		{"VM rows shown", fmt.Sprintf("%d (range %d-%d)", len(output.VMs), output.VMPage.Start, output.VMPage.End)},
+	}
+	if output.CacheSummary != "" {
+		summaryRows = append(summaryRows, []string{"Cache", output.CacheSummary})
 	}
 	if instanceIDFilter != "" {
 		summaryRows = append(summaryRows, []string{"Filtered instance", instanceIDFilter})
@@ -659,6 +666,10 @@ func renderSSMRunsText(w io.Writer, output ssmRunsOutput, instanceIDFilter strin
 			}
 		}
 	}
+	if len(output.ErrorClusters) > 0 {
+		renderSSMErrorClusters(w, style, output.ErrorClusters)
+	}
+
 	if output.VMPage.HasNext {
 		fmt.Fprintf(w, "\n%s\n", style.warning(fmt.Sprintf("More VMs available: %d remaining.", output.VMPage.Remaining)))
 		pageSize := output.VMPage.End - output.VMPage.Start
@@ -725,6 +736,43 @@ func renderQuotedOutput(w io.Writer, output string, indent string, details []key
 	for _, line := range strings.Split(output, "\n") {
 		line = strings.ReplaceAll(line, "\r", "")
 		fmt.Fprintf(w, "%s> %s\n", indent, line)
+	}
+}
+
+func renderSSMErrorClusters(w io.Writer, style textStyle, clusters []ssmErrorCluster) {
+	fmt.Fprintf(w, "\n%s\n", style.section(fmt.Sprintf("Error Clusters (%d groups):", len(clusters))))
+	for _, c := range clusters {
+		totalRuns := 0
+		for _, inst := range c.Instances {
+			totalRuns += len(inst.Times)
+		}
+		fmt.Fprintf(w, "\n  %s %d failed runs across %d instances\n",
+			style.info(fmt.Sprintf("Cluster %d:", c.ID+1)),
+			totalRuns, len(c.Instances))
+
+		// Show a compact template: last non-empty line that contains the
+		// distinguishing error, or the full template if short.
+		lines := strings.Split(c.Template, "\n")
+		// Find the last meaningful line (skip boilerplate install lines).
+		var errorLine string
+		for i := len(lines) - 1; i >= 0; i-- {
+			line := strings.TrimSpace(lines[i])
+			if line != "" {
+				errorLine = line
+				break
+			}
+		}
+		if errorLine != "" {
+			fmt.Fprintf(w, "  %s %s\n", style.warning("Pattern:"), errorLine)
+		}
+
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			fmt.Fprintf(w, "    > %s\n", line)
+		}
 	}
 }
 
@@ -1015,7 +1063,10 @@ func renderJoinsText(w io.Writer, output joinsOutput, hostIDFilter string, showA
 		{"Query window", output.Window},
 		{"Joins in window", joinsInWindow},
 		{"Host snapshot", fmt.Sprintf("%d total hosts, %d with failed joins", output.TotalHosts, output.FailingHosts)},
-		{"Host rows shown", fmt.Sprintf("%d (range %d-%d)", output.DisplayedHosts, output.HostPage.Start, output.HostPage.End)},
+		{"Host rows shown", fmt.Sprintf("%d (range %d-%d)", len(output.Hosts), output.HostPage.Start, output.HostPage.End)},
+	}
+	if output.CacheSummary != "" {
+		summaryRows = append(summaryRows, []string{"Cache", output.CacheSummary})
 	}
 	if hostIDFilter != "" {
 		summaryRows = append(summaryRows, []string{"Filtered host", hostIDFilter})
@@ -1165,8 +1216,11 @@ func renderInventoryText(w io.Writer, output inventoryOutput, hostIDFilter strin
 				style.good(strconv.Itoa(output.OnlineHosts)),
 				style.pendingCount(uint64(output.OfflineHosts)),
 				style.failedCount(uint64(output.FailedHosts)))},
-			{"Displayed", fmt.Sprintf("%d (range %d-%d)", output.DisplayedHosts, output.HostPage.Start, output.HostPage.End)},
+			{"Displayed", fmt.Sprintf("%d (range %d-%d)", len(output.Hosts), output.HostPage.Start, output.HostPage.End)},
 		}
+	}
+	if output.CacheSummary != "" {
+		summaryRows = append(summaryRows, []string{"Cache", output.CacheSummary})
 	}
 	if err := renderTable(w, []string{"Summary Item", "Details"}, summaryRows, style.tableWidth); err != nil {
 		return trace.Wrap(err)

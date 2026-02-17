@@ -202,6 +202,84 @@ func TestDiscoverySelectFailingVMGroups(t *testing.T) {
 	require.Equal(t, "i-3", limited[0].InstanceID)
 }
 
+func TestClusterSSMRunErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("clusters by stdout/stderr", func(t *testing.T) {
+		vmGroups := []ssmVMGroup{
+			{
+				InstanceID: "i-aaa",
+				Runs: []ssmRunRecord{
+					{InstanceID: "i-aaa", AccountID: "111", Region: "us-east-1", Status: "Failed", Code: "TDS00W", Stderr: "permission denied", parsedEventTime: mustTestParseTime(t, "2026-02-12T10:00:00Z")},
+					{InstanceID: "i-aaa", AccountID: "111", Region: "us-east-1", Status: "Failed", Code: "TDS00W", Stderr: "permission denied", parsedEventTime: mustTestParseTime(t, "2026-02-12T11:00:00Z")},
+				},
+			},
+			{
+				InstanceID: "i-bbb",
+				Runs: []ssmRunRecord{
+					{InstanceID: "i-bbb", AccountID: "111", Region: "us-west-2", Status: "Failed", Code: "TDS00W", Stderr: "permission denied", parsedEventTime: mustTestParseTime(t, "2026-02-12T10:30:00Z")},
+				},
+			},
+		}
+
+		clusters := clusterSSMRunErrors(vmGroups)
+		require.Len(t, clusters, 1, "identical errors should form one cluster")
+		require.Len(t, clusters[0].Instances, 2, "two distinct instances")
+
+		// Instances should be sorted by instance ID.
+		require.Equal(t, "i-aaa", clusters[0].Instances[0].InstanceID)
+		require.Equal(t, "i-bbb", clusters[0].Instances[1].InstanceID)
+
+		// i-aaa should have 2 sorted times.
+		require.Len(t, clusters[0].Instances[0].Times, 2)
+		require.Equal(t, "us-east-1", clusters[0].Instances[0].Region)
+	})
+
+	t.Run("falls back to status when stdout/stderr empty", func(t *testing.T) {
+		vmGroups := []ssmVMGroup{
+			{
+				InstanceID: "i-ccc",
+				Runs: []ssmRunRecord{
+					{InstanceID: "i-ccc", AccountID: "222", Region: "ca-central-1", Status: "EC2 Instance is not registered in SSM.", Code: "TDS00W", ExitCode: "-1", parsedEventTime: mustTestParseTime(t, "2026-02-12T10:00:00Z")},
+					{InstanceID: "i-ccc", AccountID: "222", Region: "ca-central-1", Status: "EC2 Instance is not registered in SSM.", Code: "TDS00W", ExitCode: "-1", parsedEventTime: mustTestParseTime(t, "2026-02-12T11:00:00Z")},
+				},
+			},
+		}
+
+		clusters := clusterSSMRunErrors(vmGroups)
+		require.Len(t, clusters, 1, "status-only errors should be clustered")
+		require.Len(t, clusters[0].Instances, 1)
+		require.Equal(t, "i-ccc", clusters[0].Instances[0].InstanceID)
+		require.Len(t, clusters[0].Instances[0].Times, 2)
+	})
+
+	t.Run("no output and no status produces no clusters", func(t *testing.T) {
+		vmGroups := []ssmVMGroup{
+			{
+				InstanceID: "i-ddd",
+				Runs: []ssmRunRecord{
+					{InstanceID: "i-ddd", Status: "", Code: "TDS00W", parsedEventTime: mustTestParseTime(t, "2026-02-12T10:00:00Z")},
+				},
+			},
+		}
+		clusters := clusterSSMRunErrors(vmGroups)
+		require.Empty(t, clusters)
+	})
+
+	t.Run("successful runs are excluded", func(t *testing.T) {
+		vmGroups := []ssmVMGroup{
+			{
+				InstanceID: "i-eee",
+				Runs: []ssmRunRecord{
+					{InstanceID: "i-eee", Status: "Success", Code: "TDS00I", Stdout: "installed ok", parsedEventTime: mustTestParseTime(t, "2026-02-12T10:00:00Z")},
+				},
+			},
+		}
+		clusters := clusterSSMRunErrors(vmGroups)
+		require.Empty(t, clusters)
+	})
+}
+
 func TestDiscoveryVMHistoryRowsDefaultAndAll(t *testing.T) {
 	t.Parallel()
 
@@ -910,7 +988,6 @@ func TestDiscoveryRenderSSMRunsTextNextGuidance(t *testing.T) {
 		FailedRuns:   2,
 		TotalVMs:     2,
 		FailingVMs:   1,
-		DisplayedVMs: 1,
 		VMPage:       pageInfo{Start: 0, End: 25},
 		VMs: []ssmVMGroup{
 			{
@@ -979,7 +1056,6 @@ func TestDiscoveryRenderSSMRunsTextSingleVMHistoryNumbering(t *testing.T) {
 		FailedRuns:   2,
 		TotalVMs:     1,
 		FailingVMs:   1,
-		DisplayedVMs: 1,
 		VMPage:       pageInfo{Start: 0, End: 1, Total: 1},
 		VMs: []ssmVMGroup{
 			{
@@ -1637,13 +1713,11 @@ func TestDiscoveryRenderJoinsText(t *testing.T) {
 	now := time.Now().UTC()
 	output := joinsOutput{
 		Window:         "last 1h",
-		Query:          "SearchEvents(event_type=\"instance.join\")",
 		TotalJoins:     5,
 		SuccessJoins:   3,
 		FailedJoins:    2,
 		TotalHosts:     3,
 		FailingHosts:   1,
-		DisplayedHosts: 1,
 		HostPage:       pageInfo{Start: 0, End: 1, Total: 1},
 		Hosts: []joinGroup{
 			{
@@ -1703,13 +1777,11 @@ func TestDiscoveryRenderJoinsTextSingleHost(t *testing.T) {
 	now := time.Now().UTC()
 	output := joinsOutput{
 		Window:         "last 1h",
-		Query:          "SearchEvents(event_type=\"instance.join\")",
 		TotalJoins:     2,
 		SuccessJoins:   1,
 		FailedJoins:    1,
 		TotalHosts:     1,
 		FailingHosts:   1,
-		DisplayedHosts: 1,
 		HostPage:       pageInfo{Start: 0, End: 1, Total: 1},
 		Hosts: []joinGroup{
 			{
@@ -1840,7 +1912,6 @@ func TestRenderInventoryTextList(t *testing.T) {
 		OnlineHosts:    1,
 		OfflineHosts:   1,
 		FailedHosts:    1,
-		DisplayedHosts: 3,
 		HostPage:       pageInfo{Start: 0, End: 3, Total: 3},
 		Hosts: []inventoryHost{
 			{
@@ -1887,7 +1958,6 @@ func TestRenderInventoryTextShow(t *testing.T) {
 		Window:         "last 24h",
 		TotalHosts:     1,
 		OnlineHosts:    1,
-		DisplayedHosts: 1,
 		HostPage:       pageInfo{Start: 0, End: 1, Total: 1},
 		Hosts: []inventoryHost{
 			{
