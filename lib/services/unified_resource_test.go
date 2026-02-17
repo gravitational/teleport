@@ -1539,6 +1539,9 @@ func TestUnifiedResourceLinuxDesktopFiltering(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Wait for cache initialization to avoid test flakiness
+	assert.Eventually(t, w.IsInitialized, 5*time.Second, 10*time.Millisecond, "Timed out waiting for all resources cache initialization")
+
 	// Add a Linux desktop
 	linuxDesktop := &linuxdesktopv1.LinuxDesktop{
 		Kind:    types.KindLinuxDesktop,
