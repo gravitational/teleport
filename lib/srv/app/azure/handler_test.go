@@ -118,12 +118,8 @@ func TestForwarder_getToken(t *testing.T) {
 						// Block until test completes to ensure ctx.Done() is selected.
 						// This prevents a race where both ctx.Done() and resultChan are ready
 						// simultaneously and select picks resultChan non-deterministically.
-						blockCaller := make(chan struct{})
-						t.Cleanup(func() {
-							close(blockCaller)
-						})
 						select {
-						case <-blockCaller:
+						case <-t.Context().Done():
 						case <-time.After(3 * time.Second):
 							// Timeout to prevent test hanging if getToken has a bug
 						}
