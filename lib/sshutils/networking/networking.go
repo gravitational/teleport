@@ -112,13 +112,13 @@ type X11Request struct {
 
 // NewProcess starts a new networking process with the given command, which should
 // be pre-configured from a ssh server context with Teleport reexec settings.
-func NewProcess(ctx context.Context, cmd *exec.Cmd) (*Process, error) {
+func NewProcess(ctx context.Context, cmd *exec.Cmd, reexecErrorContext *reexec.ErrorContext) (*Process, error) {
 	proc := &Process{
 		cmd:  cmd,
 		done: make(chan struct{}),
 	}
 
-	if err := proc.start(ctx); err != nil {
+	if err := proc.start(ctx, reexecErrorContext); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -130,7 +130,7 @@ func NewProcess(ctx context.Context, cmd *exec.Cmd) (*Process, error) {
 }
 
 // start the the networking process.
-func (p *Process) start(ctx context.Context) error {
+func (p *Process) start(ctx context.Context, reexecErrorContext *reexec.ErrorContext) error {
 	// Create the socket to communicate over.
 	remoteConn, localConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
 	if err != nil {
@@ -171,7 +171,7 @@ func (p *Process) start(ctx context.Context) error {
 			return
 		}
 
-		childErr, err := reexec.ReadChildError(stderrr)
+		childErr, err := reexec.ReadChildError(stderrr, reexecErrorContext)
 		if err != nil || childErr == nil {
 			slog.WarnContext(context.WithoutCancel(ctx), "Networking process exited early with unexpected error", "wait_error", waitErr, "child_error", err)
 		} else {

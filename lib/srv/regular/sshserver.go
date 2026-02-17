@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/networking"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -1315,7 +1316,10 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 		return nil, trace.Wrap(err)
 	}
 
-	proc, err := networking.NewProcess(ctx, cmd)
+	proc, err := networking.NewProcess(ctx, cmd, &reexec.ErrorContext{
+		DecisionContext: scx.Identity.AccessPermit.DecisionContext,
+		Login:           scx.Identity.Login,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1894,7 +1898,8 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			// processing requests.
 			err := s.handleAgentForwardNode(ctx, req, serverContext)
 			if err != nil {
-				serverContext.Logger.WarnContext(ctx, "failure forwarding agent", "error", err)
+				message := "agent forwarding request failed: " + utils.FormatErrorWithNewline(err)
+				s.writeStderr(ctx, ch, message)
 			}
 			return nil
 		case sshutils.PuTTYWinadjRequest:
@@ -1927,7 +1932,13 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		// they are in essence SSH session extensions, allowing to implement new SSH commands
 		return s.handleSubsystem(ctx, ch, req, serverContext)
 	case x11.ForwardRequest:
-		return s.handleX11Forward(ctx, ch, req, serverContext)
+		// X11 forwarding requests should not fail, just send the error message to the client
+		// and attempt to continue the session.
+		if err := s.handleX11Forward(ctx, ch, req, serverContext); err != nil {
+			message := "X11 forwarding request failed: " + utils.FormatErrorWithNewline(err)
+			s.writeStderr(ctx, ch, message)
+		}
+		return nil
 	case sshutils.AgentForwardRequest:
 		// This happens when SSH client has agent forwarding enabled, in this case
 		// client sends a special request, in return SSH server opens new channel
@@ -1941,7 +1952,8 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		// processing requests.
 		err := s.handleAgentForwardNode(ctx, req, serverContext)
 		if err != nil {
-			serverContext.Logger.WarnContext(ctx, "failure forwarding agent", "error", err)
+			message := "agent forwarding request failed: " + utils.FormatErrorWithNewline(err)
+			s.writeStderr(ctx, ch, message)
 		}
 		return nil
 	case sshutils.PuTTYWinadjRequest:
@@ -2054,12 +2066,6 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 			event.Metadata.Code = events.X11ForwardFailureCode
 			event.Status.Success = false
 			event.Status.Error = err.Error()
-		}
-		if trace.IsAccessDenied(err) {
-			// denied X11 requests are ok from a protocol perspective so we
-			// don't return them, just reply over ssh and emit the audit s.Logger.
-			s.replyError(ctx, ch, req, err)
-			err = nil
 		}
 		s.emitAuditEventWithLog(s.ctx, event)
 	}()
