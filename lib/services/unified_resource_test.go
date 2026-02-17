@@ -1408,3 +1408,66 @@ func TestUnifiedResourceCacheIterateMCPServers(t *testing.T) {
 		})
 	}
 }
+
+func TestUnifiedResourceFiltering(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clt := newClient(t)
+
+	// Create a unified resource cache
+	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Client:    clt,
+			Component: teleport.ComponentUnifiedResource,
+		},
+		ResourceGetter: clt,
+	})
+	require.NoError(t, err)
+
+	// Add a Windows desktop for comparison
+	windowsDesktop, err := types.NewWindowsDesktopV3(
+		"windows-desktop",
+		map[string]string{"env": "test"},
+		types.WindowsDesktopSpecV3{
+			Addr:   "10.0.0.20:3389",
+			HostID: "windows-host",
+		},
+	)
+	require.NoError(t, err)
+	err = clt.UpsertWindowsDesktop(ctx, windowsDesktop)
+	require.NoError(t, err)
+
+	// Add a node for comparison
+	node := newNodeServer(t, "node", "node-host", "10.0.0.30:22", false)
+	_, err = clt.UpsertNode(ctx, node)
+	require.NoError(t, err)
+
+	// Wait for all resources
+	var allResources []types.ResourceWithLabels
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		allResources, err = w.GetUnifiedResources(ctx)
+		require.NoError(t, err)
+		require.Len(t, allResources, 2)
+	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for all resources")
+
+	// Helper to collect resources from iterator
+	collect := func(t *testing.T, iter iter.Seq2[types.ResourceWithLabels, error]) (collected []types.ResourceWithLabels) {
+		for r, err := range iter {
+			require.NoError(t, err)
+			collected = append(collected, r)
+		}
+		return collected
+	}
+
+	// Test filtering by Windows desktop kind only
+	windowsOnly := collect(t, w.Resources(ctx, "", types.SortBy{}, types.KindWindowsDesktop))
+	require.Len(t, windowsOnly, 1)
+	require.Equal(t, types.KindWindowsDesktop, windowsOnly[0].GetKind())
+	require.Equal(t, "windows-desktop", windowsOnly[0].GetName())
+
+	// Test filtering by node kind (should not include desktops)
+	nodesOnly := collect(t, w.Resources(ctx, "", types.SortBy{}, types.KindNode))
+	require.Len(t, nodesOnly, 1)
+	require.Equal(t, types.KindNode, nodesOnly[0].GetKind())
+}
