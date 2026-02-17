@@ -1,12 +1,13 @@
 import { act, within } from '@testing-library/react';
 import { UserEvent } from '@testing-library/user-event';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
-import { setupServer } from 'msw/node';
 import selectEvent from 'react-select-event';
 
 import {
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
 } from 'design/utils/testing';
@@ -28,12 +29,9 @@ import { ProviderWithQuery } from '../TestHelper/ProviderWithQuery';
 const defaultIsEnterpriseFlag = cfg.isEnterprise;
 const defaultAccessListentitlement = cfg.entitlements.AccessLists;
 
-const server = setupServer();
 const mio = mockIntersectionObserver();
 
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 let spiedUnifiedResource;
 beforeEach(() => {
@@ -48,16 +46,11 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
 
   jest.clearAllMocks();
   cfg.isEnterprise = defaultIsEnterpriseFlag;
   cfg.entitlements.AccessLists = defaultAccessListentitlement;
-});
-
-afterAll(() => {
-  server.close();
 });
 
 test('defining server access renders only server related identity tab', async () => {

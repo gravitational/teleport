@@ -1,11 +1,12 @@
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import { generatePath, MemoryRouter } from 'react-router';
 
 import {
   createDeferredResponse,
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -21,9 +22,8 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { ViewSummary } from './ViewSummary';
 
-const server = setupServer();
+enableMswServer();
 
-beforeAll(() => server.listen());
 beforeEach(() => {
   server.use(
     http.get(cfg.oss.api.clustersPath, () => {
@@ -40,11 +40,9 @@ beforeEach(() => {
     })
   );
 });
-afterEach(async () => {
-  server.resetHandlers();
+afterEach(() => {
   testQueryClient.clear();
 });
-afterAll(() => server.close());
 
 const mockSessionId = 'test-session-123';
 

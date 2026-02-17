@@ -1,11 +1,12 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import { MemoryRouter } from 'react-router';
 
 import {
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -22,23 +23,16 @@ import { UserContextProvider } from 'teleport/User';
 import { makeHandlers } from '../Preset/TestHelper/mocks';
 import { ManuallyEditAccess } from './ManuallyEditAccess';
 
-const server = setupServer();
-
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 beforeEach(() => {
   server.use(...makeHandlers());
 });
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 const testRoles = [
   'access-standard-acl-preset-ABCD',

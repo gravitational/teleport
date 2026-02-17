@@ -1,14 +1,15 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import { MemoryRouter } from 'react-router';
 
 import {
   act,
+  enableMswServer,
   Providers,
   render,
   screen,
+  server,
   testQueryClient,
   waitFor,
 } from 'design/utils/testing';
@@ -40,11 +41,7 @@ const mio = mockIntersectionObserver();
 const defaultIsEnterpriseFlag = cfg.isEnterprise;
 const defaultAccessListEntitlement = cfg.entitlements.AccessLists;
 
-const server = setupServer();
-
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 beforeEach(() => {
   server.use(
@@ -57,11 +54,8 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
 });
-
-afterAll(() => server.close());
 
 describe('access list management upsell links', () => {
   const ctx = createTeleportContextE();

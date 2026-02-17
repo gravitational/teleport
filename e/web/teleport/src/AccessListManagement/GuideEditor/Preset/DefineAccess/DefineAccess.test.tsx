@@ -2,12 +2,13 @@
 import { act, within } from '@testing-library/react';
 import { UserEvent } from '@testing-library/user-event';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
-import { setupServer } from 'msw/node';
 import selectEvent from 'react-select-event';
 
 import {
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
 } from 'design/utils/testing';
@@ -23,12 +24,9 @@ import {
 import { ProviderWithQuery } from '../TestHelper/ProviderWithQuery';
 import { DefineAccess } from './DefineAccess';
 
-const server = setupServer();
 const mio = mockIntersectionObserver();
 
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 let spiedUnifiedResource;
 beforeEach(() => {
@@ -40,13 +38,9 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
-
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 /**
  * Testing for AWS IC is in its own file AwsIcSection.test

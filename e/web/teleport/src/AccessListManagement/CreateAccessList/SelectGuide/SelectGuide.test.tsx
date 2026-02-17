@@ -1,9 +1,15 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import { MemoryRouter } from 'react-router';
 
-import { render, screen, testQueryClient, waitFor } from 'design/utils/testing';
+import {
+  enableMswServer,
+  render,
+  screen,
+  server,
+  testQueryClient,
+  waitFor,
+} from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
@@ -28,11 +34,7 @@ import { SelectGuide } from './SelectGuide';
 const defaultIsEnterpriseFlag = cfg.isEnterprise;
 const defaultAccessListentitlement = cfg.entitlements.AccessLists;
 
-const server = setupServer();
-
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 beforeEach(() => {
   server.use(
@@ -45,11 +47,8 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
 });
-
-afterAll(() => server.close());
 
 describe('upsell links', () => {
   const ctx = createTeleportContextE();

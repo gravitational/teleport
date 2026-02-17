@@ -1,8 +1,8 @@
-import { setupServer } from 'msw/node';
-
 import {
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
 } from 'design/utils/testing';
@@ -16,24 +16,16 @@ import {
 import { ProviderWithQuery } from '../../TestHelper/ProviderWithQuery';
 import { AwsIcSection } from './AwsIcSection';
 
-const server = setupServer();
-
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 beforeEach(() => {
   server.use(...makeHandlers([fetchUnifiedResources('get', [])]));
 });
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
-
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 describe('AwsIcSection', () => {
   test('empty state when there is no applications in cluster', async () => {

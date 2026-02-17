@@ -1,12 +1,13 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory } from 'history';
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import { Router } from 'react-router';
 
 import {
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
 } from 'design/utils/testing';
@@ -44,11 +45,7 @@ import {
 } from '../GuideEditor/Preset/TestHelper/roles';
 import { ViewEditAccessList } from './ViewEditAccessList';
 
-const server = setupServer();
-
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 beforeEach(() => {
   server.use(
@@ -91,11 +88,8 @@ beforeEach(() => {
 
 afterEach(async () => {
   jest.resetAllMocks();
-  server.resetHandlers();
   await testQueryClient.resetQueries();
 });
-
-afterAll(() => server.close());
 
 const getAccessDefinitionTab = () =>
   document.querySelector('[data-tab-id="tab-resource-access-definition"]');

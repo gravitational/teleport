@@ -1,8 +1,14 @@
 import { http, HttpResponse, PathParams } from 'msw';
-import { setupServer } from 'msw/node';
 import { MemoryRouter, Route } from 'react-router';
 
-import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
+import {
+  enableMswServer,
+  fireEvent,
+  render,
+  screen,
+  server,
+  userEvent,
+} from 'design/utils/testing';
 
 import cfg from 'e-teleport/config';
 import { APP_GROUP_SYNC_CONFIG } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
@@ -37,11 +43,7 @@ jest.mock('shared/libs/logger', () => {
   };
 });
 
-const server = setupServer();
-
-beforeAll(() => server.listen());
-afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
+enableMswServer();
 
 const defaultIdentityEntitlement = cfg.oss.entitlements.Identity;
 

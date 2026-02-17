@@ -1,11 +1,12 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import { MemoryRouter } from 'react-router';
 
 import {
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -22,28 +23,20 @@ import ResourceService from 'teleport/services/resources';
 import { AccessRoleEditor } from '../../../ViewAndEditAccessRoles/types';
 import { UpdateAccessRolesDialog } from './UpdateAccessRolesDialog';
 
-const server = setupServer(
-  http.get(unifiedResourcePath, () => {
-    return HttpResponse.json({ items: [] });
-  }),
-  ...makeHandlers()
-);
-
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 beforeEach(async () => {
+  server.use(
+    http.get(unifiedResourcePath, () => {
+      return HttpResponse.json({ items: [] });
+    }),
+    ...makeHandlers()
+  );
   await testQueryClient.resetQueries();
 });
 
 afterEach(() => {
   jest.resetAllMocks();
-  server.resetHandlers();
-});
-
-afterAll(() => {
-  server.close();
 });
 
 function mockGuideEditor() {

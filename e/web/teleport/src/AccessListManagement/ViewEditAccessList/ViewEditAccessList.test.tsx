@@ -1,12 +1,13 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory, History } from 'history';
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import { Router } from 'react-router';
 
 import {
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   within,
@@ -41,11 +42,7 @@ import userService, { Acl } from 'teleport/services/user';
 import { unifiedResourcePath } from '../GuideEditor/Preset/TestHelper/mocks';
 import { ViewEditAccessList } from './ViewEditAccessList';
 
-const server = setupServer();
-
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 beforeEach(() => {
   server.use(
@@ -78,11 +75,8 @@ beforeEach(() => {
 
 afterEach(async () => {
   jest.resetAllMocks();
-  server.resetHandlers();
   await testQueryClient.resetQueries();
 });
-
-afterAll(() => server.close());
 
 test('back button uses previous route if present and preserves queries', async () => {
   const history = createMemoryHistory({

@@ -2,11 +2,17 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import userEvent from '@testing-library/user-event';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import { MemoryRouter } from 'react-router';
 import selectEvent from 'react-select-event';
 
-import { act, render, screen, testQueryClient } from 'design/utils/testing';
+import {
+  act,
+  enableMswServer,
+  render,
+  screen,
+  server,
+  testQueryClient,
+} from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
@@ -85,12 +91,9 @@ jest.mock('shared/libs/logger', () => {
   };
 });
 
-const server = setupServer();
 mockIntersectionObserver();
 
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 beforeEach(() => {
   server.use(...makeHandlers([fetchUnifiedResources('get', null)]));
@@ -98,11 +101,8 @@ beforeEach(() => {
 
 afterEach(async () => {
   jest.resetAllMocks();
-  server.resetHandlers();
   await testQueryClient.resetQueries();
 });
-
-afterAll(() => server.close());
 
 describe('going through different guides', () => {
   const mockDate = new Date('2025-01-23T10:20:30Z');

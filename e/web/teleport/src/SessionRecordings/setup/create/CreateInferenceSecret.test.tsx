@@ -1,10 +1,11 @@
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import { MemoryRouter } from 'react-router';
 
 import {
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -14,14 +15,11 @@ import cfg from 'e-teleport/config';
 import type { InferenceSecret } from 'e-teleport/services/inference/types';
 import { SessionSummariesManagementProvider } from 'e-teleport/SessionRecordings/setup/SessionSummariesManagement';
 
-const server = setupServer();
+enableMswServer();
 
-beforeAll(() => server.listen());
 afterEach(() => {
-  server.resetHandlers();
   testQueryClient.clear();
 });
-afterAll(() => server.close());
 
 test('renders the create dialog with correct title', () => {
   renderCreateInferenceSecret();

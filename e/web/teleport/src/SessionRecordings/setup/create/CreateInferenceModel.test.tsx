@@ -1,11 +1,12 @@
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import { MemoryRouter } from 'react-router';
 import selectEvent from 'react-select-event';
 
 import {
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -18,14 +19,11 @@ import type {
 } from 'e-teleport/services/inference/types';
 import { SessionSummariesManagementProvider } from 'e-teleport/SessionRecordings/setup/SessionSummariesManagement';
 
-const server = setupServer();
+enableMswServer();
 
-beforeAll(() => server.listen());
 afterEach(() => {
-  server.resetHandlers();
   testQueryClient.clear();
 });
-afterAll(() => server.close());
 
 function mockListInferenceSecrets() {
   const mockSecretsResponse: ListInferenceSecretsResponse = {

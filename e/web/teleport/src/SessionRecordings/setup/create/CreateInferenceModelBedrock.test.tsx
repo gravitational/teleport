@@ -1,13 +1,14 @@
 /* eslint-disable testing-library/no-node-access */
 import { act } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import { MemoryRouter } from 'react-router';
 import selectEvent from 'react-select-event';
 
 import {
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -16,14 +17,11 @@ import {
 import cfg from 'e-teleport/config';
 import { SessionSummariesManagementProvider } from 'e-teleport/SessionRecordings/setup/SessionSummariesManagement';
 
-const server = setupServer();
+enableMswServer();
 
-beforeAll(() => server.listen());
 afterEach(() => {
-  server.resetHandlers();
   return testQueryClient.resetQueries();
 });
-afterAll(() => server.close());
 
 test('shows Bedrock configuration form when Bedrock is selected', async () => {
   mockListSecrets();

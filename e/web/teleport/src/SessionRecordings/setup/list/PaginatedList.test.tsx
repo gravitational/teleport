@@ -1,11 +1,12 @@
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import { MemoryRouter } from 'react-router';
 
 import {
   createDeferredResponse,
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -74,18 +75,11 @@ function TestComponent() {
   );
 }
 
-const server = setupServer();
-
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 afterEach(() => {
-  server.resetHandlers();
   testQueryClient.clear();
 });
-
-afterAll(() => server.close());
 
 test('renders loading state', async () => {
   const deferred = createDeferredResponse<TestResponse>({

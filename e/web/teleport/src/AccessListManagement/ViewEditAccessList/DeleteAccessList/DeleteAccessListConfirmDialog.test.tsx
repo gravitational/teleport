@@ -1,12 +1,13 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory, History } from 'history';
 import { delay, http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import { Router } from 'react-router';
 
 import {
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -34,29 +35,24 @@ import { DeleteAccessListConfirmDialog } from './DeleteAccessListConfirmDialog';
 // msw matching requires stripping of query params
 const rolesV2Path = cfg.oss.api.role.listV2.split('?')[0];
 
-const server = setupServer(
-  http.get(unifiedResourcePath, () => {
-    return HttpResponse.json({ items: [] });
-  }),
-  ...makeHandlers()
-);
+enableMswServer();
 
 beforeAll(() => {
-  server.listen();
   jest.spyOn(console, 'warn').mockImplementation(() => {});
 });
 
 beforeEach(async () => {
+  server.use(
+    http.get(unifiedResourcePath, () => {
+      return HttpResponse.json({ items: [] });
+    }),
+    ...makeHandlers()
+  );
   await testQueryClient.resetQueries();
 });
 
 afterEach(() => {
   jest.restoreAllMocks();
-  server.resetHandlers();
-});
-
-afterAll(() => {
-  server.close();
 });
 
 test('shows loading state when fetching roles for preset access list', async () => {

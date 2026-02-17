@@ -1,14 +1,15 @@
 /* eslint-disable testing-library/no-node-access */
 import { within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import { MemoryRouter, Route } from 'react-router';
 
 import {
   act,
+  enableMswServer,
   fireEvent,
   render,
   screen,
+  server,
   tick,
   userEvent,
 } from 'design/utils/testing';
@@ -26,11 +27,7 @@ import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 const defaultIdentity = cfg.entitlements.Identity;
 
-const server = setupServer();
-
-beforeAll(() => server.listen());
-afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
+enableMswServer();
 
 describe('Okta status', () => {
   afterEach(() => {

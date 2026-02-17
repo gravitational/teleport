@@ -1,9 +1,13 @@
 import { screen } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import { MemoryRouter, Route } from 'react-router-dom';
 
-import { render, testQueryClient } from 'design/utils/testing';
+import {
+  enableMswServer,
+  render,
+  server,
+  testQueryClient,
+} from 'design/utils/testing';
 
 import cfg from 'e-teleport/config';
 import {
@@ -26,20 +30,11 @@ jest.mock('teleport/lib/AuthenticatedWebSocket', () => ({
   AuthenticatedWebSocket: MockAuthenticatedWebSocket,
 }));
 
-const server = setupServer();
-
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 afterEach(() => {
-  server.resetHandlers();
   testQueryClient.clear();
   jest.clearAllMocks();
-});
-
-afterAll(() => {
-  server.close();
 });
 
 const mockMetadata: SessionRecordingMetadata = {

@@ -1,8 +1,13 @@
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import { generatePath, MemoryRouter } from 'react-router';
 
-import { render, screen, testQueryClient } from 'design/utils/testing';
+import {
+  enableMswServer,
+  render,
+  screen,
+  server,
+  testQueryClient,
+} from 'design/utils/testing';
 
 import cfg from 'e-teleport/config';
 import { ListSessionRecordingsRouteE } from 'e-teleport/SessionRecordings/list/ListSessionRecordingsRouteE';
@@ -13,12 +18,11 @@ import type { SessionRecordingThumbnail } from 'teleport/services/recordings';
 import type { Acl } from 'teleport/services/user';
 import { makeAcl } from 'teleport/services/user/makeAcl';
 
-const server = setupServer();
+enableMswServer();
 
 let originalSessionSummarizerEnabled: boolean;
 let originalIdentitySecurityLicensed: boolean;
 
-beforeAll(() => server.listen());
 beforeEach(() => {
   testQueryClient.clear();
 
@@ -42,16 +46,13 @@ beforeEach(() => {
     })
   );
 });
-afterEach(async () => {
-  server.resetHandlers();
-
+afterEach(() => {
   testQueryClient.clear();
 
   // restore original flag values
   cfg.oss.sessionSummarizerEnabled = originalSessionSummarizerEnabled;
   cfg.oss.identitySecurity.licensed = originalIdentitySecurityLicensed;
 });
-afterAll(() => server.close());
 
 const listRecordingsUrl = generatePath(
   cfg.oss.api.clusterEventsRecordingsPath,
