@@ -42,24 +42,14 @@ type ErrorContext struct {
 	Login string
 }
 
-// ReadChildError reads the child process's stderr pipe and returns it as a string,
-// potentially with additional error context gathered from the given ErrorContext.
-// If the stderr pipe is empty, an empty string and nil error is returned.
-func ReadChildError(stderr io.Reader, context *ErrorContext) (string, error) {
-	// Read the error msg from stderr.
-	errMsg := new(strings.Builder)
-	if _, err := io.Copy(errMsg, io.LimitReader(stderr, maxRead)); err != nil {
-		return "", trace.Wrap(err, "failed to read error message from child process")
-	}
-
-	if errMsg.Len() == 0 {
-		return "", nil
-	}
-
+// ChildErrorWithContext returns the given error message with additional error context
+// gathered from the given ErrorContext. If the context is not relative to the error
+// message, the error message is returned unmodified with a nil error.
+func ChildErrorWithContext(errMsg string, context *ErrorContext) (string, error) {
 	// If we don't have a decision context, we don't have any context to
 	// add to the error message. Return stderr as is.
-	if context == nil || context.DecisionContext == nil {
-		return errMsg.String(), nil
+	if errMsg == "" || context == nil || context.DecisionContext == nil {
+		return errMsg, nil
 	}
 
 	// If some roles allow host user creation while others deny it, this can be
@@ -71,22 +61,39 @@ func ReadChildError(stderr io.Reader, context *ErrorContext) (string, error) {
 		for _, d := range context.DecisionContext.HostUserCreationDeniedBy {
 			deniedBy = append(deniedBy, fmt.Sprintf("%v: %q", d.Kind, d.Name))
 		}
-		return fmt.Sprintf("%s: host user creation denied by the following resources: [%s]\n", strings.TrimRight(errMsg.String(), ".\n"), strings.Join(deniedBy, ", "))
+		return fmt.Sprintf("%s: host user creation denied by the following resources: [%s]\n", strings.TrimRight(errMsg, ".\n"), strings.Join(deniedBy, ", "))
 	}
 
 	unknownUserError := user.UnknownUserError(context.Login)
 	switch {
-	case strings.Contains(errMsg.String(), "failed to open PAM context"): // PAM errors are often cause by an unknown user.
+	case strings.Contains(errMsg, "failed to open PAM context"): // PAM errors are often cause by an unknown user.
 		if _, err := user.Lookup(context.Login); errors.Is(err, unknownUserError) {
 			if ambiguousHostUserDenial {
 				return ambiguousHostUserError(), nil
 			}
 		}
-	case strings.Contains(errMsg.String(), unknownUserError.Error()):
+	case strings.Contains(errMsg, unknownUserError.Error()):
 		if ambiguousHostUserDenial {
 			return ambiguousHostUserError(), nil
 		}
 	}
 
-	return errMsg.String(), nil
+	return errMsg, nil
+}
+
+// ReadChildErrorWithContext reads the child process's stderr pipe and returns it as a string,
+// potentially with additional error context gathered from the given ErrorContext.
+// If the stderr pipe is empty, an empty string and nil error is returned.
+func ReadChildErrorWithContext(stderr io.Reader, context *ErrorContext) (string, error) {
+	// Read the error msg from stderr.
+	errMsg := new(strings.Builder)
+	if _, err := io.Copy(errMsg, io.LimitReader(stderr, maxRead)); err != nil {
+		return "", trace.Wrap(err, "failed to read error message from child process")
+	}
+
+	if errMsg.Len() == 0 {
+		return "", nil
+	}
+
+	return ChildErrorWithContext(errMsg.String(), context)
 }

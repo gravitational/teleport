@@ -139,7 +139,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	s.waitForOutputStreams.Go(func() {
 		defer stderrR.Close()
 
-		childErr, err := reexec.ReadChildError(stderrR, &reexec.ErrorContext{
+		childErr, err := reexec.ReadChildErrorWithContext(stderrR, &reexec.ErrorContext{
 			DecisionContext: s.serverCtx.Identity.AccessPermit.DecisionContext,
 			Login:           s.serverCtx.Identity.Login,
 		})

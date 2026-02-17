@@ -203,7 +203,7 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) error {
 	e.waitForOutputStreams.Go(func() {
 		defer stderrR.Close()
 
-		childErr, err := reexec.ReadChildError(stderrR, &reexec.ErrorContext{
+		childErr, err := reexec.ReadChildErrorWithContext(stderrR, &reexec.ErrorContext{
 			DecisionContext: e.Ctx.Identity.AccessPermit.DecisionContext,
 			Login:           e.Ctx.Identity.Login,
 		})
