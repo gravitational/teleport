@@ -536,10 +536,10 @@ func statusNextActions(summary statusSummary) []nextAction {
 			},
 		},
 		nextAction{
-			Comment: "Check SSM runs (use --cluster-errors to group similar failures)",
+			Comment: "Check SSM runs (use --cluster to group similar runs)",
 			Commands: []string{
 				"tctl discovery ssm-runs ls",
-				"tctl discovery ssm-runs ls --cluster-errors",
+				"tctl discovery ssm-runs ls --cluster",
 				"tctl discovery ssm-runs ls --last=1h",
 				"tctl discovery ssm-runs ls --from-utc=2026-02-15T08:00 --to-utc=2026-02-15T20:00",
 			},
@@ -686,7 +686,10 @@ func renderSSMRunsText(w io.Writer, output ssmRunsOutput, instanceIDFilter strin
 		}
 	}
 	if len(output.ErrorClusters) > 0 {
-		renderSSMErrorClusters(w, style, output.ErrorClusters)
+		renderSSMRunClusters(w, style, "Error", output.ErrorClusters)
+	}
+	if len(output.SuccessClusters) > 0 {
+		renderSSMRunClusters(w, style, "Success", output.SuccessClusters)
 	}
 
 	if output.VMPage.HasNext {
@@ -740,14 +743,14 @@ func renderQuotedOutput(w io.Writer, output string, indent string, details []key
 	}
 }
 
-func renderSSMErrorClusters(w io.Writer, style textStyle, clusters []ssmErrorCluster) {
-	fmt.Fprintf(w, "\n%s\n", style.section(fmt.Sprintf("Error Clusters (%d groups):", len(clusters))))
+func renderSSMRunClusters(w io.Writer, style textStyle, kind string, clusters []ssmRunCluster) {
+	fmt.Fprintf(w, "\n%s\n", style.section(fmt.Sprintf("%s Clusters (%d groups):", kind, len(clusters))))
 	for _, c := range clusters {
 		totalRuns := 0
 		for _, inst := range c.Instances {
 			totalRuns += len(inst.Times)
 		}
-		fmt.Fprintf(w, "\n  %s %d failed runs across %d instances\n",
+		fmt.Fprintf(w, "\n  %s %d runs across %d instances\n",
 			style.info(fmt.Sprintf("Cluster %d:", c.ID+1)),
 			totalRuns, len(c.Instances))
 
@@ -952,10 +955,10 @@ func ssmRunsNextActions(output ssmRunsOutput, instanceIDFilter string, showAllRu
 		// Single-instance view: suggest going back to list view and checking tasks.
 		actions := []nextAction{
 			{
-				Comment: "Return to SSM overview (use --cluster-errors to group similar failures)",
+				Comment: "Return to SSM overview (use --cluster to group similar runs)",
 				Commands: []string{
 					"tctl discovery ssm-runs ls",
-					"tctl discovery ssm-runs ls --cluster-errors",
+					"tctl discovery ssm-runs ls --cluster",
 					"tctl discovery ssm-runs ls --last=1h",
 					"tctl discovery ssm-runs ls --from-utc=2026-02-15T08:00 --to-utc=2026-02-15T20:00",
 				},
@@ -996,12 +999,12 @@ func ssmRunsNextActions(output ssmRunsOutput, instanceIDFilter string, showAllRu
 			Commands: []string{fmt.Sprintf("%s --limit=%d", baseCommand, limit)},
 		})
 	}
-	if output.ErrorClusters == nil {
+	if output.ErrorClusters == nil && output.SuccessClusters == nil {
 		actions = append(actions, nextAction{
-			Comment: "Group similar errors into clusters",
+			Comment: "Group similar runs into clusters",
 			Commands: []string{
-				"tctl discovery ssm-runs ls --cluster-errors",
-				"tctl discovery ssm-runs ls --cluster-errors --format=json",
+				"tctl discovery ssm-runs ls --cluster",
+				"tctl discovery ssm-runs ls --cluster --format=json",
 			},
 		})
 	}
@@ -1317,10 +1320,14 @@ func buildTimeline(host inventoryHost) []timelineEntry {
 		if isSSMRunFailure(r) {
 			output = combineOutput(r.Stdout, r.Stderr)
 		}
-		detail := ""
+		var detailParts []string
 		if r.ExitCode != "" {
-			detail = "exit=" + r.ExitCode
+			detailParts = append(detailParts, "exit="+r.ExitCode)
 		}
+		if r.CommandID != "" {
+			detailParts = append(detailParts, r.CommandID)
+		}
+		detail := strings.Join(detailParts, "  ")
 		entries = append(entries, timelineEntry{
 			Time:   r.parsedEventTime,
 			Kind:   "SSM RUN",
@@ -1520,10 +1527,10 @@ func joinsNextActions(output joinsOutput, hostIDFilter string, showAllJoins bool
 			},
 		},
 		nextAction{
-			Comment: "Check SSM runs (use --cluster-errors to group similar failures)",
+			Comment: "Check SSM runs (use --cluster to group similar runs)",
 			Commands: []string{
 				"tctl discovery ssm-runs ls",
-				"tctl discovery ssm-runs ls --cluster-errors",
+				"tctl discovery ssm-runs ls --cluster",
 				"tctl discovery ssm-runs ls --last=1h",
 				"tctl discovery ssm-runs ls --from-utc=2026-02-15T08:00 --to-utc=2026-02-15T20:00",
 			},
