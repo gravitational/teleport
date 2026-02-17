@@ -21,6 +21,7 @@ import { act } from 'react';
 import { MemoryRouter } from 'react-router';
 
 import {
+  enableMswServer,
   render,
   screen,
   server,
@@ -36,6 +37,8 @@ import type { Recording } from 'teleport/services/recordings';
 import { getThumbnail, MOCK_THUMBNAIL, thumbnailError } from './mock';
 import { RecordingItem, type RecordingItemProps } from './RecordingItem';
 import { Density, ViewMode } from './ViewSwitcher';
+
+enableMswServer();
 
 const mockRecording: Recording = {
   sid: 'test-session',
@@ -78,18 +81,13 @@ async function setupTest({
   return view;
 }
 
-beforeAll(() => server.listen());
-
 beforeEach(() => {
   server.use(getThumbnail(MOCK_THUMBNAIL));
 });
 
-afterEach(async () => {
-  server.resetHandlers();
+afterEach(() => {
   testQueryClient.clear();
 });
-
-afterAll(() => server.close());
 
 test('renders recording item with basic information', async () => {
   await setupTest({});

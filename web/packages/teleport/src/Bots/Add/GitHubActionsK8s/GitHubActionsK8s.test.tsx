@@ -26,6 +26,7 @@ import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   act,
+  enableMswServer,
   render,
   screen,
   server,
@@ -47,9 +48,9 @@ import { trackingTester } from '../Shared/trackingTester';
 import { TrackingProvider } from '../Shared/useTracking';
 import { GitHubActionsK8sWithoutTracking } from './GitHubActionsK8s';
 
-beforeAll(() => {
-  server.listen();
+enableMswServer();
 
+beforeEach(() => {
   server.use(genWizardCiCdSuccess());
   server.use(userEventCaptureSuccess());
   server.use(fetchUnifiedResourcesSuccess());
@@ -58,8 +59,6 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  server.close();
-
   jest.useRealTimers();
   jest.resetAllMocks();
 });

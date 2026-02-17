@@ -20,6 +20,7 @@ import { http, HttpResponse } from 'msw';
 import { PropsWithChildren } from 'react';
 
 import {
+  enableMswServer,
   Providers,
   render,
   screen,
@@ -42,9 +43,7 @@ import {
 } from './fixtures';
 import { ManagedUpdates } from './ManagedUpdates';
 
-beforeAll(() => server.listen());
-afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
+enableMswServer();
 
 function makeWrapper(customAcl?: ReturnType<typeof makeAcl>) {
   return ({ children }: PropsWithChildren) => {

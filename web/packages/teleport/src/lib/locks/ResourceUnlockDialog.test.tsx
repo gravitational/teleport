@@ -25,6 +25,7 @@ import {
 import { Router } from 'react-router';
 
 import {
+  enableMswServer,
   Providers,
   render,
   screen,
@@ -44,18 +45,12 @@ import {
 
 import { ResourceUnlockDialog } from './ResourceUnlockDialog';
 
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
-
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 describe('ResourceUnlockDialog', () => {
   it('should cancel', async () => {

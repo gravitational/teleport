@@ -22,6 +22,7 @@ import { PropsWithChildren } from 'react';
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
+  enableMswServer,
   render,
   screen,
   server,
@@ -39,18 +40,12 @@ import {
 
 import { InstancesPanel } from './InstancesPanel';
 
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
-
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 describe('InstancesPanel', () => {
   it('should show a fetch error state', async () => {

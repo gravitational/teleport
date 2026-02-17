@@ -22,6 +22,7 @@ import { ComponentProps, PropsWithChildren } from 'react';
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
+  enableMswServer,
   render,
   screen,
   server,
@@ -42,25 +43,18 @@ import { trackingTester } from '../Shared/trackingTester';
 import { TrackingProvider } from '../Shared/useTracking';
 import { KubernetesLabelsSelect } from './KubernetesLabelsSelect';
 
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 beforeEach(() => {
   server.use(userEventCaptureSuccess());
 });
 
 afterEach(async () => {
-  server.resetHandlers();
-
   await testQueryClient.resetQueries();
-
   jest.clearAllMocks();
 });
 
 afterAll(() => {
-  server.close();
-
   jest.resetAllMocks();
 });
 

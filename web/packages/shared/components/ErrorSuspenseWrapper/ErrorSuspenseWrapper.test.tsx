@@ -23,6 +23,7 @@ import { getErrorMessage, type FallbackProps } from 'react-error-boundary';
 
 import {
   createDeferredResponse,
+  enableMswServer,
   render,
   screen,
   server,
@@ -31,12 +32,11 @@ import {
 
 import { ErrorSuspenseWrapper } from './ErrorSuspenseWrapper';
 
-beforeAll(() => server.listen());
+enableMswServer();
+
 afterEach(() => {
-  server.resetHandlers();
   testQueryClient.clear();
 });
-afterAll(() => server.close());
 
 function TestErrorComponent({ error, resetErrorBoundary }: FallbackProps) {
   return (

@@ -20,6 +20,7 @@ import { http, HttpResponse } from 'msw';
 import { generatePath, MemoryRouter } from 'react-router';
 
 import {
+  enableMswServer,
   render,
   screen,
   server,
@@ -43,7 +44,8 @@ import { RecordingsList } from './RecordingsList';
 import type { RecordingsListState } from './state';
 import { Density, ViewMode } from './ViewSwitcher';
 
-beforeAll(() => server.listen());
+enableMswServer();
+
 beforeEach(() => {
   server.use(
     getThumbnail(MOCK_THUMBNAIL),
@@ -61,12 +63,9 @@ beforeEach(() => {
     })
   );
 });
-afterEach(async () => {
-  server.resetHandlers();
-
+afterEach(() => {
   testQueryClient.clear();
 });
-afterAll(() => server.close());
 
 const defaultState: RecordingsListState = {
   filters: {

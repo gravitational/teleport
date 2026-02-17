@@ -19,6 +19,7 @@
 import { PropsWithChildren } from 'react';
 
 import {
+  enableMswServer,
   Providers,
   render,
   screen,
@@ -34,18 +35,12 @@ import { listV2LocksSuccess } from 'teleport/test/helpers/locks';
 
 import { ResourceLockIndicator } from './ResourceLockIndicator';
 
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
-
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 describe('ResourceUnlockDialog', () => {
   it('show a tooltip with details of a single lock', async () => {

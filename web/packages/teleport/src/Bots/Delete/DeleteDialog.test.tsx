@@ -19,6 +19,7 @@
 import { PropsWithChildren } from 'react';
 
 import {
+  enableMswServer,
   Providers,
   render,
   screen,
@@ -35,18 +36,12 @@ import { deleteBotError, deleteBotSuccess } from 'teleport/test/helpers/bots';
 
 import { DeleteDialog } from './DeleteDialog';
 
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
-
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 describe('DeleteDialog', () => {
   it('should render correctly', async () => {

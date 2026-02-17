@@ -20,6 +20,7 @@ import { UserEvent } from '@testing-library/user-event';
 import { ComponentPropsWithoutRef, PropsWithChildren } from 'react';
 
 import {
+  enableMswServer,
   Providers,
   render,
   screen,
@@ -38,18 +39,12 @@ import {
 
 import { ResourceLockDialog } from './ResourceLockDialog';
 
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
-
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 describe('ResourceLockDialog', () => {
   it('should cancel', async () => {

@@ -19,6 +19,7 @@
 import { MemoryRouter } from 'react-router';
 
 import {
+  enableMswServer,
   fireEvent,
   render,
   screen,
@@ -39,6 +40,8 @@ import { successGetUsersV2 } from 'teleport/test/helpers/users';
 import { Users } from './Users';
 import { State } from './useUsers';
 
+enableMswServer();
+
 const defaultAcl: Access = {
   read: true,
   edit: true,
@@ -47,13 +50,9 @@ const defaultAcl: Access = {
   create: true,
 };
 
-beforeEach(() => server.listen());
 afterEach(() => {
-  server.resetHandlers();
-
   return testQueryClient.resetQueries();
 });
-afterAll(() => server.close());
 
 describe('invite collaborators integration', () => {
   const ctx = createTeleportContext();

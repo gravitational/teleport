@@ -23,6 +23,7 @@ import { MemoryRouter } from 'react-router';
 import { darkTheme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
+  enableMswServer,
   fireEvent,
   render,
   screen,
@@ -56,18 +57,12 @@ jest.mock('teleport/services/workloadIdentity/workloadIdentity', () => {
   };
 });
 
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
-
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 describe('WorkloadIdentities', () => {
   it('Shows an empty state', async () => {

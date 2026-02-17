@@ -27,6 +27,7 @@ import { MemoryRouter, Route, Router } from 'react-router';
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
+  enableMswServer,
   render,
   screen,
   server,
@@ -65,18 +66,12 @@ import {
 
 import { BotDetails } from './BotDetails';
 
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
-
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 describe('BotDetails', () => {
   it('should show a page error state', async () => {

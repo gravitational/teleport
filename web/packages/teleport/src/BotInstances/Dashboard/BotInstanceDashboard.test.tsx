@@ -22,6 +22,7 @@ import { ComponentProps, PropsWithChildren } from 'react';
 import { darkTheme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
+  enableMswServer,
   render,
   screen,
   server,
@@ -38,18 +39,12 @@ import {
 
 import { BotInstancesDashboard } from './BotInstanceDashboard';
 
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
-
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 describe('BotInstanceDashboard', () => {
   it('renders', async () => {

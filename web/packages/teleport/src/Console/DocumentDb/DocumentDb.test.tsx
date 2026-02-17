@@ -21,7 +21,7 @@ import { screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import 'jest-canvas-mock';
 
-import { act, render } from 'design/utils/testing';
+import { act, enableMswServer, render, server } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
 import { TestLayout } from 'teleport/Console/Console.story';
@@ -29,11 +29,18 @@ import ConsoleCtx from 'teleport/Console/consoleContext';
 import Tty from 'teleport/lib/term/tty';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import type { Session } from 'teleport/services/session';
+import { fetchUnifiedResourcesSuccess } from 'teleport/test/helpers/resources';
 
 import { DocumentDb } from './DocumentDb';
 import { Status, useDbSession } from './useDbSession';
 
 jest.mock('./useDbSession');
+
+enableMswServer();
+
+beforeEach(() => {
+  server.use(fetchUnifiedResourcesSuccess());
+});
 
 const mockUseDbSession = useDbSession as jest.MockedFunction<
   typeof useDbSession

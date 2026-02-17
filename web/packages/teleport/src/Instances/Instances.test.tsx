@@ -25,6 +25,7 @@ import { MemoryRouter, Route, Router } from 'react-router';
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
+  enableMswServer,
   render,
   screen,
   server,
@@ -47,9 +48,9 @@ import {
 
 import { Instances } from './Instances';
 
-beforeAll(() => {
-  server.listen();
+enableMswServer();
 
+beforeAll(() => {
   global.IntersectionObserver = class IntersectionObserver {
     constructor() {}
     disconnect() {}
@@ -62,12 +63,9 @@ beforeAll(() => {
 });
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 it('having no permissions should show correct error', async () => {
   renderComponent({

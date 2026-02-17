@@ -25,6 +25,7 @@ import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   act,
+  enableMswServer,
   render,
   screen,
   server,
@@ -48,18 +49,12 @@ import { successGetRoles } from 'teleport/test/helpers/roles';
 
 import { EditDialog } from './EditDialog';
 
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
-
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 describe('EditDialog', () => {
   it('should show a fetch error state', async () => {

@@ -135,6 +135,20 @@ export function createDeferredResponse<T extends JsonBodyType>(data: T) {
 
 export const server = setupServer();
 
+/**
+ * Registers MSW lifecycle hooks for the current test suite. Call this at the
+ * top level of every test file that uses `server.use()`.
+ *
+ * This is intentionally opt-in rather than global (via setupTests.ts) to
+ * avoid the overhead of patching fetch/XHR in the hundreds of test suites
+ * that don't use MSW.
+ */
+export function enableMswServer() {
+  beforeAll(() => server.listen());
+  afterEach(() => server.resetHandlers());
+  afterAll(() => server.close());
+}
+
 export {
   act,
   screen,
