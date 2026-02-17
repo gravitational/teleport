@@ -307,7 +307,7 @@ describe('permission handling', () => {
 
     await screen.findByPlaceholderText('Search...');
 
-    expect(screen.getByTestId('create_new_users_button')).toBeDisabled();
+    expect(await screen.findByTestId('create_new_users_button')).toBeDisabled();
   });
 
   test('edit and reset options not available in the menu', async () => {
@@ -330,7 +330,9 @@ describe('permission handling', () => {
 
     await screen.findByPlaceholderText('Search...');
 
-    const optionsButton = screen.getByRole('button', { name: /options/i });
+    const optionsButton = await screen.findByRole('button', {
+      name: /options/i,
+    });
     fireEvent.click(optionsButton);
     const menuItems = screen.queryAllByRole('menuitem');
     expect(menuItems).toHaveLength(1);
@@ -362,7 +364,7 @@ describe('permission handling', () => {
 
     await screen.findByPlaceholderText('Search...');
 
-    expect(screen.getByText('tester')).toBeInTheDocument();
+    expect(await screen.findByText('tester')).toBeInTheDocument();
     const optionsButton = screen.getByRole('button', { name: /options/i });
     fireEvent.click(optionsButton);
     const menuItems = screen.queryAllByRole('menuitem');
@@ -401,7 +403,7 @@ describe('permission handling', () => {
 
     await screen.findByPlaceholderText('Search...');
 
-    expect(screen.getByText('tester')).toBeInTheDocument();
+    expect(await screen.findByText('tester')).toBeInTheDocument();
     const optionsButton = screen.getByRole('button', { name: /options/i });
     fireEvent.click(optionsButton);
     const menuItems = screen.queryAllByRole('menuitem');
@@ -440,7 +442,7 @@ describe('permission handling', () => {
     );
 
     await screen.findByPlaceholderText('Search...');
-    const userRow = screen.getByText('tester');
+    const userRow = await screen.findByText('tester');
     expect(userRow).toBeInTheDocument();
     expect(screen.queryByTestId('user-details-panel')).not.toBeInTheDocument();
 
