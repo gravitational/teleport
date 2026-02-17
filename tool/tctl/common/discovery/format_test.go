@@ -120,6 +120,37 @@ func TestFormatRelativeDelta(t *testing.T) {
 	}
 }
 
+func TestParseDurationWithDays(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		want    time.Duration
+		wantErr bool
+	}{
+		{name: "hours", input: "2h", want: 2 * time.Hour},
+		{name: "minutes", input: "30m", want: 30 * time.Minute},
+		{name: "days", input: "7d", want: 7 * 24 * time.Hour},
+		{name: "days and hours", input: "2d12h", want: 60 * time.Hour},
+		{name: "one day", input: "1d", want: 24 * time.Hour},
+		{name: "invalid", input: "abc", wantErr: true},
+		{name: "invalid day count", input: "xd", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseDurationWithDays(tt.input)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestEstimateRequiredLimit(t *testing.T) {
 	t.Parallel()
 
