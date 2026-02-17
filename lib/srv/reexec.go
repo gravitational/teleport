@@ -74,7 +74,7 @@ const (
 // Teleport is re-executing itself.
 type FileFD = uintptr
 
-// Common FileFDs
+// FileFDs used by all re-exec subcommands.
 const (
 	// CommandFile is used to pass the command and arguments that the
 	// child process should execute from the parent process.
@@ -99,7 +99,7 @@ const (
 	TerminateFile
 	// FirstExtraFile is the first file descriptor that will be valid when
 	// extra files are passed to child processes without a terminal.
-	FirstExtraFile FileFD = TerminateFile + 1
+	FirstExtraFile
 )
 
 // FileFDs for terminal based exec sessions.
@@ -126,7 +126,7 @@ const (
 const (
 	// FileTransferOutFile is used to pass write transfer data to the sftp (grandchild) process.
 	FileTransferOutFile = FirstExtraFile + iota
-	// FileTransferOutFile is used to pass read transfer data from the sftp (grandchild) process.
+	// FileTransferInFile is used to pass read transfer data from the sftp (grandchild) process.
 	FileTransferInFile
 	// AuditInFile is used to read audit events from the sftp (grandchild) process.
 	AuditInFile
@@ -145,6 +145,10 @@ func fdName(f FileFD) string {
 // ExecCommand contains the payload to "teleport exec" which will be used to
 // construct and execute a shell.
 type ExecCommand struct {
+	stdin  io.Reader
+	stdout io.Writer
+	stderr io.Writer
+
 	// LogConfig is the log configuration for the child process.
 	LogConfig ExecLogConfig `json:"log_config"`
 
@@ -353,36 +357,34 @@ func RunCommand() (code int, err error) {
 	}
 
 	var tty *os.File
-	var shellStdio stdio
 	if c.Terminal {
 		// If this is an interactive session, use the tty file for grandchild stdio.
 		tty = os.NewFile(TTYFile, fdName(TTYFile))
 		if tty == nil {
 			return teleport.RemoteCommandFailure, trace.BadParameter("tty not found")
 		}
-		shellStdio.in = tty
-		shellStdio.out = tty
-		shellStdio.err = tty
+		c.stdin = tty
+		c.stdout = tty
+		c.stderr = tty
 	} else if c.RequestType == sshutils.SubsystemRequest && c.Command == teleport.SFTPSubsystem {
 		// std{in/out} is not used by the SFTP sub process, just collect stderr.
-		shellStdio = stdio{
-			in:  bytes.NewReader([]byte{}),
-			out: io.Discard,
-			// Propagate sftp subprocess errors to the parent process.
-			err: os.Stderr,
-		}
+		c.stdin = bytes.NewReader(nil)
+		c.stdout = io.Discard
+		// Propagate sftp subprocess errors to the parent process.
+		c.stderr = os.Stderr
+
 	} else {
 		// If this is a normal, non-interactive exec session, use the stdio pipes provided as extra files.
-		shellStdio.in = os.NewFile(StdinFile, fdName(StdinFile))
-		if shellStdio.in == nil {
+		c.stdin = os.NewFile(StdinFile, fdName(StdinFile))
+		if c.stdin == nil {
 			return teleport.RemoteCommandFailure, trace.BadParameter("stdin not found")
 		}
-		shellStdio.out = os.NewFile(StdoutFile, fdName(StdoutFile))
-		if shellStdio.out == nil {
+		c.stdout = os.NewFile(StdoutFile, fdName(StdoutFile))
+		if c.stdout == nil {
 			return teleport.RemoteCommandFailure, trace.BadParameter("stdout not found")
 		}
-		shellStdio.err = os.NewFile(StderrFile, fdName(StderrFile))
-		if shellStdio.err == nil {
+		c.stderr = os.NewFile(StderrFile, fdName(StderrFile))
+		if c.stderr == nil {
 			return teleport.RemoteCommandFailure, trace.BadParameter("stderr not found")
 		}
 	}
@@ -403,9 +405,9 @@ func RunCommand() (code int, err error) {
 			// account/session.
 			Env: c.PAMConfig.Environment,
 			// Connect std{in,out,err} to the TTY if a terminal has been allocated.
-			Stdin:  shellStdio.in,
-			Stdout: shellStdio.out,
-			Stderr: shellStdio.err,
+			Stdin:  c.stdin,
+			Stdout: c.stdout,
+			Stderr: c.stderr,
 		}
 
 		// Discard std{out,err} for non-interactive requests. Otherwise, things like
@@ -466,7 +468,7 @@ func RunCommand() (code int, err error) {
 	}
 
 	// Build the actual command that will launch the shell.
-	cmd, err := buildCommand(&c, localUser, shellStdio, pamEnvironment)
+	cmd, err := buildCommand(&c, localUser, pamEnvironment)
 	if err != nil {
 		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -754,10 +756,9 @@ func RunNetworking() (code int, err error) {
 		pamContext, err := pam.Open(&servicecfg.PAMConfig{
 			ServiceName: c.PAMConfig.ServiceName,
 			Login:       c.Login,
-			// TODO (Joerger): add stdin?
-			Stdin:  os.Stdin,
-			Stdout: io.Discard,
-			Stderr: io.Discard,
+			Stdin:       os.Stdin,
+			Stdout:      io.Discard,
+			Stderr:      io.Discard,
 			// Set Teleport specific environment variables that PAM modules
 			// like pam_script.so can pick up to potentially customize the
 			// account/session.
@@ -1186,18 +1187,9 @@ func readUserEnv(localUser *user.User, path string) ([]string, error) {
 	return envs, trace.Wrap(err)
 }
 
-type stdio struct {
-	// stdin
-	in io.Reader
-	// stdout
-	out io.Writer
-	// stderr
-	err io.Writer
-}
-
-// buildCommand constructs a command that will execute the users shell. This
+// buildCommand constructs a command that will execute the user's shell. This
 // function is run by Teleport while it's re-executing.
-func buildCommand(c *ExecCommand, localUser *user.User, stdio stdio, pamEnvironment []string) (*exec.Cmd, error) {
+func buildCommand(c *ExecCommand, localUser *user.User, pamEnvironment []string) (*exec.Cmd, error) {
 	var cmd exec.Cmd
 	isReexec := false
 
@@ -1278,9 +1270,9 @@ func buildCommand(c *ExecCommand, localUser *user.User, stdio stdio, pamEnvironm
 	cmd.Env = *env
 
 	// set stdio. If a terminal was requested, the stdio fields all point to the same tty file.
-	cmd.Stdin = stdio.in
-	cmd.Stdout = stdio.out
-	cmd.Stderr = stdio.err
+	cmd.Stdin = c.stdin
+	cmd.Stdout = c.stdout
+	cmd.Stderr = c.stderr
 
 	if c.Terminal {
 		cmd.SysProcAttr = &syscall.SysProcAttr{
@@ -1297,15 +1289,15 @@ func buildCommand(c *ExecCommand, localUser *user.User, stdio stdio, pamEnvironm
 
 	// Pass extra files for SFTP to grandchild.
 	if c.RequestType == sshutils.SubsystemRequest && c.Command == teleport.SFTPSubsystem {
-		out := os.NewFile(FileTransferOutFile, strconv.Itoa(int(FileTransferOutFile)))
+		out := os.NewFile(FileTransferOutFile, "FileTransferOutFile")
 		if out == nil {
 			return nil, trace.NotFound("read pipe out file not found")
 		}
-		in := os.NewFile(FileTransferInFile, strconv.Itoa(int(FileTransferInFile)))
+		in := os.NewFile(FileTransferInFile, "FileTransferInFile")
 		if in == nil {
 			return nil, trace.NotFound("read pipe in file not found")
 		}
-		audit := os.NewFile(AuditInFile, strconv.Itoa(int(AuditInFile)))
+		audit := os.NewFile(AuditInFile, "AuditInFile")
 		if audit == nil {
 			return nil, trace.NotFound("read pipe audit file not found")
 		}

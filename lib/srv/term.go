@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 )
 
 // LookupUser is used to mock the value returned by user.Lookup(string).
@@ -56,7 +57,7 @@ type Terminal interface {
 	AddParty(delta int)
 
 	// Run will run the terminal.
-	Run(ctx context.Context) error
+	Run(ctx context.Context, errorWriter io.Writer) error
 
 	// Wait will block until the terminal is complete.
 	Wait() (*ExecResult, error)
@@ -187,8 +188,9 @@ func (t *terminal) AddParty(delta int) {
 	t.wg.Add(delta)
 }
 
-// Run will run the terminal.
-func (t *terminal) Run(ctx context.Context) error {
+// Run will run the terminal. If the shell fails to start due to a [teleport.RemoteCommandFailure],
+// the error will be written to the given error writer.
+func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -213,6 +215,31 @@ func (t *terminal) Run(ctx context.Context) error {
 	t.cmd.ExtraFiles = append(t.cmd.ExtraFiles, nil)
 	// Pass the TTY to the child since a terminal is attached.
 	t.cmd.ExtraFiles = append(t.cmd.ExtraFiles, tty)
+
+	// Capture stderr.
+	stderrr, stderrw, err := os.Pipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer stderrw.Close()
+	t.cmd.Stderr = stderrw
+
+	go func() {
+		defer stderrr.Close()
+
+		childErr, err := reexec.ReadChildError(stderrr)
+		if err != nil {
+			t.serverContext.Logger.WarnContext(context.WithoutCancel(ctx), "Failed to read child process stderr", "error", err)
+			return
+		}
+		if childErr == "" {
+			return
+		}
+
+		if _, err := io.WriteString(errorWriter, childErr); err != nil {
+			t.serverContext.Logger.WarnContext(context.WithoutCancel(ctx), "Failed to propagate child process stderr to client", "error", err)
+		}
+	}()
 
 	// Close the TTY before returning to ensure that our half of the pipe is
 	// closed. This ensures that reading from the PTY will unblock when the
@@ -551,7 +578,7 @@ func (b *ptyBuffer) Write(p []byte) (n int, err error) {
 	return b.w.Write(p)
 }
 
-func (t *remoteTerminal) Run(ctx context.Context) error {
+func (t *remoteTerminal) Run(ctx context.Context, _ io.Writer) error {
 	// prepare the remote session by setting environment variables
 	t.prepareRemoteSession(ctx, t.session, t.ctx)
 

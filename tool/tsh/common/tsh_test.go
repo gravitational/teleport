@@ -8298,3 +8298,128 @@ func TestListNodesCLIFlags(t *testing.T) {
 		})
 	}
 }
+
+func TestReexecErrorPropagation(t *testing.T) {
+	ctx := t.Context()
+	connector := mockConnector(t)
+
+	createAgent(t)
+
+	// Use a non-existent OS user to force reexec failures in the node.
+	missingLogin := "does-not-exist"
+	nodeAccessMissingLogin, err := types.NewRole("node-access-missing-login", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{missingLogin},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+
+	userMissingLogin, err := types.NewUser("user-missing-login")
+	require.NoError(t, err)
+	userMissingLogin.SetRoles([]string{nodeAccessMissingLogin.GetName()})
+
+	sshHostname := "test-ssh-server"
+	rootServerOpts := []testserver.TestServerOptFunc{
+		testserver.WithBootstrap(connector, nodeAccessMissingLogin, userMissingLogin),
+		testserver.WithHostname(sshHostname),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.SSH.Enabled = true
+		}),
+	}
+	rootServer, err := testserver.NewTeleportProcess(t.TempDir(), rootServerOpts...)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, rootServer.Close())
+		require.NoError(t, rootServer.Wait())
+	})
+
+	authServer := rootServer.GetAuthServer()
+	proxyAddr, err := rootServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rootNodes, err := rootServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Len(t, rootNodes, 1)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	homePath := t.TempDir()
+
+	recordingModes := []struct {
+		name    string
+		recMode string
+	}{
+		{
+			name:    "record at node",
+			recMode: types.RecordAtNode,
+		},
+		{
+			name:    "record at proxy",
+			recMode: types.RecordAtProxy,
+		},
+	}
+
+	sshCases := []struct {
+		name          string
+		tty           bool
+		remoteCommand []string
+	}{
+		{
+			name: "ssh shell",
+		},
+		{
+			name:          "ssh command",
+			remoteCommand: []string{"echo", "hello"},
+		},
+		{
+			name:          "ssh command w/ tty",
+			remoteCommand: []string{"echo", "hello"},
+			tty:           true,
+		},
+	}
+
+	for _, rm := range recordingModes {
+		t.Run(rm.name, func(t *testing.T) {
+			recCfg := types.DefaultSessionRecordingConfig()
+			recCfg.SetMode(rm.recMode)
+			_, err := authServer.UpsertSessionRecordingConfig(ctx, recCfg)
+			require.NoError(t, err)
+
+			err = Run(ctx, []string{
+				"login",
+				"--insecure",
+				"--proxy", proxyAddr.String(),
+			}, setHomePath(homePath), setMockSSOLogin(authServer, userMissingLogin, connector.GetName()))
+			require.NoError(t, err)
+
+			for _, sc := range sshCases {
+				t.Run(sc.name, func(t *testing.T) {
+					stdout := &output{buf: bytes.Buffer{}}
+
+					args := []string{"ssh", "--insecure"}
+					if sc.tty {
+						args = append(args, "--tty")
+					}
+					args = append(args, fmt.Sprintf("%s@%s", missingLogin, sshHostname))
+					args = append(args, sc.remoteCommand...)
+
+					err := Run(ctx, args,
+						setHomePath(homePath),
+						func(conf *CLIConf) error {
+							conf.OverrideStdout = stdout
+							return nil
+						},
+					)
+					require.Error(t, err)
+
+					// If there is a tty, we expect CRLF instead of just LF.
+					expectErr := fmt.Sprintf("Failed to launch: %v.\r\n", user.UnknownUserError(missingLogin))
+
+					// Check for exact match to catch regressions with new lines.
+					require.Equal(t, expectErr, stdout.String())
+				})
+			}
+		})
+	}
+}

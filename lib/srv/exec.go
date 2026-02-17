@@ -41,6 +41,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -160,24 +161,21 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	// side of each pipe after starting the command.
 	shellStdinR, shellStdinW, err := os.Pipe()
 	if err != nil {
-		ctxErr := e.Ctx.Close()
-		return nil, trace.NewAggregate(err, ctxErr)
+		return nil, trace.Wrap(err)
 	}
 	defer shellStdinR.Close()
 	e.Ctx.AddCloser(shellStdinW)
 
 	shellStdoutR, shellStdoutW, err := os.Pipe()
 	if err != nil {
-		ctxErr := e.Ctx.Close()
-		return nil, trace.NewAggregate(err, ctxErr)
+		return nil, trace.Wrap(err)
 	}
 	defer shellStdoutW.Close()
 	e.Ctx.AddCloser(shellStdoutR)
 
 	shellStderrR, shellStderrW, err := os.Pipe()
 	if err != nil {
-		ctxErr := e.Ctx.Close()
-		return nil, trace.NewAggregate(err, ctxErr)
+		return nil, trace.Wrap(err)
 	}
 	defer shellStderrW.Close()
 	e.Ctx.AddCloser(shellStderrR)
@@ -187,6 +185,31 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Capture stderr.
+	stderrr, stderrw, err := os.Pipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer stderrw.Close()
+	e.Cmd.Stderr = stderrw
+
+	go func() {
+		defer stderrr.Close()
+
+		childErr, err := reexec.ReadChildError(stderrr)
+		if err != nil {
+			logger.WarnContext(context.WithoutCancel(ctx), "Failed to read child process stderr", "error", err)
+			return
+		}
+		if childErr == "" {
+			return
+		}
+
+		if _, err := io.WriteString(channel, childErr); err != nil {
+			logger.WarnContext(context.WithoutCancel(ctx), "Failed to propagate child process stderr to client", "error", err)
+		}
+	}()
 
 	// Start the command.
 	err = e.Cmd.Start()
@@ -201,7 +224,6 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 			Code:    exitCode(err),
 		}, trace.ConvertSystemError(err)
 	}
-
 	// Close our half of the write pipe since it is only to be used by the child process.
 	// Not closing prevents being signaled when the child closes its half.
 	if err := e.Ctx.readyw.Close(); err != nil {
