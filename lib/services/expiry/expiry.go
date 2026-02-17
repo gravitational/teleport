@@ -117,10 +117,8 @@ func (s *Service) Run(ctx context.Context) error {
 // run is there for testing, so a testing interval can be set.
 func (s *Service) run(ctx context.Context, intervalCfg interval.Config) error {
 	for {
-		if err := s.runWithLock(ctx, intervalCfg); err != nil {
-			if !errors.Is(err, context.Canceled) {
-				s.Log.ErrorContext(ctx, "Expiry service failed", "error", err)
-			}
+		if err := s.runWithLock(ctx, intervalCfg); err != nil && !errors.Is(err, context.Canceled) {
+			s.Log.ErrorContext(ctx, "Expiry service failed", "error", err)
 		}
 
 		select {

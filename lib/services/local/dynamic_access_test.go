@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -89,11 +88,9 @@ func Test_DynamicAccessService_ListExpiredAccessRequests(t *testing.T) {
 func setupDynamicAccessService(t *testing.T) (*DynamicAccessService, *memory.Memory) {
 	t.Helper()
 	ctx := t.Context()
-	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
 		Context: ctx,
-		Clock:   clock,
 	})
 	require.NoError(t, err)
 
