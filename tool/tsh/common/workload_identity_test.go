@@ -63,6 +63,7 @@ func TestWorkloadIdentityIssueX509(t *testing.T) {
 		user.AddRole(role.GetName())
 		cfg.Auth.BootstrapResources[1] = user
 		cfg.Auth.BootstrapResources = append(cfg.Auth.BootstrapResources, role)
+		cfg.SSH.Enabled = false
 	}))
 	setWorkloadIdentityX509CAOverride(ctx, t, s.root)
 

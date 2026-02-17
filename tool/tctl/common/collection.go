@@ -34,7 +34,6 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/label"
@@ -543,28 +542,6 @@ func (c *securityReportCollection) WriteText(w io.Writer, verbose bool) error {
 		}
 		t.AddRow([]string{v.GetName(), v.Spec.Title, strings.Join(auditQueriesNames, ", "), v.Spec.Description})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type vnetConfigCollection struct {
-	vnetConfig *vnet.VnetConfig
-}
-
-func (c *vnetConfigCollection) Resources() []types.Resource {
-	return []types.Resource{types.Resource153ToLegacy(c.vnetConfig)}
-}
-
-func (c *vnetConfigCollection) WriteText(w io.Writer, verbose bool) error {
-	var dnsZoneSuffixes []string
-	for _, dnsZone := range c.vnetConfig.Spec.CustomDnsZones {
-		dnsZoneSuffixes = append(dnsZoneSuffixes, dnsZone.Suffix)
-	}
-	t := asciitable.MakeTable([]string{"IPv4 CIDR range", "Custom DNS Zones"})
-	t.AddRow([]string{
-		c.vnetConfig.GetSpec().GetIpv4CidrRange(),
-		strings.Join(dnsZoneSuffixes, ", "),
-	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

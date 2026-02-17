@@ -74,7 +74,7 @@ func MakeJoinToken(token types.ProvisionToken) (*JoinToken, error) {
 		IsStatic:      token.IsStatic(),
 		IsCloudSystem: isCloudSystem,
 		Method:        token.GetJoinMethod(),
-		Allow:         token.GetAllowRules(),
+		Allow:         token.GetAWSAllowRules(),
 		Content:       string(content[:]),
 	}
 

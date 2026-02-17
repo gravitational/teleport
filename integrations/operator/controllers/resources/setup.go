@@ -57,6 +57,7 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		{"TeleportAutoupdateVersionV1", NewAutoUpdateVersionV1Reconciler},
 		{"TeleportAppV3", NewAppV3Reconciler},
 		{"TeleportDatabaseV3", NewDatabaseV3Reconciler},
+		{"TeleportAccessMonitoringRuleV1", NewAccessMonitoringRuleV1Reconciler},
 	}
 
 	oidc := modules.GetProtoEntitlement(features, entitlements.OIDC)

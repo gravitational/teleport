@@ -67,6 +67,14 @@ discovery_service:
       # Optional section: install is used to provide parameters to the installer script.
       # Only applicable for EC2 discovery.
       install:
+        # enroll_mode is used to identify the method used to enroll the ec2 instance into Teleport.
+        # Only the value "script" is supported, which uses a script to install and enroll the instance into Teleport.
+        # Only applicable for EC2 discovery.
+        enroll_mode: script
+        # Whether to install teleport on the EC2 instance.
+        # If false, it will enroll the EC2 instance as an agentless node.
+        # When using agentless, change the script_name to "default-agentless-installer" or create a custom script.
+        install_teleport: true
         join_params:
           # token_name is the name of the Teleport invite token to use.
           # Optional, defaults to: "aws-discovery-iam-token".
