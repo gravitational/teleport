@@ -50,6 +50,18 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
 
+      - name: Cache Cargo WASM build
+        uses: actions/cache@v4
+        with:
+          path: |
+            /tmp/build/rust/registry
+            /tmp/build/rust/git
+            target/wasm32-unknown-unknown
+          key: cargo-wasm-${{ github.head_ref || github.ref_name }}-${{ hashFiles('Cargo.toml', 'Cargo.lock') }}
+          restore-keys: |
+            cargo-wasm-${{ github.head_ref || github.ref_name }}-
+            cargo-wasm-${{ github.base_ref }}-
+
       - name: Build WASM
         run: pnpm build-wasm
 
