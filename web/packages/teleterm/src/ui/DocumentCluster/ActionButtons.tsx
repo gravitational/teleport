@@ -216,7 +216,8 @@ export function ConnectDatabaseActionButton(props: {
   const appContext = useAppContext();
 
   function connect(dbUser: string): void {
-    const { uri, name, protocol, gcpProjectId, autoUsersEnabled } = props.database;
+    const { uri, name, protocol, gcpProjectId, autoUsersEnabled } =
+      props.database;
 
     connectToDatabase(
       appContext,

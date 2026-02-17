@@ -28,7 +28,6 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/cmd"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
-	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	gw "github.com/gravitational/teleport/lib/teleterm/gateway"
 )
 
@@ -82,7 +81,7 @@ func (s *Handler) RemoveGateway(ctx context.Context, req *api.RemoveGatewayReque
 	return &api.EmptyResponse{}, nil
 }
 
-func (s *Handler) newAPIGateway(ctx context.Context, gateway gateway.Gateway) (*api.Gateway, error) {
+func (s *Handler) newAPIGateway(ctx context.Context, gateway gw.Gateway) (*api.Gateway, error) {
 	cmds, err := s.DaemonService.GetGatewayCLICommand(ctx, gateway)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -77,8 +77,6 @@ func newAPIDatabase(ctx context.Context, db clusters.Database, cluster *clusters
 
 	gcpProjectID, _ := db.GetGCPProjectID()
 
-	var autoUsersEnabled bool
-
 	autoUsersEnabled, err := cluster.GetDatabaseAutoUserInfo(ctx, authClient, db)
 	if err != nil {
 		log.DebugContext(ctx, "Failed to get auto-user info for database", "database", db.GetName(), "error", err)

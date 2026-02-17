@@ -140,7 +140,11 @@ export function OnlineDocumentGateway(props: {
           </Validation>
         </Flex>
         {gateway?.databaseRoles?.length > 0 && (
-          <AdvancedRoles gateway={gateway} isAdvancedOpen={isAdvancedOpen} setIsAdvancedOpen={setIsAdvancedOpen} />
+          <AdvancedRoles
+            gateway={gateway}
+            isAdvancedOpen={isAdvancedOpen}
+            setIsAdvancedOpen={setIsAdvancedOpen}
+          />
         )}
         <CliCommand
           cliCommand={props.gateway.gatewayCliCommand.preview}
@@ -179,7 +183,15 @@ export function OnlineDocumentGateway(props: {
   );
 }
 
-const AdvancedRoles = ({ gateway, isAdvancedOpen, setIsAdvancedOpen }: { gateway: Gateway, isAdvancedOpen: boolean, setIsAdvancedOpen: (isAdvancedOpen: boolean) => void } & PropsWithChildren) => {
+const AdvancedRoles = ({
+  gateway,
+  isAdvancedOpen,
+  setIsAdvancedOpen,
+}: {
+  gateway: Gateway;
+  isAdvancedOpen: boolean;
+  setIsAdvancedOpen: (isAdvancedOpen: boolean) => void;
+} & PropsWithChildren) => {
   return (
     <Box mt={2} mb={2}>
       <ExpandToggle onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}>

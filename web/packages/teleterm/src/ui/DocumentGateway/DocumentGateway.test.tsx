@@ -76,3 +76,83 @@ test('it allows reconnecting when the gateway fails to be created', async () => 
 
   expect(await screen.findByText('Close Connection')).toBeInTheDocument();
 });
+
+test('displays read-only user field when auto-user provisioning is enabled', async () => {
+  const appContext = new MockAppContext();
+  const cluster = makeRootCluster();
+  const gateway = makeDatabaseGateway({
+    targetUser: 'auto-user-alice',
+  });
+  const doc: docs.DocumentGateway = {
+    uri: '/docs/1',
+    kind: 'doc.gateway',
+    targetName: gateway.targetName,
+    targetUri: gateway.targetUri as DatabaseUri,
+    targetUser: gateway.targetUser,
+    targetSubresourceName: gateway.targetSubresourceName,
+    gatewayUri: gateway.uri,
+    origin: 'resource_table',
+    title: '',
+    status: '',
+    autoUsersEnabled: true,
+  };
+  appContext.addRootClusterWithDoc(cluster, doc);
+  appContext.clustersService.setState(draftState => {
+    draftState.gateways.set(gateway.uri, gateway);
+  });
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <MockWorkspaceContextProvider>
+        <DocumentGateway visible doc={doc} />
+      </MockWorkspaceContextProvider>
+    </MockAppContextProvider>
+  );
+
+  expect(await screen.findByLabelText('User')).toBeInTheDocument();
+  expect(screen.getByLabelText('User')).toHaveValue('auto-user-alice');
+  expect(screen.getByLabelText('User')).toBeDisabled();
+});
+
+test('displays database roles in collapsible advanced section', async () => {
+  const user = userEvent.setup();
+
+  const appContext = new MockAppContext();
+  const cluster = makeRootCluster();
+  const gateway = makeDatabaseGateway({
+    databaseRoles: ['reader', 'writer'],
+  });
+  const doc: docs.DocumentGateway = {
+    uri: '/docs/1',
+    kind: 'doc.gateway',
+    targetName: gateway.targetName,
+    targetUri: gateway.targetUri as DatabaseUri,
+    targetUser: gateway.targetUser,
+    targetSubresourceName: gateway.targetSubresourceName,
+    gatewayUri: gateway.uri,
+    origin: 'resource_table',
+    title: '',
+    status: '',
+  };
+  appContext.addRootClusterWithDoc(cluster, doc);
+  appContext.clustersService.setState(draftState => {
+    draftState.gateways.set(gateway.uri, gateway);
+  });
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <MockWorkspaceContextProvider>
+        <DocumentGateway visible doc={doc} />
+      </MockWorkspaceContextProvider>
+    </MockAppContextProvider>
+  );
+
+  expect(
+    await screen.findByText('Advanced (Database roles)')
+  ).toBeInTheDocument();
+  expect(screen.queryByLabelText('Database Roles')).not.toBeInTheDocument();
+
+  await user.click(screen.getByText('Advanced (Database roles)'));
+
+  expect(await screen.findByLabelText('Database Roles')).toBeInTheDocument();
+});

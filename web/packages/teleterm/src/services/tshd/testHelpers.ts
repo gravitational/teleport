@@ -65,6 +65,7 @@ export const makeDatabase = (
   addr: '',
   labels: [],
   gcpProjectId: '',
+  autoUsersEnabled: false,
   ...props,
 });
 
@@ -286,6 +287,7 @@ export const makeDatabaseGateway = (
     preview: 'psql localhost:1337',
   },
   targetSubresourceName: 'bar',
+  databaseRoles: [],
   ...props,
 });
 
@@ -306,6 +308,7 @@ export const makeKubeGateway = (
     preview: 'KUBECONFIG=/path/to/kubeconfig /bin/kubectl version',
   },
   targetSubresourceName: '',
+  databaseRoles: [],
   ...props,
 });
 
@@ -326,6 +329,7 @@ export const makeAppGateway = (
   },
   targetUser: '',
   protocol: 'HTTP',
+  databaseRoles: [],
   ...props,
 });
 

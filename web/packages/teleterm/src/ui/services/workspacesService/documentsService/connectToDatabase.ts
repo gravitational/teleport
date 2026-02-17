@@ -88,12 +88,21 @@ function getTransformedTargetUser(
   const parsedUri = routing.parseDbUri(target.uri);
   const isLeafCluster = !!parsedUri?.params?.leafClusterId;
 
-  if (isLeafCluster && !targetUser.startsWith('remote-')) {
+  if (isLeafCluster) {
     const rootCluster = ctx.clustersService.findRootClusterByResource(
       target.uri
     );
     if (rootCluster) {
-      targetUser = `remote-${targetUser}-${rootCluster.name}`;
+      // Check if already in the transformed format: remote-<username>-<rootClusterName>
+      // This prevents double-transformation and handles edge cases where the actual
+      // DB username starts with "remote-" (e.g., "remote-operator")
+      const expectedSuffix = `-${rootCluster.name}`;
+      const alreadyTransformed =
+        targetUser.startsWith('remote-') && targetUser.endsWith(expectedSuffix);
+
+      if (!alreadyTransformed) {
+        targetUser = `remote-${targetUser}-${rootCluster.name}`;
+      }
     }
   }
 
