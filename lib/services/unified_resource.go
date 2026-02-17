@@ -733,12 +733,7 @@ func (c *UnifiedResourceCache) getLinuxDesktops(ctx context.Context) ([]resource
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		legacy := types.ProtoResource153ToLegacy(linuxDesktop)
-		res, ok := legacy.(resource)
-		if !ok {
-			return nil, trace.BadParameter("type %T doesn't implement services.resource", legacy)
-		}
-		linuxDesktops = append(linuxDesktops, res)
+		linuxDesktops = append(linuxDesktops, types.ProtoResource153ToLegacy(linuxDesktop))
 	}
 	return linuxDesktops, nil
 }
