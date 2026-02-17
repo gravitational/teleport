@@ -633,11 +633,10 @@ func newErrorSender(protocol string, conn *tdp.Conn, logger *slog.Logger) func(s
 				logger.ErrorContext(context.Background(), "Failed to send TDPB error message", "error", err, "message", message)
 			}
 		}
-	} else {
-		return func(message string) {
-			if err := conn.WriteMessage(&legacy.Alert{Message: message, Severity: legacy.SeverityError}); err != nil {
-				logger.ErrorContext(context.Background(), "Failed to send TDP error message", "error", err, "message", message)
-			}
+	}
+	return func(message string) {
+		if err := conn.WriteMessage(&legacy.Alert{Message: message, Severity: legacy.SeverityError}); err != nil {
+			logger.ErrorContext(context.Background(), "Failed to send TDP error message", "error", err, "message", message)
 		}
 	}
 }
@@ -648,7 +647,7 @@ func newErrorSender(protocol string, conn *tdp.Conn, logger *slog.Logger) func(s
 func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	log := s.cfg.Logger
 
-	// Ensure handshake is complete so that we can the read ALPN result.
+	// Ensure TLS handshake is complete so that we can the read ALPN result.
 	if err := proxyConn.Handshake(); err != nil {
 		log.ErrorContext(context.Background(), "Failed to complete TLS handshake")
 		return

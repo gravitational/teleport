@@ -1581,6 +1581,7 @@ type DesktopRecording struct {
 	// DelayMilliseconds is the delay in milliseconds from the start of the session
 	DelayMilliseconds int64 `protobuf:"varint,3,opt,name=DelayMilliseconds,proto3" json:"ms"`
 	// TDPBMessage is the encoded TDPB message.
+	// Only one of [Message, TDPBMessage] will be set.
 	TDPBMessage          []byte   `protobuf:"bytes,4,opt,name=TDPBMessage,proto3" json:"tdpb_message"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

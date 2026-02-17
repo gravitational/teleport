@@ -341,7 +341,7 @@ func readClientHello(conn *tdp.Conn, logger *slog.Logger) (*tdpb.ClientHello, er
 		if !ok {
 			// Most likely we received an early ping message
 			if _, isPing := msg.(*tdpb.Ping); !isPing {
-				logger.DebugContext(context.Background(), "Received unexpected ClientHello message", "message_type", logutils.TypeAttr(msg))
+				logger.DebugContext(context.Background(), "Received unexpected message while waiting for client hello", "message_type", logutils.TypeAttr(msg))
 			}
 			continue
 		}

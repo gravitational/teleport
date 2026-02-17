@@ -555,6 +555,7 @@ message DesktopRecording {
   int64 DelayMilliseconds = 3 [(gogoproto.jsontag) = "ms"]; // JSON tag intentionally matches SessionPrintEvent
 
   // TDPBMessage is the encoded TDPB message.
+  // Only one of [Message, TDPBMessage] will be set.
   bytes TDPBMessage = 4 [
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "tdpb_message"
