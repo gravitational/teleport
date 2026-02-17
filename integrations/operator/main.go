@@ -103,6 +103,13 @@ func main() {
 		setupLog.Error(err, "error waiting the teleport client")
 	}
 
+	defaultNamespaces := map[string]cache.Config{}
+	if !config.watchAllNamespaces {
+		defaultNamespaces = map[string]cache.Config{
+			config.namespace: {},
+		}
+	}
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
@@ -114,10 +121,8 @@ func main() {
 		LeaderElectionNamespace: config.namespace,
 		PprofBindAddress:        config.pprofAddr,
 		Cache: cache.Options{
-			SyncPeriod: &config.syncPeriod,
-			DefaultNamespaces: map[string]cache.Config{
-				config.namespace: {},
-			},
+			SyncPeriod:        &config.syncPeriod,
+			DefaultNamespaces: defaultNamespaces,
 		},
 		// All our controllers now use unstructured objects, we need to cache them.
 		Client: ctrlclient.Options{Cache: &ctrlclient.CacheOptions{Unstructured: true}},

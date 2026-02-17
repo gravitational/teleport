@@ -41,3 +41,20 @@ tests:
           kind: RoleBinding
           apiVersion: rbac.authorization.k8s.io/v1
           name: RELEASE-NAME-operator
+
+  - it: creates a ClusterRoleBinding when watchAllNamespaces is true
+    set:
+      watchAllNamespaces: true
+    asserts:
+      - containsDocument:
+          kind: ClusterRoleBinding
+          apiVersion: rbac.authorization.k8s.io/v1
+          name: RELEASE-NAME-teleport-operator
+
+  - it: references ClusterRole when watchAllNamespaces is true
+    set:
+      watchAllNamespaces: true
+    asserts:
+      - equal:
+          path: roleRef.kind
+          value: ClusterRole

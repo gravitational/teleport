@@ -67,6 +67,9 @@ token: ""
 # </Admonition>
 teleportVersionOverride: ""
 
+# watchAllNamespaces(bool) -- controls if the operator watches for CRs in all namespaces.
+watchAllNamespaces: false
+
 nameOverride: ""
 fullNameOverride: ""
 

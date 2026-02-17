@@ -29,13 +29,14 @@ const defaultSyncPeriod = 10 * time.Hour
 
 // operatorConfig contains all the operator-specific configuration
 type operatorConfig struct {
-	metricsAddr      string
-	probeAddr        string
-	pprofAddr        string
-	leaderElectionID string
-	syncPeriod       time.Duration
-	namespace        string
-	logLevel         string
+	metricsAddr        string
+	probeAddr          string
+	pprofAddr          string
+	leaderElectionID   string
+	syncPeriod         time.Duration
+	namespace          string
+	watchAllNamespaces bool
+	logLevel           string
 }
 
 // BindFlags binds operatorConfig fields to CLI flags.
@@ -50,6 +51,7 @@ func (c *operatorConfig) BindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.pprofAddr, "pprof-bind-address", "", "The address the pprof endpoint binds to, leave empty to disable.")
 	fs.StringVar(&c.leaderElectionID, "leader-election-id", "431e83f4.teleport.dev", "Leader Election Id to use.")
 	fs.StringVar(&c.namespace, "namespace", "", "The namespace containing the Teleport CRs.")
+	fs.BoolVar(&c.watchAllNamespaces, "watch-all-namespaces", false, "Watch for CRs in all namespaces.")
 	fs.DurationVar(&c.syncPeriod, "sync-period", defaultSyncPeriod, "Operator sync period (format: https://pkg.go.dev/time#ParseDuration)")
 	fs.StringVar(&c.logLevel, "log-level", "INFO", "Log level (DEBUG, INFO, WARN, ERROR).")
 }
