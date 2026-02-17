@@ -242,14 +242,18 @@ func waitForSingleClient(ctx context.Context) (net.Conn, error) {
 	select {
 	case <-ctx.Done():
 		err = l.Close()
-		return nil, trace.NewAggregate(err, ctx.Err())
+		// Drain the goroutine — l.Close() unblocks Accept().
+		res := <-resCh
+		if res.conn != nil {
+			_ = res.conn.Close()
+		}
+		return nil, trace.NewAggregate(ctx.Err(), err)
 	case res := <-resCh:
 		if res.err != nil {
 			return nil, trace.Wrap(res.err)
 		}
-
 		if err = l.Close(); err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.NewAggregate(err, res.conn.Close())
 		}
 		return res.conn, nil
 	}
