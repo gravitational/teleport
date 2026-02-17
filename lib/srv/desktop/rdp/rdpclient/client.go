@@ -71,7 +71,6 @@ import "C"
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"log/slog"
 	"net"
@@ -83,7 +82,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
@@ -436,19 +434,6 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 		return trace.BadParameter("user key was nil")
 	}
 
-	hostID, err := uuid.Parse(c.cfg.HostID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	nextHostID := hostID[:]
-	cHostID := [4]C.uint32_t{}
-	for i := 0; i < len(cHostID); i++ {
-		const uint32Len = 4
-		cHostID[i] = (C.uint32_t)(binary.LittleEndian.Uint32(nextHostID[:uint32Len]))
-		nextHostID = nextHostID[uint32Len:]
-	}
-
 	res := C.client_run(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
@@ -469,7 +454,7 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
-			client_id:               cHostID,
+			client_id:               hostIDToUint32Array[C.uint32_t](newHostID(c.cfg.HostID)),
 			keyboard_layout:         C.uint32_t(c.keyboardLayout),
 		},
 	)
