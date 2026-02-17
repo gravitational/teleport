@@ -70,6 +70,10 @@ func (p *TestModules) GenerateAccessRequestPromotions(context.Context, modules.A
 	return &types.AccessRequestAllowedPromotions{}, nil
 }
 
+func (p *TestModules) GenerateAccessRequestSuggestedReviewerLists(context.Context, modules.AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestSuggestedReviewerLists, error) {
+	return &types.AccessRequestSuggestedReviewerLists{}, nil
+}
+
 func (p *TestModules) GetSuggestedAccessLists(context.Context, *tlsca.Identity, modules.AccessListSuggestionClient, modules.AccessListAndMembersGetter, string) ([]*accesslist.AccessList, error) {
 	return []*accesslist.AccessList{}, nil
 }

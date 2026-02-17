@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -54,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 type accessRequestTestPack struct {
@@ -1608,8 +1610,8 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 			Header header.Metadata
 			Spec   accesslist.AccessListMemberSpec
 		}
-		promotions        *types.AccessRequestAllowedPromotions
-		expectedReviewers []string
+		suggestedReviewerLists *types.AccessRequestSuggestedReviewerLists
+		expectedReviewers      []string
 	}{
 		{
 			name:              "nil promotions",
@@ -1624,8 +1626,8 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 				mustAccessList("name2", "owner1", "owner3"),
 				mustAccessList("name3", "owner4", "owner5"),
 			},
-			promotions: &types.AccessRequestAllowedPromotions{
-				Promotions: []*types.AccessRequestAllowedPromotion{
+			suggestedReviewerLists: &types.AccessRequestSuggestedReviewerLists{
+				Lists: []*types.AccessRequestSuggestedReviewerList{
 					{AccessListName: "name1"},
 					{AccessListName: "name2"},
 				},
@@ -1709,8 +1711,8 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 					},
 				},
 			},
-			promotions: &types.AccessRequestAllowedPromotions{
-				Promotions: []*types.AccessRequestAllowedPromotion{
+			suggestedReviewerLists: &types.AccessRequestSuggestedReviewerLists{
+				Lists: []*types.AccessRequestSuggestedReviewerList{
 					{AccessListName: "root"},
 					{AccessListName: "nested"},
 				},
@@ -1728,10 +1730,8 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 				mustAccessList("name2", "owner1", "owner3"),
 				mustAccessList("name3", "owner4", "owner5"),
 			},
-			promotions: &types.AccessRequestAllowedPromotions{
-				Promotions: []*types.AccessRequestAllowedPromotion{},
-			},
-			expectedReviewers: []string{"rev1", "rev2"},
+			suggestedReviewerLists: &types.AccessRequestSuggestedReviewerLists{Lists: []*types.AccessRequestSuggestedReviewerList{}},
+			expectedReviewers:      []string{"rev1", "rev2"},
 		},
 	}
 
@@ -1762,7 +1762,7 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 			}
 
 			req := test.req.Copy()
-			auth.UpdateAccessRequestWithAdditionalReviewers(ctx, req, accessLists, test.promotions)
+			auth.UpdateAccessRequestWithAdditionalReviewers(ctx, req, accessLists, test.suggestedReviewerLists)
 			require.ElementsMatch(t, test.expectedReviewers, req.GetSuggestedReviewers())
 		})
 	}
@@ -1905,6 +1905,84 @@ func TestAssumeStartTime_SetAccessRequestState(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDryRunSuggestedReviewersFromAccessListOwners(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+
+	mustAccessList := func(name string, ownerNames ...string) *accesslist.AccessList {
+		owners := sliceutils.Map(ownerNames, func(n string) accesslist.Owner {
+			return accesslist.Owner{
+				Name:           n,
+				MembershipKind: accesslist.MembershipKindUser,
+			}
+		})
+
+		list, err := accesslist.NewAccessList(
+			header.Metadata{Name: name},
+			accesslist.Spec{
+				Title:  name,
+				Grants: accesslist.Grants{Roles: []string{"admins"}},
+				Audit:  accesslist.Audit{NextAuditDate: clock.Now().AddDate(1, 0, 0)},
+				Owners: owners,
+			},
+		)
+		require.NoError(t, err)
+		return list
+	}
+
+	// list1 and list2 are returned and owners should be added to the suggested reviewers.
+	// list3 is not returned and owner should not be added to the suggested reviewers.
+	list1 := mustAccessList("list-1", "reviewer-a", "reviewer-b")
+	list2 := mustAccessList("list-2", "reviewer-b", "reviewer-c")
+	list3 := mustAccessList("list-3", "reviewer-d")
+
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			AdvancedAccessWorkflows: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+		GenerateAccessRequestSuggestedReviewerListsFn: func(
+			ctx context.Context,
+			accessListGetter modules.AccessResourcesGetter,
+			accessRequest types.AccessRequest,
+		) (*types.AccessRequestSuggestedReviewerLists, error) {
+			return types.NewAccessRequestSuggestedReviewerLists([]*types.AccessRequestSuggestedReviewerList{
+				{AccessListName: list1.GetName()},
+				{AccessListName: list2.GetName()},
+			}), nil
+		},
+	})
+
+	ctx := t.Context()
+	testPack := newAccessRequestTestPack(ctx, t)
+
+	for _, list := range []*accesslist.AccessList{list1, list2, list3} {
+		_, err := testPack.tlsServer.Auth().UpsertAccessList(ctx, list)
+		require.NoError(t, err)
+	}
+
+	client, err := testPack.tlsServer.NewClient(authtest.TestUser("operator"))
+	require.NoError(t, err)
+
+	req, err := services.NewAccessRequest("operator", "admins")
+	require.NoError(t, err)
+
+	// Suggested reviewers flow executed only on dry runs.
+	req.SetDryRun(true)
+
+	result, err := client.CreateAccessRequestV2(ctx, req)
+	require.NoError(t, err)
+
+	// Owners of list1 and list2 (deduplicated), but not list3.
+	require.ElementsMatch(
+		t,
+		[]string{"reviewer-a", "reviewer-b", "reviewer-c"},
+		result.GetSuggestedReviewers(),
+	)
 }
 
 type accessRequestWithStartTime struct {

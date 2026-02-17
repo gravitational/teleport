@@ -1018,6 +1018,17 @@ func NewAccessRequestAllowedPromotions(promotions []*AccessRequestAllowedPromoti
 	}
 }
 
+// NewAccessRequestSuggestedReviewerLists returns a new AccessRequestSuggestedReviewerLists resource.
+func NewAccessRequestSuggestedReviewerLists(lists []*AccessRequestSuggestedReviewerList) *AccessRequestSuggestedReviewerLists {
+	if lists == nil {
+		lists = make([]*AccessRequestSuggestedReviewerList, 0)
+	}
+
+	return &AccessRequestSuggestedReviewerLists{
+		Lists: lists,
+	}
+}
+
 // ValidateAssumeStartTime returns error if start time is in an invalid range.
 func ValidateAssumeStartTime(assumeStartTime time.Time, accessExpiry time.Time, creationTime time.Time) error {
 	// Guard against requesting a start time before the request creation time.
