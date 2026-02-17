@@ -206,7 +206,7 @@ function DetailsTab({ task }: { task: UserTaskDetail }) {
       <H3 mt={3}>Details</H3>
       <Markdown text={task.description || ''} enableLinks />
 
-      {impacted.count && (
+      {impacted.count > 0 && (
         <>
           <H3 mt={4}>Impacted resources ({impacted.count})</H3>
           <Table

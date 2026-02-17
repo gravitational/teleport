@@ -377,6 +377,137 @@ that continues
     });
   });
 
+  describe('fenced code blocks', () => {
+    it('renders a fenced code block', () => {
+      const text = `Some text
+
+\`\`\`json
+{
+  "Effect": "Allow",
+  "Action": ["ec2:DescribeInstances"]
+}
+\`\`\`
+
+More text`;
+
+      renderMarkdown(text);
+
+      const expectedCode =
+        '{\n  "Effect": "Allow",\n  "Action": ["ec2:DescribeInstances"]\n}';
+      const code = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' && element.textContent === expectedCode
+      );
+      expect(code).toBeInTheDocument();
+
+      expect(screen.getByText('Some text')).toBeInTheDocument();
+      expect(screen.getByText('More text')).toBeInTheDocument();
+    });
+
+    it('renders a fenced code block without language', () => {
+      const text = `\`\`\`
+hello world
+\`\`\``;
+
+      renderMarkdown(text);
+
+      const code = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' && element.textContent === 'hello world'
+      );
+      expect(code).toBeInTheDocument();
+    });
+
+    it('renders multiple fenced code blocks', () => {
+      const text = `\`\`\`json
+{"a": 1}
+\`\`\`
+
+\`\`\`yaml
+regions:
+  - us-east-1
+\`\`\``;
+
+      renderMarkdown(text);
+
+      const code1 = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' && element.textContent === '{"a": 1}'
+      );
+      expect(code1).toBeInTheDocument();
+
+      const code2 = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' &&
+          element.textContent === 'regions:\n  - us-east-1'
+      );
+      expect(code2).toBeInTheDocument();
+    });
+
+    it('does not parse inline markdown inside fenced code blocks', () => {
+      const text = `\`\`\`
+**not bold** and \`not code\`
+\`\`\``;
+
+      renderMarkdown(text);
+
+      const code = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' &&
+          element.textContent === '**not bold** and `not code`'
+      );
+      expect(code).toBeInTheDocument();
+    });
+
+    it('handles unclosed fenced code block gracefully', () => {
+      const text = `\`\`\`json
+{"a": 1}
+no closing fence`;
+
+      renderMarkdown(text);
+
+      const code = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' &&
+          element.textContent === '{"a": 1}\nno closing fence'
+      );
+      expect(code).toBeInTheDocument();
+    });
+
+    it('escapes HTML inside fenced code blocks', () => {
+      const text = `\`\`\`
+<script>alert('xss')</script>
+\`\`\``;
+
+      renderMarkdown(text);
+
+      const code = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' &&
+          element.textContent === "<script>alert('xss')</script>"
+      );
+      expect(code).toBeInTheDocument();
+      expect(code.innerHTML).not.toContain('<script>');
+    });
+
+    it('handles paragraph ending at fenced code block', () => {
+      const text = `This is a paragraph
+\`\`\`
+code here
+\`\`\``;
+
+      renderMarkdown(text);
+
+      expect(screen.getByText('This is a paragraph')).toBeInTheDocument();
+
+      const code = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' && element.textContent === 'code here'
+      );
+      expect(code).toBeInTheDocument();
+    });
+  });
+
   describe('edge cases', () => {
     it('handles empty string', () => {
       renderMarkdown(``);
