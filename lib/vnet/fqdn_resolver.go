@@ -81,9 +81,13 @@ func (r *fqdnResolver) ResolveFQDN(ctx context.Context, fqdn string) (*vnetv1.Re
 			return nil, err
 		}
 
-		// SSH servers match at any subdomain of the cluster name. This doesn't
-		// return immediately so that an app found in a later cluster still
-		// wins.
+		// SSH servers match at any subdomain of the cluster name. For example,
+		// a query for "foo.bar.teleport.example.com" should match the cluster
+		// "teleport.example.com" so that it may resolve for an SSH node named
+		// "foo.bar".
+		//
+		// This doesn't return immediately so that an app found in a later
+		// cluster still takes precedence.
 		if isDescendantSubdomain(fqdn, candidate.clusterName) {
 			matchedClusters = append(matchedClusters, candidate)
 		}
