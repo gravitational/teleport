@@ -1,3 +1,5 @@
+/* eslint-disable testing-library/no-node-access */
+import { act } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { MemoryRouter } from 'react-router';
@@ -160,7 +162,9 @@ test('selecting integration triggers connection test', async () => {
   });
 
   const integrationSelect = screen.getByText('Select...');
-  await selectEvent.select(integrationSelect, 'test-integration');
+  await act(async () => {
+    await selectEvent.select(integrationSelect, 'test-integration');
+  });
 
   await waitFor(() => {
     expect(
@@ -201,7 +205,9 @@ test('shows CloudShell instructions when permissions are missing', async () => {
   });
 
   const integrationSelect = screen.getByText('Select...');
-  await selectEvent.select(integrationSelect, 'needs-permissions');
+  await act(async () => {
+    await selectEvent.select(integrationSelect, 'needs-permissions');
+  });
 
   await waitFor(() => {
     expect(screen.getByText('CloudShell Instructions')).toBeInTheDocument();
