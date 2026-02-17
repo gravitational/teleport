@@ -63,10 +63,18 @@ import (
 	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
+const (
+	// procLoginuid is the path to the current process's loginuid.
+	procLoginuid = "/proc/self/loginuid"
+	// procSessionID is the path to the current process's session ID.
+	procSessionID = "/proc/self/sessionid"
+)
+
 // FileFD is a file descriptor passed down from a parent process when
 // Teleport is re-executing itself.
 type FileFD = uintptr
 
+// Common FileFDs
 const (
 	// CommandFile is used to pass the command and arguments that the
 	// child process should execute from the parent process.
@@ -89,21 +97,45 @@ const (
 	// to pid 1 and "live forever". Killing the shell should not prevent processes
 	// preventing SIGHUP to be reassigned (ex. processes running with nohup).
 	TerminateFile
-	// Depcrecated: PTYFileDeprecated is a placeholder for the unused PTY file that
-	// was passed to the child process. The PTY should only be used in the
-	// the parent process but was left here for compatibility purposes.
-	PTYFileDeprecated
-	// TTYFile is a TTY the parent process passes to the child process.
-	TTYFile
-
 	// FirstExtraFile is the first file descriptor that will be valid when
 	// extra files are passed to child processes without a terminal.
 	FirstExtraFile FileFD = TerminateFile + 1
+)
 
-	// procLoginuid is the path to the current process's loginuid.
-	procLoginuid = "/proc/self/loginuid"
-	// procSessionID is the path to the current process's session ID.
-	procSessionID = "/proc/self/sessionid"
+// FileFDs for terminal based exec sessions.
+const (
+	// Deprecated: PTYFileDeprecated is a placeholder for the unused PTY file that
+	// was passed to the child process. The PTY should only be used in the
+	// the parent process but was left here for compatibility purposes.
+	PTYFileDeprecated = FirstExtraFile + iota
+	// TTYFile is a TTY the parent process passes to the child process.
+	TTYFile
+)
+
+// FileFDs for non-terminal based exec sessions.
+const (
+	// StdinFile is used to capture the stdin stream of the shell (grandchild) process.
+	StdinFile = FirstExtraFile + iota
+	// StdoutFile is used to capture the stdout stream of the shell (grandchild) process.
+	StdoutFile
+	// StderrFile is used to capture the stderr stream of the shell (grandchild) process.
+	StderrFile
+)
+
+// FileFDs for SFTP sessions.
+const (
+	// FileTransferOutFile is used to pass write transfer data to the sftp (grandchild) process.
+	FileTransferOutFile = FirstExtraFile + iota
+	// FileTransferOutFile is used to pass read transfer data from the sftp (grandchild) process.
+	FileTransferInFile
+	// AuditInFile is used to read audit events from the sftp (grandchild) process.
+	AuditInFile
+)
+
+// FileFDs for networking sessions.
+const (
+	// ListenerFile is a unix datagram socket listener.
+	ListenerFile = FirstExtraFile + iota
 )
 
 func fdName(f FileFD) string {
@@ -172,11 +204,6 @@ type ExecCommand struct {
 
 	// UaccMetadata contains metadata needed for user accounting.
 	UaccMetadata UaccMetadata `json:"uacc_meta"`
-
-	// ExtraFilesLen is the number of extra files that are inherited from
-	// the parent process. These files start at file descriptor 3 of the
-	// child process, and are only valid for processes without a terminal.
-	ExtraFilesLen int `json:"extra_files_len"`
 
 	// SetSELinuxContext is true when the SELinux context should be set
 	// for the child.
@@ -247,20 +274,6 @@ func RunCommand() (code int, err error) {
 	// ignore SIGQUIT signals.
 	signal.Ignore(syscall.SIGQUIT)
 
-	// If the command fails to launch, write the error to stdout for the parent process
-	// to digest. If we have a terminal, write it there for the user to see as well.
-	var tty *os.File
-	defer func() {
-		if err != nil && code == teleport.RemoteCommandFailure {
-			var w io.Writer = os.Stdout
-			if tty != nil {
-				w = io.MultiWriter(os.Stdout, tty)
-			}
-
-			fmt.Fprintf(w, "Failed to launch: %v.\r\n", err)
-		}
-	}()
-
 	// Parent sends the command payload in the third file descriptor.
 	cmdfd := os.NewFile(CommandFile, fdName(CommandFile))
 	if cmdfd == nil {
@@ -302,16 +315,6 @@ func RunCommand() (code int, err error) {
 
 	initLogger("reexec", logfd, c.LogConfig)
 
-	// If a terminal was requested, file descriptor 10 always points to the
-	// TTY. Extract it and set the controlling TTY. Otherwise, connect
-	// std{in,out,err} directly.
-	if c.Terminal {
-		tty = os.NewFile(TTYFile, fdName(TTYFile))
-		if tty == nil {
-			return teleport.RemoteCommandFailure, trace.BadParameter("tty not found")
-		}
-	}
-
 	auditdMsg := auditd.Message{
 		SystemUser:   c.Login,
 		TeleportUser: c.Username,
@@ -349,6 +352,41 @@ func RunCommand() (code int, err error) {
 		}
 	}
 
+	var tty *os.File
+	var shellStdio stdio
+	if c.Terminal {
+		// If this is an interactive session, use the tty file for grandchild stdio.
+		tty = os.NewFile(TTYFile, fdName(TTYFile))
+		if tty == nil {
+			return teleport.RemoteCommandFailure, trace.BadParameter("tty not found")
+		}
+		shellStdio.in = tty
+		shellStdio.out = tty
+		shellStdio.err = tty
+	} else if c.RequestType == sshutils.SubsystemRequest && c.Command == teleport.SFTPSubsystem {
+		// std{in/out} is not used by the SFTP sub process, just collect stderr.
+		shellStdio = stdio{
+			in:  bytes.NewReader([]byte{}),
+			out: io.Discard,
+			// Propagate sftp subprocess errors to the parent process.
+			err: os.Stderr,
+		}
+	} else {
+		// If this is a normal, non-interactive exec session, use the stdio pipes provided as extra files.
+		shellStdio.in = os.NewFile(StdinFile, fdName(StdinFile))
+		if shellStdio.in == nil {
+			return teleport.RemoteCommandFailure, trace.BadParameter("stdin not found")
+		}
+		shellStdio.out = os.NewFile(StdoutFile, fdName(StdoutFile))
+		if shellStdio.out == nil {
+			return teleport.RemoteCommandFailure, trace.BadParameter("stdout not found")
+		}
+		shellStdio.err = os.NewFile(StderrFile, fdName(StderrFile))
+		if shellStdio.err == nil {
+			return teleport.RemoteCommandFailure, trace.BadParameter("stderr not found")
+		}
+	}
+
 	// If PAM is enabled, open a PAM context. This has to be done before anything
 	// else because PAM is sometimes used to create the local user used to
 	// launch the shell under.
@@ -356,35 +394,29 @@ func RunCommand() (code int, err error) {
 	if c.PAMConfig != nil {
 		slog.DebugContext(ctx, "Opening PAM context")
 
-		// Connect std{in,out,err} to the TTY if a terminal has been allocated,
-		// otherwise discard std{out,err}. If this was not done, things like MOTD
-		// would be printed for non-interactive "exec" requests.
-		var stdin io.Reader
-		var stdout io.Writer
-		var stderr io.Writer
-		if tty != nil {
-			stdin = tty
-			stdout = tty
-			stderr = tty
-		} else {
-			stdin = os.Stdin
-			stdout = io.Discard
-			stderr = io.Discard
-		}
-
-		// Open the PAM context.
-		pamContext, err := pam.Open(&servicecfg.PAMConfig{
+		cfg := &servicecfg.PAMConfig{
 			ServiceName: c.PAMConfig.ServiceName,
 			UsePAMAuth:  c.PAMConfig.UsePAMAuth,
 			Login:       c.Login,
 			// Set Teleport specific environment variables that PAM modules
 			// like pam_script.so can pick up to potentially customize the
 			// account/session.
-			Env:    c.PAMConfig.Environment,
-			Stdin:  stdin,
-			Stdout: stdout,
-			Stderr: stderr,
-		})
+			Env: c.PAMConfig.Environment,
+			// Connect std{in,out,err} to the TTY if a terminal has been allocated.
+			Stdin:  shellStdio.in,
+			Stdout: shellStdio.out,
+			Stderr: shellStdio.err,
+		}
+
+		// Discard std{out,err} for non-interactive requests. Otherwise, things like
+		// MOTD would be printed.
+		if !c.Terminal {
+			cfg.Stdout = io.Discard
+			cfg.Stderr = io.Discard
+		}
+
+		// Open the PAM context.
+		pamContext, err := pam.Open(cfg)
 		if err != nil {
 			return exitCode(err), trace.Wrap(err, "failed to open PAM context")
 		}
@@ -434,7 +466,7 @@ func RunCommand() (code int, err error) {
 	}
 
 	// Build the actual command that will launch the shell.
-	cmd, err := buildCommand(&c, localUser, tty, pamEnvironment)
+	cmd, err := buildCommand(&c, localUser, shellStdio, pamEnvironment)
 	if err != nil {
 		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -722,9 +754,10 @@ func RunNetworking() (code int, err error) {
 		pamContext, err := pam.Open(&servicecfg.PAMConfig{
 			ServiceName: c.PAMConfig.ServiceName,
 			Login:       c.Login,
-			Stdin:       os.Stdin,
-			Stdout:      io.Discard,
-			Stderr:      io.Discard,
+			// TODO (Joerger): add stdin?
+			Stdin:  os.Stdin,
+			Stdout: io.Discard,
+			Stderr: io.Discard,
 			// Set Teleport specific environment variables that PAM modules
 			// like pam_script.so can pick up to potentially customize the
 			// account/session.
@@ -796,8 +829,7 @@ func RunNetworking() (code int, err error) {
 		return teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set working directory for networking process: %s", workingDir)
 	}
 
-	// Build request listener from first extra file that was passed to command.
-	ffd := os.NewFile(FirstExtraFile, "listener")
+	ffd := os.NewFile(ListenerFile, "listener")
 	if ffd == nil {
 		return teleport.RemoteCommandFailure, trace.BadParameter("missing socket fd")
 	}
@@ -1068,6 +1100,12 @@ func RunAndExit(commandType string) {
 		code, err = teleport.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
 	if err != nil {
+		// Write the error to stderr, where it can be seen by the parent teleport process and
+		// propagated to the client.
+		if code == teleport.RemoteCommandFailure {
+			fmt.Fprintf(os.Stderr, "Failed to launch: %v.\r\n", err)
+		}
+
 		// The "operation not permitted" error is expected from a variety of operations if the
 		// teleport process is running as a non-root user and is trying to spawn a process for
 		// a different OS user.
@@ -1148,9 +1186,18 @@ func readUserEnv(localUser *user.User, path string) ([]string, error) {
 	return envs, trace.Wrap(err)
 }
 
+type stdio struct {
+	// stdin
+	in io.Reader
+	// stdout
+	out io.Writer
+	// stderr
+	err io.Writer
+}
+
 // buildCommand constructs a command that will execute the users shell. This
 // function is run by Teleport while it's re-executing.
-func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
+func buildCommand(c *ExecCommand, localUser *user.User, stdio stdio, pamEnvironment []string) (*exec.Cmd, error) {
 	var cmd exec.Cmd
 	isReexec := false
 
@@ -1230,14 +1277,12 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 	// after environment is fully built, set it to cmd
 	cmd.Env = *env
 
-	// If a terminal was requested, connect std{in,out,err} to the TTY and set
-	// the controlling TTY. Otherwise, connect std{in,out,err} to
-	// os.Std{in,out,err}.
-	if c.Terminal {
-		cmd.Stdin = tty
-		cmd.Stdout = tty
-		cmd.Stderr = tty
+	// set stdio. If a terminal was requested, the stdio fields all point to the same tty file.
+	cmd.Stdin = stdio.in
+	cmd.Stdout = stdio.out
+	cmd.Stderr = stdio.err
 
+	if c.Terminal {
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Setsid:  true,
 			Setctty: true,
@@ -1245,28 +1290,26 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 			// set to our tty above.
 		}
 	} else {
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Setsid: true,
 		}
+	}
 
-		// If a terminal was not requested, and extra files were specified
-		// to be passed to the child, open them so that they can be passed
-		// to the grandchild.
-		if c.ExtraFilesLen > 0 {
-			cmd.ExtraFiles = make([]*os.File, c.ExtraFilesLen)
-			for i := range c.ExtraFilesLen {
-				fd := FirstExtraFile + uintptr(i)
-				f := os.NewFile(fd, strconv.Itoa(int(fd)))
-				if f == nil {
-					return nil, trace.NotFound("extra file %d not found", fd)
-				}
-				cmd.ExtraFiles[i] = f
-			}
+	// Pass extra files for SFTP to grandchild.
+	if c.RequestType == sshutils.SubsystemRequest && c.Command == teleport.SFTPSubsystem {
+		out := os.NewFile(FileTransferOutFile, strconv.Itoa(int(FileTransferOutFile)))
+		if out == nil {
+			return nil, trace.NotFound("read pipe out file not found")
 		}
+		in := os.NewFile(FileTransferInFile, strconv.Itoa(int(FileTransferInFile)))
+		if in == nil {
+			return nil, trace.NotFound("read pipe in file not found")
+		}
+		audit := os.NewFile(AuditInFile, strconv.Itoa(int(AuditInFile)))
+		if audit == nil {
+			return nil, trace.NotFound("read pipe audit file not found")
+		}
+		cmd.ExtraFiles = []*os.File{out, in, audit}
 	}
 
 	// Set the command's cwd to the user's $HOME, or "/" if
@@ -1333,9 +1376,6 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	cmdmsg, err := ctx.ExecCommand()
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if !cmdmsg.Terminal {
-		cmdmsg.ExtraFilesLen = len(extraFiles)
 	}
 
 	go copyCommand(ctx.CancelContext(), ctx.cmdw, cmdmsg)

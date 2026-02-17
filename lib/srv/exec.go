@@ -156,18 +156,34 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 		return nil, trace.Wrap(err)
 	}
 
-	// Create the command that will actually execute.
-	e.Cmd, err = ConfigureCommand(e.Ctx)
+	// Create pipes to capture stdio of the shell (grandchild) process, closing our
+	// side of each pipe after starting the command.
+	shellStdinR, shellStdinW, err := os.Pipe()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		ctxErr := e.Ctx.Close()
+		return nil, trace.NewAggregate(err, ctxErr)
 	}
+	defer shellStdinR.Close()
+	e.Ctx.AddCloser(shellStdinW)
 
-	// Connect stdout and stderr to the channel so the user can interact with the command.
-	e.Cmd.Stderr = channel.Stderr()
-	e.Cmd.Stdout = channel
+	shellStdoutR, shellStdoutW, err := os.Pipe()
+	if err != nil {
+		ctxErr := e.Ctx.Close()
+		return nil, trace.NewAggregate(err, ctxErr)
+	}
+	defer shellStdoutW.Close()
+	e.Ctx.AddCloser(shellStdoutR)
 
-	// Copy from the channel (client input) into stdin of the process.
-	inputWriter, err := e.Cmd.StdinPipe()
+	shellStderrR, shellStderrW, err := os.Pipe()
+	if err != nil {
+		ctxErr := e.Ctx.Close()
+		return nil, trace.NewAggregate(err, ctxErr)
+	}
+	defer shellStderrW.Close()
+	e.Ctx.AddCloser(shellStderrR)
+
+	// Create the command that will actually execute.
+	e.Cmd, err = ConfigureCommand(e.Ctx, shellStdinR, shellStdoutW, shellStderrW)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -185,6 +201,7 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 			Code:    exitCode(err),
 		}, trace.ConvertSystemError(err)
 	}
+
 	// Close our half of the write pipe since it is only to be used by the child process.
 	// Not closing prevents being signaled when the child closes its half.
 	if err := e.Ctx.readyw.Close(); err != nil {
@@ -195,11 +212,22 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	// Save off the PID of the Teleport process under which the command is executing.
 	e.pid = e.Cmd.Process.Pid
 
+	// copy stdio between the channel and shell process.
 	go func() {
-		if _, err := io.Copy(inputWriter, channel); err != nil {
-			logger.WarnContext(ctx, "Failed to forward data from SSH channel to local command", "error", err)
+		if _, err := io.Copy(shellStdinW, channel); err != nil {
+			logger.WarnContext(ctx, "Failed to forward stdin from SSH channel to local command", "error", err)
 		}
-		inputWriter.Close()
+		shellStdinW.Close()
+	}()
+	go func() {
+		if _, err := io.Copy(channel, shellStdoutR); err != nil {
+			logger.WarnContext(ctx, "Failed to forward stdout from local command to SSH channel", "error", err)
+		}
+	}()
+	go func() {
+		if _, err := io.Copy(channel.Stderr(), shellStderrR); err != nil {
+			logger.WarnContext(ctx, "Failed to forward stderr from local command to SSH channel", "error", err)
+		}
 	}()
 
 	logger.InfoContext(ctx, "Started local command execution")
