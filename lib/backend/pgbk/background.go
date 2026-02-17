@@ -97,7 +97,7 @@ func (b *Backend) backgroundExpiry(ctx context.Context) {
 
 func (b *Backend) backgroundChangeFeed(ctx context.Context) {
 	defer b.log.InfoContext(ctx, "Exited change feed loop.")
-	defer b.buf.Close()
+	defer b.eventFanout.Close()
 
 	for ctx.Err() == nil {
 		b.log.InfoContext(ctx, "Starting change feed stream.")
@@ -203,8 +203,8 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	cancel()
 
 	b.log.InfoContext(ctx, "Change feed started.", "slot_name", slotName)
-	b.buf.SetInit()
-	defer b.buf.Reset()
+	b.eventFanout.SetInit()
+	defer b.eventFanout.Reset()
 
 	for ctx.Err() == nil {
 		messages, err := b.pollChangeFeed(ctx, conn, addTables, slotName, b.cfg.ChangeFeedBatchSize)
@@ -251,7 +251,7 @@ func (b *Backend) pollChangeFeed(ctx context.Context, conn *pgx.Conn, addTables,
 			return trace.Wrap(err, "processing wal2json message")
 		}
 
-		b.buf.Emit(events...)
+		b.eventFanout.Emit(events...)
 		return nil
 	})
 	if err != nil {

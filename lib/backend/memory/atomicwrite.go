@@ -98,7 +98,7 @@ func (m *Memory) AtomicWrite(ctx context.Context, condacts []backend.Conditional
 	for _, event := range events {
 		m.processEvent(event)
 		if !m.EventsOff {
-			m.buf.Emit(event)
+			m.eventFanout.Emit(event)
 		}
 	}
 

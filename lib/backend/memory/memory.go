@@ -94,10 +94,10 @@ func New(cfg Config) (*Memory, error) {
 		return nil, trace.Wrap(err)
 	}
 	ctx, cancel := context.WithCancel(cfg.Context)
-	buf := backend.NewCircularBuffer(
-		backend.BufferCapacity(cfg.BufferSize),
+	eventFanout := backend.NewEventFanout(
+		backend.WithCapacity(cfg.BufferSize),
 	)
-	buf.SetInit()
+	eventFanout.SetInit()
 	m := &Memory{
 		Mutex:  &sync.Mutex{},
 		logger: slog.With(teleport.ComponentKey, teleport.ComponentMemory),
@@ -105,10 +105,10 @@ func New(cfg Config) (*Memory, error) {
 		tree: btree.NewG(cfg.BTreeDegree, func(a, b *btreeItem) bool {
 			return a.Less(b)
 		}),
-		heap:   newMinHeap(),
-		cancel: cancel,
-		ctx:    ctx,
-		buf:    buf,
+		heap:        newMinHeap(),
+		cancel:      cancel,
+		ctx:         ctx,
+		eventFanout: eventFanout,
 	}
 	return m, nil
 }
@@ -126,8 +126,8 @@ type Memory struct {
 	// all operations
 	cancel context.CancelFunc
 	// ctx is a context signaling close
-	ctx context.Context
-	buf *backend.CircularBuffer
+	ctx         context.Context
+	eventFanout *backend.EventFanout
 }
 
 func (m *Memory) GetName() string {
@@ -139,14 +139,14 @@ func (m *Memory) Close() error {
 	m.cancel()
 	m.Lock()
 	defer m.Unlock()
-	m.buf.Close()
+	m.eventFanout.Close()
 	return nil
 }
 
 // CloseWatchers closes all the watchers
 // without closing the backend
 func (m *Memory) CloseWatchers() {
-	m.buf.Clear()
+	m.eventFanout.Clear()
 }
 
 // Clock returns clock used by this backend
@@ -172,7 +172,7 @@ func (m *Memory) Create(ctx context.Context, i backend.Item) (*backend.Lease, er
 	}
 	m.processEvent(event)
 	if !m.EventsOff {
-		m.buf.Emit(event)
+		m.eventFanout.Emit(event)
 	}
 	return backend.NewLease(i), nil
 }
@@ -212,7 +212,7 @@ func (m *Memory) Update(ctx context.Context, i backend.Item) (*backend.Lease, er
 	}
 	m.processEvent(event)
 	if !m.EventsOff {
-		m.buf.Emit(event)
+		m.eventFanout.Emit(event)
 	}
 	return backend.NewLease(i), nil
 }
@@ -235,7 +235,7 @@ func (m *Memory) Put(ctx context.Context, i backend.Item) (*backend.Lease, error
 	}
 	m.processEvent(event)
 	if !m.EventsOff {
-		m.buf.Emit(event)
+		m.eventFanout.Emit(event)
 	}
 	return backend.NewLease(i), nil
 }
@@ -260,7 +260,7 @@ func (m *Memory) Delete(ctx context.Context, key backend.Key) error {
 	}
 	m.processEvent(event)
 	if !m.EventsOff {
-		m.buf.Emit(event)
+		m.eventFanout.Emit(event)
 	}
 	return nil
 }
@@ -296,7 +296,7 @@ func (m *Memory) DeleteRange(ctx context.Context, startKey, endKey backend.Key) 
 		}
 		m.processEvent(event)
 		if !m.EventsOff {
-			m.buf.Emit(event)
+			m.eventFanout.Emit(event)
 		}
 	}
 	return nil
@@ -428,7 +428,7 @@ func (m *Memory) KeepAlive(ctx context.Context, lease backend.Lease, expires tim
 	}
 	m.processEvent(event)
 	if !m.EventsOff {
-		m.buf.Emit(event)
+		m.eventFanout.Emit(event)
 	}
 	return nil
 }
@@ -464,7 +464,7 @@ func (m *Memory) CompareAndSwap(ctx context.Context, expected backend.Item, repl
 	}
 	m.processEvent(event)
 	if !m.EventsOff {
-		m.buf.Emit(event)
+		m.eventFanout.Emit(event)
 	}
 	return backend.NewLease(replaceWith), nil
 }
@@ -491,7 +491,7 @@ func (m *Memory) ConditionalDelete(ctx context.Context, key backend.Key, rev str
 	}
 	m.processEvent(event)
 	if !m.EventsOff {
-		m.buf.Emit(event)
+		m.eventFanout.Emit(event)
 	}
 	return nil
 }
@@ -519,7 +519,7 @@ func (m *Memory) ConditionalUpdate(ctx context.Context, i backend.Item) (*backen
 	}
 	m.processEvent(event)
 	if !m.EventsOff {
-		m.buf.Emit(event)
+		m.eventFanout.Emit(event)
 	}
 	return backend.NewLease(i), nil
 }
@@ -529,7 +529,7 @@ func (m *Memory) NewWatcher(ctx context.Context, watch backend.Watch) (backend.W
 	if m.EventsOff {
 		return nil, trace.BadParameter("events are turned off for this backend")
 	}
-	return m.buf.NewWatcher(ctx, watch)
+	return m.eventFanout.NewWatcher(ctx, watch)
 }
 
 // removeExpired makes a pass through map and removes expired elements
@@ -560,7 +560,7 @@ func (m *Memory) removeExpired() int {
 			},
 		}
 		if !m.EventsOff {
-			m.buf.Emit(event)
+			m.eventFanout.Emit(event)
 		}
 	}
 	if removed > 0 {

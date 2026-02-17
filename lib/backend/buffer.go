@@ -37,65 +37,73 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-type bufferConfig struct {
+type eventFanoutConfig struct {
 	gracePeriod         time.Duration
 	creationGracePeriod time.Duration
 	capacity            int
 	clock               clockwork.Clock
 }
 
-type BufferOption func(*bufferConfig)
+type EventFanoutOption func(*eventFanoutConfig)
 
-// BufferCapacity sets the event capacity of the circular buffer.
-func BufferCapacity(c int) BufferOption {
-	return func(cfg *bufferConfig) {
+// BufferOption is a deprecated alias for EventFanoutOption.
+// Deprecated: Use EventFanoutOption instead.
+type BufferOption = EventFanoutOption
+
+// CircularBuffer is a deprecated alias for EventFanout.
+// Deprecated: Use EventFanout instead.
+type CircularBuffer = EventFanout
+
+// WithCapacity sets the event capacity of the event fanout.
+func WithCapacity(c int) EventFanoutOption {
+	return func(cfg *eventFanoutConfig) {
 		if c > 0 {
 			cfg.capacity = c
 		}
 	}
 }
 
-// BacklogGracePeriod sets the amount of time a watcher with a backlog will be tolerated.
-func BacklogGracePeriod(d time.Duration) BufferOption {
-	return func(cfg *bufferConfig) {
+// WithBacklogGracePeriod sets the amount of time a watcher with a backlog will be tolerated.
+func WithBacklogGracePeriod(d time.Duration) EventFanoutOption {
+	return func(cfg *eventFanoutConfig) {
 		if d > 0 {
 			cfg.gracePeriod = d
 		}
 	}
 }
 
-// CreationGracePeriod sets the amount of time delay after watcher creation before
+// WithCreationGracePeriod sets the amount of time delay after watcher creation before
 // it will be considered for removal due to backlog.
-func CreationGracePeriod(d time.Duration) BufferOption {
-	return func(cfg *bufferConfig) {
+func WithCreationGracePeriod(d time.Duration) EventFanoutOption {
+	return func(cfg *eventFanoutConfig) {
 		if d > 0 {
 			cfg.creationGracePeriod = d
 		}
 	}
 }
 
-// BufferClock sets a custom clock for the buffer (used in tests).
-func BufferClock(c clockwork.Clock) BufferOption {
-	return func(cfg *bufferConfig) {
+// WithClock sets a custom clock for the event fanout (used in tests).
+func WithClock(c clockwork.Clock) EventFanoutOption {
+	return func(cfg *eventFanoutConfig) {
 		if c != nil {
 			cfg.clock = c
 		}
 	}
 }
 
-// CircularBuffer implements in-memory circular buffer
-// of predefined size, that is capable of fan-out of the backend events.
-type CircularBuffer struct {
+// EventFanout implements in-memory event fanout broadcaster
+// that is capable of fan-out of the backend events to multiple watchers.
+type EventFanout struct {
 	sync.Mutex
 	logger       *slog.Logger
-	cfg          bufferConfig
+	cfg          eventFanoutConfig
 	init, closed bool
 	watchers     *watcherTree
 }
 
-// NewCircularBuffer returns a new uninitialized instance of circular buffer.
-func NewCircularBuffer(opts ...BufferOption) *CircularBuffer {
-	cfg := bufferConfig{
+// NewEventFanout returns a new uninitialized instance of event fanout.
+func NewEventFanout(opts ...EventFanoutOption) *EventFanout {
+	cfg := eventFanoutConfig{
 		gracePeriod:         DefaultBacklogGracePeriod,
 		creationGracePeriod: DefaultCreationGracePeriod,
 		capacity:            DefaultBufferCapacity,
@@ -104,16 +112,22 @@ func NewCircularBuffer(opts ...BufferOption) *CircularBuffer {
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	return &CircularBuffer{
+	return &EventFanout{
 		logger:   slog.With(teleport.ComponentKey, teleport.ComponentBuffer),
 		cfg:      cfg,
 		watchers: newWatcherTree(),
 	}
 }
 
+// NewCircularBuffer is a deprecated alias for NewEventFanout.
+// Deprecated: Use NewEventFanout instead.
+func NewCircularBuffer(opts ...EventFanoutOption) *EventFanout {
+	return NewEventFanout(opts...)
+}
+
 // Clear clears all events from the queue and closes all active watchers,
 // but does not modify init state.
-func (c *CircularBuffer) Clear() {
+func (c *EventFanout) Clear() {
 	c.Lock()
 	defer c.Unlock()
 	c.clear()
@@ -123,14 +137,14 @@ func (c *CircularBuffer) Clear() {
 // an uninitialized state.  This method should only be used when resetting
 // after a broken event stream.  If only closure of watchers is desired,
 // use Clear instead.
-func (c *CircularBuffer) Reset() {
+func (c *EventFanout) Reset() {
 	c.Lock()
 	defer c.Unlock()
 	c.clear()
 	c.init = false
 }
 
-func (c *CircularBuffer) clear() {
+func (c *EventFanout) clear() {
 	// could close multiple times
 	c.watchers.walk(func(w *BufferWatcher) {
 		w.closeWatcher()
@@ -142,7 +156,7 @@ func (c *CircularBuffer) clear() {
 // will be sent init events, and watchers added after this call will have their init events sent immediately.
 // This function must be called *after* establishing a healthy parent event stream in order to preserve
 // correct cache behavior.
-func (c *CircularBuffer) SetInit() {
+func (c *EventFanout) SetInit() {
 	c.Lock()
 	defer c.Unlock()
 	if c.init {
@@ -166,7 +180,7 @@ func (c *CircularBuffer) SetInit() {
 }
 
 // Close closes circular buffer and all watchers
-func (c *CircularBuffer) Close() error {
+func (c *EventFanout) Close() error {
 	c.Lock()
 	defer c.Unlock()
 	c.clear()
@@ -180,7 +194,7 @@ func (c *CircularBuffer) Close() error {
 // Emit emits events to currently registered watchers and stores them to
 // the buffer.  Panics if called before SetInit(), and returns false if called
 // after Close().
-func (c *CircularBuffer) Emit(events ...Event) (ok bool) {
+func (c *EventFanout) Emit(events ...Event) (ok bool) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -194,14 +208,14 @@ func (c *CircularBuffer) Emit(events ...Event) (ok bool) {
 	return true
 }
 
-func (c *CircularBuffer) emit(r Event) {
+func (c *EventFanout) emit(r Event) {
 	if !c.init {
 		panic("push called on uninitialized buffer instance")
 	}
 	c.fanOutEvent(r)
 }
 
-func (c *CircularBuffer) fanOutEvent(r Event) {
+func (c *EventFanout) fanOutEvent(r Event) {
 	var watchersToDelete []*BufferWatcher
 	c.watchers.walkPath(r.Item.Key.String(), func(watcher *BufferWatcher) {
 		if watcher.MetricComponent != "" {
@@ -243,7 +257,7 @@ func RemoveRedundantPrefixes(prefixes []Key) []Key {
 }
 
 // NewWatcher adds a new watcher to the events buffer
-func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, error) {
+func (c *EventFanout) NewWatcher(ctx context.Context, watch Watch) (Watcher, error) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -267,13 +281,13 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 
 	closeCtx, cancel := context.WithCancel(ctx)
 	w := &BufferWatcher{
-		buffer:   c,
-		Watch:    watch,
-		eventsC:  make(chan Event, watch.QueueSize),
-		created:  c.cfg.clock.Now(),
-		ctx:      closeCtx,
-		cancel:   cancel,
-		capacity: watch.QueueSize,
+		eventFanout: c,
+		Watch:       watch,
+		eventsC:     make(chan Event, watch.QueueSize),
+		created:     c.cfg.clock.Now(),
+		ctx:         closeCtx,
+		cancel:      cancel,
+		capacity:    watch.QueueSize,
 	}
 	c.logger.DebugContext(ctx, "Adding watcher", "watcher", logutils.StringerAttr(w))
 	if c.init {
@@ -286,7 +300,7 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 	return w, nil
 }
 
-func (c *CircularBuffer) removeWatcherWithLock(watcher *BufferWatcher) {
+func (c *EventFanout) removeWatcherWithLock(watcher *BufferWatcher) {
 	ctx := context.Background()
 	c.Lock()
 	defer c.Unlock()
@@ -302,9 +316,9 @@ func (c *CircularBuffer) removeWatcherWithLock(watcher *BufferWatcher) {
 }
 
 // BufferWatcher is a watcher connected to the
-// buffer and receiving fan-out events from the watcher
+// event fanout and receiving fan-out events from the watcher
 type BufferWatcher struct {
-	buffer *CircularBuffer
+	eventFanout *EventFanout
 	Watch
 	eventsC chan Event
 
@@ -367,7 +381,7 @@ func (w *BufferWatcher) emit(e Event) (ok bool) {
 	defer w.bmu.Unlock()
 
 	if !w.flushBacklog() {
-		if now := w.buffer.cfg.clock.Now(); now.After(w.backlogSince.Add(w.buffer.cfg.gracePeriod)) && now.After(w.created.Add(w.buffer.cfg.creationGracePeriod)) {
+		if now := w.eventFanout.cfg.clock.Now(); now.After(w.backlogSince.Add(w.eventFanout.cfg.gracePeriod)) && now.After(w.created.Add(w.eventFanout.cfg.creationGracePeriod)) {
 			// backlog has existed for longer than grace period,
 			// this watcher needs to be removed.
 			return false
@@ -382,7 +396,7 @@ func (w *BufferWatcher) emit(e Event) (ok bool) {
 	default:
 		// primary event buffer is full; start backlog.
 		w.backlog = append(w.backlog, e)
-		w.backlogSince = w.buffer.cfg.clock.Now()
+		w.backlogSince = w.eventFanout.cfg.clock.Now()
 	}
 	return true
 }
@@ -431,9 +445,9 @@ const (
 func (w *BufferWatcher) closeAndRemove(sync bool) {
 	w.closeWatcher()
 	if sync {
-		w.buffer.removeWatcherWithLock(w)
+		w.eventFanout.removeWatcherWithLock(w)
 	} else {
-		go w.buffer.removeWatcherWithLock(w)
+		go w.eventFanout.removeWatcherWithLock(w)
 	}
 }
 

@@ -34,8 +34,8 @@ import (
 // TestWatcherSimple tests scenarios with watchers
 func TestWatcherSimple(t *testing.T) {
 	ctx := context.Background()
-	b := NewCircularBuffer(
-		BufferCapacity(3),
+	b := NewEventFanout(
+		WithCapacity(3),
 	)
 	defer b.Close()
 	b.SetInit()
@@ -79,11 +79,11 @@ func TestWatcherCapacity(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 
 	ctx := context.Background()
-	b := NewCircularBuffer(
-		BufferCapacity(1),
-		BufferClock(clock),
-		BacklogGracePeriod(gracePeriod),
-		CreationGracePeriod(time.Nanosecond),
+	b := NewEventFanout(
+		WithCapacity(1),
+		WithClock(clock),
+		WithBacklogGracePeriod(gracePeriod),
+		WithCreationGracePeriod(time.Nanosecond),
 	)
 	defer b.Close()
 	b.SetInit()
@@ -153,11 +153,11 @@ func TestWatcherCreationGracePeriod(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 
 	ctx := context.Background()
-	b := NewCircularBuffer(
-		BufferCapacity(1),
-		BufferClock(clock),
-		BacklogGracePeriod(backlogGracePeriod),
-		CreationGracePeriod(creationGracePeriod),
+	b := NewEventFanout(
+		WithCapacity(1),
+		WithClock(clock),
+		WithBacklogGracePeriod(backlogGracePeriod),
+		WithCreationGracePeriod(creationGracePeriod),
 	)
 	defer b.Close()
 	b.SetInit()
@@ -215,8 +215,8 @@ func TestWatcherCreationGracePeriod(t *testing.T) {
 // will be removed
 func TestWatcherClose(t *testing.T) {
 	ctx := context.Background()
-	b := NewCircularBuffer(
-		BufferCapacity(3),
+	b := NewEventFanout(
+		WithCapacity(3),
 	)
 	defer b.Close()
 	b.SetInit()
@@ -273,8 +273,8 @@ func TestRemoveRedundantPrefixes(t *testing.T) {
 // with multiple matching prefixes will get an event only once
 func TestWatcherMulti(t *testing.T) {
 	ctx := context.Background()
-	b := NewCircularBuffer(
-		BufferCapacity(3),
+	b := NewEventFanout(
+		WithCapacity(3),
 	)
 	defer b.Close()
 	b.SetInit()
@@ -305,8 +305,8 @@ func TestWatcherMulti(t *testing.T) {
 // TestWatcherReset tests scenarios with watchers and buffer resets
 func TestWatcherReset(t *testing.T) {
 	ctx := context.Background()
-	b := NewCircularBuffer(
-		BufferCapacity(3),
+	b := NewEventFanout(
+		WithCapacity(3),
 	)
 	defer b.Close()
 	b.SetInit()

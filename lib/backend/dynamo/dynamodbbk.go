@@ -165,11 +165,11 @@ type dynamoClient interface {
 
 // Backend is a DynamoDB-backed key value backend implementation.
 type Backend struct {
-	svc     dynamoClient
-	clock   clockwork.Clock
-	logger  *slog.Logger
-	streams *dynamodbstreams.Client
-	buf     *backend.CircularBuffer
+	svc         dynamoClient
+	clock       clockwork.Clock
+	logger      *slog.Logger
+	streams     *dynamodbstreams.Client
+	eventFanout *backend.EventFanout
 	Config
 	// closedFlag is set to indicate that the database is closed
 	closedFlag int32
@@ -331,12 +331,12 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 
 	streamsClient := dynamodbstreams.NewFromConfig(awsConfig, streamsOpts...)
 	b := &Backend{
-		logger:  l,
-		Config:  *cfg,
-		clock:   clockwork.NewRealClock(),
-		buf:     backend.NewCircularBuffer(backend.BufferCapacity(cfg.BufferSize)),
-		svc:     dynamoClient,
-		streams: streamsClient,
+		logger:      l,
+		Config:      *cfg,
+		clock:       clockwork.NewRealClock(),
+		eventFanout: backend.NewEventFanout(backend.WithCapacity(cfg.BufferSize)),
+		svc:         dynamoClient,
+		streams:     streamsClient,
 	}
 
 	if err := b.configureTable(ctx, applicationautoscaling.NewFromConfig(awsConfig)); err != nil {
@@ -887,7 +887,7 @@ func (b *Backend) ConditionalDelete(ctx context.Context, key backend.Key, rev st
 
 // NewWatcher returns a new event watcher
 func (b *Backend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.Watcher, error) {
-	return b.buf.NewWatcher(ctx, watch)
+	return b.eventFanout.NewWatcher(ctx, watch)
 }
 
 // KeepAlive keeps object from expiring, updates lease on the existing object,
@@ -931,13 +931,13 @@ func (b *Backend) setClosed() {
 // and releases associated resources
 func (b *Backend) Close() error {
 	b.setClosed()
-	return b.buf.Close()
+	return b.eventFanout.Close()
 }
 
 // CloseWatchers closes all the watchers
 // without closing the backend
 func (b *Backend) CloseWatchers() {
-	b.buf.Clear()
+	b.eventFanout.Clear()
 }
 
 type tableStatus int
