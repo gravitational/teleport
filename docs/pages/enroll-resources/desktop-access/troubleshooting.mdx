@@ -555,6 +555,37 @@ To fix this error, ensure that either:
 
 See [Computer Name](./active-directory.mdx#computer-name) for more information.
 
+### CredSSP InvalidParameter: client is not trusted
+
+Attempts to connect to a desktop fail, and the UI shows an error similar to:
+```text
+CredSSP InvalidParameter: client is not trusted. Additional error data: OctetString(...)
+```
+
+The additional error data contains a hex-encoded ASN.1 object that encodes a Windows error code.
+Decode the octet string to identify the specific cause. The sections below cover known error codes.
+
+#### 0x80092013 — CRYPT_E_REVOCATION_OFFLINE
+```text
+CredSSP InvalidParameter: client is not trusted. Additional error data: OctetString(0x3015A103020103A20E040C132009800000000001000000)
+```
+
+The embedded error code `0x80092013` maps to `CRYPT_E_REVOCATION_OFFLINE`. This means Windows
+attempted to check the revocation status of Teleport's client certificate but could not reach
+the configured Certificate Revocation List (CRL) distribution point.
+
+##### Solution: Ensure the CRL distribution point is reachable
+
+The Windows host must be able to reach the CRL distribution point (CDP) URL which
+is embedded in Teleport's client certificate at issuance time. Windows will attempt to reach 
+this URL to verify the certificate has not been revoked. In a standard Teleport deployment, 
+this URL points to your Teleport Proxy Service's CRL endpoint. Check that:
+
+- The Windows host has outbound HTTPS access to your Teleport Proxy Service
+- Firewall rules permit this traffic from the Windows host to the Teleport Proxy.
+- The network connection between the Windows host and the Teleport Proxy Service is stable,
+  as intermittent connectivity can cause revocation checks to fail.
+
 ### LDAP connection failing periodically
 
 You see Teleport failing to contact your LDAP server periodically and an error in Teleport logs that looks similar to this:
