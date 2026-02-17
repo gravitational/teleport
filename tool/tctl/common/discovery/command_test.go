@@ -202,7 +202,7 @@ func TestDiscoverySelectFailingVMGroups(t *testing.T) {
 	require.Equal(t, "i-3", limited[0].InstanceID)
 }
 
-func TestClusterSSMRunErrors(t *testing.T) {
+func TestClusterSSMRuns(t *testing.T) {
 	t.Parallel()
 
 	t.Run("clusters by stdout/stderr", func(t *testing.T) {
@@ -222,17 +222,18 @@ func TestClusterSSMRunErrors(t *testing.T) {
 			},
 		}
 
-		clusters := clusterSSMRunErrors(vmGroups)
-		require.Len(t, clusters, 1, "identical errors should form one cluster")
-		require.Len(t, clusters[0].Instances, 2, "two distinct instances")
+		errors, successes := clusterSSMRuns(vmGroups, clusterDefaults())
+		require.Empty(t, successes)
+		require.Len(t, errors, 1, "identical errors should form one cluster")
+		require.Len(t, errors[0].Instances, 2, "two distinct instances")
 
 		// Instances should be sorted by instance ID.
-		require.Equal(t, "i-aaa", clusters[0].Instances[0].InstanceID)
-		require.Equal(t, "i-bbb", clusters[0].Instances[1].InstanceID)
+		require.Equal(t, "i-aaa", errors[0].Instances[0].InstanceID)
+		require.Equal(t, "i-bbb", errors[0].Instances[1].InstanceID)
 
 		// i-aaa should have 2 sorted times.
-		require.Len(t, clusters[0].Instances[0].Times, 2)
-		require.Equal(t, "us-east-1", clusters[0].Instances[0].Region)
+		require.Len(t, errors[0].Instances[0].Times, 2)
+		require.Equal(t, "us-east-1", errors[0].Instances[0].Region)
 	})
 
 	t.Run("falls back to status when stdout/stderr empty", func(t *testing.T) {
@@ -246,11 +247,12 @@ func TestClusterSSMRunErrors(t *testing.T) {
 			},
 		}
 
-		clusters := clusterSSMRunErrors(vmGroups)
-		require.Len(t, clusters, 1, "status-only errors should be clustered")
-		require.Len(t, clusters[0].Instances, 1)
-		require.Equal(t, "i-ccc", clusters[0].Instances[0].InstanceID)
-		require.Len(t, clusters[0].Instances[0].Times, 2)
+		errors, successes := clusterSSMRuns(vmGroups, clusterDefaults())
+		require.Empty(t, successes)
+		require.Len(t, errors, 1, "status-only errors should be clustered")
+		require.Len(t, errors[0].Instances, 1)
+		require.Equal(t, "i-ccc", errors[0].Instances[0].InstanceID)
+		require.Len(t, errors[0].Instances[0].Times, 2)
 	})
 
 	t.Run("no output and no status produces no clusters", func(t *testing.T) {
@@ -262,11 +264,12 @@ func TestClusterSSMRunErrors(t *testing.T) {
 				},
 			},
 		}
-		clusters := clusterSSMRunErrors(vmGroups)
-		require.Empty(t, clusters)
+		errors, successes := clusterSSMRuns(vmGroups, clusterDefaults())
+		require.Empty(t, errors)
+		require.Empty(t, successes)
 	})
 
-	t.Run("successful runs are excluded", func(t *testing.T) {
+	t.Run("successful runs clustered separately", func(t *testing.T) {
 		vmGroups := []ssmVMGroup{
 			{
 				InstanceID: "i-eee",
@@ -275,8 +278,25 @@ func TestClusterSSMRunErrors(t *testing.T) {
 				},
 			},
 		}
-		clusters := clusterSSMRunErrors(vmGroups)
-		require.Empty(t, clusters)
+		errors, successes := clusterSSMRuns(vmGroups, clusterDefaults())
+		require.Empty(t, errors)
+		require.Len(t, successes, 1, "successful runs should be clustered")
+		require.Equal(t, "i-eee", successes[0].Instances[0].InstanceID)
+	})
+
+	t.Run("mixed runs split into separate buckets", func(t *testing.T) {
+		vmGroups := []ssmVMGroup{
+			{
+				InstanceID: "i-fff",
+				Runs: []ssmRunRecord{
+					{InstanceID: "i-fff", AccountID: "333", Region: "eu-west-1", Status: "Failed", Code: "TDS00W", Stderr: "timeout", parsedEventTime: mustTestParseTime(t, "2026-02-12T10:00:00Z")},
+					{InstanceID: "i-fff", AccountID: "333", Region: "eu-west-1", Status: "Success", Code: "TDS00I", Stdout: "installed ok", parsedEventTime: mustTestParseTime(t, "2026-02-12T11:00:00Z")},
+				},
+			},
+		}
+		errors, successes := clusterSSMRuns(vmGroups, clusterDefaults())
+		require.Len(t, errors, 1, "one error cluster")
+		require.Len(t, successes, 1, "one success cluster")
 	})
 }
 

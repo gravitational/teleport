@@ -689,41 +689,40 @@ type ssmRunsOutput struct {
 	FailingVMs    int               `json:"failing_vms"`
 	VMPage        pageInfo          `json:"vm_page"`
 	VMs           []ssmVMGroup      `json:"vms"`
-	ErrorClusters []ssmErrorCluster `json:"error_clusters,omitempty"`
+	ErrorClusters   []ssmRunCluster `json:"error_clusters,omitempty"`
+	SuccessClusters []ssmRunCluster `json:"success_clusters,omitempty"`
 }
 
-// ssmErrorCluster is an enriched error cluster for JSON output. Instead of
+// ssmRunCluster is an enriched cluster for JSON output. Instead of
 // opaque index arrays, members are grouped by (instance_id, account_id, region)
 // with sorted occurrence timestamps.
-type ssmErrorCluster struct {
-	ID        int                       `json:"id"`
-	Template  string                    `json:"template"`
-	Instances []ssmErrorClusterInstance `json:"instances"`
+type ssmRunCluster struct {
+	ID        int                    `json:"id"`
+	Template  string                 `json:"template"`
+	Instances []ssmRunClusterInstance `json:"instances"`
 }
 
-type ssmErrorClusterInstance struct {
+type ssmRunClusterInstance struct {
 	InstanceID string   `json:"instance_id"`
 	AccountID  string   `json:"account_id"`
 	Region     string   `json:"region"`
 	Times      []string `json:"times"`
 }
 
-// clusterSSMRunErrors groups failed SSM run outputs into clusters of similar
-// errors using the Drain → MinHash → LSH pipeline. The returned clusters
-// contain enriched member info grouped by (instance_id, account_id, region)
-// with sorted occurrence timestamps.
-func clusterSSMRunErrors(vmGroups []ssmVMGroup) []ssmErrorCluster {
-	// Collect output from all failed runs, tracking the source record.
-	type indexedRun struct {
-		output string
-		record ssmRunRecord
-	}
-	var runs []indexedRun
+// indexedRun pairs a run's combined output with its source record.
+type indexedRun struct {
+	output string
+	record ssmRunRecord
+}
+
+// clusterSSMRuns groups SSM run outputs into clusters of similar runs,
+// splitting by success/failure first so each bucket gets independent
+// Drain training. The opts control the Drain similarity threshold
+// and other pipeline parameters.
+func clusterSSMRuns(vmGroups []ssmVMGroup, opts clusterOptions) (errors, successes []ssmRunCluster) {
+	var errorRuns, successRuns []indexedRun
 	for _, vm := range vmGroups {
 		for _, run := range vm.Runs {
-			if !isSSMRunFailure(run) {
-				continue
-			}
 			output := combineOutput(run.Stdout, run.Stderr)
 			if strings.TrimSpace(output) == "" {
 				output = strings.TrimSpace(run.Status)
@@ -731,24 +730,34 @@ func clusterSSMRunErrors(vmGroups []ssmVMGroup) []ssmErrorCluster {
 			if output == "" {
 				continue
 			}
-			runs = append(runs, indexedRun{output: output, record: run})
+			ir := indexedRun{output: output, record: run}
+			if isSSMRunFailure(run) {
+				errorRuns = append(errorRuns, ir)
+			} else {
+				successRuns = append(successRuns, ir)
+			}
 		}
 	}
+	slog.Debug("Clustering SSM runs", "error_runs", len(errorRuns), "success_runs", len(successRuns))
+	errors = enrichClusters(errorRuns, opts)
+	successes = enrichClusters(successRuns, opts)
+	return errors, successes
+}
+
+// enrichClusters runs the Drain → MinHash → LSH pipeline on a set of runs
+// and returns enriched clusters with structured member info.
+func enrichClusters(runs []indexedRun, opts clusterOptions) []ssmRunCluster {
 	if len(runs) == 0 {
 		return nil
 	}
-	slog.Debug("Clustering SSM run errors", "failed_runs", len(runs))
-
 	outputs := make([]string, len(runs))
 	for i, r := range runs {
 		outputs[i] = r.output
 	}
-	rawClusters := clusterTexts(outputs, clusterDefaults())
+	rawClusters := clusterTexts(outputs, opts)
 
-	// Build enriched clusters with structured member info.
-	enriched := make([]ssmErrorCluster, 0, len(rawClusters))
+	enriched := make([]ssmRunCluster, 0, len(rawClusters))
 	for _, rc := range rawClusters {
-		// Group members by (instance_id, account_id, region).
 		type instanceKey struct{ instanceID, accountID, region string }
 		grouped := map[instanceKey][]string{}
 		for _, idx := range rc.Members {
@@ -765,21 +774,21 @@ func clusterSSMRunErrors(vmGroups []ssmVMGroup) []ssmErrorCluster {
 			grouped[key] = append(grouped[key], ts)
 		}
 
-		instances := make([]ssmErrorClusterInstance, 0, len(grouped))
+		instances := make([]ssmRunClusterInstance, 0, len(grouped))
 		for key, times := range grouped {
 			slices.Sort(times)
-			instances = append(instances, ssmErrorClusterInstance{
+			instances = append(instances, ssmRunClusterInstance{
 				InstanceID: key.instanceID,
 				AccountID:  key.accountID,
 				Region:     key.region,
 				Times:      times,
 			})
 		}
-		slices.SortFunc(instances, func(a, b ssmErrorClusterInstance) int {
+		slices.SortFunc(instances, func(a, b ssmRunClusterInstance) int {
 			return cmp.Compare(a.InstanceID, b.InstanceID)
 		})
 
-		enriched = append(enriched, ssmErrorCluster{
+		enriched = append(enriched, ssmRunCluster{
 			ID:        rc.ID,
 			Template:  rc.Template,
 			Instances: instances,
