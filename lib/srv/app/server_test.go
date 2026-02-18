@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"fmt"
 	"io"
 	"net"
@@ -29,6 +30,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path"
 	"sort"
 	"strings"
 	"sync"
@@ -72,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -158,6 +161,9 @@ type suiteConfig struct {
 	Rewrite *types.Rewrite
 	// Login is used to specify "login" trait in the jwt token
 	Login string
+	// Clock overrides the fake clock used by the suite. If nil, a default
+	// fake clock is created.
+	Clock *clockwork.FakeClock
 }
 
 type fakeConnMonitor struct{}
@@ -174,7 +180,11 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s := &Suite{}
 	s.closeContext, s.closeFunc = context.WithCancel(t.Context())
 
-	s.clock = clockwork.NewFakeClock()
+	if config.Clock != nil {
+		s.clock = config.Clock
+	} else {
+		s.clock = clockwork.NewFakeClock()
+	}
 	s.dataDir = t.TempDir()
 	s.hostUUID = uuid.New().String()
 	s.login = config.Login
@@ -1350,6 +1360,211 @@ func (s *Suite) checkWSResponse(t *testing.T, clientCert tls.Certificate, checkM
 	// Wait for the application server to actually stop serving before
 	// closing the test. This will make sure the server removes the listeners
 	wg.Wait()
+}
+
+// mtlsUpstreamSetup holds the CAs, cert paths, and helpers needed to
+// configure an upstream mTLS application for testing.
+type mtlsUpstreamSetup struct {
+	serverCA        *tlsca.CertAuthority
+	clientCA        *tlsca.CertAuthority
+	serverCACertPEM []byte
+	clientCACertPEM []byte
+	caPath          string
+	certPath        string
+	keyPath         string
+}
+
+// newMTLSUpstreamSetup generates a server CA and a client CA, creates a temp
+// directory, and writes the server CA cert to disk (caPath). The caller must
+// use generateAndWriteClientCert to populate the client cert/key files before
+// starting the upstream server.
+func newMTLSUpstreamSetup(t *testing.T) *mtlsUpstreamSetup {
+	t.Helper()
+
+	serverCAKey, serverCACertPEM, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{Organization: []string{"test-upstream-server-ca"}},
+		nil,
+		1*time.Hour,
+	)
+	require.NoError(t, err)
+
+	serverCA, err := tlsca.FromKeys(serverCACertPEM, serverCAKey)
+	require.NoError(t, err)
+
+	clientCAKey, clientCACertPEM, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{Organization: []string{"test-upstream-client-ca"}},
+		nil,
+		1*time.Hour,
+	)
+	require.NoError(t, err)
+
+	clientCA, err := tlsca.FromKeys(clientCACertPEM, clientCAKey)
+	require.NoError(t, err)
+
+	tmpDir := t.TempDir()
+	caPath := path.Join(tmpDir, "ca.pem")
+	certPath := path.Join(tmpDir, "cert.pem")
+	keyPath := path.Join(tmpDir, "key.pem")
+	require.NoError(t, os.WriteFile(caPath, serverCACertPEM, 0600))
+
+	return &mtlsUpstreamSetup{
+		serverCA:        serverCA,
+		clientCA:        clientCA,
+		serverCACertPEM: serverCACertPEM,
+		clientCACertPEM: clientCACertPEM,
+		caPath:          caPath,
+		certPath:        certPath,
+		keyPath:         keyPath,
+	}
+}
+
+// generateAndWriteClientCert generates an ECDSA key and a certificate signed
+// by the client CA with the given NotAfter, then writes cert and key PEM files
+// to disk. Calling again replaces the files, simulating certificate rotation.
+func (m *mtlsUpstreamSetup) generateAndWriteClientCert(t *testing.T, clock clockwork.Clock, notAfter time.Time) {
+	t.Helper()
+
+	clientKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	clientKeyPEM, err := keys.MarshalPrivateKey(clientKey)
+	require.NoError(t, err)
+
+	clientCertPEM, err := m.clientCA.GenerateCertificate(tlsca.CertificateRequest{
+		Clock:     clock,
+		PublicKey: clientKey.Public(),
+		Subject:   pkix.Name{CommonName: "teleport-app-service"},
+		NotAfter:  notAfter,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(m.certPath, clientCertPEM, 0600))
+	require.NoError(t, os.WriteFile(m.keyPath, clientKeyPEM, 0600))
+}
+
+// startUpstreamServer generates a server certificate signed by the server CA
+// (using real time for NotAfter so the app service transport can validate it),
+// and starts an httptest TLS server that requires client certs signed by the
+// client CA. The clock parameter controls client cert validation time via
+// tls.Config.Time.
+func (m *mtlsUpstreamSetup) startUpstreamServer(t *testing.T, clock clockwork.Clock, message string) *httptest.Server {
+	t.Helper()
+
+	serverKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	serverKeyPEM, err := keys.MarshalPrivateKey(serverKey)
+	require.NoError(t, err)
+
+	serverCertPEM, err := m.serverCA.GenerateCertificate(tlsca.CertificateRequest{
+		PublicKey: serverKey.Public(),
+		Subject:   pkix.Name{CommonName: "127.0.0.1"},
+		NotAfter:  time.Now().Add(1 * time.Hour),
+		DNSNames:  []string{"127.0.0.1"},
+	})
+	require.NoError(t, err)
+
+	serverCert, err := tls.X509KeyPair(serverCertPEM, serverKeyPEM)
+	require.NoError(t, err)
+
+	clientCAPool := x509.NewCertPool()
+	require.True(t, clientCAPool.AppendCertsFromPEM(m.clientCACertPEM))
+
+	upstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprintln(w, message)
+	}))
+	// Disable keep alive so we force new connections every time, forcing
+	// certificate validation.
+	upstream.Config.SetKeepAlivesEnabled(false)
+	upstream.TLS = &tls.Config{
+		Certificates: []tls.Certificate{serverCert},
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientCAs:    clientCAPool,
+		Time:         clock.Now,
+	}
+	upstream.StartTLS()
+	t.Cleanup(upstream.Close)
+
+	return upstream
+}
+
+// newApp creates a types.AppV3 configured for mTLS with the upstream URL and
+// the cert paths from this setup.
+func (m *mtlsUpstreamSetup) newApp(t *testing.T, upstreamURL string) *types.AppV3 {
+	t.Helper()
+
+	app, err := types.NewAppV3(types.Metadata{
+		Name:   "foo",
+		Labels: staticLabels,
+	}, types.AppSpecV3{
+		URI:        upstreamURL,
+		PublicAddr: "foo.example.com",
+		TLS: types.AppTLS{
+			CaPath:   m.caPath,
+			CertPath: m.certPath,
+			KeyPath:  m.keyPath,
+		},
+	})
+	require.NoError(t, err)
+
+	return app
+}
+
+// TestHandleConnectionMTLSUpstream verifies that the app service can establish
+// a mutual TLS connection with an upstream HTTPS application. The upstream
+// server uses its own CA for its server certificate and requires the app
+// service to present a valid client certificate signed by a separate client CA.
+func TestHandleConnectionMTLSUpstream(t *testing.T) {
+	t.Run("basic", func(t *testing.T) {
+		clock := clockwork.NewRealClock()
+		setup := newMTLSUpstreamSetup(t)
+		setup.generateAndWriteClientCert(t, clock, time.Now().Add(1*time.Hour))
+
+		message := uuid.New().String()
+		upstream := setup.startUpstreamServer(t, clock, message)
+		app := setup.newApp(t, upstream.URL)
+
+		s := SetUpSuiteWithConfig(t, suiteConfig{Apps: types.Apps{app}})
+		s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			buf, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, message, strings.TrimSpace(string(buf)))
+		})
+	})
+
+	t.Run("certificate expiration", func(t *testing.T) {
+		clock := clockwork.NewFakeClock()
+		setup := newMTLSUpstreamSetup(t)
+		// Generate a short-lived client cert (1 minute TTL).
+		setup.generateAndWriteClientCert(t, clock, clock.Now().Add(time.Minute))
+
+		message := uuid.New().String()
+		upstream := setup.startUpstreamServer(t, clock, message)
+		app := setup.newApp(t, upstream.URL)
+
+		s := SetUpSuiteWithConfig(t, suiteConfig{
+			Clock: clock,
+			Apps:  types.Apps{app},
+		})
+
+		s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			buf, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, message, strings.TrimSpace(string(buf)))
+		})
+
+		// Advance past cert expiry (1min) but NOT the session chunk TTL (5min).
+		clock.Advance(3 * time.Minute)
+		// Write a fresh client cert to disk, simulating rotation.
+		setup.generateAndWriteClientCert(t, clock, clock.Now().Add(1*time.Hour))
+
+		s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			buf, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, message, strings.TrimSpace(string(buf)))
+		})
+	})
 }
 
 func testRotationGetter(role types.SystemRole) (*types.Rotation, error) {

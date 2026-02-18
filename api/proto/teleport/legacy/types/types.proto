@@ -1162,6 +1162,12 @@ message AppSpecV3 {
   MCP MCP = 15 [(gogoproto.jsontag) = "mcp,omitempty"];
   // LLM contains LLM inference endpoint related configurations.
   LLM LLM = 16 [(gogoproto.jsontag) = "inference,omitempty"];
+  // TLS is the TLS configuration used when establishing connection to target
+  // app. Allows apps to establish a mTLS connection with the upstream server.
+  AppTLS TLS = 17 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "tls,omitempty"
+  ];
 }
 
 // LLM contains LLM inference endpoint related configurations.
@@ -1209,6 +1215,17 @@ message LLM {
   // ModelMappings defines the model name conversion from requested model to the
   // models in the provider.
   repeated ModelMap model_mappings = 4;
+}
+
+// AppTLS is the TLS configuration used when establishing connection to target
+// app.
+message AppTLS {
+  // Defines the certifcate path of the CA used on the connection.
+  string ca_path = 1;
+  // Defines the client certificate path used on the connection.
+  string cert_path = 2;
+  // Defines the client key path used on the connection.
+  string key_path = 3;
 }
 
 // MCP contains MCP server-related configurations.

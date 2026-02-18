@@ -113,6 +113,8 @@ type Application interface {
 	GetIdentityCenter() *AppIdentityCenter
 	// GetMCP fetches MCP specific configuration.
 	GetMCP() *MCP
+	// GetTLS fetchs TLS configuration.
+	GetTLS() AppTLS
 	// IsEqual determines if two application resources are equivalent to one another.
 	IsEqual(Application) bool
 	// GetLLM fetches LLM specific configuration.
@@ -692,6 +694,18 @@ func (a *AppV3) GetLLMProvider() LLM_Provider {
 	default:
 		return LLM_PROVIDER_UNSPECIFIED
 	}
+}
+
+// GetTLS fetches TLS configuration.
+func (a *AppV3) GetTLS() AppTLS {
+	return a.Spec.TLS
+}
+
+// IsEmpty returns if the app TLS configuration is empty.
+//
+// TODO(gabrielcorado): verify this logic.
+func (t AppTLS) IsEmpty() bool {
+	return t.CaPath == "" || t.CertPath == "" || t.KeyPath == ""
 }
 
 // DeduplicateApps deduplicates apps by combination of app name and public address.

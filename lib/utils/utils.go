@@ -345,6 +345,15 @@ func IsCertExpiredError(err error) bool {
 	return strings.Contains(trace.Unwrap(err).Error(), "ssh: cert has expired")
 }
 
+// IsCertExpiredError specifies whether this error indicates
+// expired TLS certificates.
+func IsTLSCertExpiredError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(trace.Unwrap(err).Error(), "tls: expired certificate")
+}
+
 // OpaqueAccessDenied returns a generic [trace.NotFoundError] if [err] is a [trace.NotFoundError] or
 // a [trace.AccessDeniedError] so as to avoid leaking the existence of secret resources,
 // for other error types it returns the original error.

@@ -21,14 +21,17 @@ package app
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -80,9 +83,13 @@ type transport struct {
 
 	*transportConfig
 
-	tr http.RoundTripper
+	tr *http.Transport
 
 	uri *url.URL
+
+	// reloadedCert indicates if the certificate was already relaoded. support
+	// only one reload per transport/session chunk.
+	reloadedCert atomic.Bool
 }
 
 // newTransport creates a new transport.
@@ -181,6 +188,13 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 			TLS:        r.TLS,
 		}, nil
 	}
+	if utils.IsTLSCertExpiredError(err) && !t.reloadedCert.Swap(true) {
+		newResp, err := t.tryRequestWithReloadedCert(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return newResp, nil
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -196,6 +210,18 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	return resp, nil
+}
+
+// tryRequestWithReloadedCert refresh TLS certificates and retries the request.
+func (t *transport) tryRequestWithReloadedCert(r *http.Request) (*http.Response, error) {
+	newTLSConfig, err := configureTLS(t.transportConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	t.tr.TLSClientConfig = newTLSConfig
+	resp, err := t.RoundTrip(r)
+	return resp, trace.Wrap(err)
 }
 
 // rewriteRequest applies any rewriting rules to the request before it's forwarded.
@@ -281,12 +307,38 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 func configureTLS(c *transportConfig) (*tls.Config, error) {
 	tlsConfig := utils.TLSConfig(c.cipherSuites)
 
+	appTLS := c.app.GetTLS()
+	if !appTLS.IsEmpty() {
+		err := loadMTLSConfig(appTLS, tlsConfig)
+		return tlsConfig, trace.Wrap(err)
+	}
+
 	// Don't verify the server's certificate if Teleport was started with
 	// the --insecure flag, or 'insecure_skip_verify' was specifically requested in
 	// the application config.
 	tlsConfig.InsecureSkipVerify = (lib.IsInsecureDevMode() || c.app.GetInsecureSkipVerify())
 
 	return tlsConfig, nil
+}
+
+// loadMTLSConfig loads mTLS configuration from disk.
+func loadMTLSConfig(appTLS types.AppTLS, tlsConfig *tls.Config) error {
+	clientCert, err := tls.LoadX509KeyPair(appTLS.CertPath, appTLS.KeyPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	ca, err := os.ReadFile(appTLS.CaPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	caPool := x509.NewCertPool()
+	if ok := caPool.AppendCertsFromPEM(ca); !ok {
+		return trace.BadParameter("unable to load provided CA")
+	}
+
+	tlsConfig.Certificates = []tls.Certificate{clientCert}
+	tlsConfig.RootCAs = caPool
+	return nil
 }
 
 // host returns the host from a host:port string.
