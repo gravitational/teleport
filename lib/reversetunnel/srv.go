@@ -1365,8 +1365,8 @@ func newLeafCluster(srv *server, domainName string, sconn ssh.Conn) (*leafCluste
 			ClusterName:                 leaf.GetName(),
 			ResourceWatcherConfig: &services.ResourceWatcherConfig{
 				Clock:     srv.Clock,
-				Component: teleport.ComponentProxy,
-				Logger:    srv.Logger,
+				Component: srv.Component,
+				Logger:    srv.Logger.With("leaf_cluster", leaf.GetName()),
 				Client:    leaf.localClient,
 			},
 		},
@@ -1375,7 +1375,9 @@ func newLeafCluster(srv *server, domainName string, sconn ssh.Conn) (*leafCluste
 		return nil, trace.Wrap(err)
 	}
 
-	go leaf.SyncValidatedMFAChallenges(srv.ctx, mfaRetry, validatedMFAChallengeWatcher)
+	leaf.validatedMFAChallengeWatcher = validatedMFAChallengeWatcher
+
+	go leaf.SyncValidatedMFAChallenges(srv.ctx, mfaRetry)
 
 	return leaf, nil
 }

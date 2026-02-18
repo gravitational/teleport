@@ -139,7 +139,6 @@ func TestSyncValidatedMFAChallenges(t *testing.T) {
 				Step:  time.Millisecond,
 				Max:   10 * time.Millisecond,
 			},
-			watcher,
 		)
 	}()
 

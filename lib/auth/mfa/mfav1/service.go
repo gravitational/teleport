@@ -403,19 +403,12 @@ func (s *Service) ListValidatedMFAChallenges(
 		return nil, trace.Wrap(err)
 	}
 
-	if !isRemoteProxy(*authCtx) {
-		return nil, trace.AccessDenied("only remote proxy identities can list validated MFA challenges")
+	if !isLocalProxy(*authCtx) {
+		return nil, trace.AccessDenied("only local proxy identities can list validated MFA challenges")
 	}
 
 	if err := checkListValidatedMFAChallengesRequest(req); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// If a filter with a target cluster is specified, ensure that the target cluster exists.
-	if req.GetFilter().GetTargetCluster() != "" {
-		if err := s.clusterExists(ctx, req.GetFilter().GetTargetCluster()); err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	challenges, nextPageToken, err := s.storage.ListValidatedMFAChallenges(
@@ -827,6 +820,18 @@ func isRemoteProxy(authContext authz.Context) bool {
 	}
 
 	if !authContext.Checker.HasRole(string(types.RoleRemoteProxy)) {
+		return false
+	}
+
+	return true
+}
+
+func isLocalProxy(authContext authz.Context) bool {
+	if _, ok := authContext.UnmappedIdentity.(authz.BuiltinRole); !ok {
+		return false
+	}
+
+	if !authContext.Checker.HasRole(string(types.RoleProxy)) {
 		return false
 	}
 
