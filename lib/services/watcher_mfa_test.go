@@ -57,6 +57,7 @@ func TestValidatedMFAChallengeWatcher_Success(t *testing.T) {
 		t.Context(),
 		services.ValidatedMFAChallengeWatcherConfig{
 			ValidatedMFAChallengeLister: lister,
+			ClusterName:                 "leaf",
 			ResourceWatcherConfig: &services.ResourceWatcherConfig{
 				Client:    newWatcherer,
 				Clock:     clockwork.NewRealClock(),
@@ -112,14 +113,25 @@ func TestNewValidatedMFAChallengeWatcher_Validation(t *testing.T) {
 			name: "nil ValidatedMFAChallengeLister",
 			cfg: services.ValidatedMFAChallengeWatcherConfig{
 				ValidatedMFAChallengeLister: nil,
+				ClusterName:                 "leaf",
 				ResourceWatcherConfig:       &services.ResourceWatcherConfig{},
 			},
 			wantErr: trace.BadParameter("cfg.ValidatedMFAChallengeGetter must be set"),
 		},
 		{
+			name: "empty ClusterName",
+			cfg: services.ValidatedMFAChallengeWatcherConfig{
+				ValidatedMFAChallengeLister: &mockValidatedMFAChallengeLister{},
+				ClusterName:                 "",
+				ResourceWatcherConfig:       &services.ResourceWatcherConfig{},
+			},
+			wantErr: trace.BadParameter("cfg.ClusterName must be set"),
+		},
+		{
 			name: "nil ResourceWatcherConfig",
 			cfg: services.ValidatedMFAChallengeWatcherConfig{
 				ValidatedMFAChallengeLister: &mockValidatedMFAChallengeLister{},
+				ClusterName:                 "leaf",
 				ResourceWatcherConfig:       nil,
 			},
 			wantErr: trace.BadParameter("cfg.ResourceWatcherConfig must be set"),
@@ -149,8 +161,8 @@ func newValidatedMFAChallenge() *mfav1.ValidatedMFAChallenge {
 					SshSessionId: []byte("session-id"),
 				},
 			},
-			SourceCluster: "src",
-			TargetCluster: "tgt",
+			SourceCluster: "root",
+			TargetCluster: "leaf",
 			Username:      "alice",
 		},
 	}
