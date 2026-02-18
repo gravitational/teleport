@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/internal"
@@ -58,6 +59,10 @@ type HostOutputConfig struct {
 	// Principals is a list of principals to request for the host cert.
 	Principals []string `yaml:"principals"`
 
+	// CATypes lists the CA types to export for TrustedUserCAKeys.
+	// Supported values: "user", "openssh". Defaults to ["user"].
+	CATypes []types.CertAuthType `yaml:"ca_types,omitempty"`
+
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
 	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
@@ -90,6 +95,20 @@ func (o *HostOutputConfig) CheckAndSetDefaults() error {
 	}
 	if len(o.Principals) == 0 {
 		return trace.BadParameter("at least one principal must be specified")
+	}
+
+	if len(o.CATypes) == 0 {
+		o.CATypes = []types.CertAuthType{types.UserCA}
+	}
+
+	for idx, caType := range o.CATypes {
+		switch caType {
+		case types.UserCA, types.OpenSSHCA:
+		case "":
+			return trace.BadParameter("ca_types[%d] must not be empty", idx)
+		default:
+			return trace.BadParameter("ca_types[%d] (%q) is unsupported", idx, caType)
+		}
 	}
 
 	return nil

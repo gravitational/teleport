@@ -186,19 +186,21 @@ func (s *HostOutputService) generate(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	userCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.UserCA, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	exportedCAs, err := exportSSHUserCAs(userCAs, clusterName)
-	if err != nil {
-		return trace.Wrap(err)
+	var exportedCAs strings.Builder
+	for _, caType := range s.cfg.CATypes {
+		userCAs, err := s.botAuthClient.GetCertAuthorities(ctx, caType, false)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		caBlock, err := exportSSHUserCAs(userCAs, clusterName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		exportedCAs.WriteString(caBlock)
 	}
 
 	userCAPath := SSHHostCertPath + SSHHostUserCASuffix
-	if err := s.cfg.Destination.Write(ctx, userCAPath, []byte(exportedCAs)); err != nil {
+	if err := s.cfg.Destination.Write(ctx, userCAPath, []byte(exportedCAs.String())); err != nil {
 		return trace.Wrap(err)
 	}
 
