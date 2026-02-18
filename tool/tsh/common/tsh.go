@@ -1943,6 +1943,22 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.config.run(&cf)
 	case gitCmd.clone.FullCommand():
 		err = gitCmd.clone.run(&cf)
+	case beamsCmd.ls.FullCommand():
+		err = beamsCmd.ls.run(&cf)
+	case beamsCmd.add.FullCommand():
+		err = beamsCmd.add.run(&cf)
+	case beamsCmd.rm.FullCommand():
+		err = beamsCmd.rm.run(&cf)
+	case beamsCmd.shell.FullCommand():
+		err = beamsCmd.shell.run(&cf)
+	case beamsCmd.mount.FullCommand():
+		err = beamsCmd.mount.run(&cf)
+	case beamsCmd.unmount.FullCommand():
+		err = beamsCmd.unmount.run(&cf)
+	case beamsCmd.allow.FullCommand():
+		err = beamsCmd.allow.run(&cf)
+	case beamsCmd.deny.FullCommand():
+		err = beamsCmd.deny.run(&cf)
 	case pivCmd.agent.FullCommand():
 		err = pivCmd.agent.run(&cf)
 	case mcpCmd.dbStart.FullCommand():
