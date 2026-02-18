@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/autoupdate"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/packaging"
 )
 
@@ -211,8 +210,7 @@ func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *Upd
 // the `webapi/find` handler, which stores information about the required client tools version to
 // operate with this cluster. It returns the semantic version that needs updating and whether
 // re-execution is necessary, by re-execution flag we understand that update and re-execute is required.
-func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bool) (response *UpdateResponse, err error) {
-	proxyHost := utils.TryHost(proxyAddr)
+func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bool) (config *ClusterConfig, reExec bool, err error) {
 	// Check if the user has requested a specific version of client tools.
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
 	// If we are re-executed, we ignore the "off" version because some previous Teleport versions
@@ -224,38 +222,26 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 	switch requestedVersion {
 	// The user has turned off any form of automatic updates.
 	case teleportToolsVersionEnvDisabled:
-		return &UpdateResponse{Version: "", ReExec: false}, nil
+		return &ClusterConfig{}, false, nil
 	// Requested version already the same as client version.
 	case u.localVersion:
-		if err := UpdateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
-			ctc.SetConfig(proxyHost, requestedVersion, false)
-			return nil
-		}); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &UpdateResponse{Version: u.localVersion, ReExec: false}, nil
+		return &ClusterConfig{Version: requestedVersion}, false, nil
 	// No requested version, we continue.
 	case "":
 	// Requested version that is not the local one.
 	default:
 		if _, err := semver.NewVersion(requestedVersion); err != nil {
-			return nil, trace.Wrap(err, "checking that request version is semantic")
+			return nil, false, trace.Wrap(err, "checking that request version is semantic")
 		}
 		// If the environment variable is set during a remote check,
 		// prioritize this version for the current host and use it as the default
 		// for all commands under the current profile.
-		if err := UpdateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
-			ctc.SetConfig(proxyHost, requestedVersion, false)
-			return nil
-		}); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &UpdateResponse{Version: requestedVersion, ReExec: true}, nil
+		return &ClusterConfig{Version: requestedVersion}, true, nil
 	}
 
 	certPool, err := x509.SystemCertPool()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, false, trace.Wrap(err)
 	}
 	resp, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
@@ -265,28 +251,30 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 		Insecure:  insecure,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, false, trace.Wrap(err)
 	}
-
-	updateResp := &UpdateResponse{Version: u.localVersion, ReExec: false}
 
 	switch {
 	case !resp.AutoUpdate.ToolsAutoUpdate || resp.AutoUpdate.ToolsVersion == "":
-		updateResp = &UpdateResponse{Version: u.localVersion, ReExec: false, Disabled: true}
+		config, reExec = &ClusterConfig{Version: u.localVersion, Disabled: true}, false
 	case u.localVersion == resp.AutoUpdate.ToolsVersion:
-		updateResp = &UpdateResponse{Version: u.localVersion, ReExec: false}
+		config, reExec = &ClusterConfig{Version: u.localVersion}, false
 	default:
-		updateResp = &UpdateResponse{Version: resp.AutoUpdate.ToolsVersion, ReExec: true}
+		config, reExec = &ClusterConfig{Version: resp.AutoUpdate.ToolsVersion}, true
 	}
 
-	if err := UpdateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
-		ctc.SetConfig(proxyHost, updateResp.Version, updateResp.Disabled)
+	return config, reExec, nil
+}
+
+// SaveConfig persists the configuration that stores version information and
+// the managed updates enablement status for a specific proxy host.
+func (u *Updater) SaveConfig(proxyHost string, config *ClusterConfig) error {
+	err := UpdateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
+		ctc.SetConfig(proxyHost, config.Version, config.Disabled)
 		return nil
-	}); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	})
 
-	return updateResp, nil
+	return trace.Wrap(err)
 }
 
 // Update acquires filesystem lock, downloads requested version package, unarchive, replace
