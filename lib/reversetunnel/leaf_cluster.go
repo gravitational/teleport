@@ -1022,9 +1022,8 @@ func (s *leafCluster) chanTransportConn(req *sshutils.DialReq) (*sshutils.ChConn
 	return conn, nil
 }
 
-// SyncValidatedMFAChallenges monitors for ValidatedMFAChallenge resources in the root cluster and replicates them to
-// the leaf cluster. This is needed to support MFA challenges in leaf clusters, as the challenges are created in the
-// root cluster but need to be validated in the leaf cluster.
+// SyncValidatedMFAChallenges runs a loop that watches for changes to ValidatedMFAChallenge resources in the root
+// cluster and syncs them to the leaf cluster.
 func (s *leafCluster) SyncValidatedMFAChallenges(
 	ctx context.Context,
 	cfg retryutils.LinearConfig,
@@ -1039,18 +1038,17 @@ func (s *leafCluster) SyncValidatedMFAChallenges(
 		retry.For(
 			ctx,
 			func() error {
-				// Ensure the watcher is fully initialized before processing events.
 				if err := watcher.WaitInitialization(); err != nil {
 					return trace.Wrap(err)
 				}
 
-				s.logger.DebugContext(
-					ctx,
-					"Watching for ValidatedMFAChallenge changes in root cluster to replicate to leaf cluster",
-					"cluster", s.GetName(),
-				)
-
 				for {
+					s.logger.DebugContext(
+						ctx,
+						"Watching for ValidatedMFAChallenge events in root cluster to replicate to leaf cluster",
+						"cluster", s.GetName(),
+					)
+
 					select {
 					case <-ctx.Done():
 						return nil
@@ -1082,7 +1080,7 @@ func (s *leafCluster) SyncValidatedMFAChallenges(
 							ctx,
 							"Successfully synced ValidatedMFAChallenge resources to leaf cluster",
 							"cluster", s.GetName(),
-							"challenge_count", count,
+							"replicated_count", count,
 						)
 
 						// Sync was successful, reset the retry to clear any accumulated backoff.
@@ -1095,7 +1093,7 @@ func (s *leafCluster) SyncValidatedMFAChallenges(
 }
 
 // syncValidatedMFAChallenges performs a one-time synchronization of ValidatedMFAChallenge resources from the root
-// cluster to the leaf cluster.
+// cluster to the leaf cluster and returns the count of resources that were replicated.
 func (s *leafCluster) syncValidatedMFAChallenges(ctx context.Context) (int, error) {
 	challenges, err := s.validatedMFAChallengeWatcher.CurrentResourcesWithFilter(
 		ctx,
@@ -1108,13 +1106,16 @@ func (s *leafCluster) syncValidatedMFAChallenges(ctx context.Context) (int, erro
 		return 0, trace.Wrap(err)
 	}
 
-	count := 0
+	replicatedCount := 0
+
 	for _, challenge := range challenges {
 		// If the resource has already expired, skip it as there's no need to replicate it.
 		if challenge.GetMetadata().Expiry().Before(s.clock.Now()) {
 			continue
 		}
 
+		// Replicate the resource to the leaf cluster. If the resource already exists in the leaf cluster, it is because
+		// it was replicated from a previous sync, so we can ignore the error and move on to the next one.
 		if _, err := s.leafClient.MFAServiceClient().ReplicateValidatedMFAChallenge(
 			ctx,
 			&mfav1.ReplicateValidatedMFAChallengeRequest{
@@ -1126,10 +1127,11 @@ func (s *leafCluster) syncValidatedMFAChallenges(ctx context.Context) (int, erro
 			},
 		); err != nil && !trace.IsAlreadyExists(err) {
 			return 0, trace.Wrap(err)
+		} else if err == nil {
+			// Only increment the count if the replication was successfully done in this sync.
+			replicatedCount++
 		}
-
-		count++
 	}
 
-	return count, nil
+	return replicatedCount, nil
 }

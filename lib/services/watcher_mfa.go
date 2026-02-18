@@ -42,6 +42,7 @@ type ValidatedMFAChallengeLister interface {
 // ValidatedMFAChallengeWatcherConfig represents the configuration for a ValidatedMFAChallengeWatcher.
 type ValidatedMFAChallengeWatcherConfig struct {
 	ValidatedMFAChallengeLister ValidatedMFAChallengeLister
+	ClusterName                 string
 	ResourceWatcherConfig       *ResourceWatcherConfig
 }
 
@@ -53,6 +54,9 @@ func NewValidatedMFAChallengeWatcher(
 	switch {
 	case cfg.ValidatedMFAChallengeLister == nil:
 		return nil, trace.BadParameter("cfg.ValidatedMFAChallengeGetter must be set")
+
+	case cfg.ClusterName == "":
+		return nil, trace.BadParameter("cfg.ClusterName must be set")
 
 	case cfg.ResourceWatcherConfig == nil:
 		return nil, trace.BadParameter("cfg.ResourceWatcherConfig must be set")
@@ -68,6 +72,11 @@ func NewValidatedMFAChallengeWatcher(
 			&mfav1.ListValidatedMFAChallengesRequest{
 				PageToken: startKey,
 				PageSize:  int32(limit),
+				Filter: &mfav1.ListValidatedMFAChallengesFilter{
+					XTargetCluster: &mfav1.ListValidatedMFAChallengesFilter_TargetCluster{
+						TargetCluster: cfg.ClusterName,
+					},
+				},
 			},
 		)
 		if err != nil {
