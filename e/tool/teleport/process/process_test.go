@@ -19,24 +19,15 @@ import (
 )
 
 func TestProxyWithoutLicense(t *testing.T) {
-	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{})
-	require.NoError(t, err)
-
-	config := &servicecfg.Config{
-		DataDir: t.TempDir(),
-		Proxy: servicecfg.ProxyConfig{
-			Enabled: true,
-		},
-		Auth: servicecfg.AuthConfig{
-			Enabled:    false,
-			Preference: authPreference,
-		},
-		Logger: logtest.With("test", t.Name()),
-	}
+	config := servicecfg.MakeDefaultConfig()
+	config.DataDir = t.TempDir()
+	config.Auth.Enabled = false
+	config.Auth.Preference = types.DefaultAuthPreference()
+	config.SSH.Enabled = false
 
 	config.SetAuthServerAddress(*utils.MustParseAddr("tcp://127.0.0.1:8080"))
 
-	_, err = NewTeleport(config)
+	_, err := NewTeleport(config)
 	require.NoError(t, err)
 }
 
