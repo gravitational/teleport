@@ -39,7 +39,7 @@ func (q *queryBuilder) buildUserQuery(query string) (string, error) {
 	// Since a query can be provided by the user we don't take any extract measure to forbid SQL Injection.
 	// Though we guarantee that the query is executed in the context of the virtual view
 	// and Athena client IAM permission allow only read access to athena audit event table.
-	q.sb.WriteString(fmt.Sprintf("\n%s", query))
+	fmt.Fprintf(&q.sb, "\n%s", query)
 	return q.sb.String(), nil
 }
 
@@ -65,10 +65,10 @@ func (q *queryBuilder) buildDynamicVirtualViews(table string, daysInterval int) 
 		viewQuery := fmt.Sprintf(viewQueryFmt, query, daysInterval)
 		if i == 0 {
 			// The first view is created using 'WITH view_name AS (SELECT)' statement.
-			q.sb.WriteString(fmt.Sprintf("WITH %s AS (\n %s\n)", v.SQLViewName, viewQuery))
+			fmt.Fprintf(&q.sb, "WITH %s AS (\n %s\n)", v.SQLViewName, viewQuery)
 		} else {
 			// The rest of the views are appended using ', view_name AS (SELECT) statement'.
-			q.sb.WriteString(fmt.Sprintf(",\n %s AS (\n %s)", v.SQLViewName, viewQuery))
+			fmt.Fprintf(&q.sb, ",\n %s AS (\n %s)", v.SQLViewName, viewQuery)
 		}
 	}
 	q.sb.WriteString("\n")
