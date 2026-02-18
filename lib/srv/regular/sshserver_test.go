@@ -187,11 +187,9 @@ func (f *sshTestFixture) newSSHClient(ctx context.Context, t testing.TB, user *u
 
 func setChildLogConfigForTest() ServerOption {
 	return func(s *Server) error {
-		level := new(slog.LevelVar)
-		level.Set(slog.LevelDebug)
 		s.childLogConfig = &srv.ChildLogConfig{
 			ExecLogConfig: srv.ExecLogConfig{
-				Level: level,
+				Level: slog.LevelDebug,
 			},
 			Writer: os.Stderr,
 		}

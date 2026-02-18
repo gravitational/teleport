@@ -108,8 +108,12 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 	scx.cmdr, scx.cmdw, err = os.Pipe()
 	require.NoError(t, err)
 
-	_, scx.logw, err = os.Pipe()
-	require.NoError(t, err)
+	logCfgWriter := srv.ChildLogConfig().Writer
+	if fileWriter, ok := logCfgWriter.(*os.File); ok {
+		scx.logw = fileWriter
+	} else {
+		require.NoError(t, scx.streamChildLogs(logCfgWriter))
+	}
 
 	scx.contr, scx.contw, err = os.Pipe()
 	require.NoError(t, err)
@@ -345,9 +349,10 @@ func (m *mockServer) GetSELinuxEnabled() bool {
 func (m *mockServer) ChildLogConfig() ChildLogConfig {
 	return ChildLogConfig{
 		ExecLogConfig: ExecLogConfig{
-			Level: &slog.LevelVar{},
+			Level:  slog.LevelDebug,
+			Format: "json",
 		},
-		Writer: io.Discard,
+		Writer: os.Stdout,
 	}
 }
 
