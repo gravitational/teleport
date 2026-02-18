@@ -2243,6 +2243,7 @@ export type Events = {
     code: key;
     codeDesc: string;
     raw: RawEvents[key];
+    eventIndex: number;
   };
 };
 
