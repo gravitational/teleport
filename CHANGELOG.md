@@ -1,5 +1,11 @@
 # Changelog
 
+## 17.7.20 (02/18/26)
+
+* Fixed out of sequent audit logs rendering in ui for same timestamp logs. [#63819](https://github.com/gravitational/teleport/pull/63819)
+* Fixed `tsh kubectl` failing when kubectl flags appear before positional arguments (e.g., `tsh kubectl -n default get pod`). [#63808](https://github.com/gravitational/teleport/pull/63808)
+* Fixed a bug that could cause Windows desktops discovered via LDAP to be removed in error. [#62472](https://github.com/gravitational/teleport/pull/62472)
+
 ## 17.7.19 (02/10/26)
 
 Enterprise:
