@@ -80,6 +80,7 @@ type Config struct {
 	DatabaseObjects         services.DatabaseObjects
 	DatabaseServices        services.DatabaseServices
 	Databases               services.Databases
+	DelegationSessions      services.DelegationSessions
 	DiscoveryConfigs        services.DiscoveryConfigs
 	DynamicAccess           services.DynamicAccessCore
 	Events                  types.Events

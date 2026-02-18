@@ -5122,6 +5122,9 @@ message Identity {
   // Differs from AllowedResourceIDs, which only identifies resources and cannot be used
   // to express additional information per-resource such as ResourceConstraints.
   repeated ResourceAccessID AllowedResourceAccessIDs = 32 [(gogoproto.nullable) = false];
+  // DelegationSessionID is the identifier of the DelegationSession, when access
+  // delegation is being used to lend the user's access to a bot or workload.
+  string DelegationSessionID = 36 [(gogoproto.jsontag) = "delegation_session_id,omitempty"];
 }
 
 // ScopePin is a marker that identifies a certificate/identity as being "pinned" to a target scope, and encodes relevant

@@ -385,16 +385,17 @@ func LockTargetsToProto(targets []types.LockTarget) []*decisionpb.LockTarget {
 
 func lockTargetToProto(target types.LockTarget) *decisionpb.LockTarget {
 	return &decisionpb.LockTarget{
-		User:           target.User,
-		Role:           target.Role,
-		Login:          target.Login,
-		MfaDevice:      target.MFADevice,
-		WindowsDesktop: target.WindowsDesktop,
-		AccessRequest:  target.AccessRequest,
-		Device:         target.Device,
-		ServerId:       target.ServerID,
-		BotInstanceId:  target.BotInstanceID,
-		JoinToken:      target.JoinToken,
+		User:                target.User,
+		Role:                target.Role,
+		Login:               target.Login,
+		MfaDevice:           target.MFADevice,
+		WindowsDesktop:      target.WindowsDesktop,
+		AccessRequest:       target.AccessRequest,
+		Device:              target.Device,
+		ServerId:            target.ServerID,
+		BotInstanceId:       target.BotInstanceID,
+		JoinToken:           target.JoinToken,
+		DelegationSessionId: target.DelegationSessionID,
 	}
 }
 
@@ -409,16 +410,17 @@ func LockTargetsFromProto(targets []*decisionpb.LockTarget) []types.LockTarget {
 
 func lockTargetFromProto(target *decisionpb.LockTarget) types.LockTarget {
 	return types.LockTarget{
-		User:           target.User,
-		Role:           target.Role,
-		Login:          target.Login,
-		MFADevice:      target.MfaDevice,
-		WindowsDesktop: target.WindowsDesktop,
-		AccessRequest:  target.AccessRequest,
-		Device:         target.Device,
-		ServerID:       target.ServerId,
-		BotInstanceID:  target.BotInstanceId,
-		JoinToken:      target.JoinToken,
+		User:                target.User,
+		Role:                target.Role,
+		Login:               target.Login,
+		MFADevice:           target.MfaDevice,
+		WindowsDesktop:      target.WindowsDesktop,
+		AccessRequest:       target.AccessRequest,
+		Device:              target.Device,
+		ServerID:            target.ServerId,
+		BotInstanceID:       target.BotInstanceId,
+		JoinToken:           target.JoinToken,
+		DelegationSessionID: target.DelegationSessionId,
 	}
 }
 

@@ -61,6 +61,7 @@ func (c *LockCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	c.mainCmd.Flag("server-id", "UUID of a Teleport server to disable.").StringVar(&c.spec.Target.ServerID)
 	c.mainCmd.Flag("bot-instance-id", "UUID of a bot instance to disable").StringVar(&c.spec.Target.BotInstanceID)
 	c.mainCmd.Flag("join-token", "Bot join token name to disable").StringVar(&c.spec.Target.JoinToken)
+	c.mainCmd.Flag("delegation-session-id", "Delegation Session ID to disable").StringVar(&c.spec.Target.DelegationSessionID)
 }
 
 // TryRun attempts to run subcommands.

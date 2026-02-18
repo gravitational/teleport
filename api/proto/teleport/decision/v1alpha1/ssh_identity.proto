@@ -176,6 +176,9 @@ message SSHIdentity {
   // When present, AllowedResourceAccessIDs should be treated as authoritative
   // (ResourceIDs can be derived by mapping to ResourceAccessID.id).
   repeated types.ResourceAccessID allowed_resource_access_ids = 37;
+  // DelegationSessionID is the identifier of the DelegationSession, when access
+  // delegation is being used to lend the user's access to a bot or workload.
+  string delegation_session_id = 38;
 }
 
 // CertExtensionMode specifies the type of extension to use in the cert. This type
