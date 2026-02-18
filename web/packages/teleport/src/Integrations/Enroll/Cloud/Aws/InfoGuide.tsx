@@ -45,7 +45,11 @@ export type InfoGuideTab = 'info' | 'terraform' | null;
 export const ContentWithSidePanel = styled(Box)<{
   isPanelOpen: boolean;
   panelWidth: number;
+  contentMinWidth?: number;
 }>`
+  min-width: ${props =>
+    props.contentMinWidth ? `${props.contentMinWidth}px` : '650px'};
+
   ${props =>
     marginTransitionCss({
       sidePanelOpened: props.isPanelOpen,

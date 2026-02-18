@@ -1487,9 +1487,10 @@ func TestEnterpriseServicesEnabled(t *testing.T) {
 			if tt.enterprise {
 				buildType = modules.BuildEnterprise
 			}
-			modulestest.SetTestModules(t, modulestest.Modules{
+
+			tt.config.Modules = &modulestest.Modules{
 				TestBuildType: buildType,
-			})
+			}
 
 			process := &TeleportProcess{
 				Config: tt.config,
@@ -1635,6 +1636,8 @@ func TestDebugService(t *testing.T) {
 	log := logtest.NewLogger()
 
 	localRegistry := prometheus.NewRegistry()
+	processRegistry, err := metrics.NewRegistry(localRegistry, teleport.MetricNamespace, "")
+	require.NoError(t, err)
 	additionalRegistry := prometheus.NewRegistry()
 
 	// In this test we don't want to spin a whole process and have to wait for
@@ -1646,7 +1649,7 @@ func TestDebugService(t *testing.T) {
 		Config:          cfg,
 		Clock:           fakeClock,
 		logger:          log,
-		metricsRegistry: localRegistry,
+		metricsRegistry: processRegistry,
 		SyncGatherers:   metrics.NewSyncGatherers(localRegistry, prometheus.DefaultGatherer),
 		Supervisor:      supervisor,
 	}
@@ -2130,6 +2133,8 @@ func TestDiagnosticsService(t *testing.T) {
 
 	log := logtest.NewLogger()
 	localRegistry := prometheus.NewRegistry()
+	processRegistry, err := metrics.NewRegistry(localRegistry, teleport.MetricNamespace, "")
+	require.NoError(t, err)
 	additionalRegistry := prometheus.NewRegistry()
 
 	// In this test we don't want to spin a whole process and have to wait for
@@ -2141,7 +2146,7 @@ func TestDiagnosticsService(t *testing.T) {
 		Config:          cfg,
 		Clock:           fakeClock,
 		logger:          log,
-		metricsRegistry: localRegistry,
+		metricsRegistry: processRegistry,
 		SyncGatherers:   metrics.NewSyncGatherers(localRegistry, prometheus.DefaultGatherer),
 		Supervisor:      supervisor,
 	}

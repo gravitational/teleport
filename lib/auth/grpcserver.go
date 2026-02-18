@@ -64,6 +64,7 @@ import (
 	discoveryconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	dynamicwindowsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	gitserverv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
+	grpcv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/grpcclientconfig/v1"
 	healthcheckconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	integrationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	inventorypb "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
@@ -109,6 +110,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
 	"github.com/gravitational/teleport/lib/auth/dynamicwindows/dynamicwindowsv1"
 	"github.com/gravitational/teleport/lib/auth/gitserver/gitserverv1"
+	"github.com/gravitational/teleport/lib/auth/grpcclientconfig/grpcclientconfigv1"
 	"github.com/gravitational/teleport/lib/auth/healthcheckconfig/healthcheckconfigv1"
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/inventory/inventoryv1"
@@ -6203,6 +6205,12 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err, "creating scoped provisioning service")
 	}
 	scopedjoiningv1.RegisterScopedJoiningServiceServer(server, scopedJoining)
+
+	grpcClientConfigService, err := grpcclientconfigv1.NewService()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	grpcv1pb.RegisterServiceConfigDiscoveryServiceServer(server, grpcClientConfigService)
 
 	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,

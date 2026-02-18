@@ -57,7 +57,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/services"
@@ -139,6 +138,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 			tracer:             cfg.tracer,
 			resolver:           cfg.HostNameResolver,
 			sshDialTimeout:     cfg.SSHDialTimeout,
+			fipsBuild:          cfg.FIPSBuild,
 		},
 		displayLogin:    cfg.DisplayLogin,
 		term:            cfg.Term,
@@ -205,6 +205,8 @@ type TerminalHandlerConfig struct {
 	WebsocketConn *websocket.Conn
 	// SSHDialTimeout is the dial timeout that should be enforced on ssh connections.
 	SSHDialTimeout time.Duration
+	// FIPSBuild indicates if this is a Teleport FIPS build.
+	FIPSBuild bool
 }
 
 func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
@@ -296,6 +298,8 @@ type sshBaseHandler struct {
 	// sshDialTimeout is the maximum time to wait for an SSH connection
 	// to be established before aborting.
 	sshDialTimeout time.Duration
+	// fipsBuild indicates if this is a Teleport FIPS build.
+	fipsBuild bool
 }
 
 // localAccessPoint is a subset of the cache used to look up
@@ -937,7 +941,7 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, scopePin *scopesv1.P
 	clt, err := client.NewNodeClient(ctx, sshConfig, conn,
 		net.JoinHostPort(t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort)),
 		t.sessionData.ServerHostname,
-		tc, modules.GetModules().IsBoringBinary())
+		tc, t.fipsBuild)
 	if err != nil {
 		// The close error is ignored instead of using [trace.NewAggregate] because
 		// aggregate errors do not allow error inspection with things like [trace.IsAccessDenied].
@@ -996,7 +1000,7 @@ func (t *sshBaseHandler) connectToNodeWithMFABase(ctx context.Context, scopePin 
 	nc, err := client.NewNodeClient(ctx, sshConfig, conn,
 		net.JoinHostPort(t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort)),
 		t.sessionData.ServerHostname,
-		tc, modules.GetModules().IsBoringBinary())
+		tc, t.fipsBuild)
 	if err != nil {
 		return nil, trace.NewAggregate(err, conn.Close())
 	}
