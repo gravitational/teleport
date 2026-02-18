@@ -77,7 +77,7 @@ func createScopedToken(ctx context.Context, client *authclient.Client, raw servi
 	var token *joiningv1.ScopedToken
 	if opts.Force {
 		token, err = client.UpsertScopedToken(ctx, r)
-		verb = "upserted"
+		verb = "updated"
 	} else {
 		token, err = client.CreateScopedToken(ctx, r)
 	}
