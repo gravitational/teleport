@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -190,23 +191,13 @@ func ParseTeleportRoles(str string) (SystemRoles, error) {
 
 // Include returns 'true' if a given list of teleport roles includes a given role
 func (roles SystemRoles) Include(role SystemRole) bool {
-	for _, r := range roles {
-		if r == role {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(roles, role)
 }
 
 // IncludeAny returns 'true' if a given list of teleport roles includes any of
 // the given candidate roles.
 func (roles SystemRoles) IncludeAny(candidates ...SystemRole) bool {
-	for _, r := range candidates {
-		if roles.Include(r) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(candidates, roles.Include)
 }
 
 // StringSlice returns teleport roles as string slice
