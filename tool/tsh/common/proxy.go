@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/client"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -136,14 +137,28 @@ func formatCommand(cmd *exec.Cmd) string {
 }
 
 func onProxyCommandDB(cf *CLIConf) error {
+	// If we are using headless auth, there are no secrets written to disk
+	// for the database client to use, so --tunnel is required.
+	if (cf.AuthConnector == constants.HeadlessConnector || cf.Headless) && !cf.LocalProxyTunnel {
+		return trace.BadParameter("--headless/--auth=headless must be used with --tunnel")
+	}
+
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := tc.ProfileStatus()
+
+	tc.AllowHeadless = true
+
+	var profile *client.ProfileStatus
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		profile, err = tc.ProfileStatus()
+		return trace.Wrap(err)
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	routes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
