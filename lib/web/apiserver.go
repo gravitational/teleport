@@ -455,19 +455,19 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build the proxy address list for app routing. Fall back to the
-	// cluster name when proxy_service.public_addr is not configured,
-	// matching the fallback in redirectToLauncher.
+	// Build the proxy address list for app routing. When
+	// proxy_service.public_addr is not configured, only activate the
+	// cluster-name fallback if the request host is a subdomain of the
+	// cluster name. This avoids misclassifying requests that arrive on
+	// a different hostname (e.g. behind a load balancer) as app requests.
 	proxyAddrs := h.handler.cfg.ProxyPublicAddrs
 	if len(proxyAddrs) == 0 && h.appHandler != nil {
 		clusterName := h.handler.auth.clusterName
-		if clusterName != "" {
-			addr, err := utils.ParseAddr(r.Host)
-			if err == nil {
-				port := addr.Port(443)
-				host := net.JoinHostPort(clusterName, strconv.Itoa(port))
-				proxyAddrs = []utils.NetAddr{{Addr: host}}
-			}
+		raddr, err := utils.ParseAddr(r.Host)
+		if err == nil && clusterName != "" && strings.HasSuffix(raddr.Host(), "."+clusterName) {
+			port := raddr.Port(443)
+			host := net.JoinHostPort(clusterName, strconv.Itoa(port))
+			proxyAddrs = []utils.NetAddr{{Addr: host}}
 		}
 	}
 
