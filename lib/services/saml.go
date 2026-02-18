@@ -57,6 +57,10 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.
 		opt(&options)
 	}
 
+	// WARNING: this validation runs on the read and write paths, which means it
+	// is NOT safe to add new validations here that could invalidate existing
+	// connectors.
+
 	if err := CheckAndSetDefaults(sc); err != nil {
 		return trace.Wrap(err)
 	}
