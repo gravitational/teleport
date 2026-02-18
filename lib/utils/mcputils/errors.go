@@ -26,6 +26,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// sseEventNoDataErr raise when a received SSE event has no data.
+var sseEventNoDataErr = errors.New("SSE event contains no data information")
+
 // IsOKCloseError checks if provided error is a common close error that
 // indicates the connection is ended.
 func IsOKCloseError(err error) bool {
