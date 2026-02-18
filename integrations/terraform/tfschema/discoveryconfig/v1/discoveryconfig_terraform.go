@@ -252,6 +252,11 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 								},
+								"force_installation": {
+									Description: "ForceInstallation indicates that the installation can override existing Teleport installations. This is an experimental option and should be used with caution.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
 								"http_proxy_settings": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										"http_proxy": {
@@ -406,6 +411,11 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 								},
+								"force_installation": {
+									Description: "ForceInstallation indicates that the installation can override existing Teleport installations. This is an experimental option and should be used with caution.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
 								"http_proxy_settings": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										"http_proxy": {
@@ -530,6 +540,11 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 									Description: "EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+								},
+								"force_installation": {
+									Description: "ForceInstallation indicates that the installation can override existing Teleport installations. This is an experimental option and should be used with caution.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 								},
 								"http_proxy_settings": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -1300,6 +1315,23 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 																		}
 																	}
 																}
+																{
+																	a, ok := tf.Attrs["force_installation"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.aws.Params.ForceInstallation"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.ForceInstallation", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																		} else {
+																			var t bool
+																			if !v.Null && !v.Unknown {
+																				t = bool(v.Value)
+																			}
+																			obj.ForceInstallation = t
+																		}
+																	}
+																}
 															}
 														}
 													}
@@ -1912,6 +1944,23 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 																		}
 																	}
 																}
+																{
+																	a, ok := tf.Attrs["force_installation"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.azure.Params.ForceInstallation"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.ForceInstallation", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																		} else {
+																			var t bool
+																			if !v.Null && !v.Unknown {
+																				t = bool(v.Value)
+																			}
+																			obj.ForceInstallation = t
+																		}
+																	}
+																}
 															}
 														}
 													}
@@ -2345,6 +2394,23 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 																					}
 																				}
 																			}
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["force_installation"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.gcp.Params.ForceInstallation"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.ForceInstallation", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																		} else {
+																			var t bool
+																			if !v.Null && !v.Unknown {
+																				t = bool(v.Value)
+																			}
+																			obj.ForceInstallation = t
 																		}
 																	}
 																}
@@ -3748,6 +3814,28 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 																	}
 																}
 															}
+															{
+																t, ok := tf.AttrTypes["force_installation"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.aws.Params.ForceInstallation"})
+																} else {
+																	v, ok := tf.Attrs["force_installation"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Params.ForceInstallation", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.ForceInstallation", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																		}
+																		v.Null = bool(obj.ForceInstallation) == false
+																	}
+																	v.Value = bool(obj.ForceInstallation)
+																	v.Unknown = false
+																	tf.Attrs["force_installation"] = v
+																}
+															}
 														}
 														v.Unknown = false
 														tf.Attrs["install"] = v
@@ -4721,6 +4809,28 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 																	}
 																}
 															}
+															{
+																t, ok := tf.AttrTypes["force_installation"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.azure.Params.ForceInstallation"})
+																} else {
+																	v, ok := tf.Attrs["force_installation"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.azure.Params.ForceInstallation", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.ForceInstallation", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																		}
+																		v.Null = bool(obj.ForceInstallation) == false
+																	}
+																	v.Value = bool(obj.ForceInstallation)
+																	v.Unknown = false
+																	tf.Attrs["force_installation"] = v
+																}
+															}
 														}
 														v.Unknown = false
 														tf.Attrs["install_params"] = v
@@ -5402,6 +5512,28 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 																		v.Unknown = false
 																		tf.Attrs["http_proxy_settings"] = v
 																	}
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["force_installation"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.gcp.Params.ForceInstallation"})
+																} else {
+																	v, ok := tf.Attrs["force_installation"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.gcp.Params.ForceInstallation", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.ForceInstallation", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																		}
+																		v.Null = bool(obj.ForceInstallation) == false
+																	}
+																	v.Value = bool(obj.ForceInstallation)
+																	v.Unknown = false
+																	tf.Attrs["force_installation"] = v
 																}
 															}
 														}

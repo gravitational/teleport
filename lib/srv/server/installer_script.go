@@ -67,6 +67,13 @@ func envVarsFromInstallerParams(params *types.InstallerParams) []string {
 		}
 	}
 
+	// When this parameter is set, the installation flow will be less cautios about existing installations.
+	if params.ForceInstallation {
+		// TELEPORT_ALLOW_PROXY_CONFLICT allows `teleport-update enable` to proceed even if there is a mismatch between the proxy addresses in teleport.yaml and the one being set by the installation script.
+		// Required when there's an existing teleport configuration with a different proxy address, but the user still wants to proceed with the installation and update configuration.
+		envVars = append(envVars, "TELEPORT_ALLOW_PROXY_CONFLICT=true")
+	}
+
 	return envVars
 }
 

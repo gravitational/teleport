@@ -5161,6 +5161,44 @@ func TestDiscoveryConfig(t *testing.T) {
 				},
 			}},
 		},
+
+		{
+			desc:          "AWS section is filled force_installation param",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"*"},
+						"install": cfgMap{
+							"join_params": cfgMap{
+								"method": "iam",
+							},
+							"force_installation": true,
+						},
+					},
+				}
+			},
+			expectedAWSMatchers: []types.AWSMatcher{{
+				Types: []string{"ec2"},
+				SSM: &types.AWSSSM{
+					DocumentName: types.AWSInstallerDocument,
+				},
+				Regions: []string{"*"},
+				Tags:    map[string]apiutils.Strings{"*": {"*"}},
+				Params: &types.InstallerParams{
+					JoinMethod:        types.JoinMethodIAM,
+					JoinToken:         types.IAMInviteTokenName,
+					ScriptName:        installers.InstallerScriptName,
+					SSHDConfig:        "/etc/ssh/sshd_config",
+					InstallTeleport:   true,
+					EnrollMode:        types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+					ForceInstallation: true,
+				},
+			}},
+		},
 		{
 			desc:          "organization matcher defined for AWS discovery",
 			expectError:   require.NoError,

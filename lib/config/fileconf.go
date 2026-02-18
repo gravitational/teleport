@@ -2041,6 +2041,9 @@ type InstallParams struct {
 	UpdateGroup string `yaml:"update_group,omitempty"`
 	// HTTPProxySettings configures HTTP proxy settings for the installation.
 	HTTPProxySettings *HTTPProxySettings `yaml:"http_proxy_settings,omitempty"`
+	// ForceInstallation indicates that the installation can override existing Teleport installations.
+	// This is an experimental option and should be used with caution.
+	ForceInstallation bool `yaml:"force_installation,omitempty"`
 }
 
 // HTTPProxySettings configures HTTP proxy settings for the installation.
@@ -2064,15 +2067,16 @@ var validInstallEnrollModes = []string{installEnrollModeEICE, installEnrollModeS
 
 func (ip *InstallParams) parse(defaultProxyAddr string) (*types.InstallerParams, error) {
 	install := &types.InstallerParams{
-		JoinMethod:      ip.JoinParams.Method,
-		JoinToken:       ip.JoinParams.TokenName,
-		ScriptName:      ip.ScriptName,
-		InstallTeleport: true,
-		SSHDConfig:      ip.SSHDConfig,
-		EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED,
-		Suffix:          ip.Suffix,
-		UpdateGroup:     ip.UpdateGroup,
-		PublicProxyAddr: cmp.Or(ip.PublicProxyAddr, defaultProxyAddr),
+		JoinMethod:        ip.JoinParams.Method,
+		JoinToken:         ip.JoinParams.TokenName,
+		ScriptName:        ip.ScriptName,
+		InstallTeleport:   true,
+		SSHDConfig:        ip.SSHDConfig,
+		EnrollMode:        types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED,
+		Suffix:            ip.Suffix,
+		UpdateGroup:       ip.UpdateGroup,
+		PublicProxyAddr:   cmp.Or(ip.PublicProxyAddr, defaultProxyAddr),
+		ForceInstallation: ip.ForceInstallation,
 	}
 
 	if ip.HTTPProxySettings != nil {

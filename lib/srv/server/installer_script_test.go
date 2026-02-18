@@ -196,6 +196,16 @@ func TestInstallerScript(t *testing.T) {
 				installerScriptChecksFor("proxy.example.com:443") +
 				`bash -c "set -o pipefail; curl --silent --show-error --location https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName | bash -s my-token"`,
 		},
+		{
+			name: "with force installation enabled",
+			req: func() *types.InstallerParams {
+				req := basicParams()
+				req.ForceInstallation = true
+				return req
+			},
+			errCheck:       require.NoError,
+			expectedScript: "export TELEPORT_ALLOW_PROXY_CONFLICT=true; curl -s -L https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName | bash -s my-token",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			script, err := installerScript(t.Context(), tt.req(), tt.withOptions...)
