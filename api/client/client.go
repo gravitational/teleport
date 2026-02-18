@@ -72,6 +72,7 @@ import (
 	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -882,6 +883,11 @@ func (c *Client) BotServiceClient() machineidv1pb.BotServiceClient {
 // BotInstanceServiceClient returns an unadorned client for the bot instance service
 func (c *Client) BotInstanceServiceClient() machineidv1pb.BotInstanceServiceClient {
 	return machineidv1pb.NewBotInstanceServiceClient(c.conn)
+}
+
+// BeamsServiceClient returns an unadorned client for the beams service.
+func (c *Client) BeamsServiceClient() beamsv1.BeamsServiceClient {
+	return beamsv1.NewBeamsServiceClient(c.conn)
 }
 
 func (c *Client) SPIFFEFederationServiceClient() machineidv1pb.SPIFFEFederationServiceClient {
