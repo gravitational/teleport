@@ -1491,6 +1491,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	vnetUninstallServiceCommand := newVnetUninstallServiceCommand(app)
 
 	gitCmd := newGitCommands(app)
+	beamsCmd := newBeamsCommands(app)
 	pivCmd := newPIVCommands(app)
 	mcpCmd := newMCPCommands(app, &cf)
 
