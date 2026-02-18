@@ -7,7 +7,7 @@ state: draft
 
 ## Required Approvers
 
-* Engineering: @eriktate && @okraport 
+* Engineering: @eriktate && @okraport
 * Security: @rob-picard-teleport
 
 ## What
@@ -38,7 +38,7 @@ It could be possible to only support the helper binary if Teleport is installed 
 
 ### How the execution from memory works
 
-Executing the embedded `teleport-session` boils down to copying the binary into a file and then launching the file. The best option for this, in Linux 3.17 and later, is to use a memfd: an anonymous, memory-backed file that doesn't exist anywhere on disk and has no path, that we can create, copy the embedded binary into, _seal_ it (as described in [this article from LWN](https://lwn.net/Articles/593918/)) to make it immutable, then launch it from `/proc/<pid>/fd/<n>`. This will load the whole helper binary in memory, but given the manageable size and the significant savings in total system memory used after a single reexecution, it's likely a worthy trade. This technique is used by [`runc`](https://github.com/opencontainers/runc/) to safeguard its binary when launching itself in containers, so it has a proven track record.
+Executing the embedded `teleport-session` boils down to copying the binary into a file and then launching the file. The best option for this, in Linux 3.17 and later, is to use a memfd: an anonymous, memory-backed file that doesn't exist anywhere on disk and has no path, that we can create, copy the embedded binary into, _seal_ it (as described in [this article from LWN](https://lwn.net/Articles/593918/)) to make it immutable with the flags `F_SEAL_WRITE`, `F_SEAL_SHRINK`, `F_SEAL_GROW`, `F_SEAL_EXEC` and `F_SEAL_SEAL` (respectively to prevent writing, changing size via `ftruncate`, making the binary non-executable or changing the seals), then launch it from `/proc/<pid>/fd/<n>`. This will load the whole helper binary in memory, but given the manageable size and the significant savings in total system memory used after a single reexecution, it's likely a worthy trade. This technique is used by [`runc`](https://github.com/opencontainers/runc/) to safeguard its binary when launching itself in containers, so it has a proven track record.
 
 It's possible to compress the data for the helper binary embedded in the `teleport` binary, and decompress it as it's written to the memfd; this seems to provide a decent amount of reduction in disk space ([as explained by Filippo Valsorda](https://words.filippo.io/shrink-your-go-binaries-with-this-one-weird-trick/)) at a negligible one time cost, in terms of both CPU and memory usage.
 
