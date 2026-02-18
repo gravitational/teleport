@@ -117,7 +117,7 @@ sequenceDiagram
     browser->>proxy: PUT /webapi/mfa/browser/:request_id
   
     proxy->>auth: rpc ValidateBrowserMFAChallenge
-    auth->>auth: ValidateMFAAuthResponse()
+    auth->>auth: ValidateMFAResponse()
     auth->>auth: Encrypt WebAuthn response<br/>with secret_key
     auth-->>proxy: Return http://127.0.0.1:port/callback?response={encrypted_webauthn}
     proxy-->>browser: HTTP 200 with redirect URL
@@ -164,7 +164,7 @@ attempt to use available methods in the order:
 1. Browser
 1. TOTP
 
-For all methods, expect TOTP, the client will silently fallback through each of
+For all methods, except TOTP, the client will silently fallback through each of
 the above methods until it finds one that can be completed by the client. For
 example, WebAuthn is silently skipped if no keys are available, SSO and Browser
 are silently skipped if no URL was returned. It cannot be determined if the user
@@ -521,6 +521,30 @@ message PromptMFARequest {
 message BrowserMFAChallenge {
   // client_redirect_url is the browser URL that the user will be sent to MFA
   string client_redirect_url = 1;
+}
+```
+
+```proto
+package types
+
+// MFADevice is a multi-factor authentication device, such as a security key or
+// an OTP app.
+message MFADevice {
+  ...
+
+  oneof device {
+    ...
+
+    BrowserMFADevice browser = 12;
+  }
+}
+
+// BrowserMFADevice contains details of the Browser MFA method.
+message BrowserMFADevice {
+  // connector_type is the type of the Browser connector.
+  string connector_type = 2;
+  // display_name is the display name of the Browser connector
+  string display_name = 3;
 }
 ```
 
