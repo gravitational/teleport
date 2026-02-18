@@ -22,7 +22,7 @@ import { MemoryRouter, useLocation } from 'react-router';
 import '@testing-library/jest-dom';
 import 'jest-canvas-mock';
 
-import { act, enableMswServer, render, server } from 'design/utils/testing';
+import { act, render } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
 import ConsoleCtx from 'teleport/Console/consoleContext';
@@ -32,11 +32,8 @@ import { TermEvent } from 'teleport/lib/term/enums';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import ResourceService from 'teleport/services/resources';
 import type { Session } from 'teleport/services/session';
-import { fetchUnifiedResourcesSuccess } from 'teleport/test/helpers/resources';
 
 import { DocumentDb } from './DocumentDb';
-
-enableMswServer();
 
 // Mock Terminal component to avoid WebGL errors in jsdom
 jest.mock('teleport/Console/DocumentSsh/Terminal', () => ({
@@ -57,16 +54,13 @@ const mockDatabase = {
 };
 
 beforeEach(() => {
-  server.use(
-    fetchUnifiedResourcesSuccess({
-      response: {
-        items: [mockDatabase],
-        agents: [mockDatabase],
-        startKey: '',
-        totalCount: 1,
-      },
-    })
-  );
+  jest
+    .spyOn(ResourceService.prototype, 'fetchUnifiedResources')
+    .mockResolvedValue({
+      agents: [mockDatabase],
+      startKey: '',
+      totalCount: 1,
+    });
 });
 
 afterEach(() => {
@@ -102,20 +96,10 @@ test('renders data dialog when status is waiting', async () => {
     </ContextProvider>
   );
 
-  await screen.findByText('Connect To Database');
-  expect(screen.getByText('Connect To Database')).toBeInTheDocument();
+  expect(await screen.findByText('Connect To Database')).toBeInTheDocument();
 });
 
 test('does not render data dialog when status is initialized', async () => {
-  // Use jest.spyOn for this test to avoid MSW timing issues with button clicks
-  jest
-    .spyOn(ResourceService.prototype, 'fetchUnifiedResources')
-    .mockResolvedValue({
-      agents: [mockDatabase],
-      startKey: '',
-      totalCount: 1,
-    });
-
   const { ctx, consoleCtx, tty } = getContexts();
 
   tty.socket = { send: jest.fn() } satisfies Pick<WebSocket, 'send'>;
@@ -131,7 +115,7 @@ test('does not render data dialog when status is initialized', async () => {
   const connectDialog = await screen.findByText('Connect To Database');
   expect(connectDialog).toBeInTheDocument();
 
-  const connectButton = await screen.findByText('Connect');
+  const connectButton = await screen.findByRole('button', { name: 'Connect' });
   await act(async () => {
     connectButton.click();
   });
