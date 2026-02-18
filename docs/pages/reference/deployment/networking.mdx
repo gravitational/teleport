@@ -1,6 +1,7 @@
 ---
-title: Networking
+title: Teleport Networking Reference
 description: This reference explains the networking requirements of a Teleport cluster, including its public address, ports, and support for HTTP CONNECT proxies.
+sidebar_label: Networking
 tags:
  - conceptual
  - platform-wide
@@ -14,7 +15,66 @@ manage Agents and `tbot` instances.
 This reference guide describes the networking requirements of a Teleport
 cluster.
 
-## Public address
+## Architecture overview
+
+A Teleport cluster is a distributed system consisting of components that can run
+in both public and private networks. Teleport also supports fully air-gapped
+environments.
+
+The **Teleport Auth Service**, which manages backend data and issues
+certificates, typically runs in a private network. The **Teleport Proxy
+Service** should be the only component of your Teleport cluster that is
+addressable from the public internet, and can run in a private network as long
+as end-users can dial it.
+
+We expect all other components, including Teleport Agents and Machine & Workload
+ID Bots, to run in private networks. Components in private networks connect to
+the Teleport Proxy Service and establish reverse tunnels that the Proxy Service
+uses to communicate with them.
+
+For a comprehensive explanation of how a Teleport cluster works, see [Teleport
+Architecture](../architecture/architecture.mdx). For a glossary of terms, see
+[Core Concepts](../../core-concepts.mdx).
+
+```mermaid
+architecture-beta
+
+%% Networks
+group public_net(carbon-network-public)[Public Internet]
+group dmz_net(carbon-network-public)[DMZ or Public Subnet]
+group private_net(carbon-virtual-private-cloud)[Private Network]
+group private_net2(carbon-virtual-private-cloud)[Private Network]
+
+%% Services
+service user(carbon-user)[User] in public_net
+service proxy(teleport-logo-purple)[Teleport Proxy Service] in dmz_net
+service auth(teleport-logo-purple)[Teleport Auth Service] in private_net2
+service ssh_node(carbon-bare-metal-server)[SSH Nodes] in private_net
+service db(carbon-db2-database)[Databases] in private_net
+service agent(teleport-logo-purple)[Teleport Agents] in private_net
+service k8s(logos-kubernetes)[Kubernetes Clusters] in private_net
+service windows(carbon-virtual-desktop)[Windows Desktops] in private_net
+service webapp(carbon-code)[Web Applications] in private_net
+
+%% Connections
+junction agentconn in private_net
+junction agentconn2 in private_net
+
+user:B --> T:proxy
+
+agent:L --> R:proxy
+auth:T --> B:proxy
+
+agent:R -- L:agentconn
+agentconn:T --> B:ssh_node
+agentconn:B --> T:db
+agentconn2:L -- R:agentconn
+agentconn2:T --> B:k8s
+agentconn2:B --> T:windows
+agentconn2:R --> L:webapp
+```
+
+## Public addresses
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
