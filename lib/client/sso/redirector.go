@@ -94,6 +94,9 @@ const (
 	// on this page in order to capture the SSO MFA response regardless of what page the challenge
 	// was requested from.
 	WebMFARedirect = "/web/sso_confirm"
+
+	// WebBrowserMFAPath is the path for browser-based MFA flows.
+	WebBrowserMFAPath = "/web/mfa/browser/"
 )
 
 // RedirectorConfig is configuration for an sso redirector.

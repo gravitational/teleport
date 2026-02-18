@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/tool/common"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	"github.com/gravitational/teleport/tool/tctl/common/mfa"
 )
 
 const (
@@ -52,6 +53,7 @@ const (
 const (
 	identityFileEnvVar = "TELEPORT_IDENTITY_FILE"
 	authAddrEnvVar     = "TELEPORT_AUTH_SERVER"
+	mfaModeEnvVar      = "TELEPORT_MFA_MODE"
 )
 
 // CLICommand interface must be implemented by every CLI command
@@ -161,6 +163,11 @@ func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 		StringVar(&ccf.IdentityFilePath)
 	app.Flag("insecure", "When specifying a proxy address in --auth-server, do not verify its TLS certificate. Danger: any data you send can be intercepted or modified by an attacker.").
 		BoolVar(&ccf.Insecure)
+	modes := []string{mfa.MFAModeAuto, mfa.MFAModeCrossPlatform, mfa.MFAModePlatform, mfa.MFAModeSSO, mfa.MFAModeBrowser}
+	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA assertions (%v).", strings.Join(modes, ", "))).
+		Default(mfa.MFAModeAuto).
+		Envar(mfaModeEnvVar).
+		EnumVar(&ccf.MFAMode, modes...)
 	app.HelpFlag.Short('h')
 
 	// parse CLI commands+flags:
