@@ -35,6 +35,7 @@ import {
 } from 'teleport/services/recordings/hooks';
 import {
   RECORDING_TYPES_WITH_METADATA,
+  RECORDING_TYPES_WITH_SUMMARIES,
   VALID_RECORDING_TYPES,
 } from 'teleport/services/recordings/recordings';
 import type { RecordingWithSummaryProps } from 'teleport/SessionRecordings/view/RecordingWithSummary';
@@ -125,12 +126,16 @@ export function ViewSessionRecordingRoute({
 
   if (RecordingWithSummaryComponent) {
     return (
-      <RecordingWithSummaryComponent
-        clusterId={clusterId}
-        sessionId={sid}
-        durationMs={durationMs}
-        recordingType={recordingType}
-      />
+      <Suspense fallback={<RecordingPlayerLoading />}>
+        <ErrorBoundary fallback={player}>
+          <RecordingWithSummaryComponent
+            clusterId={clusterId}
+            sessionId={sid}
+            durationMs={durationMs}
+            recordingType={recordingType}
+          />
+        </ErrorBoundary>
+      </Suspense>
     );
   }
 

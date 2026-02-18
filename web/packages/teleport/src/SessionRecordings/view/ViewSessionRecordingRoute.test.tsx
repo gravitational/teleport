@@ -16,8 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useSuspenseQuery } from '@tanstack/react-query';
 import { screen } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
+import type { ComponentType } from 'react';
 import { MemoryRouter, Route } from 'react-router-dom';
 
 import {
@@ -35,6 +37,7 @@ import {
   type RecordingType,
   type SessionRecordingMetadata,
 } from 'teleport/services/recordings';
+import type { RecordingWithSummaryProps } from 'teleport/SessionRecordings/view/RecordingWithSummary';
 
 import { createMetadataHandler } from './mock';
 import { ViewSessionRecordingRoute } from './ViewSessionRecordingRoute';
@@ -76,14 +79,19 @@ jest.mock('./RecordingPlayer', () => ({
   ),
 }));
 
-function setupTest(initialEntry?: string) {
+function setupTest(
+  initialEntry?: string,
+  customSummaryComponent?: ComponentType<RecordingWithSummaryProps>
+) {
   const ctx = createTeleportContext();
 
   return render(
     <MemoryRouter initialEntries={initialEntry ? [initialEntry] : undefined}>
       <ContextProvider ctx={ctx}>
         <Route path={cfg.routes.player}>
-          <ViewSessionRecordingRoute />
+          <ViewSessionRecordingRoute
+            withSummaryComponent={customSummaryComponent}
+          />
         </Route>
       </ContextProvider>
     </MemoryRouter>
@@ -153,6 +161,43 @@ test('renders non-SSH recordings correctly', async () => {
         durationMs: 3600000,
       }
     )
+  );
+
+  expect(
+    await screen.findByText(
+      'RecordingPlayer: test-cluster/test-session/3600000/desktop'
+    )
+  ).toBeInTheDocument();
+});
+
+test('falls back to the player when the custom summary component fails to load', async () => {
+  jest.spyOn(console, 'error').mockImplementation(() => {});
+
+  server.use(createMetadataHandler({ ...mockMetadata, type: 'desktop' }, []));
+
+  function CustomSummaryComponent() {
+    useSuspenseQuery({
+      queryKey: ['fail'],
+      queryFn: () => {
+        throw new Error('Failed to load summary');
+      },
+    });
+
+    return null;
+  }
+
+  setupTest(
+    cfg.getPlayerRoute(
+      {
+        clusterId: 'test-cluster',
+        sid: 'test-session',
+      },
+      {
+        recordingType: 'desktop',
+        durationMs: 3600000,
+      }
+    ),
+    CustomSummaryComponent
   );
 
   expect(
