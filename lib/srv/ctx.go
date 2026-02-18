@@ -612,28 +612,36 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	if fileWriter, ok := logCfg.Writer.(*os.File); ok {
 		child.logw = fileWriter
 	} else {
-		// Create a pipe so we can pass the writing side as an *os.File to the child process.
-		// Then we can copy from the reading side to the log writer (e.g. syslog, log file w/ concurrency protection).
-		r, w, err := os.Pipe()
-		if err != nil {
-			childErr := child.Close()
-			return nil, trace.NewAggregate(err, childErr)
+		if err := child.streamChildLogs(logCfg.Writer); err != nil {
+			return nil, trace.Wrap(err)
 		}
-
-		child.logw = w
-		child.AddCloser(r)
-		child.AddCloser(w)
-
-		// Copy logs from the child process to the parent process over
-		// the pipe until it is closed by the child context.
-		go func() {
-			if _, err := io.Copy(logCfg.Writer, r); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
-				slog.ErrorContext(child.CancelContext(), "Failed to copy logs over pipe", "error", err)
-			}
-		}()
 	}
 
 	return child, nil
+}
+
+func (c *ServerContext) streamChildLogs(logCfgWriter io.Writer) error {
+	// Create a pipe so we can pass the writing side as an *os.File to the child process.
+	// Then we can copy from the reading side to the log writer (e.g. syslog, log file w/ concurrency protection).
+	r, w, err := os.Pipe()
+	if err != nil {
+		childErr := c.Close()
+		return trace.NewAggregate(err, childErr)
+	}
+
+	c.logw = w
+	c.AddCloser(r)
+	c.AddCloser(w)
+
+	// Copy logs from the child process to the parent process over
+	// the pipe until it is closed by the child context.
+	go func() {
+		if _, err := io.Copy(logCfgWriter, r); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
+			slog.ErrorContext(c.CancelContext(), "Failed to copy logs over pipe", "error", err)
+		}
+	}()
+
+	return nil
 }
 
 // Parent grants access to the connection-level context of which this
