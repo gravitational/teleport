@@ -745,7 +745,7 @@ func TestListValidatedMFAChallenges_Success(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx := authz.ContextWithUser(t.Context(), authtest.TestRemoteBuiltin(types.RoleProxy, targetCluster).I)
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleProxy).I)
 
 	resp, err := service.ListValidatedMFAChallenges(
 		ctx,
@@ -768,7 +768,7 @@ func TestListValidatedMFAChallenges_Success(t *testing.T) {
 		), "ListValidatedMFAChallenges mismatch (-want +got)")
 }
 
-func TestListValidatedMFAChallenges_NonRemoteProxyDenied(t *testing.T) {
+func TestListValidatedMFAChallenges_NonLocalProxyDenied(t *testing.T) {
 	t.Parallel()
 
 	_, service, _, user := setupAuthServer(t, nil)
@@ -780,7 +780,7 @@ func TestListValidatedMFAChallenges_NonRemoteProxyDenied(t *testing.T) {
 		PageSize: 1,
 	})
 	require.Error(t, err)
-	require.ErrorIs(t, err, trace.AccessDenied("only remote proxy identities can list validated MFA challenges"))
+	require.ErrorIs(t, err, trace.AccessDenied("only local proxy identities can list validated MFA challenges"))
 	require.Nil(t, resp)
 }
 
@@ -789,7 +789,7 @@ func TestListValidatedMFAChallenges_InvalidRequest(t *testing.T) {
 
 	_, service, _, _ := setupAuthServer(t, nil)
 
-	ctx := authz.ContextWithUser(t.Context(), authtest.TestRemoteBuiltin(types.RoleProxy, targetCluster).I)
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleProxy).I)
 
 	for _, tc := range []struct {
 		name          string
@@ -854,7 +854,7 @@ func TestListValidatedMFAChallenges_FilterByTargetCluster(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx := authz.ContextWithUser(t.Context(), authtest.TestRemoteBuiltin(types.RoleProxy, targetCluster).I)
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleProxy).I)
 
 	req := &mfav1.ListValidatedMFAChallengesRequest{
 		PageSize: 10,
@@ -873,25 +873,6 @@ func TestListValidatedMFAChallenges_FilterByTargetCluster(t *testing.T) {
 	require.Equal(t, req.GetPageSize(), mfaService.listValidatedMFAChallengesPageSize)
 	require.Equal(t, req.GetPageToken(), mfaService.listValidatedMFAChallengesPageToken)
 	require.Equal(t, req.GetFilter().GetTargetCluster(), mfaService.listValidatedMFAChallengesFilter.GetTargetCluster())
-}
-
-func TestListValidatedMFAChallenges_FilterTargetClusterNotFound(t *testing.T) {
-	t.Parallel()
-
-	_, service, _, _ := setupAuthServer(t, nil)
-
-	ctx := authz.ContextWithUser(t.Context(), authtest.TestRemoteBuiltin(types.RoleProxy, targetCluster).I)
-
-	resp, err := service.ListValidatedMFAChallenges(ctx, &mfav1.ListValidatedMFAChallengesRequest{
-		PageSize: 1,
-		Filter: &mfav1.ListValidatedMFAChallengesFilter{
-			XTargetCluster: &mfav1.ListValidatedMFAChallengesFilter_TargetCluster{
-				TargetCluster: "non-existent-cluster",
-			},
-		},
-	})
-	require.ErrorIs(t, err, trace.NotFound(`remote cluster "non-existent-cluster" is not found`))
-	require.Nil(t, resp)
 }
 
 func TestReplicateValidatedMFAChallenge_Success(t *testing.T) {
