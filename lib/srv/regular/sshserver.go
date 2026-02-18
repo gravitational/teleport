@@ -369,10 +369,8 @@ func (s *Server) ChildLogConfig() srv.ChildLogConfig {
 
 	// return a noop log configuration
 	return srv.ChildLogConfig{
-		ExecLogConfig: srv.ExecLogConfig{
-			Level: &slog.LevelVar{},
-		},
-		Writer: io.Discard,
+		ExecLogConfig: srv.ExecLogConfig{},
+		Writer:        io.Discard,
 	}
 }
 
@@ -826,7 +824,7 @@ func SetChildLogConfig(cfg *servicecfg.Config) ServerOption {
 	return func(s *Server) error {
 		s.childLogConfig = &srv.ChildLogConfig{
 			ExecLogConfig: srv.ExecLogConfig{
-				Level:        cfg.LoggerLevel,
+				Level:        cfg.LoggerLevel.Level(),
 				Format:       strings.ToLower(cfg.LogConfig.Format),
 				ExtraFields:  cfg.LogConfig.ExtraFields,
 				EnableColors: cfg.LogConfig.EnableColors,

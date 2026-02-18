@@ -191,7 +191,7 @@ type ExecCommand struct {
 // needs to be passed to the child.
 type ExecLogConfig struct {
 	// Level is the log level to use.
-	Level *slog.LevelVar
+	Level slog.Level
 	// Format defines the output format. Possible values are 'text' and 'json'.
 	Format string
 	// ExtraFields lists the output fields from KnownFormatFields. Example format: [timestamp, component, caller].
@@ -320,7 +320,6 @@ func RunCommand() (code int, err error) {
 	}
 
 	if err := auditd.SendEvent(auditd.AuditUserLogin, auditd.Success, auditdMsg); err != nil {
-		// Currently, this logs nothing. Related issue https://github.com/gravitational/teleport/issues/17318
 		slog.DebugContext(ctx, "failed to send user start event to auditd", "error", err)
 	}
 
@@ -355,6 +354,8 @@ func RunCommand() (code int, err error) {
 	// launch the shell under.
 	var pamEnvironment []string
 	if c.PAMConfig != nil {
+		slog.DebugContext(ctx, "Opening PAM context")
+
 		// Connect std{in,out,err} to the TTY if a terminal has been allocated,
 		// otherwise discard std{out,err}. If this was not done, things like MOTD
 		// would be printed for non-interactive "exec" requests.
@@ -485,7 +486,7 @@ func RunCommand() (code int, err error) {
 		// the thread as we're exiting after the child exits, and
 		// we want to avoid another goroutine getting denied due to
 		// running on this thread with a different (likely much more
-		// restrictive)SELinux context.
+		// restrictive) SELinux context.
 		runtime.LockOSThread()
 		if err := ocselinux.SetExecLabel(seContext); err != nil {
 			return teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set SELinux context")
