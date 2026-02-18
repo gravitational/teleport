@@ -278,6 +278,53 @@ Arguments:
 |---|---|---|
 |name|none (required)|Name of the beam to target.|
 
+## tsh beams exec
+
+Run a command in a running beam environment.
+
+Usage:
+
+```code
+$ tsh beams exec [<flags>] <name>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--cmd`|none (required)|Command to execute in the environment.|
+|`--dir`|root (`/`)|Directory to run the command in (optional).|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|none (required)|Name of the beam to target.|
+
+## tsh beams expose
+
+Serve an HTTP or TCP service running in a beam environment.
+
+Usage:
+
+```code
+$ tsh beams expose [<flags>] <name>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--mode`|`http`|Transport mode for the connection.|
+|`--port`|`8080`|Local beam environment port to expose.|
+|`--name`|none|Name of the exposed application (optional).|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|none (required)|Name of the beam to target.|
+
 ## tsh beams ls
 
 List running beam environments.
@@ -318,6 +365,52 @@ Arguments:
 |---|---|---|
 |name|none (required)|Name of the beam to target.|
 
+## tsh beams pull
+
+Copy a file from a running beam environment to the local filesystem.
+
+Usage:
+
+```code
+$ tsh beams pull [<flags>] <name>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--local`|none (required)|Local copy location.|
+|`--remote`|none (required)|Remote file to copy.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|none (required)|Name of the beam to target.|
+
+## tsh beams push
+
+Copy a local file to a running beam environment.
+
+Usage:
+
+```code
+$ tsh beams push [<flags>] <name>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--local`|none (required)|Local file to copy.|
+|`--remote`|none (required)|Remote copy location.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|none (required)|Name of the beam to target.|
+
 ## tsh beams rm
 
 Delete a running beam environment.
@@ -333,6 +426,28 @@ Arguments:
 |Argument|Default|Description|
 |---|---|---|
 |name|none (required)|Name of the beam to delete.|
+
+## tsh beams run
+
+Run a command in an ephemeral beam environment.
+
+Usage:
+
+```code
+$ tsh beams run <command>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--dir`|root (`/`)|Directory to run the command in (optional).|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|command|none (required)|Command to execute in the environment.|
 
 ## tsh beams shell
 
@@ -371,6 +486,16 @@ Arguments:
 |Argument|Default|Description|
 |---|---|---|
 |name|none (required)|Name of the beam to target.|
+
+## tsh beams vibe
+
+Start an ephemeral vibe-coding session in a sandboxed environment.
+
+Usage:
+
+```code
+$ tsh beams vibe [<flags>]
+```
 
 ## tsh clusters
 
