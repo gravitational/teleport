@@ -2148,6 +2148,14 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			}
 		}
 
+		if application.TLS != nil {
+			app.TLS = &types.AppTLS{
+				CaPath:   application.TLS.CAPath,
+				CertPath: application.TLS.CertPath,
+				KeyPath:  application.TLS.KeyPath,
+			}
+		}
+
 		if err := app.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}

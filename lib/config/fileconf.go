@@ -2436,6 +2436,9 @@ type App struct {
 
 	// MCP contains MCP server-related configurations.
 	MCP *MCP `yaml:"mcp,omitempty"`
+
+	// TLS contains app upstream TLS configuration.
+	TLS *AppTLS `yaml:"tls,omitempty"`
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -2503,6 +2506,16 @@ type MCP struct {
 	// RunAsHostUser is the host user account under which the command will be
 	// executed. Required for stdio-based MCP servers.
 	RunAsHostUser string `yaml:"run_as_host_user,omitempty"`
+}
+
+// AppTLS contains app upstream TLS configuration.
+type AppTLS struct {
+	// CAPath defines the certifcate path of the CA used on the connection.
+	CAPath string `yaml:"ca_path,omitempty"`
+	// CertPath defines the client certificate path used on the connection.
+	CertPath string `yaml:"cert_path,omitempty"`
+	// KeyPath defines the client key path used on the connection.
+	KeyPath string `yaml:"key_path,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:

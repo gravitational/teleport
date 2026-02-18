@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"fmt"
 	"io"
 	"net"
@@ -29,6 +30,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path"
 	"sort"
 	"strings"
 	"sync"
@@ -72,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -1350,6 +1353,115 @@ func (s *Suite) checkWSResponse(t *testing.T, clientCert tls.Certificate, checkM
 	// Wait for the application server to actually stop serving before
 	// closing the test. This will make sure the server removes the listeners
 	wg.Wait()
+}
+
+// TestHandleConnectionMTLSUpstream verifies that the app service can establish
+// a mutual TLS connection with an upstream HTTPS application. The upstream
+// server uses its own CA for its server certificate and requires the app
+// service to present a valid client certificate signed by a separate client CA.
+func TestHandleConnectionMTLSUpstream(t *testing.T) {
+	// Generate a server CA and certificate for the upstream application.
+	serverCAKey, serverCACertPEM, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{Organization: []string{"test-upstream-server-ca"}},
+		nil, // dnsNames
+		1*time.Hour,
+	)
+	require.NoError(t, err)
+
+	serverCA, err := tlsca.FromKeys(serverCACertPEM, serverCAKey)
+	require.NoError(t, err)
+
+	serverKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	serverKeyPEM, err := keys.MarshalPrivateKey(serverKey)
+	require.NoError(t, err)
+
+	serverCertPEM, err := serverCA.GenerateCertificate(tlsca.CertificateRequest{
+		PublicKey: serverKey.Public(),
+		Subject:   pkix.Name{CommonName: "127.0.0.1"},
+		NotAfter:  time.Now().Add(1 * time.Hour),
+		DNSNames:  []string{"127.0.0.1"},
+	})
+	require.NoError(t, err)
+
+	serverCert, err := tls.X509KeyPair(serverCertPEM, serverKeyPEM)
+	require.NoError(t, err)
+
+	// Generate a separate client CA and certificate. The upstream server
+	// will require Teleport to present a client certificate signed by this
+	// CA when establishing the connection.
+	clientCAKey, clientCACertPEM, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{Organization: []string{"test-upstream-client-ca"}},
+		nil, // dnsNames
+		1*time.Hour,
+	)
+	require.NoError(t, err)
+
+	clientCA, err := tlsca.FromKeys(clientCACertPEM, clientCAKey)
+	require.NoError(t, err)
+
+	clientKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	clientKeyPEM, err := keys.MarshalPrivateKey(clientKey)
+	require.NoError(t, err)
+
+	clientCertPEM, err := clientCA.GenerateCertificate(tlsca.CertificateRequest{
+		PublicKey: clientKey.Public(),
+		Subject:   pkix.Name{CommonName: "teleport-app-service"},
+		NotAfter:  time.Now().Add(1 * time.Hour),
+	})
+	require.NoError(t, err)
+
+	// Build the client CA pool the upstream will use to verify Teleport's
+	// client certificate.
+	clientCAPool := x509.NewCertPool()
+	require.True(t, clientCAPool.AppendCertsFromPEM(clientCACertPEM))
+
+	// Start an HTTPS server that requires mutual TLS.
+	message := uuid.New().String()
+	upstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprintln(w, message)
+	}))
+	upstream.TLS = &tls.Config{
+		Certificates: []tls.Certificate{serverCert},
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientCAs:    clientCAPool,
+	}
+	upstream.StartTLS()
+	t.Cleanup(upstream.Close)
+
+	tmpDir := t.TempDir()
+	caPath := path.Join(tmpDir, "ca.pem")
+	certPath := path.Join(tmpDir, "cert.pem")
+	keyPath := path.Join(tmpDir, "key.pem")
+	require.NoError(t, os.WriteFile(caPath, serverCACertPEM, 0600))
+	require.NoError(t, os.WriteFile(certPath, clientCertPEM, 0600))
+	require.NoError(t, os.WriteFile(keyPath, clientKeyPEM, 0600))
+
+	appMTLS, err := types.NewAppV3(types.Metadata{
+		Name:   "foo",
+		Labels: staticLabels,
+	}, types.AppSpecV3{
+		URI:        upstream.URL,
+		PublicAddr: "foo.example.com",
+		TLS: types.AppTLS{
+			CaPath:   caPath,
+			CertPath: certPath,
+			KeyPath:  keyPath,
+		},
+	})
+	require.NoError(t, err)
+
+	s := SetUpSuiteWithConfig(t, suiteConfig{
+		Apps: types.Apps{appMTLS},
+	})
+
+	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		buf, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, message, strings.TrimSpace(string(buf)))
+	})
 }
 
 func testRotationGetter(role types.SystemRole) (*types.Rotation, error) {

@@ -114,6 +114,9 @@ type App struct {
 
 	// MCP contains MCP server-related configurations.
 	MCP *types.MCP
+
+	// TLS contains app upstream TLS configuration.
+	TLS *types.AppTLS
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
