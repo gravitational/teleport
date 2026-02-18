@@ -2592,7 +2592,6 @@ func (process *TeleportProcess) initAuthService() error {
 		),
 		Emitter:     authServer,
 		AccessPoint: authServer.Services,
-		Clock:       process.Clock,
 		HostID:      cfg.HostUUID,
 	})
 	if err != nil {
