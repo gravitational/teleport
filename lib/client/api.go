@@ -5618,13 +5618,17 @@ func CalculateSSHLogins(identityPrincipals []string, allowedLogins []string) ([]
 	return logins, nil
 }
 
+type beam struct {
+	Name string
+}
+
 // ListBeams returns a list of beams, either for the current user or all users.
 func (tc *TeleportClient) ListBeams(ctx context.Context, allUsers bool) ([]any, error) {
 	return nil, trace.NotImplemented("TeleportClient.ListBeams is stubbed")
 }
 
 // AddBeam starts a new beam environment.
-func (tc *TeleportClient) AddBeam(ctx context.Context, name string, wait bool) (any, error) {
+func (tc *TeleportClient) AddBeam(ctx context.Context, name string, wait bool) (*beam, error) {
 	return nil, trace.NotImplemented("TeleportClient.AddBeam is stubbed")
 }
 
@@ -5648,6 +5652,11 @@ func (tc *TeleportClient) UnmountBeam(ctx context.Context, name, dest string) er
 	return trace.NotImplemented("TeleportClient.UnmountBeam is stubbed")
 }
 
+// ExposeBeam serves an HTTP or TCP service running in a beam environment.
+func (tc *TeleportClient) ExposeBeam(ctx context.Context, name, mode string, port int, serviceName string) error {
+	return trace.NotImplemented("TeleportClient.ExposeBeam is stubbed")
+}
+
 // AllowBeamDomain grants access to an external domain.
 func (tc *TeleportClient) AllowBeamDomain(ctx context.Context, name, domain string) error {
 	return trace.NotImplemented("TeleportClient.AllowBeamDomain is stubbed")
@@ -5658,3 +5667,7 @@ func (tc *TeleportClient) DenyBeamDomain(ctx context.Context, name, domain strin
 	return trace.NotImplemented("TeleportClient.DenyBeamDomain is stubbed")
 }
 
+// ExecBeam runs a command in a running beam environment.
+func (tc *TeleportClient) ExecBeam(ctx context.Context, name, command, dir string) (any, error) {
+	return nil, trace.NotImplemented("TeleportClient.ExecBeam is stubbed")
+}
