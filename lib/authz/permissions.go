@@ -32,6 +32,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/vulcand/predicate/builder"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -45,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/events"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -78,6 +81,7 @@ type DeviceAuthorizationOpts struct {
 
 // AuthorizerOpts holds creation options for [NewAuthorizer].
 type AuthorizerOpts struct {
+	TEST                string
 	ClusterName         string
 	AccessPoint         AuthorizerAccessPoint
 	ReadOnlyAccessPoint ReadOnlyAuthorizerAccessPoint
@@ -85,6 +89,7 @@ type AuthorizerOpts struct {
 	MFAAuthenticator    MFAAuthenticator
 	LockWatcher         *services.LockWatcher
 	Logger              *slog.Logger
+	Emitter             apievents.Emitter
 
 	// DeviceAuthorization holds Device Trust authorization options.
 	//
@@ -130,6 +135,7 @@ func newAuthorizer(opts AuthorizerOpts) (*authorizer, error) {
 	}
 
 	return &authorizer{
+		TEST:                    opts.TEST,
 		clusterName:             opts.ClusterName,
 		accessPoint:             opts.AccessPoint,
 		readOnlyAccessPoint:     opts.ReadOnlyAccessPoint,
@@ -137,6 +143,7 @@ func newAuthorizer(opts AuthorizerOpts) (*authorizer, error) {
 		mfaAuthenticator:        opts.MFAAuthenticator,
 		lockWatcher:             opts.LockWatcher,
 		logger:                  logger,
+		emitter:                 opts.Emitter,
 		disableGlobalDeviceMode: opts.DeviceAuthorization.DisableGlobalMode,
 		disableRoleDeviceMode:   opts.DeviceAuthorization.DisableRoleMode,
 	}, nil
@@ -228,6 +235,7 @@ type MFAAuthData struct {
 
 // authorizer creates new local authorizer
 type authorizer struct {
+	TEST                string
 	clusterName         string
 	accessPoint         AuthorizerAccessPoint
 	readOnlyAccessPoint ReadOnlyAuthorizerAccessPoint
@@ -235,6 +243,7 @@ type authorizer struct {
 	mfaAuthenticator    MFAAuthenticator
 	lockWatcher         *services.LockWatcher
 	logger              *slog.Logger
+	emitter             apievents.Emitter
 
 	disableGlobalDeviceMode bool
 	disableRoleDeviceMode   bool
@@ -437,6 +446,7 @@ func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error
 	}
 
 	if err := CheckIPPinning(ctx, authContext.Identity.GetIdentity(), authContext.Checker.PinSourceIP(), a.logger); err != nil {
+		a.emitAuthorizeFailure(ctx, authContext.Identity, err)
 		return nil, trace.Wrap(err)
 	}
 
@@ -448,26 +458,86 @@ func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error
 	if lockErr := a.lockWatcher.CheckLockInForce(
 		authContext.Checker.LockingMode(authPref.GetLockingMode()),
 		authContext.LockTargets()...); lockErr != nil {
+		a.emitAuthorizeFailure(ctx, authContext.Identity, lockErr)
 		return nil, trace.Wrap(lockErr)
 	}
 
 	// Enforce required private key policy if set.
 	if err := a.enforcePrivateKeyPolicy(ctx, authContext, authPref); err != nil {
+		a.emitAuthorizeFailure(ctx, authContext.Identity, err)
 		return nil, trace.Wrap(err)
 	}
 
 	// Device Trust: authorize device extensions.
 	if !a.disableGlobalDeviceMode {
 		if err := dtauthz.VerifyTLSUser(ctx, authPref.GetDeviceTrust(), authContext.Identity.GetIdentity()); err != nil {
+			a.emitAuthorizeFailure(ctx, authContext.Identity, err)
 			return nil, trace.Wrap(err)
 		}
 	}
 
 	if err := a.checkAdminActionVerification(ctx, authContext); err != nil {
+		a.emitAuthorizeFailure(ctx, authContext.Identity, err)
 		return nil, trace.Wrap(err)
 	}
 
 	return authContext, nil
+}
+
+func (a *authorizer) emitAuthorizeFailure(ctx context.Context, user IdentityGetter, err error) {
+	if a.emitter == nil {
+		return
+	}
+	identity := user.GetIdentity()
+	username := identity.Username
+
+	// Filter out failures caused by system components so that we only audit events for real users or bots
+	if len(identity.SystemRoles) == 0 {
+		errorMsg := trace.UserMessage(err)
+		if errorMsg == "" {
+			errorMsg = err.Error()
+		}
+
+		methodName, _ := grpc.Method(ctx)
+		if methodName == "" {
+			// If no gRPC method is found in the context, attempt to get the request method from the context
+			// (e.g. for kube requests). If that also fails, default to "unknown".
+			if val := GetRequestMethod(ctx); val != "" {
+				methodName = val
+			} else {
+				methodName = "unknown"
+			}
+		}
+
+		userMsg := fmt.Sprintf("authorization failed for method %s: %s component %s", methodName, errorMsg, a.TEST)
+
+		event := &apievents.AuthAttempt{
+			Metadata: apievents.Metadata{
+				Type: events.AuthAttemptEvent,
+				Code: events.AuthAttemptFailureCode,
+			},
+			UserMetadata: apievents.UserMetadata{
+				User: username,
+			},
+			Status: apievents.Status{
+				Success:     false,
+				Error:       errorMsg,
+				UserMessage: userMsg,
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{},
+			ServerMetadata: apievents.ServerMetadata{
+				ServerVersion: teleport.Version,
+			},
+		}
+
+		if p, _ := peer.FromContext(ctx); p != nil {
+			event.ConnectionMetadata.RemoteAddr = p.Addr.String()
+		}
+
+		if emitErr := a.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
+			a.logger.WarnContext(ctx, "Failed to emit detailed audit event", "error", emitErr)
+		}
+	}
 }
 
 func (a *authorizer) enforcePrivateKeyPolicy(ctx context.Context, authContext *Context, authPref readonly.AuthPreference) error {
@@ -1474,10 +1544,27 @@ const (
 
 	// contextConn is a connection in the context associated with the request
 	contextConn contextKey = "teleport-connection"
+
+	// contextMethod is used to store the request method/path/action for audit logs.
+	contextRequestMethod contextKey = "teleport-request-method"
 )
 
 // WithDelegator alias for backwards compatibility
 var WithDelegator = utils.WithDelegator
+
+// GetRequestMethod returns the request method string from the context.
+func GetRequestMethod(ctx context.Context) string {
+	val, ok := ctx.Value(contextRequestMethod).(string)
+	if !ok {
+		return ""
+	}
+	return val
+}
+
+// WithRequestMethod returns a new context with the request method injected.
+func WithRequestMethod(ctx context.Context, method string) context.Context {
+	return context.WithValue(ctx, contextRequestMethod, method)
+}
 
 // ClientUsername returns the username of a remote HTTP client making the call.
 // If ctx didn't pass through auth middleware or did not come from an HTTP

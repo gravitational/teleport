@@ -564,6 +564,9 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 		return nil, trace.AccessDenied("%s", accessDeniedMsg)
 	}
 
+	kubeMethod := fmt.Sprintf("KUBE: %s %s", req.Method, req.URL.Path)
+	ctx = authz.WithRequestMethod(ctx, kubeMethod)
+
 	userContext, err := f.cfg.Authz.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
