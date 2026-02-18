@@ -860,6 +860,53 @@ func TestIterateGroupOwners(t *testing.T) {
 	require.ElementsMatch(t, expectedOwners, gotOwners)
 }
 
+const listPrincipalsAssignedToApp = `[
+    {
+      "id": "9f615773-8219-4a5e-9eb1-8e701324c683",
+      "principalId": "73d87aa0-b4ce-4b45-9136-45b1e5d9dcbb",
+	  "principalType":  "User"
+    },
+	{
+      "id": "1566d9a7-c652-44e7-a75e-665b77431435",
+      "principalId": "71d36a3c-011c-4b14-bf44-78299fd1d7b7",
+	  "principalType":  "User"
+    },
+	{
+      "id": "1566d9a7-c652-44e7-a75e-665b77431436",
+      "principalId": "c7cd28f0-0f23-470e-833a-d69b96cac092",
+	  "principalType":  "Group"
+    }
+  ]`
+
+func TestPrincipalsAssignedToApp(t *testing.T) {
+	t.Parallel()
+
+	var principalsJSON []json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(listPrincipalsAssignedToApp), &principalsJSON))
+	mux := http.NewServeMux()
+	mux.Handle("GET /v1.0/servicePrincipals(appId='fd5be192-6e51-4f54-bbdf-30407435ceb7')/appRoleAssignedTo", paginatedHandler(t, principalsJSON))
+
+	srv := httptest.NewTLSServer(mux)
+	t.Cleanup(srv.Close)
+
+	client, err := NewClient(Config{
+		HTTPClient:    newHTTPClient(srv),
+		TokenProvider: &fakeTokenProvider{},
+		RetryConfig:   &retryConfig,
+		PageSize:      2, // smaller page size so we actually fetch multiple pages with our small test payload
+	})
+	require.NoError(t, err)
+
+	// principals can bn user or group.
+	var principals []*AppRoleAssignment
+	err = client.IteratePrincipalsAssignedToApp(t.Context(), "fd5be192-6e51-4f54-bbdf-30407435ceb7", func(o *AppRoleAssignment) bool {
+		principals = append(principals, o)
+		return true
+	})
+	require.NoError(t, err)
+	require.Len(t, principals, 3)
+}
+
 func newHTTPClient(server *httptest.Server) *http.Client {
 	var d net.Dialer
 	httpClient := server.Client()

@@ -154,11 +154,19 @@ type AppRole struct {
 	Value *string `json:"value,omitempty"`
 }
 
+const (
+	// PrincipalTypeUser indicates "User" principal type.
+	PrincipalTypeUser string = "User"
+	// PrincipalTypeGroup indicates "Group" principal type.
+	PrincipalTypeGroup string = "Group"
+)
+
 type AppRoleAssignment struct {
-	ID          *string `json:"id,omitempty"`
-	AppRoleID   *string `json:"appRoleId,omitempty"`
-	PrincipalID *string `json:"principalId,omitempty"`
-	ResourceID  *string `json:"resourceId,omitempty"`
+	ID            *string `json:"id,omitempty"`
+	AppRoleID     *string `json:"appRoleId,omitempty"`
+	PrincipalID   *string `json:"principalId,omitempty"`
+	ResourceID    *string `json:"resourceId,omitempty"`
+	PrincipalType *string `json:"principalType,omitempty"`
 }
 
 func decodeGroupMember(msg json.RawMessage) (GroupMember, error) {
