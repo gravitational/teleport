@@ -93,7 +93,11 @@ func (r dataSourceTeleportDatabase) Read(ctx context.Context, req tfsdk.ReadData
 	}
 
 	
-	database := databaseI.(*apitypes.DatabaseV3)
+	database, ok := databaseI.(*apitypes.DatabaseV3)
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading Database", trace.Errorf("Can not convert %T to DatabaseV3", databaseI), "db"))
+		return
+	}
 	diags = tfschema.CopyDatabaseV3ToTerraform(ctx, database, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

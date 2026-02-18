@@ -93,7 +93,11 @@ func (r dataSourceTeleportIntegration) Read(ctx context.Context, req tfsdk.ReadD
 	}
 
 	
-	integration := integrationI.(*apitypes.IntegrationV1)
+	integration, ok := integrationI.(*apitypes.IntegrationV1)
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading Integration", trace.Errorf("Can not convert %T to IntegrationV1", integrationI), "integration"))
+		return
+	}
 	diags = tfschema.CopyIntegrationV1ToTerraform(ctx, integration, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

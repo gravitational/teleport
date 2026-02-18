@@ -93,7 +93,11 @@ func (r dataSourceTeleportInstaller) Read(ctx context.Context, req tfsdk.ReadDat
 	}
 
 	
-	installer := installerI.(*apitypes.InstallerV1)
+	installer, ok := installerI.(*apitypes.InstallerV1)
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading Installer", trace.Errorf("Can not convert %T to InstallerV1", installerI), "installer"))
+		return
+	}
 	diags = tfschema.CopyInstallerV1ToTerraform(ctx, installer, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

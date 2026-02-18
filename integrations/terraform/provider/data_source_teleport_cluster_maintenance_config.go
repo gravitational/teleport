@@ -75,7 +75,11 @@ func (r dataSourceTeleportClusterMaintenanceConfig) Read(ctx context.Context, re
 		AttrTypes: objType.AttributeTypes(),
 	}
 
-	clusterMaintenanceConfig := clusterMaintenanceConfigI.(*apitypes.ClusterMaintenanceConfigV1)
+	clusterMaintenanceConfig, ok := clusterMaintenanceConfigI.(*apitypes.ClusterMaintenanceConfigV1)
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClusterMaintenanceConfig", trace.Errorf("Can not convert %T to ClusterMaintenanceConfigV1", clusterMaintenanceConfigI), "cluster_maintenance_config"))
+		return
+	}
 	diags := tfschema.CopyClusterMaintenanceConfigV1ToTerraform(ctx, clusterMaintenanceConfig, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

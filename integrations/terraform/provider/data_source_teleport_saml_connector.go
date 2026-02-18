@@ -93,7 +93,11 @@ func (r dataSourceTeleportSAMLConnector) Read(ctx context.Context, req tfsdk.Rea
 	}
 
 	
-	samlConnector := samlConnectorI.(*apitypes.SAMLConnectorV2)
+	samlConnector, ok := samlConnectorI.(*apitypes.SAMLConnectorV2)
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading SAMLConnector", trace.Errorf("Can not convert %T to SAMLConnectorV2", samlConnectorI), "saml"))
+		return
+	}
 	diags = tfschema.CopySAMLConnectorV2ToTerraform(ctx, samlConnector, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

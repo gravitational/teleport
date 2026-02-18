@@ -93,7 +93,11 @@ func (r dataSourceTeleportTrustedCluster) Read(ctx context.Context, req tfsdk.Re
 	}
 
 	
-	trustedCluster := trustedClusterI.(*apitypes.TrustedClusterV2)
+	trustedCluster, ok := trustedClusterI.(*apitypes.TrustedClusterV2)
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading TrustedCluster", trace.Errorf("Can not convert %T to TrustedClusterV2", trustedClusterI), "trusted_cluster"))
+		return
+	}
 	diags = tfschema.CopyTrustedClusterV2ToTerraform(ctx, trustedCluster, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

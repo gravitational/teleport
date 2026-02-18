@@ -93,7 +93,11 @@ func (r dataSourceTeleportRole) Read(ctx context.Context, req tfsdk.ReadDataSour
 	}
 
 	
-	role := roleI.(*apitypes.RoleV6)
+	role, ok := roleI.(*apitypes.RoleV6)
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading Role", trace.Errorf("Can not convert %T to RoleV6", roleI), "role"))
+		return
+	}
 	diags = tfschema.CopyRoleV6ToTerraform(ctx, role, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

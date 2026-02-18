@@ -75,7 +75,11 @@ func (r dataSourceTeleportAuthPreference) Read(ctx context.Context, req tfsdk.Re
 		AttrTypes: objType.AttributeTypes(),
 	}
 
-	authPreference := authPreferenceI.(*apitypes.AuthPreferenceV2)
+	authPreference, ok := authPreferenceI.(*apitypes.AuthPreferenceV2)
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading AuthPreference", trace.Errorf("Can not convert %T to AuthPreferenceV2", authPreferenceI), "cluster_auth_preference"))
+		return
+	}
 	diags := tfschema.CopyAuthPreferenceV2ToTerraform(ctx, authPreference, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

@@ -75,7 +75,11 @@ func (r dataSourceTeleportClusterNetworkingConfig) Read(ctx context.Context, req
 		AttrTypes: objType.AttributeTypes(),
 	}
 
-	clusterNetworkingConfig := clusterNetworkingConfigI.(*apitypes.ClusterNetworkingConfigV2)
+	clusterNetworkingConfig, ok := clusterNetworkingConfigI.(*apitypes.ClusterNetworkingConfigV2)
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClusterNetworkingConfig", trace.Errorf("Can not convert %T to ClusterNetworkingConfigV2", clusterNetworkingConfigI), "cluster_networking_config"))
+		return
+	}
 	diags := tfschema.CopyClusterNetworkingConfigV2ToTerraform(ctx, clusterNetworkingConfig, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

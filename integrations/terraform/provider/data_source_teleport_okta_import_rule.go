@@ -93,7 +93,11 @@ func (r dataSourceTeleportOktaImportRule) Read(ctx context.Context, req tfsdk.Re
 	}
 
 	
-	oktaImportRule := oktaImportRuleI.(*apitypes.OktaImportRuleV1)
+	oktaImportRule, ok := oktaImportRuleI.(*apitypes.OktaImportRuleV1)
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading OktaImportRule", trace.Errorf("Can not convert %T to OktaImportRuleV1", oktaImportRuleI), "okta_import_rule"))
+		return
+	}
 	diags = tfschema.CopyOktaImportRuleV1ToTerraform(ctx, oktaImportRule, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

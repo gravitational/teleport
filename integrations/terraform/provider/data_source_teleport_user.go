@@ -93,7 +93,11 @@ func (r dataSourceTeleportUser) Read(ctx context.Context, req tfsdk.ReadDataSour
 	}
 
 	
-	user := userI.(*apitypes.UserV2)
+	user, ok := userI.(*apitypes.UserV2)
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading User", trace.Errorf("Can not convert %T to UserV2", userI), "user"))
+		return
+	}
 	diags = tfschema.CopyUserV2ToTerraform(ctx, user, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

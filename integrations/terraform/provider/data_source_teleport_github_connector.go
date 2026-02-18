@@ -93,7 +93,11 @@ func (r dataSourceTeleportGithubConnector) Read(ctx context.Context, req tfsdk.R
 	}
 
 	
-	githubConnector := githubConnectorI.(*apitypes.GithubConnectorV3)
+	githubConnector, ok := githubConnectorI.(*apitypes.GithubConnectorV3)
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading GithubConnector", trace.Errorf("Can not convert %T to GithubConnectorV3", githubConnectorI), "github"))
+		return
+	}
 	diags = tfschema.CopyGithubConnectorV3ToTerraform(ctx, githubConnector, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

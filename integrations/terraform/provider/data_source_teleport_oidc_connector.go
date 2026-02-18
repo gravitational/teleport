@@ -93,7 +93,11 @@ func (r dataSourceTeleportOIDCConnector) Read(ctx context.Context, req tfsdk.Rea
 	}
 
 	
-	oidcConnector := oidcConnectorI.(*apitypes.OIDCConnectorV3)
+	oidcConnector, ok := oidcConnectorI.(*apitypes.OIDCConnectorV3)
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading OIDCConnector", trace.Errorf("Can not convert %T to OIDCConnectorV3", oidcConnectorI), "oidc"))
+		return
+	}
 	diags = tfschema.CopyOIDCConnectorV3ToTerraform(ctx, oidcConnector, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

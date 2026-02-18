@@ -117,7 +117,11 @@ func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadDat
 	{{else if .ConvertPackagePath -}}
 	{{.VarName}} := convert.{{ if .ConvertToProtoFunc }}{{.ConvertToProtoFunc}}{{ else }}ToProto{{ end }}({{.VarName}}I)
 	{{else}}
-	{{.VarName}} := {{.VarName}}I.(*{{.ProtoPackage}}.{{.TypeName}})
+	{{.VarName}}, ok := {{.VarName}}I.(*{{.ProtoPackage}}.{{.TypeName}})
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Errorf("Can not convert %T to {{.TypeName}}", {{.VarName}}I), "{{.Kind}}"))
+		return
+	}
 	{{- end}}
 	diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &state)
 	resp.Diagnostics.Append(diags...)

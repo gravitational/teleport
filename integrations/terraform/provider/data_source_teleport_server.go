@@ -94,7 +94,11 @@ func (r dataSourceTeleportServer) Read(ctx context.Context, req tfsdk.ReadDataSo
 	}
 
 	
-	server := serverI.(*apitypes.ServerV2)
+	server, ok := serverI.(*apitypes.ServerV2)
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading Server", trace.Errorf("Can not convert %T to ServerV2", serverI), "node"))
+		return
+	}
 	diags = tfschema.CopyServerV2ToTerraform(ctx, server, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

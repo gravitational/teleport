@@ -75,7 +75,11 @@ func (r dataSourceTeleportSessionRecordingConfig) Read(ctx context.Context, req 
 		AttrTypes: objType.AttributeTypes(),
 	}
 
-	sessionRecordingConfig := sessionRecordingConfigI.(*apitypes.SessionRecordingConfigV2)
+	sessionRecordingConfig, ok := sessionRecordingConfigI.(*apitypes.SessionRecordingConfigV2)
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading SessionRecordingConfig", trace.Errorf("Can not convert %T to SessionRecordingConfigV2", sessionRecordingConfigI), "session_recording_config"))
+		return
+	}
 	diags := tfschema.CopySessionRecordingConfigV2ToTerraform(ctx, sessionRecordingConfig, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

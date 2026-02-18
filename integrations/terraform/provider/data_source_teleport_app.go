@@ -93,7 +93,11 @@ func (r dataSourceTeleportApp) Read(ctx context.Context, req tfsdk.ReadDataSourc
 	}
 
 	
-	app := appI.(*apitypes.AppV3)
+	app, ok := appI.(*apitypes.AppV3)
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading App", trace.Errorf("Can not convert %T to AppV3", appI), "app"))
+		return
+	}
 	diags = tfschema.CopyAppV3ToTerraform(ctx, app, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

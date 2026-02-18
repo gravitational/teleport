@@ -93,7 +93,11 @@ func (r dataSourceTeleportDynamicWindowsDesktop) Read(ctx context.Context, req t
 	}
 
 	
-	desktop := desktopI.(*apitypes.DynamicWindowsDesktopV1)
+	desktop, ok := desktopI.(*apitypes.DynamicWindowsDesktopV1)
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Errorf("Can not convert %T to DynamicWindowsDesktopV1", desktopI), "dynamic_windows_desktop"))
+		return
+	}
 	diags = tfschema.CopyDynamicWindowsDesktopV1ToTerraform(ctx, desktop, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
