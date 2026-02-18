@@ -254,10 +254,11 @@ func makeHTTPServerWithInMemoryListener(t *testing.T, mcpServer *mcpserver.MCPSe
 	return listener
 }
 
-// TestReplaceHTTPResponseSSEIgnoreMalformedEvents ensures that when replacing
-// the HTTP SSE response, malformed events (such as without data) won't cause
-// the stream to fail, instead those events should be ignored.
-func TestReplaceHTTPResponseSSEIgnoreMalformedEvents(t *testing.T) {
+// TestReplaceHTTPResponseSSESkipUnsupportedEvents ensures that when replacing
+// the HTTP SSE response, events without data (such as Last-Event-ID from
+// SEP-1699) and non-MCP events won't cause the stream to fail, instead those
+// events should be skipped.
+func TestReplaceHTTPResponseSSESkipUnsupportedEvents(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
@@ -271,8 +272,11 @@ func TestReplaceHTTPResponseSSEIgnoreMalformedEvents(t *testing.T) {
 
 	// Construct SSE data with a malformed event followed by a message event.
 	var sseData bytes.Buffer
+	// Last-Event-ID event (from SEP-1699).
 	writeEvent(&sseData, Event{ID: "random-id"})
+	// Non-MCP message.
 	writeEvent(&sseData, Event{Name: "ping", Data: []byte("keepalive")})
+	// Regular message.
 	writeEvent(&sseData, Event{Name: "message", Data: responseJSON})
 
 	resp := &http.Response{
