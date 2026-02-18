@@ -123,8 +123,24 @@ func (s *MFAService) ListValidatedMFAChallenges(
 	ctx context.Context,
 	pageSize int32,
 	pageToken string,
+	filter *mfav1.ListValidatedMFAChallengesFilter,
 ) ([]*mfav1.ValidatedMFAChallenge, string, error) {
-	internalChallenges, nextPageToken, err := s.service.ListResources(ctx, int(pageSize), pageToken)
+	filterFunc := func(chal *validatedMFAChallenge) bool {
+		// If no filter is specified, return all challenges.
+		if filter == nil {
+			return true
+		}
+
+		// If a filter with a target cluster is specified, only return challenges that match the target cluster.
+		if filter.GetTargetCluster() != "" && chal.Spec.GetTargetCluster() != filter.GetTargetCluster() {
+			return false
+		}
+
+		// All filter criteria met, return the challenge.
+		return true
+	}
+
+	internalChallenges, nextPageToken, err := s.service.ListResourcesWithFilter(ctx, int(pageSize), pageToken, filterFunc)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}

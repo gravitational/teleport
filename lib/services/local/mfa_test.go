@@ -76,7 +76,7 @@ func TestMFAService_CRUD(t *testing.T) {
 		"GetValidatedMFAChallenge mismatch (-want +got)",
 	)
 
-	challenges, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 10, "")
+	challenges, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 10, "", nil)
 	require.NoError(t, err)
 	require.Empty(t, nextPageToken)
 	require.Len(t, challenges, 1)
@@ -231,64 +231,32 @@ func TestMFAService_ListValidatedMFAChallenges_Success(t *testing.T) {
 	svc, err := local.NewMFAService(backend)
 	require.NoError(t, err)
 
-	challenges := []*mfav1.ValidatedMFAChallenge{
-		{
-			Kind:    types.KindValidatedMFAChallenge,
-			Version: types.V1,
-			Metadata: &types.Metadata{
-				Name: "chal-1",
-			},
-			Spec: &mfav1.ValidatedMFAChallengeSpec{
-				Payload: &mfav1.SessionIdentifyingPayload{
-					Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("session-id-1")},
-				},
-				SourceCluster: "src",
-				TargetCluster: "tgt",
-				Username:      "alice",
-			},
-		},
-		{
-			Kind:    types.KindValidatedMFAChallenge,
-			Version: types.V1,
-			Metadata: &types.Metadata{
-				Name: "chal-2",
-			},
-			Spec: &mfav1.ValidatedMFAChallengeSpec{
-				Payload: &mfav1.SessionIdentifyingPayload{
-					Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("session-id-2")},
-				},
-				SourceCluster: "src",
-				TargetCluster: "tgt",
-				Username:      "alice",
-			},
-		},
-		{
-			Kind:    types.KindValidatedMFAChallenge,
-			Version: types.V1,
-			Metadata: &types.Metadata{
-				Name: "chal-3",
-			},
-			Spec: &mfav1.ValidatedMFAChallengeSpec{
-				Payload: &mfav1.SessionIdentifyingPayload{
-					Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("session-id-3")},
-				},
-				SourceCluster: "src",
-				TargetCluster: "tgt",
-				Username:      "bob",
-			},
-		},
+	challenges := make([]*mfav1.ValidatedMFAChallenge, 0, 3)
+	for _, tc := range []struct {
+		name     string
+		username string
+	}{
+		{name: "chal-1", username: "alice"},
+		{name: "chal-2", username: "alice"},
+		{name: "chal-3", username: "bob"},
+	} {
+		chal := newValidatedMFAChallenge()
+		chal.Metadata.Name = tc.name
+		chal.Spec.Username = tc.username
+
+		challenges = append(challenges, chal)
 	}
 	for _, chal := range challenges {
 		_, err = svc.CreateValidatedMFAChallenge(t.Context(), chal.GetSpec().GetUsername(), chal)
 		require.NoError(t, err)
 	}
 
-	got, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 2, "")
+	got, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 2, "", nil)
 	require.NoError(t, err)
 	require.Len(t, got, 2)
 	require.NotEmpty(t, nextPageToken)
 
-	gotNext, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 2, nextPageToken)
+	gotNext, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 2, nextPageToken, nil)
 	require.NoError(t, err)
 	require.Len(t, gotNext, 1)
 	require.Empty(t, nextPageToken)
@@ -308,6 +276,77 @@ func TestMFAService_ListValidatedMFAChallenges_Success(t *testing.T) {
 		gotResp,
 	), "ListValidatedMFAChallenges mismatch (-want +got)")
 
+}
+
+func TestMFAService_ListValidatedMFAChallenges_FilterByTargetCluster(t *testing.T) {
+	t.Parallel()
+
+	backend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	svc, err := local.NewMFAService(backend)
+	require.NoError(t, err)
+
+	challenges := make([]*mfav1.ValidatedMFAChallenge, 0, 3)
+	for _, tc := range []struct {
+		name          string
+		username      string
+		targetCluster string
+	}{
+		{name: "chal-target-a-1", username: "alice", targetCluster: "leaf-a"},
+		{name: "chal-target-b", username: "alice", targetCluster: "leaf-b"},
+		{name: "chal-target-a-2", username: "bob", targetCluster: "leaf-a"},
+	} {
+		chal := newValidatedMFAChallenge()
+		chal.Metadata.Name = tc.name
+		chal.Spec.Username = tc.username
+		chal.Spec.TargetCluster = tc.targetCluster
+
+		challenges = append(challenges, chal)
+	}
+	for _, chal := range challenges {
+		_, err = svc.CreateValidatedMFAChallenge(t.Context(), chal.GetSpec().GetUsername(), chal)
+		require.NoError(t, err)
+	}
+
+	t.Run("nil filter returns all challenges", func(t *testing.T) {
+		got, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 10, "", nil)
+		require.NoError(t, err)
+		require.Empty(t, nextPageToken)
+		require.Len(t, got, len(challenges))
+	})
+
+	t.Run("empty filter returns all challenges", func(t *testing.T) {
+		got, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 10, "", &mfav1.ListValidatedMFAChallengesFilter{})
+		require.NoError(t, err)
+		require.Empty(t, nextPageToken)
+		require.Len(t, got, len(challenges))
+	})
+
+	t.Run("target cluster filter returns only matching challenges", func(t *testing.T) {
+		got, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 10, "", &mfav1.ListValidatedMFAChallengesFilter{
+			XTargetCluster: &mfav1.ListValidatedMFAChallengesFilter_TargetCluster{
+				TargetCluster: "leaf-a",
+			},
+		})
+		require.NoError(t, err)
+		require.Empty(t, nextPageToken)
+		require.Len(t, got, 2)
+		for _, chal := range got {
+			require.Equal(t, "leaf-a", chal.GetSpec().GetTargetCluster())
+		}
+	})
+
+	t.Run("target cluster filter with no matches returns empty result", func(t *testing.T) {
+		got, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 10, "", &mfav1.ListValidatedMFAChallengesFilter{
+			XTargetCluster: &mfav1.ListValidatedMFAChallengesFilter_TargetCluster{
+				TargetCluster: "leaf-c",
+			},
+		})
+		require.NoError(t, err)
+		require.Empty(t, nextPageToken)
+		require.Empty(t, got)
+	})
 }
 
 func newValidatedMFAChallenge() *mfav1.ValidatedMFAChallenge {
