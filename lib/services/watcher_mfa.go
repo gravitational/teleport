@@ -90,10 +90,15 @@ func NewValidatedMFAChallengeWatcher(
 		ctx,
 		GenericWatcherConfig[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge]{
 			ResourceKind:          types.KindValidatedMFAChallenge,
-			ResourceWatcherConfig: *cfg.ResourceWatcherConfig,
+			ResourceWatcherConfig: 	*cfg.ResourceWatcherConfig,
 			CloneFunc:             cloneFunc,
 			ReadOnlyFunc:          cloneFunc,
-			ResourceGetter:        pagerFn[*mfav1.ValidatedMFAChallenge](paginatedGetFunc).getAll,
+			// This watcher's consumer waits on WaitInitialization before it starts
+			// reading ResourcesC. Keep one slot buffered to avoid deadlocking initial
+			// broadcast when there are already resources present.
+			ResourcesC:                          make(chan []*mfav1.ValidatedMFAChallenge, 1),
+			RequireResourcesForInitialBroadcast: false,
+			ResourceGetter:                      pagerFn[*mfav1.ValidatedMFAChallenge](paginatedGetFunc).getAll,
 			ResourceKey: func(r *mfav1.ValidatedMFAChallenge) string {
 				// See lib/services/local/mfa.go#createValidatedMFAChallenge for how ValidatedMFAChallenge keys are
 				// constructed. We need to construct the same key here to ensure the watcher can properly match updates

@@ -1027,8 +1027,11 @@ func (s *leafCluster) chanTransportConn(req *sshutils.DialReq) (*sshutils.ChConn
 func (s *leafCluster) SyncValidatedMFAChallenges(
 	ctx context.Context,
 	cfg retryutils.LinearConfig,
-	watcher *services.GenericWatcher[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge],
 ) error {
+	if err := s.validatedMFAChallengeWatcher.WaitInitialization(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	retry, err := retryutils.NewLinear(cfg)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1038,10 +1041,6 @@ func (s *leafCluster) SyncValidatedMFAChallenges(
 		retry.For(
 			ctx,
 			func() error {
-				if err := watcher.WaitInitialization(); err != nil {
-					return trace.Wrap(err)
-				}
-
 				for {
 					s.logger.DebugContext(
 						ctx,
@@ -1053,10 +1052,10 @@ func (s *leafCluster) SyncValidatedMFAChallenges(
 					case <-ctx.Done():
 						return nil
 
-					case <-watcher.Done():
+					case <-s.validatedMFAChallengeWatcher.Done():
 						return retryutils.PermanentRetryError(trace.Errorf("watcher done"))
 
-					case <-watcher.ResourcesC:
+					case <-s.validatedMFAChallengeWatcher.ResourcesC:
 						s.logger.DebugContext(
 							ctx,
 							"Received ValidatedMFAChallenge event, syncing resources to leaf cluster",
