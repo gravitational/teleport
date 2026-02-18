@@ -86,7 +86,7 @@ func RunDarwinAdminProcess(ctx context.Context, config daemon.Config) error {
 	if err != nil {
 		return trace.Wrap(err, "creating OS config provider")
 	}
-	osConfigurator := newOSConfigurator(osConfigProvider)
+	osConfigurator := newOSConfigurator(osConfigProvider, nil)
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
