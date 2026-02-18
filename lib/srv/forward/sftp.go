@@ -113,7 +113,9 @@ func (p *SFTPProxy) Serve() error {
 		p.handlers.logger.WarnContext(scx.CancelContext(), "Failed to emit SFTP summary event", "error", err)
 	}
 
-	return trace.Wrap(serveErr)
+	// Close the backend remote filesystem to propagate session completion gracefully.
+	closeErr := p.handlers.remoteFS.Close()
+	return trace.NewAggregate(serveErr, closeErr)
 }
 
 // Close closes the SFTP proxy.
