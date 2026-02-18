@@ -134,6 +134,13 @@ export function createViteConfig(
           secure: false,
           ws: true,
         },
+        // /webapi/sites/:site/db/exec - database interactive sessions
+        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/db\\/exec`]: {
+          target: `wss://${target}`,
+          changeOrigin: false,
+          secure: false,
+          ws: true,
+        },
         '^\\/v[0-9]+\\/webapi\\/assistant\\/(.*?)': {
           target: `https://${target}`,
           changeOrigin: false,
