@@ -282,8 +282,6 @@ func (s *DynamicAccessService) GetAccessRequests(ctx context.Context, filter typ
 
 // ListAccessRequests is an access request getter with pagination and sorting options.
 func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
-	const maxPageSize = 16_000
-
 	if req.Filter == nil {
 		req.Filter = &types.AccessRequestFilter{}
 	}
@@ -313,16 +311,6 @@ func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *prot
 		return &rsp, nil
 	}
 
-	limit := int(req.Limit)
-
-	if limit < 1 {
-		limit = apidefaults.DefaultChunkSize
-	}
-
-	if limit > maxPageSize {
-		return nil, trace.BadParameter("page size of %d is too large", limit)
-	}
-
 	if req.Sort != proto.AccessRequestSort_DEFAULT {
 		return nil, trace.BadParameter("access request sort indexes other than DEFAULT cannot be used to load directly from the backend (expected %v, got %v)", proto.AccessRequestSort_DEFAULT, req.Sort)
 	}
@@ -331,18 +319,51 @@ func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *prot
 		return nil, trace.BadParameter("access requests cannot be loaded directly from the backend with descending sort order")
 	}
 
-	startKey := backend.ExactKey(accessRequestsPrefix)
-	if req.StartKey != "" {
-		startKey = backend.NewKey(accessRequestsPrefix, req.StartKey)
+	// req.Filter.Match takes the AccessRequest interface type so convert to use the
+	// AccessRequestV3 concrete type.
+	filter := func(r *types.AccessRequestV3) bool {
+		return req.Filter.Match(r)
+	}
+
+	var err error
+	rsp.AccessRequests, rsp.NextKey, err = s.collectPage(ctx, int(req.Limit), req.StartKey, filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &rsp, nil
+}
+
+// ListExpiredAccessRequests lists all access requests that are expired. This is used by
+// the expiry service. Access requests expiration handling is done outside the backend
+// because we need to emit audit events on the access requests expiry.
+func (s *DynamicAccessService) ListExpiredAccessRequests(ctx context.Context, limit int, pageToken string) ([]*types.AccessRequestV3, string, error) {
+	now := time.Now()
+	return s.collectPage(ctx, limit, pageToken, func(r *types.AccessRequestV3) bool {
+		return now.After(r.Expiry())
+	})
+}
+
+func (s *DynamicAccessService) collectPage(ctx context.Context, limit int, start string, filter func(*types.AccessRequestV3) bool) ([]*types.AccessRequestV3, string, error) {
+	if limit < 1 {
+		limit = apidefaults.DefaultChunkSize
+	}
+	if limit > 16_000 {
+		return nil, "", trace.BadParameter("page size of %d is too large", limit)
+	}
+
+	startKey := backend.ExactKey(start)
+	if start != "" {
+		startKey = backend.NewKey(accessRequestsPrefix, start)
 	}
 	endKey := backend.RangeEnd(backend.ExactKey(accessRequestsPrefix))
 
+	var res []*types.AccessRequestV3
 	for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
 		StartKey: startKey,
 		EndKey:   endKey,
 	}) {
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, "", trace.Wrap(err)
 		}
 
 		if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
@@ -360,19 +381,16 @@ func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *prot
 			continue
 		}
 
-		if !req.Filter.Match(accessRequest) {
+		if !filter(accessRequest) {
 			continue
 		}
 
-		if len(rsp.AccessRequests) >= limit {
-			rsp.NextKey = accessRequest.GetName()
-			return &rsp, nil
+		if len(res) >= limit {
+			return res, accessRequest.GetName(), nil
 		}
-
-		rsp.AccessRequests = append(rsp.AccessRequests, accessRequest)
+		res = append(res, accessRequest)
 	}
-
-	return &rsp, nil
+	return res, "", nil
 }
 
 // DeleteAccessRequest deletes an access request.
