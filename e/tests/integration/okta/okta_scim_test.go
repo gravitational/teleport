@@ -183,7 +183,8 @@ func testSCIMCRUD(t *testing.T, fakeOkta *fakeOktaServer, client scimsdk.Client)
 		// and should not be found.
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			user, err = client.GetUser(ctx, scimUserName)
-			require.True(t, trace.IsBadParameter(err))
+			var notFound *trace.NotFoundError
+			require.ErrorAs(t, err, &notFound, "User %s must have been deleted", scimUserName)
 		}, time.Second*3, time.Millisecond*50)
 	})
 

@@ -198,11 +198,10 @@ func TestAccessListProvisioningEvents(t *testing.T) {
 	}
 
 	var provisionedCalls callMap
-	recordProvisionedACL := func(_ context.Context, p *provisioningv1.PrincipalState) error {
+	recordProvisionedACL := func(_ context.Context, p *provisioningv1.PrincipalState) {
 		if p.GetSpec().GetPrincipalType() == provisioningv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST {
 			provisionedCalls.logCall(p.GetSpec().GetPrincipalId())
 		}
-		return nil
 	}
 	pack := newPack(t,
 		withOnProvisioningCallback(recordPrincipalProvisioning),
@@ -497,11 +496,10 @@ func TestUserProvisioningEvents(t *testing.T) {
 	}
 
 	var userProvisionedCalls callMap
-	recordUserProvisioned := func(_ context.Context, p *provisioningv1.PrincipalState) error {
+	recordUserProvisioned := func(_ context.Context, p *provisioningv1.PrincipalState) {
 		if p.GetSpec().GetPrincipalType() == provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER {
 			userProvisionedCalls.logCall(p.GetSpec().GetPrincipalId())
 		}
-		return nil
 	}
 
 	// GIVEN a test provisioning system with provisioning event callbacks that
@@ -614,6 +612,222 @@ func TestUserDeprovisioningEvents(t *testing.T) {
 		})
 }
 
+func TestMissingDownstreamPrincipal(t *testing.T) {
+	t.Parallel()
+
+	pack := newPack(t)
+
+	t.Run("User", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Deleted", func(t *testing.T) {
+			t.Parallel()
+
+			// GIVEN a Teleport User that has been provisioned to the
+			// downstream system
+			pack.mustCreateTeleportUser(t, "alice")
+			assertSCIMUserExistAndIsActive(t, pack.scimMock, "alice")
+
+			// AND the user has a provisioning state with an external ID
+			initialState := pack.getUserProvisioningState(t, "alice")
+			require.NotEmpty(t, initialState.GetStatus().GetExternalId(),
+				"User should have an external ID after initial provisioning")
+			initialExternalID := initialState.GetStatus().GetExternalId()
+
+			// WHEN a user is manually deleted from the downstream SCIM system
+			// (simulating external deletion outside of Teleport's control)
+			pack.scimMock.Mu.Lock()
+			delete(pack.scimMock.Users, initialExternalID)
+			pack.scimMock.Mu.Unlock()
+
+			// AND an update is triggered for the user in Teleport (e.g., by modifying a field)
+			pack.mustUpdateTeleportUser(t, "alice", func(u types.User) {
+				u.SetStaticLabels(map[string]string{"test": "label"})
+			})
+
+			// EXPECT that the user is automatically re-provisioned to the downstream
+			// system
+			assertSCIMUserExistAndIsActive(t, pack.scimMock, "alice")
+
+			// ALSO EXPECT that the provisioning state has a new external ID
+			eventualWithT(t, func(t *assert.CollectT) {
+				state := pack.getUserProvisioningState(t, "alice")
+				newExternalID := state.GetStatus().GetExternalId()
+				require.NotEmpty(t, newExternalID,
+					"User should have an external ID after reprovisioning")
+				require.NotEqual(t, initialExternalID, newExternalID,
+					"User should have a different external ID after reprovisioning (old: %s, new: %s)",
+					initialExternalID, newExternalID)
+				require.Equal(t,
+					provisioningv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED,
+					state.GetStatus().GetProvisioningState(),
+					"User should be in PROVISIONED state after reprovisioning")
+			})
+		})
+
+		t.Run("Recreated", func(t *testing.T) {
+			t.Parallel()
+
+			// GIVEN a Teleport user that has been provisioned to the downstream system
+			pack.mustCreateTeleportUser(t, "bob")
+			assertSCIMUserExistAndIsActive(t, pack.scimMock, "bob")
+
+			// AND the user has a provisioning state with an external ID
+			initialState := pack.getUserProvisioningState(t, "bob")
+			require.NotEmpty(t, initialState.GetStatus().GetExternalId(),
+				"User should have an external ID after initial provisioning")
+			initialExternalID := initialState.GetStatus().GetExternalId()
+
+			// WHEN the downstream user is assigned a new ID to simulate a user
+			// being deleted and recreated on the downstream system outside of
+			// Teleport's control
+			const newExternalID = "recreated-bob"
+			pack.scimMock.Mu.Lock()
+			bob := pack.scimMock.Users[initialExternalID]
+			bob.ID = newExternalID
+			pack.scimMock.Users[newExternalID] = bob
+			delete(pack.scimMock.Users, initialExternalID)
+			pack.scimMock.Mu.Unlock()
+
+			// AND an update is triggered for the user in Teleport (e.g., by modifying a field)
+			pack.mustUpdateTeleportUser(t, "bob", func(u types.User) {
+				u.SetStaticLabels(map[string]string{"test": "label"})
+			})
+
+			// EXPECT that the provisioning system has re-adopted user under their
+			// new ID
+			eventualWithT(t, func(t *assert.CollectT) {
+				state := pack.getUserProvisioningState(t, "bob")
+				actualID := state.GetStatus().GetExternalId()
+				require.Equal(t, newExternalID, actualID,
+					"User should have a different external ID after re-adoption (old: %s, new: %s)",
+					initialExternalID, actualID)
+				require.Equal(t,
+					provisioningv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED,
+					state.GetStatus().GetProvisioningState(),
+					"User should be in PROVISIONED state after re-adoption")
+			})
+		})
+	})
+
+	t.Run("Group", func(t *testing.T) {
+		t.Parallel()
+
+		userNames := []string{"carol", "dave", "erica", "fred"}
+
+		for _, name := range userNames {
+			pack.mustCreateTeleportUser(t, name)
+		}
+
+		for _, name := range userNames {
+			assertSCIMUserExistAndIsActive(t, pack.scimMock, name)
+		}
+
+		t.Run("Deleted", func(t *testing.T) {
+			const (
+				aclID    = "delete-test-access-list"
+				aclTitle = "Delete test access list"
+			)
+			t.Parallel()
+
+			// GIVEN a Teleport Access List that has been provisioned to the
+			// downstream system as a SCIM group
+			pack.mustCreateAccessList(t, aclID, aclTitle)
+			for _, name := range userNames {
+				pack.mustUpsertAccessListMember(t, aclID, name, accesslist.MembershipKindUser)
+			}
+			assertSCIMGroupExistsWithMembers(t, pack.scimMock, aclTitle, userNames...)
+
+			// GIVEN provisioning state record for the Access List with a filled-in
+			// external ID
+			initialState := pack.getAccessListProvisioningState(t, aclID)
+			require.NotEmpty(t, initialState.GetStatus().GetExternalId(),
+				"Access List should have an external ID after initial provisioning")
+			initialExternalID := initialState.GetStatus().GetExternalId()
+
+			// WHEN I manually delete the downstream SCIM group to simulate
+			// a Group being deleted outside of Teleport's control
+			pack.scimMock.Mu.Lock()
+			delete(pack.scimMock.Groups, initialExternalID)
+			pack.scimMock.Mu.Unlock()
+
+			// AND an update is triggered for the Access List in Teleport that
+			// will force a provisioning event
+			pack.mustDeleteAccessListMember(t, aclID, userNames[0])
+
+			// EXPECT that the downstream group is automatically re-provisioned
+			assertSCIMGroupExistsWithMembers(t, pack.scimMock, aclTitle, userNames[1:]...)
+
+			// ALSO EXPECT that the provisioning state has a new external ID
+			eventualWithT(t, func(t *assert.CollectT) {
+				state := pack.getAccessListProvisioningState(t, aclID)
+				newExternalID := state.GetStatus().GetExternalId()
+				require.NotEmpty(t, newExternalID,
+					"Group should have an external ID after reprovisioning")
+				require.NotEqual(t, initialExternalID, newExternalID,
+					"Group should have a different external ID after reprovisioning (old: %s, new: %s)",
+					initialExternalID, newExternalID)
+				require.Equal(t,
+					provisioningv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED,
+					state.GetStatus().GetProvisioningState(),
+					"Group should be in PROVISIONED state after reprovisioning")
+			})
+		})
+
+		t.Run("Recreated", func(t *testing.T) {
+			const (
+				aclID    = "recreate-test-access-list"
+				aclTitle = "Recreate test access list"
+			)
+			t.Parallel()
+
+			// GIVEN a Teleport Access List that has been provisioned to the
+			// downstream system as a SCIM group
+			pack.mustCreateAccessList(t, aclID, aclTitle)
+			for _, name := range userNames {
+				pack.mustUpsertAccessListMember(t, aclID, name, accesslist.MembershipKindUser)
+			}
+			assertSCIMGroupExistsWithMembers(t, pack.scimMock, aclTitle, userNames...)
+
+			// GIVEN provisioning state record for the Access List with a filled-in
+			// external ID
+			initialState := pack.getAccessListProvisioningState(t, aclID)
+			require.NotEmpty(t, initialState.GetStatus().GetExternalId(),
+				"Access List should have an external ID after initial provisioning")
+			initialExternalID := initialState.GetStatus().GetExternalId()
+
+			// WHEN I manually assign a new ID to the downstream group to simulate
+			// a group being deleted and re-created outside of Teleport's
+			// control
+			const newExternalID = "recreated-group-id"
+			pack.scimMock.Mu.Lock()
+			g := pack.scimMock.Groups[initialExternalID]
+			g.ID = newExternalID
+			pack.scimMock.Groups[newExternalID] = g
+			delete(pack.scimMock.Groups, initialExternalID)
+			pack.scimMock.Mu.Unlock()
+
+			// AND an update is triggered for the Access List in Teleport that
+			// will force a provisioning event
+			pack.mustDeleteAccessListMember(t, aclID, userNames[0])
+
+			// EXPECT that the downstream group is automatically re-adopted by
+			// the Teleport SCIM provisioner
+			eventualWithT(t, func(t *assert.CollectT) {
+				state := pack.getAccessListProvisioningState(t, aclID)
+				actualID := state.GetStatus().GetExternalId()
+				require.Equal(t, newExternalID, actualID,
+					"Group should have a different external ID after reprovisioning (old: %s, new: %s)",
+					newExternalID, actualID)
+				require.Equal(t,
+					provisioningv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED,
+					state.GetStatus().GetProvisioningState(),
+					"Group should be in PROVISIONED state after reprovisioning")
+			})
+		})
+	})
+}
+
 type mockDeps struct {
 	*local.AccessService
 	*local.IdentityService
@@ -659,9 +873,9 @@ type sutOptions struct {
 	scimClient          *scimsdk.ClientMock
 	accessListPredicate AccessListPredicate
 	userPredicate       identitycentercommon.UserFilterFunc
-	onProvisioning      EventHandler
+	onProvisioning      EventHandlerWithError
 	onProvisioned       EventHandler
-	onDeprovisioning    EventHandler
+	onDeprovisioning    EventHandlerWithError
 }
 
 type sutOption func(*sutOptions)
@@ -678,7 +892,7 @@ func withUserPredicate(fn func(types.User) bool) sutOption {
 	}
 }
 
-func withOnProvisioningCallback(fn EventHandler) sutOption {
+func withOnProvisioningCallback(fn EventHandlerWithError) sutOption {
 	return func(opts *sutOptions) {
 		opts.onProvisioning = fn
 	}
@@ -690,7 +904,7 @@ func withOnProvisionedCallback(fn EventHandler) sutOption {
 	}
 }
 
-func withOnDeprovisioningCallback(fn EventHandler) sutOption {
+func withOnDeprovisioningCallback(fn EventHandlerWithError) sutOption {
 	return func(opts *sutOptions) {
 		opts.onDeprovisioning = fn
 	}
@@ -871,6 +1085,15 @@ func (s *testPack) mustCreateTeleportUser(t *testing.T, name string, options ...
 	require.NoError(t, err)
 }
 
+func (s *testPack) mustUpdateTeleportUser(t *testing.T, name string, mutate func(u types.User)) types.User {
+	user, err := s.depsMock.GetUser(t.Context(), name, false /* no secrets */)
+	require.NoError(t, err)
+	mutate(user)
+	updatedUser, err := s.depsMock.UpdateUser(t.Context(), user)
+	require.NoError(t, err)
+	return updatedUser
+}
+
 func (s *testPack) mustCreateAccessList(t *testing.T, name, title string) *accesslist.AccessList {
 	acl := &accesslist.AccessList{
 		ResourceHeader: header.ResourceHeader{
@@ -929,14 +1152,18 @@ func (s *testPack) aclMember(t *testing.T, accessList, memberName string, member
 	require.NoError(t, err)
 }
 
-func (s *testPack) getAccessListProvisioningState(t *testing.T, aclID string) *provisioningv1.PrincipalState {
-	pps, err := s.depsMock.GetProvisioningState(context.Background(), s.downstreamID, getIDForAccessListName(aclID))
+func (s *testPack) mustDeleteAccessListMember(t *testing.T, accessList, memberName string) {
+	require.NoError(t, s.depsMock.DeleteAccessListMember(t.Context(), accessList, memberName))
+}
+
+func (s *testPack) getAccessListProvisioningState(t require.TestingT, aclID string) *provisioningv1.PrincipalState {
+	pps, err := s.depsMock.GetProvisioningState(testContext(t), s.downstreamID, getIDForAccessListName(aclID))
 	require.NoError(t, err, "Principal Provisioning State for Access List %q must exist", aclID)
 	return pps
 }
 
-func (s *testPack) getUserProvisioningState(t *testing.T, username string) *provisioningv1.PrincipalState {
-	pps, err := s.depsMock.GetProvisioningState(context.Background(), s.downstreamID, GetIDForUserName(username))
+func (s *testPack) getUserProvisioningState(t require.TestingT, username string) *provisioningv1.PrincipalState {
+	pps, err := s.depsMock.GetProvisioningState(testContext(t), s.downstreamID, GetIDForUserName(username))
 	require.NoError(t, err, "Principal Provisioning State for user %q must exist", username)
 	return pps
 }
@@ -972,4 +1199,11 @@ func (m *callMap) len() int {
 
 func (m *callMap) unwrap() map[string]int {
 	return (*utils.SyncMap[string, int])(m).Clone()
+}
+
+func testContext(t require.TestingT) context.Context {
+	if ctxer, ok := t.(interface{ Context() context.Context }); ok {
+		return ctxer.Context()
+	}
+	return context.Background()
 }

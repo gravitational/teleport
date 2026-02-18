@@ -9,12 +9,14 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/calculator"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/monitor"
+	"github.com/gravitational/teleport/e/lib/aws/identitycenter/principal"
 	icprov "github.com/gravitational/teleport/e/lib/aws/identitycenter/provisioning"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/e/lib/provisioning"
@@ -127,6 +129,7 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 		EventsClient:              config.EventsClient,
 		UserPredicate:             config.UserPredicate,
 		AccessListPredicate:       aclPredicate,
+		OnExternalIDUpdated:       svc.onExternalIDUpdated,
 		OnPrincipalProvisioning:   svc.onPrincipalProvisioning,
 		OnPrincipalProvisioned:    svc.onPrincipalProvisioned,
 		OnPrincipalDeprovisioning: svc.onPrincipalDeprovisioning,
@@ -236,9 +239,65 @@ func (svc *Service) onResourceMonitorEvent(ctx context.Context, event *monitor.P
 	}
 }
 
+// onExternalIDUpdated is invoked by the user & group provisioning subsystem
+// when it has detected a change in the principal's ExternalID
+func (svc *Service) onExternalIDUpdated(ctx context.Context, state *provisioningv1.PrincipalState) {
+	log := svc.log.With("principal_id", state.GetMetadata().GetName())
+
+	principalAssignmentID, err := assignmentIDForProvisioningState(state)
+	if err != nil {
+		log.ErrorContext(ctx, "Malformed provisioning state",
+			"error", err)
+		return
+	}
+
+	principalAssignment, err := svc.icSvc.GetPrincipalAssignment(ctx, principalAssignmentID)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			log.WarnContext(ctx, "No such Principal Assignment record.", "error", err)
+			return
+		}
+		log.ErrorContext(ctx, "Unable to load Principal Assignment record", "error", err)
+		return
+	}
+
+	log = log.With(principalAssignmentAttr(principalAssignment))
+
+	externalID := state.GetStatus().GetExternalId()
+	_, err = principal.Update(ctx, svc.icSvc, principalAssignment,
+		func(asmt *identitycenterv1.PrincipalAssignment) error {
+			if asmt.Spec.ExternalId == externalID {
+				return principal.ErrNoUpdateRequired
+			}
+			asmt.GetSpec().ExternalId = externalID
+			return nil
+		})
+	if err != nil {
+		log.ErrorContext(ctx, "Failed resetting ExternalID", "error", err)
+		return
+	}
+}
+
+// assignmentIDForProvisioningState generates a [services.PrincipalAssignmentID]
+// representing the same principal as the supplied provisioning state record.
+func assignmentIDForProvisioningState(state *provisioningv1.PrincipalState) (services.PrincipalAssignmentID, error) {
+	spec := state.GetSpec()
+	principalID := spec.GetPrincipalId()
+
+	switch spec.GetPrincipalType() {
+	case provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER:
+		return principal.GetIDForUserName(principalID), nil
+
+	case provisioningv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST:
+		return principal.GetIDForAccessListName(principalID), nil
+	}
+
+	return "", trace.BadParameter("unsupported principal type %v", spec.GetPrincipalType())
+}
+
 // onPrincipalProvisioned is invoked by the user & group provisioning subsystem
 // when it has (re-)provisioned a principal.
-func (svc *Service) onPrincipalProvisioned(ctx context.Context, principal *provisioningv1.PrincipalState) error {
+func (svc *Service) onPrincipalProvisioned(ctx context.Context, principal *provisioningv1.PrincipalState) {
 	log := svc.log.With(
 		"principal_id", principal.GetMetadata().GetName())
 	log.Log(ctx, logutils.TraceLevel, "Handling SCIM provisioning event")
@@ -255,7 +314,7 @@ func (svc *Service) onPrincipalProvisioned(ctx context.Context, principal *provi
 				"Failed looking up provisioned user",
 				"user", username,
 				"error", err.Error())
-			return nil
+			return
 		}
 		event.Principal = user
 
@@ -267,7 +326,7 @@ func (svc *Service) onPrincipalProvisioned(ctx context.Context, principal *provi
 				"Failed looking up provisioned access list",
 				"access_list", aclName,
 				"error", err.Error())
-			return nil
+			return
 		}
 		event.Principal = acl
 
@@ -275,10 +334,14 @@ func (svc *Service) onPrincipalProvisioned(ctx context.Context, principal *provi
 		log.ErrorContext(ctx,
 			"Unexpected principal type",
 			"principal_type", principal.GetSpec().GetPrincipalType())
-		return nil
+		return
 	}
-	svc.queueResourceEvent(ctx, event)
-	return nil
+
+	if err := svc.queueResourceEvent(ctx, event); err != nil {
+		// Swallowing internal error because there is nothing that the external
+		// event source can do to fix it.
+		log.ErrorContext(ctx, "Failed to queue resource event", "error", err)
+	}
 }
 
 func (svc *Service) onPrincipalProvisioning(ctx context.Context, state *provisioningv1.PrincipalState) error {

@@ -3,6 +3,7 @@ package provisioning
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/gravitational/trace"
 
@@ -180,11 +181,41 @@ func (p *provisioner) validateUser(ctx context.Context, user types.User) (scimsd
 	return scimsdk.UserActive, nil, nil
 }
 
+// recordExternalID updates the supplied PrincipalState with a new ExternalID
+// and invokes the registered update event handler.
+func (p *provisioner) recordExternalID(ctx context.Context,
+	state *provisioningv1.PrincipalState,
+	externalID ExternalID,
+) (*provisioningv1.PrincipalState, error) {
+	// Erase
+	state, err := recordExternalID(ctx, p.stateSvc, state, externalID, nil)
+	if err != nil {
+		return nil, trace.Wrap(err, "updating downstream user")
+	}
+	p.onExternalIDUpdated(ctx, state)
+	return state, nil
+}
+
+type missingPrincipalError struct {
+	state *provisioningv1.PrincipalState
+}
+
+func (mpe *missingPrincipalError) Error() string {
+	spec := mpe.state.GetSpec()
+
+	return fmt.Sprintf("principal %s %s with external id %q is missing from downstream system",
+		spec.GetPrincipalType(),
+		spec.GetPrincipalId(),
+		mpe.state.GetStatus().GetExternalId())
+}
+
 func (p *provisioner) updateDownstreamUser(
 	ctx context.Context,
 	state *provisioningv1.PrincipalState,
 	user types.User,
 ) (*provisioningv1.PrincipalState, error) {
+	log := p.log.With(principalStateAttr(state))
+
 	if p.userProvisioningMode != UserProvisioningModeInternal {
 		return state, nil
 	}
@@ -202,7 +233,11 @@ func (p *provisioner) updateDownstreamUser(
 		scimsdk.WithUserID(state.GetStatus().GetExternalId()),
 		scimsdk.WithActiveState(activeState)))
 	if err != nil {
-		return nil, trace.Wrap(err, "updating downstream user")
+		if trace.IsNotFound(err) {
+			log.WarnContext(ctx, "Downstream user has been deleted or moved")
+			return nil, &missingPrincipalError{state: state}
+		}
+		return nil, trace.Wrap(err)
 	}
 
 	if updatedUser.ID != state.GetStatus().GetExternalId() {

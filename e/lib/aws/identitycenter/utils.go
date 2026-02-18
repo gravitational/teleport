@@ -1,8 +1,11 @@
 package identitycenter
 
 import (
+	"log/slog"
 	"regexp"
 	"strings"
+
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 )
 
 // passThrough generates a function that casts a strongly typed map into its
@@ -30,4 +33,26 @@ func normalizeResourceName(name string) string {
 		}
 	}
 	return strings.Trim(sb.String(), "_")
+}
+
+func principalAssignmentAttr(s *identitycenterv1.PrincipalAssignment) slog.Attr {
+	return slog.Any("principal_assignment", principalAssignmentValuer{state: s})
+}
+
+type principalAssignmentValuer struct {
+	state *identitycenterv1.PrincipalAssignment
+}
+
+func (psv principalAssignmentValuer) LogValue() slog.Value {
+	if psv.state == nil {
+		return slog.StringValue("<nil>")
+	}
+
+	state := psv.state
+	spec := state.GetSpec()
+	return slog.GroupValue(
+		slog.String("id", state.GetMetadata().GetName()),
+		slog.String("principal_id", spec.GetPrincipalId()),
+		slog.String("principal_type", spec.GetPrincipalType().String()),
+		slog.String("external_id", spec.GetExternalId()))
 }

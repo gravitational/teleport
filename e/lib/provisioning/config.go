@@ -38,15 +38,23 @@ type AccessListsService interface {
 // provision downstream
 type AccessListPredicate func(context.Context, *accesslist.AccessList) (bool, error)
 
-// EventHandler defines a function signature for handling provisioning events.
-// Any errors that occur while handling the event are generally expected to be
-// handled by the callback and not propagated back to the Provisioning Service.
-// Specific events may make use of the returned [error], but this is not the
-// normal expectation.
-type EventHandler func(context.Context, *provisioningv1.PrincipalState) error
+// EventHandler defines a function signature for handling provisioning event
+// notifications.
+//
+// Events delivered via an EventHandler are considered to be notifications only,
+// and any errors are expected to be handled by the caller and not propagated
+// back to the provisioning system.
+type EventHandler func(context.Context, *provisioningv1.PrincipalState)
 
 // nullEventHandler is the default, do-nothing event handler
-func nullEventHandler(context.Context, *provisioningv1.PrincipalState) error {
+func nullEventHandler(context.Context, *provisioningv1.PrincipalState) {}
+
+// EventHandler defines a function signature for handling provisioning event
+// notifications that may return an error to the provisioning system.
+type EventHandlerWithError func(context.Context, *provisioningv1.PrincipalState) error
+
+// nullEventHandlerWithError is the default, do-nothing event handler
+func nullEventHandlerWithError(context.Context, *provisioningv1.PrincipalState) error {
 	return nil
 }
 
@@ -133,12 +141,19 @@ type ServiceConfig struct {
 	// `defaultEventBufferSize` if unset.
 	EventBufferSize int
 
+	// OnExternalIDUpdated is an optional callback invoked whenever the provisioner
+	// detects a change in a principal's ExternalID. The new ExternalID may be
+	// empty if the downstream principal has been deleted outside of Teleport's
+	// knowledge or control.
+	// Defaults to a no-op implementation.
+	OnExternalIDUpdated EventHandler
+
 	// OnPrincipalProvisioning is an optional callback invoked just before a
 	// principal is provisioned into the downstream system. Implementations may
 	// return [ErrDoNotProvision] to indicate that the downstream principal
 	// should not be provisioned downstream. All other errors are ignored.
 	// Defaults to a no-op implementation.
-	OnPrincipalProvisioning EventHandler
+	OnPrincipalProvisioning EventHandlerWithError
 
 	// OnPrincipalProvisioned is an optional callback to be invoked whenever a
 	// principal is successfully provisioned. Defaults to an no-op
@@ -150,7 +165,7 @@ type ServiceConfig struct {
 	// return [ErrDoNotProvision] to indicate that the downstream principal
 	// should not be de-provisioned. All other errors are ignored.
 	// Defaults to a no-op implementation.
-	OnPrincipalDeprovisioning EventHandler
+	OnPrincipalDeprovisioning EventHandlerWithError
 
 	// UserProvisioningMode indicates how the SCIM provisioner should handle
 	// provisioning users into the downstream system. Legal values are
@@ -219,8 +234,12 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 		cfg.ProvisioningConcurrency = defaultProvisioningConcurrency
 	}
 
+	if cfg.OnExternalIDUpdated == nil {
+		cfg.OnExternalIDUpdated = nullEventHandler
+	}
+
 	if cfg.OnPrincipalProvisioning == nil {
-		cfg.OnPrincipalProvisioning = nullEventHandler
+		cfg.OnPrincipalProvisioning = nullEventHandlerWithError
 	}
 
 	if cfg.OnPrincipalProvisioned == nil {
@@ -228,7 +247,7 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 	}
 
 	if cfg.OnPrincipalDeprovisioning == nil {
-		cfg.OnPrincipalDeprovisioning = nullEventHandler
+		cfg.OnPrincipalDeprovisioning = nullEventHandlerWithError
 	}
 
 	return nil

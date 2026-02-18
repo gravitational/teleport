@@ -33,21 +33,22 @@ type resourceType struct {
 // provisioner is the actual process that attempts to make the downstream consumer
 // match the resource
 type provisioner struct {
-	log                       *slog.Logger
-	stateSvc                  services.DownstreamProvisioningStates
-	externalIDCache           ExternalIDGetter
-	usersSvc                  UsersService
-	accessListSvc             AccessListsService
-	locksSvc                  services.LockGetter
-	clock                     clockwork.Clock
-	scimClient                scimsdk.Client
-	resourceTypes             utils.SyncMap[provisioningv1.PrincipalType, resourceType]
-	maxConcurrency            int
-	onExternalIDUpdated       EventHandler
-	onPrincipalProvisioning   EventHandler
-	onPrincipalProvisioned    EventHandler
-	onPrincipalDeprovisioning EventHandler
-	userProvisioningMode      UserProvisioningMode
+	log                            *slog.Logger
+	stateSvc                       services.DownstreamProvisioningStates
+	externalIDCache                ExternalIDGetter
+	usersSvc                       UsersService
+	accessListSvc                  AccessListsService
+	locksSvc                       services.LockGetter
+	clock                          clockwork.Clock
+	scimClient                     scimsdk.Client
+	resourceTypes                  utils.SyncMap[provisioningv1.PrincipalType, resourceType]
+	maxConcurrency                 int
+	onExternalIDUpdated            EventHandler
+	onPrincipalProvisioning        EventHandlerWithError
+	onPrincipalProvisioned         EventHandler
+	onPrincipalDeprovisioning      EventHandlerWithError
+	onPrincipalNeedsReprovisioning EventHandler
+	userProvisioningMode           UserProvisioningMode
 }
 
 type provisionerConfig struct {
@@ -58,6 +59,10 @@ type provisionerConfig struct {
 	locksSvc       services.LockGetter
 	scimClient     scimsdk.Client
 	clock          clockwork.Clock
+
+	// externalIDCache is an oracle for looking up a principal's ExternalID from
+	// based on their provisioning state ID.
+	externalIDCache ExternalIDGetter
 
 	// maxConcurrency defines the maximum number of provisioning operations that
 	// can happen concurrently.
@@ -70,7 +75,7 @@ type provisionerConfig struct {
 	// onPrincipalProvisioning is an optional event callback invoked immediately
 	// prior to a principal being provisioned. See [ServiceConfig.OnPrincipalProvisioning]
 	// for details.
-	onPrincipalProvisioning EventHandler
+	onPrincipalProvisioning EventHandlerWithError
 
 	// onPrincipalProvisioned is an optional event callback invoked when principal
 	// is successfully provisioned to the downstream system
@@ -78,7 +83,11 @@ type provisionerConfig struct {
 	onPrincipalProvisioned EventHandler
 
 	// See [ServiceConfig.OnPrincipalDeprovisioning].
-	onPrincipalDeprovisioning EventHandler
+	onPrincipalDeprovisioning EventHandlerWithError
+
+	// onPrincipalRequiresReprovisioning is an event callback indication that a
+	// given principal requires re-provisioning.
+	onPrincipalRequiresReprovisioning EventHandler
 
 	// userProvisioningMode controls how users will be provisioned into the
 	// downstream. See [ServiceConfig.UserProvisioningMode].
@@ -101,6 +110,9 @@ func (cfg *provisionerConfig) CheckAndSetDefaults() error {
 	if cfg.scimClient == nil {
 		return trace.BadParameter("must supply configured scim client")
 	}
+	if cfg.externalIDCache == nil {
+		return trace.BadParameter("must supply ExternalID cache")
+	}
 	if cfg.clock == nil {
 		cfg.clock = clockwork.NewRealClock()
 	}
@@ -113,11 +125,17 @@ func (cfg *provisionerConfig) CheckAndSetDefaults() error {
 	if cfg.onExternalIDUpdated == nil {
 		cfg.onExternalIDUpdated = nullEventHandler
 	}
+	if cfg.onPrincipalProvisioning == nil {
+		cfg.onPrincipalProvisioning = nullEventHandlerWithError
+	}
 	if cfg.onPrincipalProvisioned == nil {
 		cfg.onPrincipalProvisioned = nullEventHandler
 	}
 	if cfg.onPrincipalDeprovisioning == nil {
-		cfg.onPrincipalDeprovisioning = nullEventHandler
+		cfg.onPrincipalDeprovisioning = nullEventHandlerWithError
+	}
+	if cfg.onPrincipalRequiresReprovisioning == nil {
+		cfg.onPrincipalRequiresReprovisioning = nullEventHandler
 	}
 
 	switch cfg.userProvisioningMode {
@@ -134,19 +152,21 @@ func newProvisioner(cfg provisionerConfig) (*provisioner, error) {
 	}
 
 	p := &provisioner{
-		log:                       cfg.log,
-		clock:                     cfg.clock,
-		stateSvc:                  cfg.stateSvc,
-		usersSvc:                  cfg.usersSvc,
-		accessListSvc:             cfg.accessListsSvc,
-		locksSvc:                  cfg.locksSvc,
-		scimClient:                cfg.scimClient,
-		maxConcurrency:            cfg.maxConcurrency,
-		onExternalIDUpdated:       cfg.onExternalIDUpdated,
-		onPrincipalProvisioning:   cfg.onPrincipalProvisioning,
-		onPrincipalProvisioned:    cfg.onPrincipalProvisioned,
-		onPrincipalDeprovisioning: cfg.onPrincipalDeprovisioning,
-		userProvisioningMode:      cfg.userProvisioningMode,
+		log:                            cfg.log,
+		clock:                          cfg.clock,
+		stateSvc:                       cfg.stateSvc,
+		usersSvc:                       cfg.usersSvc,
+		accessListSvc:                  cfg.accessListsSvc,
+		locksSvc:                       cfg.locksSvc,
+		scimClient:                     cfg.scimClient,
+		maxConcurrency:                 cfg.maxConcurrency,
+		externalIDCache:                cfg.externalIDCache,
+		onExternalIDUpdated:            cfg.onExternalIDUpdated,
+		onPrincipalProvisioning:        cfg.onPrincipalProvisioning,
+		onPrincipalProvisioned:         cfg.onPrincipalProvisioned,
+		onPrincipalDeprovisioning:      cfg.onPrincipalDeprovisioning,
+		onPrincipalNeedsReprovisioning: cfg.onPrincipalRequiresReprovisioning,
+		userProvisioningMode:           cfg.userProvisioningMode,
 	}
 
 	// TODO(tcsc): query the /Resources SCIM end point and unpack into here
@@ -190,6 +210,11 @@ func (p *provisioner) Provision(ctx context.Context, state *provisioningv1.Princ
 		}
 
 		if provisioningErr != nil {
+			var missingPrincipal *missingPrincipalError
+			if errors.As(provisioningErr, &missingPrincipal) {
+				return trace.Wrap(p.handleMissingPrincipal(ctx, missingPrincipal.state))
+			}
+
 			log.ErrorContext(ctx, "Provisioning failed", "error", provisioningErr)
 			_, err := markStateInError(ctx, p.stateSvc, state, provisioningErr, log)
 			return trace.Wrap(err)
@@ -253,6 +278,23 @@ func (p *provisioner) ProvisionAll(ctx context.Context, states iter.Seq[*provisi
 	}
 
 	group.Wait()
+
+	return nil
+}
+
+// handleMissingPrincipal handles the case when a principal has been deleted or
+// moved from the downstream system outside of Teleport's knowledge or control.
+func (p *provisioner) handleMissingPrincipal(ctx context.Context, state *provisioningv1.PrincipalState) error {
+	// Erase the user's existing External ID to force the provisioning system to
+	// try and re-adopt the existing principal
+	updatedState, err := p.recordExternalID(ctx, state, "")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Let the outside world know that this principal needs to go through the
+	// provisioning process again.
+	p.onPrincipalNeedsReprovisioning(ctx, updatedState)
 
 	return nil
 }

@@ -55,11 +55,19 @@ func (p *provisioner) provisionAccessList(
 	} else {
 		// make sure the downstream group has the correct name, metadata, etc
 		if err := p.updateDownstreamGroup(ctx, state, acl); err != nil {
+			if trace.IsNotFound(err) {
+				log.WarnContext(ctx, "Downstream group has been deleted or moved")
+				return nil, &missingPrincipalError{state: state}
+			}
 			return nil, trace.Wrap(err, "updating downstream group metadata")
 		}
 	}
 
 	if err := p.scimClient.ReplaceGroupMembers(ctx, state.GetStatus().ExternalId, groupMembers); err != nil {
+		if trace.IsNotFound(err) {
+			log.WarnContext(ctx, "Downstream group has been deleted or moved")
+			return nil, &missingPrincipalError{state: state}
+		}
 		return nil, trace.Wrap(err, "updating downstream group members")
 	}
 

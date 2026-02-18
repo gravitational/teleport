@@ -51,6 +51,8 @@ func decodeError(resp *http.Response) error {
 		return trace.AccessDenied("Unauthorized")
 	case http.StatusConflict:
 		return trace.AlreadyExists("%s", cmp.Or(errResp.Detail, "Already exists"))
+	case http.StatusNotFound:
+		return trace.NotFound("%s", cmp.Or(errResp.Detail, "Resource not found"))
 	}
 
 	if errResp.Detail == "" {

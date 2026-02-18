@@ -66,28 +66,15 @@ type Service struct {
 	// can't write to it without blocking then an update is already queued
 	// and the refresh routine hasn't picked it up yet.
 	fullRefreshSignal chan struct{}
+
+	// onExternalIDUpdated passes external update events on to the
+	// world outside the provisioning system
+	onExternalIDUpdated EventHandler
 }
 
 func NewService(cfg ServiceConfig) (svc *Service, err error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	provisioner, err := newProvisioner(provisionerConfig{
-		scimClient:                cfg.SCIMClient,
-		log:                       cfg.Logger,
-		stateSvc:                  cfg.StateSvc,
-		usersSvc:                  cfg.UsersCache,
-		accessListsSvc:            cfg.AccessListsCache,
-		locksSvc:                  cfg.Locks,
-		maxConcurrency:            cfg.ProvisioningConcurrency,
-		onPrincipalProvisioning:   cfg.OnPrincipalProvisioning,
-		onPrincipalProvisioned:    cfg.OnPrincipalProvisioned,
-		onPrincipalDeprovisioning: cfg.OnPrincipalDeprovisioning,
-		userProvisioningMode:      cfg.UserProvisioningMode,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "creating downstream provisioner")
 	}
 
 	svc = &Service{
@@ -101,13 +88,31 @@ func NewService(cfg ServiceConfig) (svc *Service, err error) {
 		eventsClient:         cfg.EventsClient,
 		eventsSvc:            cfg.EventsClient,
 		log:                  cfg.Logger,
-		provisioner:          provisioner,
 		clock:                cfg.Clock,
 		stateRefreshInterval: cfg.StateRefreshInterval,
 		eventsChan:           make(chan *provisioningEvent, cfg.EventBufferSize),
 		fullRefreshSignal:    make(chan struct{}, 1),
+		onExternalIDUpdated:  cfg.OnExternalIDUpdated,
 	}
-	provisioner.externalIDCache = svc
+
+	svc.provisioner, err = newProvisioner(provisionerConfig{
+		scimClient:                        cfg.SCIMClient,
+		log:                               cfg.Logger,
+		stateSvc:                          cfg.StateSvc,
+		usersSvc:                          cfg.UsersCache,
+		accessListsSvc:                    cfg.AccessListsCache,
+		locksSvc:                          cfg.Locks,
+		maxConcurrency:                    cfg.ProvisioningConcurrency,
+		externalIDCache:                   svc,
+		userProvisioningMode:              cfg.UserProvisioningMode,
+		onPrincipalProvisioning:           cfg.OnPrincipalProvisioning,
+		onPrincipalProvisioned:            cfg.OnPrincipalProvisioned,
+		onPrincipalDeprovisioning:         cfg.OnPrincipalDeprovisioning,
+		onPrincipalRequiresReprovisioning: svc.onPrincipalNeedsProvisioning,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating downstream provisioner")
+	}
 
 	return svc, nil
 }
@@ -131,17 +136,8 @@ func (svc *Service) Run(ctx context.Context) (err error) {
 	// service constructor, because this is the first time we know which context
 	// to use to cancel any in-flight re-provisioning on exit.
 	svc.provisioner.onExternalIDUpdated =
-		func(_ context.Context, principalState *provisioningv1.PrincipalState) error {
-			if principalState.GetSpec().GetPrincipalType() != provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER {
-				return nil
-			}
-			go func() {
-				if err := svc.reprovisionUserAccessLists(ctx, principalState); err != nil {
-					svc.log.ErrorContext(ctx, "error reprovisioning access lists",
-						"error", err)
-				}
-			}()
-			return nil
+		func(_ context.Context, principalState *provisioningv1.PrincipalState) {
+			svc.onProvisionerExternalIDUpdated(ctx, principalState)
 		}
 
 	monitor, err := newResourceMonitor(svc)
@@ -796,6 +792,39 @@ func (svc *Service) handleResourceEvents(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// onProvisionerExternalIDUpdated is invoked by the provisioner whenever a
+// principal's ExternalID changes, for example when a principal is first
+// provisioned downstream via SCIM and we learn what ID the downstream system
+// has given it.
+func (svc *Service) onProvisionerExternalIDUpdated(ctx context.Context, principalState *provisioningv1.PrincipalState) {
+	// Pass the event on up to the outside world
+	svc.onExternalIDUpdated(ctx, principalState)
+
+	// If we have detected that a user's External ID has changed then we will
+	// need to make sure that any Access Lists containing the target user are
+	// re-provisioned to include them.
+	if principalState.GetSpec().GetPrincipalType() != provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER {
+		return
+	}
+	go func() {
+		if err := svc.reprovisionUserAccessLists(ctx, principalState); err != nil {
+			svc.log.ErrorContext(ctx, "error reprovisioning access lists",
+				"error", err)
+		}
+	}()
+}
+
+func (svc *Service) onPrincipalNeedsProvisioning(ctx context.Context, state *provisioningv1.PrincipalState) {
+	err := svc.enqueuePrincipalEvent(ctx,
+		provisioningOpCreate,
+		state.GetSpec().GetPrincipalType(),
+		state.GetSpec().GetPrincipalId())
+	if err != nil {
+		svc.log.ErrorContext(ctx, "Failed queueing resource event for update",
+			principalStateAttr(state))
+	}
 }
 
 func (svc *Service) provisionUpdates(ctx context.Context, states iter.Seq[*provisioningv1.PrincipalState]) error {

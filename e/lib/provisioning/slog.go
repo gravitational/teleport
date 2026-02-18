@@ -15,6 +15,10 @@ type principalStateValuer struct {
 }
 
 func (psv principalStateValuer) LogValue() slog.Value {
+	if psv.state == nil {
+		return slog.StringValue("<nil>")
+	}
+
 	state := psv.state
 	spec := state.GetSpec()
 	return slog.GroupValue(
