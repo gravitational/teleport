@@ -8,11 +8,17 @@ type beamsCommands struct {
 	ls      *beamsListCommand
 	add     *beamsAddCommand
 	rm      *beamsRemoveCommand
+	exec    *beamsExecCommand
 	shell   *beamsShellCommand
 	mount   *beamsMountCommand
 	unmount *beamsUnmountCommand
+	expose  *beamsExposeCommand
+	push    *beamsPushCommand
+	pull    *beamsPullCommand
 	allow   *beamsAllowCommand
 	deny    *beamsDenyCommand
+	vibe    *beamsVibeCommand
+	run     *beamsRunCommand
 }
 
 func newBeamsCommands(
@@ -24,11 +30,17 @@ func newBeamsCommands(
 		ls:      newBeamsListCommand(cmd),
 		add:     newBeamsAddCommand(cmd),
 		rm:      newBeamsRemoveCommand(cmd),
+		exec:    newBeamsExecCommand(cmd),
 		shell:   newBeamsShellCommand(cmd),
 		mount:   newBeamsMountCommand(cmd),
 		unmount: newBeamsUnmountCommand(cmd),
+		expose:  newBeamsExposeCommand(cmd),
+		push:    newBeamsPushCommand(cmd),
+		pull:    newBeamsPullCommand(cmd),
 		allow:   newBeamsAllowCommand(cmd),
 		deny:    newBeamsDenyCommand(cmd),
+		vibe:    newBeamsVibeCommand(cmd),
+		run:     newBeamsRunCommand(cmd),
 	}
 	return cmds
 }

@@ -1949,16 +1949,28 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = beamsCmd.add.run(&cf)
 	case beamsCmd.rm.FullCommand():
 		err = beamsCmd.rm.run(&cf)
+	case beamsCmd.exec.FullCommand():
+		err = beamsCmd.exec.run(&cf)
 	case beamsCmd.shell.FullCommand():
 		err = beamsCmd.shell.run(&cf)
 	case beamsCmd.mount.FullCommand():
 		err = beamsCmd.mount.run(&cf)
 	case beamsCmd.unmount.FullCommand():
 		err = beamsCmd.unmount.run(&cf)
+	case beamsCmd.expose.FullCommand():
+		err = beamsCmd.expose.run(&cf)
+	case beamsCmd.push.FullCommand():
+		err = beamsCmd.push.run(&cf)
+	case beamsCmd.pull.FullCommand():
+		err = beamsCmd.pull.run(&cf)
 	case beamsCmd.allow.FullCommand():
 		err = beamsCmd.allow.run(&cf)
 	case beamsCmd.deny.FullCommand():
 		err = beamsCmd.deny.run(&cf)
+	case beamsCmd.vibe.FullCommand():
+		err = beamsCmd.vibe.run(&cf)
+	case beamsCmd.run.FullCommand():
+		err = beamsCmd.run.run(&cf)
 	case pivCmd.agent.FullCommand():
 		err = pivCmd.agent.run(&cf)
 	case mcpCmd.dbStart.FullCommand():
