@@ -25,21 +25,23 @@ import (
 
 // Storage to be used by the Server
 type Storage struct {
-	Users        map[string]*msgraph.User
-	Groups       map[string]*msgraph.Group
-	GroupMembers map[string][]msgraph.GroupMember
-	GroupOwners  map[string][]*msgraph.User
-	Applications map[string]*msgraph.Application
+	Users             map[string]*msgraph.User
+	Groups            map[string]*msgraph.Group
+	GroupMembers      map[string][]msgraph.GroupMember
+	GroupOwners       map[string][]*msgraph.User
+	Applications      map[string]*msgraph.Application
+	AppRoleAssignedTo map[string][]*msgraph.AppRoleAssignment
 }
 
 // NewStorage creates a new empty Storage.
 func NewStorage() *Storage {
 	return &Storage{
-		Users:        make(map[string]*msgraph.User),
-		Groups:       make(map[string]*msgraph.Group),
-		GroupMembers: make(map[string][]msgraph.GroupMember),
-		GroupOwners:  make(map[string][]*msgraph.User),
-		Applications: make(map[string]*msgraph.Application),
+		Users:             make(map[string]*msgraph.User),
+		Groups:            make(map[string]*msgraph.Group),
+		GroupMembers:      make(map[string][]msgraph.GroupMember),
+		GroupOwners:       make(map[string][]*msgraph.User),
+		Applications:      make(map[string]*msgraph.Application),
+		AppRoleAssignedTo: make(map[string][]*msgraph.AppRoleAssignment),
 	}
 }
 
