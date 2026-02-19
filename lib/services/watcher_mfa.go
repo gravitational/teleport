@@ -90,7 +90,7 @@ func NewValidatedMFAChallengeWatcher(
 		ctx,
 		GenericWatcherConfig[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge]{
 			ResourceKind:          types.KindValidatedMFAChallenge,
-			ResourceWatcherConfig: 	*cfg.ResourceWatcherConfig,
+			ResourceWatcherConfig: *cfg.ResourceWatcherConfig,
 			CloneFunc:             cloneFunc,
 			ReadOnlyFunc:          cloneFunc,
 			// This watcher's consumer waits on WaitInitialization before it starts

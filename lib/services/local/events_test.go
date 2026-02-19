@@ -239,7 +239,9 @@ func TestWatchers(t *testing.T) {
 				event := fetchEvent(subtestT, watcher, fetchTimeout)
 				require.Equal(subtestT, types.OpPut, event.Type)
 
-				unwrapper, ok := event.Resource.(interface{ UnwrapT() *mfav1.ValidatedMFAChallenge })
+				unwrapper, ok := event.Resource.(interface {
+					UnwrapT() *mfav1.ValidatedMFAChallenge
+				})
 				require.True(subtestT, ok)
 				chal := unwrapper.UnwrapT()
 				require.Equal(subtestT, types.KindValidatedMFAChallenge, chal.Kind)
