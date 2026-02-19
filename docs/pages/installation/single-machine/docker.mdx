@@ -1,5 +1,6 @@
 ---
 title: Installing Teleport on Docker
+sidebar_label: Docker
 description: How to install and run Teleport on Docker using our pre-built images from Amazon ECR Public, with details on configuration, data persistence, and networking.
 tags:
 - reference
@@ -147,7 +148,7 @@ In addition, the image is customized in order to improve the experience of
 running `tbot` in a container environment.
 
 To learn more, read the
-[Deploying Machine & Workload Identity on Kubernetes](../machine-workload-identity/deployment/kubernetes.mdx)
+[Deploying Machine & Workload Identity on Kubernetes](../../machine-workload-identity/deployment/kubernetes.mdx)
 guide.
 
 ## Running Teleport on Docker
@@ -193,14 +194,14 @@ proxy_service:
     cert_file: /my/path/cert.pem
 ```
 
-See the Teleport [Configuration Reference](../reference/deployment/config.mdx) for whether a
+See the Teleport [Configuration Reference](../../reference/deployment/config.mdx) for whether a
 field you would like to assign requires a file path.
 
 ### Ports
 
 A single Teleport process can run multiple services, each of which listens on a
 specific set of ports depending on your configuration. See our [Networking
-Reference](../reference/deployment/networking.mdx#ports) for the ports on your Teleport
+Reference](../../reference/deployment/networking.mdx#ports) for the ports on your Teleport
 container to expose.
 
 ### Extracting certificates from distroless images
@@ -237,7 +238,7 @@ Service on a local Docker container using Teleport Community Edition.
 Since this container uses a self-signed certificate, we do not recommend using
 this configuration to protect any infrastructure outside your workstation. You
 can, however, join other local Docker containers to it using the [token
-method](../enroll-resources/agents/join-token.mdx).
+method](../agents/join-token.mdx).
 
 First, create directories in your home directory to mount to the container. The
 Teleport container will write its configuration and data to these directories:

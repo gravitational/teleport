@@ -213,6 +213,23 @@ the example `awscli` commands below. The output is in JSON format by default.
   ```
 </Admonition>
 
+The image names all include the build timestamp (shown as `$TIMESTAMP` in the
+table below), and are tagged for easier searching.
+
+| Image name | Edition | Architecture | FIPS support | AMI Tags |
+| - | - | - | - | - |
+| `teleport-oss-(=teleport.version=)-x86_64-$TIMESTAMP` | OSS | amd64 | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: oss`, `TeleportFipsEnabled: false` |
+| `teleport-oss-(=teleport.version=)-arm64-$TIMESTAMP` | OSS | arm64 | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: oss`, `TeleportFipsEnabled: false` |
+| `teleport-ent-(=teleport.version=)-x86_64-$TIMESTAMP` | Enterprise | amd64 | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: false` |
+| `teleport-ent-(=teleport.version=)-arm64-$TIMESTAMP` | Enterprise | arm64 | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: false` |
+| `teleport-ent-(=teleport.version=)-x86_64-fips-$TIMESTAMP` | Enterprise | amd64 | Yes | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: true` |
+| `teleport-ent-(=teleport.version=)-arm64-fips-$TIMESTAMP` | Enterprise | arm64 | Yes | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: true` |
+
+All images are based on Amazon Linux 2023 and have been hardened using the
+Amazon EC2 ImageBuilder [STIG](https://public.cyber.mil/stigs/) hardening
+component. Teleport AMIs are automatically published to all [non-opt-in AWS
+regions](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html#concepts-available-regions).
+
 ### key_name
 
 ```code
@@ -853,15 +870,15 @@ $ journalctl -u teleport-node.service
 ## Adding agents to your Teleport cluster
 
 Customers run many workloads within AWS and depending on how you work, there are many
-ways to integrate Teleport onto your servers. We recommend looking at our [Installation guide](../../../installation/installation.mdx).
+ways to integrate Teleport onto your servers. We recommend looking at our [Installation guide](../../../installation/single-machine/single-machine.mdx).
 
 To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 
-- [Install the Teleport binary on the Server](../../../installation/installation.mdx)
+- [Install the Teleport binary on the Server](../../../installation/single-machine/single-machine.mdx)
 - [Run Teleport - we recommend using systemd](../../../reference/cli/teleport.mdx#teleport-install-systemd)
 - [Set the correct settings in /etc/teleport.yaml](../../../reference/deployment/config.mdx)
 - [Add Nodes to the Teleport
-  cluster](../../../enroll-resources/agents/agents.mdx)
+  cluster](../../../installation/agents/agents.mdx)
 
 ### Getting the SSH Service join token
 
@@ -873,13 +890,13 @@ $ aws ssm get-parameter --region <Var name="us-west-2" /> --name "/teleport/${CL
 # 992a9725-0a64-428d-8e5e-308e6877743d
 ```
 
-You can also generate an SSH Service join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../../../enroll-resources/agents/join-token.mdx).
+You can also generate an SSH Service join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../../../installation/agents/join-token.mdx).
 
 ### Joining agents to the cluster
 
 The easiest way to quickly join nodes to your cluster is to use the "Enroll New Resource" wizard in the Teleport web UI.
 
-To manually join Teleport Agents to your cluster, you will need [a join token](../../../enroll-resources/agents/join-token.mdx).
+To manually join Teleport Agents to your cluster, you will need [a join token](../../../installation/agents/join-token.mdx).
 
 You should join your agents using the public facing Proxy Service address - `teleport.example.com:443` for our
 example.
