@@ -102,7 +102,7 @@ func BenchmarkConnectGetDatabaseServers(b *testing.B) {
 			require.NoError(sb, watcher.WaitInitialization())
 
 			params := GetDatabaseServersParams{
-				Logger:      slog.Default(),
+				Logger:      slog.New(slog.DiscardHandler),
 				ClusterName: clusterName,
 				Watcher:     watcher,
 				Identity: tlsca.Identity{
