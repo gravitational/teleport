@@ -1233,6 +1233,363 @@ func TestPasswordlessFlow_backfillResidentKey(t *testing.T) {
 	})
 }
 
+func TestLoginFlow_Validate(t *testing.T) {
+	// Simulate a previously registered U2F device.
+	u2fKey, err := mocku2f.Create()
+	require.NoError(t, err)
+	u2fKey.SetCounter(10)
+	devAddedAt := time.Now().Add(-5 * time.Minute)
+	u2fDev, err := keyToMFADevice(u2fKey, devAddedAt, devAddedAt)
+	require.NoError(t, err)
+
+	// U2F user has a legacy device and no webID.
+	const u2fUser = "alpaca"
+	u2fIdentity := newFakeIdentity(u2fUser, u2fDev)
+
+	// webUser gets a newly registered device and a webID.
+	const webUser = "alice"
+	webIdentity := newFakeIdentity(webUser)
+
+	u2fConfig := &types.U2F{AppID: "https://example.com:3080"}
+	webConfig := &types.Webauthn{RPID: "example.com"}
+
+	const u2fOrigin = "https://example.com:3080"
+	const webOrigin = "https://example.com"
+	ctx := context.Background()
+
+	// Register a Webauthn device.
+	webKey, err := mocku2f.Create()
+	require.NoError(t, err)
+	webKey.PreferRPID = true
+	webKey.SetCounter(20)
+	webRegistration := &wanlib.RegistrationFlow{
+		Webauthn: webConfig,
+		Identity: webIdentity,
+	}
+	cc, err := webRegistration.Begin(ctx, webUser, false)
+	require.NoError(t, err)
+	ccr, err := webKey.SignCredentialCreation(webOrigin, cc)
+	require.NoError(t, err)
+	_, err = webRegistration.Finish(ctx, wanlib.RegisterResponse{
+		User:             webUser,
+		DeviceName:       "webauthn1",
+		CreationResponse: ccr,
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name         string
+		identity     *fakeIdentity
+		user, origin string
+		key          *mocku2f.Key
+	}{
+		{
+			name:     "U2F device validation",
+			identity: u2fIdentity,
+			user:     u2fUser,
+			origin:   u2fOrigin,
+			key:      u2fKey,
+		},
+		{
+			name:     "Webauthn device validation",
+			identity: webIdentity,
+			user:     webUser,
+			origin:   webOrigin,
+			key:      webKey,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			identity := test.identity
+
+			webLogin := &wanlib.LoginFlow{
+				U2F:      u2fConfig,
+				Webauthn: webConfig,
+				Identity: identity,
+			}
+
+			// Begin the login ceremony.
+			assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{
+				User: test.user,
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+				},
+			})
+			require.NoError(t, err)
+
+			// Capture expected counter before signing.
+			expectedCounter := test.key.Counter()
+
+			// Sign the assertion.
+			assertionResp, err := test.key.SignAssertion(test.origin, assertion)
+			require.NoError(t, err)
+
+			// Capture state before validation.
+			initialCounter := getSignatureCounter(identity.User.GetLocalAuth().MFA[0])
+			initialSessionDataCount := len(identity.SessionData)
+			initialUpdatedDevicesCount := len(identity.UpdatedDevices)
+
+			// Validate the response (shouldn't consume it).
+			err = webLogin.Validate(ctx, test.user, assertionResp, &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			})
+			require.NoError(t, err)
+
+			// Verify that Validate didn't modify state:
+			// 1. Counter shouldn't be updated
+			require.Equal(t, initialCounter, getSignatureCounter(identity.User.GetLocalAuth().MFA[0]), "Validate should not update counter")
+
+			// 2. Session data shouldn't be deleted
+			require.Len(t, identity.SessionData, initialSessionDataCount, "Validate should not delete session data")
+
+			// 3. Device shouldn't be updated
+			require.Len(t, identity.UpdatedDevices, initialUpdatedDevicesCount, "Validate should not update device")
+
+			// Verify that Finish still works after Validate.
+			loginData, err := webLogin.Finish(ctx, test.user, assertionResp, &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			})
+			require.NoError(t, err)
+
+			// Verify that Finish updated the counter.
+			require.Equal(t, expectedCounter, getSignatureCounter(loginData.Device), "Finish should update counter")
+
+			// Verify that Finish updated the device in storage.
+			require.NotEmpty(t, identity.UpdatedDevices, "Finish should update device")
+
+			// Verify that Finish deleted the session data.
+			require.Empty(t, identity.SessionData, "Finish should delete session data")
+		})
+	}
+}
+
+func TestLoginFlow_Validate_errors(t *testing.T) {
+	ctx := context.Background()
+	const user = "alice"
+	const webOrigin = "https://localhost"
+
+	webConfig := &types.Webauthn{RPID: "localhost"}
+	identity := newFakeIdentity(user)
+	webRegistration := &wanlib.RegistrationFlow{
+		Webauthn: webConfig,
+		Identity: identity,
+	}
+
+	key, err := mocku2f.Create()
+	require.NoError(t, err)
+	key.PreferRPID = true
+	cc, err := webRegistration.Begin(ctx, user, false)
+	require.NoError(t, err)
+	ccr, err := key.SignCredentialCreation(webOrigin, cc)
+	require.NoError(t, err)
+	_, err = webRegistration.Finish(ctx, wanlib.RegisterResponse{
+		User:             user,
+		DeviceName:       "webauthn1",
+		CreationResponse: ccr,
+	})
+	require.NoError(t, err)
+
+	webLogin := wanlib.LoginFlow{
+		U2F:      &types.U2F{AppID: "https://example.com"},
+		Webauthn: webConfig,
+		Identity: identity,
+	}
+	assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{
+		User: user,
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+		},
+	})
+	require.NoError(t, err)
+	okResp, err := key.SignAssertion(webOrigin, assertion)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		user       string
+		createResp func() *wantypes.CredentialAssertionResponse
+		exts       *mfav1.ChallengeExtensions
+	}{
+		{
+			name:       "empty user",
+			user:       "",
+			createResp: func() *wantypes.CredentialAssertionResponse { return okResp },
+			exts: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			},
+		},
+		{
+			name:       "nil resp",
+			user:       user,
+			createResp: func() *wantypes.CredentialAssertionResponse { return nil },
+			exts: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			},
+		},
+		{
+			name:       "empty resp",
+			user:       user,
+			createResp: func() *wantypes.CredentialAssertionResponse { return &wantypes.CredentialAssertionResponse{} },
+			exts: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			},
+		},
+		{
+			name:       "nil required extensions",
+			user:       user,
+			createResp: func() *wantypes.CredentialAssertionResponse { return okResp },
+			exts:       nil,
+		},
+		{
+			name: "bad origin",
+			user: user,
+			createResp: func() *wantypes.CredentialAssertionResponse {
+				assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{
+					User: user,
+					ChallengeExtensions: &mfav1.ChallengeExtensions{
+						Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+					},
+				})
+				require.NoError(t, err)
+				resp, err := key.SignAssertion("https://badorigin.com", assertion)
+				require.NoError(t, err)
+				return resp
+			},
+			exts: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			},
+		},
+		{
+			name: "unknown device",
+			user: user,
+			createResp: func() *wantypes.CredentialAssertionResponse {
+				assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{
+					User: user,
+					ChallengeExtensions: &mfav1.ChallengeExtensions{
+						Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+					},
+				})
+				require.NoError(t, err)
+
+				unknownKey, err := mocku2f.Create()
+				require.NoError(t, err)
+				unknownKey.PreferRPID = true
+				unknownKey.IgnoreAllowedCredentials = true
+
+				resp, err := unknownKey.SignAssertion(webOrigin, assertion)
+				require.NoError(t, err)
+				return resp
+			},
+			exts: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			},
+		},
+		{
+			name: "invalid signature",
+			user: user,
+			createResp: func() *wantypes.CredentialAssertionResponse {
+				assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{
+					User: user,
+					ChallengeExtensions: &mfav1.ChallengeExtensions{
+						Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+					},
+				})
+				require.NoError(t, err)
+				// Flip a challenge bit to fail signature checking.
+				assertion.Response.Challenge[0] = 1 ^ assertion.Response.Challenge[0]
+
+				resp, err := key.SignAssertion(webOrigin, assertion)
+				require.NoError(t, err)
+				return resp
+			},
+			exts: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := webLogin.Validate(ctx, test.user, test.createResp(), test.exts)
+			require.Error(t, err, "Validate should fail for: %s", test.name)
+		})
+	}
+}
+
+func TestLoginFlow_Validate_reusableSessions(t *testing.T) {
+	const user = "alice"
+	const webOrigin = "https://example.com"
+	webIdentity := newFakeIdentity(user)
+	webConfig := &types.Webauthn{RPID: "example.com"}
+	ctx := context.Background()
+
+	// Register a Webauthn device.
+	webKey, err := mocku2f.Create()
+	require.NoError(t, err)
+	webKey.PreferRPID = true
+	webRegistration := &wanlib.RegistrationFlow{
+		Webauthn: webConfig,
+		Identity: webIdentity,
+	}
+	cc, err := webRegistration.Begin(ctx, user, false)
+	require.NoError(t, err)
+	ccr, err := webKey.SignCredentialCreation(webOrigin, cc)
+	require.NoError(t, err)
+	_, err = webRegistration.Finish(ctx, wanlib.RegisterResponse{
+		User:             user,
+		DeviceName:       "webauthn1",
+		CreationResponse: ccr,
+	})
+	require.NoError(t, err)
+
+	webLogin := &wanlib.LoginFlow{
+		Webauthn: webConfig,
+		Identity: webIdentity,
+	}
+
+	// Begin with a reusable challenge.
+	assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{
+		User: user,
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+		},
+	})
+	require.NoError(t, err)
+
+	assertionResp, err := webKey.SignAssertion(webOrigin, assertion)
+	require.NoError(t, err)
+
+	// Validate should succeed and not consume the session.
+	err = webLogin.Validate(ctx, user, assertionResp, &mfav1.ChallengeExtensions{
+		Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+		AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+	})
+	require.NoError(t, err)
+
+	// Session data should still exist.
+	require.NotEmpty(t, webIdentity.SessionData, "Session should not be consumed by Validate")
+
+	// Validate again with the same response should succeed.
+	err = webLogin.Validate(ctx, user, assertionResp, &mfav1.ChallengeExtensions{
+		Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+		AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+	})
+	require.NoError(t, err)
+
+	// Finish should also work.
+	loginData, err := webLogin.Finish(ctx, user, assertionResp, &mfav1.ChallengeExtensions{
+		Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+		AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, loginData)
+
+	// Session data should still exist after Finish (because reuse is allowed).
+	require.NotEmpty(t, webIdentity.SessionData, "Reusable session should not be deleted by Finish")
+}
+
 type fakeIdentity struct {
 	User *types.UserV2
 	// MappedUser is used as the reply to GetTeleportUserByWebauthnID.
