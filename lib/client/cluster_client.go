@@ -795,10 +795,22 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 			AllowReuse: allowReuse,
 		},
 	}, promptOpts...)
-	if errors.Is(err, &mfa.ErrMFANotRequired) {
-		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
-	} else if err != nil {
-		return nil, trace.Wrap(err)
+	if err != nil {
+		switch {
+		case errors.Is(err, &mfa.ErrMFANotRequired):
+			return nil, trace.Wrap(services.ErrSessionMFANotRequired)
+		// this is not a completely exhaustive list for errors that are
+		// definitely not errors coming from the MFA ceremony itself, but we
+		// (and gRPC in general) don't seem to have a great way of
+		// distinguishing errors that are definitely coming from the upper
+		// layers of the connection from errors deep in the server handler;
+		// connection problem and limit exceeded are errors that are
+		// overwhelmingly more likely to happen in the former, tho
+		case trace.IsConnectionProblem(err), trace.IsLimitExceeded(err):
+			return nil, trace.Wrap(MFARequiredUnknown(trace.Unwrap(err)))
+		default:
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// If mfaResp.GetResponse() is nil, the ceremony was a no-op (no devices
