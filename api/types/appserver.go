@@ -349,7 +349,7 @@ func (s *AppServerV3) GetAllLabels() map[string]string {
 		dynamicLabels = s.Spec.App.Spec.DynamicLabels
 	}
 
-	return CombineLabels(staticLabels, dynamicLabels)
+	return CombineLabels(nil, staticLabels, dynamicLabels)
 }
 
 // GetStaticLabels returns the app server static labels.

@@ -35,6 +35,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	MFAService_CreateSessionChallenge_FullMethodName         = "/teleport.mfa.v1.MFAService/CreateSessionChallenge"
 	MFAService_ValidateSessionChallenge_FullMethodName       = "/teleport.mfa.v1.MFAService/ValidateSessionChallenge"
+	MFAService_ListValidatedMFAChallenges_FullMethodName     = "/teleport.mfa.v1.MFAService/ListValidatedMFAChallenges"
 	MFAService_ReplicateValidatedMFAChallenge_FullMethodName = "/teleport.mfa.v1.MFAService/ReplicateValidatedMFAChallenge"
 	MFAService_VerifyValidatedMFAChallenge_FullMethodName    = "/teleport.mfa.v1.MFAService/VerifyValidatedMFAChallenge"
 )
@@ -52,6 +53,10 @@ type MFAServiceClient interface {
 	// ValidateSessionChallenge validates the MFA challenge response for a user session and stores the validated response
 	// in the backend.
 	ValidateSessionChallenge(ctx context.Context, in *ValidateSessionChallengeRequest, opts ...grpc.CallOption) (*ValidateSessionChallengeResponse, error)
+	// ListValidatedMFAChallenges lists validated MFA challenges that have been created for all user sessions. This is
+	// intended to be used by the reverse tunnel server to watch for new validated challenges that need to be replicated
+	// for SSH session establishment in leaf clusters.
+	ListValidatedMFAChallenges(ctx context.Context, in *ListValidatedMFAChallengesRequest, opts ...grpc.CallOption) (*ListValidatedMFAChallengesResponse, error)
 	// ReplicateValidatedMFAChallenge replicates a validated MFA challenge from root cluster to leaf cluster for
 	// verification during SSH session establishment. The reverse tunnel server watches for validated challenges in the
 	// root cluster and invokes this RPC on the leaf cluster. This is a NOOP when invoked in the root cluster.
@@ -91,6 +96,16 @@ func (c *mFAServiceClient) ValidateSessionChallenge(ctx context.Context, in *Val
 	return out, nil
 }
 
+func (c *mFAServiceClient) ListValidatedMFAChallenges(ctx context.Context, in *ListValidatedMFAChallengesRequest, opts ...grpc.CallOption) (*ListValidatedMFAChallengesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListValidatedMFAChallengesResponse)
+	err := c.cc.Invoke(ctx, MFAService_ListValidatedMFAChallenges_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *mFAServiceClient) ReplicateValidatedMFAChallenge(ctx context.Context, in *ReplicateValidatedMFAChallengeRequest, opts ...grpc.CallOption) (*ReplicateValidatedMFAChallengeResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ReplicateValidatedMFAChallengeResponse)
@@ -124,6 +139,10 @@ type MFAServiceServer interface {
 	// ValidateSessionChallenge validates the MFA challenge response for a user session and stores the validated response
 	// in the backend.
 	ValidateSessionChallenge(context.Context, *ValidateSessionChallengeRequest) (*ValidateSessionChallengeResponse, error)
+	// ListValidatedMFAChallenges lists validated MFA challenges that have been created for all user sessions. This is
+	// intended to be used by the reverse tunnel server to watch for new validated challenges that need to be replicated
+	// for SSH session establishment in leaf clusters.
+	ListValidatedMFAChallenges(context.Context, *ListValidatedMFAChallengesRequest) (*ListValidatedMFAChallengesResponse, error)
 	// ReplicateValidatedMFAChallenge replicates a validated MFA challenge from root cluster to leaf cluster for
 	// verification during SSH session establishment. The reverse tunnel server watches for validated challenges in the
 	// root cluster and invokes this RPC on the leaf cluster. This is a NOOP when invoked in the root cluster.
@@ -147,6 +166,9 @@ func (UnimplementedMFAServiceServer) CreateSessionChallenge(context.Context, *Cr
 }
 func (UnimplementedMFAServiceServer) ValidateSessionChallenge(context.Context, *ValidateSessionChallengeRequest) (*ValidateSessionChallengeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ValidateSessionChallenge not implemented")
+}
+func (UnimplementedMFAServiceServer) ListValidatedMFAChallenges(context.Context, *ListValidatedMFAChallengesRequest) (*ListValidatedMFAChallengesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListValidatedMFAChallenges not implemented")
 }
 func (UnimplementedMFAServiceServer) ReplicateValidatedMFAChallenge(context.Context, *ReplicateValidatedMFAChallengeRequest) (*ReplicateValidatedMFAChallengeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReplicateValidatedMFAChallenge not implemented")
@@ -210,6 +232,24 @@ func _MFAService_ValidateSessionChallenge_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MFAService_ListValidatedMFAChallenges_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListValidatedMFAChallengesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MFAServiceServer).ListValidatedMFAChallenges(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MFAService_ListValidatedMFAChallenges_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MFAServiceServer).ListValidatedMFAChallenges(ctx, req.(*ListValidatedMFAChallengesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _MFAService_ReplicateValidatedMFAChallenge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ReplicateValidatedMFAChallengeRequest)
 	if err := dec(in); err != nil {
@@ -260,6 +300,10 @@ var MFAService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ValidateSessionChallenge",
 			Handler:    _MFAService_ValidateSessionChallenge_Handler,
+		},
+		{
+			MethodName: "ListValidatedMFAChallenges",
+			Handler:    _MFAService_ListValidatedMFAChallenges_Handler,
 		},
 		{
 			MethodName: "ReplicateValidatedMFAChallenge",

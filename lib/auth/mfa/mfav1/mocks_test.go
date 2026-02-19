@@ -145,6 +145,13 @@ type mockMFAService struct {
 
 	createValidatedMFAChallengeError error
 	getValidatedMFAChallengeError    error
+
+	listValidatedMFAChallenges          []*mfav1.ValidatedMFAChallenge
+	listValidatedMFAChallengesToken     string
+	listValidatedMFAChallengesError     error
+	listValidatedMFAChallengesPageSize  int32
+	listValidatedMFAChallengesPageToken string
+	listValidatedMFAChallengesFilter    *mfav1.ListValidatedMFAChallengesFilter
 }
 
 func (m *mockMFAService) CreateValidatedMFAChallenge(
@@ -177,4 +184,23 @@ func (m *mockMFAService) GetValidatedMFAChallenge(
 	defer m.mu.Unlock()
 
 	return m.chal, nil
+}
+
+func (m *mockMFAService) ListValidatedMFAChallenges(
+	_ context.Context,
+	pageSize int32,
+	pageToken string,
+	filter *mfav1.ListValidatedMFAChallengesFilter,
+) ([]*mfav1.ValidatedMFAChallenge, string, error) {
+	if m.listValidatedMFAChallengesError != nil {
+		return nil, "", m.listValidatedMFAChallengesError
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.listValidatedMFAChallengesPageSize = pageSize
+	m.listValidatedMFAChallengesPageToken = pageToken
+	m.listValidatedMFAChallengesFilter = filter
+
+	return m.listValidatedMFAChallenges, m.listValidatedMFAChallengesToken, nil
 }

@@ -93,7 +93,7 @@ message BedrockProvider {
   // Temperature controls the randomness of the model's output.
   float temperature = 3;
   // Integration is the AWS OIDC Integration name. If unset, Teleport will use
-  // AWS credentials available on the auth server machine; otherwise, it will
+  // AWS credentials available on the Auth Service machine; otherwise, it will
   // use the specified OIDC integration for assuming appropriate role.
   string integration = 4;
 }

@@ -24,6 +24,9 @@ import (
     "encoding/hex"
 {{- end }}
 	"fmt"
+{{- if .StatePoll }}
+	"time"
+{{- end }}
 {{- range $i, $a := .ExtraImports }}
 	{{$a}}
 {{- end }}
@@ -40,6 +43,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+{{- if .StatePoll }}
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+{{- end }}
 {{- if .Namespaced }}
 	"github.com/gravitational/teleport/api/defaults"
 {{- end }}
@@ -80,6 +86,14 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	{{- if .SaveSpecStateFromPlan}}
+	specFromPlan, ok := plan.Attrs["spec"]
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(trace.Errorf("spec not found in the plan")), "{{.Kind}}"))
+		return
+	}
+	{{end}}
 
 	{{.VarName}} := &{{.ProtoPackage}}.{{.TypeName}}{}
 	diags = {{.SchemaPackage}}.Copy{{.TypeName}}FromTerraform(ctx, plan, {{.VarName}})
@@ -231,12 +245,64 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	{{- else -}}
 	plan.Attrs["id"] = types.String{Value: {{.ID}}}
 	{{- end }}
+	{{- if .SaveSpecStateFromPlan}}
+	plan.Attrs["spec"] = specFromPlan
+	{{end}}
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+{{- if .StatePoll }}
+
+	stateConf := resource.StateChangeConf{
+		Pending: []string{
+		{{- range $state := .StatePoll.PendingStates }}
+			"{{ $state }}",
+		{{- end }}
+		},
+		Target:  []string{
+		{{- range $state := .StatePoll.TargetStates }}
+			"{{ $state }}",
+		{{- end }}
+		},
+		Timeout:      {{ .StatePoll.StateTimeoutSeconds }} * time.Second,
+		PollInterval: {{ .StatePoll.StatePollIntervalSeconds }} * time.Second,
+		Refresh: func() (any, string, error) {
+			{{ .VarName }}, err := r.p.Client.{{ .GetMethod }}(ctx, id)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			if {{ .VarName }} == nil {
+				return nil, "", trace.Errorf("response from {{ .GetMethod }} was nil")
+			}
+
+			{{- $root := . }}
+			{{- $lastIndex := -1 }}
+			{{- range $i, $p := .StatePoll.StatePath }}
+				{{- $lastIndex = $i }}
+			{{- end }}
+			{{- $currentPath := "" }}
+			{{- range $i, $p := .StatePoll.StatePath }}
+				{{- if eq $i $lastIndex }}
+					{{- break }}
+				{{- end }}
+				{{- $currentPath = print $currentPath "." $p }}
+			if {{ $root.VarName }}{{ $currentPath }} == nil {
+				return nil, "", trace.Errorf("response from {{ $root.GetMethod }} at {{ $currentPath }} was nil")
+			}
+			{{- end }}
+
+			return {{ .VarName }}, {{ .VarName }}{{ range $p := .StatePoll.StatePath }}. {{- $p }}{{ end }}, nil
+		},
+	}
+
+	if _, err := stateConf.WaitForStateContext(ctx); err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error waiting for {{ .TypeName }}", trace.Wrap(err), "{{ .Kind }}"))
+	}
+{{- end }}
 }
 
 // Read reads teleport {{.Name}}
@@ -425,6 +491,55 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 	if resp.Diagnostics.HasError() {
 		return
 	}
+{{- if .StatePoll }}
+
+	stateConf := resource.StateChangeConf{
+		Pending: []string{
+		{{- range $state := .StatePoll.PendingStates }}
+			"{{ $state }}",
+		{{- end }}
+		},
+		Target:  []string{
+		{{- range $state := .StatePoll.TargetStates }}
+			"{{ $state }}",
+		{{- end }}
+		},
+		Timeout:      {{ .StatePoll.StateTimeoutSeconds }} * time.Second,
+		PollInterval: {{ .StatePoll.StatePollIntervalSeconds }} * time.Second,
+		Refresh: func() (any, string, error) {
+			{{ .VarName }}, err := r.p.Client.{{ .GetMethod }}(ctx, name)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			if {{ .VarName }} == nil {
+				return nil, "", trace.Errorf("response from {{ .GetMethod }} was nil")
+			}
+
+			{{- $root := . }}
+			{{- $lastIndex := -1 }}
+			{{- range $i, $p := .StatePoll.StatePath }}
+				{{- $lastIndex = $i }}
+			{{- end }}
+			{{- $currentPath := "" }}
+			{{- range $i, $p := .StatePoll.StatePath }}
+				{{- if eq $i $lastIndex }}
+					{{- break }}
+				{{- end }}
+				{{- $currentPath = print $currentPath "." $p }}
+			if {{ $root.VarName }}{{ $currentPath }} == nil {
+				return nil, "", trace.Errorf("response from {{ $root.GetMethod }} at {{ $currentPath }} was nil")
+			}
+			{{- end }}
+
+			return {{ .VarName }}, {{ .VarName }}{{ range $p := .StatePoll.StatePath }}. {{- $p }}{{ end }}, nil
+		},
+	}
+
+	if _, err := stateConf.WaitForStateContext(ctx); err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error waiting for {{ .TypeName }}", trace.Wrap(err), "{{ .Kind }}"))
+	}
+{{- end }}
 }
 
 // Delete deletes Teleport {{.Name}}
@@ -461,6 +576,7 @@ func (r resourceTeleport{{.Name}}) Delete(ctx context.Context, req tfsdk.DeleteR
 	resp.State.RemoveResource(ctx)
 }
 
+{{if not .WithoutImportState -}}
 // ImportState imports {{.Name}} state
 func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
 	{{if .IDPrefix -}}
@@ -516,3 +632,4 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.Im
 		return
 	}
 }
+{{- end}}

@@ -14,14 +14,14 @@ spec:
       document_name: "AWS-RunShellScript"
     # Add new entry after existing entries
   - types: ["ec2"]
-    regions: ["us-east-1","us-west-1"]
+    regions: ["us-east-1", "us-west-1"]
+    tags:
+      "env": "prod" # Match EC2 instances where tag:env=prod
     install:
       join_method: iam
       join_token: aws-discovery-iam-token
     ssm:
       document_name: "AWS-RunShellScript"
-    tags:
-      "env": "prod" # Match EC2 instances where tag:env=prod
     assume_role:
       role_arn: "<Var name="role ARN" />"
       external_id: "<Var name="optional external ID" />"
@@ -50,14 +50,14 @@ discovery_service:
       document_name: "AWS-RunShellScript"
     # Add new entry after existing entries
   - types: ["ec2"]
-    regions: ["us-east-1","us-west-1"]
+    regions: ["us-east-1", "us-west-1"]
+    tags:
+      "env": "prod" # Match EC2 instances where tag:env=prod
     install:
       join_method: iam
       join_token: aws-discovery-iam-token
     ssm:
       document_name: "AWS-RunShellScript"
-    tags:
-      "env": "prod" # Match EC2 instances where tag:env=prod
     assume_role_arn: "<Var name="role ARN" />"
     external_id: "<Var name="optional external ID" />"
   - types: ["ec2"]

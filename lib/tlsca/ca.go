@@ -231,6 +231,10 @@ type Identity struct {
 	// OriginClusterName is the name of the cluster where the identity is
 	// authenticated.
 	OriginClusterName string
+
+	// ImmutableLabelHash is the hash of the immutable labels that have been
+	// applied to the identity.
+	ImmutableLabelHash string
 }
 
 // RouteToApp holds routing information for applications.
@@ -628,6 +632,9 @@ var (
 	// AllowedResourceAccessIDsASN1ExtensionOID is an extension OID used to list the
 	// ResourceAccessIDs which the certificate should be able to grant access to
 	AllowedResourceAccessIDsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 26}
+	// ImmutableLabelHashASN1ExtensionOID is an extension OID that contains the
+	// immuable label hash used to verify immutable labels.
+	ImmutableLabelHashASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 27}
 )
 
 // Device Trust OIDs.
@@ -1073,6 +1080,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		})
 	}
 
+	if id.ImmutableLabelHash != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  ImmutableLabelHashASN1ExtensionOID,
+				Value: id.ImmutableLabelHash,
+			})
+	}
+
 	return subject, nil
 }
 
@@ -1375,6 +1390,10 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 				if err := unmarshaler.Unmarshal([]byte(val), id.JoinAttributes); err != nil {
 					return nil, trace.Wrap(err)
 				}
+			}
+		case attr.Type.Equal(ImmutableLabelHashASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.ImmutableLabelHash = val
 			}
 		}
 	}

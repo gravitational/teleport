@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/config/joinuri"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/diagnostics"
@@ -316,12 +317,12 @@ func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 	defer func() { apitracing.EndSpan(span, err) }()
 
 	if b.cfg.JoinURI != "" {
-		parsed, err := config.ParseJoinURI(b.cfg.JoinURI)
+		parsed, err := joinuri.Parse(b.cfg.JoinURI)
 		if err != nil {
 			return nil, trace.Wrap(err, "parsing joining URI")
 		}
 
-		if err := parsed.ApplyToConfig(b.cfg); err != nil {
+		if err := config.ApplyJoinURIToConfig(parsed, b.cfg); err != nil {
 			return nil, trace.Wrap(err, "applying joining URI to bot config")
 		}
 	}

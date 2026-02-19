@@ -606,20 +606,14 @@ type TaskNameForDiscoverEC2Parts struct {
 // TaskNameForDiscoverEC2 returns a deterministic name for the DiscoverEC2 task type.
 // This method is used to ensure a single UserTask is created to report issues in enrolling EC2 instances for a given integration, issue type, account id and region.
 func TaskNameForDiscoverEC2(parts TaskNameForDiscoverEC2Parts) string {
-	var bs []byte
-	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.Integration)))...)
-	bs = append(bs, []byte(parts.Integration)...)
-	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.IssueType)))...)
-	bs = append(bs, []byte(parts.IssueType)...)
-	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.AccountID)))...)
-	bs = append(bs, []byte(parts.AccountID)...)
-	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.Region)))...)
-	bs = append(bs, []byte(parts.Region)...)
-	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.SSMDocument)))...)
-	bs = append(bs, []byte(parts.SSMDocument)...)
-	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.InstallerScript)))...)
-	bs = append(bs, []byte(parts.InstallerScript)...)
-	return uuid.NewSHA1(discoverEC2Namespace, bs).String()
+	return taskNameFromParts(discoverEC2Namespace,
+		parts.Integration,
+		parts.IssueType,
+		parts.AccountID,
+		parts.Region,
+		parts.SSMDocument,
+		parts.InstallerScript,
+	)
 }
 
 // discoverEC2Namespace is an UUID that represents the name space to be used for generating UUIDs for DiscoverEC2 User Task names.
@@ -638,19 +632,13 @@ type TaskNameForDiscoverEKSParts struct {
 // TaskNameForDiscoverEKS returns a deterministic name for the DiscoverEKS task type.
 // This method is used to ensure a single UserTask is created to report issues in enrolling EKS clusters for a given integration, issue type, account id and region.
 func TaskNameForDiscoverEKS(parts TaskNameForDiscoverEKSParts) string {
-	var bs []byte
-	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.Integration)))...)
-	bs = append(bs, []byte(parts.Integration)...)
-	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.IssueType)))...)
-	bs = append(bs, []byte(parts.IssueType)...)
-	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.AccountID)))...)
-	bs = append(bs, []byte(parts.AccountID)...)
-	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.Region)))...)
-	bs = append(bs, []byte(parts.Region)...)
-	appAutoDiscoverString := strconv.FormatBool(parts.AppAutoDiscover)
-	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(appAutoDiscoverString)))...)
-	bs = append(bs, []byte(appAutoDiscoverString)...)
-	return uuid.NewSHA1(discoverEKSNamespace, bs).String()
+	return taskNameFromParts(discoverEKSNamespace,
+		parts.Integration,
+		parts.IssueType,
+		parts.AccountID,
+		parts.Region,
+		strconv.FormatBool(parts.AppAutoDiscover),
+	)
 }
 
 // discoverEKSNamespace is an UUID that represents the name space to be used for generating UUIDs for DiscoverEKS User Task names.
@@ -668,16 +656,12 @@ type TaskNameForDiscoverRDSParts struct {
 // TaskNameForDiscoverRDS returns a deterministic name for the DiscoverRDS task type.
 // This method is used to ensure a single UserTask is created to report issues in enrolling RDS databases for a given integration, issue type, account id and region.
 func TaskNameForDiscoverRDS(parts TaskNameForDiscoverRDSParts) string {
-	var bs []byte
-	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.Integration)))...)
-	bs = append(bs, []byte(parts.Integration)...)
-	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.IssueType)))...)
-	bs = append(bs, []byte(parts.IssueType)...)
-	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.AccountID)))...)
-	bs = append(bs, []byte(parts.AccountID)...)
-	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.Region)))...)
-	bs = append(bs, []byte(parts.Region)...)
-	return uuid.NewSHA1(discoverRDSNamespace, bs).String()
+	return taskNameFromParts(discoverRDSNamespace,
+		parts.Integration,
+		parts.IssueType,
+		parts.AccountID,
+		parts.Region,
+	)
 }
 
 // discoverRDSNamespace is an UUID that represents the name space to be used for generating UUIDs for DiscoverRDS User Task names.
@@ -695,8 +679,11 @@ type taskNameForDiscoverAzureVMParts struct {
 // This method is used to ensure a single UserTask is created to report issues in enrolling Azure VMs for a given integration, issue type, subscription id, resource group and region.
 func taskNameForDiscoverAzureVM(tg TaskGroup, parts taskNameForDiscoverAzureVMParts) string {
 	return taskNameFromParts(discoverAzureVMNamespace,
-		tg.Integration, tg.IssueType,
-		parts.SubscriptionID, parts.ResourceGroup, parts.Region,
+		tg.Integration,
+		tg.IssueType,
+		parts.SubscriptionID,
+		parts.ResourceGroup,
+		parts.Region,
 	)
 }
 

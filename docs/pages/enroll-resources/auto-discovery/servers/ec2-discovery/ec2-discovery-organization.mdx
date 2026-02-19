@@ -246,6 +246,8 @@ Static configuration while simpler at first, has less flexibility because enroll
     aws:
     - types: ["ec2"]
       regions: ["*"]
+      tags:
+        "env": "prod" # Match EC2 instances where tag:env=prod
       ssm:
         document_name: "AWS-RunShellScript"
       install:
@@ -266,8 +268,6 @@ Static configuration while simpler at first, has less flexibility because enroll
             # Only exact matches are supported.
             # Optional. If empty, no OUs are excluded.
             exclude: []
-        tags:
-            "env": "prod" # Match EC2 instances where tag:env=prod
   ```
   Adjust the keys under `spec.aws` to match your EC2 environment,
   specifically the tags you want to associate with the Discovery Service.
@@ -293,6 +293,8 @@ Static configuration while simpler at first, has less flexibility because enroll
     aws:
     - types: ["ec2"]
       regions: ["*"]
+      tags:
+        "env": "prod" # Match EC2 instances where tag:env=prod
       ssm:
         document_name: "AWS-RunShellScript"
       install:
@@ -312,10 +314,6 @@ Static configuration while simpler at first, has less flexibility because enroll
             # Only exact matches are supported.
             # Optional. If empty, no OUs are excluded.
             exclude: []
-        tags:
-            "env": "prod" # Match EC2 instances where tag:env=prod
-      tags:
-        "env": "prod" # Match EC2 instances where tag:env=prod
   ```
   
   Adjust the keys under `discovery_service.aws` to match your EC2 environment, 

@@ -91,7 +91,6 @@ module "aws_discovery" {
   teleport_discovery_group_name = "cloud-discovery-group"
   teleport_integration_name	    = ${integrationNameOrNull}
 
-
   match_aws_resource_types = ${matchAwsTypes}
 
   match_aws_regions = ${regionsOrNull}

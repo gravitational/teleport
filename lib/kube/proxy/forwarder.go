@@ -954,7 +954,7 @@ func (f *Forwarder) emitAuditEvent(req *http.Request, sess *clusterSession, stat
 	}
 
 	r.populateEvent(event)
-	if err := f.cfg.AuthClient.EmitAuditEvent(f.ctx, event); err != nil {
+	if err := f.cfg.Emitter.EmitAuditEvent(f.ctx, event); err != nil {
 		f.log.WarnContext(f.ctx, "Failed to emit event", "error", err)
 	}
 }
@@ -1004,7 +1004,7 @@ func (f *Forwarder) getKubeAccessDetails(
 		}
 
 		// Get list of allowed kube user/groups based on kubernetes service labels.
-		labels := types.CombineLabels(c.GetStaticLabels(), types.LabelsToV2(c.GetDynamicLabels()))
+		labels := types.CombineLabels(nil, c.GetStaticLabels(), types.LabelsToV2(c.GetDynamicLabels()))
 
 		matchers := make([]services.RoleMatcher, 0, 2)
 		// Creates a matcher that matches the cluster labels against `kubernetes_labels`

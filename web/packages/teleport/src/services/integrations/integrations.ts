@@ -83,9 +83,9 @@ export const integrationService = {
     return api.get(cfg.getIntegrationCaUrl(clusterId, integrationName));
   },
 
-  fetchIntegration<T>(name: string): Promise<T> {
+  fetchIntegration<T>(name: string, abortSignal?: AbortSignal): Promise<T> {
     return api
-      .get(cfg.getIntegrationsUrl(name))
+      .get(cfg.getIntegrationsUrl(name), abortSignal)
       .then(resp => makeIntegration(resp) as T);
   },
 

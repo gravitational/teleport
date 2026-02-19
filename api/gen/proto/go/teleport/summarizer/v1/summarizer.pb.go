@@ -672,7 +672,7 @@ type BedrockProvider struct {
 	// Temperature controls the randomness of the model's output.
 	Temperature float32 `protobuf:"fixed32,3,opt,name=temperature,proto3" json:"temperature,omitempty"`
 	// Integration is the AWS OIDC Integration name. If unset, Teleport will use
-	// AWS credentials available on the auth server machine; otherwise, it will
+	// AWS credentials available on the Auth Service machine; otherwise, it will
 	// use the specified OIDC integration for assuming appropriate role.
 	Integration   string `protobuf:"bytes,4,opt,name=integration,proto3" json:"integration,omitempty"`
 	unknownFields protoimpl.UnknownFields

@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -91,6 +92,15 @@ func (s *MFAService) CreateValidatedMFAChallenge(
 		return nil, trace.Wrap(err)
 	}
 
+	s.logger.DebugContext(
+		ctx,
+		"Created validated MFA challenge resource.",
+		"username", username,
+		"challenge_name", chal.Metadata.GetName(),
+		"source_cluster", chal.Spec.GetSourceCluster(),
+		"target_cluster", chal.Spec.GetTargetCluster(),
+	)
+
 	return (*mfav1.ValidatedMFAChallenge)(res), nil
 }
 
@@ -116,6 +126,48 @@ func (s *MFAService) GetValidatedMFAChallenge(
 	}
 
 	return (*mfav1.ValidatedMFAChallenge)(res), nil
+}
+
+// ListValidatedMFAChallenges lists all ValidatedMFAChallenge resources across all users sessions.
+func (s *MFAService) ListValidatedMFAChallenges(
+	ctx context.Context,
+	pageSize int32,
+	pageToken string,
+	filter *mfav1.ListValidatedMFAChallengesFilter,
+) ([]*mfav1.ValidatedMFAChallenge, string, error) {
+	filterFunc := func(chal *validatedMFAChallenge) bool {
+		// If no filter is specified, return all challenges.
+		if filter == nil {
+			return true
+		}
+
+		// If a filter with a target cluster is specified, only return challenges that match the target cluster.
+		if filter.GetTargetCluster() != "" && chal.Spec.GetTargetCluster() != filter.GetTargetCluster() {
+			return false
+		}
+
+		// All filter criteria met, return the challenge.
+		return true
+	}
+
+	internalChallenges, nextPageToken, err := s.service.ListResourcesWithFilter(ctx, int(pageSize), pageToken, filterFunc)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	challenges := make([]*mfav1.ValidatedMFAChallenge, 0, len(internalChallenges))
+
+	for _, chal := range internalChallenges {
+		challenges = append(challenges, (*mfav1.ValidatedMFAChallenge)(chal))
+	}
+
+	s.logger.DebugContext(
+		ctx,
+		"Listed validated MFA challenges.",
+		"challenges", challenges,
+	)
+
+	return challenges, nextPageToken, nil
 }
 
 // validatedMFAChallenge wraps mfav1.ValidatedMFAChallenge in order to implement the generic.ResourceMetadata interface.
@@ -185,5 +237,77 @@ func checkValidatedMFAChallenge(chal *validatedMFAChallenge) error {
 		return trace.BadParameter("target_cluster must be set")
 	default:
 		return nil
+	}
+}
+
+func newValidatedMFAChallengeParser() *validatedMFAChallengeParser {
+	return &validatedMFAChallengeParser{
+		baseParser: newBaseParser(backend.ExactKey(types.KindValidatedMFAChallenge)),
+	}
+}
+
+type validatedMFAChallengeParser struct {
+	baseParser
+}
+
+type validatedMFAChallengeResource struct {
+	*types.ResourceHeader
+
+	challenge *mfav1.ValidatedMFAChallenge
+}
+
+func (r *validatedMFAChallengeResource) UnwrapT() *mfav1.ValidatedMFAChallenge {
+	return r.challenge
+}
+
+func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		key := event.Item.Key.TrimPrefix(backend.NewKey(types.KindValidatedMFAChallenge))
+
+		keyComponents := key.Components()
+		if len(keyComponents) < 2 {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindValidatedMFAChallenge,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:        keyComponents[len(keyComponents)-1],
+				Namespace:   defaults.Namespace,
+				Description: keyComponents[0],
+			},
+		}, nil
+
+	case types.OpPut:
+		resource, err := UnmarshalValidatedMFAChallenge(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		challenge := (*mfav1.ValidatedMFAChallenge)(resource)
+
+		metadata := types.Metadata{}
+		if challenge.Metadata != nil {
+			metadata = *challenge.Metadata
+		}
+
+		return &validatedMFAChallengeResource{
+			ResourceHeader: &types.ResourceHeader{
+				Kind:     challenge.Kind,
+				SubKind:  challenge.SubKind,
+				Version:  challenge.Version,
+				Metadata: metadata,
+			},
+			challenge: challenge,
+		}, nil
+
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
 }

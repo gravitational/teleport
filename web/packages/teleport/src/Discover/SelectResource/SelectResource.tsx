@@ -271,15 +271,15 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
           kind="cta"
           dismissible={true}
           details={
-            'Connect your AWS, Azure, or GCP accounts to automatically scan and import all resources.'
+            'Use Terraform to connect your AWS, Azure, or GCP accounts to Teleport and automatically discover your resources.'
           }
           primaryAction={{
             content: 'Connect Cloud Account',
-            linkTo: cfg.getIntegrationsEnrollRoute({ tags: ['cloud'] }),
+            linkTo: cfg.getIntegrationsEnrollRoute({ tags: ['terraform'] }),
           }}
           linkColor="buttons.primary.text"
         >
-          Automatic Discovery
+          Automatically Discover
         </Alert>
       )}
       <Flex gap={3} mb={3}>

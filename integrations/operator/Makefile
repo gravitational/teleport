@@ -12,17 +12,8 @@ IMG ?= teleport-operator:latest
 # across all builds.
 include ../../build.assets/versions.mk
 
-# Setting SHELL to bash allows bash commands to be executed by recipes.
-# This is a requirement for 'setup-envtest.sh' in the test target.
-# Options are set to exit when a recipe line exits non-zero or a piped command fails.
-SHELL = /usr/bin/env bash -o pipefail
-.SHELLFLAGS = -ec
-
 # include BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables
 include ../../build.assets/images.mk
-
-# include setup-envtest binary
-include ./envtest.mk
 
 # Configure which compiler and buildbox to use
 OS ?= $(shell go env GOOS)
@@ -99,7 +90,8 @@ PROTOS = \
 	teleport/legacy/types/types.proto \
 	teleport/machineid/v1/bot.proto \
 	teleport/workloadidentity/v1/resource.proto \
-	teleport/autoupdate/v1/autoupdate.proto
+	teleport/autoupdate/v1/autoupdate.proto \
+	teleport/summarizer/v1/summarizer.proto
 
 .PHONY: crd-manifests
 crd-manifests: crdgen ## Generates CRD manifests using crdgen.
@@ -148,12 +140,12 @@ crd-manifests-diff: crdgen
 		protoc \
 			-I=../../api/proto/ \
 			-I=$(PROTOBUF_MOD_PATH) \
-			--plugin=./build/protoc-gen-crd \
+			--plugin=./crdgen/build/protoc-gen-crd \
 			--crd_out=$(CRD_OUT_PATH) \
 			"$${proto}"; \
 	done
 
-	diff config/crd/bases $(CRD_OUT_PATH);\
+	diff -N config/crd/bases $(CRD_OUT_PATH);\
 	EXIT_CODE=$$?;\
 	rm -rf $(CRD_OUT_PATH) $(CUSTOM_IMPORTS_TMP_DIR);\
 	exit $$EXIT_CODE
@@ -173,15 +165,8 @@ debug-dump-request:
 	done
 
 .PHONY: test
-test: generate $(ENVTEST) ## Run tests.
-test: export KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
-test:
+test: generate ## Run tests.
 	gotestsum --junitfile unit-tests-operator.xml --jsonfile unit-tests-operator.json
-
-.PHONY: echo-kubebuilder-assets
-echo-kubebuilder-assets:
-	@echo KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
-
 
 ##@ Build
 
@@ -213,7 +198,7 @@ $(LOCALBIN):
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 
 ## Tool Versions
-CONTROLLER_TOOLS_VERSION ?= v0.19.0
+CONTROLLER_TOOLS_VERSION ?= v0.20.0
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.

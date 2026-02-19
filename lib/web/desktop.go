@@ -185,7 +185,6 @@ func (t *tdpHandshaker) performInitialHandshake(ctx context.Context, log *slog.L
 		)
 	}
 
-	*log = *log.With("width", width, "height", height)
 	msg, err = t.connection.ReadMessage()
 	if err != nil {
 		return trace.Wrap(err)
@@ -194,7 +193,7 @@ func (t *tdpHandshaker) performInitialHandshake(ctx context.Context, log *slog.L
 	keyboardLayout, gotKeyboardLayout := msg.(legacy.ClientKeyboardLayout)
 	if !gotKeyboardLayout {
 		t.withheld = append(t.withheld, msg)
-		log.InfoContext(ctx, "client did not send keyboard layout", "message_type", logutils.TypeAttr(msg))
+		log.InfoContext(ctx, "client did not send keyboard layout", "message_type", logutils.TypeAttr(msg), "width", width, "height", height)
 	} else {
 		t.keyboardLayout = &keyboardLayout
 	}

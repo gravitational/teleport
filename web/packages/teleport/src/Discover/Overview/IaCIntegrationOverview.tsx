@@ -36,15 +36,15 @@ import {
 } from 'design/Icon';
 import { TabBorder, useSlidingBottomBorderTabs } from 'design/Tabs';
 import { HoverTooltip } from 'design/Tooltip';
-import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
 import { pluralize } from 'shared/utils/text';
 
 import { FeatureBox } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
 import {
+  ContentWithSidePanel,
   InfoGuideSwitch,
   type InfoGuideTab,
-} from 'teleport/Integrations/Enroll/Cloud/Aws/EnrollAws';
+} from 'teleport/Integrations/Enroll/Cloud/Aws/InfoGuide';
 import { SummaryStatusLabel } from 'teleport/Integrations/shared/StatusLabel';
 import { useNoMinWidth } from 'teleport/Main';
 import {
@@ -54,7 +54,7 @@ import {
 } from 'teleport/services/integrations';
 
 import { ActivityTab } from './ActivityTab';
-import { SettingsTab } from './SettingsTab';
+import { SETTINGS_PANEL_WIDTH, SettingsTab } from './SettingsTab';
 import { SmallTab, SmallTabsContainer } from './SmallTabs';
 
 export function formatRelativeDate(value?: string | Date): string {
@@ -96,9 +96,9 @@ export function IaCIntegrationOverview() {
   });
 
   const [activeTab, setActiveTab] = useState<TabId>('overview');
-  const [activeInfoGuideTab, setActiveInfoGuideTab] =
-    useState<InfoGuideTab>('terraform');
-  const { infoGuideConfig } = useInfoGuide();
+  const [activeInfoGuideTab, setActiveInfoGuideTab] = useState<InfoGuideTab>(
+    'terraform' as const
+  );
   const { borderRef, parentRef } = useSlidingBottomBorderTabs({ activeTab });
   useNoMinWidth();
 
@@ -120,55 +120,62 @@ export function IaCIntegrationOverview() {
     );
   }
 
+  const isPanelOpen = activeTab === 'settings' && activeInfoGuideTab !== null;
+
   return (
     <FeatureBox maxWidth="1400px" pt={3}>
-      <Flex alignItems="center" justifyContent="space-between" mb={3}>
-        <Flex alignItems="center">
-          <HoverTooltip placement="bottom" tipContent="Back to Integrations">
-            <ButtonIcon as={RouterLink} to={cfg.routes.integrations} mr={2}>
-              <ArrowLeft size="medium" />
-            </ButtonIcon>
-          </HoverTooltip>
-          <Text bold fontSize={6} mr={2}>
-            {stats.name}
-          </Text>
+      <ContentWithSidePanel
+        isPanelOpen={isPanelOpen}
+        panelWidth={SETTINGS_PANEL_WIDTH}
+      >
+        <Flex alignItems="center" justifyContent="space-between" mb={3}>
+          <Flex alignItems="center">
+            <HoverTooltip placement="bottom" tipContent="Back to Integrations">
+              <ButtonIcon as={RouterLink} to={cfg.routes.integrations} mr={2}>
+                <ArrowLeft size="medium" />
+              </ButtonIcon>
+            </HoverTooltip>
+            <Text bold fontSize={6} mr={2}>
+              {stats.name}
+            </Text>
+          </Flex>
+          {activeTab === 'settings' && (
+            <InfoGuideSwitch
+              isPanelOpen={activeInfoGuideTab !== null}
+              activeTab={activeInfoGuideTab}
+              onSwitch={setActiveInfoGuideTab}
+            />
+          )}
         </Flex>
-        {activeTab === 'settings' && (
-          <InfoGuideSwitch
-            currentConfig={infoGuideConfig}
-            activeTab={activeInfoGuideTab}
-            onSwitch={setActiveInfoGuideTab}
+        <SmallTabsContainer ref={parentRef} mb={4}>
+          {TABS.map(t => (
+            <SmallTab
+              key={t.id}
+              data-tab-id={t.id}
+              selected={activeTab === t.id}
+              onClick={() => setActiveTab(t.id)}
+            >
+              {t.label}
+            </SmallTab>
+          ))}
+          <TabBorder ref={borderRef} />
+        </SmallTabsContainer>
+
+        {activeTab === 'overview' && (
+          <OverviewTab
+            stats={stats}
+            onViewIssues={() => setActiveTab('activity')}
           />
         )}
-      </Flex>
-      <SmallTabsContainer ref={parentRef} mb={4}>
-        {TABS.map(t => (
-          <SmallTab
-            key={t.id}
-            data-tab-id={t.id}
-            selected={activeTab === t.id}
-            onClick={() => setActiveTab(t.id)}
-          >
-            {t.label}
-          </SmallTab>
-        ))}
-        <TabBorder ref={borderRef} />
-      </SmallTabsContainer>
-
-      {activeTab === 'overview' && (
-        <OverviewTab
-          stats={stats}
-          onViewIssues={() => setActiveTab('activity')}
-        />
-      )}
-      {activeTab === 'activity' && <ActivityTab stats={stats} />}
-      {activeTab === 'settings' && (
-        <SettingsTab
-          stats={stats}
-          activeInfoGuideTab={activeInfoGuideTab}
-          onInfoGuideTabChange={setActiveInfoGuideTab}
-        />
-      )}
+        {activeTab === 'activity' && <ActivityTab stats={stats} />}
+        {activeTab === 'settings' && (
+          <SettingsTab
+            stats={stats}
+            activeInfoGuideTab={activeInfoGuideTab}
+            onInfoGuideTabChange={setActiveInfoGuideTab}
+          />
+        )}
+      </ContentWithSidePanel>
     </FeatureBox>
   );
 }
