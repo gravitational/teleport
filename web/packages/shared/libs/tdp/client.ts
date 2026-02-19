@@ -24,9 +24,9 @@ import init, {
   FastPathProcessor,
   init_wasm_log,
 } from 'shared/libs/ironrdp/pkg/ironrdp';
-import Logger from 'shared/libs/logger';
 // Inlines the wasm module as a static asset bundled with our app.
 import wasmUrl from 'shared/libs/ironrdp/pkg/ironrdp_bg.wasm?inline';
+import Logger from 'shared/libs/logger';
 import { ensureError, isAbortError } from 'shared/utils/error';
 
 import Codec, {
