@@ -202,7 +202,7 @@ func TestProxyConnection(t *testing.T) {
 		{
 			name:           "tdp-tdpb",
 			clientProtocol: protocolTDP,
-			serverProtocol: protocolTDPB,
+			serverProtocol: tdpb.ProtocolName,
 			version:        "17.5.0",
 			clientFn:       tdpClient,
 			echoFn:         tdpbEchoServer,
@@ -217,7 +217,7 @@ func TestProxyConnection(t *testing.T) {
 		},
 		{
 			name:           "tdpb-tdp",
-			clientProtocol: protocolTDPB,
+			clientProtocol: tdpb.ProtocolName,
 			serverProtocol: protocolTDP,
 			version:        "17.5.0",
 			clientFn:       tdpbClient,
@@ -225,8 +225,8 @@ func TestProxyConnection(t *testing.T) {
 		},
 		{
 			name:           "tdpb-tdpb",
-			clientProtocol: protocolTDPB,
-			serverProtocol: protocolTDPB,
+			clientProtocol: tdpb.ProtocolName,
+			serverProtocol: tdpb.ProtocolName,
 			version:        "17.5.0",
 			clientFn:       tdpbClient,
 			echoFn:         tdpbEchoServer,
@@ -234,7 +234,7 @@ func TestProxyConnection(t *testing.T) {
 		{
 			name:           "tdp-tdpb-no-latency-monitor",
 			clientProtocol: protocolTDP,
-			serverProtocol: protocolTDPB,
+			serverProtocol: tdpb.ProtocolName,
 			/* server version does not support latency monitoring */
 			version:  "17.0.0",
 			clientFn: tdpClient,
@@ -339,7 +339,7 @@ func TestHandshaker(t *testing.T) {
 		defer handshaker.Close()
 		defer client.Close()
 
-		shaker := newHandshaker(protocolTDPB, handshaker)
+		shaker := newHandshaker(tdpb.ProtocolName, handshaker)
 
 		done := make(chan error)
 		go func() {
@@ -355,7 +355,6 @@ func TestHandshaker(t *testing.T) {
 			KeyboardLayout: 12,
 		}
 		require.NoError(t, tdp.EncodeTo(&clientConn, hello))
-		require.NoError(t, tdp.EncodeTo(&clientConn, &tdpb.PNGFrame{Data: []byte("somedata")}))
 		// Should succeed
 		require.NoError(t, <-done)
 
@@ -399,6 +398,49 @@ func TestHandshaker(t *testing.T) {
 		require.ErrorIs(t, err, io.EOF)
 	})
 
+	t.Run("withheld-tdpb-messages-are-translated", func(t *testing.T) {
+		tdpbHandshaker := tdpbHandshaker{
+			hello: &tdpb.ClientHello{
+				ScreenSpec: &tdpbv1.ClientScreenSpec{
+					Width:  10,
+					Height: 10,
+				},
+				KeyboardLayout: 1,
+			},
+			withheld: []tdp.Message{&tdpb.MouseMove{X: 1, Y: 2}},
+		}
+
+		buf := bytes.NewBuffer(nil)
+		require.NoError(t, tdpbHandshaker.forwardTDP(buf, "someuser", false))
+		username, err := legacy.Decode(buf)
+		require.IsType(t, legacy.ClientUsername{}, username)
+		require.NoError(t, err)
+		screenSpec, err := legacy.Decode(buf)
+		require.NoError(t, err)
+		require.IsType(t, legacy.ClientScreenSpec{}, screenSpec)
+		pngFrame, err := legacy.Decode(buf)
+		require.NoError(t, err)
+		require.IsType(t, legacy.MouseMove{}, pngFrame)
+	})
+
+	t.Run("withheld-tdp-messages-are-translated", func(t *testing.T) {
+		tdbHandshaker := tdpHandshaker{
+			screenSpec: legacy.ClientScreenSpec{
+				Width:  10,
+				Height: 10,
+			},
+			withheld: []tdp.Message{legacy.MouseMove{X: 1, Y: 2}},
+		}
+
+		buf := bytes.NewBuffer(nil)
+		require.NoError(t, tdbHandshaker.forwardTDPB(buf, "someuser", false))
+		hello, err := tdpb.DecodePermissive(buf)
+		require.IsType(t, &tdpb.ClientHello{}, hello)
+		require.NoError(t, err)
+		pngFrame, err := tdpb.DecodePermissive(buf)
+		require.NoError(t, err)
+		require.IsType(t, &tdpb.MouseMove{}, pngFrame)
+	})
 }
 
 func TestDesktopWebsocketAdapter(t *testing.T) {
