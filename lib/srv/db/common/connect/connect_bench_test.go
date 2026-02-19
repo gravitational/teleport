@@ -20,12 +20,14 @@ import (
 	"fmt"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -82,23 +84,26 @@ func BenchmarkConnectGetDatabaseServers(b *testing.B) {
 
 			servers := createBenchmarkDatabaseServers(sb, total, targetName)
 
-			authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-				ClusterName: clusterName,
-				Dir:         sb.TempDir(),
-			})
+			backend, err := memory.New(memory.Config{Context: sb.Context()})
 			require.NoError(sb, err)
-			sb.Cleanup(func() { require.NoError(sb, authServer.Close()) })
 
+			presenceService := local.NewPresenceService(backend)
 			for _, server := range servers {
-				_, err := authServer.AuthServer.UpsertDatabaseServer(b.Context(), server)
+				_, err = presenceService.UpsertDatabaseServer(sb.Context(), server)
 				require.NoError(sb, err)
 			}
 
-			cluster := reversetunnelclient.NewFakeCluster(clusterName, authServer.AuthServer)
-			sb.Cleanup(func() { require.NoError(sb, cluster.Close()) })
-
-			watcher, err := cluster.DatabaseServerWatcher()
+			watcher, err := services.NewDatabaseServerWatcher(sb.Context(), services.DatabaseServerWatcherConfig{
+				DatabaseServersGetter: presenceService,
+				ResourceWatcherConfig: services.ResourceWatcherConfig{
+					Component:      "bench",
+					MaxRetryPeriod: 200 * time.Millisecond,
+					Client:         local.NewEventsService(backend),
+				},
+			})
 			require.NoError(sb, err)
+			sb.Cleanup(watcher.Close)
+
 			require.NoError(sb, watcher.WaitInitialization())
 
 			params := GetDatabaseServersParams{
