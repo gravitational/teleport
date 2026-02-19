@@ -19,6 +19,7 @@ package dns
 import (
 	"context"
 	"log/slog"
+	"net"
 	"net/netip"
 
 	"github.com/godbus/dbus/v5"
@@ -52,6 +53,19 @@ func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
 		}
 		if addr.IsUnspecified() || addr.IsLoopback() {
 			continue
+		}
+		// Link-local IPv6 addresses require a scope to be routable.
+		if addr.Is6() && addr.IsLinkLocalUnicast() {
+			if entry.InterfaceIndex == 0 {
+				slog.DebugContext(ctx, "Skipping link-local DNS server without interface index", "address", addr.String())
+				continue
+			}
+			iface, err := net.InterfaceByIndex(int(entry.InterfaceIndex))
+			if err != nil {
+				slog.DebugContext(ctx, "Skipping link-local DNS server with unknown interface", "address", addr.String(), "interface_index", entry.InterfaceIndex, "error", err)
+				continue
+			}
+			addr = addr.WithZone(iface.Name)
 		}
 		nameservers = append(nameservers, WithDNSPort(addr))
 	}
