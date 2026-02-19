@@ -4980,6 +4980,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Logger:    process.logger.With(teleport.ComponentKey, teleport.ComponentProxy),
 			Client:    accessPoint,
 		},
+		DatabaseServersGetter: accessPoint,
 	})
 	if err != nil {
 		return trace.Wrap(err)
