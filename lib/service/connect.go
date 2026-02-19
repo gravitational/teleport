@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -722,6 +723,49 @@ func (process *TeleportProcess) legacyJoinWithHostUUID(role types.SystemRole, ho
 	return identity, trace.Wrap(err)
 }
 
+// initBoundKeypairClientState attempts to initialize or load an existing bound
+// keypair client state. This state could be static or stored in the local
+// process storage.
+func (process *TeleportProcess) initBoundKeypairClientState() (boundkeypair.ClientState, error) {
+	cfg := process.Config.JoinParams.BoundKeypair
+
+	staticKey, err := cfg.StaticPrivateKeyBytes()
+	if err != nil {
+		process.logger.WarnContext(
+			process.ExitContext(),
+			"Could not load the configured bound keypair static key, will attempt to fall back to a standard keypair",
+			"error", err,
+		)
+	} else if staticKey != nil {
+		return boundkeypair.NewStaticClientState(staticKey), nil
+	}
+
+	registrationSecret, err := cfg.RegistrationSecret()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	adapter := process.boundKeypairStorageAdapter()
+	state, err := boundkeypair.LoadClientState(process.GracefulExitContext(), adapter)
+	if trace.IsNotFound(err) && registrationSecret != "" {
+		process.logger.InfoContext(
+			process.ExitContext(),
+			"No existing bound keypair client state found, will attempt to "+
+				"join with configured registration secret",
+		)
+		state = boundkeypair.NewEmptyFSClientState(adapter)
+	} else if err != nil {
+		process.logger.ErrorContext(
+			process.ExitContext(),
+			"Could not complete bound keypair joining: no local credentials "+
+				"are available and no registration secret was configured",
+		)
+		return nil, trace.Wrap(err, "loading bound keypair client state")
+	}
+
+	return state, nil
+}
+
 func (process *TeleportProcess) makeJoinParams(
 	id state.IdentityID,
 	additionalPrincipals []string,
@@ -764,6 +808,16 @@ func (process *TeleportProcess) makeJoinParams(
 		joinParams.AzureParams = joinclient.AzureParams{
 			ClientID: process.Config.JoinParams.Azure.ClientID,
 		}
+	}
+	if joinParams.JoinMethod == types.JoinMethodBoundKeypair {
+		boundKeypairState, err := process.initBoundKeypairClientState()
+		if err != nil {
+			return nil, trace.Wrap(err, "initializing bound keypair client state")
+		}
+
+		// TODO: this was accidental but I think is actually the correct way to
+		// do this, and we should refactor joinParams to make this real.
+		joinParams.BoundKeypairState = boundKeypairState
 	}
 	return joinParams, nil
 }

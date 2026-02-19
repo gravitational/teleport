@@ -463,12 +463,79 @@ func DisableLongRunningServices(cfg *Config) {
 
 // JoinParams is a set of extra parameters for joining the auth server.
 type JoinParams struct {
-	Azure AzureJoinParams
+	Azure        AzureJoinParams
+	BoundKeypair BoundKeypairParams
 }
 
 // AzureJoinParams is the parameters specific to the azure join method.
 type AzureJoinParams struct {
 	ClientID string
+}
+
+// BoundKeypairParams contains parameters specific to bound keypair joining.
+type BoundKeypairParams struct {
+	// RegistrationSecretValue is an explicit registration secret value, used to
+	// authenticate the initial join with a bound keypair token. It becomes
+	// inert once used.
+	RegistrationSecretValue string
+
+	// RegistrationSecretPath is a path to a file on the local disk containing a
+	// registration secret. It is incompatible with RegistrationSecretValue.
+	RegistrationSecretPath string
+
+	// StaticPrivateKeyPath is a path to a file on the local disk containing a
+	// static keypair to be used for bound keypair joining. Static keys are
+	// immmutable and are not managed automatically. They must be preregistered,
+	// do not support automatic keypair rotation, and must be used with a token
+	// set to use `insecure` recovery mode.
+	StaticPrivateKeyPath string
+}
+
+// RegistrationSecret returns the currently configured bound keypair
+// registration secret, if any. Registration secrets are optional, and only used
+// at first join when no existing identity can be used to authenticate the join
+// request, no pregenerated key exists, and no static key is configured.
+func (b *BoundKeypairParams) RegistrationSecret() (string, error) {
+	if b.RegistrationSecretValue != "" && b.RegistrationSecretPath != "" {
+		return "", trace.BadParameter("only one of `registration_secret` and `registration_secret_path` may be specified")
+	}
+
+	// TODO: Consider whether or not to support environment variable config. Is
+	// there precedent for agents?
+
+	switch {
+	case b.RegistrationSecretPath != "":
+		bytes, err := os.ReadFile(b.RegistrationSecretPath)
+		if err != nil {
+			return "", trace.ConvertSystemError(err)
+		}
+
+		return strings.TrimSpace(string(bytes)), nil
+	case b.RegistrationSecretValue != "":
+		return b.RegistrationSecretValue, nil
+	default:
+		return "", nil
+	}
+}
+
+// StaticPrivateKeyBytes returns the configured static private key if one has
+// been configured. If not nil, this value should be used to initialize a
+// bound keypair `StaticClientState` instead of the process-stored state. Static
+// keys do not support automatic rotation or join state verification. 
+func (b *BoundKeypairParams) StaticPrivateKeyBytes() ([]byte, error) {
+	if b.StaticPrivateKeyPath != "" {
+		bytes, err := os.ReadFile(b.StaticPrivateKeyPath)
+		if err != nil {
+			return nil, trace.Wrap(err, "reading static key from %s", b.StaticPrivateKeyPath)
+		}
+
+		return bytes, nil
+	}
+
+	// TODO: Consider env var support
+
+	// No static key configured, nothing to return.
+	return nil, nil
 }
 
 // CachePolicy sets caching policy for proxies and nodes
