@@ -2004,13 +2004,14 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, opts ...fun
 	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0].Addr, command, options)
 }
 
-// ConnectToNode attempts to establish a connection to the node resolved to by the provided
-// NodeDetails. Connecting is attempted both with the already provisioned certificates and
-// if per session mfa is required, after completing the mfa ceremony. In the event that both
-// fail the error from the connection attempt with the already provisioned certificates will
-// be returned. The client from whichever attempt succeeds first will be returned.
+// ConnectToNode attempts to establish a connection to the node resolved to by the provided NodeDetails. A direct
+// connection is attempted first with already provisioned certificates. If that fails, a second attempt is made with
+// per-session MFA certificates. If the node supports in-band MFA and MFA is required, the direct connection will
+// trigger the MFA ceremony. If the node does not support in-band MFA and MFA is required, then the second attempt with
+// per-session MFA certificates will be made.
 func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient, nodeDetails NodeDetails, user string) (_ *NodeClient, err error) {
 	node := nodeName(TargetNode{Addr: nodeDetails.Addr})
+
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ConnectToNode",
@@ -2022,103 +2023,85 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	)
 	defer func() { apitracing.EndSpan(span, err) }()
 
-	// if per-session mfa is required, perform the mfa ceremony to get
-	// new certificates and use them to connect.
-	if nodeDetails.MFACheck != nil && nodeDetails.MFACheck.Required {
-		clt, err := tc.connectToNodeWithMFA(ctx, clt, nodeDetails, user)
-		return clt, trace.Wrap(err)
-	}
-
-	type clientRes struct {
-		clt *NodeClient
-		err error
-	}
-
-	directResultC := make(chan clientRes, 1)
-	mfaResultC := make(chan clientRes, 1)
-
-	// use a child context so the goroutines can terminate the other if they succeed
-	directCtx, directCancel := context.WithCancel(ctx)
-	mfaCtx, mfaCancel := context.WithCancel(ctx)
-	go func() {
-		connectCtx, span := tc.Tracer.Start(
-			directCtx,
-			"teleportClient/connectToNode",
-			oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-			oteltrace.WithAttributes(
-				attribute.String("cluster", nodeDetails.Cluster),
-				attribute.String("node", node),
-			),
+	// First attempt to connect directly with existing certs. This will succeed if MFA isn't required or if the node
+	// supports in-band MFA and the MFA ceremony completes successfully.
+	nodeClient, directErr := tc.connectToNodeDirect(ctx, clt, nodeDetails, user, node)
+	if directErr == nil {
+		log.DebugContext(
+			ctx,
+			"Successfully connected to node with existing certificates",
+			"cluster", nodeDetails.Cluster,
+			"node", node,
 		)
-		defer span.End()
-
-		// Try connecting to the node with the certs we already have. Note that the different context being provided
-		// here is intentional. The underlying stream backing the connection will run for the duration of the session
-		// and cause the current span to have a duration longer than just the initial connection. To avoid this the
-		// parent context is used.
-		conn, details, err := clt.DialHostWithResumption(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
-		if err != nil {
-			directResultC <- clientRes{err: err}
-			return
-		}
-
-		sshConfig := clt.ProxyClient.SSHConfig(user)
-		clt, err := NewNodeClient(connectCtx, sshConfig, conn, nodeDetails.ProxyFormat(), nodeDetails.Addr, tc, details.FIPS,
-			WithNodeHostname(nodeDetails.hostname), WithSSHLogDir(tc.SSHLogDir))
-		directResultC <- clientRes{clt: clt, err: err}
-	}()
-
-	go func() {
-		// try performing mfa and then connecting with the single use certs
-		clt, err := tc.connectToNodeWithMFA(mfaCtx, clt, nodeDetails, user)
-		mfaResultC <- clientRes{clt: clt, err: err}
-	}()
-
-	var directErr, mfaErr error
-	for range 2 {
-		select {
-		case <-ctx.Done():
-			mfaCancel()
-			directCancel()
-			return nil, ctx.Err()
-		case res := <-directResultC:
-			if res.clt != nil {
-				mfaCancel()
-				res.clt.AddCancel(directCancel)
-				return res.clt, nil
-			}
-
-			directErr = res.err
-		case res := <-mfaResultC:
-			if res.clt != nil {
-				directCancel()
-				res.clt.AddCancel(mfaCancel)
-				return res.clt, nil
-			}
-
-			mfaErr = res.err
-		}
+		return nodeClient, nil
 	}
 
-	mfaCancel()
-	directCancel()
+	// If the direct connection attempt failed for any reason other than MFA requirement, return the error and don't
+	// attempt to connect with per-session MFA certs.
+	if !errors.Is(directErr, services.ErrSessionMFARequired) {
+		return nil, trace.Wrap(directErr)
+	}
 
-	switch {
-	// No MFA errors, return any errors from the direct connection
-	case mfaErr == nil:
-		return nil, trace.Wrap(directErr)
-	// Any direct connection errors other than access denied, which should be returned
-	// if MFA is required, take precedent over MFA errors due to users not having any
-	// enrolled devices.
-	case !trace.IsAccessDenied(directErr) && errors.Is(mfaErr, authclient.ErrNoMFADevices):
-		return nil, trace.Wrap(directErr)
-	case !errors.Is(mfaErr, io.EOF) && // Ignore any errors from MFA due to locks being enforced, the direct error will be friendlier
-		!errors.Is(mfaErr, MFARequiredUnknownErr{}) && // Ignore any failures that occurred before determining if MFA was required
-		!errors.Is(mfaErr, services.ErrSessionMFANotRequired): // Ignore any errors caused by attempting the MFA ceremony when MFA will not grant access
+	log.DebugContext(
+		ctx,
+		"Direct connection failed due to MFA requirement and node does not support in-band MFA, attempting to connect with legacy per-session MFA certs",
+		"cluster", nodeDetails.Cluster,
+		"node", node,
+	)
+
+	// If the direct connection attempt failed due to MFA requirement, fall back to connecting with the legacy
+	// per-session MFA cert flow.
+	nodeClient, mfaErr := tc.connectToNodeWithLegacyMFA(ctx, clt, nodeDetails, user)
+	if mfaErr != nil {
 		return nil, trace.Wrap(mfaErr)
-	default:
-		return nil, trace.Wrap(directErr)
 	}
+
+	log.DebugContext(
+		ctx,
+		"Successfully connected to node with legacy per-session MFA certificates",
+		"cluster", nodeDetails.Cluster,
+		"node", node,
+	)
+
+	return nodeClient, nil
+}
+
+// connectToNodeDirect attempts to connect to a node using already provisioned certificates.
+func (tc *TeleportClient) connectToNodeDirect(ctx context.Context, clt *ClusterClient, nodeDetails NodeDetails, user, node string) (*NodeClient, error) {
+	connectCtx, connectSpan := tc.Tracer.Start(
+		ctx,
+		"teleportClient/connectToNodeDirect",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("cluster", nodeDetails.Cluster),
+			attribute.String("node", node),
+		),
+	)
+	defer connectSpan.End()
+
+	// The underlying stream backing the connection may live for the duration of the session and would make this span
+	// look longer than the dial itself. Use the parent context for dialing to keep span timing focused on connect.
+	conn, details, err := clt.DialHostWithResumption(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	nodeClient, err := NewNodeClient(
+		connectCtx,
+		clt.ProxyClient.SSHConfig(user),
+		conn,
+		nodeDetails.ProxyFormat(),
+		nodeDetails.Addr,
+		tc,
+		details.FIPS,
+		WithNodeHostname(nodeDetails.hostname),
+		WithSSHLogDir(tc.SSHLogDir),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return nodeClient, nil
 }
 
 // MFARequiredUnknownErr indicates that connections to an instance failed
@@ -2160,14 +2143,14 @@ func (m MFARequiredUnknownErr) Is(err error) bool {
 	}
 }
 
-// connectToNodeWithMFA checks if per session mfa is required to connect to the target host, and
+// connectToNodeWithLegacyMFA checks if per session mfa is required to connect to the target host, and
 // if it is required, then the mfa ceremony is attempted. The target host is dialed once the ceremony
 // completes and new certificates are retrieved.
-func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, clt *ClusterClient, nodeDetails NodeDetails, user string) (*NodeClient, error) {
+func (tc *TeleportClient) connectToNodeWithLegacyMFA(ctx context.Context, clt *ClusterClient, nodeDetails NodeDetails, user string) (*NodeClient, error) {
 	node := nodeName(TargetNode{Addr: nodeDetails.Addr})
 	ctx, span := tc.Tracer.Start(
 		ctx,
-		"teleportClient/connectToNodeWithMFA",
+		"teleportClient/connectToNodeWithLegacyMFA",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
 			attribute.String("cluster", nodeDetails.Cluster),
@@ -3334,7 +3317,10 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 			return nil, nil
 		}
 
-		return clientssh.KeyboardInteractive(ctx, tc.NewMFACeremony(), m), nil
+		ceremony := tc.NewMFACeremony()
+		ceremony.TargetCluster = clusterName()
+
+		return clientssh.KeyboardInteractive(ctx, ceremony, m), nil
 	}
 
 	return &clientConfig{

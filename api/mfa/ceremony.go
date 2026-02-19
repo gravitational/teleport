@@ -21,12 +21,14 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
 // Ceremony is an MFA ceremony.
@@ -42,6 +44,9 @@ type Ceremony struct {
 	// SSOMFACeremonyConstructor is an optional SSO MFA ceremony constructor. If provided,
 	// the MFA ceremony will also attempt to retrieve an SSO MFA challenge.
 	SSOMFACeremonyConstructor SSOMFACeremonyConstructor
+	// TargetCluster is the target cluster of session-bound MFA challenges.
+	// This should be set when the target is a leaf cluster.
+	TargetCluster string
 }
 
 // SSOMFACeremony is an SSO MFA ceremony.
@@ -129,7 +134,6 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 }
 
 // PerformSessionMFACeremony performs a session-bound MFA ceremony with the user.
-// TODO(cthach): Add trusted cluster support.
 // TODO(cthach): Add SSO MFA support.
 func (c *Ceremony) PerformSessionMFACeremony(ctx context.Context, sessionID []byte) (string, error) {
 	if c.PromptConstructor == nil {
@@ -144,7 +148,7 @@ func (c *Ceremony) PerformSessionMFACeremony(ctx context.Context, sessionID []by
 					SshSessionId: sessionID,
 				},
 			},
-			// TargetCluster: "TODO",
+			TargetCluster: c.TargetCluster,
 			// SsoClientRedirectUrl: "TODO",
 			// ProxyAddressForSso:   "TODO",
 		},
@@ -158,33 +162,63 @@ func (c *Ceremony) PerformSessionMFACeremony(ctx context.Context, sessionID []by
 		SSOChallenge:      nil, // TODO(cthach): Add SSO challenge support.
 	}
 
-	// Prompt the user to solve the session-bound MFA challenge.
-	var (
-		mfaChalResp *proto.MFAAuthenticateResponse
-		attempts    int
-	)
-	const maxAttempts = 5
+	var mfaChalResp *proto.MFAAuthenticateResponse
 
-	for {
-		mfaChalResp, err = c.PromptConstructor().Run(ctx, protoChal)
-		if err != nil {
-			// XXX: Retry on certain WebAuthn errors to allow users to recover from transient errors with their security
-			// keys.This is a temporary workaround until we have a more robust solution for handling WebAuthn errors.
-			if strings.Contains(err.Error(), "failed to open security keys") || strings.Contains(err.Error(), "failed to get assertion: rx error") && attempts < maxAttempts-1 {
-				attempts++
-				continue
-			}
-
-			return "", trace.Wrap(err)
-		}
-
-		break
+	retry, err := retryutils.NewConstant(10 * time.Millisecond)
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
 
-	// Convert from the legacy proto.MFAAuthenticateResponse to the mfav1.AuthenticateResponse.
-	// TODO(cthach): Move conversion logic into a helper.
+	retryCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	// Prompt the user to solve the session-bound MFA challenge.
+	//
+	// XXX: Retry on certain WebAuthn errors to allow users to recover from transient errors with their security
+	// keys. This is a temporary workaround until we have a more robust solution for handling WebAuthn errors.
+	err = retry.For(
+		retryCtx,
+		func() error {
+			mfaChalResp, err = c.PromptConstructor().Run(ctx, protoChal)
+			if err != nil {
+				if strings.Contains(err.Error(), "failed to open security keys") ||
+					strings.Contains(err.Error(), "failed to get assertion: rx error") {
+					return trace.Wrap(err)
+				}
+
+				return retryutils.PermanentRetryError(trace.Wrap(err))
+			}
+
+			return nil
+		})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	mfaResp, err := convertToAuthenticateResponse(createResp.GetMfaChallenge().Name, mfaChalResp)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if _, err := c.ValidateSessionChallenge(
+		ctx,
+		&mfav1.ValidateSessionChallengeRequest{
+			MfaResponse: mfaResp,
+		},
+	); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return createResp.GetMfaChallenge().Name, nil
+}
+
+func convertToAuthenticateResponse(name string, mfaChalResp *proto.MFAAuthenticateResponse) (*mfav1.AuthenticateResponse, error) {
+	if mfaChalResp == nil {
+		return nil, trace.BadParameter("missing session-bound MFA response")
+	}
+
 	mfaResp := &mfav1.AuthenticateResponse{
-		Name: createResp.GetMfaChallenge().Name,
+		Name: name,
 	}
 
 	switch mfaChalResp.GetResponse().(type) {
@@ -199,19 +233,10 @@ func (c *Ceremony) PerformSessionMFACeremony(ctx context.Context, sessionID []by
 		}
 
 	default:
-		return "", trace.BadParameter("expected session-bound MFA response, got %T", mfaChalResp.GetResponse())
+		return nil, trace.BadParameter("expected session-bound MFA response, got %T", mfaChalResp.GetResponse())
 	}
 
-	if _, err := c.ValidateSessionChallenge(
-		ctx,
-		&mfav1.ValidateSessionChallengeRequest{
-			MfaResponse: mfaResp,
-		},
-	); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return createResp.GetMfaChallenge().Name, nil
+	return mfaResp, nil
 }
 
 // CeremonyFn is a function that will carry out an MFA ceremony.
