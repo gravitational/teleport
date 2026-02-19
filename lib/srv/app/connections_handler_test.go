@@ -167,10 +167,14 @@ func TestHandleConnection_RateLimiting(t *testing.T) {
 func TestHandleConnection_PipeSkipsLimiter(t *testing.T) {
 	t.Parallel()
 
-	// Even with a very restrictive limiter, net.Pipe connections
-	// (whose RemoteAddr cannot be parsed as host:port) skip
-	// limiting entirely.
-	c := newTestHandler(t, limiter.Config{MaxConnections: 0})
+	// net.Pipe connections (whose RemoteAddr cannot be parsed as
+	// host:port) skip limiting entirely. Configure a real limit and
+	// pre-fill it so that a normal connection would be rejected.
+	c := newTestHandler(t, limiter.Config{MaxConnections: 1})
+
+	held, err := c.limiter.RegisterRequestAndConnection("10.0.0.1")
+	require.NoError(t, err)
+	defer held()
 
 	server, client := net.Pipe()
 	t.Cleanup(func() {
@@ -179,9 +183,9 @@ func TestHandleConnection_PipeSkipsLimiter(t *testing.T) {
 	})
 	client.Close()
 
-	// handleConnection should not return a LimitExceeded error;
-	// it will fail later (at TLS) because there is no TLS config.
-	_, err := c.handleConnection(server)
+	// handleConnection should bypass the limiter (which is full)
+	// and fail later at TLS instead.
+	_, err = c.handleConnection(server)
 	require.Error(t, err)
 	require.False(t, trace.IsLimitExceeded(err),
 		"unexpected LimitExceeded error: %v", err)
