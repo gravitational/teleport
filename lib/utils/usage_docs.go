@@ -306,6 +306,9 @@ func updateAppUsageTemplate(r io.Reader, config generatorConfig, app *kingpin.Ap
 		}
 	}
 
+	replaceFlagDefaults := makeDefaultFlagValueOverrider(config.FlagDefaultOverrides)
+	replaceArgDefaults := makeDefaultArgValueOverrider(config.ArgDefaultOverrides)
+
 	// We override the default app description with a custom description
 	// that is better suited to the docs.
 	app.Help = config.Introduction
@@ -318,6 +321,8 @@ func updateAppUsageTemplate(r io.Reader, config generatorConfig, app *kingpin.Ap
 		"FlagsToRows":                 flagsToRows,
 		"FormatThreeColMarkdownTable": formatThreeColMarkdownTable,
 		"FormatUsageArg":              formatUsageArg,
+		"ReplaceFlagDefaults":         replaceFlagDefaults,
+		"ReplaceArgDefaults":          replaceArgDefaults,
 		"SortCommandsByName":          sortCommandsByName,
 	})
 	app.UsageTemplate(buf.String())
@@ -331,8 +336,22 @@ type envVarDefault struct {
 }
 
 type generatorConfig struct {
-	Introduction string                   `yaml:"introduction"`
-	EnvVars      map[string]envVarDefault `yaml:"env_vars"`
+	Introduction         string                   `yaml:"introduction"`
+	EnvVars              map[string]envVarDefault `yaml:"env_vars"`
+	FlagDefaultOverrides []flagDefaultOverride    `yaml:"flag_default_overrides"`
+	ArgDefaultOverrides  []argDefaultOverride     `yaml:"arg_default_overrides"`
+}
+
+type flagDefaultOverride struct {
+	FullCommand string `yaml:"full_command"`
+	Flag        string `yaml:"flag"`
+	Value       string `yaml:"value"`
+}
+
+type argDefaultOverride struct {
+	FullCommand string `yaml:"full_command"`
+	Arg         string `yaml:"arg"`
+	Value       string `yaml:"value"`
 }
 
 // loadConfig loads possible default environment variables defined in a YAML file
@@ -360,6 +379,72 @@ func loadConfig(appName string) (generatorConfig, error) {
 	}
 
 	return conf, nil
+}
+
+// makeDefaultFlagValueOverrider returns a template function that overrides the
+// configured default values in kingpin flag models.
+func makeDefaultFlagValueOverrider(overrides []flagDefaultOverride) func(fullCommand string, f []*kingpin.FlagModel) []*kingpin.FlagModel {
+	// maps full commands to flags to new default values
+	cmdToOverride := make(map[string]map[string]string)
+	for _, o := range overrides {
+		if _, ok := cmdToOverride[o.FullCommand]; !ok {
+			cmdToOverride[o.FullCommand] = make(map[string]string)
+		}
+		cmdToOverride[o.FullCommand][o.Flag] = o.Value
+	}
+
+	return func(fullCommand string, allFlags []*kingpin.FlagModel) []*kingpin.FlagModel {
+		if allFlags == nil || len(allFlags) == 0 {
+			return allFlags
+		}
+
+		flagsToDefaults, ok := cmdToOverride[fullCommand]
+		if !ok {
+			return allFlags
+		}
+
+		for _, fl := range allFlags {
+			d, ok := flagsToDefaults[fl.Name]
+			if !ok {
+				continue
+			}
+			fl.Default = []string{d}
+		}
+		return allFlags
+	}
+}
+
+// makeDefaultArgValueOverrider returns a template function that overrides the
+// configured default values in kingpin arg models.
+func makeDefaultArgValueOverrider(overrides []argDefaultOverride) func(fullCommand string, f []*kingpin.ArgModel) []*kingpin.ArgModel {
+	// maps full commands to args to new default values
+	cmdToOverride := make(map[string]map[string]string)
+	for _, o := range overrides {
+		if _, ok := cmdToOverride[o.FullCommand]; !ok {
+			cmdToOverride[o.FullCommand] = make(map[string]string)
+		}
+		cmdToOverride[o.FullCommand][o.Arg] = o.Value
+	}
+
+	return func(fullCommand string, allArgs []*kingpin.ArgModel) []*kingpin.ArgModel {
+		if allArgs == nil || len(allArgs) == 0 {
+			return allArgs
+		}
+
+		argsToDefaults, ok := cmdToOverride[fullCommand]
+		if !ok {
+			return allArgs
+		}
+
+		for _, fl := range allArgs {
+			d, ok := argsToDefaults[fl.Name]
+			if !ok {
+				continue
+			}
+			fl.Default = []string{d}
+		}
+		return allArgs
+	}
 }
 
 // UpdateAppUsageTemplate updates the app usage template to print a reference

@@ -28,14 +28,7 @@ import (
 
 // GetEffectiveMode returns the effective device trust mode, considering both
 // `dt` and the current modules.
-func GetEffectiveMode(dt *types.DeviceTrust, m ...modules.Modules) string {
-	// TODO(tross): Remove the variadics and use m directly when
-	// enterprise is updated to provide modules.
-	mod := modules.GetModules()
-	if len(m) == 1 {
-		mod = m[0]
-	}
-
+func GetEffectiveMode(dt *types.DeviceTrust, mod modules.Modules) string {
 	// OSS doesn't support device trust.
 	if mod.IsOSSBuild() {
 		return constants.DeviceTrustModeOff

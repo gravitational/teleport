@@ -19,6 +19,7 @@ linters:
     - testifylint
     - unconvert
     - unused
+    - usetesting
   settings:
     depguard:
       rules:
@@ -328,6 +329,8 @@ linters:
       forbid:
         - pattern: ^rsa\.GenerateKey$
           msg: generating RSA keys is slow, use lib/cryptosuites to generate an appropriate key type
+        - pattern: ^common\.StringToRegion$
+          msg: use oraclejoincommon.StringToRegion to avoid OCI SDK data races
         - pattern: ^iam\.NewFromConfig$
           msg: Use iamutils.NewFromConfig
         - pattern: ^sts\.NewFromConfig$
@@ -372,6 +375,15 @@ linters:
         - len
         - suite-extra-assert-call
         - suite-thelper
+    usetesting:
+        context-todo: true
+        # TODO: Enable the following after the issues are fixed.
+        context-background: false
+        os-chdir: false
+        os-create-temp: false
+        os-mkdir-temp: false
+        os-setenv: false
+        os-temp-dir: false
   exclusions:
     generated: lax
     presets:

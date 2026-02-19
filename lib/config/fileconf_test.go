@@ -20,8 +20,10 @@ package config
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -34,11 +36,14 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/constants"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 )
@@ -568,6 +573,177 @@ ssh_service:
 			if tt.expectSecondFactor != nil {
 				tt.expectSecondFactor(t, cfg.Auth.Authentication.SecondFactor)
 			}
+		})
+	}
+}
+
+func TestAuthenticationConfigScopedStaticToken(t *testing.T) {
+	t.Parallel()
+
+	tokenFilePath := filepath.Join(t.TempDir(), "scoped-token.yml")
+	tokenFile, err := os.Create(tokenFilePath)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		tokenFile.Close()
+	})
+	tokenFile.WriteString(`
+name: file_scoped_token
+secret: secret_token_value
+roles: [node]
+scope: /test
+`)
+
+	tests := []struct {
+		desc         string
+		input        string
+		expectError  require.ErrorAssertionFunc
+		expectTokens []*joiningv1.ScopedToken
+	}{
+		{
+			desc: "fully defined static scoped token", input: `
+auth_service:
+  enabled: yes
+  scoped_tokens:
+    - name: fully_defined_token
+      roles: [node]
+      secret: secret_token_value
+      scope: /test
+      immutable_labels:
+        ssh:
+            hello: world
+teleport:
+  nodename: testing
+`,
+			expectError: require.NoError,
+			expectTokens: []*joiningv1.ScopedToken{
+				{
+					Version: types.V1,
+					Kind:    types.KindScopedToken,
+					Metadata: &headerv1.Metadata{
+						Name: "fully_defined_token",
+					},
+					Scope: "/",
+					Spec: &joiningv1.ScopedTokenSpec{
+						Roles:         []string{string(types.RoleNode)},
+						AssignedScope: "/test",
+						JoinMethod:    string(types.JoinMethodToken),
+						UsageMode:     string(joining.TokenUsageModeUnlimited),
+						ImmutableLabels: &joiningv1.ImmutableLabels{
+							Ssh: map[string]string{
+								"hello": "world",
+							},
+						},
+					},
+					Status: &joiningv1.ScopedTokenStatus{
+						Secret: "secret_token_value",
+					},
+				},
+			},
+		},
+		{
+			desc: "file based token", input: fmt.Sprintf(`
+auth_service:
+  enabled: yes
+  scoped_tokens:
+    - path: %s
+teleport:
+  nodename: testing
+`, tokenFilePath),
+			expectError: require.NoError,
+			expectTokens: []*joiningv1.ScopedToken{
+				{
+					Version: types.V1,
+					Kind:    types.KindScopedToken,
+					Metadata: &headerv1.Metadata{
+						Name: "file_scoped_token",
+					},
+					Scope: "/",
+					Spec: &joiningv1.ScopedTokenSpec{
+						Roles:         []string{string(types.RoleNode)},
+						AssignedScope: "/test",
+						JoinMethod:    string(types.JoinMethodToken),
+						UsageMode:     string(joining.TokenUsageModeUnlimited),
+					},
+					Status: &joiningv1.ScopedTokenStatus{
+						Secret: "secret_token_value",
+					},
+				},
+			},
+		},
+		{
+			desc: "fully defined token with a path", input: fmt.Sprintf(`
+auth_service:
+  enabled: yes
+  scoped_tokens:
+    - name: fully_defined_token
+      roles: [node]
+      secret: secret_token_value
+      scope: /test
+      path: %s
+teleport:
+  nodename: testing
+`, tokenFilePath),
+			expectError: require.Error,
+		},
+		{
+			desc: "multiple valid tokens", input: fmt.Sprintf(`
+auth_service:
+  enabled: yes
+  scoped_tokens:
+    - name: fully_defined_token
+      roles: [node]
+      secret: secret_token_value
+      scope: /test
+    - path: %s
+teleport:
+  nodename: testing
+`, tokenFilePath),
+			expectError: require.NoError,
+			expectTokens: []*joiningv1.ScopedToken{
+				{
+					Version: types.V1,
+					Kind:    types.KindScopedToken,
+					Metadata: &headerv1.Metadata{
+						Name: "fully_defined_token",
+					},
+					Scope: "/",
+					Spec: &joiningv1.ScopedTokenSpec{
+						Roles:         []string{string(types.RoleNode)},
+						AssignedScope: "/test",
+						JoinMethod:    string(types.JoinMethodToken),
+						UsageMode:     string(joining.TokenUsageModeUnlimited),
+					},
+					Status: &joiningv1.ScopedTokenStatus{
+						Secret: "secret_token_value",
+					},
+				},
+				{
+					Version: types.V1,
+					Kind:    types.KindScopedToken,
+					Metadata: &headerv1.Metadata{
+						Name: "file_scoped_token",
+					},
+					Scope: "/",
+					Spec: &joiningv1.ScopedTokenSpec{
+						Roles:         []string{string(types.RoleNode)},
+						AssignedScope: "/test",
+						JoinMethod:    string(types.JoinMethodToken),
+						UsageMode:     string(joining.TokenUsageModeUnlimited),
+					},
+					Status: &joiningv1.ScopedTokenStatus{
+						Secret: "secret_token_value",
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			cfg, err := ReadConfig(strings.NewReader(tt.input))
+			assert.NoError(t, err)
+			tokens, err := cfg.Auth.StaticScopedTokens.Parse()
+			tt.expectError(t, err)
+			assert.Empty(t, cmp.Diff(tt.expectTokens, tokens.GetSpec().GetTokens(), protocmp.Transform()))
 		})
 	}
 }

@@ -20,7 +20,6 @@ import (
 	"github.com/gravitational/trace"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/azurejoin"
 	"github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
@@ -81,15 +80,10 @@ func (s *Server) handleAzureJoin(
 		return nil, trace.BadParameter("client did not send access token")
 	}
 
-	ptv2, ok := token.(*types.ProvisionTokenV2)
-	if !ok {
-		return nil, trace.BadParameter("Azure join method only supports ProvisionTokenV2, got %T", token)
-	}
-
 	// Verify the client's identity and make sure it matches an allow rule in the provision token.
 	claims, err := azurejoin.CheckAzureRequest(stream.Context(), azurejoin.CheckAzureRequestParams{
 		AzureJoinConfig: s.cfg.AuthService.GetAzureJoinConfig(),
-		Token:           ptv2,
+		Token:           token,
 		Challenge:       challenge,
 		AttestedData:    solution.AttestedData,
 		Intermediate:    solution.Intermediate,

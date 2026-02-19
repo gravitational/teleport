@@ -633,7 +633,7 @@ func TestMux(t *testing.T) {
 
 		gclient := test.NewPingerClient(conn)
 
-		out, err := gclient.Ping(context.TODO(), &test.Request{})
+		out, err := gclient.Ping(t.Context(), &test.Request{})
 		require.NoError(t, err)
 		require.Equal(t, "grpc backend", out.GetPayload())
 

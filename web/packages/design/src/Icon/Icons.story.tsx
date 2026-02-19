@@ -56,6 +56,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.ArrowUp} text="ArrowUp" />
     <IconBox IconCmpt={Icon.ArrowsIn} text="ArrowsIn" />
     <IconBox IconCmpt={Icon.ArrowsOut} text="ArrowsOut" />
+    <IconBox IconCmpt={Icon.BedrockLogo} text="BedrockLogo" />
     <IconBox IconCmpt={Icon.BellRinging} text="BellRinging" />
     <IconBox IconCmpt={Icon.BookOpenText} text="BookOpenText" />
     <IconBox IconCmpt={Icon.Bots} text="Bots" />
@@ -75,6 +76,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.ChatBubble} text="ChatBubble" />
     <IconBox IconCmpt={Icon.ChatCircleSparkle} text="ChatCircleSparkle" />
     <IconBox IconCmpt={Icon.Check} text="Check" />
+    <IconBox IconCmpt={Icon.CheckCircleDotted} text="CheckCircleDotted" />
     <IconBox IconCmpt={Icon.CheckThick} text="CheckThick" />
     <IconBox IconCmpt={Icon.Checks} text="Checks" />
     <IconBox IconCmpt={Icon.ChevronCircleDown} text="ChevronCircleDown" />
@@ -181,6 +183,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.NoteAdded} text="NoteAdded" />
     <IconBox IconCmpt={Icon.Notification} text="Notification" />
     <IconBox IconCmpt={Icon.NotificationsActive} text="NotificationsActive" />
+    <IconBox IconCmpt={Icon.OpenAIBlossom} text="OpenAIBlossom" />
     <IconBox IconCmpt={Icon.PaperPlane} text="PaperPlane" />
     <IconBox IconCmpt={Icon.Password} text="Password" />
     <IconBox IconCmpt={Icon.Pause} text="Pause" />
@@ -224,7 +227,9 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Table} text="Table" />
     <IconBox IconCmpt={Icon.Tablet} text="Tablet" />
     <IconBox IconCmpt={Icon.Tags} text="Tags" />
+    <IconBox IconCmpt={Icon.TeleportLogo} text="TeleportLogo" />
     <IconBox IconCmpt={Icon.Terminal} text="Terminal" />
+    <IconBox IconCmpt={Icon.TerraformLogo} text="TerraformLogo" />
     <IconBox IconCmpt={Icon.Trash} text="Trash" />
     <IconBox IconCmpt={Icon.Twitter} text="Twitter" />
     <IconBox IconCmpt={Icon.Unarchive} text="Unarchive" />

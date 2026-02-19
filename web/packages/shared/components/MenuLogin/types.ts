@@ -20,6 +20,7 @@ import { ComponentPropsWithRef, ComponentType, CSSProperties } from 'react';
 
 import { Flex } from 'design';
 import { ButtonBorder } from 'design/Button';
+import { PopoverProps } from 'design/Popover';
 
 export type LoginItem = {
   url: string;
@@ -48,10 +49,10 @@ export type MenuLoginProps = {
    * pass an empty onSelect function value.
    */
   onSelect: (e: React.SyntheticEvent, login: string) => void;
-  anchorOrigin?: any;
+  anchorOrigin?: PopoverProps['anchorOrigin'];
   inputType?: MenuInputType;
   alignButtonWidthToMenu?: boolean;
-  transformOrigin?: any;
+  transformOrigin?: PopoverProps['transformOrigin'];
   textTransform?: string;
   placeholder?: string;
   required?: boolean;

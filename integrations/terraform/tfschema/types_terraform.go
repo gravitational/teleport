@@ -728,6 +728,11 @@ func GenSchemaServerV2(ctx context.Context) (github_com_hashicorp_terraform_plug
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
+				"immutable_labels": {
+					Description: "The immutable labels assigned to the server when joining. The hash of these labels is expected to match the hash included in the server's certificate.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
 				"peer_addr": {
 					Description: "PeerAddr is the address a proxy server is reachable at by its peer proxies.",
 					Optional:    true,
@@ -10833,6 +10838,33 @@ func CopyServerV2FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["immutable_labels"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ServerV2.Spec.immutable_labels"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Map)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ServerV2.Spec.immutable_labels", "github.com/hashicorp/terraform-plugin-framework/types.Map"})
+							} else {
+								obj.ImmutableLabels = make(map[string]string, len(v.Elems))
+								if !v.Null && !v.Unknown {
+									for k, a := range v.Elems {
+										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+										if !ok {
+											diags.Append(attrReadConversionFailureDiag{"ServerV2.Spec.immutable_labels", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+										} else {
+											var t string
+											if !v.Null && !v.Unknown {
+												t = string(v.Value)
+											}
+											obj.ImmutableLabels[k] = t
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -11990,6 +12022,56 @@ func CopyServerV2ToTerraform(ctx context.Context, obj *github_com_gravitational_
 								}
 								c.Unknown = false
 								tf.Attrs["relay_ids"] = c
+							}
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["immutable_labels"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"ServerV2.Spec.immutable_labels"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.MapType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"ServerV2.Spec.immutable_labels", "github.com/hashicorp/terraform-plugin-framework/types.MapType"})
+							} else {
+								c, ok := tf.Attrs["immutable_labels"].(github_com_hashicorp_terraform_plugin_framework_types.Map)
+								if !ok {
+									c = github_com_hashicorp_terraform_plugin_framework_types.Map{
+
+										ElemType: o.ElemType,
+										Elems:    make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ImmutableLabels)),
+										Null:     true,
+									}
+								} else {
+									if c.Elems == nil {
+										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ImmutableLabels))
+									}
+								}
+								if obj.ImmutableLabels != nil {
+									t := o.ElemType
+									for k, a := range obj.ImmutableLabels {
+										v, ok := tf.Attrs["immutable_labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										if !ok {
+											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+											if err != nil {
+												diags.Append(attrWriteGeneralError{"ServerV2.Spec.immutable_labels", err})
+											}
+											v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"ServerV2.Spec.immutable_labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
+											v.Null = false
+										}
+										v.Value = string(a)
+										v.Unknown = false
+										c.Elems[k] = v
+									}
+									if len(obj.ImmutableLabels) > 0 {
+										c.Null = false
+									}
+								}
+								c.Unknown = false
+								tf.Attrs["immutable_labels"] = c
 							}
 						}
 					}

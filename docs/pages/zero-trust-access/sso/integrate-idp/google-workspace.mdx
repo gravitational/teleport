@@ -369,11 +369,12 @@ spec:
   - claim: groups
     roles:
     - auditor
-    value: auditor@example.com
+    - editor
+    value: admins@example.com
   - claim: groups
     roles:
     - access
-    value: teleport-developers@example.com
+    value: devs@example.com
   client_id: <CLIENT-ID>
   client_secret: <CLIENT-SECRET>
   display: Google
@@ -429,11 +430,11 @@ spec:
   - claim: groups
     roles:
     - auditor
-    value: auditor@example.com
+    value: admins@example.com
   - claim: groups
     roles:
     - access
-    value: teleport-developers@example.com
+    value: devs@example.com
   client_id: <CLIENT-ID>
   client_secret: <CLIENT-SECRET>
   display: Google

@@ -904,12 +904,14 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			require.Equal(t, tc.expectRequestableRoles, caps.RequestableRoles)
 
 			// create the access request object
-			requestResourceIDs := []types.ResourceID{}
+			requestResourceIDs := []types.ResourceAccessID{}
 			for _, nodeName := range tc.requestResources {
-				requestResourceIDs = append(requestResourceIDs, types.ResourceID{
-					ClusterName: testPack.clusterName,
-					Kind:        types.KindNode,
-					Name:        nodeName,
+				requestResourceIDs = append(requestResourceIDs, types.ResourceAccessID{
+					Id: types.ResourceID{
+						ClusterName: testPack.clusterName,
+						Kind:        types.KindNode,
+						Name:        nodeName,
+					},
 				})
 			}
 			req, err := services.NewAccessRequestWithResources(tc.requester, tc.requestRoles, requestResourceIDs)
@@ -1108,18 +1110,22 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 
 	username := "requester"
 
-	prodResourceIDs := []types.ResourceID{{
-		ClusterName: testPack.clusterName,
-		Kind:        types.KindNode,
-		Name:        "prod",
+	prodResourceIDs := []types.ResourceAccessID{{
+		Id: types.ResourceID{
+			ClusterName: testPack.clusterName,
+			Kind:        types.KindNode,
+			Name:        "prod",
+		},
 	}}
 	prodResourceRequest, err := services.NewAccessRequestWithResources(username, []string{"admins"}, prodResourceIDs)
 	require.NoError(t, err)
 
-	stagingResourceIDs := []types.ResourceID{{
-		ClusterName: testPack.clusterName,
-		Kind:        types.KindNode,
-		Name:        "staging",
+	stagingResourceIDs := []types.ResourceAccessID{{
+		Id: types.ResourceID{
+			ClusterName: testPack.clusterName,
+			Kind:        types.KindNode,
+			Name:        "staging",
+		},
 	}}
 	stagingResourceRequest, err := services.NewAccessRequestWithResources(username, []string{"admins"}, stagingResourceIDs)
 	require.NoError(t, err)
@@ -1194,7 +1200,7 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 		desc                 string
 		steps                []newClientFunc
 		expectRoles          []string
-		expectResources      []types.ResourceID
+		expectResources      []types.ResourceAccessID
 		expectAccessRequests []string
 		expectLogins         []string
 	}{
@@ -1362,7 +1368,7 @@ func checkCerts(t *testing.T,
 	roles []string,
 	logins []string,
 	accessRequests []string,
-	resourceIDs []types.ResourceID,
+	resourceAccessIDs []types.ResourceAccessID,
 ) {
 	t.Helper()
 
@@ -1399,10 +1405,10 @@ func checkCerts(t *testing.T,
 	assert.ElementsMatch(t, accessRequests, tlsIdentity.ActiveRequests)
 
 	// Make sure both certs have the expected allowed resources, if any.
-	sshCertAllowedResources, err := types.ResourceIDsFromString(sshCert.Permissions.Extensions[teleport.CertExtensionAllowedResources])
+	sshCertAllowedResources, err := types.ResourceAccessIDsFromString(sshCert.Permissions.Extensions[teleport.CertExtensionAllowedResourceAccessIDs])
 	require.NoError(t, err)
-	assert.ElementsMatch(t, resourceIDs, sshCertAllowedResources)
-	assert.ElementsMatch(t, resourceIDs, tlsIdentity.AllowedResourceIDs)
+	assert.ElementsMatch(t, resourceAccessIDs, sshCertAllowedResources)
+	assert.ElementsMatch(t, resourceAccessIDs, tlsIdentity.AllowedResourceAccessIDs)
 }
 
 func TestCreateSuggestions(t *testing.T) {

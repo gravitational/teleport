@@ -612,6 +612,8 @@ func InitAuthCache(p AuthCacheParams) error {
 		RecordingEncryption:     p.AuthServer.Services.RecordingEncryptionManager,
 		Plugin:                  p.AuthServer.Services.Plugins,
 		AppAuthConfig:           p.AuthServer.Services.AppAuthConfig,
+		StaticScopedToken:       p.AuthServer.Services.ClusterConfigurationInternal,
+		WorkloadClusterService:  p.AuthServer.Services.WorkloadClusterService,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -725,28 +727,30 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 
 		return tlsCert, privateKeyPEM, nil
 	case authz.BuiltinRole:
-		certs, err := authServer.GenerateHostCerts(ctx,
-			&proto.HostCertsRequest{
+		certs, err := authServer.GenerateHostCerts(ctx, auth.HostCertsParams{
+			Req: &proto.HostCertsRequest{
 				HostID:       id.Username,
 				NodeName:     id.Username,
 				Role:         id.Role,
 				PublicTLSKey: tlsPublicKeyPEM,
 				PublicSSHKey: sshPublicKeyPEM,
 				SystemRoles:  id.AdditionalSystemRoles,
-			}, "")
+			},
+		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 		return certs.TLS, privateKeyPEM, nil
 	case authz.RemoteBuiltinRole:
-		certs, err := authServer.GenerateHostCerts(ctx,
-			&proto.HostCertsRequest{
+		certs, err := authServer.GenerateHostCerts(ctx, auth.HostCertsParams{
+			Req: &proto.HostCertsRequest{
 				HostID:       id.Username,
 				NodeName:     id.Username,
 				Role:         id.Role,
 				PublicTLSKey: tlsPublicKeyPEM,
 				PublicSSHKey: sshPublicKeyPEM,
-			}, "")
+			},
+		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -1367,14 +1371,15 @@ func NewServerIdentity(clt *auth.Server, hostID string, role types.SystemRole) (
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := clt.GenerateHostCerts(context.Background(),
-		&proto.HostCertsRequest{
+	certs, err := clt.GenerateHostCerts(context.Background(), auth.HostCertsParams{
+		Req: &proto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     hostID,
 			Role:         role,
 			PublicSSHKey: ssh.MarshalAuthorizedKey(sshPubKey),
 			PublicTLSKey: tlsPubKey,
-		}, "")
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -29,7 +29,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -171,22 +170,6 @@ func NewAccessListServiceV2(cfg AccessListServiceConfig) (*AccessListService, er
 		memberService: memberService,
 		reviewService: reviewService,
 	}, nil
-}
-
-// NewAccessListService creates a new AccessListService.
-// Deprecated: Prefer using NewAccessListServiceV2
-// TODO(tross): Delete when everything is using V2.
-func NewAccessListService(b backend.Backend, clock clockwork.Clock, opts ...ServiceOption) (*AccessListService, error) {
-	var opt serviceOptions
-	for _, o := range opts {
-		o(&opt)
-	}
-
-	return NewAccessListServiceV2(AccessListServiceConfig{
-		Backend:                     b,
-		Modules:                     modules.GetModules(),
-		RunWhileLockedRetryInterval: opt.runWhileLockedRetryInterval,
-	})
 }
 
 // GetAccessLists returns a list of all access lists.

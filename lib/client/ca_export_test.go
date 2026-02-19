@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type mockAuthClient struct {
@@ -85,10 +86,9 @@ func (m *mockIntegrationsClient) ExportIntegrationCertAuthorities(ctx context.Co
 	}, nil
 }
 
-func TestExportAuthorities(t *testing.T) {
+func TestExportAllAuthorities(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
 	const localClusterName = "localcluster"
 
 	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{
@@ -96,7 +96,7 @@ func TestExportAuthorities(t *testing.T) {
 		Dir:         t.TempDir(),
 	})
 	require.NoError(t, err, "failed to create authtest.NewAuthServer")
-	t.Cleanup(func() { require.NoError(t, testAuth.Close()) })
+	t.Cleanup(func() { assert.NoError(t, testAuth.Close()) })
 
 	validateTLSCertificateDERFunc := func(t *testing.T, s string) {
 		cert, err := x509.ParseCertificate([]byte(s))
@@ -344,6 +344,8 @@ func TestExportAuthorities(t *testing.T) {
 			exportFunc func(context.Context, authclient.ClientI, ExportAuthoritiesRequest) ([]*ExportedAuthority, error),
 			assertFunc func(t *testing.T, output string),
 		) {
+			ctx := t.Context()
+
 			authorities, err := exportFunc(ctx, mockedAuthClient, tt.req)
 			tt.errorCheck(t, err)
 			if err != nil {
@@ -368,6 +370,119 @@ func TestExportAuthorities(t *testing.T) {
 			t.Run("ExportAllAuthoritiesSecrets", func(t *testing.T) {
 				runTest(t, ExportAllAuthoritiesSecrets, tt.assertSecrets)
 			})
+		})
+	}
+}
+
+func TestExportAllAuthorities_additionalKeys(t *testing.T) {
+	t.Parallel()
+
+	const clusterName = "zarq"
+	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		ClusterName: clusterName,
+		Dir:         t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, testAuth.Close()) })
+
+	authServer := testAuth.AuthServer
+	ctx := t.Context()
+
+	const caType = types.UserCA
+	ca, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       caType,
+		DomainName: clusterName,
+	}, true /* loadKeys */)
+	require.NoError(t, err)
+
+	makeNewTLSKey := func(t *testing.T) *types.TLSKeyPair {
+		t.Helper()
+
+		const ttl = 1 * time.Hour // Arbitrary. Actual CA TTLs are much larger.
+		keyPEM, certPEM, err := tlsca.GenerateSelfSignedCA(
+			pkix.Name{
+				Organization: []string{clusterName},
+				CommonName:   clusterName,
+			},
+			nil /* dnsNames */, ttl)
+		require.NoError(t, err)
+
+		return &types.TLSKeyPair{
+			Cert:    certPEM,
+			Key:     keyPEM,
+			KeyType: types.PrivateKeyType_RAW,
+		}
+	}
+
+	kp1 := makeNewTLSKey(t)
+
+	// Make sure multiple keys exist in both active and additionalTrusted sets.
+	aks := ca.GetActiveKeys()
+	aks.TLS = append(aks.TLS,
+		makeNewTLSKey(t),
+		&types.TLSKeyPair{Cert: kp1.Cert}, // Cert without Key.
+		// 3 entries total (existing + new + cert only)
+	)
+	require.NoError(t, ca.SetActiveKeys(aks))
+	tks := ca.GetAdditionalTrustedKeys()
+	tks.TLS = append(tks.TLS,
+		makeNewTLSKey(t),
+		makeNewTLSKey(t),
+		// 2 entries total (both new)
+	)
+	require.NoError(t, ca.SetAdditionalTrustedKeys(tks))
+
+	// Update CA with new keys.
+	_, err = authServer.UpdateCertAuthority(ctx, ca)
+	require.NoError(t, err)
+
+	var wantCerts, wantKeys []*ExportedAuthority
+	for _, keySet := range [][]*types.TLSKeyPair{aks.TLS, tks.TLS} {
+		for _, kp := range keySet {
+			wantCerts = append(wantCerts, &ExportedAuthority{Data: kp.Cert})
+			if len(kp.Key) > 0 {
+				wantKeys = append(wantKeys, &ExportedAuthority{Data: kp.Key})
+			}
+		}
+	}
+	// Sanity check.
+	require.Len(t, wantCerts, 5, "Unexpected number of wanted certs")
+	require.Len(t, wantKeys, 4, "Unexpected number of wanted keys")
+
+	authClient := &mockAuthClient{
+		server: authServer,
+	}
+
+	exportReq := ExportAuthoritiesRequest{
+		AuthType: "tls-user", // UserCA TLS certificates in PEM form.
+	}
+
+	tests := []struct {
+		name       string
+		exportFunc func(context.Context, authclient.ClientI, ExportAuthoritiesRequest) ([]*ExportedAuthority, error)
+		want       []*ExportedAuthority
+	}{
+		{
+			name:       "certs",
+			exportFunc: ExportAllAuthorities,
+			want:       wantCerts,
+		},
+		{
+			name:       "secrets",
+			exportFunc: ExportAllAuthoritiesSecrets,
+			want:       wantKeys,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := t.Context()
+			got, err := test.exportFunc(ctx, authClient, exportReq)
+			require.NoError(t, err)
+			if diff := cmp.Diff(test.want, got); diff != "" {
+				t.Errorf("Export mismatch (-want +got)\n%s", diff)
+			}
 		})
 	}
 }
@@ -566,13 +681,12 @@ func (m *multiCAAuthClient) PerformMFACeremony(
 func TestExportIntegrationAuthorities(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
 	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "localcluster",
 		Dir:         t.TempDir(),
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, testAuth.Close()) })
+	t.Cleanup(func() { assert.NoError(t, testAuth.Close()) })
 
 	fingerprint, err := sshutils.AuthorizedKeyFingerprint([]byte(fixtures.SSHCAPublicKey))
 	require.NoError(t, err)
@@ -645,6 +759,8 @@ func TestExportIntegrationAuthorities(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+
 			authorities, err := ExportIntegrationAuthorities(ctx, mockedAuthClient, tc.req)
 			tc.checkError(t, err)
 			if tc.checkOutput != nil {

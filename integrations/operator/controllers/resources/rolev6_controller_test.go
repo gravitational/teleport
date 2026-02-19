@@ -135,15 +135,20 @@ func (g *roleV6TestingPrimitives) CompareTeleportAndKubernetesResource(tResource
 
 func TestTeleportRoleV6Creation(t *testing.T) {
 	test := &roleV6TestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest[types.Role, *resourcesv1.TeleportRoleV6](t, resources.NewRoleV6Reconciler, test)
+	testlib.ResourceCreationSynchronousTest(t, resources.NewRoleV6Reconciler, test)
+}
+
+func TestTeleportRoleV6Deletion(t *testing.T) {
+	test := &roleV6TestingPrimitives{}
+	testlib.ResourceDeletionSynchronousTest(t, resources.NewRoleV6Reconciler, test)
 }
 
 func TestTeleportRoleV6DeletionDrift(t *testing.T) {
 	test := &roleV6TestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest[types.Role, *resourcesv1.TeleportRoleV6](t, resources.NewRoleV6Reconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewRoleV6Reconciler, test)
 }
 
 func TestTeleportRoleV6Update(t *testing.T) {
 	test := &roleV6TestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous[types.Role, *resourcesv1.TeleportRoleV6](t, resources.NewRoleV6Reconciler, test)
+	testlib.ResourceUpdateTestSynchronous(t, resources.NewRoleV6Reconciler, test)
 }

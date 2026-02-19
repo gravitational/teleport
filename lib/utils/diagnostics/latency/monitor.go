@@ -52,7 +52,7 @@ type Reporter interface {
 
 // ReporterFunc type is an adapter to allow the use of
 // ordinary functions as a Reporter. If f is a function
-// with the appropriate signature, Reporter(f) is a
+// with the appropriate signature, ReporterFunc(f) is a
 // Reporter that calls f.
 type ReporterFunc func(ctx context.Context, stats Statistics) error
 
@@ -66,6 +66,17 @@ func (f ReporterFunc) Report(ctx context.Context, stats Statistics) error {
 // from [Pinger.Ping].
 type Pinger interface {
 	Ping(ctx context.Context) error
+}
+
+// PingerFunc type is an adapter to allow the use of
+// ordinary functions as a Pinger. If p is a function
+// with the appropriate signature, PingerFunc(p) is a
+// Pinger that calls p.
+type PingerFunc func(ctx context.Context) error
+
+// Ping calls p(ctx).
+func (p PingerFunc) Ping(ctx context.Context) error {
+	return p(ctx)
 }
 
 // Monitor periodically pings both legs of a proxied connection and records

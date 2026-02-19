@@ -16,13 +16,13 @@ sections:
   hide: []
   show: []
 settings:
-  anchor: true
+  anchor: false
   color: true
   default: true
   description: false
   escape: true
   hide-empty: false
-  html: true
+  html: false
   indent: 2
   lockfile: false # avoid pinning provider version in README
   read-comments: true
@@ -32,4 +32,4 @@ settings:
 sort:
   enabled: true
   by: name
-version: ''
+version: '0.21.0'

@@ -18,10 +18,9 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 
-import { testQueryClient } from 'design/utils/testing';
+import { enableMswServer, server, testQueryClient } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
@@ -31,11 +30,7 @@ import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 import { TrackingProvider } from '../Shared/useTracking';
 import { GitHubK8sFlowProvider, useGitHubK8sFlow } from './useGitHubK8sFlow';
 
-const server = setupServer();
-
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 beforeEach(() => {
   server.use(userEventCaptureSuccess());
@@ -45,14 +40,10 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
-
   jest.useRealTimers();
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 describe('useGitHubK8sFlow', () => {
   test('initial', async () => {
@@ -66,7 +57,7 @@ describe('useGitHubK8sFlow', () => {
       wrapper: Wrapper,
     });
 
-    await waitForAPI(result.current);
+    await waitForGenerateCall(result);
 
     expect(result.current.state).toStrictEqual(withDefaultState({}));
     expect(result.current.template.terraform.data).toBe(
@@ -108,7 +99,7 @@ describe('useGitHubK8sFlow', () => {
         })
       );
 
-      await waitForAPI(result.current);
+      await waitForGenerateCall(result);
 
       expect(result.current.template.terraform.data).toContain(
         '"enterprise_server_host":"github.example.com"'
@@ -153,14 +144,14 @@ describe('useGitHubK8sFlow', () => {
     expect(result.current.state).toStrictEqual(
       withDefaultState({
         branch: 'release-*',
-        ref: 'release-*',
+        ref: 'refs/heads/release-*',
       })
     );
 
-    await waitForAPI(result.current);
+    await waitForGenerateCall(result);
 
     expect(result.current.template.terraform.data).toContain(
-      '"ref":"release-*"'
+      '"ref":"refs/heads/release-*"'
     );
     expect(result.current.template.terraform.data).toContain(
       '"ref_type":"branch"'
@@ -206,7 +197,7 @@ describe('useGitHubK8sFlow', () => {
       })
     );
 
-    await waitForAPI(result.current);
+    await waitForGenerateCall(result);
 
     expect(result.current.template.terraform.data).toContain(
       '"workflow":"my-workflow"'
@@ -233,7 +224,7 @@ describe('useGitHubK8sFlow', () => {
       })
     );
 
-    await waitForAPI(result.current);
+    await waitForGenerateCall(result);
 
     expect(result.current.template.terraform.data).toContain(
       '"environment":"production"'
@@ -261,7 +252,7 @@ describe('useGitHubK8sFlow', () => {
       })
     );
 
-    await waitForAPI(result.current);
+    await waitForGenerateCall(result);
 
     expect(result.current.template.terraform.data).toContain(
       '"ref":"release-*"'
@@ -296,7 +287,7 @@ describe('useGitHubK8sFlow', () => {
       })
     );
 
-    await waitForAPI(result.current);
+    await waitForGenerateCall(result);
 
     expect(result.current.template.terraform.data).toContain(
       '"ref_type":"tag"'
@@ -323,7 +314,7 @@ describe('useGitHubK8sFlow', () => {
       })
     );
 
-    await waitForAPI(result.current);
+    await waitForGenerateCall(result);
 
     expect(result.current.template.terraform.data).toContain(
       '"enterprise_slug":"octo-enterprise"'
@@ -350,10 +341,37 @@ describe('useGitHubK8sFlow', () => {
       })
     );
 
-    await waitForAPI(result.current);
+    await waitForGenerateCall(result);
 
     expect(result.current.template.terraform.data).toContain(
       '"static_jwks":"{\\"keys\\": []}"'
+    );
+  });
+
+  test('kubernetes cluster', async () => {
+    withGenWizardCiCdSuccess();
+
+    const { result } = renderHook(() => useGitHubK8sFlow(), {
+      wrapper: Wrapper,
+    });
+
+    act(() => {
+      result.current.dispatch({
+        type: 'kubernetes-cluster-changed',
+        value: 'my-kubernetes-cluster',
+      });
+    });
+
+    expect(result.current.state).toStrictEqual(
+      withDefaultState({
+        kubernetesCluster: 'my-kubernetes-cluster',
+      })
+    );
+
+    await waitForGenerateCall(result);
+
+    expect(result.current.template.ghaWorkflow).toContain(
+      'TELEPORT_K8S_CLUSTER_NAME: "my-kubernetes-cluster"'
     );
   });
 
@@ -377,7 +395,7 @@ describe('useGitHubK8sFlow', () => {
       })
     );
 
-    await waitForAPI(result.current);
+    await waitForGenerateCall(result);
 
     expect(result.current.template.terraform.data).toContain(
       '"groups":["system:masters"]'
@@ -409,7 +427,7 @@ describe('useGitHubK8sFlow', () => {
       })
     );
 
-    await waitForAPI(result.current);
+    await waitForGenerateCall(result);
 
     expect(result.current.template.terraform.data).toContain(
       '"labels":{"foo":["bar"]}'
@@ -436,7 +454,7 @@ describe('useGitHubK8sFlow', () => {
       })
     );
 
-    await waitForAPI(result.current);
+    await waitForGenerateCall(result);
 
     expect(result.current.template.terraform.data).toContain(
       '"users":["user1@example.com"]'
@@ -444,9 +462,13 @@ describe('useGitHubK8sFlow', () => {
   });
 });
 
-async function waitForAPI(context: ReturnType<typeof useGitHubK8sFlow>) {
+async function waitForGenerateCall(result: {
+  current: ReturnType<typeof useGitHubK8sFlow>;
+}) {
   await act(jest.advanceTimersToNextTimerAsync);
-  return waitFor(() => expect(context.template.terraform.loading).toBeFalsy());
+  return waitFor(() => {
+    expect(result.current.template.terraform.loading).toBeFalsy();
+  });
 }
 
 function withDefaultState(
@@ -471,6 +493,7 @@ function withDefaultState(
       },
     ],
     kubernetesUsers: [],
+    kubernetesCluster: '',
     ...overrides,
   };
 }

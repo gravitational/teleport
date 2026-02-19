@@ -27,9 +27,11 @@ import (
 	"time"
 
 	gocmp "github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -80,11 +82,32 @@ func TestScopedTokenService(t *testing.T) {
 	}
 	assert.Empty(t, gocmp.Diff(token, created.Token, cmpOpts...))
 
+	updatedToken := proto.CloneOf(token)
+	updatedToken.Spec.AssignedScope = "/test/test"
+
+	updated, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{
+		Token: created.GetToken(),
+	})
+	require.NoError(t, err)
+
 	fetched, err := service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
 		Name: token.Metadata.Name,
 	})
 	require.NoError(t, err)
-	assert.Empty(t, gocmp.Diff(created.Token, fetched.Token, cmpOpts...))
+	require.Equal(t, fetched.Token.Spec.AssignedScope, updated.Token.Spec.AssignedScope)
+	require.Empty(t, fetched.Token.Status.Secret)
+
+	list, err := service.ListScopedTokens(ctx, &joiningv1.ListScopedTokensRequest{})
+	require.NoError(t, err)
+	require.Len(t, list.Tokens, 1)
+
+	fetched, err = service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+		Name:       token.Metadata.Name,
+		WithSecret: true,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, fetched.Token.Status.Secret)
+	assert.Empty(t, gocmp.Diff(updated.Token, fetched.Token, cmpOpts...))
 
 	_, err = service.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
 		Name: fetched.Token.Metadata.Name,
@@ -126,8 +149,10 @@ func TestScopedTokenService(t *testing.T) {
 	require.True(t, trace.IsNotFound(err))
 
 	fetchedActive, err := service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
-		Name: activeRes.Token.Metadata.Name,
+		Name:       activeRes.Token.Metadata.Name,
+		WithSecret: true,
 	})
+
 	require.NoError(t, err)
 	assert.Empty(t, gocmp.Diff(activeRes.Token, fetchedActive.Token, cmpOpts...))
 }
@@ -213,8 +238,10 @@ func TestScopedTokenList(t *testing.T) {
 		expected []*joiningv1.ScopedToken
 	}{
 		{
-			name:     "all tokens (no filters)",
-			req:      &joiningv1.ListScopedTokensRequest{},
+			name: "all tokens (no filters)",
+			req: &joiningv1.ListScopedTokensRequest{
+				WithSecrets: true,
+			},
 			expected: []*joiningv1.ScopedToken{test, test1, test2, test3, test4, stage, stage1, stage2},
 		},
 		{
@@ -224,6 +251,7 @@ func TestScopedTokenList(t *testing.T) {
 					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 					Scope: "/test",
 				},
+				WithSecrets: true,
 			},
 			expected: []*joiningv1.ScopedToken{test, test1, test2, test3, test4},
 		},
@@ -234,6 +262,7 @@ func TestScopedTokenList(t *testing.T) {
 					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 					Scope: "/test/aa",
 				},
+				WithSecrets: true,
 			},
 			expected: []*joiningv1.ScopedToken{test1, test3, test4},
 		},
@@ -244,6 +273,7 @@ func TestScopedTokenList(t *testing.T) {
 					Mode:  scopesv1.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 					Scope: "/test/bb",
 				},
+				WithSecrets: true,
 			},
 			expected: []*joiningv1.ScopedToken{test, test2},
 		},
@@ -254,6 +284,7 @@ func TestScopedTokenList(t *testing.T) {
 					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 					Scope: "/test",
 				},
+				WithSecrets: true,
 			},
 			expected: []*joiningv1.ScopedToken{test, test1, test2, test3, test4},
 		},
@@ -264,6 +295,7 @@ func TestScopedTokenList(t *testing.T) {
 					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 					Scope: "/test/aa",
 				},
+				WithSecrets: true,
 			},
 			expected: []*joiningv1.ScopedToken{test1, test3, test4},
 		},
@@ -274,6 +306,7 @@ func TestScopedTokenList(t *testing.T) {
 					Mode:  scopesv1.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 					Scope: "/test/bb",
 				},
+				WithSecrets: true,
 			},
 			expected: []*joiningv1.ScopedToken{test, test2},
 		},
@@ -288,6 +321,7 @@ func TestScopedTokenList(t *testing.T) {
 					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 					Scope: "/stage/aa",
 				},
+				WithSecrets: true,
 			},
 			expected: []*joiningv1.ScopedToken{stage1, stage2},
 		},
@@ -302,6 +336,7 @@ func TestScopedTokenList(t *testing.T) {
 					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 					Scope: "/stage/aa",
 				},
+				WithSecrets: true,
 			},
 			expected: []*joiningv1.ScopedToken{stage2},
 		},
@@ -312,7 +347,8 @@ func TestScopedTokenList(t *testing.T) {
 					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 					Scope: "/test",
 				},
-				Roles: []string{types.RoleAuth.String()},
+				Roles:       []string{types.RoleAuth.String()},
+				WithSecrets: true,
 			},
 			expected: []*joiningv1.ScopedToken{},
 		},
@@ -327,8 +363,16 @@ func TestScopedTokenList(t *testing.T) {
 				Labels: map[string]string{
 					"hello": "world",
 				},
+				WithSecrets: true,
 			},
 			expected: []*joiningv1.ScopedToken{test2},
+		},
+		{
+			name: "tokens have no secrets when WithSecrets is false",
+			req: &joiningv1.ListScopedTokensRequest{
+				WithSecrets: false,
+			},
+			expected: []*joiningv1.ScopedToken{test, test1, test2, test3, test4, stage, stage1, stage2},
 		},
 	}
 
@@ -342,10 +386,16 @@ func TestScopedTokenList(t *testing.T) {
 			slices.SortStableFunc(c.expected, sortFn)
 			slices.SortStableFunc(res.GetTokens(), sortFn)
 			require.Len(t, res.GetTokens(), len(c.expected))
+			cmpOpts := []gocmp.Option{
+				protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+				protocmp.Transform(),
+			}
+			if !req.WithSecrets {
+				cmpOpts = append(cmpOpts, protocmp.IgnoreFields(&joiningv1.ScopedTokenStatus{}, "secret"))
+			}
 			for i, token := range res.GetTokens() {
-				cmpOpts := []gocmp.Option{
-					protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
-					protocmp.Transform(),
+				if !req.WithSecrets {
+					assert.Empty(t, token.GetStatus().GetSecret())
 				}
 				assert.Empty(t, gocmp.Diff(c.expected[i], token, cmpOpts...))
 			}
@@ -523,5 +573,186 @@ func TestScopedTokenUse(t *testing.T) {
 		<-time.After(reuseDuration + time.Minute)
 		_, err = service.UseScopedToken(ctx, tok, testKey)
 		require.ErrorIs(t, err, joining.ErrTokenExhausted)
+	})
+}
+
+func TestScopedTokenUpsert(t *testing.T) {
+	t.Parallel()
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
+	require.NoError(t, err)
+
+	ctx := t.Context()
+
+	newToken := func() *joiningv1.ScopedToken {
+		return &joiningv1.ScopedToken{
+			Kind:    types.KindScopedToken,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.New().String(),
+			},
+			Scope: "/test",
+			Spec: &joiningv1.ScopedTokenSpec{
+				AssignedScope: "/test/one",
+				JoinMethod:    "token",
+				Roles:         []string{types.RoleNode.String()},
+				UsageMode:     string(joining.TokenUsageModeUnlimited),
+			},
+			Status: &joiningv1.ScopedTokenStatus{
+				Secret: "secret",
+			},
+		}
+	}
+	cmpOpts := []gocmp.Option{
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	}
+
+	t.Run("upsert creates a new entry", func(t *testing.T) {
+		t.Parallel()
+		token := newToken()
+
+		upsertedToken, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: token})
+		require.NoError(t, err)
+
+		fetched, err := service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+			Name:       upsertedToken.GetToken().GetMetadata().GetName(),
+			WithSecret: true,
+		})
+		require.NoError(t, err)
+		assert.Empty(t, gocmp.Diff(upsertedToken.GetToken(), fetched.GetToken(), cmpOpts...))
+	})
+
+	t.Run("upsert updates existing entry", func(t *testing.T) {
+		t.Parallel()
+		token := newToken()
+		_, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: token})
+		require.NoError(t, err)
+
+		updated := proto.CloneOf(token)
+		updated.Metadata.Labels = map[string]string{"env": "test"}
+		updated.Spec.AssignedScope = "/test/one/two"
+
+		updatedToken, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: updated})
+		require.NoError(t, err)
+
+		fetched, err := service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+			Name:       token.GetMetadata().GetName(),
+			WithSecret: true,
+		})
+		require.NoError(t, err)
+		assert.Empty(t, gocmp.Diff(updatedToken.GetToken(), fetched.GetToken(), cmpOpts...))
+	})
+
+	t.Run("upsert fails because the scope is changed", func(t *testing.T) {
+		t.Parallel()
+		token := newToken()
+		_, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: token})
+		require.NoError(t, err)
+
+		updated := proto.CloneOf(token)
+		updated.Scope = "/other"
+		updated.Spec.AssignedScope = "/other/one"
+
+		_, err = service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: updated})
+		require.ErrorContains(t, err, "cannot modify scope of existing scoped token")
+	})
+
+	t.Run("upsert fails because the usage status is changed", func(t *testing.T) {
+		t.Parallel()
+		token := newToken()
+		_, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: token})
+		require.NoError(t, err)
+
+		updated := proto.CloneOf(token)
+		updated.Spec = proto.CloneOf(token.Spec)
+		updated.Spec.UsageMode = string(joining.TokenUsageModeSingle)
+
+		_, err = service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: updated})
+		require.ErrorContains(t, err, "cannot modify usage mode of existing scoped token")
+	})
+
+	t.Run("upsert fails because the secret is changed", func(t *testing.T) {
+		t.Parallel()
+		token := newToken()
+		_, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: token})
+		require.NoError(t, err)
+
+		updated := proto.CloneOf(token)
+		updated.Status = proto.CloneOf(token.Status)
+		updated.Status.Secret = "new-secret"
+
+		_, err = service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: updated})
+		require.ErrorContains(t, err, "cannot modify secret of existing scoped token")
+	})
+
+	t.Run("upsert succeeds when revisions don't match", func(t *testing.T) {
+		t.Parallel()
+		token := newToken()
+
+		_, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: token})
+		require.NoError(t, err)
+
+		fetched1, err := service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+			Name:       token.GetMetadata().GetName(),
+			WithSecret: true,
+		})
+		require.NoError(t, err)
+
+		update1 := proto.CloneOf(fetched1.GetToken())
+		update1.Metadata.Labels = map[string]string{"env": "production"}
+		_, err = service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: update1})
+		require.NoError(t, err)
+
+		// This should succeed as we set the revision before comparing
+		update2 := proto.CloneOf(fetched1.GetToken())
+		update2.GetMetadata().Revision = "somerev"
+		update2.Metadata.Labels = map[string]string{"env": "staging"}
+		_, err = service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: update2})
+		require.NoError(t, err, "upsert should succeed with retry on modification with stale revision")
+
+		// Verify that update2 succeeded and overwrote update1's label
+		final, err := service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+			Name:       token.GetMetadata().GetName(),
+			WithSecret: true,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "staging", final.GetToken().GetMetadata().GetLabels()["env"])
+	})
+
+	t.Run("concurrent upserts succeed", func(t *testing.T) {
+		t.Parallel()
+		token := newToken()
+
+		// Simulate 4 users concurrently upserting the same token with
+		// different labels. Every upsert should succeed thanks to the
+		// built-in retry logic.
+		const numUsers = 4
+
+		var wg errgroup.Group
+		for i := range numUsers {
+			wg.Go(func() error {
+				update := proto.CloneOf(token)
+				update.Metadata.Labels = map[string]string{
+					"user": fmt.Sprintf("user-%d", i),
+				}
+				_, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: update})
+				return err
+			})
+		}
+		require.NoError(t, wg.Wait(), "concurrent upserts should all succeed")
+
+		// Verify the token still exists and is consistent.
+		final, err := service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+			Name:       token.GetMetadata().GetName(),
+			WithSecret: true,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, final.GetToken())
+		// One of the concurrent writers must have won; the label should
+		// belong to one of the 4 users.
+		label := final.GetToken().GetMetadata().GetLabels()["user"]
+		require.Contains(t, []string{"user-0", "user-1", "user-2", "user-3"}, label)
 	})
 }

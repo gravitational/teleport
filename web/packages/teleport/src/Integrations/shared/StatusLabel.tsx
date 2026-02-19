@@ -23,12 +23,13 @@ import { Box, Flex, Text } from 'design';
 import {
   CircleCheck,
   CircleCross,
+  Info,
   Question,
   Warning,
   Wrench,
 } from 'design/Icon';
 import { IconSize } from 'design/Icon/Icon';
-import {
+import Label, {
   DangerOutlined,
   SecondaryOutlined,
   WarningOutlined,
@@ -73,8 +74,20 @@ export const SummaryStatusLabel = ({
   summary: IntegrationWithSummary;
 }) => {
   const hasIssues = summary.unresolvedUserTasks > 0;
-  const { status, label } = hasIssues ? ISSUES() : HEALTHY;
-  return <DefaultFlex>{statusLabel(status, label)}</DefaultFlex>;
+  const isSyncing = isSummarySyncing(summary);
+  const { status, label } = isSyncing
+    ? SCANNING()
+    : hasIssues
+      ? ISSUES()
+      : HEALTHY;
+  return (
+    <DefaultFlex alignItems="center" gap={2} flexWrap="wrap">
+      {statusLabel(status, label)}
+      {isSyncing && (
+        <StatusNote typography="body3">(scanning in progress)</StatusNote>
+      )}
+    </DefaultFlex>
+  );
 };
 
 const PointerFlex = styled(Flex)`
@@ -82,6 +95,12 @@ const PointerFlex = styled(Flex)`
 `;
 const DefaultFlex = styled(Flex)`
   cursor: default;
+`;
+
+const StatusNote = styled(Text)`
+  display: flex;
+  align-items: center;
+  line-height: 1;
 `;
 
 const HEALTHY = {
@@ -113,6 +132,16 @@ const ISSUES = (tooltip?: string) => ({
   label: 'Issues',
   tooltip,
 });
+
+const SCANNING = (tooltip?: string) => ({
+  status: Status.Scanning,
+  label: 'Scanning',
+  tooltip,
+});
+
+const PrimaryOutlined = (props: { children: React.ReactNode }) => (
+  <Label kind="outline-primary" {...props} />
+);
 
 export function getStatus(item: IntegrationLike): {
   status: Status;
@@ -188,6 +217,10 @@ const StatusUI: Record<
     Icon: Warning,
     Label: WarningOutlined,
   },
+  [Status.Scanning]: {
+    Icon: Info,
+    Label: PrimaryOutlined,
+  },
 };
 
 const statusLabel = (status: Status, label: string) => {
@@ -202,3 +235,31 @@ const statusLabel = (status: Status, label: string) => {
     </Label>
   );
 };
+
+function isSummarySyncing(summary: IntegrationWithSummary): boolean {
+  const lastSync = Math.max(
+    getTimestamp(summary.awsec2?.discoverLastSync),
+    getTimestamp(summary.awsrds?.discoverLastSync),
+    getTimestamp(summary.awseks?.discoverLastSync),
+    getTimestamp(summary.rolesAnywhereProfileSync?.syncEndTime)
+  );
+
+  return lastSync === 0;
+}
+
+function getTimestamp(value: unknown): number {
+  if (!value) {
+    return 0;
+  }
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+  if (typeof value === 'number') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+  return 0;
+}

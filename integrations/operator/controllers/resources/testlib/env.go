@@ -23,9 +23,7 @@ import (
 	"log/slog"
 	"math/rand/v2"
 	"os"
-	"path/filepath"
 	"reflect"
-	"runtime"
 	"testing"
 	"time"
 
@@ -41,7 +39,6 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
@@ -71,11 +68,6 @@ func createNamespaceForTest(t *testing.T, kc kclient.Client) *core.Namespace {
 	require.NoError(t, err)
 
 	return ns
-}
-
-func deleteNamespaceForTest(t *testing.T, kc kclient.Client, ns *core.Namespace) {
-	err := kc.Delete(context.Background(), ns)
-	require.NoError(t, err)
 }
 
 func ValidRandomResourceName(prefix string) string {
@@ -138,6 +130,10 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 				types.NewRule(types.KindAutoUpdateVersion, unrestricted),
 				types.NewRule(types.KindApp, unrestricted),
 				types.NewRule(types.KindDatabase, unrestricted),
+				types.NewRule(types.KindInferenceModel, unrestricted),
+				types.NewRule(types.KindInferencePolicy, unrestricted),
+				types.NewRule(types.KindInferenceSecret, unrestricted),
+				types.NewRule(types.KindAccessMonitoringRule, unrestricted),
 			},
 		},
 	})
@@ -331,59 +327,6 @@ func SetupFakeKubeTestEnv(t *testing.T, opts ...TestOption) *TestSetup {
 	}
 
 	setupTeleportClient(t, setup)
-
-	return setup
-}
-
-// SetupTestEnv creates a Kubernetes server, a teleport server and starts the operator
-func SetupTestEnv(t *testing.T, opts ...TestOption) *TestSetup {
-	// Hack to get the path of this file in order to find the crd path no matter
-	// where this is called from.
-	_, thisFileName, _, _ := runtime.Caller(0)
-	crdPath := filepath.Join(filepath.Dir(thisFileName), "..", "..", "..", "config", "crd", "bases")
-	testEnv := &envtest.Environment{
-		CRDDirectoryPaths:     []string{crdPath},
-		ErrorIfCRDPathMissing: true,
-	}
-
-	cfg, err := testEnv.Start()
-	require.NoError(t, err)
-	require.NotNil(t, cfg)
-
-	k8sClient, err := kclient.New(cfg, kclient.Options{Scheme: scheme})
-	require.NoError(t, err)
-	require.NotNil(t, k8sClient)
-
-	ns := createNamespaceForTest(t, k8sClient)
-
-	t.Cleanup(func() {
-		deleteNamespaceForTest(t, k8sClient, ns)
-		err = testEnv.Stop()
-		require.NoError(t, err)
-	})
-
-	setup := &TestSetup{
-		Context:       t.Context(),
-		K8sClient:     k8sClient,
-		Namespace:     ns,
-		K8sRestConfig: cfg,
-		ResourceName:  ValidRandomResourceName("resource-"),
-	}
-
-	for _, opt := range opts {
-		opt(setup)
-	}
-
-	setupTeleportClient(t, setup)
-
-	// If the test wants to do step by step reconciliation, we don't start
-	// an operator in the background.
-	if !setup.stepByStepReconciliation {
-		setup.StartKubernetesOperator(t)
-		t.Cleanup(func() {
-			setup.StopKubernetesOperator()
-		})
-	}
 
 	return setup
 }

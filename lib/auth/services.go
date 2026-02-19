@@ -50,7 +50,7 @@ type Services struct {
 	services.UserGroups
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
-	services.StatusInternal
+	services.Status
 	services.Integrations
 	services.IntegrationsTokenGenerator
 	services.UserTasks
@@ -96,6 +96,7 @@ type Services struct {
 	services.Summarizer
 	services.ScopedTokenService
 	MFAService
+	services.WorkloadClusterService
 }
 
 // MFAService defines the interface for managing MFA resources in the backend.

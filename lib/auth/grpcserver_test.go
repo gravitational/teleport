@@ -46,6 +46,7 @@ import (
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	otlpresourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	otlptracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -6511,4 +6512,29 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGRPCServingStatus(t *testing.T) {
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+	defer srv.Close()
+
+	authClient, err := srv.NewClient(authtest.TestServerID(types.RoleNode, uuid.NewString()))
+	require.NoError(t, err)
+	defer authClient.Close()
+
+	srv.TLSServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
+	healthClient := grpc_health_v1.NewHealthClient(authClient.GetConnection())
+	resp, err := healthClient.Check(ctx, &grpc_health_v1.HealthCheckRequest{
+		Service: "",
+	})
+	require.NoError(t, err)
+	require.Equal(t, grpc_health_v1.HealthCheckResponse_SERVING, resp.Status)
+
+	srv.TLSServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_NOT_SERVING)
+	resp, err = healthClient.Check(ctx, &grpc_health_v1.HealthCheckRequest{
+		Service: "",
+	})
+	require.NoError(t, err)
+	require.Equal(t, grpc_health_v1.HealthCheckResponse_NOT_SERVING, resp.Status)
 }

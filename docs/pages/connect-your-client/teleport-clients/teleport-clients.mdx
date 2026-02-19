@@ -11,7 +11,49 @@ This guide covers the basics of authenticating to Teleport and
 accessing resources. It's written for end-users of resources protected by
 Teleport, and includes links to more detailed documentation at the end.
 
-## Client tools
+## Choosing a client
+
+Teleport provides three tools for accessing protected infrastructure. `tsh` is a
+command-line client, Teleport Connect is a graphical native client, and the
+Teleport Web UI is a browser-based console available at the URL of your Teleport
+cluster.
+
+You should get familiar with all three tools, since each provides access to a
+different set of resources and offers a different user experience. This section
+includes a summary of the capabilities available in each client tool.
+
+Accessing infrastructure:
+
+| Resource                             | Teleport Connect | Web UI        | tsh |
+|--------------------------------------|------------------|---------------|-----|
+| Browser-based web applications       | ⚠️<sup>1</sup>    | ✅            | ❌  |
+| TCP apps and HTTP APIs               | ✅               | ❌            | ✅  |
+| Databases with GUI client tools      | ✅               | ❌            | ✅  |
+| Databases with command-line clients  | ✅               | ⚠️<sup>2</sup> | ✅  |
+| Remote desktops                      | ✅               | ✅            | ❌  |
+| Kubernetes clusters                  | ✅               | ⚠️<sup>3</sup> | ✅  |
+| Linux servers (Teleport SSH Service) | ✅               | ✅            | ✅  |
+| MCP servers                          | ✅               | ⚠️<sup>2</sup> | ✅  |
+
+<sup>1</sup> Browser-based web applications in Teleport Connect open in the
+default web browser.
+
+<sup>2</sup> For resources that require a command-line tool to access, the
+Teleport Web UI shows you instructions for using a terminal to access the
+resource. You can establish sessions with certain databases in the Web UI. See
+[Starting a database session](web-ui.mdx#starting-a-database-session) for
+supported databases.
+
+<sup>3</sup> You can `exec` into a Kubernetes pod using a browser-based terminal
+in the Teleport Web UI. Full `kubectl` access is not supported.
+
+Other client operations:
+
+| Task                      | Teleport Connect | Web UI | tsh |
+|---------------------------|------------------|--------|-----|
+| Manage Access Requests    | ✅                | ✅      | ✅   |
+| Start VNet                | ✅                | ❌      | ✅   |
+| Access session recordings | ❌                | ✅      | ✅   |
 
 ### tsh
 

@@ -66,10 +66,16 @@ jobs:
               - 'integrations/terraform/examples/**'
               - 'integrations/terraform/templates/**'
               - 'integrations/terraform/provider/**'
+              # terraform modules generator changes
+              - 'integrations/terraform-modules/.terraform-docs.yml'
+              - 'integrations/terraform-modules/Makefile'
+              - 'integrations/terraform-modules/teleport/**'
+              - 'integrations/terraform-modules/gen/docs.sh'
               # rendered doc changes
               - 'docs/pages/reference/infrastructure-as-code/operator-resources/**'
               - 'docs/pages/reference/infrastructure-as-code/terraform-provider/**'
               - 'docs/pages/reference/infrastructure-as-code/teleport-resources/**'
+              - 'docs/pages/reference/infrastructure-as-code/terraform-modules/**'
               - 'examples/chart/teleport-cluster/charts/teleport-operator/operator-crds'
               - 'build.assets/tooling/cmd/resource-ref-generator/**'
             has_ui:
@@ -277,6 +283,14 @@ jobs:
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         # The protoc-gen-terraform version must match the version in integrations/terraform/Makefile
         run: git config --global --add safe.directory $(realpath .) && go install github.com/gravitational/protoc-gen-terraform/v3@v3.0.3 && make terraform-resources-up-to-date
+
+      - name: Check if Terraform module reference docs are up to date
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        # terraform-docs version must match the version in integrations/terraform-modules/.terraform-docs.yml
+        run: |
+          git config --global --add safe.directory $(realpath .)
+          go install github.com/terraform-docs/terraform-docs@v0.21.0
+          make terraform-module-docs-up-to-date
 
       - name: Check if the Access Monitoring reference is up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.

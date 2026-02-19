@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -39,7 +38,7 @@ func TestAccessGraphAuthorizedKeys(t *testing.T) {
 	service, err := NewAccessGraphSecretsService(backend)
 	require.NoError(t, err)
 
-	ctx := context.TODO()
+	ctx := t.Context()
 	pageSize := 10
 	pageToken := ""
 
@@ -149,7 +148,7 @@ func TestAccessGraphPrivateKeys(t *testing.T) {
 	service, err := NewAccessGraphSecretsService(backend)
 	require.NoError(t, err)
 
-	ctx := context.TODO()
+	ctx := t.Context()
 	pageSize := 10
 	pageToken := ""
 

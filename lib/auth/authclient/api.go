@@ -953,18 +953,6 @@ type DiscoveryAccessPoint interface {
 	UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error)
 }
 
-// ExpiryAccessPoint is the API used by the expiry service.
-type ExpiryAccessPoint interface {
-	// Semaphores provides semaphore operations
-	types.Semaphores
-
-	// ListAccessRequests is an access request getter with pagination and sorting options.
-	ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error)
-
-	// DeleteAccessRequest deletes an access request.
-	DeleteAccessRequest(ctx context.Context, reqID string) error
-}
-
 // ReadOktaAccessPoint is a read only API interface to be
 // used by an Okta component.
 //
@@ -1496,6 +1484,9 @@ type Cache interface {
 
 	// AppAuthConfigGetter defines methods for fetching app auth configs.
 	services.AppAuthConfigReader
+
+	// WorkloadClusterServiceGetter defines methods for fetching workload clusters.
+	services.WorkloadClusterServiceGetter
 }
 
 type NodeWrapper struct {

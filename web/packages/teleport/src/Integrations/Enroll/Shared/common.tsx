@@ -32,6 +32,7 @@ export const integrationTagOptions = [
   { value: 'notifications', label: 'Notifications' },
   { value: 'resourceaccess', label: 'Resource Access' },
   { value: 'scim', label: 'SCIM' },
+  { value: 'terraform', label: 'Terraform' },
 ] as const satisfies { value: string; label: string }[];
 
 /**

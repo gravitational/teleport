@@ -135,6 +135,10 @@ type SSOResponse struct {
 // GetOptionalMFAResponseProtoReq converts response to a type proto.MFAAuthenticateResponse,
 // if there were any responses set. Otherwise returns nil.
 func (r *MFAChallengeResponse) GetOptionalMFAResponseProtoReq() (*proto.MFAAuthenticateResponse, error) {
+	if r == nil {
+		return nil, nil
+	}
+
 	var availableResponses int
 	if r.TOTPCode != "" {
 		availableResponses++

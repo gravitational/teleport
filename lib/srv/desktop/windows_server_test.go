@@ -19,10 +19,12 @@
 package desktop
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/asn1"
 	"encoding/base32"
 	"io"
@@ -32,9 +34,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
+	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -44,8 +50,10 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/winpki"
 )
 
@@ -305,21 +313,19 @@ func TestEmitsRecordingEventsOnSend(t *testing.T) {
 	emitter := &eventstest.MockRecorderEmitter{}
 	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 
-	// a fake PNG Frame message
-	encoded := []byte{byte(tdp.TypePNGFrame), 0x01, 0x02}
-
 	delay := func() int64 { return 0 }
 	handler := s.makeTDPSendHandler(context.Background(), emitterPreparer, delay, nil /* conn */, nil /* auditor */)
 
-	// the handler accepts both the message structure and its encoded form,
-	// but our logic only depends on the encoded form, so pass a nil message
-	handler(nil /* message */, encoded)
+	msg := &tdpb.PNGFrame{Data: []byte{0x01, 0x02}}
+	encoded, err := msg.Encode()
+	require.NoError(t, err)
+	handler(msg, encoded)
 
 	e := emitter.LastEvent()
 	require.NotNil(t, e)
 	dr, ok := e.(*events.DesktopRecording)
 	require.True(t, ok)
-	require.Equal(t, encoded, dr.Message)
+	require.Equal(t, encoded, dr.TDPBMessage)
 }
 
 func TestSkipsExtremelyLargePNGs(t *testing.T) {
@@ -336,15 +342,14 @@ func TestSkipsExtremelyLargePNGs(t *testing.T) {
 	// a fake PNG Frame message, which is way too big to be legitimate
 	maliciousPNG := make([]byte, libevents.MaxProtoMessageSizeBytes+1)
 	rand.Read(maliciousPNG)
-	maliciousPNG[0] = byte(tdp.TypePNGFrame)
+	png := &tdpb.PNGFrame{Data: maliciousPNG}
+	encoded, err := png.Encode()
+	require.NoError(t, err)
 
 	delay := func() int64 { return 0 }
 	handler := s.makeTDPSendHandler(context.Background(), emitterPreparer, delay, nil /* conn */, nil /* auditor */)
 
-	// the handler accepts both the message structure and its encoded form,
-	// but our logic only depends on the encoded form, so pass a nil message
-	var msg tdp.Message
-	handler(msg, maliciousPNG)
+	handler(png, encoded)
 
 	require.Nil(t, emitter.LastEvent())
 }
@@ -362,9 +367,9 @@ func TestEmitsRecordingEventsOnReceive(t *testing.T) {
 	delay := func() int64 { return 0 }
 	handler := s.makeTDPReceiveHandler(context.Background(), emitterPreparer, delay, nil /* conn */, nil /* auditor */)
 
-	msg := tdp.MouseButton{
-		Button: tdp.LeftMouseButton,
-		State:  tdp.ButtonPressed,
+	msg := &tdpb.MouseButton{
+		Button:  tdpbv1.MouseButtonType_MOUSE_BUTTON_TYPE_LEFT,
+		Pressed: true,
 	}
 	handler(msg)
 
@@ -372,9 +377,9 @@ func TestEmitsRecordingEventsOnReceive(t *testing.T) {
 	require.NotNil(t, e)
 	dr, ok := e.(*events.DesktopRecording)
 	require.True(t, ok)
-	decoded, err := tdp.Decode(dr.Message)
+	decoded, err := tdpb.DecodePermissive(bytes.NewBuffer(dr.TDPBMessage))
 	require.NoError(t, err)
-	require.Equal(t, msg, decoded)
+	require.Empty(t, cmp.Diff((*tdpbv1.MouseButton)(msg), (*tdpbv1.MouseButton)(decoded.(*tdpb.MouseButton)), protocmp.Transform()))
 }
 
 func TestEmitsClipboardSendEvents(t *testing.T) {
@@ -399,7 +404,9 @@ func TestEmitsClipboardSendEvents(t *testing.T) {
 	rand.Read(fakeClipboardData)
 
 	start := s.cfg.Clock.Now().UTC()
-	msg := tdp.ClipboardData(fakeClipboardData)
+	msg := &tdpb.ClipboardData{
+		Data: fakeClipboardData,
+	}
 	handler(msg)
 
 	e := emitter.LastEvent()
@@ -435,7 +442,7 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 	rand.Read(fakeClipboardData)
 
 	start := s.cfg.Clock.Now().UTC()
-	msg := tdp.ClipboardData(fakeClipboardData)
+	msg := &tdpb.ClipboardData{Data: fakeClipboardData}
 	encoded, err := msg.Encode()
 	require.NoError(t, err)
 	handler(msg, encoded)
@@ -555,4 +562,156 @@ func TestLoadTLSConfigForLDAP(t *testing.T) {
 			require.NotNil(t, cfg)
 		}
 	})
+}
+
+func TestCRLUpdateSchedule(t *testing.T) {
+	t.Parallel()
+
+	const clusterName = "zarq"
+	clock := clockwork.NewFakeClock()
+	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		ClusterName: clusterName,
+		Clock:       clock,
+		Dir:         t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, testAuth.Close()) })
+
+	var runCRLLoopWG sync.WaitGroup
+	// IMPORTANT! Must t.Cleanup before "cancel" (ie, cancel() needs to happen
+	// first).
+	t.Cleanup(func() {
+		t.Log("Waiting for runCRLUpdateLoop() WaitGroup")
+		runCRLLoopWG.Wait()
+	})
+
+	wsCtx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+
+	caClient := newMockCertificateStoreClient(t)
+	const publishInterval = 5 * time.Minute // Arbitrary. We use fake time.
+
+	// Create a "fake" WindowsService instance. This only needs enough setup to do
+	// runCRLUpdateLoop().
+	winService := &WindowsService{
+		cfg: WindowsServiceConfig{
+			Logger:             logtest.NewLogger(),
+			Clock:              clock,
+			AccessPoint:        testAuth.AuthServer,
+			PublishCRLInterval: publishInterval,
+		},
+		// Mock the actual CRL publishing.
+		ca: caClient,
+		// Short-circuit the "loadTLSConfigForLDAPlogic.
+		ldapTLSConfig:          &tls.Config{},
+		ldapTLSConfigExpiresAt: clock.Now().Add(1000000 * time.Hour), // Arbitrary. "Never" expires.
+		// ctx for background methods.
+		closeCtx: wsCtx,
+		close:    cancel,
+	}
+
+	runCRLLoopWG.Go(func() {
+		t.Log("Calling runCRLUpdateLoop()")
+		winService.runCRLUpdateLoop()
+	})
+
+	var wantUpdates int
+	waitForNextCRLUpdate := func(t *testing.T) {
+		wantUpdates++
+		caClient.WaitForUpdate(t, wantUpdates)
+	}
+
+	// First run of the loop invokes the update right away.
+	waitForNextCRLUpdate(t)
+
+	t.Run("update by elapsed time", func(t *testing.T) {
+		// Don't t.Parallel().
+
+		clock.Advance(publishInterval)
+		waitForNextCRLUpdate(t)
+	})
+
+	t.Run("update by CA event", func(t *testing.T) {
+		// Don't t.Parallel().
+
+		ctx := t.Context()
+		authServer := testAuth.AuthServer
+
+		// Fetch current WindowsCA.
+		id := types.CertAuthID{
+			Type:       types.WindowsCA,
+			DomainName: clusterName,
+		}
+		ca, err := authServer.GetCertAuthority(ctx, id, true /* loadKeys */)
+		require.NoError(t, err)
+
+		// Simulate a rotation by addding an entry to AdditionalTrustedKeys.
+		keyPEM, certPEM, err := tlsca.GenerateSelfSignedCA(pkix.Name{
+			Organization: []string{clusterName},
+			CommonName:   clusterName,
+		}, nil /* dnsNames */, 1*time.Hour /* ttl */)
+		require.NoError(t, err)
+		atk := ca.GetAdditionalTrustedKeys()
+		atk.TLS = append(atk.TLS, &types.TLSKeyPair{
+			Cert: certPEM,
+			Key:  keyPEM,
+			CRL:  []byte("fake CRL"),
+		})
+		require.NoError(t, ca.SetAdditionalTrustedKeys(atk))
+
+		// Update. This generates a CA event.
+		t.Log("Calling UpdateCertAuthority")
+		_, err = authServer.UpdateCertAuthority(ctx, ca)
+		require.NoError(t, err)
+
+		waitForNextCRLUpdate(t)
+	})
+}
+
+type mockCertificateStoreClient struct {
+	logf func(string, ...any)
+
+	mu       sync.Mutex
+	wait     chan struct{} // waits on the next numCalls update
+	numCalls int
+}
+
+func newMockCertificateStoreClient(t *testing.T) *mockCertificateStoreClient {
+	c := &mockCertificateStoreClient{
+		logf: t.Logf,
+		wait: make(chan struct{}),
+	}
+	return c
+}
+
+func (c *mockCertificateStoreClient) Update(ctx context.Context, tc *tls.Config) error {
+	c.mu.Lock()
+	c.numCalls++
+	close(c.wait)
+	c.wait = make(chan struct{})
+	c.mu.Unlock()
+	return nil
+}
+
+func (c *mockCertificateStoreClient) WaitForUpdate(t *testing.T, wantCalls int) {
+	// Arbitrary. 1s should be plenty of time for a mocked update.
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
+	defer cancel()
+
+	for {
+		c.mu.Lock()
+		if c.numCalls == wantCalls {
+			c.mu.Unlock()
+			return
+		}
+		ch := c.wait
+		c.mu.Unlock()
+
+		select {
+		case <-ctx.Done():
+			t.Fatal("Timed out before update")
+		case <-ch:
+			continue
+		}
+	}
 }

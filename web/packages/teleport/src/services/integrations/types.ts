@@ -91,9 +91,12 @@ export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
   /* AWS Roles Anywhere */
   AwsRa = 'aws-ra',
+  AwsCloud = 'aws-cloud',
   AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',
   GitHub = 'github',
+  AzureCloud = 'azure-cloud',
+  GoogleCloud = 'google-cloud',
 }
 
 export type IntegrationSpecGitHub = {
@@ -484,6 +487,10 @@ export type PluginEntraIdSpec = {
    * created for Entra ID groups.
    */
   defaultOwners: string[];
+  /**
+   * accessListOwnersSource is the source of the Access List owners.
+   */
+  accessListOwnersSource: string;
   /**
    * ssoConnectorId is the name of the SSO connector referenced
    * by the Entra ID plugin.

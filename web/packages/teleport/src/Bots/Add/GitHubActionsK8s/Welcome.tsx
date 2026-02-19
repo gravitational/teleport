@@ -16,16 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useHistory, useLocation } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
+import { Info } from 'design/Alert/Alert';
 import Box from 'design/Box/Box';
-import { ButtonPrimary } from 'design/Button/Button';
+import { ButtonPrimary, ButtonSecondary } from 'design/Button/Button';
 import Flex from 'design/Flex/Flex';
 import Image from 'design/Image/Image';
 import Link from 'design/Link/Link';
 import { H2, P2 } from 'design/Text/Text';
 import { Theme } from 'design/theme/themes/types';
 
+import cfg from 'teleport/config';
 import {
   IntegrationEnrollStatusCode,
   IntegrationEnrollStep,
@@ -33,6 +36,7 @@ import {
 
 import { FlowStepProps } from '../Shared/GuidedFlow';
 import { useTracking } from '../Shared/useTracking';
+import { CodePanel } from './CodePanel';
 import welcomeDark from './gha-k8s-welcome-dark.svg';
 import welcomeLight from './gha-k8s-welcome-light.svg';
 
@@ -41,6 +45,8 @@ export function Welcome(props: FlowStepProps) {
 
   const theme = useTheme();
   const tracking = useTracking();
+  const location = useLocation();
+  const history = useHistory();
 
   const welcomeImage: ImageSpec = {
     light: welcomeLight,
@@ -56,53 +62,97 @@ export function Welcome(props: FlowStepProps) {
     nextStep?.();
   };
 
+  const handlePrevious = () => {
+    // If location.key is unset, or 'default', this is the first history entry in-app in the session.
+    if (!location.key || location.key === 'default') {
+      history.push(cfg.getIntegrationsEnrollRoute());
+    } else {
+      history.goBack();
+    }
+  };
+
   return (
     <Container>
-      <Box>
-        <H2 mb={3} mt={3}>
-          GitHub Actions + Kubernetes
-        </H2>
+      <FormContainer>
+        <Box>
+          <H2 mb={3} mt={3}>
+            GitHub Actions + Kubernetes
+          </H2>
 
-        <P2>
-          Use <code>kubectl</code> and other tools from your GitHub Actions
-          workflows.
-        </P2>
+          <P2>
+            Use <code>kubectl</code> and other tools from your GitHub Actions
+            workflows.
+          </P2>
 
-        <P2>You’ll need:</P2>
-        <ul>
-          <li>A GitHub repository</li>
-          <li>Access rules for your workflow</li>
-        </ul>
+          <Image py={4} width={420} src={welcomeImage[theme.type]} />
 
-        <P2>
-          See the{' '}
-          <Link
-            target="_blank"
-            href={IAC_LINK}
-            onClick={() => {
-              tracking.link(IntegrationEnrollStep.MWIGHAK8SWelcome, IAC_LINK);
-            }}
+          <P2>You’ll need:</P2>
+          <ul>
+            <li>A GitHub repository</li>
+            <li>An enrolled Kubernetes cluster</li>
+          </ul>
+
+          <Info
+            alignItems="flex-start"
+            mt={4}
+            details={
+              <>
+                This guide uses Infrastructure as Code (IaC) to create the
+                resources required to complete the setup. See the{' '}
+                <Link
+                  target="_blank"
+                  href={IAC_LINK}
+                  onClick={() => {
+                    tracking.link(
+                      IntegrationEnrollStep.MWIGHAK8SWelcome,
+                      IAC_LINK
+                    );
+                  }}
+                >
+                  Infrastructure as Code
+                </Link>{' '}
+                docs for information about setting up and using IaC with
+                Teleport.
+              </>
+            }
           >
-            Infrastructure as Code
-          </Link>{' '}
-          docs for information about setting up and using IaC with Teleport.
-        </P2>
+            Infrastructure as Code required
+          </Info>
 
-        <Flex gap={2} pt={5}>
-          <ButtonPrimary onClick={handleNext}>Start</ButtonPrimary>
-        </Flex>
-      </Box>
+          <Flex gap={2} pt={1}>
+            <ButtonPrimary onClick={handleNext}>Start</ButtonPrimary>
+            <ButtonSecondary onClick={handlePrevious}>Back</ButtonSecondary>
+          </Flex>
+        </Box>
+      </FormContainer>
 
-      <Image p={5} width={420} src={welcomeImage[theme.type]} />
+      <CodeContainer>
+        <CodePanel
+          trackingStep={IntegrationEnrollStep.MWIGHAK8SWelcome}
+          inProgress
+        />
+      </CodeContainer>
     </Container>
   );
 }
 
 const Container = styled(Flex)`
-  align-items: flex-start;
   flex: 1;
   overflow: auto;
   gap: ${({ theme }) => theme.space[1]}px;
+`;
+
+const FormContainer = styled(Flex)`
+  flex: 4;
+  flex-direction: column;
+  overflow: auto;
+  padding-right: ${({ theme }) => theme.space[5]}px;
+`;
+
+const CodeContainer = styled(Flex)`
+  flex: 6;
+  flex-direction: column;
+  overflow: auto;
 `;
 
 type ImageSpec = {

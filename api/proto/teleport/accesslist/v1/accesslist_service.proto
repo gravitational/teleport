@@ -569,4 +569,10 @@ message UpdateAccessListWithPresetResponse {
   AccessList access_list = 1;
   // roles are the updated roles that grant permissions to resources. Managed by Teleport.
   repeated types.RoleV6 roles = 2;
+
+  // RolesToBeDeleted contains role names that are no longer valid for this access list preset.
+  // These roles may still be in use, so instead of deleting them in the backend and relying on
+  // "roles in use" error handling, deletion is deferred to a user.
+  // Where the UpdateAccessListWithPresetResponse should be ONLY by web API preset flow.
+  repeated string roles_to_be_deleted = 6;
 }

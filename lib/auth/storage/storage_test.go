@@ -18,19 +18,31 @@ package storage
 
 import (
 	"context"
+	"crypto/x509/pkix"
 	"fmt"
 	"log/slog"
 	"testing"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/testing/protocmp"
 
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
@@ -203,6 +215,100 @@ func Test_readOrGenerateHostID(t *testing.T) {
 				require.True(t, tt.wantKubeItemFunc(tt.args.kubeBackend.putData))
 			}
 		})
+	}
+}
+
+func genIdentity(t *testing.T, identityName string, immutableLabels *joiningv1.ImmutableLabels) *state.Identity {
+	t.Helper()
+
+	const clusterName = "example.com"
+
+	a, err := testauthority.NewKeygen(modules.BuildOSS, time.Now)
+	require.NoError(t, err)
+
+	priv, pub, err := a.GenerateKeyPair()
+	require.NoError(t, err)
+	caSigner, err := ssh.ParsePrivateKey(priv)
+	require.NoError(t, err)
+	tlsSigner, err := keys.ParsePrivateKey(priv)
+	require.NoError(t, err)
+
+	cert, err := testauthority.GenerateHostCert(sshca.HostCertificateRequest{
+		CASigner:      caSigner,
+		PublicHostKey: pub,
+		HostID:        identityName,
+		NodeName:      "test-node",
+		TTL:           0,
+		Identity: sshca.Identity{
+			ClusterName: clusterName,
+			SystemRole:  types.RoleNode,
+		},
+	})
+	require.NoError(t, err)
+
+	tlsCABytes, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Signer: tlsSigner,
+		Entity: pkix.Name{
+			CommonName:   clusterName,
+			Organization: []string{clusterName},
+		},
+		TTL: defaults.CATTL,
+	})
+	require.NoError(t, err)
+
+	ident, err := state.ReadSSHIdentityFromKeyPair(priv, cert)
+	require.NoError(t, err)
+	ident.SSHCACertBytes = [][]byte{priv}
+	ident.TLSCACertsBytes = [][]byte{tlsCABytes}
+
+	tlsCA, err := tlsca.FromCertAndSigner(tlsCABytes, tlsSigner)
+	require.NoError(t, err)
+
+	tlsIdent := tlsca.Identity{
+		Username: identityName,
+		Groups:   []string{string(types.RoleNode)},
+	}
+	subject, err := tlsIdent.Subject()
+	require.NoError(t, err)
+	tlsCert, err := tlsCA.GenerateCertificate(tlsca.CertificateRequest{
+		PublicKey: tlsSigner.Public(),
+		Subject:   subject,
+		NotAfter:  time.Now().UTC().Add(defaults.CATTL),
+	})
+	require.NoError(t, err)
+	ident.TLSCertBytes = tlsCert
+	ident.ImmutableLabels = immutableLabels
+
+	return ident
+}
+
+func TestImmutableLabels(t *testing.T) {
+	mem, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	storage := ProcessStorage{
+		BackendStorage: mem,
+		stateStorage:   mem,
+	}
+
+	const identName = "testname"
+	immutableLabels := &joiningv1.ImmutableLabels{
+		Ssh: map[string]string{
+			"foo": "bar",
+		},
+	}
+
+	ident := genIdentity(t, identName, immutableLabels)
+	ident.ImmutableLabels = immutableLabels
+
+	// run in a loop to ensure we can overwrite existing labels
+	for i := range 2 {
+		err = storage.WriteIdentity(identName, *ident)
+		require.NoError(t, err)
+		ident, err = storage.ReadIdentity(identName, types.RoleNode)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(immutableLabels, ident.ImmutableLabels, protocmp.Transform()))
+		immutableLabels.Ssh[fmt.Sprintf("label-%d", i)] = fmt.Sprintf("value-%d", i)
+		ident.ImmutableLabels = immutableLabels
 	}
 }
 

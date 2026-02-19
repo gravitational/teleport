@@ -96,6 +96,7 @@ Optional:
 - `cloud_metadata` (Attributes) CloudMetadata contains info about the cloud instance the server is running on, if any. (see [below for nested schema](#nested-schema-for-speccloud_metadata))
 - `github` (Attributes) GitHub contains info about GitHub proxies where each server represents a GitHub organization. (see [below for nested schema](#nested-schema-for-specgithub))
 - `hostname` (String) Hostname is server hostname
+- `immutable_labels` (Map of String) The immutable labels assigned to the server when joining. The hash of these labels is expected to match the hash included in the server's certificate.
 - `peer_addr` (String) PeerAddr is the address a proxy server is reachable at by its peer proxies.
 - `proxy_ids` (List of String) ProxyIDs is a list of proxy IDs this server is expected to be connected to.
 - `public_addrs` (List of String) PublicAddrs is a list of public addresses where this server can be reached.

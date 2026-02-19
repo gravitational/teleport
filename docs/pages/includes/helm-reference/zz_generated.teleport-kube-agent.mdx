@@ -704,6 +704,12 @@ You must create a secret containing the CA certs in the same namespace as Telepo
 ```code
 $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
 ```
+<Admonition type="danger">
+The Teleport distroless container trusts by default CAs from the `ca-certificates` package (Mozilla PKI).
+When `existingCASecretName` is set, Teleport only trusts the CA bundle from the secret.
+If you need Teleport to interact with other systems (e.g. AWS, GitHub, ...), the secret must contain their CA.
+Else, Teleport will fail to establish TLS connections with external services.
+</Admonition>
 
 ### `tls.existingCASecretKeyName`
 

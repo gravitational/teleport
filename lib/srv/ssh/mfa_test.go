@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -212,18 +213,19 @@ type mockValidatedMFAChallengeVerifier struct {
 func (m *mockValidatedMFAChallengeVerifier) VerifyValidatedMFAChallenge(
 	_ context.Context,
 	req *mfav1.VerifyValidatedMFAChallengeRequest,
-) error {
+	_ ...grpc.CallOption,
+) (*mfav1.VerifyValidatedMFAChallengeResponse, error) {
 	if m.err != nil {
-		return m.err
+		return nil, m.err
 	}
 
 	if m.expectedChallengeName != "" && req.Name != m.expectedChallengeName {
-		return trace.Errorf(
+		return nil, trace.Errorf(
 			"unexpected challenge name: got %q, want %q",
 			req.Name,
 			m.expectedChallengeName,
 		)
 	}
 
-	return nil
+	return &mfav1.VerifyValidatedMFAChallengeResponse{}, nil
 }

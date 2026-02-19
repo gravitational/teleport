@@ -984,7 +984,7 @@ func (x *Alert) GetSeverity() AlertSeverity {
 type MouseWheel struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Axis          MouseWheelAxis         `protobuf:"varint,1,opt,name=axis,proto3,enum=teleport.desktop.v1.MouseWheelAxis" json:"axis,omitempty"`
-	Delta         uint32                 `protobuf:"varint,2,opt,name=delta,proto3" json:"delta,omitempty"`
+	Delta         int32                  `protobuf:"varint,2,opt,name=delta,proto3" json:"delta,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1026,7 +1026,7 @@ func (x *MouseWheel) GetAxis() MouseWheelAxis {
 	return MouseWheelAxis_MOUSE_WHEEL_AXIS_UNSPECIFIED
 }
 
-func (x *MouseWheel) GetDelta() uint32 {
+func (x *MouseWheel) GetDelta() int32 {
 	if x != nil {
 		return x.Delta
 	}
@@ -3005,7 +3005,7 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\n" +
 	"MouseWheel\x127\n" +
 	"\x04axis\x18\x01 \x01(\x0e2#.teleport.desktop.v1.MouseWheelAxisR\x04axis\x12\x14\n" +
-	"\x05delta\x18\x02 \x01(\rR\x05delta\"#\n" +
+	"\x05delta\x18\x02 \x01(\x05R\x05delta\"#\n" +
 	"\rClipboardData\x12\x12\n" +
 	"\x04data\x18\x01 \x01(\fR\x04data\"\xfc\x01\n" +
 	"\x03MFA\x120\n" +
