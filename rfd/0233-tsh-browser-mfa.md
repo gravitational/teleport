@@ -284,8 +284,8 @@ session confusion attacks. `/web/mfa/browser/:request_id` will verify that the
 intended user is the one completing MFA request.
 
 After successful validation, the WebAuthn response is encrypted with the secret
-key from the client redirect URL and returned to be sent to `tsh`. The
-`SSOMFASession` is deleted to prevent reuse attacks. Browser MFA
+key from the client redirect URL and returned to be sent to `tsh`. If reuse is
+disabled, the `SSOMFASession` is deleted to prevent reuse attacks. Browser MFA
 challenges support challenge reuse as described in
 [RFD 155](0155-scoped-webauthn-credentials.md#reuse), where the challenge is not
 deleted after validation if created with `AllowReuse=true`, allowing multiple
