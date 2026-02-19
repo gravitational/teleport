@@ -17,8 +17,10 @@
 package mfav1_test
 
 import (
+	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
@@ -1243,7 +1245,11 @@ func TestVerifyValidatedMFAChallenge_NotFound(t *testing.T) {
 
 	_, service, _, user := setupAuthServer(t, nil)
 
-	ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleNode).I)
+	ctx, cancel := context.WithTimeout(
+		authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleNode).I),
+		50*time.Millisecond,
+	)
+	defer cancel()
 
 	// No challenge stored for this name.
 	resp, err := service.VerifyValidatedMFAChallenge(ctx, &mfav1.VerifyValidatedMFAChallengeRequest{
@@ -1253,7 +1259,7 @@ func TestVerifyValidatedMFAChallenge_NotFound(t *testing.T) {
 		SourceCluster: sourceCluster,
 	})
 	require.Error(t, err)
-	require.True(t, trace.IsNotFound(err))
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 	require.Nil(t, resp)
 }
 

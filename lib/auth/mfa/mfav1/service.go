@@ -20,7 +20,9 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"errors"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -124,6 +126,14 @@ type Service struct {
 	identity   Identity
 	storage    MFAService
 }
+
+const (
+	// verifyValidatedMFAChallengeTimeout is the max wait time for a validated challenge to appear.
+	verifyValidatedMFAChallengeTimeout = 5 * time.Minute
+
+	// verifyValidatedMFAChallengePollInterval is how often we check for the validated challenge.
+	verifyValidatedMFAChallengePollInterval = 100 * time.Millisecond
+)
 
 // NewService creates a new [Service] instance.
 func NewService(cfg ServiceConfig) (*Service, error) {
@@ -500,7 +510,7 @@ func (s *Service) VerifyValidatedMFAChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	chal, err := s.storage.GetValidatedMFAChallenge(ctx, req.GetUsername(), req.GetName())
+	chal, err := s.waitForValidatedMFAChallenge(ctx, req.GetUsername(), req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -795,6 +805,36 @@ func checkVerifyValidatedMFAChallengeRequest(req *mfav1.VerifyValidatedMFAChalle
 	}
 
 	return nil
+}
+
+func (s *Service) waitForValidatedMFAChallenge(ctx context.Context, username, challengeName string) (*mfav1.ValidatedMFAChallenge, error) {
+	ctx, cancel := context.WithTimeout(ctx, verifyValidatedMFAChallengeTimeout)
+	defer cancel()
+
+	ticker := time.NewTicker(verifyValidatedMFAChallengePollInterval)
+	defer ticker.Stop()
+
+	for {
+		chal, err := s.storage.GetValidatedMFAChallenge(ctx, username, challengeName)
+		switch {
+		case err != nil && !trace.IsNotFound(err):
+			return nil, trace.Wrap(err)
+
+		case err == nil && chal != nil:
+			return chal, nil
+		}
+
+		select {
+		case <-ctx.Done():
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return nil, trace.Wrap(ctx.Err(), "timed out waiting for validated MFA challenge")
+			}
+			return nil, trace.Wrap(ctx.Err())
+
+		case <-ticker.C:
+			// Continue polling for the validated MFA challenge to be created.
+		}
+	}
 }
 
 func checkPayload(sip *mfav1.SessionIdentifyingPayload) error {

@@ -92,6 +92,15 @@ func (s *MFAService) CreateValidatedMFAChallenge(
 		return nil, trace.Wrap(err)
 	}
 
+	s.logger.DebugContext(
+		ctx,
+		"Created validated MFA challenge resource.",
+		"username", username,
+		"challenge_name", chal.Metadata.GetName(),
+		"source_cluster", chal.Spec.GetSourceCluster(),
+		"target_cluster", chal.Spec.GetTargetCluster(),
+	)
+
 	return (*mfav1.ValidatedMFAChallenge)(res), nil
 }
 
@@ -151,6 +160,12 @@ func (s *MFAService) ListValidatedMFAChallenges(
 	for _, chal := range internalChallenges {
 		challenges = append(challenges, (*mfav1.ValidatedMFAChallenge)(chal))
 	}
+
+	s.logger.DebugContext(
+		ctx,
+		"Listed validated MFA challenges.",
+		"challenges", challenges,
+	)
 
 	return challenges, nextPageToken, nil
 }
