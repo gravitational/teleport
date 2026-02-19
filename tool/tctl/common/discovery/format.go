@@ -28,6 +28,13 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+const (
+	// placeholderNA is used when a value is not available.
+	placeholderNA = "n/a"
+	// placeholderNone is used when a value is explicitly empty/absent.
+	placeholderNone = "-"
+)
+
 type pageInfo struct {
 	Start     int `json:"start"`
 	End       int `json:"end"`
@@ -159,28 +166,21 @@ func formatRelativeTime(ts time.Time, now time.Time) string {
 	return formatRelativeDelta(ts, now, false)
 }
 
-func formatRelativeDelta(ts time.Time, now time.Time, detailed bool) string {
-	if ts.IsZero() {
-		return "never"
-	}
-	if now.IsZero() {
-		now = time.Now().UTC()
-	}
-	delta := now.Sub(ts)
-	suffix := "ago"
-	if delta < 0 {
-		delta = -delta
-		suffix = "from now"
+// formatDurationParts formats a duration as a human-readable string like "3d", "2h", "5m".
+// When detailed is true, includes sub-units (e.g., "2h 30m", "1d 5h").
+func formatDurationParts(d time.Duration, detailed bool) string {
+	if d < 0 {
+		d = -d
 	}
 
-	totalMinutes := int64(delta / time.Minute)
+	totalMinutes := int64(d / time.Minute)
 	if totalMinutes < 1 {
 		if !detailed {
-			secs := int64(delta / time.Second)
+			secs := int64(d / time.Second)
 			if secs < 1 {
 				secs = 1
 			}
-			return strconv.FormatInt(secs, 10) + "s " + suffix
+			return strconv.FormatInt(secs, 10) + "s"
 		}
 		totalMinutes = 1
 	}
@@ -192,28 +192,43 @@ func formatRelativeDelta(ts time.Time, now time.Time, detailed bool) string {
 	if !detailed {
 		switch {
 		case days > 0:
-			return strconv.FormatInt(days, 10) + "d " + suffix
+			return strconv.FormatInt(days, 10) + "d"
 		case hours > 0:
-			return strconv.FormatInt(hours, 10) + "h " + suffix
+			return strconv.FormatInt(hours, 10) + "h"
 		default:
-			return strconv.FormatInt(minutes, 10) + "m " + suffix
+			return strconv.FormatInt(minutes, 10) + "m"
 		}
 	}
 
 	switch {
 	case days > 0:
 		if hours > 0 {
-			return fmt.Sprintf("%dd %dh %s", days, hours, suffix)
+			return fmt.Sprintf("%dd %dh", days, hours)
 		}
-		return fmt.Sprintf("%dd %s", days, suffix)
+		return fmt.Sprintf("%dd", days)
 	case hours > 0:
 		if minutes > 0 {
-			return fmt.Sprintf("%dh %dm %s", hours, minutes, suffix)
+			return fmt.Sprintf("%dh %dm", hours, minutes)
 		}
-		return fmt.Sprintf("%dh %s", hours, suffix)
+		return fmt.Sprintf("%dh", hours)
 	default:
-		return fmt.Sprintf("%dm %s", minutes, suffix)
+		return fmt.Sprintf("%dm", minutes)
 	}
+}
+
+func formatRelativeDelta(ts time.Time, now time.Time, detailed bool) string {
+	if ts.IsZero() {
+		return "never"
+	}
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	delta := now.Sub(ts)
+	suffix := "ago"
+	if delta < 0 {
+		suffix = "from now"
+	}
+	return formatDurationParts(delta, detailed) + " " + suffix
 }
 
 func formatHelpText(description string) string {
@@ -248,8 +263,8 @@ func formatExpiryTime(ts time.Time, now time.Time) string {
 	if relative == "never" {
 		return relative
 	}
-	if strings.HasSuffix(relative, " from now") {
-		return "in " + strings.TrimSuffix(relative, " from now")
+	if trimmed, ok := strings.CutSuffix(relative, " from now"); ok {
+		return "in " + trimmed
 	}
 	return "expired " + relative
 }
