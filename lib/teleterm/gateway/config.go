@@ -181,6 +181,7 @@ func (c *Config) RouteToDatabase() tlsca.RouteToDatabase {
 		ServiceName: c.TargetName,
 		Protocol:    c.Protocol,
 		Username:    c.TargetUser,
+		Roles:       c.DatabaseRoles,
 	}
 }
 
