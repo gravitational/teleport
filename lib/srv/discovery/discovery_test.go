@@ -975,108 +975,139 @@ func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTas
 }
 
 type fakeAccessPointWithWatcher struct {
-	authclient.DiscoveryAccessPoint
+	*mockAuthServer
 
-	discoveryConfigWatcherMu sync.RWMutex
-	discoveryConfigWatcher   types.Watcher
+	discoveryConfigMu      sync.RWMutex
+	discoveryConfigWatcher *mockWatcher
+	discoveryConfigStore   []*discoveryconfig.DiscoveryConfig
+}
+
+func (f *fakeAccessPointWithWatcher) createDiscoveryConfig(discoveryConfig *discoveryconfig.DiscoveryConfig) {
+	f.discoveryConfigMu.Lock()
+	defer f.discoveryConfigMu.Unlock()
+
+	f.discoveryConfigStore = append(f.discoveryConfigStore, discoveryConfig)
+
+	f.discoveryConfigWatcher.events <- types.Event{
+		Type:     types.OpPut,
+		Resource: discoveryConfig,
+	}
+}
+func (f *fakeAccessPointWithWatcher) closeDiscoveryConfigWatcher() error {
+	f.discoveryConfigMu.Lock()
+	defer f.discoveryConfigMu.Unlock()
+	return f.discoveryConfigWatcher.Close()
+}
+
+func (f *fakeAccessPointWithWatcher) ListDiscoveryConfigs(ctx context.Context, pageSize int, nextKey string) ([]*discoveryconfig.DiscoveryConfig, string, error) {
+	f.discoveryConfigMu.RLock()
+	defer f.discoveryConfigMu.RUnlock()
+
+	return f.discoveryConfigStore, "", nil
 }
 
 func (f *fakeAccessPointWithWatcher) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
-	watcher, err := f.DiscoveryAccessPoint.NewWatcher(ctx, watch)
+	f.discoveryConfigMu.Lock()
+	defer f.discoveryConfigMu.Unlock()
 
-	f.discoveryConfigWatcherMu.Lock()
-	defer f.discoveryConfigWatcherMu.Unlock()
-	f.discoveryConfigWatcher = watcher
+	for _, kind := range watch.Kinds {
+		switch kind.Kind {
+		case types.KindDiscoveryConfig:
+			eventsCh := make(chan types.Event, 1)
+			eventsCh <- types.Event{
+				Type: types.OpInit,
+			}
 
-	return watcher, err
-}
+			f.discoveryConfigWatcher = &mockWatcher{
+				events: eventsCh,
+				done:   make(chan struct{}),
+			}
+			return f.discoveryConfigWatcher, nil
 
-func (f *fakeAccessPointWithWatcher) closeDiscoveryConfigWatcher() error {
-	f.discoveryConfigWatcherMu.Lock()
-	defer f.discoveryConfigWatcherMu.Unlock()
-	return f.discoveryConfigWatcher.Close()
+		default:
+			return &mockWatcher{
+				events: make(chan types.Event, 1),
+				done:   make(chan struct{}),
+			}, nil
+		}
+	}
+
+	return nil, trace.BadParameter("missing watch kinds in NewWatcher")
 }
 
 // This test exercises the dynamic matcher watcher and ensures that if there's a failure in the watcher,
 // it restarts and continues to pick up new Discovery Configs matchers.
 func TestDiscoveryServer_dynamicMatcherRestart(t *testing.T) {
-	fakeClock := clockwork.NewFakeClock()
+	const discoveryGroup = "discovery-group"
 
-	// Create and start test auth server.
-	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir:   t.TempDir(),
-		Clock: fakeClock,
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+	synctest.Test(t, func(t *testing.T) {
+		bk, err := memory.New(memory.Config{})
+		require.NoError(t, err)
 
-	tlsServer, err := testAuthServer.NewTestTLSServer()
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+		mockAuthServer := &mockAuthServer{
+			events: local.NewEventsService(bk),
+		}
 
-	// Auth client for discovery service.
-	identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
-	authClient, err := tlsServer.NewClient(identity)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
+		mockAccessPoint := &fakeAccessPointWithWatcher{
+			mockAuthServer: mockAuthServer,
+		}
 
-	accessPoint := &fakeAccessPointWithWatcher{
-		DiscoveryAccessPoint: getDiscoveryAccessPointWithEKSEnroller(tlsServer.Auth(), authClient, authClient.IntegrationAWSOIDCClient()),
-	}
+		server, err := New(t.Context(), &Config{
+			ClusterFeatures: func() proto.Features { return proto.Features{} },
+			AccessPoint:     mockAccessPoint,
+			Matchers:        Matchers{},
+			Emitter:         &mockEmitter{},
+			Log:             logtest.NewLogger(),
+			DiscoveryGroup:  discoveryGroup,
+		})
+		require.NoError(t, err)
+		require.NoError(t, server.Start())
+		t.Cleanup(server.Stop)
 
-	// Start discovery server
-	server, err := New(t.Context(), &Config{
-		ClusterFeatures: func() proto.Features { return proto.Features{} },
-		AccessPoint:     accessPoint,
-		Matchers:        Matchers{},
-		Emitter:         authClient,
-		Log:             logtest.NewLogger(),
-		DiscoveryGroup:  "discovery-group",
-		clock:           fakeClock,
-	})
-	require.NoError(t, err)
+		// Wait for the server to start discovering resources.
+		synctest.Wait()
 
-	go server.Start()
-	t.Cleanup(server.Stop)
+		// 1. Send a new Discovery Config and ensure it gets loaded into the dynamic matchers.
+		discoveryConfigA, err := discoveryconfig.NewDiscoveryConfig(
+			header.Metadata{Name: "dc-a"},
+			discoveryconfig.Spec{
+				DiscoveryGroup: discoveryGroup,
+			},
+		)
+		require.NoError(t, err)
+		go mockAccessPoint.createDiscoveryConfig(discoveryConfigA)
 
-	// 1. Send a new Discovery Config and ensure it gets loaded into the dynamic matchers.
-	discoveryConfigA, err := discoveryconfig.NewDiscoveryConfig(
-		header.Metadata{Name: "dc-a"},
-		discoveryconfig.Spec{
-			DiscoveryGroup: "discovery-group",
-		},
-	)
-	require.NoError(t, err)
-	_, err = tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(t.Context(), discoveryConfigA)
-	require.NoError(t, err)
-	require.Eventually(t, func() bool {
+		// Wait until the event is processed.
+		synctest.Wait()
+
 		server.dynamicDiscoveryConfigMu.RLock()
-		defer server.dynamicDiscoveryConfigMu.RUnlock()
-		return len(server.dynamicDiscoveryConfig) == 1
-	}, 5*time.Second, 50*time.Millisecond)
+		require.Len(t, server.dynamicDiscoveryConfig, 1)
+		server.dynamicDiscoveryConfigMu.RUnlock()
 
-	// 2. Break the watcher
-	accessPoint.closeDiscoveryConfigWatcher()
+		// 2. Break the watcher
+		mockAccessPoint.closeDiscoveryConfigWatcher()
 
-	// 3. Send a new Discovery Config and ensure it gets loaded into the dynamic matchers. In this case it will require the watcher to have restarted.
-	discoveryConfigB, err := discoveryconfig.NewDiscoveryConfig(
-		header.Metadata{Name: "dc-b"},
-		discoveryconfig.Spec{
-			DiscoveryGroup: "discovery-group",
-		},
-	)
-	require.NoError(t, err)
-	_, err = tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(t.Context(), discoveryConfigB)
-	require.NoError(t, err)
+		// When the watcher breaks, it will restart after 1 minute.
+		// Sleep a little longer to ensure the watcher had time to restart.
+		time.Sleep(2 * time.Minute)
 
-	// DynamicMatcher watcher waits 1 minute before restarting, but in tests we can speed this up by advancing the fake clock.
-	fakeClock.Advance(2 * time.Minute)
+		// 3. Send a new Discovery Config and ensure it gets loaded into the dynamic matchers. In this case it will require the watcher to have restarted.
+		discoveryConfigB, err := discoveryconfig.NewDiscoveryConfig(
+			header.Metadata{Name: "dc-b"},
+			discoveryconfig.Spec{
+				DiscoveryGroup: discoveryGroup,
+			},
+		)
+		require.NoError(t, err)
+		go mockAccessPoint.createDiscoveryConfig(discoveryConfigB)
 
-	require.Eventually(t, func() bool {
+		// Wait until the event is processed.
+		synctest.Wait()
+
 		server.dynamicDiscoveryConfigMu.RLock()
-		defer server.dynamicDiscoveryConfigMu.RUnlock()
-		return len(server.dynamicDiscoveryConfig) == 2
-	}, 5*time.Second, 50*time.Millisecond)
+		require.Len(t, server.dynamicDiscoveryConfig, 2)
+		server.dynamicDiscoveryConfigMu.RUnlock()
+	})
 }
 
 func TestDiscoveryServerConcurrency(t *testing.T) {
