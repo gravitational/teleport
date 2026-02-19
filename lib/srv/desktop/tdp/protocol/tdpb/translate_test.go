@@ -1,3 +1,19 @@
+// Teleport
+// Copyright (C) 2026 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package tdpb
 
 import (
@@ -5,9 +21,10 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTranslation(t *testing.T) {
@@ -30,21 +47,21 @@ func TestTranslation(t *testing.T) {
 		},
 		legacy.MouseButton{
 			Button: legacy.LeftMouseButton,
-			State:  legacy.ButtonNotPressed,
+			State:  legacy.ButtonPressed,
 		},
 		legacy.MouseButton{
 			Button: legacy.RightMouseButton,
-			State:  legacy.ButtonNotPressed,
+			State:  legacy.ButtonPressed,
 		},
 		legacy.MouseButton{
 			Button: legacy.MiddleMouseButton,
 			State:  legacy.ButtonPressed,
 		},
 		legacy.SyncKeys{
-			ScrollLockState: legacy.ButtonNotPressed,
-			NumLockState:    legacy.ButtonNotPressed,
-			CapsLockState:   legacy.ButtonNotPressed,
-			KanaLockState:   legacy.ButtonNotPressed,
+			ScrollLockState: legacy.ButtonPressed,
+			NumLockState:    legacy.ButtonPressed,
+			CapsLockState:   legacy.ButtonPressed,
+			KanaLockState:   legacy.ButtonPressed,
 		},
 		legacy.SyncKeys{
 			ScrollLockState: legacy.ButtonPressed,
@@ -58,7 +75,7 @@ func TestTranslation(t *testing.T) {
 		},
 		legacy.KeyboardButton{
 			KeyCode: 23,
-			State:   legacy.ButtonNotPressed,
+			State:   legacy.ButtonPressed,
 		},
 		legacy.Alert{Severity: legacy.SeverityError, Message: "error"},
 		legacy.Alert{Severity: legacy.SeverityWarning, Message: "warn"},
@@ -185,19 +202,18 @@ func TestTranslation(t *testing.T) {
 		},
 	}
 
-	// Let's play a game of telephone. Translate each message
-	// to TDPB and back. We should get the exact same input message.
+	// Translate each message to TDPB and back. Then check
+	// the resulting message for equality with the original.
 	for _, msg := range cases {
 		t.Run(fmt.Sprintf("translate %T", msg), func(t *testing.T) {
 			modern, err := TranslateToModern(msg)
 			require.NoError(t, err)
 			require.Len(t, modern, 1)
+
 			legacyMsgs, err := TranslateToLegacy(modern[0])
 			require.NoError(t, err)
 			require.Len(t, legacyMsgs, 1)
-
 			require.Equal(t, msg, legacyMsgs[0])
 		})
-
 	}
 }
