@@ -101,25 +101,30 @@ func TestScopedTokens(t *testing.T) {
 	require.Len(t, out.Roles, 1)
 	require.Equal(t, types.KindNode, strings.ToLower(out.Roles[0]))
 
+	// with --mode
+	buf, err = runScopedCommand(t, clt, append([]string{"tokens", "add", "--type=node", "--format", teleport.JSON, "--mode", "single_use"}, scopeFlags...))
+	require.NoError(t, err)
+	out = mustDecodeJSON[addedToken](t, buf)
+
 	// Test all output formats of "tokens ls".
 	buf, err = runScopedCommand(t, clt, []string{"tokens", "ls"})
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(buf.String(), "Token "))
-	require.Equal(t, 6, strings.Count(buf.String(), "\n")) // account for header lines
+	require.Equal(t, 7, strings.Count(buf.String(), "\n")) // account for header lines
 
 	buf, err = runScopedCommand(t, clt, []string{"tokens", "ls", "--format", teleport.Text})
 	require.NoError(t, err)
-	require.Equal(t, 4, strings.Count(buf.String(), "\n"))
+	require.Equal(t, 5, strings.Count(buf.String(), "\n"))
 
 	buf, err = runScopedCommand(t, clt, []string{"tokens", "ls", "--format", teleport.JSON})
 	require.NoError(t, err)
 	jsonOut := mustDecodeJSON[[]listedScopedToken](t, buf)
-	require.Len(t, jsonOut, 4)
+	require.Len(t, jsonOut, 5)
 
 	buf, err = runScopedCommand(t, clt, []string{"tokens", "ls", "--format", teleport.YAML})
 	require.NoError(t, err)
 	yamlOut := []listedScopedToken{}
 	mustDecodeYAMLDocuments(t, buf, &yamlOut)
-	require.Len(t, yamlOut, 4)
+	require.Len(t, yamlOut, 5)
 	require.Equal(t, jsonOut, yamlOut)
 }

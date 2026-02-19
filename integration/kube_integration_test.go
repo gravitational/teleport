@@ -122,7 +122,7 @@ func newKubeSuite(t *testing.T) *KubeSuite {
 	}
 	require.NotEmpty(t, suite.kubeConfigPath, "This test requires path to valid kubeconfig.")
 	var err error
-	suite.priv, suite.pub, err = testauthority.New().GenerateKeyPair()
+	suite.priv, suite.pub, err = testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	suite.me, err = user.Current()

@@ -253,7 +253,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	// Create a new session cache, this holds sessions that can be used to
 	// forward requests.
 	c.cache, err = utils.NewFnCache(utils.FnCacheConfig{
-		TTL:             5 * time.Minute,
+		TTL:             common.MaxSessionChunkDuration,
 		Context:         c.closeContext,
 		Clock:           c.cfg.Clock,
 		CleanupInterval: time.Second,
@@ -357,7 +357,7 @@ func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, r *http.Request, identity *tlsca.Identity, app types.Application, opts ...sessionOpt) error {
 	// Fetch a cached request forwarder (or create one) that lives about 5
 	// minutes. Used to stream session chunks to the Audit Log.
-	ttl := min(identity.Expires.Sub(c.cfg.Clock.Now()), 5*time.Minute)
+	ttl := min(identity.Expires.Sub(c.cfg.Clock.Now()), common.MaxSessionChunkDuration)
 	session, err := utils.FnCacheGetWithTTL(r.Context(), c.cache, identity.RouteToApp.SessionID, ttl, func(ctx context.Context) (*sessionChunk, error) {
 		session, err := c.newSessionChunk(ctx, identity, app, c.sessionStartTime(r.Context()), opts...)
 		return session, trace.Wrap(err)

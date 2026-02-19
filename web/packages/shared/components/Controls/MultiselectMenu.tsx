@@ -31,7 +31,7 @@ import { CheckboxInput } from 'design/Checkbox';
 import { ChevronDown } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 
-type Option<T> = {
+export type Option<T> = {
   value: T;
   label: string | ReactNode;
   disabled?: boolean;
@@ -203,20 +203,18 @@ export const MultiselectMenu = <T extends readonly Option<any>[]>({
             </>
           );
           return (
-            <MenuItem
-              disabled={opt.disabled}
-              px={2}
+            <HoverTooltip
               key={opt.value}
-              onClick={() => (!opt.disabled ? handleSelect(opt.value) : null)}
+              tipContent={(opt.disabled && opt.disabledTooltip) || undefined}
             >
-              {opt.disabled && opt.disabledTooltip ? (
-                <HoverTooltip tipContent={opt.disabledTooltip}>
-                  {$checkbox}
-                </HoverTooltip>
-              ) : (
-                $checkbox
-              )}
-            </MenuItem>
+              <MenuItem
+                disabled={opt.disabled}
+                px={2}
+                onClick={() => (!opt.disabled ? handleSelect(opt.value) : null)}
+              >
+                {$checkbox}
+              </MenuItem>
+            </HoverTooltip>
           );
         })}
         {buffered && (

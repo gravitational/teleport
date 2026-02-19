@@ -19,6 +19,7 @@ package provision
 import (
 	"time"
 
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -30,6 +31,11 @@ type Token interface {
 	// join methods where the name is secret. This should be used when logging
 	// the token name.
 	GetSafeName() string
+	// GetSecret returns either the token's secret or an empty string depending on whether
+	// or not the token has an explicit secret value. It also returns an explicit boolean
+	// to disambiguate between cases where the token has no secret or the token secret is
+	// not populated.
+	GetSecret() (string, bool)
 	// GetJoinMethod returns joining method that must be used with this token.
 	GetJoinMethod() types.JoinMethod
 	// GetRoles returns a list of teleport roles that will be granted to the
@@ -46,4 +52,10 @@ type Token interface {
 	GetAllowRules() []*types.TokenRule
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() types.Duration
+	// GetImmutableLabels returns labels that must be applied to resources
+	// provisioned with this token.
+	GetImmutableLabels() *joiningv1.ImmutableLabels
+	// GetIntegration returns the integration name that provides credentials to validate allow rules.
+	// Currently, this is only used to validate the AWS Organization.
+	GetIntegration() string
 }

@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
 // NewWebSessionRequest defines a request to create a new user
@@ -692,14 +693,23 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 
 // generateAppToken generates an JWT token that will be passed along with every
 // application request.
-func (a *Server) generateAppToken(ctx context.Context, username string, roles []string, traits map[string][]string, uri string, expires time.Time) (string, error) {
+func (a *Server) generateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error) {
 	// Get the clusters CA.
 	clusterName, err := a.GetDomainName()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+
+	switch req.AuthorityType {
+	case "":
+		req.AuthorityType = types.JWTSigner
+	case types.JWTSigner, types.OIDCIdPCA:
+	default:
+		return "", trace.BadParameter("unsupported authority %q for signing app token", req.AuthorityType)
+	}
+
 	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.JWTSigner,
+		Type:       req.AuthorityType,
 		DomainName: clusterName,
 	}, true)
 	if err != nil {
@@ -709,7 +719,7 @@ func (a *Server) generateAppToken(ctx context.Context, username string, roles []
 	// Filter out empty traits so the resulting JWT doesn't have a bunch of
 	// entries with nil values.
 	filteredTraits := map[string][]string{}
-	for trait, values := range traits {
+	for trait, values := range req.Traits {
 		if len(values) > 0 {
 			filteredTraits[trait] = values
 		}
@@ -724,12 +734,21 @@ func (a *Server) generateAppToken(ctx context.Context, username string, roles []
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+
+	issuer := ca.GetClusterName()
+	if req.AuthorityType == types.OIDCIdPCA {
+		if issuer, err = oidc.IssuerForCluster(ctx, a); err != nil {
+			return "", trace.Wrap(err)
+		}
+	}
+
 	token, err := privateKey.Sign(jwt.SignParams{
-		Username: username,
-		Roles:    roles,
+		Issuer:   issuer,
+		Username: req.Username,
+		Roles:    req.Roles,
 		Traits:   filteredTraits,
-		URI:      uri,
-		Expires:  expires,
+		URI:      req.URI,
+		Expires:  req.Expires,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

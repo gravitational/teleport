@@ -7865,7 +7865,7 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 				},
 			},
 			errorFunc: func(t *testing.T, err error) {
-				require.IsType(t, trace.AccessDenied(""), err)
+				require.ErrorAs(t, err, new(*trace.NotFoundError))
 			},
 		},
 		{
@@ -7890,7 +7890,7 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 				},
 			},
 			errorFunc: func(t *testing.T, err error) {
-				require.IsType(t, trace.AccessDenied(""), err)
+				require.ErrorAs(t, err, new(*trace.NotFoundError))
 			},
 		},
 		{
@@ -7914,7 +7914,7 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 				},
 			},
 			errorFunc: func(t *testing.T, err error) {
-				require.IsType(t, trace.AccessDenied(""), err)
+				require.ErrorAs(t, err, new(*trace.NotFoundError))
 			},
 		},
 		{
@@ -7939,7 +7939,7 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 				},
 			},
 			errorFunc: func(t *testing.T, err error) {
-				require.IsType(t, trace.AccessDenied(""), err)
+				require.ErrorAs(t, err, new(*trace.NotFoundError))
 			},
 		},
 		{

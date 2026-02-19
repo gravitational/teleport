@@ -641,7 +641,7 @@ function OverflowMenu(props: {
   return (
     <div>
       <FilledButtonIcon
-        setRef={anchorElRef}
+        ref={anchorElRef}
         intent="neutral"
         onClick={() => {
           setIsOpen(true);

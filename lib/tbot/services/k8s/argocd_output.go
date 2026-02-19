@@ -77,7 +77,7 @@ func ArgoCDServiceBuilder(cfg *ArgoCDOutputConfig, opts ...ArgoCDServiceOption) 
 		// environment.
 		if svc.k8s == nil {
 			var err error
-			if svc.k8s, err = newKubernetesClient(); err != nil {
+			if svc.k8s, err = newKubernetesClient("", ""); err != nil {
 				return nil, trace.Wrap(err, "creating Kubernetes client")
 			}
 		}

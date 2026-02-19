@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -2486,7 +2487,7 @@ func TestPluginData(t *testing.T) {
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
 
-	priv, pub, err := testauthority.New().GenerateKeyPair()
+	priv, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	// make sure we can parse the private and public key
@@ -3088,21 +3089,36 @@ func TestGenerateAppToken(t *testing.T) {
 	authClient, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleAdmin))
 	require.NoError(t, err)
 
-	ca, err := authClient.GetCertAuthority(context.Background(), types.CertAuthID{
-		Type:       types.JWTSigner,
-		DomainName: testSrv.ClusterName(),
-	}, true)
-	require.NoError(t, err)
+	getJWTKey := func(caType types.CertAuthType) *jwt.Key {
+		ca, err := authClient.GetCertAuthority(context.Background(), types.CertAuthID{
+			Type:       caType,
+			DomainName: testSrv.ClusterName(),
+		}, true)
+		require.NoError(t, err)
 
-	signer, err := testSrv.AuthServer.AuthServer.GetKeyStore().GetJWTSigner(ctx, ca)
+		signer, err := testSrv.AuthServer.AuthServer.GetKeyStore().GetJWTSigner(ctx, ca)
+		require.NoError(t, err)
+		key, err := services.GetJWTSigner(signer, ca.GetClusterName(), clock)
+		require.NoError(t, err)
+		return key
+	}
+
+	defaultKey := getJWTKey(types.JWTSigner)
+	oidcKey := getJWTKey(types.OIDCIdPCA)
+
+	proxyServer, err := types.NewServer("proxy-hostname", types.KindProxy, types.ServerSpecV2{
+		PublicAddrs: []string{"https://teleport.example.com"},
+	})
 	require.NoError(t, err)
-	key, err := services.GetJWTSigner(signer, ca.GetClusterName(), clock)
-	require.NoError(t, err)
+	require.NoError(t, authClient.UpsertProxy(ctx, proxyServer))
 
 	tests := []struct {
-		inMachineRole types.SystemRole
-		inComment     string
-		outError      bool
+		inMachineRole   types.SystemRole
+		inComment       string
+		inAuthorityType types.CertAuthType
+		outKey          *jwt.Key
+		outIssuer       string
+		outError        bool
 	}{
 		{
 			inMachineRole: types.RoleNode,
@@ -3115,9 +3131,26 @@ func TestGenerateAppToken(t *testing.T) {
 			outError:      true,
 		},
 		{
-			inMachineRole: types.RoleApp,
-			inComment:     "only apps should have the ability to generate tokens",
-			outError:      false,
+			inMachineRole:   types.RoleApp,
+			inComment:       "only apps should have the ability to generate tokens",
+			inAuthorityType: "", // defaults to "jwt"
+			outKey:          defaultKey,
+			outError:        false,
+		},
+		{
+			inMachineRole:   types.RoleApp,
+			inComment:       "explicit jwt authority",
+			inAuthorityType: types.JWTSigner,
+			outKey:          defaultKey,
+			outError:        false,
+		},
+		{
+			inMachineRole:   types.RoleApp,
+			inComment:       "oidc authority",
+			inAuthorityType: types.OIDCIdPCA,
+			outKey:          oidcKey,
+			outIssuer:       "https://teleport.example.com",
+			outError:        false,
 		},
 	}
 	for _, ts := range tests {
@@ -3134,15 +3167,17 @@ func TestGenerateAppToken(t *testing.T) {
 					"trait2": {"value3", "value4"},
 					"trait3": nil,
 				},
-				URI:     "https://localhost:8080",
-				Expires: clock.Now().Add(1 * time.Minute),
+				URI:           "https://localhost:8080",
+				Expires:       clock.Now().Add(1 * time.Minute),
+				AuthorityType: ts.inAuthorityType,
 			})
 		require.Equal(t, err != nil, ts.outError, ts.inComment)
 		if !ts.outError {
-			claims, err := key.Verify(jwt.VerifyParams{
+			claims, err := ts.outKey.Verify(jwt.VerifyParams{
 				Username: "foo@example.com",
 				RawToken: token,
 				URI:      "https://localhost:8080",
+				Issuer:   ts.outIssuer,
 			})
 			require.NoError(t, err, ts.inComment)
 			require.Equal(t, "foo@example.com", claims.Username, ts.inComment)
@@ -3232,7 +3267,7 @@ func TestClusterConfigContext(t *testing.T) {
 	proxy, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 
-	_, pub, err := testauthority.New().GenerateKeyPair()
+	_, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	// try and generate a host cert, this should succeed because although
@@ -4389,7 +4424,8 @@ func TestEvents(t *testing.T) {
 				LoadSecrets: true,
 			},
 			crud: func(context.Context) types.Resource {
-				ca := authtest.NewTestCA(types.UserCA, "example.com")
+				ca, err := authcatest.NewCA(types.UserCA, "example.com")
+				require.NoError(t, err)
 				require.NoError(t, testSrv.Auth().UpsertCertAuthority(ctx, ca))
 
 				out, err := testSrv.Auth().GetCertAuthority(ctx, *ca.ID(), true)
@@ -4410,7 +4446,8 @@ func TestEvents(t *testing.T) {
 				LoadSecrets: false,
 			},
 			crud: func(context.Context) types.Resource {
-				ca := authtest.NewTestCA(types.UserCA, "example.com")
+				ca, err := authcatest.NewCA(types.UserCA, "example.com")
+				require.NoError(t, err)
 				require.NoError(t, testSrv.Auth().UpsertCertAuthority(ctx, ca))
 
 				out, err := testSrv.Auth().GetCertAuthority(ctx, *ca.ID(), false)
@@ -5760,10 +5797,14 @@ func TestVerifyPeerCert(t *testing.T) {
 		}
 	)
 
-	localHostCA := authtest.NewTestCA(types.HostCA, localClusterName)
-	remoteHostCA := authtest.NewTestCA(types.HostCA, remoteClusterName)
-	localUserCA := authtest.NewTestCA(types.UserCA, localClusterName)
-	remoteUserCA := authtest.NewTestCA(types.UserCA, remoteClusterName)
+	localHostCA, err := authcatest.NewCA(types.HostCA, localClusterName)
+	require.NoError(t, err)
+	remoteHostCA, err := authcatest.NewCA(types.HostCA, remoteClusterName)
+	require.NoError(t, err)
+	localUserCA, err := authcatest.NewCA(types.UserCA, localClusterName)
+	require.NoError(t, err)
+	remoteUserCA, err := authcatest.NewCA(types.UserCA, remoteClusterName)
+	require.NoError(t, err)
 
 	caPool := buildPoolInfo(
 		t,

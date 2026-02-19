@@ -30,14 +30,18 @@ type ScopedTokenService interface {
 	// GetScopedToken fetches a scoped join token by unique name
 	GetScopedToken(ctx context.Context, req *joiningv1.GetScopedTokenRequest) (*joiningv1.GetScopedTokenResponse, error)
 
-	// UseScopedToken fetches a scoped join token by unique name and checks if it can
-	// be used for provisioning. If the token is expired, [UseScopedToken] should also
-	// delete it from the backend.
-	UseScopedToken(ctx context.Context, name string) (*joiningv1.ScopedToken, error)
+	// UseScopedToken attempts to use a scoped token to provision a resource. The given public
+	// key should be used as an idempotency key in cases where the usage limits apply and retries
+	// should not the token.
+	UseScopedToken(ctx context.Context, token *joiningv1.ScopedToken, publicKey []byte) (*joiningv1.ScopedToken, error)
+
 	// ListScopedTokens retrieves a paginated list of scoped join tokens
 	ListScopedTokens(ctx context.Context, req *joiningv1.ListScopedTokensRequest) (*joiningv1.ListScopedTokensResponse, error)
 
 	// DeleteScopedToken deletes a named scoped join token. Imlementations must guarantee that
 	// this returns trace.NotFound error if the token doesn't exist
 	DeleteScopedToken(ctx context.Context, req *joiningv1.DeleteScopedTokenRequest) (*joiningv1.DeleteScopedTokenResponse, error)
+
+	// UpsertScopedToken updates or creates a scoped join token. If updating an existing token, the scope and status must not be modified.
+	UpsertScopedToken(ctx context.Context, req *joiningv1.UpsertScopedTokenRequest) (*joiningv1.UpsertScopedTokenResponse, error)
 }

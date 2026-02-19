@@ -716,6 +716,7 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 		}
 	}
 
+	log := s.logger.With("target_addr", logutils.StringerAttr(params.To), "tunnel_error", tunnelErr, "peer_error", peerErr)
 	// If a connection via tunnel failed directly and via a remote peer,
 	// then update the tunnel message to indicate that tunnels were not
 	// found in either place. Avoid aggregating the local and peer errors
@@ -730,13 +731,16 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 	// Skip direct dial when the tunnel error is not a not found error. This
 	// means the agent is tunneling but the connection failed for some reason.
 	if !trace.IsNotFound(tunnelErr) {
+		log.DebugContext(s.srv.ctx, "Tunnel dial failed, agent is tunneling but connection failed")
 		return nil, false, trace.ConnectionProblem(tunnelErr, "%s", tunnelMsg)
 	}
 
 	skip, err := s.skipDirectDial(params)
 	if err != nil {
+		log.DebugContext(s.srv.ctx, "Tunnel dial failed, cannot determine direct dial eligibility", "error", err)
 		return nil, false, trace.Wrap(err)
 	} else if skip {
+		log.DebugContext(s.srv.ctx, "Tunnel dial failed, skipping direct dial")
 		return nil, false, trace.ConnectionProblem(tunnelErr, "%s", tunnelMsg)
 	}
 
@@ -744,10 +748,7 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 	conn, directErr = s.dialDirect(params)
 	if directErr != nil {
 		directMsg := getTunnelErrorMessage(params, "direct dial", directErr)
-		s.logger.DebugContext(s.srv.ctx, "All attempted dial methods failed",
-			"target_addr", logutils.StringerAttr(params.To),
-			"tunnel_error", tunnelErr,
-			"peer_error", peerErr,
+		log.DebugContext(s.srv.ctx, "All attempted dial methods failed",
 			"direct_error", directErr,
 		)
 		aggregateErr := trace.NewAggregate(tunnelErr, peerErr, directErr)

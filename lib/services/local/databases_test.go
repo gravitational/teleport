@@ -125,11 +125,11 @@ func TestDatabasesCRUD(t *testing.T) {
 
 	// Try to fetch a database that doesn't exist.
 	_, err = service.GetDatabase(ctx, "doesnotexist")
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Try to create the same database.
 	err = service.CreateDatabase(ctx, db1)
-	require.IsType(t, trace.AlreadyExists(""), err)
+	require.ErrorAs(t, err, new(*trace.AlreadyExistsError))
 
 	// Update a database.
 	db1.Metadata.Description = "description"
@@ -165,7 +165,7 @@ func TestDatabasesCRUD(t *testing.T) {
 
 	// Try to delete a database that doesn't exist.
 	err = service.DeleteDatabase(ctx, "doesnotexist")
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Delete all databases.
 	err = service.DeleteAllDatabases(ctx)

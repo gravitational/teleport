@@ -206,6 +206,23 @@ func (s *Server) makeSessionAuditor(ctx context.Context, sessionCtx *SessionCtx,
 	})
 }
 
+func (s *Server) makeSessionAuth(ctx context.Context, sessionCtx *SessionCtx) (*sessionAuth, error) {
+	auth := &sessionAuth{
+		SessionCtx: sessionCtx,
+		authClient: s.cfg.AuthClient,
+		clock:      s.cfg.clock,
+	}
+
+	// Fail early if cannot generate egress auth tokens. Skip stdio as they
+	// don't intake headers with auth tokens.
+	if sessionCtx.transport != types.MCPTransportStdio {
+		if _, _, err := auth.generateJWTAndTraits(ctx); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return auth, nil
+}
+
 func (s *Server) makeSessionHandler(ctx context.Context, sessionCtx *SessionCtx) (*sessionHandler, error) {
 	// Some extra info for debugging purpose.
 	logger := s.cfg.Log.With(
@@ -221,9 +238,15 @@ func (s *Server) makeSessionHandler(ctx context.Context, sessionCtx *SessionCtx)
 		return nil, trace.Wrap(err)
 	}
 
+	sessionAuth, err := s.makeSessionAuth(ctx, sessionCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return newSessionHandler(sessionHandlerConfig{
 		SessionCtx:     sessionCtx,
 		sessionAuditor: sessionAuditor,
+		sessionAuth:    sessionAuth,
 		accessPoint:    s.cfg.AccessPoint,
 		logger:         logger,
 		parentCtx:      s.cfg.ParentContext,
@@ -231,16 +254,9 @@ func (s *Server) makeSessionHandler(ctx context.Context, sessionCtx *SessionCtx)
 	})
 }
 
-func (s *Server) makeSessionHandlerWithJWT(ctx context.Context, sessionCtx *SessionCtx) (*sessionHandler, error) {
-	if err := sessionCtx.generateJWTAndTraits(ctx, s.cfg.AuthClient); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return s.makeSessionHandler(ctx, sessionCtx)
-}
-
 func (s *Server) getSessionHandlerWithJWT(ctx context.Context, sessionCtx *SessionCtx) (*sessionHandler, error) {
-	ttl := min(sessionCtx.Identity.Expires.Sub(s.cfg.clock.Now()), 10*time.Minute)
+	ttl := min(sessionCtx.Identity.Expires.Sub(s.cfg.clock.Now()), appcommon.MaxSessionChunkDuration)
 	return utils.FnCacheGetWithTTL(ctx, s.sessionCache, sessionCtx.sessionID, ttl, func(ctx context.Context) (*sessionHandler, error) {
-		return s.makeSessionHandlerWithJWT(ctx, sessionCtx)
+		return s.makeSessionHandler(ctx, sessionCtx)
 	})
 }

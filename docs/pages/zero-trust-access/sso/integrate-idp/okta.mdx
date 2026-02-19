@@ -51,28 +51,24 @@ guide you through configuring the Okta integration.
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
 
 - A Teleport role with access to edit and maintain `saml` resources. This is
-  available in the default `editor` role.
+  available in the default `auditor` and `editor` roles.
 
 ## Step 1/3. Configure Okta
 
 Okta indicates a user's group membership as a SAML assertion in the data it
-provides to Teleport. We will configure Teleport to assign the "dev" role to
-members of the `okta-dev` Okta group, and the preset "editor" role to members of
-the `okta-admin` group.
+provides to Teleport. We will configure Teleport to assign the "access" role to
+members of the `devs` Okta group, and the preset "auditor" and "editor" roles to members of
+the `admins` group.
 
-If you already have Okta groups you want to assign to "dev" and "editor" roles in
+If you already have Okta groups you want to assign to "access", "auditor" and "editor" roles in
 Teleport, you can skip to the [next step](#step-13-configure-okta).
 
 ### Create Groups
 
-Create two groups: "okta-dev" and "okta-admin". In the Okta dashboard go to the
-navigation bar and click **Directory** -> **Groups**, then **Add group**:
+Create two groups: "devs" and "admins".
 
-![Create Group Devs](../../../../img/sso/okta/okta-saml-2.1@2x.png)
-
-Repeat for the admin group:
-
-![Create Group Devs](../../../../img/sso/okta/okta-saml-2.2.png)
+1. In Okta Console go to the go to **Directory** -> **Groups**, then click **Add group**.
+2. Add groups "devs" and "admins" with optional description.
 
 In this section we will create an application in the Okta dashboard to allow our
 Teleport cluster to access Okta as an IdP provider. We'll also locate the
@@ -144,13 +140,16 @@ name fields.
 
 Once you've filled the required fields, click **Next**, then finish the app creation wizard.
 
-### Group assignment
+### Assign user groups
 
-From the **Assignments** tab of the new application page, click **Assign**.  Assign the user groups
-which can access to the app. Users being members of those groups will have the SSO access to
-Teleport once the Auth Connector is configured.
+1. In the same Okta Teleport app, go to the **Assignments** tab and click the **Assign** dropdown.
 
-![Configure APP](../../../../img/sso/okta/okta-saml-3.1.png)
+2. Select "Assign to Groups" and search for the "devs" and "admins" Okta groups created in the previous step.
+
+3. Click **Assign** next to each selected group and click **Done**.
+
+   {/* NOTE: This image is shared in multiple guides. */}
+   ![Assign user groups](../../../../img/sso/okta/assign-groups.png)
 
 ### Save IdP metadata path
 
@@ -208,12 +207,13 @@ spec:
   attributes_to_roles:
   - name: groups
     roles:
+    - auditor
     - editor
-    value: okta-admin
+    value: admins
   - name: groups
     roles:
-    - dev
-    value: okta-dev
+    - access
+    value: devs
   audience: https://teleport.example.com:443/v1/webapi/saml/acs/okta
   cert: ""
   display: "Okta"
@@ -240,13 +240,14 @@ Success! Logged in as: alice@example.com
 --------------------------------------------------------------------------------
 Authentication details:
    roles:
+   - auditor
    - editor
-   - dev
+   - access
    traits:
      groups:
      - Everyone
-     - okta-admin
-     - okta-dev
+     - admins
+     - devs
      username:
      - alice@example.com
    username: alice@example.com
@@ -254,19 +255,20 @@ Authentication details:
 [SAML] Attributes to roles:
 - name: groups
   roles:
+  - auditor
   - editor
-  value: okta-admin
+  value: admins
 - name: groups
   roles:
-  - dev
-  value: okta-dev
+  - access
+  value: devs
 
 --------------------------------------------------------------------------------
 [SAML] Attributes statements:
 groups:
 - Everyone
-- okta-admin
-- okta-dev
+- admins
+- devs
 username:
 - alice@example.com
 

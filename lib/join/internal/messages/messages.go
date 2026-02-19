@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/joinutils"
@@ -100,6 +101,9 @@ type TokenInit struct {
 
 	// ClientParams holds parameters for the specific type of client trying to join.
 	ClientParams ClientParams
+	// Secret holds the token secret required when using the token join method with
+	// a scoped token.
+	Secret string
 }
 
 func (i *TokenInit) Check() error {
@@ -544,6 +548,9 @@ type HostResult struct {
 	Certificates Certificates
 	// HostId is the unique ID assigned to the host.
 	HostID string
+	// ImmutableLabels are the immutable labels that have been assigned to
+	// the host.
+	ImmutableLabels *joiningv1.ImmutableLabels
 }
 
 // BotResult holds results for bot joining.

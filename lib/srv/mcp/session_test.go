@@ -96,6 +96,7 @@ func Test_sessionHandler(t *testing.T) {
 
 			handler, err := newSessionHandler(sessionHandlerConfig{
 				SessionCtx:     testCtx.SessionCtx,
+				sessionAuth:    &sessionAuth{},
 				sessionAuditor: auditor,
 				accessPoint:    fakeAccessPoint{},
 				parentCtx:      ctx,

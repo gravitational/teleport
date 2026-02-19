@@ -23,6 +23,7 @@ package decisionpb
 import (
 	v11 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
+	types "github.com/gravitational/teleport/api/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -139,9 +140,16 @@ type TLSIdentity struct {
 	JoinToken string `protobuf:"bytes,36,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
 	// ScopePin is an optional pin that ties the certificate to a specific scope and set of scoped roles. When
 	// set, the Roles field must not be set.
-	ScopePin      *v11.Pin `protobuf:"bytes,37,opt,name=scope_pin,json=scopePin,proto3" json:"scope_pin,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	ScopePin *v11.Pin `protobuf:"bytes,37,opt,name=scope_pin,json=scopePin,proto3" json:"scope_pin,omitempty"`
+	// AllowedResourceAccessIDs lists the resources the user should be able to access,
+	// paired with additional information such as ResourceConstraints.
+	// Differs from AllowedResourceIDs, which only identifies resources and cannot be used
+	// to express additional information per-resource such as ResourceConstraints.
+	// When present, AllowedResourceAccessIDs should be treated as authoritative
+	// (ResourceIDs can be derived by mapping to ResourceAccessID.id).
+	AllowedResourceAccessIds []*types.ResourceAccessID `protobuf:"bytes,38,rep,name=allowed_resource_access_ids,json=allowedResourceAccessIds,proto3" json:"allowed_resource_access_ids,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *TLSIdentity) Reset() {
@@ -429,6 +437,13 @@ func (x *TLSIdentity) GetJoinToken() string {
 func (x *TLSIdentity) GetScopePin() *v11.Pin {
 	if x != nil {
 		return x.ScopePin
+	}
+	return nil
+}
+
+func (x *TLSIdentity) GetAllowedResourceAccessIds() []*types.ResourceAccessID {
+	if x != nil {
+		return x.AllowedResourceAccessIds
 	}
 	return nil
 }
@@ -807,7 +822,7 @@ var File_teleport_decision_v1alpha1_tls_identity_proto protoreflect.FileDescript
 
 const file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/decision/v1alpha1/tls_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1fteleport/scopes/v1/scopes.proto\x1a\x1dteleport/trait/v1/trait.proto\"\x8b\r\n" +
+	"-teleport/decision/v1alpha1/tls_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a%teleport/legacy/types/resources.proto\x1a\x1fteleport/scopes/v1/scopes.proto\x1a\x1dteleport/trait/v1/trait.proto\"\xe3\r\n" +
 	"\vTLSIdentity\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\"\n" +
 	"\fimpersonator\x18\x02 \x01(\tR\fimpersonator\x12\x16\n" +
@@ -852,7 +867,8 @@ const file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc = "" +
 	"\tuser_type\x18# \x01(\tR\buserType\x12\x1d\n" +
 	"\n" +
 	"join_token\x18$ \x01(\tR\tjoinToken\x124\n" +
-	"\tscope_pin\x18% \x01(\v2\x17.teleport.scopes.v1.PinR\bscopePin\"\xfb\x02\n" +
+	"\tscope_pin\x18% \x01(\v2\x17.teleport.scopes.v1.PinR\bscopePin\x12V\n" +
+	"\x1ballowed_resource_access_ids\x18& \x03(\v2\x17.types.ResourceAccessIDR\x18allowedResourceAccessIds\"\xfb\x02\n" +
 	"\n" +
 	"RouteToApp\x12\x1d\n" +
 	"\n" +
@@ -901,14 +917,15 @@ func file_teleport_decision_v1alpha1_tls_identity_proto_rawDescGZIP() []byte {
 
 var file_teleport_decision_v1alpha1_tls_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_teleport_decision_v1alpha1_tls_identity_proto_goTypes = []any{
-	(*TLSIdentity)(nil),           // 0: teleport.decision.v1alpha1.TLSIdentity
-	(*RouteToApp)(nil),            // 1: teleport.decision.v1alpha1.RouteToApp
-	(*RouteToDatabase)(nil),       // 2: teleport.decision.v1alpha1.RouteToDatabase
-	(*ResourceId)(nil),            // 3: teleport.decision.v1alpha1.ResourceId
-	(*DeviceExtensions)(nil),      // 4: teleport.decision.v1alpha1.DeviceExtensions
-	(*timestamppb.Timestamp)(nil), // 5: google.protobuf.Timestamp
-	(*v1.Trait)(nil),              // 6: teleport.trait.v1.Trait
-	(*v11.Pin)(nil),               // 7: teleport.scopes.v1.Pin
+	(*TLSIdentity)(nil),            // 0: teleport.decision.v1alpha1.TLSIdentity
+	(*RouteToApp)(nil),             // 1: teleport.decision.v1alpha1.RouteToApp
+	(*RouteToDatabase)(nil),        // 2: teleport.decision.v1alpha1.RouteToDatabase
+	(*ResourceId)(nil),             // 3: teleport.decision.v1alpha1.ResourceId
+	(*DeviceExtensions)(nil),       // 4: teleport.decision.v1alpha1.DeviceExtensions
+	(*timestamppb.Timestamp)(nil),  // 5: google.protobuf.Timestamp
+	(*v1.Trait)(nil),               // 6: teleport.trait.v1.Trait
+	(*v11.Pin)(nil),                // 7: teleport.scopes.v1.Pin
+	(*types.ResourceAccessID)(nil), // 8: types.ResourceAccessID
 }
 var file_teleport_decision_v1alpha1_tls_identity_proto_depIdxs = []int32{
 	5, // 0: teleport.decision.v1alpha1.TLSIdentity.expires:type_name -> google.protobuf.Timestamp
@@ -919,11 +936,12 @@ var file_teleport_decision_v1alpha1_tls_identity_proto_depIdxs = []int32{
 	3, // 5: teleport.decision.v1alpha1.TLSIdentity.allowed_resource_ids:type_name -> teleport.decision.v1alpha1.ResourceId
 	4, // 6: teleport.decision.v1alpha1.TLSIdentity.device_extensions:type_name -> teleport.decision.v1alpha1.DeviceExtensions
 	7, // 7: teleport.decision.v1alpha1.TLSIdentity.scope_pin:type_name -> teleport.scopes.v1.Pin
-	8, // [8:8] is the sub-list for method output_type
-	8, // [8:8] is the sub-list for method input_type
-	8, // [8:8] is the sub-list for extension type_name
-	8, // [8:8] is the sub-list for extension extendee
-	0, // [0:8] is the sub-list for field type_name
+	8, // 8: teleport.decision.v1alpha1.TLSIdentity.allowed_resource_access_ids:type_name -> types.ResourceAccessID
+	9, // [9:9] is the sub-list for method output_type
+	9, // [9:9] is the sub-list for method input_type
+	9, // [9:9] is the sub-list for extension type_name
+	9, // [9:9] is the sub-list for extension extendee
+	0, // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_teleport_decision_v1alpha1_tls_identity_proto_init() }

@@ -24,20 +24,14 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
-	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
-	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
-	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
-	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
+	apiresources "github.com/gravitational/teleport/integrations/operator/apis/resources"
 )
 
 // Scheme is a singleton scheme for all controllers
 var Scheme = runtime.NewScheme()
 
 func init() {
-	utilruntime.Must(resourcesv5.AddToScheme(Scheme))
-	utilruntime.Must(resourcesv3.AddToScheme(Scheme))
-	utilruntime.Must(resourcesv2.AddToScheme(Scheme))
-	utilruntime.Must(resourcesv1.AddToScheme(Scheme))
+	utilruntime.Must(apiresources.AddToScheme(Scheme))
 
 	// Not needed to reconcile the teleport CRs, but needed for the controller manager.
 	// We are not doing something very kubernetes friendly, but it's easier to have a single

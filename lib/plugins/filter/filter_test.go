@@ -200,3 +200,49 @@ func TestNew(t *testing.T) {
 		})
 	}
 }
+
+func TestToInputs(t *testing.T) {
+	testCases := []struct {
+		name     string
+		filters  []*types.PluginSyncFilter
+		expected Inputs
+	}{
+		{
+			name: "with values",
+			filters: []*types.PluginSyncFilter{
+				{Include: &types.PluginSyncFilter_Id{Id: "2"}},
+				{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "a*"}},
+				{Include: &types.PluginSyncFilter_Id{Id: "4"}},
+				{Exclude: &types.PluginSyncFilter_ExcludeId{ExcludeId: "6"}},
+				{Exclude: &types.PluginSyncFilter_ExcludeNameRegex{ExcludeNameRegex: "b*"}},
+				{Exclude: &types.PluginSyncFilter_ExcludeNameRegex{ExcludeNameRegex: "admin*"}},
+			},
+			expected: Inputs{
+				ID:               []string{"4", "2"},
+				NameRegex:        []string{"a*"},
+				ExcludeID:        []string{"6"},
+				ExcludeNameRegex: []string{"b*", "admin*"},
+			},
+		},
+		{
+			name:    "empty",
+			filters: []*types.PluginSyncFilter{},
+			expected: Inputs{
+				ID:               []string{},
+				NameRegex:        []string{},
+				ExcludeID:        []string{},
+				ExcludeNameRegex: []string{},
+			},
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			inputs := ToInputs(test.filters)
+			require.ElementsMatch(t, inputs.ID, test.expected.ID)
+			require.ElementsMatch(t, inputs.NameRegex, test.expected.NameRegex)
+			require.ElementsMatch(t, inputs.ExcludeID, test.expected.ExcludeID)
+			require.ElementsMatch(t, inputs.ExcludeNameRegex, test.expected.ExcludeNameRegex)
+		})
+	}
+}

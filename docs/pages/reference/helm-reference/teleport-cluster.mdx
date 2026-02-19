@@ -1550,6 +1550,12 @@ You should create the secret in the same namespace as Teleport using a command l
 ```code
 $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
 ```
+<Admonition type="danger">
+The Teleport distroless container trusts by default CAs from the `ca-certificates` package (Mozilla PKI).
+When `existingCASecretName` is set, Teleport only trusts the CA bundle from the secret.
+If you need Teleport to interact with other systems (e.g. AWS, GitHub, ...), the secret must contain their CA.
+Else, Teleport will fail to establish TLS connections with external services.
+</Admonition>
 
 `values.yaml` example:
 
@@ -2322,6 +2328,29 @@ See [the GitHub PR](https://github.com/gravitational/teleport/pull/36251) for te
       cpu: 1
       memory: 2Gi
   ```
+
+## `jobResources`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+
+Resource requests/limits which should be configured for pre-deploy jobs.
+
+Jobs currently include config validation and potentially migration hooks.
+The resource requirements are typically lower than for the main teleport deployment.
+In most cases, you should leave these limits unset.
+
+`values.yaml` example:
+
+```yaml
+jobResources:
+  requests:
+    cpu: 1
+    memory: 2Gi
+```
 ## `goMemLimitRatio`
 
 | Type    | Default |

@@ -28,6 +28,7 @@ export type TableProps<T> = {
   infiniteScrollProps?: {
     fetchStatus: FetchStatus;
   };
+  hideEmptyIcon?: boolean;
   emptyText: string;
   /**
    * Optional button that is rendered below emptyText if there's no data, during processing or on

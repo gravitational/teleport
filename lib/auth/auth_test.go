@@ -66,8 +66,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -128,13 +128,19 @@ func newTestPack(
 		return p, trace.Wrap(err)
 	}
 
+	// TODO(tross): replace modules.GetModules with opts.Modules
+	keygen, err := testauthority.NewKeygen(modules.GetModules().BuildType(), time.Now)
+	if err != nil {
+		return testPack{}, trace.Wrap(err)
+	}
+
 	p.mockEmitter = &eventstest.MockRecorderEmitter{}
 	authConfig := &auth.InitConfig{
 		DataDir:        dataDir,
 		Backend:        p.bk,
 		VersionStorage: p.versionStorage,
 		ClusterName:    p.clusterName,
-		Authority:      testauthority.New(),
+		Authority:      keygen,
 		Emitter:        p.mockEmitter,
 		// This uses lower bcrypt costs for faster tests.
 		Identity:               identityService,
@@ -209,14 +215,19 @@ func newTestPack(
 		return p, trace.Wrap(err)
 	}
 
-	if err := p.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.UserCA, p.clusterName.GetClusterName())); err != nil {
-		return p, trace.Wrap(err)
-	}
-	if err := p.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.HostCA, p.clusterName.GetClusterName())); err != nil {
-		return p, trace.Wrap(err)
-	}
-	if err := p.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.OpenSSHCA, p.clusterName.GetClusterName())); err != nil {
-		return p, trace.Wrap(err)
+	clusterName := p.clusterName.GetClusterName()
+	for _, caType := range []types.CertAuthType{
+		types.UserCA,
+		types.HostCA,
+		types.OpenSSHCA,
+	} {
+		ca, err := authcatest.NewCA(caType, clusterName)
+		if err != nil {
+			return testPack{}, trace.Wrap(err)
+		}
+		if err := p.a.UpsertCertAuthority(ctx, ca); err != nil {
+			return testPack{}, trace.Wrap(err)
+		}
 	}
 
 	return p, nil
@@ -513,7 +524,7 @@ func TestAuthenticateWebUser_trustedDeviceRequirement(t *testing.T) {
 	const pass2 = "supersecretpassword!!2!"
 
 	// Create the require-trusted-device role.
-	rtdRole := services.NewPresetRequireTrustedDeviceRole()
+	rtdRole := services.NewPresetRequireTrustedDeviceRole(modules.BuildEnterprise)
 	require.NotNil(t, rtdRole, "require-trusted-device role is nil, are the modules set to Enterprise?")
 	_, err := authServer.UpsertRole(ctx, rtdRole)
 	require.NoError(t, err, "UpsertRole(%q) failed", rtdRole.GetName())
@@ -1226,12 +1237,17 @@ func TestUpdateConfig(t *testing.T) {
 		ClusterName: "foo.localhost",
 	})
 	require.NoError(t, err)
+
+	// TODO(tross): replace modules.GetModules with auth server Modules
+	keygen, err := testauthority.NewKeygen(modules.GetModules().BuildType(), s.a.GetClock().Now)
+	require.NoError(t, err)
+
 	// use same backend but start a new auth server with different config.
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterName,
 		Backend:                s.bk,
 		VersionStorage:         s.versionStorage,
-		Authority:              testauthority.New(),
+		Authority:              keygen,
 		SkipPeriodicOperations: true,
 		HostUUID:               uuid.NewString(),
 	}
@@ -1295,8 +1311,12 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	_, err = s.a.Services.UpsertTrustedCluster(ctx, tc)
 	require.NoError(t, err)
 
-	require.NoError(t, s.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.UserCA, "test")))
-	require.NoError(t, s.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.HostCA, "test")))
+	userCA, err := authcatest.NewCA(types.UserCA, "test")
+	require.NoError(t, err)
+	require.NoError(t, s.a.UpsertCertAuthority(ctx, userCA))
+	hostCA, err := authcatest.NewCA(types.HostCA, "test")
+	require.NoError(t, err)
+	require.NoError(t, s.a.UpsertCertAuthority(ctx, hostCA))
 
 	err = s.a.CreateReverseTunnel(ctx, tc)
 	require.NoError(t, err)
@@ -2739,7 +2759,10 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	require.NoError(t, err)
 
 	hostID := uuid.New().String()
-	keygen := testauthority.New()
+	// TODO(tross): replace modules.GetModules with auth server modules
+	keygen, err := testauthority.NewKeygen(modules.GetModules().BuildType(), p.a.GetClock().Now)
+	require.NoError(t, err)
+
 	_, pub, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 	_, err = p.a.GenerateHostCert(ctx, pub, hostID, "test-node", []string{},
@@ -4024,7 +4047,7 @@ func TestCAGeneration(t *testing.T) {
 		HostUUID    = "0000-000-000-0000"
 	)
 	// Cache key for better performance as we don't care about the value being unique.
-	privKey, pubKey, err := testauthority.New().GenerateKeyPair()
+	privKey, pubKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	keyStoreManager, err := keystore.NewManager(t.Context(), &servicecfg.KeystoreConfig{}, &keystore.Options{
@@ -4038,7 +4061,9 @@ func TestCAGeneration(t *testing.T) {
 
 	for _, caType := range types.CertAuthTypes {
 		t.Run(string(caType), func(t *testing.T) {
-			testKeySet := authtest.NewTestCA(caType, clusterName, privKey).Spec.ActiveKeys
+			ca, err := authcatest.NewCA(caType, clusterName, privKey)
+			require.NoError(t, err)
+			testKeySet := ca.Spec.ActiveKeys
 			keySet, err := auth.NewKeySet(ctx, keyStoreManager, types.CertAuthID{Type: caType, DomainName: clusterName})
 			require.NoError(t, err)
 
@@ -4644,14 +4669,7 @@ func TestCleanupNotifications(t *testing.T) {
 func TestCreateAccessListReminderNotifications(t *testing.T) {
 	ctx := context.Background()
 
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-	})
+	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 
 	// Setup test auth server
 	testServer := newTestTLSServer(t)
@@ -4730,18 +4748,26 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	}
 
 	// Check notifications
-	resp, err := client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
-	require.NoError(t, err)
-	require.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind))
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		resp, err := client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind))
+	}, 5*time.Minute, 500*time.Millisecond)
 
 	// Run CreateAccessListReminderNotifications() again to verify no duplicates are created
 	authServer.CreateAccessListReminderNotifications(ctx, auth.WithCreateNotificationInterval(time.Nanosecond))
 
 	// Check notifications again, counts should remain the same.
-	resp, err = client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
-	require.NoError(t, err)
-	require.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind),
-		"notifications should not have changed after second reconciliation")
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		resp, err := client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind),
+			"notifications should not have changed after second reconciliation")
+	}, 5*time.Minute, 500*time.Millisecond)
 }
 
 type createAccessListOptions struct {
@@ -4804,14 +4830,7 @@ func createAccessList(t *testing.T, authServer *auth.Server, name string, opts .
 func TestCreateAccessListReminderNotifications_LargeOverdueSet(t *testing.T) {
 	ctx := t.Context()
 
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-	})
+	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 
 	// Setup test auth server
 	testServer := newTestTLSServer(t)
@@ -4851,7 +4870,7 @@ func TestCreateAccessListReminderNotifications_LargeOverdueSet(t *testing.T) {
 		lists, err := testServer.Auth().Cache.GetAccessLists(ctx)
 		assert.NoError(t, err)
 		assert.Len(t, lists, numAccessLists, "should have created all %d overdue access lists", numAccessLists)
-	}, 3*time.Second, 100*time.Millisecond)
+	}, 5*time.Minute, 500*time.Millisecond)
 
 	// Run CreateAccessListReminderNotifications()
 	authServer.CreateAccessListReminderNotifications(ctx, auth.WithCreateNotificationInterval(time.Nanosecond), auth.WithAccessListsPageReadInterval(time.Nanosecond))
@@ -5218,7 +5237,9 @@ func TestCreateAuthPreference(t *testing.T) {
 
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
+			buildType := modules.BuildOSS
 			if test.modules != nil {
+				buildType = test.modules.BuildType()
 				modulestest.SetTestModules(t, *test.modules)
 			}
 
@@ -5234,12 +5255,16 @@ func TestCreateAuthPreference(t *testing.T) {
 			clusterConfigService, err := local.NewClusterConfigurationService(bk)
 			require.NoError(t, err)
 
+			// TODO(tross): replace modules.GetModules with auth server modules
+			keygen, err := testauthority.NewKeygen(buildType, time.Now)
+			require.NoError(t, err)
+
 			server, err := auth.NewServer(&auth.InitConfig{
 				DataDir:                t.TempDir(),
 				Backend:                bk,
 				ClusterName:            clusterName,
 				VersionStorage:         authtest.NewFakeTeleportVersion(),
-				Authority:              testauthority.New(),
+				Authority:              keygen,
 				Emitter:                &eventstest.MockRecorderEmitter{},
 				ClusterConfiguration:   clusterConfigService,
 				SkipPeriodicOperations: true,

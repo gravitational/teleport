@@ -59,6 +59,10 @@ func convertRequestFailureErrorFromStatusCode(statusCode int, requestErr error) 
 			return trace.AccessDenied("%s", requestErr)
 		}
 
+		if strings.Contains(requestErr.Error(), "TooManyRequestsException") {
+			return trace.LimitExceeded("%s", requestErr)
+		}
+
 		if strings.Contains(requestErr.Error(), ecsClusterNotFoundException.ErrorCode()) {
 			return trace.NotFound("%s", requestErr)
 		}
@@ -91,6 +95,11 @@ func ConvertIAMError(err error) error {
 	var malformedPolicyDocument *iamtypes.MalformedPolicyDocumentException
 	if errors.As(err, &malformedPolicyDocument) {
 		return trace.BadParameter("%s", *malformedPolicyDocument.Message)
+	}
+
+	var limitExceededErr *iamtypes.LimitExceededException
+	if errors.As(err, &limitExceededErr) {
+		return trace.LimitExceeded("%s", *limitExceededErr.Message)
 	}
 
 	return ConvertRequestFailureError(err)

@@ -17,13 +17,17 @@
 package joining
 
 import (
-	"strings"
+	"cmp"
+	"crypto/sha256"
+	"encoding/hex"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/scopes"
 )
 
@@ -34,6 +38,16 @@ var rolesSupportingScopes = types.SystemRoles{
 var joinMethodsSupportingScopes = map[string]struct{}{
 	string(types.JoinMethodToken): {},
 }
+
+// TokenUsageMode represents the possible usage modes of a scoped token.
+type TokenUsageMode string
+
+const (
+	// TokenUsageModeSingle denotes a token that can only provision a single resource.
+	TokenUsageModeSingle TokenUsageMode = "single_use"
+	// TokenUsageModeUnlimited denotes a token that can provision any number of resources.
+	TokenUsageModeUnlimited = "unlimited"
+)
 
 // StrongValidateToken checks if the scoped token is well-formed according to
 // all scoped token rules. This function *must* be used to validate any scoped
@@ -79,6 +93,16 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 		return trace.BadParameter("join method %q does not support scoping", spec.JoinMethod)
 	}
 
+	if token.GetStatus().GetSecret() == "" && types.JoinMethod(spec.JoinMethod) == types.JoinMethodToken {
+		return trace.BadParameter("secret value must be defined for a scoped token when using the token join method")
+	}
+
+	switch TokenUsageMode(spec.GetUsageMode()) {
+	case TokenUsageModeSingle, TokenUsageModeUnlimited:
+	default:
+		return trace.BadParameter("scoped token mode is not supported")
+	}
+
 	if len(spec.Roles) == 0 {
 		return trace.BadParameter("scoped token must have at least one role")
 	}
@@ -86,6 +110,10 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 	roles, err := types.NewTeleportRoles(spec.Roles)
 	if err != nil {
 		return trace.Wrap(err, "validating scoped token roles")
+	}
+
+	if err := validateImmutableLabels(spec); err != nil {
+		return trace.Wrap(err)
 	}
 
 	for _, role := range roles {
@@ -127,21 +155,57 @@ func WeakValidateToken(token *joiningv1.ScopedToken) error {
 	return nil
 }
 
+var ErrTokenExpired = &trace.LimitExceededError{Message: "scoped token is expired"}
+
+var ErrTokenExhausted = &trace.LimitExceededError{Message: "scoped token usage exhausted"}
+
 // ValidateTokenForUse checks if a given scoped token can be used for
-// provisioning.
+// provisioning. Returns a [*trace.LimitExceededError] if the token is expired
 func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
 	if err := WeakValidateToken(token); err != nil {
 		return trace.Wrap(err)
 	}
 
+	now := time.Now().UTC()
 	ttl := token.GetMetadata().GetExpires()
-	if ttl == nil || ttl.AsTime().IsZero() {
-		return nil
+	if ttl != nil && !ttl.AsTime().IsZero() {
+		if ttl.AsTime().Before(now) {
+			return trace.Wrap(ErrTokenExpired)
+		}
 	}
 
-	now := time.Now().UTC()
-	if ttl.AsTime().Before(now) {
-		return trace.LimitExceeded("scoped token is expired")
+	reusableUntil := token.GetStatus().GetUsage().GetSingleUse().GetReusableUntil()
+	if reusableUntil != nil && !reusableUntil.AsTime().IsZero() {
+		if reusableUntil.AsTime().Before(now) {
+			return trace.Wrap(ErrTokenExhausted)
+		}
+	}
+
+	return nil
+}
+
+// ValidateTokenUpdate checks for invalid updates between two tokens.
+// If the scope, usage mode, or secret was changed between two token updates,
+// a trace.BadParameter error is returned.
+func ValidateTokenUpdate(oldToken *joiningv1.ScopedToken, newToken *joiningv1.ScopedToken) error {
+	if newToken == nil {
+		return trace.BadParameter("new token is invalid")
+	}
+	// no old token to compare to so we assume that the new token is valid and no need for additional checks
+	if oldToken == nil {
+		return nil
+	}
+	tokenName := newToken.GetMetadata().GetName()
+	if oldToken.GetScope() != newToken.GetScope() {
+		return trace.BadParameter("cannot modify scope of existing scoped token %s with scope %s to %s", tokenName, oldToken.GetScope(), newToken.GetScope())
+	}
+
+	if oldToken.GetSpec().GetUsageMode() != newToken.GetSpec().GetUsageMode() {
+		return trace.BadParameter("cannot modify usage mode of existing scoped token %s from usage mode %s to %s", tokenName, oldToken.GetSpec().GetUsageMode(), newToken.GetSpec().GetUsageMode())
+	}
+
+	if oldToken.GetStatus().GetSecret() != newToken.GetStatus().GetSecret() {
+		return trace.BadParameter("cannot modify secret of existing scoped token %s", tokenName)
 	}
 
 	return nil
@@ -202,33 +266,10 @@ func (t *Token) GetRoles() types.SystemRoles {
 	return t.roles
 }
 
-// GetSafeName returns the name of the scoped token, sanitized appropriately
-// for join methods where the name is secret. This should be used when logging
-// the token name.
+// GetSafeName returns the name the santiized name of the scoped token. Because
+// scoped token names are not secret, this is just an alias for [GetName].
 func (t *Token) GetSafeName() string {
-	return GetSafeScopedTokenName(t.scoped)
-}
-
-// GetSafeScopedTokenName returns the name of the scoped token, sanitized
-// appropriately for join methods where the name is secret. This should be used
-// when logging the token name.
-func GetSafeScopedTokenName(token *joiningv1.ScopedToken) string {
-	name := token.GetMetadata().GetName()
-	if types.JoinMethod(token.GetSpec().GetJoinMethod()) != types.JoinMethodToken {
-		return name
-	}
-
-	// If the token name is short, we just blank the whole thing.
-	if len(name) < 16 {
-		return strings.Repeat("*", len(name))
-	}
-
-	// If the token name is longer, we can show the last 25% of it to help
-	// the operator identify it.
-	hiddenBefore := int(0.75 * float64(len(name)))
-	name = name[hiddenBefore:]
-	name = strings.Repeat("*", hiddenBefore) + name
-	return name
+	return t.GetName()
 }
 
 // Expiry returns the [time.Time] representing when the wrapped
@@ -262,4 +303,85 @@ func (t *Token) GetAllowRules() []*types.TokenRule {
 // GetAWSIIDTTL returns the TTL of EC2 IIDs
 func (t *Token) GetAWSIIDTTL() types.Duration {
 	return types.NewDuration(0)
+}
+
+// GetIntegration returns the Integration field which is used to provide
+// credentials that will be used when validating the AWS Organization if required by an IAM Token.
+func (t *Token) GetIntegration() string {
+	return ""
+}
+
+// GetSecret returns the token's secret value.
+func (t *Token) GetSecret() (string, bool) {
+	return t.scoped.GetStatus().GetSecret(), t.GetJoinMethod() == types.JoinMethodToken
+}
+
+// GetScopedToken attempts to return the underlying [*joiningv1.ScopedToken] backing a
+// [provision.Token]. Returns a boolean indicating whether the token is scoped or not.
+func GetScopedToken(token provision.Token) (*joiningv1.ScopedToken, bool) {
+	wrapper, ok := token.(*Token)
+	if !ok {
+		return nil, false
+	}
+
+	return wrapper.scoped, true
+}
+
+// GetImmutableLabels returns labels that must be applied to resources
+// provisioned with this token.
+func (t *Token) GetImmutableLabels() *joiningv1.ImmutableLabels {
+	return t.scoped.GetSpec().GetImmutableLabels()
+}
+
+func validateImmutableLabels(spec *joiningv1.ScopedTokenSpec) error {
+	if spec == nil {
+		return nil
+	}
+
+	sshLabels := spec.GetImmutableLabels().GetSsh()
+	if len(sshLabels) > 0 {
+		if !slices.Contains(spec.GetRoles(), string(types.RoleNode)) {
+			return trace.BadParameter("immutable ssh labels are only supported for tokens that allow the node role")
+		}
+	}
+
+	for k := range sshLabels {
+		if !types.IsValidLabelKey(k) {
+			return trace.BadParameter("invalid immutable label key %q", k)
+		}
+	}
+
+	return nil
+}
+
+// HashImmutableLabels returns a deterministic hash of the given [*joiningv1.ImmutableLabels].
+func HashImmutableLabels(labels *joiningv1.ImmutableLabels) string {
+	if labels == nil {
+		return ""
+	}
+
+	hash := sha256.New()
+	if sshLabels := labels.GetSsh(); sshLabels != nil {
+		sorted := make([]struct{ key, value string }, 0, len(sshLabels))
+		for k, v := range sshLabels {
+			sorted = append(sorted, struct{ key, value string }{k, v})
+		}
+		slices.SortFunc(sorted, func(a, b struct{ key, value string }) int {
+			return cmp.Compare(a.key, b.key)
+		})
+
+		for _, v := range sorted {
+			_, _ = hash.Write([]byte(v.key))
+			_, _ = hash.Write([]byte(v.value))
+		}
+	}
+
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
+// VerifyImmutableLabelsHash returns whether or not the given [*joiningv1.ImmutableLabels]
+// matches the given hash.
+func VerifyImmutableLabelsHash(labels *joiningv1.ImmutableLabels, hash string) bool {
+	newHash := HashImmutableLabels(labels)
+	return newHash == hash
 }

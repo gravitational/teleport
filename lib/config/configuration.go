@@ -83,6 +83,8 @@ type CommandLineFlags struct {
 	AuthServerAddr []string
 	// --token flag
 	AuthToken string
+	// --token-secret flag
+	TokenSecret string
 	// --join-method flag
 	JoinMethod string
 	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
@@ -263,6 +265,10 @@ type CommandLineFlags struct {
 	// IntegrationConfAWSRATrustAnchorArguments contains the arguments of
 	// `teleport integration configure awsra-trust-anchor` command
 	IntegrationConfAWSRATrustAnchorArguments IntegrationConfAWSRATrustAnchor
+
+	// IntegrationConfSessionSummariesBedrockArguments contains the arguments of
+	// `teleport integration configure session-summaries bedrock` command
+	IntegrationConfSessionSummariesBedrockArguments IntegrationConfSessionSummariesBedrock
 
 	// LogLevel is the new application's log level.
 	LogLevel string
@@ -457,6 +463,20 @@ type IntegrationConfListDatabasesIAM struct {
 	Region string
 	// Role is the AWS Role associated with the Integration
 	Role string
+	// AccountID is the AWS account ID.
+	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
+}
+
+// IntegrationConfSessionSummariesBedrock contains the arguments of
+// `teleport integration configure session-summaries bedrock` command
+type IntegrationConfSessionSummariesBedrock struct {
+	// Role is the AWS Role associated with the Integration
+	Role string
+	// Resource is the AWS Bedrock resource to grant access to.
+	// Can be a full ARN or a model ID (e.g., 'anthropic.claude-v2' or '*' for all models).
+	Resource string
 	// AccountID is the AWS account ID.
 	AccountID string
 	// AutoConfirm skips user confirmation of the operation plan if true.
@@ -930,6 +950,12 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			return trace.Wrap(err)
 		}
 	}
+	if fc.Auth.StaticScopedTokens != nil {
+		cfg.Auth.StaticScopedTokens, err = fc.Auth.StaticScopedTokens.Parse()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	// read in and set authentication preferences
 	if fc.Auth.Authentication != nil {
 		cfg.Auth.Preference, err = fc.Auth.Authentication.Parse()
@@ -1062,6 +1088,7 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.Auth.CAKeyParams.AWSKMS != nil {
 		return trace.Wrap(applyAWSKMSConfig(fc.Auth.CAKeyParams.AWSKMS, cfg))
 	}
+	cfg.Auth.KeyStore.HealthCheck = fc.Auth.CAKeyParams.HealthCheck
 	return nil
 }
 
@@ -1569,9 +1596,10 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		var assumeRole *types.AssumeRole
-		if matcher.AssumeRoleARN != "" || matcher.ExternalID != "" {
+		if matcher.AssumeRoleARN != "" || matcher.ExternalID != "" || matcher.AssumeRoleName != "" {
 			assumeRole = &types.AssumeRole{
 				RoleARN:    matcher.AssumeRoleARN,
+				RoleName:   matcher.AssumeRoleName,
 				ExternalID: matcher.ExternalID,
 			}
 		}
@@ -1591,6 +1619,17 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			}
 		}
 
+		var organizationMatcher *types.AWSOrganizationMatcher
+		if matcher.Organization != nil {
+			organizationMatcher = &types.AWSOrganizationMatcher{
+				OrganizationID: matcher.Organization.OrganizationID,
+				OrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+					Include: matcher.Organization.OrganizationalUnits.Include,
+					Exclude: matcher.Organization.OrganizationalUnits.Exclude,
+				},
+			}
+		}
+
 		serviceMatcher := types.AWSMatcher{
 			Types:             matcher.Types,
 			Regions:           matcher.Regions,
@@ -1601,6 +1640,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			Integration:       matcher.Integration,
 			KubeAppDiscovery:  matcher.KubeAppDiscovery,
 			SetupAccessForARN: matcher.SetupAccessForARN,
+			Organization:      organizationMatcher,
 		}
 		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
@@ -2001,6 +2041,14 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// Apps are enabled.
 	cfg.Apps.Enabled = true
 
+	// Warn if proxy_service is enabled in the same config but has no
+	// public_addr. Without it, app access does not work.
+	if fc.Proxy.Enabled() && len(fc.Proxy.PublicAddr) == 0 {
+		slog.WarnContext(context.Background(),
+			"app_service requires proxy_service.public_addr to route requests; app access will not work until it is set",
+		)
+	}
+
 	// Enable debugging application if requested.
 	cfg.Apps.DebugApp = fc.Apps.DebugApp
 
@@ -2215,6 +2263,19 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
 			}
 		}
+		for k := range discoveryConfig.Labels {
+			if !types.IsValidLabelKey(k) {
+				return trace.BadParameter("WindowsDesktopService specifies label %q which is not a valid label key", k)
+			}
+		}
+		for _, attributeName := range discoveryConfig.LabelAttributes {
+			if !types.IsValidLabelKey(attributeName) {
+				return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
+			}
+		}
+		if p := discoveryConfig.RDPPort; p < 0 || p > 65535 {
+			return trace.BadParameter("WindowsDesktopService specifies invalid RDP port %d", p)
+		}
 	}
 
 	// append the old (singular) discovery config to the new format that supports multiple configs
@@ -2231,6 +2292,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			servicecfg.LDAPDiscoveryConfig{
 				BaseDN:          dc.BaseDN,
 				Filters:         dc.Filters,
+				Labels:          dc.Labels,
 				LabelAttributes: dc.LabelAttributes,
 				RDPPort:         cmp.Or(dc.RDPPort, int(defaults.RDPListenPort)),
 			},
@@ -2766,6 +2828,11 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		cfg.SetToken(clf.AuthToken)
 	}
 
+	if clf.TokenSecret != "" {
+		// store the value of the --token-secret flag:
+		cfg.SetTokenSecret(clf.TokenSecret)
+	}
+
 	// Apply flags used for the node to validate the Auth Server.
 	if err = cfg.ApplyCAPins(clf.CAPins); err != nil {
 		return trace.Wrap(err)
@@ -2856,14 +2923,29 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 	lib.SetInsecureDevMode(clf.InsecureMode)
 
 	// Apply command line --debug flag to override logger severity.
+	level := slog.LevelError
 	if clf.Debug {
 		cfg.SetLogLevel(slog.LevelDebug)
+		level = slog.LevelDebug
 		cfg.Debug = clf.Debug
 	}
+
+	// Ensure that the logging level is respected by the logger.
+	utils.InitLogger(utils.LoggingForDaemon, level)
 
 	if clf.AuthToken != "" {
 		// store the value of the --token flag:
 		cfg.SetToken(clf.AuthToken)
+	}
+
+	if clf.TokenSecret != "" {
+		// store the value of the --token-secret flag:
+		cfg.SetTokenSecret(clf.TokenSecret)
+	}
+
+	// apply --skip-version-check flag.
+	if clf.SkipVersionCheck {
+		cfg.SkipVersionCheck = clf.SkipVersionCheck
 	}
 
 	slog.DebugContext(context.Background(), "Disabling all services, only the Teleport OpenSSH service can run during the `teleport join openssh` command")
@@ -3058,6 +3140,7 @@ func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	if fc.JoinParams != (JoinParams{}) {
 		cfg.SetToken(fc.JoinParams.TokenName)
+		cfg.SetTokenSecret(fc.JoinParams.TokenSecret)
 
 		if err := types.ValidateJoinMethod(fc.JoinParams.Method); err != nil {
 			return trace.Wrap(err)

@@ -22,7 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/teleportcr"
 )
 
 func init() {
@@ -41,7 +41,7 @@ type TeleportOpenSSHEICEServerV2 struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   TeleportOpenSSHEICEServerV2Spec `json:"spec,omitempty"`
-	Status resources.Status                `json:"status,omitempty"`
+	Status teleportcr.Status               `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -61,7 +61,7 @@ func (r TeleportOpenSSHEICEServerV2) ToTeleport() types.Server {
 		Metadata: types.Metadata{
 			Name:        r.Name,
 			Labels:      r.Labels,
-			Description: r.Annotations[resources.DescriptionKey],
+			Description: r.Annotations[teleportcr.DescriptionKey],
 		},
 		Spec: types.ServerSpecV2(r.Spec),
 	}

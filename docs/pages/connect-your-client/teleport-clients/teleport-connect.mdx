@@ -646,6 +646,7 @@ Below is the list of the supported config properties.
 | `terminal.customShell` |  | Path to the custom shell that is used when `terminal.shell` is set to `custom`. It is best to configure it through UI (right click on a terminal tab > Custom Shell…). |
 | `terminal.rightClick`         | `menu` on macOS/Linux `copyPaste` on Windows | `paste` pastes clipboard content, `copyPaste` copies if text is selected, otherwise pastes, `menu` shows context menu.                                                         |
 | `terminal.copyOnSelect`       | `false` | Automatically copies selected text to the clipboard.                                                                                                                                                                      |
+| `terminal.setTeleportAuthServerEnvVar` | `true` | Whether to set `TELEPORT_AUTH_SERVER` in local terminal sessions. Setting it helps tctl choose the right profile. |
 | `usageReporting.enabled`      | `false`                                                                                                              | Enables collecting anonymous usage data (see [Telemetry](#telemetry)).                                     |
 | `keymap.tab1` - `keymap.tab9` | `Command+1` - `Command+9` on macOS   `Ctrl+1` - `Ctrl+9` on Windows `Alt+1` - `Alt+9` on Linux               | Shortcut to open tab 1–9.                                                                                  |
 | `keymap.closeTab`             | `Command+W` on macOS `Ctrl+Shift+W` on Windows/Linux                                                             | Shortcut to close a tab.                                                                                   |
@@ -694,7 +695,7 @@ Available key codes:
 ### `tsh ssh` environment variables
 
 Under the hood, Teleport Connect uses `tsh ssh` to connect to SSH servers. As a result,
-Teleport Connect will respect many [tsh environment variables](../../reference/cli/tsh.mdx#tsh-environment-variables)
+Teleport Connect will respect many [tsh environment variables](../../reference/cli/tsh.mdx)
 related to `tsh ssh`. This can make it easier to share common settings between `tsh` and Teleport Connect.
 
 Below is a list of environment variables supported by Teleport Connect for SSH connections:

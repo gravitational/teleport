@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 // CalculateTrustedDeviceRequirement calculates the requirement based on
@@ -33,7 +34,7 @@ func CalculateTrustedDeviceRequirement(
 	getRoles func() ([]types.Role, error),
 ) (types.TrustedDeviceRequirement, error) {
 	// Required by cluster mode?
-	switch dtconfig.GetEnforcementMode(dt) {
+	switch dtconfig.GetEnforcementMode(dt, modules.GetModules()) {
 	case constants.DeviceTrustModeRequired, constants.DeviceTrustModeRequiredForHumans:
 		return types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED, nil
 	}

@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -374,7 +375,8 @@ func TestHostCertVerification(t *testing.T) {
 
 	// Create a CA, generate a keypair for the CA, and add it to the known
 	// hosts cache (done by "tsh login").
-	keygen := testauthority.New()
+	keygen, err := testauthority.NewKeygen(modules.BuildOSS, time.Now)
+	require.NoError(t, err)
 
 	cas := s.generateCA(t, keygen, lka, "example.com", "leaf.example.com")
 	root, leaf := cas[0], cas[1]
@@ -520,8 +522,7 @@ func TestHostKeyVerification(t *testing.T) {
 	require.False(t, lka.UserRefusedHosts())
 
 	// make a fake host key:
-	keygen := testauthority.New()
-	_, pub, err := keygen.GenerateKeyPair()
+	_, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 	pk, _, _, _, err := ssh.ParseAuthorizedKey(pub)
 	require.NoError(t, err)
@@ -601,7 +602,8 @@ func TestHostCertVerificationLoadAllCasProxyAddrEqClusterName(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	keygen := testauthority.New()
+	keygen, err := testauthority.NewKeygen(modules.BuildOSS, time.Now)
+	require.NoError(t, err)
 
 	cas := s.generateCA(t, keygen, lka, rootClusterName, leafClusterName)
 	rootClusterCA, leafClusterCA := cas[0], cas[1]
@@ -666,8 +668,6 @@ func mustGenerateHostPublicCert(t *testing.T, keygen *testauthority.Keygen, sign
 func TestDefaultHostPromptFunc(t *testing.T) {
 	s := makeSuite(t)
 
-	keygen := testauthority.New()
-
 	clientStore := NewFSClientStore(s.keyDir)
 	a, err := NewLocalAgent(LocalAgentConfig{
 		ClientStore: clientStore,
@@ -677,7 +677,7 @@ func TestDefaultHostPromptFunc(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, keyBytes, err := keygen.GenerateKeyPair()
+	_, keyBytes, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 	key, _, _, _, err := ssh.ParseAuthorizedKey(keyBytes)
 	require.NoError(t, err)
@@ -779,7 +779,7 @@ func (s *KeyAgentTestSuite) makeKeyRing(t *testing.T, username, proxyHost string
 
 	sshPub, err := ssh.NewPublicKey(sshKey.Public())
 	require.NoError(t, err)
-	certificate, err := testauthority.New().GenerateUserCert(sshca.UserCertificateRequest{
+	certificate, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
 		CertificateFormat: constants.CertificateFormatStandard,
 		CASigner:          caSigner,
 		PublicUserKey:     ssh.MarshalAuthorizedKey(sshPub),

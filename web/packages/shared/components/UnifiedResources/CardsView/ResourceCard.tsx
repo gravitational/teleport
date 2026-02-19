@@ -16,12 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Ref, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
 
 import { Box, ButtonLink, Flex, Text } from 'design';
 import { CheckboxInput } from 'design/Checkbox';
 import { makeLabelTag } from 'design/formatters';
+import { LabelKind } from 'design/Label';
 import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { HoverTooltip } from 'design/Tooltip';
@@ -34,6 +35,7 @@ import {
 } from '../shared/getBackgroundColor';
 import { PinButton } from '../shared/PinButton';
 import { ResourceActionButtonWrapper } from '../shared/ResourceActionButton';
+import { ResourceSelectedIcon } from '../shared/ResourceSelectedIcon';
 import { SingleLineBox } from '../shared/SingleLineBox';
 import { shouldWarnResourceStatus } from '../shared/StatusInfo';
 import { ResourceItemProps } from '../types';
@@ -65,8 +67,14 @@ export function ResourceCard({
   onShowStatusInfo,
   showingStatusInfo,
   viewItem,
-  visibleInputFields = { pin: true, checkbox: true },
+  visibleInputFields = {
+    pin: true,
+    checkbox: true,
+    copy: true,
+    hoverState: true,
+  },
   resourceLabelConfig,
+  showResourceSelectedIcon,
 }: Omit<ResourceItemProps, 'expandAllLabels'>) {
   const {
     name,
@@ -177,12 +185,15 @@ export function ResourceCard({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       showingStatusInfo={showingStatusInfo}
+      showHoverState={visibleInputFields.hoverState}
     >
       <CardOuterContainer
         showAllLabels={showAllLabels}
         shouldDisplayWarning={shouldDisplayStatusWarning}
+        showHoverState={visibleInputFields.hoverState}
       >
         <CardInnerContainer
+          showHoverState={visibleInputFields.hoverState}
           ref={innerContainer}
           p={3}
           // we set padding left a bit larger so we can have space to absolutely
@@ -242,10 +253,13 @@ export function ResourceCard({
                   <Text typography="body1">{name}</Text>
                 </HoverTooltip>
               </SingleLineBox>
-              {hovered && <CopyButton value={name} />}
+              {visibleInputFields.copy && hovered && (
+                <CopyButton value={name} />
+              )}
               <ResourceActionButtonWrapper requiresRequest={requiresRequest}>
                 {ActionButton}
               </ResourceActionButtonWrapper>
+              {showResourceSelectedIcon && <ResourceSelectedIcon />}
             </Flex>
             <Flex flexDirection="row" alignItems="center">
               <ResTypeIconBox>
@@ -283,6 +297,11 @@ export function ResourceCard({
                   + {numMoreLabels} more
                 </MoreLabelsButton>
                 {labels.map((label, i) => {
+                  let kind: LabelKind = 'secondary';
+                  if (resourceLabelConfig?.processLabel) {
+                    kind = resourceLabelConfig.processLabel(label).kind;
+                  }
+
                   const labelText = makeLabelTag(label);
                   return (
                     <StyledLabel
@@ -290,7 +309,7 @@ export function ResourceCard({
                       title={labelText}
                       onClick={() => onLabelClick?.(label)}
                       withHoverState={!!onLabelClick}
-                      kind="secondary"
+                      kind={kind}
                       data-is-label=""
                       {...resourceLabelConfig}
                     >
@@ -318,10 +337,17 @@ export function ResourceCard({
   );
 }
 
-const WarningRightEdgeBadgeIcon = ({ onClick }: { onClick?(): void }) => {
+const WarningRightEdgeBadgeIcon = ({
+  onClick,
+  ref,
+}: {
+  onClick?(): void;
+  ref?: Ref<HTMLDivElement>;
+}) => {
   return (
     <Box
       onClick={onClick}
+      ref={ref}
       css={`
         position: absolute;
         top: 0;
@@ -352,6 +378,7 @@ const WarningRightEdgeBadgeIcon = ({ onClick }: { onClick?(): void }) => {
  */
 const CardContainer = styled(Box)<{
   showingStatusInfo: boolean;
+  showHoverState: boolean;
 }>`
   height: 110px;
 
@@ -365,16 +392,22 @@ const CardContainer = styled(Box)<{
         ? p.theme.colors.interactive.solid.alert.active
         : p.theme.colors.interactive.solid.alert.default};
   }
-  &:hover {
-    .resource-health-status-svg {
-      fill: ${p => p.theme.colors.interactive.solid.alert.hover};
-    }
-  }
+
+  ${p =>
+    p.showHoverState &&
+    css`
+      &:hover {
+        .resource-health-status-svg {
+          fill: ${p => p.theme.colors.interactive.solid.alert.hover};
+        }
+      }
+    `}
 `;
 
 const CardOuterContainer = styled(Box)<{
   showAllLabels?: boolean;
   shouldDisplayWarning: boolean;
+  showHoverState: boolean;
 }>`
   border-radius: ${props => props.theme.radii[3]}px;
 
@@ -389,24 +422,28 @@ const CardOuterContainer = styled(Box)<{
     `}
   transition: all 150ms;
 
-  // Using double ampersand because of https://github.com/styled-components/styled-components/issues/3678.
-  ${CardContainer}:hover && {
-    background-color: ${props => props.theme.colors.levels.surface};
+  ${p =>
+    p.showHoverState &&
+    css`
+      // Using double ampersand because of https://github.com/styled-components/styled-components/issues/3678.
+      ${CardContainer}:hover && {
+        background-color: ${props => props.theme.colors.levels.surface};
 
-    // We use a pseudo element for the shadow with position: absolute in order to prevent
-    // the shadow from increasing the size of the layout and causing scrollbar flicker.
-    &:after {
-      box-shadow: ${props => props.theme.boxShadow[3]};
-      border-radius: ${props => props.theme.radii[3]}px;
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      z-index: -1;
-      width: 100%;
-      height: 100%;
-    }
-  }
+        // We use a pseudo element for the shadow with position: absolute in order to prevent
+        // the shadow from increasing the size of the layout and causing scrollbar flicker.
+        &:after {
+          box-shadow: ${props => props.theme.boxShadow[3]};
+          border-radius: ${props => props.theme.radii[3]}px;
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          z-index: -1;
+          width: 100%;
+          height: 100%;
+        }
+      }
+    `}
 `;
 
 /**
@@ -418,7 +455,9 @@ const CardOuterContainer = styled(Box)<{
  * layout; we may need to globally set the card height to fixed size on the
  * outer container.
  */
-const CardInnerContainer = styled(Flex)<BackgroundColorProps>`
+const CardInnerContainer = styled(Flex)<
+  BackgroundColorProps & { showHoverState: boolean }
+>`
   border: ${props => props.theme.borders[2]}
     ${props => props.theme.colors.spotBackground[0]};
   border-radius: ${props => props.theme.radii[3]}px;
@@ -441,13 +480,19 @@ const CardInnerContainer = styled(Flex)<BackgroundColorProps>`
     css`
       border: 2px solid ${p.theme.colors.interactive.solid.alert.active};
     `}
+    
 
   &:hover {
     // Make the border invisible instead of removing it, this is to prevent things from shifting due to the size change.
-    border: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
+    ${p =>
+      p.showHoverState &&
+      css`
+        border: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
+      `}
 
     ${p =>
       p.shouldDisplayWarning &&
+      p.showHoverState &&
       css`
         border-color: ${p.theme.colors.interactive.solid.alert.hover};
         background-color: ${getStatusBackgroundColor({

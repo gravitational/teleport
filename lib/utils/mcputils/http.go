@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"mime"
@@ -120,7 +121,9 @@ func (r *httpSSEResponseReplacer) Read(p []byte) (int, error) {
 
 	msg, err := r.ReadMessage(r.ctx)
 	if err != nil {
-		if utils.IsOKNetworkError(err) {
+		// Note that the underlying connection may be canceled by connection
+		// monitoring.
+		if utils.IsOKNetworkError(err) || errors.Is(err, context.Canceled) {
 			return 0, io.EOF
 		}
 		return 0, trace.Wrap(err)
@@ -147,11 +150,15 @@ func (r *httpSSEResponseReplacer) Read(p []byte) (int, error) {
 	}
 
 	// Convert to SSE.
-	e := event{
-		name: sseEventMessage,
-		data: respToSendAsBody,
+	e := Event{
+		Name: sseEventMessage,
+		Data: respToSendAsBody,
 	}
-	r.buf = e.marshal()
+	var buf bytes.Buffer
+	if _, err := writeEvent(&buf, e); err != nil {
+		return 0, trace.Wrap(err)
+	}
+	r.buf = buf.Bytes()
 	return r.Read(p)
 }
 

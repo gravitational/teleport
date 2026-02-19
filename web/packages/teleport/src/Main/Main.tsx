@@ -53,14 +53,12 @@ import {
   LINK_DESTINATION_LABEL,
   LINK_TEXT_LABEL,
 } from 'teleport/services/alerts/alerts';
-import { storageService } from 'teleport/services/storageService';
 import { TopBar } from 'teleport/TopBar';
 import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
 import useTeleport from 'teleport/useTeleport';
 
 import { MainContainer } from './MainContainer';
-import { OnboardDiscover } from './OnboardDiscover';
 
 export interface MainProps {
   initialAlerts?: ClusterAlert[];
@@ -96,11 +94,6 @@ export function Main(props: MainProps) {
 
   const { alerts, dismissAlert } = useAlerts(props.initialAlerts);
 
-  // if there is a redirectUrl, do not show the onboarding popup - it'll get in the way of the redirected page
-  const [showOnboardDiscover, setShowOnboardDiscover] = useState(
-    !ctx.redirectUrl
-  );
-
   useEffect(() => {
     if (
       matchPath(history.location.pathname, {
@@ -108,8 +101,6 @@ export function Main(props: MainProps) {
         exact: true,
       })
     ) {
-      // hide the onboarding popup if we're on the redirectUrl, just in case
-      setShowOnboardDiscover(false);
       ctx.redirectUrl = null;
     }
   }, [ctx, history.location.pathname]);
@@ -124,21 +115,6 @@ export function Main(props: MainProps) {
         <Indicator />
       </StyledIndicator>
     );
-  }
-
-  function handleOnboard() {
-    updateOnboardDiscover();
-    history.push(cfg.routes.discover);
-  }
-
-  function handleOnClose() {
-    updateOnboardDiscover();
-    setShowOnboardDiscover(false);
-  }
-
-  function updateOnboardDiscover() {
-    const discover = storageService.getOnboardDiscover();
-    storageService.setOnboardDiscover({ ...discover, notified: true });
   }
 
   // redirect to the default feature when hitting the root /web URL
@@ -178,11 +154,6 @@ export function Main(props: MainProps) {
     })
   );
 
-  const onboard = storageService.getOnboardDiscover();
-  const requiresOnboarding =
-    onboard && !onboard.hasResource && !onboard.notified;
-  const displayOnboardDiscover = requiresOnboarding && showOnboardDiscover;
-
   return (
     <FeaturesContextProvider value={features}>
       <TopBar CustomLogo={props.CustomLogo} />
@@ -207,9 +178,6 @@ export function Main(props: MainProps) {
           </InfoGuidePanelProvider>
         </MainContainer>
       </Wrapper>
-      {displayOnboardDiscover && (
-        <OnboardDiscover onClose={handleOnClose} onOnboard={handleOnboard} />
-      )}
     </FeaturesContextProvider>
   );
 }

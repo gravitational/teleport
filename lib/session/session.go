@@ -199,7 +199,10 @@ type TerminalParams struct {
 func UnmarshalTerminalParams(s string) (*TerminalParams, error) {
 	parts := strings.Split(s, ":")
 	if len(parts) != 2 {
-		return nil, trace.BadParameter("failed to unmarshal: too many parts")
+		return nil, trace.BadParameter(
+			"failed to unmarshal terminal parameters: expected W:H, got %q",
+			s,
+		)
 	}
 
 	w, err := strconv.Atoi(parts[0])

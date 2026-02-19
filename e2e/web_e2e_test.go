@@ -91,7 +91,7 @@ func makeBasicSetupAndRunTest(t *testing.T, playwrightTest string) {
 // createTeleportTestInstanceForWebTests creates a new Teleport instance to be used for Web UI e2e tests.
 // Using this function requires the `webassets_embed` build tag.
 func createTeleportTestInstanceForWebTests(t *testing.T) (instance *helpers.TeleInstance, ctx context.Context) {
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	privateKey, publicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	cfg := helpers.InstanceConfig{

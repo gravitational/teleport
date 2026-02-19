@@ -22,7 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/teleportcr"
 )
 
 func init() {
@@ -38,7 +38,7 @@ type TeleportTrustedClusterV2 struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   TeleportTrustedClusterV2Spec `json:"spec,omitempty"`
-	Status resources.Status             `json:"status,omitempty"`
+	Status teleportcr.Status            `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -58,7 +58,7 @@ func (r TeleportTrustedClusterV2) ToTeleport() types.TrustedCluster {
 		Metadata: types.Metadata{
 			Name:        r.Name,
 			Labels:      r.Labels,
-			Description: r.Annotations[resources.DescriptionKey],
+			Description: r.Annotations[teleportcr.DescriptionKey],
 		},
 		Spec: types.TrustedClusterSpecV2(r.Spec),
 	}

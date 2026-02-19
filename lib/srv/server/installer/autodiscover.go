@@ -275,7 +275,10 @@ func (ani *AutoDiscoverNodeInstaller) Install(ctx context.Context) error {
 
 	if err := ani.configureTeleportNode(ctx, imdsClient); err != nil {
 		if trace.IsAlreadyExists(err) {
-			ani.Logger.InfoContext(ctx, "Configuration at /etc/teleport.yaml already exists and has the same values, skipping teleport.service restart")
+			ani.Logger.InfoContext(ctx, "Teleport configuration already exists and has the same values, skipping systemd service restart",
+				"configuration_file", ani.buildTeleportConfigurationPath(),
+				"systemd_service", ani.buildTeleportSystemdUnitName(),
+			)
 			// Restarting teleport is not required because the target teleport.yaml
 			// is up to date with the existing one.
 			return nil
@@ -283,9 +286,13 @@ func (ani *AutoDiscoverNodeInstaller) Install(ctx context.Context) error {
 
 		return trace.Wrap(err)
 	}
-	ani.Logger.InfoContext(ctx, "Configuration written at /etc/teleport.yaml")
+	ani.Logger.InfoContext(ctx, "Configuration written",
+		"configuration_file", ani.buildTeleportConfigurationPath(),
+	)
 
-	ani.Logger.InfoContext(ctx, "Enabling and starting teleport.service")
+	ani.Logger.InfoContext(ctx, "Enabling and starting teleport service",
+		"systemd_service", ani.buildTeleportSystemdUnitName(),
+	)
 	if err := ani.enableAndRestartTeleportService(ctx); err != nil {
 		return trace.Wrap(err)
 	}

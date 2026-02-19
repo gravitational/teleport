@@ -152,6 +152,8 @@ func TestDestinationKubernetesSecret_YAML(t *testing.T) {
 				Labels: map[string]string{
 					"key": "value",
 				},
+				KubeconfigContext: "my-context",
+				KubeconfigPath:    "./kubeconfig.yaml",
 			},
 		},
 	}

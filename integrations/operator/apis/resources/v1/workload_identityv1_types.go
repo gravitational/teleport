@@ -26,7 +26,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/teleportcr"
 )
 
 func init() {
@@ -43,7 +43,7 @@ type TeleportWorkloadIdentityV1 struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   *TeleportWorkloadIdentityV1Spec `json:"spec,omitempty"`
-	Status resources.Status                `json:"status,omitempty"`
+	Status teleportcr.Status               `json:"status,omitempty"`
 }
 
 // TeleportWorkloadIdentityV1Spec defines the desired state of TeleportWorkloadIdentityV1
@@ -67,7 +67,7 @@ func (l *TeleportWorkloadIdentityV1) ToTeleport() *workloadidentityv1.WorkloadId
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name:        l.Name,
-			Description: l.Annotations[resources.DescriptionKey],
+			Description: l.Annotations[teleportcr.DescriptionKey],
 			Labels:      l.Labels,
 		},
 		Spec: (*workloadidentityv1.WorkloadIdentitySpec)(l.Spec),

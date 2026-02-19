@@ -175,7 +175,7 @@ func (t *streamableHTTPTransport) setExternalSessionID(header http.Header) {
 	}
 }
 
-func (t *streamableHTTPTransport) rewriteRequest(r *http.Request) *http.Request {
+func (t *streamableHTTPTransport) rewriteRequest(r *http.Request) (*http.Request, error) {
 	r = r.Clone(r.Context())
 	r.URL.Scheme = t.targetURI.Scheme
 	r.URL.Host = t.targetURI.Host
@@ -188,12 +188,17 @@ func (t *streamableHTTPTransport) rewriteRequest(r *http.Request) *http.Request 
 		r.URL.Path = t.targetURI.Path
 	}
 
-	t.rewriteHTTPRequestHeaders(r)
-	return r
+	if err := t.rewriteHTTPRequestHeaders(r); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return r, nil
 }
 
 func (t *streamableHTTPTransport) rewriteAndSendRequest(r *http.Request) (*http.Response, error) {
-	rCopy := t.rewriteRequest(r)
+	rCopy, err := t.rewriteRequest(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return t.targetTransport.RoundTrip(rCopy)
 }
 

@@ -19,8 +19,8 @@
 import { subDays, subHours, subMinutes, subSeconds } from 'date-fns';
 import { delay, http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
-import { withoutQuery } from 'web/packages/build/storybook';
 
+import { withoutQuery } from 'build/storybook';
 import { Flex, H2 } from 'design';
 
 import cfg from 'teleport/config';

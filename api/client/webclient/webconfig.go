@@ -134,6 +134,20 @@ type WebConfig struct {
 	// MobileDeviceManagement indicates whether adding Jamf plugin is enabled
 	// Deprecated, use entitlements
 	MobileDeviceManagement bool `json:"mobileDeviceManagement"`
+	// IdentitySecurity contains identity security features and settings.
+	IdentitySecurity IdentitySecurity `json:"identitySecurity"`
+}
+
+// IdentitySecurity contains identity security features and settings.
+type IdentitySecurity struct {
+	// IsClusterLicensed indicates whether identity security features are licensed
+	// for this cluster.
+	IsClusterLicensed bool `json:"licensed"`
+	// AccessGraphConfigSet indicates whether access graph configuration is set in
+	// Auth and/or Proxy.
+	AccessGraphConfigSet bool `json:"accessGraphConfigSet"`
+	// SessionSummarizationEnabled indicates whether session summarization is enabled.
+	SessionSummarizationEnabled bool `json:"sessionSummarizationEnabled"`
 }
 
 // EntitlementInfo is the state and limits of a particular entitlement; Example for feature X:

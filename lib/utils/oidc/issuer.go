@@ -21,6 +21,7 @@ package oidc
 import (
 	"context"
 	"net/url"
+	"path"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -44,7 +45,7 @@ type ProxiesGetter interface {
 // IssuerForCluster returns the issuer URL using the Cluster state.
 // Path is an optional element to append to the issuer to distinguish a
 // separate CA within the same cluster.
-func IssuerForCluster(ctx context.Context, clt ProxiesGetter, path string) (string, error) {
+func IssuerForCluster(ctx context.Context, clt ProxiesGetter, paths ...string) (string, error) {
 	proxies, err := clientutils.CollectWithFallback(ctx, clt.ListProxyServers, func(context.Context) ([]types.Server, error) {
 		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 		return clt.GetProxies()
@@ -56,7 +57,7 @@ func IssuerForCluster(ctx context.Context, clt ProxiesGetter, path string) (stri
 	for _, p := range proxies {
 		proxyPublicAddress := p.GetPublicAddr()
 		if proxyPublicAddress != "" {
-			return IssuerFromPublicAddress(proxyPublicAddress, path)
+			return IssuerFromPublicAddress(proxyPublicAddress, path.Join(paths...))
 		}
 	}
 

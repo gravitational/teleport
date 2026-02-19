@@ -26,6 +26,12 @@ import { WebsocketStatus } from 'teleport/types';
  */
 export class AuthenticatedWebSocket extends WebSocket {
   private authenticated: boolean = false;
+  private pendingMessages: (
+    | string
+    | ArrayBufferLike
+    | Blob
+    | ArrayBufferView
+  )[] = [];
   private openListeners: ((this: WebSocket, ev: Event) => any)[] = [];
   private onopenInternal: ((this: WebSocket, ev: Event) => any) | null = null;
   private messageListeners: ((this: WebSocket, ev: MessageEvent) => any)[] = [];
@@ -45,17 +51,22 @@ export class AuthenticatedWebSocket extends WebSocket {
     // Set the binaryType to 'arraybuffer' to handle the authentication process.
     super.binaryType = 'arraybuffer';
 
-    // The open event listener should immediately send the authentication token
-    super.onopen = (onopenEvent: Event) => {
+    // The open event listener should immediately send the authentication token.
+    // Use super.addEventListener to bypass Zone.js patching of on* properties.
+    // Zone.js (imported by @opentelemetry/context-zone) converts `onopen = handler`
+    // into `addEventListener('open', handler)`, which would route through our
+    // override and store the handler in openListeners instead of registering it.
+    // https://github.com/angular/zone.js/blob/master/lib/browser/property-descriptor.ts
+    super.addEventListener('open', (onopenEvent: Event) => {
       super.send(JSON.stringify({ token: getAccessToken() }));
       // Don't call the user defined onopen messages yet, wait for the authentication response.
       this.onopenEvent = onopenEvent;
-    };
+    });
 
     // The message event listener should handle the authentication response,
     // and if it succeeds, set the binaryType to the user-defined value and
     // trigger any user-added open listeners.
-    super.onmessage = (ev: MessageEvent) => {
+    super.addEventListener('message', (ev: MessageEvent) => {
       // If not yet authenticated, handle the authentication response.
       if (!this.authenticated) {
         // Parse the message as a WebsocketStatus.
@@ -85,6 +96,9 @@ export class AuthenticatedWebSocket extends WebSocket {
           this.authenticated = true;
           // Set the binaryType to the value set by the user (or back to the default 'blob').
           super.binaryType = this.binaryTypeInternal;
+          // Flush any messages queued while waiting for auth.
+          this.pendingMessages.forEach(message => super.send(message));
+          this.pendingMessages = [];
           // Now that authentication is complete, trigger any user-added open listeners
           // with the original onopen event.
           this.openListeners.forEach(listener =>
@@ -106,32 +120,31 @@ export class AuthenticatedWebSocket extends WebSocket {
         });
         this.onmessageInternal?.call(this, ev);
       }
-    };
+    });
 
     // Set the 'close' event for cleanup.
-    super.onclose = (ev: CloseEvent) => {
+    super.addEventListener('close', (ev: CloseEvent) => {
       // Trigger any user-added close listeners
       this.oncloseListeners.forEach(listener => listener.call(this, ev));
       this.oncloseInternal?.call(this, ev);
       this.authenticated = false;
-    };
+      this.pendingMessages = [];
+    });
 
     // Set the 'error' event for cleanup.
-    super.onerror = (ev: Event) => {
+    super.addEventListener('error', (ev: Event) => {
       // Trigger any user-added error listeners
       this.onerrorListeners.forEach(listener => listener.call(this, ev));
       this.onerrorInternal?.call(this, ev);
       this.authenticated = false;
-    };
+      this.pendingMessages = [];
+    });
   }
 
-  // Authenticated send
+  // Authenticated send or queues messages until auth completes
   override send(data: string | ArrayBufferLike | Blob | ArrayBufferView): void {
     if (!this.authenticated) {
-      // This should be unreachable, but just in case.
-      this.triggerError(
-        'Cannot send data before authentication is complete. Data: ' + data
-      );
+      this.pendingMessages.push(data);
       return;
     }
     super.send(data);

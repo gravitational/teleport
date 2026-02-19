@@ -119,7 +119,9 @@ func TestSummarizerService_CreateInferenceModel(t *testing.T) {
 		})
 		_, err := service.CreateInferenceModel(ctx, m)
 		require.Error(t, err)
-		assert.ErrorIs(t, err, trace.BadParameter("Amazon Bedrock models are unavailable in Teleport Cloud"))
+		assert.ErrorIs(t, err, trace.BadParameter(
+			"only the default model is allowed to use Amazon Bedrock without OIDC in Teleport Cloud",
+		))
 	})
 	t.Run("no upsert", func(t *testing.T) {
 		res := newInferenceModel("no-upsert")
@@ -150,8 +152,8 @@ func TestSummarizerService_CreateInferenceModel_BedrockAllowed(t *testing.T) {
 	})
 	require.NoError(t, err)
 	service, err := NewSummarizerService(SummarizerServiceConfig{
-		Backend:       backend.NewSanitizer(mem),
-		EnableBedrock: true,
+		Backend:                          backend.NewSanitizer(mem),
+		EnableBedrockWithoutRestrictions: true,
 	})
 	require.NoError(t, err)
 

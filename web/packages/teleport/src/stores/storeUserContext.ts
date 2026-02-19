@@ -263,6 +263,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.botInstances;
   }
 
+  getInstancesAccess() {
+    return this.state.acl.instances;
+  }
+
   getContactsAccess() {
     return this.state.acl.contacts;
   }
@@ -277,5 +281,33 @@ export default class StoreUserContext extends Store<UserContext> {
 
   geClientIpRestrictionAccess() {
     return this.state.acl.clientIpRestriction;
+  }
+
+  getAutoUpdateConfigAccess() {
+    return this.state.acl.autoUpdateConfig;
+  }
+
+  getAutoUpdateVersionAccess() {
+    return this.state.acl.autoUpdateVersion;
+  }
+
+  getAutoUpdateAgentRolloutAccess() {
+    return this.state.acl.autoUpdateAgentRollout;
+  }
+
+  getAutoUpdateAgentReportAccess() {
+    return this.state.acl.autoUpdateAgentReport;
+  }
+
+  getInferencePolicyAccess() {
+    return this.state.acl.inferencePolicy;
+  }
+
+  getInferenceModelAccess() {
+    return this.state.acl.inferenceModel;
+  }
+
+  getInferenceSecretAccess() {
+    return this.state.acl.inferenceSecret;
   }
 }

@@ -277,16 +277,14 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 				"teleport.dev/integration":                    "test-integration",
 			}, appServer.GetAllLabels())
 
-			t.Run("integration status is updated", func(t *testing.T) {
-				status := serverClient.integrations[integrationWithProfileSync.GetName()].GetStatus()
-				require.NotNil(t, status)
-				lastSyncSummary := status.AWSRolesAnywhere.LastProfileSync
-				require.Equal(t, types.IntegrationAWSRolesAnywhereProfileSyncStatusSuccess, lastSyncSummary.Status)
-				require.NotEmpty(t, lastSyncSummary.StartTime)
-				require.NotEmpty(t, lastSyncSummary.EndTime)
-				require.Equal(t, int32(1), lastSyncSummary.SyncedProfiles)
-				require.Empty(t, lastSyncSummary.ErrorMessage)
-			})
+			status := serverClient.integrations[integrationWithProfileSync.GetName()].GetStatus()
+			require.NotNil(t, status)
+			lastSyncSummary := status.AWSRolesAnywhere.LastProfileSync
+			require.Equal(t, types.IntegrationAWSRolesAnywhereProfileSyncStatusSuccess, lastSyncSummary.Status)
+			require.NotEmpty(t, lastSyncSummary.StartTime)
+			require.NotEmpty(t, lastSyncSummary.EndTime)
+			require.Equal(t, int32(1), lastSyncSummary.SyncedProfiles)
+			require.Empty(t, lastSyncSummary.ErrorMessage)
 		})
 	})
 
@@ -355,6 +353,7 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 
 			// Wait for the 1st profile sync iteration.
 			synctest.Wait()
+
 			status := serverClient.integrations[integrationWithProfileSync.GetName()].GetStatus()
 			require.NotNil(t, status)
 			lastSyncSummary := status.AWSRolesAnywhere.LastProfileSync

@@ -625,8 +625,7 @@ func TestTrustedClusterCRUD(t *testing.T) {
 func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) types.CertAuthority {
 	t.Helper()
 
-	ta := testauthority.New()
-	priv, pub, err := ta.GenerateKeyPair()
+	priv, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: domain}, nil, time.Hour)

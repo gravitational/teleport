@@ -23,6 +23,7 @@ import { Box, ButtonIcon, Flex, Text } from 'design';
 import { CheckboxInput } from 'design/Checkbox';
 import { makeLabelTag } from 'design/formatters';
 import { Tags, Warning } from 'design/Icon';
+import { LabelKind } from 'design/Label';
 import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { HoverTooltip } from 'design/Tooltip';
@@ -35,6 +36,7 @@ import {
 } from '../shared/getBackgroundColor';
 import { PinButton } from '../shared/PinButton';
 import { ResourceActionButtonWrapper } from '../shared/ResourceActionButton';
+import { ResourceSelectedIcon } from '../shared/ResourceSelectedIcon';
 import { shouldWarnResourceStatus } from '../shared/StatusInfo';
 import { ResourceItemProps } from '../types';
 
@@ -49,8 +51,14 @@ export function ResourceListItem({
   onShowStatusInfo,
   showingStatusInfo,
   viewItem,
-  visibleInputFields = { pin: true, checkbox: true },
+  visibleInputFields = {
+    pin: true,
+    checkbox: true,
+    copy: true,
+    hoverState: true,
+  },
   resourceLabelConfig,
+  showResourceSelectedIcon,
 }: ResourceItemProps) {
   const {
     name,
@@ -95,6 +103,8 @@ export function ResourceListItem({
       onMouseLeave={() => setHovered(false)}
       shouldDisplayWarning={shouldDisplayStatusWarning}
       showingStatusInfo={showingStatusInfo}
+      showHoverState={visibleInputFields.hoverState}
+      data-testid={name}
     >
       <RowInnerContainer
         requiresRequest={requiresRequest}
@@ -105,15 +115,11 @@ export function ResourceListItem({
         showingStatusInfo={showingStatusInfo}
         hideCheckbox={!visibleInputFields.checkbox}
         hidePin={!visibleInputFields.pin}
+        showHoverState={visibleInputFields.hoverState}
       >
         {/* checkbox */}
         {visibleInputFields.checkbox && (
-          <HoverTooltip
-            css={`
-              grid-area: checkbox;
-            `}
-            tipContent={selected ? 'Deselect' : 'Select'}
-          >
+          <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
             <CheckboxInput
               checked={selected}
               onChange={selectResource}
@@ -166,7 +172,10 @@ export function ResourceListItem({
             `}
           >
             <HoverTooltip tipContent={name} showOnlyOnOverflow>
-              <Name>{name}</Name>
+              <Flex alignItems="center" gap={2}>
+                <Name>{name}</Name>
+                {showResourceSelectedIcon && <ResourceSelectedIcon />}
+              </Flex>
             </HoverTooltip>
             <HoverTooltip tipContent={description} showOnlyOnOverflow>
               <Description>{description}</Description>
@@ -177,7 +186,9 @@ export function ResourceListItem({
               align-self: start;
             `}
           >
-            {hovered && <CopyButton value={name} ml={1} />}
+            {visibleInputFields.copy && hovered && (
+              <CopyButton value={name} ml={1} />
+            )}
           </Box>
         </Flex>
 
@@ -197,51 +208,51 @@ export function ResourceListItem({
           <ResTypeIconBox mr={1}>
             <SecondaryIcon size={18} />
           </ResTypeIconBox>
-          <HoverTooltip
-            tipContent={resourceType}
-            css={`
-              // Required for text-overflow: ellipsis to work. This is because a flex child won't shrink unless
-              // its min-width is explicitly set.
-              min-width: 0;
-            `}
-            showOnlyOnOverflow
-          >
-            <Text fontSize="14px" fontWeight={300} color="text.slightlyMuted">
+          <HoverTooltip tipContent={resourceType} showOnlyOnOverflow>
+            <Text
+              fontSize="14px"
+              fontWeight={300}
+              color="text.slightlyMuted"
+              css={`
+                // Required for text-overflow: ellipsis to work. This is because a flex child won't shrink unless
+                // its min-width is explicitly set.
+                min-width: 0;
+              `}
+            >
               {resourceType}
             </Text>
           </HoverTooltip>
         </Flex>
 
         {/* address */}
-        <HoverTooltip
-          tipContent={addr}
-          showOnlyOnOverflow
-          css={`
-            grid-area: address;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            // If the labels button isn't showing, let this column take up the extra space.
-            ${!showLabelsButton ? 'grid-column-end: labels-btn;' : ''}
-          `}
-        >
-          <Text fontSize="14px" fontWeight={300} color="text.muted">
+        <HoverTooltip tipContent={addr} showOnlyOnOverflow>
+          <Text
+            fontSize="14px"
+            fontWeight={300}
+            color="text.muted"
+            css={`
+              grid-area: address;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
+              // If the labels button isn't showing, let this column take up the extra space.
+              ${!showLabelsButton ? 'grid-column-end: labels-btn;' : ''}
+            `}
+          >
             {addr}
           </Text>
         </HoverTooltip>
 
         {/* show labels button */}
         {showLabelsButton && (
-          <HoverTooltip
-            tipContent={showLabels ? 'Hide labels' : 'Show labels'}
-            css={`
-              grid-area: labels-btn;
-            `}
-          >
+          <HoverTooltip tipContent={showLabels ? 'Hide labels' : 'Show labels'}>
             <HoverIconButton
               size={1}
               onClick={() => setShowLabels(prevState => !prevState)}
               className={showLabels ? 'active' : ''}
+              css={`
+                grid-area: labels-btn;
+              `}
             >
               <Tags size={18} color={showLabels ? 'text.main' : 'text.muted'} />
             </HoverIconButton>
@@ -250,14 +261,15 @@ export function ResourceListItem({
 
         {/* warning icon if status is unhealthy */}
         {shouldDisplayStatusWarning && (
-          <HoverTooltip
-            tipContent={'Show Connection Issue'}
-            css={`
-              grid-area: warning-icon;
-              cursor: pointer;
-            `}
-          >
-            <HoverIconButton size={1} onClick={onShowStatusInfo}>
+          <HoverTooltip tipContent={'Show Connection Issue'}>
+            <HoverIconButton
+              size={1}
+              onClick={onShowStatusInfo}
+              css={`
+                grid-area: warning-icon;
+                cursor: pointer;
+              `}
+            >
               <Warning size={18} />
             </HoverIconButton>
           </HoverTooltip>
@@ -284,6 +296,11 @@ export function ResourceListItem({
             mb={2}
           >
             {labels.map((label, i) => {
+              let kind: LabelKind = 'secondary';
+              if (resourceLabelConfig?.processLabel) {
+                kind = resourceLabelConfig.processLabel(label).kind;
+              }
+
               const labelText = makeLabelTag(label);
               return (
                 <LabelButtonWithIcon
@@ -291,7 +308,7 @@ export function ResourceListItem({
                   title={labelText}
                   onClick={() => onLabelClick?.(label)}
                   withHoverState={!!onLabelClick}
-                  kind="secondary"
+                  kind={kind}
                   mr={2}
                   css={`
                     cursor: pointer;
@@ -322,6 +339,7 @@ const ResTypeIconBox = styled(Box)`
 const RowContainer = styled(Box)<{
   shouldDisplayWarning: boolean;
   showingStatusInfo: boolean;
+  showHoverState: boolean;
 }>`
   transition: all 150ms;
   position: relative;
@@ -338,10 +356,12 @@ const RowContainer = styled(Box)<{
     `}
 
   &:hover {
-    background-color: ${props => props.theme.colors.levels.surface};
+    background-color: ${props =>
+      props.showHoverState ? props.theme.colors.levels.surface : 'transparent'};
 
     ${p =>
       p.shouldDisplayWarning &&
+      p.showHoverState &&
       css`
         background-color: ${getStatusBackgroundColor({
           showingStatusInfo: p.showingStatusInfo,
@@ -351,22 +371,28 @@ const RowContainer = styled(Box)<{
         })};
       `}
 
-    // We use a pseudo element for the shadow with position: absolute in order to prevent
-    // the shadow from increasing the size of the layout and causing scrollbar flicker.
-    &:after {
-      box-shadow: ${props => props.theme.boxShadow[3]};
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      z-index: -1;
-      width: 100%;
-      height: 100%;
-    }
+    ${p =>
+      p.showHoverState &&
+      css`
+        // We use a pseudo element for the shadow with position: absolute in order to prevent
+        // the shadow from increasing the size of the layout and causing scrollbar flicker.
+        &:after {
+          box-shadow: ${props => props.theme.boxShadow[3]};
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          z-index: -1;
+          width: 100%;
+          height: 100%;
+        }
+      `}
   }
 `;
 
-const RowInnerContainer = styled(Flex)<BackgroundColorProps>`
+const RowInnerContainer = styled(Flex)<
+  BackgroundColorProps & { showHoverState: boolean }
+>`
   display: grid;
   column-gap: ${props => props.theme.space[3]}px;
   grid-template-rows: 56px min-content;
@@ -381,10 +407,14 @@ const RowInnerContainer = styled(Flex)<BackgroundColorProps>`
   border-bottom: ${props => props.theme.borders[2]}
     ${props => props.theme.colors.spotBackground[0]};
 
-  &:hover {
-    // Make the border invisible instead of removing it, this is to prevent things from shifting due to the size change.
-    border-bottom: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
-  }
+  ${p =>
+    p.showHoverState &&
+    css`
+      &:hover {
+        // Make the border invisible instead of removing it, this is to prevent things from shifting due to the size change.
+        border-bottom: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
+      }
+    `}
 
   grid-template-columns: 22px 24px 36px 2fr 1fr 1fr 32px min-content;
   grid-template-areas:

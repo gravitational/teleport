@@ -132,7 +132,7 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
           width={alignButtonWidthToMenu ? width : buttonWidth}
           textTransform={props.textTransform}
           size="small"
-          setRef={anchorRef}
+          ref={anchorRef}
           onClick={onOpen}
           style={style}
         >

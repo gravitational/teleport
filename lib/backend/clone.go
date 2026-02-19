@@ -27,10 +27,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
-
-// bufferSize is the number of backend items that are queried at a time.
-const bufferSize = 10000
 
 // CloneConfig contains the configuration for cloning a [Backend].
 // All items from the source are copied to the destination. All Teleport Auth
@@ -50,17 +48,16 @@ type CloneConfig struct {
 
 // Clone copies all items from a source to a destination [Backend].
 func Clone(ctx context.Context, src, dst Backend, parallel int, force bool) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	log := slog.With(teleport.ComponentKey, "clone")
-	itemC := make(chan Item, bufferSize)
+
 	start := NewKey("")
-	migrated := &atomic.Int32{}
+	cloned, failed := &atomic.Int64{}, &atomic.Int64{}
 
 	if parallel <= 0 {
 		parallel = 1
 	}
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 
 	if !force {
 		result, err := dst.GetRange(ctx, start, RangeEnd(start), 1)
@@ -70,106 +67,138 @@ func Clone(ctx context.Context, src, dst Backend, parallel int, force bool) erro
 		if len(result.Items) > 0 {
 			return trace.Errorf("unable to clone data to destination with existing data; this may be overridden by configuring 'force: true'")
 		}
-	} else {
-		log.WarnContext(ctx, "Skipping check for existing data in destination.")
 	}
 
 	group, ctx := errgroup.WithContext(ctx)
-	// Add 1 to ensure a goroutine exists for getting items.
-	group.SetLimit(parallel + 1)
+	group.SetLimit(parallel)
 
-	group.Go(func() error {
-		var result *GetResult
-		pageKey := start
-		defer close(itemC)
-		for {
-			err := retry(ctx, 3, func() error {
-				var err error
-				result, err = src.GetRange(ctx, pageKey, RangeEnd(start), bufferSize)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				return nil
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			for _, item := range result.Items {
-				select {
-				case itemC <- item:
-				case <-ctx.Done():
-					return trace.Wrap(ctx.Err())
-				}
-			}
-			if len(result.Items) < bufferSize {
-				return nil
-			}
-			pageKey = RangeEnd(result.Items[len(result.Items)-1].Key)
-		}
-	})
-
-	logProgress := func() {
-		log.InfoContext(ctx, "Backend clone still in progress", "items_copied", migrated.Load())
-	}
-	defer logProgress()
 	go func() {
-		ticker := time.NewTicker(time.Second)
+		ticker := time.NewTicker(250 * time.Millisecond)
 		defer ticker.Stop()
-		select {
-		case <-ticker.C:
-			logProgress()
-		case <-ctx.Done():
-			return
+
+		for {
+			select {
+			case <-ticker.C:
+				log.InfoContext(ctx, "Backend clone in progress", "cloned_items", cloned.Load(), "failed_items", failed.Load())
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 
-	for item := range itemC {
-		item := item
-		group.Go(func() error {
-			if err := retry(ctx, 3, func() error {
-				if _, err := dst.Put(ctx, item); err != nil {
-					return trace.Wrap(err)
-				}
-				return nil
-			}); err != nil {
-				return trace.Wrap(err)
-			}
-			migrated.Add(1)
-			return nil
-		})
-		if err := ctx.Err(); err != nil {
+	const maxAttempts = 3
+	end := RangeEnd(start)
+	for i := range maxAttempts {
+		lastRead, err := cloneItems(ctx, src, dst, start, end, log, cloned, failed, group, maxAttempts)
+		if err == nil {
 			break
 		}
+
+		if i == maxAttempts-1 {
+			log.ErrorContext(ctx, "Cloning backend failed. Encountered too many errors reading from the source backend.",
+				"error", trace.Unwrap(err),
+				"cloned_items", cloned.Load(),
+				"failed_items", failed.Load(),
+				"last_cloned_item", logutils.StringerAttr(lastRead),
+			)
+			groupError := group.Wait()
+			return trace.NewAggregate(groupError, trace.Wrap(err, "retrieving backend items for cloning"))
+		}
+
+		if lastRead.Compare(end) < 0 {
+			start = lastRead
+		}
 	}
-	if err := group.Wait(); err != nil {
+
+	err := group.Wait()
+	cloneCount := cloned.Load()
+	failCount := failed.Load()
+
+	logger := log.With("cloned_items", cloneCount, "failed_items", failed.Load())
+	switch {
+	case err == nil && cloneCount == 0 && failCount == 0:
+		logger.WarnContext(ctx, "No data was found in the source backend, ensure the backend configuration is correct")
+	case err != nil && cloneCount > 0 && failCount > 0:
+		logger.InfoContext(ctx, "Cloning backend failed: some backend items were unable to be copied", "err", err)
 		return trace.Wrap(err)
+	case err != nil && cloneCount == 0 && failCount > 0:
+		logger.InfoContext(ctx, "Cloning backend failed: no backend items were able to be copied", "err", err)
+		return trace.Wrap(err)
+	default:
+		logger.InfoContext(ctx, "Cloning backend completed successfully")
 	}
+
 	return nil
 }
 
-func retry(ctx context.Context, attempts int, fn func() error) error {
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(time.Millisecond * 100),
-		Max:    time.Second * 2,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if attempts <= 0 {
-		return trace.Errorf("retry attempts must be > 0")
+func cloneItems(ctx context.Context, src, dst Backend, start, end Key, log *slog.Logger, cloned, failed *atomic.Int64, group *errgroup.Group, maxAttempts int) (Key, error) {
+	lastRead := start
+	for item, err := range src.Items(ctx, ItemsParams{StartKey: start, EndKey: end}) {
+		if err != nil {
+			log.WarnContext(ctx, "Failed reading backend item",
+				"error", trace.Unwrap(err),
+				"cloned_items", cloned.Load(),
+				"failed_items", failed.Load(),
+			)
+
+			return lastRead, trace.Wrap(err)
+		}
+
+		// Prevent processing the same key twice. If reading from
+		// the destination has previously failed, then start will be
+		// the last item that was previously processed. Since there
+		// is no way to exclude the start key from the Items range, it
+		// has to be skipped manually instead.
+		if item.Key.Compare(start) == 0 {
+			continue
+		}
+
+		lastRead = item.Key
+		group.Go(func() error {
+			if err := retryPut(ctx, maxAttempts, dst, item); err != nil {
+				failed.Add(1)
+				return trace.Wrap(err)
+			}
+			cloned.Add(1)
+			return nil
+		})
 	}
 
-	for i := 0; i < attempts; i++ {
-		err = fn()
-		if err == nil {
+	return lastRead, nil
+}
+
+func retryPut(ctx context.Context, attempts int, b Backend, item Item) error {
+	if attempts <= 0 {
+		return trace.BadParameter("retry attempts must be greater than 0")
+	}
+
+	var retry retryutils.Retry
+	for i := range attempts {
+		if _, err := b.Put(ctx, item); err == nil {
 			return nil
+		} else if i >= attempts-1 {
+			return trace.LimitExceeded("Failed to clone item %d times: %s", attempts, err)
 		}
+
+		if retry == nil {
+			r, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+				Driver: retryutils.NewExponentialDriver(time.Millisecond * 100),
+				Max:    time.Second * 2,
+			})
+			if err != nil {
+				return trace.Wrap(err, "creating retry driver")
+			}
+
+			retry = r
+		}
+
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return trace.Wrap(ctx.Err())
 		case <-retry.After():
 			retry.Inc()
 		}
 	}
-	return trace.Wrap(err)
+
+	return nil
 }

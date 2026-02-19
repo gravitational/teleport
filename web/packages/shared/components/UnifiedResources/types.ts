@@ -19,6 +19,7 @@
 import React, { ComponentProps } from 'react';
 
 import { Icon } from 'design/Icon';
+import { LabelKind } from 'design/Label';
 import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
 import { ResourceIconName } from 'design/ResourceIcon';
 import { TargetHealth } from 'gen-proto-ts/teleport/lib/teleterm/v1/target_health_pb';
@@ -186,12 +187,10 @@ export type UnifiedResourcesQueryParams = {
   kinds?: string[];
   includedResourceMode?: IncludedResourceMode;
 };
+
 export interface UnifiedResourceViewItem {
   name: string;
-  labels: {
-    name: string;
-    value: string;
-  }[];
+  labels: ResourceLabel[];
   primaryIconName: ResourceIconName;
   SecondaryIcon: typeof Icon;
   ActionButton: React.ReactElement;
@@ -207,11 +206,17 @@ export type VisibleFilterPanelFields = {
   healthStatusOpts: boolean;
   resourceTypeOpts: boolean;
   resourceAvailabilityOpts: boolean;
+  collapseLabelBtn: boolean;
 };
 
 export type VisibleResourceItemFields = {
   checkbox: boolean;
   pin: boolean;
+  copy: boolean;
+  /**
+   * If false, removes any hover state.
+   */
+  hoverState: boolean;
 };
 
 export enum PinningSupport {
@@ -234,6 +239,13 @@ export type IncludedResourceMode =
   | 'accessible';
 
 /**
+ * The return value after processing a label.
+ */
+export type ProcessedLabel = {
+  kind: LabelKind;
+};
+
+/**
  * If this field is not provided, the default config will be:
  * - No icon, just text label
  * - Label kind is "secondary"
@@ -242,7 +254,16 @@ export type IncludedResourceMode =
 export type ResourceLabelConfig = Omit<
   ComponentProps<typeof LabelButtonWithIcon>,
   'children'
->;
+> & {
+  /**
+   * Provide an optional callback against a label
+   * to change appearance of the label e.g:
+   * if the label is determined to be selected by
+   * the caller, then provide a LabelKind that
+   * makes it apparent it's been "selected".
+   */
+  processLabel?(label: ResourceLabel): ProcessedLabel;
+};
 
 export type ResourceItemProps = {
   onLabelClick?: (label: ResourceLabel) => void;
@@ -271,6 +292,11 @@ export type ResourceItemProps = {
    * provided.
    */
   resourceLabelConfig?: ResourceLabelConfig;
+  /**
+   * If true, render a check icon at the top right corner of cards
+   * and right next to resource name for list view rows.
+   */
+  showResourceSelectedIcon?: boolean;
 };
 
 // Props that are needed for the Card view.
@@ -326,6 +352,11 @@ export type ResourceViewProps = {
    * provided.
    */
   resourceLabelConfig?: ResourceLabelConfig;
+  /**
+   * If true, renders a check icon at the top right corner of cards
+   * and right next to resource name for list view rows.
+   */
+  showResourcesSelectedIcon?: boolean;
 };
 
 /**

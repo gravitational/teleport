@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -39,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/lib/utils/testutils/synctest"
 )
 
 type mockJoinServiceClient struct {
@@ -688,80 +688,80 @@ func TestJoinServiceGRPCServer_RegisterUsingBoundKeypairMethodSimple(t *testing.
 func TestTimeout(t *testing.T) {
 	t.Parallel()
 
-	testPack := newTestPack(t)
-
-	fakeClock := clockwork.NewFakeClock()
-	testPack.authServer.clock = fakeClock
-	testPack.proxyServer.clock = fakeClock
-
 	for _, tc := range []struct {
 		desc string
-		clt  *client.JoinServiceClient
+		clt  func(*testPack) *client.JoinServiceClient
 	}{
 		{
 			desc: "good auth client",
-			clt:  testPack.authClient,
+			clt: func(tp *testPack) *client.JoinServiceClient {
+				return tp.authClient
+			},
 		},
 		{
 			desc: "good proxy client",
-			clt:  testPack.proxyClient,
+			clt: func(tp *testPack) *client.JoinServiceClient {
+				return tp.proxyClient
+			},
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			// When a well-behaved client returns an error responding to the
-			// challenge, the client should cancel the context immediately and all
-			// open stream connections should quickly be closed, much before the
-			// request timeout has to come into effect.
-			tc.clt.RegisterUsingIAMMethod(context.Background(), func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
-				return nil, trace.BadParameter("")
+			synctest.Test(t, func(t *testing.T) {
+				testPack := newTestPack(t)
+				clt := tc.clt(testPack)
+				// When a well-behaved client returns an error responding to the
+				// challenge, the context should be canceled and all open
+				// stream connections should be closed immediately.
+				clt.RegisterUsingIAMMethod(context.Background(), func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
+					return nil, trace.BadParameter("")
+				})
+				synctest.Wait()
+				require.Equal(t, int32(0), testPack.streamConnectionCount.Load())
 			})
-			require.Eventually(t, func() bool {
-				return testPack.streamConnectionCount.Load() == 0
-			}, 10*time.Second, 1*time.Millisecond)
-			// ^ This timeout is absurdly large but I really don't want this to
-			// be flaky in CI. This test is still pretty fast most of the time and
-			// still tests what it is meant to - if the connections never close
-			// this would still fail.
 		})
 	}
 
 	for _, tc := range []struct {
 		desc string
-		clt  proto.JoinServiceClient
+		clt  func(*testPack) proto.JoinServiceClient
 	}{
 		{
 			desc: "bad auth client",
-			clt:  testPack.authGRPCClient,
+			clt: func(tp *testPack) proto.JoinServiceClient {
+				return tp.authGRPCClient
+			},
 		},
 		{
 			desc: "bad proxy client",
-			clt:  testPack.proxyGRPCClient,
+			clt: func(tp *testPack) proto.JoinServiceClient {
+				return tp.proxyGRPCClient
+			},
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			srv, err := tc.clt.RegisterUsingIAMMethod(context.Background())
-			require.NoError(t, err)
+			synctest.Test(t, func(t *testing.T) {
+				testPack := newTestPack(t)
+				clt := tc.clt(testPack)
+				srv, err := clt.RegisterUsingIAMMethod(context.Background())
+				require.NoError(t, err)
 
-			_, err = srv.Recv()
-			require.NoError(t, err)
+				_, err = srv.Recv()
+				require.NoError(t, err)
 
-			// Sanity check there are some open connections after the first gRPC
-			// Recv
-			require.Greater(t, testPack.streamConnectionCount.Load(), int32(0))
+				// Sanity check there are some open connections after the first gRPC
+				// Recv
+				require.Greater(t, testPack.streamConnectionCount.Load(), int32(0))
 
-			// Instead of sending a challenge response, a poorly behaved client
-			// might just hang and never close the connection.
-			//
-			// Make sure the request is automatically timed out on the server and all
-			// connections are closed shortly after the timeout.
-			fakeClock.Advance(joinRequestTimeout)
-			require.Eventually(t, func() bool {
-				return testPack.streamConnectionCount.Load() == 0
-			}, 10*time.Second, 1*time.Millisecond)
-			// ^ This timeout is absurdly large but I really don't want this to
-			// be flaky in CI. This test is still pretty fast most of the time and
-			// still tests what it is meant to - if the connections never close
-			// this would still fail.
+				// Instead of sending a challenge response, a poorly behaved client
+				// might just hang and never close the connection.
+				//
+				// Make sure the request is automatically timed out on the server and all
+				// connections are closed shortly after the timeout.
+				synctest.Wait()
+				time.Sleep(joinRequestTimeout)
+				synctest.Wait()
+				require.Equal(t, int32(0), testPack.streamConnectionCount.Load())
+			})
 		})
 	}
 }

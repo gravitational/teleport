@@ -463,7 +463,7 @@ impl ScardBackend {
             // USB/serial/TPM). Type "vendor" means a proprietary vendor bus.
             //
             // See "ReaderType" in
-            // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/smclib/ns-smclib-_scard_reader_capabilitiesconst SCARD_READER_TYPE_VENDOR: u32 = 0xF0;
+            // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/smclib/ns-smclib-_scard_reader_capabilities
             const SCARD_READER_TYPE_VENDOR: u32 = 0xF0;
             self.send_device_control_response(
                 req,
