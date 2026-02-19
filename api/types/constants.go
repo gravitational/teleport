@@ -696,6 +696,9 @@ const (
 	// KindWorkloadCluster is the resource kind for workload clusters.
 	KindWorkloadCluster = "workload_cluster"
 
+	// KindCertAuthorityOverride is the resource kind for CA overrides.
+	KindCertAuthorityOverride = "cert_authority_override"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 
