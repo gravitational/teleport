@@ -21,59 +21,24 @@ import (
 	"strings"
 	"testing"
 
+	minhashlsh "github.com/ekzhu/minhash-lsh"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestShingle(t *testing.T) {
-	tests := []struct {
-		name     string
-		text     string
-		n        int
-		expected int // number of shingles
-	}{
-		{
-			name:     "normal text",
-			text:     "the quick brown fox jumps",
-			n:        3,
-			expected: 3, // [the quick brown], [quick brown fox], [brown fox jumps]
-		},
-		{
-			name:     "fewer words than shingle size",
-			text:     "hello world",
-			n:        3,
-			expected: 1, // falls back to whole text as one shingle
-		},
-		{
-			name:     "exact shingle size",
-			text:     "one two three",
-			n:        3,
-			expected: 1,
-		},
-		{
-			name:     "empty text",
-			text:     "",
-			n:        3,
-			expected: 1, // empty text hashes to one shingle
-		},
+// testMinhashSig computes a MinHash signature for text using word-level n-gram shingling.
+func testMinhashSig(text string, n, numHashes int) []uint64 {
+	m := minhashlsh.NewMinhash(1, numHashes)
+	words := strings.Fields(text)
+	if len(words) < n {
+		m.Push([]byte(text))
+	} else {
+		for i := 0; i <= len(words)-n; i++ {
+			gram := strings.Join(words[i:i+n], " ")
+			m.Push([]byte(gram))
+		}
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := shingle(tt.text, tt.n)
-			assert.Len(t, result, tt.expected)
-		})
-	}
-}
-
-func TestMinHashSignature(t *testing.T) {
-	set := shingle("the quick brown fox jumps over the lazy dog", 3)
-	sig := minHashSignature(set, 128)
-	assert.Len(t, sig, 128)
-
-	// All values should be set (not MaxUint64) since set is non-empty.
-	for i, v := range sig {
-		assert.NotEqual(t, uint64(0xffffffffffffffff), v, "signature slot %d should be set", i)
-	}
+	return m.Signature()
 }
 
 func TestMinHashSimilarTexts(t *testing.T) {
@@ -81,34 +46,56 @@ func TestMinHashSimilarTexts(t *testing.T) {
 	text1 := "error failed to install teleport on instance disk full on /dev/xvda1"
 	text2 := "error failed to install teleport on instance disk full on /dev/xvdb2"
 
-	sig1 := minHashSignature(shingle(text1, 3), 128)
-	sig2 := minHashSignature(shingle(text2, 3), 128)
+	sig1 := testMinhashSig(text1, 3, 128)
+	sig2 := testMinhashSig(text2, 3, 128)
 
-	// Count matching positions.
-	matches := 0
-	for i := range sig1 {
-		if sig1[i] == sig2[i] {
-			matches++
-		}
-	}
-	similarity := float64(matches) / float64(len(sig1))
+	similarity := estimateJaccard(sig1, sig2)
+	t.Logf("Jaccard similarity: %.3f", similarity)
 	assert.Greater(t, similarity, 0.5, "similar texts should have high MinHash similarity")
+}
+
+func TestEstimateJaccardMultiLine(t *testing.T) {
+	// Simulate the real-world case: two multi-line templates that differ on one line.
+	base := `Offloading the installation part to the generic Teleport install script
+Downloading from https://cdn.teleport.dev/teleport-ent-v18.6.5-linux-amd64-bin.tar.gz
+> <*> enable --proxy discover-dev-5.cloud.gravitational.io:443
+The install script %s returned a non-zero exit code
+INFO [UPDATER] Initiating installation target_version:18.6.5
+INFO [UPDATER] Downloading Teleport tarball size:217917539
+ERRO [UPDATER] Command failed error:
+ERROR REPORT:
+Original Error: size of download exceeds available disk space <*> bytes
+User Message: failed to install
+failed to run commands: exit status <*>`
+
+	text1 := fmt.Sprintf(base, "(/tmp/tmp.lKTtCLNGKQ)")
+	text2 := fmt.Sprintf(base, "(/tmp/tmp.GPmSRPxXFj)")
+	text3 := fmt.Sprintf(base, "<*>")
+
+	sig1 := testMinhashSig(text1, 3, 128)
+	sig2 := testMinhashSig(text2, 3, 128)
+	sig3 := testMinhashSig(text3, 3, 128)
+
+	sim12 := estimateJaccard(sig1, sig2)
+	sim13 := estimateJaccard(sig1, sig3)
+	sim23 := estimateJaccard(sig2, sig3)
+
+	t.Logf("Jaccard(text1, text2) = %.3f (different temp paths)", sim12)
+	t.Logf("Jaccard(text1, text3) = %.3f (literal vs wildcard)", sim13)
+	t.Logf("Jaccard(text2, text3) = %.3f (literal vs wildcard)", sim23)
+
+	assert.Greater(t, sim12, 0.5, "texts differing only in temp path should be similar")
+	assert.Greater(t, sim13, 0.5, "text with literal vs wildcard temp path should be similar")
 }
 
 func TestMinHashDissimilarTexts(t *testing.T) {
 	text1 := "error failed to install teleport disk full"
 	text2 := "curl could not resolve host dns failure timeout"
 
-	sig1 := minHashSignature(shingle(text1, 3), 128)
-	sig2 := minHashSignature(shingle(text2, 3), 128)
+	sig1 := testMinhashSig(text1, 3, 128)
+	sig2 := testMinhashSig(text2, 3, 128)
 
-	matches := 0
-	for i := range sig1 {
-		if sig1[i] == sig2[i] {
-			matches++
-		}
-	}
-	similarity := float64(matches) / float64(len(sig1))
+	similarity := estimateJaccard(sig1, sig2)
 	assert.Less(t, similarity, 0.3, "dissimilar texts should have low MinHash similarity")
 }
 
@@ -121,25 +108,40 @@ func TestLSHCandidates(t *testing.T) {
 		"curl dns resolution failed cannot reach repository",
 		"curl dns resolution failed cannot reach repository",
 	}
-	sigs := make([][]uint64, len(texts))
+
+	lsh := minhashlsh.NewMinhashLSH64(128, 0.5, len(texts))
 	for i, text := range texts {
-		sigs[i] = minHashSignature(shingle(text, 3), 128)
+		sig := testMinhashSig(text, 3, 128)
+		lsh.Add(i, sig)
 	}
+	lsh.Index()
 
-	pairs := lshCandidates(sigs, 16, 8)
-	require.NotEmpty(t, pairs)
+	// Query the first text — should find at least (0,1) as identical.
+	sig0 := testMinhashSig(texts[0], 3, 128)
+	results := lsh.Query(sig0)
 
-	// Check that (0,1) and (0,2) are candidates (similar).
-	hasPair := func(a, b int) bool {
-		for _, p := range pairs {
-			if (p[0] == a && p[1] == b) || (p[0] == b && p[1] == a) {
+	hasResult := func(target int) bool {
+		for _, r := range results {
+			if r.(int) == target {
 				return true
 			}
 		}
 		return false
 	}
-	assert.True(t, hasPair(0, 1), "identical texts should be candidates")
-	assert.True(t, hasPair(3, 4), "identical texts should be candidates")
+	assert.True(t, hasResult(1), "identical texts should be candidates")
+
+	// Query a DNS text — should find other DNS text.
+	sig3 := testMinhashSig(texts[3], 3, 128)
+	results3 := lsh.Query(sig3)
+	hasResult3 := func(target int) bool {
+		for _, r := range results3 {
+			if r.(int) == target {
+				return true
+			}
+		}
+		return false
+	}
+	assert.True(t, hasResult3(4), "identical texts should be candidates")
 }
 
 func TestUnionFind(t *testing.T) {
@@ -165,7 +167,7 @@ func TestUnionFind(t *testing.T) {
 	assert.NotEqual(t, uf.find(0), uf.find(4))
 }
 
-func TestClusterTextsEndToEnd(t *testing.T) {
+func TestGroupTextsEndToEnd(t *testing.T) {
 	// Simulate SSM run outputs with three failure types.
 	diskFullTemplate := func(instanceID, device string, pct int) string {
 		return fmt.Sprintf(`Installing Teleport v16.4.12 on %s...
@@ -214,16 +216,13 @@ Configuration failed: invalid token`, instanceID, token)
 		))
 	}
 
-	clusters := clusterTexts(texts, clusterDefaults())
-	require.NotEmpty(t, clusters, "should produce clusters")
+	groups, _ := groupTexts(texts, groupingDefaults())
+	require.NotEmpty(t, groups, "should produce groups")
 
-	// We expect 3 clusters (possibly more if some don't merge, but at least
-	// the disk-full group should cluster together).
-	t.Logf("Got %d clusters:", len(clusters))
-	for _, c := range clusters {
-		t.Logf("  Cluster %d: %d members", c.ID, c.Size)
-		// Show first few lines of template.
-		lines := strings.Split(c.Template, "\n")
+	t.Logf("Got %d groups:", len(groups))
+	for _, g := range groups {
+		t.Logf("  Group %d: %d members", g.ID, g.Size)
+		lines := strings.Split(g.Template, "\n")
 		for i, line := range lines {
 			if i >= 3 {
 				t.Logf("    ...")
@@ -233,45 +232,45 @@ Configuration failed: invalid token`, instanceID, token)
 		}
 	}
 
-	// Verify the largest cluster has the disk-full errors.
-	assert.GreaterOrEqual(t, clusters[0].Size, 8,
-		"largest cluster should contain most disk-full errors")
+	// Verify the largest group has the disk-full errors.
+	assert.GreaterOrEqual(t, groups[0].Size, 8,
+		"largest group should contain most disk-full errors")
 
 	// Verify total members equals input size.
 	total := 0
-	for _, c := range clusters {
-		total += c.Size
+	for _, g := range groups {
+		total += g.Size
 	}
-	assert.Equal(t, len(texts), total, "all texts should be assigned to a cluster")
+	assert.Equal(t, len(texts), total, "all texts should be assigned to a group")
 }
 
-func TestClusterTextsEmpty(t *testing.T) {
-	clusters := clusterTexts(nil, clusterDefaults())
-	assert.Nil(t, clusters)
+func TestGroupTextsEmpty(t *testing.T) {
+	groups, _ := groupTexts(nil, groupingDefaults())
+	assert.Nil(t, groups)
 
-	clusters = clusterTexts([]string{}, clusterDefaults())
-	assert.Nil(t, clusters)
+	groups, _ = groupTexts([]string{}, groupingDefaults())
+	assert.Nil(t, groups)
 }
 
-func TestClusterTextsSingleItem(t *testing.T) {
-	clusters := clusterTexts([]string{"single error message"}, clusterDefaults())
-	require.Len(t, clusters, 1)
-	assert.Equal(t, 1, clusters[0].Size)
-	assert.Equal(t, []int{0}, clusters[0].Members)
+func TestGroupTextsSingleItem(t *testing.T) {
+	groups, _ := groupTexts([]string{"single error message"}, groupingDefaults())
+	require.Len(t, groups, 1)
+	assert.Equal(t, 1, groups[0].Size)
+	assert.Equal(t, []int{0}, groups[0].Members)
 }
 
-func TestClusterTextsIdentical(t *testing.T) {
+func TestGroupTextsIdentical(t *testing.T) {
 	texts := make([]string, 20)
 	for i := range texts {
 		texts[i] = "exact same error message on every host"
 	}
 
-	clusters := clusterTexts(texts, clusterDefaults())
-	require.Len(t, clusters, 1)
-	assert.Equal(t, 20, clusters[0].Size)
+	groups, _ := groupTexts(texts, groupingDefaults())
+	require.Len(t, groups, 1)
+	assert.Equal(t, 20, groups[0].Size)
 }
 
-func TestClusterTextsRealisticSSMOutput(t *testing.T) {
+func TestGroupTextsRealisticSSMOutput(t *testing.T) {
 	// Simulate realistic SSM run outputs with:
 	// - Same failure type (disk full) but different paths, download stats
 	// - A different failure type (DNS resolution)
@@ -313,27 +312,27 @@ failed to run commands: exit status 1`, 6+i%3)
 		texts = append(texts, dnsFailure(i))
 	}
 
-	clusters := clusterTexts(texts, clusterDefaults())
-	require.NotEmpty(t, clusters)
+	groups, _ := groupTexts(texts, groupingDefaults())
+	require.NotEmpty(t, groups)
 
-	t.Logf("Got %d clusters from 70 outputs:", len(clusters))
-	for _, c := range clusters {
-		t.Logf("  Cluster %d: %d members", c.ID, c.Size)
+	t.Logf("Got %d groups from 70 outputs:", len(groups))
+	for _, g := range groups {
+		t.Logf("  Group %d: %d members", g.ID, g.Size)
 	}
 
-	// Should produce 2 main clusters (disk-full and DNS).
-	// Allow up to 4 total clusters for edge cases.
-	assert.LessOrEqual(t, len(clusters), 4,
-		"should produce a small number of clusters for 2 failure types")
+	// Should produce 2 main groups (disk-full and DNS).
+	// Allow up to 4 total groups for edge cases.
+	assert.LessOrEqual(t, len(groups), 4,
+		"should produce a small number of groups for 2 failure types")
 
-	// The largest cluster should be the disk-full group.
-	assert.GreaterOrEqual(t, clusters[0].Size, 40,
-		"largest cluster should contain most disk-full errors")
+	// The largest group should be the disk-full group.
+	assert.GreaterOrEqual(t, groups[0].Size, 40,
+		"largest group should contain most disk-full errors")
 
 	// Total should equal input size.
 	total := 0
-	for _, c := range clusters {
-		total += c.Size
+	for _, g := range groups {
+		total += g.Size
 	}
 	assert.Equal(t, 70, total)
 }
@@ -349,6 +348,35 @@ func TestIsNoiseLine(t *testing.T) {
 	assert.False(t, isNoiseLine("ERROR REPORT: disk full"))
 }
 
+func TestGroupingOptionsWithDefaults(t *testing.T) {
+	t.Parallel()
+	defaults := groupingDefaults()
+
+	t.Run("zero value gets all defaults", func(t *testing.T) {
+		got := groupingOptions{}.withDefaults()
+		require.Equal(t, defaults, got)
+	})
+
+	t.Run("partial override preserves set values", func(t *testing.T) {
+		got := groupingOptions{shingleSize: 5}.withDefaults()
+		require.Equal(t, 5, got.shingleSize)
+		require.Equal(t, defaults.drainMaxDepth, got.drainMaxDepth)
+		require.Equal(t, defaults.numHashes, got.numHashes)
+	})
+
+	t.Run("full override keeps everything", func(t *testing.T) {
+		custom := groupingOptions{
+			drainMaxDepth:     10,
+			drainSimThreshold: 0.8,
+			shingleSize:       7,
+			numHashes:         256,
+			lshThreshold:      0.9,
+		}
+		got := custom.withDefaults()
+		require.Equal(t, custom, got)
+	})
+}
+
 func TestNormalizeText(t *testing.T) {
 	d := newDrain(drainDefaults())
 
@@ -359,15 +387,10 @@ error on host i-ghi789: disk full`
 	normalized := normalizeText(d, text)
 
 	// After Drain, all three lines converge to the same template.
-	// The template evolves as more lines are trained: by the second line,
-	// the instance ID token is wildcarded.
 	lines := strings.Split(normalized, "\n")
 	require.Len(t, lines, 3)
-	// After convergence (line 2+), the template should have wildcards.
 	assert.Contains(t, lines[2], "<*>", "variable tokens should become wildcards")
 	assert.Contains(t, lines[2], "error on host")
 	assert.Contains(t, lines[2], "disk full")
-	// All lines reference the same cluster, so they all return the
-	// current state of that cluster's template.
 	assert.Equal(t, lines[1], lines[2])
 }

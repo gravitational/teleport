@@ -39,6 +39,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// errCorruptCache is returned when a cache file cannot be parsed.
+var errCorruptCache = errors.New("corrupt cache file")
+
 const cacheTimeFormat = "2006-01-02T1504"
 
 // cacheHeader is the first line of a cache .jsonl file, containing metadata
@@ -145,18 +148,21 @@ func readCacheHeader(path string) (cacheHeader, error) {
 	scanner := bufio.NewScanner(f)
 	if !scanner.Scan() {
 		if err := scanner.Err(); err != nil {
-			return cacheHeader{}, trace.Wrap(err)
+			return cacheHeader{}, fmt.Errorf("%w: %s: %v", errCorruptCache, path, err)
 		}
-		return cacheHeader{}, trace.BadParameter("empty cache file: %s", path)
+		return cacheHeader{}, fmt.Errorf("%w: %s: empty file", errCorruptCache, path)
 	}
 
 	var header cacheHeader
 	if err := json.Unmarshal(scanner.Bytes(), &header); err != nil {
-		return cacheHeader{}, trace.Wrap(err)
+		return cacheHeader{}, fmt.Errorf("%w: %s: %v", errCorruptCache, path, err)
 	}
 
 	return header, nil
 }
+
+// cacheReadBufferSize is the scanner buffer size for reading cache files.
+const cacheReadBufferSize = 1024 * 1024 // 1MB
 
 // readCacheEvents reads all lines after the header from a cache file and
 // unmarshals each as an audit event. Uses a 1MB scanner buffer.
@@ -168,14 +174,14 @@ func readCacheEvents(path string) ([]apievents.AuditEvent, error) {
 	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024)
+	scanner.Buffer(make([]byte, 0, cacheReadBufferSize), cacheReadBufferSize)
 
 	// Skip the header line.
 	if !scanner.Scan() {
 		if err := scanner.Err(); err != nil {
-			return nil, trace.Wrap(err)
+			return nil, fmt.Errorf("%w: %s: %v", errCorruptCache, path, err)
 		}
-		return nil, trace.BadParameter("empty cache file: %s", path)
+		return nil, fmt.Errorf("%w: %s: empty file", errCorruptCache, path)
 	}
 
 	var events []apievents.AuditEvent
@@ -408,7 +414,7 @@ func (c *eventCache) mergeAndRewrite(eventType string, from, to time.Time, newEv
 			continue
 		}
 		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			slog.Warn("Failed to remove old cache file", "path", path, "error", err)
+			slog.Debug("Failed to remove old cache file", "path", path, "error", err)
 		}
 	}
 
