@@ -342,6 +342,10 @@ type ConfigTesting struct {
 	// especially when the list is also being modified concurrently by the background
 	// eligibility handler.
 	RunWhileLockedRetryInterval time.Duration
+
+	// OktaAssignmentProcessingTimeout overrides the default timeout for assignments stuck
+	// in "processing" status. Used in tests to speed up reprocessing of stuck assignments.
+	OktaAssignmentProcessingTimeout time.Duration
 }
 
 // UserMonitorConfig contains configuration for the user monitor service, which is responsible for monitoring
