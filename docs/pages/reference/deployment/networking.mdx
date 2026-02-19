@@ -44,34 +44,68 @@ group public_net(carbon-network-public)[Public Internet]
 group dmz_net(carbon-network-public)[DMZ or Public Subnet]
 group private_net(carbon-virtual-private-cloud)[Private Network]
 group private_net2(carbon-virtual-private-cloud)[Private Network]
+group k8s_net(carbon-virtual-private-cloud)[Private Kubernetes Cluster]
 
 %% Services
 service user(carbon-user)[User] in public_net
-service proxy(teleport-logo-purple)[Teleport Proxy Service] in dmz_net
-service auth(teleport-logo-purple)[Teleport Auth Service] in private_net2
-service ssh_node(carbon-bare-metal-server)[SSH Nodes] in private_net
-service db(carbon-db2-database)[Databases] in private_net
+service proxy(teleport-logo-purple)[Proxy Service] in dmz_net
+service auth(teleport-logo-purple)[Auth Service] in private_net2
+
+%% Core Private Services
 service agent(teleport-logo-purple)[Teleport Agents] in private_net
-service k8s(logos-kubernetes)[Kubernetes Clusters] in private_net
-service windows(carbon-virtual-desktop)[Windows Desktops] in private_net
-service webapp(carbon-code)[Web Applications] in private_net
+service ssh_node(teleport-logo-purple)[Protected Server] in private_net
 
-%% Connections
-junction agentconn in private_net
-junction agentconn2 in private_net
+%% Destination Endpoints
+service db(carbon-db2-database)[Databases] in private_net
+service windows(carbon-virtual-desktop)[Desktops] in private_net
+service webapp(carbon-code)[Web Apps] in private_net
 
-user:B --> T:proxy
+%% Kubernetes Group Services
+service k8s_agent(teleport-logo-purple)[Teleport Agent] in k8s_net
+service k8s_pods(logos-kubernetes)[Kubernetes Pods] in k8s_net
 
-agent:L --> R:proxy
-auth:T --> B:proxy
+%% Routing Junctions
+junction p_conn in private_net
+junction j_mid in private_net
+junction j_top in private_net
+junction j_bot in private_net
 
-agent:R -- L:agentconn
-agentconn:T --> B:ssh_node
-agentconn:B --> T:db
-agentconn2:L -- R:agentconn
-agentconn2:T --> B:k8s
-agentconn2:B --> T:windows
-agentconn2:R --> L:webapp
+%% Buffer junctions for spacing
+junction j_usr_buf
+junction j_proxy_agent_buf
+junction j_auth_proxy_buf
+
+%% Control Plane & Edge Connections
+user:R -- L:j_usr_buf
+j_usr_buf:R --> L:proxy
+auth:T -- B:j_auth_proxy_buf
+j_auth_proxy_buf:T --> B:proxy
+
+%% Kubernetes Cluster routing 
+%% Moved K8s group above the Proxy
+k8s_agent:B --> T:proxy
+k8s_agent:T --> B:k8s_pods
+
+%% Reverse tunnel flow into the Proxy Service
+%% p_conn:L --> R:proxy
+
+p_conn:L -- R:j_proxy_agent_buf
+j_proxy_agent_buf:L --> R:proxy
+
+%% Positioning Teleport Agents above the SSH Service on a Linux Server
+%% service
+agent:B -- T:p_conn
+ssh_node:T -- B:p_conn
+
+%% Vertical bus creation for endpoints
+agent:R -- L:j_mid
+j_mid:T -- B:j_top
+j_mid:B -- T:j_bot
+
+%% Vertically aligned destination endpoints
+j_top:R --> L:db
+j_mid:R --> L:windows
+j_bot:R --> L:webapp
 ```
 
 ## Public addresses
