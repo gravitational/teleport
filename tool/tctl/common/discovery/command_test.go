@@ -202,10 +202,10 @@ func TestDiscoverySelectFailingVMGroups(t *testing.T) {
 	require.Equal(t, "i-3", limited[0].InstanceID)
 }
 
-func TestClusterSSMRuns(t *testing.T) {
+func TestGroupSSMRuns(t *testing.T) {
 	t.Parallel()
 
-	t.Run("clusters by stdout/stderr", func(t *testing.T) {
+	t.Run("groups by stdout/stderr", func(t *testing.T) {
 		vmGroups := []ssmVMGroup{
 			{
 				InstanceID: "i-aaa",
@@ -222,9 +222,9 @@ func TestClusterSSMRuns(t *testing.T) {
 			},
 		}
 
-		errors, successes := clusterSSMRuns(vmGroups, clusterDefaults())
+		errors, successes, _, _ := groupSSMRuns(vmGroups, groupingDefaults(), false)
 		require.Empty(t, successes)
-		require.Len(t, errors, 1, "identical errors should form one cluster")
+		require.Len(t, errors, 1, "identical errors should form one group")
 		require.Len(t, errors[0].Instances, 2, "two distinct instances")
 
 		// Instances should be sorted by instance ID.
@@ -247,15 +247,15 @@ func TestClusterSSMRuns(t *testing.T) {
 			},
 		}
 
-		errors, successes := clusterSSMRuns(vmGroups, clusterDefaults())
+		errors, successes, _, _ := groupSSMRuns(vmGroups, groupingDefaults(), false)
 		require.Empty(t, successes)
-		require.Len(t, errors, 1, "status-only errors should be clustered")
+		require.Len(t, errors, 1, "status-only errors should be grouped")
 		require.Len(t, errors[0].Instances, 1)
 		require.Equal(t, "i-ccc", errors[0].Instances[0].InstanceID)
 		require.Len(t, errors[0].Instances[0].Times, 2)
 	})
 
-	t.Run("no output and no status produces no clusters", func(t *testing.T) {
+	t.Run("no output and no status produces no groups", func(t *testing.T) {
 		vmGroups := []ssmVMGroup{
 			{
 				InstanceID: "i-ddd",
@@ -264,12 +264,12 @@ func TestClusterSSMRuns(t *testing.T) {
 				},
 			},
 		}
-		errors, successes := clusterSSMRuns(vmGroups, clusterDefaults())
+		errors, successes, _, _ := groupSSMRuns(vmGroups, groupingDefaults(), false)
 		require.Empty(t, errors)
 		require.Empty(t, successes)
 	})
 
-	t.Run("successful runs clustered separately", func(t *testing.T) {
+	t.Run("successful runs grouped separately", func(t *testing.T) {
 		vmGroups := []ssmVMGroup{
 			{
 				InstanceID: "i-eee",
@@ -278,9 +278,9 @@ func TestClusterSSMRuns(t *testing.T) {
 				},
 			},
 		}
-		errors, successes := clusterSSMRuns(vmGroups, clusterDefaults())
+		errors, successes, _, _ := groupSSMRuns(vmGroups, groupingDefaults(), false)
 		require.Empty(t, errors)
-		require.Len(t, successes, 1, "successful runs should be clustered")
+		require.Len(t, successes, 1, "successful runs should be grouped")
 		require.Equal(t, "i-eee", successes[0].Instances[0].InstanceID)
 	})
 
@@ -294,9 +294,9 @@ func TestClusterSSMRuns(t *testing.T) {
 				},
 			},
 		}
-		errors, successes := clusterSSMRuns(vmGroups, clusterDefaults())
-		require.Len(t, errors, 1, "one error cluster")
-		require.Len(t, successes, 1, "one success cluster")
+		errors, successes, _, _ := groupSSMRuns(vmGroups, groupingDefaults(), false)
+		require.Len(t, errors, 1, "one error group")
+		require.Len(t, successes, 1, "one success group")
 	})
 }
 
@@ -2061,4 +2061,165 @@ func TestDiscoveryJoinsUsesLsAndShowSubcommands(t *testing.T) {
 	selected, err = app.Parse([]string{"discovery", "join", "ls"})
 	require.NoError(t, err)
 	require.Equal(t, cmd.joinsListCmd.FullCommand(), selected)
+}
+
+func TestBuildSubcommand(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		buildFn  func(c *Command) string
+		cmd      Command
+		expected string
+	}{
+		{
+			name: "SSM runs with last, limit, group flags",
+			buildFn: func(c *Command) string {
+				return buildSSMRunsCommand(c, "ls", "")
+			},
+			cmd: Command{
+				ssmRunsLast:       "12h",
+				ssmRunsLimit:      500,
+				ssmRunsGroup:      true,
+				ssmRunsSimilarity: groupingDefaults().drainSimThreshold,
+			},
+			expected: "tctl discovery ssm-runs ls --last=12h --limit=500 --group",
+		},
+		{
+			name: "SSM runs with instance ID and show-all-runs",
+			buildFn: func(c *Command) string {
+				return buildSSMRunsCommand(c, "show", "i-1234567890abcdef0")
+			},
+			cmd: Command{
+				ssmRunsShowAll: true,
+			},
+			expected: "tctl discovery ssm-runs show i-1234567890abcdef0 --show-all-runs",
+		},
+		{
+			name: "Joins with last and hide-unknown",
+			buildFn: func(c *Command) string {
+				return buildJoinsCommand(c, "ls", "")
+			},
+			cmd: Command{
+				joinsLast:        "6h",
+				joinsHideUnknown: true,
+			},
+			expected: "tctl discovery joins ls --last=6h --hide-unknown",
+		},
+		{
+			name: "Joins with host ID requiring shell quoting",
+			buildFn: func(c *Command) string {
+				return buildJoinsCommand(c, "show", "host with spaces")
+			},
+			cmd:      Command{},
+			expected: "tctl discovery joins show 'host with spaces'",
+		},
+		{
+			name: "Inventory ls with state and method filters",
+			buildFn: func(c *Command) string {
+				return buildInventoryCommand(c, "ls", "")
+			},
+			cmd: Command{
+				inventoryLast:         "24h",
+				inventoryStateFilter:  "enrolled",
+				inventoryMethodFilter: "eice",
+				inventoryRange:        "10,20",
+			},
+			expected: "tctl discovery inventory ls --last=24h --state=enrolled --method=eice --range=10,20",
+		},
+		{
+			name: "Inventory show with host ID",
+			buildFn: func(c *Command) string {
+				return buildInventoryCommand(c, "show", "host-abc-123")
+			},
+			cmd: Command{
+				inventoryLast: "48h",
+			},
+			expected: "tctl discovery inventory show host-abc-123 --last=48h",
+		},
+		{
+			name: "SSM runs with all defaults (minimal output)",
+			buildFn: func(c *Command) string {
+				return buildSSMRunsCommand(c, "ls", "")
+			},
+			cmd:      Command{},
+			expected: "tctl discovery ssm-runs ls",
+		},
+		{
+			name: "Joins with all defaults (minimal output)",
+			buildFn: func(c *Command) string {
+				return buildJoinsCommand(c, "ls", "")
+			},
+			cmd:      Command{},
+			expected: "tctl discovery joins ls",
+		},
+		{
+			name: "Inventory with all defaults (minimal output)",
+			buildFn: func(c *Command) string {
+				return buildInventoryCommand(c, "ls", "")
+			},
+			cmd:      Command{},
+			expected: "tctl discovery inventory ls",
+		},
+		{
+			name: "SSM runs with custom similarity",
+			buildFn: func(c *Command) string {
+				return buildSSMRunsCommand(c, "ls", "")
+			},
+			cmd: Command{
+				ssmRunsGroup:      true,
+				ssmRunsSimilarity: 0.75,
+			},
+			expected: "tctl discovery ssm-runs ls --group --similarity=0.75",
+		},
+		{
+			name: "SSM runs range only without instance ID",
+			buildFn: func(c *Command) string {
+				return buildSSMRunsCommand(c, "ls", "")
+			},
+			cmd: Command{
+				ssmRunsRange: "10,20",
+			},
+			expected: "tctl discovery ssm-runs ls --range=10,20",
+		},
+		{
+			name: "SSM runs range suppressed with instance ID",
+			buildFn: func(c *Command) string {
+				return buildSSMRunsCommand(c, "show", "i-abc")
+			},
+			cmd: Command{
+				ssmRunsRange: "10,20",
+			},
+			expected: "tctl discovery ssm-runs show i-abc",
+		},
+		{
+			name: "Joins with from-utc and to-utc",
+			buildFn: func(c *Command) string {
+				return buildJoinsCommand(c, "ls", "")
+			},
+			cmd: Command{
+				joinsFromUTC: "2026-01-01T00:00:00Z",
+				joinsToUTC:   "2026-01-02T00:00:00Z",
+			},
+			expected: "tctl discovery joins ls --from-utc=2026-01-01T00:00:00Z --to-utc=2026-01-02T00:00:00Z",
+		},
+		{
+			name: "Inventory default limit not printed",
+			buildFn: func(c *Command) string {
+				return buildInventoryCommand(c, "ls", "")
+			},
+			cmd: Command{
+				inventoryLimit: defaultFetchLimit,
+			},
+			expected: "tctl discovery inventory ls",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := tt.buildFn(&tt.cmd)
+			require.Equal(t, tt.expected, got)
+		})
+	}
 }

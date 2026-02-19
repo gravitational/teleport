@@ -79,6 +79,11 @@ func forceColorEnabled() bool {
 	}
 }
 
+const (
+	minTableWidth = 72
+	maxTableWidth = 140
+)
+
 func preferredTableWidth(w io.Writer) int {
 	f, ok := w.(*os.File)
 	if !ok || !term.IsTerminal(int(f.Fd())) {
@@ -89,11 +94,11 @@ func preferredTableWidth(w io.Writer) int {
 		return 0
 	}
 	width = width - 2
-	if width < 72 {
+	if width < minTableWidth {
 		return 0
 	}
-	if width > 140 {
-		width = 140
+	if width > maxTableWidth {
+		width = maxTableWidth
 	}
 	return width
 }
