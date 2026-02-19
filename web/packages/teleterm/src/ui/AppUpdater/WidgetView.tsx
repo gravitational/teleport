@@ -149,7 +149,13 @@ export function WidgetView({
       downloadHost={downloadBaseUrl}
       onMore={onMore}
       primaryButton={
-        button ? { name: button.name, onClick: button.action } : undefined
+        button
+          ? {
+              name: button.name,
+              disabled: button.disabled,
+              onClick: button.action,
+            }
+          : undefined
       }
       {...rest}
     />
@@ -176,6 +182,7 @@ function AvailableUpdate({
   onMore(): void;
   primaryButton?: {
     name: string;
+    disabled?: boolean;
     onClick(): void;
   };
 } & SpaceProps) {
@@ -216,7 +223,11 @@ function AvailableUpdate({
         </Flex>
         <Flex gap={2}>
           {primaryButton && (
-            <ButtonPrimary size="small" onClick={primaryButton.onClick}>
+            <ButtonPrimary
+              size="small"
+              onClick={primaryButton.onClick}
+              disabled={primaryButton.disabled}
+            >
               {primaryButton.name}
             </ButtonPrimary>
           )}

@@ -94,19 +94,24 @@ export class NsisDualModeUpdater extends NsisUpdater {
     }
 
     try {
+      // Start the service and transfer the update binary synchronously
+      // to ensure that no errors are missed.
       this.spawnSync(this.tshPath, args, {
         [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
       });
     } catch (error) {
       const errorMessage = getErrorMessage(error);
-      if (errorMessage.includes('failed to ensure service running')) {
-        // Fallback to async UAC installer.
-        return this.doInstallPerScope(options, 'machine');
+      // If not a problem with starting the service do not close the app.
+      if (!errorMessage.includes('failed to ensure service running')) {
+        throw error;
       }
-      // Dispatch an error and do not close the app.
-      this.dispatchError(error);
-      return false;
+      // Otherwise, fallback to async UAC installer.
+      this.logger.warn(
+        'Failed to start privileged update service, falling back to regular installation'
+      );
+      return this.doInstallPerScope(options, 'machine');
     }
+    return true;
   }
 
   /**
@@ -214,6 +219,10 @@ export class NsisDualModeUpdater extends NsisUpdater {
         `Command ${cmd} exited with code ${status} and error ${stderr}`
       );
     }
-    this.logger.info(`Execution result: ${stdout}`);
+    this.logger.info(
+      [`Command exited successfully`, stdout ? `, output: ${stdout}` : '']
+        .filter(Boolean)
+        .join(' ')
+    );
   }
 }

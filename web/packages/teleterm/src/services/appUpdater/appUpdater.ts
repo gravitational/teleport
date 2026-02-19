@@ -600,7 +600,7 @@ export type AppUpdateEvent =
       autoUpdatesStatus: AutoUpdatesEnabled;
     }
   | {
-      /** The update installation has started install. */
+      /** The app is quitting to install the downloaded update. */
       kind: 'installing';
       /** Information about the update being installed. */
       update: UpdateInfo;
