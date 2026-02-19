@@ -102,6 +102,15 @@ export function ViewSessionRecordingRoute({
     );
   }
 
+  const recordingWithSummaryComponent = RecordingWithSummaryComponent ? (
+    <RecordingWithSummaryComponent
+      clusterId={clusterId}
+      sessionId={sid}
+      durationMs={durationMs}
+      recordingType={recordingType}
+    />
+  ) : null;
+
   if (RECORDING_TYPES_WITH_METADATA.includes(recordingType)) {
     // If the recording type is SSH, try to load the session metadata (ViewTerminalRecording)
     // and render the SSH player with the session metadata/summary.
@@ -118,20 +127,11 @@ export function ViewSessionRecordingRoute({
       />
     );
 
-    if (RecordingWithSummaryComponent) {
+    if (recordingWithSummaryComponent) {
       return (
         <Suspense fallback={<RecordingPlayerLoading />}>
           <ErrorBoundary fallback={player}>
-            <ErrorBoundary
-              fallback={
-                <RecordingWithSummaryComponent
-                  clusterId={clusterId}
-                  sessionId={sid}
-                  durationMs={durationMs}
-                  recordingType={recordingType}
-                />
-              }
-            >
+            <ErrorBoundary fallback={recordingWithSummaryComponent}>
               {recordingWithMetadataComponent}
             </ErrorBoundary>
           </ErrorBoundary>
@@ -148,16 +148,11 @@ export function ViewSessionRecordingRoute({
     );
   }
 
-  if (RecordingWithSummaryComponent) {
+  if (recordingWithSummaryComponent) {
     return (
       <Suspense fallback={<RecordingPlayerLoading />}>
         <ErrorBoundary fallback={player}>
-          <RecordingWithSummaryComponent
-            clusterId={clusterId}
-            sessionId={sid}
-            durationMs={durationMs}
-            recordingType={recordingType}
-          />
+          {recordingWithSummaryComponent}
         </ErrorBoundary>
       </Suspense>
     );
