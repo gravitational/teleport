@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.7.0-dev.tener.5"
+const Version = "18.7.0-dev.tener.6"
 
 const VersionMajor = 18
 const VersionMinor = 7
 const VersionPatch = 0
-const VersionPreRelease = "dev.tener.5"
+const VersionPreRelease = "dev.tener.6"
 const VersionMetadata = ""
