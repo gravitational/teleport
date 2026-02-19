@@ -48,6 +48,8 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 		cfg.Logger.WarnContext(ctx, "failed configuring cluster modules", "error", err)
 		tryLoadingFeaturesFromBackend = cfg.Auth.Enabled
 	}
+	// TODO(tross): instantiate enterprise modules and inject them directly
+	cfg.Modules = modules.GetModules()
 
 	webPlugin, authPlugin, err := addPlugins(cfg, license)
 	if err != nil {
