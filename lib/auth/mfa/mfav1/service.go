@@ -837,15 +837,3 @@ func isRemoteProxy(authContext authz.Context) bool {
 
 	return true
 }
-
-func isLocalProxy(authContext authz.Context) bool {
-	if _, ok := authContext.UnmappedIdentity.(authz.BuiltinRole); !ok {
-		return false
-	}
-
-	if !authContext.Checker.HasRole(string(types.RoleProxy)) {
-		return false
-	}
-
-	return true
-}
