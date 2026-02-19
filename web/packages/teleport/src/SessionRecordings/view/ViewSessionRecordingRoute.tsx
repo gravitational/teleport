@@ -110,6 +110,14 @@ export function ViewSessionRecordingRoute({
     // This is to ensure that the player can still be rendered even if the session metadata
     // cannot be fetched, allowing users to still view the recording.
 
+    const recordingWithMetadataComponent = (
+      <RecordingWithMetadataComponent
+        clusterId={clusterId}
+        recordingType={recordingType}
+        sessionId={sid}
+      />
+    );
+
     if (RecordingWithSummaryComponent) {
       return (
         <Suspense fallback={<RecordingPlayerLoading />}>
@@ -124,11 +132,7 @@ export function ViewSessionRecordingRoute({
                 />
               }
             >
-              <RecordingWithMetadataComponent
-                clusterId={clusterId}
-                recordingType={recordingType}
-                sessionId={sid}
-              />
+              {recordingWithMetadataComponent}
             </ErrorBoundary>
           </ErrorBoundary>
         </Suspense>
@@ -138,11 +142,7 @@ export function ViewSessionRecordingRoute({
     return (
       <Suspense fallback={<RecordingPlayerLoading />}>
         <ErrorBoundary fallback={player}>
-          <RecordingWithMetadataComponent
-            clusterId={clusterId}
-            recordingType={recordingType}
-            sessionId={sid}
-          />
+          {recordingWithMetadataComponent}
         </ErrorBoundary>
       </Suspense>
     );
