@@ -161,12 +161,20 @@ func (h *handler) Execute(ctx context.Context, _ []string) (err error) {
 	}
 
 	updatePath := filepath.Join(dir, "update.exe")
+	stopFn := context.AfterFunc(ctx, func() {
+		_ = conn.Close()
+	})
 	updateMeta, err := readUpdate(conn, updatePath)
-	if err != nil {
-		return trace.NewAggregate(err, conn.Close())
+	var closeErr error
+	// If the AfterFunc didn't trigger, close the connection explicitly.
+	if stopFn() {
+		closeErr = conn.Close()
 	}
-	if err = conn.Close(); err != nil {
+	if err != nil {
 		return trace.Wrap(err)
+	}
+	if closeErr != nil {
+		return trace.Wrap(closeErr)
 	}
 
 	if updaterConfig.Version != "" && updateMeta.Version != updaterConfig.Version {
@@ -492,6 +500,6 @@ func runInstaller(updatePath string, forceRun bool) error {
 		return trace.Wrap(err, "starting installer path=%s args=%q", updatePath, strings.Join(args, " "))
 	}
 
-	// Release the handle to the parent process can exit and the installer will continue.
+	// Release the handle so the parent process can exit and the installer will continue.
 	return trace.Wrap(cmd.Process.Release())
 }
