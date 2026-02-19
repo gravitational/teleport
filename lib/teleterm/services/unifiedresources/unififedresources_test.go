@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -37,7 +38,7 @@ func TestUnifiedResourcesList(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	cluster := &clusters.Cluster{URI: uri.NewClusterURI("foo"), ProfileName: "foo"}
+	cluster := &clusters.Cluster{URI: uri.NewClusterURI("foo"), ProfileName: "foo", Name: "foo"}
 
 	node, err := types.NewServer("testNode", types.KindNode, types.ServerSpecV2{})
 	require.NoError(t, err)
@@ -46,11 +47,16 @@ func TestUnifiedResourcesList(t *testing.T) {
 		Name: "testDb",
 	}, types.DatabaseServerSpecV3{
 		Hostname: "localhost",
-		HostID:   uuid.New().String(), Database: &types.DatabaseV3{
+		HostID:   uuid.New().String(),
+		Database: &types.DatabaseV3{
 			Spec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolPostgres, URI: "localhost:5432",
+				Protocol:  defaults.ProtocolPostgres,
+				URI:       "localhost:5432",
+				AdminUser: &types.DatabaseAdminUser{Name: "teleport-admin"},
 			},
-			Metadata: types.Metadata{Name: "testDb"}}})
+			Metadata: types.Metadata{Name: "testDb"},
+		},
+	})
 	require.NoError(t, err)
 
 	kube, err := types.NewKubernetesServerV3(types.Metadata{
@@ -140,8 +146,9 @@ func TestUnifiedResourcesList(t *testing.T) {
 	}}, response.Resources[0])
 
 	require.Equal(t, UnifiedResource{Database: &clusters.Database{
-		URI:      uri.NewClusterURI(cluster.ProfileName).AppendDB(database.GetName()),
-		Database: database.GetDatabase(),
+		URI:              uri.NewClusterURI(cluster.ProfileName).AppendDB(database.GetName()),
+		Database:         database.GetDatabase(),
+		AutoUsersEnabled: true,
 	}}, response.Resources[1])
 
 	require.Equal(t, UnifiedResource{Kube: &clusters.Kube{
@@ -178,6 +185,7 @@ func TestUnifiedResourcesList(t *testing.T) {
 }
 
 type mockClient struct {
+	authclient.ClientI
 	paginatedResources []*proto.PaginatedResource
 	nextKey            string
 }
@@ -187,4 +195,23 @@ func (m *mockClient) ListUnifiedResources(ctx context.Context, req *proto.ListUn
 		Resources: m.paginatedResources,
 		NextKey:   m.nextKey,
 	}, nil
+}
+
+func (m *mockClient) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) {
+	role, err := types.NewRole("auto-db-user", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+		},
+		Allow: types.RoleConditions{
+			DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []types.Role{role}, nil
+}
+
+func (m *mockClient) GetCurrentUser(ctx context.Context) (types.User, error) {
+	return types.NewUser("testUser")
 }

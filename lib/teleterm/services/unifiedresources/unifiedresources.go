@@ -27,6 +27,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
@@ -41,7 +42,7 @@ var supportedResourceKinds = []string{
 	types.KindMCP,
 }
 
-func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) (*ListResponse, error) {
+func List(ctx context.Context, cluster *clusters.Cluster, client authclient.ClientI, req *proto.ListUnifiedResourcesRequest) (*ListResponse, error) {
 	kinds := req.GetKinds()
 	if len(kinds) == 0 {
 		kinds = supportedResourceKinds
@@ -60,6 +61,10 @@ func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListU
 		return nil, trace.Wrap(err)
 	}
 
+	accessChecker, err := cluster.NewAccessChecker(ctx, client)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	response := &ListResponse{
 		NextKey: nextKey,
 	}
@@ -82,11 +87,16 @@ func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListU
 			})
 		case types.DatabaseServer:
 			db := r.GetDatabase()
+			autoUsersEnabled, err := cluster.GetDatabaseAutoUserInfo(accessChecker, db)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 			response.Resources = append(response.Resources, UnifiedResource{
 				Database: &clusters.Database{
-					URI:          cluster.URI.AppendDB(db.GetName()),
-					Database:     db,
-					TargetHealth: r.GetTargetHealth(),
+					URI:              cluster.URI.AppendDB(db.GetName()),
+					Database:         db,
+					TargetHealth:     r.GetTargetHealth(),
+					AutoUsersEnabled: autoUsersEnabled,
 				},
 				RequiresRequest: requiresRequest,
 			})

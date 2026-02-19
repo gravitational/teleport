@@ -59,17 +59,6 @@ func (s *Handler) ListUnifiedResources(ctx context.Context, req *api.ListUnified
 		return nil, trace.Wrap(err)
 	}
 
-	cluster, _, err := s.DaemonService.ResolveCluster(clusterURI.String())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	proxyClient, err := s.DaemonService.GetCachedClient(ctx, cluster.URI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	authClient := proxyClient.CurrentCluster()
-
 	response := api.ListUnifiedResourcesResponse{
 		Resources: []*api.PaginatedResource{}, NextKey: daemonResponse.NextKey,
 	}
@@ -86,7 +75,7 @@ func (s *Handler) ListUnifiedResources(ctx context.Context, req *api.ListUnified
 		if resource.Database != nil {
 			response.Resources = append(response.Resources, &api.PaginatedResource{
 				Resource: &api.PaginatedResource_Database{
-					Database: newAPIDatabase(ctx, *resource.Database, cluster, authClient),
+					Database: newAPIDatabase(*resource.Database),
 				},
 				RequiresRequest: resource.RequiresRequest,
 			})

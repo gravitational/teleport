@@ -47,6 +47,8 @@ type Database struct {
 	// TargetHealth describes the health status of network connectivity
 	// reported from an agent (db_service) that is proxying this database.
 	TargetHealth types.TargetHealth
+	// AutoUsersEnabled indicates if the database supports automatic user provisioning and the user's role allows it.
+	AutoUsersEnabled bool
 }
 
 // DatabaseServer (db_server) describes a database heartbeat signal
@@ -117,7 +119,7 @@ func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, authClient authcl
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, c.status.AccessInfo(), c.clusterClient.SiteName, authClient)
+	accessChecker, err := c.NewAccessChecker(ctx, authClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -135,24 +137,13 @@ func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, authClient authcl
 	return dbUsers.Allowed(), nil
 }
 
-// GetDatabaseAutoUserInfo returns whether auto-user provisioning is enabled for a database.
-// Auto-user provisioning is enabled when both the database resource supports it AND the user's
-// Teleport role allows it.
-func (c *Cluster) GetDatabaseAutoUserInfo(ctx context.Context, authClient authclient.ClientI, db Database) (bool, error) {
-	accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, c.status.AccessInfo(), c.clusterClient.SiteName, authClient)
+// GetDatabaseAutoUserInfo returns whether auto-user provisioning is enabled for a database
+func (c *Cluster) GetDatabaseAutoUserInfo(accessChecker services.AccessChecker, db types.Database) (bool, error) {
+	autoUser, err := accessChecker.DatabaseAutoUserMode(db)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-
-	autoUser, err := accessChecker.DatabaseAutoUserMode(db.Database)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	dbAutoUsersEnabled := db.IsAutoUsersEnabled()
-	autoUsersEnabled := dbAutoUsersEnabled && autoUser.IsEnabled()
-
-	return autoUsersEnabled, nil
+	return db.IsAutoUsersEnabled() && autoUser.IsEnabled(), nil
 }
 
 // ListDatabaseServers returns a paginated list of database servers (resource kind "db_server").

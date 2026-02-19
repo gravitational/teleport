@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/sso"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -82,7 +81,7 @@ func (c *Cluster) createDBGateway(ctx context.Context, params CreateGatewayParam
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, c.status.AccessInfo(), c.clusterClient.SiteName, params.ClusterClient.AuthClient)
+	accessChecker, err := c.NewAccessChecker(ctx, params.ClusterClient.AuthClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

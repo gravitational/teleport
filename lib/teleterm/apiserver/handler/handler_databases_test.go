@@ -44,35 +44,18 @@ func TestNewAPIDatabase_Fields(t *testing.T) {
 		require.NoError(t, err)
 
 		testDatabase := clusters.Database{
-			URI:      uri.NewClusterURI("test-cluster").AppendDB("test-db"),
-			Database: db,
+			URI:              uri.NewClusterURI("test-cluster").AppendDB("test-db"),
+			Database:         db,
+			AutoUsersEnabled: true,
 		}
 
-		require.Equal(t, "test-db", testDatabase.GetName())
-		require.Equal(t, "Test database", testDatabase.GetDescription())
-		require.Equal(t, "postgres", testDatabase.GetProtocol())
-		require.Equal(t, "localhost:5432", testDatabase.GetURI())
-	})
+		apiDB := newAPIDatabase(testDatabase)
 
-	t.Run("database with auto-user provisioning enabled", func(t *testing.T) {
-		db, err := types.NewDatabaseV3(types.Metadata{
-			Name: "auto-user-db",
-		}, types.DatabaseSpecV3{
-			Protocol: "postgres",
-			URI:      "localhost:5432",
-			AdminUser: &types.DatabaseAdminUser{
-				Name: "teleport-admin",
-			},
-		})
-		require.NoError(t, err)
-
-		testDatabase := clusters.Database{
-			URI:      uri.NewClusterURI("test-cluster").AppendDB("auto-user-db"),
-			Database: db,
-		}
-
-		require.True(t, testDatabase.IsAutoUsersEnabled())
-		require.NotNil(t, testDatabase.GetAdminUser())
-		require.Equal(t, "teleport-admin", testDatabase.GetAdminUser().Name)
+		require.Equal(t, "/clusters/test-cluster/dbs/test-db", apiDB.Uri)
+		require.Equal(t, "test-db", apiDB.Name)
+		require.Equal(t, "Test database", apiDB.Desc)
+		require.Equal(t, "postgres", apiDB.Protocol)
+		require.True(t, apiDB.AutoUsersEnabled)
+		require.NotNil(t, apiDB.Labels)
 	})
 }

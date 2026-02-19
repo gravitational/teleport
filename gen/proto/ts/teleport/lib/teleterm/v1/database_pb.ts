@@ -99,7 +99,7 @@ export interface Database {
      */
     gcpProjectId: string;
     /**
-     * auto_users_enabled indicates if the database supports automatic user provisioning
+     * auto_users_enabled indicates if the database supports automatic user provisioning and the user's role allows it.
      *
      * @generated from protobuf field: bool auto_users_enabled = 11;
      */

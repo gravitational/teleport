@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/trace"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/ui"
 )
@@ -72,15 +71,10 @@ func (s *Handler) ListDatabaseServers(ctx context.Context, req *api.ListDatabase
 	return response, nil
 }
 
-func newAPIDatabase(ctx context.Context, db clusters.Database, cluster *clusters.Cluster, authClient authclient.ClientI) *api.Database {
+func newAPIDatabase(db clusters.Database) *api.Database {
 	apiLabels := makeAPILabels(ui.MakeLabelsWithoutInternalPrefixes(db.GetAllLabels()))
 
 	gcpProjectID, _ := db.GetGCPProjectID()
-
-	autoUsersEnabled, err := cluster.GetDatabaseAutoUserInfo(ctx, authClient, db)
-	if err != nil {
-		log.DebugContext(ctx, "Failed to get auto-user info for database", "database", db.GetName(), "error", err)
-	}
 
 	return &api.Database{
 		Uri:      db.URI.String(),
@@ -95,7 +89,7 @@ func newAPIDatabase(ctx context.Context, db clusters.Database, cluster *clusters
 			Message: db.TargetHealth.Message,
 		},
 		GcpProjectId:     gcpProjectID,
-		AutoUsersEnabled: autoUsersEnabled,
+		AutoUsersEnabled: db.AutoUsersEnabled,
 	}
 }
 

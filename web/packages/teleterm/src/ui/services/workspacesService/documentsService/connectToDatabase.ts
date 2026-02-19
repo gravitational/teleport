@@ -67,7 +67,8 @@ export async function connectToDatabase(
 
 /**
  * Transforms the target username for database connections.
- * Handles protocol-specific transformations (Redis, GCP) and leaf cluster prefixes.
+ * For auto-provisioning on leaf clusters, uses the raw Teleport username with remote- prefix.
+ * For non-auto-provisioning, applies protocol-specific transformations (Redis, GCP).
  */
 function getTransformedTargetUser(
   ctx: IAppContext,
@@ -76,36 +77,28 @@ function getTransformedTargetUser(
     protocol: string;
     dbUser: string;
     gcpProjectId?: string;
+    autoUsersEnabled?: boolean;
   }
 ): string {
-  // Get base username with protocol-specific transformations (Redis, GCP)
-  let targetUser = getTargetUser(
-    target.protocol as GatewayProtocol,
-    target.dbUser,
-    target.gcpProjectId
-  );
+  let targetUser = '';
+  const isLeafCluster = routing.isLeafCluster(target.uri);
 
-  const parsedUri = routing.parseDbUri(target.uri);
-  const isLeafCluster = !!parsedUri?.params?.leafClusterId;
-
-  if (isLeafCluster) {
+  if (isLeafCluster && target.autoUsersEnabled) {
     const rootCluster = ctx.clustersService.findRootClusterByResource(
       target.uri
     );
-    if (rootCluster) {
-      // Check if already in the transformed format: remote-<username>-<rootClusterName>
-      // This prevents double-transformation and handles edge cases where the actual
-      // DB username starts with "remote-" (e.g., "remote-operator")
-      const expectedSuffix = `-${rootCluster.name}`;
-      const alreadyTransformed =
-        targetUser.startsWith('remote-') && targetUser.endsWith(expectedSuffix);
-
-      if (!alreadyTransformed) {
-        targetUser = `remote-${targetUser}-${rootCluster.name}`;
-      }
+    if (!rootCluster) {
+      throw new Error('Root cluster not found');
     }
+    targetUser = `remote-${target.dbUser}-${rootCluster.name}`;
+  } else {
+    // Get base username with protocol-specific transformations (Redis, GCP)
+    targetUser = getTargetUser(
+      target.protocol as GatewayProtocol,
+      target.dbUser,
+      target.gcpProjectId
+    );
   }
-
   return targetUser;
 }
 

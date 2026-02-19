@@ -55,7 +55,7 @@ describe('connectToDatabase', () => {
     });
   });
 
-  test('transforms username with remote- prefix for leaf cluster databases', async () => {
+  test('transforms username with remote- prefix for leaf cluster databases with auto-provisioning', async () => {
     const appContext = new MockAppContext();
     const rootCluster = makeRootCluster({
       uri: '/clusters/root' as const,
@@ -74,6 +74,7 @@ describe('connectToDatabase', () => {
         name: leafDatabase.name,
         protocol: 'postgres',
         dbUser: 'alice',
+        autoUsersEnabled: true,
       },
       { origin: 'resource_table' }
     );
@@ -84,7 +85,7 @@ describe('connectToDatabase', () => {
     expect(documents[0].targetUser).toBe('remote-alice-root');
   });
 
-  test('does not double-transform if already in correct format', async () => {
+  test('does not transform username for leaf cluster databases without auto-provisioning', async () => {
     const appContext = new MockAppContext();
     const rootCluster = makeRootCluster({
       uri: '/clusters/root' as const,
@@ -102,7 +103,8 @@ describe('connectToDatabase', () => {
         uri: leafDatabase.uri,
         name: leafDatabase.name,
         protocol: 'postgres',
-        dbUser: 'remote-alice-root',
+        dbUser: 'alice',
+        autoUsersEnabled: false,
       },
       { origin: 'resource_table' }
     );
@@ -110,7 +112,60 @@ describe('connectToDatabase', () => {
     const documents = appContext.workspacesService
       .getActiveWorkspaceDocumentService()
       .getGatewayDocuments();
+    expect(documents[0].targetUser).toBe('alice');
+  });
 
+  test('applies Redis default username transformation for non-auto-provisioning', async () => {
+    const appContext = new MockAppContext();
+    setTestCluster(appContext);
+    const database = makeDatabase({ protocol: 'redis' });
+
+    await connectToDatabase(
+      appContext,
+      {
+        uri: database.uri,
+        name: database.name,
+        protocol: 'redis',
+        dbUser: '',
+        autoUsersEnabled: false,
+      },
+      { origin: 'resource_table' }
+    );
+
+    const documents = appContext.workspacesService
+      .getActiveWorkspaceDocumentService()
+      .getGatewayDocuments();
+    expect(documents[0].targetUser).toBe('default');
+  });
+
+  test('does not apply Redis default username transformation for auto-provisioning', async () => {
+    const appContext = new MockAppContext();
+    const rootCluster = makeRootCluster({
+      uri: '/clusters/root' as const,
+      name: 'root',
+    });
+    setTestCluster(appContext, rootCluster);
+
+    const leafDatabase = makeDatabase({
+      uri: '/clusters/root/leaves/leaf/dbs/redis' as const,
+      protocol: 'redis',
+    });
+
+    await connectToDatabase(
+      appContext,
+      {
+        uri: leafDatabase.uri,
+        name: leafDatabase.name,
+        protocol: 'redis',
+        dbUser: 'alice',
+        autoUsersEnabled: true,
+      },
+      { origin: 'resource_table' }
+    );
+
+    const documents = appContext.workspacesService
+      .getActiveWorkspaceDocumentService()
+      .getGatewayDocuments();
     expect(documents[0].targetUser).toBe('remote-alice-root');
   });
 });

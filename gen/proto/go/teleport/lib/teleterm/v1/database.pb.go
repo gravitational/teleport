@@ -61,7 +61,7 @@ type Database struct {
 	TargetHealth *TargetHealth `protobuf:"bytes,9,opt,name=target_health,json=targetHealth,proto3" json:"target_health,omitempty"`
 	// gcp_project_id is optional project ID set for GCP Project databases.
 	GcpProjectId string `protobuf:"bytes,10,opt,name=gcp_project_id,json=gcpProjectId,proto3" json:"gcp_project_id,omitempty"`
-	// auto_users_enabled indicates if the database supports automatic user provisioning
+	// auto_users_enabled indicates if the database supports automatic user provisioning and the user's role allows it.
 	AutoUsersEnabled bool `protobuf:"varint,11,opt,name=auto_users_enabled,json=autoUsersEnabled,proto3" json:"auto_users_enabled,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
