@@ -91,6 +91,7 @@ const config = defineConfig(env => {
       },
     },
     renderer: {
+      assetsInclude: ['**/shared/libs/ironrdp/**/*.wasm'],
       root: '.',
       build: {
         outDir: path.resolve(outputDirectory, 'renderer'),
