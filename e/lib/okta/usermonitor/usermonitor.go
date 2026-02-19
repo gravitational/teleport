@@ -28,6 +28,8 @@ const (
 
 	// userMonitorReconcile is when to reconcile all user login states in Teleport.
 	userMonitorReconcile = 10 * time.Minute
+	// userMonitorLockTTL is the TTL for the user monitor lock.
+	userMonitorLockTTL = 3 * time.Minute
 )
 
 // Config is the configuration for the user monitor.
@@ -48,6 +50,10 @@ type Config struct {
 	Events types.Events
 	// Backend is the backend used for locking to ensure only one user monitor
 	Backend backend.Backend
+	// ReconcileInterval is the interval for the periodic reconciliation of user states.
+	ReconcileInterval time.Duration
+	// LockTTL is the TTL for the user monitor lock.
+	LockTTL time.Duration
 }
 
 func (u *Config) CheckAndSetDefaults() error {
@@ -69,6 +75,12 @@ func (u *Config) CheckAndSetDefaults() error {
 
 	if u.Backend == nil {
 		return trace.BadParameter("backend is missing")
+	}
+	if u.ReconcileInterval == 0 {
+		u.ReconcileInterval = userMonitorReconcile
+	}
+	if u.LockTTL == 0 {
+		u.LockTTL = userMonitorLockTTL
 	}
 
 	return nil
@@ -96,6 +108,9 @@ type UserMonitor struct {
 	lockToTargetMu sync.Mutex
 	lockToTarget   map[string]types.LockTarget
 	backend        backend.Backend
+
+	reconcileInterval time.Duration
+	lockTTL           time.Duration
 }
 
 func New(cfg Config) (*UserMonitor, error) {
@@ -104,12 +119,14 @@ func New(cfg Config) (*UserMonitor, error) {
 	}
 
 	u := &UserMonitor{
-		logger:       cfg.Logger,
-		clock:        cfg.Clock,
-		authServer:   cfg.AuthServer,
-		events:       cfg.Events,
-		lockToTarget: map[string]types.LockTarget{},
-		backend:      cfg.Backend,
+		logger:            cfg.Logger,
+		clock:             cfg.Clock,
+		authServer:        cfg.AuthServer,
+		events:            cfg.Events,
+		lockToTarget:      map[string]types.LockTarget{},
+		backend:           cfg.Backend,
+		reconcileInterval: cfg.ReconcileInterval,
+		lockTTL:           cfg.LockTTL,
 	}
 
 	return u, nil
@@ -124,7 +141,7 @@ func (u *UserMonitor) run(ctx context.Context) {
 		LockConfiguration: backend.LockConfiguration{
 			Backend:            u.backend,
 			LockNameComponents: []string{"auth", "user-monitor"},
-			TTL:                time.Minute * 3,
+			TTL:                u.lockTTL,
 			RetryInterval:      time.Minute,
 		},
 		RefreshLockInterval: time.Minute,
@@ -165,7 +182,7 @@ func (u *UserMonitor) run(ctx context.Context) {
 // reconciler will periodically reconcile user states.
 func (u *UserMonitor) reconciler(ctx context.Context) {
 	interval := interval.New(interval.Config{
-		Duration:      userMonitorReconcile,
+		Duration:      u.reconcileInterval,
 		FirstDuration: time.Second,
 		Clock:         u.clock,
 		Jitter:        retryutils.SeventhJitter,

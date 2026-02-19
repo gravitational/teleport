@@ -116,10 +116,13 @@ func Okta(ctx context.Context, plugin *types.PluginV1, deps Dependencies) (Deleg
 		// have async mechanism for syncing user changed RBAC checks made in
 		// Teleport to Okta without requiring a user to re-login.
 		userMonitor, err := oktausermonitor.New(oktausermonitor.Config{
-			Logger:     deps.Logger,
-			AuthServer: deps.ParentProcess.GetAuthServer(),
-			Events:     deps.ParentProcess.GetAuthServer(),
-			Backend:    deps.ParentProcess.GetBackend(),
+			Logger:            deps.Logger,
+			Clock:             deps.ParentProcess.Clock,
+			AuthServer:        deps.ParentProcess.GetAuthServer(),
+			Events:            deps.ParentProcess.GetAuthServer(),
+			Backend:           deps.ParentProcess.GetBackend(),
+			ReconcileInterval: deps.ParentProcess.Config.UserMonitor.ReconcileInterval,
+			LockTTL:           deps.ParentProcess.Config.UserMonitor.LockTTL,
 		})
 		if err != nil {
 			return trace.Wrap(err)
