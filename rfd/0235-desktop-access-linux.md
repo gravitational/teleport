@@ -120,9 +120,9 @@ context propagation.
 
 ### Authentication
 
-New fields `linux_desktop_logins` and `linux_desktop_labels` will be added to the role resource to support RBAC. They
-will
-function the same way `windows_desktop_logins` and `windows_desktop_labels` work for Windows desktops. Logins will be
+New fields `linux_desktop_logins`, `linux_desktop_labels`, and `linux_desktop_labels_expression` will be added to 
+the role resource to support RBAC. They will function the same way `windows_desktop_logins`, 
+`windows_desktop_labels`, and `windows_desktop_labels_expression` work for Windows desktops. Logins will be
 populated from leaf clusters using the same mechanism that Windows desktops use.
 
 On connection, Linux Desktop Service will verify the user using an mTLS certificate. No other authentication is
