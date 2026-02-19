@@ -50,7 +50,7 @@ func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
 			slog.DebugContext(ctx, "Skipping invalid DNS server address", "address_bytes", entry.Address)
 			continue
 		}
-		if addr.IsUnspecified() {
+		if addr.IsUnspecified() || addr.IsLoopback() {
 			continue
 		}
 		nameservers = append(nameservers, WithDNSPort(addr))
