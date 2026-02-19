@@ -192,6 +192,8 @@ type filteredUpstreamSource struct {
 	exclude map[string]struct{}
 }
 
+// filteredUpstreamSource wraps an upstream source and excludes addresses added via AddExclude.
+// It is mainly used to filter VNet's own DNS addresses.
 func newFilteredUpstreamSource(base dns.UpstreamNameserverSource) *filteredUpstreamSource {
 	return &filteredUpstreamSource{
 		base:    base,
@@ -213,9 +215,11 @@ func (f *filteredUpstreamSource) UpstreamNameservers(ctx context.Context) ([]str
 	if err != nil {
 		return nil, err
 	}
+	slog.DebugContext(ctx, "Loaded upstream nameservers (pre-filter)", "nameservers", nameservers)
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	if len(f.exclude) == 0 {
+		slog.DebugContext(ctx, "Loaded upstream nameservers (post-filter)", "nameservers", nameservers)
 		return nameservers, nil
 	}
 	filtered := nameservers[:0]
@@ -225,6 +229,7 @@ func (f *filteredUpstreamSource) UpstreamNameservers(ctx context.Context) ([]str
 		}
 		filtered = append(filtered, nameserver)
 	}
+	slog.DebugContext(ctx, "Loaded upstream nameservers (post-filter)", "nameservers", filtered)
 	return filtered, nil
 }
 
