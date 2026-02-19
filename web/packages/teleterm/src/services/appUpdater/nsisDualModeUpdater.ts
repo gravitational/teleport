@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { spawnSync } from 'child_process';
 import path from 'node:path';
 
 import { shell } from 'electron';
@@ -69,7 +70,12 @@ export class NsisDualModeUpdater extends NsisUpdater {
       return this.doInstallPerScope(options, 'machine');
     }
 
-    // Run the privileged updater.
+    return this.doInstallPerMachineWithPrivilegedService(options);
+  }
+
+  private doInstallPerMachineWithPrivilegedService(
+    options: InstallOptions
+  ): boolean {
     if (!this.installerPath) {
       this.dispatchError(
         new Error("No update filepath provided, can't quit and install")
@@ -86,15 +92,21 @@ export class NsisDualModeUpdater extends NsisUpdater {
     if (options.isForceRunAfter) {
       args.push('--force-run');
     }
-    this.spawnLog(this.tshPath, args, {
-      [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
-    }).catch(error => {
-      this.logger.error(
-        `Cannot run tsh.exe to schedule installation via the privileged updater service: ${getErrorMessage(error)}`
-      );
+
+    try {
+      this.spawnSync(this.tshPath, args, {
+        [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
+      });
+    } catch (error) {
+      const errorMessage = getErrorMessage(error);
+      if (errorMessage.includes('failed to ensure service running')) {
+        // Fallback to async UAC installer.
+        return this.doInstallPerScope(options, 'machine');
+      }
+      // Dispatch an error and do not close the app.
       this.dispatchError(error);
-    });
-    return true;
+      return false;
+    }
   }
 
   /**
@@ -183,5 +195,25 @@ export class NsisDualModeUpdater extends NsisUpdater {
       }
     });
     return true;
+  }
+
+  protected spawnSync(cmd: string, args: string[] = [], env = {}): void {
+    this.logger.info(`Executing: ${cmd} with args: ${args}`);
+    const response = spawnSync(cmd, args, {
+      env: env,
+      encoding: 'utf-8',
+    });
+
+    const { error, status, stdout, stderr } = response;
+    if (error != null) {
+      this.logger.error(stderr);
+      throw error;
+    } else if (status != null && status !== 0) {
+      this.logger.error(stderr);
+      throw new Error(
+        `Command ${cmd} exited with code ${status} and error ${stderr}`
+      );
+    }
+    this.logger.info(`Execution result: ${stdout}`);
   }
 }

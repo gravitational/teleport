@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { EventEmitter } from 'node:events';
 import { rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -62,6 +63,9 @@ import {
 
 export class AppUpdater {
   private readonly logger = new Logger('AppUpdater');
+  private readonly customEventsEmitter = new EventEmitter<{
+    installing: void[];
+  }>();
   private readonly unregisterEventHandlers: () => void;
   private autoUpdatesStatus: AutoUpdatesStatus | undefined;
   private updateCheckResult: UpdateCheckResult | undefined;
@@ -157,6 +161,7 @@ export class AppUpdater {
 
     this.unregisterEventHandlers = registerEventHandlers(
       this.nativeUpdater,
+      this.customEventsEmitter,
       this.emit,
       () => this.autoUpdatesStatus,
       () => this.shouldAutoDownload(),
@@ -352,6 +357,7 @@ export class AppUpdater {
    * It should only be called after update-downloaded has been emitted.
    */
   quitAndInstall(): void {
+    this.customEventsEmitter.emit('installing');
     try {
       this.nativeUpdater.quitAndInstall();
     } catch (error) {
@@ -447,6 +453,7 @@ export interface AppUpdaterStorage<
 
 function registerEventHandlers(
   nativeUpdater: NativeUpdater,
+  customEventsEmitter: EventEmitter<{ installing: undefined }>,
   emit: (event: AppUpdateEvent) => void,
   getAutoUpdatesStatus: () => AutoUpdatesStatus,
   getAutoDownload: () => boolean,
@@ -505,6 +512,12 @@ function registerEventHandlers(
       update: updateInfo,
       autoUpdatesStatus: getAutoUpdatesStatus() as AutoUpdatesEnabled,
     });
+  const onInstalling = () =>
+    emit({
+      kind: 'installing',
+      update: updateInfo,
+      autoUpdatesStatus: getAutoUpdatesStatus() as AutoUpdatesEnabled,
+    });
 
   nativeUpdater.on('checking-for-update', onCheckingForUpdate);
   nativeUpdater.on('update-available', onUpdateAvailable);
@@ -512,6 +525,7 @@ function registerEventHandlers(
   nativeUpdater.on('error', onError);
   nativeUpdater.on('download-progress', onDownloadProgress);
   nativeUpdater.on('update-downloaded', onUpdateDownloaded);
+  customEventsEmitter.on('installing', onInstalling);
 
   return () => {
     nativeUpdater.off('checking-for-update', onCheckingForUpdate);
@@ -520,6 +534,7 @@ function registerEventHandlers(
     nativeUpdater.off('error', onError);
     nativeUpdater.off('download-progress', onDownloadProgress);
     nativeUpdater.off('update-downloaded', onUpdateDownloaded);
+    customEventsEmitter.off('installing', onInstalling);
   };
 }
 
@@ -580,6 +595,14 @@ export type AppUpdateEvent =
       /** The update has been successfully downloaded. */
       kind: 'update-downloaded';
       /** Information about the downloaded update. */
+      update: UpdateInfo;
+      /** Status of enabled auto updates. */
+      autoUpdatesStatus: AutoUpdatesEnabled;
+    }
+  | {
+      /** The update installation has started install. */
+      kind: 'installing';
+      /** Information about the update being installed. */
       update: UpdateInfo;
       /** Status of enabled auto updates. */
       autoUpdatesStatus: AutoUpdatesEnabled;

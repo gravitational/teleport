@@ -278,7 +278,8 @@ function makeUpdaterContent({
   description: string;
   button?: {
     name: string;
-    action(): void;
+    disabled?: boolean;
+    action?(): void;
   };
 } {
   switch (updateEvent.kind) {
@@ -306,6 +307,14 @@ function makeUpdaterContent({
         button: {
           name: 'Restart',
           action: onInstall,
+        },
+      };
+    case 'installing':
+      return {
+        description: 'Ready to install',
+        button: {
+          name: 'Restarting…',
+          disabled: true,
         },
       };
     case 'error':
