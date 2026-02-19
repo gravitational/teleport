@@ -35,7 +35,6 @@ import {
 } from 'teleport/services/recordings/hooks';
 import {
   RECORDING_TYPES_WITH_METADATA,
-  RECORDING_TYPES_WITH_SUMMARIES,
   VALID_RECORDING_TYPES,
 } from 'teleport/services/recordings/recordings';
 import type { RecordingWithSummaryProps } from 'teleport/SessionRecordings/view/RecordingWithSummary';
