@@ -93,6 +93,29 @@ export AWS_SSO_PROFILE=tc-stage-ro
 
 ## Usage
 
+### Teleport Version caveats
+
+To bump the Teleport version of an existing tenant using a local build, edit the `VERSION` variable in the `Makefile`, and running `make version` prior to making a build.
+Note: a tenant must have already been deployed, see the `create-cloud` section.
+
+However, `VERSION` is not used with `create-cloud` or `deploy-cloud` when deploying any of the published releases.
+For that, `RELEASE` (e.g., `RELEASE=18.7.0`) is used and the version is determined by the `RELEASE` value provided.
+
+#### Version compatibility
+Teleport does not allow major version downgrade.
+If you deploy `vN`, you will not be able to deploy `vN-1`.
+
+This also applies to `master`: after deploying from `master` (eg `v19.0.0-dev`) you will not be able to go back to a production release in that tenant.
+
+#### CDN assets (install and set up scripts)
+
+Some features, like integration set up scripts and server discovery, rely on CDN assets.
+The URL for those assets will be based on the cluster version.
+
+If you use `master`, you will not be able to use those scripts (ie, the CDN server does not have non-release artifacts).
+
+In this case, you have to change the teleport version to a production release (ideally, the latest) so that you can access those artifacts.
+
 ### `deploy-cloud-login`
 
 Checks for valid logins and required permissions on platform.teleport.sh teleport cluster, staging kubernetes cluster and AWS ECR (Elastic Container Registry). Interactive steps are invoked only when an existing session is not found. No flags are required with this target.
@@ -130,16 +153,16 @@ Specify a region to have the auth pods created outside of the default (us-west-2
 make TENANT=yourtenant REGION=us-east-1 create-cloud
 ```
 
-This make target will build the `teleport` binary and copy it into an base release image. The tag for the base image is derived from `version.go`. If you've branched from `master` and no base image is available yet for a new major version, override by providing `BASE_IMAGE_TAG`. The default docker repo is `public.ecr.aws/teleport-ent` (override with `BASE_IMAGE_REPO`).
-
-```
-make TENANT=yourtenant BASE_IMAGE_TAG=10.1.4 create-cloud
-```
-
 Creates new tenant with the provided release. The default docker repo is `public.ecr.aws/teleport-ent` (override with `BASE_IMAGE_REPO`).
 
 ```
 make TENANT=yourtenant RELEASE=14.0.0 create-cloud
+```
+
+This make target will copy the `teleport` binary in `build/teleport` into a base release image. The tag for the base image is derived from `version.go`. If you've branched from `master` and no base image is available yet for a new major version, override by providing `BASE_IMAGE_TAG`. The default docker repo is `public.ecr.aws/teleport-ent` (override with `BASE_IMAGE_REPO`).
+
+```
+make TENANT=yourtenant BASE_IMAGE_TAG=10.1.4 create-cloud
 ```
 
 Uses the staging repo for non-prod releases by overriding `BASE_IMAGE_REPO`.
