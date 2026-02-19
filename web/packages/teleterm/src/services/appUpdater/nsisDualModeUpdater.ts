@@ -23,6 +23,8 @@ import { NsisUpdater } from 'electron-updater';
 import { DownloadUpdateOptions } from 'electron-updater/out/AppUpdater';
 import { InstallOptions } from 'electron-updater/out/BaseUpdater';
 
+import { getErrorMessage } from 'shared/utils/error';
+
 import {
   TSH_AUTOUPDATE_ENV_VAR,
   TSH_AUTOUPDATE_OFF,
@@ -84,8 +86,13 @@ export class NsisDualModeUpdater extends NsisUpdater {
     if (options.isForceRunAfter) {
       args.push('--force-run');
     }
-    void this.spawnLog(this.tshPath, args, {
+    this.spawnLog(this.tshPath, args, {
       [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
+    }).catch(error => {
+      this.logger.error(
+        `Cannot run tsh.exe to schedule installation via the privileged updater service: ${getErrorMessage(error)}`
+      );
+      this.dispatchError(error);
     });
     return true;
   }
