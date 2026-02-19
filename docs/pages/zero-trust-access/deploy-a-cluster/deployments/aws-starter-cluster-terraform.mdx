@@ -226,6 +226,29 @@ the example `awscli` commands below. The output is in JSON format by default.
   ```
 </Admonition>
 
+The image names all include the build timestamp (shown as `$TIMESTAMP` in the
+table below), and are tagged for easier searching.
+
+| Image name | Edition | Architecture | FIPS support | AMI Tags |
+| - | - | - | - | - |
+| `teleport-oss-(=teleport.version=)-x86_64-$TIMESTAMP` | OSS | amd64 | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: oss`, `TeleportFipsEnabled: false` |
+| `teleport-oss-(=teleport.version=)-arm64-$TIMESTAMP` | OSS | arm64 | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: oss`, `TeleportFipsEnabled: false` |
+| `teleport-ent-(=teleport.version=)-x86_64-$TIMESTAMP` | Enterprise | amd64 | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: false` |
+| `teleport-ent-(=teleport.version=)-arm64-$TIMESTAMP` | Enterprise | arm64 | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: false` |
+| `teleport-ent-(=teleport.version=)-x86_64-fips-$TIMESTAMP` | Enterprise | amd64 | Yes | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: true` |
+| `teleport-ent-(=teleport.version=)-arm64-fips-$TIMESTAMP` | Enterprise | arm64 | Yes | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: true` |
+
+All images are based on Amazon Linux 2023 and have been hardened using the
+Amazon EC2 ImageBuilder [STIG](https://public.cyber.mil/stigs/) hardening
+component. Teleport AMIs are automatically published to all [non-opt-in AWS
+regions](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html#concepts-available-regions).
+
+To use these AMIs outside of the reference Terraform, you can configure the
+Teleport installation by setting configuration variables in the
+`/etc/teleport.d/conf` file on the EC2 instance. See the [Starter Cluster
+Configuration Template](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/aws/terraform/starter-cluster/data.tpl)
+for a list of the available configuration options.
+
 ### key_name
 
 ```code
@@ -744,15 +767,15 @@ The `systemd` service name is different between Let's Encrypt (`teleport.service
 The easiest way to quickly join new resources to your cluster is to use the "Enroll New Resource" wizards in the Teleport web UI.
 
 Customers run many workloads within AWS and depending on how you work, there are many manual
-ways to integrate Teleport onto your servers. We recommend looking at our [Installation guide](../../../installation/installation.mdx).
+ways to integrate Teleport onto your servers. We recommend looking at our [Installation guide](../../../installation/single-machine/single-machine.mdx).
 
 To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 
-- [Install the Teleport binary on the Server](../../../installation/installation.mdx)
+- [Install the Teleport binary on the Server](../../../installation/single-machine/single-machine.mdx)
 - [Run Teleport - we recommend using systemd](../../../reference/cli/teleport.mdx#teleport-install-systemd)
 - [Set the correct settings in /etc/teleport.yaml](../../../reference/deployment/config.mdx)
 - [Add Nodes to the Teleport
-  cluster](../../../enroll-resources/agents/agents.mdx)
+  cluster](../../../installation/agents/agents.mdx)
 
 ## Troubleshooting
 
