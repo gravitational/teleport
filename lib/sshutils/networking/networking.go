@@ -39,13 +39,11 @@ import (
 	"log/slog"
 	"net"
 	"os"
-	"os/exec"
-	"sync/atomic"
-	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils/uds"
 )
@@ -58,13 +56,9 @@ const RequestBufferSize = 1024
 // Process represents an instance of a networking process.
 type Process struct {
 	// cmd is the running process command.
-	cmd *exec.Cmd
+	cmd *reexec.Command
 	// conn is the socket used to request a dialer or listener in the process.
 	conn *net.UnixConn
-	// done signals when the process completes.
-	done chan struct{}
-	// killed is set to true when the process was killed forcibly.
-	killed atomic.Bool
 }
 
 // Request is a networking request.
@@ -107,7 +101,7 @@ type X11Request struct {
 
 // NewProcess starts a new networking process with the given command, which should
 // be pre-configured from a ssh server context with Teleport reexec settings.
-func NewProcess(ctx context.Context, cmd *exec.Cmd) (*Process, error) {
+func NewProcess(ctx context.Context, cmd *reexec.Command) (*Process, error) {
 	// Create the socket to communicate over.
 	remoteConn, localConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
 	if err != nil {
@@ -119,63 +113,24 @@ func NewProcess(ctx context.Context, cmd *exec.Cmd) (*Process, error) {
 		localConn.Close()
 		return nil, trace.Wrap(err)
 	}
-	defer remoteFD.Close()
-	cmd.ExtraFiles = append(cmd.ExtraFiles, remoteFD)
+	cmd.AddChildPipe(remoteFD)
 
 	proc := &Process{
 		cmd:  cmd,
 		conn: localConn,
-		done: make(chan struct{}),
 	}
 
-	if err := proc.start(ctx); err != nil {
+	if err := proc.cmd.Start(localConn); err != nil {
+		localConn.Close()
 		return nil, trace.Wrap(err)
 	}
 
 	return proc, nil
 }
 
-// start the the networking process.
-func (p *Process) start(ctx context.Context) error {
-	if err := p.cmd.Start(); err != nil {
-		p.conn.Close()
-		return trace.Wrap(err)
-	}
-
-	go func() {
-		defer close(p.done)
-		defer p.conn.Close()
-		// Ensure unexpected cmd failures get logged.
-		if err := p.cmd.Wait(); err != nil && !p.killed.Load() {
-			slog.WarnContext(ctx, "Networking process exited early with unexpected error.", "error", err)
-		}
-	}()
-
-	return nil
-}
-
 // Close stops the process and frees up its related resources.
 func (p *Process) Close() error {
-	p.conn.Close()
-	select {
-	case <-p.done:
-		return nil
-	case <-time.After(5 * time.Second):
-		slog.WarnContext(context.Background(), "Killing networking subprocess.")
-
-		// Kill the process and wait for it to successfully terminate.
-		p.killed.Store(true)
-		p.cmd.Process.Kill()
-		select {
-		case <-p.done:
-		case <-time.After(5 * time.Second):
-			// Wait for the kill signal to result in the termination of process, otherwise tests
-			// that create a temporary user may fail to delete the user at the end of the test
-			// while the kill signal is propagating.
-			slog.WarnContext(context.Background(), "Networking subprocess still running after kill signal.")
-		}
-	}
-	return nil
+	return trace.Wrap(p.cmd.Close())
 }
 
 // Dial requests a network connection from the networking subprocess.
@@ -269,7 +224,7 @@ func (p *Process) sendRequest(ctx context.Context, req Request) (*os.File, error
 		defer requestConn.Close()
 		select {
 		case <-ctx.Done():
-		case <-p.done:
+		case <-p.cmd.Done():
 		}
 	}()
 
@@ -302,7 +257,7 @@ func readResponse(conn *net.UnixConn) (*os.File, error) {
 		if n > 0 {
 			// The networking process only ever writes to the request conn if an error occurs.
 			// Read the rest of the connection to ensure we don't return just a partial stream.
-			errMsg, err := io.ReadAll(io.LimitReader(conn, int64(cap(buf)-len(buf))))
+			errMsg, err := io.ReadAll(conn)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

@@ -669,84 +669,167 @@ func TestStopUnstarted(t *testing.T) {
 func TestParties(t *testing.T) {
 	t.Parallel()
 
-	srv := newMockServer(t)
-	srv.component = teleport.ComponentNode
+	newRegistry := func(t *testing.T) (*SessionRegistry, *clockwork.FakeClock) {
+		t.Helper()
 
-	// Use a separate clock from srv so we can use BlockUntil.
-	regClock := clockwork.NewFakeClock()
-	reg, err := NewSessionRegistry(SessionRegistryConfig{
-		Srv:                   srv,
-		SessionTrackerService: srv.auth,
-		clock:                 regClock,
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { reg.Close() })
+		srv := newMockServer(t)
+		srv.component = teleport.ComponentNode
 
-	// Create a session with 3 parties
-	sess, _ := testOpenSession(t, reg, nil, &decisionpb.SSHAccessPermit{})
-	require.Len(t, sess.getParties(), 1)
-	testJoinSession(t, reg, sess.ID())
-	require.Len(t, sess.getParties(), 2)
-	testJoinSession(t, reg, sess.ID())
-	require.Len(t, sess.getParties(), 3)
+		// Use a separate clock from srv so we can use BlockUntil.
+		regClock := clockwork.NewFakeClock()
+		reg, err := NewSessionRegistry(SessionRegistryConfig{
+			Srv:                   srv,
+			SessionTrackerService: srv.auth,
+			clock:                 regClock,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { reg.Close() })
 
-	// If a party leaves, the session should remove the party and continue.
-	p := sess.getParties()[0]
-	require.NoError(t, p.Close())
-
-	partyIsRemoved := func() bool {
-		return len(sess.getParties()) == 2 && !sess.isStopped()
+		return reg, regClock
 	}
-	require.Eventually(t, partyIsRemoved, time.Second*5, time.Millisecond*500)
 
-	// If a party's session context is closed, the party should leave the session.
-	p = sess.getParties()[0]
+	blockUntilWithTimeout := func(t *testing.T, c *clockwork.FakeClock, n int) {
+		t.Helper()
 
-	// TODO(Joerger): Closing the host party's server context will result in the terminal
-	// shell being killed, and the session ending for all parties. Once this bug is
-	// fixed, we can re-enable this section of the test. For now just close the party.
-	// https://github.com/gravitational/teleport/issues/46308
-	//
-	// require.NoError(t, p.ctx.Close())
+		done := make(chan struct{})
+		go func() {
+			c.BlockUntil(n)
+			close(done)
+		}()
 
-	require.NoError(t, p.Close())
-
-	partyIsRemoved = func() bool {
-		return len(sess.getParties()) == 1 && !sess.isStopped()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timed out waiting for fake clock to have %d waiters", n)
+		}
 	}
-	require.Eventually(t, partyIsRemoved, time.Second*5, time.Millisecond*500)
 
-	p.closeOnce.Do(func() {
-		t.Fatalf("party should be closed already")
+	t.Run("PartyClose_RemovesParty", func(t *testing.T) {
+		reg, _ := newRegistry(t)
+
+		sess, _ := testOpenSession(t, reg, nil, &decisionpb.SSHAccessPermit{})
+		require.Len(t, sess.getParties(), 1)
+		testJoinSession(t, reg, sess.ID())
+		require.Len(t, sess.getParties(), 2)
+		testJoinSession(t, reg, sess.ID())
+		require.Len(t, sess.getParties(), 3)
+
+		p := sess.getParties()[0]
+		require.NoError(t, p.Close())
+
+		require.Eventually(t, func() bool {
+			return len(sess.getParties()) == 2 && !sess.isStopped()
+		}, 5*time.Second, 500*time.Millisecond)
+
+		p.closeOnce.Do(func() {
+			t.Fatalf("party should be closed already")
+		})
 	})
 
-	// If all parties are gone, the session should linger for a short duration.
-	p = sess.getParties()[0]
-	require.NoError(t, p.Close())
-	require.False(t, sess.isStopped())
+	t.Run("TwoParties_OwnerDisconnects_SessionContinues", func(t *testing.T) {
+		reg, regClock := newRegistry(t)
 
-	// Wait for session to linger (time.Sleep)
-	regClock.BlockUntil(2)
+		sess, _, ownerScx := testOpenSessionWithContext(t, reg, nil, &decisionpb.SSHAccessPermit{})
+		require.Len(t, sess.getParties(), 1)
+		require.NotZero(t, sess.PID())
 
-	// If a party connects to the lingering session, it will continue.
-	testJoinSession(t, reg, sess.ID())
-	require.Len(t, sess.getParties(), 1)
+		testJoinSession(t, reg, sess.ID())
+		require.Eventually(t, func() bool {
+			return len(sess.getParties()) == 2 && !sess.isStopped()
+		}, 5*time.Second, 500*time.Millisecond)
 
-	// advance clock and give lingerAndDie goroutine a second to complete.
-	regClock.Advance(defaults.SessionIdlePeriod)
-	require.False(t, sess.isStopped())
+		require.NoError(t, ownerScx.Close())
+		require.Eventually(t, func() bool {
+			return len(sess.getParties()) == 1 && !sess.isStopped()
+		}, 5*time.Second, 500*time.Millisecond)
 
-	// If no parties remain it should be closed after the duration.
-	p = sess.getParties()[0]
-	require.NoError(t, p.Close())
-	require.False(t, sess.isStopped())
+		regClock.Advance(defaults.SessionIdlePeriod)
+		require.False(t, sess.isStopped(), "session should remain active while a party is still connected")
+		require.NotZero(t, sess.PID())
 
-	// Wait for session to linger (time.Sleep)
-	regClock.BlockUntil(2)
+		// Cleanup: remove remaining party and allow lingerAndDie to stop the session.
+		for _, p := range sess.getParties() {
+			require.NoError(t, p.Close())
+		}
+		require.Eventually(t, func() bool {
+			return len(sess.getParties()) == 0 && !sess.isStopped()
+		}, 5*time.Second, 500*time.Millisecond)
 
-	// Session should close.
-	regClock.Advance(defaults.SessionIdlePeriod)
-	require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
+		blockUntilWithTimeout(t, regClock, 2)
+		regClock.Advance(defaults.SessionIdlePeriod)
+		require.Eventually(t, sess.isStopped, 5*time.Second, 500*time.Millisecond)
+	})
+
+	t.Run("SingleParty_OwnerDisconnects_LingersAndDies", func(t *testing.T) {
+		reg, regClock := newRegistry(t)
+
+		sess, _, ownerScx := testOpenSessionWithContext(t, reg, nil, &decisionpb.SSHAccessPermit{})
+		require.Len(t, sess.getParties(), 1)
+
+		require.NoError(t, ownerScx.Close())
+		require.Eventually(t, func() bool {
+			return len(sess.getParties()) == 0 && !sess.isStopped()
+		}, 5*time.Second, 500*time.Millisecond)
+
+		blockUntilWithTimeout(t, regClock, 2)
+		regClock.Advance(defaults.SessionIdlePeriod)
+		require.Eventually(t, sess.isStopped, 5*time.Second, 500*time.Millisecond)
+	})
+
+	t.Run("LingerCanceledByNewParty", func(t *testing.T) {
+		reg, regClock := newRegistry(t)
+
+		sess, _, ownerScx := testOpenSessionWithContext(t, reg, nil, &decisionpb.SSHAccessPermit{})
+		require.Len(t, sess.getParties(), 1)
+
+		require.NoError(t, ownerScx.Close())
+		require.Eventually(t, func() bool {
+			return len(sess.getParties()) == 0 && !sess.isStopped()
+		}, 5*time.Second, 500*time.Millisecond)
+
+		blockUntilWithTimeout(t, regClock, 2)
+
+		testJoinSession(t, reg, sess.ID())
+		require.Eventually(t, func() bool {
+			return len(sess.getParties()) == 1 && !sess.isStopped()
+		}, 5*time.Second, 500*time.Millisecond)
+
+		regClock.Advance(defaults.SessionIdlePeriod)
+		require.False(t, sess.isStopped())
+
+		for _, p := range sess.getParties() {
+			require.NoError(t, p.Close())
+		}
+		require.Eventually(t, func() bool {
+			return len(sess.getParties()) == 0 && !sess.isStopped()
+		}, 5*time.Second, 500*time.Millisecond)
+
+		blockUntilWithTimeout(t, regClock, 2)
+		regClock.Advance(defaults.SessionIdlePeriod)
+		require.Eventually(t, sess.isStopped, 5*time.Second, 500*time.Millisecond)
+	})
+
+	t.Run("TwoParties_BothLeave_LingersAndDies", func(t *testing.T) {
+		reg, regClock := newRegistry(t)
+
+		sess, _ := testOpenSession(t, reg, nil, &decisionpb.SSHAccessPermit{})
+		require.Len(t, sess.getParties(), 1)
+		testJoinSession(t, reg, sess.ID())
+		require.Eventually(t, func() bool {
+			return len(sess.getParties()) == 2 && !sess.isStopped()
+		}, 5*time.Second, 500*time.Millisecond)
+
+		for _, p := range sess.getParties() {
+			require.NoError(t, p.Close())
+		}
+		require.Eventually(t, func() bool {
+			return len(sess.getParties()) == 0 && !sess.isStopped()
+		}, 5*time.Second, 500*time.Millisecond)
+
+		blockUntilWithTimeout(t, regClock, 2)
+		regClock.Advance(defaults.SessionIdlePeriod)
+		require.Eventually(t, sess.isStopped, 5*time.Second, 500*time.Millisecond)
+	})
 }
 
 func testJoinSession(t *testing.T, reg *SessionRegistry, sid string) {
@@ -835,6 +918,13 @@ func TestSessionRecordingModes(t *testing.T) {
 }
 
 func testOpenSession(t *testing.T, reg *SessionRegistry, sessionJoiningRoleSet services.RoleSet, accessPermit *decisionpb.SSHAccessPermit) (*session, ssh.Channel) {
+	sess, ch, _ := testOpenSessionWithContext(t, reg, sessionJoiningRoleSet, accessPermit)
+	return sess, ch
+}
+
+func testOpenSessionWithContext(t *testing.T, reg *SessionRegistry, sessionJoiningRoleSet services.RoleSet, accessPermit *decisionpb.SSHAccessPermit) (*session, ssh.Channel, *ServerContext) {
+	t.Helper()
+
 	scx := newTestServerContext(t, reg.Srv, sessionJoiningRoleSet, accessPermit)
 
 	// Open a new session
@@ -848,7 +938,7 @@ func testOpenSession(t *testing.T, reg *SessionRegistry, sessionJoiningRoleSet s
 	require.NoError(t, err)
 
 	require.NotNil(t, scx.session)
-	return scx.session, sshChanOpen
+	return scx.session, sshChanOpen, scx
 }
 
 type mockRecorder struct {

@@ -18,16 +18,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package srv
+package reexec
 
 import (
 	"os/exec"
 )
 
-func reexecCommandOSTweaks(cmd *exec.Cmd) {}
+func CommandOSTweaks(cmd *exec.Cmd) {}
 
-func parkerCommandOSTweaks(cmd *exec.Cmd) {}
+func ParkerCommandOSTweaks(cmd *exec.Cmd) {}
 
-func userCommandOSTweaks(cmd *exec.Cmd) {}
+func UserCommandOSTweaks(cmd *exec.Cmd) {}
 
-func setNeutralOOMScore() error { return nil }
+func SetNeutralOOMScore() error { return nil }

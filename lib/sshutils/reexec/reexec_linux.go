@@ -18,7 +18,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package srv
+package reexec
 
 import (
 	"os"
@@ -61,10 +61,10 @@ func init() {
 }
 
 // reexecPath specifies a path to execute on reexec, overriding Path in the cmd
-// passed to reexecCommandOSTweaks, if not empty.
+// passed to CommandOSTweaks, if not empty.
 var reexecPath string
 
-func reexecCommandOSTweaks(cmd *exec.Cmd) {
+func CommandOSTweaks(cmd *exec.Cmd) {
 	if cmd.SysProcAttr == nil {
 		cmd.SysProcAttr = new(syscall.SysProcAttr)
 	}
@@ -84,15 +84,15 @@ func reexecCommandOSTweaks(cmd *exec.Cmd) {
 // if we ever need to run parkers on macOS or other platforms with no PDEATHSIG
 // we should rework the parker to block on a pipe so it can exit when its parent
 // is terminated
-func parkerCommandOSTweaks(cmd *exec.Cmd) {
-	reexecCommandOSTweaks(cmd)
+func ParkerCommandOSTweaks(cmd *exec.Cmd) {
+	CommandOSTweaks(cmd)
 
 	// parker processes can leak if their PDEATHSIG is SIGQUIT, otherwise we
-	// could just use reexecCommandOSTweaks
+	// could just use CommandOSTweaks
 	cmd.SysProcAttr.Pdeathsig = syscall.SIGKILL
 }
 
-func userCommandOSTweaks(cmd *exec.Cmd) {
+func UserCommandOSTweaks(cmd *exec.Cmd) {
 	if cmd.SysProcAttr == nil {
 		cmd.SysProcAttr = new(syscall.SysProcAttr)
 	}
@@ -103,9 +103,9 @@ func userCommandOSTweaks(cmd *exec.Cmd) {
 	cmd.SysProcAttr.Pdeathsig = syscall.SIGKILL
 }
 
-// setNeutralOOMScore sets the OOM score for the current process to 0 (the
+// SetNeutralOOMScore sets the OOM score for the current process to 0 (the
 // middle between -1000 and 1000). This value is inherited by all child processes.
-func setNeutralOOMScore() error {
+func SetNeutralOOMScore() error {
 	// Use os.OpenFile() instead of os.WriteFile() to avoid creating the file
 	// if for some extremely weird reason doesn't exist. Permission in this case
 	// won't be used as os.O_WRONLY won't create the file.

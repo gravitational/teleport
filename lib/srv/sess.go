@@ -991,21 +991,6 @@ func (s *session) haltTerminal() {
 	if err := s.term.Close(); err != nil {
 		s.logger.DebugContext(s.serverCtx, "Failed to close the shell.", "error", err)
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := s.term.KillUnderlyingShell(ctx); err != nil {
-		s.logger.DebugContext(s.serverCtx, "Failed to terminate the shell.", "error", err)
-	} else {
-		// Return before we send SIGKILL to the child process, as doing that
-		// could interrupt the "graceful shutdown" process.
-		return
-	}
-
-	if err := s.term.Kill(context.TODO()); err != nil {
-		s.logger.DebugContext(s.serverCtx, "Failed to kill the shell.", "error", err)
-	}
 }
 
 // Close ends the active session and frees all resources. This should only be called
@@ -1438,7 +1423,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 	// or running in a recording proxy, OpenSession is a NOP.
 	sessionContext := &bpf.SessionContext{
 		Context:               scx.srv.Context(),
-		PID:                   s.term.PID(),
+		PID:                   s.PID(),
 		Emitter:               s.emitter,
 		Namespace:             scx.srv.GetNamespace(),
 		SessionID:             s.id.String(),
