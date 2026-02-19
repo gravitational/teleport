@@ -102,17 +102,24 @@ func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Service is a generic service for interacting with resources in the backend.
-type Service[T Resource] struct {
+// Immutable service state, created on NewService and copied by WithX methods.
+type serviceState[T Resource] struct {
 	backend                     backend.Backend
 	resourceKind                string
 	pageLimit                   uint
-	backendPrefix               backend.Key
 	marshalFunc                 MarshalFunc[T]
 	unmarshalFunc               UnmarshalFunc[T]
 	validateFunc                func(T) error
 	runWhileLockedRetryInterval time.Duration
 	nameKeyFunc                 func(name string) string
+}
+
+// Service is a generic service for interacting with resources in the backend.
+type Service[T Resource] struct {
+	*serviceState[T]
+
+	backendPrefix backend.Key
+	nameKeyFunc   func(name string) string
 }
 
 // NewService will return a new generic service with the given config. This will
@@ -123,15 +130,18 @@ func NewService[T Resource](cfg *ServiceConfig[T]) (*Service[T], error) {
 	}
 
 	return &Service[T]{
-		backend:                     cfg.Backend,
-		resourceKind:                cfg.ResourceKind,
-		pageLimit:                   cfg.PageLimit,
-		backendPrefix:               cfg.BackendPrefix,
-		marshalFunc:                 cfg.MarshalFunc,
-		unmarshalFunc:               cfg.UnmarshalFunc,
-		validateFunc:                cfg.ValidateFunc,
-		runWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
-		nameKeyFunc:                 cfg.NameKeyFunc,
+		serviceState: &serviceState[T]{
+			backend:                     cfg.Backend,
+			resourceKind:                cfg.ResourceKind,
+			pageLimit:                   cfg.PageLimit,
+			marshalFunc:                 cfg.MarshalFunc,
+			unmarshalFunc:               cfg.UnmarshalFunc,
+			validateFunc:                cfg.ValidateFunc,
+			runWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
+			nameKeyFunc:                 cfg.NameKeyFunc,
+		},
+		backendPrefix: cfg.BackendPrefix,
+		nameKeyFunc:   cfg.NameKeyFunc,
 	}, nil
 }
 
@@ -140,9 +150,10 @@ func (s *Service[T]) WithPrefix(parts ...string) *Service[T] {
 	if len(parts) == 0 {
 		return s
 	}
-	s2 := *s
-	s2.backendPrefix = s2.backendPrefix.AppendKey(backend.NewKey(parts...))
-	return &s2
+	return &Service[T]{
+		serviceState:  s.serviceState,
+		backendPrefix: s.backendPrefix.AppendKey(backend.NewKey(parts...)),
+	}
 }
 
 func (s *Service[T]) nameKey(name string) string {
