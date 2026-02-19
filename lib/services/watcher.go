@@ -546,6 +546,55 @@ func NewAppServersWatcher(ctx context.Context, cfg AppServersWatcherConfig) (*Ge
 	return w, trace.Wrap(err)
 }
 
+type DatabaseServerWatcherConfig struct {
+	DatabaseServersGetter
+	ResourceWatcherConfig
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *DatabaseServerWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if cfg.MaxStaleness == 0 {
+		const databaseServerMaxStaleness = time.Minute
+		cfg.MaxStaleness = databaseServerMaxStaleness
+	}
+
+	if cfg.DatabaseServersGetter == nil {
+		getter, ok := cfg.Client.(DatabaseServersGetter)
+		if !ok {
+			return trace.BadParameter("missing parameter DatabaseServersGetter and Client not usable as DatabaseServersGetter")
+		}
+		cfg.DatabaseServersGetter = getter
+	}
+
+	return nil
+}
+
+func NewDatabaseServerWatcher(ctx context.Context, cfg DatabaseServerWatcherConfig) (*GenericWatcher[types.DatabaseServer, readonly.DatabaseServer], error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.DatabaseServer, readonly.DatabaseServer]{
+		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
+		ResourceKind:          types.KindDatabaseServer,
+		ResourceKey:           func(r types.DatabaseServer) string { return r.GetHostID() + r.GetName() },
+		ResourceGetter: func(ctx context.Context) ([]types.DatabaseServer, error) {
+			return cfg.DatabaseServersGetter.GetDatabaseServers(ctx, apidefaults.Namespace)
+		},
+		DisableUpdateBroadcast: true,
+		CloneFunc:              types.DatabaseServer.Copy,
+		ReadOnlyFunc: func(resource types.DatabaseServer) readonly.DatabaseServer {
+			return resource
+		},
+	})
+
+	return w, trace.Wrap(err)
+}
+
 // KubeServerWatcherConfig is an KubeServerWatcher configuration.
 type KubeServerWatcherConfig struct {
 	// KubernetesServerGetter is responsible for fetching kube_server resources.
