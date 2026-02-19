@@ -220,7 +220,7 @@ const (
 	AutoDiscoverEC2IssuePermOrgDenied = "ec2-perm-org-denied"
 )
 
-// List of Auto Discover EC2 issues identifiers.
+// SSM-related Auto Discover EC2 issues identifiers.
 // This value is used to populate the UserTasks.Spec.IssueType for Discover EC2 tasks.
 // The Web UI will then use those identifiers to show detailed instructions on how to fix the issue.
 //
