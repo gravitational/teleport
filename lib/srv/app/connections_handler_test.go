@@ -19,15 +19,21 @@
 package app
 
 import (
+	"context"
+	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestNewHTTPServer(t *testing.T) {
@@ -39,8 +45,7 @@ func TestNewHTTPServer(t *testing.T) {
 		},
 	}
 
-	srv, err := c.newHTTPServer("test-cluster")
-	require.NoError(t, err)
+	srv := c.newHTTPServer("test-cluster")
 
 	// The HTTP server no longer wraps a limiter (limiting is applied at
 	// the connection level in handleConnection). Verify that requests
@@ -53,58 +58,131 @@ func TestNewHTTPServer(t *testing.T) {
 	}
 }
 
-func TestConnectionLimiter_MaxConnections(t *testing.T) {
-	t.Parallel()
+// newTestHandler creates a ConnectionsHandler with a limiter for testing
+// handleConnection. The handler is minimal - only the limiter wiring is
+// functional; TLS and auth are not configured.
+func newTestHandler(t *testing.T, cfg limiter.Config) *ConnectionsHandler {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 
-	lim, err := limiter.NewLimiter(limiter.Config{
-		MaxConnections: 2,
-	})
+	lim, err := limiter.NewLimiter(cfg)
 	require.NoError(t, err)
 
-	// Acquire two connections from the same IP.
-	release1, err := lim.RegisterRequestAndConnection("10.0.0.1")
-	require.NoError(t, err)
-	release2, err := lim.RegisterRequestAndConnection("10.0.0.1")
-	require.NoError(t, err)
-
-	// Third connection from same IP is rejected.
-	_, err = lim.RegisterRequestAndConnection("10.0.0.1")
-	require.Error(t, err)
-
-	// Different IP still works.
-	release3, err := lim.RegisterRequestAndConnection("10.0.0.2")
-	require.NoError(t, err)
-
-	// Releasing one connection unblocks the original IP.
-	release1()
-	release4, err := lim.RegisterRequestAndConnection("10.0.0.1")
-	require.NoError(t, err)
-
-	release2()
-	release3()
-	release4()
+	return &ConnectionsHandler{
+		cfg: &ConnectionsHandlerConfig{
+			Clock:            clockwork.NewFakeClock(),
+			ServiceComponent: teleport.ComponentApp,
+		},
+		closeContext: ctx,
+		limiter:     lim,
+		log:         slog.Default(),
+	}
 }
 
-func TestConnectionLimiter_RateLimiting(t *testing.T) {
+// newConnWithIP creates a net.Pipe-backed connection whose RemoteAddr
+// returns the given IP and port. Close the returned client side when
+// done; the server side is used by handleConnection.
+func newConnWithIP(t *testing.T, ip string, port int) (server, client net.Conn) {
+	t.Helper()
+	server, client = net.Pipe()
+	t.Cleanup(func() {
+		server.Close()
+		client.Close()
+	})
+	addr := &net.TCPAddr{IP: net.ParseIP(ip), Port: port}
+	server = utils.NewConnWithSrcAddr(server, addr)
+	return server, client
+}
+
+func TestHandleConnection_MaxConnections(t *testing.T) {
 	t.Parallel()
 
-	lim, err := limiter.NewLimiter(limiter.Config{
-		Rates: []limiter.Rate{
-			{
-				Period:  time.Minute,
-				Average: 1,
-				Burst:   1,
-			},
-		},
-	})
-	require.NoError(t, err)
+	c := newTestHandler(t, limiter.Config{MaxConnections: 1})
 
-	// First connection should succeed.
-	release, err := lim.RegisterRequestAndConnection("10.0.0.1")
-	require.NoError(t, err)
-	release()
+	const clientIP = "10.0.0.1"
 
-	// Second connection from same IP within the rate window is rejected.
-	_, err = lim.RegisterRequestAndConnection("10.0.0.1")
+	// Pre-fill the limiter to capacity for this IP so the next
+	// handleConnection call from the same IP is rejected.
+	held, err := c.limiter.RegisterRequestAndConnection(clientIP)
+	require.NoError(t, err)
+	defer held()
+
+	conn, client := newConnWithIP(t, clientIP, 10001)
+	client.Close() // prevent blocking on TLS handshake
+
+	_, err = c.handleConnection(conn)
+	require.True(t, trace.IsLimitExceeded(err),
+		"expected LimitExceeded error, got: %v", err)
+}
+
+func TestHandleConnection_MaxConnectionsRelease(t *testing.T) {
+	t.Parallel()
+
+	c := newTestHandler(t, limiter.Config{MaxConnections: 1})
+
+	const clientIP = "10.0.0.1"
+
+	// Acquire and immediately release the slot so the limiter
+	// has capacity when handleConnection runs.
+	held, err := c.limiter.RegisterRequestAndConnection(clientIP)
+	require.NoError(t, err)
+	held()
+
+	conn, client := newConnWithIP(t, clientIP, 10001)
+	client.Close()
+
+	// handleConnection should pass the limiter and fail later
+	// (at TLS handshake). The error must not be about limits.
+	_, err = c.handleConnection(conn)
 	require.Error(t, err)
+	require.False(t, trace.IsLimitExceeded(err),
+		"unexpected LimitExceeded error: %v", err)
+}
+
+func TestHandleConnection_RateLimiting(t *testing.T) {
+	t.Parallel()
+
+	c := newTestHandler(t, limiter.Config{
+		Rates: []limiter.Rate{{
+			Period:  time.Minute,
+			Average: 1,
+			Burst:   1,
+		}},
+	})
+
+	const clientIP = "10.0.0.1"
+
+	// Consume the one allowed request so the next is rate-limited.
+	require.NoError(t, c.limiter.RegisterRequest(clientIP))
+
+	conn, client := newConnWithIP(t, clientIP, 10001)
+	client.Close()
+
+	_, err := c.handleConnection(conn)
+	require.True(t, trace.IsLimitExceeded(err),
+		"expected LimitExceeded error, got: %v", err)
+}
+
+func TestHandleConnection_PipeSkipsLimiter(t *testing.T) {
+	t.Parallel()
+
+	// Even with a very restrictive limiter, net.Pipe connections
+	// (whose RemoteAddr cannot be parsed as host:port) skip
+	// limiting entirely.
+	c := newTestHandler(t, limiter.Config{MaxConnections: 0})
+
+	server, client := net.Pipe()
+	t.Cleanup(func() {
+		server.Close()
+		client.Close()
+	})
+	client.Close()
+
+	// handleConnection should not return a LimitExceeded error;
+	// it will fail later (at TLS) because there is no TLS config.
+	_, err := c.handleConnection(server)
+	require.Error(t, err)
+	require.False(t, trace.IsLimitExceeded(err),
+		"unexpected LimitExceeded error: %v", err)
 }

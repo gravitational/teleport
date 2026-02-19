@@ -279,10 +279,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	}
 
 	// Create and configure HTTP server with authorizing middleware.
-	c.httpServer, err = c.newHTTPServer(clustername.GetClusterName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	c.httpServer = c.newHTTPServer(clustername.GetClusterName())
 
 	// TCP server will handle TCP applications.
 	tcpServer, err := c.newTCPServer()
@@ -614,8 +611,7 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 	// (HTTP, TCP, MCP) before any protocol-specific handling.
 	// Skip limiting when the client IP cannot be extracted (e.g.
 	// net.Pipe connections used by integration app proxying).
-	release := func() {}
-	releaseOnReturn := true
+	var release func()
 	if clientIP, err := utils.ClientIPFromConn(conn); err == nil {
 		release, err = c.limiter.RegisterRequestAndConnection(clientIP)
 		if err != nil {
@@ -623,7 +619,7 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 		}
 	}
 	defer func() {
-		if releaseOnReturn {
+		if release != nil {
 			release()
 		}
 	}()
@@ -686,9 +682,14 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 		return nil, trace.Wrap(c.mcpServer.HandleSession(ctx, &sessionCtx))
 
 	default:
-		releaseOnReturn = false
+		// Transfer release ownership to the cleanup function so
+		// the deferred release above becomes a no-op.
+		releaseConn := release
+		release = nil
 		cleanup := func() {
-			release()
+			if releaseConn != nil {
+				releaseConn()
+			}
 			cancel(nil)
 			c.deleteConnAuth(tlsConn)
 		}
@@ -724,7 +725,7 @@ func (c *ConnectionsHandler) handleTCPApp(ctx context.Context, conn net.Conn, id
 
 // newHTTPServer creates an *http.Server that can authorize and forward
 // requests to a target application.
-func (c *ConnectionsHandler) newHTTPServer(clusterName string) (*http.Server, error) {
+func (c *ConnectionsHandler) newHTTPServer(clusterName string) *http.Server {
 	// Reuse the auth.Middleware to authorize requests but only accept
 	// certificates that were specifically generated for applications.
 
@@ -744,7 +745,7 @@ func (c *ConnectionsHandler) newHTTPServer(clusterName string) (*http.Server, er
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
 			return context.WithValue(ctx, connContextKey, c)
 		},
-	}, nil
+	}
 }
 
 // ServeHTTP will forward the *http.Request to the target application.
