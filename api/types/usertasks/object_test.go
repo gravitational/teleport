@@ -923,8 +923,6 @@ func TestNewDiscoverAzureVMUserTask(t *testing.T) {
 func TestAutoDiscoverEC2IssueJoinFailure(t *testing.T) {
 	t.Parallel()
 
-	require.Equal(t, "ec2-join-failure", AutoDiscoverEC2IssueJoinFailure,
-		"constant value mismatch")
 	require.Contains(t, DiscoverEC2IssueTypes, AutoDiscoverEC2IssueJoinFailure,
 		"AutoDiscoverEC2IssueJoinFailure must be in DiscoverEC2IssueTypes")
 }

@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/buildkite/bintest/v3"
 	"github.com/gravitational/trace"
@@ -46,6 +47,7 @@ func buildMockBins(t *testing.T) (map[string]*bintest.Mock, packagemanager.Binar
 		"rpm",
 		"yum", "yum-config-manager",
 		"zypper",
+		"journalctl",
 		"teleport",
 	}
 
@@ -67,6 +69,7 @@ func buildMockBins(t *testing.T) (map[string]*bintest.Mock, packagemanager.Binar
 		Yum:              mapMockBins["yum"].Path,
 		YumConfigManager: mapMockBins["yum-config-manager"].Path,
 		Zypper:           mapMockBins["zypper"].Path,
+		Journalctl:       mapMockBins["journalctl"].Path,
 		Teleport:         mapMockBins["teleport"].Path,
 	}, releaseMockFNs
 }
@@ -127,6 +130,7 @@ func TestAutoDiscoverNode_CheckAndSetDefaults(t *testing.T) {
 				autoUpgradesChannelURL: "https://proxy.example.com/v1/webapi/automaticupgrades/channel/default",
 				fsRootPrefix:           "/",
 				imdsProviders:          mockIMDSProviders,
+				joinCheckDelay:         defaultJoinCheckDelay,
 				binariesLocation: packagemanager.BinariesLocation{
 					Teleport:         "/opt/teleport/example-suffix/bin/teleport",
 					Systemctl:        "systemctl",
@@ -136,6 +140,7 @@ func TestAutoDiscoverNode_CheckAndSetDefaults(t *testing.T) {
 					Yum:              "yum",
 					YumConfigManager: "yum-config-manager",
 					Zypper:           "zypper",
+					Journalctl:       "journalctl",
 				},
 			},
 		},
@@ -260,6 +265,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 						imdsProviders:        mockIMDSProviders,
 						binariesLocation:     binariesLocation,
 						aptPublicKeyEndpoint: mockRepoKeys.URL,
+						joinCheckDelay:       time.Millisecond,
 					}
 
 					teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -316,6 +322,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 
 					mockBins["systemctl"].Expect("enable", "teleport")
 					mockBins["systemctl"].Expect("restart", "teleport")
+					mockBins["journalctl"].Expect("-u", "teleport", "--no-pager", "--since", bintest.MatchAny())
 
 					require.NoError(t, teleportInstaller.Install(ctx))
 
@@ -360,6 +367,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			binariesLocation:       binariesLocation,
 			aptPublicKeyEndpoint:   mockRepoKeys.URL,
 			autoUpgradesChannelURL: proxyServer.URL,
+			joinCheckDelay:         time.Millisecond,
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -390,6 +398,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 
 		mockBins["systemctl"].Expect("enable", "teleport_example-suffix")
 		mockBins["systemctl"].Expect("restart", "teleport_example-suffix")
+		mockBins["journalctl"].Expect("-u", "teleport_example-suffix", "--no-pager", "--since", bintest.MatchAny())
 
 		require.NoError(t, teleportInstaller.Install(ctx))
 
@@ -430,6 +439,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			binariesLocation:       binariesLocation,
 			aptPublicKeyEndpoint:   mockRepoKeys.URL,
 			autoUpgradesChannelURL: proxyServer.URL,
+			joinCheckDelay:         time.Millisecond,
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -466,6 +476,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 
 		mockBins["systemctl"].Expect("enable", "teleport")
 		mockBins["systemctl"].Expect("restart", "teleport")
+		mockBins["journalctl"].Expect("-u", "teleport", "--no-pager", "--since", bintest.MatchAny())
 
 		require.NoError(t, teleportInstaller.Install(ctx))
 
@@ -515,6 +526,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			imdsProviders:        mockIMDSProviders,
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
+			joinCheckDelay:       time.Millisecond,
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -547,6 +559,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 
 		mockBins["systemctl"].Expect("enable", "teleport")
 		mockBins["systemctl"].Expect("restart", "teleport")
+		mockBins["journalctl"].Expect("-u", "teleport", "--no-pager", "--since", bintest.MatchAny())
 
 		require.NoError(t, teleportInstaller.Install(ctx))
 
@@ -586,6 +599,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			},
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
+			joinCheckDelay:       time.Millisecond,
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -620,6 +634,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			imdsProviders:        mockIMDSProviders,
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
+			joinCheckDelay:       time.Millisecond,
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -653,6 +668,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 
 		mockBins["systemctl"].Expect("enable", "teleport")
 		mockBins["systemctl"].Expect("restart", "teleport")
+		mockBins["journalctl"].Expect("-u", "teleport", "--no-pager", "--since", bintest.MatchAny())
 
 		require.NoError(t, teleportInstaller.Install(ctx))
 
@@ -687,6 +703,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			imdsProviders:        mockIMDSProviders,
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
+			joinCheckDelay:       time.Millisecond,
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -729,7 +746,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 		require.Equal(t, "has wrong config", string(bs))
 	})
 
-	t.Run("does nothing if teleport is already installed and target teleport.yaml configuration already exists", func(t *testing.T) {
+	t.Run("checks join health even if teleport.yaml configuration already exists", func(t *testing.T) {
 		distroName := "ubuntu"
 		distroVersion := "24.04"
 		distroConfig := wellKnownOS[distroName][distroVersion]
@@ -750,6 +767,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			imdsProviders:        mockIMDSProviders,
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
+			joinCheckDelay:       time.Millisecond,
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -778,6 +796,11 @@ func TestAutoDiscoverNode(t *testing.T) {
 			require.NoError(t, os.WriteFile(testTempDir+"/etc/teleport.yaml.new", []byte("teleport.yaml configuration bytes"), 0o644))
 			c.Exit(0)
 		})
+
+		// Even though config is unchanged and systemd restart is skipped,
+		// checkJoinHealth should still run to detect agents stuck in a
+		// join-failure retry loop.
+		mockBins["journalctl"].Expect("-u", "teleport", "--no-pager", "--since", bintest.MatchAny())
 
 		require.NoError(t, teleportInstaller.Install(ctx))
 
@@ -813,6 +836,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			imdsProviders:        mockIMDSProviders,
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
+			joinCheckDelay:       time.Millisecond,
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -877,6 +901,135 @@ func TestAutoDiscoverNode(t *testing.T) {
 				require.True(t, mockBin.Check(t), "mismatch between expected invocations and actual calls for %q", binName)
 			}
 		})
+	})
+}
+
+func TestCheckJoinHealth(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("no join failure after fresh start", func(t *testing.T) {
+		mockJournalctl, err := bintest.NewMock("journalctl")
+		require.NoError(t, err)
+		t.Cleanup(func() { assert.NoError(t, mockJournalctl.Close()) })
+
+		mockJournalctl.Expect("-u", "teleport", "--no-pager", "--since", bintest.MatchAny()).
+			AndCallFunc(func(c *bintest.Call) {
+				c.Stdout.Write([]byte("normal startup log output\n"))
+				c.Exit(0)
+			})
+
+		installer := &AutoDiscoverNodeInstaller{
+			AutoDiscoverNodeInstallerConfig: &AutoDiscoverNodeInstallerConfig{
+				Logger:         slog.Default(),
+				joinCheckDelay: time.Millisecond,
+				binariesLocation: packagemanager.BinariesLocation{
+					Journalctl: mockJournalctl.Path,
+				},
+			},
+		}
+
+		err = installer.checkJoinHealth(ctx, false)
+		require.NoError(t, err)
+		require.True(t, mockJournalctl.Check(t))
+	})
+
+	t.Run("join failure detected after fresh start", func(t *testing.T) {
+		mockJournalctl, err := bintest.NewMock("journalctl")
+		require.NoError(t, err)
+		t.Cleanup(func() { assert.NoError(t, mockJournalctl.Close()) })
+
+		mockJournalctl.Expect("-u", "teleport", "--no-pager", "--since", bintest.MatchAny()).
+			AndCallFunc(func(c *bintest.Call) {
+				c.Stdout.Write([]byte("Can not join the cluster: token expired\n"))
+				c.Exit(0)
+			})
+
+		installer := &AutoDiscoverNodeInstaller{
+			AutoDiscoverNodeInstallerConfig: &AutoDiscoverNodeInstallerConfig{
+				Logger:         slog.Default(),
+				joinCheckDelay: time.Millisecond,
+				binariesLocation: packagemanager.BinariesLocation{
+					Journalctl: mockJournalctl.Path,
+				},
+			},
+		}
+
+		err = installer.checkJoinHealth(ctx, false)
+		require.Error(t, err)
+		// The error must contain "failed to join the cluster" so that
+		// detectIssueType in ssm_install.go classifies it as ec2-join-failure.
+		require.ErrorContains(t, err, "failed to join the cluster")
+		require.True(t, mockJournalctl.Check(t))
+	})
+
+	t.Run("join failure detected in existing service journal", func(t *testing.T) {
+		mockJournalctl, err := bintest.NewMock("journalctl")
+		require.NoError(t, err)
+		t.Cleanup(func() { assert.NoError(t, mockJournalctl.Close()) })
+
+		mockJournalctl.Expect("-u", "teleport", "--no-pager", "--since", bintest.MatchAny()).
+			AndCallFunc(func(c *bintest.Call) {
+				c.Stdout.Write([]byte("Can not join the cluster: token expired\n"))
+				c.Exit(0)
+			})
+
+		installer := &AutoDiscoverNodeInstaller{
+			AutoDiscoverNodeInstallerConfig: &AutoDiscoverNodeInstallerConfig{
+				Logger:         slog.Default(),
+				joinCheckDelay: time.Millisecond,
+				binariesLocation: packagemanager.BinariesLocation{
+					Journalctl: mockJournalctl.Path,
+				},
+			},
+		}
+
+		// serviceAlreadyRunning=true: should look back instead of sleeping.
+		err = installer.checkJoinHealth(ctx, true)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "failed to join the cluster")
+		require.True(t, mockJournalctl.Check(t))
+	})
+
+	t.Run("no join failure in existing service journal", func(t *testing.T) {
+		mockJournalctl, err := bintest.NewMock("journalctl")
+		require.NoError(t, err)
+		t.Cleanup(func() { assert.NoError(t, mockJournalctl.Close()) })
+
+		mockJournalctl.Expect("-u", "teleport", "--no-pager", "--since", bintest.MatchAny()).
+			AndCallFunc(func(c *bintest.Call) {
+				c.Stdout.Write([]byte("normal log output from running service\n"))
+				c.Exit(0)
+			})
+
+		installer := &AutoDiscoverNodeInstaller{
+			AutoDiscoverNodeInstallerConfig: &AutoDiscoverNodeInstallerConfig{
+				Logger:         slog.Default(),
+				joinCheckDelay: time.Millisecond,
+				binariesLocation: packagemanager.BinariesLocation{
+					Journalctl: mockJournalctl.Path,
+				},
+			},
+		}
+
+		err = installer.checkJoinHealth(ctx, true)
+		require.NoError(t, err)
+		require.True(t, mockJournalctl.Check(t))
+	})
+
+	t.Run("journalctl unavailable", func(t *testing.T) {
+		installer := &AutoDiscoverNodeInstaller{
+			AutoDiscoverNodeInstallerConfig: &AutoDiscoverNodeInstallerConfig{
+				Logger:         slog.Default(),
+				joinCheckDelay: time.Millisecond,
+				binariesLocation: packagemanager.BinariesLocation{
+					Journalctl: "/nonexistent/journalctl",
+				},
+			},
+		}
+
+		// Best-effort: returns nil when journalctl is unavailable.
+		err := installer.checkJoinHealth(ctx, false)
+		require.NoError(t, err)
 	})
 }
 

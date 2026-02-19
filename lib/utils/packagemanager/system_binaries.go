@@ -30,6 +30,8 @@ type BinariesLocation struct {
 
 	Zypper string
 
+	Journalctl string
+
 	// teleport represents the expected location of the teleport binary after installing
 	Teleport string
 }
@@ -63,6 +65,10 @@ func (bi *BinariesLocation) CheckAndSetDefaults() {
 
 	if bi.Zypper == "" {
 		bi.Zypper = "zypper"
+	}
+
+	if bi.Journalctl == "" {
+		bi.Journalctl = "journalctl"
 	}
 
 	if bi.Teleport == "" {

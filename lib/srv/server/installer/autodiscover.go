@@ -29,9 +29,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
@@ -113,6 +115,10 @@ type AutoDiscoverNodeInstallerConfig struct {
 	// imdsProviders contains the Cloud Instance Metadata providers.
 	// Used for testing.
 	imdsProviders []func(ctx context.Context) (imds.Client, error)
+
+	// joinCheckDelay is the time to wait after starting the service before
+	// checking for join failures.
+	joinCheckDelay time.Duration
 }
 
 func (c *AutoDiscoverNodeInstallerConfig) checkAndSetDefaults() error {
@@ -160,6 +166,10 @@ func (c *AutoDiscoverNodeInstallerConfig) checkAndSetDefaults() error {
 	}
 
 	c.binariesLocation.CheckAndSetDefaults()
+
+	if c.joinCheckDelay == 0 {
+		c.joinCheckDelay = defaultJoinCheckDelay
+	}
 
 	if len(c.imdsProviders) == 0 {
 		c.imdsProviders = []func(ctx context.Context) (imds.Client, error){
@@ -280,8 +290,11 @@ func (ani *AutoDiscoverNodeInstaller) Install(ctx context.Context) error {
 				"systemd_service", ani.buildTeleportSystemdUnitName(),
 			)
 			// Restarting teleport is not required because the target teleport.yaml
-			// is up to date with the existing one.
-			return nil
+			// is up to date with the existing one. However, we still check
+			// whether the agent managed to join successfully because the
+			// service may be running with the correct config but failing
+			// to join (e.g., invalid token).
+			return trace.Wrap(ani.checkJoinHealth(ctx, true))
 		}
 
 		return trace.Wrap(err)
@@ -294,6 +307,10 @@ func (ani *AutoDiscoverNodeInstaller) Install(ctx context.Context) error {
 		"systemd_service", ani.buildTeleportSystemdUnitName(),
 	)
 	if err := ani.enableAndRestartTeleportService(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := ani.checkJoinHealth(ctx, false); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -319,6 +336,72 @@ func (ani *AutoDiscoverNodeInstaller) enableAndRestartTeleportService(ctx contex
 		return trace.Wrap(err, string(systemctlRestartCMDOutput))
 	}
 
+	return nil
+}
+
+// defaultJoinCheckDelay is the time to wait after starting the service before
+// checking journalctl for join failures.
+const defaultJoinCheckDelay = 30 * time.Second
+
+// existingServiceLookback is how far back to look in the journal when the
+// service was already running (AlreadyExists path). This is wider than
+// joinCheckDelay because the service may be retrying with exponential
+// backoff, pushing retries beyond a 30-second forward-looking window.
+const existingServiceLookback = 5 * time.Minute
+
+// joinFailurePatterns matches Teleport log messages that indicate the agent
+// failed to join the cluster.
+var joinFailurePatterns = regexp.MustCompile(`Can not join the cluster|Failed to establish connection to cluster`)
+
+// checkJoinHealth inspects journalctl for join failure messages. The behavior
+// depends on whether the service was already running:
+//   - serviceAlreadyRunning=true: the config was unchanged (AlreadyExists path),
+//     so the service may be retrying with exponential backoff. Instead of sleeping
+//     and waiting for a new attempt, we look backwards in the journal to catch
+//     failures that already happened.
+//   - serviceAlreadyRunning=false: the service was just (re)started, so we sleep
+//     joinCheckDelay and then check the journal from the start of the wait.
+func (ani *AutoDiscoverNodeInstaller) checkJoinHealth(ctx context.Context, serviceAlreadyRunning bool) error {
+	serviceName := ani.buildTeleportSystemdUnitName()
+
+	var checkStart string
+	if serviceAlreadyRunning {
+		checkStart = time.Now().Add(-existingServiceLookback).UTC().Format("2006-01-02 15:04:05")
+		ani.Logger.InfoContext(ctx, "Checking recent journal for join failures",
+			"lookback", existingServiceLookback,
+			"systemd_service", serviceName,
+		)
+	} else {
+		checkStart = time.Now().UTC().Format("2006-01-02 15:04:05")
+		ani.Logger.InfoContext(ctx, "Waiting for the agent to join the cluster",
+			"delay", ani.joinCheckDelay,
+			"systemd_service", serviceName,
+		)
+		time.Sleep(ani.joinCheckDelay)
+	}
+
+	journalCmd := exec.CommandContext(ctx, ani.binariesLocation.Journalctl,
+		"-u", serviceName, "--no-pager", "--since", checkStart,
+	)
+	journalOutput, err := journalCmd.CombinedOutput()
+	if err != nil {
+		ani.Logger.WarnContext(ctx, "Failed to read journal for join health check",
+			"error", err,
+			"systemd_service", serviceName,
+		)
+		return nil
+	}
+
+	if joinFailurePatterns.Match(journalOutput) {
+		if serviceAlreadyRunning {
+			return trace.Errorf("Teleport agent failed to join the cluster. Journal output (last %s):\n%s",
+				existingServiceLookback, string(journalOutput))
+		}
+		return trace.Errorf("Teleport agent failed to join the cluster within %s. Journal output:\n%s",
+			ani.joinCheckDelay, string(journalOutput))
+	}
+
+	ani.Logger.InfoContext(ctx, "No join failure detected", "systemd_service", serviceName)
 	return nil
 }
 

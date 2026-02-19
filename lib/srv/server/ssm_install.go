@@ -54,9 +54,8 @@ const (
 
 	// JoinFailureMessage is the substring that detectIssueType looks for in
 	// SSM command output to classify a failure as ec2-join-failure. The
-	// installer script (defaultinstallers.go) must emit a message containing
-	// this substring when a join failure is detected. Exported so that
-	// tests can verify the coupling between the script and the detector.
+	// checkJoinHealth method in autodiscover.go emits an error containing
+	// this substring when a join failure is detected.
 	JoinFailureMessage = "failed to join the cluster"
 )
 
@@ -109,11 +108,11 @@ type SSMInstallationResult struct {
 }
 
 // detectIssueType inspects the SSM command output for the join-failure
-// message emitted by the installer script. Both stdout and stderr are checked
-// because journalctl output may be captured in either stream depending on
-// systemd and SSM agent configuration. If the message is present the issue is
-// classified as a join failure; otherwise it falls back to the generic SSM
-// script failure type.
+// message emitted by checkJoinHealth in autodiscover.go. Both stdout and
+// stderr are checked because output may be captured in either stream
+// depending on SSM agent configuration. If the message is present the issue
+// is classified as a join failure; otherwise it falls back to the generic
+// SSM script failure type.
 func detectIssueType(standardOutput, standardError string) string {
 	if strings.Contains(standardOutput, JoinFailureMessage) || strings.Contains(standardError, JoinFailureMessage) {
 		return usertasks.AutoDiscoverEC2IssueJoinFailure
