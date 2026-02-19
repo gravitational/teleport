@@ -131,7 +131,7 @@ const (
 	// verifyValidatedMFAChallengeTimeout is the max wait time for a validated challenge to appear.
 	verifyValidatedMFAChallengeTimeout = 5 * time.Minute
 
-	// verifyValidatedMFAChallengePollInterval is how often we check for the validated challenge.
+	// verifyValidatedMFAChallengePollInterval is how often we check for the validated challenge to appear.
 	verifyValidatedMFAChallengePollInterval = 100 * time.Millisecond
 )
 

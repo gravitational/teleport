@@ -27,7 +27,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,7 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-func TestSyncValidatedMFAChallenges(t *testing.T) {
+func TestRunValidatedMFAChallengeSync(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now()
@@ -132,7 +131,7 @@ func TestSyncValidatedMFAChallenges(t *testing.T) {
 
 	// Start syncing validated MFA challenges in a separate goroutine since it will block until the context is canceled.
 	go func() {
-		errC <- leaf.SyncValidatedMFAChallenges(
+		errC <- leaf.runValidatedMFAChallengeSync(
 			ctx,
 			retryutils.LinearConfig{
 				First: time.Millisecond,
@@ -180,6 +179,72 @@ func TestSyncValidatedMFAChallenges(t *testing.T) {
 	// Only the challenge intended for the leaf cluster should have been replicated, so we expect exactly one request to
 	// have been made to the leaf's MFA service client.
 	require.Len(t, leafMFAClient.Requests(), 1)
+}
+
+func TestSyncValidatedMFAChallenges(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+
+	challengeForLeaf := newValidatedMFAChallenge(
+		"challenge-for-leaf",
+		"leaf.example.com",
+		now.Add(time.Minute),
+	)
+
+	challengeForOtherLeaf := newValidatedMFAChallenge(
+		"challenge-for-other-leaf",
+		"other-leaf.example.com",
+		now.Add(time.Minute),
+	)
+
+	expiredChallenge := newValidatedMFAChallenge(
+		"expired-challenge",
+		"leaf.example.com",
+		now.Add(-time.Minute),
+	)
+
+	leafMFAClient := &mockMFAServiceClient{
+		requests: make([]*mfav1.ReplicateValidatedMFAChallengeRequest, 0),
+	}
+
+	leaf := &leafCluster{
+		domainName: "leaf.example.com",
+		logger:     slog.Default(),
+		clock:      clockwork.NewFakeClockAt(now),
+		leafClient: &mockLeafClient{mfaClient: leafMFAClient},
+	}
+
+	replicatedCount, err := leaf.syncValidatedMFAChallenges(
+		t.Context(),
+		[]*mfav1.ValidatedMFAChallenge{
+			challengeForLeaf,
+			challengeForOtherLeaf,
+			expiredChallenge,
+			nil,
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, 1, replicatedCount)
+	require.Len(t, leafMFAClient.Requests(), 1)
+
+	wantReqs := []*mfav1.ReplicateValidatedMFAChallengeRequest{
+		{
+			Name:          challengeForLeaf.GetMetadata().GetName(),
+			Payload:       challengeForLeaf.GetSpec().GetPayload(),
+			SourceCluster: challengeForLeaf.GetSpec().GetSourceCluster(),
+			TargetCluster: challengeForLeaf.GetSpec().GetTargetCluster(),
+			Username:      challengeForLeaf.GetSpec().GetUsername(),
+		},
+	}
+
+	require.Empty(
+		t,
+		cmp.Diff(
+			wantReqs,
+			leafMFAClient.Requests(),
+		),
+		"syncValidatedMFAChallenges mismatch (-want +got)")
 }
 
 func newValidatedMFAChallenge(name, targetCluster string, expiry time.Time) *mfav1.ValidatedMFAChallenge {
@@ -276,14 +341,10 @@ func (m *mockMFAServiceClient) ReplicateValidatedMFAChallenge(
 	req *mfav1.ReplicateValidatedMFAChallengeRequest,
 	_ ...grpc.CallOption,
 ) (*mfav1.ReplicateValidatedMFAChallengeResponse, error) {
-	// Only one challenge is expected to be replicated.
-	if req.GetName() == "challenge-for-leaf" {
-		m.mu.Lock()
-		m.requests = append(m.requests, req)
-		m.mu.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-		return &mfav1.ReplicateValidatedMFAChallengeResponse{}, nil
-	}
+	m.requests = append(m.requests, req)
 
-	return nil, trace.BadParameter("unexpected challenge: %s", req.GetName())
+	return &mfav1.ReplicateValidatedMFAChallengeResponse{}, nil
 }

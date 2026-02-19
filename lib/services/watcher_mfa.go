@@ -93,9 +93,8 @@ func NewValidatedMFAChallengeWatcher(
 			ResourceWatcherConfig: *cfg.ResourceWatcherConfig,
 			CloneFunc:             cloneFunc,
 			ReadOnlyFunc:          cloneFunc,
-			// This watcher's consumer waits on WaitInitialization before it starts
-			// reading ResourcesC. Keep one slot buffered to avoid deadlocking initial
-			// broadcast when there are already resources present.
+			// This watcher's consumer waits on WaitInitialization before it starts reading ResourcesC. Keep one slot
+			// buffered to avoid deadlocking initial broadcast when there are already resources present.
 			ResourcesC:                          make(chan []*mfav1.ValidatedMFAChallenge, 1),
 			RequireResourcesForInitialBroadcast: false,
 			ResourceGetter:                      pagerFn[*mfav1.ValidatedMFAChallenge](paginatedGetFunc).getAll,
@@ -108,8 +107,17 @@ func NewValidatedMFAChallengeWatcher(
 					r.GetMetadata().GetName(),
 				).String()
 			},
-			DeleteKey: func(_ types.Resource) string {
-				return "NOOP: ValidatedMFAChallenges are never deleted, they expire instead"
+			DeleteKey: func(resource types.Resource) string {
+				// The Metadata.Description is populated with the username by the local parser (see
+				// lib/services/local/mfa.go#validatedMFAChallengeParser). If it's present, use it to construct the key.
+				// If not, fall back to using just the resource name as the key.
+				switch {
+				case resource.GetMetadata().Description == "":
+					return backend.NewKey(resource.GetName()).String()
+
+				default:
+					return backend.NewKey(resource.GetMetadata().Description, resource.GetName()).String()
+				}
 			},
 			ResourceDiffer: func(oldR, newR *mfav1.ValidatedMFAChallenge) bool {
 				return proto.Equal(oldR, newR)
