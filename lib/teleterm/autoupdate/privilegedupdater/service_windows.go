@@ -31,6 +31,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -150,31 +151,9 @@ func (h *handler) Execute(ctx context.Context, _ []string) (err error) {
 		return trace.Wrap(err, "getting updater config")
 	}
 
-	conn, err := waitForSingleClient(ctx)
+	updateMeta, updatePath, err := h.readUpdateMeta(ctx)
 	if err != nil {
-		return trace.Wrap(err, "waiting for client")
-	}
-
-	dir, err := h.getSecureUpdateDir()
-	if err != nil {
-		return trace.NewAggregate(err, conn.Close())
-	}
-
-	updatePath := filepath.Join(dir, "update.exe")
-	stopFn := context.AfterFunc(ctx, func() {
-		_ = conn.Close()
-	})
-	updateMeta, err := readUpdate(conn, updatePath)
-	var closeErr error
-	// If the AfterFunc didn't trigger, close the connection explicitly.
-	if stopFn() {
-		closeErr = conn.Close()
-	}
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if closeErr != nil {
-		return trace.Wrap(closeErr)
+		return trace.Wrap(err, "reading update metadata")
 	}
 
 	if updaterConfig.Version != "" && updateMeta.Version != updaterConfig.Version {
@@ -234,6 +213,32 @@ func (h *handler) getUpdaterConfig() (*common.PolicyValues, error) {
 type acceptResult struct {
 	conn net.Conn
 	err  error
+}
+
+func (h *handler) readUpdateMeta(ctx context.Context) (_ *updateMetadata, _ string, err error) {
+	conn, err := waitForSingleClient(ctx)
+	if err != nil {
+		return nil, "", trace.Wrap(err, "waiting for client")
+	}
+	closeConnOnce := sync.OnceValue(conn.Close)
+	// Always defer conn.Close and return the error.
+	defer func() {
+		err = trace.NewAggregate(err, trace.Wrap(closeConnOnce(), "closing conn"))
+	}()
+	// Close conn early to unblock reads if ctx is canceled.
+	defer context.AfterFunc(ctx, func() { _ = closeConnOnce() })()
+
+	dir, err := h.getSecureUpdateDir()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	updatePath := filepath.Join(dir, "update.exe")
+	updateMeta, err := readUpdate(conn, updatePath)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return updateMeta, updatePath, nil
 }
 
 // waitForSingleClient waits for the first client and then closes the listener.
