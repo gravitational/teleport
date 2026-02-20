@@ -24,7 +24,10 @@ import (
 "cmp"
 "context"
 "os"
-"slices"
+	"cmp"
+	"context"
+	"os"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
