@@ -1,0 +1,96 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "gitAuthor": "Renovate Bot <dev@goteleport.com>",
+  "enabledManagers": [
+    "custom.regex"
+  ],
+  "labels": [
+    "dependencies",
+    "go"
+  ],
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/__tests__/**",
+    "**/test/**",
+    "**/tests/**",
+    "**/__fixtures__/**"
+  ],
+  "schedule": [
+    "at any time"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/(^|/)go\\.mod$/"
+      ],
+      "matchStrings": [
+        "(?m)^go\\s+(?<currentValue>\\d+\\.\\d+(?:\\.\\d+)?)\\s*$",
+        "(?m)^toolchain\\s+go(?<currentValue>\\d+\\.\\d+(?:\\.\\d+)?)\\s*$"
+      ],
+      "depNameTemplate": "go",
+      "datasourceTemplate": "golang-version",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^build\\.assets/versions\\.mk$/"
+      ],
+      "matchStrings": [
+        "GOLANG_VERSION\\s*\\?=\\s*go(?<currentValue>[^\\s\\n]+)"
+      ],
+      "depNameTemplate": "go",
+      "datasourceTemplate": "golang-version",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^docs/config\\.json$/"
+      ],
+      "matchStrings": [
+        "\"golang\":\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "go",
+      "datasourceTemplate": "golang-version",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^build\\.assets/Dockerfile-grpcbox$/"
+      ],
+      "matchStrings": [
+        "FROM docker\\.io/golang:(?<currentValue>[^\\s]+)"
+      ],
+      "depNameTemplate": "go",
+      "datasourceTemplate": "golang-version",
+      "versioningTemplate": "semver"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchDepNames": [
+        "go"
+      ],
+      "groupName": "Go version",
+      "groupSlug": "go-version",
+      "prHourlyLimit": 5,
+      "recreateWhen": "always",
+      "rangeStrategy": "bump",
+      "prBodyNotes": [
+        "Changelog: Updated Go to {{{newValue}}}."
+      ],
+      "commitMessageTopic": "Go toolchain version"
+    }
+  ]
+}
