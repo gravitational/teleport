@@ -19,7 +19,6 @@
 import { context, trace } from '@opentelemetry/api';
 import { useEffect, useRef, useState } from 'react';
 
-import cfg from 'teleport/config';
 import ConsoleContext from 'teleport/Console/consoleContext';
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 import { DocumentDb } from 'teleport/Console/stores';
@@ -115,17 +114,13 @@ function handleTtyConnect(
     sid = 'new';
   }
 
-  const url = cfg.getDbSessionRoute({ clusterId, sid });
   const createdDate = new Date(created);
 
   ctx.updateDbDocument(docId, {
-    url,
     created: createdDate,
     sid,
     clusterId,
   });
-
-  ctx.gotoTab({ url });
 }
 
 export type Status = 'loading' | 'waiting' | 'initialized' | 'disconnected';

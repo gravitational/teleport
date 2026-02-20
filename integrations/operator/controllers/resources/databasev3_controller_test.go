@@ -119,15 +119,20 @@ func (g *databaseV3TestingPrimitives) CompareTeleportAndKubernetesResource(tReso
 
 func TestTeleportDatabaseV3Creation(t *testing.T) {
 	test := &databaseV3TestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest[types.Database, *resourcesv1.TeleportDatabaseV3](t, resources.NewDatabaseV3Reconciler, test)
+	testlib.ResourceCreationSynchronousTest(t, resources.NewDatabaseV3Reconciler, test)
+}
+
+func TestTeleportDatabaseV3Deletion(t *testing.T) {
+	test := &databaseV3TestingPrimitives{}
+	testlib.ResourceDeletionSynchronousTest(t, resources.NewDatabaseV3Reconciler, test)
 }
 
 func TestTeleportDatabaseV3DeletionDrift(t *testing.T) {
 	test := &databaseV3TestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest[types.Database, *resourcesv1.TeleportDatabaseV3](t, resources.NewDatabaseV3Reconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewDatabaseV3Reconciler, test)
 }
 
 func TestTeleportDatabaseV3Update(t *testing.T) {
 	test := &databaseV3TestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous[types.Database, *resourcesv1.TeleportDatabaseV3](t, resources.NewDatabaseV3Reconciler, test)
+	testlib.ResourceUpdateTestSynchronous(t, resources.NewDatabaseV3Reconciler, test)
 }

@@ -57,7 +57,7 @@ func WaitForTunnelConnections(t *testing.T, authServer *auth.Server, clusterName
 // Duplicated in tool/tsh/tsh_test.go
 func TryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
 	t.Helper()
-	ctx := context.TODO()
+	ctx := t.Context()
 	for range 10 {
 		_, err := authServer.CreateTrustedCluster(ctx, trustedCluster)
 		if err == nil {
@@ -81,7 +81,7 @@ func TryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 // propagate and services to start
 func TryUpdateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
 	t.Helper()
-	ctx := context.TODO()
+	ctx := t.Context()
 	for range 10 {
 		_, err := authServer.UpdateTrustedCluster(ctx, trustedCluster)
 		if err == nil {
@@ -105,7 +105,7 @@ func TryUpdateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 // propagate and services to start
 func TryUpsertTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster, skipNameValidation bool) {
 	t.Helper()
-	ctx := context.TODO()
+	ctx := t.Context()
 	for range 10 {
 		var err error
 		if skipNameValidation {

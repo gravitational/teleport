@@ -41,6 +41,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -60,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/desktop/rdp/rdpclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/dns"
@@ -624,33 +626,64 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 	}
 }
 
+func newErrorSender(protocol string, conn *tdp.Conn, logger *slog.Logger) func(string) {
+	if protocol == tdpb.ProtocolName {
+		return func(message string) {
+			if err := conn.WriteMessage(&tdpb.Alert{Message: message, Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR}); err != nil {
+				logger.ErrorContext(context.Background(), "Failed to send TDPB error message", "error", err, "message", message)
+			}
+		}
+	}
+	return func(message string) {
+		if err := conn.WriteMessage(&legacy.Alert{Message: message, Severity: legacy.SeverityError}); err != nil {
+			logger.ErrorContext(context.Background(), "Failed to send TDP error message", "error", err, "message", message)
+		}
+	}
+}
+
 // handleConnection handles TLS connections from a Teleport proxy.
 // It authenticates and authorizes the connection, and then begins
 // translating the TDP messages from the proxy into native RDP.
 func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	log := s.cfg.Logger
 
-	tdpConn := tdp.NewConn(proxyConn, legacy.Decode)
+	// Ensure TLS handshake is complete so that we can the read ALPN result.
+	if err := proxyConn.Handshake(); err != nil {
+		log.ErrorContext(context.Background(), "Failed to complete TLS handshake")
+		return
+	}
+
+	// Figure out which protocol the client is using
+	clientProtocol := proxyConn.ConnectionState().NegotiatedProtocol
+	var decoder tdp.Decoder
+	switch clientProtocol {
+	case tdpb.ProtocolName:
+		decoder = tdp.DecoderAdapter(tdpb.DecodePermissive)
+	case "":
+		clientProtocol = legacy.ProtocolName
+		decoder = legacy.Decode
+	default:
+		log.ErrorContext(context.Background(), "Unknown client protocol selection", "protocol", clientProtocol)
+		return
+	}
+
+	tdpConn := tdp.NewConn(proxyConn, decoder)
 	defer tdpConn.Close()
 
-	// Inline function to enforce that we are centralizing TDP Error sending in this function.
-	sendTDPError := func(message string) {
-		if err := tdpConn.WriteMessage(legacy.Alert{Message: message, Severity: legacy.SeverityError}); err != nil {
-			log.ErrorContext(context.Background(), "Failed to send TDP error message", "error", err)
-		}
-	}
+	// Inline function to enforce that we are centralizing TDP/TDPB Error sending in this function.
+	sendError := newErrorSender(clientProtocol, tdpConn, log)
 
 	// Check connection limits.
 	remoteAddr, _, err := net.SplitHostPort(proxyConn.RemoteAddr().String())
 	if err != nil {
 		log.ErrorContext(context.Background(), "Could not parse client IP", "addr", proxyConn.RemoteAddr().String(), "error", err)
-		sendTDPError("Internal error.")
+		sendError("Internal error.")
 		return
 	}
 	log = log.With("client_ip", remoteAddr)
 	if err := s.cfg.ConnLimiter.AcquireConnection(remoteAddr); err != nil {
 		log.WarnContext(context.Background(), "Connection limit exceeded, rejecting connection")
-		sendTDPError("Connection limit exceeded.")
+		sendError("Connection limit exceeded.")
 		return
 	}
 	defer s.cfg.ConnLimiter.ReleaseConnection(remoteAddr)
@@ -659,7 +692,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	ctx, err := s.middleware.WrapContextWithUser(s.closeCtx, proxyConn)
 	if err != nil {
 		log.WarnContext(ctx, "mTLS authentication failed for incoming connection", "error", err)
-		sendTDPError("Connection authentication failed.")
+		sendError("Connection authentication failed.")
 		return
 	}
 	log.DebugContext(ctx, "Authenticated Windows desktop connection")
@@ -667,7 +700,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	authContext, err := s.cfg.Authorizer.Authorize(ctx)
 	if err != nil {
 		log.WarnContext(ctx, "authorization failed for Windows desktop connection", "error", err)
-		sendTDPError("Connection authorization failed.")
+		sendError("Connection authorization failed.")
 		return
 	}
 
@@ -690,12 +723,12 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 		}))
 	if err != nil {
 		log.WarnContext(ctx, "Failed to fetch desktop by name", "error", err)
-		sendTDPError("Teleport failed to find the requested desktop in its database.")
+		sendError("Teleport failed to find the requested desktop in its database.")
 		return
 	}
 	if len(desktops) == 0 {
 		log.ErrorContext(ctx, "desktop not found", "host_uuid", s.cfg.Heartbeat.HostUUID, "name", desktopName)
-		sendTDPError(fmt.Sprintf("Could not find desktop %v.", desktopName))
+		sendError(fmt.Sprintf("Could not find desktop %v.", desktopName))
 		return
 	}
 	desktop := desktops[0]
@@ -704,19 +737,19 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	log.DebugContext(ctx, "Connecting to Windows desktop")
 	defer log.DebugContext(ctx, "Windows desktop disconnected")
 
-	if err := s.connectRDP(ctx, log, tdpConn, desktop, authContext); err != nil {
+	if err := s.connectRDP(ctx, log, tdpConn, desktop, authContext, clientProtocol); err != nil {
 		log.ErrorContext(context.Background(), "RDP connection failed", "error", err)
 		msg := "RDP connection failed."
 		var um trace.UserMessager
 		if errors.As(err, &um) {
 			msg = um.UserMessage()
 		}
-		sendTDPError(msg)
+		sendError(msg)
 		return
 	}
 }
 
-func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpConn *tdp.Conn, desktop types.WindowsDesktop, authCtx *authz.Context) error {
+func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpConn *tdp.Conn, desktop types.WindowsDesktop, authCtx *authz.Context, clientProtocol string) error {
 	identity := authCtx.Identity.GetIdentity()
 
 	log = log.With("teleport_user", identity.Username, "desktop_addr", desktop.GetAddr(), "ad", !desktop.NonAD())
@@ -838,17 +871,16 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	}
 
 	log = log.With("kdc_addr", kdcAddr, "nla", nla)
-	log.InfoContext(context.Background(), "initiating RDP client")
+	log.InfoContext(context.Background(), "initiating RDP client", "client_protocol", clientProtocol)
 
 	//nolint:staticcheck // SA4023. False positive, depends on build tags.
-	rdpc, err := rdpclient.New(rdpclient.Config{
+	rdpc, err := rdpclient.New(tdpConn, rdpclient.Config{
 		LicenseStore:          s.cfg.LicenseStore,
 		HostID:                s.cfg.Heartbeat.HostUUID,
 		Logger:                log,
 		Addr:                  addr.String(),
 		ComputerName:          computerName,
 		KDCAddr:               kdcAddr,
-		Conn:                  tdpConn,
 		AuthorizeFn:           authorize,
 		AllowClipboard:        authCtx.Checker.DesktopClipboard(),
 		AllowDirectorySharing: authCtx.Checker.DesktopDirectorySharing(),
@@ -857,6 +889,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		Height:                height,
 		AD:                    !desktop.NonAD(),
 		NLA:                   nla,
+		ClientProtocol:        clientProtocol,
 	})
 	// before we check the error above, we grab the Windows user so that
 	// future audit events include the proper username
@@ -974,6 +1007,30 @@ func populateCertMetadata(metadata *events.WindowsCertificateMetadata, cert *x50
 	metadata.EnhancedKeyUsage = enhancedKeyUsages
 }
 
+func (s *WindowsService) recordEvent(ctx context.Context, t time.Time, delay int64, m tdp.Message, data []byte, recorder libevents.SessionPreparerRecorder) {
+	e := &events.DesktopRecording{
+		Metadata: events.Metadata{
+			Type: libevents.DesktopRecordingEvent,
+			Time: t,
+		},
+		TDPBMessage:       data,
+		DelayMilliseconds: delay,
+	}
+
+	if len(data) > libevents.MaxProtoMessageSizeBytes {
+		// Technically a PNG frame is unbounded and could be too big for a single protobuf.
+		// In practice though, Windows limits RDP bitmaps to 64x64 pixels, and we compress
+		// the PNGs before they get here, so most PNG frames are under 500 bytes. The largest
+		// ones are around 2000 bytes. Anything approaching the limit of a single protobuf
+		// is likely some sort of DoS attempt and not legitimate RDP traffic, so we don't log it.
+		s.cfg.Logger.WarnContext(ctx, "refusing to record message", "len", len(data), "type", logutils.TypeAttr(m))
+	} else {
+		if err := libevents.SetupAndRecordEvent(ctx, recorder, e); err != nil {
+			s.cfg.Logger.WarnContext(ctx, "could not record desktop recording event", "error", err)
+		}
+	}
+}
+
 func (s *WindowsService) makeTDPSendHandler(
 	ctx context.Context,
 	recorder libevents.SessionPreparerRecorder,
@@ -981,45 +1038,22 @@ func (s *WindowsService) makeTDPSendHandler(
 	tdpConn *tdp.Conn,
 	audit *desktopSessionAuditor,
 ) func(m tdp.Message, b []byte) {
-	return func(m tdp.Message, b []byte) {
-		switch b[0] {
-		case byte(legacy.TypeRDPConnectionInitialized), byte(legacy.TypeRDPFastPathPDU), byte(legacy.TypePNG2Frame),
-			byte(legacy.TypePNGFrame), byte(legacy.TypeError), byte(legacy.TypeAlert):
-			e := &events.DesktopRecording{
-				Metadata: events.Metadata{
-					Type: libevents.DesktopRecordingEvent,
-					Time: s.cfg.Clock.Now().UTC().Round(time.Millisecond),
-				},
-				Message:           b,
-				DelayMilliseconds: delay(),
-			}
-			if e.Size() > libevents.MaxProtoMessageSizeBytes {
-				// Technically a PNG frame is unbounded and could be too big for a single protobuf.
-				// In practice though, Windows limits RDP bitmaps to 64x64 pixels, and we compress
-				// the PNGs before they get here, so most PNG frames are under 500 bytes. The largest
-				// ones are around 2000 bytes. Anything approaching the limit of a single protobuf
-				// is likely some sort of DoS attempt and not legitimate RDP traffic, so we don't log it.
-				s.cfg.Logger.WarnContext(ctx, "refusing to record PNG frame, image too large", "len", len(b))
-			} else {
-				if err := libevents.SetupAndRecordEvent(ctx, recorder, e); err != nil {
-					s.cfg.Logger.WarnContext(ctx, "could not record desktop recording event", "error", err)
-				}
-			}
-		case byte(legacy.TypeClipboardData):
-			if clip, ok := m.(legacy.ClipboardData); ok {
-				// the TDP send handler emits a clipboard receive event, because we
-				// received clipboard data from the remote desktop and are sending
-				// it on the TDP connection
-				rxEvent := audit.makeClipboardReceive(int32(len(clip)))
-				s.emit(ctx, rxEvent)
-			}
-		case byte(legacy.TypeSharedDirectoryAcknowledge):
-			if message, ok := m.(legacy.SharedDirectoryAcknowledge); ok {
-				s.emit(ctx, audit.makeSharedDirectoryStart(message))
-			}
-		case byte(legacy.TypeSharedDirectoryReadRequest):
-			if message, ok := m.(legacy.SharedDirectoryReadRequest); ok {
-				errorEvent := audit.onSharedDirectoryReadRequest(message)
+	return func(msg tdp.Message, data []byte) {
+		switch m := msg.(type) {
+		case *tdpb.ServerHello, *tdpb.FastPathPDU, *tdpb.PNGFrame, *tdpb.Alert:
+			s.recordEvent(ctx, s.cfg.Clock.Now().UTC().Round(time.Millisecond), delay(), m, data, recorder)
+		case *tdpb.ClipboardData:
+			// the TDP send handler emits a clipboard receive event, because we
+			// received clipboard data from the remote desktop and are sending
+			// it on the TDP connection
+			rxEvent := audit.makeClipboardReceive(int32(len(m.Data)))
+			s.emit(ctx, rxEvent)
+		case *tdpb.SharedDirectoryAcknowledge:
+			s.emit(ctx, audit.makeSharedDirectoryStart(m))
+		case *tdpb.SharedDirectoryRequest:
+			switch req := m.Operation.(type) {
+			case *tdpbv1.SharedDirectoryRequest_Write_:
+				errorEvent := audit.onSharedDirectoryWriteRequest(completionID(m.CompletionId), directoryID(m.DirectoryId), req.Write)
 				if errorEvent != nil {
 					// if we can't audit due to a full cache, abort the connection
 					// as a security measure
@@ -1028,10 +1062,8 @@ func (s *WindowsService) makeTDPSendHandler(
 					}
 					s.emit(ctx, errorEvent)
 				}
-			}
-		case byte(legacy.TypeSharedDirectoryWriteRequest):
-			if message, ok := m.(legacy.SharedDirectoryWriteRequest); ok {
-				errorEvent := audit.onSharedDirectoryWriteRequest(message)
+			case *tdpbv1.SharedDirectoryRequest_Read_:
+				errorEvent := audit.onSharedDirectoryReadRequest(completionID(m.CompletionId), directoryID(m.DirectoryId), req.Read)
 				if errorEvent != nil {
 					// if we can't audit due to a full cache, abort the connection
 					// as a security measure
@@ -1054,36 +1086,21 @@ func (s *WindowsService) makeTDPReceiveHandler(
 ) func(m tdp.Message) {
 	return func(m tdp.Message) {
 		switch msg := m.(type) {
-		case legacy.ClientScreenSpec, legacy.MouseButton, legacy.MouseMove:
+		case *tdpb.ClientScreenSpec, *tdpb.MouseButton, *tdpb.MouseMove:
 			b, err := m.Encode()
 			if err != nil {
 				s.cfg.Logger.WarnContext(ctx, "could not emit desktop recording event", "error", err)
 			}
-			e := &events.DesktopRecording{
-				Metadata: events.Metadata{
-					Type: libevents.DesktopRecordingEvent,
-					Time: s.cfg.Clock.Now().UTC().Round(time.Millisecond),
-				},
-				Message:           b,
-				DelayMilliseconds: delay(),
-			}
-			if e.Size() > libevents.MaxProtoMessageSizeBytes {
-				// screen spec, mouse button, and mouse move are fixed size messages,
-				// so they cannot exceed the maximum size
-				s.cfg.Logger.WarnContext(ctx, "refusing to record message", "len", len(b), "type", logutils.TypeAttr(m))
-			} else {
-				if err := libevents.SetupAndRecordEvent(ctx, recorder, e); err != nil {
-					s.cfg.Logger.WarnContext(ctx, "could not record desktop recording event", "error", err)
-				}
-			}
-		case legacy.ClipboardData:
+
+			s.recordEvent(ctx, s.cfg.Clock.Now().UTC().Round(time.Millisecond), delay(), m, b, recorder)
+		case *tdpb.ClipboardData:
 			// the TDP receive handler emits a clipboard send event, because we
 			// received clipboard data from the user (over TDP) and are sending
 			// it to the remote desktop
-			sendEvent := audit.makeClipboardSend(int32(len(msg)))
+			sendEvent := audit.makeClipboardSend(int32(len(msg.Data)))
 			s.emit(ctx, sendEvent)
-		case legacy.SharedDirectoryAnnounce:
-			errorEvent := audit.onSharedDirectoryAnnounce(m.(legacy.SharedDirectoryAnnounce))
+		case *tdpb.SharedDirectoryAnnounce:
+			errorEvent := audit.onSharedDirectoryAnnounce(m.(*tdpb.SharedDirectoryAnnounce))
 			if errorEvent != nil {
 				// if we can't audit due to a full cache, abort the connection
 				// as a security measure
@@ -1093,12 +1110,15 @@ func (s *WindowsService) makeTDPReceiveHandler(
 				}
 				s.emit(ctx, errorEvent)
 			}
-		case legacy.SharedDirectoryReadResponse:
+		case *tdpb.SharedDirectoryResponse:
 			// shared directory audit events can be noisy, so we use a compactor
 			// to retain and delay them in an attempt to coalesce contiguous events
-			audit.compactor.handleRead(ctx, audit.makeSharedDirectoryReadResponse(msg))
-		case legacy.SharedDirectoryWriteResponse:
-			audit.compactor.handleWrite(ctx, audit.makeSharedDirectoryWriteResponse(msg))
+			switch op := msg.Operation.(type) {
+			case *tdpbv1.SharedDirectoryResponse_Read_:
+				audit.compactor.handleRead(ctx, audit.makeSharedDirectoryReadResponse(completionID(msg.CompletionId), msg.ErrorCode, op.Read))
+			case *tdpbv1.SharedDirectoryResponse_Write_:
+				audit.compactor.handleWrite(ctx, audit.makeSharedDirectoryWriteResponse(completionID(msg.CompletionId), msg.ErrorCode, op.Write))
+			}
 		}
 	}
 }
@@ -1361,10 +1381,12 @@ type monitorErrorSender struct {
 }
 
 func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
-	if err := m.tdpConn.WriteMessage(legacy.Alert{Message: s, Severity: legacy.SeverityError}); err != nil {
-		return 0, trace.Wrap(err, "sending TDP error message")
+	if err := m.tdpConn.WriteMessage(&tdpb.Alert{
+		Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR,
+		Message:  s,
+	}); err != nil {
+		return 0, trace.Wrap(err, "sending TDPB error message")
 	}
-
 	return len(s), nil
 }
 

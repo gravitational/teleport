@@ -478,7 +478,7 @@ func makeAccessRequestEvent(id string, in string) *events.AccessRequestDelete {
 }
 
 func mustSearchEvent(t *testing.T, log *FileLog, start time.Time) []events.AuditEvent {
-	ctx := context.TODO()
+	ctx := t.Context()
 	result, _, err := log.SearchEvents(ctx, SearchEventsRequest{
 		From:  start,
 		To:    start.Add(time.Hour),

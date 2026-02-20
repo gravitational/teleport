@@ -846,6 +846,13 @@ Examples:
 		}
 		err = onSELinuxDirs(ccf.ConfigFile)
 	case backendCloneCmd.FullCommand():
+		// Ensure that the logging level is respected by the logger.
+		level := slog.LevelInfo
+		if ccf.Debug {
+			level = slog.LevelDebug
+		}
+		utils.InitLogger(utils.LoggingForDaemon, level)
+
 		err = onBackendClone(ctx, ccf.ConfigFile)
 	case backendGetCmd.FullCommand():
 		// configuration merge: defaults -> file-based conf -> CLI conf

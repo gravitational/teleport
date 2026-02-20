@@ -51,6 +51,15 @@ const StyledLink = styled.a`
   text-transform: none;
 `;
 
+const StyledPre = styled.pre`
+  background: ${p => p.theme.colors.spotBackground[1]};
+  border-radius: ${p => p.theme.radii[2]}px;
+  padding: ${p => p.theme.space[2]}px ${p => p.theme.space[3]}px;
+  overflow-x: auto;
+  white-space: pre;
+  margin: ${p => p.theme.space[2]}px 0;
+`;
+
 const parsers: MarkdownParser[] = [
   {
     pattern: /\*\*(?<content>[^*]+?)\*\*/,
@@ -66,7 +75,12 @@ const parsers: MarkdownParser[] = [
     condition: (opts: MarkdownOptions) => !!opts.enableLinks,
     pattern: /\[(?<content>[^\]]*)](?:\((?<url>https?:\/\/[^)]+|[^:)]+)\))?/,
     render: (activeParsers, content, key, url) => (
-      <StyledLink key={key} href={url}>
+      <StyledLink
+        key={key}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
         {parseLine(activeParsers, content)}
       </StyledLink>
     ),
@@ -126,6 +140,7 @@ function parseLine(activeParsers: MarkdownParser[], line: string): ReactNode[] {
 }
 
 const headerRegex = /^(?<hashes>#{1,6})\s*(?<content>.*)$/;
+const fencedCodeRegex = /^```(\w*)\s*$/;
 
 const MAX_ITERATIONS = 10000;
 
@@ -213,6 +228,35 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
       continue;
     }
 
+    // Fenced code blocks: ```lang ... ```
+    if (fencedCodeRegex.test(line)) {
+      const codeLines: string[] = [];
+      const startI = i;
+      i += 1; // skip the opening fence
+
+      while (i < lines.length && !fencedCodeRegex.test(lines[i].trim())) {
+        codeLines.push(lines[i]);
+        i += 1;
+
+        if (i - startI > MAX_ITERATIONS) {
+          break;
+        }
+      }
+
+      // Skip the closing fence if we found one.
+      if (i < lines.length) {
+        i += 1;
+      }
+
+      items.push(
+        <StyledPre key={`code-${i}`}>
+          <code>{codeLines.join('\n')}</code>
+        </StyledPre>
+      );
+
+      continue;
+    }
+
     const paragraphLines: string[] = [];
     const startI = i;
 
@@ -221,7 +265,8 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
 
       if (
         headerRegex.test(currentLine) ||
-        currentLine.trim().startsWith('- ')
+        currentLine.trim().startsWith('- ') ||
+        fencedCodeRegex.test(currentLine.trim())
       ) {
         break;
       }

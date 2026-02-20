@@ -46,7 +46,7 @@ jobs:
           ref: 664e788d45a7f56935cf63094b4fb52a41b12015 # workflows/v0.0.2
 
       - name: Setup base cache
-        uses: actions/cache/restore@v3
+        uses: actions/cache/restore@v5
         id: cache-build-restore
         with:
           path: |
@@ -72,7 +72,7 @@ jobs:
       - if: ${{ steps.cache-build-restore.outputs.cache-hit != 'true' }}
         name: Save base build
         id: base-build-save
-        uses: actions/cache/save@v3
+        uses: actions/cache/save@v5
         with:
           path: |
             ${{ steps.build_base.outputs.base_stats_file }}

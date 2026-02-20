@@ -1926,6 +1926,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			)
 			require.NoError(t, err)
 
+			stdin := &input{buf: bytes.Buffer{}}
 			stdout := &output{buf: bytes.Buffer{}}
 			stderr := &output{buf: bytes.Buffer{}}
 			// Clear counter before each ssh command,
@@ -1947,7 +1948,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 				args,
 				setHomePath(tmpHomePath),
 				func(conf *CLIConf) error {
-					conf.overrideStdin = &bytes.Buffer{}
+					conf.overrideStdin = stdin
 					conf.OverrideStdout = stdout
 					conf.overrideStderr = stderr
 					conf.MockHeadlessLogin = mockHeadlessLogin(t, tt.auth, user)
@@ -1985,6 +1986,18 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			}
 		})
 	}
+}
+
+type input struct {
+	lock sync.Mutex
+	buf  bytes.Buffer
+}
+
+func (i *input) Read(p []byte) (int, error) {
+	i.lock.Lock()
+	defer i.lock.Unlock()
+
+	return i.buf.Read(p)
 }
 
 type output struct {
@@ -2850,7 +2863,7 @@ func TestSSHCommands(t *testing.T) {
 //
 // Duplicated in integration/integration_test.go
 func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	for range 10 {
 		_, err := authServer.UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err == nil {
@@ -8150,6 +8163,43 @@ func TestLogoutOneIdentity(t *testing.T) {
 				})
 			require.NoError(t, err)
 			require.Contains(t, buf.String(), fmt.Sprintf("Logged out %v from %v.\n", alice.GetName(), proxyAddr.Host()))
+		})
+	}
+}
+
+func TestListNodesCLIFlags(t *testing.T) {
+	testCases := []struct {
+		Description string
+		Args        []string
+		ErrTestFunc func(e error) bool
+	}{
+		{
+			Description: "should return bad parameter error when --headless and --all are specified",
+			Args: []string{
+				"ls",
+				"--proxy", "test-proxy",
+				"--user", "test-user",
+				"--headless",
+				"--all",
+			},
+			ErrTestFunc: trace.IsBadParameter,
+		},
+		{
+			Description: "should return bad parameter error when --auth=headless and --all are specified",
+			Args: []string{
+				"ls",
+				"--proxy", "test-proxy",
+				"--user", "test-user",
+				"--auth", "headless",
+				"--all",
+			},
+			ErrTestFunc: trace.IsBadParameter,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.Description, func(t *testing.T) {
+			err := Run(t.Context(), testCase.Args)
+			require.True(t, testCase.ErrTestFunc(err))
 		})
 	}
 }

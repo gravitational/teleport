@@ -173,7 +173,7 @@ func (c *Client) buildBody(reqID string, reqData RequestData, subject string) st
 	var builder strings.Builder
 	builder.Grow(128)
 
-	builder.WriteString(fmt.Sprintf("%v:\n\n", subject))
+	fmt.Fprintf(&builder, "%v:\n\n", subject)
 
 	resolution := reqData.Resolution
 

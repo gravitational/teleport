@@ -32,12 +32,13 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"strconv"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/mattn/go-sqlite3"
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -140,7 +141,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 // Config.
 func (cfg *Config) ConnectionURI() string {
 	params := url.Values{}
-	params.Set("_busy_timeout", strconv.Itoa(cfg.BusyTimeout))
+	params.Set("_pragma", "busy_timeout("+strconv.Itoa(cfg.BusyTimeout)+")")
 	// The _txlock parameter is parsed by go-sqlite to determine if (all)
 	// transactions should be started with `BEGIN DEFERRED` (the default, same
 	// as `BEGIN`), `BEGIN IMMEDIATE` or `BEGIN EXCLUSIVE`.
@@ -177,10 +178,10 @@ func (cfg *Config) ConnectionURI() string {
 	// correctly handle the possibility of the transaction being restarted.
 	params.Set("_txlock", "immediate")
 	if cfg.Sync != "" {
-		params.Set("_sync", cfg.Sync)
+		params.Add("_pragma", "synchronous("+cfg.Sync+")")
 	}
 	if cfg.Journal != "" {
-		params.Set("_journal", cfg.Journal)
+		params.Add("_pragma", "journal_mode("+cfg.Journal+")")
 	}
 
 	u := url.URL{
@@ -224,26 +225,27 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		setPermissions = true
 	}
 
-	db, err := sql.Open("sqlite3", cfg.ConnectionURI())
+	db, err := sql.Open("sqlite", cfg.ConnectionURI())
 	if err != nil {
 		return nil, trace.Wrap(err, "error opening URI: %v", connectionURI)
-	}
-
-	if setPermissions {
-		// Ensure the database has restrictive access permissions.
-		err = db.PingContext(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		err = os.Chmod(path, dbMode)
-		if err != nil {
-			return nil, trace.ConvertSystemError(err)
-		}
 	}
 
 	// serialize access to sqlite, as we're using immediate transactions anyway,
 	// and in-memory go locks are faster than sqlite locks
 	db.SetMaxOpenConns(1)
+
+	if setPermissions {
+		// Ensure the database has restrictive access permissions.
+		if err := db.PingContext(ctx); err != nil {
+			_ = db.Close()
+			return nil, trace.Wrap(err)
+		}
+		if err := os.Chmod(path, dbMode); err != nil {
+			_ = db.Close()
+			return nil, trace.ConvertSystemError(err)
+		}
+	}
+
 	buf := backend.NewCircularBuffer(
 		backend.BufferCapacity(cfg.BufferSize),
 	)
@@ -259,12 +261,13 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	}
 	l.logger.DebugContext(ctx, "Connected to database", "database", connectionURI, "poll_stream_period", cfg.PollStreamPeriod)
 	if err := l.createSchema(); err != nil {
-		return nil, trace.Wrap(err, "error creating schema: %v", connectionURI)
+		cancel()
+		return nil, trace.NewAggregate(trace.Wrap(err, "error creating schema: %v", connectionURI), db.Close())
 	}
 	if err := l.showPragmas(); err != nil {
 		l.logger.WarnContext(ctx, "Failed to show pragma settings", "error", err)
 	}
-	go l.runPeriodicOperations()
+	l.wg.Go(l.runPeriodicOperations)
 	return l, nil
 }
 
@@ -281,8 +284,7 @@ type Backend struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	// closedFlag is set to indicate that the database is closed
-	closedFlag int32
+	wg sync.WaitGroup
 }
 
 func (l *Backend) GetName() string {
@@ -991,27 +993,15 @@ func (l *Backend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.
 // Close closes all associated resources
 func (l *Backend) Close() error {
 	l.cancel()
-	return l.closeDatabase()
+	l.buf.Close()
+	l.wg.Wait()
+	return trace.Wrap(l.db.Close())
 }
 
 // CloseWatchers closes all the watchers
 // without closing the backend
 func (l *Backend) CloseWatchers() {
 	l.buf.Clear()
-}
-
-func (l *Backend) isClosed() bool {
-	return atomic.LoadInt32(&l.closedFlag) == 1
-}
-
-func (l *Backend) setClosed() {
-	atomic.StoreInt32(&l.closedFlag, 1)
-}
-
-func (l *Backend) closeDatabase() error {
-	l.setClosed()
-	l.buf.Close()
-	return l.db.Close()
 }
 
 func (l *Backend) inTransaction(ctx context.Context, f func(tx *sql.Tx) error) (err error) {
@@ -1022,50 +1012,44 @@ func (l *Backend) inTransaction(ctx context.Context, f func(tx *sql.Tx) error) (
 			l.logger.WarnContext(ctx, "SLOW TRANSACTION", "duration", diff, "stack", string(debug.Stack()))
 		}
 	}()
+
 	tx, err := l.db.BeginTx(ctx, nil)
 	if err != nil {
 		return trace.Wrap(convertError(err))
-	}
-	commit := func() error {
-		return tx.Commit()
-	}
-	rollback := func() error {
-		return tx.Rollback()
 	}
 	defer func() {
 		if r := recover(); r != nil {
 			l.logger.ErrorContext(ctx, "Unexpected panic in inTransaction, trying to rollback.", "error", r)
 			err = trace.BadParameter("panic: %v", r)
-			if e2 := rollback(); e2 != nil {
+			if e2 := tx.Rollback(); e2 != nil {
 				l.logger.ErrorContext(ctx, "Failed to rollback", "error", e2)
 			}
 			return
 		}
-		if err != nil && !trace.IsNotFound(err) {
-			if isConstraintError(trace.Unwrap(err)) {
-				err = trace.AlreadyExists("%s", err)
-			}
-			// transaction aborted by interrupt, no action needed
-			if isInterrupt(trace.Unwrap(err)) {
-				return
-			}
+
+		if err != nil {
 			if isLockedError(trace.Unwrap(err)) {
 				err = trace.ConnectionProblem(err, "database is locked")
 			}
 			if isReadonlyError(trace.Unwrap(err)) {
 				err = trace.ConnectionProblem(err, "database is in readonly mode")
 			}
-			if !l.isClosed() {
-				if !trace.IsCompareFailed(err) && !trace.IsAlreadyExists(err) && !trace.IsConnectionProblem(err) {
-					l.logger.WarnContext(ctx, "Unexpected error in inTransaction, rolling back.", "error", err)
-				}
-				if e2 := rollback(); e2 != nil {
-					l.logger.ErrorContext(ctx, "Failed to rollback too", "error", e2)
-				}
+
+			if isConstraintError(trace.Unwrap(err)) {
+				err = trace.AlreadyExists("%s", err)
+			}
+
+			if e2 := tx.Rollback(); e2 != nil && !trace.IsConnectionProblem(err) && l.ctx.Err() == nil {
+				l.logger.ErrorContext(ctx, "Failed to rollback too", "error", e2)
+			}
+
+			if !trace.IsNotFound(err) && !trace.IsCompareFailed(err) && !trace.IsAlreadyExists(err) && !trace.IsConnectionProblem(err) && l.ctx.Err() == nil {
+				l.logger.WarnContext(ctx, "Unexpected error in inTransaction, rolling back.", "error", err)
 			}
 			return
 		}
-		if err2 := commit(); err2 != nil {
+
+		if err2 := tx.Commit(); err2 != nil {
 			err = trace.Wrap(err2)
 		}
 	}()
@@ -1093,33 +1077,28 @@ func isClosedError(err error) bool {
 }
 
 func isConstraintError(err error) bool {
-	var e sqlite3.Error
+	var e *sqlite.Error
 	if ok := errors.As(err, &e); !ok {
 		return false
 	}
-	return e.Code == sqlite3.ErrConstraint
+	// Only return true if the constraint violation is from the primary key.
+	return e.Code() == sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY
 }
 
 func isLockedError(err error) bool {
-	var e sqlite3.Error
+	var e *sqlite.Error
 	if ok := errors.As(err, &e); !ok {
 		return false
 	}
-	return e.Code == sqlite3.ErrBusy
-}
-
-func isInterrupt(err error) bool {
-	var e sqlite3.Error
-	if ok := errors.As(err, &e); !ok {
-		return false
-	}
-	return e.Code == sqlite3.ErrInterrupt
+	// Return true for busy or any extended busy errors.
+	return e.Code()&0xFF == sqlite3.SQLITE_BUSY
 }
 
 func isReadonlyError(err error) bool {
-	var e sqlite3.Error
+	var e *sqlite.Error
 	if ok := errors.As(err, &e); !ok {
 		return false
 	}
-	return e.Code == sqlite3.ErrReadonly
+	// Return true for readonly or any extended readonly errors.
+	return e.Code()&0xFF == sqlite3.SQLITE_READONLY
 }

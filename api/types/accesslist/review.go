@@ -38,6 +38,11 @@ type Review struct {
 	Spec ReviewSpec `json:"spec" yaml:"spec"`
 }
 
+const (
+	// reviewNotesMaxSizeBytes is the maximum size in bytes of review notes.
+	reviewNotesMaxSizeBytes = 200 * 1024 // 200 KB should be more than plenty
+)
+
 // ReviewSpec describes the specification of a review of an access list.
 type ReviewSpec struct {
 	// AccessList is the name of the associated access list.
@@ -74,16 +79,16 @@ type ReviewChanges struct {
 
 // NewReview will create a new access list review.
 func NewReview(metadata header.Metadata, spec ReviewSpec) (*Review, error) {
-	member := &Review{
+	review := &Review{
 		ResourceHeader: header.ResourceHeaderFromMetadata(metadata),
 		Spec:           spec,
 	}
 
-	if err := member.CheckAndSetDefaults(); err != nil {
+	if err := review.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return member, nil
+	return review, nil
 }
 
 // CheckAndSetDefaults validates fields and populates empty fields with default values.
@@ -105,6 +110,10 @@ func (r *Review) CheckAndSetDefaults() error {
 
 	if r.Spec.ReviewDate.IsZero() {
 		return trace.BadParameter("review date is missing")
+	}
+
+	if len(r.Spec.Notes) > reviewNotesMaxSizeBytes {
+		r.Spec.Notes = r.Spec.Notes[:reviewNotesMaxSizeBytes]
 	}
 
 	return nil
