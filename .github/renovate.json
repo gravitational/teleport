@@ -6,7 +6,8 @@
     "branch/v17"
   ],
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    ":disableDependencyDashboard"
   ],
   "enabledManagers": [
     "custom.regex"
