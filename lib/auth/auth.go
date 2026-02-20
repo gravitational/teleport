@@ -8324,7 +8324,7 @@ func (a *Server) validateMFAAuthResponseInternal(
 				Webauthn: webConfig,
 				Identity: a.Services,
 			}
-			loginData, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn), requiredExtensions)
+			loginData, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn), requiredExtensions, false /* validateOnly */)
 		}
 		if err != nil {
 			if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES &&

@@ -137,35 +137,23 @@ func (f *LoginFlow) Begin(ctx context.Context, params BeginParams) (*wantypes.Cr
 // user name, and other login properties. If login is successful, Finish has the
 // side effect of updating the counter and last used timestamp of the MFADevice
 // used.
-func (f *LoginFlow) Finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, requiredExtensions *mfav1.ChallengeExtensions) (*LoginData, error) {
+// If validateOnly is true, the response will be validated without consuming it.
+// This is useful for flows like Browser MFA where the browser needs to validate
+// the response before returning it tsh.
+func (f *LoginFlow) Finish(
+	ctx context.Context,
+	user string,
+	resp *wantypes.CredentialAssertionResponse,
+	requiredExtensions *mfav1.ChallengeExtensions,
+	validateOnly bool,
+) (*LoginData, error) {
 	lf := &loginFlow{
 		U2F:         f.U2F,
 		Webauthn:    f.Webauthn,
 		identity:    mfaIdentity{f.Identity},
 		sessionData: (*userSessionStorage)(f),
 	}
-	return lf.finish(ctx, user, resp, requiredExtensions)
-}
-
-// Validate validates an MFA credential assertion response against the stored
-// challenge without consuming it (i.e., without updating device counters or deleting the session).
-// This is useful for multi-step flows where you want to validate the response early but only
-// consume it later when issuing credentials, such as the Browser MFA flow.
-//
-// Unlike Finish, this function:
-//   - Doesn't update the device counter
-//   - Doesn't persist any changes to the device
-//   - Doesn't delete the session data
-//
-// Returns nil if validation succeeds, error otherwise.
-func (f *LoginFlow) Validate(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, requiredExtensions *mfav1.ChallengeExtensions) error {
-	lf := &loginFlow{
-		U2F:         f.U2F,
-		Webauthn:    f.Webauthn,
-		identity:    mfaIdentity{f.Identity},
-		sessionData: (*userSessionStorage)(f),
-	}
-	return lf.validateOnly(ctx, user, resp, requiredExtensions)
+	return lf.finish(ctx, user, resp, requiredExtensions, validateOnly)
 }
 
 type mfaIdentity struct {

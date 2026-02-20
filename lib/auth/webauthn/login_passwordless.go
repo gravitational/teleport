@@ -82,7 +82,7 @@ func (f *PasswordlessFlow) Finish(ctx context.Context, resp *wantypes.Credential
 		Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
 		AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 	}
-	return lf.finish(ctx, "" /* user */, resp, requiredExt)
+	return lf.finish(ctx, "" /* user */, resp, requiredExt, false /* validateOnly */)
 }
 
 type passwordlessIdentity struct {
