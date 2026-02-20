@@ -34,6 +34,22 @@ const (
 	terminateTimeout = 30 * time.Second
 )
 
+// systemdUnitActiveState is the ActiveState property of a systemd unit.
+// The values and descriptions below are copied from the official
+// org.freedesktop.systemd1 D-Bus interface documentation.
+type systemdUnitState string
+
+const (
+	// systemdUnitActive means started, bound, plugged in, …, depending on the unit type.
+	systemdUnitActive systemdUnitState = "active"
+	// systemdUnitInactive means stopped, unbound, unplugged, …, depending on the unit type.
+	systemdUnitInactive systemdUnitState = "inactive"
+	// systemdUnitFailed means similar to inactive, but the unit failed in some way (process returned error code on exit, crashed, an operation timed out, or after too many restarts).
+	systemdUnitFailed systemdUnitState = "failed"
+	// systemdUnitActivating means changing from inactive to active.
+	systemdUnitActivating systemdUnitState = "activating"
+)
+
 func execAdminProcess(ctx context.Context, cfg LinuxAdminProcessConfig) error {
 	if err := checkDBusServiceAvailability(ctx); err != nil {
 		if os.Geteuid() == 0 {
@@ -74,11 +90,11 @@ loop:
 			}
 			break loop
 		case <-ticker.C:
-			state, err := systemdUnitActiveState(ctx, conn, vnetSystemdUnitName)
+			state, err := getSystemdUnitState(ctx, conn, vnetSystemdUnitName)
 			if err != nil {
 				return trace.Wrap(err, "querying systemd service %s", vnetSystemdUnitName)
 			}
-			if state != "active" && state != "activating" {
+			if state != systemdUnitActive && state != systemdUnitActivating {
 				return trace.Errorf("service stopped running prematurely, status: %s", state)
 			}
 		}
@@ -91,18 +107,18 @@ loop:
 		case <-deadline:
 			return trace.Errorf("systemd service %s failed to stop with %v", vnetSystemdUnitName, terminateTimeout)
 		case <-ticker.C:
-			state, err := systemdUnitActiveState(ctx, conn, vnetSystemdUnitName)
+			state, err := getSystemdUnitState(ctx, conn, vnetSystemdUnitName)
 			if err != nil {
 				return trace.Wrap(err, "querying systemd service %s", vnetSystemdUnitName)
 			}
-			if state == "inactive" {
+			if state == systemdUnitInactive || state == systemdUnitFailed {
 				return nil
 			}
 		}
 	}
 }
 
-func systemdUnitActiveState(ctx context.Context, conn *systemddbus.Conn, unit string) (string, error) {
+func getSystemdUnitState(ctx context.Context, conn *systemddbus.Conn, unit string) (systemdUnitState, error) {
 	props, err := conn.GetUnitPropertiesContext(ctx, unit)
 	if err != nil {
 		return "", err
@@ -111,7 +127,7 @@ func systemdUnitActiveState(ctx context.Context, conn *systemddbus.Conn, unit st
 	if !ok || state == "" {
 		return "", trace.Errorf("systemd ActiveState is missing for %s", unit)
 	}
-	return state, nil
+	return systemdUnitState(state), nil
 }
 
 func checkDBusServiceAvailability(ctx context.Context) error {
