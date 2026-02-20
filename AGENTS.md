@@ -9,8 +9,8 @@ Use Codex/LLMs to explore ideas, prototypes, and design alternatives only. Any L
 - Do **not** stage, commit, or open PRs containing LLM-authored code or text. If you created files, clearly mark them as prototypes and remove them before any commit.
 
 ## Review Guidelines
-- Focus only on critical security and reliability issues.
-- Ignore style, performance micro-optimizations, and readability nits unless they are tied to a security / reliability failure
+- Focus only on critical security, reliability, performance, and scalability issues.
+- Ignore style, performance micro-optimizations, and readability nits unless they are tied to a signfiicant failure
 
 ### What to Look For
 - Authentication/authorization bypasses
