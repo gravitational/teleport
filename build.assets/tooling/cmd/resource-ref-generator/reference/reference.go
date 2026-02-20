@@ -58,9 +58,9 @@ type ResourceConfig struct {
 	// The name of the struct type as declared in the Go source, e.g.,
 	// RoleV6.
 	TypeName string `yaml:"type"`
-	// The final path segment in the name of the Go package containing this
-	// type declaration, e.g., "api".
-	PackageName string `yaml:"package"`
+	// The full path of the Go package containing this type declaration,
+	// e.g.,"github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1".
+	PackagePath string `yaml:"package"`
 	// The value of the "kind" field within a YAML manifest for this
 	// resource, e.g., "role".
 	KindValue string `yaml:"yaml_kind"`
@@ -97,9 +97,10 @@ func (g GenerationError) Error() string {
 }
 
 // Generate uses the provided user-facing configuration to write the resource
-// reference to fs.
-func Generate(conf GeneratorConfig, tmpl *template.Template) error {
-	sourceData, err := resource.NewSourceData(conf.SourcePath)
+// reference to fs. Uses prefix, e.g., github.com/gravitational/teleport, to
+// construct package paths.
+func Generate(prefix string, conf GeneratorConfig, tmpl *template.Template) error {
+	sourceData, err := resource.NewSourceData(prefix, conf.SourcePath)
 	if err != nil {
 		return fmt.Errorf("loading Go source files: %w", err)
 	}
@@ -108,12 +109,12 @@ func Generate(conf GeneratorConfig, tmpl *template.Template) error {
 	for _, r := range conf.Resources {
 		k := resource.PackageInfo{
 			DeclName:    r.TypeName,
-			PackageName: r.PackageName,
+			PackagePath: r.PackagePath,
 		}
 
 		decl, ok := sourceData.TypeDecls[k]
 		if !ok {
-			errs.messages = append(errs.messages, fmt.Errorf("creating a reference entry for declaration %v.%v: cannot find a declaration of this resource type", k.PackageName, k.DeclName))
+			errs.messages = append(errs.messages, fmt.Errorf("creating a reference entry for declaration %v.%v: cannot find a declaration of this resource type", k.PackagePath, k.DeclName))
 			continue
 		}
 
@@ -121,12 +122,12 @@ func Generate(conf GeneratorConfig, tmpl *template.Template) error {
 
 		// decl is a dynamic resource type, so get data for the type and
 		// its dependencies.
-		entries, err := resource.ReferenceDataFromDeclaration(decl, sourceData.TypeDecls, conf.CamelCaseExceptions)
+		entries, err := resource.ReferenceDataFromDeclaration(prefix, decl, sourceData.TypeDecls, conf.CamelCaseExceptions)
 		if errors.As(err, &resource.NotAGenDeclError{}) {
 			continue
 		}
 		if err != nil {
-			errs.messages = append(errs.messages, fmt.Errorf("creating a reference entry for declaration %v.%v in file %v: %w", k.PackageName, k.DeclName, decl.FilePath, err))
+			errs.messages = append(errs.messages, fmt.Errorf("creating a reference entry for declaration %v.%v in file %v: %w", k.PackagePath, k.DeclName, decl.FilePath, err))
 		}
 
 		pc.Resource.ReferenceEntry = entries[k]
