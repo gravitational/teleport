@@ -313,6 +313,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Checkout shared-workflows
+        uses: actions/checkout@v6
+        with:
+          repository: gravitational/shared-workflows
+          path: .github/shared-workflows
+          ref: dd8f30e8fd5dd1d1655b9d27049e5d0f6f4f9ef2 # workflows/v0.0.3
+
+      - name: Generate GitHub Token
+        id: generate_token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.REVIEWERS_APP_ID }}
+          private-key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
+
+      - name: Validate RFD
+        id: validate_rfd
+        run: cd .github/shared-workflows/bot && go run main.go -workflow=rfd -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}"
+        
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
 
