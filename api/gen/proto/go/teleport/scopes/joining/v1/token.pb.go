@@ -750,8 +750,9 @@ type AWS struct {
 	// allow rule in order to use this token.
 	Allow []*AWS_Rule `protobuf:"bytes,1,rep,name=allow,proto3" json:"allow,omitempty"`
 	// The TTL to use for AWS EC2 Instance Identity Documents used
-	// to join the cluster with this token.
-	AwsIidTtl int64 `protobuf:"varint,2,opt,name=aws_iid_ttl,json=awsIidTtl,proto3" json:"aws_iid_ttl,omitempty"`
+	// to join the cluster with this token. This should be a duration
+	// string such as "8h" or "6mo".
+	IidTtl string `protobuf:"bytes,2,opt,name=iid_ttl,json=iidTtl,proto3" json:"iid_ttl,omitempty"`
 	// Integration name which provides credentials for validating join attempts.
 	// Currently only in use for validating the AWS Organization ID in the IAM Join method.
 	Integration   string `protobuf:"bytes,3,opt,name=integration,proto3" json:"integration,omitempty"`
@@ -796,11 +797,11 @@ func (x *AWS) GetAllow() []*AWS_Rule {
 	return nil
 }
 
-func (x *AWS) GetAwsIidTtl() int64 {
+func (x *AWS) GetIidTtl() string {
 	if x != nil {
-		return x.AwsIidTtl
+		return x.IidTtl
 	}
-	return 0
+	return ""
 }
 
 func (x *AWS) GetIntegration() string {
@@ -1478,10 +1479,10 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12F\n" +
 	"\x04spec\x18\x06 \x01(\v22.teleport.scopes.joining.v1.StaticScopedTokensSpecR\x04spec\"Y\n" +
 	"\x16StaticScopedTokensSpec\x12?\n" +
-	"\x06tokens\x18\x01 \x03(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x06tokens\"\xb2\x02\n" +
+	"\x06tokens\x18\x01 \x03(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x06tokens\"\xab\x02\n" +
 	"\x03AWS\x12:\n" +
-	"\x05allow\x18\x01 \x03(\v2$.teleport.scopes.joining.v1.AWS.RuleR\x05allow\x12\x1e\n" +
-	"\vaws_iid_ttl\x18\x02 \x01(\x03R\tawsIidTtl\x12 \n" +
+	"\x05allow\x18\x01 \x03(\v2$.teleport.scopes.joining.v1.AWS.RuleR\x05allow\x12\x17\n" +
+	"\aiid_ttl\x18\x02 \x01(\tR\x06iidTtl\x12 \n" +
 	"\vintegration\x18\x03 \x01(\tR\vintegration\x1a\xac\x01\n" +
 	"\x04Rule\x12\x1f\n" +
 	"\vaws_account\x18\x01 \x01(\tR\n" +

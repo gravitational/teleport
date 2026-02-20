@@ -1,0 +1,134 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "baseBranchPatterns": [
+    "master",
+    "branch/v18",
+    "branch/v17"
+  ],
+  "extends": [
+    "config:recommended"
+  ],
+  "enabledManagers": [
+    "custom.regex"
+  ],
+  "labels": [
+    "dependencies",
+    "go"
+  ],
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/__tests__/**",
+    "**/test/**",
+    "**/tests/**",
+    "**/__fixtures__/**"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/(^|/)go\\.mod$/"
+      ],
+      "matchStrings": [
+        "(?m)^go\\s+(?<currentValue>\\d+\\.\\d+(?:\\.\\d+)?)\\s*$",
+        "(?m)^toolchain\\s+go(?<currentValue>\\d+\\.\\d+(?:\\.\\d+)?)\\s*$"
+      ],
+      "depNameTemplate": "go",
+      "datasourceTemplate": "golang-version",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^build\\.assets/versions\\.mk$/"
+      ],
+      "matchStrings": [
+        "GOLANG_VERSION\\s*\\?=\\s*go(?<currentValue>[^\\s\\n]+)"
+      ],
+      "depNameTemplate": "go",
+      "datasourceTemplate": "golang-version",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^docs/config\\.json$/"
+      ],
+      "matchStrings": [
+        "\"golang\":\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "go",
+      "datasourceTemplate": "golang-version",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^build\\.assets/Dockerfile-grpcbox$/"
+      ],
+      "matchStrings": [
+        "FROM docker\\.io/golang:(?<currentValue>[^\\s]+)"
+      ],
+      "depNameTemplate": "go",
+      "datasourceTemplate": "golang-version",
+      "versioningTemplate": "semver"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchBaseBranches": [
+        "branch/v18"
+      ],
+      "commitMessagePrefix": "[v18] "
+    },
+    {
+      "matchBaseBranches": [
+        "branch/v17"
+      ],
+      "commitMessagePrefix": "[v17] "
+    },
+    {
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchDepNames": [
+        "go"
+      ],
+      "separateMultipleMinor": true,
+      "separateMinorPatch": true
+    },
+    {
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchDepNames": [
+        "go"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "major"
+      ],
+      "enabled": false
+    },
+    {
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchDepNames": [
+        "go"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "enabled": true,
+      "groupName": "Go version",
+      "groupSlug": "go-version",
+      "prHourlyLimit": 5,
+      "prBodyNotes": [
+        "Changelog: Updated Go to {{{newValue}}}."
+      ],
+      "commitMessageTopic": "Go toolchain version"
+    }
+  ]
+}

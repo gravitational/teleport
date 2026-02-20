@@ -94,6 +94,8 @@ breaking:
     - api/proto/teleport/decision/v1alpha1
     # TODO(nklaassen): Remove ignore once the new join API is stable.
     - api/proto/teleport/join/v1
+    # TODO(eriktate): Remove ignore once the new scopes API is stable.
+    - api/proto/teleport/scopes
 
 plugins:
   - plugin:
