@@ -211,7 +211,7 @@ const (
 )
 
 func TestNetworkingProcessPropagatesChildStderr(t *testing.T) {
-	expectedChildErr := "Failed to launch: test networking child error"
+	const expectedChildErr = "Failed to launch: test networking child error"
 
 	cmd := exec.Command(os.Args[0], "-test.run=^TestReexecHelperProcess$")
 	cmd.Env = append(

@@ -860,9 +860,7 @@ func RunNetworking() (code int, err error) {
 		parentConn.Close()
 	}()
 
-	// Alert the parent process that the child process has completed any setup operations,
-	// and that we are now waiting for the continue signal before proceeding. This is needed
-	// to ensure that PAM changing the cgroup doesn't bypass enhanced recording.
+	// Alert the parent process that the child process is ready and listening for networking requests.
 	parentConn.Write(make([]byte, 1))
 
 	for {

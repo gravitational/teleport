@@ -172,10 +172,16 @@ func (p *Process) start(ctx context.Context, reexecErrorContext *reexec.ErrorCon
 		}
 
 		childErr, err := reexec.ReadChildError(stderrr, reexecErrorContext)
-		if err != nil || childErr == nil {
-			slog.WarnContext(context.WithoutCancel(ctx), "Networking process exited early with unexpected error", "wait_error", waitErr, "child_error", err)
-		} else {
+		if err == nil && childErr != nil {
 			p.childErr = childErr
+			return
+		}
+
+		// Child process exited before becoming ready without returning a structured
+		// reexec error over stderr, so fall back to the process wait error.
+		p.childErr = trace.Wrap(waitErr, "networking process exited before signaling ready")
+		if err != nil {
+			slog.WarnContext(context.WithoutCancel(ctx), "Failed to read child process error after early exit", "wait_error", waitErr, "child_error", err)
 		}
 	}()
 
