@@ -395,8 +395,8 @@ type Server struct {
 	// nodeWatcher is a node watcher.
 	nodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
-	// ec2Watcher periodically retrieves EC2 instances.
-	ec2Watcher *server.Watcher[*server.EC2Instances]
+	// ec2Watcher periodically retrieves EC2 instances and permission errors.
+	ec2Watcher *server.Watcher[*server.EC2DiscoveryResult]
 	// ec2Installer is used to start the installation process on discovered EC2 nodes
 	ec2Installer ssmInstaller
 	// gcpWatcher periodically retrieves GCP virtual machines.
@@ -442,9 +442,9 @@ type Server struct {
 	awsRDSResourcesStatus awsResourcesStatus
 	awsEKSResourcesStatus awsResourcesStatus
 	awsEC2Tasks           awsEC2Tasks
-	awsEKSTasks           awsEKSTasks
-	awsRDSTasks           awsRDSTasks
-	azureVMStatus         atomic.Pointer[resourceStatusMap]
+	awsEKSTasks awsEKSTasks
+	awsRDSTasks        awsRDSTasks
+	azureVMStatus      atomic.Pointer[resourceStatusMap]
 
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
@@ -627,10 +627,44 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	s.ec2Watcher = server.NewWatcher(
 		s.ctx,
 		server.WithMissedRotation(s.caRotationCh),
-		server.WithPollInterval[*server.EC2Instances](s.PollInterval),
-		server.WithTriggerFetchC[*server.EC2Instances](s.newDiscoveryConfigChangedSub()),
+		server.WithPollInterval[*server.EC2DiscoveryResult](s.PollInterval),
+		server.WithTriggerFetchC[*server.EC2DiscoveryResult](s.newDiscoveryConfigChangedSub()),
 		server.WithPreFetchHookFn(s.ec2WatcherIterationStarted),
-		server.WithClock[*server.EC2Instances](s.clock),
+		server.WithPostFetchHookFn[*server.EC2DiscoveryResult](s.upsertTasksForAWSEC2FailedEnrollments),
+		// Report IAM permission errors in the watcher pipeline, close to where
+		// they originate, rather than downstream in handleEC2Discovery.
+		server.WithPerInstanceHookFn(func(results []*server.EC2DiscoveryResult) {
+			for _, result := range results {
+				if result == nil {
+					continue
+				}
+				for _, permErr := range result.PermissionErrors {
+					s.Log.WarnContext(s.ctx, "IAM permission error during EC2 discovery",
+						"issue_type", permErr.IssueType,
+						"integration", permErr.Integration,
+						"account_id", permErr.AccountID,
+						"region", permErr.Region,
+						"discovery_config", permErr.DiscoveryConfigName,
+						"error", permErr.Err,
+					)
+					s.awsEC2Tasks.addFailedEnrollment(
+						awsEC2TaskKey{
+							accountID:   permErr.AccountID,
+							integration: permErr.Integration,
+							issueType:   permErr.IssueType,
+							region:      permErr.Region,
+						},
+						nil, // Permission issues have no instance data.
+					)
+				}
+				select {
+				case s.ec2Watcher.InstancesC <- result:
+				case <-s.ctx.Done():
+					return
+				}
+			}
+		}),
+		server.WithClock[*server.EC2DiscoveryResult](s.clock),
 	)
 	s.ec2Watcher.SetFetchers(noDiscoveryConfig, staticFetchers)
 
@@ -668,7 +702,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	return nil
 }
 
-func (s *Server) ec2WatcherIterationStarted(fetchers []server.Fetcher[*server.EC2Instances]) {
+func (s *Server) ec2WatcherIterationStarted(fetchers []server.Fetcher[*server.EC2DiscoveryResult]) {
 	if len(fetchers) == 0 {
 		return
 	}
@@ -677,7 +711,7 @@ func (s *Server) ec2WatcherIterationStarted(fetchers []server.Fetcher[*server.EC
 
 	awsResultGroups := libslices.FilterMapUnique(
 		fetchers,
-		func(f server.Fetcher[*server.EC2Instances]) (awsResourceGroup, bool) {
+		func(f server.Fetcher[*server.EC2DiscoveryResult]) (awsResourceGroup, bool) {
 			include := f.GetDiscoveryConfigName() != "" && f.IntegrationName() != ""
 			resourceGroup := awsResourceGroup{
 				discoveryConfigName: f.GetDiscoveryConfigName(),
@@ -730,7 +764,7 @@ func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
 }
 
 // awsServerFetchersFromMatchers converts Matchers into a set of AWS EC2 Fetchers.
-func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []types.AWSMatcher, discoveryConfigName string) ([]server.Fetcher[*server.EC2Instances], error) {
+func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []types.AWSMatcher, discoveryConfigName string) ([]server.Fetcher[*server.EC2DiscoveryResult], error) {
 	serverMatchers, _ := splitMatchers(matchers, func(matcherType string) bool {
 		return matcherType == types.AWSMatcherEC2
 	})
@@ -1360,19 +1394,27 @@ func (s *Server) handleEC2Discovery() {
 
 	for {
 		select {
-		case instances := <-s.ec2Watcher.InstancesC:
-			s.Log.DebugContext(s.ctx, "EC2 instances discovered, starting installation", "account_id", instances.AccountID, "instances", genEC2InstancesLogStr(instances.Instances))
-
-			s.awsEC2ResourcesStatus.incrementFound(awsResourceGroup{
-				discoveryConfigName: instances.DiscoveryConfigName,
-				integration:         instances.Integration,
-			}, len(instances.Instances))
-
-			if err := s.handleEC2Instances(instances); err != nil {
-				s.logHandleInstancesErr(err)
+		case result := <-s.ec2Watcher.InstancesC:
+			if result == nil {
+				continue
 			}
 
-			s.upsertTasksForAWSEC2FailedEnrollments()
+			// Permission errors are handled in the watcher pipeline via
+			// WithPerInstanceHookFn, close to where they originate.
+
+			// Process discovered instances.
+			for _, instances := range result.Instances {
+				s.Log.DebugContext(s.ctx, "EC2 instances discovered, starting installation", "account_id", instances.AccountID, "instances", genEC2InstancesLogStr(instances.Instances))
+
+				s.awsEC2ResourcesStatus.incrementFound(awsResourceGroup{
+					discoveryConfigName: instances.DiscoveryConfigName,
+					integration:         instances.Integration,
+				}, len(instances.Instances))
+
+				if err := s.handleEC2Instances(instances); err != nil {
+					s.logHandleInstancesErr(err)
+				}
+			}
 		case <-s.ctx.Done():
 			s.ec2Watcher.Stop()
 			return

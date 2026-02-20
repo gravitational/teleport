@@ -422,6 +422,141 @@ func TestAzureVMTasks_AddFailedEnrollment(t *testing.T) {
 	}
 }
 
+func TestAWSEC2Tasks_AddFailedEnrollment(t *testing.T) {
+	t.Parallel()
+
+	var testEC2Key = awsEC2TaskKey{
+		integration:     "my-int",
+		issueType:       usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
+		accountID:       "123456789012",
+		region:          "us-west-2",
+		ssmDocument:     "doc",
+		installerScript: "script",
+	}
+
+	var testEC2KeyAlt = awsEC2TaskKey{
+		integration:     "my-int",
+		issueType:       usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
+		accountID:       "123456789012",
+		region:          "us-east-1",
+		ssmDocument:     "doc",
+		installerScript: "script",
+	}
+
+	var testEC2KeyPermIssue = awsEC2TaskKey{
+		integration:     "my-int",
+		issueType:       usertasks.AutoDiscoverEC2IssuePermAccountDenied,
+		accountID:       "",
+		region:          "",
+		ssmDocument:     "doc",
+		installerScript: "script",
+	}
+
+	syncTime := timestamppb.New(time.Now())
+
+	instance := func(id string) *usertasksv1.DiscoverEC2Instance {
+		return &usertasksv1.DiscoverEC2Instance{
+			InstanceId:      id,
+			DiscoveryConfig: "dc-01",
+			DiscoveryGroup:  "group-1",
+			SyncTime:        syncTime,
+		}
+	}
+
+	ec2Data := func(key awsEC2TaskKey, instances ...string) *usertasksv1.DiscoverEC2 {
+		data := &usertasksv1.DiscoverEC2{
+			AccountId:       key.accountID,
+			Region:          key.region,
+			SsmDocument:     key.ssmDocument,
+			InstallerScript: key.installerScript,
+			Instances:       make(map[string]*usertasksv1.DiscoverEC2Instance),
+		}
+		for _, inst := range instances {
+			data.Instances[inst] = instance(inst)
+		}
+		return data
+	}
+
+	tests := []struct {
+		name     string
+		mutate   func(tasks *awsEC2Tasks)
+		expected map[awsEC2TaskKey]*usertasksv1.DiscoverEC2
+	}{
+		{
+			name: "empty integration is ignored",
+			mutate: func(tasks *awsEC2Tasks) {
+				key := testEC2Key
+				key.integration = ""
+				tasks.addFailedEnrollment(key, instance("i-1"))
+			},
+		},
+		{
+			name: "empty issue type is ignored",
+			mutate: func(tasks *awsEC2Tasks) {
+				key := testEC2Key
+				key.issueType = ""
+				tasks.addFailedEnrollment(key, instance("i-1"))
+			},
+		},
+		{
+			name: "creates task entry and adds instance",
+			mutate: func(tasks *awsEC2Tasks) {
+				tasks.addFailedEnrollment(testEC2Key, instance("i-1"))
+			},
+			expected: map[awsEC2TaskKey]*usertasksv1.DiscoverEC2{
+				testEC2Key: ec2Data(testEC2Key, "i-1"),
+			},
+		},
+		{
+			name: "adds multiple instances to same key",
+			mutate: func(tasks *awsEC2Tasks) {
+				tasks.addFailedEnrollment(testEC2Key, instance("i-1"))
+				tasks.addFailedEnrollment(testEC2Key, instance("i-2"))
+			},
+			expected: map[awsEC2TaskKey]*usertasksv1.DiscoverEC2{
+				testEC2Key: ec2Data(testEC2Key, "i-1", "i-2"),
+			},
+		},
+		{
+			name: "different keys create separate entries",
+			mutate: func(tasks *awsEC2Tasks) {
+				tasks.addFailedEnrollment(testEC2Key, instance("i-1"))
+				tasks.addFailedEnrollment(testEC2KeyAlt, instance("i-2"))
+			},
+			expected: map[awsEC2TaskKey]*usertasksv1.DiscoverEC2{
+				testEC2Key:    ec2Data(testEC2Key, "i-1"),
+				testEC2KeyAlt: ec2Data(testEC2KeyAlt, "i-2"),
+			},
+		},
+		{
+			name: "nil instance creates task entry without instances (permission issues)",
+			mutate: func(tasks *awsEC2Tasks) {
+				tasks.addFailedEnrollment(testEC2KeyPermIssue, nil)
+			},
+			expected: map[awsEC2TaskKey]*usertasksv1.DiscoverEC2{
+				testEC2KeyPermIssue: ec2Data(testEC2KeyPermIssue),
+			},
+		},
+		{
+			name: "nil instance with non-permission issue still creates entry",
+			mutate: func(tasks *awsEC2Tasks) {
+				tasks.addFailedEnrollment(testEC2Key, nil)
+			},
+			expected: map[awsEC2TaskKey]*usertasksv1.DiscoverEC2{
+				testEC2Key: ec2Data(testEC2Key),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tasks := &awsEC2Tasks{}
+			tt.mutate(tasks)
+			require.Empty(t, cmp.Diff(tt.expected, tasks.instancesIssues, protocmp.Transform()))
+		})
+	}
+}
+
 func TestAzureVMTasks_UpsertAll(t *testing.T) {
 	t.Parallel()
 

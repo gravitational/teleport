@@ -455,7 +455,9 @@ func (d *awsEC2Tasks) addFailedEnrollment(g awsEC2TaskKey, instance *usertasksv1
 			InstallerScript: g.installerScript,
 		}
 	}
-	d.instancesIssues[g].Instances[instance.InstanceId] = instance
+	if instance != nil {
+		d.instancesIssues[g].Instances[instance.InstanceId] = instance
+	}
 
 	if d.issuesSyncQueue == nil {
 		d.issuesSyncQueue = make(map[awsEC2TaskKey]struct{})
@@ -646,7 +648,8 @@ func (s *taskUpdater) acquireSemaphoreForUserTask(userTaskName string) (releaseF
 //
 // All of this flow is protected by a lock to ensure there's no race between this and other DiscoveryServices.
 func (s *taskUpdater) mergeUpsertDiscoverEC2Task(taskGroup awsEC2TaskKey, failedInstances *usertasksv1.DiscoverEC2) error {
-	if len(failedInstances.Instances) == 0 {
+	// Permission-related issues occur before instances can be discovered, so we allow empty instances.
+	if len(failedInstances.Instances) == 0 && !usertasks.IsPermissionIssueType(taskGroup.issueType) {
 		return nil
 	}
 
