@@ -114,6 +114,7 @@ func (p *expectedLeafClusters) GitServerWatcher() (*services.GenericWatcher[type
 	return cluster.GitServerWatcher()
 }
 
+// DatabaseServerWatcher returns a watcher for database servers in the leaf cluster.
 func (p *expectedLeafClusters) DatabaseServerWatcher() (*services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer], error) {
 	cluster, err := p.pickCluster()
 	if err != nil {
