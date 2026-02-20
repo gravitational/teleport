@@ -156,7 +156,7 @@ func ensureServiceRunning(ctx context.Context) error {
 			return retryutils.PermanentRetryError(trace.Wrap(err))
 		}
 		if status.State != svc.Running {
-			return trace.LimitExceeded("service not running yet")
+			return trace.Errorf("service not running yet")
 		}
 		return nil
 	})
