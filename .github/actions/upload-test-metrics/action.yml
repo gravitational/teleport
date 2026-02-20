@@ -18,7 +18,7 @@ runs:
         role-duration-seconds: 900 # Minimum by policy.
 
     - name: Normalize test results and push to s3
-      uses: gravitational/shared-workflows/tools/ci-normalize@7e3f7dcfa7d5e7f2a8fc5615783fedc0b6f67c74 # tools/ci-normalize/v0.0.3
+      uses: gravitational/shared-workflows/tools/ci-normalize@b676318d4b4d54844f19a6fc59473b95962b1887 # tools/ci-normalize/v0.0.4
       if: always() && steps.aws-setup.outcome == 'success'
       continue-on-error: true # Do not fail the workflow
       with:
