@@ -26,10 +26,12 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 )
@@ -89,6 +91,12 @@ func TestSSHIdentityConversion(t *testing.T) {
 		GitHubUserID:           "github",
 		GitHubUsername:         "ghuser",
 		AgentScope:             "/foo",
+		ImmutableLabelHash: joining.HashImmutableLabels(&joiningv1.ImmutableLabels{
+			Ssh: map[string]string{
+				"one": "1",
+				"two": "2",
+			},
+		}),
 	}
 
 	ignores := []string{

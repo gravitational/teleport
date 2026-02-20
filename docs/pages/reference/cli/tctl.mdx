@@ -1536,6 +1536,19 @@ Flags:
 |---|---|---|
 |`--format`|`yaml`|Output format: 'yaml', 'json' or 'text'|
 
+## tctl recordings download
+
+Download session recordings from the cluster's recording storage to a local file.
+If you omit an output directory, recordings are saved to the current working directory.
+
+If session recording encryption is enabled in the cluster, recordings are decrypted during download.
+
+### Example
+
+```code
+$ tctl recordings download [--output-dir <output-dir>] <session_id>
+```
+
 ## tctl recordings encryption complete-rotation
 
 Completes an in-progress encryption key rotation.

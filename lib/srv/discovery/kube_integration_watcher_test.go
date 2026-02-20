@@ -153,6 +153,17 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 		RoleARN: roleArn,
 	})
 	require.NoError(t, err)
+
+	// Upsert a fake proxy to ensure we have a public address to use for the
+	// AWS OIDC integration.
+	proxy, err := types.NewServer("proxy", types.KindProxy, types.ServerSpecV2{
+		PublicAddrs: []string{"teleport.example.com"},
+	})
+	require.NoError(t, err)
+
+	err = testAuthServer.AuthServer.UpsertProxy(t.Context(), proxy)
+	require.NoError(t, err)
+
 	testAuthServer.AuthServer.IntegrationsTokenGenerator = &mockIntegrationsTokenGenerator{
 		proxies: nil,
 		integrations: map[string]types.Integration{

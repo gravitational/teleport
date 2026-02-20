@@ -259,7 +259,7 @@ func (c *StartCmdConfig) Validate() error {
 func (c *StartCmdConfig) Dump(ctx context.Context, log *slog.Logger) {
 	// Log configuration variables
 	log.DebugContext(ctx, "Initializing plugin",
-		"name", "teleport-event-handler",
+		"name", pluginName,
 		"version", slog.GroupValue(
 			slog.String("teleport", Version),
 			slog.String("teleport_git", Gitref),

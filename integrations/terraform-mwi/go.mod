@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/integrations/terraform-mwi
 
-go 1.24.12
+go 1.25.7
 
 require (
 	github.com/gravitational/teleport v0.0.0-00010101000000-000000000000
@@ -119,7 +119,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/kms v1.44.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/memorydb v1.27.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/opensearch v1.46.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/organizations v1.38.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/organizations v1.45.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/rds v1.96.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/redshift v1.54.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.27.2 // indirect
@@ -359,7 +359,6 @@ require (
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/okta/okta-sdk-golang/v2 v2.20.0 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
-	github.com/openai/openai-go v1.8.2 // indirect
 	github.com/openai/openai-go/v3 v3.16.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
@@ -524,6 +523,7 @@ require (
 	k8s.io/utils v0.0.0-20241210054802-24370beab758 // indirect
 	mvdan.cc/sh/v3 v3.7.0 // indirect
 	oras.land/oras-go/v2 v2.6.0 // indirect
+	rsc.io/ordered v1.1.1 // indirect
 	sigs.k8s.io/controller-runtime v0.21.0 // indirect
 	sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3 // indirect
 	sigs.k8s.io/kustomize/api v0.19.0 // indirect

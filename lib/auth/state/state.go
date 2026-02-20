@@ -22,6 +22,7 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -137,4 +138,6 @@ type IdentitySpecV2 struct {
 	// SSHCACerts is a list of SSH certificate authorities encoded in the
 	// authorized_keys format.
 	SSHCACerts [][]byte `json:"ssh_ca_certs,omitempty"`
+	// ImmutableLabels are the immutable labels assigned to this identity at join time.
+	ImmutableLabels *joiningv1.ImmutableLabels `json:"immutable_labels"`
 }

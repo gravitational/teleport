@@ -40,7 +40,7 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/history": "^4.7.11",
     "@types/jest": "^30.0.0",
-    "@types/node": "^22.14.0",
+    "@types/node": "^24.10.9",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@types/react-highlight": "^0.12.8",
@@ -68,11 +68,12 @@
     "@codemirror/view": "^6.36.7",
     "@floating-ui/react": "^0.27.8",
     "@grpc/grpc-js": "1.13.3",
+    "@hookform/resolvers": "^5.2.2",
     "@lezer/highlight": "^1.2.1",
     "@nivo/bar": "^0.93.0",
     "@protobuf-ts/runtime": "^2.10.0",
     "@protobuf-ts/runtime-rpc": "^2.10.0",
-    "@tanstack/react-query": "^5.85.5",
+    "@tanstack/react-query": "^5.90.21",
     "@uiw/codemirror-themes": "^4.23.12",
     "@uiw/react-codemirror": "^4.23.12",
     "d3-scale": "^4.0.2",
@@ -86,6 +87,7 @@
     "react-day-picker": "^9.6.7",
     "react-dom": "^19.1.0",
     "react-error-boundary": "^6.0.0",
+    "react-hook-form": "^7.71.1",
     "react-is": "^19.1.0",
     "react-router": "5.3.4",
     "react-router-dom": "5.3.4",
@@ -95,7 +97,8 @@
     "tslib": "^2.8.1",
     "use-immer": "^0.11.0",
     "usehooks-ts": "^3.1.1",
-    "whatwg-fetch": "^3.6.20"
+    "whatwg-fetch": "^3.6.20",
+    "zod": "^4.3.6"
   },
   "msw": {
     "workerDirectory": [
@@ -104,6 +107,6 @@
   },
   "packageManager": "pnpm@10.28.2+sha512.41872f037ad22f7348e3b1debbaf7e867cfd448f2726d9cf74c08f19507c31d2c8e7a11525b983febc2df640b5438dee6023ebb1f84ed43cc2d654d2bc326264",
   "engines": {
-    "node": "^22"
+    "node": "^24"
   }
 }

@@ -199,7 +199,7 @@ func exportAuth(ctx context.Context, client authclient.ClientI, req ExportAuthor
 			ExportPrivateKeys: exportSecrets,
 		}
 		return exportTLSAuthority(ctx, client, req)
-	case "tls-user-der", "windows":
+	case "tls-user-der":
 		req := exportTLSAuthorityRequest{
 			AuthType:          types.UserCA,
 			UnpackPEM:         true,
@@ -209,6 +209,13 @@ func exportAuth(ctx context.Context, client authclient.ClientI, req ExportAuthor
 	case "saml-idp":
 		req := exportTLSAuthorityRequest{
 			AuthType:          types.SAMLIDPCA,
+			UnpackPEM:         true,
+			ExportPrivateKeys: exportSecrets,
+		}
+		return exportTLSAuthority(ctx, client, req)
+	case "windows":
+		req := exportTLSAuthorityRequest{
+			AuthType:          types.WindowsCA,
 			UnpackPEM:         true,
 			ExportPrivateKeys: exportSecrets,
 		}

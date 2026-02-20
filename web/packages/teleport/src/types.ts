@@ -59,6 +59,7 @@ export enum NavTitle {
   Users = 'Users',
   Bots = 'Bots',
   BotInstances = 'Bot Instances',
+  InstanceInventory = 'Instance Inventory',
   Roles = 'Roles',
   JoinTokens = 'Join Tokens',
   AuthConnectors = 'Auth Connectors',
@@ -69,6 +70,7 @@ export enum NavTitle {
   NewAccessList = 'Access List',
   NewBot = 'Bot',
   NewBotShortcut = 'Enroll New Bot',
+  ManagedUpdates = 'Managed Updates',
 
   // Identity Governance & Security
   AccessLists = 'Access Lists',
@@ -214,11 +216,18 @@ export interface FeatureFlags {
   readBots: boolean;
   readBotInstances: boolean;
   listBotInstances: boolean;
+  readInstances: boolean;
+  listInstances: boolean;
   addBots: boolean;
   editBots: boolean;
   removeBots: boolean;
   gitServers: boolean;
   listWorkloadIdentities: boolean;
+  readAutoUpdateConfig: boolean;
+  readAutoUpdateVersion: boolean;
+  readAutoUpdateAgentRollout: boolean;
+  listAutoUpdateAgentReport: boolean;
+  sessionSummaries: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.

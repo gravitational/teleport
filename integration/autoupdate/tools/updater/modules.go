@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
@@ -44,6 +45,9 @@ const (
 	TestPassword = "UPDATER_TEST_PASSWORD"
 	// TestBuild is env var for setting test build type during the test.
 	TestBuild = "UPDATER_TEST_BUILD"
+	// TestRequireFastReExecOnly is an envvar to require "fast" (local-only)
+	// re-execution for client tools.
+	TestRequireFastReExecOnly = "UPDATER_TEST_FAST_REEXEC_ONLY"
 )
 
 func init() {
@@ -57,6 +61,14 @@ func init() {
 	parts := strings.Split(path, string(filepath.Separator))
 	if len(parts) > 2 {
 		tools.Version = parts[len(parts)-2]
+	}
+
+	if e := os.Getenv(TestRequireFastReExecOnly); e != "" {
+		b, err := apiutils.ParseBool(e)
+		if err != nil {
+			panic(err)
+		}
+		tools.FastReExecOnly = b
 	}
 }
 

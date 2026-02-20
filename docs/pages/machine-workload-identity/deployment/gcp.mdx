@@ -12,6 +12,13 @@ tags:
 This guide explains how to deploy the Machine & Workload Identity agent, `tbot`,
 on a Google Cloud Platform GCE instance and connect it to your Teleport cluster.
 
+<Admonition type="note">
+The steps in this guide provide an example configuration to help you get started. 
+Your environment or use case may require additional or different settings. 
+Adjust the configuration to fit your specific requirements.
+</Admonition>
+
+
 ## How it works
 
 On GCP, virtual machines can be assigned a service account. These machines can
@@ -104,6 +111,11 @@ $ tctl create -f bot-token.yaml
 
 **This step is completed on the GCP VM.**
 
+Next, you'll create a file to configure `tbot`. In this example, we'll be
+configuring `tbot` to use the `identity` service. This will generate a set of
+short-lived certificates which can be used by `tsh` or `tctl` to authenticate to
+your Teleport cluster as the bot.
+
 Create `/etc/tbot.yaml`:
 
 ```yaml
@@ -115,7 +127,11 @@ onboarding:
 storage:
   type: memory
 # services will be filled in during the completion of an access guide.
-services: []
+services:
+- type: identity
+  destination:
+    type: directory
+    path: /opt/machine-id
 ```
 
 Replace:
@@ -123,12 +139,39 @@ Replace:
 - `example.teleport.sh:443` with the address of your Teleport Proxy or
   Auth Service. Prefer using the address of a Teleport Proxy.
 - `example-bot` with the name of the token you created in the second step.
+- `/opt/machine-id` with a path to a directory where `tbot` should write the
+  short-lived credentials. Ensure that the user `tbot` is running and has the
+  appropriate permissions to create this directory.
 
 (!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)
 
-## Step 5/5. Configure services
+## Step 5/5. Testing your `tbot` configuration
 
-(!docs/pages/includes/machine-id/configure-services.mdx!)
+`tbot` will now be producing a set of short-lived credentials within
+`/opt/machine-id`. To verify that is working correctly, we'll now test these
+credentials using `tsh`.
+
+On the host where you have deployed `tbot`, run the following, replacing
+`--proxy` with the address of your Teleport Proxy Service and `-i` with the
+path to the `identity` file within your configured directory:
+
+```code
+$ tsh --proxy example.teleport.sh:443 -i /opt/machine-id/identity status                                                                                                                                                                                                                                         127 ↵
+> Profile URL:        https://example.teleport.sh:443
+Logged in as:       bot-example
+Cluster:            example.teleport.sh
+Roles:              access
+Logins:             support, ubuntu
+Kubernetes:         disabled
+Valid until:        2025-11-12 14:08:34 +0000 GMT [valid for 58m]
+Extensions:         bot-instance-id@goteleport.com, bot-name@goteleport.com, disallow-reissue, impersonator, login-ip, permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
+```
+
+You have now prepared a basic deployment of `tbot` for your platform, and
+verified that it can produce a simple output that can be used with `tsh` and
+`tctl`. For guidance on how to configure `tbot` for your use case, follow one
+of the [access guides](../../machine-workload-identity/access-guides/access-guides.mdx)
+and replace the example `identity` service you configured in this guide.
 
 ## Next steps
 

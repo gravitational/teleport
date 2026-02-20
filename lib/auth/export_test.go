@@ -334,3 +334,9 @@ type GitHubManager = githubManager
 func (s *TLSServer) GRPCServer() *GRPCServer {
 	return s.grpcServer
 }
+
+type MigrateWindowsCAParams = migrateWindowsCAParams
+
+func MigrateWindowsCA(ctx context.Context, params MigrateWindowsCAParams) error {
+	return migrateWindowsCA(ctx, params)
+}

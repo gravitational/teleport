@@ -21,6 +21,7 @@
 package joinv1
 
 import (
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -2553,9 +2554,11 @@ type HostResult struct {
 	// Certificates holds issued certificates and cluster CAs.
 	Certificates *Certificates `protobuf:"bytes,1,opt,name=certificates,proto3" json:"certificates,omitempty"`
 	// HostId is the unique ID assigned to the host.
-	HostId        string `protobuf:"bytes,2,opt,name=host_id,json=hostId,proto3" json:"host_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	HostId string `protobuf:"bytes,2,opt,name=host_id,json=hostId,proto3" json:"host_id,omitempty"`
+	// The immutable labels assigned to the host by their join token.
+	ImmutableLabels *v1.ImmutableLabels `protobuf:"bytes,3,opt,name=immutable_labels,json=immutableLabels,proto3" json:"immutable_labels,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *HostResult) Reset() {
@@ -2600,6 +2603,13 @@ func (x *HostResult) GetHostId() string {
 		return x.HostId
 	}
 	return ""
+}
+
+func (x *HostResult) GetImmutableLabels() *v1.ImmutableLabels {
+	if x != nil {
+		return x.ImmutableLabels
+	}
+	return nil
 }
 
 // HostResult holds results for bot joining.
@@ -2826,7 +2836,7 @@ var File_teleport_join_v1_joinservice_proto protoreflect.FileDescriptor
 
 const file_teleport_join_v1_joinservice_proto_rawDesc = "" +
 	"\n" +
-	"\"teleport/join/v1/joinservice.proto\x12\x10teleport.join.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa0\x03\n" +
+	"\"teleport/join/v1/joinservice.proto\x12\x10teleport.join.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a&teleport/scopes/joining/v1/token.proto\"\xa0\x03\n" +
 	"\n" +
 	"ClientInit\x12$\n" +
 	"\vjoin_method\x18\x01 \x01(\tH\x00R\n" +
@@ -2992,11 +3002,12 @@ const file_teleport_join_v1_joinservice_proto_rawDesc = "" +
 	"\ftls_ca_certs\x18\x02 \x03(\fR\n" +
 	"tlsCaCerts\x12\x19\n" +
 	"\bssh_cert\x18\x03 \x01(\fR\asshCert\x12\x1e\n" +
-	"\vssh_ca_keys\x18\x04 \x03(\fR\tsshCaKeys\"i\n" +
+	"\vssh_ca_keys\x18\x04 \x03(\fR\tsshCaKeys\"\xc1\x01\n" +
 	"\n" +
 	"HostResult\x12B\n" +
 	"\fcertificates\x18\x01 \x01(\v2\x1e.teleport.join.v1.CertificatesR\fcertificates\x12\x17\n" +
-	"\ahost_id\x18\x02 \x01(\tR\x06hostId\"\xc5\x01\n" +
+	"\ahost_id\x18\x02 \x01(\tR\x06hostId\x12V\n" +
+	"\x10immutable_labels\x18\x03 \x01(\v2+.teleport.scopes.joining.v1.ImmutableLabelsR\x0fimmutableLabels\"\xc5\x01\n" +
 	"\tBotResult\x12B\n" +
 	"\fcertificates\x18\x01 \x01(\v2\x1e.teleport.join.v1.CertificatesR\fcertificates\x12[\n" +
 	"\x14bound_keypair_result\x18\x02 \x01(\v2$.teleport.join.v1.BoundKeypairResultH\x00R\x12boundKeypairResult\x88\x01\x01B\x17\n" +
@@ -3063,6 +3074,7 @@ var file_teleport_join_v1_joinservice_proto_goTypes = []any{
 	(*JoinResponse)(nil),                   // 36: teleport.join.v1.JoinResponse
 	(*ClientInit_ProxySuppliedParams)(nil), // 37: teleport.join.v1.ClientInit.ProxySuppliedParams
 	(*timestamppb.Timestamp)(nil),          // 38: google.protobuf.Timestamp
+	(*v1.ImmutableLabels)(nil),             // 39: teleport.scopes.joining.v1.ImmutableLabels
 }
 var file_teleport_join_v1_joinservice_proto_depIdxs = []int32{
 	37, // 0: teleport.join.v1.ClientInit.proxy_supplied_parameters:type_name -> teleport.join.v1.ClientInit.ProxySuppliedParams
@@ -3106,18 +3118,19 @@ var file_teleport_join_v1_joinservice_proto_depIdxs = []int32{
 	34, // 38: teleport.join.v1.Result.host_result:type_name -> teleport.join.v1.HostResult
 	35, // 39: teleport.join.v1.Result.bot_result:type_name -> teleport.join.v1.BotResult
 	33, // 40: teleport.join.v1.HostResult.certificates:type_name -> teleport.join.v1.Certificates
-	33, // 41: teleport.join.v1.BotResult.certificates:type_name -> teleport.join.v1.Certificates
-	13, // 42: teleport.join.v1.BotResult.bound_keypair_result:type_name -> teleport.join.v1.BoundKeypairResult
-	30, // 43: teleport.join.v1.JoinResponse.init:type_name -> teleport.join.v1.ServerInit
-	31, // 44: teleport.join.v1.JoinResponse.challenge:type_name -> teleport.join.v1.Challenge
-	32, // 45: teleport.join.v1.JoinResponse.result:type_name -> teleport.join.v1.Result
-	29, // 46: teleport.join.v1.JoinService.Join:input_type -> teleport.join.v1.JoinRequest
-	36, // 47: teleport.join.v1.JoinService.Join:output_type -> teleport.join.v1.JoinResponse
-	47, // [47:48] is the sub-list for method output_type
-	46, // [46:47] is the sub-list for method input_type
-	46, // [46:46] is the sub-list for extension type_name
-	46, // [46:46] is the sub-list for extension extendee
-	0,  // [0:46] is the sub-list for field type_name
+	39, // 41: teleport.join.v1.HostResult.immutable_labels:type_name -> teleport.scopes.joining.v1.ImmutableLabels
+	33, // 42: teleport.join.v1.BotResult.certificates:type_name -> teleport.join.v1.Certificates
+	13, // 43: teleport.join.v1.BotResult.bound_keypair_result:type_name -> teleport.join.v1.BoundKeypairResult
+	30, // 44: teleport.join.v1.JoinResponse.init:type_name -> teleport.join.v1.ServerInit
+	31, // 45: teleport.join.v1.JoinResponse.challenge:type_name -> teleport.join.v1.Challenge
+	32, // 46: teleport.join.v1.JoinResponse.result:type_name -> teleport.join.v1.Result
+	29, // 47: teleport.join.v1.JoinService.Join:input_type -> teleport.join.v1.JoinRequest
+	36, // 48: teleport.join.v1.JoinService.Join:output_type -> teleport.join.v1.JoinResponse
+	48, // [48:49] is the sub-list for method output_type
+	47, // [47:48] is the sub-list for method input_type
+	47, // [47:47] is the sub-list for extension type_name
+	47, // [47:47] is the sub-list for extension extendee
+	0,  // [0:47] is the sub-list for field type_name
 }
 
 func init() { file_teleport_join_v1_joinservice_proto_init() }

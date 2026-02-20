@@ -1,6 +1,8 @@
-# Teleport AWS Account Discovery Example
+## Teleport AWS Account Discovery Example
 
 Configuration in this directory creates AWS and Teleport resources necessary for Teleport to discover resources in a single AWS account.
+
+In addition, the example uses a custom AWS IAM policy to narrow the scope of permissions for Teleport Discovery Service instances.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements

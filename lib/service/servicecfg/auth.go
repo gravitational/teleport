@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -69,6 +70,10 @@ type AuthConfig struct {
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
 	StaticTokens types.StaticTokens
+
+	// StaticScopedTokens are pre-defined, scoped host provisioning tokens supplied via config file
+	// for environments where paranoid security is not needed
+	StaticScopedTokens *joiningv1.StaticScopedTokens
 
 	// StorageConfig contains configuration settings for the storage backend.
 	StorageConfig backend.Config

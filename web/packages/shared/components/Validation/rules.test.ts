@@ -22,6 +22,7 @@ import {
   requiredEmailLike,
   requiredField,
   requiredIamRoleName,
+  requiredIntegrationName,
   requiredMaxLength,
   requiredPassword,
   requiredPort,
@@ -103,6 +104,23 @@ describe('requiredIamRoleName', () => {
   `('IAM role name valid ($valid): $roleArn', ({ roleArn, valid }) => {
     const result = requiredIamRoleName(roleArn)();
     expect(result.valid).toEqual(valid);
+  });
+});
+
+describe('requiredIntegrationName', () => {
+  test.each`
+    name                     | expected
+    ${''}                    | ${{ valid: false, message: 'Integration name is required' }}
+    ${'zero_cool'}           | ${{ valid: false, message: "Name must only contain lowercase alphanumeric characters or '-'" }}
+    ${'ZeroKewl'}            | ${{ valid: false, message: "Name must only contain lowercase alphanumeric characters or '-'" }}
+    ${'0cool'}               | ${{ valid: false, message: 'Name must start with an alphabetic character' }}
+    ${'zero-cool-'}          | ${{ valid: false, message: 'Name must end with an alphanumeric character' }}
+    ${'my-cool-integration'} | ${{ valid: true }}
+    ${'my-integration-1'}    | ${{ valid: true }}
+  `('name: $name', ({ name, expected }) => {
+    expect(requiredIntegrationName(name)()).toEqual(
+      expect.objectContaining(expected)
+    );
   });
 });
 

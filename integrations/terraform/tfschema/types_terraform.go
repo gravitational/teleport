@@ -729,6 +729,11 @@ func GenSchemaServerV2(ctx context.Context) (github_com_hashicorp_terraform_plug
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
+				"immutable_labels": {
+					Description: "The immutable labels assigned to the server when joining. The hash of these labels is expected to match the hash included in the server's certificate.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
 				"peer_addr": {
 					Description: "PeerAddr is the address a proxy server is reachable at by its peer proxies.",
 					Optional:    true,
@@ -1222,6 +1227,11 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"aws_organization_id": {
+							Description: "AWSOrganizationID is used for the IAM join method, the AWS identity of joining nodes must belong to this organization.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
 						"aws_regions": {
 							Description: "AWSRegions is used for the EC2 join method and is a list of AWS regions a node is allowed to join from.",
 							Optional:    true,
@@ -1698,6 +1708,11 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 					}),
 					Description: "GitLab allows the configuration of options specific to the \"gitlab\" join method.",
 					Optional:    true,
+				},
+				"integration": {
+					Description: "Integration name which provides credentials for validating join attempts. Currently only in use for validating the AWS Organization ID in the IAM Join method.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"join_method": {
 					Description: "JoinMethod is the joining method required in order to use this token. Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm",
@@ -10796,6 +10811,33 @@ func CopyServerV2FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["immutable_labels"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ServerV2.Spec.immutable_labels"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Map)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ServerV2.Spec.immutable_labels", "github.com/hashicorp/terraform-plugin-framework/types.Map"})
+							} else {
+								obj.ImmutableLabels = make(map[string]string, len(v.Elems))
+								if !v.Null && !v.Unknown {
+									for k, a := range v.Elems {
+										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+										if !ok {
+											diags.Append(attrReadConversionFailureDiag{"ServerV2.Spec.immutable_labels", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+										} else {
+											var t string
+											if !v.Null && !v.Unknown {
+												t = string(v.Value)
+											}
+											obj.ImmutableLabels[k] = t
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -11953,6 +11995,56 @@ func CopyServerV2ToTerraform(ctx context.Context, obj *github_com_gravitational_
 								}
 								c.Unknown = false
 								tf.Attrs["relay_ids"] = c
+							}
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["immutable_labels"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"ServerV2.Spec.immutable_labels"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.MapType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"ServerV2.Spec.immutable_labels", "github.com/hashicorp/terraform-plugin-framework/types.MapType"})
+							} else {
+								c, ok := tf.Attrs["immutable_labels"].(github_com_hashicorp_terraform_plugin_framework_types.Map)
+								if !ok {
+									c = github_com_hashicorp_terraform_plugin_framework_types.Map{
+
+										ElemType: o.ElemType,
+										Elems:    make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ImmutableLabels)),
+										Null:     true,
+									}
+								} else {
+									if c.Elems == nil {
+										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ImmutableLabels))
+									}
+								}
+								if obj.ImmutableLabels != nil {
+									t := o.ElemType
+									for k, a := range obj.ImmutableLabels {
+										v, ok := tf.Attrs["immutable_labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										if !ok {
+											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+											if err != nil {
+												diags.Append(attrWriteGeneralError{"ServerV2.Spec.immutable_labels", err})
+											}
+											v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"ServerV2.Spec.immutable_labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
+											v.Null = false
+										}
+										v.Value = string(a)
+										v.Unknown = false
+										c.Elems[k] = v
+									}
+									if len(obj.ImmutableLabels) > 0 {
+										c.Null = false
+									}
+								}
+								c.Unknown = false
+								tf.Attrs["immutable_labels"] = c
 							}
 						}
 					}
@@ -15114,6 +15206,23 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 														}
 													}
 												}
+												{
+													a, ok := tf.Attrs["aws_organization_id"]
+													if !ok {
+														diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Allow.AWSOrganizationID"})
+													} else {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Allow.AWSOrganizationID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														} else {
+															var t string
+															if !v.Null && !v.Unknown {
+																t = string(v.Value)
+															}
+															obj.AWSOrganizationID = t
+														}
+													}
+												}
 											}
 											obj.Allow[k] = t
 										}
@@ -17599,6 +17708,23 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["integration"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Integration"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+							} else {
+								var t string
+								if !v.Null && !v.Unknown {
+									t = string(v.Value)
+								}
+								obj.Integration = t
+							}
+						}
+					}
 				}
 			}
 		}
@@ -18254,6 +18380,28 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 													v.Value = string(obj.AWSARN)
 													v.Unknown = false
 													tf.Attrs["aws_arn"] = v
+												}
+											}
+											{
+												t, ok := tf.AttrTypes["aws_organization_id"]
+												if !ok {
+													diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Allow.AWSOrganizationID"})
+												} else {
+													v, ok := tf.Attrs["aws_organization_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+													if !ok {
+														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+														if err != nil {
+															diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.Allow.AWSOrganizationID", err})
+														}
+														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Allow.AWSOrganizationID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
+														v.Null = string(obj.AWSOrganizationID) == ""
+													}
+													v.Value = string(obj.AWSOrganizationID)
+													v.Unknown = false
+													tf.Attrs["aws_organization_id"] = v
 												}
 											}
 										}
@@ -22047,6 +22195,28 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 								v.Unknown = false
 								tf.Attrs["env0"] = v
 							}
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["integration"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Integration"})
+						} else {
+							v, ok := tf.Attrs["integration"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.Integration", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
+								v.Null = string(obj.Integration) == ""
+							}
+							v.Value = string(obj.Integration)
+							v.Unknown = false
+							tf.Attrs["integration"] = v
 						}
 					}
 				}

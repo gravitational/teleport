@@ -32,51 +32,8 @@ We plan to release the following versions in the coming months:
 
 | Version | Date                       |
 |---------|----------------------------|
-| 18.7.0  | Week of February 02, 2026  |
-| 18.8.0  | Week of March 02, 2026     |
+| 18.8.0  | Week of March 16, 2026     |
 | 19.0.0  | August 2026                |
-
-### 18.7.0
-
-#### Session timeline view for Identity Security
-
-Session player for Identity Security users will receive an enhanced timeline view with
-per-command session breakdown.
-
-#### Organization-level auto-discovery for AWS EC2 instances
-
-AWS auto-discovery will support EC2 instance enrollment from all or a subset of accounts
-of an AWS organization without having to configure per-account discovery.
-
-Organization-level discovery for other resources within AWS (RDS, EKS) as well as other
-for cloud providers will follow in future releases.
-
-#### Terraform-native flow for configuration of AWS EC2 auto-discovery
-
-Teleport will provide in-product UX for configuring EC2 auto-discovery in a single AWS
-account using terraform module.
-
-#### Static labels for auto-discovered Windows desktops
-
-Teleport can now be configured to apply a set of static labels to Windows
-desktops that it discovers via LDAP. This is an alternative to setting labels
-based on the value of LDAP attributes.
-
-#### Access requests privilege escalation UX for AWS
-
-Teleport users will be able to see specific IAM roles available to them when requesting
-elevated access to AWS CLI/console. Future releases will extend support for specific
-principal selection to access requests for other resource types as well.
-
-#### Entra ID integration status page
-
-Teleport users will be able to see status of the configured Entra ID integration in the
-web UI.
-
-#### Inventory UI
-
-Teleport's web UI will include a new page showing the complete inventory of all instances
-and bots connected to the cluster.
 
 ### 18.8.0
 
@@ -94,27 +51,19 @@ access to resources.
 
 *Delayed from 18.7.0.*
 
-#### Managed Updates UI
+#### `tsh` MFA via browser
 
-Teleport's web UI will include new functionality for working with managed updates.
-The UI will offer the ability to view and manage the updater configuration as well
-as monitor the progress of update rollouts.
-
-#### Split Windows CA
-
-Teleport will introduce a new Windows CA responsible for issuing user certificates for 
-Windows Desktop access. Currently the User CA issues those certificates, as they are end-user certs. 
-Splitting the CAs improves Teleport's security posture by introducing a more specialized CA
-and allows both CAs to be rotated independently.
+`tsh` will be able to delegate MFA checks (both on login and for per-session MFA) to the
+browser, enabling the use of browser based passkeys or password managers with `tsh`.
 
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Week of            | Description                                                  |
-|--------------------|--------------------------------------------------------------|
-| February 2, 2026   | Teleport 18.7 will begin rollout on Cloud.                   |
-| February 2, 2026   | Teleport 18.7 agents will begin rollout to eligible tenants. |
+| Week of          | Description                                                  |
+|------------------|--------------------------------------------------------------|
+| March 23, 2026   | Teleport 18.8 will begin rollout on Cloud.                   |
+| March 23, 2026   | Teleport 18.8 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 

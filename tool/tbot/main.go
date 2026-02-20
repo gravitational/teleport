@@ -132,6 +132,9 @@ func Run(args []string, stdout io.Writer) error {
 		cli.NewLegacyCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewLegacyCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 
+		cli.NewNoopCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewNoopCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
 		cli.NewIdentityCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewIdentityCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 

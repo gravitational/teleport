@@ -76,6 +76,7 @@ type Config struct {
 	Apps                    services.Applications
 	BotInstance             services.BotInstance
 	ClusterConfig           services.ClusterConfiguration
+	StaticScopedToken       services.StaticScopedTokenService
 	CrownJewels             services.CrownJewels
 	DatabaseObjects         services.DatabaseObjects
 	DatabaseServices        services.DatabaseServices
@@ -114,6 +115,7 @@ type Config struct {
 	HealthCheckConfig       services.HealthCheckConfigReader
 	Plugin                  services.Plugins
 	RecordingEncryption     services.RecordingEncryption
+	WorkloadClusterService  services.WorkloadClusterService
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -161,6 +163,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		AppSession:              cfg.AppSession,
 		Apps:                    cfg.Apps,
 		ClusterConfig:           cfg.ClusterConfig,
+		StaticScopedToken:       cfg.StaticScopedToken,
 		AutoUpdateService:       cfg.AutoUpdateService,
 		CrownJewels:             cfg.CrownJewels,
 		DatabaseObjects:         cfg.DatabaseObjects,
@@ -200,6 +203,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		BotInstanceService:      cfg.BotInstance,
 		Plugin:                  cfg.Plugin,
 		RecordingEncryption:     cfg.RecordingEncryption,
+		WorkloadClusterService:  cfg.WorkloadClusterService,
 	}
 
 	return cache.New(cfg.Setup(cacheCfg))

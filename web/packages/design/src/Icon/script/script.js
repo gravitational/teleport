@@ -39,6 +39,8 @@ const svgAssetsPath = basePath + '/assets';
 const iconComponentTemplate = basePath + '/script/IconTemplate.txt';
 const storybookTemplatePath = basePath + '/script/StoryTemplate.txt';
 
+const DEFAULT_VIEW_BOX = '0 0 24 24';
+
 // Creates an Icon React component from an SVG and outputs it to a `.tsx` file in `./Icon`.
 // The name of the SVG file will be used as the icon name.
 function createIconComponent(svgFilePath) {
@@ -48,6 +50,13 @@ function createIconComponent(svgFilePath) {
   const { data } = optimize(svgContent, {
     multipass: true,
   });
+
+  let viewBox = DEFAULT_VIEW_BOX;
+
+  const viewBoxMatch = data.match(/viewBox="([^"]+)"/);
+  if (viewBoxMatch) {
+    viewBox = viewBoxMatch[1];
+  }
 
   // Get `path` elements.
   const pathElements = data.match(/<path[^>]*\/>/g);
@@ -67,6 +76,10 @@ function createIconComponent(svgFilePath) {
   const output = templateContent
     .replace('{PATHS}', processedPathElements.join('\n'))
     .replace('{ICON_NAME}', iconName)
+    .replace(
+      '{VIEW_BOX}',
+      viewBox === DEFAULT_VIEW_BOX ? '' : `viewBox="${viewBox}"`
+    )
     .replace('{CLASS_NAME}', `icon-${iconName.toLowerCase()}`);
 
   // Write output to `.tsx` file.

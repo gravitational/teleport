@@ -145,6 +145,18 @@ func TestStaticTokens(t *testing.T) {
 	suite.StaticTokens(t)
 }
 
+func TestStaticScopedTokens(t *testing.T) {
+	tt := setupConfigContext(t.Context(), t)
+
+	clusterConfig, err := NewClusterConfigurationService(tt.bk)
+	require.NoError(t, err)
+
+	suite := &ServicesTestSuite{
+		LocalConfigS: clusterConfig,
+	}
+	suite.StaticScopedTokens(t)
+}
+
 func TestSessionRecording(t *testing.T) {
 	// don't allow invalid session recording values
 	_, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{

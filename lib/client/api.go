@@ -1637,7 +1637,7 @@ func (tc *TeleportClient) GetTargetNode(ctx context.Context, clt authclient.Clie
 		Labels:              tc.Labels,
 	})
 	switch {
-	//TODO(tross): DELETE IN v20.0.0
+	// TODO(tross): DELETE IN v20.0.0
 	case trace.IsNotImplemented(err):
 		resources, err := client.GetAllUnifiedResources(ctx, clt, &proto.ListUnifiedResourcesRequest{
 			Kinds:               []string{types.KindNode},
@@ -2570,7 +2570,7 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 		}
 	}
 
-	if err := player.Err(); err != nil {
+	if err := player.Err(); err != nil && !errors.Is(err, io.EOF) {
 		return trace.Wrap(err)
 	}
 
@@ -2892,7 +2892,7 @@ func (tc *TeleportClient) ListDatabases(ctx context.Context, customFilter *proto
 
 // roleGetter retrieves roles for the current user
 type roleGetter interface {
-	GetRoles(ctx context.Context) ([]types.Role, error)
+	GetCurrentUserRoles(ctx context.Context) ([]types.Role, error)
 }
 
 // commandLimit determines how many commands may be executed in parallel.
@@ -2908,7 +2908,7 @@ func commandLimit(ctx context.Context, getter roleGetter, mfaRequired bool) int 
 		return 1
 	}
 
-	roles, err := getter.GetRoles(ctx)
+	roles, err := getter.GetCurrentUserRoles(ctx)
 	if err != nil {
 		return 1
 	}
@@ -2985,7 +2985,9 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 	resultsCh := make(chan execResult, len(nodes))
 
 	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(commandLimit(ctx, clt.AuthClient, mfaRequiredCheck.Required))
+	cmdLimit := commandLimit(ctx, clt.AuthClient, mfaRequiredCheck.Required)
+	log.DebugContext(ctx, "Applying command limit", "limit", cmdLimit, "mfa_required", mfaRequiredCheck.Required)
+	g.SetLimit(cmdLimit)
 
 	// Get the width of the terminal so we can wrap properly.
 	var width int

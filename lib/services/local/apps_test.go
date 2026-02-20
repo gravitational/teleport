@@ -117,11 +117,11 @@ func TestAppsCRUD(t *testing.T) {
 
 	// Try to fetch an application that doesn't exist.
 	_, err = service.GetApp(ctx, "doesnotexist")
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Try to create the same application.
 	err = service.CreateApp(ctx, app1)
-	require.IsType(t, trace.AlreadyExists(""), err)
+	require.ErrorAs(t, err, new(*trace.AlreadyExistsError))
 
 	// Update an application.
 	app1.Metadata.Description = "description"
@@ -161,7 +161,7 @@ func TestAppsCRUD(t *testing.T) {
 
 	// Try to delete an application that doesn't exist.
 	err = service.DeleteApp(ctx, "doesnotexist")
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Delete all applications.
 	err = service.DeleteAllApps(ctx)

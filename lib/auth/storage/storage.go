@@ -174,12 +174,17 @@ func (p *ProcessStorage) ReadIdentity(name string, role types.SystemRole) (*stat
 	if err := res.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return state.ReadIdentityFromKeyPair(res.Spec.Key, &proto.Certs{
+	identity, err := state.ReadIdentityFromKeyPair(res.Spec.Key, &proto.Certs{
 		SSH:        res.Spec.SSHCert,
 		TLS:        res.Spec.TLSCert,
 		TLSCACerts: res.Spec.TLSCACerts,
 		SSHCACerts: res.Spec.SSHCACerts,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity.ImmutableLabels = res.Spec.ImmutableLabels
+	return identity, nil
 }
 
 // WriteIdentity writes identity to the backend.
@@ -193,11 +198,12 @@ func (p *ProcessStorage) WriteIdentity(name string, id state.Identity) error {
 			},
 		},
 		Spec: state.IdentitySpecV2{
-			Key:        id.KeyBytes,
-			SSHCert:    id.CertBytes,
-			TLSCert:    id.TLSCertBytes,
-			TLSCACerts: id.TLSCACertsBytes,
-			SSHCACerts: id.SSHCACertBytes,
+			Key:             id.KeyBytes,
+			SSHCert:         id.CertBytes,
+			TLSCert:         id.TLSCertBytes,
+			TLSCACerts:      id.TLSCACertsBytes,
+			SSHCACerts:      id.SSHCACertBytes,
+			ImmutableLabels: id.ImmutableLabels,
 		},
 	}
 	if err := res.CheckAndSetDefaults(); err != nil {

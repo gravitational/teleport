@@ -22,7 +22,6 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -34,7 +33,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 	"github.com/stretchr/testify/assert"
@@ -182,7 +180,7 @@ func testWebsockets(p *Pack, t *testing.T) {
 		desc       string
 		inCookies  []*http.Cookie
 		outMessage string
-		err        error
+		wantErr    bool
 	}{
 		{
 			desc:       "root cluster, valid application session cookie, successful websocket (ws://) request",
@@ -212,7 +210,7 @@ func testWebsockets(p *Pack, t *testing.T) {
 					Value: "foobarbaz",
 				},
 			).ToSlice(),
-			err: errors.New(""),
+			wantErr: true,
 		},
 		{
 			desc: "invalid application session cookie, websocket request fails to dial",
@@ -222,7 +220,7 @@ func testWebsockets(p *Pack, t *testing.T) {
 					Value: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
 				},
 			},
-			err: errors.New(""),
+			wantErr: true,
 		},
 	}
 
@@ -231,8 +229,8 @@ func testWebsockets(p *Pack, t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			body, err := p.makeWebsocketRequest(tt.inCookies, "/")
-			if tt.err != nil {
-				require.IsType(t, tt.err, trace.Unwrap(err))
+			if tt.wantErr {
+				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, tt.outMessage, body)
@@ -615,6 +613,7 @@ func testAuditEvents(p *Pack, t *testing.T) {
 				AppPublicAddr: p.rootAppPublicAddr,
 				AppName:       p.rootAppName,
 			},
+			PublicAddr: p.rootAppPublicAddr,
 		}
 		return len(cmp.Diff(
 			expectedEvent,

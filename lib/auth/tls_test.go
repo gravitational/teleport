@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -4423,7 +4424,8 @@ func TestEvents(t *testing.T) {
 				LoadSecrets: true,
 			},
 			crud: func(context.Context) types.Resource {
-				ca := authtest.NewTestCA(types.UserCA, "example.com")
+				ca, err := authcatest.NewCA(types.UserCA, "example.com")
+				require.NoError(t, err)
 				require.NoError(t, testSrv.Auth().UpsertCertAuthority(ctx, ca))
 
 				out, err := testSrv.Auth().GetCertAuthority(ctx, *ca.ID(), true)
@@ -4444,7 +4446,8 @@ func TestEvents(t *testing.T) {
 				LoadSecrets: false,
 			},
 			crud: func(context.Context) types.Resource {
-				ca := authtest.NewTestCA(types.UserCA, "example.com")
+				ca, err := authcatest.NewCA(types.UserCA, "example.com")
+				require.NoError(t, err)
 				require.NoError(t, testSrv.Auth().UpsertCertAuthority(ctx, ca))
 
 				out, err := testSrv.Auth().GetCertAuthority(ctx, *ca.ID(), false)
@@ -5794,10 +5797,14 @@ func TestVerifyPeerCert(t *testing.T) {
 		}
 	)
 
-	localHostCA := authtest.NewTestCA(types.HostCA, localClusterName)
-	remoteHostCA := authtest.NewTestCA(types.HostCA, remoteClusterName)
-	localUserCA := authtest.NewTestCA(types.UserCA, localClusterName)
-	remoteUserCA := authtest.NewTestCA(types.UserCA, remoteClusterName)
+	localHostCA, err := authcatest.NewCA(types.HostCA, localClusterName)
+	require.NoError(t, err)
+	remoteHostCA, err := authcatest.NewCA(types.HostCA, remoteClusterName)
+	require.NoError(t, err)
+	localUserCA, err := authcatest.NewCA(types.UserCA, localClusterName)
+	require.NoError(t, err)
+	remoteUserCA, err := authcatest.NewCA(types.UserCA, remoteClusterName)
+	require.NoError(t, err)
 
 	caPool := buildPoolInfo(
 		t,

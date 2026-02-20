@@ -1,6 +1,16 @@
 module github.com/gravitational/teleport
 
-go 1.24.12
+go 1.25.7
+
+ignore (
+	./build
+	./docs
+	./web
+	./webassets
+	node_modules
+	rfd
+	target
+)
 
 require (
 	cloud.google.com/go/alloydb v1.16.1
@@ -73,7 +83,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.71.2
 	github.com/aws/aws-sdk-go-v2/service/memorydb v1.27.0
 	github.com/aws/aws-sdk-go-v2/service/opensearch v1.46.3
-	github.com/aws/aws-sdk-go-v2/service/organizations v1.38.3
+	github.com/aws/aws-sdk-go-v2/service/organizations v1.45.0
 	github.com/aws/aws-sdk-go-v2/service/rds v1.95.0
 	github.com/aws/aws-sdk-go-v2/service/redshift v1.54.3
 	github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.27.1
@@ -181,7 +191,6 @@ require (
 	github.com/moby/term v0.5.2
 	github.com/ohler55/ojg v1.26.8
 	github.com/okta/okta-sdk-golang/v2 v2.20.0
-	github.com/openai/openai-go v1.8.2
 	github.com/openai/openai-go/v3 v3.16.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/selinux v1.12.0
@@ -272,6 +281,7 @@ require (
 	k8s.io/kubectl v0.33.3
 	k8s.io/metrics v0.33.3
 	k8s.io/utils v0.0.0-20241210054802-24370beab758
+	rsc.io/ordered v1.1.1
 	sigs.k8s.io/controller-runtime v0.20.4
 	sigs.k8s.io/controller-tools v0.17.1
 	sigs.k8s.io/yaml v1.6.0
@@ -435,7 +445,7 @@ require (
 	github.com/in-toto/attestation v1.1.1 // indirect
 	github.com/in-toto/in-toto-golang v0.9.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/invopop/jsonschema v0.13.0 // indirect
+	github.com/invopop/jsonschema v0.13.0
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
