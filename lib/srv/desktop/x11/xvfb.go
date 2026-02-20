@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -54,6 +55,17 @@ func NewXvfb(ctx context.Context) (*Xvfb, error) {
 		"-nolock",
 		"-nolisten", "tcp",
 		"-iglx")
+
+	if os.Getenv("TELEPORT_UNSTABLE_USE_XEPHYR") != "" {
+		cmd = exec.CommandContext(ctx, "Xephyr",
+			"-displayfd", "1",
+			"-screen", "8192x8192x24",
+			"-dpi", "50",
+			"-nolock",
+			"-nolisten", "tcp",
+			"-iglx")
+	}
+
 	cmd.WaitDelay = 5 * time.Second
 
 	var success bool

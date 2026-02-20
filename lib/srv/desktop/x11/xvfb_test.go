@@ -34,6 +34,7 @@ func TestNewXvfb(t *testing.T) {
 
 func TestResize(t *testing.T) {
 	xvfb, err := NewXvfb(t.Context())
+	defer xvfb.Close()
 	require.NoError(t, err)
 	err = xvfb.Resize(9000, 200)
 	require.True(t, trace.IsBadParameter(err))
