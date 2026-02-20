@@ -120,7 +120,10 @@ test('displays database roles in collapsible advanced section', async () => {
   const appContext = new MockAppContext();
   const cluster = makeRootCluster();
   const gateway = makeDatabaseGateway({
-    databaseRoles: ['reader', 'writer'],
+    resource: {
+      oneofKind: 'database' as const,
+      database: { databaseRoles: ['reader', 'writer'] },
+    },
   });
   const doc: docs.DocumentGateway = {
     uri: '/docs/1',
@@ -147,12 +150,10 @@ test('displays database roles in collapsible advanced section', async () => {
     </MockAppContextProvider>
   );
 
-  expect(
-    await screen.findByText('Advanced (Database roles)')
-  ).toBeInTheDocument();
+  expect(await screen.findByText('Advanced')).toBeInTheDocument();
   expect(screen.queryByLabelText('Database Roles')).not.toBeInTheDocument();
 
-  await user.click(screen.getByText('Advanced (Database roles)'));
+  await user.click(screen.getByText('Advanced'));
 
   expect(await screen.findByLabelText('Database Roles')).toBeInTheDocument();
 });

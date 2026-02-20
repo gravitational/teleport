@@ -100,7 +100,11 @@ func (s *Handler) newAPIGateway(ctx context.Context, gateway gw.Gateway) (*api.G
 	}
 
 	if dbGateway, err := gw.AsDatabase(gateway); err == nil {
-		apiGw.DatabaseRoles = dbGateway.DatabaseRoles()
+		apiGw.Resource = &api.Gateway_Database{
+			Database: &api.DatabaseGateway{
+				DatabaseRoles: dbGateway.DatabaseRoles(),
+			},
+		}
 	}
 
 	return apiGw, nil

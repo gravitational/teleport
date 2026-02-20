@@ -215,7 +215,10 @@ test('connection tracker syncs database roles and autoUsersEnabled when gateway 
       targetUser: 'alice',
       uri: `/gateways/${unique()}`,
       localPort: '5432',
-      databaseRoles: ['reader', 'writer'],
+      resource: {
+        oneofKind: 'database' as const,
+        database: { databaseRoles: ['reader', 'writer'] },
+      },
     });
 
     return new MockedUnaryCall(gateway);

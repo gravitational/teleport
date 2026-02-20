@@ -287,7 +287,7 @@ export const makeDatabaseGateway = (
     preview: 'psql localhost:1337',
   },
   targetSubresourceName: 'bar',
-  databaseRoles: [],
+  resource: { oneofKind: 'database' as const, database: { databaseRoles: [] } },
   ...props,
 });
 
@@ -308,7 +308,7 @@ export const makeKubeGateway = (
     preview: 'KUBECONFIG=/path/to/kubeconfig /bin/kubectl version',
   },
   targetSubresourceName: '',
-  databaseRoles: [],
+  resource: { oneofKind: undefined },
   ...props,
 });
 
@@ -329,7 +329,7 @@ export const makeAppGateway = (
   },
   targetUser: '',
   protocol: 'HTTP',
-  databaseRoles: [],
+  resource: { oneofKind: undefined },
   ...props,
 });
 

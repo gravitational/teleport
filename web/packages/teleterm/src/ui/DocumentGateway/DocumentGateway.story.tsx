@@ -108,7 +108,10 @@ export function Story(props: StoryProps) {
     localPort: '1337',
     protocol: 'postgres',
     targetSubresourceName: 'bar',
-    databaseRoles: props.databaseRoles,
+    resource: {
+      oneofKind: 'database' as const,
+      database: { databaseRoles: props.databaseRoles },
+    },
   });
   gateway.gatewayCliCommand.preview = 'connect-me-to-db-please';
 

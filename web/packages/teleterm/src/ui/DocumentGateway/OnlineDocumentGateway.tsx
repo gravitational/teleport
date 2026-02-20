@@ -39,6 +39,8 @@ import Validation from 'shared/components/Validation';
 import { Attempt, RunFuncReturnValue } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
+import { gatewayOneOfIsDatabase } from 'teleterm/helpers';
+
 import { CliCommand } from '../components/CliCommand';
 import { ConfigFieldInput, PortFieldInput } from '../components/FieldInputs';
 
@@ -55,6 +57,9 @@ export function OnlineDocumentGateway(props: {
 }) {
   const { gateway, autoUsersEnabled } = props;
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const databaseRoles = gatewayOneOfIsDatabase(gateway)
+    ? gateway.resource.database.databaseRoles
+    : [];
 
   const isPortOrDbNameProcessing =
     props.changeDbNameAttempt.status === 'processing' ||
@@ -139,9 +144,9 @@ export function OnlineDocumentGateway(props: {
             )}
           </Validation>
         </Flex>
-        {gateway?.databaseRoles?.length > 0 && (
+        {databaseRoles.length > 0 && (
           <AdvancedRoles
-            gateway={gateway}
+            databaseRoles={databaseRoles}
             isAdvancedOpen={isAdvancedOpen}
             setIsAdvancedOpen={setIsAdvancedOpen}
           />
@@ -184,11 +189,11 @@ export function OnlineDocumentGateway(props: {
 }
 
 const AdvancedRoles = ({
-  gateway,
+  databaseRoles,
   isAdvancedOpen,
   setIsAdvancedOpen,
 }: {
-  gateway: Gateway;
+  databaseRoles: string[];
   isAdvancedOpen: boolean;
   setIsAdvancedOpen: (isAdvancedOpen: boolean) => void;
 } & PropsWithChildren) => {
@@ -201,7 +206,7 @@ const AdvancedRoles = ({
           <ChevronRight size="small" />
         )}
         <Text fontSize={2} color="text.main">
-          Advanced (Database roles)
+          Advanced
         </Text>
       </ExpandToggle>
       {isAdvancedOpen && (
@@ -211,7 +216,7 @@ const AdvancedRoles = ({
               isMulti
               label="Database Roles"
               toolTipContent="These roles are determined by your Teleport role permissions and are read only."
-              value={gateway.databaseRoles.map(role => ({
+              value={databaseRoles.map(role => ({
                 value: role,
                 label: role,
               }))}
