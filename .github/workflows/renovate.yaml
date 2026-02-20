@@ -1,9 +1,9 @@
 # This workflow runs Renovate to keep the Go toolchain version up to date.
-# It is scheduled to run daily and can also be triggered manually.
+# It is scheduled to run weekly and can also be triggered manually.
 name: Renovate
 on:
   schedule:
-    - cron: '0 7 * * *' # Every day at 7 AM UTC
+    - cron: '0 7 * * 1' # Every Monday at 7 AM UTC
   workflow_dispatch: {}
 
 # Renovate needs the following permissions in order to write branches, pull requests and issues.
