@@ -23,6 +23,7 @@ export enum NavigationCategory {
   IdentityGovernance = 'Identity Governance',
   IdentitySecurity = 'Identity Security',
   Audit = 'Audit',
+  Beams = 'Beams',
   AddNew = 'Add New',
 }
 
@@ -49,5 +50,6 @@ export const NAVIGATION_CATEGORIES = [
   NavigationCategory.IdentityGovernance,
   NavigationCategory.IdentitySecurity,
   NavigationCategory.Audit,
+  NavigationCategory.Beams,
   NavigationCategory.AddNew,
 ];
