@@ -5,8 +5,8 @@ description: Provides a comprehensive list of fields for the Teleport UI config 
 ---
 
 The UI config resource contains global configuration options for the Web UI
-served by the Proxy Service. This resource is not set by default, which means a
-`tctl get ui` will result in an error if used before this resource has been set.
+served by the Proxy Service. This resource is not always created by default,
+which means a `tctl get ui` will result in an error if used before this resource
+has been set.
 
 (!docs/pages/includes/ui-config-spec.mdx!)
-
