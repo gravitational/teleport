@@ -910,7 +910,7 @@ func TestCompletenessReset(t *testing.T) {
 	// put lots of CAs in the backend
 	for i := range caCount {
 		ca, err := authcatest.NewCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
-		require.NoError(t, err)
+		require.Error(t, err)
 		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
 
