@@ -45,11 +45,10 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 		return perms, nil
 	}
 
-	// Source cluster is the cluster that the user initially authenticated to, which may be different from
-	// the cluster that the user is ultimately trying to access if the user is authenticating through a
-	// proxy. If RouteToCluster is set, it indicates that the user is trying to access a different cluster
-	// through a proxy and we should use RouteToCluster as the source cluster for MFA verification.
-	// Otherwise, we use ClusterName as the source cluster.
+	// Source cluster must be the cluster the user will perform the MFA ceremony with. This is usually the cluster the
+	// user is trying to access, but in some cases, such as trusted clusters, the user has to perform the MFA ceremony
+	// with the root cluster instead. In those cases, the RouteToCluster field will be set to the root cluster, so we
+	// should use that if it's set.
 	sourceCluster := id.ClusterName
 	if id.RouteToCluster != "" {
 		sourceCluster = id.RouteToCluster
