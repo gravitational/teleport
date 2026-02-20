@@ -104,16 +104,15 @@ func TestHandleConnection_MaxConnections(t *testing.T) {
 
 	// Pre-fill the limiter to capacity for this IP so the next
 	// handleConnection call from the same IP is rejected.
-	held, err := c.limiter.RegisterRequestAndConnection(clientIP)
+	release, err := c.limiter.RegisterRequestAndConnection(clientIP)
 	require.NoError(t, err)
-	defer held()
+	defer release()
 
 	conn, client := newConnWithIP(t, clientIP, 10001)
 	client.Close() // prevent blocking on TLS handshake
 
 	_, err = c.handleConnection(conn)
-	require.True(t, trace.IsLimitExceeded(err),
-		"expected LimitExceeded error, got: %v", err)
+	require.True(t, trace.IsLimitExceeded(err), "expected LimitExceeded error, got: %v", err)
 }
 
 func TestHandleConnection_MaxConnectionsRelease(t *testing.T) {
@@ -125,9 +124,9 @@ func TestHandleConnection_MaxConnectionsRelease(t *testing.T) {
 
 	// Acquire and immediately release the slot so the limiter
 	// has capacity when handleConnection runs.
-	held, err := c.limiter.RegisterRequestAndConnection(clientIP)
+	release, err := c.limiter.RegisterRequestAndConnection(clientIP)
 	require.NoError(t, err)
-	held()
+	release()
 
 	conn, client := newConnWithIP(t, clientIP, 10001)
 	client.Close()
@@ -136,8 +135,7 @@ func TestHandleConnection_MaxConnectionsRelease(t *testing.T) {
 	// (at TLS handshake). The error must not be about limits.
 	_, err = c.handleConnection(conn)
 	require.Error(t, err)
-	require.False(t, trace.IsLimitExceeded(err),
-		"unexpected LimitExceeded error: %v", err)
+	require.False(t, trace.IsLimitExceeded(err), "unexpected LimitExceeded error: %v", err)
 }
 
 func TestHandleConnection_RateLimiting(t *testing.T) {
@@ -160,8 +158,7 @@ func TestHandleConnection_RateLimiting(t *testing.T) {
 	client.Close()
 
 	_, err := c.handleConnection(conn)
-	require.True(t, trace.IsLimitExceeded(err),
-		"expected LimitExceeded error, got: %v", err)
+	require.True(t, trace.IsLimitExceeded(err), "expected LimitExceeded error, got: %v", err)
 }
 
 func TestHandleConnection_PipeSkipsLimiter(t *testing.T) {
@@ -172,21 +169,17 @@ func TestHandleConnection_PipeSkipsLimiter(t *testing.T) {
 	// pre-fill it so that a normal connection would be rejected.
 	c := newTestHandler(t, limiter.Config{MaxConnections: 1})
 
-	held, err := c.limiter.RegisterRequestAndConnection("10.0.0.1")
+	release, err := c.limiter.RegisterRequestAndConnection("10.0.0.1")
 	require.NoError(t, err)
-	defer held()
+	defer release()
 
 	server, client := net.Pipe()
-	t.Cleanup(func() {
-		server.Close()
-		client.Close()
-	})
+	t.Cleanup(func() { _ = server.Close() })
 	client.Close()
 
 	// handleConnection should bypass the limiter (which is full)
 	// and fail later at TLS instead.
 	_, err = c.handleConnection(server)
 	require.Error(t, err)
-	require.False(t, trace.IsLimitExceeded(err),
-		"unexpected LimitExceeded error: %v", err)
+	require.False(t, trace.IsLimitExceeded(err), "unexpected LimitExceeded error: %v", err)
 }
