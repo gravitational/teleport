@@ -44,6 +44,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	obshttp "github.com/gravitational/teleport/lib/observability/otelhttp"
 )
 
 const (
@@ -393,14 +394,14 @@ func zoidcValidateToken[C zoidc.Claims](
 	// TODO(noah): It'd be nice to cache the OIDC discovery document fairly
 	// aggressively across join tokens since this isn't going to change very
 	// regularly.
-	dc, err := client.Discover(timeoutCtx, issuerURL, otelhttp.DefaultClient)
+	dc, err := client.Discover(timeoutCtx, issuerURL, obshttp.DefaultClient)
 	if err != nil {
 		return nilClaims, trace.Wrap(err, "discovering oidc document")
 	}
 
 	// TODO(noah): Ideally we'd cache the remote keyset across joins/join tokens
 	// based on the issuer.
-	ks := rp.NewRemoteKeySet(otelhttp.DefaultClient, dc.JwksURI)
+	ks := rp.NewRemoteKeySet(obshttp.DefaultClient, dc.JwksURI)
 	verifier := rp.NewIDTokenVerifier(issuerURL, audience, ks, opts...)
 	// TODO(noah): It'd be ideal if we could extend the verifier to use an
 	// injected "now" time.
