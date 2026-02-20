@@ -21,6 +21,7 @@ import (
 	"cmp"
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -30,6 +31,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -124,6 +126,14 @@ type Service struct {
 	identity   Identity
 	storage    MFAService
 }
+
+const (
+	// verifyValidatedMFAChallengeTimeout is the max wait time for a validated challenge to appear.
+	verifyValidatedMFAChallengeTimeout = 5 * time.Minute
+
+	// verifyValidatedMFAChallengePollInterval is how often we check for the validated challenge to appear.
+	verifyValidatedMFAChallengePollInterval = 100 * time.Millisecond
+)
 
 // NewService creates a new [Service] instance.
 func NewService(cfg ServiceConfig) (*Service, error) {
@@ -500,7 +510,12 @@ func (s *Service) VerifyValidatedMFAChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	chal, err := s.storage.GetValidatedMFAChallenge(ctx, req.GetUsername(), req.GetName())
+	// The challenge may not exist at the time of the request since there is some delay between when the challenge
+	// response is validated and when the validated challenge resource is created in the local storage. For example, in
+	// the case of trusted clusters, the validated challenge is created in the root cluster and then eventually
+	// replicated to the leaf cluster. Until the replication occurs, the validated challenge won't exist in the leaf
+	// cluster storage and therefore won't be found by this method.
+	chal, err := s.waitForValidatedMFAChallenge(ctx, req.GetUsername(), req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -795,6 +810,36 @@ func checkVerifyValidatedMFAChallengeRequest(req *mfav1.VerifyValidatedMFAChalle
 	}
 
 	return nil
+}
+
+func (s *Service) waitForValidatedMFAChallenge(ctx context.Context, username, challengeName string) (*mfav1.ValidatedMFAChallenge, error) {
+	ctx, cancel := context.WithTimeout(ctx, verifyValidatedMFAChallengeTimeout)
+	defer cancel()
+
+	retry, err := retryutils.NewConstant(verifyValidatedMFAChallengePollInterval)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var chal *mfav1.ValidatedMFAChallenge
+
+	if err := retry.For(
+		ctx,
+		func() error {
+			var err error
+
+			chal, err = s.storage.GetValidatedMFAChallenge(ctx, username, challengeName)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			return nil
+		},
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return chal, nil
 }
 
 func checkPayload(sip *mfav1.SessionIdentifyingPayload) error {

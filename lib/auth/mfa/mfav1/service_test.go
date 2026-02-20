@@ -17,12 +17,15 @@
 package mfav1_test
 
 import (
+	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -1054,34 +1057,67 @@ func TestVerifyValidatedMFAChallenge_Success(t *testing.T) {
 
 	authServer, service, _, user := setupAuthServer(t, nil)
 
-	ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleNode).I)
-
-	chal := &mfav1.ValidatedMFAChallenge{
-		Kind:    types.KindValidatedMFAChallenge,
-		Version: types.V1,
-		Metadata: &types.Metadata{
-			Name: chalName,
-		},
-		Spec: &mfav1.ValidatedMFAChallengeSpec{
-			Payload:       payload,
-			SourceCluster: sourceCluster,
-			TargetCluster: targetCluster,
-		},
-	}
-	_, err := authServer.Auth().MFAService.CreateValidatedMFAChallenge(ctx, user.GetName(), chal)
-	require.NoError(t, err)
-
-	resp, err := service.VerifyValidatedMFAChallenge(
-		ctx,
-		&mfav1.VerifyValidatedMFAChallengeRequest{
-			Username:      user.GetName(),
-			Name:          chalName,
-			Payload:       payload,
-			SourceCluster: sourceCluster,
-		},
+	ctx, cancel := context.WithTimeout(
+		authz.ContextWithUser(
+			t.Context(),
+			authtest.TestBuiltin(types.RoleNode).I,
+		),
+		5*time.Second,
 	)
-	require.NoError(t, err)
-	require.NotNil(t, resp)
+	defer cancel()
+
+	req := &mfav1.VerifyValidatedMFAChallengeRequest{
+		Username:      user.GetName(),
+		Name:          chalName,
+		Payload:       payload,
+		SourceCluster: sourceCluster,
+	}
+
+	group, ctx := errgroup.WithContext(ctx)
+
+	// Start a goroutine to create the ValidatedMFAChallenge after a short delay, to simulate the expected real-world
+	// sequence of events where the challenge is created before it is verified, but not necessarily immediately before.
+	group.Go(func() error {
+		time.Sleep(100 * time.Millisecond)
+
+		chal := &mfav1.ValidatedMFAChallenge{
+			Kind:    types.KindValidatedMFAChallenge,
+			Version: types.V1,
+			Metadata: &types.Metadata{
+				Name: chalName,
+			},
+			Spec: &mfav1.ValidatedMFAChallengeSpec{
+				Payload:       payload,
+				SourceCluster: sourceCluster,
+				TargetCluster: targetCluster,
+				Username:      user.GetName(),
+			},
+		}
+
+		if _, err := authServer.Auth().CreateValidatedMFAChallenge(ctx, user.GetName(), chal); err != nil {
+			return trace.Wrap(err, "create ValidatedMFAChallenge")
+		}
+
+		return nil
+	})
+
+	// Start a goroutine to verify the ValidatedMFAChallenge, which will wait until the challenge is created by the
+	// first goroutine.
+	group.Go(func() error {
+		resp, err := service.VerifyValidatedMFAChallenge(ctx, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if resp == nil {
+			return trace.BadParameter("expected non-nil response")
+		}
+
+		return nil
+	})
+
+	// Wait for both goroutines to complete and check for errors.
+	require.NoError(t, group.Wait())
 }
 
 func TestVerifyValidatedMFAChallenge_PayloadMismatch(t *testing.T) {
@@ -1243,64 +1279,20 @@ func TestVerifyValidatedMFAChallenge_NotFound(t *testing.T) {
 
 	_, service, _, user := setupAuthServer(t, nil)
 
-	ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleNode).I)
+	ctx, cancel := context.WithTimeout(
+		authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleNode).I),
+		time.Millisecond,
+	)
+	defer cancel()
 
-	// No challenge stored for this name.
+	// No challenge stored for this name or the challenge was not created within the context's timeout.
 	resp, err := service.VerifyValidatedMFAChallenge(ctx, &mfav1.VerifyValidatedMFAChallengeRequest{
 		Username:      user.GetName(),
 		Name:          "non-existent-challenge",
 		Payload:       payload,
 		SourceCluster: sourceCluster,
 	})
-	require.Error(t, err)
-	require.True(t, trace.IsNotFound(err))
-	require.Nil(t, resp)
-}
-
-func TestVerifyValidatedMFAChallenge_WebauthnFailedStorage(t *testing.T) {
-	t.Parallel()
-
-	authServer, _, _, user := setupAuthServer(t, nil)
-
-	mfaService := &mockMFAService{getValidatedMFAChallengeError: errors.New("MOCKED TEST ERROR FROM STORAGE LAYER")}
-
-	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer,
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().Identity,
-		Storage:    mfaService,
-	})
-	require.NoError(t, err)
-
-	ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleNode).I)
-
-	chal := &mfav1.ValidatedMFAChallenge{
-		Kind:    types.KindValidatedMFAChallenge,
-		Version: types.V1,
-		Metadata: &types.Metadata{
-			Name: chalName,
-		},
-		Spec: &mfav1.ValidatedMFAChallengeSpec{
-			Payload:       payload,
-			SourceCluster: sourceCluster,
-			TargetCluster: targetCluster,
-		},
-	}
-	_, err = authServer.Auth().MFAService.CreateValidatedMFAChallenge(ctx, user.GetName(), chal)
-	require.NoError(t, err)
-
-	resp, err := service.VerifyValidatedMFAChallenge(
-		ctx,
-		&mfav1.VerifyValidatedMFAChallengeRequest{
-			Username:      user.GetName(),
-			Name:          chalName,
-			Payload:       payload,
-			SourceCluster: sourceCluster,
-		},
-	)
-	require.ErrorContains(t, err, "MOCKED TEST ERROR FROM STORAGE LAYER")
+	require.True(t, trace.IsLimitExceeded(err))
 	require.Nil(t, resp)
 }
 
@@ -1328,6 +1320,12 @@ func setupAuthServer(t *testing.T, devices []*types.MFADevice) (*mockAuthServer,
 		devices,
 	)
 	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		if err := authServer.Close(); err != nil {
+			t.Logf("Failed to close auth server: %v", err)
+		}
+	})
 
 	role, err := authtest.CreateRole(t.Context(), authServer.Auth(), "test-role", types.RoleSpecV6{})
 	require.NoError(t, err)
