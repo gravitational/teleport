@@ -21,7 +21,10 @@ package srv
 import (
 	"context"
 	"os"
-	"slices"
+"cmp"
+"context"
+"os"
+"slices"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -49,10 +52,7 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 	// user is trying to access, but in some cases, such as trusted clusters, the user has to perform the MFA ceremony
 	// with the root cluster instead. In those cases, the RouteToCluster field will be set to the root cluster, so we
 	// should use that if it's set.
-	sourceCluster := id.ClusterName
-	if id.RouteToCluster != "" {
-		sourceCluster = id.RouteToCluster
-	}
+	sourceCluster := cmp.Or(id.RouteToCluster, id.ClusterName)
 	if sourceCluster == "" {
 		return nil, trace.BadParameter("identity missing cluster name (this is a bug)")
 	}
