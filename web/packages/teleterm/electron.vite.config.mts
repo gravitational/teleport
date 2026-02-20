@@ -113,9 +113,8 @@ const config = defineConfig(env => {
         cspPlugin(getConnectCsp(env.mode === 'development')),
         tsConfigPathsPlugin,
         {
-          // The wasm module is embedded into the main app earlier in the build.
-          // Exclude it here, otherwise rollup still emits it as a static asset
-          // by default.
+          // The IronRDP wasm module is embedded into the renderer app earlier in the build.
+          // Exclude it here, otherwise rollup still emits it as a static asset by default.
           name: 'drop-wasm-assets',
           generateBundle(_, bundle) {
             for (const file of Object.keys(bundle)) {
