@@ -246,6 +246,8 @@ func (r *validatedMFAChallengeResource) UnwrapT() *mfav1.ValidatedMFAChallenge {
 func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
+		// Inflate key components into a challenge so consumers can access the backend key structure directly from a
+		// concrete resource type.
 		key := event.Item.Key.TrimPrefix(backend.NewKey(types.KindValidatedMFAChallenge))
 
 		keyComponents := key.Components()
@@ -253,15 +255,19 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
 
-		return &types.ResourceHeader{
+		chal := &mfav1.ValidatedMFAChallenge{
 			Kind:    types.KindValidatedMFAChallenge,
 			Version: types.V1,
-			Metadata: types.Metadata{
-				Name:        keyComponents[len(keyComponents)-1],
-				Namespace:   defaults.Namespace,
-				Description: keyComponents[0],
+			Metadata: &types.Metadata{
+				Name:      keyComponents[len(keyComponents)-1], // The challenge name is the last component of the key.
+				Namespace: defaults.Namespace,
 			},
-		}, nil
+			Spec: &mfav1.ValidatedMFAChallengeSpec{
+				TargetCluster: keyComponents[0], // The target cluster is the first component of the key.
+			},
+		}
+
+		return newValidatedMFAChallengeResource(chal), nil
 
 	case types.OpPut:
 		resource, err := UnmarshalValidatedMFAChallenge(
@@ -273,24 +279,28 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 			return nil, trace.Wrap(err)
 		}
 
-		challenge := (*mfav1.ValidatedMFAChallenge)(resource)
+		chal := (*mfav1.ValidatedMFAChallenge)(resource)
 
-		metadata := types.Metadata{}
-		if challenge.Metadata != nil {
-			metadata = *challenge.Metadata
-		}
-
-		return &validatedMFAChallengeResource{
-			ResourceHeader: &types.ResourceHeader{
-				Kind:     challenge.Kind,
-				SubKind:  challenge.SubKind,
-				Version:  challenge.Version,
-				Metadata: metadata,
-			},
-			challenge: challenge,
-		}, nil
+		return newValidatedMFAChallengeResource(chal), nil
 
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newValidatedMFAChallengeResource(challenge *mfav1.ValidatedMFAChallenge) types.Resource {
+	metadata := types.Metadata{}
+	if challenge.Metadata != nil {
+		metadata = *challenge.Metadata
+	}
+
+	return &validatedMFAChallengeResource{
+		ResourceHeader: &types.ResourceHeader{
+			Kind:     challenge.Kind,
+			SubKind:  challenge.SubKind,
+			Version:  challenge.Version,
+			Metadata: metadata,
+		},
+		challenge: challenge,
 	}
 }

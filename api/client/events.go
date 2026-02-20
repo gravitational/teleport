@@ -185,9 +185,7 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_WorkloadCluster{
 			WorkloadCluster: r.UnwrapT(),
 		}
-	case interface {
-		UnwrapT() *mfav1.ValidatedMFAChallenge
-	}:
+	case validatedMFAChallengeUnwrapper:
 		out.Resource = &proto.Event_ValidatedMFAChallenge{
 			ValidatedMFAChallenge: r.UnwrapT(),
 		}
@@ -725,6 +723,10 @@ func EventTypeFromGRPC(in proto.Operation) (types.OpType, error) {
 	default:
 		return types.OpInvalid, trace.BadParameter("unsupported operation type: %v", in)
 	}
+}
+
+type validatedMFAChallengeUnwrapper interface {
+	UnwrapT() *mfav1.ValidatedMFAChallenge
 }
 
 // validatedMFAChallengeResource is a wrapper around mfav1.ValidatedMFAChallenge that implements types.Resource.

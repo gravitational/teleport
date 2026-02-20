@@ -103,21 +103,20 @@ func NewValidatedMFAChallengeWatcher(
 				// constructed. We need to construct the same key here to ensure the watcher can properly match updates
 				// to existing resources.
 				return backend.NewKey(
-					r.GetSpec().GetUsername(),
+					r.GetSpec().GetTargetCluster(),
 					r.GetMetadata().GetName(),
 				).String()
 			},
 			DeleteKey: func(resource types.Resource) string {
-				// The Metadata.Description is populated with the username by the local parser (see
-				// lib/services/local/mfa.go#validatedMFAChallengeParser). If it's present, use it to construct the key.
-				// If not, fall back to using just the resource name as the key.
-				switch {
-				case resource.GetMetadata().Description == "":
-					return backend.NewKey(resource.GetName()).String()
-
-				default:
-					return backend.NewKey(resource.GetMetadata().Description, resource.GetName()).String()
+				chal, err := convertResource[*mfav1.ValidatedMFAChallenge](resource)
+				if err != nil {
+					return resource.GetMetadata().Description + resource.GetName()
 				}
+
+				return backend.NewKey(
+					chal.GetSpec().GetTargetCluster(),
+					chal.GetMetadata().GetName(),
+				).String()
 			},
 			ResourceDiffer: func(oldR, newR *mfav1.ValidatedMFAChallenge) bool {
 				return proto.Equal(oldR, newR)
