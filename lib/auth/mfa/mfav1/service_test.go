@@ -1075,11 +1075,9 @@ func TestVerifyValidatedMFAChallenge_Success(t *testing.T) {
 
 	group, ctx := errgroup.WithContext(ctx)
 
-	// Start a goroutine to create the ValidatedMFAChallenge after a short delay, to simulate the expected real-world
-	// sequence of events where the challenge is created before it is verified, but not necessarily immediately before.
+	// Start a goroutine to create the ValidatedMFAChallenge, to simulate the expected real-world sequence of events
+	// where the challenge is created before it is verified, but not necessarily immediately before.
 	group.Go(func() error {
-		time.Sleep(100 * time.Millisecond)
-
 		chal := &mfav1.ValidatedMFAChallenge{
 			Kind:    types.KindValidatedMFAChallenge,
 			Version: types.V1,
@@ -1116,7 +1114,8 @@ func TestVerifyValidatedMFAChallenge_Success(t *testing.T) {
 		return nil
 	})
 
-	// Wait for both goroutines to complete and check for errors.
+	// Wait for both goroutines to complete and check for errors. The fact that the verify goroutine does not return an
+	// error indicates that the challenge was successfully verified asynchronously after it was created.
 	require.NoError(t, group.Wait())
 }
 
