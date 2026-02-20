@@ -47,6 +47,7 @@ jobs:
     permissions:
       contents: read
       packages: read
+      id-token: write # required for AWS credentials
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
@@ -69,7 +70,7 @@ jobs:
         continue-on-error: true
 
       - name: Create KinD cluster
-        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        uses: helm/kind-action@92086f6be054225fa813e0a4b13787fc9088faab # v1.13.0
         with:
           cluster_name: kind
           config: fixtures/kind/config.yaml
@@ -100,9 +101,14 @@ jobs:
           # load the image into the kind cluster
           make load-image
 
-          cd - 
+          cd -
 
       - name: Run tests
         timeout-minutes: 40
         run: |
           runuser -u ci -g ci make integration-kube RDPCLIENT_SKIP_BUILD=1
+
+      - name: Upload test metrics
+        if: always()
+        continue-on-error: true # Do not fail the workflow
+        uses: ./.github/actions/upload-test-metrics

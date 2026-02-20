@@ -41,17 +41,19 @@ func TestMFAService_CRUD(t *testing.T) {
 	svc, err := local.NewMFAService(backend)
 	require.NoError(t, err)
 
-	username, chal := "alice", newValidatedMFAChallenge()
+	targetCluster, chal := "leaf-a", newValidatedMFAChallenge()
+	chal.Spec.TargetCluster = targetCluster
 
-	_, err = svc.GetValidatedMFAChallenge(t.Context(), username, "does-not-exist")
+	_, err = svc.GetValidatedMFAChallenge(t.Context(), targetCluster, "does-not-exist")
 	require.ErrorIs(t, err, trace.NotFound(`validated_mfa_challenge "does-not-exist" doesn't exist`))
 
 	startTime := time.Now()
 
-	created, err := svc.CreateValidatedMFAChallenge(t.Context(), username, chal)
+	created, err := svc.CreateValidatedMFAChallenge(t.Context(), targetCluster, chal)
 	require.NoError(t, err)
 
 	want := newValidatedMFAChallenge()
+	want.Spec.TargetCluster = targetCluster
 
 	require.Empty(
 		t,
@@ -67,7 +69,7 @@ func TestMFAService_CRUD(t *testing.T) {
 	// Expiration time should be roughly 5 minutes from creation.
 	require.WithinDuration(t, startTime.Add(5*time.Minute), *created.Metadata.Expires, time.Second)
 
-	got, err := svc.GetValidatedMFAChallenge(t.Context(), username, chal.Metadata.Name)
+	got, err := svc.GetValidatedMFAChallenge(t.Context(), targetCluster, chal.Metadata.Name)
 	require.NoError(t, err)
 
 	require.Empty(
@@ -76,7 +78,7 @@ func TestMFAService_CRUD(t *testing.T) {
 		"GetValidatedMFAChallenge mismatch (-want +got)",
 	)
 
-	challenges, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 10, "", nil)
+	challenges, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 10, "", "")
 	require.NoError(t, err)
 	require.Empty(t, nextPageToken)
 	require.Len(t, challenges, 1)
@@ -92,35 +94,35 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 	svc, err := local.NewMFAService(backend)
 	require.NoError(t, err)
 
-	defaultUsername := "bob"
-	emptyUsername := ""
+	defaultTargetCluster := "tgt"
+	emptyTargetCluster := ""
 
 	for _, testCase := range []struct {
-		name     string
-		username *string
-		chal     *mfav1.ValidatedMFAChallenge
-		wantErr  error
+		name          string
+		targetCluster *string
+		chal          *mfav1.ValidatedMFAChallenge
+		wantErr       error
 	}{
 		{
-			name:     "valid challenge",
-			username: &defaultUsername,
-			chal:     newValidatedMFAChallenge(),
-			wantErr:  nil,
+			name:          "valid challenge",
+			targetCluster: &defaultTargetCluster,
+			chal:          newValidatedMFAChallenge(),
+			wantErr:       nil,
 		},
 		{
-			name:     "missing username",
-			username: &emptyUsername,
-			wantErr:  trace.BadParameter("param username must not be empty"),
+			name:          "missing target cluster",
+			targetCluster: &emptyTargetCluster,
+			wantErr:       trace.BadParameter("param targetCluster must not be empty"),
 		},
 		{
-			name:     "nil challenge",
-			username: &defaultUsername,
-			chal:     nil,
-			wantErr:  trace.BadParameter("param chal must not be nil"),
+			name:          "nil challenge",
+			targetCluster: &defaultTargetCluster,
+			chal:          nil,
+			wantErr:       trace.BadParameter("param chal must not be nil"),
 		},
 		{
-			name:     "invalid kind",
-			username: &defaultUsername,
+			name:          "invalid kind",
+			targetCluster: &defaultTargetCluster,
 			chal: func() *mfav1.ValidatedMFAChallenge {
 				c := newValidatedMFAChallenge()
 				c.Kind = "wrong_kind"
@@ -129,8 +131,8 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			wantErr: trace.BadParameter("invalid kind"),
 		},
 		{
-			name:     "invalid version",
-			username: &defaultUsername,
+			name:          "invalid version",
+			targetCluster: &defaultTargetCluster,
 			chal: func() *mfav1.ValidatedMFAChallenge {
 				c := newValidatedMFAChallenge()
 				c.Version = "v2"
@@ -139,8 +141,8 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			wantErr: trace.BadParameter("invalid version"),
 		},
 		{
-			name:     "missing metadata",
-			username: &defaultUsername,
+			name:          "missing metadata",
+			targetCluster: &defaultTargetCluster,
 			chal: func() *mfav1.ValidatedMFAChallenge {
 				c := newValidatedMFAChallenge()
 				c.Metadata = nil
@@ -149,8 +151,8 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			wantErr: trace.BadParameter("metadata must be set"),
 		},
 		{
-			name:     "missing name",
-			username: &defaultUsername,
+			name:          "missing name",
+			targetCluster: &defaultTargetCluster,
 			chal: func() *mfav1.ValidatedMFAChallenge {
 				c := newValidatedMFAChallenge()
 				c.Metadata.Name = ""
@@ -159,8 +161,8 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			wantErr: trace.BadParameter("name must be set"),
 		},
 		{
-			name:     "missing spec",
-			username: &defaultUsername,
+			name:          "missing spec",
+			targetCluster: &defaultTargetCluster,
 			chal: func() *mfav1.ValidatedMFAChallenge {
 				c := newValidatedMFAChallenge()
 				c.Spec = nil
@@ -169,8 +171,8 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			wantErr: trace.BadParameter("spec must be set"),
 		},
 		{
-			name:     "missing payload",
-			username: &defaultUsername,
+			name:          "missing payload",
+			targetCluster: &defaultTargetCluster,
 			chal: func() *mfav1.ValidatedMFAChallenge {
 				c := newValidatedMFAChallenge()
 				c.Spec.Payload = nil
@@ -179,8 +181,8 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			wantErr: trace.BadParameter("payload must be set"),
 		},
 		{
-			name:     "empty ssh_session_id",
-			username: &defaultUsername,
+			name:          "empty ssh_session_id",
+			targetCluster: &defaultTargetCluster,
 			chal: func() *mfav1.ValidatedMFAChallenge {
 				c := newValidatedMFAChallenge()
 				c.Spec.Payload = &mfav1.SessionIdentifyingPayload{
@@ -191,8 +193,8 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			wantErr: trace.BadParameter("ssh_session_id must be set"),
 		},
 		{
-			name:     "missing source_cluster",
-			username: &defaultUsername,
+			name:          "missing source_cluster",
+			targetCluster: &defaultTargetCluster,
 			chal: func() *mfav1.ValidatedMFAChallenge {
 				c := newValidatedMFAChallenge()
 				c.Spec.SourceCluster = ""
@@ -201,8 +203,8 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			wantErr: trace.BadParameter("source_cluster must be set"),
 		},
 		{
-			name:     "missing target_cluster",
-			username: &defaultUsername,
+			name:          "missing target_cluster",
+			targetCluster: &defaultTargetCluster,
 			chal: func() *mfav1.ValidatedMFAChallenge {
 				c := newValidatedMFAChallenge()
 				c.Spec.TargetCluster = ""
@@ -210,9 +212,29 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			}(),
 			wantErr: trace.BadParameter("target_cluster must be set"),
 		},
+		{
+			name:          "missing username",
+			targetCluster: &defaultTargetCluster,
+			chal: func() *mfav1.ValidatedMFAChallenge {
+				c := newValidatedMFAChallenge()
+				c.Spec.Username = ""
+				return c
+			}(),
+			wantErr: trace.BadParameter("username must be set"),
+		},
+		{
+			name:          "request target_cluster mismatch",
+			targetCluster: &defaultTargetCluster,
+			chal: func() *mfav1.ValidatedMFAChallenge {
+				c := newValidatedMFAChallenge()
+				c.Spec.TargetCluster = "leaf-b"
+				return c
+			}(),
+			wantErr: trace.BadParameter("param targetCluster does not match challenge target cluster"),
+		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			_, err := svc.CreateValidatedMFAChallenge(t.Context(), *testCase.username, testCase.chal)
+			_, err := svc.CreateValidatedMFAChallenge(t.Context(), *testCase.targetCluster, testCase.chal)
 			if testCase.wantErr != nil {
 				assert.ErrorContains(t, err, testCase.wantErr.Error())
 			} else {
@@ -247,16 +269,16 @@ func TestMFAService_ListValidatedMFAChallenges_Success(t *testing.T) {
 		challenges = append(challenges, chal)
 	}
 	for _, chal := range challenges {
-		_, err = svc.CreateValidatedMFAChallenge(t.Context(), chal.GetSpec().GetUsername(), chal)
+		_, err = svc.CreateValidatedMFAChallenge(t.Context(), chal.GetSpec().GetTargetCluster(), chal)
 		require.NoError(t, err)
 	}
 
-	got, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 2, "", nil)
+	got, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 2, "", "")
 	require.NoError(t, err)
 	require.Len(t, got, 2)
 	require.NotEmpty(t, nextPageToken)
 
-	gotNext, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 2, nextPageToken, nil)
+	gotNext, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 2, nextPageToken, "")
 	require.NoError(t, err)
 	require.Len(t, gotNext, 1)
 	require.Empty(t, nextPageToken)
@@ -305,30 +327,19 @@ func TestMFAService_ListValidatedMFAChallenges_FilterByTargetCluster(t *testing.
 		challenges = append(challenges, chal)
 	}
 	for _, chal := range challenges {
-		_, err = svc.CreateValidatedMFAChallenge(t.Context(), chal.GetSpec().GetUsername(), chal)
+		_, err = svc.CreateValidatedMFAChallenge(t.Context(), chal.GetSpec().GetTargetCluster(), chal)
 		require.NoError(t, err)
 	}
 
-	t.Run("nil filter returns all challenges", func(t *testing.T) {
-		got, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 10, "", nil)
-		require.NoError(t, err)
-		require.Empty(t, nextPageToken)
-		require.Len(t, got, len(challenges))
-	})
-
-	t.Run("empty filter returns all challenges", func(t *testing.T) {
-		got, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 10, "", &mfav1.ListValidatedMFAChallengesFilter{})
+	t.Run("empty target cluster returns all challenges", func(t *testing.T) {
+		got, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 10, "", "")
 		require.NoError(t, err)
 		require.Empty(t, nextPageToken)
 		require.Len(t, got, len(challenges))
 	})
 
 	t.Run("target cluster filter returns only matching challenges", func(t *testing.T) {
-		got, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 10, "", &mfav1.ListValidatedMFAChallengesFilter{
-			XTargetCluster: &mfav1.ListValidatedMFAChallengesFilter_TargetCluster{
-				TargetCluster: "leaf-a",
-			},
-		})
+		got, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 10, "", "leaf-a")
 		require.NoError(t, err)
 		require.Empty(t, nextPageToken)
 		require.Len(t, got, 2)
@@ -338,11 +349,7 @@ func TestMFAService_ListValidatedMFAChallenges_FilterByTargetCluster(t *testing.
 	})
 
 	t.Run("target cluster filter with no matches returns empty result", func(t *testing.T) {
-		got, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 10, "", &mfav1.ListValidatedMFAChallengesFilter{
-			XTargetCluster: &mfav1.ListValidatedMFAChallengesFilter_TargetCluster{
-				TargetCluster: "leaf-c",
-			},
-		})
+		got, nextPageToken, err := svc.ListValidatedMFAChallenges(t.Context(), 10, "", "leaf-c")
 		require.NoError(t, err)
 		require.Empty(t, nextPageToken)
 		require.Empty(t, got)

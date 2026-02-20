@@ -109,7 +109,7 @@ export function ConnectServerActionButton(props: {
     );
   }
 
-  const commonProps = {
+  const commonProps: MenuLoginProps = {
     inputType: MenuInputType.FILTER,
     textTransform: 'none',
     getLoginItems: () => props.server.logins.map(login => ({ login, url: '' })),

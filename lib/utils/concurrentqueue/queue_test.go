@@ -172,6 +172,9 @@ cpu: Intel(R) Core(TM) i9-9880H CPU @ 2.30GHz
 BenchmarkQueue-16    	     156	   7342841 ns/op
 */
 func BenchmarkQueue(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
 	const workers = 16
 	const iters = 4096
 	workfn := func(v int) int {

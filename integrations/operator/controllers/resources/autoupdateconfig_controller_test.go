@@ -169,7 +169,17 @@ func (g *autoUpdateConfigTestingPrimitives) CompareTeleportAndKubernetesResource
 
 func TestAutoUpdateConfigCreation(t *testing.T) {
 	test := &autoUpdateConfigTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest[*autoupdatev1pb.AutoUpdateConfig, *resourcesv1.TeleportAutoupdateConfigV1](
+	testlib.ResourceCreationSynchronousTest(
+		t,
+		resources.NewAutoUpdateConfigV1Reconciler,
+		test,
+		testlib.WithResourceName(types.MetaNameAutoUpdateConfig),
+	)
+}
+
+func TestAutoUpdateConfigDeletion(t *testing.T) {
+	test := &autoUpdateConfigTestingPrimitives{}
+	testlib.ResourceDeletionSynchronousTest(
 		t,
 		resources.NewAutoUpdateConfigV1Reconciler,
 		test,
@@ -179,7 +189,7 @@ func TestAutoUpdateConfigCreation(t *testing.T) {
 
 func TestAutoUpdateConfigDeletionDrift(t *testing.T) {
 	test := &autoUpdateConfigTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest[*autoupdatev1pb.AutoUpdateConfig, *resourcesv1.TeleportAutoupdateConfigV1](
+	testlib.ResourceDeletionDriftSynchronousTest(
 		t,
 		resources.NewAutoUpdateConfigV1Reconciler,
 		test,
@@ -189,7 +199,7 @@ func TestAutoUpdateConfigDeletionDrift(t *testing.T) {
 
 func TestAutoUpdateConfigUpdate(t *testing.T) {
 	test := &autoUpdateConfigTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous[*autoupdatev1pb.AutoUpdateConfig, *resourcesv1.TeleportAutoupdateConfigV1](
+	testlib.ResourceUpdateTestSynchronous(
 		t,
 		resources.NewAutoUpdateConfigV1Reconciler,
 		test,

@@ -1487,9 +1487,10 @@ func TestEnterpriseServicesEnabled(t *testing.T) {
 			if tt.enterprise {
 				buildType = modules.BuildEnterprise
 			}
-			modulestest.SetTestModules(t, modulestest.Modules{
+
+			tt.config.Modules = &modulestest.Modules{
 				TestBuildType: buildType,
-			})
+			}
 
 			process := &TeleportProcess{
 				Config: tt.config,

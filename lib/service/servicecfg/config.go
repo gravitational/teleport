@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -211,8 +212,11 @@ type Config struct {
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
 
-	// FIPS means FedRAMP/FIPS compliant configuration was requested.
+	// FIPS means FedRAMP/FIPS compliant configuration was requested via the --fips flag.
 	FIPS bool
+
+	// Modules defines build time constraints and licensed features.
+	Modules modules.Modules
 
 	// SkipVersionCheck means the version checking between server and client
 	// will be skipped.
@@ -299,6 +303,10 @@ type Config struct {
 	// and the value is retrieved via AuthServerAddresses() and set via SetAuthServerAddresses()
 	// as we still need to keep multiple addresses and return them for older config versions.
 	authServers []utils.NetAddr
+
+	// UserMonitor config contains configuration for the user monitor service, which is responsible for monitoring
+	// user related changes and updating user_state accordingly.
+	UserMonitor UserMonitorConfig
 }
 
 type ConfigTesting struct {
@@ -334,6 +342,17 @@ type ConfigTesting struct {
 	// especially when the list is also being modified concurrently by the background
 	// eligibility handler.
 	RunWhileLockedRetryInterval time.Duration
+}
+
+// UserMonitorConfig contains configuration for the user monitor service, which is responsible for monitoring
+// user related changes and updating user_state accordingly.
+type UserMonitorConfig struct {
+	// ReconcileInterval overrides the default user monitor reconcile interval.
+	// Used in tests to speed up reconciliation. Zero value uses the default.
+	ReconcileInterval time.Duration
+	// LockTTL overrides the default user monitor lock TTL.
+	// Used in tests to speed up lock acquisition. Zero value uses the default.
+	LockTTL time.Duration
 }
 
 // AccessGraphConfig represents TAG server config
@@ -660,6 +679,10 @@ func ApplyDefaults(cfg *Config) {
 
 	if cfg.LoggerLevel == nil {
 		cfg.LoggerLevel = new(slog.LevelVar)
+	}
+
+	if cfg.Modules == nil {
+		cfg.Modules = modules.GetModules()
 	}
 
 	// Remove insecure and (borderline insecure) cryptographic primitives from

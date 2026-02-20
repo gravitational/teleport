@@ -151,7 +151,7 @@ type mockMFAService struct {
 	listValidatedMFAChallengesError     error
 	listValidatedMFAChallengesPageSize  int32
 	listValidatedMFAChallengesPageToken string
-	listValidatedMFAChallengesFilter    *mfav1.ListValidatedMFAChallengesFilter
+	listValidatedMFAChallengesTarget    string
 }
 
 func (m *mockMFAService) CreateValidatedMFAChallenge(
@@ -190,7 +190,7 @@ func (m *mockMFAService) ListValidatedMFAChallenges(
 	_ context.Context,
 	pageSize int32,
 	pageToken string,
-	filter *mfav1.ListValidatedMFAChallengesFilter,
+	targetCluster string,
 ) ([]*mfav1.ValidatedMFAChallenge, string, error) {
 	if m.listValidatedMFAChallengesError != nil {
 		return nil, "", m.listValidatedMFAChallengesError
@@ -200,7 +200,7 @@ func (m *mockMFAService) ListValidatedMFAChallenges(
 	defer m.mu.Unlock()
 	m.listValidatedMFAChallengesPageSize = pageSize
 	m.listValidatedMFAChallengesPageToken = pageToken
-	m.listValidatedMFAChallengesFilter = filter
+	m.listValidatedMFAChallengesTarget = targetCluster
 
 	return m.listValidatedMFAChallenges, m.listValidatedMFAChallengesToken, nil
 }

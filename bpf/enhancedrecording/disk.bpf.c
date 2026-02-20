@@ -5,7 +5,6 @@
 #include <bpf/bpf_tracing.h>       /* for getting kprobe arguments */
 
 #include "./common.h"
-#include "../helpers.h"
 
 // Maximum number of in-flight open syscalls supported
 #define INFLIGHT_MAX 8192
@@ -27,6 +26,9 @@ struct val_t {
 struct data_t {
     // CgroupID is the internal cgroupv2 ID of the event.
     u64 cgroup;
+    // AuditSessionID is the audit session ID that is used to correlate
+    // events with specific sessions.
+    u32 audit_session_id;
     // PID is the ID of the process.
     u64 pid;
     // Return_code is the return code of open.
@@ -43,10 +45,11 @@ struct data_t {
 // to generate the Go bindings.
 const struct data_t *unused __attribute__((unused));
 
-BPF_HASH(infotmp, u64, struct val_t, INFLIGHT_MAX);
+// Hashmap that keeps all audit session IDs that should be monitored 
+// by Teleport.
+BPF_HASH(monitored_sessionids, u32, u8, MAX_MONITORED_SESSIONS);
 
-// hashmap keeps all cgroups id that should be monitored by Teleport.
-BPF_HASH(monitored_cgroups, u64, int64_t, MAX_MONITORED_SESSIONS);
+BPF_HASH(infotmp, u64, struct val_t, INFLIGHT_MAX);
 
 // open_events ring buffer
 BPF_RING_BUF(open_events, EVENTS_BUF_SIZE);
@@ -54,17 +57,17 @@ BPF_RING_BUF(open_events, EVENTS_BUF_SIZE);
 BPF_COUNTER(lost);
 
 static int enter_open(const char *filename, int flags) {
-    struct val_t val = {};
-    u64 id = bpf_get_current_pid_tgid();
-    u64 cgroup = bpf_get_current_cgroup_id();
-    u64 *is_monitored;
-
-    // Check if the cgroup should be monitored.
-    is_monitored = bpf_map_lookup_elem(&monitored_cgroups, &cgroup);
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+    u32 session_id = BPF_CORE_READ(task, sessionid);
+    u8 *is_monitored = bpf_map_lookup_elem(&monitored_sessionids, &session_id);
     if (is_monitored == NULL) {
-        // cgroup has not been marked for monitoring, ignore.
         return 0;
     }
+
+    print_disk_event(task, filename);
+
+    struct val_t val = {};
+    u64 id = bpf_get_current_pid_tgid();
 
     val.pid = id >> 32;
     val.fname = filename;
@@ -75,12 +78,8 @@ static int enter_open(const char *filename, int flags) {
 }
 
 static int exit_open(int ret) {
-    u64 id = bpf_get_current_pid_tgid();
-    u64 cgroup = bpf_get_current_cgroup_id();
-
     struct val_t *valp;
-    struct data_t data = {};
-    u64 *is_monitored;
+    u64 id = bpf_get_current_pid_tgid();
 
     valp = bpf_map_lookup_elem(&infotmp, &id);
     if (valp == NULL) {
@@ -88,13 +87,7 @@ static int exit_open(int ret) {
         return 0;
     }
 
-    // Check if the cgroup should be monitored.
-    is_monitored = bpf_map_lookup_elem(&monitored_cgroups, &cgroup);
-    if (is_monitored == NULL) {
-        // cgroup has not been marked for monitoring, ignore.
-        return 0;
-    }
-
+    struct data_t data = {};
     if (bpf_get_current_comm(&data.command, sizeof(data.command)) != 0) {
         data.command[0] = '\0';
     }
@@ -104,7 +97,10 @@ static int exit_open(int ret) {
     data.pid = valp->pid;
     data.flags = valp->flags;
     data.return_code = ret;
-    data.cgroup = cgroup;
+    data.cgroup = bpf_get_current_cgroup_id();
+
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+    data.audit_session_id = BPF_CORE_READ(task, sessionid);
 
     if (bpf_ringbuf_output(&open_events, &data, sizeof(data), 0) != 0)
         INCR_COUNTER(lost);

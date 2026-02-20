@@ -576,8 +576,8 @@ type CLIConf struct {
 	// It shouldn't be used outside testing.
 	KubeConfigPath string
 
-	// Client only version display.  Skips checking proxy version.
-	clientOnlyVersionCheck bool
+	// Skip server-side checks for certain commands (status, version, etc)
+	clientOnlyChecks bool
 
 	// tracer is the tracer used to trace tsh commands.
 	tracer oteltrace.Tracer
@@ -846,6 +846,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		DTAutoEnroll:       dtenroll.AutoEnroll,
 	}
 
+	// run early to enable debug logging if env var is set.
+	// this makes it possible to debug early startup functionality, particularly command aliases.
+	if _, err := initLogger(&cf, utils.LoggingForCLI, parseLoggingOptsFromEnv()); err != nil {
+		printInitLoggerError(err)
+	}
+
 	// We need to parse the arguments before executing managed updates to identify
 	// the profile name and the required version for the current cluster.
 	// All other commands and flags may change between versions, so full parsing
@@ -861,12 +867,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	name := utils.TryHost(strings.TrimPrefix(strings.ToLower(proxyArg), "https://"))
 	if err := autoupdatetools.CheckAndUpdateLocal(ctx, name, args); err != nil {
 		return trace.Wrap(err)
-	}
-
-	// run early to enable debug logging if env var is set.
-	// this makes it possible to debug early startup functionality, particularly command aliases.
-	if _, err := initLogger(&cf, utils.LoggingForCLI, parseLoggingOptsFromEnv()); err != nil {
-		printInitLoggerError(err)
 	}
 
 	moduleCfg := modules.GetModules()
@@ -949,7 +949,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ver := app.Command("version", "Print the tsh client and Proxy server versions for the current context.")
 	ver.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	ver.Flag("client", "Show the client version only (no server required).").
-		BoolVar(&cf.clientOnlyVersionCheck)
+		BoolVar(&cf.clientOnlyChecks)
 	// ssh
 	// Use Interspersed(false) to forward all flags to ssh.
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node.").Interspersed(false)
@@ -1330,6 +1330,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	status := app.Command("status", "Display the list of proxy servers and retrieved certificates.")
 	status.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	status.Flag("verbose", "Show extra status information after successful login.").Short('v').BoolVar(&cf.Verbose)
+	status.Flag("client", "Show client information only (no server required).").BoolVar(&cf.clientOnlyChecks)
 
 	// The environment command prints out environment variables for the configured
 	// proxy and cluster. Can be used to create sessions "sticky" to a terminal
@@ -2104,7 +2105,7 @@ func onVersion(cf *CLIConf) error {
 	proxyVersion := ""
 	proxyPublicAddr := ""
 	// Check proxy version if not in client only mode
-	if !cf.clientOnlyVersionCheck {
+	if !cf.clientOnlyChecks {
 		pv, ppa, err := fetchProxyVersion(cf)
 		if err != nil {
 			fmt.Fprintf(cf.Stderr(), "Failed to fetch proxy version: %s\n", err)
@@ -2767,6 +2768,9 @@ func onLogout(cf *CLIConf) error {
 // onListNodes executes 'tsh ls' command.
 func onListNodes(cf *CLIConf) error {
 	if cf.ListAll {
+		if cf.Headless || cf.AuthConnector == constants.HeadlessConnector {
+			return trace.BadParameter("--all cannot be specified with --headless/--auth=headless")
+		}
 		return trace.Wrap(listNodesAllClusters(cf))
 	}
 
@@ -5612,6 +5616,10 @@ func onStatus(cf *CLIConf) error {
 	duration := time.Until(profile.ValidUntil)
 	if !profile.ValidUntil.IsZero() && duration.Nanoseconds() <= 0 {
 		return trace.NotFound("Active profile expired.")
+	}
+
+	if cf.clientOnlyChecks {
+		return nil
 	}
 
 	// make the teleport client and retrieve the certificate from the proxy:

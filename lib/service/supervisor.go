@@ -110,6 +110,11 @@ type Supervisor interface {
 
 	// HandleReadiness is the HTTP handler for "/readyz".
 	HandleReadiness(http.ResponseWriter, *http.Request)
+
+	// RegisterProcessStateCallback registers a function which is called immediately
+	// upon registering and then each time the health of the process state changes.
+	// The function must not call back into the supervisor or block in any way.
+	RegisterProcessStateCallback(func(healthy bool))
 }
 
 // EventMapping maps a sequence of incoming
@@ -515,6 +520,13 @@ func (s *LocalSupervisor) BroadcastEvent(event Event) {
 			s.log.DebugContext(s.closeContext, "Teleport not yet ready", "error", err)
 		}
 	}
+}
+
+// RegisterProcessStateCallback registers a function which is called immediately
+// upon registering and then each time the health of the process state changes.
+// The function must not call back into the supervisor or block in any way.
+func (s *LocalSupervisor) RegisterProcessStateCallback(fn func(healthy bool)) {
+	s.processState.registerCallback(fn)
 }
 
 // RegisterEventMapping registers event mapping -

@@ -18,11 +18,13 @@ package accesslist
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
 )
 
@@ -121,4 +123,16 @@ func TestReviewSpecUnmarshaling(t *testing.T) {
 	require.Equal(t, time.Date(2023, 01, 01, 0, 0, 0, 0, time.UTC), reviewSpec.ReviewDate)
 	require.Equal(t, OneMonth, reviewSpec.Changes.ReviewFrequencyChanged)
 	require.Equal(t, FirstDayOfMonth, reviewSpec.Changes.ReviewDayOfMonthChanged)
+}
+
+// TestNewReviewNotesLimit verifies notes are truncated to max size when creating a new review.
+func TestNewReviewNotesLimit(t *testing.T) {
+	review, err := NewReview(header.Metadata{Name: "example"}, ReviewSpec{
+		AccessList: "access-list",
+		Reviewers:  []string{"user1"},
+		ReviewDate: time.Date(2023, 01, 01, 0, 0, 0, 0, time.UTC),
+		Notes:      strings.Repeat("a", reviewNotesMaxSizeBytes+1),
+	})
+	require.NoError(t, err)
+	require.Len(t, review.Spec.Notes, reviewNotesMaxSizeBytes)
 }

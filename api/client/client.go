@@ -6037,6 +6037,11 @@ func (c *Client) ListScopedTokens(ctx context.Context, req *joiningv1.ListScoped
 	return res, trace.Wrap(err)
 }
 
+func (c *Client) GetScopedToken(ctx context.Context, req *joiningv1.GetScopedTokenRequest) (*joiningv1.ScopedToken, error) {
+	res, err := c.grpc.GetScopedToken(ctx, req)
+	return res.GetToken(), trace.Wrap(err)
+}
+
 // DeleteScopedToken deletes an existing scoped token.
 func (c *Client) DeleteScopedToken(ctx context.Context, name string) error {
 	_, err := c.grpc.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
@@ -6048,6 +6053,13 @@ func (c *Client) DeleteScopedToken(ctx context.Context, name string) error {
 // CreateScopedToken creates a new scoped token.
 func (c *Client) CreateScopedToken(ctx context.Context, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
 	res, err := c.grpc.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+		Token: token,
+	})
+	return res.GetToken(), trace.Wrap(err)
+}
+
+func (c *Client) UpsertScopedToken(ctx context.Context, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
+	res, err := c.grpc.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{
 		Token: token,
 	})
 	return res.GetToken(), trace.Wrap(err)

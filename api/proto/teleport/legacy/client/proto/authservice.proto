@@ -2862,7 +2862,7 @@ message ListAccessRequestsRequest {
 
   // StartKey is used to resume a query in order to enable pagination.
   // If the previous response had NextKey set then this should be
-  // set to its value. Otherwise leave empty.
+  // set to its value. Should be empty on the first request.
   string StartKey = 5;
 }
 
