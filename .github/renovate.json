@@ -1,5 +1,10 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "baseBranchPatterns": [
+    "master",
+    "branch/v18",
+    "branch/v17"
+  ],
   "extends": [
     "config:recommended"
   ],
