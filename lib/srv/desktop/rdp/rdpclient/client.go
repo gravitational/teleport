@@ -735,6 +735,14 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 				return trace.Errorf("SharedDirectoryAnnounce: failed with %v", errCode)
 			}
 		}
+	case *tdpb.SharedDirectoryRemove:
+		if c.cfg.AllowDirectorySharing {
+			if errCode := C.client_handle_tdp_sd_remove(C.uintptr_t(c.handle), C.CGOSharedDirectoryRemove{
+				directory_id: C.uint32_t(m.DirectoryId),
+			}); errCode != C.ErrCodeSuccess {
+				return trace.Errorf("SharedDirectoryRemove: failed with %v", errCode)
+			}
+		}
 	case *tdpb.SharedDirectoryResponse:
 		switch op := m.Operation.(type) {
 		case *tdpbv1.SharedDirectoryResponse_Info_:

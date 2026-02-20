@@ -170,6 +170,11 @@ message SharedDirectoryAnnounce {
   string name = 2;
 }
 
+// Sent by client to remove an previously announced shared directory.
+message SharedDirectoryRemove {
+  uint32 directory_id = 1;
+}
+
 // Sent by server to acknowledge a new shared directory.
 message SharedDirectoryAcknowledge {
   uint32 directory_id = 1;
@@ -341,5 +346,6 @@ message Envelope {
     SharedDirectoryResponse shared_directory_response = 18;
     LatencyStats latency_stats = 19;
     Ping ping = 20;
+    SharedDirectoryRemove shared_directory_remove = 21;
   }
 }

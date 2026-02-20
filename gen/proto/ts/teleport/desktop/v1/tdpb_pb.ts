@@ -319,6 +319,17 @@ export interface SharedDirectoryAnnounce {
     name: string;
 }
 /**
+ * Sent by client to remove an previously announced shared directory.
+ *
+ * @generated from protobuf message teleport.desktop.v1.SharedDirectoryRemove
+ */
+export interface SharedDirectoryRemove {
+    /**
+     * @generated from protobuf field: uint32 directory_id = 1;
+     */
+    directoryId: number;
+}
+/**
  * Sent by server to acknowledge a new shared directory.
  *
  * @generated from protobuf message teleport.desktop.v1.SharedDirectoryAcknowledge
@@ -852,6 +863,12 @@ export interface Envelope {
          * @generated from protobuf field: teleport.desktop.v1.Ping ping = 20;
          */
         ping: Ping;
+    } | {
+        oneofKind: "sharedDirectoryRemove";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SharedDirectoryRemove shared_directory_remove = 21;
+         */
+        sharedDirectoryRemove: SharedDirectoryRemove;
     } | {
         oneofKind: undefined;
     };
@@ -1918,6 +1935,53 @@ class SharedDirectoryAnnounce$Type extends MessageType<SharedDirectoryAnnounce> 
  * @generated MessageType for protobuf message teleport.desktop.v1.SharedDirectoryAnnounce
  */
 export const SharedDirectoryAnnounce = new SharedDirectoryAnnounce$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SharedDirectoryRemove$Type extends MessageType<SharedDirectoryRemove> {
+    constructor() {
+        super("teleport.desktop.v1.SharedDirectoryRemove", [
+            { no: 1, name: "directory_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SharedDirectoryRemove>): SharedDirectoryRemove {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.directoryId = 0;
+        if (value !== undefined)
+            reflectionMergePartial<SharedDirectoryRemove>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SharedDirectoryRemove): SharedDirectoryRemove {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 directory_id */ 1:
+                    message.directoryId = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SharedDirectoryRemove, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 directory_id = 1; */
+        if (message.directoryId !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.directoryId);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SharedDirectoryRemove
+ */
+export const SharedDirectoryRemove = new SharedDirectoryRemove$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class SharedDirectoryAcknowledge$Type extends MessageType<SharedDirectoryAcknowledge> {
     constructor() {
@@ -3189,7 +3253,8 @@ class Envelope$Type extends MessageType<Envelope> {
             { no: 17, name: "shared_directory_request", kind: "message", oneof: "payload", T: () => SharedDirectoryRequest },
             { no: 18, name: "shared_directory_response", kind: "message", oneof: "payload", T: () => SharedDirectoryResponse },
             { no: 19, name: "latency_stats", kind: "message", oneof: "payload", T: () => LatencyStats },
-            { no: 20, name: "ping", kind: "message", oneof: "payload", T: () => Ping }
+            { no: 20, name: "ping", kind: "message", oneof: "payload", T: () => Ping },
+            { no: 21, name: "shared_directory_remove", kind: "message", oneof: "payload", T: () => SharedDirectoryRemove }
         ]);
     }
     create(value?: PartialMessage<Envelope>): Envelope {
@@ -3324,6 +3389,12 @@ class Envelope$Type extends MessageType<Envelope> {
                         ping: Ping.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).ping)
                     };
                     break;
+                case /* teleport.desktop.v1.SharedDirectoryRemove shared_directory_remove */ 21:
+                    message.payload = {
+                        oneofKind: "sharedDirectoryRemove",
+                        sharedDirectoryRemove: SharedDirectoryRemove.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).sharedDirectoryRemove)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -3396,6 +3467,9 @@ class Envelope$Type extends MessageType<Envelope> {
         /* teleport.desktop.v1.Ping ping = 20; */
         if (message.payload.oneofKind === "ping")
             Ping.internalBinaryWrite(message.payload.ping, writer.tag(20, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SharedDirectoryRemove shared_directory_remove = 21; */
+        if (message.payload.oneofKind === "sharedDirectoryRemove")
+            SharedDirectoryRemove.internalBinaryWrite(message.payload.sharedDirectoryRemove, writer.tag(21, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

@@ -22,7 +22,7 @@ use crate::{
     CGOSharedDirectoryDeleteRequest, CGOSharedDirectoryInfoRequest, CGOSharedDirectoryInfoResponse,
     CGOSharedDirectoryListRequest, CGOSharedDirectoryListResponse, CGOSharedDirectoryMoveRequest,
     CGOSharedDirectoryReadRequest, CGOSharedDirectoryReadResponse,
-    CGOSharedDirectoryTruncateRequest, CGOSharedDirectoryWriteRequest,
+    CGOSharedDirectoryTruncateRequest, CGOSharedDirectoryWriteRequest, CGOSharedDirectoryRemove,
 };
 
 use ironrdp_pdu::pdu_other_err;
@@ -56,6 +56,27 @@ impl From<CGOSharedDirectoryAnnounce> for SharedDirectoryAnnounce {
         }
     }
 }
+
+/// SharedDirectoryAnnounce is sent by the TDP client to the server
+/// to announce a new directory to be shared over TDP.
+#[derive(Debug)]
+pub struct SharedDirectoryRemove {
+    pub directory_id: u32,
+}
+
+impl From<CGOSharedDirectoryRemove> for SharedDirectoryRemove {
+    fn from(cgo: CGOSharedDirectoryRemove) -> SharedDirectoryRemove {
+        // # Safety
+        //
+        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+        // In other words, all pointer data that needs to persist after this function returns MUST
+        // be copied into Rust-owned memory.
+            SharedDirectoryRemove {
+                directory_id: cgo.directory_id,
+        }
+    }
+}
+
 
 /// SharedDirectoryAcknowledge is sent by the TDP server to the client
 /// to acknowledge that a SharedDirectoryAnnounce was received.

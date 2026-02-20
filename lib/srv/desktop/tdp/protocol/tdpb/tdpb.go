@@ -247,6 +247,18 @@ func (s *SharedDirectoryAnnounce) Encode() ([]byte, error) {
 	})
 }
 
+// SharedDirectoryRemove is sent by the client to stop sharing a directory.
+type SharedDirectoryRemove tdpbv1.SharedDirectoryRemove
+
+// Encode encodes a SharedDirectoryAnnounce message.
+func (s *SharedDirectoryRemove) Encode() ([]byte, error) {
+	return marshalWithHeader(&tdpbv1.Envelope{
+		Payload: &tdpbv1.Envelope_SharedDirectoryAnnounce{
+			SharedDirectoryAnnounce: (*tdpbv1.SharedDirectoryAnnounce)(s),
+		},
+	})
+}
+
 // SharedDirectoryAcknowledge is sent by the server to acknowledge a
 // new shared directory.
 type SharedDirectoryAcknowledge tdpbv1.SharedDirectoryAcknowledge
