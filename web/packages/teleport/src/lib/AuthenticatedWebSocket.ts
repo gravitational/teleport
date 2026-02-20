@@ -26,12 +26,7 @@ import { WebsocketStatus } from 'teleport/types';
  */
 export class AuthenticatedWebSocket extends WebSocket {
   private authenticated: boolean = false;
-  private pendingMessages: (
-    | string
-    | ArrayBufferLike
-    | Blob
-    | ArrayBufferView
-  )[] = [];
+  private pendingMessages: (string | Blob | BufferSource)[] = [];
   private openListeners: ((this: WebSocket, ev: Event) => any)[] = [];
   private onopenInternal: ((this: WebSocket, ev: Event) => any) | null = null;
   private messageListeners: ((this: WebSocket, ev: MessageEvent) => any)[] = [];
@@ -142,7 +137,7 @@ export class AuthenticatedWebSocket extends WebSocket {
   }
 
   // Authenticated send or queues messages until auth completes
-  override send(data: string | ArrayBufferLike | Blob | ArrayBufferView): void {
+  override send(data: string | Blob | BufferSource): void {
     if (!this.authenticated) {
       this.pendingMessages.push(data);
       return;
