@@ -105,13 +105,9 @@ type dbusDaemon struct {
 // It uses polkit to authorize the calling D-Bus sender.
 // It returns an error if the admin process has already been started.
 func (d *dbusDaemon) Start(addr, credPath string, sender dbus.Sender) *dbus.Error {
-	if err := d.authorize(sender); err != nil {
-		return dbus.MakeFailedError(trace.Wrap(err, "authorization failed"))
-	}
-
-	uid, err := d.lookupSenderUID(sender)
+	uid, err := d.authorize(sender)
 	if err != nil {
-		return dbus.MakeFailedError(trace.Wrap(err, "looking up D-Bus sender UID"))
+		return dbus.MakeFailedError(trace.Wrap(err, "authorization failed"))
 	}
 
 	d.mu.Lock()
@@ -141,12 +137,9 @@ func (d *dbusDaemon) Start(addr, credPath string, sender dbus.Sender) *dbus.Erro
 // Stop stops actual VNet admin process by canceling the daemon context.
 // It uses polkit to authorize the calling D-Bus sender.
 func (d *dbusDaemon) Stop(sender dbus.Sender) *dbus.Error {
-	if err := d.authorize(sender); err != nil {
-		return dbus.MakeFailedError(trace.Wrap(err, "authorization failed"))
-	}
-	uid, err := d.lookupSenderUID(sender)
+	uid, err := d.authorize(sender)
 	if err != nil {
-		return dbus.MakeFailedError(trace.Wrap(err, "looking up D-Bus sender UID"))
+		return dbus.MakeFailedError(trace.Wrap(err, "authorization failed"))
 	}
 	// We intentionally do not reset started here to avoid a race with Start
 	// while the process is exiting. A new Start is allowed only after
@@ -160,14 +153,16 @@ func (d *dbusDaemon) Stop(sender dbus.Sender) *dbus.Error {
 	return nil
 }
 
-func (d *dbusDaemon) authorize(sender dbus.Sender) error {
+// authorize checks polkit authorization for the calling D-Bus sender and
+// returns the sender UID.
+func (d *dbusDaemon) authorize(sender dbus.Sender) (uint32, error) {
 	uid, err := d.lookupSenderUID(sender)
 	if err != nil {
-		return trace.Wrap(err, "looking up D-Bus sender UID")
+		return 0, trace.Wrap(err, "looking up D-Bus sender UID")
 	}
 	if uid == 0 {
 		// Always allow root to start the daemon.
-		return nil
+		return uid, nil
 	}
 
 	subject := polkit.NewSystemBusNameSubject(string(sender))
@@ -181,15 +176,15 @@ func (d *dbusDaemon) authorize(sender dbus.Sender) error {
 		"",
 	)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if !result.Authorized {
 		if result.Challenge {
-			return trace.Errorf("polkit authentication required")
+			return 0, trace.Errorf("polkit authentication required")
 		}
-		return trace.Errorf("polkit authorization denied")
+		return 0, trace.Errorf("polkit authorization denied")
 	}
-	return nil
+	return uid, nil
 }
 
 func (d *dbusDaemon) lookupSenderUID(sender dbus.Sender) (uint32, error) {
