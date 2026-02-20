@@ -431,9 +431,9 @@ Connect to the remote Node via `tsh` to verify that the host user was created:
 $ tsh login
 $ tsh ssh nginxrestarter@develnode
 $ grep "nginxrestarter" /etc/passwd
-# nginxrestarter:x:1001:1003::/home/nginxrestarter:/bin/bash
+# nginxrestarter\:x:1001:1003::/home/nginxrestarter:/bin/bash
 $ grep "other" /etc/group
-# other:x:1002:nginxrestarter
+# other\:x:1002:nginxrestarter
 ```
 
 ## Under the hood
