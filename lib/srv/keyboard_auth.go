@@ -45,6 +45,19 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 		return perms, nil
 	}
 
+	// Source cluster is the cluster that the user initially authenticated to, which may be different from
+	// the cluster that the user is ultimately trying to access if the user is authenticating through a
+	// proxy. If RouteToCluster is set, it indicates that the user is trying to access a different cluster
+	// through a proxy and we should use RouteToCluster as the source cluster for MFA verification.
+	// Otherwise, we use ClusterName as the source cluster.
+	sourceCluster := id.ClusterName
+	if id.RouteToCluster != "" {
+		sourceCluster = id.RouteToCluster
+	}
+	if sourceCluster == "" {
+		return nil, trace.BadParameter("identity missing cluster name (this is a bug)")
+	}
+
 	// If an unknown or unsupported precondition is provided, fail close to prevent potential authentication bypasses.
 	if err := ensureSupportedPreconditions(preconds); err != nil {
 		return nil, trace.Wrap(err)
@@ -81,8 +94,7 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 		for _, p := range preconds {
 			switch p.GetKind() {
 			case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
-				// TODO(cthach): Use the source cluster name that the client will do the MFA ceremony with.
-				verifier, err := srvssh.NewMFAPromptVerifier(h.c.ValidatedMFAChallengeVerifier, id.ClusterName, id.Username, metadata.SessionID())
+				verifier, err := srvssh.NewMFAPromptVerifier(h.c.ValidatedMFAChallengeVerifier, sourceCluster, id.Username, metadata.SessionID())
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
