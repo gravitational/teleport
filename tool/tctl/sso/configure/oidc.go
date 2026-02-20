@@ -27,7 +27,6 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/zitadel/oidc/v3/pkg/client"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -35,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/otelhttp"
 	"github.com/gravitational/teleport/tool/tctl/sso/configure/flags"
 	"github.com/gravitational/teleport/tool/tctl/sso/tester"
 )
