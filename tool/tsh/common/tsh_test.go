@@ -8321,6 +8321,9 @@ func TestReexecErrorPropagation(t *testing.T) {
 	connector := mockConnector(t)
 
 	createAgent(t)
+	// X11 request handling requires a valid DISPLAY env var. Set one explicitly so
+	// this test does not depend on ambient CI worker configuration.
+	t.Setenv(x11.DisplayEnv, ":0")
 
 	// Use a non-existent OS user to force reexec failures in the node.
 	missingLogin := "does-not-exist"
@@ -8356,9 +8359,29 @@ func TestReexecErrorPropagation(t *testing.T) {
 	require.NoError(t, err)
 	userHostUserCreationContext.SetRoles([]string{roleNodeAccessMissingLogin.GetName(), roleHostUserAllow.GetName()})
 
+	// Create a user with agent/x11 forwarding not permitted.
+	currentUser, err := user.Current()
+	require.NoError(t, err)
+
+	roleNodeAccessNoForwarding, err := types.NewRole("node-access-no-forwarding", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			ForwardAgent:        types.NewBool(false),
+			PermitX11Forwarding: types.NewBool(false),
+		},
+		Allow: types.RoleConditions{
+			Logins:     []string{currentUser.Username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+
+	userNoForwarding, err := types.NewUser("user-no-forwarding")
+	require.NoError(t, err)
+	userNoForwarding.SetRoles([]string{roleNodeAccessNoForwarding.GetName()})
+
 	sshHostname := "test-ssh-server"
 	rootServerOpts := []testserver.TestServerOptFunc{
-		testserver.WithBootstrap(connector, roleNodeAccessMissingLogin, roleHostUserAllow, userMissingLogin, userHostUserCreationContext),
+		testserver.WithBootstrap(connector, roleNodeAccessMissingLogin, roleHostUserAllow, userMissingLogin, userHostUserCreationContext, roleNodeAccessNoForwarding, userNoForwarding),
 		testserver.WithHostname(sshHostname),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SSH.Enabled = true
@@ -8397,14 +8420,16 @@ func TestReexecErrorPropagation(t *testing.T) {
 		require.NoError(t, err)
 		return homePath
 	}
-
 	userMissingLoginHomePath := login(t, userMissingLogin)
 	userHostUserCreationContextHomePath := login(t, userHostUserCreationContext)
+	userNoForwardingHomePath := login(t, userNoForwarding)
 
 	type testCase struct {
 		name          string
 		tty           bool
 		remoteCommand []string
+		x11Forward    bool
+		agentForward  bool
 	}
 
 	sshShell := testCase{name: "ssh shell"}
@@ -8417,46 +8442,80 @@ func TestReexecErrorPropagation(t *testing.T) {
 		remoteCommand: []string{"echo", "hello"},
 		tty:           true,
 	}
+	sshShellAgentX11 := testCase{
+		name:         "ssh shell, agent and x11 forwarding",
+		x11Forward:   true,
+		agentForward: true,
+	}
 
-	runSSH := func(t *testing.T, tc testCase, homePath string, login string) (string, error) {
+	runSSH := func(t *testing.T, tc testCase, homePath string, login string) (string, string, error) {
 		stdout := &output{buf: bytes.Buffer{}}
+		stderr := &output{buf: bytes.Buffer{}}
 
 		args := []string{"ssh", "--insecure"}
 		if tc.tty {
 			args = append(args, "--tty")
 		}
+
+		if tc.agentForward {
+			args = append(args, "-A")
+		}
+		if tc.x11Forward {
+			args = append(args, "-Y")
+		}
 		args = append(args, fmt.Sprintf("%s@%s", login, sshHostname))
 		args = append(args, tc.remoteCommand...)
+
+		// If the shell succeeds, ensure it exits immediately.
+		stdin := &bytes.Buffer{}
+		if len(tc.remoteCommand) == 0 {
+			_, err := stdin.WriteString("exit\n")
+			require.NoError(t, err)
+		}
 
 		// The shell should succeed even though agent/x11 forwarding will be denied.
 		err := Run(ctx, args,
 			setHomePath(homePath),
 			func(conf *CLIConf) error {
 				conf.OverrideStdout = stdout
+				conf.overrideStderr = stderr
+				conf.overrideStdin = stdin
 				return nil
 			},
 		)
-		return stdout.String(), err
+
+		// Return stdout with the stdin echo removed.
+		return strings.ReplaceAll(stdout.String(), "exit\r\n", ""), stderr.String(), err
 	}
 
 	t.Run("unknown user error", func(t *testing.T) {
 		t.Parallel()
 		homePath := userMissingLoginHomePath
 
-		for _, tc := range []testCase{sshShell, sshCommand, sshCommandTTY} {
+		for _, tc := range []testCase{sshShell, sshCommand, sshCommandTTY, sshShellAgentX11} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				stdout, err := runSSH(t, tc, homePath, missingLogin)
+				stdout, stderr, err := runSSH(t, tc, homePath, missingLogin)
 
 				var exitCodeErr *common.ExitCodeError
 				require.ErrorAs(t, err, &exitCodeErr)
 				require.Equal(t, teleport.RemoteCommandFailure, exitCodeErr.Code)
 
-				expectStdout := fmt.Sprintf("Failed to launch: %v.\r\n", user.UnknownUserError(missingLogin))
+				unkownUserReexecError := fmt.Sprintf("Failed to launch: %v.\r\n", user.UnknownUserError(missingLogin))
 
 				// Check for exact match to catch regressions with new lines.
-				require.Equal(t, expectStdout, stdout)
+				expectStdout := unkownUserReexecError
+				assert.Equal(t, expectStdout, stdout)
+
+				var expectStderr string
+				if tc.x11Forward {
+					expectStderr += fmt.Sprintf("X11 forwarding request failed: %v", unkownUserReexecError)
+				}
+				if tc.agentForward {
+					expectStderr += fmt.Sprintf("agent forwarding request failed: %v", unkownUserReexecError)
+				}
+				assert.Equal(t, expectStderr, stderr)
 			})
 		}
 	})
@@ -8465,25 +8524,53 @@ func TestReexecErrorPropagation(t *testing.T) {
 		t.Parallel()
 		homePath := userHostUserCreationContextHomePath
 
-		for _, tc := range []testCase{sshCommand} {
+		for _, tc := range []testCase{sshCommand, sshShellAgentX11} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				stdout, err := runSSH(t, tc, homePath, missingLogin)
+				stdout, stderr, err := runSSH(t, tc, homePath, missingLogin)
 
 				var exitCodeErr *common.ExitCodeError
 				require.ErrorAs(t, err, &exitCodeErr)
 				require.Equal(t, teleport.RemoteCommandFailure, exitCodeErr.Code)
 
-				expectStdout := fmt.Sprintf("Failed to launch: %s: host user creation denied by the following resources: [%s: %q]\r\n",
+				contextualReexecErrorMessage := fmt.Sprintf("Failed to launch: %s: host user creation denied by the following resources: [%s: %q]\r\n",
 					user.UnknownUserError(missingLogin),
 					types.KindRole,
 					roleNodeAccessMissingLogin.GetName(),
 				)
 
 				// Check for exact match to catch regressions with new lines.
-				require.Equal(t, expectStdout, stdout)
+				expectStdout := contextualReexecErrorMessage
+				assert.Equal(t, expectStdout, stdout)
+
+				var expectStderr string
+				if tc.x11Forward {
+					expectStderr += fmt.Sprintf("X11 forwarding request failed: %v", contextualReexecErrorMessage)
+				}
+				if tc.agentForward {
+					expectStderr += fmt.Sprintf("agent forwarding request failed: %v", contextualReexecErrorMessage)
+				}
+				assert.Equal(t, expectStderr, stderr)
 			})
 		}
+	})
+
+	t.Run("forwarding not permitted", func(t *testing.T) {
+		t.Parallel()
+		homePath := userNoForwardingHomePath
+
+		tc := sshShellAgentX11
+		t.Run(tc.name, func(t *testing.T) {
+			_, stderr, err := runSSH(t, tc, homePath, currentUser.Username)
+			require.NoError(t, err)
+
+			if tc.x11Forward {
+				assert.Contains(t, stderr, fmt.Sprintln("X11 forwarding request failed: X11 forwarding not permitted"))
+			}
+			if tc.agentForward {
+				assert.Contains(t, stderr, fmt.Sprintln("agent forwarding request failed: agent forwarding not permitted"))
+			}
+		})
 	})
 }

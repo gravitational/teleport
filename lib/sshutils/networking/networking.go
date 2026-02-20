@@ -37,6 +37,7 @@ package networking
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -172,8 +173,8 @@ func (p *Process) start(ctx context.Context, reexecErrorContext *reexec.ErrorCon
 		}
 
 		childErr, err := reexec.ReadChildError(stderrr, reexecErrorContext)
-		if err == nil && childErr != nil {
-			p.childErr = childErr
+		if err == nil && childErr != "" {
+			p.childErr = errors.New(childErr)
 			return
 		}
 
