@@ -16,12 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { spawnSync } from 'child_process';
 import path from 'node:path';
 
 import { shell } from 'electron';
 import { NsisUpdater } from 'electron-updater';
 import { DownloadUpdateOptions } from 'electron-updater/out/AppUpdater';
 import { InstallOptions } from 'electron-updater/out/BaseUpdater';
+
+import { getErrorMessage } from 'shared/utils/error';
 
 import {
   TSH_AUTOUPDATE_ENV_VAR,
@@ -67,7 +70,12 @@ export class NsisDualModeUpdater extends NsisUpdater {
       return this.doInstallPerScope(options, 'machine');
     }
 
-    // Run the privileged updater.
+    return this.doInstallPerMachineWithPrivilegedService(options);
+  }
+
+  private doInstallPerMachineWithPrivilegedService(
+    options: InstallOptions
+  ): boolean {
     if (!this.installerPath) {
       this.dispatchError(
         new Error("No update filepath provided, can't quit and install")
@@ -84,9 +92,25 @@ export class NsisDualModeUpdater extends NsisUpdater {
     if (options.isForceRunAfter) {
       args.push('--force-run');
     }
-    void this.spawnLog(this.tshPath, args, {
-      [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
-    });
+
+    try {
+      // Spawn synchronously to ensure that no errors are missed.
+      this.spawnSync(this.tshPath, args, {
+        [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
+      });
+    } catch (error) {
+      this.dispatchError(error);
+      const errorMessage = getErrorMessage(error);
+      if (!errorMessage.includes('failed to ensure service running')) {
+        // If not a problem with starting the service, keep the app open and surface the error in the UI.
+        return false;
+      }
+      // Otherwise, fall back to UAC installer.
+      this.logger.warn(
+        'Failed to start privileged update service, falling back to regular installation'
+      );
+      return this.doInstallPerScope(options, 'machine');
+    }
     return true;
   }
 
@@ -176,5 +200,29 @@ export class NsisDualModeUpdater extends NsisUpdater {
       }
     });
     return true;
+  }
+
+  protected spawnSync(cmd: string, args: string[] = [], env = {}): void {
+    this.logger.info(`Executing: ${cmd} with args: ${args}`);
+    const response = spawnSync(cmd, args, {
+      env: env,
+      encoding: 'utf-8',
+    });
+
+    const { error, status, stdout, stderr } = response;
+    if (error != null) {
+      this.logger.error(stderr);
+      throw error;
+    } else if (status != null && status !== 0) {
+      this.logger.error(stderr);
+      throw new Error(
+        `Command ${cmd} exited with code ${status} and error ${stderr}`
+      );
+    }
+    this.logger.info(
+      [`Command exited successfully`, stdout ? `, output: ${stdout}` : '']
+        .filter(Boolean)
+        .join(' ')
+    );
   }
 }
