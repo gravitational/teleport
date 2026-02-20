@@ -21,6 +21,7 @@ package app
 import (
 	"context"
 	"math/rand/v2"
+	"net/http"
 	"slices"
 	"time"
 
@@ -33,6 +34,9 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
+// sessionRenewFunc is a function used to renew sessions.
+type sessionRenewFunc func(r *http.Request) (*reverseproxy.Forwarder, error)
+
 // session holds a request forwarder and web session for this request.
 type session struct {
 	// fwd can rewrite and forward requests to the target application.
@@ -41,10 +45,13 @@ type session struct {
 	ws types.WebSession
 	// transport allows to dial an application server.
 	tr *transport
+	// renewer is the function used to renewFunc the session in case of connectivity
+	// issues.
+	renewFunc sessionRenewFunc
 }
 
 // newSession creates a new session.
-func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session, error) {
+func (h *Handler) newSession(ctx context.Context, ws types.WebSession, renewFunc sessionRenewFunc) (*session, error) {
 	// Extract the identity of the user.
 	certificate, err := tlsca.ParseCertificatePEM(ws.GetTLSCert())
 	if err != nil {
@@ -111,24 +118,25 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 	delegate := reverseproxy.NewHeaderRewriter()
 	delegate.TrustForwardHeader = false
 	hr := common.NewHeaderRewriter(delegate)
+	sess := &session{
+		ws:        ws,
+		tr:        transport,
+		renewFunc: renewFunc,
+	}
 
 	// Create a forwarder that will be used to forward requests.
-	fwd, err := reverseproxy.New(
+	sess.fwd, err = reverseproxy.New(
 		reverseproxy.WithPassHostHeader(),
 		reverseproxy.WithFlushInterval(100*time.Millisecond),
 		reverseproxy.WithRoundTripper(transport),
 		reverseproxy.WithLogger(h.logger),
-		reverseproxy.WithErrorHandler(h.handleForwardError),
+		reverseproxy.WithErrorHandler(h.makeHandleForwardError(sess)),
 		reverseproxy.WithRewriter(hr),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &session{
-		fwd: fwd,
-		ws:  ws,
-		tr:  transport,
-	}, nil
+	return sess, nil
 }
 
 // sessionWithAppAuth holds a session that was authenticated with app auth
@@ -141,8 +149,8 @@ type sessionWithAppAuth struct {
 }
 
 // newSessionWithAppAuth creates a new session with app auth config.
-func (h *Handler) newSessionWithAppAuth(ctx context.Context, ws types.WebSession, appAuthConfig *appauthconfigv1.AppAuthConfig) (*sessionWithAppAuth, error) {
-	sess, err := h.newSession(ctx, ws)
+func (h *Handler) newSessionWithAppAuth(ctx context.Context, ws types.WebSession, reqAppServer *withAppServer, appAuthConfig *appauthconfigv1.AppAuthConfig) (*sessionWithAppAuth, error) {
+	sess, err := h.newSession(ctx, ws, h.makeRenewAppAuthSession(ws, reqAppServer, appAuthConfig))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

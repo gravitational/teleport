@@ -281,7 +281,6 @@ func (h *Handler) BindMCPEndpoints(router *httprouter.Router, limiter func(httpl
 				appName:     p.ByName("app"),
 				clusterName: p.ByName("site"),
 			}
-
 		},
 		func(app types.Application) bool {
 			return app.IsMCP() && types.GetMCPServerTransportType(app.GetURI()) == types.MCPTransportHTTP
@@ -356,45 +355,69 @@ func (h *Handler) handleStreamableMCP(w http.ResponseWriter, r *http.Request, se
 	return h.handleHttp(w, r, session.session)
 }
 
-// handleForwardError when the forwarder has an error during the `ServeHTTP` it
-// will call this function. This handler will then renew the session in order
+// makeHandleForwardError when the forwarder has an error during the `ServeHTTP`
+// it will call this function. This handler will then renew the session in order
 // to get "fresh" app servers, and then will forwad the request to the newly
 // created session.
-func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, err error) {
-	// if it is not an agent connection problem, return without creating a new
-	// session.
-	if !trace.IsConnectionProblem(err) {
-		reverseproxy.DefaultHandler.ServeHTTP(w, req, err)
-		return
-	}
-
-	// If renewing the session fails, we should do the same for when the
-	// request authentication fails (defined in the "withAuth" middle). This is
-	// done to have a consistent UX to when launching an application.
-	session, err := h.renewSession(req)
-	if err != nil {
-		if redirectErr := h.redirectToLauncher(w, req, launcherURLParams{}); redirectErr == nil {
+func (h *Handler) makeHandleForwardError(sess *session) reverseproxy.ErrorHandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request, err error) {
+		// if it is not an agent connection problem, return without creating a new
+		// session.
+		if !trace.IsConnectionProblem(err) {
+			reverseproxy.DefaultHandler.ServeHTTP(w, req, err)
 			return
 		}
 
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
-		return
+		// If renewing the fwd fails, we should do the same for when the
+		// request authentication fails (defined in the "withAuth" middle). This is
+		// done to have a consistent UX to when launching an application.
+		fwd, err := sess.renewFunc(req)
+		if err != nil {
+			if redirectErr := h.redirectToLauncher(w, req, launcherURLParams{}); redirectErr == nil {
+				return
+			}
+
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
+			return
+		}
+		// NOTE: This handler is called by the forwarder when it encounters an error
+		// during the `ServeHTTP` call. This means that the request forwarding was not successful.
+		// Since the request was not forwarded, and above we ignore all errors that are not
+		// connection problems, we can safely assume that the request body was not read.
+		// This happens because the connection problem is returned by the DialContext
+		// function, which is the HTTP transport requires before reading the request body.
+		// Although the request body is not read, the request body is closed by the
+		// HTTP Transport but we replace the request body in (*Handler).handleForward
+		// with a NopCloser so that the request body can be closed multiple times without
+		// impacting the request forwarding.
+		// If in the future we decide to retry requests that fail for other reasons,
+		// we need to support body rewinding with `req.GetBody` together with a
+		// `io.TeeReader` to read the request body and then rewind it.
+		fwd.ServeHTTP(w, req)
 	}
-	// NOTE: This handler is called by the forwarder when it encounters an error
-	// during the `ServeHTTP` call. This means that the request forwarding was not successful.
-	// Since the request was not forwarded, and above we ignore all errors that are not
-	// connection problems, we can safely assume that the request body was not read.
-	// This happens because the connection problem is returned by the DialContext
-	// function, which is the HTTP transport requires before reading the request body.
-	// Although the request body is not read, the request body is closed by the
-	// HTTP Transport but we replace the request body in (*Handler).handleForward
-	// with a NopCloser so that the request body can be closed multiple times without
-	// impacting the request forwarding.
-	// If in the future we decide to retry requests that fail for other reasons,
-	// we need to support body rewinding with `req.GetBody` together with a
-	// `io.TeeReader` to read the request body and then rewind it.
-	session.fwd.ServeHTTP(w, req)
+}
+
+// makeRenewAppAuthSession builds a renew function that attempts to renew app
+// auth session. The web session and app auth config are captured in the closure
+// so the renewer does not need to re-read them from the request (the request
+// headers may have been modified before forwarding, e.g. the JWT header is
+// stripped in handleStreamableMCP).
+func (h *Handler) makeRenewAppAuthSession(ws types.WebSession, reqAppServer *withAppServer, appAuthConfig *appauthconfigv1.AppAuthConfig) sessionRenewFunc {
+	return func(r *http.Request) (*reverseproxy.Forwarder, error) {
+		// Remove the session from the cache, this will force a new session to be
+		// generated and cached.
+		h.cache.Remove(ws.GetName())
+
+		// Fetches a new session reusing the existing web session.
+		session, err := h.getSessionWithAppAuth(r.Context(), ws, reqAppServer, appAuthConfig)
+		if err != nil {
+			h.logger.WarnContext(r.Context(), "Failed to get session", "error", err)
+			return nil, trace.AccessDenied("invalid session")
+		}
+
+		return session.fwd, nil
+	}
 }
 
 // authenticate will check if request carries a session cookie matching a
@@ -426,7 +449,7 @@ func (h *Handler) authenticateWithAppAuth(ctx context.Context, r *http.Request, 
 		return nil, trace.AccessDenied("invalid session")
 	}
 
-	session, err := h.getSessionWithAppAuth(ctx, ws, appAuthConfig)
+	session, err := h.getSessionWithAppAuth(ctx, ws, reqAppServer, appAuthConfig)
 	if err != nil {
 		h.logger.WarnContext(ctx, "Failed to get session", "error", err)
 		return nil, trace.AccessDenied("invalid session")
@@ -438,7 +461,7 @@ func (h *Handler) authenticateWithAppAuth(ctx context.Context, r *http.Request, 
 // renewSession based on the request removes the session from cache (if present)
 // and generates a new one using the `getSession` flow (same as in
 // `authenticate`).
-func (h *Handler) renewSession(r *http.Request) (*session, error) {
+func (h *Handler) renewSession(r *http.Request) (*reverseproxy.Forwarder, error) {
 	ws, err := h.getAppSession(r)
 	if err != nil {
 		h.logger.DebugContext(r.Context(), "Failed to fetch application session: not found")
@@ -456,7 +479,7 @@ func (h *Handler) renewSession(r *http.Request) (*session, error) {
 		return nil, trace.AccessDenied("invalid session")
 	}
 
-	return session, nil
+	return session.fwd, nil
 }
 
 // withAppServer holds information of the requested application.
@@ -653,7 +676,7 @@ func (h *Handler) getSession(ctx context.Context, ws types.WebSession) (*session
 	// Put the session in the cache so the next request can use it.
 	ttl := ws.Expiry().Sub(h.c.Clock.Now())
 	sess, err := utils.FnCacheGetWithTTL(ctx, h.cache, ws.GetName(), ttl, func(ctx context.Context) (*session, error) {
-		sess, err := h.newSession(ctx, ws)
+		sess, err := h.newSession(ctx, ws, h.renewSession)
 		return sess, trace.Wrap(err)
 	})
 	return sess, trace.Wrap(err)
@@ -661,11 +684,11 @@ func (h *Handler) getSession(ctx context.Context, ws types.WebSession) (*session
 
 // getSessionWithAppAuth returns a request session used to serve the request,
 // the session is authenticated with an app auth config.
-func (h *Handler) getSessionWithAppAuth(ctx context.Context, ws types.WebSession, appAuthConfig *appauthconfigv1.AppAuthConfig) (*sessionWithAppAuth, error) {
+func (h *Handler) getSessionWithAppAuth(ctx context.Context, ws types.WebSession, reqAppServer *withAppServer, appAuthConfig *appauthconfigv1.AppAuthConfig) (*sessionWithAppAuth, error) {
 	// Put the session in the cache so the next request can use it.
 	ttl := ws.Expiry().Sub(h.c.Clock.Now())
 	sess, err := utils.FnCacheGetWithTTL(ctx, h.cache, ws.GetName(), ttl, func(ctx context.Context) (*sessionWithAppAuth, error) {
-		sess, err := h.newSessionWithAppAuth(ctx, ws, appAuthConfig)
+		sess, err := h.newSessionWithAppAuth(ctx, ws, reqAppServer, appAuthConfig)
 		return sess, trace.Wrap(err)
 	})
 	return sess, trace.Wrap(err)

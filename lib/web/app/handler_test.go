@@ -1127,6 +1127,128 @@ func TestMCPEndpoints(t *testing.T) {
 	})
 }
 
+func TestMCPSessionRenewOnConnectionProblem(t *testing.T) {
+	const (
+		clusterName   = "test-cluster"
+		mcpServerName = "mcp-test-server"
+		header        = "Authorization"
+	)
+
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	fakeClock := clockwork.NewFakeClock()
+	serverA := createMCPServer(t, mcpServerName, nil)
+	serverB := createMCPServer(t, mcpServerName, nil)
+
+	authClient := &mockAuthClient{
+		clusterName:      clusterName,
+		sessionError:     trace.BadParameter("not found"),
+		createAppSession: createAppSession(t, fakeClock, key, cert, clusterName, ""),
+		appServers:       []types.AppServer{serverA, serverB},
+		caKey:            key,
+		caCert:           cert,
+		appAuthConfigs: []*appauthconfigv1.AppAuthConfig{
+			appauthconfig.NewAppAuthConfigJWT("test-config", []*labelv1.Label{{Name: "*", Values: []string{"*"}}}, &appauthconfigv1.AppAuthConfigJWTSpec{
+				AuthorizationHeader: header,
+			}),
+		},
+	}
+
+	fakeCluster := startFakeMCPServerOnCluster(t, clusterName, authClient, cert, key)
+	// Initially, server B is offline so only server A is included in the session.
+	fakeCluster.OfflineTunnels = map[string]struct{}{
+		fmt.Sprintf("%s.%s", serverB.GetHostID(), clusterName): {},
+	}
+
+	tunnel := &reversetunnelclient.FakeServer{
+		FakeClusters: []reversetunnelclient.Cluster{fakeCluster},
+	}
+
+	p := setup(t, fakeClock, authClient, tunnel)
+	router := httprouter.New()
+	p.handler.BindMCPEndpoints(router, nil)
+	frontSrv := httptest.NewServer(router)
+	t.Cleanup(frontSrv.Close)
+
+	clt := makeMCPClient(t, frontSrv, "/mcp/apps/"+mcpServerName, map[string]string{
+		header: "Bearer fake-token",
+	})
+
+	// First requests succeed normally. The session is created with server A
+	// (server B is filtered during health check).
+	mcptest.MustInitializeClient(t, clt)
+	mcptest.MustCallServerTool(t, clt)
+
+	// Swap availability: server A goes offline, server B comes online.
+	fakeCluster.OfflineTunnels = map[string]struct{}{
+		fmt.Sprintf("%s.%s", serverA.GetHostID(), clusterName): {},
+	}
+
+	// Next tool call triggers the renewal flow and must succeed.
+	mcptest.MustCallServerTool(t, clt)
+}
+
+func TestSessionRenewOnConnectionProblem(t *testing.T) {
+	clusterName := "test-cluster"
+	publicAddr := "app.example.com"
+
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	fakeClock := clockwork.NewFakeClock()
+	serverA := createAppServer(t, publicAddr)
+	serverB := createAppServer(t, publicAddr)
+
+	authClient := &mockAuthClient{
+		clusterName: clusterName,
+		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, publicAddr),
+		appServers:  []types.AppServer{serverA, serverB},
+		caKey:       key,
+		caCert:      cert,
+	}
+
+	fakeCluster := startFakeAppServerOnCluster(t, clusterName, authClient, cert, key)
+	// Initially, server B is offline so only server A is included in the session.
+	fakeCluster.OfflineTunnels = map[string]struct{}{
+		fmt.Sprintf("%s.%s", serverB.GetHostID(), clusterName): {},
+	}
+
+	tunnel := &reversetunnelclient.FakeServer{
+		FakeClusters: []reversetunnelclient.Cluster{fakeCluster},
+	}
+
+	p := setup(t, fakeClock, authClient, tunnel)
+	cookies := []http.Cookie{
+		{Name: CookieName, Value: "abc"},
+		{Name: SubjectCookieName, Value: authClient.appSession.GetBearerToken()},
+	}
+
+	// First request succeeds normally. The session is created with server A
+	// (server B is filtered during health check).
+	status, content := p.makeRequest(t, "GET", "/", []byte{}, cookies)
+	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, "Hello application", content)
+
+	// Swap availability: server A goes offline, server B comes online.
+	fakeCluster.OfflineTunnels = map[string]struct{}{
+		fmt.Sprintf("%s.%s", serverA.GetHostID(), clusterName): {},
+	}
+
+	// Second request triggers the renewal flow and must succeed.
+	status, content = p.makeRequest(t, "GET", "/", []byte{}, cookies)
+	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, "Hello application", content)
+}
+
 func TestGetAppSessionAuthConfig(t *testing.T) {
 	t.Run("JWT", func(t *testing.T) {
 		clusterName := "test-cluster"
@@ -1238,7 +1360,8 @@ func startFakeMCPServerOnCluster(t *testing.T, clusterName string, accessPoint a
 func createMCPServer(t *testing.T, name string, labels map[string]string) types.AppServer {
 	t.Helper()
 	appServer, err := types.NewAppServerV3(
-		types.Metadata{Name: name, Labels: labels},
+		// App server names must be unique so we don't deduplicate them.
+		types.Metadata{Name: uuid.New().String(), Labels: labels},
 		types.AppServerSpecV3{
 			HostID: uuid.New().String(),
 			App:    createMCPApp(t, name, labels),
