@@ -23,6 +23,10 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// startService is called from the normal user process to start
+// the privileged VNet daemon. It connects to the system D-Bus
+// and calls the corresponding Start method, exposed on the VNet
+// D-Bus interface, passing the client service address and credential path.
 func startService(ctx context.Context, cfg LinuxAdminProcessConfig) error {
 	conn, err := dbus.ConnectSystemBus()
 	if err != nil {
@@ -30,6 +34,15 @@ func startService(ctx context.Context, cfg LinuxAdminProcessConfig) error {
 	}
 	defer conn.Close()
 
+	// basically this corresponds to calling something like
+	// `busctl --system call org.teleport.vnet1 /org/teleport/vnet1 org.teleport.vnet1.Daemon Start ss "<addr>" "<credPath>"`
+	// each D-Bus service owns a well-known name you refer to, then you specify an
+	// object path. object path is for granularity (a service can expose
+	// multiple objects, but it rarely used, so in our case it is the same as the name but
+	// slash-separated). then you call a method on a specific interface. the interface
+	// is implemented by some object, for vnet it’s the dbusDaemon struct. the D-Bus
+	// interface exposes the same methods as dbusDaemon, so we can call them over
+	// D-Bus.
 	obj := conn.Object(vnetDBusServiceName, dbus.ObjectPath(vnetDBusObjectPath))
 	call := obj.CallWithContext(ctx, vnetDBusStartMethod, 0, cfg.ClientApplicationServiceAddr, cfg.ServiceCredentialPath)
 	if call.Err != nil {
@@ -38,6 +51,10 @@ func startService(ctx context.Context, cfg LinuxAdminProcessConfig) error {
 	return nil
 }
 
+// stopService is called from the normal user process to stop
+// the privileged VNet daemon. It connects to the system D-Bus
+// and calls the corresponding Stop method, exposed on the VNet
+// D-Bus interface.
 func stopService(ctx context.Context) error {
 	conn, err := dbus.ConnectSystemBus()
 	if err != nil {

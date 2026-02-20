@@ -28,9 +28,6 @@ import (
 var (
 	// vnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
 	vnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
-
-	// Satisfy unused linter.
-	_ = WithDNSPort
 )
 
 func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {

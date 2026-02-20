@@ -16,6 +16,24 @@
 
 package vnet
 
+// VNet's D-Bus daemon claims the org.teleport.vnet1 service name
+// and exposes the org.teleport.vnet1.Daemon interface, which has Start
+// and Stop methods. For it to work the system must include:
+//   - /usr/share/dbus-1/system.d/org.teleport.vnet1.conf to allow the daemon to
+//     claim the org.teleport.vnet1 name on the system bus.
+//   - /usr/share/dbus-1/system-services/org.teleport.vnet1.service to enable
+//     D-Bus activation of the daemon.
+//   - /usr/lib/systemd/system/teleport-vnet.service to manage the daemon
+//     lifecycle under systemd.
+//   - /usr/share/polkit-1/actions/org.teleport.vnet1.policy to define who can
+//     perform the org.teleport.vnet1.manage-daemon action (and therefore call
+//     Start and Stop methods).
+//
+// The daemon is managed by systemd. we don’t use systemd directly
+// because `systemctl start` takes only unit names and doesn’t let us pass
+// per start args. the closest options are template units or environment
+// file, but those are clunky so we wrap the admin process in a D-Bus daemon
+// and expose Start with explicit parameters.
 const (
 	vnetDBusServiceName = "org.teleport.vnet1"
 	vnetDBusObjectPath  = "/org/teleport/vnet1"

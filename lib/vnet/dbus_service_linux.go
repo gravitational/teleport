@@ -49,7 +49,10 @@ var introspectNode = &introspect.Node{
 	},
 }
 
-// RunLinuxDBusService runs the VNet D-Bus service that can start the VNet admin process.
+// RunLinuxDBusService runs the privileged VNet D-Bus daemon on the system bus.
+// It claims the VNet service name and exports the VNet interface that
+// exposes Start and Stop methods that normal client processes can call via
+// system D-Bus. The daemon blocks until the context is canceled.
 func RunLinuxDBusService(ctx context.Context) error {
 	conn, err := dbus.ConnectSystemBus()
 	if err != nil {
@@ -98,7 +101,9 @@ type dbusDaemon struct {
 	started bool
 }
 
-// Start is a D-Bus method that starts the VNet admin process.
+// Start starts actual VNet admin process with passed address and credential path.
+// It uses polkit to authorize the calling D-Bus sender.
+// It returns an error if the admin process has already been started.
 func (d *dbusDaemon) Start(addr, credPath string, sender dbus.Sender) *dbus.Error {
 	if err := d.authorize(sender); err != nil {
 		return dbus.MakeFailedError(trace.Wrap(err, "authorization failed"))
@@ -123,7 +128,7 @@ func (d *dbusDaemon) Start(addr, credPath string, sender dbus.Sender) *dbus.Erro
 			ClientApplicationServiceAddr: addr,
 			ServiceCredentialPath:        credPath,
 		})
-		// TODO: D-Bus supports signals, we might want to emit a signal when the admin process exits.
+		// TODO(tangyatsu): D-Bus supports signals, we might want to emit a signal when the admin process exits.
 		if err != nil {
 			log.ErrorContext(d.ctx, "VNet admin process exited with error", "error", err)
 		}
@@ -133,7 +138,8 @@ func (d *dbusDaemon) Start(addr, credPath string, sender dbus.Sender) *dbus.Erro
 	return nil
 }
 
-// Stop is a D-Bus method that stops the VNet admin process.
+// Stop stops actual VNet admin process by canceling the daemon context.
+// It uses polkit to authorize the calling D-Bus sender.
 func (d *dbusDaemon) Stop(sender dbus.Sender) *dbus.Error {
 	if err := d.authorize(sender); err != nil {
 		return dbus.MakeFailedError(trace.Wrap(err, "authorization failed"))
@@ -160,6 +166,7 @@ func (d *dbusDaemon) authorize(sender dbus.Sender) error {
 		return trace.Wrap(err, "looking up D-Bus sender UID")
 	}
 	if uid == 0 {
+		// Always allow root to start the daemon.
 		return nil
 	}
 

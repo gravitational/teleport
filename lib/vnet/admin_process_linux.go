@@ -29,9 +29,14 @@ import (
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
+// LinuxAdminProcessConfig configures RunLinuxAdminProcess.
 type LinuxAdminProcessConfig struct {
+	// ClientApplicationServiceAddr is the address of the client application
+	// service the admin process connects to.
 	ClientApplicationServiceAddr string
-	ServiceCredentialPath        string
+	// ServiceCredentialPath is the path to IPC credentials used to authenticate
+	// with the client application service.
+	ServiceCredentialPath string
 }
 
 // RunLinuxAdminProcess must run as root.

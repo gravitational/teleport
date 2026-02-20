@@ -147,7 +147,7 @@ func checkDBusServiceAvailability(ctx context.Context) error {
 	} else {
 		return trace.Errorf("D-Bus service %s is not available", vnetDBusServiceName)
 	}
-	// TODO: Maybe also check the systemd unit file exists. D-Bus can report a name
+	// TODO(tangyatsu): Maybe also check the systemd unit file exists. D-Bus can report a name
 	// as activatable even if the corresponding systemd unit is missing.
 }
 
