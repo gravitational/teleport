@@ -79,16 +79,21 @@ func runService(ctx context.Context, cfg LinuxAdminProcessConfig) error {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-loop:
 	for {
 		select {
 		case <-ctx.Done():
-			log.InfoContext(ctx, "Context canceled, stopping systemd service")
-			err := stopService(ctx)
-			if err != nil {
-				return trace.Wrap(err)
+			stopCtx, stopCancel := context.WithTimeout(context.Background(), terminateTimeout)
+			defer stopCancel()
+			log.InfoContext(stopCtx, "Context canceled, stopping systemd service")
+			if err := stopService(stopCtx); err != nil {
+				return trace.Wrap(err, "sending stop request to systemd service %s", vnetSystemdUnitName)
 			}
-			break loop
+			err := waitForServiceStop(stopCtx, vnetSystemdUnitName)
+			if err != nil {
+				return trace.Wrap(err, "systemd service %s failed to stop with %v", vnetSystemdUnitName, terminateTimeout)
+			}
+			log.InfoContext(stopCtx, "Successfully stopped systemd service")
+			return nil
 		case <-ticker.C:
 			state, err := getSystemdUnitState(ctx, conn, vnetSystemdUnitName)
 			if err != nil {
@@ -99,17 +104,28 @@ loop:
 			}
 		}
 	}
+}
 
-	// Wait for the service to actually stop
-	deadline := time.After(terminateTimeout + 5*time.Second)
+func waitForServiceStop(ctx context.Context, unit string) error {
+	// Open a fresh connection here because the main loop's connection is bound to
+	// the original context and may be closed when that context is canceled.
+	conn, err := systemddbus.NewWithContext(ctx)
+	if err != nil {
+		return trace.NotFound("systemd D-Bus is unavailable: %v", err)
+	}
+	defer conn.Close()
+
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
 	for {
 		select {
-		case <-deadline:
-			return trace.Errorf("systemd service %s failed to stop with %v", vnetSystemdUnitName, terminateTimeout)
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-ticker.C:
-			state, err := getSystemdUnitState(ctx, conn, vnetSystemdUnitName)
+			state, err := getSystemdUnitState(ctx, conn, unit)
 			if err != nil {
-				return trace.Wrap(err, "querying systemd service %s", vnetSystemdUnitName)
+				return trace.Wrap(err, "querying systemd service %s", unit)
 			}
 			if state == systemdUnitInactive || state == systemdUnitFailed {
 				return nil
