@@ -136,11 +136,7 @@ func (s *MFAService) ListValidatedMFAChallenges(
 		svc = svc.WithPrefix(targetCluster)
 	}
 
-	filterFunc := func(chal *validatedMFAChallenge) bool {
-		return targetCluster == "" || chal.Spec.GetTargetCluster() == targetCluster
-	}
-
-	internalChallenges, nextPageToken, err := svc.ListResourcesWithFilter(ctx, int(pageSize), pageToken, filterFunc)
+	internalChallenges, nextPageToken, err := svc.ListResources(ctx, int(pageSize), pageToken)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
