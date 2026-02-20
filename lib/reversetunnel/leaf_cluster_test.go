@@ -42,38 +42,21 @@ import (
 func TestRunValidatedMFAChallengeSync(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
-
-	// Create three validated challenges:
-	//
-	// 1. One for the leaf cluster
-	// 2. One for a different leaf cluster
-	// 3. One that is expired
-	//
-	// Only the first one should be replicated to the leaf.
 	challengeForLeaf := newValidatedMFAChallenge(
 		"challenge-for-leaf",
 		"leaf.example.com",
-		now.Add(time.Minute),
 	)
 
 	challengeForOtherLeaf := newValidatedMFAChallenge(
 		"challenge-for-other-leaf",
 		"other-leaf.example.com",
-		now.Add(time.Minute),
-	)
-
-	expiredChallenge := newValidatedMFAChallenge(
-		"expired-challenge",
-		"leaf.example.com",
-		now.Add(-time.Minute),
 	)
 
 	// Set up a channel to send events to the watcher and prime it with an init event.
 	events := make(chan types.Event, 1)
 	events <- types.Event{Type: types.OpInit}
 
-	// Set up a mock watcher that will return the three challenges above.
+	// Set up a mock watcher that will return the two challenges above.
 	watcher, err := services.NewGenericResourceWatcher(
 		t.Context(),
 		services.GenericWatcherConfig[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge]{
@@ -91,7 +74,6 @@ func TestRunValidatedMFAChallengeSync(t *testing.T) {
 				return []*mfav1.ValidatedMFAChallenge{
 					challengeForLeaf,
 					challengeForOtherLeaf,
-					expiredChallenge,
 				}, nil
 			},
 			ResourceKey: func(r *mfav1.ValidatedMFAChallenge) string {
@@ -118,7 +100,7 @@ func TestRunValidatedMFAChallengeSync(t *testing.T) {
 	leaf := &leafCluster{
 		domainName:                   "leaf.example.com",
 		logger:                       slog.Default(),
-		clock:                        clockwork.NewFakeClockAt(now),
+		clock:                        clockwork.NewFakeClock(),
 		leafClient:                   &mockLeafClient{mfaClient: leafMFAClient},
 		validatedMFAChallengeWatcher: watcher,
 	}
@@ -154,8 +136,8 @@ func TestRunValidatedMFAChallengeSync(t *testing.T) {
 		},
 	}
 
-	// The watcher will return the three challenges we set up above, and we expect the leaf cluster to replicate only
-	// the valid challenge for its cluster.
+	// The watcher will return the two challenges we set up above, and we expect the leaf cluster to replicate only the
+	// valid challenge for its cluster.
 	require.EventuallyWithT(
 		t,
 		func(c *assert.CollectT) {
@@ -184,24 +166,14 @@ func TestRunValidatedMFAChallengeSync(t *testing.T) {
 func TestSyncValidatedMFAChallenges(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
-
 	challengeForLeaf := newValidatedMFAChallenge(
 		"challenge-for-leaf",
 		"leaf.example.com",
-		now.Add(time.Minute),
 	)
 
 	challengeForOtherLeaf := newValidatedMFAChallenge(
 		"challenge-for-other-leaf",
 		"other-leaf.example.com",
-		now.Add(time.Minute),
-	)
-
-	expiredChallenge := newValidatedMFAChallenge(
-		"expired-challenge",
-		"leaf.example.com",
-		now.Add(-time.Minute),
 	)
 
 	leafMFAClient := &mockMFAServiceClient{
@@ -211,7 +183,7 @@ func TestSyncValidatedMFAChallenges(t *testing.T) {
 	leaf := &leafCluster{
 		domainName: "leaf.example.com",
 		logger:     slog.Default(),
-		clock:      clockwork.NewFakeClockAt(now),
+		clock:      clockwork.NewFakeClock(),
 		leafClient: &mockLeafClient{mfaClient: leafMFAClient},
 	}
 
@@ -220,7 +192,6 @@ func TestSyncValidatedMFAChallenges(t *testing.T) {
 		[]*mfav1.ValidatedMFAChallenge{
 			challengeForLeaf,
 			challengeForOtherLeaf,
-			expiredChallenge,
 			nil,
 		},
 	)
@@ -247,13 +218,12 @@ func TestSyncValidatedMFAChallenges(t *testing.T) {
 		"syncValidatedMFAChallenges mismatch (-want +got)")
 }
 
-func newValidatedMFAChallenge(name, targetCluster string, expiry time.Time) *mfav1.ValidatedMFAChallenge {
+func newValidatedMFAChallenge(name, targetCluster string) *mfav1.ValidatedMFAChallenge {
 	return &mfav1.ValidatedMFAChallenge{
 		Kind:    types.KindValidatedMFAChallenge,
 		Version: "v1",
 		Metadata: &types.Metadata{
-			Name:    name,
-			Expires: &expiry,
+			Name: name,
 		},
 		Spec: &mfav1.ValidatedMFAChallengeSpec{
 			Payload: &mfav1.SessionIdentifyingPayload{

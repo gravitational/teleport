@@ -1108,11 +1108,6 @@ func (s *leafCluster) syncValidatedMFAChallenges(
 			continue
 		}
 
-		// If the resource has already expired, skip it as there's no need to replicate it.
-		if challenge.GetMetadata().Expiry().Before(s.clock.Now()) {
-			continue
-		}
-
 		// Replicate the resource to the leaf cluster. If the resource already exists in the leaf cluster, it is because
 		// it was replicated from a previous sync, so we can ignore the error and move on to the next one.
 		_, err := s.leafClient.MFAServiceClient().ReplicateValidatedMFAChallenge(
