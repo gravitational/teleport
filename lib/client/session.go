@@ -199,7 +199,6 @@ func (ns *NodeSession) regularSession(ctx context.Context, sessionParams *traces
 		return trace.Wrap(err)
 	}
 	session.Stdout = ns.terminal.Stdout()
-	session.Stderr = ns.terminal.Stderr()
 	session.Stdin = ns.terminal.Stdin()
 	return trace.Wrap(sessionCallback(session))
 }
@@ -219,10 +218,23 @@ func (ns *NodeSession) createServerSession(ctx context.Context, sessionParams *t
 		return nil, trace.Wrap(err)
 	}
 
+	// Start copying stderr immediately after the session is created so out-of-band
+	// request failures are not delayed until after PTY setup.
+	stderr, err := sess.StderrPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	go func() {
+		if _, err := io.Copy(ns.terminal.Stderr(), stderr); err != nil {
+			log.DebugContext(ctx, "Error reading remote STDERR", "error", err)
+		}
+	}()
+
 	// If X11 forwading is requested and the server accepts,
 	// X11 channel requests from the server will be accepted.
 	// Otherwise, all X11 channel requests must be rejected.
 	if err := ns.handleX11Forwarding(ctx, sess); err != nil {
+		_ = sess.Close()
 		return nil, trace.Wrap(err)
 	}
 
@@ -251,10 +263,12 @@ func (ns *NodeSession) createServerSession(ctx context.Context, sessionParams *t
 		log.DebugContext(ctx, "Forwarding Selected Key Agent")
 		err = sshagent.ServeChannelRequests(ctx, ns.nodeClient.Client.Client, targetAgent)
 		if err != nil {
+			_ = sess.Close()
 			return nil, trace.Wrap(err)
 		}
 		err = sshagent.RequestAgentForwarding(ctx, sess)
 		if err != nil {
+			_ = sess.Close()
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -301,6 +315,7 @@ func (ns *NodeSession) interactiveSession(ctx context.Context, sessionParams *tr
 	// allocate terminal on the server:
 	remoteTerm, err := ns.allocateTerminal(ctx, termType, sess)
 	if err != nil {
+		_ = sess.Close()
 		return trace.Wrap(err)
 	}
 	defer remoteTerm.Close()
@@ -378,18 +393,9 @@ func (ns *NodeSession) allocateTerminal(ctx context.Context, termType string, s 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	stderr, err := s.StderrPipe()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if ns.terminal.IsAttached() {
 		go ns.updateTerminalSize(ctx, s)
 	}
-	go func() {
-		if _, err := io.Copy(ns.nodeClient.TC.Stderr, stderr); err != nil {
-			log.DebugContext(ctx, "Error reading remote STDERR", "error", err)
-		}
-	}()
 	return utils.NewPipeNetConn(
 		reader,
 		writer,

@@ -1287,6 +1287,23 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	scx.AddCloser(ch)
 	ch = scx.TrackActivity(ch)
 
+	// Start relaying remote stderr immediately so out-of-band request failures
+	// (x11/agent forwarding) are delivered before PTY/shell setup.
+	remoteStderr, err := scx.RemoteSession.StderrPipe()
+	if err != nil {
+		s.logger.WarnContext(ctx, "Failed to open remote stderr pipe", "error", err)
+		if err := ch.Close(); err != nil {
+			s.logger.WarnContext(ctx, "Failed to close channel", "error", err)
+		}
+		return
+	}
+	go func() {
+		_, err := io.Copy(ch.Stderr(), remoteStderr)
+		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
+			s.logger.DebugContext(ctx, "Failed relaying remote session stderr", "error", err)
+		}
+	}()
+
 	// inform the client of the session ID that is going to be used in a new
 	// goroutine to reduce latency.
 	go func() {

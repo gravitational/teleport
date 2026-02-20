@@ -72,7 +72,7 @@ func parseRemoteSubsystem(ctx context.Context, subsystemName string, serverConte
 			subsystem: r,
 		}
 	}
-	r.errorCh = make(chan error, 3) // one error each for stdin, stdout, and stderr
+	r.errorCh = make(chan error, 2) // one error each for stdin and stdout
 	return r
 }
 
@@ -86,10 +86,6 @@ func (r *remoteSubsystem) Start(ctx context.Context, channel ssh.Channel) error 
 	session := r.serverContext.RemoteSession
 
 	stdout, err := session.StdoutPipe()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	stderr, err := session.StderrPipe()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -118,12 +114,6 @@ func (r *remoteSubsystem) Start(ctx context.Context, channel ssh.Channel) error 
 	go func() {
 		defer session.Close()
 
-		_, err := io.Copy(channel.Stderr(), stderr)
-		r.errorCh <- err
-	}()
-	go func() {
-		defer session.Close()
-
 		_, err := io.Copy(stdin, channel)
 		r.errorCh <- err
 	}()
@@ -135,7 +125,7 @@ func (r *remoteSubsystem) Start(ctx context.Context, channel ssh.Channel) error 
 func (r *remoteSubsystem) Wait() error {
 	var lastErr error
 
-	for range 3 {
+	for range 2 {
 		select {
 		case err := <-r.errorCh:
 			if err != nil && !errors.Is(err, io.EOF) {
