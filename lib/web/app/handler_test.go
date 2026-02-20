@@ -32,6 +32,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1024,7 +1025,7 @@ func TestMCPEndpoints(t *testing.T) {
 		clusterName       = "test-cluster"
 		mcpServerName     = "mcp-test-server"
 		appName           = "regular-app"
-		header            = "Authorization"
+		authHeader        = "Authorization"
 		customHader       = "X-Custom-Test-Header"
 		customHeaderValue = "random-value"
 	)
@@ -1049,7 +1050,7 @@ func TestMCPEndpoints(t *testing.T) {
 		caCert: cert,
 		appAuthConfigs: []*appauthconfigv1.AppAuthConfig{
 			appauthconfig.NewAppAuthConfigJWT("test-config", []*labelv1.Label{{Name: "*", Values: []string{"*"}}}, &appauthconfigv1.AppAuthConfigJWTSpec{
-				AuthorizationHeader: header,
+				AuthorizationHeader: authHeader,
 			}),
 		},
 	}
@@ -1085,15 +1086,24 @@ func TestMCPEndpoints(t *testing.T) {
 	} {
 		t.Run(endpoint.desc, func(t *testing.T) {
 			t.Run("success", func(t *testing.T) {
-				clt := makeMCPClient(t, frontSrv, endpoint.path, map[string]string{
-					header:      "Bearer fake-token",
-					customHader: customHeaderValue,
-				})
-				mcptest.MustInitializeClient(t, clt)
-				mcptest.MustCallServerTool(t, clt)
-				headers := mcptest.MustCallRequestHeaders(t, clt)
-				require.Empty(t, headers.Get(header))
-				require.Equal(t, customHeaderValue, headers.Get(customHader))
+				// Ensure the authorization header is case insensitive.
+				for _, header := range []string{
+					authHeader,
+					strings.ToLower(authHeader),
+					strings.ToUpper(authHeader),
+				} {
+					t.Run(header, func(t *testing.T) {
+						clt := makeMCPClient(t, frontSrv, endpoint.path, map[string]string{
+							header:      "Bearer fake-token",
+							customHader: customHeaderValue,
+						})
+						mcptest.MustInitializeClient(t, clt)
+						mcptest.MustCallServerTool(t, clt)
+						headers := mcptest.MustCallRequestHeaders(t, clt)
+						require.Empty(t, headers.Get(header))
+						require.Equal(t, customHeaderValue, headers.Get(customHader))
+					})
+				}
 			})
 
 			t.Run("fails to resolve app", func(t *testing.T) {
@@ -1119,7 +1129,7 @@ func TestMCPEndpoints(t *testing.T) {
 			},
 		} {
 			t.Run(endpoint.desc, func(t *testing.T) {
-				clt := makeMCPClient(t, frontSrv, endpoint.path, map[string]string{header: "Bearer fake-token"})
+				clt := makeMCPClient(t, frontSrv, endpoint.path, map[string]string{authHeader: "Bearer fake-token"})
 				_, err := mcptest.InitializeClient(t.Context(), clt)
 				require.Error(t, err)
 			})

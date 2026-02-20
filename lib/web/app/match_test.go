@@ -115,7 +115,7 @@ func TestResolveByName(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			clock := clockwork.NewFakeClock()
 
 			bk, err := memory.New(memory.Config{
@@ -130,7 +130,7 @@ func TestResolveByName(t *testing.T) {
 
 			appService := local.NewAppService(bk)
 			for _, app := range apps {
-				require.NoError(t, appService.CreateApp(t.Context(), app))
+				require.NoError(t, appService.CreateApp(ctx, app))
 			}
 
 			w, err := services.NewAppServersWatcher(ctx, services.AppServersWatcherConfig{
@@ -145,7 +145,7 @@ func TestResolveByName(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			res, err := ResolveByName(t.Context(), &mockCluster{watcher: w}, tc.appName)
+			res, err := ResolveByName(ctx, &mockCluster{watcher: w}, tc.appName)
 			tc.assertError(t, err)
 			tc.assertAppServer(t, res)
 		})

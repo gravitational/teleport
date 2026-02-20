@@ -343,7 +343,7 @@ func (h *Handler) handleStreamableMCP(w http.ResponseWriter, r *http.Request, se
 	switch spec := session.appAuthConfig.Spec.SubKindSpec.(type) {
 	case *appauthconfigv1.AppAuthConfigSpec_Jwt:
 		headerName := cmp.Or(spec.Jwt.AuthorizationHeader, appAuthConfigAuthorizationHeader)
-		delete(r.Header, headerName)
+		r.Header.Del(headerName)
 	default:
 		return trace.BadParameter("unsupported app auth config")
 	}
@@ -655,12 +655,11 @@ func (h *Handler) selectAppAuthConfig(ctx context.Context, app types.Application
 		}
 
 		matched, message, err := services.MatchLabelGetter(convertedLabels, app)
-		if matched {
-			return config, nil
-		}
-
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if matched {
+			return config, nil
 		}
 
 		h.logger.DebugContext(ctx, "unmatched app auth config", "reason", message)
