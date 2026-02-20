@@ -19,6 +19,7 @@ import (
 	identitycentercommon "github.com/gravitational/teleport/e/lib/aws/identitycenter/common"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // DefaultStateRefreshInterval is the default time between full User and Access List
@@ -305,7 +306,8 @@ func (svc *Service) refreshUser(ctx context.Context, user *types.UserV2, allStat
 		revisionChanged := user.GetRevision() != existingState.GetStatus().GetProvisionedPrincipalRevision()
 
 		if lockStateChanged || revisionChanged {
-			log.DebugContext(ctx, "User lock state changed")
+			log.DebugContext(ctx, "User needs reprovisioning",
+				"lock_state_changed", lockStateChanged, "user_revision_changed", revisionChanged)
 
 			err = svc.enqueuePrincipalEvent(ctx,
 				provisioningOpStale,
@@ -862,6 +864,8 @@ func (svc *Service) setPrincipalProvisioningState(
 	newState provisioningv1.ProvisioningState,
 	createMode createMode,
 ) (*provisioningv1.PrincipalState, error) {
+	log := svc.log.With("principal_type", principalType, "principal_name", principalName)
+
 	state, err := svc.stateSvc.GetProvisioningState(ctx, svc.downstreamID, id)
 	if trace.IsNotFound(err) {
 		if createMode == doNotCreateIfMissing {
@@ -884,7 +888,12 @@ func (svc *Service) setPrincipalProvisioningState(
 
 	setProvisioningState := func(s *provisioningv1.PrincipalState) error {
 		status := s.GetStatus()
-		if status.ProvisioningState == provisioningv1.ProvisioningState_PROVISIONING_STATE_DELETED {
+		switch status.GetProvisioningState() {
+		case provisioningv1.ProvisioningState_PROVISIONING_STATE_DELETED:
+			log.Log(ctx, logutils.TraceLevel, "Principal already deleted. Abandoning update.")
+			return errNoChangeRequired
+		case newState:
+			log.Log(ctx, logutils.TraceLevel, "Principal already has designated state. Abandoning update.")
 			return errNoChangeRequired
 		}
 		status.ProvisioningState = newState

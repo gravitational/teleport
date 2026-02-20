@@ -186,6 +186,8 @@ func newInstanceConfig(t *testing.T) helpers.InstanceConfig {
 func newTeleportConfig(t *testing.T) *servicecfg.Config {
 	serviceConfig := servicecfg.MakeDefaultConfig()
 	serviceConfig.DataDir = t.TempDir()
+	// TODO: Propagate the Auth.StorageConfig values to the running cluster, as
+	// it's currently blindly overwritten by the integration test setup code.
 	serviceConfig.Auth.StorageConfig.Params["path"] = filepath.Join(serviceConfig.DataDir, defaults.BackendDir)
 	serviceConfig.Proxy.DisableWebInterface = true
 	serviceConfig.Proxy.DisableDatabaseProxy = true

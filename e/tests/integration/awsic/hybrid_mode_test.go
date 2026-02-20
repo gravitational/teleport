@@ -136,10 +136,10 @@ func TestUsersAreNotUpdatedInHybridMode(t *testing.T) {
 
 			// EXPECT that the Account role-based Account Assignments have been provisioned
 			// into AWS
-			requirePrincipalAssignment(ctx, t, auth, principal.GetIDForUserName("bob"),
+			assertPrincipalAssignment(ctx, t, auth, principal.GetIDForUserName("bob"),
 				hasAccountAssignment("arn:aws:sso:::permissionSet/Admin", "1111111111"),
 				hasAccountAssignment("arn:aws:sso:::permissionSet/ReadOnly", "1111111111"))
-			require.ElementsMatch(t,
+			assert.ElementsMatch(t,
 				[]*icsdk.Assignment{
 					&icsdk.Assignment{
 						AccountID:        "1111111111",
@@ -155,9 +155,9 @@ func TestUsersAreNotUpdatedInHybridMode(t *testing.T) {
 				getRemoteAccountAssignments(unifiedClient, "uid_bob"),
 				"Bob's account assignments must be provisioned")
 
-			requirePrincipalAssignment(ctx, t, auth, principal.GetIDForUserName("emily"),
+			assertPrincipalAssignment(ctx, t, auth, principal.GetIDForUserName("emily"),
 				hasAccountAssignment("arn:aws:sso:::permissionSet/Admin", "1111111111"))
-			require.ElementsMatch(t,
+			assert.ElementsMatch(t,
 				[]*icsdk.Assignment{
 					&icsdk.Assignment{
 						AccountID:        "1111111111",
