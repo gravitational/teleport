@@ -234,6 +234,22 @@ func TestValidateScopedToken(t *testing.T) {
 			expectedWeakErr:   "aws configuration must be defined for a scoped token when using the ec2 or iam join methods",
 		},
 		{
+			name: "ec2 token with invalid IID TTL",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodEC2)
+				tok.Spec.Aws = &joiningv1.AWS{
+					Allow: []*joiningv1.AWS_Rule{
+						{
+							AwsAccount: "1234567890",
+						},
+					},
+					IidTtl: "123", // no unit specified
+				}
+			},
+			expectedStrongErr: "invalid IID TTL value",
+			expectedWeakErr:   "invalid IID TTL value",
+		},
+		{
 			name: "iam token without aws configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Spec.JoinMethod = string(types.JoinMethodIAM)
@@ -277,7 +293,21 @@ func TestValidateScopedToken(t *testing.T) {
 			name: "valid scoped token",
 		},
 		{
-			name: "valid ec2 scoped token",
+			name: "valid ec2 scoped token with TTL",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodEC2)
+				tok.Spec.Aws = &joiningv1.AWS{
+					Allow: []*joiningv1.AWS_Rule{
+						{
+							AwsAccount: "1234567890",
+						},
+					},
+					IidTtl: "6mo",
+				}
+			},
+		},
+		{
+			name: "valid ec2 scoped token without TTL",
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Spec.JoinMethod = string(types.JoinMethodEC2)
 				tok.Spec.Aws = &joiningv1.AWS{
