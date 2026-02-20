@@ -126,7 +126,7 @@ describe('all recovery flows should show correct screens', () => {
         isRecoverPassword: true,
       });
 
-    const tokenField = screen.getByPlaceholderText('123 456');
+    const tokenField = await screen.findByPlaceholderText('123 456');
 
     fireEvent.change(tokenField, { target: { value: '321321' } });
 
@@ -144,7 +144,7 @@ describe('all recovery flows should show correct screens', () => {
       route2NewPasswordWithApprovedToken
     );
 
-    const newPasswordField = screen.getByPlaceholderText('Password');
+    const newPasswordField = await screen.findByPlaceholderText('Password');
     const newConfirmPasswordField =
       screen.getByPlaceholderText('Confirm Password');
 
@@ -173,7 +173,9 @@ describe('all recovery flows should show correct screens', () => {
       RecoveryService.prototype.generateRecoveryCodes
     ).toHaveBeenCalledWith(approvedToken.id);
 
-    expect(screen.getByText('New Backup & Recovery Codes')).toBeInTheDocument();
+    expect(
+      await screen.findByText('New Backup & Recovery Codes')
+    ).toBeInTheDocument();
     expect(screen.getByText(/tele-recovery-code-1/i)).toBeInTheDocument();
     expect(screen.getByText(/tele-recovery-code-2/i)).toBeInTheDocument();
     expect(screen.getByText(/tele-recovery-code-3/i)).toBeInTheDocument();
@@ -210,7 +212,7 @@ describe('all recovery flows should show correct screens', () => {
         isRecoverPassword: false,
       });
 
-    const passwordField = screen.getByPlaceholderText('Password');
+    const passwordField = await screen.findByPlaceholderText('Password');
 
     fireEvent.change(passwordField, { target: { value: 'password1234' } });
 
@@ -229,7 +231,7 @@ describe('all recovery flows should show correct screens', () => {
       );
     });
 
-    const newTokenField = screen.getByPlaceholderText('123 456');
+    const newTokenField = await screen.findByPlaceholderText('123 456');
     const deviceNameField = screen.getByPlaceholderText(/name/i);
 
     fireEvent.change(newTokenField, { target: { value: '321321' } });
@@ -257,7 +259,7 @@ describe('all recovery flows should show correct screens', () => {
     );
 
     expect(
-      screen.getByText(/take a look at your enrolled devices below/i)
+      await screen.findByText(/take a look at your enrolled devices below/i)
     ).toBeInTheDocument();
     expect(screen.getByText(/iphone 12/i)).toBeInTheDocument();
     expect(screen.getByText(/solokey/i)).toBeInTheDocument();
@@ -275,7 +277,9 @@ describe('all recovery flows should show correct screens', () => {
       ).toHaveBeenCalledWith(approvedToken.id);
     });
 
-    expect(screen.getByText('New Backup & Recovery Codes')).toBeInTheDocument();
+    expect(
+      await screen.findByText('New Backup & Recovery Codes')
+    ).toBeInTheDocument();
     expect(screen.getByText(/tele-recovery-code-1/i)).toBeInTheDocument();
     expect(screen.getByText(/tele-recovery-code-2/i)).toBeInTheDocument();
     expect(screen.getByText(/tele-recovery-code-3/i)).toBeInTheDocument();
