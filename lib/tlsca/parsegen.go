@@ -85,8 +85,16 @@ type GenerateCAConfig struct {
 	Entity      pkix.Name
 	DNSNames    []string
 	IPAddresses []net.IP
-	TTL         time.Duration
-	Clock       clockwork.Clock
+
+	// TTL and Clock are used to create the NotBefore and NotAfter timestamps.
+	// TTL is an offset from the NotBefore.
+	// Optional if NotBefore/NotAfter are supplied.
+	TTL   time.Duration
+	Clock clockwork.Clock
+
+	// NotBefore and NotAfter are the certificate timestamps.
+	// Optional. If unset then TTL and Clock are used.
+	NotBefore, NotAfter time.Time
 }
 
 // setDefaults imposes defaults on this configuration
@@ -101,8 +109,15 @@ func (r *GenerateCAConfig) setDefaults() {
 // Returns PEM-encoded private key/certificate payloads upon success
 func GenerateSelfSignedCAWithConfig(config GenerateCAConfig) (certPEM []byte, err error) {
 	config.setDefaults()
-	notBefore := config.Clock.Now()
-	notAfter := notBefore.Add(config.TTL)
+
+	notBefore := config.NotBefore
+	if notBefore.IsZero() {
+		notBefore = config.Clock.Now()
+	}
+	notAfter := config.NotAfter
+	if notAfter.IsZero() {
+		notAfter = notBefore.Add(config.TTL)
+	}
 
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
@@ -145,6 +160,9 @@ func GenerateSelfSignedCAWithConfig(config GenerateCAConfig) (certPEM []byte, er
 }
 
 // GenerateSelfSignedCA generates self-signed certificate authority used for tests.
+//
+// Prefer GenerateSelfSignedCAForTesting, which operates on a higher level of
+// abstraction and always creates a valid-looking CA certificate.
 func GenerateSelfSignedCA(entity pkix.Name, dnsNames []string, ttl time.Duration) ([]byte, []byte, error) {
 	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	if err != nil {
@@ -156,6 +174,53 @@ func GenerateSelfSignedCA(entity pkix.Name, dnsNames []string, ttl time.Duration
 	}
 	certPEM, err := GenerateSelfSignedCAWithSigner(signer, entity, dnsNames, ttl)
 	return keyPEM, certPEM, err
+}
+
+// GenerateTestCAConfig is the input for GenerateSelfSignedCAForTesting.
+type GenerateTestCAConfig struct {
+	// ClusterName is the Teleport cluster name.
+	ClusterName string
+	// NotBefore and NotAfter are the certificate timestamps.
+	// Optional.
+	NotBefore, NotAfter time.Time
+}
+
+// GenerateSelfSignedCAForTesting creates a self-signed Teleport CA certificate
+// for testing.
+//
+// The private key is marshaled using [keys.MarshalPrivateKey].
+//
+// Returns the key and certificate in PEM form.
+func GenerateSelfSignedCAForTesting(config GenerateTestCAConfig) (keyPEM, certPEM []byte, _ error) {
+	if config.ClusterName == "" {
+		return nil, nil, trace.BadParameter("cluster name required")
+	}
+
+	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	keyPEM, err = keys.MarshalPrivateKey(signer)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	certPEM, err = GenerateSelfSignedCAWithConfig(GenerateCAConfig{
+		Signer: signer,
+		Entity: pkix.Name{
+			Organization: []string{config.ClusterName},
+			CommonName:   config.ClusterName,
+		},
+		// Default to 1h / real time...
+		TTL: 1 * time.Hour,
+		// ...but allow customized timestamps.
+		NotBefore: config.NotBefore,
+		NotAfter:  config.NotAfter,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return keyPEM, certPEM, nil
 }
 
 // ParseCertificateRequestPEM parses PEM-encoded certificate signing request
