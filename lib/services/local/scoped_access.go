@@ -581,22 +581,12 @@ func (s *ScopedAccessService) CreateScopedRoleAssignment(ctx context.Context, re
 			continue
 		}
 
-		// assert that role is unchanged and modify associated role lock so that role modifications can
-		// detect concurrent modifications to their assignments.
-		condacts = append(condacts, []backend.ConditionalAction{
-			{
-				Key:       scopedRoleKey(subAssignment.GetRole()),
-				Condition: backend.Revision(roleRevision),
-				Action:    backend.Nop(),
-			},
-			{
-				Key:       roleAssignmentLockKey(subAssignment.GetRole()),
-				Condition: backend.Whatever(),
-				Action: backend.Put(backend.Item{
-					Value: newRoleAssignmentLockVal(subAssignment.GetRole()),
-				}),
-			},
-		}...)
+		condacts = append(condacts,
+			// assert that role is unchanged since it was checked.
+			s.assertAssignedRoleStable(subAssignment.GetRole(), roleRevision),
+			// touch role lock so that role modifications can detect concurrent
+			// modifications to their assignments.
+			s.touchRoleAssignmentLock(subAssignment.GetRole()))
 
 		assertedRoles[subAssignment.GetRole()] = struct{}{}
 	}
@@ -725,6 +715,32 @@ func (s *ScopedAccessService) DeleteScopedRoleAssignment(ctx context.Context, re
 	}
 
 	return &scopedaccessv1.DeleteScopedRoleAssignmentResponse{}, nil
+}
+
+// assertAssignedRoleStable returns a backend.ConditionalAction that asserts
+// that a scoped role has not been modified since it was checked at a given
+// roleRevision.
+func (s *ScopedAccessService) assertAssignedRoleStable(roleName, roleRevision string) backend.ConditionalAction {
+	return backend.ConditionalAction{
+		Key:       scopedRoleKey(roleName),
+		Condition: backend.Revision(roleRevision),
+		Action:    backend.Nop(),
+	}
+}
+
+// touchRoleAssignmentLock returns a backend.ConditionalAction to be included
+// in the list of backend.ConditionalActions for an AtomicWrite that modifies a
+// resource that assigns a scoped role. This allows operations that create,
+// modify, or delete a scoped role to efficiently assert that no assignment of
+// that role has been concurrently created or modified.
+func (s *ScopedAccessService) touchRoleAssignmentLock(roleName string) backend.ConditionalAction {
+	return backend.ConditionalAction{
+		Key:       roleAssignmentLockKey(roleName),
+		Condition: backend.Whatever(),
+		Action: backend.Put(backend.Item{
+			Value: newRoleAssignmentLockVal(roleName),
+		}),
+	}
 }
 
 func scopedRoleKey(roleName string) backend.Key {
