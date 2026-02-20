@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -29,11 +30,13 @@ import (
 
 	"github.com/gravitational/teleport"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -197,28 +200,23 @@ func (s *ScopedAccessService) CreateScopedRole(ctx context.Context, req *scopeda
 	lockCondition := backend.NotExists()
 	if lockItem != nil {
 		lockCondition = backend.Revision(lockItem.Revision)
-		for assignment, err := range s.StreamScopedRoleAssignments(ctx) {
+
+		for binding, err := range s.streamBindingsForRole(ctx, role.GetMetadata().GetName()) {
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
-			for _, subAssignment := range assignment.GetSpec().GetAssignments() {
-				if subAssignment.GetRole() != role.GetMetadata().GetName() {
-					continue
+			// an assignment or access list already exists referencing this role, we need to check if that is because
+			// a role with this name exists, or because the assignment is dangling.
+			_, err = s.bk.Get(ctx, scopedRoleKey(role.GetMetadata().GetName()))
+			if err != nil {
+				if !trace.IsNotFound(err) {
+					return nil, trace.Wrap(err)
 				}
-
-				// an assignment already exists referencing this role, we need to check if that is because
-				// a role with this name exists, or because the assignment is dangling.
-				_, err = s.bk.Get(ctx, scopedRoleKey(role.GetMetadata().GetName()))
-				if err != nil {
-					if !trace.IsNotFound(err) {
-						return nil, trace.Wrap(err)
-					}
-					// this is a dangling assignment, we need to return an error
-					return nil, trace.CompareFailed("cannot create scoped role %q while extant assignment %q references it", role.GetMetadata().GetName(), assignment.GetMetadata().GetName())
-				}
-				return nil, trace.CompareFailed("scoped role %q already exists", role.GetMetadata().GetName())
+				// this is a dangling assignment, we need to return an error
+				return nil, trace.CompareFailed("cannot create scoped role %q while %s references it", role.GetMetadata().GetName(), binding.source)
 			}
+			return nil, trace.CompareFailed("scoped role %q already exists", role.GetMetadata().GetName())
 		}
 	}
 
@@ -291,27 +289,27 @@ func (s *ScopedAccessService) UpdateScopedRole(ctx context.Context, req *scopeda
 	lockCondition := backend.NotExists()
 	if lockItem != nil {
 		lockCondition = backend.Revision(lockItem.Revision)
-		for assignment, err := range s.StreamScopedRoleAssignments(ctx) {
+	}
+
+	// An update that modifies the assignable scopes of the role may invalidate
+	// any assignments or grants in another resource.
+	if !apiutils.ContainSameUniqueElements(extant.GetRole().GetSpec().GetAssignableScopes(), role.GetSpec().GetAssignableScopes()) {
+		// TODO(nklaassen): make full cross-resource validation opt-in.
+		for binding, err := range s.streamBindingsForRole(ctx, role.GetMetadata().GetName()) {
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
-			for _, subAssignment := range assignment.GetSpec().GetAssignments() {
-				if subAssignment.GetRole() != role.GetMetadata().GetName() {
-					continue
-				}
+			if !scopedaccess.RoleIsAssignableToScopeOfEffect(extant.GetRole(), binding.scope) {
+				// theoretically, we prevent broken assignments. in practice, its best to
+				// assume they may exist and to not allow them to prevent an otherwsie
+				// valid update. We will still force all broken assignments to be
+				// removed at the time of role deletion.
+				continue
+			}
 
-				if !scopedaccess.RoleIsAssignableToScopeOfEffect(extant.GetRole(), subAssignment.GetScope()) {
-					// theoretically, we prevent broken assignments. in practice, its best to
-					// assume they may exist and to not allow them to prevent an otherwsie
-					// valid update. We will still force all broken assignments to be
-					// removed at the time of role deletion.
-					continue
-				}
-
-				if !scopedaccess.RoleIsAssignableToScopeOfEffect(role, subAssignment.GetScope()) {
-					return nil, trace.BadParameter("update of scoped role %q would invalidate assignment %q which assigns it to user %q at scope %q", role.GetMetadata().GetName(), assignment.GetMetadata().GetName(), assignment.GetSpec().GetUser(), subAssignment.GetScope())
-				}
+			if !scopedaccess.RoleIsAssignableToScopeOfEffect(role, binding.scope) {
+				return nil, trace.BadParameter("update of scoped role %q would invalidate %s which binds it to scope %q", role.GetMetadata().GetName(), binding.source, binding.scope)
 			}
 		}
 	}
@@ -364,18 +362,14 @@ func (s *ScopedAccessService) DeleteScopedRole(ctx context.Context, req *scopeda
 		lockCondition = backend.Revision(lockItem.Revision)
 	}
 
-	// now that we have a lock condition established, we can read all assignments with a "happens after" relationship
-	// to the current lock value and verify that no assignments target this role.
-	for assignment, err := range s.StreamScopedRoleAssignments(ctx) {
+	// now that we have a lock condition established, we can read all
+	// assignments and access lists with a "happens after" relationship to the
+	// current lock value and verify that no assignments or lists target this role.
+	for binding, err := range s.streamBindingsForRole(ctx, roleName) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		for _, subAssignment := range assignment.GetSpec().GetAssignments() {
-			if subAssignment.GetRole() == roleName {
-				return nil, trace.CompareFailed("cannot delete scoped role %q while assignment %q assigns it to a user", roleName, assignment.GetMetadata().GetName())
-			}
-		}
+		return nil, trace.CompareFailed("cannot delete scoped role %q while %s references it", roleName, binding.source)
 	}
 
 	roleCondition := backend.Exists()
@@ -715,6 +709,98 @@ func (s *ScopedAccessService) DeleteScopedRoleAssignment(ctx context.Context, re
 	}
 
 	return &scopedaccessv1.DeleteScopedRoleAssignmentResponse{}, nil
+}
+
+func (s *ScopedAccessService) streamAccessLists(ctx context.Context) stream.Stream[*accesslist.AccessList] {
+	return func(yield func(*accesslist.AccessList, error) bool) {
+		startKey := backend.ExactKey(accessListPrefix)
+		params := backend.ItemsParams{
+			StartKey: startKey,
+			EndKey:   backend.RangeEnd(startKey),
+		}
+
+		for item, err := range s.bk.Items(ctx, params) {
+			if err != nil {
+				yield(nil, trace.Wrap(err))
+				return
+			}
+
+			accessList, err := services.UnmarshalAccessList(item.Value,
+				services.WithRevision(item.Revision),
+				services.WithExpires(item.Expires),
+			)
+			if err != nil {
+				s.logger.WarnContext(ctx, "skipping access list due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
+				continue
+			}
+
+			if !yield(accessList, nil) {
+				return
+			}
+		}
+	}
+}
+
+// scopeBinding describes a concrete scope that a scoped role is "bound" to. A
+// scoped role is "bound" to a scope if it is assigned at that scope by a
+// scoped role assignment or if it is granted at that scoped by an access list grant.
+type scopeBinding struct {
+	scope string
+	// source describes the resource that bound the role to this scope, useful
+	// for error messages.
+	source string
+}
+
+// streamBindingsForRole streams all bindings of the given role to a scope,
+// either by a scoped role assignment or an access list grant. This essentially
+// streams all cross-resource references to the role.
+func (s *ScopedAccessService) streamBindingsForRole(ctx context.Context, role string) stream.Stream[scopeBinding] {
+	return func(yield func(scopeBinding, error) bool) {
+		for assignment, err := range s.StreamScopedRoleAssignments(ctx) {
+			if err != nil {
+				yield(scopeBinding{}, trace.Wrap(err))
+				return
+			}
+
+			for i, subAssignment := range assignment.GetSpec().GetAssignments() {
+				if subAssignment.GetRole() != role {
+					continue
+				}
+				if !yield(scopeBinding{
+					scope:  subAssignment.GetScope(),
+					source: fmt.Sprintf("scoped role assignment %q spec.assignments[%d]", assignment.GetMetadata().GetName(), i),
+				}, nil) {
+					return
+				}
+			}
+		}
+		for acl, err := range s.streamAccessLists(ctx) {
+			if err != nil {
+				yield(scopeBinding{}, trace.Wrap(err))
+				return
+			}
+
+			for _, lense := range []struct {
+				field  string
+				grants []accesslist.ScopedRoleGrant
+			}{
+				{field: "grants", grants: acl.GetGrants().ScopedRoles},
+				{field: "owner_grants", grants: acl.GetOwnerGrants().ScopedRoles},
+			} {
+				for i, grant := range lense.grants {
+					if grant.Role != role {
+						continue
+					}
+					if !yield(scopeBinding{
+						scope:  grant.Scope,
+						source: fmt.Sprintf("access list %q spec.%s.scoped_roles[%d]", acl.GetName(), lense.field, i),
+					}, nil) {
+						return
+					}
+				}
+			}
+		}
+	}
 }
 
 // assertAssignedRoleStable returns a backend.ConditionalAction that asserts
