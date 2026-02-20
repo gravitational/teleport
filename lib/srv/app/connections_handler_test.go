@@ -75,8 +75,8 @@ func newTestHandler(t *testing.T, cfg limiter.Config) *ConnectionsHandler {
 			ServiceComponent: teleport.ComponentApp,
 		},
 		closeContext: ctx,
-		limiter:     lim,
-		log:         slog.Default(),
+		limiter:      lim,
+		log:          slog.Default(),
 	}
 }
 
