@@ -120,6 +120,9 @@ func TestNodes(t *testing.T) {
 }
 
 func BenchmarkGetMaxNodes(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
 	benchGetNodes(b, 1_000_000)
 }
 
