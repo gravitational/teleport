@@ -77,6 +77,18 @@
   ],
   "packageRules": [
     {
+      "matchBaseBranches": [
+        "branch/v18"
+      ],
+      "commitMessagePrefix": "[v18] "
+    },
+    {
+      "matchBaseBranches": [
+        "branch/v17"
+      ],
+      "commitMessagePrefix": "[v17] "
+    },
+    {
       "matchManagers": [
         "custom.regex"
       ],
