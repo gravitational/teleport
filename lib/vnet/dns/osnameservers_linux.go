@@ -67,7 +67,7 @@ func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
 			}
 			addr = addr.WithZone(iface.Name)
 		}
-		nameservers = append(nameservers, WithDNSPort(addr))
+		nameservers = append(nameservers, AddrWithDNSPort(addr))
 	}
 
 	slog.DebugContext(ctx, "Loaded host upstream nameservers", "nameservers", nameservers)

@@ -301,7 +301,7 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 		if !ok {
 			return nil, trace.Errorf("error parsing IPv6 DNS address %v", cfg.dnsIPv6)
 		}
-		upstreamFilter.AddExclude(dns.WithDNSPort(addr))
+		upstreamFilter.AddExclude(dns.AddrWithDNSPort(addr))
 	}
 	dnsServer, err := dns.NewServer(ns, upstreamFilter)
 	if err != nil {
@@ -620,7 +620,7 @@ func (ns *networkStack) addDNSAddress(ip net.IP) error {
 		return trace.Errorf("error parsing IPv4 DNS address %s", ip.String())
 	}
 	if ns.upstreamFilter != nil {
-		ns.upstreamFilter.AddExclude(dns.WithDNSPort(addr))
+		ns.upstreamFilter.AddExclude(dns.AddrWithDNSPort(addr))
 	}
 	return trace.Wrap(ns.assignUDPHandler(tcpip.AddrFromSlice(ip), ns.dnsServer),
 		"adding UDP handler at %s", ip.String())

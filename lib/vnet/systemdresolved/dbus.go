@@ -110,7 +110,7 @@ func loadDNSProperty(ctx context.Context, conn *dbus.Conn) ([]DNS, error) {
 	return dns, nil
 }
 
-// SetLinkDomains configures per-link DNS search domains.
+// SetLinkDomains configures per-link DNS domains.
 func SetLinkDomains(ctx context.Context, conn *dbus.Conn, ifaceIndex int32, domains []Domain) error {
 	call := Object(conn).CallWithContext(ctx, SetDomainsMethod, 0, ifaceIndex, domains)
 	if call.Err != nil {
@@ -137,7 +137,7 @@ func SetLinkDNS(ctx context.Context, conn *dbus.Conn, ifaceIndex int32, addresse
 	return nil
 }
 
-// DNSAddressForIP converts an IP adress into a systemd-resolved DNSAddress.
+// DNSAddressForIP converts an IP address into a systemd-resolved DNSAddress.
 func DNSAddressForIP(raw string) (DNSAddress, error) {
 	ip := net.ParseIP(raw)
 	if ip == nil {

@@ -40,7 +40,7 @@ type platformOSConfigState struct {
 
 // platformConfigureOS configures the host OS according to cfg.
 func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSConfigState) error {
-	// TODO: use github.com/vishvananda/netlink to set up IPs and routes?
+	// TODO(tangyatsu): use github.com/vishvananda/netlink to set up IPs and routes?
 	if cfg.tunIPv6 != "" && !state.configuredIPv6 {
 		log.InfoContext(ctx, "Setting IPv6 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv6)
 		addrWithPrefix := cfg.tunIPv6 + "/64"
@@ -90,7 +90,7 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 	return nil
 }
 
-func shouldReconfiguredDNSZones(cfg *osConfig, state *platformOSConfigState) bool {
+func shouldReconfigureDNSZones(cfg *osConfig, state *platformOSConfigState) bool {
 	return !utils.ContainSameUniqueElements(cfg.dnsZones, state.configuredDNSZones)
 }
 
@@ -119,7 +119,7 @@ func configureDNS(ctx context.Context, cfg *osConfig, state *platformOSConfigSta
 		return err
 	}
 
-	if shouldReconfiguredDNSZones(cfg, state) {
+	if shouldReconfigureDNSZones(cfg, state) {
 		iface, err := net.InterfaceByName(state.tunName)
 		if err != nil {
 			return trace.Wrap(err, "looking up interface %s", state.tunName)
