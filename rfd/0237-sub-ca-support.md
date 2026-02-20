@@ -689,7 +689,7 @@ message RemoveCertificateOverrideResponse {}
 ```
 
 The storage key space for cert_authority_override resources is
-`/cert_authority_overrides/{ca_type}`.
+`/cert_authority_overrides/c/{clusterName}/{caType}`.
 
 ### Cache and event stream
 
