@@ -108,7 +108,6 @@
       "groupName": "Go version",
       "groupSlug": "go-version",
       "prHourlyLimit": 5,
-      "recreateWhen": "always",
       "prBodyNotes": [
         "Changelog: Updated Go to {{{newValue}}}."
       ],
