@@ -398,13 +398,16 @@ func validateDiscoverEC2TaskType(ut *usertasksv1.UserTask) error {
 
 	// Permission issues occur before instance discovery (org/account level),
 	// so account ID, region, and instance list may all be empty.
-	if isPermissionIssueType(ut.GetSpec().GetIssueType()) {
+	if IsPermissionIssueType(ut.GetSpec().GetIssueType()) {
 		return validateDiscoverEC2PermissionIssue(ut)
 	}
 	return validateDiscoverEC2InstallationIssue(ut)
 }
 
-func isPermissionIssueType(issueType string) bool {
+// IsPermissionIssueType reports whether the given issue type represents an
+// IAM permission error (account-level or org-level). Permission issues have
+// relaxed validation: they may have empty account ID, region, and instances.
+func IsPermissionIssueType(issueType string) bool {
 	switch issueType {
 	case AutoDiscoverEC2IssuePermAccountDenied,
 		AutoDiscoverEC2IssuePermOrgDenied:
