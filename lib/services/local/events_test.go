@@ -218,7 +218,7 @@ func TestWatchers(t *testing.T) {
 				svc, err := NewMFAService(backend)
 				require.NoError(subtestT, err)
 
-				_, err = svc.CreateValidatedMFAChallenge(subtestCtx, "alice", &mfav1.ValidatedMFAChallenge{
+				_, err = svc.CreateValidatedMFAChallenge(subtestCtx, "leaf.example.com", &mfav1.ValidatedMFAChallenge{
 					Kind:    types.KindValidatedMFAChallenge,
 					Version: types.V1,
 					Metadata: &types.Metadata{

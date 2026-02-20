@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -219,5 +220,77 @@ func checkValidatedMFAChallenge(chal *validatedMFAChallenge) error {
 		return trace.BadParameter("username must be set")
 	default:
 		return nil
+	}
+}
+
+type validatedMFAChallengeParser struct {
+	baseParser
+}
+
+func newValidatedMFAChallengeParser() *validatedMFAChallengeParser {
+	return &validatedMFAChallengeParser{
+		baseParser: newBaseParser(backend.ExactKey(types.KindValidatedMFAChallenge)),
+	}
+}
+
+type validatedMFAChallengeResource struct {
+	*types.ResourceHeader
+
+	challenge *mfav1.ValidatedMFAChallenge
+}
+
+func (r *validatedMFAChallengeResource) UnwrapT() *mfav1.ValidatedMFAChallenge {
+	return r.challenge
+}
+
+func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		key := event.Item.Key.TrimPrefix(backend.NewKey(types.KindValidatedMFAChallenge))
+
+		keyComponents := key.Components()
+		if len(keyComponents) < 2 {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindValidatedMFAChallenge,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:        keyComponents[len(keyComponents)-1],
+				Namespace:   defaults.Namespace,
+				Description: keyComponents[0],
+			},
+		}, nil
+
+	case types.OpPut:
+		resource, err := UnmarshalValidatedMFAChallenge(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		challenge := (*mfav1.ValidatedMFAChallenge)(resource)
+
+		metadata := types.Metadata{}
+		if challenge.Metadata != nil {
+			metadata = *challenge.Metadata
+		}
+
+		return &validatedMFAChallengeResource{
+			ResourceHeader: &types.ResourceHeader{
+				Kind:     challenge.Kind,
+				SubKind:  challenge.SubKind,
+				Version:  challenge.Version,
+				Metadata: metadata,
+			},
+			challenge: challenge,
+		}, nil
+
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
 }
