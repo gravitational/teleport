@@ -17,10 +17,8 @@
 package mfav1_test
 
 import (
-	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
@@ -127,7 +125,7 @@ func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
 	// Verify stored ValidatedMFAChallenge.
 	gotChallenge, err := authServer.Auth().MFAService.GetValidatedMFAChallenge(
 		t.Context(),
-		user.GetName(),
+		targetCluster,
 		challengeResp.GetMfaChallenge().GetName(),
 	)
 	require.NoError(t, err)
@@ -159,7 +157,7 @@ func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
 				cmp.Ignore(),
 			),
 		),
-		"GetValidatedMFAChallenge(%s, %s) mismatch (-want +got)", user.GetName(), challengeResp.GetMfaChallenge().GetName(),
+		"GetValidatedMFAChallenge(%s, %s) mismatch (-want +got)", targetCluster, challengeResp.GetMfaChallenge().GetName(),
 	)
 }
 
@@ -243,7 +241,7 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 	// Verify stored ValidatedMFAChallenge.
 	gotChallenge, err := authServer.Auth().MFAService.GetValidatedMFAChallenge(
 		t.Context(),
-		user.GetName(),
+		targetCluster,
 		challengeResp.GetMfaChallenge().GetName(),
 	)
 	require.NoError(t, err)
@@ -273,7 +271,7 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 			cmp.Ignore(),
 		),
 	)
-	require.Empty(t, diff, "GetValidatedMFAChallenge(%s, %s) mismatch (-want +got):\n%s", user.GetName(), challengeResp.GetMfaChallenge().GetName(), diff)
+	require.Empty(t, diff, "GetValidatedMFAChallenge(%s, %s) mismatch (-want +got):\n%s", targetCluster, challengeResp.GetMfaChallenge().GetName(), diff)
 }
 
 func TestCreateSessionChallenge_NonLocalUserDenied(t *testing.T) {
@@ -874,7 +872,7 @@ func TestListValidatedMFAChallenges_FilterByTargetCluster(t *testing.T) {
 	require.Equal(t, "challenge-for-target-cluster", resp.ValidatedChallenges[0].GetMetadata().GetName())
 	require.Equal(t, req.GetPageSize(), mfaService.listValidatedMFAChallengesPageSize)
 	require.Equal(t, req.GetPageToken(), mfaService.listValidatedMFAChallengesPageToken)
-	require.Equal(t, req.GetFilter().GetTargetCluster(), mfaService.listValidatedMFAChallengesFilter.GetTargetCluster())
+	require.Equal(t, req.GetFilter().GetTargetCluster(), mfaService.listValidatedMFAChallengesTarget)
 }
 
 func TestReplicateValidatedMFAChallenge_Success(t *testing.T) {
@@ -1068,9 +1066,10 @@ func TestVerifyValidatedMFAChallenge_Success(t *testing.T) {
 			Payload:       payload,
 			SourceCluster: sourceCluster,
 			TargetCluster: targetCluster,
+			Username:      user.GetName(),
 		},
 	}
-	_, err := authServer.Auth().MFAService.CreateValidatedMFAChallenge(ctx, user.GetName(), chal)
+	_, err := authServer.Auth().MFAService.CreateValidatedMFAChallenge(ctx, targetCluster, chal)
 	require.NoError(t, err)
 
 	resp, err := service.VerifyValidatedMFAChallenge(
@@ -1103,9 +1102,10 @@ func TestVerifyValidatedMFAChallenge_PayloadMismatch(t *testing.T) {
 			Payload:       payload,
 			SourceCluster: sourceCluster,
 			TargetCluster: targetCluster,
+			Username:      user.GetName(),
 		},
 	}
-	_, err := authServer.Auth().MFAService.CreateValidatedMFAChallenge(ctx, user.GetName(), chal)
+	_, err := authServer.Auth().MFAService.CreateValidatedMFAChallenge(ctx, targetCluster, chal)
 	require.NoError(t, err)
 
 	resp, err := service.VerifyValidatedMFAChallenge(ctx, &mfav1.VerifyValidatedMFAChallengeRequest{
@@ -1141,9 +1141,10 @@ func TestVerifyValidatedMFAChallenge_SourceClusterMismatch(t *testing.T) {
 			Payload:       payload,
 			SourceCluster: sourceCluster,
 			TargetCluster: targetCluster,
+			Username:      user.GetName(),
 		},
 	}
-	_, err := authServer.Auth().MFAService.CreateValidatedMFAChallenge(ctx, user.GetName(), chal)
+	_, err := authServer.Auth().MFAService.CreateValidatedMFAChallenge(ctx, targetCluster, chal)
 	require.NoError(t, err)
 
 	resp, err := service.VerifyValidatedMFAChallenge(ctx, &mfav1.VerifyValidatedMFAChallengeRequest{
@@ -1245,11 +1246,7 @@ func TestVerifyValidatedMFAChallenge_NotFound(t *testing.T) {
 
 	_, service, _, user := setupAuthServer(t, nil)
 
-	ctx, cancel := context.WithTimeout(
-		authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleNode).I),
-		50*time.Millisecond,
-	)
-	defer cancel()
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleNode).I)
 
 	// No challenge stored for this name.
 	resp, err := service.VerifyValidatedMFAChallenge(ctx, &mfav1.VerifyValidatedMFAChallengeRequest{
@@ -1259,7 +1256,7 @@ func TestVerifyValidatedMFAChallenge_NotFound(t *testing.T) {
 		SourceCluster: sourceCluster,
 	})
 	require.Error(t, err)
-	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.True(t, trace.IsNotFound(err))
 	require.Nil(t, resp)
 }
 
@@ -1292,9 +1289,10 @@ func TestVerifyValidatedMFAChallenge_WebauthnFailedStorage(t *testing.T) {
 			Payload:       payload,
 			SourceCluster: sourceCluster,
 			TargetCluster: targetCluster,
+			Username:      user.GetName(),
 		},
 	}
-	_, err = authServer.Auth().MFAService.CreateValidatedMFAChallenge(ctx, user.GetName(), chal)
+	_, err = authServer.Auth().MFAService.CreateValidatedMFAChallenge(ctx, targetCluster, chal)
 	require.NoError(t, err)
 
 	resp, err := service.VerifyValidatedMFAChallenge(
