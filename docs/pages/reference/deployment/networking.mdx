@@ -39,70 +39,117 @@ Architecture](../architecture/architecture.mdx). For a glossary of terms, see
 ```mermaid
 architecture-beta
 
-%% Networks
+%%%%%%%%%%%
+%% Groups %
+%%%%%%%%%%%
+
 group public_net(carbon-network-public)[Public Internet]
 group dmz_net(carbon-network-public)[DMZ or Public Subnet]
-group private_net(carbon-virtual-private-cloud)[Private Network]
 group private_net2(carbon-virtual-private-cloud)[Private Network]
-group k8s_net(carbon-virtual-private-cloud)[Private Kubernetes Cluster]
 
-%% Services
+%% private_net contains Teleport Agents and protected resources.
+group private_net(carbon-virtual-private-cloud)[Private Network]
+group k8s_net(logos-kubernetes)[Kubernetes Cluster] in private_net
+group k8s_net2(logos-kubernetes)[Kubernetes Cluster] in private_net
+
+
+%%%%%%%%%%%%%
+%% Services %
+%%%%%%%%%%%%%
+
 service user(carbon-user)[User] in public_net
+
+%% Teleport control plane
 service proxy(teleport-logo-purple)[Proxy Service] in dmz_net
 service auth(teleport-logo-purple)[Auth Service] in private_net2
 
-%% Core Private Services
+%% Agents and a protected server in the private network
 service agent(teleport-logo-purple)[Teleport Agents] in private_net
 service ssh_node(teleport-logo-purple)[Protected Server] in private_net
 
-%% Destination Endpoints
+%% Resources that Teleport Agents protect
 service db(carbon-db2-database)[Databases] in private_net
 service windows(carbon-virtual-desktop)[Desktops] in private_net
 service webapp(carbon-code)[Web Apps] in private_net
 
-%% Kubernetes Group Services
-service k8s_agent(teleport-logo-purple)[Teleport Agent] in k8s_net
-service k8s_pods(logos-kubernetes)[Kubernetes Pods] in k8s_net
+%% Protected Kubernetes clusters representing two enrollment methods:
+%% running in the same cluster as the protected API server and using a
+%% kubeconfig to protect a remote cluster.
+%%   k8s_agent runs as a Pod inside the cluster it manages
+%%   k8s_agent_external runs outside its target cluster and connects via kubeconfig
+service k8s_agent(teleport-logo-purple)[Teleport Agent Pod] in k8s_net
+service k8s_pods(logos-kubernetes)[Kubernetes API Server] in k8s_net
+service k8s_agent_external(teleport-logo-purple)[External Teleport Agent with Kubeconfig] in private_net
+service k8s_pods2(logos-kubernetes)[Kubernetes API Server] in k8s_net2
 
-%% Routing Junctions
+%%%%%%%%%%%%%%
+%% Junctions %
+%%%%%%%%%%%%%%
+
+%% p_conn: collects the external Kubernetes agent's reverse-tunnel wire
+%% connection routing it into the Proxy Service from below.
 junction p_conn in private_net
+
+%% j_mid / j_top / j_bot form a vertical spine for connections from the Teleport
+%% Agents service: 
+%%   j_mid is the center junction, and connects to Desktops and branches to j_top/j_bot
+%%   j_top sits above j_mid and connects to Databases
+%%   j_bot sits below j_mid and connects to Web Apps
 junction j_mid in private_net
 junction j_top in private_net
 junction j_bot in private_net
 
-%% Buffer junctions for spacing
-junction j_usr_buf
-junction j_proxy_agent_buf
-junction j_auth_proxy_buf
+%% j_proxy_auth_bend: L-bend that routes the User connection above the
+%% Proxy Service so that the Public Internet group appears at the top of
+%% the diagram.
+junction j_proxy_auth_bend
 
-%% Control Plane & Edge Connections
-user:R -- L:j_usr_buf
-j_usr_buf:R --> L:proxy
-auth:T -- B:j_auth_proxy_buf
-j_auth_proxy_buf:T --> B:proxy
+%% j_ssh_proxy / j_ssh_proxy_buf: connects Protected Server reverse-tunnel to
+%% the Proxy Service. j_ssh_proxy also serves as part of the connection between
+%% Teleport Agents and Proxy Service.
+junction j_ssh_proxy
+junction j_ssh_proxy_buf
 
-%% Kubernetes Cluster routing 
-%% Moved K8s group above the Proxy
-k8s_agent:B --> T:proxy
-k8s_agent:T --> B:k8s_pods
+%% j_agents_buf1 / j_agents_buf2: extend the Teleport Agents reverse tunnel %%
+%% vertically until it meets j_ssh_proxy at the private_net boundary.
+junction j_agents_buf1
+junction j_agents_buf2
 
-%% Reverse tunnel flow into the Proxy Service
-%% p_conn:L --> R:proxy
+%%%%%%%%%%%%%%%%
+%% Connections %
+%%%%%%%%%%%%%%%%
 
-p_conn:L -- R:j_proxy_agent_buf
-j_proxy_agent_buf:L --> R:proxy
+%% Proxy Service to Auth Service
+proxy:L --> R:auth
+j_proxy_auth_bend:L -- R:user
+j_proxy_auth_bend:B --> T:proxy
 
-%% Positioning Teleport Agents above the SSH Service on a Linux Server
-%% service
-agent:B -- T:p_conn
-ssh_node:T -- B:p_conn
+%% Kubernetes Agent Pod to Proxy Service and Kubernetes API server
+k8s_agent:L --> R:proxy
+k8s_agent:R --> L:k8s_pods
 
-%% Vertical bus creation for endpoints
+%% External Kubernetes agent to Proxy Service and the remote Kubernetes
+%% cluster's API server
+k8s_agent_external:L -- R:p_conn
+k8s_agent_external:R --> L:k8s_pods2
+p_conn:L --> B:proxy
+
+%% Protected Server and Teleport Agents to the Proxy Service via reverse
+%% tunnel
+ssh_node:L -- R:j_ssh_proxy
+j_ssh_proxy:T -- B:j_ssh_proxy_buf
+j_ssh_proxy_buf:T --> B:proxy
+
+%% Vertical spine connecting the Proxy Service to Teleport Agents in the private
+%% network
+j_ssh_proxy:B -- T:j_agents_buf1
+j_agents_buf1:B -- T:j_agents_buf2
+j_agents_buf2:R -- L:agent
 agent:R -- L:j_mid
-j_mid:T -- B:j_top
-j_mid:B -- T:j_bot
+j_mid:B -- T:j_top
+j_mid:T -- B:j_bot
 
-%% Vertically aligned destination endpoints
+%% Agents to protected databases, desktops, and web apps
 j_top:R --> L:db
 j_mid:R --> L:windows
 j_bot:R --> L:webapp
