@@ -27,7 +27,7 @@ import (
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 
-	"github.com/gravitational/teleport/lib/utils/otelhttp"
+	"github.com/gravitational/teleport/lib/observability/otelhttp"
 )
 
 // providerTimeout is the maximum time allowed to fetch provider metadata before

@@ -33,8 +33,8 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/observability/otelhttp"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/otelhttp"
 	"github.com/gravitational/teleport/tool/tctl/sso/configure/flags"
 	"github.com/gravitational/teleport/tool/tctl/sso/tester"
 )
