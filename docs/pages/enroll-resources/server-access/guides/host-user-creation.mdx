@@ -282,7 +282,7 @@ which serves a similar purpose. Ensure that the correct directive is used based 
 When you connect to a remote Node via `tsh`, and host user creation is enabled, the
 Teleport SSH Service will automatically create a user on the host:
 
-```code
+```bash
 $ tsh login
 $ tsh ssh nginxrestarter@develnode
 $ grep "nginxrestarter" /etc/passwd
