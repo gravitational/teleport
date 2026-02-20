@@ -365,6 +365,15 @@ top-level Access List.
 The flattened Identity Center group will be kept updated as members are added to
 or removed from nested 
 
+### How does Teleport handle failures caused by transient network or load issues?
+
+Teleport will retry all Identity Center provisioning & de-provisioning operations
+until they succeed.
+
+In addition, the Teleport Identity Center integration is designed to automatically
+reconcile Teleport Users, Access Lists and Account Assignments with AWS Identity
+Center if the Teleport Cluster comes back online after an outage.
+
 ### How do I uninstall the integration?
 
 <Admonition type="warning">

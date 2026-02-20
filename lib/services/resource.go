@@ -305,6 +305,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindAppAuthConfig, nil
 	case types.KindWorkloadCluster, types.KindWorkloadCluster + "s":
 		return types.KindWorkloadCluster, nil
+	case scopedaccess.KindScopedToken, scopedaccess.KindScopedToken + "s", "scopedtoken", "scopedtokens":
+		return scopedaccess.KindScopedToken, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }

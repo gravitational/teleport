@@ -15968,7 +15968,7 @@ type ListAccessRequestsRequest struct {
 	Limit int32 `protobuf:"varint,4,opt,name=Limit,proto3" json:"Limit,omitempty"`
 	// StartKey is used to resume a query in order to enable pagination.
 	// If the previous response had NextKey set then this should be
-	// set to its value. Otherwise leave empty.
+	// set to its value. Should be empty on the first request.
 	StartKey             string   `protobuf:"bytes,5,opt,name=StartKey,proto3" json:"StartKey,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

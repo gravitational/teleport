@@ -118,15 +118,20 @@ func (g *opensshServerV2TestingPrimitives) CompareTeleportAndKubernetesResource(
 
 func TestTeleportOpensshServerV2Creation(t *testing.T) {
 	test := &opensshServerV2TestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest[types.Server, *resourcesv1.TeleportOpenSSHServerV2](t, resources.NewOpenSSHServerV2Reconciler, test)
+	testlib.ResourceCreationSynchronousTest(t, resources.NewOpenSSHServerV2Reconciler, test)
+}
+
+func TestTeleportOpensshServerV2Deletion(t *testing.T) {
+	test := &opensshServerV2TestingPrimitives{}
+	testlib.ResourceDeletionSynchronousTest(t, resources.NewOpenSSHServerV2Reconciler, test)
 }
 
 func TestTeleportOpensshServerV2DeletionDrift(t *testing.T) {
 	test := &opensshServerV2TestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest[types.Server, *resourcesv1.TeleportOpenSSHServerV2](t, resources.NewOpenSSHServerV2Reconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewOpenSSHServerV2Reconciler, test)
 }
 
 func TestTeleportOpensshServerV2Update(t *testing.T) {
 	test := &opensshServerV2TestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous[types.Server, *resourcesv1.TeleportOpenSSHServerV2](t, resources.NewOpenSSHServerV2Reconciler, test)
+	testlib.ResourceUpdateTestSynchronous(t, resources.NewOpenSSHServerV2Reconciler, test)
 }
