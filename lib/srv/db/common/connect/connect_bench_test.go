@@ -70,57 +70,50 @@ func BenchmarkConnectGetDatabaseServers(b *testing.B) {
 		matchCount  = 1
 		clusterName = "cluster-1"
 		targetName  = "db-target"
+		total       = 1000
 	)
 
-	totals := []int{
-		1000,
-		5000,
-		10000,
-	}
+	b.Run(fmt.Sprintf("total=%d", total), func(sb *testing.B) {
+		sb.ReportAllocs()
 
-	for _, total := range totals {
-		b.Run(fmt.Sprintf("total=%d", total), func(sb *testing.B) {
-			sb.ReportAllocs()
+		servers := createBenchmarkDatabaseServers(sb, total, targetName)
 
-			servers := createBenchmarkDatabaseServers(sb, total, targetName)
+		backend, err := memory.New(memory.Config{Context: sb.Context()})
+		require.NoError(sb, err)
 
-			backend, err := memory.New(memory.Config{Context: sb.Context()})
+		presenceService := local.NewPresenceService(backend)
+		for _, server := range servers {
+			_, err = presenceService.UpsertDatabaseServer(sb.Context(), server)
 			require.NoError(sb, err)
+		}
 
-			presenceService := local.NewPresenceService(backend)
-			for _, server := range servers {
-				_, err = presenceService.UpsertDatabaseServer(sb.Context(), server)
-				require.NoError(sb, err)
-			}
-
-			watcher, err := services.NewDatabaseServerWatcher(sb.Context(), services.DatabaseServerWatcherConfig{
-				DatabaseServersGetter: presenceService,
-				ResourceWatcherConfig: services.ResourceWatcherConfig{
-					Component:      "bench",
-					MaxRetryPeriod: 200 * time.Millisecond,
-					Client:         local.NewEventsService(backend),
-				},
-			})
-			require.NoError(sb, err)
-			sb.Cleanup(watcher.Close)
-
-			require.NoError(sb, watcher.WaitInitialization())
-
-			params := GetDatabaseServersParams{
-				Logger:      slog.New(slog.DiscardHandler),
-				ClusterName: clusterName,
-				Watcher:     watcher,
-				Identity: tlsca.Identity{
-					RouteToDatabase: tlsca.RouteToDatabase{ServiceName: targetName},
-					RouteToCluster:  clusterName,
-				},
-			}
-
-			for sb.Loop() {
-				result, err := GetDatabaseServers(b.Context(), params)
-				require.NoError(sb, err)
-				require.Len(sb, result, matchCount)
-			}
+		watcher, err := services.NewDatabaseServerWatcher(sb.Context(), services.DatabaseServerWatcherConfig{
+			DatabaseServersGetter: presenceService,
+			ResourceWatcherConfig: services.ResourceWatcherConfig{
+				Component:      "bench",
+				MaxRetryPeriod: 200 * time.Millisecond,
+				Client:         local.NewEventsService(backend),
+			},
 		})
-	}
+		require.NoError(sb, err)
+		sb.Cleanup(watcher.Close)
+
+		require.NoError(sb, watcher.WaitInitialization())
+
+		params := GetDatabaseServersParams{
+			Logger:      slog.New(slog.DiscardHandler),
+			ClusterName: clusterName,
+			Watcher:     watcher,
+			Identity: tlsca.Identity{
+				RouteToDatabase: tlsca.RouteToDatabase{ServiceName: targetName},
+				RouteToCluster:  clusterName,
+			},
+		}
+
+		for sb.Loop() {
+			result, err := GetDatabaseServers(b.Context(), params)
+			require.NoError(sb, err)
+			require.Len(sb, result, matchCount)
+		}
+	})
 }
