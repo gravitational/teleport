@@ -79,6 +79,21 @@ export function createViteConfig(
             // this will remove hashing from asset (non-js) files.
             assetFileNames: `app/[name].[ext]`,
           },
+          plugins: [
+            {
+              // The wasm module is embedded into the main app earlier in the build.
+              // Exclude it here, otherwise rollup still emits it as a static asset
+              // by default.
+              name: 'drop-wasm-assets',
+              generateBundle(_, bundle) {
+                for (const file of Object.keys(bundle)) {
+                  if (file.endsWith('.wasm')) {
+                    delete bundle[file];
+                  }
+                }
+              },
+            },
+          ],
         },
       },
       plugins: [
@@ -88,6 +103,7 @@ export function createViteConfig(
         generateAppHashFile(outputDirectory, ENTRY_FILE_NAME),
         wasm(),
       ],
+      assetsInclude: ['**/shared/libs/ironrdp/**/*.wasm'],
       define: {
         'process.env': { NODE_ENV: process.env.NODE_ENV },
       },
@@ -135,6 +151,13 @@ export function createViteConfig(
           },
         // /webapi/sites/:site/kube/exec
         [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/kube/exec`]: {
+          target: `wss://${target}`,
+          changeOrigin: false,
+          secure: false,
+          ws: true,
+        },
+        // /webapi/sites/:site/db/exec - database interactive sessions
+        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/db\\/exec`]: {
           target: `wss://${target}`,
           changeOrigin: false,
           secure: false,

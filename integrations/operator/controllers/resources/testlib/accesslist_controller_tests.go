@@ -165,7 +165,17 @@ func (g *accessListTestingPrimitives) CompareTeleportAndKubernetesResource(tReso
 
 func AccessListCreationTest(t *testing.T, clt *client.Client) {
 	test := &accessListTestingPrimitives{}
-	ResourceCreationSynchronousTest[*accesslist.AccessList, *resourcesv1.TeleportAccessList](
+	ResourceCreationSynchronousTest(
+		t,
+		resources.NewAccessListReconciler,
+		test,
+		WithTeleportClient(clt),
+	)
+}
+
+func AccessListDeletionTest(t *testing.T, clt *client.Client) {
+	test := &accessListTestingPrimitives{}
+	ResourceDeletionSynchronousTest(
 		t,
 		resources.NewAccessListReconciler,
 		test,
@@ -175,7 +185,7 @@ func AccessListCreationTest(t *testing.T, clt *client.Client) {
 
 func AccessListDeletionDriftTest(t *testing.T, clt *client.Client) {
 	test := &accessListTestingPrimitives{}
-	ResourceDeletionDriftSynchronousTest[*accesslist.AccessList, *resourcesv1.TeleportAccessList](
+	ResourceDeletionDriftSynchronousTest(
 		t,
 		resources.NewAccessListReconciler,
 		test,
@@ -185,7 +195,7 @@ func AccessListDeletionDriftTest(t *testing.T, clt *client.Client) {
 
 func AccessListUpdateTest(t *testing.T, clt *client.Client) {
 	test := &accessListTestingPrimitives{}
-	ResourceUpdateTestSynchronous[*accesslist.AccessList, *resourcesv1.TeleportAccessList](
+	ResourceUpdateTestSynchronous(
 		t,
 		resources.NewAccessListReconciler,
 		test,

@@ -60,6 +60,20 @@ func TestUpdate(t *testing.T) {
 
 	matchVersion(t, string(out), testVersions[0])
 
+	// Require that the re-execution fast path does not work with a different
+	// requested version.
+	cmd = exec.CommandContext(ctx, tshPath, "version")
+	cmd.Env = append(
+		os.Environ(),
+		teleportToolsVersion+"="+testVersions[1],
+		updater.TestRequireFastReExecOnly+"=true",
+	)
+	_, err = cmd.Output()
+	var exitErr *exec.ExitError
+	require.ErrorAs(t, err, &exitErr)
+	require.Equal(t, tools.FastReExecOnlyExitCode, exitErr.ExitCode())
+	require.Contains(t, string(exitErr.Stderr), tools.FastReExecOnlyErrorMessage)
+
 	// Execute version command again with setting the new version which must
 	// trigger re-execution of the same command after downloading requested version.
 	cmd = exec.CommandContext(ctx, tshPath, "version")
@@ -71,6 +85,20 @@ func TestUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	matchVersion(t, string(out), testVersions[1])
+
+	// Require that we successfully hit the fast path for re-execution after the
+	// first time.
+	cmd = exec.CommandContext(ctx, tshPath, "version")
+	cmd.Env = append(
+		os.Environ(),
+		teleportToolsVersion+"="+testVersions[1],
+		updater.TestRequireFastReExecOnly+"=true",
+	)
+	out, err = cmd.Output()
+	require.NoError(t, err)
+
+	matchVersion(t, string(out), testVersions[1])
+
 }
 
 // TestUpdateDifferentOSArch verifies the update logic for matching operating system

@@ -131,17 +131,22 @@ func (g *oidcTestingPrimitives) CompareTeleportAndKubernetesResource(tResource t
 
 func TestOIDCConnectorCreation(t *testing.T) {
 	test := &oidcTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](t, resources.NewOIDCConnectorReconciler, test)
+	testlib.ResourceCreationSynchronousTest(t, resources.NewOIDCConnectorReconciler, test)
+}
+
+func TestOIDCConnectorDeletion(t *testing.T) {
+	test := &oidcTestingPrimitives{}
+	testlib.ResourceDeletionSynchronousTest(t, resources.NewOIDCConnectorReconciler, test)
 }
 
 func TestOIDCConnectorDeletionDrift(t *testing.T) {
 	test := &oidcTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](t, resources.NewOIDCConnectorReconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewOIDCConnectorReconciler, test)
 }
 
 func TestOIDCConnectorUpdate(t *testing.T) {
 	test := &oidcTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](t, resources.NewOIDCConnectorReconciler, test)
+	testlib.ResourceUpdateTestSynchronous(t, resources.NewOIDCConnectorReconciler, test)
 }
 
 func TestOIDCConnectorSecretLookup(t *testing.T) {
