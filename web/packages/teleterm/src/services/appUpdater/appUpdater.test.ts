@@ -426,3 +426,28 @@ test('when the app is installed per-machine and configured with env vars, UAC pr
     })
   );
 });
+
+test("quitAndInstall emits 'installing' event", async () => {
+  const setup = setUpAppUpdater({
+    configToolsVersion: {
+      value: '20.0.0',
+      source: ConfigSource.POLICY,
+    },
+    clusters: {
+      reachableClusters: [],
+      unreachableClusters: [],
+    },
+  });
+
+  await setup.appUpdater.checkForUpdates();
+  setup.appUpdater.quitAndInstall();
+
+  expect(setup.lastEvent.value).toEqual(
+    expect.objectContaining({
+      kind: 'installing',
+      update: expect.objectContaining({
+        version: '20.0.0',
+      }),
+    })
+  );
+});

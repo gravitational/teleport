@@ -46,13 +46,9 @@ const (
 // It starts the update service, sends update metadata, and transfers the binary for validation and installation.
 func RunServiceAndInstallUpdateFromClient(ctx context.Context, path string, forceRun bool, version string) error {
 	if err := ensureServiceRunning(ctx); err != nil {
-		// Service failed to start; fall back to client-side install (UAC).
-		if installErr := runInstaller(path, forceRun); installErr != nil {
-			return trace.Wrap(installErr, "fallback install failed after service start error: %v", err)
-		}
-		return nil
+		// NsisDualModeUpdater relies on this exact phrase for fallback behavior.
+		return trace.Wrap(err, "failed to ensure service running")
 	}
-
 	err := InstallUpdateFromClient(ctx, path, forceRun, version)
 	return trace.Wrap(err)
 }
