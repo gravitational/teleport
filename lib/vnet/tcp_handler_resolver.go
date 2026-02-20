@@ -190,6 +190,7 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 		// Attempt a dial to the target SSH node to see if it exists.
 		target := computeDialTarget(matchedCluster, h.cfg.fqdn)
 		agent := newSSHAgent()
+		log.DebugContext(ctx, "Attempting TCP dial to target SSH node", "target", target)
 		targetConn, err := h.cfg.sshProvider.dial(ctx, target, agent)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
