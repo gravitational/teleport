@@ -31,6 +31,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -133,6 +134,12 @@ type localExec struct {
 	// Ctx holds the *ServerContext.
 	Ctx *ServerContext
 
+	// waitForOutputStreams is closed when child reexec and shell processes have
+	// their stderr/stdout fully consumed by io.Copy goroutines. This is necessary
+	// due to the use of custom pipes, which exec.Cmd does not wait for closure of
+	// in Wait().
+	waitForOutputStreams sync.WaitGroup
+
 	pid int
 }
 
@@ -194,7 +201,7 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	defer stderrw.Close()
 	e.Cmd.Stderr = stderrw
 
-	go func() {
+	e.waitForOutputStreams.Go(func() {
 		defer stderrr.Close()
 
 		childErr, err := reexec.ReadChildError(stderrr)
@@ -209,7 +216,7 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 		if _, err := io.WriteString(channel, childErr); err != nil {
 			logger.WarnContext(context.WithoutCancel(ctx), "Failed to propagate child process stderr to client", "error", err)
 		}
-	}()
+	})
 
 	// Start the command.
 	err = e.Cmd.Start()
@@ -241,16 +248,16 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 		}
 		shellStdinW.Close()
 	}()
-	go func() {
+	e.waitForOutputStreams.Go(func() {
 		if _, err := io.Copy(channel, shellStdoutR); err != nil {
 			logger.WarnContext(ctx, "Failed to forward stdout from local command to SSH channel", "error", err)
 		}
-	}()
-	go func() {
+	})
+	e.waitForOutputStreams.Go(func() {
 		if _, err := io.Copy(channel.Stderr(), shellStderrR); err != nil {
 			logger.WarnContext(ctx, "Failed to forward stderr from local command to SSH channel", "error", err)
 		}
-	}()
+	})
 
 	logger.InfoContext(ctx, "Started local command execution")
 
@@ -265,6 +272,7 @@ func (e *localExec) Wait() *ExecResult {
 
 	// Block until the command is finished executing.
 	err := e.Cmd.Wait()
+	e.waitForOutputStreams.Wait()
 	if err != nil {
 		e.Ctx.Logger.DebugContext(e.Ctx.CancelContext(), "Local command failed", "error", err)
 	} else {
