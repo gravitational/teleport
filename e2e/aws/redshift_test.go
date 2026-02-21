@@ -117,6 +117,8 @@ func testRedshiftCluster(t *testing.T) {
 		// everything as part of test cleanup, regardless of what the test
 		// actually created successfully.
 		for _, stmt := range []string{
+			// reassign ownership of teleport-auto-user to the master user so that test admins can be dropped
+			fmt.Sprintf(`ALTER ROLE "teleport-auto-user" OWNER TO %q;`, conn.pool.Config().ConnConfig.User),
 			fmt.Sprintf("DROP SCHEMA %q CASCADE", testSchema),
 			fmt.Sprintf("DROP USER IF EXISTS %q", autoUserKeep),
 			fmt.Sprintf("DROP USER IF EXISTS %q", autoUserDrop),
