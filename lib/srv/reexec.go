@@ -544,7 +544,7 @@ func setAuditSessionID(ctx context.Context, c ExecCommand, preLoginUID []byte, l
 			return trace.Wrap(err)
 		}
 
-		slog.DebugContext(ctx, "Audit login session IDs", "old", oldID, "new", newID)
+		slog.DebugContext(ctx, "Audit login session IDs", "old", string(oldID), "new", string(newID))
 		// If the audit login session IDs are the same, the session ID
 		// was not changed and ESR logging will not work correctly.
 		if bytes.Equal(oldID, newID) {
