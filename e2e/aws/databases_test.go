@@ -150,6 +150,7 @@ func postgresConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, 
 func postgresLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, route tlsca.RouteToDatabase, query string) {
 	t.Helper()
 	lp := startLocalALPNProxy(t, user, cluster, route)
+	defer lp.Close()
 
 	pgconnConfig, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%v/", lp.GetAddr()))
 	require.NoError(t, err)
