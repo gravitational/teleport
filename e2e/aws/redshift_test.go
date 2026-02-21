@@ -270,7 +270,7 @@ func waitForRedshiftAutoUserDeactivate(t *testing.T, ctx context.Context, conn *
 
 func waitForRedshiftAutoUserDrop(t *testing.T, ctx context.Context, conn *pgConn, user string) {
 	t.Helper()
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// `Query` documents that it is always safe to attempt to read from the
 		// returned rows even if an error is returned.
 		// It also documents that the same error will be in rows.Err() and
