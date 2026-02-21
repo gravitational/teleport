@@ -71,7 +71,7 @@ func BenchmarkRootExecCommand(b *testing.B) {
 				func(s *Server) error {
 					s.childLogConfig = &srv.ChildLogConfig{
 						ExecLogConfig: srv.ExecLogConfig{
-							Level: &slog.LevelVar{},
+							Level: slog.LevelError,
 						},
 						Writer: io.Discard,
 					}
