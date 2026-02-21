@@ -40,6 +40,7 @@ type oktaSettings struct {
 	pluginStatusSink common.StatusSink
 	syncSettings     types.PluginOktaSyncSettings
 	scimEnabled      bool
+	plugin           types.Plugin
 }
 
 func (s *oktaSettings) orgURLBase64() string {
@@ -63,6 +64,8 @@ type OktaPluginPrams struct {
 	SyncSettings types.PluginOktaSyncSettings
 	// SCIMEnabled indicates that SCIM sync is enabled for this plugin instance.
 	SCIMEnabled bool
+	// Plugin is the Okta Plugin object.
+	Plugin types.Plugin
 }
 
 // InitOktaPlugin will initialize and start the Okta service for plugin use. This will not
@@ -88,6 +91,7 @@ func InitOktaPlugin(ctx context.Context, params OktaPluginPrams) string {
 				pluginStatusSink: params.PluginStatusSink,
 				syncSettings:     params.SyncSettings,
 				scimEnabled:      params.SCIMEnabled,
+				plugin:           params.Plugin,
 			},
 			pluginLogComponent(params.PluginName),
 			components...,
@@ -207,6 +211,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 		AuthProvider:       settings.authProvider,
 		AssignmentsService: conn.Client.OktaClient(),
 		TestHTTPClient:     clt,
+		Plugin:             settings.plugin,
 	})
 	if err != nil {
 		return trace.Wrap(err)

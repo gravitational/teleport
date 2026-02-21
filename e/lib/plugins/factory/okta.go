@@ -138,13 +138,14 @@ func Okta(ctx context.Context, plugin *types.PluginV1, deps Dependencies) (Deleg
 				AuthProvider:     oktaAuthProvider,
 				SyncSettings:     *oktaSpec.SyncSettings,
 				SCIMEnabled:      scimEnabled,
+				Plugin:           plugin,
 			},
 		)
 		// wait for the calling context to finish before doing anything else.
 		<-ctx.Done()
 
 		// Wait 5 seconds for the close event.
-		eventCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		eventCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if _, err = deps.ParentProcess.WaitForEvent(eventCtx, closeEvent); err != nil {
 			deps.Logger.DebugContext(ctx, "Error waiting for OktaStopped event", "error", err)

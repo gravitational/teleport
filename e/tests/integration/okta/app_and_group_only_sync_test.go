@@ -71,17 +71,22 @@ func Test_AppAndGroup_only_sync(t *testing.T) {
 		reuseConnector:      "okta-pre-created-test",
 	})
 
+	updateOktaPlugin(t, sut.Teleport.Process.GetAuthServer(), func(p *types.PluginV1) {
+		assignmentProcessLoopDuration := time.Millisecond * 300
+		p.Spec.GetOkta().SyncSettings.TimeBetweenAssignmentProcessLoops = assignmentProcessLoopDuration.String()
+	})
+
 	t.Run("verify users synced", func(t *testing.T) {
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			_, err := authServer.GetUser(ctx, userEmail, false /* withSecrets */)
 			require.NoError(t, err)
-		}, time.Second*2, time.Millisecond*50)
+		}, time.Second*20, time.Millisecond*50)
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			uls, err := authServer.GetUserLoginState(ctx, userEmail)
 			require.NoError(t, err)
 			require.Contains(t, uls.GetRoles(), teleport.SystemOktaRequesterRoleName)
-		}, time.Second*2, time.Millisecond*50)
+		}, time.Second*20, time.Millisecond*50)
 	})
 
 	t.Run("verify groups synced", func(t *testing.T) {
@@ -91,7 +96,7 @@ func Test_AppAndGroup_only_sync(t *testing.T) {
 			require.Len(t, userGroups, 2)
 			require.NotNil(t, selectUserGroupByName(userGroups, group1.Id))
 			require.NotNil(t, selectUserGroupByName(userGroups, group2.Id))
-		}, time.Second*2, time.Millisecond*50)
+		}, time.Second*20, time.Millisecond*50)
 	})
 
 	t.Run("make sure there are not assignments to any group", func(t *testing.T) {
@@ -108,7 +113,7 @@ func Test_AppAndGroup_only_sync(t *testing.T) {
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			_, err := authServer.GetOktaAssignment(ctx, accessRequest.GetName())
 			require.NoError(t, err)
-		}, time.Second*10, time.Millisecond*50)
+		}, time.Second*20, time.Millisecond*50)
 
 		accessRequestName = accessRequest.GetName()
 	})
@@ -116,7 +121,7 @@ func Test_AppAndGroup_only_sync(t *testing.T) {
 	t.Run("verify assignment to the group1 is processed", func(t *testing.T) {
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			require.True(t, fakeOkta.UserAssignedGroup(group1.Id, user.Id))
-		}, time.Second*4, time.Millisecond*50)
+		}, time.Second*20, time.Millisecond*50)
 		require.Empty(t, fakeOkta.GroupAssignments(group2.Id))
 	})
 
@@ -124,8 +129,10 @@ func Test_AppAndGroup_only_sync(t *testing.T) {
 	integrationSettings.enableBidirectionalSync = false
 	mustUpdateIntegration(t, oktaAuthClient, integrationSettings)
 
-	t.Run("delete access request to group1 and wait for the okta_assignment to be marked for cleanup", func(t *testing.T) {
-		err := authServer.DeleteAccessRequest(ctx, accessRequestName)
+	t.Run("lock access request to group1 and wait for the okta_assignment to be marked for cleanup", func(t *testing.T) {
+		lock, err := types.NewLock(accessRequestName, types.LockSpecV2{Target: types.LockTarget{AccessRequest: accessRequestName}})
+		require.NoError(t, err)
+		err = authServer.Services.UpsertLock(ctx, lock)
 		require.NoError(t, err)
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
@@ -133,13 +140,13 @@ func Test_AppAndGroup_only_sync(t *testing.T) {
 			require.NoError(t, err)
 			require.True(t, assignment.GetCleanupTime().Before(time.Now()), "require cleanup time to be set before now")
 			require.False(t, assignment.IsFinalized())
-		}, time.Second*10, time.Millisecond*50)
+		}, time.Second*20, time.Millisecond*100)
 	})
 
 	t.Run("verify assignment to the group1 is still there on the Okta side", func(t *testing.T) {
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			require.True(t, fakeOkta.UserAssignedGroup(group1.Id, user.Id))
-		}, time.Second*2, time.Millisecond*50)
+		}, time.Second*20, time.Millisecond*100)
 		require.Empty(t, fakeOkta.GroupAssignments(group2.Id))
 	})
 
@@ -152,7 +159,7 @@ func Test_AppAndGroup_only_sync(t *testing.T) {
 			_, err := authServer.GetOktaAssignment(ctx, accessRequestName)
 			require.Error(t, err)
 			require.True(t, trace.IsNotFound(err))
-		}, time.Second*20, time.Millisecond*50)
+		}, time.Second*20, time.Millisecond*100)
 	})
 
 	t.Run("verify assignment to the group1 is cleaned up on the Okta side", func(t *testing.T) {

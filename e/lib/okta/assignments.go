@@ -37,6 +37,7 @@ type AssignmentReconcilerAccessPoint interface {
 
 // operations, and updates the Okta assignment status afterwards.
 type assignmentReconciler struct {
+	plugin              types.Plugin
 	logger              *slog.Logger
 	clock               clockwork.Clock
 	clusterName         string
@@ -67,6 +68,7 @@ type assignmentReconciler struct {
 // newAssignmentReconciler creates a new AssignmentReconciler.
 func newAssignmentReconciler(clusterName string, svc *Service) *assignmentReconciler {
 	a := &assignmentReconciler{
+		plugin:                svc.plugin,
 		logger:                slog.With(teleport.ComponentKey, eteleport.ComponentOktaAssignmentReconciler),
 		clock:                 svc.clock,
 		clusterName:           clusterName,

@@ -291,6 +291,7 @@ func mustUpdateIntegration(t *testing.T, oktaAuthClient oktav1.OktaServiceClient
 	ctx := t.Context()
 
 	mustUpdateOktaIntegration(ctx, t, oktaAuthClient, &oktav1.UpdateIntegrationRequest{
+		TimeBetweenImports:      durationpb.New(1 * time.Second),
 		EnableUserSync:          settings.enableUserSync,
 		EnableAppGroupSync:      settings.enableAppGroupSync,
 		EnableAccessListSync:    settings.enableAccessListSync,

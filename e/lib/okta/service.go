@@ -135,6 +135,9 @@ type Config struct {
 	// TestHTTPClient is an optional HTTP client that can be used to override the
 	// default client for testing. Do not set in production.
 	TestHTTPClient *http.Client
+
+	// Plugin is the Plugin object.
+	Plugin types.Plugin
 }
 
 var (
@@ -237,6 +240,7 @@ func (c *Config) CheckAndSetDefaults() error {
 // Service is the core data for the Okta integration service. The running
 // service synchronizes data with an upstream Okta IdP.
 type Service struct {
+	plugin     types.Plugin
 	leader     isLeaderGetter
 	logger     *slog.Logger
 	clock      clockwork.Clock
@@ -443,6 +447,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 	}
 
 	s := &Service{
+		plugin:                  config.Plugin,
 		leader:                  config.Leader,
 		connectorService:        config.ConnectorService,
 		logger:                  config.Logger,
