@@ -65,6 +65,7 @@ export enum NavTitle {
   AuthConnectors = 'Auth Connectors',
   AuthConnectorsShortened = 'Auth Conn.',
   Integrations = 'Integrations',
+  UserTasks = 'User Tasks',
   EnrollNewResource = 'Resource',
   EnrollNewIntegration = 'Integration',
   NewAccessList = 'Access List',

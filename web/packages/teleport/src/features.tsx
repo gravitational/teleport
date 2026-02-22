@@ -75,6 +75,7 @@ import { TrustedClusters } from './TrustedClusters';
 import { NavTitle, type FeatureFlags, type TeleportFeature } from './types';
 import { UnifiedResources } from './UnifiedResources';
 import { Users } from './Users';
+import { UserTasks } from './UserTasks/UserTasks';
 import { WorkloadIdentities } from './WorkloadIdentity/WorkloadIdentities';
 
 // to promote feature discoverability, most features should be visible in the navigation even if a user doesnt have access.
@@ -613,6 +614,38 @@ export class FeatureIntegrations implements TeleportFeature {
   }
 }
 
+export class FeatureUserTasks implements TeleportFeature {
+  category = NavigationCategory.ZeroTrustAccess;
+
+  hasAccess(flags: FeatureFlags) {
+    if (shouldHideFromNavigation(cfg)) {
+      return flags.integrations;
+    }
+    return true;
+  }
+
+  route = {
+    title: 'User Tasks',
+    path: cfg.routes.userTasks,
+    exact: true,
+    component: UserTasks,
+  };
+
+  navigationItem = {
+    title: NavTitle.UserTasks,
+    icon: ListThin,
+    exact: true,
+    getLink() {
+      return cfg.routes.userTasks;
+    },
+    searchableTags: ['user tasks', 'tasks'],
+  };
+
+  getRoute() {
+    return this.route;
+  }
+}
+
 export class FeatureIntegrationEnroll implements TeleportFeature {
   category = NavigationCategory.AddNew;
 
@@ -955,6 +988,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureRoles(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
+    new FeatureUserTasks(),
     new FeatureManagedUpdates(),
     new FeatureClusters(),
     new FeatureTrust(),
