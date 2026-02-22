@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -89,6 +90,9 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 	a, err := authority.NewKeygen(modules.BuildOSS, s.clock.Now)
 	require.NoError(t, err)
 
+	identity, err := local.NewTestIdentityService(s.bk)
+	require.NoError(t, err)
+
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterName,
 		Backend:                s.bk,
@@ -97,6 +101,7 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 		SkipPeriodicOperations: true,
 		HostUUID:               uuid.NewString(),
 		Clock:                  s.clock,
+		Identity:               identity,
 	}
 	s.a, err = auth.NewServer(authConfig)
 	require.NoError(t, err)
