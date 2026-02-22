@@ -1808,6 +1808,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onAppLogout(&cf)
 	case appConfig.FullCommand():
 		err = onAppConfig(&cf)
+	case kube.tui.FullCommand():
+		err = kube.tui.run(&cf)
 	case kube.credentials.FullCommand():
 		err = kube.credentials.run(&cf)
 	case kube.ls.FullCommand():

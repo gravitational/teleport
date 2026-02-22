@@ -42,6 +42,9 @@ export default function useRouting(ctx: ConsoleContext) {
   const joinKubeExecRouteMatch = useRouteMatch<UrlKubeExecParams>(
     cfg.routes.kubeExecSession
   );
+  const kubeTUIRouteMatch = useRouteMatch<{ clusterId: string; kubeId: string }>(
+    cfg.routes.kubeTUI
+  );
   const dbConnectMatch = useRouteMatch<UrlDbConnectParams>(
     cfg.routes.dbConnect
   );
@@ -68,6 +71,8 @@ export default function useRouting(ctx: ConsoleContext) {
     } else if (joinKubeExecRouteMatch) {
       joinKubeExecRouteMatch.params.mode = participantMode;
       ctx.addKubeExecDocument(joinKubeExecRouteMatch.params);
+    } else if (kubeTUIRouteMatch) {
+      ctx.addKubeTUIDocument(kubeTUIRouteMatch.params);
     } else if (dbConnectMatch) {
       ctx.addDbDocument(dbConnectMatch.params);
     }

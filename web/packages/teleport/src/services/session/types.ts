@@ -75,4 +75,4 @@ export type ParticipantMode = 'observer' | 'moderator' | 'peer';
 
 export type ParticipantList = Record<string, Participant[]>;
 
-export type SessionKind = 'ssh' | 'k8s' | 'db' | 'app' | 'desktop';
+export type SessionKind = 'ssh' | 'k8s' | 'kubeTUI' | 'db' | 'app' | 'desktop';

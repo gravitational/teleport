@@ -45,6 +45,7 @@ import {
   Document,
   DocumentDb,
   DocumentKubeExec,
+  DocumentKubeTUI,
   DocumentSsh,
   StoreDocs,
   StoreParties,
@@ -104,6 +105,10 @@ export default class ConsoleContext {
     this.storeDocs.update(id, partial);
   }
 
+  updateKubeTUIDocument(id: number, partial: Partial<DocumentKubeTUI>) {
+    this.storeDocs.update(id, partial);
+  }
+
   updateDbDocument(id: number, partial: Partial<DocumentDb>) {
     this.storeDocs.update(id, partial);
   }
@@ -136,6 +141,20 @@ export default class ConsoleContext {
       container: '',
       isInteractive: true,
       command: '',
+    });
+  }
+
+  addKubeTUIDocument(params: { clusterId: string; kubeId: string }) {
+    const url = cfg.getKubeTUIConnectRoute(params);
+
+    return this.storeDocs.add({
+      kind: 'kubeTUI',
+      status: 'disconnected',
+      clusterId: params.clusterId,
+      title: params.kubeId,
+      url,
+      created: new Date(),
+      kubeCluster: params.kubeId,
     });
   }
 
@@ -268,6 +287,13 @@ export default class ConsoleContext {
         };
 
         baseUrl = cfg.api.ttyKubeExecWsAddr;
+        break;
+      case 'kubeTUI':
+        ttyParams = {
+          kubeCluster: session.resourceName,
+        };
+
+        baseUrl = cfg.api.ttyKubeTUIWsAddr;
         break;
       case 'db':
         baseUrl = cfg.api.ttyDbWsAddr;

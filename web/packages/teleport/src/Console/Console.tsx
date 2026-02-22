@@ -30,6 +30,7 @@ import { useConsoleContext, useStoreDocs } from './consoleContextProvider';
 import DocumentBlank from './DocumentBlank';
 import { DocumentDb } from './DocumentDb';
 import DocumentKubeExec from './DocumentKubeExec';
+import DocumentKubeTUI from './DocumentKubeTUI';
 import DocumentNodes from './DocumentNodes';
 import DocumentSsh from './DocumentSsh';
 import * as stores from './stores/types';
@@ -142,6 +143,8 @@ function MemoizedDocument(props: { doc: stores.Document; visible: boolean }) {
         return <DocumentNodes doc={doc} visible={visible} />;
       case 'kubeExec':
         return <DocumentKubeExec doc={doc} visible={visible} />;
+      case 'kubeTUI':
+        return <DocumentKubeTUI doc={doc} visible={visible} />;
       case 'db':
         return <DocumentDb doc={doc} visible={visible} />;
       default:

@@ -25,7 +25,7 @@ interface DocumentBase {
   title?: string;
   clusterId?: string;
   url: string;
-  kind: 'terminal' | 'nodes' | 'kubeExec' | 'db' | 'blank';
+  kind: 'terminal' | 'nodes' | 'kubeExec' | 'kubeTUI' | 'db' | 'blank';
   created: Date;
 }
 
@@ -61,6 +61,13 @@ export interface DocumentKubeExec extends DocumentBase {
   command: string;
 }
 
+export interface DocumentKubeTUI extends DocumentBase {
+  status: 'connected' | 'disconnected';
+  kind: 'kubeTUI';
+  sid?: string;
+  kubeCluster: string;
+}
+
 export interface DocumentDb extends DocumentBase {
   kind: 'db';
   sid?: string;
@@ -71,6 +78,7 @@ export type Document =
   | DocumentNodes
   | DocumentSsh
   | DocumentKubeExec
+  | DocumentKubeTUI
   | DocumentDb
   | DocumentBlank;
 

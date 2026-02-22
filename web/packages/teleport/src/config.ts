@@ -210,6 +210,7 @@ const cfg = {
     consoleSession: '/web/cluster/:clusterId/console/session/:sid',
     kubeExec: '/web/cluster/:clusterId/console/kube/exec/:kubeId/',
     kubeExecSession: '/web/cluster/:clusterId/console/kube/session/:sid',
+    kubeTUI: '/web/cluster/:clusterId/console/kube/tui/:kubeId',
     dbConnect: '/web/cluster/:clusterId/console/db/connect/:serviceName',
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
     login: '/web/login',
@@ -322,6 +323,8 @@ const cfg = {
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect/ws?params=:params&traceparent=:traceparent',
     ttyKubeExecWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/kube/exec/ws?params=:params&traceparent=:traceparent',
+    ttyKubeTUIWsAddr:
+      'wss://:fqdn/v1/webapi/sites/:clusterId/kube/k9s/ws?params=:params&traceparent=:traceparent',
     ttyDbWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/db/exec/ws?params=:params',
     ttyPlaybackWsAddr:
@@ -976,6 +979,10 @@ const cfg = {
 
   getKubeExecConnectRoute(params: UrlKubeExecParams) {
     return generatePath(cfg.routes.kubeExec, { ...params });
+  },
+
+  getKubeTUIConnectRoute(params: { clusterId: string; kubeId: string }) {
+    return generatePath(cfg.routes.kubeTUI, { ...params });
   },
 
   getDesktopRoute({ clusterId, username, desktopName }) {

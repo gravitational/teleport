@@ -36,7 +36,6 @@ import DbConnectDialog from 'teleport/Databases/ConnectDialog';
 import { SelectResourceSpec } from 'teleport/Discover/SelectResource/resources';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { ConnectDialog as GitServerConnectDialog } from 'teleport/GitServers';
-import KubeConnectDialog from 'teleport/Kubes/ConnectDialog';
 import { openNewTab } from 'teleport/lib/util';
 import { useSamlAppAction } from 'teleport/SamlApplications/useSamlAppActions';
 import { UnifiedResource } from 'teleport/services/agents';
@@ -333,33 +332,22 @@ function DatabaseConnect({ database }: { database: Database }) {
 }
 
 const KubeConnect = ({ kube }: { kube: Kube }) => {
-  const ctx = useTeleport();
   const { clusterId } = useStickyClusterId();
-  const [open, setOpen] = useState(false);
-  const username = ctx.storeUser.state.username;
-  const authType = ctx.storeUser.state.authType;
-  const accessRequestId = ctx.storeUser.getAccessRequestId();
   return (
-    <>
-      <ButtonBorder
-        width="123px"
-        textTransform="none"
-        size="small"
-        onClick={() => setOpen(true)}
-      >
-        Connect
-      </ButtonBorder>
-      {open && (
-        <KubeConnectDialog
-          onClose={() => setOpen(false)}
-          username={username}
-          authType={authType}
-          kubeConnectName={kube.name}
-          clusterId={clusterId}
-          accessRequestId={accessRequestId}
-        />
-      )}
-    </>
+    <ButtonBorder
+      width="123px"
+      textTransform="none"
+      size="small"
+      onClick={() => {
+        const url = cfg.getKubeTUIConnectRoute({
+          clusterId,
+          kubeId: kube.name,
+        });
+        openNewTab(url);
+      }}
+    >
+      Connect
+    </ButtonBorder>
   );
 };
 

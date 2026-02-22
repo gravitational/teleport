@@ -26,14 +26,17 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"os/signal"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	dockerterm "github.com/moby/term"
@@ -71,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/kubetui"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -78,6 +82,7 @@ import (
 )
 
 type kubeCommands struct {
+	tui         *kubeTUICommand
 	credentials *kubeCredentialsCommand
 	ls          *kubeLSCommand
 	login       *kubeLoginCommand
@@ -89,6 +94,7 @@ type kubeCommands struct {
 func newKubeCommand(app *kingpin.Application) kubeCommands {
 	kube := app.Command("kube", "Manage available Kubernetes clusters.")
 	cmds := kubeCommands{
+		tui:         newKubeTUICommand(kube),
 		credentials: newKubeCredentialsCommand(kube),
 		ls:          newKubeLSCommand(kube),
 		login:       newKubeLoginCommand(kube),
@@ -97,6 +103,163 @@ func newKubeCommand(app *kingpin.Application) kubeCommands {
 		join:        newKubeJoinCommand(kube),
 	}
 	return cmds
+}
+
+type kubeTUICommand struct {
+	*kingpin.CmdClause
+}
+
+func newKubeTUICommand(parent *kingpin.CmdClause) *kubeTUICommand {
+	c := &kubeTUICommand{
+		CmdClause: parent.Command("tui", "Launch an interactive Kubernetes resource browser.").Hidden().Default(),
+	}
+	return c
+}
+
+func (c *kubeTUICommand) run(cf *CLIConf) error {
+	closeFn, newKubeConfigLocation, err := maybeStartKubeLocalProxy(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer closeFn()
+
+	f := c.kubeCmdFactory(newKubeConfigLocation)
+
+	restConfig, err := f.ToRESTConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clientset, err := f.KubernetesClientSet()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Determine cluster name from kubeconfig current context.
+	rawConfig, err := f.ToRawKubeConfigLoader().RawConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	clusterName := rawConfig.CurrentContext
+
+	// Get terminal size.
+	w, h := 80, 24
+	if ws, err := dockerterm.GetWinsize(os.Stdout.Fd()); err == nil {
+		w, h = int(ws.Width), int(ws.Height)
+	}
+
+	model := kubetui.NewModel(clientset, restConfig, clusterName, w, h, kubetui.WithPortForward(), kubetui.WithFileCopy())
+
+	for {
+		p := tea.NewProgram(
+			model,
+			tea.WithAltScreen(),
+		)
+
+		finalModel, err := p.Run()
+		if err != nil {
+			return trace.Wrap(err, "TUI program exited with error")
+		}
+
+		m, ok := finalModel.(kubetui.Model)
+		if !ok || !m.WantsExec() {
+			break // normal quit
+		}
+
+		// Run exec session
+		execReq := m.GetExecRequest()
+		if err := c.runExec(cf.Context, m.Client(), execReq); err != nil {
+			fmt.Fprintf(os.Stderr, "exec session ended with error: %v\n", err)
+		}
+
+		// Restart TUI with cleaned-up model
+		m.ClearExec()
+		model = m
+	}
+
+	return nil
+}
+
+func (c *kubeTUICommand) runExec(ctx context.Context, client *kubetui.Client, req *kubetui.ExecRequest) error {
+	// Get current terminal size for initial size.
+	var initialWidth, initialHeight uint16 = 80, 24
+	if ws, err := dockerterm.GetWinsize(os.Stdout.Fd()); err == nil {
+		initialWidth, initialHeight = ws.Width, ws.Height
+	}
+
+	sizeQueue := &cliTermSizeQueue{
+		incoming: make(chan remotecommand.TerminalSize, 1),
+		ctx:      ctx,
+	}
+	sizeQueue.AddSize(remotecommand.TerminalSize{Width: initialWidth, Height: initialHeight})
+
+	// Monitor terminal resize signals.
+	go c.monitorTermSize(ctx, sizeQueue)
+
+	// Put terminal into raw mode for the exec session.
+	oldState, err := dockerterm.SetRawTerminal(os.Stdin.Fd())
+	if err != nil {
+		return trace.Wrap(err, "failed to set terminal raw mode")
+	}
+	defer dockerterm.RestoreTerminal(os.Stdin.Fd(), oldState)
+
+	return client.ExecPod(ctx, kubetui.ExecConfig{
+		Namespace: req.Namespace,
+		Pod:       req.Pod,
+		Container: req.Container,
+		Stdin:     os.Stdin,
+		Stdout:    os.Stdout,
+		SizeQueue: sizeQueue,
+	})
+}
+
+func (c *kubeTUICommand) monitorTermSize(ctx context.Context, q *cliTermSizeQueue) {
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGWINCH)
+	defer signal.Stop(sigCh)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-sigCh:
+			if ws, err := dockerterm.GetWinsize(os.Stdout.Fd()); err == nil {
+				q.AddSize(remotecommand.TerminalSize{Width: ws.Width, Height: ws.Height})
+			}
+		}
+	}
+}
+
+func (c *kubeTUICommand) kubeCmdFactory(overwriteKubeConfigLocation string) cmdutil.Factory {
+	kubeConfigFlags := genericclioptions.NewConfigFlags(true).WithDeprecatedPasswordFlag()
+	if overwriteKubeConfigLocation != "" {
+		kubeConfigFlags.KubeConfig = &overwriteKubeConfigLocation
+	}
+	matchVersionKubeConfigFlags := cmdutil.NewMatchVersionFlags(kubeConfigFlags)
+	return cmdutil.NewFactory(matchVersionKubeConfigFlags)
+}
+
+// cliTermSizeQueue implements remotecommand.TerminalSizeQueue for CLI exec sessions.
+type cliTermSizeQueue struct {
+	incoming chan remotecommand.TerminalSize
+	ctx      context.Context
+}
+
+func (q *cliTermSizeQueue) Next() *remotecommand.TerminalSize {
+	select {
+	case <-q.ctx.Done():
+		return nil
+	case size := <-q.incoming:
+		return &size
+	}
+}
+
+func (q *cliTermSizeQueue) AddSize(s remotecommand.TerminalSize) {
+	select {
+	case q.incoming <- s:
+	default:
+		// non-blocking: drop if queue is full
+	}
 }
 
 type kubeJoinCommand struct {
