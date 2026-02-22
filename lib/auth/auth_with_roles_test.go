@@ -10061,7 +10061,7 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 					t.Fatalf("Watcher unexpectedly closed with error: %v", watcher.Error())
 				}
 
-				// If the watcher was intitialized successfully, attach it to the
+				// If the watcher was initialized successfully, attach it to the
 				// test case for the watch_events portion of the test.
 				tc.watcher = watcher
 			})
@@ -10086,19 +10086,19 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				var events []types.Event
-			loop:
+				events := make([]types.Event, 0, len(tc.expectEvents))
 				for {
 					select {
 					case event := <-tc.watcher.Events():
 						events = append(events, event)
-					case <-time.After(500 * time.Millisecond):
-						break loop
+						if len(events) == len(tc.expectEvents) {
+							require.Equal(t, tc.expectEvents, events)
+							return
+						}
 					case <-tc.watcher.Done():
 						t.Fatalf("Watcher unexpectedly closed with error: %v", tc.watcher.Error())
 					}
 				}
-				require.Equal(t, tc.expectEvents, events)
 			})
 		}
 	})
