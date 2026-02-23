@@ -1722,8 +1722,11 @@ func TestUsersCRUD(t *testing.T) {
 func TestPasswordGarbage(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	testSrv := newTestTLSServer(t)
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
 	garbage := [][]byte{
 		nil,
@@ -1731,7 +1734,7 @@ func TestPasswordGarbage(t *testing.T) {
 		make([]byte, defaults.MinPasswordLength-1),
 	}
 	for _, g := range garbage {
-		err := testSrv.Auth().CheckPassword(ctx, "user1", g, "123456")
+		err := as.AuthServer.CheckPassword(t.Context(), "user1", g, "123456")
 		require.True(t, trace.IsBadParameter(err))
 	}
 }

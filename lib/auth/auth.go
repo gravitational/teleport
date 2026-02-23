@@ -716,6 +716,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		WorkloadClusterService:          cfg.WorkloadClusterService,
 	}
 
+	if cfg.FakePasswordHash == nil {
+		// This is a bcrypt hash for password "barbaz" with the default bcrypt cost.
+		cfg.FakePasswordHash = []byte(`$2a$10$Yy.e6BmS2SrGbBDsyDLVkOANZmvjjMR890nUGSXFJHBXWzxe7T44m`)
+	}
+
 	as = &Server{
 		bk:                           cfg.Backend,
 		clock:                        cfg.Clock,
@@ -1221,6 +1226,8 @@ type Server struct {
 
 	closeCtx   context.Context
 	cancelFunc context.CancelFunc
+
+	fakePasswordHash []byte
 
 	samlAuthService SAMLService
 	oidcAuthService OIDCService
