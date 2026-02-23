@@ -136,7 +136,7 @@ func UploadDownloadMetadata(t *testing.T, handler events.MultipartHandler) {
 	defer os.Remove(f.Name())
 	defer f.Close()
 
-	err = handler.DownloadMetadata(context.TODO(), id, f)
+	err = handler.DownloadMetadata(t.Context(), id, f)
 	require.NoError(t, err)
 
 	_, err = f.Seek(0, 0)
@@ -159,7 +159,7 @@ func UploadDownloadThumbnail(t *testing.T, handler events.MultipartHandler) {
 	defer os.Remove(f.Name())
 	defer f.Close()
 
-	err = handler.DownloadThumbnail(context.TODO(), id, f)
+	err = handler.DownloadThumbnail(t.Context(), id, f)
 	require.NoError(t, err)
 
 	_, err = f.Seek(0, 0)
@@ -179,7 +179,7 @@ func DownloadNotFound(t *testing.T, handler events.MultipartHandler) {
 	defer os.Remove(f.Name())
 	defer f.Close()
 
-	err = handler.Download(context.TODO(), id, f)
+	err = handler.Download(t.Context(), id, f)
 	require.True(t, trace.IsNotFound(err))
 }
 
