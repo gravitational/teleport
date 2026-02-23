@@ -149,7 +149,7 @@ func TestNotifications(t *testing.T) {
 
 	// Upsert last seen timestamp.
 	lastSeenTimeString := "2024-05-08T19:00:47.836Z"
-	_, err = pack.clt.PutJSON(context.TODO(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "lastseennotification"),
+	_, err = pack.clt.PutJSON(t.Context(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "lastseennotification"),
 		UpsertUserLastSeenNotificationRequest{
 			Time: lastSeenTimeString,
 		})
@@ -180,7 +180,7 @@ func TestNotifications(t *testing.T) {
 	var fetchedNotifications []ui.Notification
 
 	// Get a page of 4.
-	notificationsResp, err := pack.clt.Get(context.TODO(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "notifications"), url.Values{
+	notificationsResp, err := pack.clt.Get(t.Context(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "notifications"), url.Values{
 		"limit": []string{"4"},
 	})
 	require.NoError(t, err)
@@ -194,7 +194,7 @@ func TestNotifications(t *testing.T) {
 	require.Equal(t, expectedNextKeys, unmarshaledNotificationsResp.NextKey)
 
 	// Get a page of 10, starting from the previously returned keys.
-	notificationsResp, err = pack.clt.Get(context.TODO(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "notifications"), url.Values{
+	notificationsResp, err = pack.clt.Get(t.Context(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "notifications"), url.Values{
 		"limit":    []string{"10"},
 		"startKey": []string{unmarshaledNotificationsResp.NextKey},
 	})
@@ -207,7 +207,7 @@ func TestNotifications(t *testing.T) {
 	require.Equal(t, lastSeenTimeString, unmarshaledNotificationsResp.UserLastSeenNotification)
 
 	// Mark the most recent notification as clicked.
-	_, err = pack.clt.PutJSON(context.TODO(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "notificationstate"),
+	_, err = pack.clt.PutJSON(t.Context(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "notificationstate"),
 		upsertUserNotificationStateRequest{
 			NotificationId:    notificationIdMap["auditor-7"],
 			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED,
@@ -215,7 +215,7 @@ func TestNotifications(t *testing.T) {
 	require.NoError(t, err)
 
 	// Mark the last notification as dismissed.
-	_, err = pack.clt.PutJSON(context.TODO(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "notificationstate"),
+	_, err = pack.clt.PutJSON(t.Context(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "notificationstate"),
 		upsertUserNotificationStateRequest{
 			NotificationId:    notificationIdMap["auditor-1"],
 			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_DISMISSED,
@@ -223,7 +223,7 @@ func TestNotifications(t *testing.T) {
 	require.NoError(t, err)
 
 	// List all notifications again.
-	notificationsResp, err = pack.clt.Get(context.TODO(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "notifications"), url.Values{
+	notificationsResp, err = pack.clt.Get(t.Context(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "notifications"), url.Values{
 		"limit": []string{"10"},
 	})
 	require.NoError(t, err)
