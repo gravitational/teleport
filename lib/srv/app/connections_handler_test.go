@@ -19,7 +19,6 @@
 package app
 
 import (
-	"context"
 	"log/slog"
 	"net"
 	"net/http"
@@ -63,9 +62,6 @@ func TestNewHTTPServer(t *testing.T) {
 // functional; TLS and auth are not configured.
 func newTestHandler(t *testing.T, cfg limiter.Config) *ConnectionsHandler {
 	t.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
 	lim, err := limiter.NewLimiter(cfg)
 	require.NoError(t, err)
 
@@ -74,7 +70,7 @@ func newTestHandler(t *testing.T, cfg limiter.Config) *ConnectionsHandler {
 			Clock:            clockwork.NewFakeClock(),
 			ServiceComponent: teleport.ComponentApp,
 		},
-		closeContext: ctx,
+		closeContext: t.Context(),
 		limiter:      lim,
 		log:          slog.Default(),
 	}
@@ -174,7 +170,7 @@ func TestHandleConnection_PipeSkipsLimiter(t *testing.T) {
 	defer release()
 
 	server, client := net.Pipe()
-	t.Cleanup(func() { _ = server.Close() })
+	t.Cleanup(func() { server.Close() })
 	client.Close()
 
 	// handleConnection should bypass the limiter (which is full)
