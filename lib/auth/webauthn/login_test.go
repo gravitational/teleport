@@ -305,6 +305,10 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 	okResp, err := key.SignAssertion(webOrigin, assertion)
 	require.NoError(t, err)
 
+	okExts := &mfav1.ChallengeExtensions{
+		Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+	}
+
 	tests := []struct {
 		name       string
 		user       string
@@ -315,25 +319,19 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 			name:       "NOK empty user",
 			user:       "",
 			createResp: func() *wantypes.CredentialAssertionResponse { return okResp },
-			exts: &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
-			},
+			exts:       okExts,
 		},
 		{
 			name:       "NOK nil resp",
 			user:       user,
 			createResp: func() *wantypes.CredentialAssertionResponse { return nil },
-			exts: &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
-			},
+			exts:       okExts,
 		},
 		{
 			name:       "NOK empty resp",
 			user:       user,
 			createResp: func() *wantypes.CredentialAssertionResponse { return &wantypes.CredentialAssertionResponse{} },
-			exts: &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
-			},
+			exts:       okExts,
 		},
 		{
 			name:       "NOK nil required extensions",
@@ -346,10 +344,8 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 			user: user,
 			createResp: func() *wantypes.CredentialAssertionResponse {
 				assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{
-					User: user,
-					ChallengeExtensions: &mfav1.ChallengeExtensions{
-						Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
-					},
+					User:                user,
+					ChallengeExtensions: okExts,
 				})
 				require.NoError(t, err)
 				resp, err := key.SignAssertion("https://badorigin.com", assertion)
@@ -365,10 +361,8 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 			user: user,
 			createResp: func() *wantypes.CredentialAssertionResponse {
 				assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{
-					User: user,
-					ChallengeExtensions: &mfav1.ChallengeExtensions{
-						Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
-					},
+					User:                user,
+					ChallengeExtensions: okExts,
 				})
 				require.NoError(t, err)
 				assertion.Response.RelyingPartyID = "badrpid.com"
@@ -377,19 +371,15 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 				require.NoError(t, err)
 				return resp
 			},
-			exts: &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
-			},
+			exts: okExts,
 		},
 		{
 			name: "NOK assertion signed by unknown device",
 			user: user,
 			createResp: func() *wantypes.CredentialAssertionResponse {
 				assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{
-					User: user,
-					ChallengeExtensions: &mfav1.ChallengeExtensions{
-						Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
-					},
+					User:                user,
+					ChallengeExtensions: okExts,
 				})
 				require.NoError(t, err)
 
@@ -402,19 +392,15 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 				require.NoError(t, err)
 				return resp
 			},
-			exts: &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
-			},
+			exts: okExts,
 		},
 		{
 			name: "NOK assertion with invalid signature",
 			user: user,
 			createResp: func() *wantypes.CredentialAssertionResponse {
 				assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{
-					User: user,
-					ChallengeExtensions: &mfav1.ChallengeExtensions{
-						Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
-					},
+					User:                user,
+					ChallengeExtensions: okExts,
 				})
 				require.NoError(t, err)
 				// Flip a challenge bit, this should be enough to consistently fail
@@ -425,9 +411,7 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 				require.NoError(t, err)
 				return resp
 			},
-			exts: &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
-			},
+			exts: okExts,
 		},
 	}
 	for _, test := range tests {

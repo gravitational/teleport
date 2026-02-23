@@ -137,9 +137,6 @@ func (f *LoginFlow) Begin(ctx context.Context, params BeginParams) (*wantypes.Cr
 // user name, and other login properties. If login is successful, Finish has the
 // side effect of updating the counter and last used timestamp of the MFADevice
 // used.
-// If validateOnly is true, the response will be validated without consuming it.
-// This is useful for flows like Browser MFA where the browser needs to validate
-// the response before returning it tsh.
 func (f *LoginFlow) Finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, requiredExtensions *mfav1.ChallengeExtensions) (*LoginData, error) {
 	lf := &loginFlow{
 		U2F:         f.U2F,
