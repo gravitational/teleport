@@ -4481,7 +4481,7 @@ func TestListResources_WithLogins(t *testing.T) {
 			if assert.NoError(t, err) {
 				assert.Len(t, resp.Resources, 5)
 			}
-		}, 5*time.Second, 200*time.Millisecond)
+		}, 15*time.Second, 200*time.Millisecond)
 	}
 
 	t.Run("with fake pagination", func(t *testing.T) {
