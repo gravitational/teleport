@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -376,12 +377,12 @@ func TestAWSConsoleURLForARN(t *testing.T) {
 		{
 			name:        "GovCloud us-gov-west-1",
 			inputARN:    "arn:aws-us-gov:rolesanywhere:us-gov-west-1:123456789012:profile/uuid1",
-			expectedURL: "https://us-gov-west-1.console.amazonaws-us-gov.com",
+			expectedURL: constants.AWSUSGovConsoleURL,
 		},
 		{
 			name:        "GovCloud us-gov-east-1",
 			inputARN:    "arn:aws-us-gov:rolesanywhere:us-gov-east-1:123456789012:profile/uuid1",
-			expectedURL: "https://us-gov-east-1.console.amazonaws-us-gov.com",
+			expectedURL: constants.AWSUSGovConsoleURL,
 		},
 		{
 			name:        "AWS China",
