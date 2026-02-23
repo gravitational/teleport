@@ -94,6 +94,7 @@ import (
 )
 
 func TestMFADeviceManagement(t *testing.T) {
+	t.Parallel()
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 	clock := testServer.Clock().(*clockwork.FakeClock)
@@ -457,6 +458,7 @@ func TestMFADeviceManagement(t *testing.T) {
 }
 
 func TestMFADeviceManagement_SSO(t *testing.T) {
+	t.Parallel()
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 	ctx := context.Background()
@@ -574,6 +576,7 @@ func TestMFADeviceManagement_SSO(t *testing.T) {
 }
 
 func TestDeletingLastPasswordlessDevice(t *testing.T) {
+	t.Parallel()
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 	clock := testServer.Clock().(*clockwork.FakeClock)
@@ -884,6 +887,7 @@ func testDeleteMFADevice(ctx context.Context, t *testing.T, authClient *authclie
 }
 
 func TestCreateAppSession_deviceExtensions(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
@@ -969,6 +973,7 @@ func TestCreateAppSession_deviceExtensions(t *testing.T) {
 }
 
 func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testServer := newTestTLSServer(t)
 
@@ -2647,6 +2652,7 @@ func TestIsMFARequired(t *testing.T) {
 }
 
 func TestIsMFARequired_unauthorized(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -2833,6 +2839,7 @@ func TestIsMFARequired_nodeMatch(t *testing.T) {
 }
 
 func TestIsMFARequired_App(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -5638,6 +5645,7 @@ func TestGetAccessGraphConfig(t *testing.T) {
 }
 
 func TestGetVnetConfig(t *testing.T) {
+	t.Parallel()
 	server := newTestTLSServer(t)
 	user, _, err := authtest.CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
 	require.NoError(t, err)
@@ -6485,6 +6493,7 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 }
 
 func TestGRPCServingStatus(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	srv := newTestTLSServer(t)
 	defer srv.Close()

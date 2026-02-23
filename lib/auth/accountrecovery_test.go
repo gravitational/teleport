@@ -57,17 +57,22 @@ import (
 //   - reusing a used or non-existing token returns error
 func TestGenerateAndUpsertRecoveryCodes(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
 	ctx := context.Background()
 
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+
 	user := "fake@fake.com"
-	rc, err := srv.Auth().GenerateAndUpsertRecoveryCodes(ctx, user)
+	rc, err := as.AuthServer.GenerateAndUpsertRecoveryCodes(ctx, user)
 	require.NoError(t, err)
 	require.Len(t, rc.Codes, auth.NumOfRecoveryCodes)
 	require.NotEmpty(t, rc.Created)
 
 	// Test codes are not marked used.
-	recovery, err := srv.Auth().GetRecoveryCodes(ctx, user, true /* withSecrets */)
+	recovery, err := as.AuthServer.GetRecoveryCodes(ctx, user, true /* withSecrets */)
 	require.NoError(t, err)
 	for _, token := range recovery.GetCodes() {
 		require.False(t, token.IsUsed)
@@ -82,27 +87,27 @@ func TestGenerateAndUpsertRecoveryCodes(t *testing.T) {
 		require.True(t, strings.HasPrefix(code, "tele-"))
 
 		// Test codes match.
-		err := srv.Auth().VerifyRecoveryCode(ctx, user, []byte(code))
+		err := as.AuthServer.VerifyRecoveryCode(ctx, user, []byte(code))
 		require.NoError(t, err)
 	}
 
 	// Test used codes are marked used.
-	recovery, err = srv.Auth().GetRecoveryCodes(ctx, user, true /* withSecrets */)
+	recovery, err = as.AuthServer.GetRecoveryCodes(ctx, user, true /* withSecrets */)
 	require.NoError(t, err)
 	for _, token := range recovery.GetCodes() {
 		require.True(t, token.IsUsed)
 	}
 
 	// Test with a used code returns error.
-	err = srv.Auth().VerifyRecoveryCode(ctx, user, []byte(rc.Codes[0]))
+	err = as.AuthServer.VerifyRecoveryCode(ctx, user, []byte(rc.Codes[0]))
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Test with invalid recovery code returns error.
-	err = srv.Auth().VerifyRecoveryCode(ctx, user, []byte("invalidcode"))
+	err = as.AuthServer.VerifyRecoveryCode(ctx, user, []byte("invalidcode"))
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Test with non-existing user returns error.
-	err = srv.Auth().VerifyRecoveryCode(ctx, "doesnotexist", []byte(rc.Codes[0]))
+	err = as.AuthServer.VerifyRecoveryCode(ctx, "doesnotexist", []byte(rc.Codes[0]))
 	require.True(t, trace.IsAccessDenied(err))
 }
 
