@@ -86,7 +86,7 @@ func mustGetDatabases(t *testing.T, fetchers []common.Fetcher) types.Databases {
 
 	var all types.Databases
 	for _, fetcher := range fetchers {
-		resources, err := fetcher.Get(context.TODO())
+		resources, err := fetcher.Get(t.Context())
 		require.NoError(t, err)
 
 		databases, err := resources.AsDatabases()

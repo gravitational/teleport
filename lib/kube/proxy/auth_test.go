@@ -141,7 +141,7 @@ func TestGetKubeCreds(t *testing.T) {
 	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles/status"}] = utils.KubeCustomResource
 
 	logger := utils.NewLoggerForTests()
-	ctx := context.TODO()
+	ctx := t.Context()
 	const teleClusterName = "teleport-cluster"
 	dir := t.TempDir()
 	kubeconfigPath := filepath.Join(dir, "kubeconfig")

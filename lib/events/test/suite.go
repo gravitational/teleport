@@ -47,7 +47,7 @@ import (
 func UploadDownload(t *testing.T, handler events.MultipartHandler) {
 	val := "hello, how is it going? this is the uploaded file"
 	id := session.NewID()
-	_, err := handler.Upload(context.TODO(), id, bytes.NewBuffer([]byte(val)))
+	_, err := handler.Upload(t.Context(), id, bytes.NewBuffer([]byte(val)))
 	require.NoError(t, err)
 
 	f, err := os.CreateTemp("", string(id))
@@ -55,7 +55,7 @@ func UploadDownload(t *testing.T, handler events.MultipartHandler) {
 	defer os.Remove(f.Name())
 	defer f.Close()
 
-	err = handler.Download(context.TODO(), id, f)
+	err = handler.Download(t.Context(), id, f)
 	require.NoError(t, err)
 
 	_, err = f.Seek(0, 0)
@@ -75,7 +75,7 @@ func DownloadNotFound(t *testing.T, handler events.MultipartHandler) {
 	defer os.Remove(f.Name())
 	defer f.Close()
 
-	err = handler.Download(context.TODO(), id, f)
+	err = handler.Download(t.Context(), id, f)
 	require.True(t, trace.IsNotFound(err))
 }
 
