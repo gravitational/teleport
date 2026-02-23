@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
@@ -162,8 +163,8 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 				initialSessionDataCount := len(identity.SessionData)
 				initialUpdatedDevicesCount := len(identity.UpdatedDevices)
 
-				// Finish(validateOnly=true) (shouldn't consume)
-				_, err = webLogin.Finish(ctx, user, assertionResp, chalExts, true)
+				// Validate (don't consume)
+				_, err = webLogin.Validate(ctx, user, assertionResp, chalExts)
 				require.NoError(t, err)
 
 				// Assert state unchanged
@@ -174,7 +175,7 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 
 			// 2nd and last step of the login ceremony.
 			beforeLastUsed := time.Now().Add(-1 * time.Second)
-			loginData, err := webLogin.Finish(ctx, user, assertionResp, chalExts, false /* validateOnly */)
+			loginData, err := webLogin.Finish(ctx, user, assertionResp, chalExts)
 			require.NoError(t, err)
 			// Last used time and counter are updated.
 			require.True(t, beforeLastUsed.Before(loginData.Device.LastUsed))
@@ -431,7 +432,11 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 	}
 	for _, test := range tests {
 		runTest := func(t *testing.T, validateOnly bool) {
-			_, err := webLogin.Finish(ctx, test.user, test.createResp(), test.exts, validateOnly)
+			fn := webLogin.Finish
+			if validateOnly {
+				fn = webLogin.Validate
+			}
+			_, err := fn(ctx, test.user, test.createResp(), test.exts)
 			require.Error(t, err)
 		}
 
@@ -683,7 +688,7 @@ func TestCredentialRPID(t *testing.T) {
 
 		loginData, err := webLogin.Finish(ctx, user, car, &mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
-		}, false)
+		})
 		require.NoError(t, err, "Finish failed")
 		assert.Equal(t, rpID, loginData.Device.GetWebauthn().CredentialRpId, "CredentialRpId mismatch")
 	})
@@ -943,7 +948,7 @@ func TestLoginFlow_scopeAndReuse(t *testing.T) {
 				assertionResp, err := webKey.SignAssertion(webOrigin, assertion)
 				require.NoError(t, err)
 
-				loginData, err := webLogin.Finish(ctx, user, assertionResp, test.requiredExt, false)
+				loginData, err := webLogin.Finish(ctx, user, assertionResp, test.requiredExt)
 				if test.assertErr != nil {
 					test.assertErr(t, err)
 					return
@@ -1111,7 +1116,7 @@ func TestLoginFlow_userVerification(t *testing.T) {
 			assertionResp, err := test.dev.SignAssertion(origin, assertion)
 			require.NoError(t, err, "dev.SignAssertion")
 
-			_, err = lf.Finish(ctx, user, assertionResp, test.requiredExts, false)
+			_, err = lf.Finish(ctx, user, assertionResp, test.requiredExts)
 			if test.wantErr != "" {
 				assert.ErrorContains(t, err, test.wantErr, "lf.Finish error mismatch")
 			} else {
@@ -1309,18 +1314,26 @@ func newFakeIdentity(user string, devices ...*types.MFADevice) *fakeIdentity {
 }
 
 func (f *fakeIdentity) clone() *fakeIdentity {
-	// Deep copy the User
+	mfaCopy := make([]*types.MFADevice, len(f.User.GetLocalAuth().MFA))
+	for i, dev := range f.User.GetLocalAuth().MFA {
+		mfaCopy[i] = proto.Clone(dev).(*types.MFADevice)
+	}
+
+	var wlaCopy *types.WebauthnLocalAuth
+	if wla := f.User.GetLocalAuth().Webauthn; wla != nil {
+		wlaCopy = proto.Clone(wla).(*types.WebauthnLocalAuth)
+	}
+
 	userCopy := &types.UserV2{
 		Metadata: f.User.Metadata,
 		Spec: types.UserSpecV2{
 			LocalAuth: &types.LocalAuthSecrets{
-				MFA:      slices.Clone(f.User.GetLocalAuth().MFA),
-				Webauthn: f.User.GetLocalAuth().Webauthn,
+				MFA:      mfaCopy,
+				Webauthn: wlaCopy,
 			},
 		},
 	}
 
-	// Copy SessionData map
 	sessionDataCopy := make(map[string]*wantypes.SessionData, len(f.SessionData))
 	maps.Copy(sessionDataCopy, f.SessionData)
 

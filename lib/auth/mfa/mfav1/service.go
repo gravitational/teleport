@@ -677,7 +677,6 @@ func (s *Service) validateWebauthnResponse(
 		username,
 		wantypes.CredentialAssertionResponseFromProto(resp.Webauthn),
 		&mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION},
-		false, /* validateOnly */
 	)
 	if err != nil {
 		return nil, trace.AccessDenied("validate Webauthn response: %v", err)
