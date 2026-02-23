@@ -101,6 +101,10 @@ func (f *rdsDocumentDBFetcher) getAllDBClusters(ctx context.Context, clt RDSClie
 	var clusters []rdstypes.DBCluster
 	for page, err := range pagesWithLimit(ctx, pager, log) {
 		if err != nil {
+			if isUnrecognizedAWSEngineNameError(err) {
+				log.WarnContext(ctx, "DocumentDB is not supported in this AWS region. Please check region availability at https://docs.aws.amazon.com/documentdb/latest/developerguide/regions-and-azs.html.", "error", err)
+				return clusters, nil
+			}
 			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 		}
 		clusters = append(clusters, page.DBClusters...)
