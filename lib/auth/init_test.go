@@ -1479,7 +1479,7 @@ func toSet(items []string) map[string]struct{} {
 func setupConfig(t *testing.T) auth.InitConfig {
 	tempDir := t.TempDir()
 
-	bk, err := lite.New(context.TODO(), backend.Params{"path": tempDir})
+	bk, err := lite.New(t.Context(), backend.Params{"path": tempDir})
 	require.NoError(t, err)
 
 	processStorage, err := storage.NewProcessStorage(

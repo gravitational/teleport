@@ -466,7 +466,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				cl.Stdout = myTerm
 				cl.Stdin = myTerm
 
-				err = cl.SSH(context.TODO(), []string{})
+				err = cl.SSH(t.Context(), []string{})
 				endC <- err
 			}()
 
@@ -675,7 +675,7 @@ func testInteroperability(t *testing.T, suite *integrationTestSuite) {
 			go func() {
 				// don't check for err, because sometimes this process should fail
 				// with an error and that's what the test is checking for.
-				cl.SSH(context.TODO(), []string{tt.inCommand})
+				cl.SSH(t.Context(), []string{tt.inCommand})
 				sessionEndC <- true
 			}()
 			err = waitFor(sessionEndC, time.Second*10)
@@ -1604,7 +1604,7 @@ func verifySessionJoin(t *testing.T, username string, teleport *helpers.TeleInst
 		cl.Stdin = personA
 		// Person A types something into the terminal (including "exit")
 		personA.Type("\aecho hi\n\r\aexit\n\r\a")
-		sessionA <- cl.SSH(context.TODO(), []string{})
+		sessionA <- cl.SSH(t.Context(), []string{})
 	}
 
 	// PersonB: wait for a session to become available, then join:
@@ -1641,7 +1641,7 @@ func verifySessionJoin(t *testing.T, username string, teleport *helpers.TeleInst
 				return
 
 			case <-ticker.C:
-				err := cl.Join(context.TODO(), types.SessionPeerMode, defaults.Namespace, session.ID(sessionID), personB)
+				err := cl.Join(t.Context(), types.SessionPeerMode, defaults.Namespace, session.ID(sessionID), personB)
 				if err == nil {
 					sessionB <- nil
 					return
@@ -2745,7 +2745,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	// and 'tc' (client) is also supposed to reconnect
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(context.TODO(), cmd)
+		err = tc.SSH(t.Context(), cmd)
 		if err == nil {
 			break
 		}
@@ -3687,7 +3687,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(context.TODO(), cmd)
+		err = tc.SSH(t.Context(), cmd)
 		if err == nil {
 			break
 		}
@@ -5207,7 +5207,7 @@ func testPAM(t *testing.T, suite *integrationTestSuite) {
 				cl.Stdin = termSession
 
 				termSession.Type("\aecho hi\n\r\aexit\n\r\a")
-				err = cl.SSH(context.TODO(), []string{})
+				err = cl.SSH(t.Context(), []string{})
 				if !isSSHError(err) {
 					errCh <- err
 					return
@@ -5345,7 +5345,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// client works as is before servers have been rotated
-	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(t.Context(), clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 	checkSSHPrincipals(svc)
 
@@ -5373,7 +5373,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// new client works
-	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(t.Context(), clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 	checkSSHPrincipals(svc)
 
@@ -5394,7 +5394,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	waitForCredentialsUpdated()
 
 	// new client still works
-	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(t.Context(), clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 	checkSSHPrincipals(svc)
 
@@ -5506,7 +5506,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// client works as is before servers have been rotated
-	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(t.Context(), clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 	checkSSHPrincipals(svc)
 
@@ -5535,7 +5535,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	waitForCredentialsUpdated()
 
 	// old client works
-	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(t.Context(), clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 	checkSSHPrincipals(svc)
 
@@ -5659,7 +5659,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	clt, err := main.NewClientWithCreds(cfg, *initialCreds)
 	require.NoError(t, err)
 
-	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(t.Context(), clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 
 	t.Logf("Setting rotation state to %v", types.RotationPhaseInit)
@@ -5712,7 +5712,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	waitForPhase(types.RotationPhaseUpdateClients)
 
 	// old client should work as is
-	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(t.Context(), clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 
 	t.Logf("Service reloaded. Setting rotation state to %v", types.RotationPhaseUpdateServers)
@@ -5737,7 +5737,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// new client works
-	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(t.Context(), clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 
 	t.Logf("Service reloaded. Setting rotation state to %v.", types.RotationPhaseStandby)
@@ -5756,7 +5756,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	t.Log("Phase completed.")
 
 	// new client still works
-	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(t.Context(), clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	require.NoError(t, err)
 
 	t.Log("Service reloaded. Rotation has completed. Shutting down service.")
@@ -5789,12 +5789,12 @@ func waitForProcessEvent(svc *service.TeleportProcess, event string, timeout tim
 }
 
 // runAndMatch runs command and makes sure it matches the pattern
-func runAndMatch(tc *client.TeleportClient, attempts int, command []string, pattern string) error {
+func runAndMatch(ctx context.Context, tc *client.TeleportClient, attempts int, command []string, pattern string) error {
 	output := &bytes.Buffer{}
 	tc.Stdout = output
 	var err error
 	for i := 0; i < attempts; i++ {
-		err = tc.SSH(context.TODO(), command)
+		err = tc.SSH(ctx, command)
 		if err != nil {
 			time.Sleep(500 * time.Millisecond)
 			continue
@@ -6306,7 +6306,7 @@ func testBPFInteractive(t *testing.T, suite *integrationTestSuite) {
 
 				// "Type" a command into the terminal.
 				term.Type(fmt.Sprintf("\a%v\n\r\aexit\n\r\a", lsPath))
-				err = client.SSH(context.TODO(), []string{})
+				err = client.SSH(t.Context(), []string{})
 				require.NoError(t, err)
 
 				// Signal that the client has finished the interactive session.
@@ -7052,7 +7052,7 @@ func runCommandWithCertReissue(t *testing.T, instance *helpers.TeleInstance, cmd
 	out := &bytes.Buffer{}
 	tc.Stdout = out
 
-	err = tc.SSH(context.TODO(), cmd)
+	err = tc.SSH(t.Context(), cmd)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -394,7 +394,7 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 			)
 
 			rsp, err := client.AuthorizationV1().SelfSubjectAccessReviews().Create(
-				context.TODO(),
+				t.Context(),
 				&authv1.SelfSubjectAccessReview{
 					Spec: authv1.SelfSubjectAccessReviewSpec{
 						ResourceAttributes: &authv1.ResourceAttributes{

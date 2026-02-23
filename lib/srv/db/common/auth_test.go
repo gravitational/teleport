@@ -90,7 +90,7 @@ func TestAuthGetAzureCacheForRedisToken(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			token, err := auth.GetAzureCacheForRedisToken(context.TODO(), newAzureRedisDatabase(t, test.resourceID))
+			token, err := auth.GetAzureCacheForRedisToken(t.Context(), newAzureRedisDatabase(t, test.resourceID))
 			if test.expectError {
 				require.Error(t, err)
 			} else {
@@ -120,7 +120,7 @@ func TestAuthGetRedshiftServerlessAuthToken(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	dbUser, dbPassword, err := auth.GetRedshiftServerlessAuthToken(context.TODO(),
+	dbUser, dbPassword, err := auth.GetRedshiftServerlessAuthToken(t.Context(),
 		newRedshiftServerlessDatabase(t),
 		"some-user",
 		"some-database",
@@ -239,7 +239,7 @@ func TestAuthGetTLSConfig(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			tlsConfig, err := auth.GetTLSConfig(context.TODO(),
+			tlsConfig, err := auth.GetTLSConfig(t.Context(),
 				time.Now().Add(time.Hour),
 				test.sessionDatabase,
 				"defaultUser")

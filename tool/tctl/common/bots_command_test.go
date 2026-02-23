@@ -231,7 +231,7 @@ func TestUpdateBotRoles(t *testing.T) {
 				botRoles: tt.set,
 			}
 
-			err = cmd.updateBotRoles(context.TODO(), &mockClient, bot, fieldMask)
+			err = cmd.updateBotRoles(t.Context(), &mockClient, bot, fieldMask)
 			tt.assert(t, bot, fieldMask, err)
 		})
 	}
