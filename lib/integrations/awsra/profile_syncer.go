@@ -21,7 +21,6 @@ package awsra
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -527,7 +526,7 @@ func processProfile(ctx context.Context, req processProfileRequest) error {
 func awsConsoleURLForARN(parsedARN arn.ARN) string {
 	switch parsedARN.Partition {
 	case "aws-us-gov":
-		return fmt.Sprintf("https://%s.console.amazonaws-us-gov.com", parsedARN.Region)
+		return constants.AWSUSGovConsoleURL
 	case "aws-cn":
 		return constants.AWSCNConsoleURL
 	default:
