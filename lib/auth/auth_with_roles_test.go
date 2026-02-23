@@ -7341,13 +7341,15 @@ func newScopedTestServerForHost(t *testing.T, srv *authtest.AuthServer, hostID, 
 func TestGenerateHostCertsScoped(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
 	scope := "/aa/bb"
 	hostID := "testhost"
 	roles := types.SystemRoles{types.RoleNode}
 
-	s := newScopedTestServerForHost(t, srv.AuthServer, hostID, scope, types.RoleNode)
+	s := newScopedTestServerForHost(t, as, hostID, scope, types.RoleNode)
 
 	_, sshPub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
@@ -10326,8 +10328,11 @@ func collectWatchKind(kinds []types.WatchKind) []string {
 
 func TestKubeKeepAliveServer(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
-	domainName, err := srv.Auth().GetDomainName()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
+	domainName, err := authServer.GetDomainName()
 	require.NoError(t, err)
 
 	tests := map[string]struct {
@@ -10379,7 +10384,7 @@ func TestKubeKeepAliveServer(t *testing.T) {
 			)
 			require.NoError(t, err)
 			// Upsert the kubernetes server into the backend.
-			_, err = srv.Auth().UpsertKubernetesServer(context.Background(), kubeServer)
+			_, err = authServer.UpsertKubernetesServer(context.Background(), kubeServer)
 			require.NoError(t, err)
 
 			// Create a built-in role.
@@ -10394,7 +10399,7 @@ func TestKubeKeepAliveServer(t *testing.T) {
 
 			// Create a server with the built-in role.
 			srv := auth.NewServerWithRoles(
-				srv.Auth(),
+				authServer,
 				events.NewDiscardAuditLog(),
 				*authContext,
 			)
@@ -10627,9 +10632,11 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 func TestRoleRequestReasonModeValidation(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
-	s := newTestServerWithRoles(t, srv.AuthServer, types.RoleAdmin)
+	s := newTestServerWithRoles(t, as, types.RoleAdmin)
 
 	testCases := []struct {
 		desc          string
@@ -11076,9 +11083,11 @@ func createTestMCPAppServer(t *testing.T, auth *auth.Server, name string, labels
 func TestSAMLIdPRoleOptionCreateUpdateValidation(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
-	s := newTestServerWithRoles(t, srv.AuthServer, types.RoleAdmin)
+	s := newTestServerWithRoles(t, as, types.RoleAdmin)
 
 	const errMsg = "supported in role version 7 and below"
 	testCases := []struct {
@@ -11318,7 +11327,9 @@ func TestRegisterInventoryControlStreamScopes(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
-	srv := newTestTLSServer(t)
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
 	const serverID = "test-server"
 	const agentScope = "/test/one"
@@ -11350,7 +11361,7 @@ func TestRegisterInventoryControlStreamScopes(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			h := newInventoryControlStreamHarness(t, srv.AuthServer, serverID, agentScope, "", types.RoleNode)
+			h := newInventoryControlStreamHarness(t, as, serverID, agentScope, "", types.RoleNode)
 			type registerResult struct {
 				hello *proto.UpstreamInventoryHello
 				err   error
@@ -11398,8 +11409,9 @@ func TestRegisterInventoryControlStreamImmutableLabels(t *testing.T) {
 	}
 	helloHash := joining.HashImmutableLabels(helloLabels)
 
-	srv := newTestTLSServer(t)
-	t.Cleanup(func() { srv.Close() })
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
 	cases := []struct {
 		name        string
@@ -11440,7 +11452,7 @@ func TestRegisterInventoryControlStreamImmutableLabels(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			h := newInventoryControlStreamHarness(t, srv.AuthServer, serverID, "", c.identHash, types.RoleNode)
+			h := newInventoryControlStreamHarness(t, as, serverID, "", c.identHash, types.RoleNode)
 			type registerResult struct {
 				hello *proto.UpstreamInventoryHello
 				err   error
