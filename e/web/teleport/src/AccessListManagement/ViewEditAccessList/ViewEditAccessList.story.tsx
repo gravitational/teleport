@@ -11,6 +11,7 @@ import {
   rawAccessList,
   rawAccessListAsMember,
   rawAccessListAsOwner,
+  rawAccessListEntraID,
   rawAccessListOkta,
   rawAccessListScim,
   rawAccessListStatic,
@@ -407,6 +408,75 @@ export const ViewingAsAdminScimList: StoryObj = {
       >
         <Alert kind="neutral">
           Devs: member list add and delete buttons are disabled
+        </Alert>
+        <ViewEditAccessList />
+      </Provider>
+    );
+  },
+};
+
+export const ViewingAsAdminEntraIDList: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(
+          cfg.getAccessListUrl({
+            action: 'reviews',
+            params: { accessListId: rawAccessListEntraID.metadata.name },
+          }),
+          () => {
+            return HttpResponse.json(rawReviewsResponse);
+          }
+        ),
+        http.get(
+          cfg.getAccessManagementListUrl(rawAccessListEntraID.metadata.name),
+          () => {
+            return HttpResponse.json({
+              accessList: rawAccessListEntraID,
+            });
+          }
+        ),
+        http.get(
+          cfg.getAccessManagementListUrl(rawNestedAccessList.metadata.name),
+          () => {
+            return HttpResponse.json({
+              accessList: rawNestedAccessList,
+            });
+          }
+        ),
+        http.get(cfg.getAccessManagementListUrl(), () => {
+          return new HttpResponse(
+            JSON.stringify({
+              accessLists: [rawAccessListEntraID, rawNestedAccessList],
+            })
+          );
+        }),
+        http.get(cfg.oss.getUsersUrl(), () => {
+          return HttpResponse.json([
+            { name: 'apple' },
+            {
+              name: 'carrot',
+            },
+          ]);
+        }),
+        http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
+          return HttpResponse.json([]);
+        }),
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider
+        initialEntries={[
+          generatePath(cfg.routes.accessLists, {
+            accessListId: rawAccessListEntraID.metadata.name,
+          }),
+        ]}
+      >
+        <Alert kind="neutral">
+          Devs: member list add and delete buttons are disabled, Entra ID badge
+          next to title
         </Alert>
         <ViewEditAccessList />
       </Provider>

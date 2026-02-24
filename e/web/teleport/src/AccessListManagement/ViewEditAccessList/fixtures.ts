@@ -153,6 +153,20 @@ export const rawAccessListScim = {
   },
 };
 
+export const rawAccessListEntraID = {
+  ...rawAccessList,
+  metadata: {
+    ...rawAccessList.metadata,
+    labels: {
+      'teleport.dev/origin': 'entra-id',
+    },
+  },
+  spec: {
+    ...rawAccessList.spec,
+    title: 'Mock Entra ID Access List Title',
+  },
+};
+
 export const rawNestedAccessList = {
   metadata: {
     name: 'mock-nested-access-list-id',

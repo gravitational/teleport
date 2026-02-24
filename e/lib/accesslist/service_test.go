@@ -1557,6 +1557,19 @@ func TestService_UpsertAccessListMember(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err))
 	require.Contains(t, err.Error(), "SCIM-sourced Access List members modification not allowed")
+
+	// Entra ID-sourced Access Lists should prohibit member addition.
+	entraList := newAccessList(t, "entra", c.clock)
+	entraList.Metadata.SetStaticLabels(map[string]string{types.OriginLabel: types.OriginEntraID})
+	c.svc.accessLists.UpsertAccessList(c.userCtx, entraList)
+
+	entraMember := newAccessListMember(t, entraList.GetName(), "entra-member", accesslist.MembershipKindUser, c.clock)
+	_, err = c.svc.UpsertAccessListMember(c.userCtx, &accesslistv1.UpsertAccessListMemberRequest{
+		Member: conv.ToMemberProto(entraMember),
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
+	require.Contains(t, err.Error(), "Entra ID-sourced Access List members modification not allowed")
 }
 
 func TestService_UpsertStaticAccessListMember(t *testing.T) {
@@ -1756,6 +1769,23 @@ func TestService_DeleteAccessListMember(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err))
 	require.Contains(t, err.Error(), "SCIM-sourced Access List members modification not allowed")
+
+	// Entra ID-sourced Access Lists should prohibit member removal.
+	entraList := newAccessList(t, "entra-delete", c.clock)
+	entraList.Metadata.SetStaticLabels(map[string]string{types.OriginLabel: types.OriginEntraID})
+	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, c.usageEvents, []*accesslist.AccessList{entraList}, nil)
+
+	entraMember := newAccessListMember(t, entraList.GetName(), "entra-member", accesslist.MembershipKindUser, c.clock)
+	_, err = c.testEnv.accessLists.UpsertAccessListMember(c.userCtx, entraMember)
+	require.NoError(t, err)
+
+	_, err = c.svc.DeleteAccessListMember(c.userCtx, &accesslistv1.DeleteAccessListMemberRequest{
+		AccessList: entraList.GetName(),
+		MemberName: entraMember.GetName(),
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
+	require.Contains(t, err.Error(), "Entra ID-sourced Access List members modification not allowed")
 }
 
 func TestService_DeleteStaticAccessListMember(t *testing.T) {
@@ -2716,6 +2746,35 @@ func TestService_CreateAccessListReview(t *testing.T) {
 
 	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListReviewCreate) {
 		require.Equal(t, event.AccessListReviewCreate.Metadata.Id, a3.GetName())
+	})
+
+	// User is NOT allowed to remove members during a review of an Entra ID sourced access list.
+	a4 := newAccessList(t, "4", c.clock)
+	a4m1 := newAccessListMember(t, a4.GetName(), member1, accesslist.MembershipKindUser, c.clock)
+
+	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, c.usageEvents, []*accesslist.AccessList{a4}, []*accesslist.AccessListMember{a4m1})
+
+	// Change it to an Entra ID sourced access list.
+	a4.SetOrigin(types.OriginEntraID)
+	_, err = c.svc.UpsertAccessList(c.userCtx, &accesslistv1.UpsertAccessListRequest{
+		AccessList: conv.ToProto(a4),
+	})
+	require.NoError(t, err)
+
+	expectEvent(t, events.AccessListUpdateSuccessCode, c.emitter, func(*apievents.AccessListUpdate) {})
+
+	review1ForA4 := newAccessListReview(t, a4.GetName())
+	review1ForA4.Spec.Changes.RemovedMembers = []string{a4m1.GetName()}
+
+	_, err = c.svc.CreateAccessListReview(c.userCtx, &accesslistv1.CreateAccessListReviewRequest{
+		Review: conv.ToReviewProto(review1ForA4),
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
+	require.Contains(t, err.Error(), "membership changes are not allowed for access lists created via Entra ID integration")
+
+	expectEvent(t, events.AccessListReviewFailureCode, c.emitter, func(event *apievents.AccessListReview) {
+		require.False(t, event.Success)
 	})
 }
 

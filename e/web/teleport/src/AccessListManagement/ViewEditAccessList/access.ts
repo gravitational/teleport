@@ -1,5 +1,6 @@
 import {
   AccessListOrigin,
+  isEntraIdList,
   isReadOnly,
   isScim,
   type AccessList,
@@ -64,6 +65,11 @@ export function getActionForbiddenInfo(props: AccessProps): string | undefined {
         accessKind: action,
         extraInfo: scimExtraInfo,
       });
+    case EditAccess.ForbiddenEntraID:
+      return readOnlyMsg({
+        accessKind: action,
+        extraInfo: entraIDExtraInfo,
+      });
     case EditAccess.ForbiddenPresetEditingGrants:
       if (props.action === Action.EditMembersGrants) {
         return 'Go to "Access Definition" tab to edit members access to resources.';
@@ -87,6 +93,7 @@ enum EditAccess {
   ForbiddenReadOnlyType,
   ForbiddenOktaReadOnly,
   ForbiddenScim,
+  ForbiddenEntraID,
   ForbiddenPresetEditingGrants,
   ForbiddenPresetDelete,
 }
@@ -108,6 +115,7 @@ function getEditAccess({
     if (isReadOnlyOktaList) return EditAccess.ForbiddenOktaReadOnly;
     if (isReadOnlyTypeList) return EditAccess.ForbiddenReadOnlyType;
     if (isScim(accessList.type)) return EditAccess.ForbiddenScim;
+    if (isEntraIdList(accessList.origin)) return EditAccess.ForbiddenEntraID;
     return EditAccess.Allowed;
   }
 
@@ -164,6 +172,8 @@ const oktaReadOnlyExtraInfo =
 
 const scimExtraInfo =
   'this Access List membership is managed by your SCIM provider';
+
+const entraIDExtraInfo = 'this Access List is managed by Entra ID';
 
 function readOnlyMsg({
   accessKind,

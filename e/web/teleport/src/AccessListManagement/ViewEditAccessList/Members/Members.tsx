@@ -17,6 +17,7 @@ import { convertToTraitConvenience } from 'e-teleport/AccessListManagement/Trait
 import {
   AccessListMember,
   AccessListMemberKind,
+  isEntraIdList,
   isScim,
   type AccessList,
 } from 'e-teleport/services/accessmanagement';
@@ -340,7 +341,8 @@ export const AccessListMemberTable = ({
                 disabled={
                   perms
                     ? isActionForbidden(accessProps)
-                    : isScim(accessList.type)
+                    : isScim(accessList.type) ||
+                      isEntraIdList(accessList.origin)
                 }
                 tooltip={
                   perms ? getActionForbiddenInfo(accessProps) : undefined

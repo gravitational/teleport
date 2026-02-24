@@ -1,3 +1,8 @@
+import { createMemoryHistory } from 'history';
+import { Router } from 'react-router';
+
+import { render, screen } from 'design/utils/testing';
+
 import {
   getReviewDayOfMonthOption,
   getReviewFrequencyOption,
@@ -6,6 +11,7 @@ import { convertToTraitConvenience } from 'e-teleport/AccessListManagement/Trait
 import {
   AccessListMember,
   AccessListMemberKind,
+  AccessListOrigin,
   AccessListType,
   ReviewDayOfMonth,
   ReviewFrequency,
@@ -13,6 +19,7 @@ import {
 
 import { AccessListModified } from '../Shared';
 import { getEditedAccessListFields } from './ReviewAccessList';
+import { ReviewMembers } from './ReviewMembers';
 
 test('getEditedAccessListFields: no edits', () => {
   const req = getEditedAccessListFields({
@@ -155,6 +162,37 @@ test('getEditedAccessListFields: members with differing references are not flagg
 
   // donkey and shrek should be flagged as deleted
   expect(req.membersDeleted).toEqual(deleteMembers);
+});
+
+describe('ReviewMembers UI', () => {
+  test('Remove buttons should be disabled for EntraID access lists', () => {
+    const history = createMemoryHistory();
+    const mockEntraIDAccessList: AccessListModified = {
+      ...mockAccessList,
+      origin: AccessListOrigin.EntraID,
+    };
+
+    render(
+      <Router history={history}>
+        <ReviewMembers
+          accessList={mockEntraIDAccessList}
+          editedMembers={mockEntraIDAccessList.members}
+          originalMembers={mockEntraIDAccessList.members}
+          onDeleteMember={jest.fn()}
+        />
+      </Router>
+    );
+
+    const removeButtons = screen.getAllByRole('button', { name: /remove/i });
+    removeButtons.forEach(button => {
+      expect(button).toBeDisabled();
+    });
+
+    // Also verify the alert message is present
+    expect(
+      screen.getByText(/Editing members is disabled/i)
+    ).toBeInTheDocument();
+  });
 });
 
 const deleteMembers = [

@@ -270,3 +270,7 @@ export function isReadOnly(type: AccessListType): boolean {
 export function isScim(type: AccessListType): boolean {
   return type === AccessListType.Scim;
 }
+
+export function isEntraIdList(origin: AccessListOrigin): boolean {
+  return origin === AccessListOrigin.EntraID;
+}

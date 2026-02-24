@@ -239,3 +239,53 @@ describe('access list with preset', () => {
     expect(getActionForbiddenInfo(props)).toBeUndefined();
   });
 });
+
+describe('EntraID Access Control', () => {
+  const fullPerms = {
+    adminWhoCanRead: true,
+    adminWhoCanDelete: true,
+    adminWhoCanEdit: true,
+    isOwner: true,
+  };
+
+  test('EditMembers is forbidden for EntraID origin', () => {
+    const props = {
+      accessList: {
+        type: AccessListType.Default,
+        origin: AccessListOrigin.EntraID,
+      },
+      action: Action.EditMembers,
+      isReadOnlyOktaList: false,
+      perms: fullPerms,
+    };
+
+    expect(isActionForbidden(props)).toBe(true);
+    expect(getActionForbiddenInfo(props)).toBe(
+      'Editing members is disabled; this Access List is managed by Entra ID'
+    );
+  });
+
+  test('Other actions are allowed for EntraID origin (if perms allow)', () => {
+    const actions = [
+      Action.EditOwners,
+      Action.EditTitleOrDescription,
+      Action.EditAudit,
+      Action.Delete,
+    ];
+
+    actions.forEach(action => {
+      const props = {
+        accessList: {
+          type: AccessListType.Default,
+          origin: AccessListOrigin.EntraID,
+        },
+        action,
+        isReadOnlyOktaList: false,
+        perms: fullPerms,
+      };
+
+      expect(isActionForbidden(props)).toBe(false);
+      expect(getActionForbiddenInfo(props)).toBeUndefined();
+    });
+  });
+});

@@ -2078,6 +2078,13 @@ func (s *Service) CreateAccessListReview(ctx context.Context, req *accesslistv1.
 func (s *Service) createAccessListReview(ctx context.Context, review *accesslist.Review,
 	authCtx *authz.Context, accessList *accesslist.AccessList, username string,
 ) (*accesslistv1.CreateAccessListReviewResponse, *accesslist.Review, error) {
+	// If the access list is from Entra ID, we don't allow removing members during review.
+	if isEntraIDOrigin(accessList) {
+		if len(review.Spec.Changes.RemovedMembers) > 0 {
+			return nil, review, trace.BadParameter("membership changes are not allowed for access lists created via Entra ID integration")
+		}
+	}
+
 	// We don't have to check if the error of hasAccessListRBAC is explicitly denied here because
 	// authOrIsOwner would have caught it above.
 	hasRBAC := s.hasAccessListRBAC(ctx, authCtx, accessList, types.VerbCreate, types.VerbUpdate) == nil
@@ -2613,11 +2620,23 @@ func (s *Service) checkMembersModificationAllowedByName(ctx context.Context, aut
 	return trace.Wrap(err)
 }
 
+func isEntraIDOrigin(accessList *accesslist.AccessList) bool {
+	if accessList == nil {
+		return false
+	}
+	origin, ok := accessList.Metadata.GetLabel(types.OriginLabel)
+	return ok && origin == types.OriginEntraID
+}
+
 // checkMembersModificationAllowed returns AccessDenied if Access List members' modifications are
 // not allowed. It can return any other error.
 func (s *Service) checkMembersModificationAllowed(ctx context.Context, authCtx authz.Context, accessList *accesslist.AccessList) error {
 	if accessList != nil && accessList.Spec.Type == accesslist.SCIM {
 		return trace.BadParameter("SCIM-sourced Access List members modification not allowed")
+	}
+
+	if isEntraIDOrigin(accessList) {
+		return trace.BadParameter("Entra ID-sourced Access List members modification not allowed")
 	}
 
 	if allowed, err := oktaMembersModificationAllowed(ctx, authCtx, s.plugins, accessList); err != nil {

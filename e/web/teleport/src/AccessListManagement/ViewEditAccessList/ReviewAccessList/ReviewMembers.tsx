@@ -6,6 +6,7 @@ import {
   AccessListGrant,
   AccessListMember,
   AccessListOrigin,
+  isEntraIdList,
   isReadOnly,
   isScim,
 } from 'e-teleport/services/accessmanagement';
@@ -45,7 +46,9 @@ export function ReviewMembers({
     <>
       {isOkta && <DeleteMemberWarning isReviewing={true} />}
       <H2 mb={3}>Members</H2>
-      {(isReadOnly(accessList.type) || isScim(accessList.type)) && (
+      {(isReadOnly(accessList.type) ||
+        isScim(accessList.type) ||
+        isEntraIdList(accessList.origin)) && (
         <Alert kind="outline-info">
           <Text>
             Editing members is disabled, this Access List is managed by IaC
