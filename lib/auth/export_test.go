@@ -324,7 +324,7 @@ func UpdateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.A
 }
 
 func EncodeProquint(x uint16) string {
-	return encodeProquint(x)
+	return string(encodeProquint(x))
 }
 
 func EmitSSOLoginFailureEvent(ctx context.Context, emitter apievents.Emitter, method string, err error, testFlow bool) {
