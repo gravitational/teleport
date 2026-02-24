@@ -262,6 +262,18 @@ type AuthServer struct {
 	LockWatcher *services.LockWatcher
 }
 
+const (
+	// FakePasswordHash is the bcrypt hash for password "barbaz", the same as the default used
+	// by auth.Server, except, it is generated with the minimum cost instead of the default
+	// cost to speed tests up.
+	FakePasswordHash = `$2a$04$uTNg/AhzeGARChkxBsddyeHuCI7SBr2SG7PYhu63mIXqzuqRD.cgq`
+
+	// FakeRecoveryCodeHash is the bcrypt hash for recovery code "fake-barbaz-barbaz-barbaz-barbaz-barbaz-barbaz-barbaz-barbaz",
+	// the same as the default used by auth.Server, except, it is generated with the minimum
+	// cost instead of the default cost to speed tests up.
+	FakeRecoveryCodeHash = `$2a$04$04QoQDbwYTwSIppmJLQQkebbFrMS9V02ttus3rHi2cwujcnDHKbL6`
+)
+
 // NewAuthServer returns a new test auth server.
 // The caller should close the server when it is no longer needed.
 func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
@@ -359,6 +371,8 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		SessionSummarizerProvider:    cfg.SessionSummarizerProvider,
 		RecordingMetadataProvider:    cfg.RecordingMetadataProvider,
 		AWSOrganizationsClientGetter: cfg.AWSOrganizationsClientGetter,
+		FakePasswordHash:             []byte(FakePasswordHash),
+		FakeRecoveryCodeHash:         []byte(FakeRecoveryCodeHash),
 	},
 		// Reduce auth.Server bcrypt costs when testing.
 		WithBcryptCost(bcrypt.MinCost),
