@@ -149,7 +149,6 @@ require (
 	github.com/google/go-tpm-tools v0.4.7
 	github.com/google/renameio/v2 v2.0.0
 	github.com/google/safetext v0.0.0-20240104143208-7a7d9b3d812f
-	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/google/uuid v1.6.0
 	github.com/googleapis/gax-go/v2 v2.16.0
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
