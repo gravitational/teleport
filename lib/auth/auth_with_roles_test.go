@@ -465,6 +465,7 @@ func TestInstaller(t *testing.T) {
 }
 
 func TestGithubAuthRequest(t *testing.T) {
+	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -534,7 +535,7 @@ func TestGithubAuthRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	upserted, err := auth.UpsertGithubConnector(context.Background(), srv.Auth(), conn)
+	upserted, err := auth.UpsertGithubConnector(ctx, srv.Auth(), conn)
 	require.NoError(t, err)
 	require.NotNil(t, upserted)
 
@@ -649,6 +650,7 @@ func TestGithubAuthRequest(t *testing.T) {
 // github/requests/validate which must have the same format as the requested
 // keys to support both old and new proxies.
 func TestGithubAuthCompat(t *testing.T) {
+	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -664,7 +666,7 @@ func TestGithubAuthCompat(t *testing.T) {
 		}},
 	})
 	require.NoError(t, err)
-	_, err = auth.UpsertGithubConnector(context.Background(), srv.Auth(), connector)
+	_, err = auth.UpsertGithubConnector(ctx, srv.Auth(), connector)
 	require.NoError(t, err)
 
 	srv.Auth().GithubUserAndTeamsOverride = func() (*auth.GithubUserResponse, []auth.GithubTeamResponse, error) {
