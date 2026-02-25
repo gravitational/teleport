@@ -1,3 +1,5 @@
+;
+
 /**
  * Teleport
  * Copyright (C) 2025  Gravitational, Inc.
@@ -18,6 +20,29 @@
 
 import { defineConfig, devices } from '@playwright/test';
 
+
+
+
+
+;
+
+
+
+
+
+
+
+
+
+;
+
+
+
+
+
+
+
+
 // Default to localhost:3080/web/login if START_URL is not defined.
 const baseURL = process.env.START_URL || 'http://localhost:3080/web/login';
 
@@ -37,9 +62,12 @@ export default defineConfig({
   },
 
   projects: [
+    { name: 'setup', testMatch: /.*\.setup\.ts/ },
+
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], storageState: '.auth/user.json' },
+      dependencies: ['setup'],
     },
   ],
 });
