@@ -135,7 +135,10 @@ func (c *cache) Get(kind string) ([]string, error) {
 		}
 		return resources, nil
 	}
-	return cacheStorage.Resources[kind].ResourceNames, nil
+	if entry := cacheStorage.Resources[kind]; entry != nil {
+		return cacheStorage.Resources[kind].ResourceNames, nil
+	}
+	return []string{}, nil
 }
 
 func (c *cache) readFromFile() (cacheStorage, error) {
