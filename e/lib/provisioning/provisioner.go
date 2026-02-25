@@ -35,7 +35,7 @@ type resourceType struct {
 type provisioner struct {
 	log                            *slog.Logger
 	stateSvc                       services.DownstreamProvisioningStates
-	externalIDCache                ExternalIDGetter
+	externalIDGetter               ExternalIDGetter
 	usersSvc                       UsersService
 	accessListSvc                  AccessListsService
 	locksSvc                       services.LockGetter
@@ -60,9 +60,9 @@ type provisionerConfig struct {
 	scimClient     scimsdk.Client
 	clock          clockwork.Clock
 
-	// externalIDCache is an oracle for looking up a principal's ExternalID from
+	// externalIDGetter is a service for looking up a principal's ExternalID from
 	// based on their provisioning state ID.
-	externalIDCache ExternalIDGetter
+	externalIDGetter ExternalIDGetter
 
 	// maxConcurrency defines the maximum number of provisioning operations that
 	// can happen concurrently.
@@ -110,8 +110,8 @@ func (cfg *provisionerConfig) CheckAndSetDefaults() error {
 	if cfg.scimClient == nil {
 		return trace.BadParameter("must supply configured scim client")
 	}
-	if cfg.externalIDCache == nil {
-		return trace.BadParameter("must supply ExternalID cache")
+	if cfg.externalIDGetter == nil {
+		return trace.BadParameter("must supply ExternalID getter")
 	}
 	if cfg.clock == nil {
 		cfg.clock = clockwork.NewRealClock()
@@ -160,7 +160,7 @@ func newProvisioner(cfg provisionerConfig) (*provisioner, error) {
 		locksSvc:                       cfg.locksSvc,
 		scimClient:                     cfg.scimClient,
 		maxConcurrency:                 cfg.maxConcurrency,
-		externalIDCache:                cfg.externalIDCache,
+		externalIDGetter:               cfg.externalIDGetter,
 		onExternalIDUpdated:            cfg.onExternalIDUpdated,
 		onPrincipalProvisioning:        cfg.onPrincipalProvisioning,
 		onPrincipalProvisioned:         cfg.onPrincipalProvisioned,

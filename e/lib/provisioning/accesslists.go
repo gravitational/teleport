@@ -170,7 +170,7 @@ func (p *provisioner) filterValidMembers(
 			continue
 		}
 
-		extID, err := p.externalIDCache.GetExternalID(ctx, memberStateId)
+		extID, err := p.externalIDGetter.GetExternalID(ctx, memberStateId)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to get external ID. User group membership won't be provisioned.", "error", err)
 			continue

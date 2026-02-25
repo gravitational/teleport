@@ -104,7 +104,7 @@ func NewService(cfg ServiceConfig) (svc *Service, err error) {
 		accessListsSvc:                    cfg.AccessListsCache,
 		locksSvc:                          cfg.Locks,
 		maxConcurrency:                    cfg.ProvisioningConcurrency,
-		externalIDCache:                   svc,
+		externalIDGetter:                  svc,
 		userProvisioningMode:              cfg.UserProvisioningMode,
 		onPrincipalProvisioning:           cfg.OnPrincipalProvisioning,
 		onPrincipalProvisioned:            cfg.OnPrincipalProvisioned,
