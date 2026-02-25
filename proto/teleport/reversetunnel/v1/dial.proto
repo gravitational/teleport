@@ -1,0 +1,66 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+syntax = "proto3";
+
+package teleport.reversetunnel.v1;
+
+import "google/rpc/status.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/reversetunnel/v1;reversetunnelv1";
+
+// DialRequest is sent by the proxy at the beginning of each dial stream
+// (any yamux stream opened by the proxy after the initial control stream).
+// The agent reads this, routes the connection to the appropriate local
+// service handler, and responds with DialResponse.
+message DialRequest {
+  // service_type is the tunnel service type being requested, e.g. "node",
+  // "app", "kube". The agent uses this to select the correct local
+  // ServerHandler from its registered handler map.
+  string service_type = 1;
+
+  // source is the address of the originating client. The agent presents this
+  // as the remote address of the net.Conn passed to the service handler,
+  // preserving client IP visibility through the tunnel.
+  Addr source = 2;
+
+  // destination is the intended local service address. May be empty for
+  // service types where the agent always routes to a fixed local address.
+  // When present, the agent presents this as the local address of the
+  // net.Conn passed to the service handler.
+  Addr destination = 3;
+}
+
+// DialResponse is sent by the agent in response to a DialRequest.
+// On success (status OK or absent) raw connection data immediately follows
+// on both ends of the stream. On failure the stream is closed.
+message DialResponse {
+  // status is OK on success, or carries the reason for the dial failure
+  // (e.g. the requested service type is not registered on this agent).
+  google.rpc.Status status = 1;
+}
+
+// Addr is a stringified Go net.Addr, equivalent to lib/utils.NetAddr.
+// Transmitted as a (network, address) pair for interoperability with the
+// standard net package.
+message Addr {
+  // network is the network type, typically "tcp".
+  string network = 1;
+
+  // addr is the address string in the form expected by net.Dial, e.g.
+  // "203.0.113.42:12345" or "[::1]:443".
+  string addr = 2;
+}

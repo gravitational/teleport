@@ -1,0 +1,129 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+syntax = "proto3";
+
+package teleport.reversetunnel.v1;
+
+import "google/rpc/status.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/reversetunnel/v1;reversetunnelv1";
+
+// The teleport-reversetunnel protocol operates over a yamux session established
+// on a TLS connection with ALPN "teleport-reversetunnel". The agent (client)
+// opens the first yamux stream as a long-lived control stream. The proxy
+// (server) opens subsequent streams to initiate individual service connections.
+//
+// Control stream flow:
+//   1. Agent opens stream 0 and sends AgentHello.
+//   2. Proxy sends ProxyHello (OK or error status).
+//   3. Agent sends AgentControl messages (heartbeats) periodically.
+//   4. Proxy sends ProxyControl messages (gossip, reconnect, terminating) as needed.
+//
+// Dial stream flow (proxy-initiated, any stream after stream 0):
+//   See dial.proto.
+//
+// All messages are framed with a little-endian uint32 length prefix followed
+// by the protobuf wire encoding. The maximum message size is 128 KiB.
+
+// AgentHello is the first message sent by the agent on the control stream.
+// It identifies the agent and declares which services it is registering.
+message AgentHello {
+  // host_id is the agent's stable UUID (the Teleport host UUID).
+  string host_id = 1;
+
+  // services lists the tunnel service types the agent wants to register.
+  // Each value is a types.TunnelType string (e.g. "node", "app", "kube").
+  // Must be non-empty and must be a subset of the services authorized by
+  // the agent's Instance certificate (validated via the SystemRoles field
+  // of the parsed TLS identity).
+  repeated string services = 2;
+
+  // cluster_name is the name of the Teleport cluster the agent belongs to.
+  string cluster_name = 3;
+
+  // version is the Teleport version string of the agent.
+  string version = 4;
+
+  // scope is the agent's resource scope as encoded in its certificate.
+  // Used for scoped resource matching during dial lookup.
+  string scope = 5;
+}
+
+// ProxyHello is sent by the proxy in response to AgentHello.
+// A non-OK status means the connection is rejected; the proxy will close
+// the session immediately after sending this message on failure.
+message ProxyHello {
+  // status is OK on success, or carries the reason for rejection.
+  google.rpc.Status status = 1;
+
+  // proxy_id is the UUID of the proxy that received this connection.
+  // The agent uses this to call Lease.Claim and prevent duplicate
+  // connections to the same proxy instance.
+  string proxy_id = 2;
+
+  // proxies is the initial gossip payload: the current set of known proxies
+  // in the cluster. Delivered immediately in the handshake so the agent can
+  // begin opening additional connections without waiting for the first
+  // periodic sync interval.
+  repeated ProxyEntry proxies = 3;
+}
+
+// ProxyEntry represents a single proxy in a gossip proxy list.
+message ProxyEntry {
+  // name is the unique name (UUID) of the proxy.
+  string name = 1;
+
+  // group_id identifies an independent deployment group of proxies, used to
+  // support blue/green style rolling upgrades. Corresponds to the
+  // teleport.internal/proxygroup-id label on the proxy resource.
+  string group_id = 2;
+
+  // generation is a monotonically increasing counter within a proxy group.
+  // The tracker only considers proxies at the highest known generation within
+  // each group as "desired". Corresponds to the
+  // teleport.internal/proxygroup-gen label on the proxy resource.
+  uint64 generation = 3;
+}
+
+// AgentControl is sent by the agent on the control stream after the handshake.
+// The agent sends one of these messages periodically as a heartbeat.
+message AgentControl {
+  // heartbeat_unix_ms is the agent's current wall-clock time in Unix
+  // milliseconds. The proxy records the receive time to detect stale
+  // connections; the sent timestamp is used to calculate round-trip latency
+  // for observability.
+  int64 heartbeat_unix_ms = 1;
+}
+
+// ProxyControl is sent by the proxy on the control stream after the handshake.
+// Any field may be absent; absent fields should be treated as no-ops.
+message ProxyControl {
+  // proxies, when non-empty, replaces the agent's current gossip proxy set.
+  // Sent on the proxySyncInterval ticker and whenever the proxy watcher
+  // observes a change in the cluster's proxy set.
+  repeated ProxyEntry proxies = 1;
+
+  // reconnect advises the agent to close this connection and reconnect.
+  // Used after proxy configuration changes that require fresh connections
+  // (analogous to the reconnectRequest in the legacy SSH-based protocol).
+  bool reconnect = 2;
+
+  // terminating indicates the proxy is shutting down gracefully. The agent
+  // should not count this connection towards its thriving connection count
+  // and should open a replacement connection to another proxy.
+  bool terminating = 3;
+}
