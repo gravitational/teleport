@@ -42,7 +42,7 @@ else
 fi
 
 echo "Waiting for Teleport to be ready..."
-for i in $(seq 1 30); do
+for _ in $(seq 1 30); do
   if curl -sf -o /dev/null -k https://localhost:3080/web/config.js 2>/dev/null; then
     echo "Teleport is ready"
     exit 0
