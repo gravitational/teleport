@@ -185,9 +185,9 @@ func printKeypair(w io.Writer, params KeypairMessageParams, format string) error
 
 	switch format {
 	case teleport.Text:
-		if err := keypairMessageTemplate.Execute(w, params); err != nil {
-			return trace.Wrap(err)
-		}
+		// if err := keypairMessageTemplate.Execute(w, params); err != nil {
+		// 	return trace.Wrap(err)
+		// }
 	case teleport.JSON:
 		bytes, err := json.Marshal(&KeypairDocument{
 			PublicKey:  params.PublicKey,

@@ -30,9 +30,6 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-
-	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
-	"github.com/gravitational/teleport/lib/tbot/config/systemd"
 )
 
 type onInstallSystemdCmdFunc func(
@@ -106,31 +103,31 @@ func onInstallSystemdCmd(
 		return trace.BadParameter("missing required parameter --name")
 	}
 
-	tbotPath, err := getExecutablePath()
-	if errors.Is(err, autoupdate.ErrUnstableExecutable) {
-		log.WarnContext(ctx, "Systemd template will be rendered with an unstable path to the tbot executable. Please adjust the service to use a stable path instead.")
-	} else if err != nil {
-		return trace.Wrap(err, "determining path to current executable")
-	}
+	// tbotPath, err := getExecutablePath()
+	// if errors.Is(err, autoupdate.ErrUnstableExecutable) {
+	// 	log.WarnContext(ctx, "Systemd template will be rendered with an unstable path to the tbot executable. Please adjust the service to use a stable path instead.")
+	// } else if err != nil {
+	// 	return trace.Wrap(err, "determining path to current executable")
+	// }
 
-	configPath, err = filepath.Abs(configPath)
-	if err != nil {
-		return trace.Wrap(err, "determining absolute path to config")
-	}
+	// configPath, err = filepath.Abs(configPath)
+	// if err != nil {
+	// 	return trace.Wrap(err, "determining absolute path to config")
+	// }
 
 	buf := bytes.NewBuffer(nil)
-	err = systemd.Template.Execute(buf, systemd.TemplateParams{
-		UnitName:           unitName,
-		User:               user,
-		Group:              group,
-		AnonymousTelemetry: anonymousTelemetry,
-		ConfigPath:         configPath,
-		TBotPath:           tbotPath,
-		PIDFile:            pidFile,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	// err = systemd.Template.Execute(buf, systemd.TemplateParams{
+	// 	UnitName:           unitName,
+	// 	User:               user,
+	// 	Group:              group,
+	// 	AnonymousTelemetry: anonymousTelemetry,
+	// 	ConfigPath:         configPath,
+	// 	TBotPath:           tbotPath,
+	// 	PIDFile:            pidFile,
+	// })
+	// if err != nil {
+	// 	return trace.Wrap(err)
+	// }
 	generated := buf.Bytes()
 	path := filepath.Join(systemdDirectory, fmt.Sprintf("%s.service", unitName))
 

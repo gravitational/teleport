@@ -29,7 +29,6 @@ import (
 	"maps"
 	"strconv"
 	"strings"
-	"text/template"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -444,24 +443,24 @@ func renderTemplate(temp string, cluster *argoClusterCredentials) (string, error
 		return "", nil
 	}
 
-	tmpl, err := template.New("").Parse(temp)
-	if err != nil {
-		return "", trace.BadParameter("failed to parse template, error: %v", err)
-	}
+	// tmpl, err := template.New("").Parse(temp)
+	// if err != nil {
+	// 	return "", trace.BadParameter("failed to parse template, error: %v", err)
+	// }
 
-	tmplVars := struct {
-		ClusterName string
-		KubeName    string
-		Labels      map[string]string
-	}{
-		ClusterName: cluster.teleportClusterName,
-		KubeName:    cluster.kubeClusterName,
-		Labels:      cluster.kubeClusterLabels,
-	}
+	// tmplVars := struct {
+	// 	ClusterName string
+	// 	KubeName    string
+	// 	Labels      map[string]string
+	// }{
+	// 	ClusterName: cluster.teleportClusterName,
+	// 	KubeName:    cluster.kubeClusterName,
+	// 	Labels:      cluster.kubeClusterLabels,
+	// }
 
 	var b bytes.Buffer
-	if err = tmpl.Execute(&b, tmplVars); err != nil {
-		return "", trace.BadParameter("failed to execute template, error: %v", err)
-	}
+	// if err = tmpl.Execute(&b, tmplVars); err != nil {
+	// 	return "", trace.BadParameter("failed to execute template, error: %v", err)
+	// }
 	return b.String(), nil
 }

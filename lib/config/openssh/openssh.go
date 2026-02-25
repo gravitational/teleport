@@ -23,8 +23,6 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -168,11 +166,11 @@ func WriteMuxedSSHConfig(w io.Writer, config *MuxedSSHConfigParameters) error {
 		config.Port = defaults.SSHServerListenPort
 	}
 
-	if err := muxedSSHConfigTemplate.Execute(w, muxedSSHTmplParams{
-		MuxedSSHConfigParameters: *config,
-	}); err != nil {
-		return trace.Wrap(err)
-	}
+	// if err := muxedSSHConfigTemplate.Execute(w, muxedSSHTmplParams{
+	// 	MuxedSSHConfigParameters: *config,
+	// }); err != nil {
+	// 	return trace.Wrap(err)
+	// }
 
 	return nil
 }
@@ -223,11 +221,11 @@ func WriteClusterSSHConfig(sb *strings.Builder, config *ClusterSSHConfigParamete
 		config.Port = defaults.SSHServerListenPort
 	}
 
-	if err := clusterSSHConfigTmpl.Execute(sb, clusterSSHConfigTmplParams{
-		ClusterSSHConfigParameters: *config,
-	}); err != nil {
-		return trace.Wrap(err)
-	}
+	// if err := clusterSSHConfigTmpl.Execute(sb, clusterSSHConfigTmplParams{
+	// 	ClusterSSHConfigParameters: *config,
+	// }); err != nil {
+	// 	return trace.Wrap(err)
+	// }
 
 	return nil
 }
