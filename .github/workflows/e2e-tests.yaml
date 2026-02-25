@@ -83,14 +83,12 @@ jobs:
     name: E2E Tests
     needs: build
     runs-on: ubuntu-latest
+
+    container:
+      image: mcr.microsoft.com/playwright:v1.55.1-noble
+
     steps:
       - uses: actions/checkout@v6
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-
-      - run: corepack enable
 
       - name: Cache e2e node_modules
         uses: actions/cache@v4
@@ -99,18 +97,11 @@ jobs:
           key: e2e-pnpm-${{ runner.os }}-${{ hashFiles('e2e/pnpm-lock.yaml') }}
           restore-keys: e2e-pnpm-${{ runner.os }}-
 
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/pnpm-lock.yaml') }}
-          restore-keys: playwright-${{ runner.os }}-
-
       - name: Install e2e dependencies
         working-directory: e2e
         run: |
+          corepack enable
           pnpm install --frozen-lockfile
-          pnpm exec playwright install --with-deps chromium
 
       - uses: actions/download-artifact@v4
         with:
