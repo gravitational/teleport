@@ -457,9 +457,9 @@ const defaultUsageTemplate = `{{define "FormatCommand" -}}
 {{end -}}
 
 {{define "FormatCommands" -}}
-{{range .FlattenedCommands -}}
+{{range .Commands -}}
 {{if not .Hidden -}}
-{{"  "}}{{.FullCommand | printf "%%-%ds"}}{{if .Default}} (Default){{end}} {{ .Help }}
+{{"  "}}{{.Name | printf "%%-%ds"}}{{if .Default}} (Default){{end}} {{ .Help }}
 {{end -}}
 {{end -}}
 {{end -}}
