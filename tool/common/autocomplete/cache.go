@@ -39,14 +39,6 @@ type cacheEntry struct {
 	timeSinceUpdated time.Time
 }
 
-func listKinds() []string {
-	kinds := make([]string, 0, len(resources.Handlers()))
-	for kind := range resources.Handlers() {
-		kinds = append(kinds, kind)
-	}
-	return kinds
-}
-
 type resourceGetter func(ctx context.Context) ([]string, error)
 
 const hostKey = "nodes_by_hostname"
@@ -124,8 +116,15 @@ func (c *cache) Get(kind string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	// if cache is old retrieve from server and write to file
-	// TODO
+
+	// when empty, signifies tctl resource command (tctl get ...)
+	resources := []string{}
+	if kind == "" {
+		for _, res := range cacheStorage.resources {
+			resources = append(resources, res.resourceNames...)
+		}
+		return resources, nil
+	}
 	return cacheStorage.resources[kind].resourceNames, nil
 }
 
