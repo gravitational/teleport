@@ -17,7 +17,7 @@ on:
 jobs:
   build:
     name: Build Teleport
-    runs-on: ubuntu-22.04-16core
+    runs-on: ubuntu-22.04-32core
 
     permissions:
       contents: read
