@@ -336,6 +336,9 @@ func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 	app.HelpFlag.Hidden()
 	app.HelpFlag.NoEnvar()
 
+	// output --help output to stdout instead of stderr
+	app.UsageWriter(os.Stdout)
+
 	// set our own help template
 	return app.UsageTemplate(createUsageTemplate())
 }
