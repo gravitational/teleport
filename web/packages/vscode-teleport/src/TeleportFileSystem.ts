@@ -1,4 +1,4 @@
-import { execFile } from 'child_process';
+import { execFile, execFileSync } from 'child_process';
 import { promisify } from 'util';
 
 import {
@@ -14,6 +14,7 @@ import {
 } from 'vscode';
 
 export const scheme = 'tctl';
+const tctlPath = '/Users/bartosz/code/teleport/build/tctl';
 
 export class TeleportFileSystem implements FileSystemProvider {
   onDidChangeFile = new EventEmitter<FileChangeEvent[]>().event;
@@ -57,8 +58,12 @@ export class TeleportFileSystem implements FileSystemProvider {
     throw new Error('Method not implemented.');
   }
 
-  readFile(uri: Uri): Uint8Array | Thenable<Uint8Array> {
-    throw new Error('Method not implemented.');
+  async readFile(uri: Uri): Promise<Uint8Array> {
+    const segments = uri.path.split('/').filter(s => !!s);
+    if (segments.length !== 2) {
+      throw FileSystemError.FileNotFound(uri);
+    }
+    return Buffer.from(await tctl(['get', `${segments[0]}/${segments[1]}`]));
   }
 
   writeFile(
@@ -66,7 +71,7 @@ export class TeleportFileSystem implements FileSystemProvider {
     content: Uint8Array,
     options: { readonly create: boolean; readonly overwrite: boolean }
   ): void | Thenable<void> {
-    throw new Error('Method not implemented.');
+    execFileSync(tctlPath, ['create', '-f'], { input: content });
   }
 
   delete(
@@ -86,9 +91,7 @@ export class TeleportFileSystem implements FileSystemProvider {
 }
 
 async function tctl(args: string[]): Promise<string> {
-  return (
-    await promisify(execFile)('/Users/bartosz/code/teleport/build/tctl', args)
-  ).stdout;
+  return (await promisify(execFile)(tctlPath, args)).stdout;
 }
 
 async function fetchResourceKinds(): Promise<string[]> {
