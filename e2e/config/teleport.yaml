@@ -8,7 +8,7 @@ teleport:
     severity: TRACE
     format:
       output: text
-  auth_server: teleport:3025
+  auth_server: localhost:3025
 
 auth_service:
   enabled: "yes"
@@ -22,13 +22,13 @@ auth_service:
 
 ssh_service:
   enabled: "yes"
-  public_addr: teleport:3022
+  public_addr: localhost:3022
   labels:
     env: example
 
 proxy_service:
   enabled: "yes"
-  public_addr: teleport:3080
+  public_addr: localhost:3080
   acme: {}
   web_listen_addr: 0.0.0.0:3080
   https_keypairs:
