@@ -92,6 +92,10 @@ func (c *Cluster) Logout(ctx context.Context) error {
 func (c *Cluster) LocalLogin(ctx context.Context, user, password, otpToken string) error {
 	c.clusterClient.AuthConnector = constants.LocalConnector
 
+	if _, err := c.updateClientFromPingResponse(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := c.login(ctx, c.localMFALogin(user, password)); err != nil {
 		return trace.Wrap(err)
 	}

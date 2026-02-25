@@ -3272,7 +3272,8 @@ type clientConfig struct {
 // connection to a cluster.
 func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConfig, error) {
 	proxyAddr := tc.Config.SSHProxyAddr
-	if tc.TLSRoutingEnabled {
+	// Fall back to multiplexed WebProxyAddr if SSHProxyAddr is not set or if TLS routing is enabled
+	if tc.TLSRoutingEnabled || proxyAddr == "" {
 		proxyAddr = tc.Config.WebProxyAddr
 	}
 
