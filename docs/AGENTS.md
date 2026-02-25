@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with
 code in this repository.
 
-## Context
+## Structure of the Teleport documentation site source
 
 The [docs-website](https://github.com/gravitational/docs-website) repo contains
 source files for the Teleport docs site. In the `content` directory is a git
@@ -19,49 +19,17 @@ directory of a single `gravitational/teleport` clone within a subdirectory of
 
 All build, lint, and preview commands are run from the `docs-website` root.
 
-## Commands
+### Managing the Teleport docs site
 
-Run the following commands to manage the docs website from `../../..`, the root
-of the `docs-website` repo clone:
-
-```bash
-# Local development (macOS only; requires rsync, watchexec, jq via Homebrew)
-yarn dev
-
-# Full build (updates submodules, prepares files, builds static site)
-yarn build
-
-# Lint MDX content (runs remark linter on content/**/docs/pages/**/*.mdx)
-yarn markdown-lint
-
-# Auto-fix formatting issues
-FIX=1 yarn markdown-lint
-
-# Run unit tests for server/ and src/ code
-yarn test
-
-# Run a single test file
-yarn test -- --testPathPattern=server/remark-variables
-
-# Type-check TypeScript
-yarn typecheck
-
-# Lint/format TypeScript and JS
-yarn lint
-
-# Prepare versioned file layout (copies MDX from content/ to docs/ and versioned_docs/)
-yarn prepare-files
-```
-
-For a complete reference of `yarn` commands, read `../../../package.json`. There
-are `package.json` files in subdirectories of each `content/v[0-9]+.x`
-submodule, but those are for the Teleport product instead of the Teleport docs
-site.
+For a complete reference of `yarn` commands for managing the Teleport docs site
+in a local clone, read `../../../package.json`. There are `package.json` files
+in subdirectories of each `content/v[0-9]+.x` submodule, but those are for the
+Teleport product instead of the Teleport docs site.
 
 > **Note:** `yarn dev` uses `watchexec` to watch for file changes in `content/`
 > and sync them live. Includes files trigger a full Docusaurus restart.
 
-## Content structure (this repo)
+### Structure of a single docs content version
 
 ```
 docs/
@@ -76,18 +44,84 @@ Pages are at `docs/pages/**/*.mdx`. The `includes/` directories are excluded
 from page rendering and are only pulled in via the `(!path/to/file.mdx!)`
 include syntax.
 
-## Architecture overview (docs-website)
+### MDX Components
 
-The docs-website (`../..`) converts the MDX content at build time:
+Components you can use with the docs site are in `../../../src`. The components
+listed in `../../../src/theme/MDXComponents/index.tsx` can be imported without
+using an `import` statement. Other components require an `import` statement. 
 
-1. **`scripts/prepare-files.mts`** — copies `.mdx` files from `content/{version}/docs/pages/` to `docs/` (current version) or `versioned_docs/version-{name}/` (other versions), generates `sidebars.json` and `versions.json`.
-2. **`config.json`** (docs-website root) — declares versions with `name`, `branch`, `isDefault`. The last version is treated as current/next.
-3. **Remark plugins** (`server/`) transform content:
-   - `remark-includes` — resolves `(!file!)` includes
-   - `remark-variables` — resolves `(=var=)` variable syntax using `docs/config.json`
-   - `remark-update-asset-paths` — rewrites asset paths to point to `content/{version}/`
-   - `remark-no-h1`, `remark-code-snippet`, `remark-version-alias` — additional transforms
-4. **Linters** (`server/lint-*.ts`) — run via `yarn markdown-lint` using `remark-cli`
+To import a component from this version of the docs site, use the `@version`
+alias as per the example below:
+
+```jsx
+import agenticAiImg from '@version/docs/img/agentic-ai/agentic-ai-hero.png';
+```
+
+### Remark plugins
+
+**Remark plugins** (`server/`) transform content:
+
+- `remark-includes` — resolves `(!file!)` includes
+- `remark-variables` — resolves `(=var=)` variable syntax using `docs/config.json`
+- `remark-update-asset-paths` — rewrites asset paths to point to `content/{version}/`
+- `remark-no-h1`, `remark-code-snippet`, `remark-version-alias` — additional transforms
+
+### Building the docs site
+
+To test the rendered HTML of one version of the docs site (the content in this
+repository):
+
+1. Run the following command to move content files into the directory structure
+   Docusaurus expects:
+
+   ```bash
+   # Navigate to the docs-website root
+   cd ../../..
+   yarn prepare-files
+   ```
+
+   `scripts/prepare-files.mts` copies `.mdx` files from
+   `content/{version}/docs/pages/` to `docs/` (current version) or
+   `versioned_docs/version-{name}/` (other versions), generates `sidebars.json`
+   and `versions.json`.
+
+1. Build the docs site:
+
+   ```bash
+   yarn docusaurus build
+   ```
+
+### Linting
+
+When a documentation author opens a pull request with a documentation change in
+`gravitational/teleport`, the following GitHub Actions workflow checks the
+change: `.github/workflows/doc-tests.yaml`.
+
+When making changes to the docs, run the following linters locally to anticipate
+the checks we run on GitHub actions:
+
+1. **remark linters** check the structure of the MDX in each docs page:
+
+   ```bash
+   yarn markdown-lint
+   ```
+
+1. **cspell** checks the spelling of each docs page. The file `docs/cspell.json`
+   in this repository configures exceptions to cspell. You can edit this file if
+   a cspell violation is not actually a mispelling. To run cspell, navigate to
+   the root of the docs-website repo (`../../..`) and execute the following
+   commandl where SUBMODULE is the path to the current submodule:
+
+   ```
+   yarn spellcheck SUBMODULE
+   ```
+
+1. **Vale** checks prose style. Run the Vale linter using this command from the
+   root of this `gravitational/teleport` submodule:
+
+   ```
+   vale --config docs/.vale.ini docs/pages
+   ```
 
 ## MDX content conventions
 
