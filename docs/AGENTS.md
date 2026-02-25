@@ -175,7 +175,11 @@ $ tsh login --proxy=<Var name="cluster-name" />:443
 
 ### Components
 
-**Tabs** — use for alternative approaches:
+We encourage you to use the following docs components where appropriate.
+
+#### Tabs
+
+Use for alternative approaches:
 
 ```mdx
 <Tabs>
@@ -196,7 +200,9 @@ $ curl -O https://example.com/macos.pkg
 </Tabs>
 ```
 
-**Admonition** — use for notes, tips, warnings, and danger notices:
+#### Admonition
+
+Use for notes, tips, warnings, and danger notices:
 
 ```mdx
 <Admonition type="note">Note content.</Admonition>
@@ -206,7 +212,17 @@ $ curl -O https://example.com/macos.pkg
 <Admonition type="note" title="Custom Title">Custom title admonition.</Admonition>
 ```
 
-**Collapsible sections** — use `<details>` for optional or advanced content:
+Do not place an Admonition as the first paragraph after a section heading.
+Instead, after a section heading, the first paragraph must introduce the purpose
+of the section. 
+
+If an Admonition has to do with the entire feature presented in the guide, place
+it just before the first H2-level heading and after the introductory text for
+the guide.
+
+#### Collapsible sections
+
+Use `<details>` for optional or advanced content:
 
 ```mdx
 <details>
