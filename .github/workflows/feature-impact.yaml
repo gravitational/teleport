@@ -112,7 +112,7 @@ jobs:
                   id: 'feat.scoped_access',
                   name: 'Scoped Access',
                   related_to: ['feat.ssh_access', 'feat.k8s_access', 'feat.join_token'],
-                  keywords: ['scope', 'access', 'namespacem', 'joining'],
+                  keywords: ['scope', 'access', 'namespace', 'joining'],
                   paths_hint: ['scope', 'scoped'],
                   relevant_paths: ['lib/services/scoped.go', 'lib/services/scoped_tokens.go', 'lib/services/local/scoped_access.go', 'lib/services/local/scoped_tokens.go', 'lib/scopes/'],
                 },
