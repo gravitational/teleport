@@ -710,6 +710,22 @@ type githubAuthRawResponse struct {
 }
 
 // ValidateGithubAuthCallback validates Github auth callback returned from redirect
+// GetAnonMapping returns a mapping of anonymized username -> original username
+// for the provided list of anonymized usernames.
+func (c *HTTPClient) GetAnonMapping(ctx context.Context, anonUsernames []string) (map[string]string, error) {
+	out, err := c.PostJSON(ctx, c.Endpoint("anonmapping"), struct {
+		AnonUsernames []string `json:"anon_usernames"`
+	}{AnonUsernames: anonUsernames})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var mapping map[string]string
+	if err := json.Unmarshal(out.Bytes(), &mapping); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return mapping, nil
+}
+
 func (c *HTTPClient) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error) {
 	out, err := c.PostJSON(ctx, c.Endpoint("github", "requests", "validate"),
 		validateGithubAuthCallbackReq{Query: q})

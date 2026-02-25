@@ -8362,6 +8362,15 @@ func checkOktaLockTarget(ctx context.Context, authzCtx *authz.Context, users ser
 
 // checkOktaLockAccess gates access to update operations on lock records based
 // on the origin label on the supplied user record.
+// GetAnonMapping looks up original usernames for a list of anonymized usernames.
+// Requires read access to users.
+func (a *ServerWithRoles) GetAnonMapping(ctx context.Context, anonUsernames []string) (map[string]string, error) {
+	if err := a.authorizeAction(types.KindUser, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetAnonMapping(ctx, anonUsernames)
+}
+
 func checkOktaLockAccess(ctx context.Context, authzCtx *authz.Context, locks services.LockGetter, existingLockName string, verb string) error {
 	existingLock, err := locks.GetLock(ctx, existingLockName)
 	if err != nil && !trace.IsNotFound(err) {

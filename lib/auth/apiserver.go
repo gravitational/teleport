@@ -144,6 +144,9 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// SSO validation handlers
 	srv.POST("/:version/github/requests/validate", srv.WithAuth(srv.validateGithubAuthCallback))
 
+	// Anonymization mapping lookup
+	srv.POST("/:version/anonmapping", srv.WithAuth(srv.getAnonMapping))
+
 	// Migrated/deleted endpoints with 501 Not Implemented handlers.
 	srv.POST("/:version/reversetunnels", httpMigratedHandler)
 	srv.GET("/:version/reversetunnels", httpMigratedHandler)
@@ -623,4 +626,22 @@ func (s *APIServer) deleteAllTunnelConnections(auth *ServerWithRoles, w http.Res
 
 func message(msg string) map[string]any {
 	return map[string]any{"message": msg}
+}
+
+type anonMappingRequest struct {
+	AnonUsernames []string `json:"anon_usernames"`
+}
+
+// getAnonMapping returns a map of anonymized username -> original username for
+// the provided list of anonymized usernames.
+func (s *APIServer) getAnonMapping(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
+	var req anonMappingRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return nil, trace.BadParameter("failed to decode request: %v", err)
+	}
+	mapping, err := auth.GetAnonMapping(r.Context(), req.AnonUsernames)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return mapping, nil
 }
