@@ -1,4 +1,11 @@
-import { ExtensionContext, window, workspace } from 'vscode';
+import {
+  commands,
+  ExtensionContext,
+  languages,
+  Uri,
+  window,
+  workspace,
+} from 'vscode';
 
 import { scheme, TeleportFileSystem } from './TeleportFileSystem';
 import { TeleportResourcesTreeProvider } from './TeleportResourcesTreeProvider';
@@ -20,6 +27,17 @@ export function activate(context: ExtensionContext) {
     window.registerTreeDataProvider(
       'teleportResources',
       new TeleportResourcesTreeProvider()
+    )
+  );
+
+  context.subscriptions.push(
+    commands.registerCommand(
+      'teleport.openResourceAsYaml',
+      async (uri: Uri) => {
+        const document = await workspace.openTextDocument(uri);
+        await window.showTextDocument(document);
+        await languages.setTextDocumentLanguage(document, 'yaml');
+      }
     )
   );
 }

@@ -27,7 +27,7 @@ export class TeleportResourcesTreeProvider implements TreeDataProvider<TeleportT
         : TreeItemCollapsibleState.None
     );
     ti.command = {
-      command: 'vscode.open',
+      command: 'teleport.openResourceAsYaml',
       title: 'Open',
       arguments: [ti.resourceUri],
     };
