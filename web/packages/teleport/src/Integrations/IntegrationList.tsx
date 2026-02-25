@@ -45,6 +45,7 @@ import {
 } from 'teleport/Integrations/helpers';
 import api from 'teleport/services/api';
 import {
+  ExternalCAKeyStorageIntegration,
   ExternalAuditStorageIntegration,
   Integration,
   IntegrationKind,
@@ -70,7 +71,8 @@ type Props = {
 export type IntegrationLike =
   | Integration
   | Plugin
-  | ExternalAuditStorageIntegration;
+  | ExternalAuditStorageIntegration
+  | ExternalCAKeyStorageIntegration;
 
 // statusKinds are the integration types with status pages; we enable clicking on the row directly to route to the view
 const statusKinds = [
@@ -252,25 +254,42 @@ export function IntegrationList(props: Props) {
                 );
               }
 
-              // draft external audit storage
-              if (item.statusCode === IntegrationStatusCode.Draft) {
+              if (item.resourceType === 'external-audit-storage') {
+                // draft external audit storage
+                if (item.statusCode === IntegrationStatusCode.Draft) {
+                  return (
+                    <Cell align="right">
+                      <MenuButton>
+                        <MenuItem
+                          as={InternalRouteLink}
+                          to={{
+                            pathname: cfg.getIntegrationEnrollRoute(
+                              IntegrationKind.ExternalAuditStorage
+                            ),
+                            state: { continueDraft: true },
+                          }}
+                        >
+                          Continue Setup...
+                        </MenuItem>
+                        <MenuItem
+                          onClick={() =>
+                            props.onDeleteExternalAuditStorage('draft')
+                          }
+                        >
+                          Delete...
+                        </MenuItem>
+                      </MenuButton>
+                    </Cell>
+                  );
+                }
+
+                // active external audit storage
                 return (
                   <Cell align="right">
                     <MenuButton>
                       <MenuItem
-                        as={InternalRouteLink}
-                        to={{
-                          pathname: cfg.getIntegrationEnrollRoute(
-                            IntegrationKind.ExternalAuditStorage
-                          ),
-                          state: { continueDraft: true },
-                        }}
-                      >
-                        Continue Setup...
-                      </MenuItem>
-                      <MenuItem
                         onClick={() =>
-                          props.onDeleteExternalAuditStorage('draft')
+                          props.onDeleteExternalAuditStorage('cluster')
                         }
                       >
                         Delete...
@@ -280,20 +299,30 @@ export function IntegrationList(props: Props) {
                 );
               }
 
-              // active external audit storage
-              return (
-                <Cell align="right">
-                  <MenuButton>
-                    <MenuItem
-                      onClick={() =>
-                        props.onDeleteExternalAuditStorage('cluster')
-                      }
-                    >
-                      Delete...
-                    </MenuItem>
-                  </MenuButton>
-                </Cell>
-              );
+              if (
+                item.resourceType === 'external-ca-key-storage' &&
+                item.statusCode === IntegrationStatusCode.Draft
+              ) {
+                return (
+                  <Cell align="right">
+                    <MenuButton>
+                      <MenuItem
+                        as={InternalRouteLink}
+                        to={{
+                          pathname: cfg.getIntegrationEnrollRoute(
+                            IntegrationKind.ExternalCAKeyStorage
+                          ),
+                          state: { continueDraft: true },
+                        }}
+                      >
+                        Continue Setup...
+                      </MenuItem>
+                    </MenuButton>
+                  </Cell>
+                );
+              }
+
+              return;
             },
           },
         ]}
@@ -381,6 +410,7 @@ const NameCell = ({ item }: { item: IntegrationLike }) => {
     switch (item.kind) {
       case IntegrationKind.AwsOidc:
       case IntegrationKind.ExternalAuditStorage:
+      case IntegrationKind.ExternalCAKeyStorage:
         formattedText = item.name;
         icon = <IconContainer name="aws" />;
         break;

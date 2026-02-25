@@ -187,6 +187,9 @@ func (a *Server) AutoRotateCertAuthorities(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// Use the CA-rotation keystore override if configured.
+	keyStore := a.getCAKeyStoreForRotation()
+
 	usableKeysResults := make(map[types.CertAuthType]*keystore.UsableKeysResult)
 	for _, caType := range types.CertAuthTypes {
 		ca, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
@@ -205,7 +208,7 @@ func (a *Server) AutoRotateCertAuthorities(ctx context.Context) error {
 				return trace.Wrap(err)
 			}
 		}
-		usableKeysResults[caType], err = a.keyStore.HasUsableActiveKeys(ctx, ca)
+		usableKeysResults[caType], err = keyStore.HasUsableActiveKeys(ctx, ca)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -372,6 +375,8 @@ func (a *Server) startNewRotation(ctx context.Context, req rotationReq, ca types
 
 	activeKeys := ca.GetActiveKeys()
 	additionalKeys := ca.GetAdditionalTrustedKeys()
+	// Use the CA-rotation keystore override if configured.
+	keyStore := a.getCAKeyStoreForRotation()
 	var newKeys types.CAKeySet
 
 	// generate keys and certificates:
@@ -439,7 +444,7 @@ func (a *Server) startNewRotation(ctx context.Context, req rotationReq, ca types
 			// invalidating the current Admin identity.
 			newKeys = additionalKeys.Clone()
 		}
-		usableKeysResult, err := a.keyStore.HasUsableAdditionalKeys(ctx, ca)
+		usableKeysResult, err := keyStore.HasUsableAdditionalKeys(ctx, ca)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -451,7 +456,7 @@ func (a *Server) startNewRotation(ctx context.Context, req rotationReq, ca types
 			// 2. There are AdditionalTrustedKeys which were added by a
 			//    different HSM-enabled auth server or one using a different KMS.
 			// In either case, we need to add newly generated keys.
-			newLocalKeys, err := newKeySet(ctx, a.keyStore, ca.GetID())
+			newLocalKeys, err := newKeySet(ctx, keyStore, ca.GetID())
 			if err != nil {
 				return trace.Wrap(err)
 			}

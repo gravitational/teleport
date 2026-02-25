@@ -94,6 +94,7 @@ export enum IntegrationKind {
   AwsCloud = 'aws-cloud',
   AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',
+  ExternalCAKeyStorage = 'external-ca-key-storage',
   GitHub = 'github',
   AzureCloud = 'azure-cloud',
   GoogleCloud = 'google-cloud',
@@ -296,6 +297,20 @@ export type ExternalAuditStorageIntegration = IntegrationTemplate<
   'external-audit-storage',
   IntegrationKind.ExternalAuditStorage,
   ExternalAuditStorage
+>;
+
+export type ExternalCAKeyStorage = {
+  integrationName: string;
+  awsAccountId: string;
+  awsRegion: string;
+  keyAliasPrefix: string;
+  updatedAt: string;
+};
+
+export type ExternalCAKeyStorageIntegration = IntegrationTemplate<
+  'external-ca-key-storage',
+  IntegrationKind.ExternalCAKeyStorage,
+  ExternalCAKeyStorage
 >;
 
 export type Plugin<SP = any, D = any> = IntegrationTemplate<

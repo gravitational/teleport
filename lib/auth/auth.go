@@ -213,7 +213,19 @@ const (
 	tagVersion = "version"
 )
 
-var ErrRequiresEnterprise = services.ErrRequiresEnterprise
+var (
+	// ErrRequiresEnterprise is returned whenever Enterprise functionality is
+	// requested in an OSS binary.
+	ErrRequiresEnterprise = services.ErrRequiresEnterprise
+
+	// mockExternalCAKeyStoreRegistry tracks auth servers by cluster name so
+	// enterprise mock integration code can toggle external CA key storage in
+	// single-process deployments.
+	//
+	// TODO(cthach): Replace this process-local registry with a backend-backed
+	// configuration flow so auth/proxy split deployments are supported.
+	mockExternalCAKeyStoreRegistry sync.Map
+)
 
 // ServerOption allows setting options as functional arguments to Server
 type ServerOption func(*Server) error
@@ -733,6 +745,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		scopedAccessBackend:          cfg.ScopedAccess,
 		ScopedAccessCache:            scopedAccessCache,
 		keyStore:                     cfg.KeyStore,
+		externalCAKeyStore:           cfg.ExternalCAKeyStore,
 		traceClient:                  cfg.TraceClient,
 		fips:                         cfg.FIPS,
 		loadAllCAs:                   cfg.LoadAllCAs,
@@ -761,6 +774,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			}
 		}),
 	)
+
+	if cfg.ClusterName != nil {
+		clusterName := cfg.ClusterName.GetClusterName()
+		if clusterName != "" {
+			mockExternalCAKeyStoreRegistry.Store(clusterName, as)
+		}
+	}
 
 	for _, o := range opts {
 		if err := o(as); err != nil {
@@ -1289,6 +1309,13 @@ type Server struct {
 	// HSMs
 	keyStore *keystore.Manager
 
+	// externalCAKeyStore optionally overrides keyStore for generating new CA
+	// keys during CA rotation.
+	//
+	// Nil means CA rotation uses keyStore.
+	externalCAKeyStore   *keystore.Manager
+	externalCAKeyStoreMu sync.RWMutex
+
 	// lockWatcher is a lock watcher, used to verify cert generation requests.
 	lockWatcher *services.LockWatcher
 
@@ -1476,6 +1503,109 @@ type Server struct {
 	// EncryptedIO provides encryption for session related data such as
 	// recordings, thumbnails, and metadata.
 	EncryptedIO *recordingencryption.EncryptedIO
+}
+
+// SetMockExternalCAKeyStoreForCluster configures a process-local mock external
+// CA keystore override for the given cluster.
+//
+// This intentionally avoids calling cloud KMS APIs and is only intended for
+// local and test environments.
+func SetMockExternalCAKeyStoreForCluster(ctx context.Context, clusterName string) error {
+	if clusterName == "" {
+		return trace.BadParameter("clusterName is required")
+	}
+
+	value, ok := mockExternalCAKeyStoreRegistry.Load(clusterName)
+	if !ok {
+		return nil
+	}
+
+	server, ok := value.(*Server)
+	if !ok {
+		return trace.BadParameter("unexpected server type %T", value)
+	}
+
+	return trace.Wrap(server.setExternalCAKeyStoreFromConfig(ctx, servicecfg.KeystoreConfig{}))
+}
+
+// SetExternalCAKeyStoreAWSForCluster configures an AWS KMS external CA
+// keystore override for the given cluster.
+func SetExternalCAKeyStoreAWSForCluster(ctx context.Context, clusterName, awsAccountID, awsRegion string) error {
+	if clusterName == "" {
+		return trace.BadParameter("clusterName is required")
+	}
+
+	if awsAccountID == "" {
+		return trace.BadParameter("awsAccountID is required")
+	}
+
+	if awsRegion == "" {
+		return trace.BadParameter("awsRegion is required")
+	}
+
+	value, ok := mockExternalCAKeyStoreRegistry.Load(clusterName)
+	if !ok {
+		return nil
+	}
+
+	server, ok := value.(*Server)
+	if !ok {
+		return trace.BadParameter("unexpected server type %T", value)
+	}
+
+	return trace.Wrap(server.setExternalCAKeyStoreFromConfig(ctx, servicecfg.KeystoreConfig{
+		AWSKMS: &servicecfg.AWSKMSConfig{
+			AWSAccount: awsAccountID,
+			AWSRegion:  awsRegion,
+		},
+	}))
+}
+
+// ClearExternalCAKeyStoreForCluster clears any configured external CA keystore
+// override for the given cluster.
+func ClearExternalCAKeyStoreForCluster(clusterName string) {
+	value, ok := mockExternalCAKeyStoreRegistry.Load(clusterName)
+	if !ok {
+		return
+	}
+
+	server, ok := value.(*Server)
+	if !ok {
+		return
+	}
+
+	server.setExternalCAKeyStore(nil)
+}
+
+func (a *Server) setExternalCAKeyStore(keyStore *keystore.Manager) {
+	a.externalCAKeyStoreMu.Lock()
+	defer a.externalCAKeyStoreMu.Unlock()
+
+	a.externalCAKeyStore = keyStore
+}
+
+func (a *Server) setExternalCAKeyStoreFromConfig(ctx context.Context, keyStoreConfig servicecfg.KeystoreConfig) error {
+	clusterName, err := a.GetClusterName(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	externalCAKeyStore, err := keystore.NewManager(ctx, &keyStoreConfig, &keystore.Options{
+		HostUUID:             a.ServerID,
+		ClusterName:          clusterName,
+		AuthPreferenceGetter: a,
+		FIPS:                 a.fips,
+		Clock:                a.clock,
+		Logger:               a.logger.With("component", "external_ca_keystore"),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.setExternalCAKeyStore(externalCAKeyStore)
+	a.logger.InfoContext(ctx, "Configured external CA keystore override")
+
+	return nil
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -2414,6 +2544,12 @@ func (a *Server) refreshRemoteClusters(ctx context.Context) {
 }
 
 func (a *Server) Close() error {
+	if clusterName, err := a.GetClusterName(context.Background()); err == nil {
+		if name := clusterName.GetClusterName(); name != "" {
+			mockExternalCAKeyStoreRegistry.Delete(name)
+		}
+	}
+
 	a.cancelFunc()
 
 	var errs []error
@@ -8514,10 +8650,27 @@ func jwtCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
 	return cryptosuites.KeyPurposeUnspecified
 }
 
+// getCAKeyStoreForRotation returns the keystore used for CA rotation key
+// generation.
+//
+// ExternalCAKeyStore is preferred when configured, otherwise keyStore is used.
+func (a *Server) getCAKeyStoreForRotation() *keystore.Manager {
+	a.externalCAKeyStoreMu.RLock()
+	defer a.externalCAKeyStoreMu.RUnlock()
+
+	if a.externalCAKeyStore != nil {
+		return a.externalCAKeyStore
+	}
+
+	return a.keyStore
+}
+
 // ensureLocalAdditionalKeys adds additional trusted keys to the CA if they are not
 // already present.
 func (a *Server) ensureLocalAdditionalKeys(ctx context.Context, ca types.CertAuthority) error {
-	usableKeysResult, err := a.keyStore.HasUsableAdditionalKeys(ctx, ca)
+	keyStore := a.getCAKeyStoreForRotation()
+
+	usableKeysResult, err := keyStore.HasUsableAdditionalKeys(ctx, ca)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -8526,7 +8679,7 @@ func (a *Server) ensureLocalAdditionalKeys(ctx context.Context, ca types.CertAut
 		return nil
 	}
 
-	newKeySet, err := newKeySet(ctx, a.keyStore, ca.GetID())
+	newKeySet, err := newKeySet(ctx, keyStore, ca.GetID())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -8534,7 +8687,7 @@ func (a *Server) ensureLocalAdditionalKeys(ctx context.Context, ca types.CertAut
 	// The CA still needs an update while the CA does not contain any keys of
 	// the preferred type.
 	needsUpdate := func(ca types.CertAuthority) (bool, error) {
-		usableKeysResult, err := a.keyStore.HasUsableAdditionalKeys(ctx, ca)
+		usableKeysResult, err := keyStore.HasUsableAdditionalKeys(ctx, ca)
 		return !usableKeysResult.CAHasPreferredKeyType, trace.Wrap(err)
 	}
 	err = a.addAdditionalTrustedKeysAtomic(ctx, ca, newKeySet, needsUpdate)

@@ -150,6 +150,10 @@ export function getStatus(item: IntegrationLike): {
     return item.statusCode === IntegrationStatusCode.Draft ? DRAFT : HEALTHY;
   }
 
+  if (item.resourceType === 'external-ca-key-storage') {
+    return item.statusCode === IntegrationStatusCode.Draft ? DRAFT : HEALTHY;
+  }
+
   switch (item.statusCode) {
     case IntegrationStatusCode.Unknown:
       return UNKNOWN(

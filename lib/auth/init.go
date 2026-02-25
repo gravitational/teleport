@@ -120,6 +120,16 @@ type InitConfig struct {
 	// in an HSM.
 	KeyStore *keystore.Manager
 
+	// ExternalCAKeyStore optionally overrides the keystore used for generating
+	// new CA keys during CA rotation.
+	//
+	// This override only applies to CA rotation key generation paths. Other
+	// keystore consumers (for example recording encryption) continue to use
+	// KeyStore.
+	//
+	// If nil, CA rotation uses KeyStore.
+	ExternalCAKeyStore *keystore.Manager
+
 	// HostUUID is a UUID of this host
 	HostUUID string
 
