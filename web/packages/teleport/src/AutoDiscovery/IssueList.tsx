@@ -41,7 +41,7 @@ export function IssueList() {
     null
   );
 
-  const { data } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ['discoveryConfigLogs', clusterId],
     queryFn: () => {
       return discoveryService.fetchDiscoveryConfigLogs(clusterId);
@@ -75,7 +75,9 @@ export function IssueList() {
           {/* <InputSearch searchValue={search} setSearchValue={setSearch} /> */}
         </Box>
 
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          <Loading />
+        ) : filtered.length === 0 ? (
           <Box p={4} textAlign="center" color="text.slightlyMuted">
             {search ? 'No matching issues found' : 'No issues found'}
           </Box>
@@ -191,17 +193,6 @@ function InstanceDetails({ instance }: { instance: DiscoveryInstance }) {
         <Text typography="body2" bold>
           {instance.instance_id}
         </Text>
-        <Box
-          as="span"
-          px={2}
-          py={0.5}
-          borderRadius={10}
-          bg="interactive.tonal.danger[0]"
-          color="error.main"
-          css={{ fontSize: '12px', fontWeight: 600 }}
-        >
-          {instance.issues.length}
-        </Box>
       </Flex>
 
       {instance.issues.map((issue, idx) => (
