@@ -12,12 +12,23 @@
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
-    "commands": [
-      {
-        "command": "vscode-teleport.helloWorld",
-        "title": "Hello World"
-      }
-    ]
+    "views": {
+      "teleportContainer": [
+        {
+          "id": "teleportResources",
+          "name": "Teleport Resources"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "teleportContainer",
+          "title": "Teleport",
+          "icon": "resources/teleport.svg"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "pnpm run compile",
