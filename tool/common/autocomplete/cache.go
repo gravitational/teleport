@@ -117,7 +117,8 @@ func (c *cache) Update(ctx context.Context) error {
 			continue
 		}
 		if err := c.update(ctx, kind); err != nil {
-			return trace.Wrap(err)
+			// TODO debug log here
+			continue
 		}
 	}
 	return nil
