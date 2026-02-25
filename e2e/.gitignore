@@ -2,6 +2,7 @@ node_modules/
 test-results/
 playwright-report/
 playwright/.cache/
+.auth/
 certs/
 data/
 teleport-e2e.yaml

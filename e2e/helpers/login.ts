@@ -1,27 +1,20 @@
 import { expect, type Page } from '@playwright/test';
-import { generate } from 'otplib';
 
-const secret = '5F5OH3PDPWTQKZEGN44LX6R4STEPZWB7';
+import { mockWebAuthn } from '../utils/mockWebAuthn';
 
 export async function login(page: Page, username = 'bob', password = 'secret') {
-  await page.addInitScript(() =>
-    localStorage.setItem('grv_teleport_license_acknowledged', 'true')
-  );
+  const { cleanup } = await mockWebAuthn(page);
+
   await page.goto('/');
 
   await page.getByPlaceholder('Username').fill(username);
   await page.getByPlaceholder('Password').fill(password);
-
-  await page.getByText('Passkey or Security Key').click();
-  await page.getByText('Authenticator App').click();
-
-  const token = await generate({ secret });
-
-  await page.getByPlaceholder('123 456').fill(token);
 
   await page.getByRole('button', { name: 'Sign In' }).click();
 
   await page.waitForLoadState('networkidle');
 
   await expect(page.getByText(/^Resources$/).first()).toBeVisible();
+
+  return { cleanup };
 }

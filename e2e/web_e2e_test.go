@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/uuid"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -42,22 +44,6 @@ import (
 
 // TestSignup sets up a test instance of Teleport and runs a playwright test against it to test the signup flow.
 func TestSignup(t *testing.T) {
-	makeBasicSetupAndRunTest(t, "signup.spec.ts")
-}
-
-// TestCreateNewRole sets up a test instance of Teleport and a user to test role management in the UI.
-func TestRoleManagement(t *testing.T) {
-	makeBasicSetupAndRunTest(t, "roles.spec.ts")
-}
-
-// TestAuthConnectorManagement sets up a test instance of Teleport and a user to test auth connector management in the UI.
-func TestAuthConnectorManagement(t *testing.T) {
-	makeBasicSetupAndRunTest(t, "authconnectors.spec.ts")
-}
-
-// makeBasicSetupAndRunTest sets up a test instance of Teleport and a user with the access and editor roles and runs a playwright test.
-// This is a helper function in cases where there is no additional backend setup required beyond creating an invite link.
-func makeBasicSetupAndRunTest(t *testing.T, playwrightTest string) {
 	rc, ctx := createTeleportTestInstanceForWebTests(t)
 
 	as := rc.Process.GetAuthServer()
@@ -77,25 +63,65 @@ func makeBasicSetupAndRunTest(t *testing.T, playwrightTest string) {
 	})
 	require.NoError(t, err)
 
-	// Generate the URL the playwright test will start from.
+	// Generate the URL with the invite link
 	startUrl := fmt.Sprintf("START_URL=https://%s/web/invite/%s", rc.Web, inviteToken.GetName())
 
-	// Start the playwright test
-	cmd := exec.Command("pnpm", "test", playwrightTest)
+	// Start the playwright test using the "signup" project which skips the auth setup.
+	cmd := exec.Command("pnpm", "test", "--project=signup", "signup.spec.ts")
 	cmd.Env = append(os.Environ(), startUrl)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	require.NoError(t, cmd.Run())
 }
 
+// TestRoleManagement sets up a test instance of Teleport user to test role management in the UI.
+func TestRoleManagement(t *testing.T) {
+	makeBootstrappedSetupAndRunTest(t, "roles.spec.ts")
+}
+
+// TestAuthConnectorManagement sets up a test instance of Teleport user to test auth connector management in the UI.
+func TestAuthConnectorManagement(t *testing.T) {
+	makeBootstrappedSetupAndRunTest(t, "authconnectors.spec.ts")
+}
+
+// makeBootstrappedSetupAndRunTest sets up a test instance bootstrapped with state.yaml
+// and runs a playwright test. The bootstrapped state includes a pre-configured user "bob" with password "secret"
+func makeBootstrappedSetupAndRunTest(t *testing.T, playwrightTest string) {
+	bootstrapResources := readBootstrapResources(t)
+	rc, _ := createTeleportTestInstanceForWebTests(t, bootstrapResources...)
+
+	startUrl := fmt.Sprintf("START_URL=https://%s/web/login", rc.Web)
+
+	cmd := exec.Command("pnpm", "test", "--project=setup", playwrightTest)
+	cmd.Env = append(os.Environ(), startUrl)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	require.NoError(t, cmd.Run())
+}
+
+func readBootstrapResources(t *testing.T) []types.Resource {
+	stateFile := filepath.Join("config", "state.yaml")
+	resources, err := config.ReadResources(stateFile)
+	require.NoError(t, err)
+	require.NotEmpty(t, resources)
+
+	var filtered []types.Resource
+	for _, r := range resources {
+		filtered = append(filtered, r)
+	}
+
+	require.NotEmpty(t, filtered, "state.yaml must contain at least one resource")
+	return filtered
+}
+
 // createTeleportTestInstanceForWebTests creates a new Teleport instance to be used for Web UI e2e tests.
-// Using this function requires the `webassets_embed` build tag.
-func createTeleportTestInstanceForWebTests(t *testing.T) (instance *helpers.TeleInstance, ctx context.Context) {
+// Optional bootstrapResources are applied on first startup to pre-populate the instance with resources.
+func createTeleportTestInstanceForWebTests(t *testing.T, bootstrapResources ...types.Resource) (instance *helpers.TeleInstance, ctx context.Context) {
 	privateKey, publicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	cfg := helpers.InstanceConfig{
-		ClusterName: "test-cluster",
+		ClusterName: "teleport-e2e",
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Host,
 		Logger:      logtest.NewLogger(),
@@ -114,6 +140,7 @@ func createTeleportTestInstanceForWebTests(t *testing.T) (instance *helpers.Tele
 	rcConf.SSH.Enabled = false
 	rcConf.Proxy.DisableWebInterface = false
 	rcConf.Version = "v3"
+	rcConf.Auth.BootstrapResources = bootstrapResources
 
 	ctx, contextCancel := context.WithCancel(context.Background())
 

@@ -18,11 +18,8 @@
 
 import { expect, test } from '@playwright/test';
 
-import { signup } from '../utils/signup';
-
 test('verify that a user can create and delete a role', async ({ page }) => {
-  const { cleanup } = await signup(page);
-
+  await page.goto('/');
   await page.getByRole('button', { name: 'Zero Trust Access' }).click();
   await page.getByRole('link', { name: 'Roles' }).click();
   await page.getByRole('button', { name: 'Create New Role' }).click();
@@ -49,6 +46,4 @@ test('verify that a user can create and delete a role', async ({ page }) => {
   await page.getByRole('button', { name: 'Yes, Remove Role' }).click();
 
   await expect(page.getByRole('cell', { name: 'testrole' })).not.toBeVisible();
-
-  await cleanup();
 });

@@ -20,6 +20,22 @@ spec:
         totp:
           key: 5F5OH3PDPWTQKZEGN44LX6R4STEPZWB7
         version: v1
+      - addedAt: "2024-11-26T13:50:42.504120787Z"
+        id: 1a2b3c4d-5e6f-7890-abcd-ef1234567890
+        kind: mfa_device
+        lastUsed: "2024-11-26T13:50:42.506405156Z"
+        metadata:
+          Name: webauthn-device
+          Namespace: default
+        webauthn:
+          credentialId: ZTJlLXdlYmF1dGhuLWNyZWRlbnRpYWwtaWQtMDAwMQ==
+          publicKeyCbor: pQECAyYgASFYIB46TToc6rE1/3jUjCm0uYiS2cly8WDrMi5EFmh1whXzIlgg86dc9tjrD7q/XzzG8l7yt3mHldu6yQurzM02maK8Ji4=
+          attestationType: none
+          aaguid: AAAAAAAAAAAAAAAAAAAAAA==
+          signatureCounter: 0
+          residentKey: false
+          credentialRpId: localhost
+        version: v1
     password_hash: JDJhJDEwJHcwSzJwd0svY0Y4Qkcwa0taN1gxcWUxdVU3dzNtd1oyUzQ2UE82U2xhaVZqaVRrYk5HUXA2 # password is "secret"
   roles:
     - access
