@@ -74,5 +74,6 @@ func Commands() []CLICommand {
 		&decision.Command{},
 		&BoundKeypairCommand{},
 		&ScopedCommand{},
+		&CompletionCommand{},
 	}
 }

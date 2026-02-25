@@ -1469,6 +1469,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		puttyConfig.Hidden()
 	}
 
+	completionsCommand := app.Command("update-completions", "Update local completions cache").Hidden()
+
 	// Client-tools managed updates commands.
 	updateCommand := newUpdateCommand(app)
 
@@ -1956,6 +1958,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = mcpCmd.config.run()
 	case updateCommand.update.FullCommand():
 		err = updateCommand.update.run(&cf)
+	case completionsCommand.FullCommand():
+
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -6381,4 +6385,12 @@ func stringFlagToStrings(value string) []string {
 		values[i] = strings.TrimSpace(values[i])
 	}
 	return apiutils.Deduplicate(values)
+}
+
+func onCompletion(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(UpdateHostCompletions(cf.Context, tc))
 }
