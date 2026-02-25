@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/tool/common/autocomplete"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
@@ -89,11 +90,11 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, _ *tctlcfg.G
 	c.requestList.Flag("sort-order", "Request sort order, 'ascending' or 'descending'").Default("descending").StringVar(&c.sortOrder)
 
 	c.requestGet = requests.Command("get", "Show Access Request by ID.")
-	c.requestGet.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
+	c.requestGet.Arg("request-id", "ID of target request(s)").Required().HintAction(autocomplete.HintAction(types.KindAccessRequest)).StringVar(&c.reqIDs)
 	c.requestGet.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&c.format)
 
 	c.requestApprove = requests.Command("approve", "Approve pending Access Request.")
-	c.requestApprove.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
+	c.requestApprove.Arg("request-id", "ID of target request(s)").Required().HintAction(autocomplete.HintAction(types.KindAccessRequest)).StringVar(&c.reqIDs)
 	c.requestApprove.Flag("delegator", "Optional delegating identity").StringVar(&c.delegator)
 	c.requestApprove.Flag("reason", "Optional reason message").StringVar(&c.reason)
 	c.requestApprove.Flag("annotations", "Resolution attributes <key>=<val>[,...]").StringVar(&c.annotations)
@@ -101,27 +102,27 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, _ *tctlcfg.G
 	c.requestApprove.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z)").StringVar(&c.assumeStartTimeRaw)
 
 	c.requestDeny = requests.Command("deny", "Deny pending Access Request.")
-	c.requestDeny.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
+	c.requestDeny.Arg("request-id", "ID of target request(s)").Required().HintAction(autocomplete.HintAction(types.KindAccessRequest)).StringVar(&c.reqIDs)
 	c.requestDeny.Flag("delegator", "Optional delegating identity").StringVar(&c.delegator)
 	c.requestDeny.Flag("reason", "Optional reason message").StringVar(&c.reason)
 	c.requestDeny.Flag("annotations", "Resolution annotations <key>=<val>[,...]").StringVar(&c.annotations)
 
 	c.requestCreate = requests.Command("create", "Create pending Access Request.")
-	c.requestCreate.Arg("username", "Name of target user").Required().StringVar(&c.user)
+	c.requestCreate.Arg("username", "Name of target user").Required().HintAction(autocomplete.HintAction(types.KindUser)).StringVar(&c.user)
 	c.requestCreate.Flag("roles", "Roles to be requested").StringVar(&c.roles)
 	c.requestCreate.Flag("resource", "Resource ID to be requested").StringsVar(&c.requestedResourceIDs)
 	c.requestCreate.Flag("reason", "Optional reason message").StringVar(&c.reason)
 	c.requestCreate.Flag("dry-run", "Don't actually generate the Access Request").BoolVar(&c.dryRun)
 
 	c.requestDelete = requests.Command("rm", "Delete an Access Request.")
-	c.requestDelete.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
+	c.requestDelete.Arg("request-id", "ID of target request(s)").Required().HintAction(autocomplete.HintAction(types.KindAccessRequest)).StringVar(&c.reqIDs)
 	c.requestDelete.Flag("force", "Force the deletion of an active Access Request").Short('f').BoolVar(&c.force)
 
 	c.requestCaps = requests.Command("capabilities", "Check a user's access capabilities.").Alias("caps").Hidden()
-	c.requestCaps.Arg("username", "Name of target user").Required().StringVar(&c.user)
+	c.requestCaps.Arg("username", "Name of target user").Required().HintAction(autocomplete.HintAction(types.KindUser)).StringVar(&c.user)
 	c.requestCaps.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&c.format)
 	c.requestReview = requests.Command("review", "Review an Access Request.")
-	c.requestReview.Arg("request-id", "ID of target request").Required().StringVar(&c.reqIDs)
+	c.requestReview.Arg("request-id", "ID of target request").Required().HintAction(autocomplete.HintAction(types.KindAccessRequest)).StringVar(&c.reqIDs)
 	c.requestReview.Flag("author", "Username of reviewer").Required().StringVar(&c.user)
 	c.requestReview.Flag("approve", "Review proposes approval").BoolVar(&c.approve)
 	c.requestReview.Flag("deny", "Review proposes denial").BoolVar(&c.deny)

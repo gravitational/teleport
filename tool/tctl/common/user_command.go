@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/tool/common/autocomplete"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -119,7 +120,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	u.userAdd.Alias(AddUserHelp)
 
 	u.userUpdate = users.Command("update", "Update user account.")
-	u.userUpdate.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
+	u.userUpdate.Arg("account", "Teleport user account name").Required().HintAction(autocomplete.HintAction(types.KindUser)).StringVar(&u.login)
 	u.userUpdate.Flag("set-roles", "List of roles for the user to assume, replaces current roles").
 		StringsVar(&u.allowedRoles)
 	u.userUpdate.Flag("set-logins", "List of allowed SSH logins for the user, replaces current logins").
@@ -152,10 +153,10 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 
 	u.userDelete = users.Command("rm", "Deletes user accounts.").Alias("del")
 	u.userDelete.Arg("logins", "Comma-separated list of user logins to delete").
-		Required().StringVar(&u.login)
+		Required().HintAction(autocomplete.HintAction(types.KindUser)).StringVar(&u.login)
 
 	u.userResetPassword = users.Command("reset", "Reset user password and generate a new token "+helpPrefix+".")
-	u.userResetPassword.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
+	u.userResetPassword.Arg("account", "Teleport user account name").Required().HintAction(autocomplete.HintAction(types.KindUser)).StringVar(&u.login)
 	u.userResetPassword.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
 		defaults.ChangePasswordTokenTTL, defaults.MaxChangePasswordTokenTTL)).
 		Default(fmt.Sprintf("%v", defaults.ChangePasswordTokenTTL)).DurationVar(&u.ttl)

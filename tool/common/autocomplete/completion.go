@@ -133,8 +133,10 @@ func (c *cache) Get(kind string) ([]string, error) {
 	// when empty, signifies tctl resource command (tctl get ...)
 	resources := []string{}
 	if kind == "" {
-		for _, res := range cacheStorage.Resources {
-			resources = append(resources, res.ResourceNames...)
+		for kind, res := range cacheStorage.Resources {
+			for _, resource := range res.ResourceNames {
+				resources = append(resources, kind+"/"+resource)
+			}
 		}
 		return resources, nil
 	}
@@ -142,6 +144,19 @@ func (c *cache) Get(kind string) ([]string, error) {
 		return cacheStorage.Resources[kind].ResourceNames, nil
 	}
 	return []string{}, nil
+}
+
+// HintAction returns a kingpin HintAction function that provides autocomplete
+// suggestions for the given resource kind from the local cache.
+func HintAction(kind string) func() []string {
+	return func() []string {
+		c := NewCache(DefaultCache, nil, nil)
+		names, err := c.Get(kind)
+		if err != nil {
+			return nil
+		}
+		return names
+	}
 }
 
 func (c *cache) readFromFile() (cacheStorage, error) {

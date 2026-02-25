@@ -121,25 +121,15 @@ func (c *ScopedTokensCommand) Initialize(scopedCmd *kingpin.CmdClause, config *s
 
 	// "tctl scoped tokens rm ..."
 	c.tokenDel = tokens.Command("rm", "Delete/revoke a scoped invitation token.").Alias("del")
-	c.tokenDel.Arg("token", "Token to delete").HintAction(ScopedTokensAutoComplete).StringVar(&c.name)
+	c.tokenDel.Arg("token", "Token to delete").HintAction(autocomplete.HintAction(types.KindScopedToken)).StringVar(&c.name)
 
 	// "tctl scoped tokens ls"
 	c.tokenList = tokens.Command("ls", "List invitation tokens.")
 	c.tokenList.Flag("format", "Output format, 'text', 'json' or 'yaml'").EnumVar(&c.format, formats...)
 	c.tokenList.Flag("with-secrets", "Do not redact join tokens").BoolVar(&c.withSecrets)
-	c.tokenList.Flag("autocomplete", "").HintAction(ScopedTokensAutoComplete).Hidden().StringVar(new(string))
 	if c.Stdout == nil {
 		c.Stdout = os.Stdout
 	}
-}
-
-func ScopedTokensAutoComplete() []string {
-	autocompleter := autocomplete.NewCache(autocomplete.DefaultCache, nil, nil)
-	tokens, err := autocompleter.Get(types.KindScopedToken)
-	if err != nil {
-		return nil
-	}
-	return tokens
 }
 
 // TryRun attempts to run subcommands like like "scoped tokens ls".

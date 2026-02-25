@@ -32,7 +32,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/tool/common/autocomplete"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -91,35 +93,35 @@ func (c *ACLCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFl
 	c.ls.Flag("review-only", "List only access lists that are due for review within the next 2 weeks or past due").BoolVar(&c.reviewOnly)
 
 	c.get = acl.Command("get", "Get detailed information for an Access List.")
-	c.get.Arg("access-list-name", "The Access List name.").Required().StringVar(&c.accessListName)
+	c.get.Arg("access-list-name", "The Access List name.").Required().HintAction(autocomplete.HintAction(types.KindAccessList)).StringVar(&c.accessListName)
 	c.get.Flag("format", "Output format, 'yaml', 'json', or 'text'").Default(teleport.YAML).EnumVar(&c.format, teleport.YAML, teleport.JSON, teleport.Text)
 
 	users := acl.Command("users", "Manage user membership to Access Lists.")
 
 	c.usersAdd = users.Command("add", "Add a user to an Access List.")
 	c.usersAdd.Flag("kind", "Access list member kind, 'user' or 'list'").Default(memberKindUser).EnumVar(&c.memberKind, memberKindUser, memberKindList)
-	c.usersAdd.Arg("access-list-name", "The Access List name.").Required().StringVar(&c.accessListName)
-	c.usersAdd.Arg("user", "The user to add to the Access List.").Required().StringVar(&c.userName)
+	c.usersAdd.Arg("access-list-name", "The Access List name.").Required().HintAction(autocomplete.HintAction(types.KindAccessList)).StringVar(&c.accessListName)
+	c.usersAdd.Arg("user", "The user to add to the Access List.").Required().HintAction(autocomplete.HintAction(types.KindUser)).StringVar(&c.userName)
 	c.usersAdd.Arg("expires", "When the user's access expires (must be in RFC3339). Defaults to the expiration time of the Access List.").StringVar(&c.expires)
 	c.usersAdd.Arg("reason", "The reason the user has been added to the Access List. Defaults to empty.").StringVar(&c.reason)
 
 	c.usersRemove = users.Command("rm", "Remove a user from an Access List.")
-	c.usersRemove.Arg("access-list-name", "The Access List name.").Required().StringVar(&c.accessListName)
-	c.usersRemove.Arg("user", "The user to remove from the Access List.").Required().StringVar(&c.userName)
+	c.usersRemove.Arg("access-list-name", "The Access List name.").Required().HintAction(autocomplete.HintAction(types.KindAccessList)).StringVar(&c.accessListName)
+	c.usersRemove.Arg("user", "The user to remove from the Access List.").Required().HintAction(autocomplete.HintAction(types.KindUser)).StringVar(&c.userName)
 
 	c.usersList = users.Command("ls", "List users that are members of an Access List.")
-	c.usersList.Arg("access-list-name", "The Access List name.").Required().StringVar(&c.accessListName)
+	c.usersList.Arg("access-list-name", "The Access List name.").Required().HintAction(autocomplete.HintAction(types.KindAccessList)).StringVar(&c.accessListName)
 	c.usersList.Flag("format", "Output format 'json', or 'text'").Default(teleport.Text).EnumVar(&c.format, teleport.JSON, teleport.Text)
 
 	reviews := acl.Command("reviews", "Manage access list reviews.")
 
 	c.reviewsCreate = reviews.Command("create", "Submit a new review for a given access list.")
-	c.reviewsCreate.Arg("access-list-name", "The access list name to submit review for.").Required().StringVar(&c.accessListName)
+	c.reviewsCreate.Arg("access-list-name", "The access list name to submit review for.").Required().HintAction(autocomplete.HintAction(types.KindAccessList)).StringVar(&c.accessListName)
 	c.reviewsCreate.Flag("notes", "Optional review notes.").StringVar(&c.notes)
 	c.reviewsCreate.Flag("remove-members", "Comma-separated list of members to remove as part of this review.").StringVar(&c.removeMembers)
 
 	c.reviewsList = reviews.Command("ls", "List past audit history for a given access list.")
-	c.reviewsList.Arg("access-list-name", "The access list name to fetch review history for.").Required().StringVar(&c.accessListName)
+	c.reviewsList.Arg("access-list-name", "The access list name to fetch review history for.").Required().HintAction(autocomplete.HintAction(types.KindAccessList)).StringVar(&c.accessListName)
 	c.reviewsList.Flag("format", "Output format 'yaml', 'json', or 'text'").Default(teleport.Text).EnumVar(&c.format, teleport.YAML, teleport.JSON, teleport.Text)
 
 	if c.Stdout == nil {

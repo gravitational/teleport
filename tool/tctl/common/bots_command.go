@@ -48,6 +48,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/tool/common/autocomplete"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
@@ -167,16 +168,16 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	c.initSharedBotTokenFlags(c.botsAdd)
 
 	c.botsRemove = bots.Command("rm", "Permanently remove a certificate renewal bot from the cluster.")
-	c.botsRemove.Arg("name", "Name of an existing bot to remove.").Required().StringVar(&c.botName)
+	c.botsRemove.Arg("name", "Name of an existing bot to remove.").Required().HintAction(autocomplete.HintAction(types.KindBot)).StringVar(&c.botName)
 
 	c.botsLock = bots.Command("lock", "Prevent a bot from renewing its certificates.")
-	c.botsLock.Arg("name", "Name of an existing bot to lock.").Required().StringVar(&c.botName)
+	c.botsLock.Arg("name", "Name of an existing bot to lock.").Required().HintAction(autocomplete.HintAction(types.KindBot)).StringVar(&c.botName)
 	c.botsLock.Flag("expires", "Time point (RFC3339) when the lock expires.").StringVar(&c.lockExpires)
 	c.botsLock.Flag("ttl", "Time duration after which the lock expires.").DurationVar(&c.lockTTL)
 	c.botsLock.Hidden()
 
 	c.botsUpdate = bots.Command("update", "Update an existing bot.")
-	c.botsUpdate.Arg("name", "Name of an existing bot to update.").Required().StringVar(&c.botName)
+	c.botsUpdate.Arg("name", "Name of an existing bot to update.").Required().HintAction(autocomplete.HintAction(types.KindBot)).StringVar(&c.botName)
 	c.botsUpdate.Flag("set-roles", "Sets the bot's roles to the given comma-separated list, replacing any existing roles.").StringVar(&c.botRoles)
 	c.botsUpdate.Flag("add-roles", "Adds a comma-separated list of roles to an existing bot.").StringVar(&c.addRoles)
 	c.botsUpdate.Flag("set-logins", "Sets the bot's logins to the given comma-separated list, replacing any existing logins.").StringVar(&c.setLogins)
@@ -189,7 +190,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	c.botsInstancesShow.Arg("id", "The full ID of the bot instance, in the form of [bot name]/[uuid]").Required().StringVar(&c.instanceID)
 
 	c.botsInstancesList = c.botsInstances.Command("list", "List bot instances.").Alias("ls")
-	c.botsInstancesList.Arg("name", "The name of the bot from which to list instances. If unset, lists instances from all bots.").StringVar(&c.botName)
+	c.botsInstancesList.Arg("name", "The name of the bot from which to list instances. If unset, lists instances from all bots.").HintAction(autocomplete.HintAction(types.KindBot)).StringVar(&c.botName)
 	c.botsInstancesList.Flag("format", "Output format, 'text' or 'json'").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 	c.botsInstancesList.Flag("search", "Fuzzy search query used to filter bot instances").StringVar(&c.search)
 	c.botsInstancesList.Flag("query", "An expression in the Teleport predicate language used to filter bot instances").StringVar(&c.query)
@@ -197,7 +198,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	c.botsInstancesList.Flag("sort-order", "Request sort order, 'ascending' or 'descending'").Default("ascending").StringVar(&c.sortOrder)
 
 	c.botsInstancesAdd = c.botsInstances.Command("add", "Join a new instance onto an existing bot.").Alias("join")
-	c.botsInstancesAdd.Arg("name", "The name of the existing bot for which to add a new instance.").Required().StringVar(&c.botName)
+	c.botsInstancesAdd.Arg("name", "The name of the existing bot for which to add a new instance.").Required().HintAction(autocomplete.HintAction(types.KindBot)).StringVar(&c.botName)
 	c.initSharedBotTokenFlags(c.botsInstancesAdd)
 
 	if c.stdout == nil {

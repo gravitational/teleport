@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/tool/common/autocomplete"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -174,7 +175,7 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCL
 
 	// "tctl tokens rm ..."
 	c.tokenDel = tokens.Command("rm", "Delete/revoke an invitation token.").Alias("del")
-	c.tokenDel.Arg("token", "Token to delete").StringVar(&c.value)
+	c.tokenDel.Arg("token", "Token to delete").HintAction(autocomplete.HintAction(types.KindToken)).StringVar(&c.value)
 
 	// "tctl tokens ls"
 	c.tokenList = tokens.Command("ls", "List node and user invitation tokens.")

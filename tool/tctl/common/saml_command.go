@@ -25,7 +25,9 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/tool/common/autocomplete"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -48,7 +50,7 @@ func (cmd *SAMLCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCL
 
 	saml := app.Command("saml", "Operations on SAML auth connectors.")
 	cmd.exportCmd = saml.Command("export", "Export a SAML signing key in .crt format.")
-	cmd.exportCmd.Arg("connector_name", "name of the SAML connector to export the key from").Required().StringVar(&cmd.connectorName)
+	cmd.exportCmd.Arg("connector_name", "name of the SAML connector to export the key from").Required().HintAction(autocomplete.HintAction(types.KindSAMLConnector)).StringVar(&cmd.connectorName)
 }
 
 // TryRun is executed after the CLI parsing is done. The command must
