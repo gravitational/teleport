@@ -32,14 +32,51 @@ jobs:
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
 
+      - name: Get cache paths
+        id: cache-paths
+        run: |
+          echo "go-build=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+
+      - name: Cache Go
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ steps.cache-paths.outputs.go-build }}
+            ${{ steps.cache-paths.outputs.go-mod }}
+          key: go-build-${{ runner.os }}-${{ hashFiles('go.sum') }}
+          restore-keys: go-build-${{ runner.os }}-
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/cache
+            ~/.cargo/registry/index
+            ~/.cargo/git/db
+            target
+            tool/fdpass-teleport/target
+          key: cargo-build-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'tool/fdpass-teleport/Cargo.lock') }}
+          restore-keys: cargo-build-${{ runner.os }}-
+
+      - name: Cache pnpm
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+
       - name: Build Teleport
         run: make binaries
 
-      - name: Upload teleport binary
+      - name: Upload binaries
         uses: actions/upload-artifact@v4
         with:
-          name: teleport-binary
-          path: build/teleport
+          name: teleport-binaries
+          path: |
+            build/teleport
+            build/tctl
+            build/tsh
           retention-days: 1
 
   test:
@@ -49,9 +86,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v4
         with:
-          name: build
+          name: teleport-binaries
           path: ${{ github.workspace }}/build/
 
       - name: Chmod binaries
