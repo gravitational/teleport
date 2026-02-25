@@ -223,18 +223,28 @@ Content here...
 - Use `.mdx` extension for all documentation pages
 - Index pages use the folder name: `agents/agents.mdx` for the `/agents/` route
 
-## Page templates
+## Page types and templates
 
 Docs pages fall into several types, with different audiences and structures.
 Each page type corresponds to a value of the `tags` frontmatter item.
 
 |Type|Purpose|`tags` value|
 |---|---|---|
+|Tutorials|Provide hands-on guidance for newcomers.|`get-started`|
 |How-to|Includes steps for achieving a concrete goal.|`how-to`|
 |Reference|Includes a comprehensive list of values, commands, arguments, fields, and so on.|`reference`|
 |Conceptual|Explains relationships between concepts or how something works.|`conceptual`|
 
+### Tutorials
+
+**Tutorials** (`get-started` tag) are learning oriented, hands-on guides for
+newcomers. They must provide successful outcomes with no unexpected errors.
+
 ### How-to guide
+
+**How-to guides** (`how-to` tag) are task oriented with practical steps. Assume
+readers know *what* they want to do, not *how*. Avoid breaking focus. Minimize
+inline links, notices, and admonishments.
 
 ```mdx
 ---
@@ -245,49 +255,6 @@ tags:
 ---
 
 Brief introduction explaining what this guide accomplishes and who it's for.
-
-## Writing style
-
-### Document types
-
-Each page should have a clear purpose based on one of these types:
-
-- **Tutorials** (`get-started` tag): Learning-oriented, hands-on for
-newcomers. Must provide successful outcomes with no unexpected errors.
-- **How-to guides** (`how-to` tag): Task-oriented with practical
-steps. Assume readers know *what* they want to do, not *how*. Avoid
-breaking focus—minimize inline links, notices, and admonishments.
-- **Reference** (`reference` tag): Comprehensive technical
-descriptions. List all options, use tables, avoid prose.
-- **Conceptual** (`conceptual` tag): Explains how/why systems work.
-Provides context for tutorials and how-to guides.
-
-### Voice and tone
-
-- Write for technical audiences (developers, SREs, security engineers)
-- Emphasize specific technical capabilities over broad benefit
-statements
-- Use sparse 1-2 sentence paragraphs rather than dense blocks
-- Prefer paragraphs over bulleted lists; use numbered lists only for
-sequential steps
-
-### Formatting conventions
-
-- **Headings**: Sentence case ("Next steps" not "Next Steps")
-- **Page titles**: Title case, max 55 characters (70 total with " |
-Teleport Docs" suffix)
-- **Products/features**: Capitalize proper nouns ("Trusted Cluster").
-Bold on first use.
-- **Acronyms**: Introduce after the full term, then use consistently
-within the page
-- **Lists**: End items with periods unless the item is a command
-
-### Component philosophy
-
-Prefer text over components. Before adding Tabs, Admonitions, or
-Details, ask whether paragraphs and headings would suffice. Use Tabs
-only when a single variation is relevant to the reader and others
-would distract.
 
 ## How it works
 
@@ -313,6 +280,9 @@ Instructions...
 ```
 
 ### Reference page
+
+Reference guides should avoid prose and focus on tables of values along with
+examples.
 
 ```mdx
 ---
@@ -340,6 +310,9 @@ option_one: value
 ```
 
 ### Conceptual guide
+
+Conceptual guides explain concepts and provide context for how-to guides and
+references.
 
 ```mdx
 ---
@@ -372,3 +345,37 @@ Explanation of a related concept or aspect.
 - [Related how-to guide](./related-how-to.mdx)
 - [Related reference](./related-reference.mdx)
 ```
+
+## Writing style
+
+When checking and writing documentation content, abide by the following
+conventions.
+
+### Voice and tone
+
+- Write for technical audiences (developers, SREs, security engineers)
+- Emphasize specific technical capabilities over broad benefit
+statements
+- Use sparse 1-2 sentence paragraphs rather than dense blocks
+- Prefer paragraphs over bulleted lists; use numbered lists only for
+sequential steps
+
+### Formatting conventions
+
+- **Headings**: Sentence case ("Next steps" not "Next Steps")
+- **Page titles**: Title case, max 55 characters (70 total with " |
+Teleport Docs" suffix)
+- **Products/features**: Capitalize proper nouns ("Trusted Cluster").
+Bold on first use.
+- **Acronyms**: Introduce after the full term, then use consistently
+within the page
+- **Lists**: End items with periods unless the item is a command
+
+### Component philosophy
+
+Prefer text over components. Before adding Tabs, Admonitions, or
+Details, ask whether paragraphs and headings would suffice. Use Tabs
+only when a single variation is relevant to the reader and others
+would distract.
+
+
