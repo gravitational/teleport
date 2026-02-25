@@ -4,6 +4,9 @@ import { generate } from 'otplib';
 const secret = '5F5OH3PDPWTQKZEGN44LX6R4STEPZWB7';
 
 export async function login(page: Page, username = 'bob', password = 'secret') {
+  await page.addInitScript(() =>
+    localStorage.setItem('grv_teleport_license_acknowledged', 'true')
+  );
   await page.goto('/');
 
   await page.getByPlaceholder('Username').fill(username);
