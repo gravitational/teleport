@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"net"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
@@ -85,6 +86,7 @@ func ContextFromRequest(req *ssh.Request, opts ...tracing.Option) context.Contex
 	ctx = tracing.WithPropagationContext(ctx, envelope.PropagationContext, opts...)
 	req.Payload = envelope.Payload
 
+	ctx = context.WithValue(ctx, "request_id", envelope.RequestID)
 	return ctx
 }
 
@@ -253,13 +255,23 @@ func peerAttr(addr net.Addr) []attribute.KeyValue {
 type Envelope struct {
 	PropagationContext tracing.PropagationContext
 	Payload            []byte
+	RequestID          any
 }
 
 // createEnvelope wraps the provided payload with a tracing envelope
 // that is used to propagate trace context .
 func createEnvelope(ctx context.Context, propagator propagation.TextMapPropagator, payload []byte) Envelope {
+	v, ok := ctx.Value("request_id").(string)
+	var reqID string
+	if ok {
+		reqID = v
+	}
+	if reqID == "" {
+		reqID = "createEnvelope" + uuid.New().String()
+	}
 	envelope := Envelope{
-		Payload: payload,
+		Payload:   payload,
+		RequestID: reqID,
 	}
 
 	span := oteltrace.SpanFromContext(ctx)
