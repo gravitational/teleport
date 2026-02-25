@@ -212,6 +212,9 @@ Use for notes, tips, warnings, and danger notices:
 <Admonition type="note" title="Custom Title">Custom title admonition.</Admonition>
 ```
 
+Admonitions divert the user's attention. Prefer incorporating the same text into
+regular paragraphs unless the new text already creates a jarring change in focus.
+
 Do not place an Admonition as the first paragraph after a section heading.
 Instead, after a section heading, the first paragraph must introduce the purpose
 of the section. 
