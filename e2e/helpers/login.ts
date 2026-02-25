@@ -12,6 +12,9 @@ export async function login(page: Page, username = 'bob', password = 'secret') {
   await page.getByPlaceholder('Username').fill(username);
   await page.getByPlaceholder('Password').fill(password);
 
+  await page.getByText('Passkey or Security Key').click();
+  await page.getByText('Authenticator App').click();
+
   const token = await generate({ secret });
 
   await page.getByPlaceholder('123 456').fill(token);
