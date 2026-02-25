@@ -67,18 +67,27 @@ docs/
   sidebar.json      # Sidebar navigation config
 ```
 
-Pages are at `docs/pages/**/*.mdx`. The `includes/` directories are excluded from page rendering and are only pulled in via the `(!path/to/file.mdx!)` include syntax.
+Pages are at `docs/pages/**/*.mdx`. The `includes/` directories are excluded
+from page rendering and are only pulled in via the `(!path/to/file.mdx!)`
+include syntax.
 
 ## MDX content conventions
+
+The docs site uses [Docusaurus](https://docusaurus.io/). The `yarn
+prepare-files` command, when run from the `docs-website` root, copies docs page
+files into the directory structure that Docusaurus expects.
 
 ### Frontmatter
 
 Every page must begin with a YAML frontmatter block. Allowed fields are defined in `docs-website/frontmatter_fields.yaml`. Key fields:
 
 - `title` (required) — page title
-- `description` (required) — meta description
+- `description` (optional: generated from the first paragraph if empty) — meta description
 - `sidebar_label` — override the sidebar display name
-- `tags` — list combining a type tag (`how-to`, `conceptual`, `get-started`, `reference`, `faq`, `other`) and product tags (`zero-trust`, `mwi`, `identity-governance`, `identity-security`, `platform-wide`)
+- `tags` — list combining a type tag (`how-to`, `conceptual`, `get-started`,
+  `reference`, `faq`, `other`) and product tags (`zero-trust`, `mwi`,
+  `identity-governance`, `identity-security`, `platform-wide`). For a full list
+  of tags, see the `tags.yml` field at the root of the `docs-website` repo.
 
 ### Special syntax
 
