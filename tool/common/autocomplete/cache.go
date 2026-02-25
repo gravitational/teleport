@@ -26,17 +26,15 @@ type cache struct {
 	client              authclient.Client
 	filepath            string
 	resourceGettersFunc map[string]resourceGetter
-
-	storage cacheStorage
 }
 
 type cacheStorage struct {
-	resources map[string]*cacheEntry
+	Resources map[string]*cacheEntry `json:"resources"`
 }
 
 type cacheEntry struct {
-	resourceNames    []string
-	timeSinceUpdated time.Time
+	ResourceNames    []string  `json:"resource_names"`
+	TimeSinceUpdated time.Time `json:"time_since_updated"`
 }
 
 type resourceGetter func(ctx context.Context) ([]string, error)
@@ -89,12 +87,16 @@ func (c *cache) update(ctx context.Context, kind string) error {
 	if err != nil {
 		return err
 	}
-	c.storage.resources[kind] = &cacheEntry{
-		resourceNames:    updatedResources,
-		timeSinceUpdated: time.Now(),
+	storage, err := c.readFromFile()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	storage.Resources[kind] = &cacheEntry{
+		ResourceNames:    updatedResources,
+		TimeSinceUpdated: time.Now(),
 	}
 
-	err = c.writeToFile(c.storage)
+	err = c.writeToFile(storage)
 	if err != nil {
 		return err
 	}
@@ -103,8 +105,13 @@ func (c *cache) update(ctx context.Context, kind string) error {
 
 func (c *cache) Update(ctx context.Context) error {
 	now := time.Now()
-	for kind, entry := range c.storage.resources {
-		if !entry.timeSinceUpdated.After(now.Add(cacheExpiry)) {
+	storage, err := c.readFromFile()
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	for kind := range c.resourceGettersFunc {
+		entry := storage.Resources[kind]
+		if entry != nil && entry.TimeSinceUpdated.After(now.Add(cacheExpiry)) {
 			continue
 		}
 		if err := c.update(ctx, kind); err != nil {
@@ -123,22 +130,31 @@ func (c *cache) Get(kind string) ([]string, error) {
 	// when empty, signifies tctl resource command (tctl get ...)
 	resources := []string{}
 	if kind == "" {
-		for _, res := range cacheStorage.resources {
-			resources = append(resources, res.resourceNames...)
+		for _, res := range cacheStorage.Resources {
+			resources = append(resources, res.ResourceNames...)
 		}
 		return resources, nil
 	}
-	return cacheStorage.resources[kind].resourceNames, nil
+	return cacheStorage.Resources[kind].ResourceNames, nil
 }
 
 func (c *cache) readFromFile() (cacheStorage, error) {
 	data, err := os.ReadFile(c.filepath)
 	if err != nil {
-		return cacheStorage{}, trace.Wrap(err)
+		sysErr := trace.ConvertSystemError(err)
+		if trace.IsNotFound(sysErr) {
+			return cacheStorage{
+				Resources: map[string]*cacheEntry{},
+			}, nil
+		}
+		return cacheStorage{}, trace.ConvertSystemError(err)
 	}
 	var storage cacheStorage
 	if err := json.Unmarshal(data, &storage); err != nil {
 		return cacheStorage{}, trace.Wrap(err)
+	}
+	if storage.Resources == nil {
+		storage.Resources = map[string]*cacheEntry{}
 	}
 	return storage, nil
 }

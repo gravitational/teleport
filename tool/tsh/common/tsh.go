@@ -853,10 +853,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		printInitLoggerError(err)
 	}
 
-	if err := autocomplete.UpdateCompletionsInBackground(); err != nil {
-		slog.DebugContext(ctx, "Failed to fetch autocomplete resources", "error", err)
-	}
-
 	// We need to parse the arguments before executing managed updates to identify
 	// the profile name and the required version for the current cluster.
 	// All other commands and flags may change between versions, so full parsing
@@ -1716,6 +1712,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 				slog.String("go", runtime.Version()),
 			),
 		)
+	}
+
+	if command != completionsCommand.FullCommand() {
+		if err := autocomplete.UpdateCompletionsInBackground(); err != nil {
+			slog.DebugContext(ctx, "Failed to fetch autocomplete resources", "error", err)
+		}
 	}
 
 	switch command {

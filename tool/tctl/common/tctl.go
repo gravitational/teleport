@@ -90,10 +90,6 @@ func Run(ctx context.Context, commands []CLICommand) {
 func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 	utils.InitLogger(utils.LoggingForCLI, slog.LevelWarn)
 
-	if err := autocomplete.UpdateCompletionsInBackground(); err != nil {
-		slog.DebugContext(ctx, "Failed to fetch autocomplete resources", "error", err)
-	}
-
 	var ccf tctlcfg.GlobalCLIFlags
 	muApp := utils.InitHiddenCLIParser()
 	muApp.Flag("auth-server",
@@ -193,6 +189,11 @@ func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 			return trace.Wrap(err)
 		}
 		if match {
+			if _, ok := c.(*autocomplete.CompletionCommand); !ok {
+				if err := autocomplete.UpdateCompletionsInBackground(); err != nil {
+					slog.DebugContext(ctx, "Failed to fetch autocomplete resources", "error", err)
+				}
+			}
 			break
 		}
 	}
