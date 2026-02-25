@@ -33,6 +33,7 @@ export { Apartment } from './Icons/Apartment';
 export { Apple } from './Icons/Apple';
 export { Application } from './Icons/Application';
 export { Archive } from './Icons/Archive';
+export { AutoDiscovery } from './Icons/AutoDiscovery';
 export { ArrowBack } from './Icons/ArrowBack';
 export { ArrowDown } from './Icons/ArrowDown';
 export { ArrowFatLinesUp } from './Icons/ArrowFatLinesUp';

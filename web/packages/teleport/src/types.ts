@@ -62,6 +62,7 @@ export enum NavTitle {
   InstanceInventory = 'Instance Inventory',
   Roles = 'Roles',
   JoinTokens = 'Join Tokens',
+  AutoDiscovery = 'Auto Discovery',
   AuthConnectors = 'Auth Connectors',
   AuthConnectorsShortened = 'Auth Conn.',
   Integrations = 'Integrations',

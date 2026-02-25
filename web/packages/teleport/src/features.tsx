@@ -18,6 +18,7 @@
 
 import {
   AddCircle,
+  AutoDiscovery as AutoDiscoveryIcon,
   Bots as BotsIcon,
   CheckCircleDotted,
   CirclePlay,
@@ -55,6 +56,7 @@ import { LockedAccessRequests } from './AccessRequests';
 import { AccountPage } from './Account';
 import { AuditContainer as Audit } from './Audit';
 import { AuthConnectorsContainer as AuthConnectors } from './AuthConnectors';
+import { AutoDiscovery } from './AutoDiscovery';
 import { BotInstances } from './BotInstances/BotInstances';
 import { Bots } from './Bots';
 import { AddBots } from './Bots/Add';
@@ -906,6 +908,31 @@ export class FeatureIntegrationOverview implements TeleportFeature {
   }
 }
 
+export class FeatureAutoDiscovery implements TeleportFeature {
+  category = NavigationCategory.ZeroTrustAccess;
+
+  navigationItem = {
+    title: NavTitle.AutoDiscovery,
+    icon: AutoDiscoveryIcon,
+    exact: true,
+    getLink() {
+      return cfg.routes.autoDiscovery;
+    },
+  };
+
+  route = {
+    title: NavTitle.AutoDiscovery,
+    path: cfg.routes.autoDiscovery,
+    exact: true,
+    component: AutoDiscovery,
+    searchableTags: ['discover', 'auto discovery', 'auto'],
+  };
+
+  hasAccess() {
+    return true;
+  }
+}
+
 // ****************************
 // Other Features
 // ****************************
@@ -992,6 +1019,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureManagedUpdates(),
     new FeatureClusters(),
     new FeatureTrust(),
+    new FeatureAutoDiscovery(),
     new FeatureIntegrationStatus(),
     new FeatureIntegrationOverview(),
 

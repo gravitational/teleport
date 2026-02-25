@@ -176,6 +176,7 @@ const cfg = {
     support: '/web/support',
     settings: '/web/settings',
     account: '/web/account',
+    autoDiscovery: '/web/auto_discovery',
     accountPassword: '/web/account/password',
     accountMfaDevices: '/web/account/twofactor',
     accountSecurity: '/web/account/security',
@@ -799,6 +800,10 @@ const cfg = {
 
   getIaCIntegrationRoute(type: PluginKind | IntegrationKind, name: string) {
     return generatePath(cfg.routes.integrationOverview, { type, name });
+  },
+
+  getAutoDiscoveryRoute() {
+    return generatePath(cfg.routes.autoDiscovery);
   },
 
   getIntegrationStatusResourcesRoute(

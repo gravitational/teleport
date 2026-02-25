@@ -1,0 +1,17 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Server icon (top rack) -->
+  <path d="M18 6.5C18.4142 6.5 18.75 6.16421 18.75 5.75C18.75 5.33579 18.4142 5 18 5C17.5858 5 17.25 5.33579 17.25 5.75C17.25 6.16421 17.5858 6.5 18 6.5Z" fill="black"/>
+  <path fill-rule="evenodd" clip-rule="evenodd" d="M4 2C3.17157 2 2.5 2.67157 2.5 3.5V7.5C2.5 8.32843 3.17157 9 4 9H20C20.8284 9 21.5 8.32843 21.5 7.5V3.5C21.5 2.67157 20.8284 2 20 2H4ZM4 3.5H20V7.5H4V3.5Z" fill="black"/>
+
+  <!-- Server icon (bottom rack) -->
+  <path d="M18.75 13.25C18.75 13.6642 18.4142 14 18 14C17.5858 14 17.25 13.6642 17.25 13.25C17.25 12.8358 17.5858 12.5 18 12.5C18.4142 12.5 18.75 12.8358 18.75 13.25Z" fill="black"/>
+  <path fill-rule="evenodd" clip-rule="evenodd" d="M4 10.5C3.17157 10.5 2.5 11.1716 2.5 12V16C2.5 16.8284 3.17157 17.5 4 17.5H20C20.8284 17.5 21.5 16.8284 21.5 16V12C21.5 11.1716 20.8284 10.5 20 10.5H4ZM4 12H20V16H4V12Z" fill="black"/>
+
+  <!-- Magnifying glass over right side, vertically centered -->
+  <g transform="translate(12, 9)">
+    <!-- Magnifying glass circle -->
+    <circle cx="5" cy="5" r="4" stroke="black" stroke-width="1.2" fill="white"/>
+    <!-- Magnifying glass handle -->
+    <path d="M7.828 7.828L10.5 10.5" stroke="black" stroke-width="1.2" stroke-linecap="round"/>
+  </g>
+</svg>
