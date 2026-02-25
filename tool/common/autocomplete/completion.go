@@ -49,10 +49,9 @@ const (
 	RecordingsKey = "recordings"
 )
 
-func NewCache(filePath string, clt *authclient.Client, tc *client.TeleportClient) *cache {
-	if filePath == "" {
-		filePath = DefaultCache
-	}
+func NewAutoComplete(clt *authclient.Client, tc *client.TeleportClient) *cache {
+	filePath := DefaultCache
+
 	updaters := make(map[string]resourceGetter, len(resources.Handlers())+1)
 	if clt != nil {
 		for kind, handler := range resources.Handlers() {
@@ -182,7 +181,7 @@ func (c *cache) Get(kind string) ([]string, error) {
 // suggestions for the given resource kind from the local cache.
 func HintAction(kind string) func() []string {
 	return func() []string {
-		c := NewCache(DefaultCache, nil, nil)
+		c := NewAutoComplete(nil, nil)
 		names, err := c.Get(kind)
 		if err != nil {
 			return nil
@@ -243,7 +242,7 @@ func (c *CompletionCommand) TryRun(ctx context.Context, cmd string, getClient co
 		return true, trace.Wrap(err)
 	}
 	defer close(ctx)
-	cache := NewCache(DefaultCache, clt, nil)
+	cache := NewAutoComplete(clt, nil)
 	return true, trace.Wrap(cache.Update(ctx))
 }
 

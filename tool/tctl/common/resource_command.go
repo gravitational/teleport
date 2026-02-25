@@ -147,7 +147,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 	<resource name>  Resource name to update
 
 	Example:
-	$ tctl update rc/remote`).SetValue(&rc.ref)
+	$ tctl update rc/remote`).HintAction(autocomplete.HintAction("")).SetValue(&rc.ref)
 	rc.updateCmd.Flag("set-labels", "Set labels").StringVar(&rc.labels)
 	rc.updateCmd.Flag("set-ttl", "Set TTL").StringVar(&rc.ttl)
 
@@ -158,7 +158,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 
 	Examples:
 	$ tctl rm role/devs
-	$ tctl rm cluster/main`).SetValue(&rc.ref)
+	$ tctl rm cluster/main`).HintAction(autocomplete.HintAction("")).SetValue(&rc.ref)
 
 	rc.getCmd = app.Command("get", "Print a YAML declaration of various Teleport resources.")
 	rc.getCmd.Arg("resources", "Resource spec: 'type/[name][,...]' or 'all'").HintAction(autocomplete.HintAction("")).Required().SetValue(&rc.refs)

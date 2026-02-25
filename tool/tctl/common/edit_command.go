@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/common/autocomplete"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
@@ -65,7 +66,7 @@ func (e *EditCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	e.app = app
 	e.config = config
 	e.cmd = app.Command("edit", "Edit a Teleport resource.")
-	e.cmd.Arg("resource type/resource name", `Resource to update, e.g., "user/myuser"`).SetValue(&e.ref)
+	e.cmd.Arg("resource type/resource name", `Resource to update, e.g., "user/myuser"`).HintAction(autocomplete.HintAction("")).SetValue(&e.ref)
 	e.cmd.Flag("confirm", "Confirm an unsafe or temporary resource update").Hidden().BoolVar(&e.confirm)
 }
 

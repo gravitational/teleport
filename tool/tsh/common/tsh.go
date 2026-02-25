@@ -889,7 +889,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 			if err == nil {
 				logins = profile.Logins
 			}
-			cache := autocomplete.NewCache(autocomplete.DefaultCache, nil, nil)
+			cache := autocomplete.NewAutoComplete(autocomplete.DefaultCache, nil, nil)
 			hosts, err := cache.Get(autocomplete.HostKey)
 			if err != nil {
 				return nil
@@ -1232,7 +1232,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		teleport.PTY, teleport.JSON, teleport.YAML, teleport.Text,
 	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML, teleport.Text)
 	play.Arg("session-id", "ID or path to session file to play.").Required().HintAction(func() []string {
-		cache := autocomplete.NewCache(autocomplete.DefaultCache, nil, nil)
+		cache := autocomplete.NewAutoComplete(autocomplete.DefaultCache, nil, nil)
 		recordings, err := cache.Get(autocomplete.RecordingsKey)
 		if err != nil {
 			return []string{}
@@ -6438,6 +6438,6 @@ func onCompletion(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cache := autocomplete.NewCache(autocomplete.DefaultCache, nil, tc)
+	cache := autocomplete.NewAutoComplete(autocomplete.DefaultCache, nil, tc)
 	return trace.Wrap(cache.Update(cf.Context))
 }
