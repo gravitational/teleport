@@ -19,6 +19,7 @@
 package usagereporter
 
 import (
+	"context"
 	"slices"
 	"strings"
 
@@ -28,6 +29,7 @@ import (
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -47,10 +49,13 @@ func (u *UserLoginEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequ
 	if u.DeviceId != "" {
 		deviceID = a.AnonymizeString(u.DeviceId)
 	}
+	// store mapping here
+	anonUsername := a.AnonymizeString(u.UserName)
+	// be.Set(u.UserName, anonUsername)
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UserLogin{
 			UserLogin: &prehogv1a.UserLoginEvent{
-				UserName:                 a.AnonymizeString(u.UserName),
+				UserName:                 anonUsername,
 				ConnectorType:            u.ConnectorType,
 				DeviceId:                 deviceID,
 				RequiredPrivateKeyPolicy: u.RequiredPrivateKeyPolicy,
@@ -58,6 +63,18 @@ func (u *UserLoginEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequ
 			},
 		},
 	}
+}
+func anonUsernameKey(username string) backend.Key {
+	return backend.NewKey("anonymization-", username)
+}
+
+func (u *UserLoginEvent) StoreAnonymizationMapping(ctx context.Context, a utils.Anonymizer, be backend.Backend) error {
+	anonUsername := a.AnonymizeString(u.UserName)
+	_, err := be.Put(ctx, backend.Item{
+		Key:   anonUsernameKey(u.UserName),
+		Value: []byte(anonUsername),
+	})
+	return err
 }
 
 // AccessRequestCreateEvent is emitted when Access Request is created.

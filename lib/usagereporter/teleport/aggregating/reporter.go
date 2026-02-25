@@ -186,8 +186,11 @@ func (r *Reporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 		// this should drop all events that we don't care about
 		// note: make sure this matches the set of all events handled in [*Reporter.run]
 		switch event.(type) {
-		case *usagereporter.UserLoginEvent,
-			*usagereporter.SessionStartEvent,
+		case *usagereporter.UserLoginEvent:
+			event.(*usagereporter.UserLoginEvent).StoreAnonymizationMapping(context.Background(), r.anonymizer, r.svc.b)
+			filtered = append(filtered, event)
+
+		case *usagereporter.SessionStartEvent,
 			*usagereporter.KubeRequestEvent,
 			*usagereporter.SFTPEvent,
 			*usagereporter.ResourceHeartbeatEvent,
