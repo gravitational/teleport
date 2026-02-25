@@ -17,8 +17,10 @@
 package vnet
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"sync"
@@ -52,6 +54,7 @@ func proxySSHConnection(
 	ctx context.Context,
 	serverConn sshConn,
 	clientConn sshConn,
+	moshAttemptReporter moshAttemptReporter,
 ) {
 	closeConnections := sync.OnceFunc(func() {
 		clientConn.Close()
@@ -74,20 +77,32 @@ func proxySSHConnection(
 		}()
 	}
 
-	// Proxy channels initiated by either connection.
-	runTask(func() {
-		proxyChannels(ctx, serverConn.conn, clientConn.chans, closeConnections)
-	})
-	runTask(func() {
-		proxyChannels(ctx, clientConn.conn, serverConn.chans, closeConnections)
-	})
-
 	// Proxy global requests in both directions.
 	runTask(func() {
 		proxyGlobalRequests(ctx, serverConn.conn, clientConn.reqs, closeConnections)
 	})
 	runTask(func() {
 		proxyGlobalRequests(ctx, clientConn.conn, serverConn.reqs, closeConnections)
+	})
+
+	reportMoshAttempt := func() {
+		success, reply, err := clientConn.conn.SendRequest("mosh-ip@goteleport.com", true, nil)
+		if err != nil || !success {
+			log.WarnContext(ctx, "Mosh IP request failed", "error", err, "success", success)
+			return
+		}
+		log.DebugContext(ctx, "Mosh IP request succeeded")
+		moshAttemptReporter.reportMoshAttempt(moshAttempt{
+			ip: reply,
+		})
+	}
+
+	// Proxy channels initiated by either connection.
+	runTask(func() {
+		proxyChannels(ctx, serverConn.conn, clientConn.chans, closeConnections, reportMoshAttempt)
+	})
+	runTask(func() {
+		proxyChannels(ctx, clientConn.conn, serverConn.chans, closeConnections, reportMoshAttempt)
 	})
 
 	wg.Wait()
@@ -98,6 +113,7 @@ func proxyChannels(
 	targetConn ssh.Conn,
 	chans <-chan ssh.NewChannel,
 	closeConnections func(),
+	reportMoshAttempt func(),
 ) {
 	// Proxy each SSH channel in its own goroutine, make sure they don't leak by
 	// tracking with a WaitGroup.
@@ -106,7 +122,7 @@ func proxyChannels(
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			proxyChannel(ctx, targetConn, newChan, closeConnections)
+			proxyChannel(ctx, targetConn, newChan, closeConnections, reportMoshAttempt)
 		}()
 	}
 	wg.Wait()
@@ -117,6 +133,7 @@ func proxyChannel(
 	targetConn ssh.Conn,
 	newChan ssh.NewChannel,
 	closeConnections func(),
+	reportMoshAttempt func(),
 ) {
 	log := log.With("channel_type", newChan.ChannelType())
 	log.DebugContext(ctx, "Proxying new SSH channel")
@@ -172,8 +189,8 @@ func proxyChannel(
 
 	// Copy channel data and requests from the incoming channel to the target
 	// channel, and vice-versa.
-	target := newSSHChan(targetChan, targetChanRequests, slog.With("direction", "client->target"))
-	incoming := newSSHChan(incomingChan, incomingChanRequests, slog.With("direction", "target->client"))
+	target := newSSHChan(targetChan, targetChanRequests, slog.With("direction", "client->target"), reportMoshAttempt)
+	incoming := newSSHChan(incomingChan, incomingChanRequests, slog.With("direction", "target->client"), reportMoshAttempt)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -191,16 +208,18 @@ func proxyChannel(
 // sshChan manages all writes to an SSH channel and handles closing the channel
 // once no more data or requests will be written to it.
 type sshChan struct {
-	ch       ssh.Channel
-	requests <-chan *ssh.Request
-	log      *slog.Logger
+	ch                ssh.Channel
+	requests          <-chan *ssh.Request
+	log               *slog.Logger
+	reportMoshAttempt func()
 }
 
-func newSSHChan(ch ssh.Channel, requests <-chan *ssh.Request, log *slog.Logger) *sshChan {
+func newSSHChan(ch ssh.Channel, requests <-chan *ssh.Request, log *slog.Logger, reportMoshAttempt func()) *sshChan {
 	return &sshChan{
-		ch:       ch,
-		requests: requests,
-		log:      log,
+		ch:                ch,
+		requests:          requests,
+		log:               log,
+		reportMoshAttempt: reportMoshAttempt,
 	}
 }
 
@@ -241,9 +260,12 @@ func (c *sshChan) writeDataFrom(ctx context.Context, source *sshChan) {
 	// streams are finished writing.
 	defer c.ch.CloseWrite()
 
+	moshDetector := newMoshDetector(c.reportMoshAttempt)
+
 	errors := make(chan error, 2)
 	go func() {
-		_, err := io.Copy(c.ch, source.ch)
+		r := io.TeeReader(source.ch, moshDetector)
+		_, err := io.Copy(c.ch, r)
 		errors <- err
 	}()
 	go func() {
@@ -289,6 +311,34 @@ func (c *sshChan) writeRequestsFrom(ctx context.Context, source *sshChan) {
 	proxyRequests(ctx, log, sendRequest, source.requests, onFatalError)
 }
 
+type moshDetector struct {
+	data              []byte
+	decided           bool
+	reportMoshAttempt func()
+}
+
+func newMoshDetector(reportMoshAttempt func()) *moshDetector {
+	return &moshDetector{
+		reportMoshAttempt: reportMoshAttempt,
+	}
+}
+
+func (d *moshDetector) Write(b []byte) (int, error) {
+	if d.decided {
+		return len(b), nil
+	}
+	d.data = append(d.data, b...)
+	if len(d.data) < 20 {
+		return len(b), nil
+	}
+	if bytes.Contains(d.data, []byte("MOSH CONNECT")) {
+		fmt.Println("Found Mosh:", string(d.data))
+		d.reportMoshAttempt()
+	}
+	d.decided = true
+	return len(b), nil
+}
+
 func proxyGlobalRequests(
 	ctx context.Context,
 	targetConn ssh.Conn,
@@ -318,6 +368,14 @@ func proxyRequests(
 			req.Reply(false, nil)
 			ssh.DiscardRequests(reqs)
 			return
+		}
+		if req.Type == "exit-status" || req.Type == "exec" {
+			log.DebugContext(ctx, "Forwarding SSH request",
+				"type", req.Type,
+				"payload_len", len(req.Payload),
+				"payload", string(req.Payload),
+				"reply_payload_len", len(reply),
+				"reply_payload", string(reply))
 		}
 		if err := req.Reply(ok, reply); err != nil {
 			// A reply was expected and returned by the target but we failed to

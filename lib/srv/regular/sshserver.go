@@ -29,6 +29,7 @@ import (
 	"log/slog"
 	"maps"
 	"net"
+	"net/netip"
 	"os"
 	"os/user"
 	"runtime"
@@ -200,6 +201,9 @@ type Server struct {
 	// allowFileCopying indicates whether the ssh server is allowed to handle
 	// remote file operations via SCP or SFTP.
 	allowFileCopying bool
+
+	// moshPublicIP is returned for mosh-ip SSH requests.
+	moshPublicIP netip.Addr
 
 	// lockWatcher is the server's lock watcher.
 	lockWatcher *services.LockWatcher
@@ -710,6 +714,14 @@ func SetX11ForwardingConfig(xc *x11.ServerConfig) ServerOption {
 func SetAllowFileCopying(allow bool) ServerOption {
 	return func(s *Server) error {
 		s.allowFileCopying = allow
+		return nil
+	}
+}
+
+// SetMoshPublicIP sets the IP returned for mosh-ip SSH requests.
+func SetMoshPublicIP(ip netip.Addr) ServerOption {
+	return func(s *Server) error {
+		s.moshPublicIP = ip
 		return nil
 	}
 }
@@ -1371,6 +1383,18 @@ func (s *Server) HandleRequest(ctx context.Context, ccx *sshutils.ConnectionCont
 		// session channel request.
 		if err := r.Reply(true, nil); err != nil {
 			s.logger.WarnContext(ctx, "Failed to reply to session ID query request", "error", err)
+		}
+		return
+	case "mosh-ip@goteleport.com":
+		if !s.moshPublicIP.IsValid() {
+			s.logger.WarnContext(ctx, "Failed to handle mosh IP query request: ssh_service.mosh_public_ip is not set")
+			if err := r.Reply(false, nil); err != nil {
+				s.logger.WarnContext(ctx, "Failed to reply to mosh IP query request", "error", err)
+			}
+			return
+		}
+		if err := r.Reply(true, s.moshPublicIP.AsSlice()); err != nil {
+			s.logger.WarnContext(ctx, "Failed to reply to most IP query request", "error", err)
 		}
 		return
 	default:

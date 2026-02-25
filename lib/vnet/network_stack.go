@@ -19,6 +19,8 @@ package vnet
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -99,6 +101,29 @@ type tcpHandlerSpec struct {
 	ipv4CIDRRange string
 	// tcpHandler is the handler for TCP connections.
 	tcpHandler tcpHandler
+
+	moshAttemptMu sync.Mutex
+	moshAttempts  []moshAttempt
+}
+
+func (s *tcpHandlerSpec) reportMoshAttempt(a moshAttempt) {
+	s.moshAttemptMu.Lock()
+	defer s.moshAttemptMu.Unlock()
+	fmt.Println("tcpHandlerSpec mosh attempt reported")
+	s.moshAttempts = append(s.moshAttempts, a)
+}
+
+func (s *tcpHandlerSpec) latestMoshAttempt() (moshAttempt, bool) {
+	s.moshAttemptMu.Lock()
+	defer s.moshAttemptMu.Unlock()
+	if len(s.moshAttempts) == 0 {
+		return moshAttempt{}, false
+	}
+	return s.moshAttempts[len(s.moshAttempts)-1], true
+}
+
+type moshAttempt struct {
+	ip []byte
 }
 
 // tcpHandler defines the behavior for handling TCP connections from VNet.
@@ -192,7 +217,8 @@ type state struct {
 	// lookups based on an IPv6 address can use the 4-byte suffix.
 
 	// tcpHandlers holds the map of IP addresses to assigned TCP handlers.
-	tcpHandlers map[ipv4]tcpHandler
+	tcpHandlers     map[ipv4]tcpHandler
+	tcpHandlerSpecs map[ipv4]*tcpHandlerSpec
 	// assignedIPs holds the map of app FQDNs to their assigned IP address, it's a reverse map of [tcpHandlers].
 	assignedIPs map[string]ipv4
 
@@ -202,9 +228,10 @@ type state struct {
 
 func newState() state {
 	return state{
-		tcpHandlers: make(map[ipv4]tcpHandler),
-		udpHandlers: make(map[ipv4]udpHandler),
-		assignedIPs: make(map[string]ipv4),
+		tcpHandlers:     make(map[ipv4]tcpHandler),
+		tcpHandlerSpecs: make(map[ipv4]*tcpHandlerSpec),
+		udpHandlers:     make(map[ipv4]udpHandler),
+		assignedIPs:     make(map[string]ipv4),
 	}
 }
 
@@ -257,6 +284,9 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 	ns.stack.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
 
 	if cfg.dnsIPv6 != (tcpip.Address{}) {
+		if err := ns.addProtocolAddress(cfg.dnsIPv6); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		if err := ns.assignUDPHandler(cfg.dnsIPv6, dnsServer); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -441,6 +471,13 @@ func (ns *networkStack) getTCPHandler(addr tcpip.Address) (tcpHandler, bool) {
 	return handler, ok
 }
 
+func (ns *networkStack) getTCPHandlerSpec(addr tcpip.Address) (*tcpHandlerSpec, bool) {
+	ns.state.mu.RLock()
+	defer ns.state.mu.RUnlock()
+	handlerSpec, ok := ns.state.tcpHandlerSpecs[ipv4Suffix(addr)]
+	return handlerSpec, ok
+}
+
 // assignTCPHandler assigns an IPv4 address to [handlerSpec] from its preferred CIDR range, and returns that
 // new assigned address.
 func (ns *networkStack) assignTCPHandler(handlerSpec *tcpHandlerSpec, fqdn string) (ipv4, error) {
@@ -461,6 +498,7 @@ func (ns *networkStack) assignTCPHandler(handlerSpec *tcpHandlerSpec, fqdn strin
 	}
 
 	ns.state.tcpHandlers[ip] = handlerSpec.tcpHandler
+	ns.state.tcpHandlerSpecs[ip] = handlerSpec
 	ns.state.assignedIPs[fqdn] = ip
 
 	if err := ns.addProtocolAddress(tcpip.AddrFrom4(ip.asArray())); err != nil {
@@ -481,6 +519,47 @@ func (ns *networkStack) handleUDP(req *udp.ForwarderRequest) {
 	}()
 }
 
+type udpForwarder struct {
+	id          stack.TransportEndpointID
+	outConn     *net.UDPConn
+	moshAttempt moshAttempt
+}
+
+func newUDPForwarder(ctx context.Context, id stack.TransportEndpointID, moshAttempt moshAttempt) (*udpForwarder, error) {
+	log.DebugContext(ctx, "newUDPForwarder", "ip", tcpip.AddrFromSlice(moshAttempt.ip))
+	outConn, err := net.DialUDP("udp", nil, &net.UDPAddr{
+		IP:   moshAttempt.ip,
+		Port: int(id.LocalPort),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &udpForwarder{
+		id:      id,
+		outConn: outConn,
+	}, nil
+}
+
+func (f *udpForwarder) HandleUDP(ctx context.Context, conn net.Conn) error {
+	log.DebugContext(ctx, "udpForwarder.HandleUDP")
+	g, ctx := errgroup.WithContext(ctx)
+	defer context.AfterFunc(ctx, func() {
+		conn.Close()
+		f.outConn.Close()
+	})()
+	g.Go(func() error {
+		_, err := io.Copy(f.outConn, conn)
+		return err
+	})
+	g.Go(func() error {
+		_, err := io.Copy(conn, f.outConn)
+		return err
+	})
+	err := g.Wait()
+	log.DebugContext(ctx, "udpForwarder.HandleUDP done", "error", err)
+	return trace.Wrap(err)
+}
+
 func (ns *networkStack) handleUDPConcurrent(req *udp.ForwarderRequest) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -492,8 +571,27 @@ func (ns *networkStack) handleUDPConcurrent(req *udp.ForwarderRequest) {
 
 	handler, ok := ns.getUDPHandler(id.LocalAddress)
 	if !ok {
-		slog.DebugContext(ctx, "No handler for address.")
-		return
+		tcpHandlerSpec, ok := ns.getTCPHandlerSpec(id.LocalAddress)
+		if !ok {
+			slog.DebugContext(ctx, "No handler for address and no tcpHandlerSpec.")
+			return
+		}
+		moshAttempt, ok := tcpHandlerSpec.latestMoshAttempt()
+		if !ok {
+			slog.DebugContext(ctx, "No mosh attempts at this IP")
+			return
+		}
+		var err error
+		handler, err = newUDPForwarder(ctx, id, moshAttempt)
+		if err != nil {
+			slog.DebugContext(ctx, "Failed to make UDP forwarded", "error", err)
+			return
+		}
+		// Check if maybe mosh and blindly forward lol.
+		if id.LocalPort < 60000 || id.LocalPort > 61000 {
+			slog.DebugContext(ctx, "No handler for address.")
+			return
+		}
 	}
 
 	var wq waiter.Queue
@@ -546,9 +644,6 @@ func (ns *networkStack) assignUDPHandler(addr tcpip.Address, handler udpHandler)
 	if _, ok := ns.state.udpHandlers[ipv4]; ok {
 		return trace.AlreadyExists("Handler for %s is already set", addr)
 	}
-	if err := ns.addProtocolAddress(addr); err != nil {
-		return trace.Wrap(err)
-	}
 	ns.state.udpHandlers[ipv4] = handler
 	return nil
 }
@@ -556,7 +651,11 @@ func (ns *networkStack) assignUDPHandler(addr tcpip.Address, handler udpHandler)
 // addDNSAddress adds a DNS handler at the given IP.
 func (ns *networkStack) addDNSAddress(ip net.IP) error {
 	slog.DebugContext(context.Background(), "Serving DNS on IPv4.", "dns_addr", ip.String())
-	return trace.Wrap(ns.assignUDPHandler(tcpip.AddrFromSlice(ip), ns.dnsServer),
+	tcpipAddr := tcpip.AddrFromSlice(ip)
+	if err := ns.addProtocolAddress(tcpipAddr); err != nil {
+		return trace.Wrap(err, "adding protocol address")
+	}
+	return trace.Wrap(ns.assignUDPHandler(tcpipAddr, ns.dnsServer),
 		"adding UDP handler at %s", ip.String())
 }
 

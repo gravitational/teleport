@@ -1609,6 +1609,7 @@ type SSH struct {
 	Labels                map[string]string `yaml:"labels,omitempty"`
 	Commands              []CommandLabel    `yaml:"commands,omitempty"`
 	PermitUserEnvironment bool              `yaml:"permit_user_env,omitempty"`
+	MoshPublicIP          string            `yaml:"mosh_public_ip,omitempty"`
 	PAM                   *PAM              `yaml:"pam,omitempty"`
 	// PublicAddr sets SSH host principals for SSH service
 	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`

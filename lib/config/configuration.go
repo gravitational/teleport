@@ -1556,6 +1556,14 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 
 	cfg.SSH.AllowFileCopying = fc.SSH.SSHFileCopy()
 
+	if fc.SSH.MoshPublicIP != "" {
+		moshPublicIP, err := netip.ParseAddr(fc.SSH.MoshPublicIP)
+		if err != nil {
+			return trace.BadParameter("failed to parse ssh_service.mosh_public_ip: %v", err)
+		}
+		cfg.SSH.MoshPublicIP = moshPublicIP.Unmap()
+	}
+
 	cfg.SSH.ForceListen = fc.SSH.ForceListen
 
 	return nil

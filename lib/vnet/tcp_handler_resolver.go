@@ -88,18 +88,19 @@ func (r *tcpHandlerResolver) resolveTCPHandler(ctx context.Context, fqdn string)
 		// We know the query matched a cluster, but we won't know until we get a
 		// TCP connection if this may match an SSH node or an app that may be
 		// added later so we return an undecidedHandler.
-		handler, err := newUndecidedHandler(&undecidedHandlerConfig{
+		s := &tcpHandlerSpec{
+			ipv4CIDRRange: matchedCluster.GetIpv4CidrRange(),
+		}
+		s.tcpHandler, err = newUndecidedHandler(&undecidedHandlerConfig{
 			tcpHandlerResolverConfig: r.cfg,
 			fqdn:                     fqdn,
 			webProxyAddr:             matchedCluster.GetWebProxyAddr(),
+			moshAttemptReporter:      s,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &tcpHandlerSpec{
-			ipv4CIDRRange: matchedCluster.GetIpv4CidrRange(),
-			tcpHandler:    handler,
-		}, nil
+		return s, nil
 	}
 	return nil, errNoTCPHandler
 }
@@ -134,8 +135,13 @@ const softWebHandlerTTL = 15 * time.Second
 
 type undecidedHandlerConfig struct {
 	*tcpHandlerResolverConfig
-	fqdn         string
-	webProxyAddr string
+	fqdn                string
+	webProxyAddr        string
+	moshAttemptReporter moshAttemptReporter
+}
+
+type moshAttemptReporter interface {
+	reportMoshAttempt(moshAttempt)
 }
 
 func newUndecidedHandler(cfg *undecidedHandlerConfig) (*undecidedHandler, error) {
@@ -255,8 +261,9 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 		// permanently handle SSH connections at this address and avoid app
 		// queries on subsequent connections.
 		sshHandler := newSSHHandler(sshHandlerConfig{
-			sshProvider: h.cfg.sshProvider,
-			target:      target,
+			sshProvider:         h.cfg.sshProvider,
+			target:              target,
+			moshAttemptReporter: h.cfg.moshAttemptReporter,
 		})
 		h.setDecidedHandler(sshHandler)
 		// Handle the incoming connection with the TCP connection to the target

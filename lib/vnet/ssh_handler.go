@@ -38,8 +38,9 @@ type sshHandler struct {
 }
 
 type sshHandlerConfig struct {
-	sshProvider *sshProvider
-	target      dialTarget
+	sshProvider         *sshProvider
+	target              dialTarget
+	moshAttemptReporter moshAttemptReporter
 }
 
 func newSSHHandler(cfg sshHandlerConfig) *sshHandler {
@@ -157,6 +158,7 @@ func (h *sshHandler) handleTCPConnectorWithTargetConn(
 			reqs:  serverReqs,
 		},
 		*clientConn,
+		h.cfg.moshAttemptReporter,
 	)
 	return nil
 }

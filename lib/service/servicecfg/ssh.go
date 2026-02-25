@@ -19,6 +19,8 @@
 package servicecfg
 
 import (
+	"net/netip"
+
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -40,6 +42,9 @@ type SSHConfig struct {
 
 	// PublicAddrs affects the SSH host principals and DNS names added to the SSH and TLS certs.
 	PublicAddrs []utils.NetAddr
+
+	// MoshPublicIP is the IP that should be returned for mosh-ip SSH requests.
+	MoshPublicIP netip.Addr
 
 	// BPF holds BPF configuration for Teleport.
 	BPF *BPFConfig

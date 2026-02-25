@@ -3585,6 +3585,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetLockWatcher(lockWatcher),
 			regular.SetX11ForwardingConfig(cfg.SSH.X11),
 			regular.SetAllowFileCopying(cfg.SSH.AllowFileCopying),
+			regular.SetMoshPublicIP(cfg.SSH.MoshPublicIP),
 			regular.SetConnectedProxyGetter(proxyGetter),
 			regular.SetRelayInfoGetter(relayInfoHolder.GetRelayInfo),
 			regular.SetCreateHostUser(!cfg.SSH.DisableCreateHostUser),
