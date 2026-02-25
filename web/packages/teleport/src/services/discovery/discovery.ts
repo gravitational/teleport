@@ -58,7 +58,7 @@ export function createDiscoveryConfig(
 }
 
 export function makeDiscoveryConfigLog(rawResp: any): DiscoveryConfigLog {
-  const { account_id, region, instances = [] } = rawResp;
+  const { account_id, region, instances = [] } = rawResp.accounts;
 
   return {
     account_id,
