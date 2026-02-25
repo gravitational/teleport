@@ -2,17 +2,19 @@
 title: "Step 1 - Deploy Teleport Community Edition"
 description: "Deploy a self-hosted Teleport Community Edition cluster using the Linux demo."
 tags:
-  - get-started
+  - how-to
   - platform-wide
 ---
 
 import Button from '@site/src/components/Button';
 
-This guide will walk you through deploying Teleport Community Edition. 
+# Deploy Teleport Community Edition
 
-You'll spin up a single-instance Teleport cluster on a Linux server, ideal for small-scale demos or home lab environments. Once deployed, you can move ahead in the guide to connecting your infrastructure, setting up role-based access control (RBAC), and auditing your access.
+This guide will walk you through deploying teleport community edition.
 
-## How it works
+You'll spin up a single-instance Teleport cluster on a Linux server, ideal for small-scale demos or home lab environments. Once deployed, you can move ahead in the guide to connecting your infrastructure, setting up role-based access control (RBAC), and auditing your access. For more information, read the docs at https://goteleport.com/docs/core-concepts/.
+
+## How It Works
 
 The Teleport cluster consists of two services:
 
@@ -123,7 +125,11 @@ Finally, you will need a multi-factor authenticator app such as
 Authenticator](https://www.google.com/landing/2step/), or
 [1Password](https://support.1password.com/one-time-passwords/).
 
-## Step 1/4. Configure DNS
+## Step 1. Configure DNS
+
+<Admonition type="note">
+DNS configuration is important for Teleport to work properly. Make sure you understand DNS before proceeding.
+</Admonition>
 
 If you are following this guide with a local Docker container, you can skip to
 [Step 2](#step-24-set-up-teleport-on-your-linux-host).
@@ -137,11 +143,13 @@ records, each pointing to the IP address of your Linux host. Assuming
 |`teleport.example.com`|Traffic to the Proxy Service from users and services.|
 |`*.teleport.example.com`|Traffic to web applications registered with Teleport. Teleport issues a subdomain of your cluster's domain name to each application.|
 
-## Step 2/4. Set up Teleport on your Linux host
+## Step 2/4. Set Up Teleport On Your Linux Host
 
-In this step, you will log into your Linux host, download the Teleport binary,
-generate a Teleport configuration file, and start the Teleport Auth Service,
-Proxy Service, and SSH Service on the host.
+In this step, you will:
+- Log into your Linux host
+- Download the Teleport binary
+- Generate a Teleport configuration file
+- Start the Teleport auth service, proxy service, and SSH service on the host
 
 ### Install Teleport
 
@@ -364,8 +372,8 @@ Now that you have Teleport running and a user configured, you can access your Li
 
 Click on `Connect` to access it via the web-based terminal, or use Teleport's [`tsh` CLI tool](../connect-your-client/teleport-clients/tsh.mdx) to SSH into it:
 
-```code
-$ tsh ssh root@<server-name>
+```
+tsh ssh root@<server-name>
 ```
 
 <Checkpoint
@@ -378,9 +386,9 @@ $ tsh ssh root@<server-name>
   - Check that your MFA device is properly enrolled and that you're completing the authentication challenge.
 </Checkpoint>
 
-## Next step: deploy Teleport Agents
+## Next Steps
 
-At this point, you've launched your own Teleport Community Edition cluster and created a user. You can now move on to the next step of connecting your infrastructure.
+At this point, you've launched your own teleport community edition cluster and created a user. You can now move on to the next step of connecting your infrastructure. Check out https://goteleport.com/docs/enroll-resources/ for more details.
 
 <div style={{ marginTop: 'var(--m-4)' }}>
 <Button style={{ padding: '0 var(--m-2)' }} as="link" href="../connect/" variant="primary" shape="lg">Step 2 - Connect infrastructure <Icon name="arrowRight" inline size="sm"/> </Button>
