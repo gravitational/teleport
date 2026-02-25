@@ -49,12 +49,14 @@ const (
 	HostKey           = "nodes_by_hostname"
 	RecordingsKey     = "recordings"
 	ActiveSessionsKey = "active_sessions"
+	ClusterLoginKey   = "cluster_login"
 )
 
 var virtualResourceKeys = []string{
 	HostKey,
 	RecordingsKey,
 	ActiveSessionsKey,
+	ClusterLoginKey,
 }
 
 func NewAutoComplete(clt *authclient.Client, tc *client.TeleportClient) *cache {
@@ -122,6 +124,7 @@ func NewAutoComplete(clt *authclient.Client, tc *client.TeleportClient) *cache {
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			defer clt.Close()
 			sessions, err := clt.AuthClient.GetActiveSessionTrackers(ctx)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -131,6 +134,28 @@ func NewAutoComplete(clt *authclient.Client, tc *client.TeleportClient) *cache {
 				sessionIDs = append(sessionIDs, session.GetSessionID())
 			}
 			return sessionIDs, nil
+		}
+		updaters[ClusterLoginKey] = func(ctx context.Context) ([]string, error) {
+			clusterClient, err := tc.ConnectToCluster(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			defer clusterClient.Close()
+			rootClusterName := clusterClient.RootClusterName()
+			rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			defer rootAuthClient.Close()
+			leafClusters, err := rootAuthClient.GetRemoteClusters(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			clusters := []string{rootClusterName}
+			for _, cluster := range leafClusters {
+				clusters = append(clusters, cluster.GetName())
+			}
+			return clusters, nil
 		}
 	}
 	return &cache{filepath: filePath, resourceGettersFunc: updaters}

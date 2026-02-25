@@ -1100,7 +1100,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	lsRecordings.Flag("last", "Duration into the past from which session recordings should be listed. Format \"5h30m40s\".").StringVar(&cf.recordingsSince)
 	exportRecordings := recordings.Command("export", "Export recorded desktop sessions to video.")
 	exportRecordings.Flag("out", "Override output file name.").StringVar(&cf.OutFile)
-	exportRecordings.Arg("session-id", "ID of the session to export.").Required().StringVar(&cf.SessionID)
+	exportRecordings.Arg("session-id", "ID of the session to export.").Required().HintAction(autocomplete.HintAction(autocomplete.RecordingsKey)).StringVar(&cf.SessionID)
 
 	// Local TLS proxy.
 	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode.")
@@ -1282,7 +1282,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	login.Flag("request-reviewers", "Suggested reviewers for role request.").StringVar(&cf.SuggestedReviewers)
 	login.Flag("request-nowait", "Finish without waiting for request resolution.").BoolVar(&cf.NoWait)
 	login.Flag("request-id", "Login with the roles requested in the given request.").StringVar(&cf.RequestID)
-	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
+	login.Arg("cluster", clusterHelp).HintAction(autocomplete.HintAction(autocomplete.ClusterLoginKey)).StringVar(&cf.SiteName)
 	login.Flag("scope", "Scope pins credentials to a given scope.").StringVar(&cf.Scope)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
 	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to.").StringVar(&cf.KubernetesCluster)
