@@ -203,6 +203,49 @@ tags:
 
 Brief introduction explaining what this guide accomplishes and who it's for.
 
+## Writing style
+
+### Document types
+
+Each page should have a clear purpose based on one of these types:
+
+- **Tutorials** (`get-started` tag): Learning-oriented, hands-on for
+newcomers. Must provide successful outcomes with no unexpected errors.
+- **How-to guides** (`how-to` tag): Task-oriented with practical
+steps. Assume readers know *what* they want to do, not *how*. Avoid
+breaking focus—minimize inline links, notices, and admonishments.
+- **Reference** (`reference` tag): Comprehensive technical
+descriptions. List all options, use tables, avoid prose.
+- **Conceptual** (`conceptual` tag): Explains how/why systems work.
+Provides context for tutorials and how-to guides.
+
+### Voice and tone
+
+- Write for technical audiences (developers, SREs, security engineers)
+- Emphasize specific technical capabilities over broad benefit
+statements
+- Use sparse 1-2 sentence paragraphs rather than dense blocks
+- Prefer paragraphs over bulleted lists; use numbered lists only for
+sequential steps
+
+### Formatting conventions
+
+- **Headings**: Sentence case ("Next steps" not "Next Steps")
+- **Page titles**: Title case, max 55 characters (70 total with " |
+Teleport Docs" suffix)
+- **Products/features**: Capitalize proper nouns ("Trusted Cluster").
+Bold on first use.
+- **Acronyms**: Introduce after the full term, then use consistently
+within the page
+- **Lists**: End items with periods unless the item is a command
+
+### Component philosophy
+
+Prefer text over components. Before adding Tabs, Admonitions, or
+Details, ask whether paragraphs and headings would suffice. Use Tabs
+only when a single variation is relevant to the reader and others
+would distract.
+
 ## How it works
 
 Explain the high-level architecture in 1-3 paragraphs.
