@@ -3855,7 +3855,7 @@ func (process *TeleportProcess) initSharedTunnel() error {
 	process.OnExit("common.sharedtunnel.exit", func(payload any) {
 		process.sharedTunnel.Stop(payloadContext(payload), logger)
 	})
-	return process.sharedTunnel.Run(ctx, logger)
+	return process.sharedTunnel.Run(ctx, logger, conn.ClusterName(), conn.Client, conn.TunnelProxyResolver())
 }
 
 // initUploaderService starts a file-based uploader that scans the local streaming logs directory
