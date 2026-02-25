@@ -8,7 +8,7 @@
   },
   "license": "Apache-2.0",
   "devDependencies": {
-    "@playwright/test": "^1.55.1",
+    "@playwright/test": "^1.58.2",
     "otplib": "^13.3.0"
   }
 }
