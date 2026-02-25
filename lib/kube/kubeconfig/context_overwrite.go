@@ -20,7 +20,6 @@
 package kubeconfig
 
 import (
-	"bytes"
 	"text/template"
 
 	"github.com/gravitational/trace"
@@ -94,16 +93,17 @@ func parseContextOverrideError(err error) error {
 // executeKubeContextTemplate executes the given template and returns the
 // generated context name.
 func executeKubeContextTemplate(tmpl *template.Template, clusterName, kubeName string) (string, error) {
-	contextEntry := struct {
-		ClusterName string
-		KubeName    string
-	}{
-		ClusterName: clusterName,
-		KubeName:    kubeName,
-	}
-	var buf bytes.Buffer
-	err := tmpl.Execute(&buf, contextEntry)
-	return buf.String(), trace.Wrap(err)
+	// contextEntry := struct {
+	// 	ClusterName string
+	// 	KubeName    string
+	// }{
+	// 	ClusterName: clusterName,
+	// 	KubeName:    kubeName,
+	// }
+	// var buf bytes.Buffer
+	// err := tmpl.Execute(&buf, contextEntry)
+	// return buf.String(), trace.Wrap(err)
+	return "", nil
 }
 
 // ContextNameFromTemplate generates a kubernetes context name from the given template.

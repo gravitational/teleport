@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -703,36 +702,37 @@ func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output st
 		return nil
 	}
 
-	tpl, found := mapIdentityFileFormatHelperTemplate[outputFormat]
-	if !found {
-		// This format doesn't have a recommended configuration.
-		// Consider adding one to ease the installation for the end-user
-		return nil
-	}
-	tplVars := map[string]any{
-		"files":     strings.Join(filesWritten, ", "),
-		"password":  password,
-		"output":    output,
-		"tarOutput": tarOutput,
-	}
-	switch outputFormat {
-	case defaults.ProtocolCockroachDB:
-		tplVars["clientCAPath"] = "/path/to/client-ca.key"
-	case defaults.ProtocolOracle:
-		tplVars["manualOrapkiFlow"] = len(filesWritten) != 1
-		// use a generic example path since they will have to copy the files
-		// to the oracle server.
-		tplVars["walletDir"] = "/path/to/oracleWalletDir"
-		var caCertPaths []string
-		for _, f := range filesWritten {
-			if strings.HasSuffix(f, ".crt") {
-				caCertPaths = append(caCertPaths, f)
-			}
-		}
-		tplVars["caCertPaths"] = caCertPaths
-	}
+	// tpl, found := mapIdentityFileFormatHelperTemplate[outputFormat]
+	// if !found {
+	// 	// This format doesn't have a recommended configuration.
+	// 	// Consider adding one to ease the installation for the end-user
+	// 	return nil
+	// }
+	// tplVars := map[string]any{
+	// 	"files":     strings.Join(filesWritten, ", "),
+	// 	"password":  password,
+	// 	"output":    output,
+	// 	"tarOutput": tarOutput,
+	// }
+	// switch outputFormat {
+	// case defaults.ProtocolCockroachDB:
+	// 	tplVars["clientCAPath"] = "/path/to/client-ca.key"
+	// case defaults.ProtocolOracle:
+	// 	tplVars["manualOrapkiFlow"] = len(filesWritten) != 1
+	// 	// use a generic example path since they will have to copy the files
+	// 	// to the oracle server.
+	// 	tplVars["walletDir"] = "/path/to/oracleWalletDir"
+	// 	var caCertPaths []string
+	// 	for _, f := range filesWritten {
+	// 		if strings.HasSuffix(f, ".crt") {
+	// 			caCertPaths = append(caCertPaths, f)
+	// 		}
+	// 	}
+	// 	tplVars["caCertPaths"] = caCertPaths
+	// }
 
-	return trace.Wrap(tpl.Execute(writer, tplVars))
+	// return trace.Wrap(tpl.Execute(writer, tplVars))
+	return nil
 }
 
 var (

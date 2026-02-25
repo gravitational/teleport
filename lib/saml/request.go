@@ -20,7 +20,6 @@ package saml
 
 import (
 	"bytes"
-	"html/template"
 	"net/http"
 
 	"github.com/gravitational/trace"
@@ -34,9 +33,9 @@ func WriteSAMLPostRequestWithHeaders(w http.ResponseWriter, rawForm []byte) erro
 	setSAMLRequestSecurityHeaders(w.Header())
 
 	htmlBuf := bytes.NewBuffer(nil)
-	if err := samlHTTPPostRequest.Execute(htmlBuf, template.HTML(rawForm)); err != nil {
-		return trace.Wrap(err)
-	}
+	// if err := samlHTTPPostRequest.Execute(htmlBuf, template.HTML(rawForm)); err != nil {
+	// 	return trace.Wrap(err)
+	// }
 
 	if _, err := w.Write(htmlBuf.Bytes()); err != nil {
 		return trace.Wrap(err)
@@ -45,21 +44,21 @@ func WriteSAMLPostRequestWithHeaders(w http.ResponseWriter, rawForm []byte) erro
 	return nil
 }
 
-var samlHTTPPostRequest = template.Must(template.New("saml-http-post-request").Parse(`
-<!doctype html>
-<html>
- <head><title>Teleport SAML Service Provider</title></head>
- <body>
-  <noscript>
-      <p>
-        <strong>Note:</strong> Your browser does not support JavaScript,
-        you must press the Continue button to proceed.
-      </p>
-  </noscript>
-  {{.}}
-  </body>
-</html>
-`))
+// var samlHTTPPostRequest = template.Must(template.New("saml-http-post-request").Parse(`
+// <!doctype html>
+// <html>
+//  <head><title>Teleport SAML Service Provider</title></head>
+//  <body>
+//   <noscript>
+//       <p>
+//         <strong>Note:</strong> Your browser does not support JavaScript,
+//         you must press the Continue button to proceed.
+//       </p>
+//   </noscript>
+//   {{.}}
+//   </body>
+// </html>
+// `))
 
 // sha256 checksum is calculated for the script tag configured in the form.
 // <script>document.getElementById('SAMLSubmitButton').style.visibility="hidden";document.getElementById('SAMLRequestForm').submit();</script>

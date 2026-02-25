@@ -19,10 +19,7 @@
 package autoupdate
 
 import (
-	"bytes"
 	"encoding/json"
-	"runtime"
-	"text/template"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
@@ -136,27 +133,28 @@ func (i *InstallFlags) UnmarshalYAML(n *yaml.Node) error {
 
 // MakeURL constructs the package download URL from template, base URL and revision.
 func MakeURL(uriTmpl string, baseURL string, pkg string, version string, flags InstallFlags) (string, error) {
-	tmpl, err := template.New("uri").Parse(uriTmpl)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	var uriBuf bytes.Buffer
-	params := struct {
-		BaseURL, OS, Version, Arch, Package string
-		FIPS, Enterprise                    bool
-	}{
-		BaseURL:    baseURL,
-		OS:         runtime.GOOS,
-		Version:    version,
-		Arch:       runtime.GOARCH,
-		FIPS:       flags&FlagFIPS != 0,
-		Enterprise: flags&(FlagEnterprise|FlagFIPS) != 0,
-		Package:    pkg,
-	}
-	err = tmpl.Execute(&uriBuf, params)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+	return "", nil
+	// tmpl, err := template.New("uri").Parse(uriTmpl)
+	// if err != nil {
+	// 	return "", trace.Wrap(err)
+	// }
+	// var uriBuf bytes.Buffer
+	// params := struct {
+	// 	BaseURL, OS, Version, Arch, Package string
+	// 	FIPS, Enterprise                    bool
+	// }{
+	// 	BaseURL:    baseURL,
+	// 	OS:         runtime.GOOS,
+	// 	Version:    version,
+	// 	Arch:       runtime.GOARCH,
+	// 	FIPS:       flags&FlagFIPS != 0,
+	// 	Enterprise: flags&(FlagEnterprise|FlagFIPS) != 0,
+	// 	Package:    pkg,
+	// }
+	// err = tmpl.Execute(&uriBuf, params)
+	// if err != nil {
+	// 	return "", trace.Wrap(err)
+	// }
 
-	return uriBuf.String(), nil
+	// return uriBuf.String(), nil
 }

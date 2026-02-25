@@ -24,8 +24,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -58,13 +56,14 @@ func ValidateUserRoles(ctx context.Context, u types.User, roleGetter RoleGetter)
 
 // UsersEquals checks if the users are equal
 func UsersEquals(u types.User, other types.User) bool {
-	return cmp.Equal(u, other,
-		ignoreProtoXXXFields(),
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		cmpopts.SortSlices(func(a, b *types.MFADevice) bool {
-			return a.Metadata.Name < b.Metadata.Name
-		}),
-	)
+	return false
+	// return cmp.Equal(u, other,
+	// 	ignoreProtoXXXFields(),
+	// 	cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	// 	cmpopts.SortSlices(func(a, b *types.MFADevice) bool {
+	// 		return a.Metadata.Name < b.Metadata.Name
+	// 	}),
+	// )
 }
 
 // LoginAttempt represents successful or unsuccessful attempt for user to login

@@ -945,15 +945,16 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 		if len(proxies) == 0 {
 			return trace.NotFound("cluster has no proxies")
 		}
-		setRoles := strings.ToLower(strings.Join(in.roles.StringSlice(), "\\,"))
-		return kubeMessageTemplate.Execute(in.out,
-			map[string]any{
-				"proxy_server": proxies[0].GetPublicAddr(),
-				"token":        in.tokenName,
-				"minutes":      in.ttl.Minutes(),
-				"set_roles":    setRoles,
-				"version":      proxies[0].GetTeleportVersion(),
-			})
+		// setRoles := strings.ToLower(strings.Join(in.roles.StringSlice(), "\\,"))
+		return nil
+		// return kubeMessageTemplate.Execute(in.out,
+		// 	map[string]any{
+		// 		"proxy_server": proxies[0].GetPublicAddr(),
+		// 		"token":        in.tokenName,
+		// 		"minutes":      in.ttl.Minutes(),
+		// 		"set_roles":    setRoles,
+		// 		"version":      proxies[0].GetTeleportVersion(),
+		// 	})
 	case in.roles.Include(types.RoleApp):
 		proxies, err := clientutils.CollectWithFallback(ctx, in.client.ListProxyServers, func(context.Context) ([]types.Server, error) {
 			//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
@@ -965,18 +966,19 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 		if len(proxies) == 0 {
 			return trace.BadParameter("cluster has no proxies")
 		}
-		appPublicAddr := fmt.Sprintf("%v.%v", in.appName, proxies[0].GetPublicAddr())
+		// appPublicAddr := fmt.Sprintf("%v.%v", in.appName, proxies[0].GetPublicAddr())
 
-		return appMessageTemplate.Execute(in.out,
-			map[string]any{
-				"token":           in.tokenName,
-				"minutes":         in.ttl.Minutes(),
-				"ca_pins":         in.caPins,
-				"proxy_server":    proxies[0].GetPublicAddr(),
-				"app_name":        in.appName,
-				"app_uri":         in.appURI,
-				"app_public_addr": appPublicAddr,
-			})
+		// return appMessageTemplate.Execute(in.out,
+		// 	map[string]any{
+		// 		"token":           in.tokenName,
+		// 		"minutes":         in.ttl.Minutes(),
+		// 		"ca_pins":         in.caPins,
+		// 		"proxy_server":    proxies[0].GetPublicAddr(),
+		// 		"app_name":        in.appName,
+		// 		"app_uri":         in.appURI,
+		// 		"app_public_addr": appPublicAddr,
+		// 	})
+		return nil
 	case in.roles.Include(types.RoleDatabase):
 		proxies, err := clientutils.CollectWithFallback(ctx, in.client.ListProxyServers, func(context.Context) ([]types.Server, error) {
 			//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
@@ -988,41 +990,45 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 		if len(proxies) == 0 {
 			return trace.NotFound("cluster has no proxies")
 		}
-		return dbMessageTemplate.Execute(in.out,
-			map[string]any{
-				"token":        in.tokenName,
-				"minutes":      in.ttl.Minutes(),
-				"ca_pins":      in.caPins,
-				"proxy_server": proxies[0].GetPublicAddr(),
-				"db_name":      in.dbName,
-				"db_protocol":  in.dbProtocol,
-				"db_uri":       in.dbURI,
-			})
+		// return dbMessageTemplate.Execute(in.out,
+		// 	map[string]any{
+		// 		"token":        in.tokenName,
+		// 		"minutes":      in.ttl.Minutes(),
+		// 		"ca_pins":      in.caPins,
+		// 		"proxy_server": proxies[0].GetPublicAddr(),
+		// 		"db_name":      in.dbName,
+		// 		"db_protocol":  in.dbProtocol,
+		// 		"db_uri":       in.dbURI,
+		// 	})
+		return nil
 	case in.roles.Include(types.RoleTrustedCluster):
 		fmt.Fprintf(in.out, trustedClusterMessage,
 			in.tokenName,
 			int(in.ttl.Minutes()))
 	case in.roles.Include(types.RoleWindowsDesktop):
-		return desktopMessageTemplate.Execute(in.out,
-			map[string]any{
-				"token":   in.tokenName,
-				"minutes": in.ttl.Minutes(),
-			})
+		return nil
+		// return desktopMessageTemplate.Execute(in.out,
+		// 	map[string]any{
+		// 		"token":   in.tokenName,
+		// 		"minutes": in.ttl.Minutes(),
+		// 	})
 	case in.roles.Include(types.RoleMDM):
-		return mdmTokenAddTemplate.Execute(in.out, map[string]any{
-			"token":   in.tokenName,
-			"minutes": in.ttl.Minutes(),
-			"ca_pins": in.caPins,
-		})
+		return nil
+		// return mdmTokenAddTemplate.Execute(in.out, map[string]any{
+		// 	"token":   in.tokenName,
+		// 	"minutes": in.ttl.Minutes(),
+		// 	"ca_pins": in.caPins,
+		// })
 	default:
-		return nodeMessageTemplate.Execute(in.out, map[string]any{
-			"token":       in.tokenName,
-			"secret":      in.tokenSecret,
-			"roles":       strings.ToLower(in.roles.String()),
-			"minutes":     int(in.ttl.Minutes()),
-			"ca_pins":     in.caPins,
-			"auth_server": controlPlaneAddr(ctx, in.client, authServers[0].GetAddr()),
-		})
+		return nil
+		// return nodeMessageTemplate.Execute(in.out, map[string]any{
+		// 	"token":       in.tokenName,
+		// 	"secret":      in.tokenSecret,
+		// 	"roles":       strings.ToLower(in.roles.String()),
+		// 	"minutes":     int(in.ttl.Minutes()),
+		// 	"ca_pins":     in.caPins,
+		// 	"auth_server": controlPlaneAddr(ctx, in.client, authServers[0].GetAddr()),
+		// })
 	}
 
 	return nil

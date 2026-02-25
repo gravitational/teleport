@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 	"text/template"
 	"time"
 
@@ -40,7 +39,6 @@ import (
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -178,14 +176,14 @@ func (c *NodeCommand) Invite(ctx context.Context, client *authclient.Client) err
 
 	// Calculate the CA pins for this cluster. The CA pins are used by the
 	// client to verify the identity of the Auth Server.
-	localCAResponse, err := client.GetClusterCACert(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	// localCAResponse, err := client.GetClusterCACert(ctx)
+	// if err != nil {
+	// 	return trace.Wrap(err)
+	// }
+	// caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
+	// if err != nil {
+	// 	return trace.Wrap(err)
+	// }
 
 	authServers, err := clientutils.CollectWithFallback(
 		ctx,
@@ -205,13 +203,14 @@ func (c *NodeCommand) Invite(ctx context.Context, client *authclient.Client) err
 		if roles.Include(types.RoleTrustedCluster) {
 			fmt.Printf(trustedClusterMessage, token, int(c.ttl.Minutes()))
 		} else {
-			return nodeMessageTemplate.Execute(os.Stdout, map[string]any{
-				"token":       token,
-				"minutes":     int(c.ttl.Minutes()),
-				"roles":       strings.ToLower(roles.String()),
-				"ca_pins":     caPins,
-				"auth_server": controlPlaneAddr(ctx, client, authServers[0].GetAddr()),
-			})
+			// return nodeMessageTemplate.Execute(os.Stdout, map[string]any{
+			// 	"token":       token,
+			// 	"minutes":     int(c.ttl.Minutes()),
+			// 	"roles":       strings.ToLower(roles.String()),
+			// 	"ca_pins":     caPins,
+			// 	"auth_server": controlPlaneAddr(ctx, client, authServers[0].GetAddr()),
+			// })
+			return nil
 		}
 	} else {
 		// Always return a list, otherwise we'll break users tooling. See #1846 for

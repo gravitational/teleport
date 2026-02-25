@@ -638,7 +638,7 @@ require (
 // to integrations/event-handler/go.mod and integrations/terraform/go.mod, and
 // update "ignore" in .github/dependabot.yml.
 replace (
-	github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
+	github.com/alecthomas/kingpin/v2 => /Users/tim/src/kingpin
 	github.com/crewjam/saml => github.com/gravitational/saml v0.4.15-teleport.2
 	github.com/datastax/go-cassandra-native-protocol => github.com/gravitational/go-cassandra-native-protocol v0.0.0-teleport.3
 	github.com/go-mysql-org/go-mysql => github.com/gravitational/go-mysql v1.9.1-teleport.4
@@ -651,6 +651,7 @@ replace (
 	github.com/opencontainers/selinux => github.com/gravitational/selinux v1.13.0-teleport
 	github.com/redis/go-redis/v9 => github.com/gravitational/redis/v9 v9.6.1-teleport.1
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.4
+	github.com/gravitational/trace => /Users/tim/src/trace
 )
 
 // this package was included in google.golang.org/grpc but because it's still

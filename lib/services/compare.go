@@ -19,16 +19,7 @@
 package services
 
 import (
-	"strings"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/compare"
-	"github.com/gravitational/teleport/api/types/header"
 )
 
 // CompareResources compares two resources by all significant fields.
@@ -37,21 +28,22 @@ func CompareResources[T any](resA, resB T) int {
 	if hasEqual, ok := any(resA).(compare.IsEqual[T]); ok {
 		equal = hasEqual.IsEqual(resB)
 	} else {
-		equal = cmp.Equal(resA, resB,
-			ignoreProtoXXXFields(),
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-			cmpopts.IgnoreFields(types.DatabaseV3{}, "Status"),
-			cmpopts.IgnoreFields(types.UserSpecV2{}, "Status"),
-			cmpopts.IgnoreFields(accesslist.AccessList{}, "Status"),
-			cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
-			cmpopts.IgnoreUnexported(headerv1.Metadata{}),
+		equal = false
+		// cmp.Equal(resA, resB,
+		// 	ignoreProtoXXXFields(),
+		// 	cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		// 	cmpopts.IgnoreFields(types.DatabaseV3{}, "Status"),
+		// 	cmpopts.IgnoreFields(types.UserSpecV2{}, "Status"),
+		// 	cmpopts.IgnoreFields(accesslist.AccessList{}, "Status"),
+		// 	cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+		// 	cmpopts.IgnoreUnexported(headerv1.Metadata{}),
 
-			// Managed by IneligibleStatusReconciler, ignored by all others.
-			cmpopts.IgnoreFields(accesslist.AccessListMemberSpec{}, "IneligibleStatus"),
-			cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
+		// 	// Managed by IneligibleStatusReconciler, ignored by all others.
+		// 	cmpopts.IgnoreFields(accesslist.AccessListMemberSpec{}, "IneligibleStatus"),
+		// 	cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
 
-			cmpopts.EquateEmpty(),
-		)
+		// 	cmpopts.EquateEmpty(),
+		// )
 	}
 	if equal {
 		return Equal
@@ -61,11 +53,11 @@ func CompareResources[T any](resA, resB T) int {
 
 // ignoreProtoXXXFields is a cmp.Option that ignores XXX_* fields from proto
 // messages.
-func ignoreProtoXXXFields() cmp.Option {
-	return cmp.FilterPath(func(path cmp.Path) bool {
-		if field, ok := path.Last().(cmp.StructField); ok {
-			return strings.HasPrefix(field.Name(), "XXX_")
-		}
-		return false
-	}, cmp.Ignore())
-}
+// func ignoreProtoXXXFields() cmp.Option {
+// 	return cmp.FilterPath(func(path cmp.Path) bool {
+// 		if field, ok := path.Last().(cmp.StructField); ok {
+// 			return strings.HasPrefix(field.Name(), "XXX_")
+// 		}
+// 		return false
+// 	}, cmp.Ignore())
+// }

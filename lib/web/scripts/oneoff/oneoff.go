@@ -165,9 +165,9 @@ func BuildScript(p OneOffScriptParams) (string, error) {
 	}
 
 	out := &bytes.Buffer{}
-	if err := oneOffBashScript.Execute(out, p); err != nil {
-		return "", trace.Wrap(err)
-	}
+	// if err := oneOffBashScript.Execute(out, p); err != nil {
+	// 	return "", trace.Wrap(err)
+	// }
 
 	return out.String(), nil
 }

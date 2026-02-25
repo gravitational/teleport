@@ -26,7 +26,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
@@ -795,15 +794,15 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 					newMember.Spec.AddedBy = existingMember.Spec.AddedBy
 
 					// Compare members and update if necessary.
-					if !cmp.Equal(newMember, existingMember) {
-						// Update the member.
-						upserted, err := a.memberService.WithPrefix(accessList.GetName()).UpsertResource(ctx, newMember)
-						if err != nil {
-							return trace.Wrap(err)
-						}
+					// if !cmp.Equal(newMember, existingMember) {
+					// 	// Update the member.
+					// 	upserted, err := a.memberService.WithPrefix(accessList.GetName()).UpsertResource(ctx, newMember)
+					// 	if err != nil {
+					// 		return trace.Wrap(err)
+					// 	}
 
-						existingMember.SetRevision(upserted.GetRevision())
-					}
+					// 	existingMember.SetRevision(upserted.GetRevision())
+					// }
 				}
 
 				// Remove the member from the map.
