@@ -69,8 +69,10 @@ case "$MODE" in
     pnpm exec playwright test --ui
     ;;
   codegen)
-    echo "==> Opening Playwright codegen..."
-    pnpm exec playwright codegen --ignore-https-errors https://localhost:3080/web
+    echo "==> Running setup project to generate auth state..."
+    pnpm exec playwright test --project=setup
+    echo "==> Opening Playwright codegen (with auth)..."
+    pnpm exec playwright codegen --load-storage=.auth/user.json --ignore-https-errors https://localhost:3080/web
     ;;
   debug)
     echo "==> Running tests with Playwright inspector..."
