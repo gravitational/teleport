@@ -110,12 +110,3 @@ func buildMessages(prompt, systemPrompt string) []openai.ChatCompletionMessage {
 	})
 	return msgs
 }
-
-// toFloat64 converts a []float32 embedding to []float64.
-func toFloat64(f32 []float32) []float64 {
-	f64 := make([]float64, len(f32))
-	for i, v := range f32 {
-		f64[i] = float64(v)
-	}
-	return f64
-}
