@@ -1231,7 +1231,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	play.Flag("format", defaults.FormatFlagDescription(
 		teleport.PTY, teleport.JSON, teleport.YAML, teleport.Text,
 	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML, teleport.Text)
-	play.Arg("session-id", "ID or path to session file to play.").Required().StringVar(&cf.SessionID)
+	play.Arg("session-id", "ID or path to session file to play.").Required().HintAction(func() []string {
+		cache := autocomplete.NewCache(autocomplete.DefaultCache, nil, nil)
+		recordings, err := cache.Get(autocomplete.RecordingsKey)
+		if err != nil {
+			return []string{}
+		}
+		return recordings
+	}).StringVar(&cf.SessionID)
 
 	// scp
 	scp := app.Command("scp", "Transfer files to a remote SSH node.")
