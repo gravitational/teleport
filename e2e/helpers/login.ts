@@ -10,7 +10,10 @@ export async function login(page: Page, username = 'bob', password = 'secret') {
   await page.getByPlaceholder('Username').fill(username);
   await page.getByPlaceholder('Password').fill(password);
 
-  await page.getByRole('button', { name: 'Sign In' }).click();
+  await page
+    .getByTestId('userpassword')
+    .getByRole('button', { name: 'Sign In' })
+    .click();
 
   await page.waitForLoadState('networkidle');
 
