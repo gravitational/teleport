@@ -4,11 +4,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-TELEPORT_BIN="${REPO_ROOT}/build/teleport"
-CONFIG_FILE="${SCRIPT_DIR}/config/teleport.yaml"
-STATE_FILE="${SCRIPT_DIR}/config/state.yaml"
-CERTS_DIR="${SCRIPT_DIR}/certs"
-DATA_DIR="${SCRIPT_DIR}/data"
+# Allow overrides via environment for enterprise reuse
+E2E_DIR="${E2E_DIR:-$SCRIPT_DIR}"
+TELEPORT_BIN="${TELEPORT_BIN:-${REPO_ROOT}/build/teleport}"
+CONFIG_FILE="${E2E_DIR}/config/teleport.yaml"
+STATE_FILE="${E2E_DIR}/config/state.yaml"
+CERTS_DIR="${E2E_DIR}/certs"
+DATA_DIR="${E2E_DIR}/data"
 
 # Generate self-signed TLS certs for the proxy
 mkdir -p "$CERTS_DIR"
@@ -27,10 +29,11 @@ sed \
   -e "s|/etc/teleport/certs/tls.key|${CERTS_DIR}/tls.key|" \
   -e "s|/etc/teleport/certs/tls.crt|${CERTS_DIR}/tls.crt|" \
   -e "s|/var/lib/teleport|${DATA_DIR}|" \
-  "$CONFIG_FILE" > "${SCRIPT_DIR}/teleport-e2e.yaml"
+  ${EXTRA_SED_ARGS:-} \
+  "$CONFIG_FILE" > "${E2E_DIR}/teleport-e2e.yaml"
 
 echo "Starting Teleport with bootstrap state..."
-"$TELEPORT_BIN" start -c "${SCRIPT_DIR}/teleport-e2e.yaml" --bootstrap "$STATE_FILE" &
+"$TELEPORT_BIN" start -c "${E2E_DIR}/teleport-e2e.yaml" --bootstrap "$STATE_FILE" &
 
 echo "Waiting for Teleport to be ready..."
 for i in $(seq 1 30); do
