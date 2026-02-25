@@ -204,7 +204,6 @@ function InstanceDetails({ instance }: { instance: DiscoveryInstance }) {
           borderColor={getConfidenceColor(issue.confidence)}
         >
           <Flex alignItems="center" gap={2} mb={1}>
-            <ConfidenceBadge confidence={issue.confidence} />
             {issue.count > 1 && (
               <Text typography="body3" color="text.slightlyMuted">
                 ({issue.count} occurrences)
