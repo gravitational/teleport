@@ -260,25 +260,25 @@ func onProxyCommandDB(cf *CLIConf) error {
 		maybeAddGCPMetadataTplArgs(cf.Context, tc, dbInfo, templateArgs)
 
 		tmpl := chooseProxyCommandTemplate(templateArgs, commands, dbInfo)
-		err = tmpl.Execute(os.Stdout, templateArgs)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
+		_ = tmpl
+		// err = tmpl.Execute(os.Stdout, templateArgs)
+		// if err != nil {
+		// 	return trace.Wrap(err)
+		// }
 	} else {
-		err = dbProxyTpl.Execute(os.Stdout, map[string]any{
-			"database":     dbInfo.ServiceName,
-			"address":      listener.Addr().String(),
-			"ca":           profile.CACertPathForCluster(rootCluster),
-			"cert":         profile.DatabaseCertPathForCluster(cf.SiteName, dbInfo.ServiceName),
-			"key":          profile.DatabaseKeyPathForCluster(cf.SiteName, dbInfo.ServiceName),
-			"randomPort":   randomPort,
-			"databaseUser": dbInfo.Username,
-			"databaseName": dbInfo.Database,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		// err = dbProxyTpl.Execute(os.Stdout, map[string]any{
+		// 	"database":     dbInfo.ServiceName,
+		// 	"address":      listener.Addr().String(),
+		// 	"ca":           profile.CACertPathForCluster(rootCluster),
+		// 	"cert":         profile.DatabaseCertPathForCluster(cf.SiteName, dbInfo.ServiceName),
+		// 	"key":          profile.DatabaseKeyPathForCluster(cf.SiteName, dbInfo.ServiceName),
+		// 	"randomPort":   randomPort,
+		// 	"databaseUser": dbInfo.Username,
+		// 	"databaseName": dbInfo.Database,
+		// })
+		// if err != nil {
+		// 	return trace.Wrap(err)
+		// }
 	}
 
 	defer lp.Close()
@@ -636,7 +636,8 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 		}
 	}
 
-	return trace.Wrap(combined.Execute(cf.Stdout(), templateData))
+	// return trace.Wrap(combined.Execute(cf.Stdout(), templateData))
+	return nil
 }
 
 func checkProxyAWSFormatCompatibility(cf *CLIConf) error {
@@ -1005,14 +1006,15 @@ jdbc:awsathena://User={{.envVars.AWS_ACCESS_KEY_ID}};Password={{.envVars.AWS_SEC
 `
 
 func printCloudTemplate(envVars map[string]string, format string, randomPort bool, cloudName string) error {
-	templateData := map[string]any{
-		"envVars":    envVars,
-		"format":     format,
-		"randomPort": randomPort,
-		"cloudName":  cloudName,
-	}
-	err := cloudHTTPSProxyTemplate.Execute(os.Stdout, templateData)
-	return trace.Wrap(err)
+	// templateData := map[string]any{
+	// 	"envVars":    envVars,
+	// 	"format":     format,
+	// 	"randomPort": randomPort,
+	// 	"cloudName":  cloudName,
+	// }
+	// err := cloudHTTPSProxyTemplate.Execute(os.Stdout, templateData)
+	// return trace.Wrap(err)
+	return nil
 }
 
 // cloudHTTPSProxyTemplate is the message that gets printed to a user when a cloud HTTPS proxy is started.

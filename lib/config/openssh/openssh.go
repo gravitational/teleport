@@ -119,11 +119,11 @@ func WriteSSHConfig(w io.Writer, config *SSHConfigParameters) error {
 		config.Port = defaults.SSHServerListenPort
 	}
 
-	if err := sshConfigTemplate.Execute(w, sshTmplParams{
-		SSHConfigParameters: *config,
-	}); err != nil {
-		return trace.Wrap(err)
-	}
+	// if err := sshConfigTemplate.Execute(w, sshTmplParams{
+	// 	SSHConfigParameters: *config,
+	// }); err != nil {
+	// 	return trace.Wrap(err)
+	// }
 
 	return nil
 }

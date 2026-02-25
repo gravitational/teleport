@@ -27,7 +27,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -237,14 +236,14 @@ func writeSSHConfigFile(profilePath string, clusterNames map[string]struct{}) er
 		// Avoid writing the Host block if there are no clusters to match.
 		b.WriteString("# VNet currently detects no logged-in clusters, log in to start using VNet\n")
 	} else {
-		hosts := strings.Join(hostMatchers(clusterNames), " ")
-		if err := configFileTemplate.Execute(&b, configFileTemplateInput{
-			Hosts:          hosts,
-			PrivateKeyPath: strconv.Quote(keypaths.VNetClientSSHKeyPath(profilePath)),
-			KnownHostsPath: strconv.Quote(keypaths.VNetKnownHostsPath(profilePath)),
-		}); err != nil {
-			return trace.Wrap(err, "generating SSH config file")
-		}
+		// hosts := strings.Join(hostMatchers(clusterNames), " ")
+		// if err := configFileTemplate.Execute(&b, configFileTemplateInput{
+		// 	Hosts:          hosts,
+		// 	PrivateKeyPath: strconv.Quote(keypaths.VNetClientSSHKeyPath(profilePath)),
+		// 	KnownHostsPath: strconv.Quote(keypaths.VNetKnownHostsPath(profilePath)),
+		// }); err != nil {
+		// 	return trace.Wrap(err, "generating SSH config file")
+		// }
 	}
 	p := keypaths.VNetSSHConfigPath(profilePath)
 	err := renameio.WriteFile(p, b.Bytes(), filePerms)

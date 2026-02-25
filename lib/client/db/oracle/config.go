@@ -106,9 +106,9 @@ type templateSettings interface {
 
 func writeSettings(settings templateSettings, dir string) error {
 	var buff bytes.Buffer
-	if err := settings.template().Execute(&buff, settings); err != nil {
-		return trace.Wrap(err)
-	}
+	// if err := settings.template().Execute(&buff, settings); err != nil {
+	// 	return trace.Wrap(err)
+	// }
 	filePath := filepath.Join(dir, settings.configFilename())
 	if err := os.WriteFile(filePath, buff.Bytes(), teleport.FileMaskOwnerOnly); err != nil {
 		return trace.Wrap(err)

@@ -22,10 +22,8 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"sync"
 	"text/template"
@@ -245,21 +243,23 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 			return nil
 		}
 
-		if routeToApp.AWSCredentialProcessCredentials != "" {
-			return awsNamedProfileLoginTemplate.Execute(output, map[string]string{
-				"awsAppName":        app.GetName(),
-				"escapedAWSAppName": shsprintf.EscapeDefaultContext(app.GetName()),
-				"awsCmd":            "s3 ls",
-				"awsRoleARN":        routeToApp.AWSRoleARN,
-			})
-		}
+		// if routeToApp.AWSCredentialProcessCredentials != "" {
+		// 	// return awsNamedProfileLoginTemplate.Execute(output, map[string]string{
+		// 	// 	"awsAppName":        app.GetName(),
+		// 	// 	"escapedAWSAppName": shsprintf.EscapeDefaultContext(app.GetName()),
+		// 	// 	"awsCmd":            "s3 ls",
+		// 	// 	"awsRoleARN":        routeToApp.AWSRoleARN,
+		// 	// })
+		// }
 
-		return awsLoginTemplate.Execute(output, map[string]string{
-			"awsAppName":        app.GetName(),
-			"escapedAWSAppName": shsprintf.EscapeDefaultContext(app.GetName()),
-			"awsCmd":            "s3 ls",
-			"awsRoleARN":        routeToApp.AWSRoleARN,
-		})
+		// return awsLoginTemplate.Execute(output, map[string]string{
+		// 	"awsAppName":        app.GetName(),
+		// 	"escapedAWSAppName": shsprintf.EscapeDefaultContext(app.GetName()),
+		// 	"awsCmd":            "s3 ls",
+		// 	"awsRoleARN":        routeToApp.AWSRoleARN,
+		// })
+
+		return nil
 
 	case app.IsAzureCloud():
 		if routeToApp.AzureIdentity == "" {
@@ -296,33 +296,39 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 			return trace.Wrap(err, "failed to automatically login with `az login` using identity %q; run with --debug for details", routeToApp.AzureIdentity)
 		}
 
-		return azureLoginTemplate.Execute(output, map[string]string{
-			"appName":  app.GetName(),
-			"identity": routeToApp.AzureIdentity,
-		})
+		// return azureLoginTemplate.Execute(output, map[string]string{
+		// 	"appName":  app.GetName(),
+		// 	"identity": routeToApp.AzureIdentity,
+		// })
+
+		return nil
 
 	case app.IsGCP():
-		return gcpLoginTemplate.Execute(output, map[string]string{
-			"appName":        app.GetName(),
-			"serviceAccount": routeToApp.GCPServiceAccount,
-		})
+		// return gcpLoginTemplate.Execute(output, map[string]string{
+		// 	"appName":        app.GetName(),
+		// 	"serviceAccount": routeToApp.GCPServiceAccount,
+		// })
+
+		return nil
 
 	case app.IsTCP():
-		appNameWithOptionalTargetPort := app.GetName()
-		if routeToApp.TargetPort != 0 {
-			appNameWithOptionalTargetPort = net.JoinHostPort(app.GetName(), strconv.Itoa(int(routeToApp.GetTargetPort())))
-		}
+		// appNameWithOptionalTargetPort := app.GetName()
+		// if routeToApp.TargetPort != 0 {
+		// 	appNameWithOptionalTargetPort = net.JoinHostPort(app.GetName(), strconv.Itoa(int(routeToApp.GetTargetPort())))
+		// }
 
-		return tcpAppLoginTemplate.Execute(output, map[string]string{
-			"appName":                       shsprintf.EscapeDefaultContext(app.GetName()),
-			"appNameWithOptionalTargetPort": appNameWithOptionalTargetPort,
-		})
+		// return tcpAppLoginTemplate.Execute(output, map[string]string{
+		// 	"appName":                       shsprintf.EscapeDefaultContext(app.GetName()),
+		// 	"appNameWithOptionalTargetPort": appNameWithOptionalTargetPort,
+		// })
+		return nil
 
 	case localProxyRequiredForApp(tc):
-		return webAppLoginProxyTemplate.Execute(output, map[string]any{
-			"appName":        app.GetName(),
-			"escapedAppName": shsprintf.EscapeDefaultContext(app.GetName()),
-		})
+		// return webAppLoginProxyTemplate.Execute(output, map[string]any{
+		// 	"appName":        app.GetName(),
+		// 	"escapedAppName": shsprintf.EscapeDefaultContext(app.GetName()),
+		// })
+		return nil
 
 	default:
 		rootCluster, err := tc.RootClusterName(cf.Context)
@@ -335,19 +341,20 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 			routeToApp.PublicAddr = fmt.Sprintf("%v.%v", app.GetName(), tc.WebProxyHost())
 		}
 
-		profile, err := tc.ProfileStatus()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		curlCmd, err := formatAppConfig(tc, profile, routeToApp, appFormatCURL)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		return webAppLoginTemplate.Execute(output, map[string]any{
-			"appName":  app.GetName(),
-			"curlCmd":  curlCmd,
-			"insecure": cf.InsecureSkipVerify,
-		})
+		// profile, err := tc.ProfileStatus()
+		// if err != nil {
+		// 	return trace.Wrap(err)
+		// }
+		// curlCmd, err := formatAppConfig(tc, profile, routeToApp, appFormatCURL)
+		// if err != nil {
+		// 	return trace.Wrap(err)
+		// }
+		// return webAppLoginTemplate.Execute(output, map[string]any{
+		// 	"appName":  app.GetName(),
+		// 	"curlCmd":  curlCmd,
+		// 	"insecure": cf.InsecureSkipVerify,
+		// })
+		return nil
 	}
 }
 

@@ -290,7 +290,8 @@ func onDatabaseLogin(cf *CLIConf) error {
 	} else {
 		templateData["configCommand"] = utils.Color(utils.Yellow, formatDatabaseConfigCommand(cf.SiteName, dbInfo.RouteToDatabase))
 	}
-	return trace.Wrap(dbConnectTemplate.Execute(cf.Stdout(), templateData))
+	// return trace.Wrap(dbConnectTemplate.Execute(cf.Stdout(), templateData))
+	return nil
 }
 
 // protocolSupportsInteractiveMode checks if DB Protocol integration support
@@ -1809,14 +1810,14 @@ func formatTLSRoutingReason(siteName string) string {
 // The "reasons" arguments, if given, should specify condition for which this DB subcommand
 // is not supported, e.g. "TLS routing is enabled" or "using a local proxy without the --tunnel flag".
 func formatDbCmdUnsupported(cf *CLIConf, route tlsca.RouteToDatabase, reasons ...string) string {
-	templateData := map[string]any{
-		"command":      cf.CommandWithBinary(),
-		"alternatives": getDbCmdAlternatives(cf.SiteName, route),
-		"reasons":      reasons,
-	}
+	// templateData := map[string]any{
+	// 	"command":      cf.CommandWithBinary(),
+	// 	"alternatives": getDbCmdAlternatives(cf.SiteName, route),
+	// 	"reasons":      reasons,
+	// }
 
 	buf := bytes.NewBuffer(nil)
-	_ = dbCmdUnsupportedTemplate.Execute(buf, templateData)
+	// _ = dbCmdUnsupportedTemplate.Execute(buf, templateData)
 	return buf.String()
 }
 
@@ -1903,18 +1904,18 @@ func newDatabaseResourceSelectors(cf *CLIConf) resourceSelectors {
 // formatAmbiguityErrTemplate is a helper func that formats an ambiguous
 // resource error message.
 func formatAmbiguityErrTemplate(cf *CLIConf, selectors resourceSelectors, listCommand, matchTable, fullNameExample string) string {
-	data := map[string]any{
-		"command":     cf.CommandWithBinary(),
-		"listCommand": strings.TrimSpace(listCommand),
-		"kind":        strings.TrimSpace(selectors.kind),
-		"matchTable":  strings.TrimSpace(matchTable),
-		"example":     strings.TrimSpace(fullNameExample),
-	}
-	if !selectors.IsEmpty() {
-		data["selectors"] = strings.TrimSpace(selectors.String())
-	}
+	// data := map[string]any{
+	// 	"command":     cf.CommandWithBinary(),
+	// 	"listCommand": strings.TrimSpace(listCommand),
+	// 	"kind":        strings.TrimSpace(selectors.kind),
+	// 	"matchTable":  strings.TrimSpace(matchTable),
+	// 	"example":     strings.TrimSpace(fullNameExample),
+	// }
+	// if !selectors.IsEmpty() {
+	// 	data["selectors"] = strings.TrimSpace(selectors.String())
+	// }
 	var sb strings.Builder
-	_ = ambiguityErrTemplate.Execute(&sb, data)
+	// _ = ambiguityErrTemplate.Execute(&sb, data)
 	return sb.String()
 }
 

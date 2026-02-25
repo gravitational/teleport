@@ -305,32 +305,33 @@ If you already have an entry for %q server, add the following database resource 
 
 // TODO(gabrielcorado): support updating multiple databases at once.
 func (m *mcpDBConfigCommand) updateConfig(w io.Writer, config *mcpconfig.FileConfig) error {
-	preexistentDB, commandChanged, err := m.addDatabaseToConfig(config, m.dbURI)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	// preexistentDB, commandChanged, err := m.addDatabaseToConfig(config, m.dbURI)
+	// if err != nil {
+	// 	return trace.Wrap(err)
+	// }
 
-	if err := config.Save(mcpconfig.FormatJSONOption(m.clientConfig.jsonFormat)); err != nil {
-		return trace.Wrap(err)
-	}
+	// if err := config.Save(mcpconfig.FormatJSONOption(m.clientConfig.jsonFormat)); err != nil {
+	// 	return trace.Wrap(err)
+	// }
 
-	templateData := struct {
-		Name          string
-		ConfigPath    string
-		ConfigName    string
-		PreexistentDB bool
-		EnvChanged    bool
-		OverwriteEnv  bool
-	}{
-		Name:          m.dbURI.GetDatabaseServiceName(),
-		ConfigPath:    config.Path(),
-		ConfigName:    mcpDBConfigName,
-		PreexistentDB: preexistentDB,
-		EnvChanged:    commandChanged,
-		OverwriteEnv:  m.overwriteEnv,
-	}
+	// 	templateData := struct {
+	// 		Name          string
+	// 		ConfigPath    string
+	// 		ConfigName    string
+	// 		PreexistentDB bool
+	// 		EnvChanged    bool
+	// 		OverwriteEnv  bool
+	// 	}{
+	// 		Name:          m.dbURI.GetDatabaseServiceName(),
+	// 		ConfigPath:    config.Path(),
+	// 		ConfigName:    mcpDBConfigName,
+	// 		PreexistentDB: preexistentDB,
+	// 		EnvChanged:    commandChanged,
+	// 		OverwriteEnv:  m.overwriteEnv,
+	// 	}
 
-	return trace.Wrap(mcpDBConfigMessageTemplate.Execute(m.cf.Stdout(), templateData))
+	// 	return trace.Wrap(mcpDBConfigMessageTemplate.Execute(m.cf.Stdout(), templateData))
+	return nil
 }
 
 // addDatabaseToConfig adds the provided database, merging with existent
