@@ -33,8 +33,10 @@ sed \
   ${EXTRA_SED_ARGS:-} \
   "$CONFIG_FILE" > "${E2E_DIR}/teleport-e2e.yaml"
 
+TELEPORT_LOG="${E2E_DIR}/teleport.log"
+
 echo "Starting Teleport with bootstrap state..."
-"$TELEPORT_BIN" start -c "${E2E_DIR}/teleport-e2e.yaml" --bootstrap "$STATE_FILE" &
+"$TELEPORT_BIN" start -c "${E2E_DIR}/teleport-e2e.yaml" --bootstrap "$STATE_FILE" &>"$TELEPORT_LOG" &
 
 echo "Waiting for Teleport to be ready..."
 for i in $(seq 1 30); do

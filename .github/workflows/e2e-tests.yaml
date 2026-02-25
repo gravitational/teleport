@@ -129,3 +129,11 @@ jobs:
           name: test-results
           path: e2e/test-results/
           retention-days: 7
+
+      - name: Upload Teleport logs
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: teleport-logs
+          path: e2e/teleport.log
+          retention-days: 7
