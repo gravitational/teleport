@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
+	"github.com/gravitational/teleport/tool/common/autocomplete"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -88,6 +89,10 @@ func Run(ctx context.Context, commands []CLICommand) {
 // This is useful for testing tctl, because we can capture the returned error in tests.
 func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 	utils.InitLogger(utils.LoggingForCLI, slog.LevelWarn)
+
+	if err := autocomplete.UpdateCompletionsInBackground(); err != nil {
+		slog.DebugContext(ctx, "Failed to fetch autocomplete resources", "error", err)
+	}
 
 	var ccf tctlcfg.GlobalCLIFlags
 	muApp := utils.InitHiddenCLIParser()

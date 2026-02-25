@@ -41,7 +41,7 @@ type cacheEntry struct {
 
 type resourceGetter func(ctx context.Context) ([]string, error)
 
-const hostKey = "nodes_by_hostname"
+const HostKey = "nodes_by_hostname"
 
 func NewCache(filePath string, clt *authclient.Client, tc *client.TeleportClient) *cache {
 	if filePath == "" {
@@ -67,7 +67,7 @@ func NewCache(filePath string, clt *authclient.Client, tc *client.TeleportClient
 		}
 	}
 	if tc != nil {
-		updaters[hostKey] = func(ctx context.Context) ([]string, error) {
+		updaters[HostKey] = func(ctx context.Context) ([]string, error) {
 			nodes, err := tc.ListNodesWithFilters(ctx)
 			if err != nil {
 				return nil, trace.Wrap(err)
