@@ -1,0 +1,141 @@
+package awsic
+
+import (
+	"context"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	"github.com/gravitational/teleport/e/lib/aws/identitycenter/principal"
+	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
+	ictest "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
+	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
+	"github.com/gravitational/teleport/e/tests/common"
+	"github.com/gravitational/teleport/e/tests/common/idp"
+)
+
+// failFirstNDeletesSCIMClient is a [scimsdk.Client] that wraps an underlying
+// client and makes the first N calls to DeleteUser and DeleteGroup return a
+// transient error, simulating a temporarily unavailable downstream system.
+type failFirstNDeletesSCIMClient struct {
+	scimsdk.Client
+	mu               sync.Mutex
+	failN            int
+	userDeleteCount  int
+	groupDeleteCount int
+}
+
+// DeleteUser fails the first [failFirstNDeletesSCIMClient.failN] calls and
+// delegates subsequent calls to the underlying client.
+func (c *failFirstNDeletesSCIMClient) DeleteUser(ctx context.Context, id string) error {
+	c.mu.Lock()
+	c.userDeleteCount++
+	count := c.userDeleteCount
+	c.mu.Unlock()
+
+	if count <= c.failN {
+		return trace.ConnectionProblem(nil, "simulated transient failure deleting user %q", id)
+	}
+	return c.Client.DeleteUser(ctx, id)
+}
+
+// DeleteGroup fails the first [failFirstNDeletesSCIMClient.failN] calls and
+// delegates subsequent calls to the underlying client.
+func (c *failFirstNDeletesSCIMClient) DeleteGroup(ctx context.Context, id string) error {
+	c.mu.Lock()
+	c.groupDeleteCount++
+	count := c.groupDeleteCount
+	c.mu.Unlock()
+
+	if count <= c.failN {
+		return trace.ConnectionProblem(nil, "simulated transient failure deleting group %q", id)
+	}
+	return c.Client.DeleteGroup(ctx, id)
+}
+
+// TestDeletionIsRetriedAfterFailure asserts that when deleting a user or group
+// from Identity Center fails on the first attempt, the provisioning service
+// retries the deletion and it eventually succeeds.
+func TestDeletionIsRetriedAfterFailure(t *testing.T) {
+	ctx := t.Context()
+
+	// GIVEN a mock Identity Center state with a single user and group
+	awsState := icsdk.NewMockedAWSState(
+		icsdk.WithUser("uid_alice", "alice"),
+		icsdk.WithGroup("group1", "Group1", "uid_alice"),
+	)
+
+	// GIVEN a SCIM client configured to fail the first deletion attempt for
+	// both users and groups, simulating a transient downstream error
+	unifiedClient := ictest.NewUnifiedMockClient(awsState)
+	riggedClient := &failFirstNDeletesSCIMClient{
+		Client: unifiedClient.ViaSCIM(),
+		failN:  1,
+	}
+	setupMockAWSICEnvironment(t, unifiedClient.ViaAPI(), riggedClient)
+
+	// GIVEN a Teleport cluster with the Identity Center integration running in
+	// full hand-off mode.
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "admin", "editor"),
+		common.WithUser(t, "alice", "requester"),
+	)
+	auth := sut.Teleport.Process.GetAuthServer()
+	mustSetupAWSIdentityCenterIntegration(t, sut.GetClusterClientForUser(t, "admin").AuthClient)
+
+	// EXPECT the IC service to start up and provision alice and the Group1
+	// access list before we proceed with the deletion test
+	require.EventuallyWithT(t,
+		func(t *assert.CollectT) {
+			// alice must be adopted as a SCIM user with a known external ID
+			assertPrincipalAssignment(ctx, t, auth, principal.GetIDForUserName("alice"),
+				hasProvisioningState(identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
+				hasExternalID("uid_alice"),
+			)
+
+			// Group1 must be imported as an access list and adopted as a SCIM group
+			acl, err := getAccessListByTitle(ctx, auth, "Group1")
+			require.NoError(t, err)
+			assertPrincipalAssignment(ctx, t, auth, principal.GetIDForAccessList(acl),
+				hasProvisioningState(identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
+				hasExternalID("group1"),
+			)
+		},
+		10*time.Second, 100*time.Millisecond,
+		"Initial provisioning must complete")
+
+	// WHEN alice is deleted from Teleport, triggering a SCIM user deletion
+	require.NoError(t, auth.DeleteUser(ctx, "alice"))
+
+	// WHEN the Group1 access list is deleted from Teleport, triggering a SCIM
+	// group deletion
+	group1ACL := mustGetAccessListByTitle(ctx, t, auth, "Group1")
+	require.NoError(t, auth.DeleteAccessList(ctx, group1ACL.GetName()))
+
+	// EXPECT that despite the first deletion attempts failing, the provisioning
+	// service retries the deletions and both alice and Group1 are eventually
+	// removed from Identity Center
+	require.EventuallyWithT(t,
+		func(t *assert.CollectT) {
+			assertSCIMUsers(ctx, t, riggedClient, "admin" /* note absence of user "alice" */)
+			assertSCIMGroupsByDisplayName(ctx, t, riggedClient /* expect no groups */)
+		},
+		10*time.Second, 100*time.Millisecond,
+		"Deletions must be retried and eventually succeed")
+
+	// ASSERT that both deletions were retried at least once, confirming that
+	// the first attempt actually failed and the retry mechanism kicked in
+	riggedClient.mu.Lock()
+	defer riggedClient.mu.Unlock()
+	require.Greater(t, riggedClient.userDeleteCount, 1,
+		"User deletion must have been attempted more than once")
+	require.Greater(t, riggedClient.groupDeleteCount, 1,
+		"Group deletion must have been attempted more than once")
+}

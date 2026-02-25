@@ -225,6 +225,12 @@ func hasAccountAssignment(ps, accountID string) principalAssignmentAssertion {
 	}
 }
 
+// hasNoAccountAssignments asssert that the target principal has no account
+// assignments listed in their Principal Assignment record
+func hasNoAccountAssignments(t assert.TestingT, pa *identitycenterv1.PrincipalAssignment) bool {
+	return assert.Empty(t, pa.GetStatus().GetAssignments())
+}
+
 // assertPrincipalAssignment asserts that an Identity Center Principal Assignment
 // record exists for the supplied principal ID, and runs the supplied assertions
 // on it. Returns after the first failed assertion. Takes an [assert.TestingT]
@@ -362,6 +368,8 @@ func requireRole(ctx context.Context, t require.TestingT, rolesSvc services.Role
 
 type icUserAssertion func(context.Context, assert.TestingT, icsdk.Client, *icsdk.User) bool
 
+// hasAccountAssignments asserts that the target user has the supplied account
+// assignments in AWS, and ONLY those assignments.
 func hasAccountAssignments(expected ...*icsdk.Assignment) icUserAssertion {
 	return func(ctx context.Context, t assert.TestingT, client icsdk.Client, user *icsdk.User) bool {
 		assignments, err := client.ListAssignments(ctx, user.ID, ssoadmintypes.PrincipalTypeUser)
