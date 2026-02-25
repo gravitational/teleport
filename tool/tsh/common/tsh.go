@@ -106,6 +106,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/mlock"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 	"github.com/gravitational/teleport/tool/common"
+	"github.com/gravitational/teleport/tool/common/autocomplete"
 	"github.com/gravitational/teleport/tool/common/fido2"
 	"github.com/gravitational/teleport/tool/common/touchid"
 	"github.com/gravitational/teleport/tool/common/webauthnwin"
@@ -1959,6 +1960,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	case updateCommand.update.FullCommand():
 		err = updateCommand.update.run(&cf)
 	case completionsCommand.FullCommand():
+		onCompletion(&cf)
 
 	default:
 		// Handle commands that might not be available.
@@ -6392,5 +6394,6 @@ func onCompletion(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(UpdateHostCompletions(cf.Context, tc))
+	cache := autocomplete.NewCache(autocomplete.DefaultCache, nil, tc)
+	return trace.Wrap(cache.Update(cf.Context))
 }

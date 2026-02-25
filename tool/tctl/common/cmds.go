@@ -19,6 +19,7 @@
 package common
 
 import (
+	"github.com/gravitational/teleport/tool/common/autocomplete"
 	"github.com/gravitational/teleport/tool/tctl/common/accessmonitoring"
 	"github.com/gravitational/teleport/tool/tctl/common/decision"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
@@ -74,6 +75,6 @@ func Commands() []CLICommand {
 		&decision.Command{},
 		&BoundKeypairCommand{},
 		&ScopedCommand{},
-		&CompletionCommand{},
+		&autocomplete.CompletionCommand{},
 	}
 }
