@@ -1,0 +1,52 @@
+---
+title: "Step 6 - Enable Machine and Workload Identity"
+description: "Replace static secrets with short-lived certificates for machines and workloads."
+toc_max_heading_level: 2
+tags:
+  - get-started
+  - mwi
+---
+
+import Button from '@site/src/components/Button';
+import Icon from '@site/src/components/Icon';
+
+Teleport Machine and Workload Identity (MWI) eliminates long-lived secrets like SSH keys, API tokens, and service account credentials. Instead, machines and workloads receive short-lived certificates that are automatically issued and renewed.
+
+MWI has two components: **Machine ID**, which gives machines access to Teleport-enrolled resources, and **Workload Identity**, which issues SPIFFE-compatible cryptographic identities for workload-to-workload authentication.
+
+## Machine ID
+
+Machine ID allows CI/CD pipelines, automation scripts, and other machines to authenticate to Teleport and access your enrolled resources without storing long-lived credentials.
+
+The core component is **tbot**, a lightweight agent that runs on a machine or in a workload environment. tbot authenticates to your Teleport cluster and receives short-lived certificates on behalf of the machine. When the certificate expires, tbot renews it automatically.
+
+To set up Machine ID:
+
+1. **Create a Bot**: A Bot is a Teleport identity for a machine. Create one with `tctl bots add` or through the Teleport Web UI.
+2. **Assign roles to the Bot**: The Bot's roles determine what resources it can access, the same as for human users.
+3. **Deploy tbot**: Run tbot on the machine or in the workload environment. tbot uses a join token to authenticate on first contact, then renews its certificate automatically.
+4. **Configure tbot outputs**: Tell tbot which type of credentials to issue (SSH certificates, Kubernetes kubeconfig, database credentials, etc.).
+
+The [Machine and Workload Identity Getting Started Guide](../machine-workload-identity/getting-started.mdx) walks through this process using GitHub Actions as an example.
+
+For production deployments, see [Deploying tbot](../machine-workload-identity/deployment/deployment.mdx) for guides specific to your platform (AWS, Azure, GCP, Kubernetes, Linux, and CI/CD systems).
+
+## Workload Identity
+
+Workload Identity issues SPIFFE-compatible X.509 certificates and JWT SVIDs to workloads running in your infrastructure. These identities allow workloads to authenticate to each other and to cloud providers without relying on static secrets.
+
+Common use cases:
+
+- **Cloud provider federation**: Authenticate to AWS, Azure, or GCP using short-lived JWTs or X.509 certificates instead of long-lived IAM credentials.
+- **Service-to-service mTLS**: Issue certificates to microservices so they can authenticate each other with mutual TLS.
+- **SPIFFE ecosystem integration**: Interoperate with other SPIFFE-compatible systems using Teleport as a trust domain.
+
+Start with the [Workload Identity Getting Started Guide](../machine-workload-identity/workload-identity/getting-started.mdx), then explore the [Machine and Workload Identity](../machine-workload-identity/machine-workload-identity.mdx) section for platform-specific guides.
+
+## Next step: Enable Identity Security
+
+In the next step, you will connect Teleport to your cloud accounts and identity providers to surface access risks, visualize access relationships, and detect anomalies.
+
+<div style={{ marginTop: 'var(--m-4)' }}>
+  <Button style={{ padding: '0 var(--m-2)' }} as="link" href="../identity-security/" variant="primary" shape="lg">Step 7 - Enable Identity Security <Icon name="arrowRight" inline size="sm"/></Button>
+</div>

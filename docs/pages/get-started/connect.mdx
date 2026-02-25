@@ -64,6 +64,23 @@ If you don't have an Ubuntu server available, expand the section below for instr
 
 </details>
 
+### Determine a labeling scheme
+
+Before you enroll resources, decide on a label scheme. Labels are key-value
+pairs you attach to enrolled resources. Teleport roles use labels to define
+which resources a user can access—for example, a role might grant access to all
+resources with the label `env: production`.
+
+A consistent scheme established early saves significant rework later. Consider
+labels that reflect your existing infrastructure conventions:
+
+- **Environment**: `env: production`, `env: staging`, `env: dev`
+- **Team or service owner**: `team: platform`, `team: data`
+- **Cloud provider or region**: `cloud: aws`, `region: us-east-1`
+
+For a full explanation of how labels work and how to apply them, read [Add
+Labels to Resources](../zero-trust-access/rbac-get-started/labels.mdx).
+
 ### Enroll your Ubuntu server
 
 You can enroll resources through the Teleport Web UI using guided setup workflows.

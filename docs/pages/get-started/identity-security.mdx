@@ -1,0 +1,46 @@
+---
+title: "Step 7 - Enable Identity Security"
+description: "Connect your cloud accounts and identity providers to detect access risks and visualize access relationships."
+toc_max_heading_level: 2
+tags:
+  - get-started
+  - identity-security
+enterprise: Identity Security
+---
+
+import Button from '@site/src/components/Button';
+import Icon from '@site/src/components/Icon';
+
+Teleport Identity Security gives you a unified view of access across your infrastructure. It surfaces over-privileged users, maps access relationships between identities and resources, and alerts you to anomalous activity.
+
+Key capabilities:
+
+- **Access Graph**: Visualize the paths between users, roles, and resources in your cluster.
+- **Crown Jewels**: Mark critical resources and monitor who has access to them.
+- **Alerts**: Detect and notify on risky access patterns using Teleport's built-in rules.
+- **SQL Editor**: Write custom queries over your access data.
+
+## Set up integrations
+
+Teleport Cloud customers have Identity Security enabled by default. To make use of it, connect your external systems through the integration wizard.
+
+In the Web UI, navigate to **Integrations** > **Set up New Integration** and select the system you want to connect. Teleport provides guided wizards for:
+
+- **AWS**: Sync IAM roles, policies, and access relationships from your AWS accounts.
+- **GitHub**: Stream audit logs, map permissions, and track user behavior.
+- **Okta**: Visualize access policies, user roles, and group memberships.
+- **Entra ID**: Sync users and groups from Microsoft Entra ID.
+
+For a full list of available integrations and their capabilities, see the [Identity Security integrations](../identity-security/identity-security.mdx) section.
+
+## [Advanced] Self-hosted setup
+
+If you are running a self-hosted Teleport cluster, Identity Security (Access Graph) is not enabled by default and requires a separate deployment. Read [Deploy Access Graph](../identity-security/access-graph/self-hosted.mdx) for setup instructions.
+
+## Next step: Enable cluster logging and metrics
+
+In the next step, you will configure audit event export and enhanced session recording.
+
+<div style={{ marginTop: 'var(--m-4)' }}>
+  <Button style={{ padding: '0 var(--m-2)' }} as="link" href="../audit/" variant="primary" shape="lg">Step 8 - Enable Cluster Logging and Metrics <Icon name="arrowRight" inline size="sm"/></Button>
+</div>

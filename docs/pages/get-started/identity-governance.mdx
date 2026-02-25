@@ -1,0 +1,58 @@
+---
+title: "Step 5 - Enable Identity Governance"
+description: "Manage long-term access with Access Lists and just-in-time access with Access Requests."
+toc_max_heading_level: 2
+tags:
+  - get-started
+  - identity-governance
+enterprise: Identity Governance
+---
+
+import Button from '@site/src/components/Button';
+import Icon from '@site/src/components/Icon';
+
+Teleport Identity Governance gives you structured, auditable control over who has access to what, and for how long. It includes two main features:
+
+- **Access Lists**: Define persistent group memberships that grant Teleport roles. Members are reviewed on a schedule to ensure access stays intentional.
+- **Access Requests**: Let users request temporary elevated access that is approved or denied by designated reviewers.
+
+## Sync Access Lists from your identity provider
+
+If you use Okta or Entra ID, you can import your existing groups as Teleport Access Lists automatically. This is the fastest way to bring your identity provider's group structure into Teleport's access control model without rebuilding it from scratch.
+
+**For Okta**: Follow [App and Group Sync](../identity-governance/integrations/okta/app-and-group-sync.mdx). Okta groups become Access Lists, and group membership is kept in sync with Teleport continuously.
+
+**For Entra ID**: Follow [Configure Access in the Entra ID Integration](../identity-governance/integrations/entra-id/configure-access.mdx). Entra ID groups become Access Lists with the same continuous sync behavior.
+
+If you are not using Okta or Entra ID, you can create Access Lists manually through the Web UI. Read [Getting Started with Access Lists](../identity-governance/access-lists/guide.mdx) for a walkthrough.
+
+## [Advanced] Configure Access Requests
+
+Access Requests allow users to request temporary elevated permissions, which a designated reviewer must approve. This enforces the principle of least privilege: users have only the access they need for their current task.
+
+Access Requests are not enabled by default for any role. To use them, you need to:
+
+1. **Create a role that can request access**: Add a `request` block to a role that specifies which roles or resources the user can request. The preset roles do not include request permissions.
+2. **Create a role that can review requests**: Add a `review_requests` block that allows users with this role to approve or deny requests.
+3. **Assign these roles to the appropriate users**.
+
+For a step-by-step example of this RBAC setup, read:
+
+- [Role Access Requests](../identity-governance/access-requests/role-requests.mdx): Users request temporary access to a Teleport role.
+- [Resource Access Requests](../identity-governance/access-requests/resource-requests.mdx): Users request access to a specific resource rather than a broad role.
+
+## [Advanced] Set up an Access Request plugin
+
+Access Request plugins send notifications to your existing communication and ticketing tools when a request is submitted, and allow reviewers to approve or deny requests without logging in to the Teleport Web UI.
+
+Teleport provides hosted plugins for some tools. For Teleport Cloud customers, the [Datadog plugin](../identity-governance/access-requests/plugins/datadog-hosted.mdx) runs on Teleport's infrastructure and requires no self-hosted deployment.
+
+For other tools—Slack, Microsoft Teams, Jira, ServiceNow, PagerDuty, and others—you deploy and run the plugin yourself. Read [Access Request Plugins](../identity-governance/access-requests/plugins/plugins.mdx) for the full list of available plugins and setup guides.
+
+## Next step: Enable Machine and Workload Identity
+
+In the next step, you will set up Teleport to issue short-lived certificates for machines and workloads, replacing static credentials like SSH keys and service account tokens.
+
+<div style={{ marginTop: 'var(--m-4)' }}>
+  <Button style={{ padding: '0 var(--m-2)' }} as="link" href="../mwi/" variant="primary" shape="lg">Step 6 - Enable Machine and Workload Identity <Icon name="arrowRight" inline size="sm"/></Button>
+</div>

@@ -22,10 +22,16 @@ To get started, simply sign up for a 14-day free trial. We'll automatically prov
 
 When setup is finished, you'll have a production-grade Teleport cluster configured with secure defaults, automatic updates, and built-in scalability.
 
-## Next step: Connect infrastructure
+The signup flow creates a local Teleport user for you with the `editor` and `access` roles. This user can perform administrative tasks in your cluster. Keep this user's credentials and recovery codes in a secure location—they are your fallback for accessing the cluster if your SSO provider is unavailable.
 
-At this point, you've launched your own Teleport Enterprise Cloud cluster and created a user in the process. You can now move on to the next step of connecting your infrastructure.
+<Admonition type="tip" title="Recovery codes">
+During signup, Teleport generates recovery codes for your account. Store them securely. If you lose access to your multi-factor authentication device, you will need these codes to regain access.
+</Admonition>
+
+## Next step: Enroll resources
+
+At this point, you've launched your own Teleport Enterprise Cloud cluster and created a local admin user. You can now move on to the next step of enrolling your infrastructure resources.
 
 <div style={{ marginTop: 'var(--m-4)' }}>
-  <Button style={{ padding: '0 var(--m-2)' }} as="link" href="../connect/" variant="primary" shape="lg">Step 2 - Connect infrastructure <Icon name="arrowRight" inline size="sm"/> </Button>
+  <Button style={{ padding: '0 var(--m-2)' }} as="link" href="../connect/" variant="primary" shape="lg">Step 2 - Enroll resources <Icon name="arrowRight" inline size="sm"/> </Button>
 </div>

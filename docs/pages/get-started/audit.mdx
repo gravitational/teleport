@@ -1,6 +1,6 @@
 ---
-title: "Step 4 - Monitor Audit Logs"
-description: "Explore audit logging features in your Teleport cluster."
+title: "Step 8 - Enable Cluster Logging and Metrics"
+description: "Review session recordings and export audit events from your Teleport cluster."
 toc_max_heading_level: 2
 tags:
   - get-started
@@ -8,33 +8,48 @@ tags:
 
 import Icon from '@site/src/components/Icon';
 
-Teleport logs cluster activity by emitting various events into its audit log.
+Teleport logs all cluster activity as structured audit events and captures full session recordings for SSH, desktop, and Kubernetes shell sessions. This gives you a tamper-evident record of what users did, when, and from where.
 
-This can be viewed in the Teleport Web UI by clicking on **Audit** > **Audit Log** in the left sidebar.
+## View audit events in the Web UI
 
-Here you'll see events like successful logins along with metadata such as event type, remote IP address, timestamp, and the identity involved. Click on **Details** to see the complete event information in JSON format.
+To see audit events, click **Audit** > **Audit Log** in the left sidebar. You will see events like successful logins, session starts, and configuration changes, each with metadata including event type, remote IP address, timestamp, and the identity involved. Click **Details** to see the full event in JSON format.
 
 ![View audit log](../../img/get-started/get-started-audit-log@2x.png)
 
-## View your SSH session recording
+## View session recordings
 
-In addition to recording structured events in its audit log, Teleport can also capture full session recordings for SSH, desktop, or Kubernetes shell sessions.
+Teleport records SSH, desktop, and Kubernetes shell sessions. To replay a session:
 
-Remember when you connected to your Ubuntu server via SSH in Step 2? That entire session was recorded.
+1. Click **Audit** > **Session Recordings** in the left sidebar.
+2. Find the session you want to review.
+3. Click **Play** to watch a full playback of the session.
 
-To view the recording:
+This is useful for security audits, compliance reviews, and post-incident investigation.
 
-1. Click on **Audit** > **Session Recordings** in the left sidebar
-2. Find your recent SSH session to your Ubuntu server
-3. Click the **Play** button to watch a full playback of everything you typed and the server's responses
+## [Advanced] Export audit events
 
-This is especially useful for security audits, compliance requirements, and troubleshooting.
+For long-term retention, compliance reporting, or integration with your SIEM, you can export Teleport audit events to an external log management platform using the **Event Handler** plugin.
 
-For a more in-depth look at how Teleport's audit system works, including event types and descriptions, storage options, and exporting events, see our [Audit Events and Records guide](../reference/deployment/monitoring/audit.mdx).
+The Event Handler reads events from Teleport and forwards them via Fluentd to your destination of choice. If you are new to audit event export, start with [Forwarding Events with Fluentd](../zero-trust-access/export-audit-events/fluentd.mdx), which explains how the plugin works and how to run it.
+
+From there, read the guide for your log platform:
+
+- [Elastic Stack](../zero-trust-access/export-audit-events/elastic-stack.mdx)
+- [Splunk](../zero-trust-access/export-audit-events/splunk.mdx)
+- [Datadog](../zero-trust-access/export-audit-events/datadog.mdx)
+- [Panther](../zero-trust-access/export-audit-events/panther.mdx)
+
+## [Advanced] Enable enhanced session recording
+
+Standard session recording captures terminal output. Enhanced session recording goes further: it uses Linux BPF to capture the actual commands executed by the user, including commands run inside shell scripts or through obfuscation techniques.
+
+This provides a stronger audit trail for compliance use cases where you need a record of commands, not just output.
+
+Read [Enhanced Session Recording for SSH with BPF](../enroll-resources/server-access/guides/bpf-session-recording.mdx) to enable it on your enrolled Linux servers.
 
 ## What's next
 
-You've now explored the core steps of getting started with Teleport. However, this is only skimming the surface of what Teleport has to offer.
+You have now worked through the complete Teleport getting started flow. Here are some additional areas to explore:
 
 You can use the search above to locate content that best fits your specific situation or scroll through our many product use cases listed on our [documentation homepage](../index.mdx).
 
@@ -44,3 +59,4 @@ Here are a few places to start:
 - Automate onboarding using [Terraform](../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-provider.mdx) or the [Kubernetes Operator](../zero-trust-access/infrastructure-as-code/teleport-operator/teleport-operator.mdx)
 - Integrate Teleport with your [SSO provider](../zero-trust-access/sso/sso.mdx) or even configure Teleport as an [IDP](../identity-governance/idps/idps.mdx)
 - Learn how to use [Teleport's API libraries](../zero-trust-access/api/api.mdx) to automate setup tasks such as registering agents with an external service discovery API, generating roles from an external RBAC system, or writing [Access Request plugins](../identity-governance/access-requests/plugins/plugins.mdx).
+

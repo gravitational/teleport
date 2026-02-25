@@ -1,0 +1,66 @@
+---
+title: "Step 4 - Set Up SSO"
+description: "Connect Teleport to your identity provider for single sign-on."
+toc_max_heading_level: 2
+tags:
+  - get-started
+  - platform-wide
+---
+
+import Button from '@site/src/components/Button';
+import Icon from '@site/src/components/Icon';
+
+Connecting Teleport to your identity provider (IdP) lets users sign in with their existing credentials and eliminates the need to manage separate Teleport passwords. Role assignments happen automatically based on the user's groups or attributes in your IdP.
+
+## How role mapping works
+
+When a user signs in via SSO, Teleport issues them a short-lived certificate containing their Teleport roles. Those roles are determined by a **role mapping** you configure in the authentication connector—a Teleport resource that describes your IdP and how to translate IdP groups or SAML/OIDC attributes into Teleport roles.
+
+For example, you might map the Okta group `infra-admins` to the Teleport `editor` and `access` roles, and map `developers` to a custom role that grants access only to resources tagged `env: dev`.
+
+For a conceptual overview of how SSO works in Teleport, read [Configure Single Sign-On](../zero-trust-access/sso/sso.mdx).
+
+## Your local admin user
+
+Before switching to SSO, confirm that your local admin user is still accessible. This user was created when you signed up for Teleport Cloud or when you deployed Community Edition. It authenticates with a password and MFA rather than through your IdP, so it remains available as a fallback if your SSO provider is unavailable.
+
+Keep the credentials for this user secure and accessible.
+
+## Set up SSO with Okta
+
+If you use Okta, you can set up SSO and user sync through the guided integration in the Teleport Web UI. Navigate to **Add New** > **Integration**, select the **Okta** tile, and follow the wizard.
+
+The guided Okta integration sets up:
+
+1. **SSO**: Okta authenticates users who sign in to Teleport.
+2. **User sync**: Okta users are imported into Teleport continuously.
+3. **Application and group sync**: Okta applications and groups become Teleport Access Lists (covered in Step 5).
+
+Follow the [Guided Okta SSO Integration](../identity-governance/integrations/okta/guided-sso.mdx) guide for step-by-step instructions on the Okta side of the setup.
+
+## Set up SSO with Entra ID
+
+If you use Microsoft Entra ID, you can set up SSO and group sync through the guided integration in the Teleport Web UI. Navigate to **Add New** > **Integration**, select the **Microsoft Entra ID** tile, and follow the wizard.
+
+Follow the [Getting Started with the Entra ID Integration](../identity-governance/integrations/entra-id/getting-started.mdx) guide for step-by-step instructions.
+
+## [Advanced] Set up SSO with another provider
+
+Teleport supports any SAML or OIDC provider, as well as GitHub. For providers without a guided integration, you configure an authentication connector manually. The connector specifies your IdP's endpoints, credentials, and role mappings.
+
+Choose a guide from [Integrate Your Identity Provider](../zero-trust-access/sso/integrate-idp/integrate-idp.mdx) for your provider:
+
+- GitHub (Community Edition and Enterprise)
+- Google Workspace
+- GitLab
+- Okta (SAML or OIDC, without the guided wizard)
+- Active Directory (ADFS)
+- Other SAML and OIDC providers
+
+## Next step: Enable Identity Governance
+
+Once SSO is configured, enable Identity Governance to manage long-term access through Access Lists and just-in-time access through Access Requests.
+
+<div style={{ marginTop: 'var(--m-4)' }}>
+  <Button style={{ padding: '0 var(--m-2)' }} as="link" href="../identity-governance/" variant="primary" shape="lg">Step 5 - Enable Identity Governance <Icon name="arrowRight" inline size="sm"/></Button>
+</div>

@@ -1,6 +1,6 @@
 ---
-title: "Step 3 - Set Up Access Controls"
-description: "Configure identity-based access controls in your Teleport cluster."
+title: "Step 3 - Set Up Roles"
+description: "Configure role-based access controls in your Teleport cluster."
 toc_max_heading_level: 2
 tags:
   - get-started
@@ -11,33 +11,17 @@ import Icon from '@site/src/components/Icon';
 
 Teleport uses **Role-Based Access Control (RBAC)** to determine who can access what across your infrastructure.
 
-Every Teleport user is assigned one or more roles. These roles define the user's permissions, such as:
-
-- What infrastructure resources they can access
-- Whether they can request temporary access
-- Whether they can edit cluster settings or view session recordings
-
-You can assign roles when creating users or manage them later in the Teleport Web UI.
+Every Teleport user is assigned one or more roles. These roles define the user's permissions, such as which infrastructure resources they can access, whether they can request temporary elevated access, and whether they can edit cluster settings or view session recordings.
 
 ## Preset roles
 
-You were able to connect to your Ubuntu server in Step 2 because of the preset roles assigned to your user account when you created your cluster.
+Teleport ships with several preset roles to help you get started quickly. You likely have at least the `access` and `editor` roles assigned to your admin user.
 
-To see which roles you currently have:
-
-1. In the Teleport Web UI, navigate to **Zero Trust Access** > **Users**
-2. Find your user, select **Options** > **Edit**
-3. Under **User Roles**, you'll see the roles assigned to you
-
-You likely have at least the `access` and `editor` roles assigned. The `access` role is what granted you permission to SSH into your server.
-
-Teleport includes several preset roles to help you get started:
-
-| **Role**                      | **Description**                                                                 |
-|------------------------------|---------------------------------------------------------------------------------|
-| `access`                     | Grants access to infrastructure resources.                                     |
-| `editor`                     | Allows editing cluster configuration (e.g., roles, connectors).                |
-| `auditor`                    | Grants read-only access to audit logs, events, and session recordings.         |
+| **Role**   | **Description**                                                         |
+|------------|-------------------------------------------------------------------------|
+| `access`   | Grants access to infrastructure resources.                              |
+| `editor`   | Allows editing cluster configuration (e.g., roles, connectors).         |
+| `auditor`  | Grants read-only access to audit logs, events, and session recordings.  |
 
 <details>
 <summary>View the full list of preset roles including Enterprise</summary>
@@ -48,18 +32,23 @@ Teleport includes several preset roles to help you get started:
 
 You can view all available roles by navigating to **Zero Trust Access** > **Roles** in the Web UI.
 
-## Custom roles
+## When to create custom roles
 
-Organizations often require custom roles to enforce least-privilege access and follow internal security policies. By creating custom roles, you can align Teleport's access controls with your company's structure and security policies.
+The preset roles cover broad access patterns, but production clusters typically need custom roles to enforce least-privilege access. Consider creating custom roles when you need to:
 
-For instructions on creating custom roles and assigning roles to users, follow along with our [Getting Started with Teleport Access Controls](../zero-trust-access/rbac-get-started/role-demo.mdx) demo guide. 
+- **Limit access by label**: Allow a team to access only resources tagged `env: production` or `team: platform`.
+- **Restrict OS logins**: Permit a user to SSH as `ubuntu` but not `root`.
+- **Define approvers**: Allow a manager to approve Access Requests without having direct access to resources.
+- **Separate read from write**: Give auditors read-only access to session recordings without cluster edit permissions.
 
-For mapping SSO users to roles, refer to our guide on [Configuring Single Sign-On](../zero-trust-access/sso/sso.mdx#how-teleport-uses-sso) for more information.
+For a hands-on introduction to writing roles and assigning them to users, follow the [Teleport Role Demo](../zero-trust-access/rbac-get-started/role-demo.mdx).
 
-## Next steps
+For a conceptual overview of how roles, labels, and templates work together, read [Get Started with Role-Based Access Control](../zero-trust-access/rbac-get-started/rbac-get-started.mdx).
 
-In the final step of the Getting Started guide, we'll cover how to monitor activity and use audit logs to strengthen security and ensure compliance.
+## Next step: Set up SSO
+
+In the next step, you will connect Teleport to your identity provider so users can sign in with their existing credentials, and roles are assigned automatically based on group membership.
 
 <div style={{ marginTop: 'var(--m-4)' }}>
-  <Button style={{ padding: '0 var(--m-2)' }} as="link" href="../audit/" variant="primary" shape="lg">Step 4 - Monitor Audit Logs <Icon name="arrowRight" inline size="sm"/> </Button>
+  <Button style={{ padding: '0 var(--m-2)' }} as="link" href="../sso/" variant="primary" shape="lg">Step 4 - Set up SSO <Icon name="arrowRight" inline size="sm"/></Button>
 </div>

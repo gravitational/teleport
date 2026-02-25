@@ -38,17 +38,37 @@
             {
               "type": "doc",
               "id": "get-started/connect",
-              "label": "Step 2: Connect Infrastructure"
+              "label": "Step 2: Enroll Resources"
             },
             {
               "type": "doc",
               "id": "get-started/access",
-              "label": "Step 3: Set Up Access Controls"
+              "label": "Step 3: Set Up Roles"
+            },
+            {
+              "type": "doc",
+              "id": "get-started/sso",
+              "label": "Step 4: Set Up SSO"
+            },
+            {
+              "type": "doc",
+              "id": "get-started/identity-governance",
+              "label": "Step 5: Enable Identity Governance"
+            },
+            {
+              "type": "doc",
+              "id": "get-started/mwi",
+              "label": "Step 6: Enable Machine and Workload Identity"
+            },
+            {
+              "type": "doc",
+              "id": "get-started/identity-security",
+              "label": "Step 7: Enable Identity Security"
             },
             {
               "type": "doc",
               "id": "get-started/audit",
-              "label": "Step 4: Monitor Audit Logs"
+              "label": "Step 8: Enable Cluster Logging and Metrics"
             }
           ]
         },
