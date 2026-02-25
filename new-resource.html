@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Adding a New Resource with resource-gen</title>
+  <style>
+
+html {
+color: #1a1a1a;
+background-color: #fdfdfd;
+}
+body {
+margin: 0 auto;
+max-width: 36em;
+padding-left: 50px;
+padding-right: 50px;
+padding-top: 50px;
+padding-bottom: 50px;
+hyphens: auto;
+overflow-wrap: break-word;
+text-rendering: optimizeLegibility;
+font-kerning: normal;
+}
+@media (max-width: 600px) {
+body {
+font-size: 0.9em;
+padding: 12px;
+}
+h1 {
+font-size: 1.8em;
+}
+}
+@media print {
+html {
+background-color: white;
+}
+body {
+background-color: transparent;
+color: black;
+font-size: 12pt;
+}
+p, h2, h3 {
+orphans: 3;
+widows: 3;
+}
+h2, h3, h4 {
+page-break-after: avoid;
+}
+}
+p {
+margin: 1em 0;
+}
+a {
+color: #1a1a1a;
+}
+a:visited {
+color: #1a1a1a;
+}
+img {
+max-width: 100%;
+}
+svg {
+height: auto;
+max-width: 100%;
+}
+h1, h2, h3, h4, h5, h6 {
+margin-top: 1.4em;
+}
+h5, h6 {
+font-size: 1em;
+font-style: italic;
+}
+h6 {
+font-weight: normal;
+}
+ol, ul {
+padding-left: 1.7em;
+margin-top: 1em;
+}
+li > ol, li > ul {
+margin-top: 0;
+}
+blockquote {
+margin: 1em 0 1em 1.7em;
+padding-left: 1em;
+border-left: 2px solid #e6e6e6;
+color: #606060;
+}
+code {
+font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+font-size: 85%;
+margin: 0;
+hyphens: manual;
+}
+pre {
+margin: 1em 0;
+overflow: auto;
+}
+pre code {
+padding: 0;
+overflow: visible;
+overflow-wrap: normal;
+}
+.sourceCode {
+background-color: transparent;
+overflow: visible;
+}
+hr {
+border: none;
+border-top: 1px solid #1a1a1a;
+height: 1px;
+margin: 1em 0;
+}
+table {
+margin: 1em 0;
+border-collapse: collapse;
+width: 100%;
+overflow-x: auto;
+display: block;
+font-variant-numeric: lining-nums tabular-nums;
+}
+table caption {
+margin-bottom: 0.75em;
+}
+tbody {
+margin-top: 0.5em;
+border-top: 1px solid #1a1a1a;
+border-bottom: 1px solid #1a1a1a;
+}
+th {
+border-top: 1px solid #1a1a1a;
+padding: 0.25em 0.5em 0.25em 0.5em;
+}
+td {
+padding: 0.125em 0.5em 0.25em 0.5em;
+}
+header {
+margin-bottom: 4em;
+text-align: center;
+}
+#TOC li {
+list-style: none;
+}
+#TOC ul {
+padding-left: 1.3em;
+}
+#TOC > ul {
+padding-left: 0;
+}
+#TOC a:not(:hover) {
+text-decoration: none;
+}
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+  <style>
+*, *::before, *::after { box-sizing: border-box; }
+body { background: #1a1b26; color: #a9b1d6; max-width: 1400px; margin: 0 auto; padding: 1.5rem 2.5rem; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; }
+hr { display: none; }
+h1, h2, h3, h4, h5, h6 { border: none !important; }
+h1 { color: #c0caf5; font-size: 2em; margin: 1.5em 0 0.5em; }
+h2 { color: #7aa2f7; font-size: 1.5em; margin: 2em 0 0.5em; }
+h3 { color: #7dcfff; font-size: 1.2em; margin: 1.5em 0 0.4em; }
+h4 { color: #bb9af7; font-size: 1.05em; margin: 1.2em 0 0.3em; }
+p, li, dd, dt { color: #a9b1d6; }
+strong, b { color: #c0caf5; }
+em { color: #bb9af7; font-style: italic; }
+a { color: #7aa2f7; text-decoration: none; }
+a:hover { color: #7dcfff; text-decoration: underline; }
+code { color: #9ece6a; background: #24283b; padding: 0.15em 0.4em; border-radius: 3px; font-size: 0.88em; }
+pre { background: #24283b !important; border-radius: 8px; padding: 1.2rem; overflow-x: auto; margin: 1em 0; border: none !important; }
+pre code { color: #a9b1d6 !important; background: none !important; padding: 0; border: none; }
+table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+th { background: #24283b; color: #c0caf5; padding: 0.6em 0.8em; text-align: left; border-bottom: 2px solid #3b4261; }
+td { padding: 0.5em 0.8em; color: #a9b1d6; border-bottom: 1px solid #292e42; }
+tr:hover td { background: #292e42; }
+blockquote { border-left: 3px solid #7aa2f7; padding: 0.3em 1em; margin: 1em 0; color: #565f89; background: #1f2335; border-radius: 0 6px 6px 0; }
+ul, ol { padding-left: 1.5em; }
+li { margin: 0.3em 0; }
+li::marker { color: #565f89; }
+nav#TOC { background: #1f2335; border-radius: 8px; padding: 1.2rem 1.5rem; margin-bottom: 2.5rem; }
+nav#TOC > ul { list-style: none; padding: 0; margin: 0; columns: 2; column-gap: 2.5rem; }
+nav#TOC ul ul { list-style: none; padding-left: 1.2rem; margin: 0.15rem 0; }
+nav#TOC li { margin: 0.2rem 0; break-inside: avoid; }
+nav#TOC a { color: #7aa2f7; font-size: 0.88rem; }
+nav#TOC a:hover { color: #7dcfff; }
+nav#TOC::before { content: "Contents"; display: block; font-weight: 600; font-size: 1rem; margin-bottom: 0.6rem; color: #c0caf5; letter-spacing: 0.03em; }
+.step-check { display: inline-flex; align-items: center; margin-right: 0.4em; }
+.step-check input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 18px; height: 18px; border: 2px solid #3b4261; border-radius: 4px; background: #1a1b26; cursor: pointer; position: relative; top: 1px; flex-shrink: 0; transition: all 0.15s; }
+.step-check input[type="checkbox"]:checked { background: #9ece6a; border-color: #9ece6a; }
+.step-check input[type="checkbox"]:checked::after { content: "✓"; color: #1a1b26; font-size: 12px; font-weight: bold; position: absolute; top: 0px; left: 3px; }
+.step-check input[type="checkbox"]:hover { border-color: #7aa2f7; }
+h2.done, h3.done { opacity: 0.4; text-decoration: line-through; }
+#reset-progress { position: fixed; bottom: 1.5rem; right: 1.5rem; background: #1f2335; color: #565f89; border: 1px solid #3b4261; border-radius: 6px; padding: 0.4em 0.8em; cursor: pointer; font-size: 0.8rem; z-index: 100; transition: all 0.15s; }
+#reset-progress:hover { color: #a9b1d6; border-color: #7aa2f7; }
+
+#resource-bar { position: sticky; top: 0; z-index: 200; background: #1f2335; border-bottom: 1px solid #3b4261; padding: 0.6rem 1.2rem; margin: -1.5rem -2.5rem 1.5rem; display: flex; align-items: center; gap: 0.8rem; }
+#resource-bar label { color: #565f89; font-size: 0.85rem; white-space: nowrap; }
+#resource-bar input { background: #24283b; border: 1px solid #3b4261; border-radius: 4px; color: #ff9e64; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.95rem; padding: 0.3em 0.6em; width: 14em; outline: none; transition: border-color 0.15s; }
+#resource-bar input:focus { border-color: #7aa2f7; }
+#resource-bar .preview { color: #565f89; font-size: 0.82rem; font-family: ui-monospace, SFMono-Regular, monospace; }
+#resource-bar .preview span { color: #ff9e64; }
+.tmpl-replaced { color: #ff9e64 !important; font-weight: 500; }
+pre .tmpl-replaced { font-weight: normal; }
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Adding a New Resource with resource-gen</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#adding-a-new-resource-with-resource-gen" id="toc-adding-a-new-resource-with-resource-gen">Adding a New Resource
+with resource-gen</a>
+<ul>
+<li><a href="#step-1-define-the-proto" id="toc-step-1-define-the-proto">Step 1: Define the proto</a></li>
+<li><a href="#step-2-run-make-grpchost" id="toc-step-2-run-make-grpchost">Step 2: Run
+<code>make grpc/host</code></a>
+<ul>
+<li><a href="#running-resource-gen-standalone" id="toc-running-resource-gen-standalone">Running resource-gen
+standalone</a></li>
+</ul></li>
+<li><a href="#step-3-try-to-compile" id="toc-step-3-try-to-compile">Step
+3: Try to compile</a></li>
+<li><a href="#step-4-fix-the-registration-compile-errors" id="toc-step-4-fix-the-registration-compile-errors">Step 4: Fix the
+registration compile errors</a>
+<ul>
+<li><a href="#4a-cache-config-field" id="toc-4a-cache-config-field">4a.
+Cache Config field</a></li>
+<li><a href="#4b-auth-server-services-interface" id="toc-4b-auth-server-services-interface">4b. Auth server Services
+interface</a></li>
+<li><a href="#4c-authclientcache-interface" id="toc-4c-authclientcache-interface">4c. authclient.Cache
+interface</a></li>
+</ul></li>
+<li><a href="#step-5-customize-the-generated-code" id="toc-step-5-customize-the-generated-code">Step 5: Customize the
+generated code</a>
+<ul>
+<li><a href="#5a-implement-validation" id="toc-5a-implement-validation">5a. Implement validation</a></li>
+<li><a href="#5b-customize-the-service-scaffold" id="toc-5b-customize-the-service-scaffold">5b. Customize the service
+scaffold</a></li>
+<li><a href="#5c-customize-tctl-text-output" id="toc-5c-customize-tctl-text-output">5c. Customize tctl text
+output</a></li>
+</ul></li>
+<li><a href="#configuration-reference" id="toc-configuration-reference">Configuration Reference</a></li>
+<li><a href="#what-you-dont-have-to-write" id="toc-what-you-dont-have-to-write">What you DON&#39;T have to
+write</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="adding-a-new-resource-with-resource-gen">Adding a New Resource
+with resource-gen</h1>
+<h2 id="step-1-define-the-proto">Step 1: Define the proto</h2>
+<p>Create the directory and two files under
+<code>api/proto/teleport/&lt;resource&gt;/v1/</code>:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> api/proto/teleport/<span class="op">&lt;</span>resource<span class="op">&gt;</span>/v1/</span></code></pre></div>
+<p><strong><code>thing.proto</code></strong> — the resource message (RFD
+153 shape):</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode protobuf"><code class="sourceCode protobuf"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>syntax <span class="op">=</span> <span class="st">&quot;proto3&quot;</span>;</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="kw">package</span> teleport.thing.v1;</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="st">&quot;teleport/header/v1/metadata.proto&quot;</span>;</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="kw">option</span> go_package <span class="op">=</span> <span class="st">&quot;github.com/gravitational/teleport/api/gen/proto/go/teleport/thing/v1;thingv1&quot;</span>;</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="co">// Thing is a ... resource.</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="kw">message</span> Thing {</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>  <span class="co">// kind is the resource kind.</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>  <span class="dt">string</span> kind <span class="op">=</span> <span class="dv">1</span>;</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>  <span class="co">// sub_kind differentiates variants of the same resource kind.</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>  <span class="dt">string</span> sub_kind <span class="op">=</span> <span class="dv">2</span>;</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>  <span class="co">// version is the resource schema version.</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>  <span class="dt">string</span> version <span class="op">=</span> <span class="dv">3</span>;</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>  <span class="co">// metadata is common resource metadata.</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>  teleport.header.v1.Metadata metadata <span class="op">=</span> <span class="dv">4</span>;</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>  <span class="co">// spec is user-owned desired state.</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>  ThingSpec spec <span class="op">=</span> <span class="dv">5</span>;</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>  <span class="co">// status contains runtime-only state.</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>  ThingStatus status <span class="op">=</span> <span class="dv">6</span>;</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a><span class="co">// ThingSpec contains user-configurable thing properties.</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a><span class="kw">message</span> ThingSpec {</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>  <span class="co">// your fields here</span></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a><span class="co">// ThingStatus contains runtime-only thing state.</span></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a><span class="kw">message</span> ThingStatus {</span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>  <span class="co">// runtime-only fields here (optional)</span></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong><code>thing_service.proto</code></strong> — the gRPC service
+with a <code>resource_config</code> option, plus all request/response
+messages:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode protobuf"><code class="sourceCode protobuf"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>syntax <span class="op">=</span> <span class="st">&quot;proto3&quot;</span>;</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="kw">package</span> teleport.thing.v1;</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="st">&quot;google/protobuf/empty.proto&quot;</span>;</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="st">&quot;teleport/options/v1/resource.proto&quot;</span>;</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="st">&quot;teleport/thing/v1/thing.proto&quot;</span>;</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="kw">option</span> go_package <span class="op">=</span> <span class="st">&quot;github.com/gravitational/teleport/api/gen/proto/go/teleport/thing/v1;thingv1&quot;</span>;</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="co">// ThingService provides CRUD methods for the Thing resource.</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="kw">service</span> ThingService {</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>  <span class="kw">option</span> (teleport.options.v1.resource_config) <span class="op">=</span> {</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    storage<span class="op">:</span> {</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>      backend_prefix<span class="op">:</span> <span class="st">&quot;things&quot;</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>      standard<span class="op">:</span> {}</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>  };</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>  <span class="co">// GetThing retrieves a thing by name.</span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>  <span class="kw">rpc</span> GetThing(GetThingRequest) <span class="kw">returns</span> (Thing);</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>  <span class="co">// ListThings lists things using paginated responses.</span></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>  <span class="kw">rpc</span> ListThings(ListThingsRequest) <span class="kw">returns</span> (ListThingsResponse);</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>  <span class="co">// CreateThing creates a new thing.</span></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>  <span class="kw">rpc</span> CreateThing(CreateThingRequest) <span class="kw">returns</span> (Thing);</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>  <span class="co">// UpdateThing updates an existing thing.</span></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>  <span class="kw">rpc</span> UpdateThing(UpdateThingRequest) <span class="kw">returns</span> (Thing);</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>  <span class="co">// DeleteThing removes a thing by name.</span></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>  <span class="kw">rpc</span> DeleteThing(DeleteThingRequest) <span class="kw">returns</span> (google.protobuf.Empty);</span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a><span class="co">// GetThingRequest is a request to fetch one thing by name.</span></span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a><span class="kw">message</span> GetThingRequest {</span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>  <span class="co">// name is the thing metadata.name value.</span></span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>  <span class="dt">string</span> name <span class="op">=</span> <span class="dv">1</span>;</span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a><span class="co">// ListThingsRequest is a request to list things.</span></span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a><span class="kw">message</span> ListThingsRequest {</span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>  <span class="co">// page_size is the maximum number of things to return.</span></span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int32</span> page_size <span class="op">=</span> <span class="dv">1</span>;</span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>  <span class="co">// page_token is the token returned from a previous list request.</span></span>
+<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>  <span class="dt">string</span> page_token <span class="op">=</span> <span class="dv">2</span>;</span>
+<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a><span class="co">// ListThingsResponse is a paginated thing list response.</span></span>
+<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a><span class="kw">message</span> ListThingsResponse {</span>
+<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a>  <span class="co">// The repeated field MUST be the lowercase plural of the kind (e.g., &quot;things&quot;).</span></span>
+<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a>  <span class="co">// resource-gen generates `rsp.Things` — the field name drives the Go getter.</span></span>
+<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a>  <span class="kw">repeated</span> Thing things <span class="op">=</span> <span class="dv">1</span>;</span>
+<span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a>  <span class="co">// next_page_token points to the next page of results.</span></span>
+<span id="cb3-52"><a href="#cb3-52" aria-hidden="true" tabindex="-1"></a>  <span class="dt">string</span> next_page_token <span class="op">=</span> <span class="dv">2</span>;</span>
+<span id="cb3-53"><a href="#cb3-53" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-55"><a href="#cb3-55" aria-hidden="true" tabindex="-1"></a><span class="co">// CreateThingRequest is a request to create a thing.</span></span>
+<span id="cb3-56"><a href="#cb3-56" aria-hidden="true" tabindex="-1"></a><span class="kw">message</span> CreateThingRequest {</span>
+<span id="cb3-57"><a href="#cb3-57" aria-hidden="true" tabindex="-1"></a>  <span class="co">// The resource field MUST be the lowercase kind (e.g., &quot;thing&quot;).</span></span>
+<span id="cb3-58"><a href="#cb3-58" aria-hidden="true" tabindex="-1"></a>  <span class="co">// resource-gen generates `req.GetThing()` — the field name drives the Go getter.</span></span>
+<span id="cb3-59"><a href="#cb3-59" aria-hidden="true" tabindex="-1"></a>  Thing thing <span class="op">=</span> <span class="dv">1</span>;</span>
+<span id="cb3-60"><a href="#cb3-60" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb3-61"><a href="#cb3-61" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-62"><a href="#cb3-62" aria-hidden="true" tabindex="-1"></a><span class="co">// UpdateThingRequest is a request to update a thing.</span></span>
+<span id="cb3-63"><a href="#cb3-63" aria-hidden="true" tabindex="-1"></a><span class="kw">message</span> UpdateThingRequest {</span>
+<span id="cb3-64"><a href="#cb3-64" aria-hidden="true" tabindex="-1"></a>  <span class="co">// Same naming rule as CreateThingRequest.</span></span>
+<span id="cb3-65"><a href="#cb3-65" aria-hidden="true" tabindex="-1"></a>  Thing thing <span class="op">=</span> <span class="dv">1</span>;</span>
+<span id="cb3-66"><a href="#cb3-66" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb3-67"><a href="#cb3-67" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-68"><a href="#cb3-68" aria-hidden="true" tabindex="-1"></a><span class="co">// DeleteThingRequest is a request to delete a thing.</span></span>
+<span id="cb3-69"><a href="#cb3-69" aria-hidden="true" tabindex="-1"></a><span class="kw">message</span> DeleteThingRequest {</span>
+<span id="cb3-70"><a href="#cb3-70" aria-hidden="true" tabindex="-1"></a>  <span class="co">// name is the thing metadata.name value.</span></span>
+<span id="cb3-71"><a href="#cb3-71" aria-hidden="true" tabindex="-1"></a>  <span class="dt">string</span> name <span class="op">=</span> <span class="dv">1</span>;</span>
+<span id="cb3-72"><a href="#cb3-72" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p>The <code>resource_config</code> option is what the parser discovers.
+Only define the RPCs you need — the parser infers which operations exist
+from the RPC names (Get, List, Create, Update, Upsert, Delete). The
+parser also validates that request messages contain required fields
+(<code>name</code> for Get/Delete,
+<code>page_size</code>/<code>page_token</code> for List).</p>
+<p><strong>Upsert</strong> is also supported: add
+<code>rpc UpsertThing(UpsertThingRequest) returns (Thing);</code> with a
+matching <code>UpsertThingRequest</code> (same shape as
+<code>CreateThingRequest</code>). Upsert requires Create to also be
+defined.</p>
+<h2 id="step-2-run-make-grpchost">Step 2: Run
+<code>make grpc/host</code></h2>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> grpc/host</span></code></pre></div>
+<p>This does three things in sequence:</p>
+<ol type="1">
+<li>Validates proto with
+<code>buf build</code>/<code>buf lint</code></li>
+<li>Generates <code>*.pb.go</code> and <code>*_grpc.pb.go</code> via
+<code>buf generate</code></li>
+<li>Runs <code>resource-gen</code> to produce up to 12 generated Go
+files (7 always-overwritten <code>.gen.go</code> + 2 cache
+<code>.gen.go</code> when <code>cache.enabled</code> is true + 3
+scaffold created once, never overwritten)</li>
+</ol>
+<p>After this you should have ~15 new files: proto pb files (typically
+3, depending on buf plugin config) + 12 resource-gen files (with default
+<code>cache.enabled: true</code>).</p>
+<p>By default, cache is enabled, MFA is required for mutations, and
+audit events are emitted on create/update/delete. See the <a href="#configuration-reference">Configuration Reference</a> for all
+defaults and how to override them.</p>
+<h3 id="running-resource-gen-standalone">Running resource-gen
+standalone</h3>
+<p>For faster iteration, you can run <code>resource-gen</code> directly
+without the full <code>make grpc/host</code>:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> build.assets/tooling <span class="kw">&amp;&amp;</span> <span class="ex">go</span> run ./cmd/resource-gen <span class="dt">\</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--proto-dir</span><span class="op">=</span>../../api/proto <span class="dt">\</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--output-dir</span><span class="op">=</span>../.. <span class="dt">\</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">--module</span><span class="op">=</span>github.com/gravitational/teleport</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Preview what files would be generated without writing them:</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> build.assets/tooling <span class="kw">&amp;&amp;</span> <span class="ex">go</span> run ./cmd/resource-gen <span class="dt">\</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">--proto-dir</span><span class="op">=</span>../../api/proto <span class="dt">\</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">--output-dir</span><span class="op">=</span>../.. <span class="dt">\</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">--module</span><span class="op">=</span>github.com/gravitational/teleport <span class="dt">\</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">--dry-run</span></span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>api/gen/proto/go/teleport/thing/v1/*.pb.go</code></td>
+<td>Proto-generated Go types and gRPC stubs</td>
+</tr>
+<tr>
+<td><code>lib/services/thing.gen.go</code></td>
+<td><code>Things</code> + <code>ThingsGetter</code> interfaces,
+marshal/unmarshal helpers</td>
+</tr>
+<tr>
+<td><code>lib/services/thing_custom.go</code></td>
+<td><strong>Scaffold</strong> — <code>ValidateThing()</code> stub
+(<code>NotImplemented</code>), follows RFD 153 convention</td>
+</tr>
+<tr>
+<td><code>lib/services/thing_custom_test.go</code></td>
+<td><strong>Scaffold</strong> — initially-failing validation test
+table</td>
+</tr>
+<tr>
+<td><code>lib/services/local/thing.gen.go</code></td>
+<td><code>ThingService</code> backend using
+<code>generic.ServiceWrapper</code></td>
+</tr>
+<tr>
+<td><code>lib/auth/thing/thingv1/service.gen.go</code></td>
+<td>gRPC service with RBAC, calls <code>services.ValidateThing()</code>
+and <code>s.authorizeMutation()</code> (MFA logic lives in the
+scaffold). Also defines a <code>Reader</code> interface (Get/List) that
+the cache must satisfy — this is the type used by
+<code>ServiceConfig.Reader</code>.</td>
+</tr>
+<tr>
+<td><code>lib/auth/thing/thingv1/service_custom.go</code></td>
+<td><strong>Scaffold</strong> — <code>ServiceConfig</code>,
+<code>Service</code> struct, <code>NewService()</code>,
+<code>authorize()</code>, <code>authorizeMutation()</code>, audit event
+implementations</td>
+</tr>
+<tr>
+<td><code>api/client/thing.gen.go</code></td>
+<td>API client methods (<code>GetThing</code>, <code>ListThings</code>,
+etc.)</td>
+</tr>
+<tr>
+<td><code>lib/auth/thing_register.gen.go</code></td>
+<td>Auth gRPC wiring via <code>init()</code></td>
+</tr>
+<tr>
+<td><code>lib/cache/thing_register.gen.go</code></td>
+<td>Cache collection wiring via <code>init()</code></td>
+</tr>
+<tr>
+<td><code>lib/cache/thing.gen.go</code></td>
+<td>Cache accessor methods (<code>Get</code>/<code>List</code> on
+<code>*Cache</code>)</td>
+</tr>
+<tr>
+<td><code>lib/services/local/thing_register.gen.go</code></td>
+<td>Events parser wiring via <code>init()</code></td>
+</tr>
+<tr>
+<td><code>tool/tctl/common/resources/thing_register.gen.go</code></td>
+<td>tctl handler wiring via <code>init()</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="step-3-try-to-compile">Step 3: Try to compile</h2>
+<p><strong>Packages that compile immediately</strong> (no further action
+needed):</p>
+<ul>
+<li><code>lib/services/local/</code> — parser + backend use types from
+the same generation</li>
+<li><code>tool/tctl/common/resources/</code> — handler uses the
+generated API client and service interface</li>
+</ul>
+<p><strong>Packages that produce compile errors</strong> (the
+&quot;impossible to miss&quot; signals):</p>
+<p>The <strong>cache</strong> registration contains a
+<code>GENERATED CHECK</code> compile-time assertion
+(<code>var _ services.Things = Config{}.Things</code>) that fails
+because the cache <code>Config</code> struct doesn&#39;t have a
+<code>Things</code> field yet.</p>
+<p>The <strong>auth</strong> registration has a similar static assertion
+(<code>var _ = func(s Services) services.Things { return s }</code>)
+that verifies the auth <code>Services</code> interface embeds
+<code>services.Things</code>.</p>
+<p>Both errors appear simultaneously when running
+<code>go build ./...</code> — Go compiles independent packages in
+parallel, so the order is non-deterministic. Read the
+<code>GENERATED CHECK</code> comment above each failing line for exact
+instructions on what to add and where.</p>
+<p>The <strong>scaffold</strong> (<code>service_custom.go</code>) also
+produces compile errors because it references audit event types
+(<code>apievents.ThingCreate</code>,
+<code>libevents.ThingCreateEvent</code>, etc.) that don&#39;t exist yet.
+These are resolved in Step 5b.</p>
+<h2 id="step-4-fix-the-registration-compile-errors">Step 4: Fix the
+registration compile errors</h2>
+<p>Three one-liners fix the registration errors (scaffold errors are
+addressed in Step 5b):</p>
+<h3 id="4a-cache-config-field">4a. Cache Config field</h3>
+<p>Add the field to <code>lib/cache/cache.go</code> Config struct:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode go"><code class="sourceCode go"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Things is a Things service.</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>Things services<span class="op">.</span>Things</span></code></pre></div>
+<h3 id="4b-auth-server-services-interface">4b. Auth server Services
+interface</h3>
+<p>Embed <code>services.Things</code> in
+<code>lib/auth/services.go</code>:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode go"><code class="sourceCode go"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>services<span class="op">.</span>Things</span></code></pre></div>
+<h3 id="4c-authclientcache-interface">4c. authclient.Cache
+interface</h3>
+<p>Embed <code>services.ThingsGetter</code> in the <code>Cache</code>
+interface in <code>lib/auth/authclient/api.go</code>:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode go"><code class="sourceCode go"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co">// ThingsGetter defines read/list methods for things.</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>services<span class="op">.</span>ThingsGetter</span></code></pre></div>
+<p>Unlike 4a and 4b (which are explicit <code>var _</code> static
+assertions), this error surfaces as an implicit type mismatch in the
+auth registration&#39;s <code>init()</code> function where
+<code>cfg.AuthServer.Cache</code> is assigned to a <code>Reader</code>
+field.</p>
+<p>Watch kind registration is handled automatically by the generated
+cache registration — no manual step needed.</p>
+<p>The generated auth and cache registration files include compile-time
+static assertions that verify the wiring is complete. If any of the
+three steps above are missing, the build will fail with a clear error
+pointing at the generated file.</p>
+<p><strong>Note:</strong> For singleton resources, there is no
+<code>List</code> method in the interfaces. For scoped resources,
+<code>List</code> takes an extra scope parameter. The fix
+<em>locations</em> are the same but the interface shapes differ.</p>
+<h2 id="step-5-customize-the-generated-code">Step 5: Customize the
+generated code</h2>
+<p>Three scaffold files require developer attention:</p>
+<h3 id="5a-implement-validation">5a. Implement validation</h3>
+<p><code>lib/services/thing_custom.go</code> contains:</p>
+<ul>
+<li><code>ValidateThing()</code> — an exported validation function that
+returns <code>trace.NotImplemented()</code> by default. Implement checks
+for nil resource, nil metadata, empty name, kind mismatch, nil spec, and
+resource-specific field validation.</li>
+</ul>
+<p>This follows the established RFD 153 convention (see
+<code>ValidateWorkloadIdentity</code>,
+<code>ValidateHealthCheckConfig</code>, etc. in
+<code>lib/services/</code>). The exported function is reusable across
+callers (gRPC service, tctl, tests, etc.).</p>
+<p><code>lib/services/thing_custom_test.go</code> contains a
+table-driven test for <code>ValidateThing()</code> that initially fails
+on the &quot;valid minimal&quot; case (due to <code>NotImplemented</code>). Once
+you implement validation, this test should pass.</p>
+<h3 id="5b-customize-the-service-scaffold">5b. Customize the service
+scaffold</h3>
+<p><code>lib/auth/thing/thingv1/service_custom.go</code> is the primary
+developer-owned file. It contains:</p>
+<ul>
+<li><strong><code>ServiceConfig</code> struct</strong> — standard fields
+(<code>Authorizer</code>, <code>Backend</code>, <code>Reader</code>,
+<code>Emitter</code>) plus a
+<code>// TODO: add resource-specific dependencies</code> marker for
+custom fields like <code>UsageReporter</code>, <code>Clock</code>,
+etc.</li>
+<li><strong><code>CheckAndSetDefaults()</code></strong> — validates
+required config fields.</li>
+<li><strong><code>Service</code> struct</strong> — standard fields plus
+a <code>// TODO: add resource-specific fields</code> marker.</li>
+<li><strong><code>NewService()</code></strong> — constructor that wires
+config into the service.</li>
+<li><strong><code>authorize()</code></strong> — read authorization
+(verbs only). Override to add module gating, custom RBAC, etc.</li>
+<li><strong><code>authorizeMutation()</code></strong> — write
+authorization (delegates to <code>authorize()</code>, adds MFA).
+Override for custom write-path checks.</li>
+<li><strong><code>emitCreateAuditEvent()</code></strong>,
+<strong><code>emitUpdateAuditEvent()</code></strong>,
+<strong><code>emitDeleteAuditEvent()</code></strong>, and
+<strong><code>emitUpsertAuditEvent()</code></strong> (when Upsert RPC is
+defined) — fully-populated audit event implementations with
+<code>FIXME</code> markers for resource-specific fields. The upsert
+method delegates to <code>emitCreateAuditEvent</code> when the old
+resource is nil or <code>emitUpdateAuditEvent</code> otherwise — no
+separate upsert event types are needed.</li>
+</ul>
+<p>The audit methods reference event types and constants that you must
+define:</p>
+<ol type="1">
+<li><strong>Event types</strong> — define
+<code>apievents.ThingCreate</code>, <code>apievents.ThingUpdate</code>,
+<code>apievents.ThingDelete</code> structs in
+<code>api/types/events/</code> (see <code>CrownJewelCreate</code> for
+the pattern).</li>
+<li><strong>Event type constants</strong> — define
+<code>libevents.ThingCreateEvent</code>,
+<code>libevents.ThingUpdateEvent</code>,
+<code>libevents.ThingDeleteEvent</code> string constants in
+<code>lib/events/codes.go</code>.</li>
+<li><strong>Event code constants</strong> — define
+<code>libevents.ThingCreateCode</code>,
+<code>libevents.ThingUpdateCode</code>,
+<code>libevents.ThingDeleteCode</code> string constants in
+<code>lib/events/codes.go</code>.</li>
+</ol>
+<p>Once those are defined, search for <code>FIXME</code> in the scaffold
+and add any resource-specific audit event fields.</p>
+<p>These scaffold files are <strong>developer-owned</strong> —
+<code>make grpc</code> will not overwrite them once they exist.</p>
+<h3 id="5c-customize-tctl-text-output">5c. Customize tctl text
+output</h3>
+<p>By default, tctl columns are driven by <code>tctl.columns</code> and
+<code>tctl.verbose_columns</code> in the <code>resource_config</code>
+proto option. The default is Name for standard mode and Name + Revision
++ Expires for verbose mode. These defaults are always applied, so the
+generated <code>WriteText</code> uses configured columns out of the
+box.</p>
+<p>To customize columns, set <code>tctl.columns</code> and
+<code>tctl.verbose_columns</code> in your proto&#39;s
+<code>resource_config</code>:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode protobuf"><code class="sourceCode protobuf"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">option</span> (teleport.options.v1.resource_config) <span class="op">=</span> {</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  storage<span class="op">:</span> { backend_prefix<span class="op">:</span> <span class="st">&quot;things&quot;</span> standard<span class="op">:</span> {} }</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  tctl<span class="op">:</span> {</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    columns<span class="op">:</span> [<span class="st">&quot;metadata.name&quot;</span>, <span class="st">&quot;spec.flavor&quot;</span>]</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    verbose_columns<span class="op">:</span> [<span class="st">&quot;metadata.name&quot;</span>, <span class="st">&quot;spec.flavor&quot;</span>, <span class="st">&quot;metadata.revision&quot;</span>]</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>};</span></code></pre></div>
+<h2 id="configuration-reference">Configuration Reference</h2>
+<p>The <code>resource_config</code> option supports several config
+sections that control generated output. All have sensible defaults — you
+only need to set values that differ from defaults.</p>
+<table>
+<thead>
+<tr>
+<th>Config field</th>
+<th>Default</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pagination.default_page_size</code></td>
+<td>200</td>
+<td>Enforced in backend List when client sends 0</td>
+</tr>
+<tr>
+<td><code>pagination.max_page_size</code></td>
+<td>1000</td>
+<td>Clamped in backend List</td>
+</tr>
+<tr>
+<td><code>cache.enabled</code></td>
+<td><code>true</code></td>
+<td>When <code>false</code>, cache files are not generated</td>
+</tr>
+<tr>
+<td><code>audit.emit_on_create</code></td>
+<td><code>true</code></td>
+<td>When <code>false</code>, Create skips audit event emission</td>
+</tr>
+<tr>
+<td><code>audit.emit_on_update</code></td>
+<td><code>true</code></td>
+<td>When <code>false</code>, Update/Upsert skips audit event
+emission</td>
+</tr>
+<tr>
+<td><code>audit.emit_on_delete</code></td>
+<td><code>true</code></td>
+<td>When <code>false</code>, Delete skips audit event emission</td>
+</tr>
+<tr>
+<td><code>tctl.description</code></td>
+<td><code>&quot;&lt;Kind&gt; resources&quot;</code></td>
+<td>Resource description shown in tctl help</td>
+</tr>
+<tr>
+<td><code>tctl.columns</code></td>
+<td><code>[&quot;metadata.name&quot;]</code></td>
+<td>Columns shown in <code>tctl get</code> text output</td>
+</tr>
+<tr>
+<td><code>tctl.verbose_columns</code></td>
+<td><code>[&quot;metadata.name&quot;, &quot;metadata.revision&quot;, &quot;metadata.expires&quot;]</code></td>
+<td>Columns shown with <code>--verbose</code></td>
+</tr>
+<tr>
+<td><code>tctl.mfa_required</code></td>
+<td><code>true</code></td>
+<td>Whether tctl handler requires MFA</td>
+</tr>
+<tr>
+<td><code>hooks.enable_lifecycle_hooks</code></td>
+<td><code>false</code></td>
+<td>When <code>true</code>, generates <code>Hooks</code> struct with
+Before/After callbacks</td>
+</tr>
+<tr>
+<td><code>operations.immutable</code></td>
+<td><code>false</code></td>
+<td>When <code>true</code>, Update/Upsert return &quot;immutable&quot; errors</td>
+</tr>
+<tr>
+<td><code>storage.singleton.fixed_name</code></td>
+<td>—</td>
+<td>For singleton resources, Get/Delete use this fixed name</td>
+</tr>
+<tr>
+<td><code>storage.scoped.by</code></td>
+<td>—</td>
+<td>For scoped resources, the proto field name used as the scope key
+(e.g., <code>&quot;username&quot;</code>)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="what-you-dont-have-to-write">What you DON&#39;T have to write</h2>
+<ul>
+<li>CRUD boilerplate (Get/List/Create/Update/Upsert/Delete
+implementations)</li>
+<li>RBAC checks (generated with correct verbs)</li>
+<li>MFA authorization (generated for mutating operations)</li>
+<li>Marshal/unmarshal helpers</li>
+<li>Read-only getter interface (<code>ThingsGetter</code>)</li>
+<li>Backend storage layer</li>
+<li>API client</li>
+<li>Cache collection builder (data loading and watching)</li>
+<li>Cache accessor methods (Get/List on <code>*Cache</code>)</li>
+<li>Events parser</li>
+<li>tctl handler (get/create/update/delete + text formatting)</li>
+<li>init() registration wiring</li>
+</ul>
+<button id="reset-progress">Reset progress</button>
+<script>
+(function() {
+  // --- Progress checkboxes ---
+  const PKEY = 'resource-gen-progress';
+  const saved = JSON.parse(localStorage.getItem(PKEY) || '{}');
+  document.querySelectorAll('h2, h3').forEach(h => {
+    const id = h.id;
+    if (!id) return;
+    if (!/^(step\s|[0-9]+[a-z][\.\:])/i.test(h.textContent.trim())) return;
+    const label = document.createElement('label');
+    label.className = 'step-check';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = !!saved[id];
+    if (cb.checked) h.classList.add('done');
+    cb.addEventListener('change', () => {
+      const state = JSON.parse(localStorage.getItem(PKEY) || '{}');
+      if (cb.checked) { state[id] = true; h.classList.add('done'); }
+      else { delete state[id]; h.classList.remove('done'); }
+      localStorage.setItem(PKEY, JSON.stringify(state));
+    });
+    label.appendChild(cb);
+    h.insertBefore(label, h.firstChild);
+  });
+  document.getElementById('reset-progress').addEventListener('click', () => {
+    if (!confirm('Clear all progress?')) return;
+    localStorage.removeItem(PKEY);
+    document.querySelectorAll('.step-check input').forEach(cb => { cb.checked = false; });
+    document.querySelectorAll('.done').forEach(el => el.classList.remove('done'));
+  });
+
+  // --- Resource name template ---
+  const NKEY = 'resource-gen-name';
+  const bar = document.createElement('div');
+  bar.id = 'resource-bar';
+  bar.innerHTML = '<label>Resource name:</label><input type="text" id="res-name" placeholder="thing" spellcheck="false" autocomplete="off"><span class="preview">→ <span id="prev-kind"></span> / <span id="prev-plural"></span></span>';
+  document.body.insertBefore(bar, document.body.firstChild);
+
+  // Snapshot original HTML once
+  const content = document.querySelector('body');
+  const originalParts = [];
+  function walkText(node) {
+    if (node.id === 'resource-bar' || node.id === 'reset-progress') return;
+    if (node.nodeType === 3) {
+      if (/[Tt]hings?/.test(node.textContent)) {
+        originalParts.push({ node, original: node.textContent });
+      }
+    } else {
+      node.childNodes.forEach(walkText);
+    }
+  }
+  walkText(content);
+
+  function pluralize(s) {
+    const l = s.toLowerCase();
+    if (/s$|x$|z$/.test(l)) return s + 'es';
+    if (/ch$|sh$/.test(l)) return s + 'es';
+    if (/[^aeiou]y$/i.test(l) && s.length > 1) return s.slice(0, -1) + 'ies';
+    return s + 's';
+  }
+
+  function capitalize(s) { return s ? s[0].toUpperCase() + s.slice(1) : ''; }
+
+  function applyName(name) {
+    if (!name) name = 'thing';
+    const lower = name.toLowerCase();
+    const upper = capitalize(lower);
+    const lowerPlural = pluralize(lower);
+    const upperPlural = capitalize(lowerPlural);
+
+    document.getElementById('prev-kind').textContent = upper;
+    document.getElementById('prev-plural').textContent = upperPlural;
+
+    originalParts.forEach(({ node, original }) => {
+      let replaced = original;
+      // Order matters: plural before singular to avoid partial matches
+      replaced = replaced.replace(/Things/g, upperPlural);
+      replaced = replaced.replace(/things/g, lowerPlural);
+      replaced = replaced.replace(/Thing/g, upper);
+      replaced = replaced.replace(/thing/g, lower);
+      node.textContent = replaced;
+    });
+  }
+
+  const input = document.getElementById('res-name');
+  const savedName = localStorage.getItem(NKEY) || '';
+  if (savedName) { input.value = savedName; applyName(savedName); }
+
+  input.addEventListener('input', () => {
+    const v = input.value.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+    input.value = v;
+    localStorage.setItem(NKEY, v);
+    applyName(v);
+  });
+})();
+</script>
+</body>
+</html>

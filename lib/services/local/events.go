@@ -282,6 +282,17 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 		case types.KindWorkloadCluster:
 			parser = newWorkloadClusterParser()
 		default:
+			if factory, ok := generatedResourceParserFactory(kind.Kind); ok {
+				p, err := factory(kind)
+				if err != nil {
+					if watch.AllowPartialSuccess {
+						continue
+					}
+					return nil, trace.Wrap(err)
+				}
+				parser = p
+				break
+			}
 			if watch.AllowPartialSuccess {
 				continue
 			}

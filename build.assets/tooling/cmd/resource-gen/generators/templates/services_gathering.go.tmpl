@@ -1,0 +1,42 @@
+package auth
+
+// Generated services gathering for resource-gen managed resources.
+import (
+{{- if .Resources}}
+	"github.com/gravitational/trace"
+{{end}}
+	"{{.Module}}/lib/cache"
+{{- if .Resources}}
+	"{{.Module}}/lib/services"
+	"{{.Module}}/lib/services/local"
+{{- end}}
+)
+type servicesGenerated struct {
+{{- range .Resources}}
+	services.{{.Plural}}
+{{- end}}
+}
+
+func newServicesGenerated(cfg *InitConfig) (*servicesGenerated, error) {
+{{- if .Resources}}
+	var err error
+{{- end}}
+	gen := &servicesGenerated{}
+{{range .Resources}}
+	gen.{{.Plural}}, err = local.New{{.Kind}}Service(cfg.Backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+{{end}}
+	return gen, nil
+}
+// ToCacheConfig builds a cache.GeneratedConfig from the service interfaces
+// held in servicesGenerated. This eliminates the need for callers to manually
+// construct GeneratedConfig literals when adding new cache-enabled resources.
+func (sg *servicesGenerated) ToCacheConfig() cache.GeneratedConfig {
+	return cache.GeneratedConfig{
+{{- range .CacheResources}}
+		{{.Plural}}: sg.{{.Plural}},
+{{- end}}
+	}
+}

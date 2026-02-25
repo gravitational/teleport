@@ -1,0 +1,11 @@
+package events
+
+// Generated dynamic event factory registrations for resource-gen managed resources.
+
+import apievents "{{.Module}}/api/types/events"
+
+func init() {
+{{- range .Events}}
+	RegisterGeneratedDynamicEvent({{.ConstName}}Event, func() apievents.AuditEvent { return &apievents.{{.ConstName}}{} })
+{{- end}}
+}

@@ -1,0 +1,33 @@
+package auth
+
+import (
+	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
+
+	{{.ProtoAlias}} "{{.ImportPath}}"
+	{{.SvcAlias}} "{{.SvcImportPath}}"
+)
+
+func init() {
+	RegisterGeneratedGRPCService("{{.FullServiceName}}",
+		func(server *grpc.Server, cfg GRPCServerConfig) error {
+			service, err := {{.SvcAlias}}.NewService({{.SvcAlias}}.ServiceConfig{
+				Authorizer: cfg.Authorizer,
+				Backend:    cfg.AuthServer.Services, // GENERATED CHECK: fails if Services doesn't implement services.{{.Plural}}
+{{- if .CacheEnabled}}
+				Reader:     cfg.AuthServer.Cache, // GENERATED CHECK: fails if authclient.Cache doesn't embed services.{{.Plural}}Getter (lib/auth/authclient/api.go)
+{{- else}}
+				Reader:     cfg.AuthServer.Services, // No cache — reads go directly to backend.
+{{- end}}
+				Emitter:    cfg.Emitter,
+{{- if .EnableLifecycleHooks}}
+				Hooks:      {{.SvcAlias}}.DefaultHooks(),
+{{- end}}
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			{{.ProtoAlias}}.Register{{.ShortServiceName}}Server(server, service)
+			return nil
+		})
+}

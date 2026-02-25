@@ -1,0 +1,340 @@
+package {{.PkgAlias}}
+
+import (
+	"context"
+{{- if .HasAudit}}
+	"time"
+{{- end}}
+
+	"github.com/gravitational/trace"
+{{- if .HasAudit}}
+	"google.golang.org/protobuf/types/known/timestamppb"
+{{- end}}
+{{- if .Ops.Delete}}
+	"google.golang.org/protobuf/types/known/emptypb"
+{{- end}}
+
+	{{.ProtoAlias}} "{{.ImportPath}}"
+	"{{.Module}}/api/types"
+{{- if .HasAudit}}
+	apievents "{{.Module}}/api/types/events"
+{{- end}}
+{{- if or .Ops.Create .Ops.Update .Ops.Upsert}}
+	"{{.Module}}/lib/services"
+{{- end}}
+)
+
+{{- if .Hooks.EnableLifecycleHooks}}
+
+// Hooks defines optional lifecycle callbacks for {{.Kind}} operations.
+type Hooks struct {
+{{- if .Ops.Create}}
+	BeforeCreate func(context.Context, {{.QualType}}) error
+	AfterCreate  func(context.Context, {{.QualType}})
+{{- end}}
+{{- if .Ops.Update}}
+	BeforeUpdate func(context.Context, {{.QualType}}) error
+	AfterUpdate  func(context.Context, {{.QualType}})
+{{- end}}
+{{- if .Ops.Upsert}}
+	BeforeUpsert func(context.Context, {{.QualType}}) error
+	AfterUpsert  func(context.Context, {{.QualType}})
+{{- end}}
+{{- if .Ops.Delete}}
+	BeforeDelete func(context.Context, string) error
+	AfterDelete  func(context.Context, string)
+{{- end}}
+}
+{{- end}}
+
+// Reader defines the read-only methods used for cache reads.
+type Reader interface {
+{{- if .Ops.Get}}
+{{- if .IsSingleton}}
+	Get{{.Kind}}(ctx context.Context) ({{.QualType}}, error)
+{{- else if .IsScoped}}
+	Get{{.Kind}}(ctx context.Context, {{.ScopeBy}} string, name string) ({{.QualType}}, error)
+{{- else}}
+	Get{{.Kind}}(ctx context.Context, name string) ({{.QualType}}, error)
+{{- end}}
+{{- end}}
+{{- if .Ops.List}}
+{{- if .IsScoped}}
+	List{{.Plural}}(ctx context.Context, {{.ScopeBy}} string, pageSize int64, pageToken string) ([]{{.QualType}}, string, error)
+{{- else}}
+	List{{.Plural}}(ctx context.Context, pageSize int64, pageToken string) ([]{{.QualType}}, string, error)
+{{- end}}
+{{- end}}
+}
+{{- if .Ops.Get}}
+
+{{- if .IsSingleton}}
+
+// Get{{.Kind}} returns the singleton {{.Lower}} resource.
+func (s *Service) Get{{.Kind}}(ctx context.Context, req *{{.ProtoAlias}}.Get{{.Kind}}Request) ({{.QualType}}, error) {
+{{- if .Audit.EmitOnGet}}
+	authCtx, err := s.authorize(ctx, types.VerbRead)
+{{- else}}
+	_, err := s.authorize(ctx, types.VerbRead)
+{{- end}}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rsp, err := s.reader.Get{{.Kind}}(ctx)
+{{- if .Audit.EmitOnGet}}
+	s.emitGetAuditEvent(ctx, "{{.SingletonName}}", authCtx, err)
+{{- end}}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rsp, nil
+}
+{{- else if .IsScoped}}
+
+// Get{{.Kind}} returns {{.Article}} {{.Lower}} by {{.ScopeBy}} and name.
+func (s *Service) Get{{.Kind}}(ctx context.Context, req *{{.ProtoAlias}}.Get{{.Kind}}Request) ({{.QualType}}, error) {
+{{- if .Audit.EmitOnGet}}
+	authCtx, err := s.authorize(ctx, types.VerbRead)
+{{- else}}
+	_, err := s.authorize(ctx, types.VerbRead)
+{{- end}}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rsp, err := s.reader.Get{{.Kind}}(ctx, req.Get{{.ScopeByPascal}}(), req.GetName())
+{{- if .Audit.EmitOnGet}}
+	s.emitGetAuditEvent(ctx, req.GetName(), authCtx, err)
+{{- end}}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rsp, nil
+}
+{{- else}}
+
+// Get{{.Kind}} returns {{.Article}} {{.Lower}} by name.
+func (s *Service) Get{{.Kind}}(ctx context.Context, req *{{.ProtoAlias}}.Get{{.Kind}}Request) ({{.QualType}}, error) {
+{{- if .Audit.EmitOnGet}}
+	authCtx, err := s.authorize(ctx, types.VerbRead)
+{{- else}}
+	_, err := s.authorize(ctx, types.VerbRead)
+{{- end}}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rsp, err := s.reader.Get{{.Kind}}(ctx, req.GetName())
+{{- if .Audit.EmitOnGet}}
+	s.emitGetAuditEvent(ctx, req.GetName(), authCtx, err)
+{{- end}}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rsp, nil
+}
+{{- end}}
+{{- end}}
+{{- if .Ops.List}}
+
+// List{{.Plural}} returns a paginated list of {{.Lower}} resources.
+func (s *Service) List{{.Plural}}(ctx context.Context, req *{{.ProtoAlias}}.List{{.Plural}}Request) (*{{.ProtoAlias}}.List{{.Plural}}Response, error) {
+	_, err := s.authorize(ctx, types.VerbRead, types.VerbList)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+{{- if .IsScoped}}
+	rsp, nextToken, err := s.reader.List{{.Plural}}(ctx, req.Get{{.ScopeByPascal}}(), int64(req.GetPageSize()), req.GetPageToken())
+{{- else}}
+	rsp, nextToken, err := s.reader.List{{.Plural}}(ctx, int64(req.GetPageSize()), req.GetPageToken())
+{{- end}}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &{{.ProtoAlias}}.List{{.Plural}}Response{
+		{{.Plural}}:            rsp,
+		NextPageToken: nextToken,
+	}, nil
+}
+{{- end}}
+{{- if .Ops.Create}}
+
+// Create{{.Kind}} creates a new {{.Lower}} resource.
+func (s *Service) Create{{.Kind}}(ctx context.Context, req *{{.ProtoAlias}}.Create{{.Kind}}Request) ({{.QualType}}, error) {
+	authCtx, err := s.authorizeMutation(ctx, types.VerbCreate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := services.Validate{{.Kind}}(req.Get{{.Kind}}()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+{{- if .Hooks.EnableLifecycleHooks}}
+	if s.hooks != nil && s.hooks.BeforeCreate != nil {
+		if err := s.hooks.BeforeCreate(ctx, req.Get{{.Kind}}()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+{{- end}}
+	rsp, err := s.backend.Create{{.Kind}}(ctx, req.Get{{.Kind}}())
+{{- if .Audit.EmitOnCreate}}
+	s.emitCreateAuditEvent(ctx, rsp, authCtx, err)
+{{- end}}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+{{- if .Hooks.EnableLifecycleHooks}}
+	if s.hooks != nil && s.hooks.AfterCreate != nil {
+		s.hooks.AfterCreate(ctx, rsp)
+	}
+{{- end}}
+	return rsp, nil
+}
+{{- end}}
+{{- if .Ops.Update}}
+
+// Update{{.Kind}} updates an existing {{.Lower}} resource.
+func (s *Service) Update{{.Kind}}(ctx context.Context, req *{{.ProtoAlias}}.Update{{.Kind}}Request) ({{.QualType}}, error) {
+	authCtx, err := s.authorizeMutation(ctx, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := services.Validate{{.Kind}}(req.Get{{.Kind}}()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+{{- if .Hooks.EnableLifecycleHooks}}
+	if s.hooks != nil && s.hooks.BeforeUpdate != nil {
+		if err := s.hooks.BeforeUpdate(ctx, req.Get{{.Kind}}()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+{{- end}}
+{{- if .Audit.EmitOnUpdate}}
+{{- if .IsSingleton}}
+	old{{.Kind}}, err := s.reader.Get{{.Kind}}(ctx)
+{{- else if .IsScoped}}
+	old{{.Kind}}, err := s.reader.Get{{.Kind}}(ctx, req.Get{{.Kind}}().GetSpec().Get{{.ScopeByPascal}}(), req.Get{{.Kind}}().GetMetadata().GetName())
+{{- else}}
+	old{{.Kind}}, err := s.reader.Get{{.Kind}}(ctx, req.Get{{.Kind}}().GetMetadata().GetName())
+{{- end}}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+{{- end}}
+	rsp, err := s.backend.Update{{.Kind}}(ctx, req.Get{{.Kind}}())
+{{- if .Audit.EmitOnUpdate}}
+	s.emitUpdateAuditEvent(ctx, old{{.Kind}}, req.Get{{.Kind}}(), authCtx, err)
+{{- end}}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+{{- if .Hooks.EnableLifecycleHooks}}
+	if s.hooks != nil && s.hooks.AfterUpdate != nil {
+		s.hooks.AfterUpdate(ctx, rsp)
+	}
+{{- end}}
+	return rsp, nil
+}
+{{- end}}
+{{- if .Ops.Upsert}}
+
+// Upsert{{.Kind}} creates or updates {{.Article}} {{.Lower}} resource.
+func (s *Service) Upsert{{.Kind}}(ctx context.Context, req *{{.ProtoAlias}}.Upsert{{.Kind}}Request) ({{.QualType}}, error) {
+	authCtx, err := s.authorizeMutation(ctx, types.VerbUpdate, types.VerbCreate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := services.Validate{{.Kind}}(req.Get{{.Kind}}()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+{{- if .Hooks.EnableLifecycleHooks}}
+	if s.hooks != nil && s.hooks.BeforeUpsert != nil {
+		if err := s.hooks.BeforeUpsert(ctx, req.Get{{.Kind}}()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+{{- end}}
+{{- if .Audit.EmitOnUpdate}}
+{{- if .IsSingleton}}
+	old{{.Kind}}, err := s.reader.Get{{.Kind}}(ctx)
+{{- else if .IsScoped}}
+	old{{.Kind}}, err := s.reader.Get{{.Kind}}(ctx, req.Get{{.Kind}}().GetSpec().Get{{.ScopeByPascal}}(), req.Get{{.Kind}}().GetMetadata().GetName())
+{{- else}}
+	old{{.Kind}}, err := s.reader.Get{{.Kind}}(ctx, req.Get{{.Kind}}().GetMetadata().GetName())
+{{- end}}
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+{{- end}}
+	rsp, err := s.backend.Upsert{{.Kind}}(ctx, req.Get{{.Kind}}())
+{{- if .Audit.EmitOnUpdate}}
+	s.emitUpsertAuditEvent(ctx, old{{.Kind}}, req.Get{{.Kind}}(), authCtx, err)
+{{- end}}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+{{- if .Hooks.EnableLifecycleHooks}}
+	if s.hooks != nil && s.hooks.AfterUpsert != nil {
+		s.hooks.AfterUpsert(ctx, rsp)
+	}
+{{- end}}
+	return rsp, nil
+}
+{{- end}}
+{{- if .Ops.Delete}}
+
+// Delete{{.Kind}} deletes {{.Article}} {{.Lower}} resource{{if not .IsSingleton}} by name{{end}}.
+func (s *Service) Delete{{.Kind}}(ctx context.Context, req *{{.ProtoAlias}}.Delete{{.Kind}}Request) (*emptypb.Empty, error) {
+	authCtx, err := s.authorizeMutation(ctx, types.VerbDelete)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+{{- if .IsSingleton}}
+	deleteName := "{{.SingletonName}}"
+{{- else}}
+	deleteName := req.GetName()
+{{- end}}
+{{- if .Hooks.EnableLifecycleHooks}}
+	if s.hooks != nil && s.hooks.BeforeDelete != nil {
+		if err := s.hooks.BeforeDelete(ctx, deleteName); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+{{- end}}
+{{- if .IsScoped}}
+	err = s.backend.Delete{{.Kind}}(ctx, req.Get{{.ScopeByPascal}}(), deleteName)
+{{- else}}
+	err = s.backend.Delete{{.Kind}}(ctx{{if not .IsSingleton}}, deleteName{{end}})
+{{- end}}
+{{- if .Audit.EmitOnDelete}}
+	s.emitDeleteAuditEvent(ctx, deleteName, authCtx, err)
+{{- end}}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+{{- if .Hooks.EnableLifecycleHooks}}
+	if s.hooks != nil && s.hooks.AfterDelete != nil {
+		s.hooks.AfterDelete(ctx, deleteName)
+	}
+{{- end}}
+	return &emptypb.Empty{}, nil
+}
+{{- end}}
+{{- if .HasAudit}}
+
+func eventStatus(err error) apievents.Status {
+	var msg string
+	if err != nil {
+		msg = err.Error()
+	}
+	return apievents.Status{
+		Success:     err == nil,
+		Error:       msg,
+		UserMessage: msg,
+	}
+}
+
+func getExpires(ts *timestamppb.Timestamp) time.Time {
+	if ts == nil {
+		return time.Time{}
+	}
+	return ts.AsTime()
+}
+{{- end}}

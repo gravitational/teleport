@@ -1,0 +1,15 @@
+package events
+
+// Generated test event map entries for resource-gen managed resources.
+
+import apievents "{{.Module}}/api/types/events"
+
+func init() {
+{{- range .Events}}
+	RegisterGeneratedTestEvent(testEvent{
+		eventType: {{.ConstName}}Event,
+		eventCode: {{.ConstName}}Code,
+		event:     &apievents.{{.ConstName}}{},
+	})
+{{- end}}
+}

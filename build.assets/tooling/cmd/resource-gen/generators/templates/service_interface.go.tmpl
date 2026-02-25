@@ -1,0 +1,46 @@
+package services
+
+import (
+	"context"
+
+	{{.PkgAlias}} "{{.ImportPath}}"
+)
+{{if .HasGetter}}
+// {{.Plural}}Getter defines read-only methods for {{.Kind}} resources.
+type {{.Plural}}Getter interface {
+{{- if .Ops.Get}}
+	Get{{.Kind}}(ctx context.Context{{.GetParams}}) ({{.QualType}}, error)
+{{- end}}
+{{- if .Ops.List}}
+	List{{.Plural}}(ctx context.Context{{.ListParams}}) ([]{{.QualType}}, string, error)
+{{- end}}
+}
+{{end}}
+// {{.Plural}} is the interface for managing {{.Kind}} resources.
+type {{.Plural}} interface {
+{{- if .HasGetter}}
+	{{.Plural}}Getter
+{{- end}}
+{{- if .Ops.Create}}
+	Create{{.Kind}}(ctx context.Context, {{.Lower}} {{.QualType}}) ({{.QualType}}, error)
+{{- end}}
+{{- if .Ops.Update}}
+	Update{{.Kind}}(ctx context.Context, {{.Lower}} {{.QualType}}) ({{.QualType}}, error)
+{{- end}}
+{{- if .Ops.Upsert}}
+	Upsert{{.Kind}}(ctx context.Context, {{.Lower}} {{.QualType}}) ({{.QualType}}, error)
+{{- end}}
+{{- if .Ops.Delete}}
+	Delete{{.Kind}}(ctx context.Context{{.DeleteParams}}) error
+{{- end}}
+}
+
+// Marshal{{.Kind}} marshals {{.Article}} {{.Kind}} resource to JSON.
+func Marshal{{.Kind}}(object {{.QualType}}, opts ...MarshalOption) ([]byte, error) {
+	return MarshalProtoResource(object, opts...)
+}
+
+// Unmarshal{{.Kind}} unmarshals {{.Article}} {{.Kind}} resource from JSON.
+func Unmarshal{{.Kind}}(data []byte, opts ...MarshalOption) ({{.QualType}}, error) {
+	return UnmarshalProtoResource[{{.QualType}}](data, opts...)
+}

@@ -306,6 +306,10 @@ func ParseShortcut(in string) (string, error) {
 	case types.KindWorkloadCluster, types.KindWorkloadCluster + "s":
 		return types.KindWorkloadCluster, nil
 	}
+	// Fall back to auto-generated shortcuts from resource-gen.
+	if kind, ok := generatedShortcuts[strings.ToLower(in)]; ok {
+		return kind, nil
+	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
 

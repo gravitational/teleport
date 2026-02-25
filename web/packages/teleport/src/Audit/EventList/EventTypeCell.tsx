@@ -23,7 +23,14 @@ import * as Icons from 'design/Icon';
 
 import { Event, EventCode, eventCodes } from 'teleport/services/audit';
 
+import { generatedEventIcons } from '../../services/audit/generatedResourceEvents.gen';
+
+const generatedIconEntries = Object.fromEntries(
+  Object.entries(generatedEventIcons).map(([code, name]) => [code, Icons[name as keyof typeof Icons]])
+);
+
 const EventIconMap: Record<EventCode, any> = {
+  ...generatedIconEntries,
   [eventCodes.AUTH_ATTEMPT_FAILURE]: Icons.Info,
   [eventCodes.EXEC_FAILURE]: Icons.Cli,
   [eventCodes.EXEC]: Icons.Cli,

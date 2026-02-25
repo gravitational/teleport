@@ -1,0 +1,14 @@
+package events
+
+// Generated OneOf converter registrations for resource-gen managed resources.
+
+func init() {
+{{- range .Events}}
+	RegisterGeneratedOneOf(func(e AuditEvent) isOneOf_Event {
+		if evt, ok := e.(*{{.ConstName}}); ok {
+			return &OneOf_{{.ConstName}}{{"{"}}{{.ConstName}}: evt}
+		}
+		return nil
+	})
+{{- end}}
+}

@@ -348,6 +348,7 @@ type mockServicesPlugin struct {
 	mockedServices []func(grpc.ServiceRegistrar)
 }
 
+
 func (m *mockServicesPlugin) GetName() string {
 	return "auth.enterprise"
 }

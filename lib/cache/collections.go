@@ -798,6 +798,14 @@ func setupCollections(c Config) (*collections, error) {
 			out.workloadClusters = collect
 			out.byKind[resourceKind] = out.workloadClusters
 		default:
+			if builder, ok := generatedCollectionBuilder(watch); ok {
+				collect, err := builder(c, watch)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				out.byKind[resourceKind] = collect
+				continue
+			}
 			if _, ok := out.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 			}

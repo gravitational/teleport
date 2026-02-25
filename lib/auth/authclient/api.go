@@ -1116,6 +1116,8 @@ type AccessCache interface {
 // Cache is a subset of the auth interface handling
 // access to the discovery API and static tokens
 type Cache interface {
+	cacheGeneratedServices
+	
 	// Closer closes all the resources
 	io.Closer
 

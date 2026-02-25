@@ -6579,6 +6579,10 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		workloadclusterv1pb.RegisterWorkloadClusterServiceServer(server, workloadclusterv1.NewService())
 	}
 
+	if err := runGeneratedGRPCServiceRegistrars(server, cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return authServer, nil
 }
 

@@ -1,0 +1,56 @@
+package cache
+
+import (
+	"context"
+
+	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
+
+	{{.PkgAlias}} "{{.ImportPath}}"
+	headerv1 "{{.Module}}/api/gen/proto/go/teleport/header/v1"
+	"{{.Module}}/api/types"
+	"{{.Module}}/api/utils/clientutils"
+	"{{.Module}}/lib/itertools/stream"
+	"{{.Module}}/lib/services"
+)
+
+// GENERATED CHECK: This line ensures Config has a {{.Plural}} field of type services.{{.Plural}}.
+// If this fails to compile, add "{{.Plural}} services.{{.Plural}}" to the Config struct in lib/cache/cache.go.
+var _ services.{{.Plural}} = Config{}.{{.Plural}}
+
+type {{.Lower}}Index int
+
+const {{.Lower}}NameIndex {{.Lower}}Index = iota
+
+func init() {
+	RegisterGeneratedCollectionBuilder(
+		types.WatchKind{Kind: types.Kind{{.Kind}}},
+		func(config Config, watch types.WatchKind) (collectionHandler, error) {
+			if config.{{.Plural}} == nil {
+				return nil, trace.BadParameter("missing parameter {{.Plural}}")
+			}
+			return &collection[*{{.PkgAlias}}.{{.Kind}}, {{.Lower}}Index]{
+				store: newStore(types.Kind{{.Kind}}, proto.CloneOf[*{{.PkgAlias}}.{{.Kind}}],
+					map[{{.Lower}}Index]func(*{{.PkgAlias}}.{{.Kind}}) string{
+						{{.Lower}}NameIndex: func(r *{{.PkgAlias}}.{{.Kind}}) string {
+							return r.GetMetadata().GetName()
+						},
+					}),
+				fetcher: func(ctx context.Context, loadSecrets bool) ([]*{{.PkgAlias}}.{{.Kind}}, error) {
+					out, err := stream.Collect(clientutils.Resources(ctx,
+						func(ctx context.Context, pageSize int, pageToken string) ([]*{{.PkgAlias}}.{{.Kind}}, string, error) {
+							return config.{{.Plural}}.List{{.Plural}}(ctx, int64(pageSize), pageToken)
+						}))
+					return out, trace.Wrap(err)
+				},
+				headerTransform: func(hdr *types.ResourceHeader) *{{.PkgAlias}}.{{.Kind}} {
+					return &{{.PkgAlias}}.{{.Kind}}{
+						Kind:    hdr.Kind,
+						Version: hdr.Version,
+						Metadata: &headerv1.Metadata{Name: hdr.Metadata.Name},
+					}
+				},
+				watch: watch,
+			}, nil
+		})
+}

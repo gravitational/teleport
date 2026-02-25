@@ -1,0 +1,11 @@
+package authclient
+
+// Generated authclient cache services for resource-gen managed resources.
+{{if .Resources}}
+import "{{.Module}}/lib/services"
+{{end}}
+type cacheGeneratedServices interface {
+{{- range .Resources}}
+	services.{{.Plural}}Getter
+{{- end}}
+}

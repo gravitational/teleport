@@ -1,0 +1,33 @@
+package client
+
+import (
+	proto "{{.Module}}/api/client/proto"
+{{- range .Resources}}
+	{{.PkgAlias}} "{{.ImportPath}}"
+{{- end}}
+	"{{.Module}}/api/types"
+)
+
+// generatedEventToGRPC handles EventToGRPC dispatch for resource-gen resources.
+// Returns true with out.Resource set if handled, false if not.
+func generatedEventToGRPC(out *proto.Event, r types.Resource) bool {
+	switch r := r.(type) {
+{{- range .Resources}}
+	case types.Resource153UnwrapperT[*{{.PkgAlias}}.{{.Kind}}]:
+		out.Resource = &proto.Event_{{.Kind}}{{"{"}}{{.Kind}}: r.UnwrapT()}
+		return true
+{{- end}}
+	default:
+		return false
+	}
+}
+
+// generatedEventFromGRPC handles EventFromGRPC dispatch for resource-gen resources.
+func generatedEventFromGRPC(in *proto.Event) (types.Resource, bool) {
+{{- range .Resources}}
+	if r := in.Get{{.Kind}}(); r != nil {
+		return types.ProtoResource153ToLegacy(r), true
+	}
+{{- end}}
+	return nil, false
+}

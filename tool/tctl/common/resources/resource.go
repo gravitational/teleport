@@ -34,7 +34,7 @@ import (
 // to the Handler format.
 func Handlers() map[string]Handler {
 	// When adding resources, please keep the map alphabetically ordered.
-	return map[string]Handler{
+	base := map[string]Handler{
 		types.KindAccessGraphSettings:                accessGraphSettingsHandler(),
 		types.KindAccessList:                         accessListHandler(),
 		types.KindAccessMonitoringRule:               accessMonitoringRuleHandler(),
@@ -95,6 +95,7 @@ func Handlers() map[string]Handler {
 		scopedaccess.KindScopedRoleAssignment:        scopedRoleAssignmentHandler(),
 		types.KindWorkloadCluster:                    workloadClusterHandler(),
 	}
+	return applyGeneratedHandlers(base)
 }
 
 // Handler represents a resource supported by the tctl resource command.
@@ -103,6 +104,7 @@ func Handlers() map[string]Handler {
 // Some resources might not implement all functions (e.g. some resources are
 // read-only, they cannot be created).
 type Handler struct {
+	kind          string
 	getHandler    func(context.Context, *authclient.Client, services.Ref, GetOpts) (Collection, error)
 	createHandler func(context.Context, *authclient.Client, services.UnknownResource, CreateOpts) error
 	updateHandler func(context.Context, *authclient.Client, services.UnknownResource, CreateOpts) error

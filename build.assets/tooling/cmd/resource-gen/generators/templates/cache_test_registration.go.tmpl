@@ -1,0 +1,41 @@
+package cache
+
+import (
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
+
+	{{.PkgAlias}} "{{.ImportPath}}"
+	headerv1 "{{.Module}}/api/gen/proto/go/teleport/header/v1"
+	"{{.Module}}/api/types"
+	"{{.Module}}/lib/backend"
+	"{{.Module}}/lib/services/local"
+)
+
+func init() {
+	registerGeneratedTestResource(generatedTestResource{
+		kind: types.Kind{{.Kind}},
+		newBackend: func(b backend.Backend) (any, error) {
+			return local.New{{.Kind}}Service(b)
+		},
+		testEvent: func() types.Resource {
+			return types.ProtoResource153ToLegacy(&{{.PkgAlias}}.{{.Kind}}{
+				Kind:     types.Kind{{.Kind}},
+				Version:  "v1",
+				Metadata: &headerv1.Metadata{Name: "test"},
+			})
+		},
+		setOnConfig: func(cfg *Config, svc any) {
+			cfg.{{.Plural}} = svc.(*local.{{.Kind}}Service)
+		},
+		compareEvent: func(t *testing.T, expected, actual types.Resource) {
+			require.Empty(t, cmp.Diff(
+				expected.(types.Resource153UnwrapperT[*{{.PkgAlias}}.{{.Kind}}]).UnwrapT(),
+				actual.(types.Resource153UnwrapperT[*{{.PkgAlias}}.{{.Kind}}]).UnwrapT(),
+				protocmp.Transform(),
+			))
+		},
+	})
+}

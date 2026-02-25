@@ -1,0 +1,211 @@
+package resources
+
+import (
+	"context"
+	"fmt"
+	"io"
+{{- if .HasTimestampColumn}}
+	"time"
+{{- end}}
+
+	"github.com/gravitational/trace"
+{{- if .HasTimestampColumn}}
+	"google.golang.org/protobuf/types/known/timestamppb"
+{{- end}}
+
+	{{.PkgAlias}} "{{.ImportPath}}"
+	"{{.Module}}/api/types"
+{{- if .Ops.List}}
+	"{{.Module}}/api/utils/clientutils"
+{{- end}}
+	"{{.Module}}/lib/asciitable"
+	"{{.Module}}/lib/auth/authclient"
+{{- if .Ops.List}}
+	"{{.Module}}/lib/itertools/stream"
+{{- end}}
+	"{{.Module}}/lib/services"
+{{- if not .Columns}}
+	"{{.Module}}/tool/common"
+{{- end}}
+)
+{{- if .HasTimestampColumn}}
+
+func format{{.Kind}}Timestamp(ts *timestamppb.Timestamp) string {
+	if ts == nil {
+		return ""
+	}
+	return ts.AsTime().Format(time.RFC3339)
+}
+{{- end}}
+
+type {{.Lower}}Collection struct {
+	items []*{{.PkgAlias}}.{{.Kind}}
+}
+
+func (c *{{.Lower}}Collection) Resources() []types.Resource {
+	r := make([]types.Resource, 0, len(c.items))
+	for _, resource := range c.items {
+		r = append(r, types.Resource153ToLegacy(resource))
+	}
+	return r
+}
+
+{{- if .Columns}}
+func (c *{{.Lower}}Collection) WriteText(w io.Writer, verbose bool) error {
+{{- if .VerboseColumns}}
+	var headers []string
+	if verbose {
+		headers = []string{ {{- range $i, $col := .VerboseColumns}}{{if $i}}, {{end}}"{{$col.Header}}"{{end -}} }
+	} else {
+		headers = []string{ {{- range $i, $col := .Columns}}{{if $i}}, {{end}}"{{$col.Header}}"{{end -}} }
+	}
+{{- else}}
+	headers := []string{ {{- range $i, $col := .Columns}}{{if $i}}, {{end}}"{{$col.Header}}"{{end -}} }
+{{- end}}
+	var rows [][]string
+	for _, r := range c.items {
+{{- if .VerboseColumns}}
+		if verbose {
+			rows = append(rows, []string{ {{- range $i, $col := .VerboseColumns}}{{if $i}}, {{end}}{{if $col.IsTimestamp}}format{{$.Kind}}Timestamp({{$col.Getter}}){{else}}fmt.Sprintf("%v", {{$col.Getter}}){{end}}{{end -}} })
+		} else {
+			rows = append(rows, []string{ {{- range $i, $col := .Columns}}{{if $i}}, {{end}}{{if $col.IsTimestamp}}format{{$.Kind}}Timestamp({{$col.Getter}}){{else}}fmt.Sprintf("%v", {{$col.Getter}}){{end}}{{end -}} })
+		}
+{{- else}}
+		rows = append(rows, []string{ {{- range $i, $col := .Columns}}{{if $i}}, {{end}}{{if $col.IsTimestamp}}format{{$.Kind}}Timestamp({{$col.Getter}}){{else}}fmt.Sprintf("%v", {{$col.Getter}}){{end}}{{end -}} })
+{{- end}}
+	}
+	t := asciitable.MakeTable(headers, rows...)
+	t.SortRowsBy([]int{0}, true)
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+{{- else}}
+// CUSTOMIZE: Update the columns below to show fields relevant to your resource.
+func (c *{{.Lower}}Collection) WriteText(w io.Writer, verbose bool) error {
+	var rows [][]string
+	for _, item := range c.items {
+		labels := common.FormatLabels(item.GetMetadata().GetLabels(), verbose)
+		rows = append(rows, []string{item.GetMetadata().GetName(), labels})
+	}
+	t := asciitable.MakeTable([]string{"Name", "Labels"}, rows...)
+	t.SortRowsBy([]int{0}, true)
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+{{- end}}
+
+func init() {
+	RegisterGeneratedHandler(func() Handler {
+		return Handler{
+			kind:          types.Kind{{.Kind}},
+{{- if .Ops.Get}}
+			getHandler:    get{{.Kind}},
+{{- end}}
+{{- if .Ops.Create}}
+			createHandler: create{{.Kind}},
+{{- end}}
+{{- if .Ops.Update}}
+			updateHandler: update{{.Kind}},
+{{- end}}
+{{- if .Ops.Delete}}
+			deleteHandler: delete{{.Kind}},
+{{- end}}
+{{- if .MFARequired}}
+			mfaRequired:   true,
+{{- end}}
+{{- if .IsSingleton}}
+			singleton:     true,
+{{- end}}
+			description:   "{{.Description}}",
+		}
+	})
+}
+{{- if .Ops.Get}}
+{{- if .IsSingleton}}
+
+func get{{.Kind}}(ctx context.Context, client *authclient.Client, ref services.Ref, _ GetOpts) (Collection, error) {
+	item, err := client.Get{{.Kind}}(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &{{.Lower}}Collection{items: []*{{.PkgAlias}}.{{.Kind}}{item}}, nil
+}
+{{- else}}
+
+func get{{.Kind}}(ctx context.Context, client *authclient.Client, ref services.Ref, _ GetOpts) (Collection, error) {
+	if ref.Name != "" {
+		item, err := client.Get{{.Kind}}(ctx, ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &{{.Lower}}Collection{items: []*{{.PkgAlias}}.{{.Kind}}{item}}, nil
+	}
+{{- if .Ops.List}}
+	items, err := stream.Collect(clientutils.Resources(ctx,
+		func(ctx context.Context, pageSize int, pageToken string) ([]*{{.PkgAlias}}.{{.Kind}}, string, error) {
+			return client.List{{.Plural}}(ctx, int64(pageSize), pageToken)
+		}))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &{{.Lower}}Collection{items: items}, nil
+{{- else}}
+	return nil, trace.BadParameter("resource name is required")
+{{- end}}
+}
+{{- end}}
+{{- end}}
+{{- if .Ops.Create}}
+
+func create{{.Kind}}(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
+	in, err := services.Unmarshal{{.Kind}}(raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+{{- if .Ops.Upsert}}
+	if opts.Force {
+		if _, err = client.Upsert{{.Kind}}(ctx, in); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("{{.Lower}} %q has been created (upsert)\n", in.GetMetadata().GetName())
+		return nil
+	}
+{{- end}}
+	if _, err = client.Create{{.Kind}}(ctx, in); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("{{.Lower}} %q has been created\n", in.GetMetadata().GetName())
+	return nil
+}
+{{- end}}
+{{- if .Ops.Update}}
+
+func update{{.Kind}}(ctx context.Context, client *authclient.Client, raw services.UnknownResource, _ CreateOpts) error {
+	in, err := services.Unmarshal{{.Kind}}(raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.Update{{.Kind}}(ctx, in); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("{{.Lower}} %q has been updated\n", in.GetMetadata().GetName())
+	return nil
+}
+{{- end}}
+{{- if .Ops.Delete}}
+
+func delete{{.Kind}}(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+{{- if .IsSingleton}}
+	if err := client.Delete{{.Kind}}(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("{{.Lower}} has been deleted\n")
+{{- else}}
+	if err := client.Delete{{.Kind}}(ctx, ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("{{.Lower}} %q has been deleted\n", ref.Name)
+{{- end}}
+	return nil
+}
+{{- end}}

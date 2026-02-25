@@ -67,6 +67,9 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		}
 		return &out, nil
 	}
+	if generatedEventToGRPC(&out, in.Resource) {
+		return &out, nil
+	}
 	switch r := in.Resource.(type) {
 	case types.Resource153UnwrapperT[*kubewaitingcontainerpb.KubernetesWaitingContainer]:
 		out.Resource = &proto.Event_KubernetesWaitingContainer{
@@ -429,7 +432,10 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		}
 		return &out, nil
 	}
-	if r := in.GetResourceHeader(); r != nil {
+	if r, ok := generatedEventFromGRPC(in); ok {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetResourceHeader(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetCertAuthority(); r != nil {

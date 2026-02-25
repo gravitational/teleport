@@ -1,0 +1,74 @@
+package cache
+
+import (
+	"context"
+
+	"github.com/gravitational/trace"
+
+	{{.PkgAlias}} "{{.ImportPath}}"
+	"{{.Module}}/api/types"
+)
+
+func (c *Cache) {{.Lower}}Collection() *collection[{{.QualType}}, {{.Lower}}Index] {
+	return c.collections.byKind[resourceKind{kind: types.Kind{{.Kind}}}].(*collection[{{.QualType}}, {{.Lower}}Index])
+}
+{{- if .Ops.Get}}
+{{- if .IsSingleton}}
+
+// Get{{.Kind}} returns the singleton {{.Lower}} resource.
+func (c *Cache) Get{{.Kind}}(ctx context.Context) ({{.QualType}}, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/Get{{.Kind}}")
+	defer span.End()
+
+	getter := genericGetter[{{.QualType}}, {{.Lower}}Index]{
+		cache:       c,
+		collection:  c.{{.Lower}}Collection(),
+		index:       {{.Lower}}NameIndex,
+		upstreamGet: func(ctx context.Context, _ string) ({{.QualType}}, error) {
+			return c.Config.{{.Plural}}.Get{{.Kind}}(ctx)
+		},
+	}
+	out, err := getter.get(ctx, "")
+	return out, trace.Wrap(err)
+}
+{{- else}}
+
+// Get{{.Kind}} returns {{.Article}} {{.Lower}} by name.
+func (c *Cache) Get{{.Kind}}(ctx context.Context, name string) ({{.QualType}}, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/Get{{.Kind}}")
+	defer span.End()
+
+	getter := genericGetter[{{.QualType}}, {{.Lower}}Index]{
+		cache:       c,
+		collection:  c.{{.Lower}}Collection(),
+		index:       {{.Lower}}NameIndex,
+		upstreamGet: c.Config.{{.Plural}}.Get{{.Kind}},
+	}
+	out, err := getter.get(ctx, name)
+	return out, trace.Wrap(err)
+}
+{{- end}}
+{{- end}}
+{{- if .Ops.List}}
+
+// List{{.Plural}} returns a paginated list of {{.Lower}} resources.
+func (c *Cache) List{{.Plural}}(ctx context.Context, pageSize int64, pageToken string) ([]{{.QualType}}, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/List{{.Plural}}")
+	defer span.End()
+
+	lister := genericLister[{{.QualType}}, {{.Lower}}Index]{
+		cache:      c,
+		collection: c.{{.Lower}}Collection(),
+		index:      {{.Lower}}NameIndex,
+		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]{{.QualType}}, string, error) {
+			out, next, err := c.Config.{{.Plural}}.List{{.Plural}}(ctx, int64(pageSize), pageToken)
+			return out, next, trace.Wrap(err)
+		},
+		nextToken: func(t {{.QualType}}) string {
+			return t.GetMetadata().GetName()
+		},
+	}
+	out, next, err := lister.list(ctx, int(pageSize), pageToken)
+	return out, next, trace.Wrap(err)
+}
+{{- end}}

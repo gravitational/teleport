@@ -18,8 +18,11 @@
 
 import { makeEvent } from 'teleport/services/audit';
 
+import { generatedFixtures } from '../../services/audit/generatedResourceEvents.gen';
+
 // events contains sample JSON's of ALL supported event types
 export const events = [
+  ...generatedFixtures,
   {
     args: {
       database: 'projects/project-id/instances/instance-id/databases/prod-db',

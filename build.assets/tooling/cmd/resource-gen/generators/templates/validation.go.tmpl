@@ -1,0 +1,13 @@
+package services
+
+import (
+	"github.com/gravitational/trace"
+
+	{{.PkgAlias}} "{{.ImportPath}}"
+)
+
+// Validate{{.Kind}} checks resource-specific invariants.
+// TODO: implement validation for {{.Lower}} resources.
+func Validate{{.Kind}}({{.Lower}} {{.QualType}}) error {
+	return trace.NotImplemented("{{.Lower}} validation not yet implemented")
+}

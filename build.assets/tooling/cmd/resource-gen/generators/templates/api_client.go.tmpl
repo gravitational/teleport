@@ -1,0 +1,145 @@
+package client
+
+import (
+	"context"
+
+	"github.com/gravitational/trace"
+
+	{{.PkgAlias}} "{{.ImportPath}}"
+)
+{{- if .Ops.Get}}
+{{- if .IsSingleton}}
+
+// Get{{.Kind}} returns the singleton {{.Lower}} resource.
+func (c *Client) Get{{.Kind}}(ctx context.Context) ({{.QualType}}, error) {
+	rsp, err := {{.PkgAlias}}.New{{.ClientCtor}}(c.conn).Get{{.Kind}}(ctx, &{{.PkgAlias}}.Get{{.Kind}}Request{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rsp, nil
+}
+{{- else if .IsScoped}}
+
+// Get{{.Kind}} returns {{.Article}} {{.Lower}} by {{.ScopeBy}} and name.
+func (c *Client) Get{{.Kind}}(ctx context.Context, {{.ScopeBy}} string, name string) ({{.QualType}}, error) {
+	rsp, err := {{.PkgAlias}}.New{{.ClientCtor}}(c.conn).Get{{.Kind}}(ctx, &{{.PkgAlias}}.Get{{.Kind}}Request{
+		{{.ScopeByPascal}}: {{.ScopeBy}},
+		Name: name,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rsp, nil
+}
+{{- else}}
+
+// Get{{.Kind}} returns {{.Article}} {{.Lower}} by name.
+func (c *Client) Get{{.Kind}}(ctx context.Context, name string) ({{.QualType}}, error) {
+	rsp, err := {{.PkgAlias}}.New{{.ClientCtor}}(c.conn).Get{{.Kind}}(ctx, &{{.PkgAlias}}.Get{{.Kind}}Request{
+		Name: name,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rsp, nil
+}
+{{- end}}
+{{- end}}
+{{- if .Ops.List}}
+{{- if .IsScoped}}
+
+// List{{.Plural}} returns a paginated list of {{.Lower}} resources within a {{.ScopeBy}}.
+func (c *Client) List{{.Plural}}(ctx context.Context, {{.ScopeBy}} string, pageSize int64, pageToken string) ([]{{.QualType}}, string, error) {
+	rsp, err := {{.PkgAlias}}.New{{.ClientCtor}}(c.conn).List{{.Plural}}(ctx, &{{.PkgAlias}}.List{{.Plural}}Request{
+		{{.ScopeByPascal}}: {{.ScopeBy}},
+		PageSize:  int32(pageSize),
+		PageToken: pageToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return rsp.{{.Plural}}, rsp.NextPageToken, nil
+}
+{{- else}}
+
+// List{{.Plural}} returns a paginated list of {{.Lower}} resources.
+func (c *Client) List{{.Plural}}(ctx context.Context, pageSize int64, pageToken string) ([]{{.QualType}}, string, error) {
+	rsp, err := {{.PkgAlias}}.New{{.ClientCtor}}(c.conn).List{{.Plural}}(ctx, &{{.PkgAlias}}.List{{.Plural}}Request{
+		PageSize:  int32(pageSize),
+		PageToken: pageToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return rsp.{{.Plural}}, rsp.NextPageToken, nil
+}
+{{- end}}
+{{- end}}
+{{- if .Ops.Create}}
+
+// Create{{.Kind}} creates a new {{.Lower}} resource.
+func (c *Client) Create{{.Kind}}(ctx context.Context, {{.Lower}} {{.QualType}}) ({{.QualType}}, error) {
+	rsp, err := {{.PkgAlias}}.New{{.ClientCtor}}(c.conn).Create{{.Kind}}(ctx, &{{.PkgAlias}}.Create{{.Kind}}Request{
+		{{.Kind}}: {{.Lower}},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rsp, nil
+}
+{{- end}}
+{{- if .Ops.Update}}
+
+// Update{{.Kind}} updates an existing {{.Lower}} resource.
+func (c *Client) Update{{.Kind}}(ctx context.Context, {{.Lower}} {{.QualType}}) ({{.QualType}}, error) {
+	rsp, err := {{.PkgAlias}}.New{{.ClientCtor}}(c.conn).Update{{.Kind}}(ctx, &{{.PkgAlias}}.Update{{.Kind}}Request{
+		{{.Kind}}: {{.Lower}},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rsp, nil
+}
+{{- end}}
+{{- if .Ops.Upsert}}
+
+// Upsert{{.Kind}} creates or updates {{.Article}} {{.Lower}} resource.
+func (c *Client) Upsert{{.Kind}}(ctx context.Context, {{.Lower}} {{.QualType}}) ({{.QualType}}, error) {
+	rsp, err := {{.PkgAlias}}.New{{.ClientCtor}}(c.conn).Upsert{{.Kind}}(ctx, &{{.PkgAlias}}.Upsert{{.Kind}}Request{
+		{{.Kind}}: {{.Lower}},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rsp, nil
+}
+{{- end}}
+{{- if .Ops.Delete}}
+{{- if .IsSingleton}}
+
+// Delete{{.Kind}} deletes the singleton {{.Lower}} resource.
+func (c *Client) Delete{{.Kind}}(ctx context.Context) error {
+	_, err := {{.PkgAlias}}.New{{.ClientCtor}}(c.conn).Delete{{.Kind}}(ctx, &{{.PkgAlias}}.Delete{{.Kind}}Request{})
+	return trace.Wrap(err)
+}
+{{- else if .IsScoped}}
+
+// Delete{{.Kind}} deletes {{.Article}} {{.Lower}} resource by {{.ScopeBy}} and name.
+func (c *Client) Delete{{.Kind}}(ctx context.Context, {{.ScopeBy}} string, name string) error {
+	_, err := {{.PkgAlias}}.New{{.ClientCtor}}(c.conn).Delete{{.Kind}}(ctx, &{{.PkgAlias}}.Delete{{.Kind}}Request{
+		{{.ScopeByPascal}}: {{.ScopeBy}},
+		Name: name,
+	})
+	return trace.Wrap(err)
+}
+{{- else}}
+
+// Delete{{.Kind}} deletes {{.Article}} {{.Lower}} resource by name.
+func (c *Client) Delete{{.Kind}}(ctx context.Context, name string) error {
+	_, err := {{.PkgAlias}}.New{{.ClientCtor}}(c.conn).Delete{{.Kind}}(ctx, &{{.PkgAlias}}.Delete{{.Kind}}Request{
+		Name: name,
+	})
+	return trace.Wrap(err)
+}
+{{- end}}
+{{- end}}

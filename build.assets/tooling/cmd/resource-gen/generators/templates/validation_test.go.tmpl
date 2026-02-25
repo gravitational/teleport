@@ -1,0 +1,61 @@
+package services
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	{{.PkgAlias}} "{{.ImportPath}}"
+	headerv1 "{{.Module}}/api/gen/proto/go/teleport/header/v1"
+)
+
+func TestValidate{{.Kind}}(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   {{.QualType}}
+		wantErr bool
+	}{
+		{
+			name:    "nil resource",
+			input:   nil,
+			wantErr: true,
+		},
+		{
+			name:    "nil metadata",
+			input:   &{{.PkgAlias}}.{{.Kind}}{},
+			wantErr: true,
+		},
+		{
+			name:    "empty name",
+			input: &{{.PkgAlias}}.{{.Kind}}{
+				Metadata: &headerv1.Metadata{Name: ""},
+			},
+			wantErr: true,
+		},
+		{
+			name:    "nil spec",
+			input: &{{.PkgAlias}}.{{.Kind}}{
+				Metadata: &headerv1.Metadata{Name: "test"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid minimal",
+			input: &{{.PkgAlias}}.{{.Kind}}{
+				Metadata: &headerv1.Metadata{Name: "test"},
+				Spec:     &{{.PkgAlias}}.{{.Kind}}Spec{},
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := Validate{{.Kind}}(tt.input)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

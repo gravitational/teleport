@@ -29,6 +29,8 @@ import {
   RawEvents,
 } from './types';
 
+import { generatedFormatters } from './generatedResourceEvents.gen';
+
 const formatElasticsearchEvent: (
   json:
     | RawEvents[typeof eventCodes.ELASTICSEARCH_REQUEST]
@@ -133,6 +135,7 @@ const describePortForwardEvent = ({ code, event }: PortForwardEvent) => {
 };
 
 export const formatters: Formatters = {
+  ...generatedFormatters(),
   [eventCodes.ACCESS_REQUEST_CREATED]: {
     type: 'access_request.create',
     desc: 'Access Request Created',

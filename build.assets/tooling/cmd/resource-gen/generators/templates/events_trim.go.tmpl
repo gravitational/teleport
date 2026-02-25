@@ -1,0 +1,7 @@
+package events
+
+// Generated TrimToMaxSize implementations for resource-gen managed event types.
+// These satisfy the AuditEvent interface for resource CRUD events.
+{{range .Entries}}
+func (m *{{.ConstName}}) TrimToMaxSize(maxSize int) AuditEvent { return m }
+{{end}}

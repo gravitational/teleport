@@ -173,6 +173,7 @@ type testPack struct {
 	plugin                  *local.PluginsService
 	appAuthConfigs          *local.AppAuthConfigService
 	workloadClusters        *local.WorkloadClusterService
+	generatedBackends       map[string]any // keyed by resource kind
 }
 
 // resourceOps contains helpers to modify the state of either types.Resource or types.Resource153  which
@@ -539,8 +540,19 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.workloadClusters = workloadClusterSvc
 
+	p.generatedBackends = make(map[string]any, len(generatedTestResources))
+	for _, gtr := range generatedTestResources {
+		svc, err := gtr.newBackend(p.backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		p.generatedBackends[gtr.kind] = svc
+	}
+
 	return p, nil
 }
+
+
 
 // newPack returns a new test pack or fails the test on error
 func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption) (*testPack, error) {
@@ -552,7 +564,7 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		return nil, trace.Wrap(err)
 	}
 
-	p.cache, err = New(setupConfig(Config{
+	cacheCfg := Config{
 		Context:                 ctx,
 		Events:                  p.eventsS,
 		ClusterConfig:           p.clusterConfigS,
@@ -604,7 +616,11 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		AppAuthConfig:           p.appAuthConfigs,
 		StaticScopedToken:       p.clusterConfigS,
 		WorkloadClusterService:  p.workloadClusters,
-	}))
+	}
+	for _, gtr := range generatedTestResources {
+		gtr.setOnConfig(&cacheCfg, p.generatedBackends[gtr.kind])
+	}
+	p.cache, err = New(setupConfig(cacheCfg))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1812,6 +1828,26 @@ func TestSetupConfigFns(t *testing.T) {
 	require.Empty(t, authCAWatchKind.Filter, "auth should not use a CA filter")
 }
 
+// TestGeneratedCollectionBuildersInForAuth verifies that every resource kind
+// registered by a generated cache collection builder appears in ForAuth's
+// watch list. Without this, the cache collection for the resource is never
+// created and accessing it at runtime causes a nil-dereference panic.
+func TestGeneratedCollectionBuildersInForAuth(t *testing.T) {
+	t.Parallel()
+
+	authKindSet := make(map[resourceKind]struct{})
+	for _, wk := range ForAuth(Config{}).Watches {
+		authKindSet[resourceKind{kind: wk.Kind, subkind: wk.SubKind}] = struct{}{}
+	}
+
+	for _, rk := range generatedCollectionBuilderKinds() {
+		if _, ok := authKindSet[rk]; !ok {
+			t.Errorf("generated cache collection builder for %s is not in ForAuth watches — "+
+				"add {Kind: types.Kind%s} to ForAuth in cache.go", rk.String(), rk.kind)
+		}
+	}
+}
+
 type proxyEvents struct {
 	sync.Mutex
 	watchers    []types.Watcher
@@ -1980,6 +2016,9 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAppAuthConfig:                     types.Resource153ToLegacy(new(appauthconfigv1.AppAuthConfig)),
 		types.KindWorkloadCluster:                   types.Resource153ToLegacy(newWorkloadCluster(t, "test")),
 	}
+	for _, gtr := range generatedTestResources {
+		events[gtr.kind] = gtr.testEvent()
+	}
 
 	for name, cfg := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -1995,6 +2034,19 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 
 				event, err := client.EventFromGRPC(protoEvent)
 				require.NoError(t, err)
+
+				// Check if this is a generated (resource-gen managed) resource.
+				generatedHandled := false
+				for _, gtr := range generatedTestResources {
+					if watch.Kind == gtr.kind {
+						gtr.compareEvent(t, resource, event.Resource)
+						generatedHandled = true
+						break
+					}
+				}
+				if generatedHandled {
+					continue
+				}
 
 				// unwrap the RFD 153 resource if necessary
 				switch uw := event.Resource.(type) {
@@ -2054,6 +2106,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*appauthconfigv1.AppAuthConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*workloadclusterv1.WorkloadCluster]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*workloadclusterv1.WorkloadCluster]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+
 				default:
 					require.Empty(t, cmp.Diff(resource, event.Resource))
 				}

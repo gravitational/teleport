@@ -1,0 +1,113 @@
+// Teleport
+// Copyright (C) 2026 Gravitational, Inc.
+
+syntax = "proto3";
+
+package teleport.options.v1;
+
+import "google/protobuf/descriptor.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/options/v1;optionsv1";
+
+// resource_config defines code generation behavior for a resource service.
+extend google.protobuf.ServiceOptions {
+  ResourceConfig resource_config = 50001;
+}
+
+// ResourceConfig defines generation behavior for a single resource service.
+message ResourceConfig {
+  // Storage configuration. Required.
+  StorageConfig storage = 1;
+  // Cache integration configuration. Optional.
+  CacheConfig cache = 2;
+  // tctl integration configuration. Optional.
+  TctlConfig tctl = 3;
+  // Audit emission behavior. Optional.
+  AuditConfig audit = 4;
+  // Lifecycle hook behavior. Optional.
+  HooksConfig hooks = 5;
+  // Pagination defaults for list operations. Optional.
+  PaginationConfig pagination = 7;
+}
+
+// StorageConfig defines keying behavior in backend storage.
+message StorageConfig {
+  // Backend key prefix, for example "roles".
+  string backend_prefix = 1;
+
+  // Storage pattern to use for keys.
+  oneof pattern {
+    // standard stores resources as prefix/<name>.
+    StandardStorage standard = 2;
+    // singleton stores a single resource as prefix/<fixed_name>.
+    SingletonStorage singleton = 3;
+    // scoped stores resources as prefix/<scope>/<name>.
+    ScopedStorage scoped = 4;
+  }
+}
+
+// StandardStorage uses a flat key layout at prefix/<name>.
+message StandardStorage {}
+
+// SingletonStorage uses a fixed key at prefix/<fixed_name>.
+message SingletonStorage {
+  // Fixed name for the singleton resource key.
+  string fixed_name = 1;
+}
+
+// ScopedStorage uses a key layout at prefix/<scope>/<name>.
+message ScopedStorage {
+  // Name of the scope field in requests, such as "username".
+  string by = 1;
+}
+
+// CacheConfig controls generation of cache integration.
+message CacheConfig {
+  // Enable cache collection generation.
+  optional bool enabled = 1;
+  // Indexed field paths.
+  repeated string indexes = 2;
+}
+
+// TctlConfig controls generation of tctl commands and formatting.
+message TctlConfig {
+  // Human-readable resource description.
+  string description = 1;
+  // Whether mutation commands require MFA.
+  optional bool mfa_required = 2;
+  // Default output columns.
+  repeated string columns = 3;
+  // Verbose output columns.
+  repeated string verbose_columns = 4;
+  // Column paths that should be formatted as timestamps (e.g. "status.last_delivery").
+  // "metadata.expires" is always treated as a timestamp and does not need to be listed here.
+  repeated string timestamp_columns = 6;
+}
+
+// AuditConfig controls which operations emit audit events.
+message AuditConfig {
+  // Emit create events.
+  optional bool emit_on_create = 1;
+  // Emit update events.
+  optional bool emit_on_update = 2;
+  // Emit delete events.
+  optional bool emit_on_delete = 3;
+  // Emit get/read events.
+  optional bool emit_on_get = 4;
+  // Prefix for event code constants (2-4 uppercase ASCII chars, e.g. "CK").
+  string code_prefix = 5;
+}
+
+// HooksConfig controls lifecycle hooks generation.
+message HooksConfig {
+  // Enable hook interfaces and callsites for lifecycle operations.
+  bool enable_lifecycle_hooks = 1;
+}
+
+// PaginationConfig defines list pagination defaults.
+message PaginationConfig {
+  // Default page size when request omits page size.
+  optional int32 default_page_size = 1;
+  // Maximum page size accepted by generated handlers.
+  optional int32 max_page_size = 2;
+}

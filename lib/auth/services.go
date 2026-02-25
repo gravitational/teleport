@@ -32,6 +32,8 @@ import (
 // reference this type on auth.Server itself and on code that manages
 // the lifecycle of the auth server.
 type Services struct {
+	servicesGenerated
+
 	services.TrustInternal
 	services.PresenceInternal
 	services.Provisioner

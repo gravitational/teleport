@@ -1649,9 +1649,27 @@ grpc:
 
 # grpc/host generates gRPC stubs.
 # Unlike grpc, this target runs locally.
+# Pipeline: inject events into events.proto → compile protos → generate Go files.
 .PHONY: grpc/host
-grpc/host: protos/all
+grpc/host:
+	@$(MAKE) generate-resource-events/host
+	@$(MAKE) protos/all
 	@build.assets/genproto.sh
+	@$(MAKE) generate-resource-services/host
+
+.PHONY: generate-resource-events/host
+generate-resource-events/host:
+	@cd build.assets/tooling && go run ./cmd/resource-gen \
+		--proto-dir=../../api/proto \
+		--events-only
+
+.PHONY: generate-resource-services/host
+generate-resource-services/host:
+	@cd build.assets/tooling && go run ./cmd/resource-gen \
+		--proto-dir=../../api/proto \
+		--output-dir=../.. \
+		--module=github.com/gravitational/teleport \
+		--web-dir=web
 
 # protos-up-to-date checks if the generated gRPC stubs are up to date.
 # This target runs in the buildbox container.

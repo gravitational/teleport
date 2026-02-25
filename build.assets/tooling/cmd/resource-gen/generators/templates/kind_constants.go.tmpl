@@ -1,0 +1,9 @@
+package types
+
+// Generated kind constants for resource-gen managed resources.
+const (
+{{- range .Kinds}}
+	// Kind{{.ExportedName}} is the resource kind for {{.ExportedName}} resources.
+	Kind{{.ExportedName}} = "{{.Lower}}"
+{{- end}}
+)

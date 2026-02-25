@@ -1,0 +1,202 @@
+package {{.PkgAlias}}
+
+import (
+	"context"
+{{- if .HasAudit}}
+	"log/slog"
+{{- end}}
+
+	"github.com/gravitational/trace"
+
+	{{.ProtoAlias}} "{{.ImportPath}}"
+	"{{.Module}}/api/types"
+	apievents "{{.Module}}/api/types/events"
+	"{{.Module}}/lib/authz"
+{{- if .HasAudit}}
+	libevents "{{.Module}}/lib/events"
+{{- end}}
+	"{{.Module}}/lib/services"
+)
+
+// ServiceConfig holds configuration options for the {{.Kind}} gRPC service.
+type ServiceConfig struct {
+	Authorizer authz.Authorizer
+	Backend    services.{{.Plural}}
+	Reader     Reader
+	Emitter    apievents.Emitter
+{{- if .Hooks.EnableLifecycleHooks}}
+	Hooks      *Hooks
+{{- end}}
+	// TODO: add resource-specific dependencies
+}
+
+// CheckAndSetDefaults checks required fields.
+func (s *ServiceConfig) CheckAndSetDefaults() error {
+	if s.Authorizer == nil {
+		return trace.BadParameter("authorizer is required")
+	}
+	if s.Backend == nil {
+		return trace.BadParameter("backend is required")
+	}
+	if s.Reader == nil {
+		return trace.BadParameter("reader is required")
+	}
+	if s.Emitter == nil {
+		return trace.BadParameter("emitter is required")
+	}
+	return nil
+}
+
+// Service implements the {{.FullServiceName}} gRPC service.
+type Service struct {
+	{{.ProtoAlias}}.Unimplemented{{.ShortServiceName}}Server
+	authorizer authz.Authorizer
+	backend    services.{{.Plural}}
+	reader     Reader
+	emitter    apievents.Emitter
+{{- if .Hooks.EnableLifecycleHooks}}
+	hooks      *Hooks
+{{- end}}
+	// TODO: add resource-specific fields
+}
+
+// NewService returns a new {{.Kind}} gRPC service.
+func NewService(cfg ServiceConfig) (*Service, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &Service{
+		authorizer: cfg.Authorizer,
+		backend:    cfg.Backend,
+		reader:     cfg.Reader,
+		emitter:    cfg.Emitter,
+{{- if .Hooks.EnableLifecycleHooks}}
+		hooks:      cfg.Hooks,
+{{- end}}
+	}, nil
+}
+
+// authorize checks that the caller has the given verbs on the resource kind.
+func (s *Service) authorize(ctx context.Context, verb string, verbs ...string) (*authz.Context, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.Kind{{.Kind}}, verb, verbs...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return authCtx, nil
+}
+
+// authorizeMutation checks verbs and additionally validates admin action MFA.
+func (s *Service) authorizeMutation(ctx context.Context, verb string, verbs ...string) (*authz.Context, error) {
+	authCtx, err := s.authorize(ctx, verb, verbs...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return authCtx, nil
+}
+{{- if and .Ops.Create .Audit.EmitOnCreate}}
+
+func (s *Service) emitCreateAuditEvent(ctx context.Context, {{.Lower}} {{.QualType}}, authCtx *authz.Context, err error) {
+	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.{{.Kind}}Create{
+		Metadata: apievents.Metadata{
+			Type: libevents.{{.Kind}}CreateEvent,
+			Code: libevents.{{.Kind}}CreateCode,
+		},
+		UserMetadata:       authCtx.GetUserMetadata(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status:             eventStatus(err),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      {{.Lower}}.GetMetadata().GetName(),
+			Expires:   getExpires({{.Lower}}.GetMetadata().GetExpires()),
+			UpdatedBy: authCtx.Identity.GetIdentity().Username,
+		},
+		// FIXME: add resource-specific event fields here.
+	}); auditErr != nil {
+		slog.WarnContext(ctx, "Failed to emit {{.Lower}} create event.", "error", auditErr)
+	}
+}
+{{- end}}
+{{- if and .Ops.Update .Audit.EmitOnUpdate}}
+
+func (s *Service) emitUpdateAuditEvent(ctx context.Context, old, new {{.QualType}}, authCtx *authz.Context, err error) {
+	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.{{.Kind}}Update{
+		Metadata: apievents.Metadata{
+			Type: libevents.{{.Kind}}UpdateEvent,
+			Code: libevents.{{.Kind}}UpdateCode,
+		},
+		UserMetadata:       authCtx.GetUserMetadata(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status:             eventStatus(err),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      new.GetMetadata().GetName(),
+			Expires:   getExpires(new.GetMetadata().GetExpires()),
+			UpdatedBy: authCtx.Identity.GetIdentity().Username,
+		},
+		// FIXME: add resource-specific event fields here.
+	}); auditErr != nil {
+		slog.WarnContext(ctx, "Failed to emit {{.Lower}} update event.", "error", auditErr)
+	}
+}
+{{- end}}
+{{- if and .Ops.Upsert .Audit.EmitOnUpdate}}
+
+func (s *Service) emitUpsertAuditEvent(ctx context.Context, old, new {{.QualType}}, authCtx *authz.Context, err error) {
+	if old == nil {
+		s.emitCreateAuditEvent(ctx, new, authCtx, err)
+		return
+	}
+	s.emitUpdateAuditEvent(ctx, old, new, authCtx, err)
+}
+{{- end}}
+{{- if and .Ops.Delete .Audit.EmitOnDelete}}
+
+func (s *Service) emitDeleteAuditEvent(ctx context.Context, name string, authCtx *authz.Context, err error) {
+	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.{{.Kind}}Delete{
+		Metadata: apievents.Metadata{
+			Type: libevents.{{.Kind}}DeleteEvent,
+			Code: libevents.{{.Kind}}DeleteCode,
+		},
+		UserMetadata:       authCtx.GetUserMetadata(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status:             eventStatus(err),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      name,
+			UpdatedBy: authCtx.Identity.GetIdentity().Username,
+		},
+	}); auditErr != nil {
+		slog.WarnContext(ctx, "Failed to emit {{.Lower}} delete event.", "error", auditErr)
+	}
+}
+{{- end}}
+{{- if and .Ops.Get .Audit.EmitOnGet}}
+
+func (s *Service) emitGetAuditEvent(ctx context.Context, name string, authCtx *authz.Context, err error) {
+	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.{{.Kind}}Get{
+		Metadata: apievents.Metadata{
+			Type: libevents.{{.Kind}}GetEvent,
+			Code: libevents.{{.Kind}}GetCode,
+		},
+		UserMetadata:       authCtx.GetUserMetadata(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status:             eventStatus(err),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: name,
+		},
+	}); auditErr != nil {
+		slog.WarnContext(ctx, "Failed to emit {{.Lower}} get event.", "error", auditErr)
+	}
+}
+{{- end}}
+{{- if .Hooks.EnableLifecycleHooks}}
+
+// DefaultHooks returns the standard lifecycle hooks for {{.Lower}} resources.
+// Customize this to add logging, metrics, or side effects on mutations.
+func DefaultHooks() *Hooks {
+	return &Hooks{}
+}
+{{- end}}

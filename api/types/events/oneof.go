@@ -1009,6 +1009,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 			SessionSummarized: e,
 		}
 	default:
+		if wrapper := tryGeneratedOneOfConverters(in); wrapper != nil {
+			out.Event = wrapper
+			return &out, nil
+		}
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}
 		unknown.Type = UnknownEvent

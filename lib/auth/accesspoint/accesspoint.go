@@ -117,6 +117,7 @@ type Config struct {
 	Plugin                  services.Plugins
 	AppAuthConfig           services.AppAuthConfigReader
 	WorkloadClusterService  services.WorkloadClusterService
+	cache.GeneratedConfig
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -206,6 +207,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		Plugin:                  cfg.Plugin,
 		AppAuthConfig:           cfg.AppAuthConfig,
 		WorkloadClusterService:  cfg.WorkloadClusterService,
+		GeneratedConfig:         cfg.GeneratedConfig,
 	}
 
 	return cache.New(cfg.Setup(cacheCfg))

@@ -652,7 +652,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		return nil, trace.Wrap(err)
 	}
 
+	gen, err := newServicesGenerated(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	services := &Services{
+		servicesGenerated: *gen,
+		
 		TrustInternal:                   cfg.Trust,
 		PresenceInternal:                cfg.Presence,
 		Provisioner:                     cfg.Provisioner,

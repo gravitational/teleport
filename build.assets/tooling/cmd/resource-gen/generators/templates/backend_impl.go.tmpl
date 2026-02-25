@@ -1,0 +1,169 @@
+package local
+
+import (
+	"context"
+
+	"github.com/gravitational/trace"
+
+	{{.PkgAlias}} "{{.ImportPath}}"
+	"{{.Module}}/api/types"
+	"{{.Module}}/lib/backend"
+	"{{.Module}}/lib/services"
+	"{{.Module}}/lib/services/local/generic"
+)
+
+const {{.Lower}}Prefix = "{{.BackendPrefix}}"
+
+const (
+	{{.Lower}}DefaultPageSize = {{.DefaultPageSize}}
+	{{.Lower}}MaxPageSize     = {{.MaxPageSize}}
+)
+{{- if .IsSingleton}}
+
+const singletonName = "{{.SingletonName}}"
+{{- end}}
+
+// {{.Kind}}Service is the local backend implementation for {{.Kind}} resources.
+type {{.Kind}}Service struct {
+	service *generic.ServiceWrapper[{{.QualType}}]
+}
+
+// New{{.Kind}}Service creates a new {{.Kind}}Service.
+func New{{.Kind}}Service(b backend.Backend) (*{{.Kind}}Service, error) {
+	service, err := generic.NewServiceWrapper(generic.ServiceConfig[{{.QualType}}]{
+		Backend:       b,
+		ResourceKind:  types.Kind{{.Kind}},
+		BackendPrefix: backend.NewKey({{.Lower}}Prefix),
+		MarshalFunc:   services.Marshal{{.Kind}},
+		UnmarshalFunc: services.Unmarshal{{.Kind}},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &{{.Kind}}Service{service: service}, nil
+}
+{{- if .Ops.Get}}
+{{- if .IsSingleton}}
+
+// Get{{.Kind}} returns the singleton {{.Lower}} resource.
+func (s *{{.Kind}}Service) Get{{.Kind}}(ctx context.Context) ({{.QualType}}, error) {
+	r, err := s.service.GetResource(ctx, singletonName)
+	return r, trace.Wrap(err)
+}
+{{- else if .IsScoped}}
+
+// Get{{.Kind}} returns {{.Article}} {{.Lower}} by {{.ScopeBy}} and name.
+func (s *{{.Kind}}Service) Get{{.Kind}}(ctx context.Context, {{.ScopeBy}} string, name string) ({{.QualType}}, error) {
+	r, err := s.service.WithPrefix({{.ScopeBy}}).GetResource(ctx, name)
+	return r, trace.Wrap(err)
+}
+{{- else}}
+
+// Get{{.Kind}} returns {{.Article}} {{.Lower}} by name.
+func (s *{{.Kind}}Service) Get{{.Kind}}(ctx context.Context, name string) ({{.QualType}}, error) {
+	r, err := s.service.GetResource(ctx, name)
+	return r, trace.Wrap(err)
+}
+{{- end}}
+{{- end}}
+{{- if .Ops.List}}
+{{- if .IsScoped}}
+
+// List{{.Plural}} returns a paginated list of {{.Lower}} resources within a {{.ScopeBy}}.
+func (s *{{.Kind}}Service) List{{.Plural}}(ctx context.Context, {{.ScopeBy}} string, pageSize int64, pageToken string) ([]{{.QualType}}, string, error) {
+	if pageSize <= 0 {
+		pageSize = {{.Lower}}DefaultPageSize
+	}
+	if pageSize > {{.Lower}}MaxPageSize {
+		pageSize = {{.Lower}}MaxPageSize
+	}
+	r, nextToken, err := s.service.WithPrefix({{.ScopeBy}}).ListResources(ctx, int(pageSize), pageToken)
+	return r, nextToken, trace.Wrap(err)
+}
+{{- else}}
+
+// List{{.Plural}} returns a paginated list of {{.Lower}} resources.
+func (s *{{.Kind}}Service) List{{.Plural}}(ctx context.Context, pageSize int64, pageToken string) ([]{{.QualType}}, string, error) {
+	if pageSize <= 0 {
+		pageSize = {{.Lower}}DefaultPageSize
+	}
+	if pageSize > {{.Lower}}MaxPageSize {
+		pageSize = {{.Lower}}MaxPageSize
+	}
+	r, nextToken, err := s.service.ListResources(ctx, int(pageSize), pageToken)
+	return r, nextToken, trace.Wrap(err)
+}
+{{- end}}
+{{- end}}
+{{- if .Ops.Create}}
+{{- if .IsScoped}}
+
+// Create{{.Kind}} creates a new {{.Lower}} resource.
+func (s *{{.Kind}}Service) Create{{.Kind}}(ctx context.Context, {{.Lower}} {{.QualType}}) ({{.QualType}}, error) {
+	r, err := s.service.WithPrefix({{.Lower}}.GetSpec().Get{{.ScopeByPascal}}()).CreateResource(ctx, {{.Lower}})
+	return r, trace.Wrap(err)
+}
+{{- else}}
+
+// Create{{.Kind}} creates a new {{.Lower}} resource.
+func (s *{{.Kind}}Service) Create{{.Kind}}(ctx context.Context, {{.Lower}} {{.QualType}}) ({{.QualType}}, error) {
+	r, err := s.service.CreateResource(ctx, {{.Lower}})
+	return r, trace.Wrap(err)
+}
+{{- end}}
+{{- end}}
+{{- if .Ops.Update}}
+{{- if .IsScoped}}
+
+// Update{{.Kind}} updates an existing {{.Lower}} resource.
+func (s *{{.Kind}}Service) Update{{.Kind}}(ctx context.Context, {{.Lower}} {{.QualType}}) ({{.QualType}}, error) {
+	r, err := s.service.WithPrefix({{.Lower}}.GetSpec().Get{{.ScopeByPascal}}()).ConditionalUpdateResource(ctx, {{.Lower}})
+	return r, trace.Wrap(err)
+}
+{{- else}}
+
+// Update{{.Kind}} updates an existing {{.Lower}} resource.
+func (s *{{.Kind}}Service) Update{{.Kind}}(ctx context.Context, {{.Lower}} {{.QualType}}) ({{.QualType}}, error) {
+	r, err := s.service.ConditionalUpdateResource(ctx, {{.Lower}})
+	return r, trace.Wrap(err)
+}
+{{- end}}
+{{- end}}
+{{- if .Ops.Upsert}}
+{{- if .IsScoped}}
+
+// Upsert{{.Kind}} creates or updates {{.Article}} {{.Lower}} resource.
+func (s *{{.Kind}}Service) Upsert{{.Kind}}(ctx context.Context, {{.Lower}} {{.QualType}}) ({{.QualType}}, error) {
+	r, err := s.service.WithPrefix({{.Lower}}.GetSpec().Get{{.ScopeByPascal}}()).UpsertResource(ctx, {{.Lower}})
+	return r, trace.Wrap(err)
+}
+{{- else}}
+
+// Upsert{{.Kind}} creates or updates {{.Article}} {{.Lower}} resource.
+func (s *{{.Kind}}Service) Upsert{{.Kind}}(ctx context.Context, {{.Lower}} {{.QualType}}) ({{.QualType}}, error) {
+	r, err := s.service.UpsertResource(ctx, {{.Lower}})
+	return r, trace.Wrap(err)
+}
+{{- end}}
+{{- end}}
+{{- if .Ops.Delete}}
+{{- if .IsSingleton}}
+
+// Delete{{.Kind}} deletes the singleton {{.Lower}} resource.
+func (s *{{.Kind}}Service) Delete{{.Kind}}(ctx context.Context) error {
+	return trace.Wrap(s.service.DeleteResource(ctx, singletonName))
+}
+{{- else if .IsScoped}}
+
+// Delete{{.Kind}} deletes {{.Article}} {{.Lower}} resource by {{.ScopeBy}} and name.
+func (s *{{.Kind}}Service) Delete{{.Kind}}(ctx context.Context, {{.ScopeBy}} string, name string) error {
+	return trace.Wrap(s.service.WithPrefix({{.ScopeBy}}).DeleteResource(ctx, name))
+}
+{{- else}}
+
+// Delete{{.Kind}} deletes {{.Article}} {{.Lower}} resource by name.
+func (s *{{.Kind}}Service) Delete{{.Kind}}(ctx context.Context, name string) error {
+	return trace.Wrap(s.service.DeleteResource(ctx, name))
+}
+{{- end}}
+{{- end}}

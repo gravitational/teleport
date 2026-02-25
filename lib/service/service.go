@@ -3101,6 +3101,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.Plugin = services.Plugins
 	cfg.AppAuthConfig = services.AppAuthConfig
 	cfg.WorkloadClusterService = services.WorkloadClusterService
+	cfg.GeneratedConfig = services.ToCacheConfig()
 
 	return accesspoint.NewCache(cfg)
 }

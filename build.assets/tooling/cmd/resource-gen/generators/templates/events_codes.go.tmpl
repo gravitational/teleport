@@ -1,0 +1,10 @@
+package events
+
+// Generated event code constants for resource-gen managed resources.
+
+const (
+{{- range .Events}}
+	// {{.ConstName}}Code is the event code for {{.Lower}} {{.OpLower}} operations.
+	{{.ConstName}}Code = "{{.Code}}"
+{{- end}}
+)

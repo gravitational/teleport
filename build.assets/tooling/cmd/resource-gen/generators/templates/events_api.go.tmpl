@@ -1,0 +1,10 @@
+package events
+
+// Generated event type constants for resource-gen managed resources.
+
+const (
+{{- range .Events}}
+	// {{.ConstName}}Event is the event type for {{.Lower}} {{.OpLower}} operations.
+	{{.ConstName}}Event = "resource.{{.Lower}}.{{.OpLower}}"
+{{- end}}
+)
