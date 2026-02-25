@@ -6,13 +6,13 @@ const classifySystemPrompt = `You are a Teleport infrastructure analyst. Classif
 Grouping rules:
 1. First group by account_id and region.
 2. Within each account/region, group by instance_id.
-3. Within each instance, group by error type. Deduplicate: if the same error occurs multiple times on one instance, merge into a single issue with the total event count.
+3. Within each instance, group by distinct failure mode. Two events share a failure mode ONLY when they fail at the same step for the same reason (e.g. two identical "permission denied" errors). Events that share a broad category (e.g. both involve disk space) but fail at different stages (pre-download size check vs. mid-extraction write failure) MUST be separate issues. When in doubt, keep issues separate rather than merging.
 
-For each issue, assign:
-- confidence: high (root cause is unambiguous), medium (likely correct but inferred), low (best guess, logs are vague).
-- count: number of events for this issue on this instance.
-- error_summary: a short plain-language description of what went wrong.
-- remediation: concrete steps to fix it.
+For each issue, provide:
+- confidence: high (root cause is unambiguous from the logs), medium (likely correct but partially inferred), low (best guess, logs are vague).
+- count: number of events that match this exact failure mode on this instance.
+- error_summary: one sentence describing what failed and where in the process it failed.
+- remediation: concrete, actionable steps to fix it. Reference specific AWS/Teleport concepts where relevant.
 
 Return ONLY valid JSON matching this schema:
 {
