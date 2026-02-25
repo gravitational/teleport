@@ -44,6 +44,9 @@ type resourceGetter func(ctx context.Context) ([]string, error)
 const hostKey = "nodes_by_hostname"
 
 func NewCache(filePath string, clt *authclient.Client, tc *client.TeleportClient) *cache {
+	if filePath == "" {
+		filePath = DefaultCache
+	}
 	updaters := make(map[string]resourceGetter, len(resources.Handlers())+1)
 	if clt != nil {
 		for kind, handler := range resources.Handlers() {
