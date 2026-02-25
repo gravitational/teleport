@@ -419,10 +419,18 @@ func (h *Handler) getAppSessionFromCert(r *http.Request) (types.WebSession, erro
 		return nil, trace.BadParameter("request missing client certificate")
 	}
 
+	// TODO(greedy52) refactor identity selection logic. We have following situations:
+	// (1) Identity from session cookie
+	// (2) Identity from https with mTLS
+	// (3) Identity from TLS-routing mTLS
+	// (4) Identity from both TLS-routing mTLS and inner https layer (either cookie or TLS cert)
+	// First three are easy. For (4), we should first validate they are the same
+	// identity. Then we have to decide which layer's identity has higher
+	// priority (e.g. which session ID).
 	var certificate *x509.Certificate
 	if certFromCtx, err := authz.UserCertificateFromContext(r.Context()); err == nil {
 		certificate = certFromCtx
-		h.logger.InfoContext(r.Context(), "==== loading certificate from context")
+		h.logger.InfoContext(r.Context(), "Loading certificate from context")
 	} else {
 		certificate = r.TLS.PeerCertificates[0]
 	}

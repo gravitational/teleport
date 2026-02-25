@@ -75,6 +75,8 @@ type Application interface {
 	IsTCP() bool
 	// IsMCP returns true if this app represents a MCP server.
 	IsMCP() bool
+	// IsHTTP returns true if this app represents an HTTP server.
+	IsHTTP() bool
 	// GetProtocol returns the application protocol.
 	GetProtocol() string
 	// GetAWSAccountID returns value of label containing AWS account ID on this app.
@@ -304,6 +306,11 @@ func (a *AppV3) IsTCP() bool {
 // IsMCP returns true if provided uri is an MCP app.
 func (a *AppV3) IsMCP() bool {
 	return IsAppMCP(a.Spec.URI)
+}
+
+// IsHTTP returns true if this app represents an HTTP server.
+func (a *AppV3) IsHTTP() bool {
+	return strings.HasPrefix(a.Spec.URI, "http://") || strings.HasPrefix(a.Spec.URI, "https://")
 }
 
 func IsAppTCP(uri string) bool {
