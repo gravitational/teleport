@@ -17,5 +17,5 @@ export async function login(page: Page, username = 'bob', password = 'secret') {
 
   await page.waitForLoadState('networkidle');
 
-  await expect(page.getByText(/^teleport-e2e$/).first()).toBeVisible();
+  await expect(page.getByText(/^Resources$/).first()).toBeVisible();
 }
