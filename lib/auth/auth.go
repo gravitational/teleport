@@ -5906,7 +5906,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if req.GetDryRun() {
 		// NOTE: Some dry-run options are set in [services.ValidateAccessRequestForUser].
 
-		_, lists := a.generateAccessRequestSuggestedReviewerLists(ctx, req, allAccessLists)
+		lists := a.generateAccessRequestSuggestedReviewerLists(ctx, req, allAccessLists)
 
 		// TODO(kiosion): if long-term, skip promotion generation, and instead, use info from LongTermResourceGrouping to add additional reviewers.
 		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessListsInternal, lists)
@@ -6158,13 +6158,13 @@ func (a *Server) generateAccessRequestPromotions(ctx context.Context, req types.
 	return reqCopy, promotions
 }
 
-func (a *Server) generateAccessRequestSuggestedReviewerLists(ctx context.Context, req types.AccessRequest, acls []*accesslist.AccessList) (types.AccessRequest, *types.AccessRequestSuggestedReviewerLists) {
+func (a *Server) generateAccessRequestSuggestedReviewerLists(ctx context.Context, req types.AccessRequest, acls []*accesslist.AccessList) *types.AccessRequestSuggestedReviewerLists {
 	reqCopy := req.Copy()
 	lists, err := modules.GetModules().GenerateAccessRequestSuggestedReviewerLists(ctx, &cacheWithFetchedAccessLists{a.Cache, acls}, reqCopy)
 	if err != nil {
 		a.logger.WarnContext(ctx, "Failed to determine access list memberships", "error", err)
 	}
-	return reqCopy, lists
+	return lists
 }
 
 // updateAccessRequestWithAdditionalReviewers will update the given access request with additional reviewers from the owners
