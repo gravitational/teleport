@@ -3,6 +3,9 @@ run-name: E2E Tests
 on:
   push:
     paths:
+      - '.github/workflows/e2e-tests.yaml'
+      - '**.go'
+      - 'e2e/**'
       - 'web/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
