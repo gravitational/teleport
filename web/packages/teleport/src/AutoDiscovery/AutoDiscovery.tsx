@@ -23,8 +23,6 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { Route } from 'teleport/components/Router';
-import cfg from 'teleport/config';
 
 import { IssueList } from './IssueList';
 
@@ -34,7 +32,9 @@ export function AutoDiscovery() {
       <FeatureHeader justifyContent="space-between">
         <FeatureHeaderTitle>Auto Discovery</FeatureHeaderTitle>
       </FeatureHeader>
-      <IssueList />
+      <Box>
+        <IssueList />
+      </Box>
     </FeatureBox>
   );
 }
