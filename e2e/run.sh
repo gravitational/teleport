@@ -21,7 +21,8 @@ openssl req -x509 -newkey rsa:2048 \
   -subj "/CN=localhost" \
   -addext "subjectAltName=DNS:localhost,DNS:teleport-e2e,IP:127.0.0.1"
 
-# Create data directory
+# Clean and create data directory
+rm -rf "$DATA_DIR"
 mkdir -p "$DATA_DIR"
 
 # Rewrite config with generated cert paths and local data dir
