@@ -1147,6 +1147,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/discoveryconfig/:name", h.WithClusterAuth(h.discoveryconfigUpdate))
 	h.DELETE("/webapi/sites/:site/discoveryconfig/:name", h.WithClusterAuth(h.discoveryconfigDelete))
 
+	// Hackathon
+	h.GET("/webapi/sites/:site/discovery/log", h.WithClusterAuth(h.discoveryLog))
+
 	// User Tasks CRUD
 	// Listing Tasks by Integration: GET /webapi/sites/:site/usertask?integration=<integration-name>
 	h.GET("/webapi/sites/:site/usertask", h.WithClusterAuth(h.userTaskListByIntegration))

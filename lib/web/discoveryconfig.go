@@ -19,14 +19,18 @@
 package web
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/defaults"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -180,4 +184,57 @@ func (h *Handler) discoveryconfigList(w http.ResponseWriter, r *http.Request, p 
 		Items:   ui.MakeDiscoveryConfigs(dcs),
 		NextKey: nextKey,
 	}, nil
+}
+
+type discoveryLogEntry struct {
+	AccountID  string
+	Region     string
+	InstanceID string
+	Status     string
+}
+
+type discoveryLogResponse []discoveryLogEntry
+
+func (h *Handler) discoveryLog(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	ctx := r.Context()
+
+	clt, err := sctx.GetUserClient(ctx, cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	events, _, err := clt.SearchEvents(ctx, libevents.SearchEventsRequest{
+		From:       time.Now().Add(-24 * time.Hour),
+		To:         time.Now(),
+		EventTypes: []string{libevents.SSMRunEvent},
+		Limit:      1000,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	events, err = analyzeEvents(ctx, events)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var response discoveryLogResponse
+	for _, event := range events {
+		ssmRun, ok := event.(*apievents.SSMRun)
+		if !ok {
+			continue
+		}
+		response = append(response, discoveryLogEntry{
+			AccountID:  ssmRun.AccountID,
+			Region:     ssmRun.Region,
+			InstanceID: ssmRun.InstanceID,
+			Status:     ssmRun.Status,
+		})
+	}
+
+	return response, nil
+}
+
+func analyzeEvents(ctx context.Context, events []apievents.AuditEvent) ([]apievents.AuditEvent, error) {
+	return events, nil
 }
