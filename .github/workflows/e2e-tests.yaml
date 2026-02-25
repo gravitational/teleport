@@ -90,13 +90,6 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Cache e2e node_modules
-        uses: actions/cache@v4
-        with:
-          path: e2e/node_modules
-          key: e2e-pnpm-${{ runner.os }}-${{ hashFiles('e2e/pnpm-lock.yaml') }}
-          restore-keys: e2e-pnpm-${{ runner.os }}-
-
       - name: Install e2e dependencies
         working-directory: e2e
         run: |
