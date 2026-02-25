@@ -77,7 +77,10 @@ type FileTransferDecisionReq struct {
 // original payload from the client.
 func ContextFromRequest(req *ssh.Request, opts ...tracing.Option) context.Context {
 	ctx := context.Background()
+	return ContextFromRequestContext(ctx, req, opts...)
+}
 
+func ContextFromRequestContext(ctx context.Context, req *ssh.Request, opts ...tracing.Option) context.Context {
 	var envelope Envelope
 	if err := json.Unmarshal(req.Payload, &envelope); err != nil {
 		return ctx
@@ -97,8 +100,13 @@ func ContextFromRequest(req *ssh.Request, opts ...tracing.Option) context.Contex
 // original ExtraData from the client is exposed instead of the Envelope
 // payload.
 func ContextFromNewChannel(nch ssh.NewChannel, opts ...tracing.Option) (context.Context, ssh.NewChannel) {
+	ctx := context.Background()
+	return ContextFromNewChannelContext(ctx, nch, opts...)
+}
+
+func ContextFromNewChannelContext(ctx context.Context, nch ssh.NewChannel, opts ...tracing.Option) (context.Context, ssh.NewChannel) {
 	ch := NewTraceNewChannel(nch)
-	ctx := tracing.WithPropagationContext(context.Background(), ch.Envelope.PropagationContext, opts...)
+	ctx = tracing.WithPropagationContext(ctx, ch.Envelope.PropagationContext, opts...)
 
 	return ctx, ch
 }
@@ -255,7 +263,7 @@ func peerAttr(addr net.Addr) []attribute.KeyValue {
 type Envelope struct {
 	PropagationContext tracing.PropagationContext
 	Payload            []byte
-	RequestID          any
+	RequestID          string
 }
 
 // createEnvelope wraps the provided payload with a tracing envelope

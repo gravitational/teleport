@@ -648,6 +648,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 					semconv.RPCSystemKey.String("ssh"),
 				),
 			)
+			ctx = tracessh.ContextFromRequestContext(ctx, req)
 
 			if s.reqHandler != nil {
 				go func(span oteltrace.Span) {
@@ -675,6 +676,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 					semconv.RPCSystemKey.String("ssh"),
 				),
 			)
+			ctx, _ = tracessh.ContextFromNewChannelContext(ctx, nch)
 
 			go func(span oteltrace.Span) {
 				defer span.End()
