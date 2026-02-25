@@ -77,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/integrations/acr"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/moderation"
@@ -337,6 +338,10 @@ type Config struct {
 
 	// DatabaseREPLRegistry is used for retrieving database REPL.
 	DatabaseREPLRegistry dbrepl.REPLRegistry
+
+	// ACRService is an optional audit-log classification service powered by
+	// an LLM. When nil the discoveryLog handler returns raw events instead.
+	ACRService *acr.Service
 }
 
 // SetDefaults ensures proper default values are set if

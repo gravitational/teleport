@@ -19,7 +19,7 @@
 package web
 
 import (
-	"context"
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -186,14 +186,19 @@ func (h *Handler) discoveryconfigList(w http.ResponseWriter, r *http.Request, p 
 	}, nil
 }
 
-type discoveryLogEntry struct {
-	AccountID  string
-	Region     string
-	InstanceID string
-	Status     string
+// ssmRunEntry is a lightweight representation of an SSMRun event for JSON
+// serialisation to the ACR classification prompt.
+type ssmRunEntry struct {
+	AccountID     string `json:"account_id"`
+	Region        string `json:"region"`
+	InstanceID    string `json:"instance_id"`
+	Status        string `json:"status"`
+	ExitCode      int64  `json:"exit_code"`
+	CommandID     string `json:"command_id"`
+	InvocationURL string `json:"invocation_url"`
+	Stdout        string `json:"stdout"`
+	Stderr        string `json:"stderr"`
 }
-
-type discoveryLogResponse []discoveryLogEntry
 
 func (h *Handler) discoveryLog(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	ctx := r.Context()
@@ -213,28 +218,40 @@ func (h *Handler) discoveryLog(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.Wrap(err)
 	}
 
-	events, err = analyzeEvents(ctx, events)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var response discoveryLogResponse
+	// Build a flat list of SSM run entries.
+	var entries []ssmRunEntry
 	for _, event := range events {
 		ssmRun, ok := event.(*apievents.SSMRun)
 		if !ok {
 			continue
 		}
-		response = append(response, discoveryLogEntry{
-			AccountID:  ssmRun.AccountID,
-			Region:     ssmRun.Region,
-			InstanceID: ssmRun.InstanceID,
-			Status:     ssmRun.Status,
+		entries = append(entries, ssmRunEntry{
+			AccountID:     ssmRun.AccountID,
+			Region:        ssmRun.Region,
+			InstanceID:    ssmRun.InstanceID,
+			Status:        ssmRun.Status,
+			ExitCode:      ssmRun.ExitCode,
+			CommandID:     ssmRun.CommandID,
+			InvocationURL: ssmRun.InvocationURL,
+			Stdout:        ssmRun.StandardOutput,
+			Stderr:        ssmRun.StandardError,
 		})
 	}
 
-	return response, nil
-}
+	// Graceful degradation: when no ACR service is configured, return raw entries.
+	if h.cfg.ACRService == nil {
+		return entries, nil
+	}
 
-func analyzeEvents(ctx context.Context, events []apievents.AuditEvent) ([]apievents.AuditEvent, error) {
-	return events, nil
+	auditJSON, err := json.Marshal(entries)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	result, err := h.cfg.ACRService.Classify(ctx, string(auditJSON))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return result, nil
 }

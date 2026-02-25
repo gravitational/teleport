@@ -195,6 +195,7 @@ import (
 	libwatcher "github.com/gravitational/teleport/lib/watcher"
 	"github.com/gravitational/teleport/lib/web"
 	webapp "github.com/gravitational/teleport/lib/web/app"
+	"github.com/gravitational/teleport/integrations/acr"
 )
 
 const (
@@ -5451,6 +5452,16 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			})
 		}
 
+		// Try to initialise the ACR (audit classification) service. It requires
+		// an OpenAI API key; when absent the discoveryLog handler degrades
+		// gracefully and returns raw events.
+		var acrService *acr.Service
+		if acrSvc, err := acr.NewService(); err != nil {
+			logger.WarnContext(process.ExitContext(), "ACR service unavailable, discoveryLog will return raw events.", "error", err)
+		} else {
+			acrService = acrSvc
+		}
+
 		webConfig := web.Config{
 			Proxy:                     tsrv,
 			AuthServers:               cfg.AuthServerAddresses()[0],
@@ -5491,6 +5502,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			IntegrationAppHandler:     connectionsHandler,
 			FeatureWatchInterval:      retryutils.HalfJitter(web.DefaultFeatureWatchInterval * 2),
 			DatabaseREPLRegistry:      cfg.DatabaseREPLRegistry,
+			ACRService:                acrService,
 		}
 		webHandler, err := web.NewHandler(webConfig, web.SetClock(process.Clock))
 		if err != nil {
