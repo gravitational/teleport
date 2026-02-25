@@ -84,17 +84,23 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
 
-    container:
-      image: mcr.microsoft.com/playwright:v1.58.2-noble
-
     steps:
       - uses: actions/checkout@v6
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pnpm
+        run: corepack enable
+
       - name: Install e2e dependencies
         working-directory: e2e
-        run: |
-          corepack enable
-          pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        working-directory: e2e
+        run: pnpm exec playwright install --with-deps chromium
 
       - uses: actions/download-artifact@v4
         with:
@@ -108,7 +114,7 @@ jobs:
           chmod +x build/tsh
 
       - name: Start Teleport
-        run: e2e/run.sh
+        run: e2e/run.sh --with-ssh-node
 
       - name: Run Tests
         working-directory: e2e

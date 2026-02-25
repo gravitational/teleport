@@ -6,20 +6,23 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 MODE="test"
 BUILD=true
+WITH_SSH_NODE=false
 
 usage() {
-  echo "Usage: $0 [--no-build] [--ui | --codegen | --debug]"
+  echo "Usage: $0 [--no-build] [--with-ssh-node] [--ui | --codegen | --debug]"
   echo ""
-  echo "  --no-build   Skip building Teleport"
-  echo "  --ui         Open Playwright UI mode"
-  echo "  --codegen    Open Playwright codegen against running Teleport"
-  echo "  --debug      Run tests with Playwright inspector"
+  echo "  --no-build        Skip building Teleport"
+  echo "  --with-ssh-node   Run a Docker-based SSH node"
+  echo "  --ui              Open Playwright UI mode"
+  echo "  --codegen         Open Playwright codegen against running Teleport"
+  echo "  --debug           Run tests with Playwright inspector"
   exit 0
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-build) BUILD=false; shift ;;
+    --with-ssh-node) WITH_SSH_NODE=true; shift ;;
     --ui) MODE="ui"; shift ;;
     --codegen) MODE="codegen"; shift ;;
     --debug) MODE="debug"; shift ;;
@@ -29,6 +32,11 @@ while [[ $# -gt 0 ]]; do
 done
 
 cleanup() {
+  if [ "$WITH_SSH_NODE" = true ]; then
+    echo "Stopping Docker SSH node..."
+    docker stop teleport-e2e-node 2>/dev/null || true
+    docker rm teleport-e2e-node 2>/dev/null || true
+  fi
   if [ -n "${TELEPORT_PID:-}" ]; then
     echo "Stopping Teleport (PID: $TELEPORT_PID)..."
     kill "$TELEPORT_PID" 2>/dev/null || true
@@ -55,7 +63,11 @@ pnpm exec playwright install --with-deps chromium
 
 # Start teleport
 echo "==> Starting Teleport..."
-"$SCRIPT_DIR/run.sh"
+RUN_ARGS=()
+if [ "$WITH_SSH_NODE" = true ]; then
+  RUN_ARGS+=("--with-ssh-node")
+fi
+"$SCRIPT_DIR/run.sh" "${RUN_ARGS[@]}"
 TELEPORT_PID=$(pgrep -nf "teleport start")
 
 # Run in selected mode
