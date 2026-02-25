@@ -225,6 +225,15 @@ Content here...
 
 ## Page templates
 
+Docs pages fall into several types, with different audiences and structures.
+Each page type corresponds to a value of the `tags` frontmatter item.
+
+|Type|Purpose|`tags` value|
+|---|---|---|
+|How-to|Includes steps for achieving a concrete goal.|`how-to`|
+|Reference|Includes a comprehensive list of values, commands, arguments, fields, and so on.|`reference`|
+|Conceptual|Explains relationships between concepts or how something works.|`conceptual`|
+
 ### How-to guide
 
 ```mdx
