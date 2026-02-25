@@ -49,7 +49,9 @@ func NewCache(filePath string, clt *authclient.Client, tc *client.TeleportClient
 	if clt != nil {
 		for kind, handler := range resources.Handlers() {
 			updaters[kind] = func(ctx context.Context) ([]string, error) {
-
+				if handler.Singleton() {
+					return []string{""}, nil
+				}
 				resources, err := handler.Get(ctx, clt, services.Ref{
 					Kind: kind,
 				}, resources.GetOpts{})
@@ -85,7 +87,7 @@ func (c *cache) update(ctx context.Context, kind string) error {
 	updatedResourcesFn := c.resourceGettersFunc[kind]
 	updatedResources, err := updatedResourcesFn(ctx)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	storage, err := c.readFromFile()
 	if err != nil {
@@ -98,9 +100,9 @@ func (c *cache) update(ctx context.Context, kind string) error {
 
 	err = c.writeToFile(storage)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
-	return err
+	return trace.Wrap(err)
 }
 
 func (c *cache) Update(ctx context.Context) error {
