@@ -853,6 +853,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		printInitLoggerError(err)
 	}
 
+	if err := autocomplete.UpdateCompletionsInBackground(); err != nil {
+		slog.DebugContext(ctx, "Failed to fetch autocomplete resources", "error", err)
+	}
+
 	// We need to parse the arguments before executing managed updates to identify
 	// the profile name and the required version for the current cluster.
 	// All other commands and flags may change between versions, so full parsing
@@ -954,7 +958,32 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// ssh
 	// Use Interspersed(false) to forward all flags to ssh.
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node.").Interspersed(false)
-	ssh.Arg("[user@]host", "Remote hostname and the login to use, this argument is required.").StringVar(&cf.UserHost)
+	ssh.Arg("[user@]host", "Remote hostname and the login to use, this argument is required.").HintAction(func() []string {
+		proxy, err := cf.getClientStore().CurrentProfile()
+		if err != nil {
+			return nil
+		}
+		cf.Proxy = proxy
+		var logins []string
+		profile, _, err := cf.FullProfileStatus()
+		if err == nil {
+			logins = profile.Logins
+		}
+		cache := autocomplete.NewCache(autocomplete.DefaultCache, nil, nil)
+		hosts, err := cache.Get(autocomplete.HostKey)
+		if err != nil {
+			return nil
+		}
+
+		options := make([]string, 0, (len(hosts)+1)*len(logins))
+		options = append(options, hosts...)
+		for _, login := range logins {
+			for _, host := range hosts {
+				options = append(options, fmt.Sprintf("%s@%s", login, host))
+			}
+		}
+		return options
+	}).StringVar(&cf.UserHost)
 	ssh.Arg("command", "Command to execute on a remote host.").StringsVar(&cf.RemoteCommand)
 	app.Flag("jumphost", "SSH jumphost.").Short('J').StringVar(&cf.ProxyJump)
 	ssh.Flag("port", "SSH port on a remote host.").Short('p').Int32Var(&cf.NodePort)
