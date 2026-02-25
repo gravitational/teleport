@@ -1,5 +1,3 @@
-;
-
 /**
  * Teleport
  * Copyright (C) 2025  Gravitational, Inc.
@@ -20,31 +18,7 @@
 
 import { defineConfig, devices } from '@playwright/test';
 
-
-
-
-
-;
-
-
-
-
-
-
-
-
-
-;
-
-
-
-
-
-
-
-
-// Default to localhost:3080/web/login if START_URL is not defined.
-const baseURL = process.env.START_URL || 'http://localhost:3080/web/login';
+const baseURL = process.env.START_URL || 'https://localhost:3080/web';
 
 export default defineConfig({
   testDir: './tests',
