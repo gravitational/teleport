@@ -4,7 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Context
 
-This directory (`content/18.x`) is a git submodule containing Teleport documentation source for version 18.x. It lives inside the [`docs-website`](https://github.com/gravitational/docs-website) repo (one level up), which is a Docusaurus site that builds and serves the docs. All build, lint, and preview commands are run from the `docs-website` root.
+The [docs-website](https://github.com/gravitational/docs-website) repo contains
+source files for the Teleport docs site. In the `content` directory is a git
+submodule that corresponds to each supported version of the docs site, such as
+`content/18.x` (for v18 and minor versions) and `content/17.x` (for v17 and
+minor versions). The highest-numbered subdirectory of `content` is for the edge
+version of the docs.
+
+Each submodule of `content` is a clone of
+https://github.com/gravitational/teleport. This CLAUDE.md file is in the `docs`
+directory of a single `gravitational/teleport` clone within a subdirectory of
+`content`.
+
+All build, lint, and preview commands are run from the `docs-website` root.
 
 ## Commands (run from `../..` — the docs-website root)
 
