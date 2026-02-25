@@ -9,9 +9,14 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
@@ -39,7 +44,10 @@ type cacheEntry struct {
 
 type resourceGetter func(ctx context.Context) ([]string, error)
 
-const HostKey = "nodes_by_hostname"
+const (
+	HostKey       = "nodes_by_hostname"
+	RecordingsKey = "recordings"
+)
 
 func NewCache(filePath string, clt *authclient.Client, tc *client.TeleportClient) *cache {
 	if filePath == "" {
@@ -77,6 +85,30 @@ func NewCache(filePath string, clt *authclient.Client, tc *client.TeleportClient
 				nodeHosts = append(nodeHosts, node.GetHostname())
 			}
 			return nodeHosts, nil
+		}
+		updaters[RecordingsKey] = func(ctx context.Context) ([]string, error) {
+			fromUTC, toUTC, err := defaults.SearchSessionRange(clockwork.NewRealClock(), "", "", "")
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			auditEvents, err := tc.SearchSessionEvents(ctx, fromUTC, toUTC, apidefaults.DefaultChunkSize, types.EventOrderDescending, 100)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			type sessionEvent interface {
+				GetSessionID() string
+			}
+			var sessionIDs []string
+			for _, event := range auditEvents {
+				switch event.GetType() {
+				case events.SessionEndEvent,
+					events.WindowsDesktopSessionEndEvent,
+					events.DatabaseSessionEndEvent,
+					events.AppSessionChunkEvent:
+					sessionIDs = append(sessionIDs, event.(sessionEvent).GetSessionID())
+				}
+			}
+			return sessionIDs, nil
 		}
 	}
 	return &cache{filepath: filePath, resourceGettersFunc: updaters}

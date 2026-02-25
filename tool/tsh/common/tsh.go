@@ -877,31 +877,35 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	cf.kingpinApp = utils.InitCLIParser("tsh", "Teleport Command Line Client.").Interspersed(true)
 	app := cf.kingpinApp
 
-	getUserHostHints := func() []string {
-		proxy, err := cf.getClientStore().CurrentProfile()
-		if err != nil {
-			return nil
-		}
-		cf.Proxy = proxy
-		var logins []string
-		profile, _, err := cf.FullProfileStatus()
-		if err == nil {
-			logins = profile.Logins
-		}
-		cache := autocomplete.NewCache(autocomplete.DefaultCache, nil, nil)
-		hosts, err := cache.Get(autocomplete.HostKey)
-		if err != nil {
-			return nil
-		}
-
-		options := make([]string, 0, (len(hosts)+1)*len(logins))
-		options = append(options, hosts...)
-		for _, login := range logins {
-			for _, host := range hosts {
-				options = append(options, fmt.Sprintf("%s@%s", login, host))
+	getUserHostHints := func(suffix string) func() []string {
+		return func() []string {
+			proxy, err := cf.getClientStore().CurrentProfile()
+			if err != nil {
+				return nil
 			}
+			cf.Proxy = proxy
+			var logins []string
+			profile, _, err := cf.FullProfileStatus()
+			if err == nil {
+				logins = profile.Logins
+			}
+			cache := autocomplete.NewCache(autocomplete.DefaultCache, nil, nil)
+			hosts, err := cache.Get(autocomplete.HostKey)
+			if err != nil {
+				return nil
+			}
+
+			options := make([]string, 0, (len(hosts)+1)*len(logins))
+			for _, host := range hosts {
+				options = append(options, host+suffix)
+			}
+			for _, login := range logins {
+				for _, host := range hosts {
+					options = append(options, fmt.Sprintf("%s@%s%s", login, host, suffix))
+				}
+			}
+			return options
 		}
-		return options
 	}
 
 	app.Flag("login", "Remote host login.").Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
@@ -981,7 +985,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// ssh
 	// Use Interspersed(false) to forward all flags to ssh.
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node.").Interspersed(false)
-	ssh.Arg("[user@]host", "Remote hostname and the login to use, this argument is required.").HintAction(getUserHostHints).StringVar(&cf.UserHost)
+	ssh.Arg("[user@]host", "Remote hostname and the login to use, this argument is required.").HintAction(getUserHostHints("")).StringVar(&cf.UserHost)
 	ssh.Arg("command", "Command to execute on a remote host.").StringsVar(&cf.RemoteCommand)
 	app.Flag("jumphost", "SSH jumphost.").Short('J').StringVar(&cf.ProxyJump)
 	ssh.Flag("port", "SSH port on a remote host.").Short('p').Int32Var(&cf.NodePort)
@@ -1227,12 +1231,19 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	play.Flag("format", defaults.FormatFlagDescription(
 		teleport.PTY, teleport.JSON, teleport.YAML, teleport.Text,
 	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML, teleport.Text)
-	play.Arg("session-id", "ID or path to session file to play.").Required().StringVar(&cf.SessionID)
+	play.Arg("session-id", "ID or path to session file to play.").Required().HintAction(func() []string {
+		cache := autocomplete.NewCache(autocomplete.DefaultCache, nil, nil)
+		recordings, err := cache.Get(autocomplete.RecordingsKey)
+		if err != nil {
+			return []string{}
+		}
+		return recordings
+	}).StringVar(&cf.SessionID)
 
 	// scp
 	scp := app.Command("scp", "Transfer files to a remote SSH node.")
 	scp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
-	scp.Arg("from, to", "Source and destination to copy, one must be a local path and one must be a remote path.").Required().HintAction(getUserHostHints).StringsVar(&cf.CopySpec)
+	scp.Arg("from, to", "Source and destination to copy, one must be a local path and one must be a remote path.").Required().HintAction(getUserHostHints(":")).StringsVar(&cf.CopySpec)
 	scp.Flag("recursive", "Recursive copy of subdirectories.").Short('r').BoolVar(&cf.RecursiveCopy)
 	scp.Flag("port", "Port to connect to on the remote host.").Short('P').Int32Var(&cf.NodePort)
 	scp.Flag("preserve", "Preserves access and modification times from the original file.").Short('p').BoolVar(&cf.PreserveAttrs)
