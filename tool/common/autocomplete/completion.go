@@ -165,6 +165,9 @@ func (c *cache) Get(kind string) ([]string, error) {
 	resources := []string{}
 	if kind == "" {
 		for kind, res := range cacheStorage.Resources {
+			if kind == HostKey || kind == RecordingsKey {
+				continue
+			}
 			for _, resource := range res.ResourceNames {
 				resources = append(resources, kind+"/"+resource)
 			}
