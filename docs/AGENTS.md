@@ -240,6 +240,47 @@ Each page type corresponds to a value of the `tags` frontmatter item.
 **Tutorials** (`get-started` tag) are learning oriented, hands-on guides for
 newcomers. They must provide successful outcomes with no unexpected errors.
 
+```mdx
+---
+title: Getting Started with [Feature]
+sidebar_label: Getting Started
+description: Learn how to [accomplish first milestone] with Teleport.
+tags:
+  - get-started
+---
+
+Brief introduction explaining what this guide covers and who it's for.
+
+This guide shows you how to:
+
+- Accomplish task one.
+- Accomplish task two.
+- Accomplish task three.
+
+## How it works
+
+Explain the high-level architecture in 1-3 paragraphs.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- Additional prerequisite 1.
+
+## Step 1/N. First task
+
+Instructions...
+
+## Step N/N. Final task
+
+Instructions...
+
+## Next steps
+
+- Link to related [guide](./related-guide.mdx)
+
+```
+
 ### How-to guide
 
 **How-to guides** (`how-to` tag) are task oriented with practical steps. Assume
