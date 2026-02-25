@@ -385,6 +385,7 @@ const cfg = {
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
 
     discoveryConfigPath: '/v1/webapi/sites/:clusterId/discoveryconfig',
+    discoveryConfigLogPath: '/v1/webapi/sites/:clusterId/discoveryconfig/log',
 
     mfaRequired: '/v1/webapi/sites/:clusterId/mfa/required',
     mfaLoginBegin: '/v1/webapi/mfa/login/begin', // creates authnenticate challenge with user and password
@@ -1391,6 +1392,10 @@ const cfg = {
       startKey: params?.startKey || undefined,
       limit: params?.limit || undefined,
     });
+  },
+
+  getDiscoveryConfigLogUrl(clusterId: string) {
+    return generatePath(cfg.api.discoveryConfigLogPath, { clusterId });
   },
 
   getDiscoveryConfigUrl(clusterId: string) {

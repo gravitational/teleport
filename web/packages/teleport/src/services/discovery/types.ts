@@ -29,6 +29,30 @@ export type DiscoveryConfig = {
   aws: AwsMatcher[];
 };
 
+// hackathon
+export type DiscoveryIssue = {
+  confidence: 'high' | 'medium' | 'low';
+  count: number;
+  error_summary: string;
+  remediation: string;
+};
+
+export type DiscoveryInstance = {
+  instance_id: string;
+  issues: DiscoveryIssue[];
+};
+
+export type DiscoveryConfigLog = {
+  account_id: string;
+  region: string;
+  instances: DiscoveryInstance[];
+};
+
+export type DiscoveryConfigLogResponse = {
+  items: DiscoveryConfigLog[];
+  nextKey?: string;
+};
+
 type AwsMatcherTypes = 'rds' | 'eks' | 'ec2';
 
 export enum InstallParamEnrollMode {

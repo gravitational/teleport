@@ -19,13 +19,30 @@
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
-import { AwsMatcher, DiscoveryConfig } from './types';
+import {
+  AwsMatcher,
+  DiscoveryConfig,
+  DiscoveryConfigLog,
+  DiscoveryConfigLogResponse,
+} from './types';
 
 // the backend expected hardcoded value for field `discoveryGroup`
 // when creating a discovery config.
 export const DISCOVERY_GROUP_CLOUD = 'cloud-discovery-group';
 
 export const DEFAULT_DISCOVERY_GROUP_NON_CLOUD = 'aws-prod';
+
+export function fetchDiscoveryConfigLogs(
+  clusterId: string
+): Promise<DiscoveryConfigLogResponse> {
+  return api.get(cfg.getDiscoveryConfigLogUrl(clusterId)).then(resp => {
+    const logs = resp?.logs ?? [];
+    return {
+      items: logs.map(makeDiscoveryConfigLog),
+      nextKey: resp?.nextKey,
+    };
+  });
+}
 
 export function createDiscoveryConfig(
   clusterId: string,
@@ -38,6 +55,24 @@ export function createDiscoveryConfig(
       aws: makeAwsMatchersReq(req.aws),
     })
     .then(makeDiscoveryConfig);
+}
+
+export function makeDiscoveryConfigLog(rawResp: any): DiscoveryConfigLog {
+  const { account_id, region, instances = [] } = rawResp;
+
+  return {
+    account_id,
+    region,
+    instances: instances.map(instance => ({
+      instance_id: instance.instance_id,
+      issues: instance.issues.map(issue => ({
+        confidence: issue.confidence,
+        count: issue.count,
+        error_summary: issue.error_summary,
+        remediation: issue.remediation,
+      })),
+    })),
+  };
 }
 
 export function makeDiscoveryConfig(rawResp: DiscoveryConfig): DiscoveryConfig {

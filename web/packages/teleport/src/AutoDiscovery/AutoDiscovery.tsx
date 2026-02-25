@@ -26,7 +26,7 @@ import {
 import { Route } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 
-import { AuditList } from './AuditList';
+import { IssueList } from './IssueList';
 
 export function AutoDiscovery() {
   return (
@@ -34,7 +34,7 @@ export function AutoDiscovery() {
       <FeatureHeader justifyContent="space-between">
         <FeatureHeaderTitle>Auto Discovery</FeatureHeaderTitle>
       </FeatureHeader>
-      <AuditList />
+      <IssueList />
     </FeatureBox>
   );
 }
