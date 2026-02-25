@@ -4304,7 +4304,7 @@ message AccessRequestAllowedPromotions {
 // AccessRequestSuggestedReviewerList describes an access list where the owners are
 // suggested reviewers.
 message AccessRequestSuggestedReviewerList {
-  string accessListName = 1;
+  string access_list_name = 1;
 }
 
 // AccessRequestSuggestedReviewerLists represents a list of access lists where the
