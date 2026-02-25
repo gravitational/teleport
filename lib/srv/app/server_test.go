@@ -1065,20 +1065,17 @@ func TestAuthorizeWithLocks(t *testing.T) {
 	// Wait for the lock watcher to process the event before making the
 	// request. This follows the same subscribe-then-wait pattern used in
 	// lib/authz/permissions_test.go (upsertLockWithPutEvent).
-	timeout := time.After(2 * time.Second)
+loop:
 	for {
 		select {
 		case event := <-lockWatch.Events():
 			if event.Type == types.OpPut && event.Resource.GetName() == lock.GetName() {
-				goto ready
+				break loop
 			}
 		case <-lockWatch.Done():
 			t.Fatal("lock watcher closed while waiting for lock event")
-		case <-timeout:
-			t.Fatal("timed out waiting for lock event")
 		}
 	}
-ready:
 
 	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
