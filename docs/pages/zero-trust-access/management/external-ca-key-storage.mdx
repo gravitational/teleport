@@ -1,0 +1,45 @@
+---
+title: External CA Key Storage
+description: Configure external CA key storage in a customer AWS account.
+tags:
+ - how-to
+ - zero-trust
+ - aws
+ - security
+---
+
+`External CA Key Storage` is a guided integration flow in the Teleport Web UI
+for configuring external CA key storage in AWS.
+
+## What this feature does
+
+The guided flow lets you:
+
+1. Enter:
+   - AWS OIDC integration name
+   - AWS account ID
+   - AWS region
+   - KMS key alias prefix
+1. Save those values as a draft configuration.
+1. Promote the draft to an active integration.
+
+## Prerequisites
+
+1. A Teleport Enterprise Cloud account.
+1. Access to the Integrations enrollment page in the Teleport Web UI.
+1. An existing AWS OIDC integration name to reference in the form.
+
+## Guided setup
+
+1. Open **Management** -> **Integrations**.
+1. Choose **External CA Key Storage**.
+1. Complete **Step 1: Configure target AWS account** and click **Save Draft**.
+1. In **Step 2: Review and activate**, verify values and click
+   **Activate Integration**.
+
+After activation, the integration appears as enabled.
+
+## Related guides
+
+- [External Audit Storage](./external-audit-storage.mdx)
+- [Store Teleport Private Keys in AWS KMS (self-hosted)](../deploy-a-cluster/private-keys/aws-kms.mdx)
