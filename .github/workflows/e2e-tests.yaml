@@ -1,39 +1,41 @@
 name: E2E Tests
 run-name: E2E Tests
 on:
-  # Only allow manual triggers
-  workflow_dispatch:
+  push:
+    paths:
+      - 'web/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+    branches:
+      - master
+      - branch/**
 
 jobs:
   build:
-    name: Build binaries
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
-    runs-on: ubuntu-latest
+    name: Build Teleport
+    runs-on: ubuntu-22.04-4core
 
     permissions:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport19-amd64
-      env:
-        GOCACHE: /tmp/gocache
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
 
     steps:
-      - name: Checkout Teleport
-        uses: actions/checkout@v6 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
+      - name: Checkout
+        uses: actions/checkout@v6
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
 
-      - name: Run make
-        run: |
-          make binaries
+      - name: Build Teleport
+        run: make binaries
 
-      - name: Upload binaries
-        uses: actions/upload-artifact@v3
+      - name: Upload teleport binary
+        uses: actions/upload-artifact@v4
         with:
-          name: build
-          path: ${{ github.workspace }}/build/
+          name: teleport-binary
+          path: build/teleport
           retention-days: 1
 
   test:
@@ -54,9 +56,6 @@ jobs:
           chmod +x build/tctl
           chmod +x build/tsh
 
-      - name: Build Images
-        run: |
-          make -C e2e build
       - name: Run Tests
         run: |
-          make test-e2e
+          pnpm e2e

@@ -1,5 +1,5 @@
 {
-  "name": "playwright-e2e-testing",
+  "name": "@gravitational/e2e",
   "version": "1.0.0",
   "description": "Playwright tests for e2e testing.",
   "scripts": {
