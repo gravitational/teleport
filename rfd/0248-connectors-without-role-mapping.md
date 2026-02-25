@@ -7,8 +7,8 @@ state: draft
 
 ## Required Approvers
 
-- Engineering: `TBD`
-- Product: `TBD`
+- Engineering: @smallinsky && @r0mant
+- Product: @r0mant
 
 ## What
 
