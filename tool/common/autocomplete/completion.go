@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -57,9 +58,18 @@ type cacheEntry struct {
 type resourceGetter func(ctx context.Context) ([]string, error)
 
 const (
-	HostKey       = "nodes_by_hostname"
-	RecordingsKey = "recordings"
+	HostKey           = "nodes_by_hostname"
+	RecordingsKey     = "recordings"
+	ActiveSessionsKey = "active_sessions"
+	ClusterLoginKey   = "cluster_login"
 )
+
+var virtualResourceKeys = []string{
+	HostKey,
+	RecordingsKey,
+	ActiveSessionsKey,
+	ClusterLoginKey,
+}
 
 func NewAutoComplete(clt *authclient.Client, tc *client.TeleportClient) *cache {
 	filePath := cachePath()
@@ -121,6 +131,44 @@ func NewAutoComplete(clt *authclient.Client, tc *client.TeleportClient) *cache {
 			}
 			return sessionIDs, nil
 		}
+		updaters[ActiveSessionsKey] = func(ctx context.Context) ([]string, error) {
+			clt, err := tc.ConnectToCluster(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			defer clt.Close()
+			sessions, err := clt.AuthClient.GetActiveSessionTrackers(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			sessionIDs := make([]string, 0, len(sessions))
+			for _, session := range sessions {
+				sessionIDs = append(sessionIDs, session.GetSessionID())
+			}
+			return sessionIDs, nil
+		}
+		updaters[ClusterLoginKey] = func(ctx context.Context) ([]string, error) {
+			clusterClient, err := tc.ConnectToCluster(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			defer clusterClient.Close()
+			rootClusterName := clusterClient.RootClusterName()
+			rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			defer rootAuthClient.Close()
+			leafClusters, err := rootAuthClient.GetRemoteClusters(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			clusters := []string{rootClusterName}
+			for _, cluster := range leafClusters {
+				clusters = append(clusters, cluster.GetName())
+			}
+			return clusters, nil
+		}
 	}
 	return &cache{filepath: filePath, resourceGettersFunc: updaters}
 }
@@ -177,7 +225,7 @@ func (c *cache) Get(kind string) ([]string, error) {
 	resources := []string{}
 	if kind == "" {
 		for kind, res := range cacheStorage.Resources {
-			if kind == HostKey || kind == RecordingsKey {
+			if slices.Contains(virtualResourceKeys, kind) {
 				continue
 			}
 			for _, resource := range res.ResourceNames {
