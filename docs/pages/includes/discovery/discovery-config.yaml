@@ -201,7 +201,8 @@ discovery_service:
             no_proxy: my-local-domain
         # GCP resource label filters used to match resources.
         labels:
-          "*": "*"
+          # Matches resources with label "environment:production"
+          "environment": "production"
     # Matchers for discovering services inside Kubernetes clusters and exposing them as Teleport apps
     # When the `kubernetes` value is set, the `discovery_group` parameter is mandatory and should be set to
     # the name of Kubernetes cluster where the discovery service is running.

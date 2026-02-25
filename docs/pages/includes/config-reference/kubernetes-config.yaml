@@ -23,7 +23,9 @@ kubernetes_service:
     # When resources were created by 'discovery_service', ' kubernetes_service' must have the required permissions.
     resources:
     - labels:
-        "*": "*"
+        # limit discovered Kubernetes clusters to those with the 
+        # environment:production label
+        "environment": "production" 
       # Optional AWS role that the Teleport Kubernetes Service will assume to access
       # EKS clusters.
       aws:

@@ -358,7 +358,9 @@ kubernetes_service:
   enabled: true
   resources:
   - labels:
-      "*": "*"
+      # Limit discovered GKE clusters to those with the
+      # environment:production label
+      "environment": "production" 
 ```
 
 <details>
@@ -385,7 +387,9 @@ kubernetes_service:
   enabled: true
   resources:
   - labels:
-      "*": "*"
+      # Limit discovered GKE clusters to those with the label
+      # environment:production
+      "environment": "production" 
 ```
 
 On the Discovery Service host, the file will include the following:
