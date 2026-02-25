@@ -18,7 +18,10 @@ directory of a single `gravitational/teleport` clone within a subdirectory of
 
 All build, lint, and preview commands are run from the `docs-website` root.
 
-## Commands (run from `../..` — the docs-website root)
+## Commands
+
+Run the following commands to manage the docs website from `../../..`, the root
+of the `docs-website` repo clone:
 
 ```bash
 # Local development (macOS only; requires rsync, watchexec, jq via Homebrew)
@@ -45,6 +48,11 @@ yarn lint
 # Prepare versioned file layout (copies MDX from content/ to docs/ and versioned_docs/)
 yarn prepare-files
 ```
+
+For a complete reference of `yarn` commands, read `../../../package.json`. There
+are `package.json` files in subdirectories of each `content/v[0-9]+.x`
+submodule, but those are for the Teleport product instead of the Teleport docs
+site.
 
 > **Note:** `yarn dev` uses `watchexec` to watch for file changes in `content/` and sync them live. Includes files trigger a full Docusaurus restart.
 
