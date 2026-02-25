@@ -36,7 +36,7 @@ export function fetchDiscoveryConfigLogs(
   clusterId: string
 ): Promise<DiscoveryConfigLogResponse> {
   return api.get(cfg.getDiscoveryConfigLogUrl(clusterId)).then(resp => {
-    const logs = resp?.logs ?? [];
+    const logs = resp?.accounts ?? [];
     return {
       items: logs.map(makeDiscoveryConfigLog),
       nextKey: resp?.nextKey,
@@ -58,7 +58,7 @@ export function createDiscoveryConfig(
 }
 
 export function makeDiscoveryConfigLog(rawResp: any): DiscoveryConfigLog {
-  const { account_id, region, instances = [] } = rawResp.accounts;
+  const { account_id, region, instances = [] } = rawResp;
 
   return {
     account_id,
