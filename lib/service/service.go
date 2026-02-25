@@ -163,6 +163,7 @@ import (
 	"github.com/gravitational/teleport/lib/relaytunnel"
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	reversetunnelv3 "github.com/gravitational/teleport/lib/reversetunnel/v3"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	secretsscannerproxy "github.com/gravitational/teleport/lib/secretsscanner/proxy"
 	"github.com/gravitational/teleport/lib/selinux"
@@ -742,6 +743,8 @@ type TeleportProcess struct {
 
 	tsrv            reversetunnelclient.Server
 	immutableLabels *joiningv1.ImmutableLabels
+
+	sharedTunnel reversetunnelv3.Client
 }
 
 // processIndex is an internal process index
@@ -1692,6 +1695,8 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	// even in sync recording modes, since the recording mode can be changed
 	// at any time with dynamic configuration
 	process.RegisterFunc("common.upload.init", process.initUploaderService)
+
+	process.RegisterFunc("common.sharedtunnel", process.initSharedTunnel)
 
 	if !serviceStarted {
 		return nil, trace.BadParameter("all services failed to start")
@@ -3836,6 +3841,21 @@ func waitForInstanceConnector(process *TeleportProcess, log *slog.Logger) (*Conn
 			log.WarnContext(process.ExitContext(), "The Instance connector is still not available, process-wide services will not function")
 		}
 	}
+}
+
+func (process *TeleportProcess) initSharedTunnel() error {
+	ctx := process.ExitContext()
+	logger := process.logger.With(teleport.ComponentKey, "tunnel")
+
+	conn := process.waitForInstanceConnector(ctx)
+	if conn == nil {
+		return trace.BadParameter("process exiting and Instance connector never became available")
+	}
+
+	process.OnExit("common.sharedtunnel.exit", func(payload any) {
+		process.sharedTunnel.Stop(payloadContext(payload), logger)
+	})
+	return process.sharedTunnel.Run(ctx, logger)
 }
 
 // initUploaderService starts a file-based uploader that scans the local streaming logs directory
