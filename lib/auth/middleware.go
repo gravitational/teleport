@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
+	grpctracing "github.com/gravitational/teleport/api/observability/tracing/grpc"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -232,7 +233,7 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 		TLS:                tlsConfig,
 		Middleware:         authMiddleware,
 		APIConfig:          cfg.APIConfig,
-		UnaryInterceptors:  authMiddleware.UnaryInterceptors(),
+		UnaryInterceptors:  append(authMiddleware.UnaryInterceptors(), grpctracing.ServerInterceptor),
 		StreamInterceptors: authMiddleware.StreamInterceptors(),
 	})
 	if err != nil {

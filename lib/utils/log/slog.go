@@ -71,10 +71,24 @@ var SupportedLevelsText = []string{
 	slog.LevelError.String(),
 }
 
+func idFromContext(ctx context.Context) (string, bool) {
+	untypedID := ctx.Value("request_id")
+	if untypedID == nil {
+		return "", false
+	}
+
+	if id, ok := untypedID.(string); ok {
+		return id, true
+	}
+
+	return "", false
+}
+
 func addTracingContextToRecord(ctx context.Context, r *slog.Record) {
 	const (
-		traceID = "trace_id"
-		spanID  = "span_id"
+		traceID   = "trace_id"
+		spanID    = "span_id"
+		requestID = "request_id"
 	)
 	var reqID string
 	rv := ctx.Value("request_id")
@@ -98,6 +112,10 @@ func addTracingContextToRecord(ctx context.Context, r *slog.Record) {
 
 	if spanContext.HasSpanID() {
 		r.AddAttrs(slog.String(spanID, spanContext.SpanID().String()))
+	}
+
+	if id, hasID := idFromContext(ctx); hasID {
+		r.AddAttrs(slog.String(requestID, id))
 	}
 }
 
