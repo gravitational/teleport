@@ -13,7 +13,8 @@
     "start": "pnpm build-wasm && electron-vite dev",
     "build": "pnpm build-wasm && electron-vite build",
     "package": "electron-builder build --config electron-builder-config.js --publish never -c.extraMetadata.name=teleport-connect",
-    "build-wasm": "pnpm --filter=@gravitational/shared build-wasm"
+    "build-wasm": "pnpm --filter=@gravitational/shared build-wasm",
+    "e2e": "playwright test e2e"
   },
   "repository": {
     "type": "git",
@@ -45,6 +46,7 @@
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "electron": "40.1.0",
+    "@playwright/test": "^1.58.2",
     "electron-builder": "^26.6.0",
     "electron-updater": "^6.7.3",
     "electron-vite": "^5.0.0",
