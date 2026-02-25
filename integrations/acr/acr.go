@@ -1,5 +1,4 @@
-// Package acr implements discovery review analysis using LLM-powered
-// insights over Teleport audit logs and configuration.
+// Package acr provides LLM-powered audit log review for Teleport.
 package acr
 
 import (
@@ -39,7 +38,7 @@ type ClassifyResult struct {
 	TotalEvents int       `json:"total_events"`
 }
 
-// Service orchestrates discovery review analysis.
+// Service orchestrates LLM-powered audit log review.
 type Service struct {
 	llm *llm.Client
 }

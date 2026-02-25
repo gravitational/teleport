@@ -1,4 +1,4 @@
-// Package llm provides an OpenAI client for embeddings and chat completions.
+// Package llm provides an OpenAI client for chat completions.
 package llm
 
 import (
@@ -9,11 +9,8 @@ import (
 	"github.com/sashabaranov/go-openai"
 )
 
-// Default models for OpenAI.
-const (
-	DefaultEmbeddingModel  = openai.SmallEmbedding3
-	DefaultCompletionModel = openai.GPT4oMini
-)
+// DefaultCompletionModel is the default OpenAI model for chat completions.
+const DefaultCompletionModel = openai.GPT4oMini
 
 // CompletionOptions configures a chat completion request.
 type CompletionOptions struct {
@@ -22,10 +19,9 @@ type CompletionOptions struct {
 	MaxTokens    int
 }
 
-// Client wraps the OpenAI API for embeddings and chat completions.
+// Client wraps the OpenAI API for chat completions.
 type Client struct {
 	client          *openai.Client
-	embeddingModel  openai.EmbeddingModel
 	completionModel string
 }
 
@@ -36,7 +32,6 @@ func NewClient(apiKey string) (*Client, error) {
 	}
 	return &Client{
 		client:          openai.NewClient(apiKey),
-		embeddingModel:  DefaultEmbeddingModel,
 		completionModel: DefaultCompletionModel,
 	}, nil
 }
@@ -65,33 +60,6 @@ func (c *Client) CompleteJSON(ctx context.Context, prompt string, opts Completio
 		return fmt.Errorf("llm: parsing JSON response: %w", err)
 	}
 	return nil
-}
-
-// Complete performs a chat completion and returns the text response.
-func (c *Client) Complete(ctx context.Context, prompt string, opts CompletionOptions) (string, error) {
-	resp, err := c.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model:       c.completionModel,
-		Messages:    buildMessages(prompt, opts.SystemPrompt),
-		Temperature: opts.Temperature,
-		MaxTokens:   opts.MaxTokens,
-	})
-	if err != nil {
-		return "", fmt.Errorf("llm: chat completion: %w", err)
-	}
-	if len(resp.Choices) == 0 {
-		return "", fmt.Errorf("llm: no completion choices returned")
-	}
-	return resp.Choices[0].Message.Content, nil
-}
-
-// EmbeddingModel returns the name of the embedding model in use.
-func (c *Client) EmbeddingModel() string {
-	return string(c.embeddingModel)
-}
-
-// CompletionModel returns the name of the completion model in use.
-func (c *Client) CompletionModel() string {
-	return c.completionModel
 }
 
 // buildMessages constructs the chat message slice, optionally prepending
