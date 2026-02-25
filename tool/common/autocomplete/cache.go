@@ -20,7 +20,7 @@ import (
 )
 
 const cacheExpiry = 15 * time.Minute
-const DefaultCache = "/tmp/cache.json"
+const DefaultCache = "/tmp/autocompletecache.json"
 
 type cache struct {
 	client              authclient.Client

@@ -121,7 +121,7 @@ func (c *ScopedTokensCommand) Initialize(scopedCmd *kingpin.CmdClause, config *s
 
 	// "tctl scoped tokens rm ..."
 	c.tokenDel = tokens.Command("rm", "Delete/revoke a scoped invitation token.").Alias("del")
-	c.tokenDel.Arg("token", "Token to delete").StringVar(&c.name)
+	c.tokenDel.Arg("token", "Token to delete").HintAction(ScopedTokensAutoComplete).StringVar(&c.name)
 
 	// "tctl scoped tokens ls"
 	c.tokenList = tokens.Command("ls", "List invitation tokens.")
