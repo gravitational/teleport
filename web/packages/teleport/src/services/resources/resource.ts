@@ -257,8 +257,14 @@ class ResourceService {
     return api.delete(cfg.getRoleUrl({ action: 'delete', name }));
   }
 
-  deleteGithubConnector(name: string) {
-    return api.delete(cfg.getGithubConnectorsUrl(name));
+  async deleteGithubConnector(name: string) {
+    // MFA reuse needs to be allowed in case we need to fallback to another default connector
+    const challengeResponse =
+      await auth.getMfaChallengeResponseForAdminAction(true);
+
+    return api.deleteWithOptions(cfg.getGithubConnectorsUrl(name), {
+      mfaResponse: challengeResponse,
+    });
   }
 }
 
