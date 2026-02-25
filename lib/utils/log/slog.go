@@ -29,6 +29,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
@@ -75,6 +76,15 @@ func addTracingContextToRecord(ctx context.Context, r *slog.Record) {
 		traceID = "trace_id"
 		spanID  = "span_id"
 	)
+	var reqID string
+	rv := ctx.Value("request_id")
+	if v, ok := rv.(string); !ok {
+		// Remove this is just for debugging purpose in case if parent context doesn't contain the request_id"
+		reqID = "addTracingContextToRecord" + uuid.New().String()
+	} else {
+		reqID = v
+	}
+	r.AddAttrs(slog.String("request_id", reqID))
 
 	span := oteltrace.SpanFromContext(ctx)
 	if span == nil {
