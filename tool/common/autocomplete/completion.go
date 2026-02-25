@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -12,6 +13,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
@@ -25,7 +27,17 @@ import (
 )
 
 const cacheExpiry = 15 * time.Minute
-const DefaultCache = "/tmp/autocompletecache.json"
+
+// cachePath returns the per-proxy, per-user autocomplete cache file path
+// under ~/.tsh/autocomplete/<proxy>/<username>.json.
+// If the current profile cannot be determined, falls back to /tmp.
+func cachePath() string {
+	prof, err := profile.FromDir("", "")
+	if err != nil {
+		return filepath.Join(os.TempDir(), "teleportautocomplete.json")
+	}
+	return filepath.Join(profile.FullProfilePath(""), "autocomplete", prof.Name(), prof.Username+".json")
+}
 
 type cache struct {
 	client              authclient.Client
@@ -50,7 +62,7 @@ const (
 )
 
 func NewAutoComplete(clt *authclient.Client, tc *client.TeleportClient) *cache {
-	filePath := DefaultCache
+	filePath := cachePath()
 
 	updaters := make(map[string]resourceGetter, len(resources.Handlers())+1)
 	if clt != nil {
@@ -218,6 +230,9 @@ func (c *cache) writeToFile(storage cacheStorage) error {
 	data, err := json.Marshal(storage)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(c.filepath), 0700); err != nil {
+		return trace.ConvertSystemError(err)
 	}
 	return trace.Wrap(os.WriteFile(c.filepath, data, 0600))
 }
