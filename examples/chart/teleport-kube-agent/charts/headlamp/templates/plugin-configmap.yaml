@@ -1,0 +1,11 @@
+{{- if .Values.pluginsManager.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "headlamp.fullname" . }}-plugin-config
+  namespace: {{ include "headlamp.namespace" . }}
+  labels:
+    {{- include "headlamp.labels" . | nindent 4 }}
+data:
+  plugin.yml: |{{ .Values.pluginsManager.configContent | nindent 4 }}
+{{- end }}

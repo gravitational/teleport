@@ -1,0 +1,20 @@
+# This is a test case for OIDC using the validator overrides and access_token.
+# The oidc.secret.create field is false to avoid creating a secret for OIDC.
+# The oidc.clientID field is a string that specifies the client ID for OIDC.
+# The oidc.clientSecret field is a string that specifies the client secret for OIDC.
+# The oidc.issuerURL field is a string that specifies the issuer URL for OIDC.
+# The oidc.scopes field is a string that specifies the scopes for OIDC.
+# The oidc.validatorClientID field is a string that specifies the ClientID used in validation for OIDC.
+# The oidc.validatorIssuerURL field is a string that specifies the IssuerURL used in validation for OIDC.
+# The oidc.useAccessToken field is a bool that determines if 'access_token' or 'id_token' is used for OIDC.
+config:
+  oidc:
+    secret:
+      create: false
+    clientID: "testClientId"
+    clientSecret: "testClientSecret"
+    issuerURL: "testIssuerURL"
+    scopes: "testScope"
+    validatorClientID: "overriddenClientID"
+    validatorIssuerURL: "overriddenIssuerURL"
+    useAccessToken: true

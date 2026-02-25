@@ -1,0 +1,402 @@
+# Default values for headlamp.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# -- Number of desired pods
+replicaCount: 1
+
+image:
+  # -- Container image registry
+  registry: ghcr.io
+  # -- Container image name
+  repository: headlamp-k8s/headlamp
+  # -- Image pull policy. One of Always, Never, IfNotPresent
+  pullPolicy: IfNotPresent
+  # -- Container image tag, If "" uses appVersion in Chart.yaml
+  tag: ""
+
+# -- An optional list of references to secrets in the same namespace to use for pulling any of the images used
+imagePullSecrets: []
+# -- Overrides the name of the chart
+nameOverride: ""
+# -- Overrides the full name of the chart
+fullnameOverride: ""
+
+# -- Override the deployment namespace; defaults to .Release.Namespace
+namespaceOverride: ""
+
+# -- An optional list of init containers to be run before the main containers.
+initContainers: []
+
+# -- An optional list of extra containers to be run along side the main containers.
+extraContainers: []
+
+config:
+  inCluster: true
+  inClusterContextName: "main"
+  # -- base url path at which headlamp should run
+  baseURL: ""
+  # -- session token TTL in seconds (default is 24 hours)
+  sessionTTL: 86400
+  oidc:
+    # Option 1:
+    # @param config.oidc.secret - OIDC secret configuration
+    # If you want to use an existing secret, set create to false and provide the name of the secret.
+    # If you want to create a new secret, set create to true and provide the name of the secret.
+    # Also provide the values for clientID, clientSecret, issuerURL, and scopes.
+    # Example:
+    # config:
+    #   oidc:
+    #     secret:
+    #       create: true
+    #       name: oidc
+    secret:
+      # -- Generate OIDC secret. If true, will generate a secret using .config.oidc.
+      create: true
+      # -- Name of the OIDC secret.
+      name: oidc
+
+    # Option 2:
+    # @param config.oidc - OIDC env configuration
+    # If you want to set the OIDC configuration directly, set the following values.
+    # Example:
+    # config:
+    #   oidc:
+    #     clientID: "clientID"
+    #     clientSecret: "clientSecret"
+    #     issuerURL: "issuerURL"
+    #     scopes: "scopes"
+
+    # -- OIDC client ID
+    clientID: ""
+    # -- OIDC client secret
+    clientSecret: ""
+    # -- OIDC issuer URL
+    issuerURL: ""
+    # -- OIDC scopes to be used
+    scopes: ""
+    # -- OIDC callback URL
+    callbackURL: ""
+
+    # -- OIDC client to be used during token validation
+    validatorClientID: ""
+    # -- OIDC Issuer URL to be used during token validation
+    validatorIssuerURL: ""
+    # -- Use 'access_token' instead of 'id_token' when authenticating using OIDC
+    useAccessToken: false
+    # -- Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow
+    usePKCE: false
+
+    # Option 3:
+    # @param config.oidc - External OIDC secret configuration
+    # If you want to use an external secret for OIDC configuration, enable this option.
+    # Provide the name of the secret to use.
+    # Example:
+    # config:
+    #   oidc:
+    #     secret:
+    #       create: false
+    #     externalSecret:
+    #       enabled: true
+    #       name: oidc
+    externalSecret:
+      enabled: false
+      name: ""
+
+    # -- URL to fetch additional user info for the /me endpoint.
+    # For oauth2proxy /oauth2/userinfo can be used. Empty and it will not be used.
+    meUserInfoURL: ""
+
+  # -- directory to look for plugins
+  pluginsDir: "/headlamp/plugins"
+  enableHelm: false
+  watchPlugins: false
+  # tlsCertPath: "/headlamp-cert/headlamp-ca.crt"
+  # tlsKeyPath: "/headlamp-cert/headlamp-tls.key"
+  # Extra arguments that can be given to the container. See charts/headlamp/README.md for more information.
+  extraArgs: []
+
+# -- An optional list of environment variables
+# env:
+#   - name: KUBERNETES_SERVICE_HOST
+#     value: "localhost"
+#   - name: KUBERNETES_SERVICE_PORT
+#     value: "6443"
+
+# -- Mount Service Account token in pod
+automountServiceAccountToken: true
+
+serviceAccount:
+  # -- Specifies whether a service account should be created
+  create: true
+  # -- Annotations to add to the service account
+  annotations: {}
+  # -- The name of the service account to use.(If not set and create is true, a name is generated using the fullname template)
+  name: ""
+
+clusterRoleBinding:
+  # -- Specified whether a cluster role binding should be created
+  create: true
+  # -- Set name of the Cluster Role with limited permissions from you cluster
+  # for example - clusterRoleName: user-ro
+  clusterRoleName: cluster-admin
+  # -- Annotations to add to the cluster role binding
+  annotations: {}
+
+# -- Annotations to add to the deployment
+deploymentAnnotations: {}
+
+# -- Annotations to add to the pod
+podAnnotations: {}
+
+# -- Labels to add to the pod
+podLabels: {}
+
+# -- Controls user namespace isolation for the Headlamp pod.
+# When true (default), the pod shares the host user namespace (user namespaces are DISABLED).
+# When false, the pod uses a separate user namespace (user namespaces are ENABLED) for stronger isolation,
+# if supported by the cluster. Set this to false if your cluster supports user namespaces and you want
+# additional isolation; leave as true if user namespaces are not available.
+# See: https://kubernetes.io/docs/concepts/workloads/pods/user-namespaces/
+hostUsers: true
+
+# -- Headlamp pod's Security Context
+podSecurityContext:
+  {}
+  # fsGroup: 2000
+
+# -- Headlamp containers Security Context
+securityContext:
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  privileged: false
+  runAsUser: 100
+  runAsGroup: 101
+# Uses these defaults if this is empty.
+#   allowPrivilegeEscalation: false
+#   runAsNonRoot: true
+#   seccompProfile:
+#     type: RuntimeDefault
+#   capabilities:
+#     drop:
+#       - ALL
+
+
+service:
+  # -- Annotations to add to the service
+  annotations: {}
+  # -- Kubernetes Service type
+  type: ClusterIP
+  # -- Kubernetes Service port
+  port: 80
+  # -- Kubernetes Service clusterIP
+  clusterIP: ""
+  # -- Kubernetes Service loadBalancerIP
+  loadBalancerIP: ""
+  # -- Kubernetes Service loadBalancerSourceRanges
+  loadBalancerSourceRanges: []
+  # -- Kubernetes Service Nodeport
+  nodePort: null
+
+# -- Headlamp containers volume mounts
+volumeMounts: []
+
+# -- Headlamp pod's volumes
+volumes: []
+
+persistentVolumeClaim:
+  # -- Enable Persistent Volume Claim
+  enabled: false
+  # -- Annotations to add to the persistent volume claim (if enabled)
+  annotations:
+    {}
+  # -- accessModes for the persistent volume claim, eg: ReadWriteOnce, ReadOnlyMany, ReadWriteMany etc.
+  accessModes: []
+  # -- size of the persistent volume claim, eg: 10Gi. Required if enabled is true.
+  size: ""
+  # -- storageClassName for the persistent volume claim.
+  storageClassName: ""
+  # -- selector for the persistent volume claim.
+  selector: {}
+  # -- volumeMode for the persistent volume claim, eg: Filesystem, Block.
+  volumeMode: ""
+
+ingress:
+  # -- Enable ingress controller resource
+  enabled: false
+  # -- Annotations for Ingress resource
+  annotations:
+    {}
+    # kubernetes.io/tls-acme: "true"
+
+  # -- Additional labels to add to the Ingress resource
+  labels: {}
+    # app.kubernetes.io/part-of: traefik
+    # environment: prod
+
+  # -- Ingress class name. replacement for the deprecated "kubernetes.io/ingress.class" annotation
+  ingressClassName: ""
+
+  # -- Hostname(s) for the Ingress resource
+  # Please refer to https://kubernetes.io/docs/reference/kubernetes-api/service-resources/ingress-v1/#IngressSpec for more information.
+  hosts:
+    []
+    # - host: chart-example.local
+    #   paths:
+    #   - path: /
+    #     type: ImplementationSpecific
+  # -- Ingress TLS configuration
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+# HTTPRoute configuration for Gateway API
+# Please refer to https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.HTTPRoute
+httpRoute:
+  # -- Enable HTTPRoute resource for Gateway API
+  enabled: false
+  # -- Annotations for HTTPRoute resource
+  annotations: {}
+  # -- Additional labels for HTTPRoute resource
+  labels: {}
+  # -- Parent references (REQUIRED when enabled - HTTPRoute will not work without this)
+  # Example:
+  # parentRefs:
+  #   - name: my-gateway
+  #     namespace: gateway-namespace
+  parentRefs: []
+  # -- Hostnames for the HTTPRoute
+  # Example:
+  # hostnames:
+  #   - headlamp.example.com
+  hostnames: []
+  # -- Custom routing rules (optional, defaults to path prefix /)
+  # If not specified, a default rule routing all traffic to the service is used
+  rules: []
+  # Example custom rules:
+  # rules:
+  #   - matches:
+  #       - path:
+  #           type: PathPrefix
+  #           value: /headlamp
+  #     backendRefs:
+  #       - name: "{{ .Release.Name }}-headlamp"
+  #         port: 80
+
+# -- CPU/Memory resource requests/limits
+resources:
+  {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+# -- Node labels for pod assignment
+nodeSelector: {}
+
+# -- Toleration labels for pod assignment
+tolerations: []
+
+# -- Affinity settings for pod assignment
+affinity: {}
+
+# -- Topology Spread Constraints for pod assignment
+topologySpreadConstraints: []
+#  - maxSkew: 1
+#    topologyKey: topology.kubernetes.io/zone
+#    whenUnsatisfiable: ScheduleAnyway
+#    matchLabelKeys:
+#      - pod-template-hash
+#  - maxSkew: 1
+#    topologyKey: kubernetes.io/hostname
+#    whenUnsatisfiable: DoNotSchedule
+#    matchLabelKeys:
+#      - pod-template-hash
+
+# -- Pod priority class
+priorityClassName: ""
+
+# Plugin Manager Sidecar Container Configuration
+pluginsManager:
+  # -- Enable plugin manager
+  enabled: false
+  # -- Plugin configuration file name
+  configFile: "plugin.yml"
+  # -- Plugin configuration content in YAML format. This is required if plugins.enabled is true.
+  configContent: ""
+  # -- Base node image to use
+  baseImage: node:lts-alpine
+  # -- Headlamp plugin package version to install
+  version: latest
+  # -- Plugin manager containers volume mounts
+  volumeMounts: []
+  # -- Plugin manager env variable configuration
+  # env:
+  # - name: HTTPS_PROXY
+  #   value: "proxy.example.com:8080"
+  # -- Specify resrouces
+  # resources:
+  #   requests:
+  #     cpu: "500m"
+  #     memory: "2048Mi"
+  #   limits:
+  #     cpu: "1000m"
+  #     memory: "4096Mi"
+  # If omitted, the plugin manager will inherit the global securityContext
+  securityContext:
+    {}
+    # runAsUser: 1001
+    # runAsNonRoot: true
+    # allowPrivilegeEscalation: false
+    # readOnlyRootFilesystem: true
+    # capabilities:
+    #   drop:
+    #     - ALL
+
+podDisruptionBudget:
+  # -- enable PodDisruptionBudget
+  # ref: https://kubernetes.io/docs/concepts/workloads/pods/disruptions/
+  enabled: false
+  # @schema
+  # type: [null, integer, string]
+  # @schema
+  # -- Minimum number/percentage of pods that should remain scheduled.
+  # When it's set, maxUnavailable must be disabled by `maxUnavailable: null`
+  minAvailable: 0
+  # @schema
+  # type: [null, integer, string]
+  # @schema
+  # -- Maximum number/percentage of pods that may be made unavailable
+  maxUnavailable: null
+  # @schema
+  # type: [null, string]
+  # @schema
+  # -- How are unhealthy, but running, pods counted for eviction
+  unhealthyPodEvictionPolicy: null
+
+# -- Additional Kubernetes manifests to be deployed. Include the manifest as nested YAML.
+extraManifests: []
+# - |
+#   apiVersion: v1
+#   kind: ConfigMap
+#   metadata:
+#     name: my-config
+#   data:
+#     key: value
+# - |
+#   apiVersion: v1
+#   kind: ConfigMap
+#   metadata:
+#     name: my-config-too
+#   data:
+#     key: value

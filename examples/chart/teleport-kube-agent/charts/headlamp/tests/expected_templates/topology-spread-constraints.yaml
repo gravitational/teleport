@@ -1,0 +1,151 @@
+---
+# Source: headlamp/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: headlamp
+  namespace: default
+  labels:
+    helm.sh/chart: headlamp-0.40.0
+    app.kubernetes.io/name: headlamp
+    app.kubernetes.io/instance: headlamp
+    app.kubernetes.io/version: "0.40.0"
+    app.kubernetes.io/managed-by: Helm
+---
+# Source: headlamp/templates/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: oidc
+  namespace: default
+type: Opaque
+data:
+---
+# Source: headlamp/templates/clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: headlamp-admin
+  labels:
+    helm.sh/chart: headlamp-0.40.0
+    app.kubernetes.io/name: headlamp
+    app.kubernetes.io/instance: headlamp
+    app.kubernetes.io/version: "0.40.0"
+    app.kubernetes.io/managed-by: Helm
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: headlamp
+  namespace: default
+---
+# Source: headlamp/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: headlamp
+  namespace: default
+  labels:
+    helm.sh/chart: headlamp-0.40.0
+    app.kubernetes.io/name: headlamp
+    app.kubernetes.io/instance: headlamp
+    app.kubernetes.io/version: "0.40.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: headlamp
+    app.kubernetes.io/instance: headlamp
+---
+# Source: headlamp/templates/deployment.yaml
+# This block of code is used to extract the values from the env.
+# This is done to check if the values are non-empty and if they are, they are used in the deployment.yaml.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: headlamp
+  namespace: default
+  labels:
+    helm.sh/chart: headlamp-0.40.0
+    app.kubernetes.io/name: headlamp
+    app.kubernetes.io/instance: headlamp
+    app.kubernetes.io/version: "0.40.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: headlamp
+      app.kubernetes.io/instance: headlamp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: headlamp
+        app.kubernetes.io/instance: headlamp
+    spec:
+      serviceAccountName: headlamp
+      automountServiceAccountToken: true
+      hostUsers: true
+      securityContext:
+        {}
+      containers:
+        - name: headlamp
+          securityContext:
+            privileged: false
+            runAsGroup: 101
+            runAsNonRoot: true
+            runAsUser: 100
+          image: "ghcr.io/headlamp-k8s/headlamp:v0.40.0"
+          imagePullPolicy: IfNotPresent
+          
+          env:
+          args:
+            - "-in-cluster"
+            - "-in-cluster-context-name=main"
+            - "-plugins-dir=/headlamp/plugins"
+            - "-session-ttl=86400"
+            # Check if externalSecret is disabled
+          ports:
+            - name: http
+              containerPort: 4466
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: "/"
+              port: http
+          readinessProbe:
+            httpGet:
+              path: "/"
+              port: http
+          resources:
+            {}
+      topologySpreadConstraints:
+        - 
+          matchLabelKeys:
+          - pod-template-hash
+          maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: headlamp
+              app.kubernetes.io/instance: headlamp
+        - 
+          matchLabelKeys:
+          - pod-template-hash
+          maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: headlamp
+              app.kubernetes.io/instance: headlamp

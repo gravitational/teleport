@@ -1,0 +1,11 @@
+# Test case for topologySpreadConstraints with custom labelSelector
+topologySpreadConstraints:
+  - maxSkew: 2
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: headlamp
+        custom-label: custom-value
+    matchLabelKeys:
+      - pod-template-hash

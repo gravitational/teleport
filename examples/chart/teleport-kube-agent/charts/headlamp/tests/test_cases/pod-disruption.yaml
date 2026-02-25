@@ -1,0 +1,5 @@
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 1
+  unhealthyPodEvictionPolicy: IfHealthyBudget
+  minAvailable: null

@@ -1,0 +1,12 @@
+# Test case: Azure OIDC provider WITH validator variables
+# Should include validator arguments in the deployment
+config:
+  oidc:
+    secret:
+      create: false
+    clientID: "azure-client-id"
+    clientSecret: "azure-client-secret"
+    issuerURL: "https://login.microsoftonline.com/tenant-id/v2.0"
+    scopes: "openid email profile"
+    validatorClientID: "azure-validator-client-id"
+    validatorIssuerURL: "https://login.microsoftonline.com/tenant-id/v2.0"

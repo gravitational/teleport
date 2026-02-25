@@ -1,0 +1,10 @@
+# This is a test case where user can set env values directly for OIDC configuration.
+env:
+  - name: OIDC_CLIENT_ID
+    value: testClientId
+  - name: OIDC_CLIENT_SECRET
+    value: testClientSecret
+  - name: OIDC_ISSUER_URL
+    value: testIssuerURL
+  - name: OIDC_SCOPES
+    value: testScope

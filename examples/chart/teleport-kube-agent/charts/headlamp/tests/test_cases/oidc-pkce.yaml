@@ -1,0 +1,15 @@
+# This is a test case for the direct OIDC configuration in the Headlamp deployment.
+# The oidc.secret.create field is false to avoid creating a secret for OIDC.
+# The oidc.clientID field is a string that specifies the client ID for OIDC.
+# The oidc.clientSecret field is a string that specifies the client secret for OIDC.
+# The oidc.issuerURL field is a string that specifies the issuer URL for OIDC.
+# The oidc.scopes field is a string that specifies the scopes for OIDC.
+config:
+  oidc:
+    secret:
+      create: false
+    clientID: "testClientId"
+    clientSecret: "testClientSecret"
+    issuerURL: "testIssuerURL"
+    scopes: "testScope"
+    usePKCE: true

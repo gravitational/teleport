@@ -1,0 +1,3 @@
+env:
+  - name: ME_USER_INFO_URL
+    value: /oauth2/userinfocustom1

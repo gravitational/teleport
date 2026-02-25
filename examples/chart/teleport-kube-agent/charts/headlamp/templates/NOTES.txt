@@ -1,0 +1,32 @@
+1. Get the application URL by running these commands:
+{{- if .Values.ingress.enabled }}
+{{- range $host := .Values.ingress.hosts }}
+  {{- range .paths }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ .path }}
+  {{- end }}
+{{- end }}
+{{- else if contains "NodePort" .Values.service.type }}
+  export NODE_PORT=$(kubectl get --namespace {{ include "headlamp.namespace" . }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "headlamp.fullname" . }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ include "headlamp.namespace" . }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo http://$NODE_IP:$NODE_PORT
+{{- else if contains "LoadBalancer" .Values.service.type }}
+     NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+           You can watch the status of by running 'kubectl get --namespace {{ include "headlamp.namespace" . }} svc -w {{ include "headlamp.fullname" . }}'
+  export SERVICE_IP=$(kubectl get svc --namespace {{ include "headlamp.namespace" . }} {{ include "headlamp.fullname" . }} --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  echo http://$SERVICE_IP:{{ .Values.service.port }}
+{{- else if contains "ClusterIP" .Values.service.type }}
+  export POD_NAME=$(kubectl get pods --namespace {{ include "headlamp.namespace" . }} -l "app.kubernetes.io/name={{ include "headlamp.name" . }},app.kubernetes.io/instance={{ .Release.Name }}" -o jsonpath="{.items[0].metadata.name}")
+  export CONTAINER_PORT=$(kubectl get pod --namespace {{ include "headlamp.namespace" . }} $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+  echo "Visit http://127.0.0.1:8080 to use your application"
+  kubectl --namespace {{ include "headlamp.namespace" . }} port-forward $POD_NAME 8080:$CONTAINER_PORT
+{{- end }}
+{{- if .Values.clusterRoleBinding.create }}
+  {{- if and ( ge .Capabilities.KubeVersion.Major "1" ) ( ge .Capabilities.KubeVersion.Minor "24" ) }}
+2. Get the token using
+  kubectl create token {{ include "headlamp.serviceAccountName" . }} --namespace {{ include "headlamp.namespace" . }}
+  {{- else }}
+2. Get the clusterrolebinding token using
+  export SECRET=$(kubectl get secrets --namespace {{ include "headlamp.namespace" . }} -o custom-columns=":metadata.name" | grep "{{ include "headlamp.fullname" . }}-token")
+  kubectl get secret $SECRET --namespace {{ include "headlamp.namespace" . }} --template=\{\{.data.token\}\} | base64 --decode
+  {{- end }}
+{{- end }}

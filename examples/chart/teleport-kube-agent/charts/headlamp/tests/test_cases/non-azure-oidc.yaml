@@ -1,0 +1,10 @@
+# Test case: Non-Azure OIDC provider without validator variables
+# This should NOT include validator arguments in the deployment
+config:
+  oidc:
+    secret:
+      create: false
+    clientID: "generic-oidc-client"
+    clientSecret: "generic-oidc-secret"
+    issuerURL: "https://auth.example.com"
+    scopes: "openid email profile"

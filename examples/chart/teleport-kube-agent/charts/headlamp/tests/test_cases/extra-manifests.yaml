@@ -1,0 +1,16 @@
+extraManifests:
+  - |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: dummy-configmap
+    data:
+      key1: value1
+      key2: value2
+  - |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: configmap-with-templated-data
+    data:
+      injectedKey: {{ .Release.Name }}

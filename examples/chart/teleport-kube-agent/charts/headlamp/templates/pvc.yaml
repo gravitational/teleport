@@ -1,0 +1,32 @@
+{{- if .Values.persistentVolumeClaim.enabled -}}
+{{- $fullName := include "headlamp.fullname" . -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $fullName }}
+  namespace: {{ include "headlamp.namespace" . }}
+  labels:
+    {{- include "headlamp.labels" . | nindent 4 }}
+  {{- with .Values.persistentVolumeClaim.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- range .Values.persistentVolumeClaim.accessModes}}
+  accessModes:
+    - {{ . }}
+  {{- end}}
+  resources:
+    requests:
+      storage: {{ required "A valid .Values.persistentVolumeClaim.size entry required!" .Values.persistentVolumeClaim.size }}
+  {{- with .Values.persistentVolumeClaim.volumeMode }}
+  volumeMode: {{ . }}
+  {{- end }}
+  {{- with .Values.persistentVolumeClaim.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+  {{- with .Values.persistentVolumeClaim.selector }}
+  selector:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end}}

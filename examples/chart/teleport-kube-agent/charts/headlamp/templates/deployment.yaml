@@ -1,0 +1,436 @@
+{{- $oidc := .Values.config.oidc }}
+{{- $env := .Values.env }}
+
+{{- $clientID := "" }}
+{{- $clientSecret := "" }}
+{{- $issuerURL := "" }}
+{{- $scopes := "" }}
+{{- $callbackURL := "" }}
+{{- $validatorClientID := "" }}
+{{- $validatorIssuerURL := "" }}
+{{- $usePKCE := "" }}
+{{- $useAccessToken := "" }}
+{{- $meUserInfoURL := "" }}
+
+# This block of code is used to extract the values from the env.
+# This is done to check if the values are non-empty and if they are, they are used in the deployment.yaml.
+{{- range $env }}
+  {{- if eq .name "OIDC_CLIENT_ID" }}
+    {{- $clientID = .value }}
+  {{- end }}
+  {{- if eq .name "OIDC_CLIENT_SECRET" }}
+    {{- $clientSecret = .value }}
+  {{- end }}
+  {{- if eq .name "OIDC_ISSUER_URL" }}
+    {{- $issuerURL = .value }}
+  {{- end }}
+  {{- if eq .name "OIDC_SCOPES" }}
+    {{- $scopes = .value }}
+  {{- end }}
+  {{- if eq .name "OIDC_CALLBACK_URL" }}
+    {{- $callbackURL = .value }}
+  {{- end }}
+  {{- if eq .name "OIDC_VALIDATOR_CLIENT_ID" }}
+    {{- $validatorClientID = .value }}
+  {{- end }}
+  {{- if eq .name "OIDC_VALIDATOR_ISSUER_URL" }}
+    {{- $validatorIssuerURL = .value }}
+  {{- end }}
+  {{- if eq .name "OIDC_USE_ACCESS_TOKEN" }}
+    {{- $useAccessToken = .value | toString }}
+  {{- end }}
+  {{- if eq .name "OIDC_USE_PKCE" }}
+    {{- $usePKCE = .value | toString }}
+  {{- end }}
+  {{- if eq .name "ME_USER_INFO_URL" }}
+    {{- $meUserInfoURL = .value | toString }}
+  {{- end }}
+{{- end }}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "headlamp.fullname" . }}
+  namespace: {{ include "headlamp.namespace" . }}
+  labels:
+    {{- include "headlamp.labels" . | nindent 4 }}
+  {{- with .Values.deploymentAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "headlamp.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "headlamp.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- tpl (toYaml .) $ | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "headlamp.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
+      hostUsers: {{ .Values.hostUsers }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.initContainers }}
+      initContainers:
+        {{ toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- if .Values.securityContext }}
+              {{- toYaml .Values.securityContext | nindent 12 }}
+            {{- else }}
+              {{- $defaultSC := dict "allowPrivilegeEscalation" false "runAsNonRoot" true "seccompProfile" (dict "type" "RuntimeDefault") "capabilities" (dict "drop" (list "ALL")) }}
+              {{- toYaml $defaultSC | nindent 12 }}
+            {{- end }}
+          image: "{{ .Values.image.registry}}/{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{ if or $oidc .Values.env }}
+          {{- if $oidc.externalSecret.enabled }}
+          # Check if externalSecret is enabled
+          envFrom:
+          - secretRef:
+              name: {{ $oidc.externalSecret.name }}
+          {{- if .Values.env }}
+          env:
+            {{- toYaml .Values.env | nindent 12 }}
+          {{- end }}
+          {{- else }}
+          env:
+            {{- if $oidc.secret.create }}
+            {{- if $oidc.clientID }}
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $oidc.secret.name }}
+                  key: clientID
+            {{- end }}
+            {{- if $oidc.clientSecret }}
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $oidc.secret.name }}
+                  key: clientSecret
+            {{- end }}
+            {{- if $oidc.issuerURL }}
+            - name: OIDC_ISSUER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $oidc.secret.name }}
+                  key: issuerURL
+            {{- end }}
+            {{- if $oidc.scopes }}
+            - name: OIDC_SCOPES
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $oidc.secret.name }}
+                  key: scopes
+            {{- end }}
+            {{- if $oidc.callbackURL }}
+            - name: OIDC_CALLBACK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $oidc.secret.name }}
+                  key: callbackURL
+            {{- end }}
+            {{- if $oidc.validatorClientID }}
+            - name: OIDC_VALIDATOR_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $oidc.secret.name }}
+                  key: validatorClientID
+            {{- end }}
+            {{- if $oidc.validatorIssuerURL }}
+            - name: OIDC_VALIDATOR_ISSUER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $oidc.secret.name }}
+                  key: validatorIssuerURL
+            {{- end }}
+            {{- if $oidc.useAccessToken }}
+            - name: OIDC_USE_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $oidc.secret.name }}
+                  key: useAccessToken
+            {{- end }}
+            {{- if $oidc.usePKCE }}
+            - name: OIDC_USE_PKCE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $oidc.secret.name }}
+                  key: usePKCE
+            {{- end }}
+            {{- if $oidc.meUserInfoURL }}
+            - name: ME_USER_INFO_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $oidc.secret.name }}
+                  key: meUserInfoURL
+            {{- end }}
+            {{- else }}
+            {{- if $oidc.clientID }}
+            - name: OIDC_CLIENT_ID
+              value: {{ $oidc.clientID }}
+            {{- end }}
+            {{- if $oidc.clientSecret }}
+            - name: OIDC_CLIENT_SECRET
+              value: {{ $oidc.clientSecret }}
+            {{- end }}
+            {{- if $oidc.issuerURL }}
+            - name: OIDC_ISSUER_URL
+              value: {{ $oidc.issuerURL }}
+            {{- end }}
+            {{- if $oidc.scopes }}
+            - name: OIDC_SCOPES
+              value: {{ $oidc.scopes }}
+            {{- end }}
+            {{- if $oidc.callbackURL }}
+            - name: OIDC_CALLBACK_URL
+              value: {{ $oidc.callbackURL }}
+            {{- end }}
+            {{- if $oidc.validatorClientID }}
+            - name: OIDC_VALIDATOR_CLIENT_ID
+              value: {{ $oidc.validatorClientID }}
+            {{- end }}
+            {{- if $oidc.validatorIssuerURL }}
+            - name: OIDC_VALIDATOR_ISSUER_URL
+              value: {{ $oidc.validatorIssuerURL }}
+            {{- end }}
+            {{- if $oidc.useAccessToken }}
+            - name: OIDC_USE_ACCESS_TOKEN
+              value: {{ $oidc.useAccessToken | quote }}
+            {{- end }}
+            {{- if $oidc.usePKCE }}
+            - name: OIDC_USE_PKCE
+              value: {{ $oidc.usePKCE | quote }}
+            {{- end }}
+            {{- if $oidc.meUserInfoURL }}
+            - name: ME_USER_INFO_URL
+              value: {{ $oidc.meUserInfoURL }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.env }}
+            {{- toYaml .Values.env | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          {{- end }}
+          args:
+            {{- if .Values.config.inCluster }}
+            - "-in-cluster"
+            {{- if .Values.config.inClusterContextName }}
+            - "-in-cluster-context-name={{ .Values.config.inClusterContextName }}"
+            {{- end }}
+            {{- end }}
+            {{- with .Values.config.enableHelm }}
+            - "-enable-helm"
+            {{- end }}
+            {{- if .Values.config.watchPlugins }}
+            - "-watch-plugins-changes"
+            {{- end }}
+            {{- with .Values.config.pluginsDir}}
+            - "-plugins-dir={{ . }}"
+            {{- end }}
+            {{- if hasKey .Values.config "sessionTTL" }}
+            - "-session-ttl={{ .Values.config.sessionTTL }}"
+            {{- end }}
+            {{- if not $oidc.externalSecret.enabled}}
+            # Check if externalSecret is disabled
+            {{- if or (ne $oidc.clientID "") (ne $clientID "") }}
+            # Check if clientID is non empty either from env or oidc.config
+            - "-oidc-client-id=$(OIDC_CLIENT_ID)"
+            {{- end }}
+            {{- if or (ne $oidc.clientSecret "") (ne $clientSecret "") }}
+            # Check if clientSecret is non empty either from env or oidc.config
+            - "-oidc-client-secret=$(OIDC_CLIENT_SECRET)"
+            {{- end }}
+            {{- if or (ne $oidc.issuerURL "") (ne $issuerURL "") }}
+            # Check if issuerURL is non empty either from env or oidc.config
+            - "-oidc-idp-issuer-url=$(OIDC_ISSUER_URL)"
+            {{- end }}
+            {{- if or (ne $oidc.scopes "") (ne $scopes "") }}
+            # Check if scopes are non empty either from env or oidc.config
+            - "-oidc-scopes=$(OIDC_SCOPES)"
+            {{- end }}
+            {{- if or (ne $oidc.callbackURL "") (ne $callbackURL "") }}
+            # Check if callbackURL is non empty either from env or oidc.config
+            - "-oidc-callback-url=$(OIDC_CALLBACK_URL)"
+            {{- end }}
+            {{- if or (ne $oidc.validatorClientID "") (ne $validatorClientID "") }}
+            # Check if validatorClientID is non empty either from env or oidc.config
+            - "-oidc-validator-client-id=$(OIDC_VALIDATOR_CLIENT_ID)"
+            {{- end }}
+            {{- if or (ne $oidc.validatorIssuerURL "") (ne $validatorIssuerURL "") }}
+            # Check if validatorIssuerURL is non empty either from env or oidc.config
+            - "-oidc-validator-idp-issuer-url=$(OIDC_VALIDATOR_ISSUER_URL)"
+            {{- end }}
+            {{- if or (ne ($oidc.useAccessToken | toString) "false") (ne $useAccessToken "") }}
+            # Check if useAccessToken is non false either from env or oidc.config
+            - "-oidc-use-access-token=$(OIDC_USE_ACCESS_TOKEN)"
+            {{- end }}
+            {{- if or (eq ($oidc.usePKCE | toString) "true") (eq $usePKCE "true") }}
+            - "-oidc-use-pkce=$(OIDC_USE_PKCE)"
+            {{- end }}
+            {{- if or (ne $oidc.meUserInfoURL "") (ne $meUserInfoURL "") }}
+            - "-me-user-info-url=$(ME_USER_INFO_URL)"
+            {{- end }}
+            {{- else }}
+            - "-oidc-client-id=$(OIDC_CLIENT_ID)"
+            - "-oidc-client-secret=$(OIDC_CLIENT_SECRET)"
+            - "-oidc-idp-issuer-url=$(OIDC_ISSUER_URL)"
+            - "-oidc-scopes=$(OIDC_SCOPES)"
+            {{- if or (ne $oidc.callbackURL "") (ne $callbackURL "") }}
+            # Check if callbackURL is non empty either from env or oidc.config
+            - "-oidc-callback-url=$(OIDC_CALLBACK_URL)"
+            {{- end }}
+            {{- if or (eq ($oidc.usePKCE | toString) "true") (eq $usePKCE "true") }}
+            - "-oidc-use-pkce=$(OIDC_USE_PKCE)"
+            {{- end }}
+            {{- if or (ne $oidc.validatorClientID "") (ne $validatorClientID "") }}
+            # Check if validatorClientID is non empty either from env or oidc.config
+            - "-oidc-validator-client-id=$(OIDC_VALIDATOR_CLIENT_ID)"
+            {{- end }}
+            {{- if or (ne $oidc.validatorIssuerURL "") (ne $validatorIssuerURL "") }}
+            # Check if validatorIssuerURL is non empty either from env or oidc.config
+            - "-oidc-validator-idp-issuer-url=$(OIDC_VALIDATOR_ISSUER_URL)"
+            {{- end }}
+            {{- if or (eq ($oidc.useAccessToken | toString) "true") (eq $useAccessToken "true") }}
+            # Check if useAccessToken is non false either from env or oidc.config
+            - "-oidc-use-access-token=$(OIDC_USE_ACCESS_TOKEN)"
+            {{- end }}
+            {{- if or (ne $oidc.meUserInfoURL "") (ne $meUserInfoURL "") }}
+            - "-me-user-info-url=$(ME_USER_INFO_URL)"
+            {{- end }}
+            {{- end }}
+            {{- with .Values.config.baseURL }}
+            - "-base-url={{ . }}"
+            {{- end }}
+            {{- with .Values.config.tlsCertPath }}
+            - "-tls-cert-path={{ . }}"
+            {{- end }}
+            {{- with .Values.config.tlsKeyPath }}
+            - "-tls-key-path={{ . }}"
+            {{- end }}
+            {{- with .Values.config.extraArgs }}
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 4466
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: "{{ .Values.config.baseURL }}/"
+              port: http
+          readinessProbe:
+            httpGet:
+              path: "{{ .Values.config.baseURL }}/"
+              port: http
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- if or .Values.pluginsManager.enabled .Values.volumeMounts }}
+          volumeMounts:
+            {{- if .Values.pluginsManager.enabled }}
+            - name: plugins-dir
+              mountPath: {{ .Values.config.pluginsDir }}
+            {{- end }}
+            {{- with .Values.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+        {{- if .Values.pluginsManager.enabled }}
+        - name: headlamp-plugin
+          image: {{ .Values.pluginsManager.baseImage }}
+          command: ["/bin/sh", "-c"]
+          {{- if .Values.pluginsManager.env }}
+          env:
+            {{- toYaml .Values.pluginsManager.env | nindent 12 }}
+          {{- end }}
+          args:
+            - |
+              if [ -f "/config/plugin.yml" ]; then
+                echo "Installing plugins from config..."
+                cat /config/plugin.yml
+                # Use a writable cache directory
+                export NPM_CONFIG_CACHE=/tmp/npm-cache
+                # Use a writable config directory
+                export NPM_CONFIG_USERCONFIG=/tmp/npm-userconfig
+                mkdir -p /tmp/npm-cache /tmp/npm-userconfig
+                npx --yes @headlamp-k8s/pluginctl@{{ .Values.pluginsManager.version }} install --config /config/plugin.yml --folderName {{ .Values.config.pluginsDir }} --watch
+              fi
+          volumeMounts:
+            - name: plugins-dir
+              mountPath: {{ .Values.config.pluginsDir }}
+            - name: plugin-config
+              mountPath: /config
+            {{- with .Values.pluginsManager.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.pluginsManager.resources | nindent 12 }}
+          securityContext:
+            {{- if .Values.pluginsManager.securityContext }}
+              {{- toYaml .Values.pluginsManager.securityContext | nindent 12 }}
+            {{- else if $.Values.securityContext }}
+              {{- toYaml $.Values.securityContext | nindent 12 }}
+            {{- else }}
+              {{- $defaultSC := dict "allowPrivilegeEscalation" false "runAsNonRoot" true "seccompProfile" (dict "type" "RuntimeDefault") "capabilities" (dict "drop" (list "ALL")) }}
+              {{- toYaml $defaultSC | nindent 12 }}
+            {{- end }}
+        {{- end }}
+        {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- range $constraint := . }}
+        - {{ toYaml $constraint | nindent 10 }}
+          {{- if not $constraint.labelSelector }}
+          labelSelector:
+            matchLabels:
+              {{- include "headlamp.selectorLabels" $ | nindent 14 }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- if or .Values.pluginsManager.enabled .Values.volumes }}
+      volumes:
+        {{- if .Values.pluginsManager.enabled }}
+        - name: plugins-dir
+          emptyDir: {}
+        - name: plugin-config
+          configMap:
+            name: {{ include "headlamp.fullname" . }}-plugin-config
+        {{- end }}
+        {{- with .Values.volumes}}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}

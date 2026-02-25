@@ -1,0 +1,17 @@
+config:
+  tlsCertPath: "/headlamp-cert/headlamp-ca.crt"
+  tlsKeyPath: "/headlamp-cert/headlamp-tls.key"
+
+volumes:
+  - name: "headlamp-cert"
+    secret:
+      secretName: "headlamp-tls"
+      items:
+        - key: "tls.crt"
+          path: "headlamp-ca.crt"
+        - key: "tls.key"
+          path: "headlamp-tls.key"
+
+volumeMounts:
+  - name: "headlamp-cert"
+    mountPath: "/headlamp-cert"

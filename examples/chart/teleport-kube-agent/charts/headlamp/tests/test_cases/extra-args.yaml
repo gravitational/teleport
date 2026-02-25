@@ -1,0 +1,5 @@
+# This is a test case for extraArgs in the Headlamp deployment.
+# Each test case is a dictionary with the following keys:
+config:
+  extraArgs:
+  - -insecure-ssl

@@ -1,0 +1,12 @@
+# Test case for HTTPRoute Gateway API configuration
+httpRoute:
+  enabled: true
+  annotations:
+    gateway.example.com/annotation: "test"
+  labels:
+    app.kubernetes.io/component: ingress
+  parentRefs:
+    - name: my-gateway
+      namespace: gateway-namespace
+  hostnames:
+    - headlamp.example.com

@@ -1,0 +1,20 @@
+{{- if .Values.clusterRoleBinding.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "headlamp.fullname" . }}-admin
+  labels:
+    {{- include "headlamp.labels" . | nindent 4 }}
+  {{- with .Values.clusterRoleBinding.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .Values.clusterRoleBinding.clusterRoleName }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "headlamp.serviceAccountName" . }}
+  namespace: {{ include "headlamp.namespace" . }}
+{{- end }}
