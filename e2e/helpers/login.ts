@@ -3,6 +3,10 @@ import { expect, type Page } from '@playwright/test';
 import { mockWebAuthn } from '../utils/mockWebAuthn';
 
 export async function login(page: Page, username = 'bob', password = 'secret') {
+  await page.addInitScript(() =>
+    localStorage.setItem('grv_teleport_license_acknowledged', 'true')
+  );
+
   const { cleanup } = await mockWebAuthn(page);
 
   await page.goto('/');
