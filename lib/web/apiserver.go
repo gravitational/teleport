@@ -190,6 +190,9 @@ type Handler struct {
 	findEndpointCache *utils.FnCache
 
 	autoUpdateResolver *autoupdatelookup.Resolver
+
+	// acrService is an audit-log service powered by an LLM.
+	acrService *acr.Service
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -338,10 +341,6 @@ type Config struct {
 
 	// DatabaseREPLRegistry is used for retrieving database REPL.
 	DatabaseREPLRegistry dbrepl.REPLRegistry
-
-	// ACRService is an optional audit-log classification service powered by
-	// an LLM. When nil the discoveryLog handler returns raw events instead.
-	ACRService *acr.Service
 }
 
 // SetDefaults ensures proper default values are set if
@@ -491,6 +490,13 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		clusterFeatures:      cfg.ClusterFeatures,
 		healthCheckAppServer: cfg.HealthCheckAppServer,
 		tracer:               cfg.TracerProvider.Tracer(teleport.ComponentWeb),
+	}
+
+	// Initialize the ACR service for LLM-powered audit log review.
+	if acrSvc, err := acr.NewService(); err == nil {
+		h.acrService = acrSvc
+	} else {
+		h.logger.WarnContext(cfg.Context, "ACR service unavailable, discoveryLog endpoint will be disabled.", "error", err)
 	}
 
 	if automaticUpgrades(cfg.ClusterFeatures) && h.cfg.AutomaticUpgradesChannels == nil {

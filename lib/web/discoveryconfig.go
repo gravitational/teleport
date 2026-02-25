@@ -238,9 +238,9 @@ func (h *Handler) discoveryLog(w http.ResponseWriter, r *http.Request, p httprou
 		})
 	}
 
-	// Graceful degradation: when no ACR service is configured, return raw entries.
-	if h.cfg.ACRService == nil {
-		return entries, nil
+	// Hackathon
+	if h.acrService == nil {
+		return nil, trace.BadParameter("ACR service is not configured (OPENAI_API_KEY not set)")
 	}
 
 	auditJSON, err := json.Marshal(entries)
@@ -248,7 +248,7 @@ func (h *Handler) discoveryLog(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.Wrap(err)
 	}
 
-	result, err := h.cfg.ACRService.Classify(ctx, string(auditJSON))
+	result, err := h.acrService.Classify(ctx, string(auditJSON))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
