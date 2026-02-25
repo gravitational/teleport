@@ -185,6 +185,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
 	"github.com/gravitational/teleport/lib/utils/certreloader"
+	listenerutils "github.com/gravitational/teleport/lib/utils/listener"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	procutils "github.com/gravitational/teleport/lib/utils/process"
 	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
@@ -5278,6 +5279,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Register web proxy server
 	alpnHandlerForWeb := &alpnproxy.ConnectionHandlerWrapper{}
+	var webAppHandler *webapp.Handler
 
 	if !process.Config.Proxy.DisableWebService {
 		var fs http.FileSystem
@@ -5461,6 +5463,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		webAppHandler = webHandler.GetAppHandler()
 
 		webServer, err = web.NewServer(web.ServerConfig{
 			Server: &http.Server{
@@ -5519,6 +5522,59 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolMCP),
 			Handler:   webServer.HandleConnection,
 		})
+
+		// TODO(greedy52) refactor. ideally use the same web server. otherwise
+		// have to add tracing stuff. Also need to look into L7 LB support.
+		if webAppHandler != nil {
+			process.logger.InfoContext(process.ExitContext(), "=== add router for ProtocolHTTPSInMTLS")
+			type tlsConnWithContext struct {
+				utils.TLSConn
+				Context context.Context
+			}
+			appMiddleware := &authz.Middleware{
+				ClusterName:   conn.ClusterName(),
+				AcceptedUsage: []string{teleport.UsageAppsOnly},
+			}
+
+			miniAppServerListener := listenerutils.NewInMemoryListener()
+			miniAppServerTLSConfig := tlsConfigWeb.Clone()
+			miniAppServer := http.Server{
+				Handler: webAppHandler,
+				ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+					withContext, ok := c.(tlsConnWithContext)
+					if ok {
+						// Use original context
+						return withContext.Context
+					}
+					return ctx
+				},
+			}
+			// TODO(greedy52) we need to properly stop this
+			go miniAppServer.Serve(miniAppServerListener)
+
+			alpnRouter.Add(alpnproxy.HandlerDecs{
+				MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolHTTPSInMTLS),
+				Handler: func(ctx context.Context, conn net.Conn) error {
+					// Async handler, do not close conn here.
+					process.logger.InfoContext(ctx, "=== handling HTTPS in mTLS")
+
+					tlsConnWithCert, ok := conn.(utils.TLSConn)
+					if !ok {
+						return trace.BadParameter("expected utils.TLSConn, got %T", conn)
+					}
+					ctx, err := appMiddleware.WrapContextWithUser(ctx, tlsConnWithCert)
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					if identity, err := authz.UserFromContext(ctx); err == nil {
+						process.logger.InfoContext(ctx, "=== found identity", "name", identity.GetIdentity().Username, "route_to_app", identity.GetIdentity().RouteToApp)
+					}
+
+					tunneledHTTPSConn := tls.Server(tlsConnWithCert, miniAppServerTLSConfig)
+					return trace.Wrap(miniAppServerListener.PushConn(ctx, tlsConnWithContext{tunneledHTTPSConn, ctx}))
+				},
+			})
+		}
 	}
 
 	var peerAddrString string

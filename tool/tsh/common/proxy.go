@@ -456,6 +456,14 @@ func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.Co
 }
 
 func alpnProtocolForApp(app types.Application) alpncommon.Protocol {
+	// TODO(greedy52) delete. this is for PoC
+	// (terminal 1) $ export TELEPORT_UNSTABLE_APP_ALPN_PROTOCOL=teleport-https-in-mtls
+	// (terminal 1) $ tsh proxy app dumper -p 8888 --debug
+	// (terminal 2) $  curl https://dumper.steve.teleport.test --connect-to dumper.steve.teleport.test:443:localhost:8888
+	if overwrite := os.Getenv("TELEPORT_UNSTABLE_APP_ALPN_PROTOCOL"); overwrite != "" {
+		logger.InfoContext(context.TODO(), "=== overwriting alpnProtocolForApp", "protocol", overwrite)
+		return alpncommon.Protocol(overwrite)
+	}
 	if app.IsTCP() {
 		return alpncommon.ProtocolTCP
 	}

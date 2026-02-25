@@ -115,6 +115,11 @@ const (
 	// ProtocolTCP is TLS ALPN protocol value used to indicate plain TCP connection.
 	ProtocolTCP Protocol = "teleport-tcp"
 
+	// ProtocolHTTPSInMTLS tunnels HTTPS (in http/1.1) with no mTLS in the
+	// TLS-routing mTLS tunnel.
+	// TODO(greedy52) properly explain this
+	ProtocolHTTPSInMTLS Protocol = "teleport-https-in-mtls"
+
 	// ProtocolPingSuffix is TLS ALPN suffix used to wrap connections with
 	// Ping.
 	ProtocolPingSuffix Protocol = "-ping"
@@ -142,6 +147,7 @@ var SupportedProtocols = WithPingProtocols(
 		ProtocolProxyGRPCInsecure,
 		ProtocolProxyGRPCSecure,
 		ProtocolMCP,
+		ProtocolHTTPSInMTLS,
 	}, DatabaseProtocols...),
 )
 

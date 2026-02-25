@@ -23,6 +23,7 @@ package app
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"log/slog"
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -416,7 +418,23 @@ func (h *Handler) getAppSessionFromCert(r *http.Request) (types.WebSession, erro
 	if !HasClientCert(r) {
 		return nil, trace.BadParameter("request missing client certificate")
 	}
-	certificate := r.TLS.PeerCertificates[0]
+
+	// TODO(greedy52) refactor identity selection logic. We have following situations:
+	// (1) Identity from session cookie
+	// (2) Identity from https with mTLS
+	// (3) Identity from TLS-routing mTLS
+	// (4) Identity from both TLS-routing mTLS and inner https layer (either cookie or TLS cert)
+	// First three are easy. For (4), we should first validate they are the same
+	// identity. Then we have to decide which layer's identity has higher
+	// priority (e.g. which session ID).
+	var certificate *x509.Certificate
+	if certFromCtx, err := authz.UserCertificateFromContext(r.Context()); err == nil {
+		certificate = certFromCtx
+		h.logger.InfoContext(r.Context(), "Loading certificate from context")
+	} else {
+		certificate = r.TLS.PeerCertificates[0]
+	}
+
 	identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -535,6 +553,9 @@ func HasSessionCookie(r *http.Request) bool {
 
 // HasClientCert checks if the request has a client certificate.
 func HasClientCert(r *http.Request) bool {
+	if _, err := authz.UserCertificateFromContext(r.Context()); err == nil {
+		return true
+	}
 	return r.TLS != nil && len(r.TLS.PeerCertificates) > 0
 }
 

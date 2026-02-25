@@ -8,6 +8,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gravitational/trace"
+	"github.com/vishvananda/netlink"
+	"golang.zx2c4.com/wireguard/tun"
+
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -19,9 +23,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/vnet"
-	"github.com/gravitational/trace"
-	"github.com/vishvananda/netlink"
-	"golang.zx2c4.com/wireguard/tun"
 )
 
 func ServiceBuilder(cfg *Config, alpnUpgradeCache *internal.ALPNUpgradeCache) bot.ServiceBuilder {
@@ -203,7 +204,10 @@ func (s *applicationService) ResolveFQDN(ctx context.Context, req *vnetv1.Resolv
 	}
 
 	// Only TCP apps are supported.
-	if !app.IsTCP() {
+	if !app.IsTCP() && !app.IsHTTP() && !app.IsLLM() {
+		// TODO(greedy52) properly support ResolveFQDNResponse_MatchedWebApp
+		// instead of using TCP response.
+		slog.InfoContext(ctx, "App not supported", "url", app.GetURI())
 		return &vnetv1.ResolveFQDNResponse{
 			Match: &vnetv1.ResolveFQDNResponse_MatchedWebApp{
 				MatchedWebApp: &vnetv1.MatchedWebApp{},

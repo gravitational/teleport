@@ -766,6 +766,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	}, nil
 }
 
+func (h *APIHandler) GetAppHandler() *app.Handler {
+	return h.appHandler
+}
+
 type webSession struct {
 	Session string
 	XCSRF   string

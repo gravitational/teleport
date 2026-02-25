@@ -23,6 +23,8 @@ import (
 	"net"
 	"net/http"
 	"sync"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // InMemoryListener is a in-memory implementation of a net.Listener.
@@ -85,6 +87,20 @@ func (m *InMemoryListener) DialContext(ctx context.Context, _ string, _ string) 
 		return nil, ctx.Err()
 	}
 	return clientConn, nil
+}
+
+// TODO(greedy52)
+func (m *InMemoryListener) PushConn(ctx context.Context, conn utils.TLSConn) error {
+	select {
+	case m.connCh <- conn:
+		return nil
+	case <-ctx.Done():
+		// In this case the connection was not accepted in time by the server
+		// and the dial context is done. To avoid having the server using an
+		// orphned connection we should close it.
+		_ = conn.Close()
+		return ctx.Err()
+	}
 }
 
 // MakeHTTPClient is a helper to generate an HTTP client that dials this listener.

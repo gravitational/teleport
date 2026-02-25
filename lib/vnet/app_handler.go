@@ -96,9 +96,17 @@ func (h *tcpAppHandler) getOrInitializeLocalProxy(ctx context.Context, localPort
 		appKey:      h.cfg.appInfo.GetAppKey(),
 	}
 	dialOptions := h.cfg.appInfo.GetDialOptions()
+
+	// TODO(greedy52) refactor to httpAppHandler ?
+	protocol := alpncommon.ProtocolTCP
+	if h.cfg.appInfo.App.IsHTTP() || h.cfg.appInfo.App.IsLLM() {
+		protocol = alpncommon.ProtocolHTTPSInMTLS
+	}
+	h.log.InfoContext(ctx, "Preparing local proxy", "alpn", protocol)
+
 	localProxyConfig := alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:         dialOptions.GetWebProxyAddr(),
-		Protocols:               []alpncommon.Protocol{alpncommon.ProtocolTCP},
+		Protocols:               []alpncommon.Protocol{protocol},
 		ParentContext:           ctx,
 		SNI:                     dialOptions.GetSni(),
 		ALPNConnUpgradeRequired: dialOptions.GetAlpnConnUpgradeRequired(),
