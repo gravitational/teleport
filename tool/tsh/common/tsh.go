@@ -1222,7 +1222,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	join := app.Command("join", "Join the active SSH or Kubernetes session.")
 	join.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	join.Flag("mode", "Mode of joining the session, valid modes are observer, moderator and peer.").Short('m').Default("observer").EnumVar(&cf.JoinMode, "observer", "moderator", "peer")
-	join.Arg("session-id", "ID of the session to join.").Required().StringVar(&cf.SessionID)
+	join.Arg("session-id", "ID of the session to join.").Required().HintAction(autocomplete.HintAction(autocomplete.ActiveSessionsKey)).StringVar(&cf.SessionID)
 	// play
 	play := app.Command("play", "Replay the recorded session (SSH, Kubernetes, App, DB).")
 	play.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
@@ -1231,14 +1231,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	play.Flag("format", defaults.FormatFlagDescription(
 		teleport.PTY, teleport.JSON, teleport.YAML, teleport.Text,
 	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML, teleport.Text)
-	play.Arg("session-id", "ID or path to session file to play.").Required().HintAction(func() []string {
-		cache := autocomplete.NewAutoComplete(nil, nil)
-		recordings, err := cache.Get(autocomplete.RecordingsKey)
-		if err != nil {
-			return []string{}
-		}
-		return recordings
-	}).StringVar(&cf.SessionID)
+	play.Arg("session-id", "ID or path to session file to play.").Required().HintAction(autocomplete.HintAction(autocomplete.RecordingsKey)).StringVar(&cf.SessionID)
 
 	// scp
 	scp := app.Command("scp", "Transfer files to a remote SSH node.")

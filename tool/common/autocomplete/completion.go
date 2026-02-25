@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
+	"slices"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -45,9 +46,16 @@ type cacheEntry struct {
 type resourceGetter func(ctx context.Context) ([]string, error)
 
 const (
-	HostKey       = "nodes_by_hostname"
-	RecordingsKey = "recordings"
+	HostKey           = "nodes_by_hostname"
+	RecordingsKey     = "recordings"
+	ActiveSessionsKey = "active_sessions"
 )
+
+var virtualResourceKeys = []string{
+	HostKey,
+	RecordingsKey,
+	ActiveSessionsKey,
+}
 
 func NewAutoComplete(clt *authclient.Client, tc *client.TeleportClient) *cache {
 	filePath := DefaultCache
@@ -109,6 +117,21 @@ func NewAutoComplete(clt *authclient.Client, tc *client.TeleportClient) *cache {
 			}
 			return sessionIDs, nil
 		}
+		updaters[ActiveSessionsKey] = func(ctx context.Context) ([]string, error) {
+			clt, err := tc.ConnectToCluster(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			sessions, err := clt.AuthClient.GetActiveSessionTrackers(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			sessionIDs := make([]string, 0, len(sessions))
+			for _, session := range sessions {
+				sessionIDs = append(sessionIDs, session.GetSessionID())
+			}
+			return sessionIDs, nil
+		}
 	}
 	return &cache{filepath: filePath, resourceGettersFunc: updaters}
 }
@@ -165,7 +188,7 @@ func (c *cache) Get(kind string) ([]string, error) {
 	resources := []string{}
 	if kind == "" {
 		for kind, res := range cacheStorage.Resources {
-			if kind == HostKey || kind == RecordingsKey {
+			if slices.Contains(virtualResourceKeys, kind) {
 				continue
 			}
 			for _, resource := range res.ResourceNames {
