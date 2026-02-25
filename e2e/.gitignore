@@ -6,3 +6,4 @@ playwright/.cache/
 certs/
 data/
 teleport-e2e.yaml
+teleport.log

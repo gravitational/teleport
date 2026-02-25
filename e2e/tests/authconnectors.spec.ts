@@ -18,9 +18,12 @@
 
 import { expect, test } from '@playwright/test';
 
+import { mockWebAuthn } from '../utils/mockWebAuthn';
+
 test('verify that a user can create and delete an auth connector', async ({
   page,
 }) => {
+  await mockWebAuthn(page);
   await page.goto('/');
   await page.getByRole('button', { name: 'Zero Trust Access' }).click();
   await page.getByRole('link', { name: 'Auth Connectors' }).click();

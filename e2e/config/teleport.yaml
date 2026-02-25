@@ -19,7 +19,7 @@ auth_service:
     - "node,auth,proxy,db,trusted_cluster:foo"
   authentication:
     type: local
-    second_factor: on
+    second_factors: ["webauthn"]
     webauthn:
       rp_id: "localhost"
 

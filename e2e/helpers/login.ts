@@ -7,7 +7,7 @@ export async function login(page: Page, username = 'bob', password = 'secret') {
     localStorage.setItem('grv_teleport_license_acknowledged', 'true')
   );
 
-  const { cleanup } = await mockWebAuthn(page);
+  await mockWebAuthn(page);
 
   await page.goto('/');
 
@@ -22,6 +22,4 @@ export async function login(page: Page, username = 'bob', password = 'secret') {
   await page.waitForLoadState('networkidle');
 
   await expect(page.getByText(/^Resources$/).first()).toBeVisible();
-
-  return { cleanup };
 }
