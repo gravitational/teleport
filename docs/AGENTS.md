@@ -338,3 +338,37 @@ option_one: value
 
 - [Related Guide](./related-guide.mdx)
 ```
+
+### Conceptual guide
+
+```mdx
+---
+title: How [Feature] Works
+description: Learn how [feature] works in Teleport
+tags:
+  - conceptual
+---
+
+Brief introduction explaining what this guide covers and why it matters.
+
+## [Main concept]
+
+Explanation of the main concept in 1-3 paragraphs.
+
+### [Sub-component or process]
+
+Explanation of the sub-component or process.
+
+### [Another sub-component]
+
+Explanation.
+
+## [Related concept]
+
+Explanation of a related concept or aspect.
+
+## Next steps
+
+- [Related how-to guide](./related-how-to.mdx)
+- [Related reference](./related-reference.mdx)
+```
